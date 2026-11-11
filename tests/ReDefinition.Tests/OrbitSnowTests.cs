@@ -4,12 +4,15 @@ using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
-    // The pure parts of the orbit and map snow: the texel convention, the mask that has to equal the ground's, the heights, the schedule.
+    // The pure parts of the orbit and map cover: the texel convention, the mask that has to equal the ground's depth, the heights, the
+    // schedule. The ground's depth is CoverDepth on the field's map (CoverMap); the orbit mask is the same function per texel.
     [TestClass]
     public class OrbitSnowTests
     {
-        private const double Winter = 0.06, Summer = 0.56;
-        private const double Line = 42;
+        private static CoverDef Snow()
+        {
+            return new CoverDef("snow", CoverKind.Snow, 0.93f, 0.95f, 0.98f, 0.8f, 0.5f, -90, 90, double.NegativeInfinity, double.PositiveInfinity, 60, true, true, 10800, 0.3f, 4f);
+        }
 
         // PQS.BuildVertexMapCoords written out: latitude from y, longitude from the x and z components, u and v from them.
         private static void PqsCoordinates(double x, double y, double z, out double u, out double v)
@@ -53,96 +56,107 @@ namespace ReDefinition.Tests
             Assert.AreEqual(Math.Sin(45 * Math.PI / 180), y, 1e-9, "v 0.75 is 45 degrees north");
         }
 
-        private static byte[] Mask(double phase, float strength, float[] heights, int hw, int hh, int w, int h, out sbyte[] noise)
+        // A field map with a band of 0.3 m of snow north of 60 degrees and a patch of 0.5 m around 10 N, 30 E.
+        private static CoverMap.Frame BandFrame(CoverMap map)
         {
-            noise = OrbitMask.BuildNoise(w, h);
-            var rgba = new byte[w * h * 4];
-            OrbitMask.Fill(rgba, w, h, noise, heights, hw, hh, phase, strength, Line);
+            const int w = 256, h = 128;
+            var values = new float[w * h];
+            for (int j = 0; j < h; j++)
+            {
+                double lat = 90.0 - (j + 0.5) * 180.0 / h;
+                for (int i = 0; i < w; i++)
+                {
+                    double lon = -180.0 + (i + 0.5) * 360.0 / w;
+                    float v = lat > 60 ? 0.3f : 0f;
+                    if (Math.Abs(lat - 10) < 8 && Math.Abs(lon - 30) < 16) v = 0.5f;
+                    values[j * w + i] = v;
+                }
+            }
+            CoverMap.Frame frame = map.Resample(values, w, h, 0.5f, 1, 100.0);
+            map.Publish(frame);
+            return frame;
+        }
+
+        private static byte[] Fill(CoverMap.Frame frame, CoverDef def, double strength, double edge, float[] heights, int hw, int hh, int w, int hgt, bool ocean)
+        {
+            sbyte[] noise = OrbitMask.BuildNoise(w, hgt);
+            float[] lat, lon;
+            OrbitMask.BuildCoordinates(w, hgt, KspFrame.Sphere, out lat, out lon);
+            var rgba = new byte[w * hgt * 4];
+            OrbitMask.Fill(rgba, w, hgt, noise, heights, hw, hh, lat, lon, frame, def, strength, edge, ocean);
             return rgba;
         }
 
-        [TestMethod]
-        public void TheMaskIsTheGroundFunctionAtEveryTexel()
-        {
-            const int w = 128, h = 64;
-            sbyte[] noise;
-            byte[] rgba = Mask(Winter, 1f, null, 0, 0, w, h, out noise);
-            int checkedTexels = 0;
-            for (int row = 0; row < h; row += 3)
-            {
-                double v = (row + 0.5) / h;
-                for (int column = 0; column < w; column += 5)
-                {
-                    double u = (column + 0.5) / w;
-                    double x, y, z;
-                    OrbitMask.Direction(u, v, out x, out y, out z);
-                    // The ground reads the noise of the PQS direction, unquantised; the table keeps 1/127 of it.
-                    double ground = SnowMask.Coverage(OrbitMask.LatitudeDegrees(v), 0, Winter, SnowNoise.Value(x, y, z), Line);
-                    int expected = (int)Math.Round(SnowPaint.Amount(ground, 1f) * 255f);
-                    int alpha = rgba[(row * w + column) * 4 + 3];
-                    Assert.IsTrue(Math.Abs(alpha - expected) <= 3, "row " + row + " column " + column + ": " + alpha + " against " + expected);
-                    checkedTexels++;
-                }
-            }
-            Assert.IsTrue(checkedTexels > 300);
-            // The colour is the ground's snow colour.
-            Assert.AreEqual((byte)Math.Round(SnowPaint.SnowRed * 255f), rgba[0]);
-            Assert.AreEqual((byte)Math.Round(SnowPaint.SnowGreen * 255f), rgba[1]);
-            Assert.AreEqual((byte)Math.Round(SnowPaint.SnowBlue * 255f), rgba[2]);
-        }
-
-        private static double MeanAlpha(byte[] rgba, int w, int h, double fromLat, double toLat)
+        private static double MeanAlpha(byte[] rgba, int w, int h, double latFrom, double latTo)
         {
             double sum = 0;
             int n = 0;
             for (int row = 0; row < h; row++)
             {
                 double lat = OrbitMask.LatitudeDegrees((row + 0.5) / h);
-                if (lat < fromLat || lat > toLat) continue;
-                for (int column = 0; column < w; column++)
+                if (lat < latFrom || lat > latTo) continue;
+                for (int c = 0; c < w; c++)
                 {
-                    sum += rgba[(row * w + column) * 4 + 3];
+                    sum += rgba[(row * w + c) * 4 + 3] / 255.0;
                     n++;
                 }
             }
-            return sum / Math.Max(1, n) / 255.0;
+            return sum / n;
         }
 
         [TestMethod]
-        public void TheNorthIsSnowyInItsWinterAndBareInItsSummerAndTheSouthIsTheOtherWayRound()
+        public void TheMaskIsTheGroundDepthAtEveryTexel()
         {
             const int w = 128, h = 64;
+            CoverDef def = Snow();
+            CoverMap.Frame frame = BandFrame(new CoverMap());
             sbyte[] noise;
-            byte[] winter = Mask(Winter, 1f, null, 0, 0, w, h, out noise);
-            byte[] summer = Mask(Summer, 1f, null, 0, 0, w, h, out noise);
-            Assert.IsTrue(MeanAlpha(winter, w, h, 45, 70) > 0.8, "north band in its winter " + MeanAlpha(winter, w, h, 45, 70));
-            Assert.IsTrue(MeanAlpha(summer, w, h, 45, 70) < 0.1, "north band in its summer " + MeanAlpha(summer, w, h, 45, 70));
-            Assert.IsTrue(MeanAlpha(winter, w, h, -70, -45) < 0.1, "south band while the north has winter");
-            Assert.IsTrue(MeanAlpha(summer, w, h, -70, -45) > 0.8, "south band while the north has summer");
-            Assert.AreEqual(0.0, MeanAlpha(winter, w, h, -20, 20), 1e-9, "no snow at the equator");
-            Assert.AreEqual(0.0, MeanAlpha(summer, w, h, -20, 20), 1e-9);
-            Assert.IsTrue(MeanAlpha(summer, w, h, 84, 90) > 0.99, "the polar caps stay");
-            Assert.IsTrue(MeanAlpha(summer, w, h, -90, -84) > 0.99);
+            noise = OrbitMask.BuildNoise(w, h);
+            float[] lat, lon;
+            OrbitMask.BuildCoordinates(w, h, KspFrame.Sphere, out lat, out lon);
+            var rgba = new byte[w * h * 4];
+            OrbitMask.Fill(rgba, w, h, noise, null, OrbitMask.HeightWidth, OrbitMask.HeightHeight, lat, lon, frame, def, 1.0, 0.12, false);
+            // On a sphere with the sphere's own frame, the game's longitude is the PQS longitude.
+            for (int row = 0; row < h; row += 3)
+            {
+                for (int c = 0; c < w; c += 5)
+                {
+                    int at = row * w + c;
+                    double depthM = frame.Sample01(lat[at], lon[at]) * def.MaxDepthM;
+                    double mask = CoverDepth.Mask(def, lat[at], 0, 0, false);
+                    double expected = CoverDepth.Depth01(def, depthM, mask, noise[at] / 127.0, 0.12, 1.0);
+                    Assert.AreEqual(expected * 255.0, rgba[at * 4 + 3], 1.0, "row " + row + " column " + c);
+                    Assert.AreEqual((byte)Math.Round(0.93 * 255), rgba[at * 4], "the layer's colour");
+                }
+            }
         }
 
         [TestMethod]
-        public void TheStrengthScalesTheMaskAndHeightLowersTheLine()
+        public void TheCoverIsWhereTheFieldPutIt()
         {
-            const int w = 128, h = 64;
-            sbyte[] noise;
-            byte[] full = Mask(Winter, 1f, null, 0, 0, w, h, out noise);
-            byte[] half = Mask(Winter, 0.5f, null, 0, 0, w, h, out noise);
-            Assert.AreEqual(MeanAlpha(full, w, h, 40, 80) * 0.5, MeanAlpha(half, w, h, 40, 80), 0.01);
+            const int w = 256, h = 128;
+            CoverMap.Frame frame = BandFrame(new CoverMap());
+            byte[] mask = Fill(frame, Snow(), 1.0, 0.0, null, OrbitMask.HeightWidth, OrbitMask.HeightHeight, w, h, false);
+            Assert.IsTrue(MeanAlpha(mask, w, h, 65, 90) > 0.45 && MeanAlpha(mask, w, h, 65, 90) < 0.7, "0.3 m of 0.5 m is 0.6 of the full depth");
+            Assert.AreEqual(0.0, MeanAlpha(mask, w, h, -80, 0), 1e-9, "the south is bare");
+            Assert.AreEqual(0.0, MeanAlpha(mask, w, h, 20, 55), 1e-9, "the middle latitudes are bare");
+        }
 
-            // A uniform grid of 4 km lowers the line by 6 degrees: in the northern midsummer the line is near 78 degrees, and with the
-            // heights the band between 55 and 78 degrees gets snow that it does not get flat. The equator has none either way.
-            var heights = new float[16 * 8];
-            for (int i = 0; i < heights.Length; i++) heights[i] = 4000f;
-            byte[] flat = Mask(Summer, 1f, null, 0, 0, w, h, out noise);
-            byte[] mountains = Mask(Summer, 1f, heights, 16, 8, w, h, out noise);
-            Assert.IsTrue(MeanAlpha(mountains, w, h, 55, 78) > MeanAlpha(flat, w, h, 55, 78) + 0.2);
-            Assert.AreEqual(0.0, MeanAlpha(flat, w, h, -20, 20), 1e-9);
-            Assert.AreEqual(0.0, MeanAlpha(mountains, w, h, -20, 20), 1e-9);
+        [TestMethod]
+        public void TheStrengthScalesTheMaskAndTheSeaStaysBare()
+        {
+            const int w = 256, h = 128;
+            CoverMap.Frame frame = BandFrame(new CoverMap());
+            byte[] full = Fill(frame, Snow(), 1.0, 0.0, null, OrbitMask.HeightWidth, OrbitMask.HeightHeight, w, h, false);
+            byte[] half = Fill(frame, Snow(), 0.5, 0.0, null, OrbitMask.HeightWidth, OrbitMask.HeightHeight, w, h, false);
+            Assert.AreEqual(MeanAlpha(full, w, h, 65, 90) / 2.0, MeanAlpha(half, w, h, 65, 90), 0.01);
+            // A grid that is below sea level everywhere on a body with an ocean: the layer does not lie on water.
+            var sea = new float[OrbitMask.HeightWidth * OrbitMask.HeightHeight];
+            for (int i = 0; i < sea.Length; i++) sea[i] = -50f;
+            byte[] wet = Fill(frame, Snow(), 1.0, 0.0, sea, OrbitMask.HeightWidth, OrbitMask.HeightHeight, w, h, true);
+            Assert.AreEqual(0.0, MeanAlpha(wet, w, h, -90, 90), 1e-9);
+            byte[] dryBody = Fill(frame, Snow(), 1.0, 0.0, sea, OrbitMask.HeightWidth, OrbitMask.HeightHeight, w, h, false);
+            Assert.IsTrue(MeanAlpha(dryBody, w, h, 65, 90) > 0.4, "no ocean, so no water");
         }
 
         [TestMethod]
@@ -150,15 +164,11 @@ namespace ReDefinition.Tests
         {
             var grid = new float[4 * 2];
             for (int i = 0; i < grid.Length; i++) grid[i] = i * 100f;
-            // At a cell centre the value is the cell's.
             Assert.AreEqual(0f, OrbitMask.Height(grid, 4, 2, 0.125, 0.25), 1e-3);
             Assert.AreEqual(200f, OrbitMask.Height(grid, 4, 2, 0.625, 0.25), 1e-3);
             Assert.AreEqual(500f, OrbitMask.Height(grid, 4, 2, 0.375, 0.75), 1e-3);
-            // Halfway between two cells of a row.
             Assert.AreEqual(50f, OrbitMask.Height(grid, 4, 2, 0.25, 0.25), 1e-3);
-            // Across the seam between the last and the first column: 300 and 0.
             Assert.AreEqual(150f, OrbitMask.Height(grid, 4, 2, 0.0, 0.25), 1e-3);
-            // The poles do not wrap in latitude.
             Assert.AreEqual(0f, OrbitMask.Height(grid, 4, 2, 0.125, 0.0), 1e-3);
             Assert.AreEqual(700f, OrbitMask.Height(grid, 4, 2, 0.875, 1.0), 1e-3);
             grid[1] = float.NaN;
@@ -186,19 +196,14 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheCompositionRunsOnTheScheduleOnly()
+        public void TheCompositionFollowsANewFrameAfterTheShortStepOnly()
         {
-            Assert.IsTrue(OrbitMask.Due(double.NaN, 0.3, 0, false), "never composed");
-            Assert.IsFalse(OrbitMask.Due(0.3, 0.305, 1000, false), "a small move is waited out");
-            Assert.IsFalse(OrbitMask.Due(0.3, 0.311, 10, false), "a step of 0.01 waits 30 s");
-            Assert.IsTrue(OrbitMask.Due(0.3, 0.311, 31, false));
-            Assert.IsFalse(OrbitMask.Due(0.3, 0.36, 1, false), "a large step waits 2 s");
-            Assert.IsTrue(OrbitMask.Due(0.3, 0.36, 2.5, false));
-            Assert.IsFalse(OrbitMask.Due(0.3, 0.3, 1, true));
-            Assert.IsTrue(OrbitMask.Due(0.3, 0.3, 2.5, true), "changed settings or heights");
-            // The year wraps.
-            Assert.IsTrue(OrbitMask.Due(0.99, 0.01, 31, false));
-            Assert.IsFalse(OrbitMask.Due(0.99, 0.995, 100, false));
+            Assert.IsTrue(OrbitMask.Due(0, 0, 0, false), "never composed");
+            Assert.IsFalse(OrbitMask.Due(3, 3, 1000, false), "the same frame is not composed again");
+            Assert.IsFalse(OrbitMask.Due(3, 4, 1, false), "a new frame waits the short step");
+            Assert.IsTrue(OrbitMask.Due(3, 4, OrbitMask.LargeStepSeconds + 0.1, false));
+            Assert.IsFalse(OrbitMask.Due(3, 3, 1, true));
+            Assert.IsTrue(OrbitMask.Due(3, 3, 2.5, true), "changed settings or heights");
         }
 
         [TestMethod]

@@ -7,15 +7,6 @@ namespace ReDefinition.Atmospheres
     // file. The package that deletes the last caller of a member deletes its line here (the table is in CONTRACT.md, "Settings audit").
     internal static partial class AtmospheresSettings
     {
-        // How the snow on ground that is already built followed the season (groundRefreshMode; deleted: cover is repainted by the cover
-        // package within its own pass budget).
-        internal enum GroundRefresh
-        {
-            Live,
-            Rebuild,
-            Off
-        }
-
         // Where the cloud of a storm cell lived when it was an EVE cloud (stormClouds; deleted with the cell layers).
         internal enum StormCloudModes
         {
@@ -30,18 +21,8 @@ namespace ReDefinition.Atmospheres
         internal const float StormCellRadiusMinKm = 5f, StormCellRadiusMaxKm = 25f, StormCellRadiusDefaultKm = 12f;
         internal const int StormVolumeStepsMin = 16, StormVolumeStepsMax = 48, StormVolumeStepsDefault = 28;
         internal const int StormMaxCellsMin = 1, StormMaxCellsMax = 12, StormMaxCellsDefault = 6;
-        internal const int OrbitSnowWidthMin = 1024, OrbitSnowWidthMax = 4096, OrbitSnowWidthDefault = 2048;
-        internal const float RefreshSecondsMin = 1f, RefreshSecondsMax = 120f, RefreshSecondsDefault = 5f;
 
         // --- Aliases of settings that were renamed (key in the comment) ---
-
-        // snowStrength -> coverStrength.
-        [Obsolete("Renamed to CoverStrength.")]
-        internal static float SnowStrength
-        {
-            get { return CoverStrength; }
-            set { SetNumber(Keys.CoverStrength, value); }
-        }
 
         // storms -> weatherEffects.
         [Obsolete("Replaced by WeatherEffects.")]
@@ -115,22 +96,6 @@ namespace ReDefinition.Atmospheres
             set { SetNumber(Keys.VolumeSteps, value); }
         }
 
-        // orbitSnow -> orbitOverlay.
-        [Obsolete("Renamed to OrbitOverlay.")]
-        internal static bool OrbitSnow
-        {
-            get { return OrbitOverlay; }
-            set { SetNumber(Keys.OrbitOverlay, value ? 1.0 : 0.0); }
-        }
-
-        // orbitSnowWidth -> orbitMapWidth.
-        [Obsolete("Renamed to OrbitMapWidth.")]
-        internal static int OrbitSnowWidth
-        {
-            get { return OrbitMapWidth; }
-            set { SetNumber(Keys.OrbitMapWidth, value); }
-        }
-
         // forceStorm -> forceLevel.
         [Obsolete("Renamed to ForceLevel.")]
         internal static float ForceStorm
@@ -141,15 +106,10 @@ namespace ReDefinition.Atmospheres
 
         // --- Members of deleted features: not in the file ---
 
-        // winterSnowLine: the snow line follows the field's temperature.
+        // winterSnowLine: the snow line follows the field's temperature. Only StormEffect (package C20) still reads it, together with
+        // the SnowMask shim; both go with StormEffect.
         [Obsolete("Deleted with SnowMask: the cold is the field's.")]
         internal static float WinterSnowLine;
-
-        // groundRefreshMode and refreshSeconds.
-        [Obsolete("Deleted: the cover package repaints within its own budget.")]
-        internal static GroundRefresh GroundRefreshMode;
-        [Obsolete("Deleted: the cover package repaints within its own budget.")]
-        internal static float RefreshSeconds;
 
         // stormEveSnow (cloudSource and useEveWeather decide).
         [Obsolete("Deleted: see cloudSource and useEveWeather.")]
@@ -178,8 +138,6 @@ namespace ReDefinition.Atmospheres
         {
 #pragma warning disable 618
             WinterSnowLine = (float)SnowMask.DefaultWinterLineDegrees;
-            GroundRefreshMode = GroundRefresh.Live;
-            RefreshSeconds = RefreshSecondsDefault;
             StormEveSnow = true;
             StormCellRadiusKm = StormCellRadiusDefaultKm;
             StormMaxCells = StormMaxCellsDefault;

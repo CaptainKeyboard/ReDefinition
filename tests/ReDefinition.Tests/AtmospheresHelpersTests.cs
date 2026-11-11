@@ -124,48 +124,30 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void ALivePassStartsOnTheIntervalOrOnABigMoveAfterTheLeastGap()
+        public void ALivePassStartsOnAChangeAfterTheLeastGap()
         {
-            Assert.IsTrue(LiveRepainter.Due(double.NaN, 0.3, 0f, 5f), "never ran");
-            Assert.IsFalse(LiveRepainter.Due(0.3, 0.3, 2f, 5f));
-            Assert.IsTrue(LiveRepainter.Due(0.3, 0.3, 5f, 5f), "the interval passed");
-            Assert.IsFalse(LiveRepainter.Due(0.3, 0.31, 0.5f, 5f), "a big move waits the least gap");
-            Assert.IsTrue(LiveRepainter.Due(0.3, 0.31, 1f, 5f));
-            Assert.IsFalse(LiveRepainter.Due(0.3, 0.3 + LiveRepainter.PassPhaseTrigger / 2, 2f, 5f), "a small move waits");
-            Assert.IsTrue(LiveRepainter.Due(0.995, 0.01, 2f, 5f), "the year wraps");
+            Assert.IsFalse(CoverRepainter.Due(false, 100f), "nothing changed");
+            Assert.IsFalse(CoverRepainter.Due(true, 0.5f), "a change waits the least gap");
+            Assert.IsTrue(CoverRepainter.Due(true, CoverRepainter.MinPassSeconds));
         }
 
         [TestMethod]
-        public void APassIsLoggedWhenItChangedSomethingAndIsNewOrTheLastLineIsOld()
+        public void APassIsLoggedWhenItChangedSomethingAndTheLastLineIsOld()
         {
-            Assert.IsFalse(LiveRepainter.ShouldLog(0, 0.3, double.NaN, 1000f), "nothing repainted");
-            Assert.IsTrue(LiveRepainter.ShouldLog(5, 0.3, double.NaN, 0f), "the first line");
-            Assert.IsFalse(LiveRepainter.ShouldLog(5, 0.301, 0.3, 10f));
-            Assert.IsTrue(LiveRepainter.ShouldLog(5, 0.31, 0.3, 10f), "the phase moved");
-            Assert.IsTrue(LiveRepainter.ShouldLog(5, 0.301, 0.3, LiveRepainter.LogThrottleSeconds + 1f), "the last line is old");
-        }
-
-        [TestMethod]
-        public void ARebuildIsDueWhenAskedForOrWhenTheModeWantsItAndThePhaseMovedAndTheLastOneIsOld()
-        {
-            Assert.IsTrue(GroundRebuilder.Due(true, false, 0.5, 0.5, 0f), "asked for, whatever the rest");
-            Assert.IsFalse(GroundRebuilder.Due(false, false, 0.9, 0.1, 1000f), "the mode does not want it");
-            Assert.IsFalse(GroundRebuilder.Due(false, true, 0.51, 0.5, 1000f), "the phase has not moved enough");
-            Assert.IsFalse(GroundRebuilder.Due(false, true, 0.6, 0.5, 10f), "the last rebuild is too young");
-            Assert.IsTrue(GroundRebuilder.Due(false, true, 0.6, 0.5, GroundRebuilder.RebuildMinSeconds));
-            Assert.IsTrue(GroundRebuilder.Due(false, true, 0.6, double.NaN, 1000f), "ground built without a phase");
-            Assert.IsTrue(GroundRebuilder.Due(false, true, 0.01, 0.99 - 0.1, 1000f), "the year wraps");
+            Assert.IsFalse(CoverRepainter.ShouldLog(0, 1000f), "nothing repainted");
+            Assert.IsFalse(CoverRepainter.ShouldLog(5, 10f));
+            Assert.IsTrue(CoverRepainter.ShouldLog(5, CoverRepainter.LogThrottleSeconds + 1f), "the last line is old");
         }
 
         [TestMethod]
         public void ARebuildRunsOnlyWhereNothingStandsOnTheGround()
         {
-            Assert.IsFalse(GroundRebuilder.SafeToRebuild(false, false, GameScenes.FLIGHT, false), "no sphere");
-            Assert.IsTrue(GroundRebuilder.SafeToRebuild(true, false, GameScenes.SPACECENTER, true), "a sphere that is not started builds with the mod");
-            Assert.IsTrue(GroundRebuilder.SafeToRebuild(true, true, GameScenes.FLIGHT, false));
-            Assert.IsTrue(GroundRebuilder.SafeToRebuild(true, true, GameScenes.TRACKSTATION, false));
-            Assert.IsFalse(GroundRebuilder.SafeToRebuild(true, true, GameScenes.FLIGHT, true), "a vessel is on the ground");
-            Assert.IsFalse(GroundRebuilder.SafeToRebuild(true, true, GameScenes.SPACECENTER, false), "never in the space centre");
+            Assert.IsFalse(SnowRefresher.SafeToRebuild(false, false, GameScenes.FLIGHT, false), "no sphere");
+            Assert.IsTrue(SnowRefresher.SafeToRebuild(true, false, GameScenes.SPACECENTER, true), "a sphere that is not started builds with the mod");
+            Assert.IsTrue(SnowRefresher.SafeToRebuild(true, true, GameScenes.FLIGHT, false));
+            Assert.IsTrue(SnowRefresher.SafeToRebuild(true, true, GameScenes.TRACKSTATION, false));
+            Assert.IsFalse(SnowRefresher.SafeToRebuild(true, true, GameScenes.FLIGHT, true), "a vessel is on the ground");
+            Assert.IsFalse(SnowRefresher.SafeToRebuild(true, true, GameScenes.SPACECENTER, false), "never in the space centre");
         }
 
         private sealed class Target

@@ -2,15 +2,16 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The snow of the orbit and map view as pixels: the same SnowMask.Coverage as the ground, evaluated for every texel of an
-    // equirectangular map in the planet's own texture convention. Pure numbers (no engine type), so that it runs on a worker thread and
-    // is tested outside the game.
+    // The cover of the orbit and map view as pixels: the same depth as the ground (CoverDepth on the field's map), evaluated for every
+    // texel of an equirectangular map in the planet's own texture convention. Pure numbers (no engine type), so that it runs on a worker
+    // thread and is tested outside the game.
     //
     // The convention is PQS's own (PQS.BuildVertexMapCoords): u = longitude / 2 pi, with the longitude measured from the +z axis
-    // toward +x, and v = latitude / pi + 0.5. The direction of a texel is (cos lat sin lon, sin lat, cos lat cos lon). The ground's noise
-    // reads the PQS direction. So the same direction gives the same noise here, and the line is one line on the ground and in orbit.
+    // toward +x, and v = latitude / pi + 0.5. The direction of a texel is (cos lat sin lon, sin lat, cos lat cos lon); the game's
+    // latitude and longitude of that direction come from the body's KspFrame. The ground's noise reads the PQS direction. So the same
+    // direction gives the same noise here, and the edge is one edge on the ground and in orbit.
     // The mask is 1024 x 512 texels. The heights are a 256 x 128 grid read from the PQS once (OrbitHeights); until it is read the mask
-    // has no height bonus. The noise table of 0.5 MB keeps 1/127 steps. So the ground and the map can differ by a texel at the line.
+    // has no height rule. The noise table of 0.5 MB keeps 1/127 steps. So the ground and the map can differ by a texel at the edge.
     internal static class OrbitMask
     {
         // The mask texture and the table of heights it is built from.
@@ -19,10 +20,8 @@ namespace ReDefinition.Atmospheres
         internal const int HeightWidth = 256;
         internal const int HeightHeight = 128;
 
-        // How the snow trails the sky: the least phase change and the least real time between two compositions, and the larger change
-        // that may come sooner.
-        internal const double SmallPhaseStep = 0.01;
-        internal const double LargePhaseStep = 0.05;
+        // How the cover trails the field: the least real time between two compositions, and the shorter one after a change of the
+        // settings or the heights.
         internal const double SmallStepSeconds = 30.0;
         internal const double LargeStepSeconds = 2.0;
 
@@ -85,44 +84,64 @@ namespace ReDefinition.Atmospheres
             return r < 0 ? r + size : r;
         }
 
-        // The snow colour with an alpha of the snow amount for every texel: rgba holds width * height * 4 bytes, row by row from the
-        // south. The amount is the same as on the ground: SnowPaint.Amount(SnowMask.Coverage(...), strength). The heights are bilinear
-        // from a coarse grid, or all 0 where there is none yet.
-        internal static void Fill(byte[] rgba, int width, int height, sbyte[] noise, float[] heights, int heightWidth, int heightHeight,
-            double phase, float strength, double winterLine)
+        // The game's latitude and longitude of every texel (degrees), row by row from the south, through the body's frame. Made once per
+        // body on a worker: two arrays of width * height floats.
+        internal static void BuildCoordinates(int width, int height, KspFrame frame, out float[] latitudes, out float[] longitudes)
         {
-            byte red = (byte)Math.Round(SnowPaint.SnowRed * 255f);
-            byte green = (byte)Math.Round(SnowPaint.SnowGreen * 255f);
-            byte blue = (byte)Math.Round(SnowPaint.SnowBlue * 255f);
+            latitudes = new float[width * height];
+            longitudes = new float[width * height];
             for (int row = 0; row < height; row++)
             {
                 double v = (row + 0.5) / height;
-                double latitude = LatitudeDegrees(v);
                 for (int column = 0; column < width; column++)
                 {
-                    double u = (column + 0.5) / width;
-                    double h = Math.Max(0.0, Height(heights, heightWidth, heightHeight, u, v));
-                    double n = noise != null && noise.Length >= width * height ? noise[row * width + column] / 127.0 : 0.0;
-                    float amount = SnowPaint.Amount(SnowMask.Coverage(latitude, h, phase, n, winterLine), strength);
-                    int i = (row * width + column) * 4;
-                    rgba[i] = red;
-                    rgba[i + 1] = green;
-                    rgba[i + 2] = blue;
-                    rgba[i + 3] = (byte)Math.Round(amount * 255f);
+                    double x, y, z, lat, lon;
+                    Direction((column + 0.5) / width, v, out x, out y, out z);
+                    frame.LatLon(x, y, z, out lat, out lon);
+                    latitudes[row * width + column] = (float)lat;
+                    longitudes[row * width + column] = (float)lon;
                 }
             }
         }
 
-        // Whether the map is to be composed again: never composed (NaN phase), or the settings or the heights changed, or the phase moved
-        // far enough for the time passed since the last composition.
-        internal static bool Due(double lastPhase, double phase, double secondsSinceLast, bool inputsChanged)
+        // The cover colour with an alpha of the cover amount for every texel: rgba holds width * height * 4 bytes, row by row from the
+        // south. The amount is the same as on the ground: CoverDepth.Depth01 on the frame's depth under the layer's mask, without the
+        // wind drift (the picture of a whole planet does not show it). The heights are bilinear from a coarse grid, or all 0 where
+        // there is none yet; the sea is where the body has an ocean and the height is 0 or less.
+        internal static void Fill(byte[] rgba, int width, int height, sbyte[] noise, float[] heights, int heightWidth, int heightHeight,
+            float[] latitudes, float[] longitudes, CoverMap.Frame frame, CoverDef def, double strength, double edgeNoise, bool ocean)
         {
-            if (double.IsNaN(lastPhase)) return true;
+            byte red = (byte)Math.Round(def.Red * 255f);
+            byte green = (byte)Math.Round(def.Green * 255f);
+            byte blue = (byte)Math.Round(def.Blue * 255f);
+            for (int row = 0; row < height; row++)
+            {
+                double v = (row + 0.5) / height;
+                for (int column = 0; column < width; column++)
+                {
+                    int at = row * width + column;
+                    double u = (column + 0.5) / width;
+                    double h = Height(heights, heightWidth, heightHeight, u, v);
+                    double n = noise != null && noise.Length >= width * height ? noise[at] / 127.0 : 0.0;
+                    double fieldDepthM = frame.Sample01(latitudes[at], longitudes[at]) * def.MaxDepthM;
+                    double mask = CoverDepth.Mask(def, latitudes[at], Math.Max(0.0, h), 0.0, ocean && h <= 0.0);
+                    double amount = CoverDepth.Depth01(def, fieldDepthM, mask, n, edgeNoise, strength);
+                    int i = at * 4;
+                    rgba[i] = red;
+                    rgba[i + 1] = green;
+                    rgba[i + 2] = blue;
+                    rgba[i + 3] = (byte)Math.Round(amount * 255.0);
+                }
+            }
+        }
+
+        // Whether the map is composed again: never composed (frame number 0), or the settings or the heights changed (after the short
+        // step), or the field's frame is a new one (after the long step).
+        internal static bool Due(int composedFrame, int frame, double secondsSinceLast, bool inputsChanged)
+        {
+            if (composedFrame <= 0) return true;
             if (inputsChanged) return secondsSinceLast >= LargeStepSeconds;
-            double moved = SeasonClock.PhaseDistance(lastPhase, phase);
-            if (moved >= LargePhaseStep) return secondsSinceLast >= LargeStepSeconds;
-            if (moved >= SmallPhaseStep) return secondsSinceLast >= SmallStepSeconds;
-            return false;
+            return frame != composedFrame && secondsSinceLast >= LargeStepSeconds;
         }
 
         // The width and height of the working maps: the original's, cut down to the wanted width, at least 64 wide.

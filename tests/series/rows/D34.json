@@ -1,0 +1,719 @@
+{
+  "$schema": "../schema.json",
+  "package": "D34",
+  "rows": [
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.body_has_cover",
+      "equals": 1,
+      "note": "the active body carries a cover layer (CoverBodies)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.shader_loaded",
+      "equals": 1,
+      "note": "the shell shader ReDefinitionAtmospheresShell is in the bundle and compiles"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.ribbon_shader_loaded",
+      "equals": 1,
+      "note": "the track shader ReDefinitionAtmospheresShellTrack is in the bundle and compiles"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.assumptions_hold",
+      "equals": 1,
+      "note": "the ForeignAssumptions of D34 (wheel contact access, quad build) hold against the installed game code"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.pqs_mod_installed",
+      "equals": 1,
+      "note": "the cover PQS mod is installed on the active body"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.map_published",
+      "equals": 1,
+      "note": "the CoverMap published a first frame from the field's surface layer"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.map_resample_ms",
+      "max": 5,
+      "unit": "ms",
+      "note": "resample of the field's SnowCover map to R16 1024x512 on the worker"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.pqs_vertex_spacing_m",
+      "min": 0.1,
+      "max": 500,
+      "unit": "m",
+      "note": "PQS vertex spacing near the vessel (U6), logged"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.quads_known",
+      "min": 1,
+      "note": "quads of the cover known near the vessel"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.tile_bytes_per_tile",
+      "equals": 65536,
+      "unit": "bytes",
+      "note": "one track tile is 256 x 256 R8"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.orbit_overlay_hook",
+      "equals": 1,
+      "note": "the host drew a round and the cover layer is registered"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.orbit_overlay_layers",
+      "min": 1,
+      "note": "registered orbit overlay layers"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.orbit_overlay_last_drawn",
+      "min": 1,
+      "note": "layers drawn by the host's last call"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.0.map_ready",
+      "equals": 1,
+      "note": "the field's SnowCover map for season quarter 0 is ready"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.0.north_share",
+      "min": 0,
+      "max": 1,
+      "note": "share of 50 deg N to the pole with cover above 0.02 at quarter 0 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.0.south_share",
+      "min": 0,
+      "max": 1,
+      "note": "share of 50 deg S to the pole with cover above 0.02 at quarter 0 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.0.equator_share",
+      "min": 0,
+      "max": 0.1,
+      "note": "share of 20 deg S to 20 deg N with cover at quarter %d: nearly bare"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.0.orbit_mean_alpha_north",
+      "min": 0,
+      "max": 1,
+      "note": "mean orbit mask alpha, 50 deg N to the pole (cover on against off)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.0.orbit_mean_alpha_south",
+      "min": 0,
+      "max": 1,
+      "note": "mean orbit mask alpha, 50 deg S to the pole"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.1.map_ready",
+      "equals": 1,
+      "note": "the field's SnowCover map for season quarter 1 is ready"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.1.north_share",
+      "min": 0,
+      "max": 1,
+      "note": "share of 50 deg N to the pole with cover above 0.02 at quarter 1 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.1.south_share",
+      "min": 0,
+      "max": 1,
+      "note": "share of 50 deg S to the pole with cover above 0.02 at quarter 1 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.1.equator_share",
+      "min": 0,
+      "max": 0.1,
+      "note": "share of 20 deg S to 20 deg N with cover at quarter %d: nearly bare"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.1.orbit_mean_alpha_north",
+      "min": 0,
+      "max": 1,
+      "note": "mean orbit mask alpha, 50 deg N to the pole (cover on against off)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.1.orbit_mean_alpha_south",
+      "min": 0,
+      "max": 1,
+      "note": "mean orbit mask alpha, 50 deg S to the pole"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.2.map_ready",
+      "equals": 1,
+      "note": "the field's SnowCover map for season quarter 2 is ready"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.2.north_share",
+      "min": 0,
+      "max": 1,
+      "note": "share of 50 deg N to the pole with cover above 0.02 at quarter 2 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.2.south_share",
+      "min": 0,
+      "max": 1,
+      "note": "share of 50 deg S to the pole with cover above 0.02 at quarter 2 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.2.equator_share",
+      "min": 0,
+      "max": 0.1,
+      "note": "share of 20 deg S to 20 deg N with cover at quarter %d: nearly bare"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.2.orbit_mean_alpha_north",
+      "min": 0,
+      "max": 1,
+      "note": "mean orbit mask alpha, 50 deg N to the pole (cover on against off)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.2.orbit_mean_alpha_south",
+      "min": 0,
+      "max": 1,
+      "note": "mean orbit mask alpha, 50 deg S to the pole"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.3.map_ready",
+      "equals": 1,
+      "note": "the field's SnowCover map for season quarter 3 is ready"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.3.north_share",
+      "min": 0,
+      "max": 1,
+      "note": "share of 50 deg N to the pole with cover above 0.02 at quarter 3 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.3.south_share",
+      "min": 0,
+      "max": 1,
+      "note": "share of 50 deg S to the pole with cover above 0.02 at quarter 3 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.3.equator_share",
+      "min": 0,
+      "max": 0.1,
+      "note": "share of 20 deg S to 20 deg N with cover at quarter %d: nearly bare"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.3.orbit_mean_alpha_north",
+      "min": 0,
+      "max": 1,
+      "note": "mean orbit mask alpha, 50 deg N to the pole (cover on against off)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season.3.orbit_mean_alpha_south",
+      "min": 0,
+      "max": 1,
+      "note": "mean orbit mask alpha, 50 deg S to the pole"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season_swing_north",
+      "min": -1,
+      "max": 1,
+      "note": "north share quarter 0 minus quarter 2 (logged; opposite sign to the south)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.season_swing_south",
+      "min": -1,
+      "max": 1,
+      "note": "south share quarter 0 minus quarter 2 (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.seasons_differ",
+      "equals": 1,
+      "note": "the cover pattern changes between seasons"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.patch_map_peak",
+      "min": 0.05,
+      "max": 1,
+      "note": "a forced snow system leaves a patch in the CoverMap"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.patch_in_depth_range",
+      "equals": 1,
+      "note": "the patch depth is within 0..1"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.patch_quad_found",
+      "equals": 1,
+      "note": "a built quad holds the patch"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.patch_ground_peak",
+      "min": 0.05,
+      "max": 1,
+      "note": "mean cover of the vessel's quad at the peak"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.patch_ground_faded",
+      "min": 0,
+      "max": 0.5,
+      "note": "mean cover of the quad after the forced fade"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.patch_fade_ratio",
+      "min": 0,
+      "max": 0.5,
+      "note": "faded over peak: the patch fades over the test window"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.vehicle_tracked",
+      "equals": 1,
+      "note": "the vehicle cover tracks the vessel"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.vehicle_amount_peak",
+      "min": 0.3,
+      "max": 1,
+      "note": "the rover turns white on top in the forced fall"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.vehicle_shells",
+      "min": 1,
+      "note": "shell renderers built"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.vehicle_parts_built",
+      "min": 1,
+      "note": "parts with a shell"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.vehicle_unreadable_meshes",
+      "max": 0,
+      "note": "part meshes the shell could not read (logged expectation: none)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.vehicle_build_ms",
+      "max": 4,
+      "unit": "ms",
+      "note": "longest shell build step per frame"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.vehicle_amount_after",
+      "min": 0,
+      "max": 0.05,
+      "note": "the vessel is bare again when the scripted air goes above freezing"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_marks",
+      "min": 20,
+      "note": "track stamps while the rover drives a circle for 40 s"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_tiles_live",
+      "min": 1,
+      "note": "live track tiles"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_tile_ram_bytes",
+      "max": 4194304,
+      "unit": "bytes",
+      "note": "tile RAM"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_pressed_texels",
+      "min": 50,
+      "note": "pressed texels in the live tiles"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_mean_width_m",
+      "min": 0.2,
+      "max": 4,
+      "unit": "m",
+      "note": "mean width of one wheel line (vertex-colour trail 2-4 m accepted for the first release)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_strips",
+      "min": 0,
+      "required": false,
+      "note": "ribbon strips (stage 2, conditional)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_draw_calls",
+      "max": 1,
+      "required": false,
+      "note": "ribbon draws (one instanced draw)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_ray_misses",
+      "min": 0,
+      "required": false,
+      "note": "ground rays that missed (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_rays",
+      "min": 0,
+      "required": false,
+      "note": "ground rays cast (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_build_ms",
+      "max": 0.2,
+      "unit": "ms",
+      "required": false,
+      "note": "ribbon strip build"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_stamp_ms",
+      "max": 1,
+      "unit": "ms",
+      "note": "stamping per update"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_fade_ratio",
+      "equals": 0.1353,
+      "tolerance": 0.02,
+      "note": "a mark two taus later shows exp(-2)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_save_bytes",
+      "max": 4194304,
+      "unit": "bytes",
+      "note": "tracks.bin size for the live tiles"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_load_equal",
+      "equals": 1,
+      "note": "save/load round trip keeps the tiles and the decayed values"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.track_revert_drops_future",
+      "equals": 1,
+      "note": "a tile stamped after the loaded UT is dropped"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.switch_cycle_exceptions",
+      "equals": 0,
+      "note": "exceptions from the cover code while groundCover, vehicleCover and tracks cycle through all values"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.log_exceptions_total",
+      "equals": 0,
+      "note": "exceptions from the cover code in the whole run"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.frame_ms_cover_off",
+      "min": 0,
+      "note": "mean frame time with ground cover off (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.frame_ms_cover_on",
+      "min": 0,
+      "note": "mean frame time with ground cover on (logged)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.ground_frame_ms_delta",
+      "max": 0.3,
+      "unit": "ms",
+      "note": "frame time added by the ground cover"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D34",
+      "package": "D34",
+      "start": "cover",
+      "metric": "D34.rt_refit_ms_ratio",
+      "max": 1.2,
+      "required": false,
+      "note": "RT terrain refit cost after a storm-scale repaint against baseline (U10, threshold 1.2); not measured by this probe"
+    }
+  ]
+}

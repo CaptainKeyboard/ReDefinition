@@ -2,13 +2,12 @@ using System.Collections.Generic;
 
 namespace ReDefinition.Atmospheres
 {
-    // The quads of Kerbin's ground the snow mod has seen, by quad. Filled when a quad is built, emptied when it is destroyed or the
-    // sphere is reset. The quad builder and the refresher run on the main thread in the game checked. The table is behind a lock
-    // all the same, because the PQS can build quads off it. The lock is taken once per quad, not once per vertex: SnowPqsMod keeps
-    // the record of the quad it is building.
-    internal static class SnowQuads
+    // The quads of the ground the cover has seen, by quad, for all bodies. Filled when a quad is built, emptied when it is destroyed or
+    // the sphere is reset. The table is behind a lock, because the PQS can build quads off the main thread; the lock is taken once per
+    // quad, not once per vertex: CoverPqsMod keeps the record of the quad it is building.
+    internal static class CoverQuads
     {
-        private static readonly Dictionary<PQ, QuadSnow> Table = new Dictionary<PQ, QuadSnow>();
+        private static readonly Dictionary<PQ, QuadCover> Table = new Dictionary<PQ, QuadCover>();
         private static readonly object Gate = new object();
 
         internal static int Count
@@ -20,26 +19,38 @@ namespace ReDefinition.Atmospheres
         }
 
         // The record of a quad, made if it has none or has another vertex count.
-        internal static QuadSnow For(PQ quad, int vertexCount)
+        internal static QuadCover For(PQ quad, CoverBodyState body, int vertexCount)
         {
             lock (Gate)
             {
-                QuadSnow snow;
-                if (Table.TryGetValue(quad, out snow) && snow.Length == vertexCount) return snow;
-                snow = new QuadSnow(vertexCount);
-                Table[quad] = snow;
-                return snow;
+                QuadCover cover;
+                if (Table.TryGetValue(quad, out cover) && cover.Length == vertexCount && ReferenceEquals(cover.Body, body)) return cover;
+                cover = new QuadCover(body, vertexCount);
+                Table[quad] = cover;
+                return cover;
             }
         }
 
-        internal static bool TryGet(PQ quad, out QuadSnow snow)
+        internal static bool TryGet(PQ quad, out QuadCover cover)
         {
-            lock (Gate) return Table.TryGetValue(quad, out snow);
+            lock (Gate) return Table.TryGetValue(quad, out cover);
         }
 
         internal static void Remove(PQ quad)
         {
             lock (Gate) Table.Remove(quad);
+        }
+
+        // Forgets the quads of one body (its sphere was made anew).
+        internal static void RemoveBody(CoverBodyState body)
+        {
+            lock (Gate)
+            {
+                var gone = new List<PQ>();
+                foreach (KeyValuePair<PQ, QuadCover> pair in Table)
+                    if (ReferenceEquals(pair.Value.Body, body)) gone.Add(pair.Key);
+                foreach (PQ quad in gone) Table.Remove(quad);
+            }
         }
 
         internal static void Clear()

@@ -28,6 +28,14 @@ namespace ReDefinition.Atmospheres
             return value < -1 ? -1 : value > 1 ? 1 : value;
         }
 
+        // One octave of the lattice noise at a free position (not normalised to the sphere), from -1 to 1. The wind drift reads it at a
+        // position that moves with the wind (CoverWind).
+        internal static double Lattice(double x, double y, double z)
+        {
+            if (double.IsNaN(x) || double.IsNaN(y) || double.IsNaN(z) || double.IsInfinity(x) || double.IsInfinity(y) || double.IsInfinity(z)) return 0;
+            return Octave(x, y, z);
+        }
+
         private static double Octave(double x, double y, double z)
         {
             double fx = Math.Floor(x), fy = Math.Floor(y), fz = Math.Floor(z);

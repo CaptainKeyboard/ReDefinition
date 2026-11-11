@@ -6,18 +6,20 @@
   "profile": "Medium",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 4,
+  "plannedStarts": 5,
   "bundle": true,
   "starts": [
     { "id": "lamp", "description": "lamp scatter (D32): forced snow field, beam geometry, lamp off control, DLSS turn", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "LampProbe"] },
     { "id": "frost", "description": "camera frost (D37): shader and atlas, chain order, exposure growth, IVA A/B", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "CameraFrostProbe"] },
     { "id": "model", "description": "aurora state (D38): shader, Auto rules, body rule, pole axis", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D38Probe"] },
-    { "id": "aurora", "description": "aurora in the real sky with the full mod set (Scatterer, EVE, TUFX, Parallax): draw order, terrain occlusion, lid / drip / band, with a picture sheet of the natural and the aid view", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D38Probe"] }
+    { "id": "aurora", "description": "aurora in the real sky with the full mod set (Scatterer, EVE, TUFX, Parallax): draw order, terrain occlusion, lid / drip / band, with a picture sheet of the natural and the aid view", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D38Probe"] },
+    { "id": "cover", "description": "surface cover (D34): ground cover from the field, vehicle shells, tracks, orbit overlay host, switch cycle; needs a rover (wheels) on the ground", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "CoverProbe"] }
   ],
   "sections": [
     { "id": "D32", "package": "D32", "title": "Light in medium" },
     { "id": "D37", "package": "D37", "title": "Camera frost" },
-    { "id": "D38", "package": "D38", "title": "Aurora" }
+    { "id": "D38", "package": "D38", "title": "Aurora" },
+    { "id": "D34", "package": "D34", "title": "Surface cover" }
   ],
   "collect": [
     { "from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures", "to": ".local/work/series-pictures/K-W3b", "optional": true }

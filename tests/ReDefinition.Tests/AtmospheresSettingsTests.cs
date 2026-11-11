@@ -205,7 +205,7 @@ namespace ReDefinition.Tests
 
         // The aliases of Settings/AtmospheresSettings.Legacy.cs are removed by the packages named in CONTRACT.md; the package that removes
         // some lowers this number. It is 0 at F50.
-        private const int ObsoleteAliasesLeft = 24;
+        private const int ObsoleteAliasesLeft = 19;
 
         [TestMethod]
         public void TheObsoleteAliasesLeftAreCounted()
@@ -403,10 +403,6 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(41, AtmospheresSettings.GenSeed);
                 AtmospheresSettings.StormFrequency = 1.5f;
                 Assert.AreEqual(1.5f, AtmospheresSettings.HeavyShare);
-                AtmospheresSettings.SnowStrength = 0.5f;
-                Assert.AreEqual(0.5f, AtmospheresSettings.CoverStrength);
-                AtmospheresSettings.OrbitSnow = false;
-                Assert.IsFalse(AtmospheresSettings.OrbitOverlay);
                 AtmospheresSettings.StormsEnabled = false;
                 Assert.IsFalse(AtmospheresSettings.WeatherEffects);
                 AtmospheresSettings.ForceStorm = 0.35f;
