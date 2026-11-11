@@ -269,8 +269,8 @@ namespace ReDefinition.Atmospheres
             f.Drift = new Vector2(windE * age, windN * age);
             f.WindOffset = new Vector2(CurtainMath.Wrap(windE * ut, look.ErosionTileM * 16.0), CurtainMath.Wrap(windN * ut, look.ErosionTileM * 16.0));
             f.AdvectVelocity = anchorEastAxis * windE + anchorNorthAxis * windN;
-            Vector3 sunPosition = FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null
-                ? (Vector3)FlightGlobals.Bodies[0].position : anchorCentre + anchorUp * 1e9f;
+            CelestialBody sunBody = GameGlobals.Sun;
+            Vector3 sunPosition = sunBody != null ? (Vector3)sunBody.position : anchorCentre + anchorUp * 1e9f;
             Vector3 toSun = sunPosition - anchorCentre;
             f.TowardsSun = toSun.sqrMagnitude > 1f ? toSun.normalized : anchorUp;
             Light sun = Sun.Instance != null ? Sun.Instance.sunLight : null;

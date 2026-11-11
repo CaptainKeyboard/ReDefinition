@@ -136,7 +136,11 @@ namespace ReDefinition.Atmospheres
             shown = 0;
             if (pool == null) return;
             for (int p = 0; p < pool.Length; p++)
-                if (pool[p].Root.activeSelf) pool[p].Root.SetActive(false);
+            {
+                // The game destroys the objects itself when the application quits or a scene unloads; a destroyed one compares equal to null.
+                GameObject root = pool[p].Root;
+                if (root != null && root.activeSelf) root.SetActive(false);
+            }
         }
 
         internal void Dispose()

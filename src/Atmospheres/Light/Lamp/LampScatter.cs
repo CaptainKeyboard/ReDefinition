@@ -282,7 +282,7 @@ namespace ReDefinition.Atmospheres
 
         private void Compose(Camera cam)
         {
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vessel vessel = GameGlobals.ActiveVessel;
             bool settingsOn = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && AtmospheresSettings.LightInMedium
                               && AtmospheresSettings.LightInMediumStrength > 0f && AtmospheresSettings.LightCount > 0;
             float dt = Time.timeScale > 0f ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) : 0f;

@@ -134,14 +134,16 @@ namespace ReDefinition.Atmospheres
         }
 
         // The body the weather is for: in flight the main body of the vessel, elsewhere the body the camera looks at.
-        private static CelestialBody SeenBody()
+        // None (null) while there is no FlightGlobals: the main menu and the frames around a scene load.
+        internal static CelestialBody SeenBody()
         {
+            if (!GameGlobals.Present) return null;
             if (HighLogic.LoadedSceneIsFlight && FlightGlobals.currentMainBody != null) return FlightGlobals.currentMainBody;
             if (HighLogic.LoadedScene == GameScenes.SPACECENTER || HighLogic.LoadedSceneIsEditor)
             {
-                return FlightGlobals.GetHomeBody();
+                return GameGlobals.HomeBody;
             }
-            return FlightGlobals.currentMainBody ?? FlightGlobals.GetHomeBody();
+            return FlightGlobals.currentMainBody ?? GameGlobals.HomeBody;
         }
     }
 }

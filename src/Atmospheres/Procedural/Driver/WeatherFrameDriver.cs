@@ -88,7 +88,7 @@ namespace ReDefinition.Atmospheres
         {
             input = DriverInput.Neutral();
             input.FrameCount = Time.frameCount;
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vessel vessel = GameGlobals.ActiveVessel;
             Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             if (!AtmospheresSettings.Enabled || vessel == null || vessel.mainBody == null || cam == null) return false;
             CelestialBody body = vessel.mainBody;
@@ -113,9 +113,8 @@ namespace ReDefinition.Atmospheres
             input.Jump = bodyIndex != body.flightGlobalsIndex;
             bodyIndex = body.flightGlobalsIndex;
             Vector3d up = vessel.upAxis;
-            Vector3d sun = FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null
-                ? (FlightGlobals.Bodies[0].position - vessel.GetWorldPos3D()).normalized
-                : up;
+            CelestialBody sunBody = GameGlobals.Sun;
+            Vector3d sun = sunBody != null ? (sunBody.position - vessel.GetWorldPos3D()).normalized : up;
             input.SunElevationRad = (float)Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(sun, up))));
             input.CameraBodyPos = body.transform.InverseTransformPoint(cam.transform.position);
             PrecipTypeModel.Parameters(climate.Precip, out input.CentreC, out input.WidthC);

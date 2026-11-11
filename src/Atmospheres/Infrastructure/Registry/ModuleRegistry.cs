@@ -241,7 +241,9 @@ namespace ReDefinition.Atmospheres
 
         private static string Reason(Exception e)
         {
-            return (e.InnerException ?? e).Message;
+            Exception x = e.InnerException ?? e;
+            string message = x.Message;
+            return string.IsNullOrEmpty(message) ? x.GetType().Name : message;
         }
     }
 }

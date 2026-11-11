@@ -134,7 +134,7 @@ namespace ReDefinition.Atmospheres
 
         private static Vector3 SunDirection(CelestialBody b)
         {
-            CelestialBody sun = FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 ? FlightGlobals.Bodies[0] : null;
+            CelestialBody sun = GameGlobals.Sun;
             if (sun == null) return Vector3.up;
             return ((Vector3)(sun.scaledBody.transform.position - b.scaledBody.transform.position)).normalized;
         }

@@ -197,7 +197,7 @@ namespace ReDefinition.Atmospheres
         private void Compose(Camera cam)
         {
             WeatherView view = WeatherHooks.View;
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vessel vessel = GameGlobals.ActiveVessel;
             bool settingsOn = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects;
             bool live = settingsOn && vessel != null && vessel.mainBody != null && !view.IsStale(Time.frameCount);
 

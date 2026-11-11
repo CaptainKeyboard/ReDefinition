@@ -260,9 +260,10 @@ namespace ReDefinition.Atmospheres
         // The brightness of the sun at the cell's place: the sine of its elevation through StormLook.FogBrightness.
         private float Brightness(Entry e)
         {
-            if (FlightGlobals.Bodies == null || FlightGlobals.Bodies.Count == 0 || FlightGlobals.Bodies[0] == null) return 1f;
+            CelestialBody sunBody = GameGlobals.Sun;
+            if (sunBody == null) return 1f;
             Vector3d ground = body.GetWorldSurfacePosition(e.Latitude, e.Longitude, e.Ground);
-            Vector3d toSun = (FlightGlobals.Bodies[0].position - ground).normalized;
+            Vector3d toSun = (sunBody.position - ground).normalized;
             double sin = Vector3d.Dot(toSun, body.GetSurfaceNVector(e.Latitude, e.Longitude));
             e.SinSun = sin;
             return (float)StormLook.FogBrightness(sin);
@@ -281,8 +282,8 @@ namespace ReDefinition.Atmospheres
             int layer = StormShaders.LayerOf(camera);
             // The volume reads the scene's depth to end its rays at what is drawn; the deferred path has the depth already.
             camera.depthTextureMode |= DepthTextureMode.Depth;
-            Vector3 sunPosition = FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null
-                ? (Vector3)FlightGlobals.Bodies[0].position : Vector3.zero;
+            CelestialBody sunBody = GameGlobals.Sun;
+            Vector3 sunPosition = sunBody != null ? (Vector3)sunBody.position : Vector3.zero;
             float curvature = CurtainMath.Curvature(body.Radius);
             int steps = StormVolumeMath.Steps(AtmospheresSettings.StormVolumeSteps);
             for (int p = 0; p < pool.Length; p++)

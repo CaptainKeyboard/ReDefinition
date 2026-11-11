@@ -161,8 +161,9 @@ namespace ReDefinition.Atmospheres
         internal static bool GameBodies(int bodyIndex, out LegacyBody body)
         {
             body = new LegacyBody();
-            if (FlightGlobals.Bodies == null || bodyIndex < 0 || bodyIndex >= FlightGlobals.Bodies.Count) return false;
-            CelestialBody b = FlightGlobals.Bodies[bodyIndex];
+            System.Collections.Generic.List<CelestialBody> all = GameGlobals.Bodies;
+            if (all == null || bodyIndex < 0 || bodyIndex >= all.Count) return false;
+            CelestialBody b = all[bodyIndex];
             if (b == null || !SeasonClock.Applies(b.name) || !b.atmosphere || b.orbit == null) return false;
             body.Name = b.name;
             body.Radius = b.Radius;

@@ -270,7 +270,7 @@ namespace ReDefinition.Atmospheres
             drawnCount = 0;
             cellIntensity = 0;
             cellBody = null;
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vessel vessel = GameGlobals.ActiveVessel;
             Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             if (!AtmospheresSettings.Enabled || vessel == null || vessel.mainBody == null || cam == null) return;
             CelestialBody body = vessel.mainBody;
@@ -347,7 +347,7 @@ namespace ReDefinition.Atmospheres
         private float Target()
         {
             targetForced = false;
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vessel vessel = GameGlobals.ActiveVessel;
             if (cellBody == null || vessel == null) return 0f;
             double height = StormLook.HeightFactor(vessel.altitude);
             if (height <= 0) return 0f;
@@ -358,16 +358,17 @@ namespace ReDefinition.Atmospheres
         private void Apply()
         {
             Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vessel vessel = GameGlobals.ActiveVessel;
             if (cam == null || vessel == null) return;
             if (!active) Begin(cam);
 
             double visibility = StormLook.VisibilityMetres(current, AtmospheresSettings.StormVisibilityM);
             StormVolume.CameraVisibilityM = visibility;
             double sinSun = 0;
-            if (FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null)
+            CelestialBody sunBody = GameGlobals.Sun;
+            if (sunBody != null)
             {
-                Vector3d toSun = (FlightGlobals.Bodies[0].position - vessel.GetWorldPos3D()).normalized;
+                Vector3d toSun = (sunBody.position - vessel.GetWorldPos3D()).normalized;
                 sinSun = Vector3d.Dot(toSun, vessel.upAxis);
             }
             float brightness = (float)StormLook.FogBrightness(sinSun);
@@ -418,7 +419,7 @@ namespace ReDefinition.Atmospheres
             stormsSeen++;
             settledLogged = -1f;
             fog.Save(RenderSettings.fog, RenderSettings.fogMode, RenderSettings.fogDensity, RenderSettings.fogColor);
-            Vessel flying = FlightGlobals.ActiveVessel;
+            Vessel flying = GameGlobals.ActiveVessel;
             int eveFields = AtmospheresSettings.StormEveSnow && flying != null && flying.mainBody != null ? EveSnowLink.Scan(flying.mainBody.name) : 0;
             string eveState = StormLog.EveSnowState(AtmospheresSettings.StormEveSnow, EveSnowLink.Controllable, eveFields, EveSnowLink.Names(), EveSnowLink.Summary);
             AtmospheresLog.Say(StormLog.StormBegins(stormsSeen, cam, fog, eveState));

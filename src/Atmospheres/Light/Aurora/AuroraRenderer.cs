@@ -225,7 +225,13 @@ namespace ReDefinition.Atmospheres
             // The model: the sun's elevation at the camera, the universal time.
             Vector3d camWorld = cam.transform.position;
             Vector3d up = (camWorld - body.position).normalized;
-            Vector3d toSun = (FlightGlobals.Bodies[0].position - camWorld).normalized;
+            CelestialBody sunBody = GameGlobals.Sun;
+            if (sunBody == null)
+            {
+                Hide();
+                return;
+            }
+            Vector3d toSun = (sunBody.position - camWorld).normalized;
             float sunElevation = AuroraModel.SunElevationDeg(Vector3d.Dot(up, toSun));
             double ut = Planetarium.GetUniversalTime();
             AuroraFrame frame = AuroraModel.Compute(ut, sunElevation, true, rules.MinLatDeg, rules.Strength);

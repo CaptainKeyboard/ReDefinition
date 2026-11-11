@@ -325,7 +325,7 @@ namespace ReDefinition.Atmospheres
         private static bool Live(CelestialBody b)
         {
             if (MapView.MapIsEnabled) return false;
-            Vessel v = FlightGlobals.ActiveVessel;
+            Vessel v = GameGlobals.ActiveVessel;
             return v != null && v.mainBody == b && v.altitude < LiveBelowM;
         }
 
@@ -458,7 +458,8 @@ namespace ReDefinition.Atmospheres
 
         private void RunPictures(float now, BodyClimate c, CelestialBody b, bool eveMode, bool ownMode)
         {
-            bool far = MapView.MapIsEnabled || (FlightGlobals.ActiveVessel != null && FlightGlobals.ActiveVessel.altitude > 100000);
+            Vessel flying = GameGlobals.ActiveVessel;
+            bool far = MapView.MapIsEnabled || (flying != null && flying.altitude > 100000);
             bool shellShown = false;
             if (shell != null)
             {

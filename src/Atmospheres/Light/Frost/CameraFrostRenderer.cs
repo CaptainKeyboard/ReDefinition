@@ -35,6 +35,7 @@ namespace ReDefinition.Atmospheres
     {
         internal const string ShaderName = "ReDefinition/AtmospheresFrost";
         private const int FailureLimit = 5;
+        private const float PauseAfterFailuresS = 5f;
         private const int HostAliveFrames = 3;
         private const float SampleEveryS = 0.25f;
         private const float ShelterEveryS = 0.2f;
@@ -67,7 +68,8 @@ namespace ReDefinition.Atmospheres
         private bool hostFailed;
         private int lastHostCallFrame = -100;
         private bool initialised;
-        private int failures;
+        private readonly StandDown standDown = new StandDown(FailureLimit, PauseAfterFailuresS);
+        private bool stackLogged;
         private Guid lastVessel;
         private int lastBody = -1;
         private float sampleAge = 1e9f;
@@ -276,20 +278,34 @@ namespace ReDefinition.Atmospheres
         public void Tick(float dt)
         {
             if (!initialised) return;
+            standDown.Elapse(dt);
+            if (standDown.Paused) return;
             try
             {
                 Step(dt);
-                failures = 0;
+                standDown.Succeeded();
             }
             catch (Exception e)
             {
-                failures++;
+                bool pause = standDown.Failed();
                 AtmospheresLog.Failed("camera-frost", "stepping the camera frost failed", e);
-                drawReady = false;
-                if (failures >= FailureLimit)
+                if (!stackLogged)
                 {
-                    AtmospheresLog.WarnOnce("camera frost: failed " + FailureLimit + " frames in a row; the frost is switched off");
-                    Shutdown();
+                    stackLogged = true;
+                    AtmospheresLog.WarnOnce("camera frost: first failure at " + e);
+                }
+                drawReady = false;
+                if (pause)
+                {
+                    // A scene change or a menu frame must not end the frost for the session: stand down for a while, then try again.
+                    AtmospheresLog.WarnOnce("camera frost: failed " + FailureLimit + " frames in a row; it stands down for " + PauseAfterFailuresS + " s");
+                    Idle();
+                    ResetReadings();
+                    if (hostRegistered)
+                    {
+                        Services.PostUpscale.Unregister(hostDraw);
+                        hostRegistered = false;
+                    }
                 }
             }
         }
@@ -316,7 +332,8 @@ namespace ReDefinition.Atmospheres
         private void Step(float dt)
         {
             EnsurePass();
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            // Outside a flight there is no FlightGlobals object to ask (the main menu, a scene load): no vessel, no frost.
+            Vessel vessel = HighLogic.LoadedSceneIsFlight ? GameGlobals.ActiveVessel : null;
             Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             bool flightScene = HighLogic.LoadedSceneIsFlight && vessel != null && vessel.mainBody != null && flight != null;
             bool settingsOn = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && AtmospheresSettings.CameraFrost;
@@ -475,9 +492,8 @@ namespace ReDefinition.Atmospheres
             draw.Gravity = new Vector2(gx, gy);
             draw.Tuning = t;
             draw.FlipY = t.FlipY;
-            Vector3d sun = FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null
-                ? (FlightGlobals.Bodies[0].position - vessel.GetWorldPos3D()).normalized
-                : vessel.upAxis;
+            CelestialBody sunBody = GameGlobals.Sun;
+            Vector3d sun = sunBody != null ? (sunBody.position - vessel.GetWorldPos3D()).normalized : vessel.upAxis;
             float elevation = Mathf.Asin(Mathf.Clamp((float)Vector3d.Dot(sun, vessel.upAxis), -1f, 1f));
             draw.Light = FrostLight.Factor(elevation, live ? view.SunTransmission : 1f, ref t);
             float c = t.QuadBase + t.QuadLight * draw.Light;

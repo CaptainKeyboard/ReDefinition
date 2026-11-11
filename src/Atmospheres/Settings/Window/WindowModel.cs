@@ -237,9 +237,10 @@ namespace ReDefinition.Atmospheres
         private static List<BodyRow> GameBodies()
         {
             var climates = new List<BodyClimate>();
-            if (FlightGlobals.Bodies != null)
+            List<CelestialBody> all = GameGlobals.Bodies;
+            if (all != null)
             {
-                foreach (CelestialBody body in FlightGlobals.Bodies)
+                foreach (CelestialBody body in all)
                 {
                     BodyClimate climate = Bodies_Get(body);
                     if (climate != null) climates.Add(climate);

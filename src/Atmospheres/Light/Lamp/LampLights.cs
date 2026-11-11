@@ -53,9 +53,9 @@ namespace ReDefinition.Atmospheres
             known.Clear();
             byId.Clear();
             vesselById.Clear();
-            List<Vessel> vessels = FlightGlobals.VesselsLoaded;
+            List<Vessel> vessels = GameGlobals.VesselsLoaded;
             if (vessels == null) return;
-            Vessel active = FlightGlobals.ActiveVessel;
+            Vessel active = GameGlobals.ActiveVessel;
             for (int v = 0; v < vessels.Count; v++)
             {
                 Vessel vessel = vessels[v];
