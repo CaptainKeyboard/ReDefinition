@@ -2,91 +2,156 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 
 namespace AtmoSim.Runner
 {
-    // Applies the signed header thresholds (RESULT.md, section H4) to the raw numbers of the runs and writes metrics.json and
-    // criteria.md. evaluate <root>: <root> holds cost.json and determinism.json (phase 1 tools) and, in phase 2, one folder per
-    // run with stats.json written by the study commands. A criterion whose input file is missing is reported NOT RUN, never PASS.
+    // Merges the measured pieces of phase 2 into the PASS/FAIL table of the signed header (RESULT.md H5) and writes metrics.json and criteria.md.
+    //   evaluate <root>: <root> holds cost.json and determinism.json and the crit<N>_<tag>.json pieces written by the study commands.
+    // The thresholds live next to the measurements (Criteria*.cs); this class applies the decision rule of the header:
+    //   * mode R (and mode-free items, mode "-") decide; REPORT items never decide;
+    //   * the map-dependent GATE criteria 4, 10 and 11 must also pass in mode S seed A; a GATE item that fails in mode S seeds B or C is an OPEN RISK;
+    //   * mode S GATE items of the other criteria are reported only.
+    // A criterion without a piece is NOT RUN, never PASS.
     public static class Evaluate
     {
-        private sealed class J
+        private sealed class Item
         {
-            public readonly JsonElement E;
-            public J(JsonElement e) { E = e; }
-            public static J Load(string path) { return File.Exists(path) ? new J(JsonDocument.Parse(File.ReadAllText(path)).RootElement.Clone()) : null; }
-            public double D(string name) { var e = E.GetProperty(name); return e.ValueKind == JsonValueKind.Null ? double.NaN : e.GetDouble(); }
-            public bool B(string name) { return E.GetProperty(name).GetBoolean(); }
-            public bool Has(string name) { JsonElement e; return E.TryGetProperty(name, out e); }
+            public int Id; public string Test, Value, Threshold, Kind, Mode, Seed, Tag; public bool Pass;
+            public string Verdict; // ok, FAIL, risk, info, outside, requirement-fail
         }
 
-        public sealed class Crit
+        private static readonly int[] GateIds = { 1, 2, 4, 6, 7, 8, 10, 11, 12 };
+        private static readonly int[] MapDependent = { 4, 10, 11 };
+        private static readonly string[] Names = { "", "Coherent systems", "Fronts", "Climate zones (report)", "Level shares", "Circulation and wind (report)", "Cost", "Determinism", "UT rewind and jump", "Smoothness (report)", "Surface layer", "Convective cells", "Pre-signing and causality" };
+
+        private static string Str(JsonElement e)
         {
-            public int Id; public string Name; public bool Ran;
-            public List<Dictionary<string, object>> Items = new List<Dictionary<string, object>>();
-            public bool Pass { get { if (!Ran) return false; foreach (var i in Items) if (!(bool)i["pass"]) return false; return Items.Count > 0; } }
-            public void Add(string test, object value, string threshold, bool pass)
-            {
-                Ran = true;
-                Items.Add(new Dictionary<string, object> { { "test", test }, { "value", value }, { "threshold", threshold }, { "pass", pass } });
-            }
+            if (e.ValueKind == JsonValueKind.Number) return e.GetDouble().ToString("G5", CultureInfo.InvariantCulture);
+            if (e.ValueKind == JsonValueKind.True) return "true"; if (e.ValueKind == JsonValueKind.False) return "false";
+            if (e.ValueKind == JsonValueKind.Null) return "NaN";
+            return e.GetString();
         }
 
-        private static string F(double v) { return v.ToString("G5", CultureInfo.InvariantCulture); }
+        private static double Num(JsonElement root, string name) { var e = root.GetProperty(name); return e.ValueKind == JsonValueKind.Null ? double.NaN : e.GetDouble(); }
+
+        private static void Add(List<Item> l, int id, string test, double v, string thr, bool pass, bool gate = true)
+        {
+            l.Add(new Item { Id = id, Test = test, Value = v.ToString("G5", CultureInfo.InvariantCulture), Threshold = thr, Kind = gate ? "GATE" : "REPORT", Mode = "-", Seed = "-", Pass = pass, Tag = "timing" });
+        }
 
         public static int Run(string[] args)
         {
             string root = args[1];
-            var crits = new List<Crit>();
-            var cost = J.Load(Path.Combine(root, "cost.json")); var det = J.Load(Path.Combine(root, "determinism.json"));
-
-            var c6 = new Crit { Id = 6, Name = "Cost" };
-            if (cost != null)
+            var items = new List<Item>();
+            string costPath = Path.Combine(root, "cost.json"), detPath = Path.Combine(root, "determinism.json");
+            if (File.Exists(costPath))
             {
-                c6.Add("Sample median, map pattern (us)", F(cost.D("sample_median_us_map_pattern")), "<= 3", cost.D("sample_median_us_map_pattern") <= Thresholds.SampleMedianUs);
-                c6.Add("Sample median, new UT on every call (us, info)", F(cost.D("sample_median_us_new_ut_each_call")), "reported", true);
-                c6.Add("Sample allocations over 40000 calls (bytes)", F(cost.D("sample_allocated_bytes_40000_calls")), "0", cost.D("sample_allocated_bytes_40000_calls") == 0);
-                c6.Add("512x256 map update (ms)", F(cost.D("map_512x256_median_ms")), "<= 300", cost.D("map_512x256_median_ms") <= Thresholds.MapMs);
-                c6.Add("32x32x24 window (ms)", F(cost.D("window_32x32x24_median_ms")), "<= 5", cost.D("window_32x32x24_median_ms") <= Thresholds.WindowMs);
-                c6.Add("24 hourly forecast steps of one site (ms)", F(cost.D("forecast_24_steps_median_ms")), "<= 0.1", cost.D("forecast_24_steps_median_ms") <= Thresholds.ForecastMs);
+                var c = JsonDocument.Parse(File.ReadAllText(costPath)).RootElement;
+                Add(items, 6, "Sample median, map pattern (us)", Num(c, "sample_median_us_map_pattern"), "<= 3", Num(c, "sample_median_us_map_pattern") <= Thresholds.SampleMedianUs);
+                Add(items, 6, "Sample median, new UT on every call (us, info)", Num(c, "sample_median_us_new_ut_each_call"), "reported", true, false);
+                Add(items, 6, "Sample allocations over 40000 calls (bytes)", Num(c, "sample_allocated_bytes_40000_calls"), "0", Num(c, "sample_allocated_bytes_40000_calls") == 0);
+                Add(items, 6, "512x256 map update (ms)", Num(c, "map_512x256_median_ms"), "<= 300", Num(c, "map_512x256_median_ms") <= Thresholds.MapMs);
+                Add(items, 6, "32x32x24 window (ms)", Num(c, "window_32x32x24_median_ms"), "<= 5", Num(c, "window_32x32x24_median_ms") <= Thresholds.WindowMs);
+                Add(items, 6, "24 hourly forecast steps of one site (ms)", Num(c, "forecast_24_steps_median_ms"), "<= 0.1", Num(c, "forecast_24_steps_median_ms") <= Thresholds.ForecastMs);
+                Add(items, 10, "(g) one sea site, window cached (us)", Num(c, "surface_sea_site_median_us_warm_step"), "<= 20", Num(c, "surface_sea_site_median_us_warm_step") <= 20.0);
+                Add(items, 10, "(g) one sea site with a new window step (us, reported)", Num(c, "surface_sea_site_median_us_with_new_step"), "reported", true, false);
+                if (c.TryGetProperty("covermap_next_step_update_median_ms", out _))
+                {
+                    Add(items, 10, "(g) 256x128 cover map update, window cached (ms)", Num(c, "covermap_next_step_update_median_ms"), "<= 150", Num(c, "covermap_next_step_update_median_ms") <= 150.0);
+                    Add(items, 10, "(g) 256x128 cover map: first update (ms, reported)", Num(c, "covermap_first_update_ms"), "reported", true, false);
+                }
             }
-            crits.Add(c6);
-
-            var c7 = new Crit { Id = 7, Name = "Determinism" };
-            var c8 = new Crit { Id = 8, Name = "UT rewind and jump" };
-            if (det != null)
+            if (File.Exists(detPath))
             {
-                c7.Add("identical hashes across runs, threads, evaluation order, instances", det.B("identical_runs_threads_order_instances"), "true", det.B("identical_runs_threads_order_instances"));
-                c7.Add("identical map hashes across chunkings", det.B("identical_chunkings"), "true", det.B("identical_chunkings"));
-                c7.Add("another seed differs", det.B("seed2_differs"), "true", det.B("seed2_differs"));
-                c8.Add("UT - 2 days equals the direct evaluation bit for bit", det.B("rewind_back2d_equals_direct"), "true", det.B("rewind_back2d_equals_direct"));
-                c8.Add("jump forward and back returns the first result", det.B("rewind_return_equals_first"), "true", det.B("rewind_return_equals_first"));
+                var d = JsonDocument.Parse(File.ReadAllText(detPath)).RootElement;
+                Func<string, bool> b = n => d.GetProperty(n).GetBoolean();
+                Func<int, string, bool, string, Item> mk = (id, t, v, thr) => new Item { Id = id, Test = t, Value = v ? "true" : "false", Threshold = thr, Kind = "GATE", Mode = "-", Seed = "-", Pass = v, Tag = "determinism" };
+                items.Add(mk(7, "identical hashes across runs, threads, evaluation order, instances", b("identical_runs_threads_order_instances"), "true"));
+                items.Add(mk(7, "identical map hashes across chunkings", b("identical_chunkings"), "true"));
+                items.Add(mk(7, "another seed differs", b("seed2_differs"), "true"));
+                items.Add(mk(8, "UT - 2 days equals the direct evaluation bit for bit", b("rewind_back2d_equals_direct"), "true"));
+                items.Add(mk(8, "jump forward and back returns the first result", b("rewind_return_equals_first"), "true"));
             }
-            crits.Add(c7); crits.Add(c8);
+            foreach (string f in Directory.GetFiles(root, "crit*_*.json").OrderBy(x => x))
+            {
+                var doc = JsonDocument.Parse(File.ReadAllText(f)).RootElement;
+                int id = doc.GetProperty("id").GetInt32(); string tag = doc.GetProperty("tag").GetString();
+                foreach (var it in doc.GetProperty("items").EnumerateArray())
+                    items.Add(new Item
+                    {
+                        Id = id, Tag = tag, Test = it.GetProperty("test").GetString(), Value = Str(it.GetProperty("value")), Threshold = it.GetProperty("threshold").GetString(),
+                        Pass = it.GetProperty("pass").GetBoolean(), Kind = it.GetProperty("kind").GetString(), Mode = it.GetProperty("mode").GetString(), Seed = it.GetProperty("seed").GetString()
+                    });
+            }
 
-            // Criteria 1-5, 9-12 are filled by the phase 2 study commands.
-            foreach (int id in new[] { 1, 2, 3, 4, 5, 9, 10, 11, 12 })
-                if (!crits.Exists(c => c.Id == id)) crits.Add(new Crit { Id = id, Name = "(phase 2)" });
-            crits.Sort((x, y) => x.Id.CompareTo(y.Id));
+            // verdicts of the items
+            var risks = new List<Item>();
+            foreach (var it in items)
+            {
+                bool mapDep = MapDependent.Contains(it.Id);
+                bool ne = it.Value == "NOT EVALUATED";
+                if (ne) { it.Verdict = "info"; continue; }
+                if (it.Kind != "GATE") { it.Verdict = it.Threshold.StartsWith("reported") && it.Pass ? "info" : (it.Pass ? "ok" : "outside"); continue; }
+                if (it.Mode == "R" || it.Mode == "-") it.Verdict = it.Pass ? "ok" : "FAIL";
+                else if (mapDep && it.Seed == "A") it.Verdict = it.Pass ? "ok" : "FAIL";
+                else if (mapDep) { it.Verdict = it.Pass ? "ok" : "risk"; if (!it.Pass) risks.Add(it); }
+                else it.Verdict = it.Pass ? "ok" : "info-S";
+            }
+            // criterion 10, bands that no data set can evaluate
+            foreach (var g in items.Where(x => x.Id == 10 && x.Test.StartsWith("snow line at")).GroupBy(x => x.Test.Substring(0, x.Test.IndexOf(" (", StringComparison.Ordinal))))
+                if (g.All(x => x.Value == "NOT EVALUATED"))
+                    items.Add(new Item { Id = 10, Test = g.Key + ": no data set can evaluate the band", Value = "NOT EVALUATED", Threshold = "evaluable in at least one data set", Kind = "GATE", Mode = "R", Seed = "A", Pass = false, Verdict = "FAIL", Tag = "snow" });
+            // mode R cannot evaluate a band: the synthetic seeds decide it (all must pass)
+            foreach (var g in items.Where(x => x.Id == 10 && x.Test.StartsWith("snow line at")).GroupBy(x => x.Test.Substring(0, x.Test.IndexOf(" (", StringComparison.Ordinal))))
+            {
+                bool rNe = g.Any(x => x.Mode == "R" && x.Value == "NOT EVALUATED");
+                if (!rNe) continue;
+                foreach (var x in g.Where(y => y.Mode == "S" && y.Value != "NOT EVALUATED" && y.Kind == "GATE"))
+                    if (!x.Pass) { x.Verdict = "FAIL"; }
+                    else x.Verdict = "ok";
+            }
 
             var sb = new StringBuilder();
-            sb.AppendLine("| # | criterion | result |"); sb.AppendLine("|---|---|---|");
             var list = new List<object>();
-            bool all = true;
-            foreach (var c in crits)
+            var sumRows = new List<string>();
+            bool anyFail = false, anyNotRun = false;
+            sb.AppendLine("| # | criterion | result |"); sb.AppendLine("|---|---|---|");
+            var body = new StringBuilder();
+            for (int id = 1; id <= 12; id++)
             {
-                string res = !c.Ran ? "NOT RUN" : (c.Pass ? "PASS" : "FAIL");
-                if (res != "PASS") all = false;
-                sb.AppendLine("| " + c.Id + " | " + c.Name + " | " + res + " |");
-                foreach (var i in c.Items) sb.AppendLine("|  |   " + i["test"] + " | " + i["value"] + " (" + i["threshold"] + ") " + ((bool)i["pass"] ? "ok" : "FAIL") + " |");
-                list.Add(new Dictionary<string, object> { { "id", c.Id }, { "name", c.Name }, { "result", res }, { "items", c.Items } });
+                var its = items.Where(x => x.Id == id).ToList();
+                bool gateId = GateIds.Contains(id);
+                string res;
+                if (its.Count == 0) { res = "NOT RUN"; if (gateId) anyNotRun = true; }
+                else if (!gateId) res = "REPORT (" + its.Count(x => x.Verdict == "outside") + " items outside the expectation)";
+                else
+                {
+                    bool fail = its.Any(x => x.Verdict == "FAIL");
+                    int nRisk = its.Count(x => x.Verdict == "risk");
+                    res = fail ? "FAIL" : (nRisk > 0 ? "PASS with " + nRisk + " open risks" : "PASS");
+                    if (fail) anyFail = true;
+                }
+                sb.AppendLine("| " + id + " | " + Names[id] + " | " + res + " |");
+                body.AppendLine(); body.AppendLine("### " + id + " " + Names[id] + ": " + res); body.AppendLine();
+                body.AppendLine("| item | value | threshold | kind | mode | seed | verdict |"); body.AppendLine("|---|---|---|---|---|---|---|");
+                foreach (var x in its) body.AppendLine("| " + x.Test.Replace("|", "/") + " | " + x.Value.Replace("|", "/") + " | " + x.Threshold + " | " + x.Kind + " | " + x.Mode + " | " + x.Seed + " | " + x.Verdict + " |");
+                list.Add(new Dictionary<string, object>
+                {
+                    { "id", id }, { "name", Names[id] }, { "result", res },
+                    { "items", its.Select(x => (object)new Dictionary<string, object> { { "test", x.Test }, { "value", x.Value }, { "threshold", x.Threshold }, { "kind", x.Kind }, { "mode", x.Mode }, { "seed", x.Seed }, { "pass", x.Pass }, { "verdict", x.Verdict }, { "piece", x.Tag } }).ToList() }
+                });
             }
+            string decision = anyNotRun ? "INCOMPLETE (a GATE criterion has not run)" : anyFail ? "REWORK" : (risks.Count > 0 ? "GO with open risks" : "GO");
+            sb.AppendLine(); sb.AppendLine("Decision: " + decision);
+            if (risks.Count > 0) { sb.AppendLine("Open risks (map-dependent GATE items that fail in a synthetic set):"); foreach (var r in risks) sb.AppendLine("* criterion " + r.Id + ", mode " + r.Mode + ", seed " + r.Seed + ": " + r.Test + " = " + r.Value + " (" + r.Threshold + ")"); }
+            sb.Append(body);
             File.WriteAllText(Path.Combine(root, "criteria.md"), sb.ToString());
-            File.WriteAllText(Path.Combine(root, "metrics.json"), Json.Write(new Dictionary<string, object> { { "all_pass", all }, { "criteria", list } }));
+            File.WriteAllText(Path.Combine(root, "metrics.json"), Json.Write(new Dictionary<string, object> { { "decision", decision }, { "criteria", list } }));
             Console.Write(sb.ToString());
-            return all ? 0 : 1;
+            return decision == "GO" || decision == "GO with open risks" ? 0 : 1;
         }
     }
 

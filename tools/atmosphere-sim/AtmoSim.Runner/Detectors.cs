@@ -181,7 +181,7 @@ namespace AtmoSim.Runner
         }
 
         // The band detector on anomaly fields: thermal arm 3 K per 100 km, cloud arm cwpThr per 100 km.
-        public static List<Band> BandsFromAnomaly(MetricGrid g, double[] t, double[] cwp, double cwpThr, double minExtentM)
+        public static List<Band> BandsFromAnomaly(MetricGrid g, double[] t, double[] cwp, double cwpThr, double minExtentM, List<int> acceptedCells = null)
         {
             int nl = g.NLon, nt = g.NLat;
             var flagT = new bool[nl * nt]; var flagC = new bool[nl * nt];
@@ -251,6 +251,7 @@ namespace AtmoSim.Runner
                 double l1 = tr / 2 + disc, l2 = Math.Max(1e-9, tr / 2 - disc);
                 double aspect = Math.Sqrt(l1 / l2);
                 if (aspect < 3.0) continue;
+                if (acceptedCells != null) acceptedCells.AddRange(cells);
                 int nT = 0, nC = 0; foreach (int c in cells) { if (flagT[c]) nT++; if (flagC[c]) nC++; }
                 double fT = (double)nT / cells.Count, fC = (double)nC / cells.Count;
                 double cyLat = my * 1000.0 / g.A;

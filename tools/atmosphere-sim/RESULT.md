@@ -265,7 +265,11 @@ Core commit at header time: `a7ec7585`; the amendments are in the commit that ca
 
 ## PHASE 2 (after the sign-off)
 
-Not started. Run order: `cost` under the exclusive lock, `determinism`, `tracker` (seeds A, B, C; waves off; rotation x1000), the level, wind, snow, ice, cell and smoothness runs, the sheets, `evaluate`.
+Harness (committed before the first criterion run): `Runner/Criteria.cs` (criteria 1, 2, 3, 4, 5, 9 and the tracker, field and A/B parts of 12), `CriteriaSurface.cs` (10), `CriteriaCells.cs` (11), `Evaluate.cs` (merges the pieces, applies the decision rule). Commands, each with `--recon` for mode R and without for mode S, writing `crit<N>_<tag>.json` into an output folder:
+`cost` (under `gpu_lock.py --exclusive`), `determinism`, `crit-tracker`, `crit-levels`, `crit-fields`, `crit-surface`, `crit-cells`, then `evaluate <folder>` (criteria.md, metrics.json). The sheets come from `month` and `plots/make_sheets.py`.
+Measurement details the header leaves open, fixed here before the first run and applying to every iteration: criterion 1 is gated per hemisphere (the stricter reading); a cell's lifetime (criterion 11) is the time its component stays at or above strength 0.05; the size and lifetime statistics are medians; cells whose peak stays below 0.95 are the margin-truncated ones.
+
+PHASE 2 RESULTS follow below the line (iteration 1, iteration 2, final).
 
 ---------------------------------------------------------------------------------------------------------------------------
 

@@ -26,6 +26,11 @@ namespace AtmoSim.Runner
             if (cmd == "determinism") return Timing.Determinism(args);
             if (cmd == "tracker") return Study.Tracker(args);
             if (cmd == "evaluate") return Evaluate.Run(args);
+            if (cmd == "crit-tracker") return Criteria.Tracker(args);
+            if (cmd == "crit-levels") return Criteria.Levels(args);
+            if (cmd == "crit-fields") return Criteria.Fields(args);
+            if (cmd == "crit-surface") return CriteriaSurface.Run(args);
+            if (cmd == "crit-cells") return CriteriaCells.Run(args);
             Console.Error.WriteLine("unknown command " + cmd);
             return 2;
         }
