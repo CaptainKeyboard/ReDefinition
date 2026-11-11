@@ -4,6 +4,9 @@
   "rows": [
     { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.state_ready", "equals": 1, "note": "the height raster of the focused body is read from the PQS and the generator state is built (the module never starts a sphere)" },
     { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.field_in_hub", "equals": 1, "note": "WeatherHub.Field is the generator while weatherEffects and genEnabled are on" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.body_obliquity_deg", "min": 0, "max": 90, "unit": "deg", "note": "R15: the angle between the body's rotation axis and the normal of its planet's orbit as the game has it (BodyProbe); a stock body reads about 0, which is why GeneratorRules.DefaultObliquityDeg (23.44, [VERIFY] with the owner) is used for bodies with an orbit season clock" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.axis_from_reference_deg", "min": 0, "max": 180, "unit": "deg", "note": "R15: the angle between the body's rotation axis and the game's up axis" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.tilt_used_deg", "min": 0, "max": 90, "unit": "deg", "note": "R15: the tilt the generator got for the focused body (the node's, the body's own, or the default)" },
     { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.thermal_fit_ok", "equals": 1, "note": "GetFullTemperature(altitude, offset) with the offset of GetAtmoThermalStats gives a finite table the fit accepts (synthetic sun and up vectors, [VERIFY] against the dumps)" },
     { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.thermal_equator_minus_pole_k", "min": 20, "max": 120, "note": "the equator is warmer than the pole of the focused body" },
     { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.thermal_lapse_k_per_km", "min": 0.5, "max": 20, "note": "lapse rate from the 0 and 5000 m samples" },
@@ -15,6 +18,18 @@
     { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.map_render_ms", "max": 300, "note": "a 512 x 256 map update on a worker thread (the proof's gate: 300 ms)" },
     { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.map_read_ms", "max": 0.1, "note": "the main thread only copies a finished map" },
     { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.window_filled", "equals": 1, "note": "the 32 x 32 x 24 window is filled around the vessel" },
-    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.window_ms", "max": 5, "note": "the 3D window (the proof's gate: 5 ms)" }
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.window_ms", "max": 5, "note": "the 3D window (the proof's gate: 5 ms)" },
+    { "series": "player-C25", "section": "C25", "metric": "main.proof_hash_equals_golden", "equals": 1, "note": "player stage scene generator-golden under Mono: the proof's hash of 20000 queries (positions from proof-lat.bin, platform Math.Asin) on the main thread equals proofHash of tests/data/generator/golden.json (measured: the bits of the core's answers on this machine's libm)" },
+    { "series": "player-C25", "section": "C25", "metric": "main.portable_hash_equals_golden", "equals": 1, "note": "the same hash with positions made by DMath.Asin on the main thread equals proofHashPortable" },
+    { "series": "player-C25", "section": "C25", "metric": "main.map_hash_equals_golden", "equals": 1, "note": "the 128 x 64 map hash on the main thread equals mapHash" },
+    { "series": "player-C25", "section": "C25", "metric": "main.values_wrong_of_2700", "max": 0, "note": "3 seeds x 20 points x 5 UTs x 9 values on the main thread equal values_seed1..3 bit for bit" },
+    { "series": "player-C25", "section": "C25", "metric": "main.surface_wrong_of_45", "max": 0, "note": "the surface layer on the main thread equals the recorded surface values" },
+    { "series": "player-C25", "section": "C25", "metric": "worker.proof_hash_equals_golden", "equals": 1, "note": "player stage scene generator-golden under Mono: the proof's hash of 20000 queries (positions from proof-lat.bin, platform Math.Asin) on a worker thread equals proofHash of tests/data/generator/golden.json (measured: the bits of the core's answers on this machine's libm)" },
+    { "series": "player-C25", "section": "C25", "metric": "worker.portable_hash_equals_golden", "equals": 1, "note": "the same hash with positions made by DMath.Asin on a worker thread equals proofHashPortable" },
+    { "series": "player-C25", "section": "C25", "metric": "worker.map_hash_equals_golden", "equals": 1, "note": "the 128 x 64 map hash on a worker thread equals mapHash" },
+    { "series": "player-C25", "section": "C25", "metric": "worker.values_wrong_of_2700", "max": 0, "note": "3 seeds x 20 points x 5 UTs x 9 values on a worker thread equal values_seed1..3 bit for bit" },
+    { "series": "player-C25", "section": "C25", "metric": "worker.surface_wrong_of_45", "max": 0, "note": "the surface layer on a worker thread equals the recorded surface values" },
+    { "series": "player-C25", "section": "C25", "metric": "worker_equals_main", "equals": 1, "note": "every hash and value of the worker thread equals the main thread's under Mono" },
+    { "series": "player-C25", "section": "C25", "metric": "runtime.is_mono", "equals": 1, "note": "the player runs Unity's Mono, the runtime of KSP" }
   ]
 }

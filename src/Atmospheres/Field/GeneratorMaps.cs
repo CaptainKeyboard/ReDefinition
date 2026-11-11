@@ -15,7 +15,12 @@ namespace ReDefinition.Atmospheres
     //
     // Weather maps (coverage, cloud type, precipitation level, humidity, surface temperature, wind) are 512 x 256 and at most every
     // MinIntervalMs of real time; the surface maps (snow, ice fraction, ice thickness) are 256 x 128, made from a coarse grid of sites
-    // (SiteWidth x SiteHeight, a few kilobytes of window each) every CoverIntervalMs of real time or after a jump of the UT.
+    // (SiteWidth x SiteHeight, a few kilobytes of window each) every CoverIntervalMs of real time or after a jump of the UT. The surface
+    // maps are interpolated bilinearly from the sites (about 5.6 degrees apart), not point evaluations, and a texel whose four neighbouring
+    // sites hold none of its own kind (land for snow, sea for ice) gets 0: a small island or a narrow coast can lose its snow or ice.
+    //
+    // The Type map holds the precipitation band index (PrecipScale.BandOf of the level and the wind, as a float), not an index of a cloud type
+    // of the body's configuration. Mapping the bands or the cloud-water and uplift fields to cloud types is the cloud-map painter's (C23).
     internal sealed class GeneratorMaps
     {
         internal const int Width = 512, Height = 256;
@@ -52,6 +57,8 @@ namespace ReDefinition.Atmospheres
         private sealed class Body
         {
             internal readonly object Lock = new object();
+            // Held for the whole render of the weather maps / the surface maps of the body (see RenderNow).
+            internal readonly object WeatherRender = new object(), CoverRender = new object();
             internal Weather2D Current, Spare = new Weather2D();
             internal Cover2D CoverCurrent, CoverSpare = new Cover2D();
             internal double WantedUt = double.NaN;
@@ -240,23 +247,28 @@ namespace ReDefinition.Atmospheres
             GeneratorState s = field.StateOf(bodyIndex);
             if (s == null || s.Broken) return false;
             Body b = BodyOf(bodyIndex);
-            Weather2D target;
-            lock (b.Lock)
+            // One render of a body's weather maps at a time: two callers (the worker and a Synchronous read) would take the same spare
+            // buffer, and the second swap would leave Spare and Current as the same buffer, which a later render writes while a reader copies it.
+            lock (b.WeatherRender)
             {
-                target = b.Spare;
+                Weather2D target;
+                lock (b.Lock)
+                {
+                    target = b.Spare;
+                }
+                lock (target)
+                {
+                    if (!RenderWeather(s, ut, target)) return false;
+                    target.Version = field.Version;
+                }
+                lock (b.Lock)
+                {
+                    b.Spare = b.Current ?? new Weather2D();
+                    b.Current = target;
+                    b.LastWeatherMs = clock.ElapsedMilliseconds;
+                }
+                return true;
             }
-            lock (target)
-            {
-                if (!RenderWeather(s, ut, target)) return false;
-                target.Version = field.Version;
-            }
-            lock (b.Lock)
-            {
-                b.Spare = b.Current ?? new Weather2D();
-                b.Current = target;
-                b.LastWeatherMs = clock.ElapsedMilliseconds;
-            }
-            return true;
         }
 
         // The weather maps of a state for a time, into a snapshot. False where a value was not finite (the guard of the state tripped).
@@ -297,23 +309,27 @@ namespace ReDefinition.Atmospheres
             GeneratorState s = field.StateOf(bodyIndex);
             if (s == null || s.Broken) return false;
             Body b = BodyOf(bodyIndex);
-            Cover2D target;
-            lock (b.Lock)
+            // Serialised per body like RenderNow (the site arrays of the body are built in the first render as well).
+            lock (b.CoverRender)
             {
-                target = b.CoverSpare;
+                Cover2D target;
+                lock (b.Lock)
+                {
+                    target = b.CoverSpare;
+                }
+                lock (target)
+                {
+                    if (!RenderCover(b, s, ut, target)) return false;
+                    target.Version = field.Version;
+                }
+                lock (b.Lock)
+                {
+                    b.CoverSpare = b.CoverCurrent ?? new Cover2D();
+                    b.CoverCurrent = target;
+                    b.LastCoverMs = clock.ElapsedMilliseconds;
+                }
+                return true;
             }
-            lock (target)
-            {
-                if (!RenderCover(b, s, ut, target)) return false;
-                target.Version = field.Version;
-            }
-            lock (b.Lock)
-            {
-                b.CoverSpare = b.CoverCurrent ?? new Cover2D();
-                b.CoverCurrent = target;
-                b.LastCoverMs = clock.ElapsedMilliseconds;
-            }
-            return true;
         }
 
         private bool RenderCover(Body b, GeneratorState s, double ut, Cover2D into)
@@ -368,7 +384,7 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        // The value of a texel from the four surrounding sites of the same kind (land for snow, sea for ice), 0 where there is none.
+        // The value of a texel interpolated from the four surrounding sites of the same kind (land for snow, sea for ice), 0 where there is none.
         private static void Upsample(Body b, float[] snow, float[] iceFraction, float[] iceThickness, double fx, double fy, bool texelSea, Cover2D into, int at)
         {
             int x0 = (int)Math.Floor(fx), y0 = (int)Math.Floor(fy);

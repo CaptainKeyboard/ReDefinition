@@ -466,6 +466,8 @@ Remaining GATE failures: criterion 1 south lifetime 42 h and north drift 12.37 m
 | 65 to 85 S | 0.0 to 0.4 | none tracked |
 So the lows of the mid-latitudes move east at 12 to 23 m/s (westerlies), the belt clusters and the cumulus field move west at 1 to 3 m/s (trades, designed 3 to 9 m/s for the cluster waves, measured as a mean over eastward and westward ones), the polar caps hold only fading systems and almost no motion. The pattern-correlation estimate underestimates the speed of growing and decaying systems; it is a direction indicator for the tropics. Rotation around a low (wind arrows) is in the wind field, not in this table.
 
+Status for the game port (package C25): the weather field `GeneratorField` is built on this REWORK state of round 2 and carries these limits in its header comment and in `src/Atmospheres/CONTRACT.md` (section 3). The Mono run of the golden hash is the player series `player-C25` (scene `generator-golden`). An owner decision that accepts the REWORK state as the base is not recorded in the repository.
+
 Open: the south front events, the comb remainder and the polar fan above, the bead look of the belt patches, a spiral and dry slot, rain shadow, ground wind (unchanged), A/B correlation, front-cell share, south lifetime, and the 55 deg N latitude summer snow on high terrain.
 
 ## HISTORY: the first prototype (two-layer spectral model), kept for the record

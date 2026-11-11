@@ -52,6 +52,13 @@ namespace ReDefinition.Atmospheres
             if (field == null || field.StateOf(index) == null) yield break;
             GeneratorState state = field.StateOf(index);
 
+            // The axial tilt: the angle between the body's rotation axis and the normal of its planet's orbit, as the game has it (stock bodies
+            // have none), against the tilt the generator uses (the default Earth axis where the body is untilted but has an orbit season clock).
+            BodyFacts facts = BodyProbe.Read(body, null, new List<string>());
+            Emit("C25.body_obliquity_deg", facts.ObliquityDeg);
+            Emit("C25.axis_from_reference_deg", facts.AxisFromReferenceDeg);
+            Emit("C25.tilt_used_deg", state.Parameters.ObliquityRad * 180.0 / Math.PI);
+
             // The temperature table of the game's thermal code and the fit of it.
             string note;
             ThermalFit fit = ThermalFit.From(ThermalProbe.Read(body, out note));

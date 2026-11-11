@@ -1,0 +1,4 @@
+# Linked into the weather player for the weather generator (C25): the generator core, the repo's own source (tools/atmosphere-sim). The
+# scene generator-golden recomputes the golden values of tests/data/generator under the player's Mono runtime. The game-bound parts of
+# the field (the PQS raster, the thermal probe, the module) are not linked.
+tools/atmosphere-sim/AtmoSim.Core/*.cs

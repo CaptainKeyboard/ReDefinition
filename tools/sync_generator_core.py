@@ -33,7 +33,7 @@ def dotnet():
 
 
 def link_is_wired():
-    """The assembly compiles the whole core folder by a pattern: nothing is copied, nothing can be left out."""
+    """The project compiles the whole core folder by a pattern, so no file of the core can be left out."""
     with open(CSPROJ, encoding="utf-8") as f:
         text = f.read()
     return "tools\\atmosphere-sim\\AtmoSim.Core\\**\\*.cs" in text and "Generator\\Core\\" in text
@@ -47,8 +47,12 @@ def record(into):
 
 
 def read(path):
+    """The bytes of a file; the text file golden.json is compared with line ends normalised (a CRLF checkout equals an LF one)."""
     with open(path, "rb") as f:
-        return f.read()
+        data = f.read()
+    if path.endswith(".json"):
+        data = data.replace(b"\r\n", b"\n")
+    return data
 
 
 def main():

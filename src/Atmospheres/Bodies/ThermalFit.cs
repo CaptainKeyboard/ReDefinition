@@ -76,7 +76,9 @@ namespace ReDefinition.Atmospheres
             double mean = 0, weights = 0;
             for (int l = 0; l < nl; l++)
             {
-                double w = Math.Max(0.05, Math.Cos(s.LatitudeDeg[l] * Math.PI / 180.0));
+                // DMath.Cos, not the platform's: MeanK is an input of the generator, so a last-bit difference of libm between machines
+                // would change every bit of the body's weather.
+                double w = Math.Max(0.05, AtmoSim.Core.DMath.Cos(s.LatitudeDeg[l] * Math.PI / 180.0));
                 mean += obs[l] * w;
                 weights += w;
             }

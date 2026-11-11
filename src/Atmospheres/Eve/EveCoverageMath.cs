@@ -2,8 +2,9 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The pure part of EveCellLayer: the equirectangular map of a cloud layer's coverage (the way EVE reads it) and the painting of storm
-    // cells into it, as functions of numbers so that they can be tested without the game.
+    // The equirectangular map of a cloud layer's coverage (the way EVE reads it) and the painting of storm cells into it, as functions of
+    // numbers so that they can be tested without the game. It was the pure part of the deleted EveCellLayer; the cloud-map painter (package
+    // C23) takes it over or replaces it.
     //
     // EVE's coverage map is a 2D texture on the sphere of the layer. A point of the layer is a unit vector in the layer's frame: the
     // world position times CloudsRaymarchedVolume.CloudRotationMatrix, normalised. Its texture coordinates are

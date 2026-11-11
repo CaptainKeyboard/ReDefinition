@@ -4,9 +4,25 @@ namespace ReDefinition.Atmospheres
 {
     // What is left of the legacy storm cell scheduler after the weather generator replaced it (package C25 deleted StormCells, StormModel,
     // EveLayerStorm, EveCellLayer, EveStormMath and the legacy field bridge). StormEffect, StormLog and StormVolume still call a few of their
-    // members; those files belong to the packages that adapt or delete them (C20, C21), so the members stay here as inert shims: the
-    // scheduler makes no cell, the EVE layers inject nothing, and the constants that a test of the cell layer's configuration reads are
-    // kept. The last caller package deletes this file together with the caller.
+    // members; those files belong to the packages that adapt or delete them (C20, C21, C23), so the members stay here as inert shims: the
+    // scheduler makes no cell, the EVE layers inject nothing, and the constants and the range function that two tests of the EVE coverage and
+    // the swirl read are kept. This deviates from the plan rule "no inert interim copy" for EveLayerStorm and EveCellLayer because the callers
+    // are outside the ownership of C25. Who removes what:
+    //
+    //   shim                                  caller                                          removed by
+    //   StormCells (type, Cell, Rules,        StormEffect, StormLog                            C20 (StormEffect, StormLog)
+    //     Collect, IntensityAt, Nearest,      StormVolume                                      C21 (StormVolume)
+    //     Distance)
+    //   StormModel (Resolve, Unit)            StormEffect                                      C20
+    //                                         StormVolume                                      C21
+    //   EveLayerStorm (all members)           StormEffect, StormVolume                         C20, C21
+    //   EveCellLayer (Update, Release,        StormEffect, StormVolume                         C20, C21
+    //     Summary, HasVolumetric, OwnSnowField, BaseAboveGroundM)
+    //   EveCellLayer (LayerName, SnowLayerName, RangeM, WideFromAltitudeM, VolumeLiveBelowM, BaseAslM, RangeFor)
+    //                                         EveCoverageTests, EveSwirlTests                  C23 (the two test files)
+    //
+    // Every member that a caller can reach is inert: it returns a neutral value and has no logic of the deleted classes. RangeFor and the
+    // constants are the one exception, kept for the two tests of C23. The package that removes the last caller deletes this file.
 
     [Obsolete("The cell scheduler is deleted; the weather generator (GeneratorField) is the source of weather. Removed with its last caller.")]
     internal static class StormCells
@@ -56,39 +72,26 @@ namespace ReDefinition.Atmospheres
             return 0;
         }
 
-        // The great-circle distance between two places in degrees, on a sphere of that radius, in m.
+        // No cell exists, so no place is near one.
         internal static double Distance(double latitudeA, double longitudeA, double latitudeB, double longitudeB, double bodyRadius)
         {
-            double p1 = Geo.ToRad(latitudeA), p2 = Geo.ToRad(latitudeB);
-            double dp = p2 - p1, dl = Geo.ToRad(longitudeB - longitudeA);
-            double sp = Math.Sin(dp * 0.5), sl = Math.Sin(dl * 0.5);
-            double a = sp * sp + Math.Cos(p1) * Math.Cos(p2) * sl * sl;
-            return 2 * bodyRadius * Math.Asin(Math.Min(1, Math.Sqrt(a)));
+            return double.PositiveInfinity;
         }
     }
 
     [Obsolete("The cell scheduler is deleted. Removed with its last caller.")]
     internal static class StormModel
     {
-        // The intensity the legacy effect uses: the diagnostics value if it is from 0 to 1, otherwise the scheduled one when storms are on.
+        // No storm intensity: the cell scheduler is deleted, the field's level is the source.
         internal static double Resolve(double forceStorm, bool stormsEnabled, double scheduled)
         {
-            if (!double.IsNaN(forceStorm) && forceStorm >= 0) return Math.Max(0, Math.Min(1, forceStorm));
-            if (!stormsEnabled || double.IsNaN(scheduled)) return 0;
-            return Math.Max(0, Math.Min(1, scheduled));
+            return 0.0;
         }
 
-        // The n-th independent value of a key, in [0, 1) (a 64-bit mixing step).
+        // No cell has a key, so nothing asks for its values.
         internal static double Unit(ulong key, int n)
         {
-            unchecked
-            {
-                ulong z = key + 0x9E3779B97F4A7C15UL + ((ulong)n + 101UL) * 0xBF58476D1CE4E5B9UL;
-                z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
-                z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
-                z ^= z >> 31;
-                return (z >> 11) / (double)(1UL << 53);
-            }
+            return 0.0;
         }
     }
 
@@ -102,7 +105,7 @@ namespace ReDefinition.Atmospheres
 
         internal static double BaseAboveGroundM(double groundAslM)
         {
-            return Math.Max(120.0, EveCellLayer.BaseAslM - groundAslM);
+            return 0.0;
         }
 
         internal static void Update(CelestialBody body, StormCells.Cell[] cells, int count, double cameraAltitudeM)
@@ -147,7 +150,7 @@ namespace ReDefinition.Atmospheres
 
         internal static double BaseAboveGroundM(double groundAslM)
         {
-            return Math.Max(120.0, BaseAslM - groundAslM);
+            return 0.0;
         }
 
         internal static void Update(CelestialBody body, StormCells.Cell[] cells, int count, double cameraAltitudeM)

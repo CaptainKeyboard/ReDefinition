@@ -16,6 +16,20 @@ namespace ReDefinition.Atmospheres
     // temperature curves by the fit of ThermalFit and not mixed with the game's thermal system.
     //
     // A guard watches every answer: a value that is not finite freezes that body to its climatology (Readiness Broken, one log line).
+    //
+    // Determinism. The core answers with no platform transcendental (DMath for sin, cos, exp, asin, atan2), so the same inputs give the same
+    // bits on every machine and runtime. The inputs of a body are made from the game's float curves (ThermalFit, GeneratorBodies) and from the
+    // forced discs; both use DMath too. A different mod set is a different definition on purpose (DefinitionId). The golden values of
+    // tests/data/generator are checked under net48 (unit tests) and under Unity's Mono (weather player, series player-C25, scene
+    // generator-golden).
+    //
+    // Known limits (tuning round 2 of the generator, tools/atmosphere-sim/RESULT.md, decision there: REWORK with open GATE items; this
+    // field is built on that state): front events in the south are rare (0.19 per 10 days, the south lifetime is 42 h instead of 48 h and the
+    // north drift 12.37 m/s is marginal); a remainder of the comb placement of the systems shows as several similar diagonal streaks per
+    // hemisphere in some frames, and a fan of radial streaks at the south pole; the patches of the moist belt are individually pill-shaped
+    // and can read as beads on a string; summer snow at 55 degrees N latitude on high terrain is 0.11 (limit 0.05). Rasters, and with them
+    // states, exist only for bodies whose terrain sphere runs (GeneratorRaster): a body not visited yet answers Sample with false. Cloud
+    // types are not in the field: the Type map holds the precipitation band (see GeneratorMaps).
     internal sealed class GeneratorField : IWeatherField, ISurfaceForcing, IWeatherSystemSource
     {
         // The step of the version, in seconds of game time: the version rises when the clock moves into a new step that was observed.
@@ -435,7 +449,7 @@ namespace ReDefinition.Atmospheres
             {
                 Disc d = forced[i];
                 if (d.Body != s.BodyIndex || ut < d.FromUt || ut > d.ToUt) continue;
-                double dLat = lat - d.LatRad, dLon = DMath.WrapPi(lon - d.LonRad) * Math.Cos(0.5 * (lat + d.LatRad));
+                double dLat = lat - d.LatRad, dLon = DMath.WrapPi(lon - d.LonRad) * DMath.Cos(0.5 * (lat + d.LatRad));
                 double distance = s.Parameters.RadiusM * Math.Sqrt(dLat * dLat + dLon * dLon);
                 if (distance > d.RadiusM) continue;
                 float level = PrecipScale.LevelFromRate(d.RateMmPerH, s.Bands);
@@ -460,7 +474,7 @@ namespace ReDefinition.Atmospheres
             {
                 Disc d = forced[i];
                 if (d.Body != bodyIndex || d.Type != PrecipType.Snow || ut <= d.FromUt) continue;
-                double dLat = lat - d.LatRad, dLon = DMath.WrapPi(lon - d.LonRad) * Math.Cos(0.5 * (lat + d.LatRad));
+                double dLat = lat - d.LatRad, dLon = DMath.WrapPi(lon - d.LonRad) * DMath.Cos(0.5 * (lat + d.LatRad));
                 if (radius * Math.Sqrt(dLat * dLat + dLon * dLon) > d.RadiusM) continue;
                 double hours = (Math.Min(ut, d.ToUt) - d.FromUt) / 3600.0;
                 depth += d.RateMmPerH * hours * 8.0 / 1000.0;
