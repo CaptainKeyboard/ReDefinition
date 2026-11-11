@@ -9,8 +9,8 @@ namespace ReDefinition.Atmospheres.Forecast
     // is the mean wind and the statistical gust (mean x (1 + depth)). No UnityEngine, any thread.
     internal static class ForecastSampling
     {
-        // Samples the field at the site (the height above the ground goes in as the altitude [VERIFY with C25: the field's altitude
-        // reference]). False where the field does not cover the body; the sample is then clear.
+        // Samples the field at the site. The altitude argument is metres above sea level, as at every live caller of IWeatherField.Sample
+        // (CONTRACT.md, "Altitude argument"); ForecastSite.AltAgl carries that altitude, its name is the A01 name. False where the field does not cover the body; the sample is then clear.
         internal static bool Sample(IWeatherField field, ForecastSite site, double ut, out WeatherSample sample)
         {
             return field.Sample(site.BodyIndex, site.LatDeg, site.LonDeg, site.AltAgl, ut, out sample);

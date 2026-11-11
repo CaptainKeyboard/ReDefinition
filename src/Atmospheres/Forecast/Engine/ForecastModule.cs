@@ -140,8 +140,14 @@ namespace ReDefinition.Atmospheres.Forecast
         private bool followsGame;
         private float sitesClock = float.MaxValue;
         private bool havePad;
-        private int padBody;
-        private double padLat, padLon;
+        private ForecastSite padSite;
+
+        // The site of a place for the field: the altitude is metres above sea level, what every live caller of IWeatherField.Sample passes
+        // (ForecastSite.AltAgl keeps its A01 name and carries that altitude).
+        internal static ForecastSite SiteAt(int bodyIndex, double latDeg, double lonDeg, double altitudeAsl, string name)
+        {
+            return new ForecastSite { BodyIndex = bodyIndex, LatDeg = latDeg, LonDeg = lonDeg, AltAgl = altitudeAsl, Name = name };
+        }
         private const float AlertSitesSeconds = 2f;
 
         // The running service (null before Init); the forecast window and the alert delivery read details through it.
@@ -207,33 +213,54 @@ namespace ReDefinition.Atmospheres.Forecast
             var launch = new List<bool>();
             if (spec.Ksc)
             {
-                SpaceCenter centre = SpaceCenter.Instance;
-                if (centre != null && centre.cb != null)
+                ForecastSite fresh;
+                if (TryPadSite(out fresh))
                 {
-                    padBody = centre.cb.flightGlobalsIndex;
-                    padLat = centre.Latitude;
-                    padLon = centre.Longitude;
+                    padSite = fresh;
                     havePad = true;
                 }
                 if (havePad)
                 {
-                    sites.Add(new ForecastSite { BodyIndex = padBody, LatDeg = padLat, LonDeg = padLon, AltAgl = 0.0, Name = "Space Centre" });
+                    sites.Add(padSite);
                     launch.Add(true);
                 }
             }
             Vessel vessel = spec.Vessel && HighLogic.LoadedSceneIsFlight ? GameGlobals.ActiveVessel : null;
-            if (vessel != null && vessel.mainBody != null && vessel.mainBody.atmosphere && vessel.altitude < vessel.mainBody.atmosphereDepth
-                && (vessel.situation == Vessel.Situations.LANDED || vessel.situation == Vessel.Situations.SPLASHED
-                    || vessel.situation == Vessel.Situations.PRELAUNCH || vessel.situation == Vessel.Situations.FLYING))
+            ForecastSite vesselSite;
+            if (TryVesselSite(vessel, out vesselSite))
             {
-                double height = vessel.heightFromTerrain >= 0.0 ? vessel.heightFromTerrain : vessel.altitude;
-                sites.Add(new ForecastSite
-                {
-                    BodyIndex = vessel.mainBody.flightGlobalsIndex, LatDeg = vessel.latitude, LonDeg = vessel.longitude, AltAgl = height, Name = vessel.vesselName
-                });
+                sites.Add(vesselSite);
                 launch.Add(vessel.situation == Vessel.Situations.PRELAUNCH);
             }
             service.SetAutoWatched(sites, launch);
+        }
+
+        // The launch pad as a forecast site. [VERIFY K-W3a row B12 (B12Probe): SpaceCenter.Instance may be null in the flight scene (the
+        // pad is then known only after a visit to the Space Centre in this session, kept in havePad); SpaceCenter.Latitude/Longitude are
+        // expected in degrees and equal to the latitude/longitude of SpaceCenterTransform; the terrain altitude of the pad is about 70 m
+        // above sea level.] False where there is no Space Centre.
+        internal static bool TryPadSite(out ForecastSite site)
+        {
+            site = default(ForecastSite);
+            SpaceCenter centre = SpaceCenter.Instance;
+            if (centre == null || centre.cb == null) return false;
+            // The altitude convention of IWeatherField.Sample: metres above sea level (CONTRACT.md, "Altitude argument").
+            double altitudeAsl = centre.cb.TerrainAltitude(centre.Latitude, centre.Longitude, true);
+            site = SiteAt(centre.cb.flightGlobalsIndex, centre.Latitude, centre.Longitude, altitudeAsl, "Space Centre");
+            return true;
+        }
+
+        // The active vessel as a forecast site while it is in an atmosphere and on the ground, on the water or flying below its depth.
+        // [VERIFY K-W3a row B12 (B12Probe): vessel.altitude is the altitude above sea level, the quantity the live callers read with
+        // body.GetAltitude(position).]
+        internal static bool TryVesselSite(Vessel vessel, out ForecastSite site)
+        {
+            site = default(ForecastSite);
+            if (vessel == null || vessel.mainBody == null || !vessel.mainBody.atmosphere || vessel.altitude >= vessel.mainBody.atmosphereDepth) return false;
+            if (vessel.situation != Vessel.Situations.LANDED && vessel.situation != Vessel.Situations.SPLASHED
+                && vessel.situation != Vessel.Situations.PRELAUNCH && vessel.situation != Vessel.Situations.FLYING) return false;
+            site = SiteAt(vessel.mainBody.flightGlobalsIndex, vessel.latitude, vessel.longitude, vessel.altitude, vessel.vesselName);
+            return true;
         }
 
         public void Shutdown()

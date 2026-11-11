@@ -1,0 +1,14 @@
+{
+  "$schema": "../schema.json",
+  "package": "B12",
+  "rows": [
+    { "series": "K-W3a", "section": "D30", "package": "B12", "start": "run1", "metric": "B12.pad_site_present", "equals": 1, "note": "SpaceCenter.Instance answers in the flight scene, so the forecast module has a pad site" },
+    { "series": "K-W3a", "section": "D30", "package": "B12", "start": "run1", "metric": "B12.pad_lat_error_deg", "max": 0.05, "note": "SpaceCenter.Latitude (degrees expected) against the latitude of SpaceCenterTransform" },
+    { "series": "K-W3a", "section": "D30", "package": "B12", "start": "run1", "metric": "B12.pad_lon_error_deg", "max": 0.05, "note": "SpaceCenter.Longitude (degrees expected) against the longitude of SpaceCenterTransform" },
+    { "series": "K-W3a", "section": "D30", "package": "B12", "start": "run1", "metric": "B12.pad_altitude_asl_m", "min": 0, "max": 200, "note": "the pad site carries the terrain altitude above sea level (about 70 m at the stock Space Centre)" },
+    { "series": "K-W3a", "section": "D30", "package": "B12", "start": "run1", "metric": "B12.pad_altitude_error_m", "max": 150, "note": "the pad site altitude against body.GetAltitude of the Space Centre transform" },
+    { "series": "K-W3a", "section": "D30", "package": "B12", "start": "run1", "metric": "B12.vessel_site_present", "equals": 1, "note": "the active vessel on the pad or flying low gives a vessel site" },
+    { "series": "K-W3a", "section": "D30", "package": "B12", "start": "run1", "metric": "B12.vessel_altitude_error_m", "max": 50, "note": "vessel.altitude (the vessel site) against body.GetAltitude(position), the altitude every live caller passes to the field" },
+    { "series": "K-W3a", "section": "D30", "package": "B12", "start": "run1", "metric": "B12.vessel_site_body_ok", "equals": 1, "note": "the vessel site names the vessel's main body" }
+  ]
+}
