@@ -193,6 +193,10 @@ namespace AtmoSim.Core
         }
 
         // Fraction part in [0, 1).
-        public static double Frac(double x) { return x - Math.Floor(x); }
+        public static double Frac(double x)
+        {
+            double r = x - Math.Floor(x);
+            return r >= 1.0 ? 0.0 : r;   // a tiny negative x rounds to 1.0; the same point of the cycle
+        }
     }
 }

@@ -65,7 +65,7 @@ namespace AtmoSim.Core
             var tmp = new double[NLon * NLat];
             for (int j = 0; j < NLat; j++)
             {
-                double c = Math.Max(0.05, Math.Cos(LatDeg(j) * Math.PI / 180.0));
+                double c = Math.Max(0.05, DMath.Cos(LatDeg(j) * DMath.Pi / 180.0));
                 int ri = Math.Min(NLon / 2 - 1, Math.Max(1, (int)(rj / c)));
                 for (int i = 0; i < NLon; i++)
                 {
@@ -102,7 +102,7 @@ namespace AtmoSim.Core
             if (oceanTarget >= 1.0) { for (int i = 0; i < n; i++) g.Ocean[i] = 1.0; g.BuildMoist(MoistBlurDeg); return g; }
             double[] f = Field(nlon, nlat, seed, 40, 1.2);
             double[] w = new double[nlat];
-            for (int j = 0; j < nlat; j++) w[j] = Math.Cos(g.LatDeg(j) * Math.PI / 180.0);
+            for (int j = 0; j < nlat; j++) w[j] = DMath.Cos(g.LatDeg(j) * DMath.Pi / 180.0);
             double mean = 0, wsum = 0;
             for (int j = 0; j < nlat; j++) for (int i = 0; i < nlon; i++) { mean += f[j * nlon + i] * w[j]; wsum += w[j]; }
             mean /= wsum;

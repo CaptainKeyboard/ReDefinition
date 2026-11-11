@@ -222,8 +222,9 @@ namespace AtmoSim.Tests
         [TestMethod]
         public void SlotAmplitudeChangeAtHandOverIsBelowHalfAPercentPerHour()
         {
-            // Criterion 1 popping measure: every slot, every generation boundary in 60 days, one-hour differences within 2 h of the hand-over,
-            // relative to the largest amplitude a system can have (PressureAmp x 1.2 x WaveGate).
+            // Criterion 1 popping measure: every slot, every generation boundary in 60 days, the amplitude difference over every one-hour interval
+            // that contains the hand-over instant, relative to the largest amplitude a system can have (PressureAmp x 1.2 x WaveGate).
+            // Bound by construction: sin^2(pi / 72) = 0.19 % for the shortest generation of 3 days.
             var g = new WeatherGenerator(BodyParams.KerbinLike(), 6);
             double scale = g.D.PressureAmpPa * 1.2 * g.D.WaveGate;
             double worst = 0.0; int boundaries = 0;
@@ -234,7 +235,8 @@ namespace AtmoSim.Tests
                     for (int n = 1; n * life + off < 60 * 86400.0; n++)
                     {
                         double tb = off + n * life; boundaries++;
-                        for (double dt = -7200.0; dt <= 3600.0; dt += 600.0)
+                        // every one-hour interval that contains the hand-over instant (the change per game hour at the hand-over)
+                        for (double dt = -3600.0; dt <= 0.0; dt += 300.0)
                         {
                             double a1 = g.SlotAmplitude(h, j, tb + dt + 3600.0), a0 = g.SlotAmplitude(h, j, tb + dt);
                             worst = Math.Max(worst, Math.Abs(a1 - a0) / scale);

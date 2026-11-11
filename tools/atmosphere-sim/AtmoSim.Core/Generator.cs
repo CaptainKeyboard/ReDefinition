@@ -47,6 +47,7 @@ namespace AtmoSim.Core
         public const double CellRainThreshold = 0.15;
         public const int MaxSlots = 8;
         public const double FrontSharp = 1.6;
+        private static readonly double[] LevelAnchors = { 0.04, 0.2, 0.4, 0.6, 0.8 };
         public const double FrontTilt = 0.45;
         public const double FrontEnvelopeAlong = 0.45, FrontEnvelopeAcross = 1.28;
         private const double TiltNorm = 1.0966090; // sqrt(1 + FrontTilt^2)
@@ -58,6 +59,8 @@ namespace AtmoSim.Core
         private readonly double a, fcrit;
         private readonly double fx0;
 
+        // The body is read at construction and during every Sample (the per-thread frame cache is keyed on the generator and the UT):
+        // treat a BodyParams instance as immutable once it has been handed to a generator; make a Clone to vary a switch.
         public WeatherGenerator(BodyParams body, ulong seed)
         {
             Body = body; Seed = seed; D = new BodyDerived(body);
@@ -237,7 +240,7 @@ namespace AtmoSim.Core
             double la = hs * latRad;
             double oc, moist;
             Grid.Lookup(latRad, lonRad, out oc, out moist);
-            // The land/sea contrast of the temperature uses the smoothed ocean share (the regional scale of the contrast, 15 degrees):
+            // The land/sea contrast of the temperature uses the smoothed ocean share (the regional scale of the contrast, 30 degrees of arc):
             // a coast line is not a front.
             double tClim = ClimateInner(f, sinLat, cosLat, lonRad, moist);
 
@@ -264,6 +267,9 @@ namespace AtmoSim.Core
                 dpdx += ae * (2.0 * x * s.InvLx2 * cq + s.K * sq);
                 dpdy += ae * (2.0 * y * s.InvLy2 * cq + s.K * s.Tilt * sq);
             }
+            // the systems of a hemisphere fade to zero at the equator (they are evaluated only for their own hemisphere, so no jump at latitude 0)
+            double eqw = DMath.SmoothStep(0.0, 0.2, la);
+            p *= eqw; tAnom *= eqw; fr *= eqw; dpdx *= eqw; dpdy *= eqw;
             double frontK100 = fr * 1e5;
             double frontN = DMath.Min(1.0, frontK100 / D.FrontRefKPer100Km);
 
@@ -489,7 +495,7 @@ namespace AtmoSim.Core
         {
             double[] b = D.BandsMmH;
             if (precipMmH < b[0]) return 0.0;
-            double[] lv = { 0.04, 0.2, 0.4, 0.6, 0.8 };
+            double[] lv = LevelAnchors;
             for (int i = 0; i < 4; i++)
                 if (precipMmH < b[i + 1]) return lv[i] + (lv[i + 1] - lv[i]) * (precipMmH - b[i]) / (b[i + 1] - b[i]);
             double top = 2.0 * b[4];

@@ -111,22 +111,26 @@ namespace AtmoSim.Core
         private void BuildAnchors()
         {
             double tml = ClimT(0.0), h = 0.0;
-            int years = 5;
-            double dtDays = 1.0;
-            double dayS = 86400.0;
-            long perYear = (long)(b.YearS / dayS);
-            for (int y = 0; y < years; y++)
+            const double dayS = 86400.0;
+            double year = b.YearS;
+            double t = 0.0;
+            // four spin-up years in whole steps of one day (the last step of the spin-up is shortened to land on the year boundary)
+            while (t < 4.0 * year)
             {
-                for (long d = 0; d < perYear; d++)
+                double dt = Math.Min(dayS, 4.0 * year - t);
+                IceModel.Step(ref tml, ref h, ClimT(t + 0.5 * dt), ClimSolar(t + 0.5 * dt), 0.0, tFreeze, cap, dt / dayS);
+                t += dt;
+            }
+            // the fifth year: steps end exactly on the quarter-year boundaries, whose states are recorded
+            for (int q = 0; q < 4; q++)
+            {
+                anchorTml[q] = tml; anchorH[q] = h;
+                double qEnd = 4.0 * year + (q + 1) * quarterS;
+                while (t < qEnd - 1e-6)
                 {
-                    double t = (y * perYear + d + 0.5) * dayS;
-                    if (y == years - 1)
-                    {
-                        // record the state at the quarter boundaries (day index nearest the boundary)
-                        for (int q = 0; q < 4; q++)
-                            if (d == (long)(q * quarterS / dayS)) { anchorTml[q] = tml; anchorH[q] = h; }
-                    }
-                    IceModel.Step(ref tml, ref h, ClimT(t), ClimSolar(t), 0.0, tFreeze, cap, dtDays);
+                    double dt = Math.Min(dayS, qEnd - t);
+                    IceModel.Step(ref tml, ref h, ClimT(t + 0.5 * dt), ClimSolar(t + 0.5 * dt), 0.0, tFreeze, cap, dt / dayS);
+                    t += dt;
                 }
             }
         }
