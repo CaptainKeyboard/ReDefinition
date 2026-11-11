@@ -122,4 +122,39 @@ inline half4 ReDefinitionMotionVector(float4 clipCurrent, float4 clipPrevious)
     return half4(current - previous, 0, 1);
 }
 
+// The scene's depth under a display-size position, from the render-size depth texture that
+// Hooks.RegisterAfterUpscalingWithDepth hands to the handler: the nearest surface of the 3 x 3 render-size
+// texels around the position, so an effect drawn on the upscaled image is hidden by a thin edge of
+// geometry the jittered render-size depth only just covers. The texture is point-filtered (RFloat) and
+// holds the raw hardware depth; on Direct3D 11 (UNITY_REVERSED_Z) 1 is the near plane and 0 the far
+// one, and the nearest surface is the largest value. Use LinearEyeDepth(d) for a distance (it is not
+// valid for a pixel at the far plane, where d is 0). displayUv is 0 to 1 over the image shown, y as the
+// effect's own texture coordinates run (the depth texture is read with the same orientation).
+// Call it from a pixel shader; tex2Dlod with a fixed level keeps it legal in a loop.
+inline float ReDefinitionSampleSceneDepth(sampler2D depthTexture, float2 displayUv)
+{
+    float4 size = ReDefinitionRenderSize();
+    float2 centre = displayUv * size.xy;
+    float nearest;
+#if defined(UNITY_REVERSED_Z)
+    nearest = 0.0;
+#else
+    nearest = 1.0;
+#endif
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            float2 uv = (floor(centre) + float2(x, y) + 0.5) * size.zw;
+            float d = tex2Dlod(depthTexture, float4(uv, 0, 0)).r;
+#if defined(UNITY_REVERSED_Z)
+            nearest = max(nearest, d);
+#else
+            nearest = min(nearest, d);
+#endif
+        }
+    }
+    return nearest;
+}
+
 #endif // REDEFINITION_INCLUDED

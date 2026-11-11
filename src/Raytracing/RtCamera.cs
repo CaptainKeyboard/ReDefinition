@@ -881,7 +881,7 @@ namespace ReDefinition.Raytracing
         private void FillSun(bool deferred)
         {
             Vector4 towards = Sun();
-            Color sunColour = drawnSunFrame == Time.frameCount ? drawnSunColour : SunColor();
+            Color sunColour = WithCloudShare(drawnSunFrame == Time.frameCount ? drawnSunColour : SunColor());
             TracedSunColour = sunColour;
             // How much of the sun Unity's shadows take: its light's shadow strength (KSP's sun
             // 0.75), for the forward light's estimate of what Unity shaded with.
@@ -920,6 +920,7 @@ namespace ReDefinition.Raytracing
             bool composite = !RtLighting.ReflectionsReplaced;
             RtPacketBuilder.Ambient(ref packet, composite, AmbientProbe, composite ? transform.position : Vector3.zero, ambientValues);
             RtPacketBuilder.Params(ref packet, Settings, deferred, withEnvironment);
+            ApplyWeather();
             bool stockWater = RtPacketBuilder.Lights(ref packet, Lights, SunMirror, StockWater, NightLight);
             FillBody(stockWater);
             uint signals = FillSignals(deferred, composite);

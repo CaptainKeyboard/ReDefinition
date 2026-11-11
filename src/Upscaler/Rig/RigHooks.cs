@@ -27,7 +27,9 @@ namespace ReDefinition.Upscaler
         // from the fields below, set before it; Release lets go of them.
         private Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> callMotionVectorHook;
         private Action<Action<CommandBuffer, RenderTexture, Camera>> callAfterUpscalingHook;
+        private Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> callAfterUpscalingDepthHook;
         private Action<Action<CommandBuffer, Camera>> callOverlayHook;
+        private RenderTexture afterUpscalingDepth;
         private CommandBuffer motionCapture;
         private RenderTexture motionVectorsImage;
         private RenderTexture motionDepth;
@@ -52,19 +54,30 @@ namespace ReDefinition.Upscaler
 
         // In Present, once the upscaler has written image, before TUFX's effects after
         // it and before frame generation's HUD-less copy.
-        internal void RunAfterUpscaling(RenderTexture image, Camera cam)
+        // depth is the rig's copy at render size, written into the capture at BeforeImageEffects, which is before this point in the
+        // same frame (the global depth texture is only valid from BeforeForwardAlpha on, RECON P6). The depth handlers get it
+        // from the same buffer, after the image-only handlers.
+        internal void RunAfterUpscaling(RenderTexture image, RenderTexture depth, Camera cam)
         {
-            if (!SharedFrame.AfterUpscalingHooks.Any || image == null) return;
+            bool plain = SharedFrame.AfterUpscalingHooks.Any;
+            bool withDepth = SharedFrame.AfterUpscalingDepthHooks.Any && depth != null;
+            if ((!plain && !withDepth) || image == null) return;
             if (afterUpscalingBuffer == null)
                 afterUpscalingBuffer = new CommandBuffer { name = "ReDefinition.AfterUpscalingHooks" };
             if (callAfterUpscalingHook == null)
                 callAfterUpscalingHook = handler => handler(afterUpscalingBuffer, afterUpscalingImage, afterUpscalingCamera);
+            if (callAfterUpscalingDepthHook == null)
+                callAfterUpscalingDepthHook = handler =>
+                    handler(afterUpscalingBuffer, afterUpscalingImage, afterUpscalingDepth, afterUpscalingCamera);
 
             afterUpscalingBuffer.Clear();
             afterUpscalingImage = image;
+            afterUpscalingDepth = depth;
             afterUpscalingCamera = cam;
-            SharedFrame.AfterUpscalingHooks.Invoke(callAfterUpscalingHook);
+            if (plain) SharedFrame.AfterUpscalingHooks.Invoke(callAfterUpscalingHook);
+            if (withDepth) SharedFrame.AfterUpscalingDepthHooks.Invoke(callAfterUpscalingDepthHook);
             afterUpscalingImage = null;
+            afterUpscalingDepth = null;
             Graphics.ExecuteCommandBuffer(afterUpscalingBuffer);
         }
 

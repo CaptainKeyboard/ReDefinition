@@ -17,7 +17,7 @@ namespace ReDefinition.Api.Internal
     internal static class SharedFrame
     {
         // The version of the interface other mods read (ApiInfo.Version), also the fourth value of _ReDefinition_Frame.
-        internal const int InterfaceVersion = 2;
+        internal const int InterfaceVersion = 3;
 
         // In a class of their own, initialised when the first frame begins: the state's
         // properties are read outside Unity too (tests), where PropertyToID cannot run.
@@ -33,6 +33,9 @@ namespace ReDefinition.Api.Internal
 
         // Which frames reset the history; whether the camera and shift events are subscribed; the frame Begin last ran in.
         private static readonly HistoryResets resets = new HistoryResets();
+        private static readonly WeatherCutDetector weatherCuts = new WeatherCutDetector();
+        // Whether a failure filling the weather caps was logged already.
+        private static bool capsWarned;
         private static bool installed;
         private static int begunFrame = -1;
 
@@ -49,6 +52,8 @@ namespace ReDefinition.Api.Internal
             new HookList<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>>("motion vectors", Report);
         internal static readonly HookList<Action<CommandBuffer, RenderTexture, Camera>> AfterUpscalingHooks =
             new HookList<Action<CommandBuffer, RenderTexture, Camera>>("after upscaling", Report);
+        internal static readonly HookList<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> AfterUpscalingDepthHooks =
+            new HookList<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>>("after upscaling with depth", Report);
         internal static readonly HookList<Action<CommandBuffer, Camera>> OverlayHooks =
             new HookList<Action<CommandBuffer, Camera>>("overlays", Report);
         internal static readonly HookList<Action<string>> ProfileChangedHandlers =
@@ -68,6 +73,16 @@ namespace ReDefinition.Api.Internal
         internal static Vector2 Jitter { get; private set; }
         // The same jitter in normalized device coordinates, as CameraRedirect adds it to the projection.
         internal static Vector2 JitterNdc { get; private set; }
+
+        // The body the atmospheres' weather is for this frame (WeatherHooks.View); null where there is no weather.
+        internal static string ActiveWeatherBody
+        {
+            get
+            {
+                WeatherView view = WeatherHooks.View;
+                return view.Active && !string.IsNullOrEmpty(view.BodyName) ? view.BodyName : null;
+            }
+        }
 
         // Why this frame resets the history for the mods (HistoryResets); null where it does not.
         internal static string ResetReason { get; private set; }
@@ -145,6 +160,19 @@ namespace ReDefinition.Api.Internal
         // From the add-on's Update.
         internal static void PollProfile()
         {
+            // A failure in the caps (a rig being torn down, EVE's members) must not stop the profile poll below.
+            try
+            {
+                HostLink.FillCaps(lastProfile);
+            }
+            catch (Exception e)
+            {
+                if (!capsWarned)
+                {
+                    capsWarned = true;
+                    Debug.LogWarning(Log.Tag + " The weather caps could not be filled: " + e.Message);
+                }
+            }
             string current;
             try
             {
@@ -194,6 +222,11 @@ namespace ReDefinition.Api.Internal
         private static void Begin()
         {
             begunFrame = Time.frameCount;
+
+            // The weather the frame driver wrote in LateUpdate: a jump of its level or a change of body drops the history.
+            WeatherView weather = WeatherHooks.View;
+            if (weatherCuts.Observe(weather.Active && !weather.IsStale(begunFrame), weather.BodyName, weather.Level))
+                resets.Request(WeatherCutDetector.Reason);
 
             string forMods, forRig;
             resets.Begin(CameraCuts.Detect(), out forMods, out forRig);

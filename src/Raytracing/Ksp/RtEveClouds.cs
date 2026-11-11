@@ -62,6 +62,8 @@ namespace ReDefinition.Raytracing
         private Material pack;
         private Texture packedCoverage;
         private float packedRadius, packedAt = -100f;
+        // WeatherView.CloudMapsVersion the packed map was made for.
+        private long packedMapsVersion = -1;
         private string loggedBody;
 
         // The packed map's native texture, for the packet; zero for none.
@@ -171,9 +173,11 @@ namespace ReDefinition.Raytracing
             // Why there is no layer, as a text only where it is logged; null for none of
             // the body's.
             string why = null;
-            for (int o = 0; o < objects.Count; o++)
+            // The layer the weather paints (WeatherView.CloudLayerName) comes first when the body has it.
+            int preferred = PreferredObject(objects, name);
+            for (int step = 0; step < objects.Count; step++)
             {
-                object cloudsObject = objects[o];
+                object cloudsObject = objects[CloudLayerPreference.IndexAt(step, preferred)];
                 if (cloudsObject == null || (readBodyName(cloudsObject) as string) != name) continue;
                 object layer = readVolume(cloudsObject);
                 object flat = readLayer2D(cloudsObject);
@@ -267,6 +271,20 @@ namespace ReDefinition.Raytracing
             return false;
         }
 
+        // The index of the body's cloud object named like the layer the weather paints; -1 for none or no name.
+        private int PreferredObject(IList objects, string body)
+        {
+            string wanted = WeatherHooks.View.CloudLayerName;
+            if (string.IsNullOrEmpty(wanted)) return -1;
+            for (int i = 0; i < objects.Count; i++)
+            {
+                object candidate = objects[i];
+                if (candidate == null || (readBodyName(candidate) as string) != body) continue;
+                if (string.Equals(CloudLayerKinds.NameOfObject(candidate), wanted, StringComparison.Ordinal)) return i;
+            }
+            return -1;
+        }
+
         // What the last "no clouds" line said, for which body and with how many cloud objects, and whether one was
         // logged: the line comes again only when one of them changes.
         private string whyLogged, whyBody;
@@ -280,8 +298,12 @@ namespace ReDefinition.Raytracing
             object coverageWrapper = readCoverageMap(layer);
             Texture coverage = coverageWrapper != null ? wrapperTexture.Invoke(coverageWrapper, null) as Texture : null;
             if (coverage == null) return false;
+            // Packed again when the map or the height changed, when the weather repainted the maps (at most every
+            // RepaintRepackSeconds), and every RepackSeconds regardless.
+            long mapsVersion = WeatherHooks.View.CloudMapsVersion;
+            float age = Time.unscaledTime - packedAt;
             if (packed != null && coverage == packedCoverage && Mathf.Approximately(radius, packedRadius)
-                && Time.unscaledTime - packedAt < RepackSeconds)
+                && age < RepackSeconds && !CloudLayerPreference.RepaintDue(mapsVersion, packedMapsVersion, age))
                 return true;
             if (pack == null)
             {
@@ -312,6 +334,7 @@ namespace ReDefinition.Raytracing
             Graphics.Blit(null, packed, pack);
             packedCoverage = coverage;
             packedRadius = radius;
+            packedMapsVersion = mapsVersion;
             packedAt = Time.unscaledTime;
             return true;
         }
@@ -450,6 +473,42 @@ namespace ReDefinition.Raytracing
             if (sampleCoverage == null)
                 sampleCoverage = lastLayer.GetType().GetMethod("SampleCoverage", new[] { typeof(Vector3), typeof(float).MakeByRefType(), typeof(bool) });
             return sampleCoverage != null;
+        }
+
+        // The vertical optical depth of the body's EVE deck over a place, from an altitude over the surface (CloudDensityEstimate); 0
+        // where there is none. The layer is found for the body without packing its map (Keep). The density of the cloud types is not
+        // read: [VERIFY] EVE's CloudType density per type value is not in the members the catalogue holds, so it counts as 1.
+        internal static float OpticalDepth(CelestialBody body, double latitude, double longitude, double altitude)
+        {
+            if (body == null) return 0f;
+            Keep(body);
+            // FillFrom sets Last also for the instance Keep fills.
+            RtEveClouds layer = Last;
+            if (layer == null || layer.failed || Time.frameCount - layer.filledFrame > 2 || layer.namedBody != body
+                || layer.lastLayer == null || !layer.HasSampleCoverage()) return 0f;
+            float inner, outer;
+            if (!layer.Shell(out inner, out outer)) return 0f;
+            try
+            {
+                Vector3 centre = (Vector3)body.position;
+                Vector3 up = (Vector3)body.GetRelSurfaceNVector(latitude, longitude);
+                var deck = new CloudDensityEstimate.Deck
+                {
+                    BottomM = inner - body.Radius,
+                    TopM = outer - body.Radius,
+                    Density = 1f,
+                    // The density fade and the fade of the whole (MapFades: coverage, density, the others).
+                    TimeFade = layer.MapFades.y * layer.MapFades.z,
+                };
+                return CloudDensityEstimate.VerticalOpticalDepth(deck, altitude,
+                    height => layer.DensityAt(centre + up * (float)(body.Radius + height)));
+            }
+            catch (Exception e)
+            {
+                layer.failed = true;
+                CompatibilityLog.Warn("rt-eve-clouds", "The clouds' optical depth could not be read (" + CompatibilityLog.Reason(e) + ").");
+                return 0f;
+            }
         }
 
         // The layer's shell, from the planet's centre, for the probe; false where none is filled.
