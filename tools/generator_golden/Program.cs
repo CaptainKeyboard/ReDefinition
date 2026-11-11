@@ -47,7 +47,8 @@ public static class Program
             ut[i] = r.Uniform() * 3.0e7;
         }
         json.Append("  \"proofHash\": \"" + Hashed(g, lat, lon, alt, ut).ToString("X16") + "\",\n");
-        json.Append("  \"proofHashPortable\": \"" + Hashed(g, latPortable, lon, alt, ut).ToString("X16") + "\",\n");
+        json.Append("  \"proofHashRound1\": \"" + Hashed(new WeatherGenerator(BodyParams.KerbinLike().Round1(), 1), lat, lon, alt, ut).ToString("X16") + "\",\n");
+        json.Append("  \"proofHashPortable\":\"" + Hashed(g, latPortable, lon, alt, ut).ToString("X16") + "\",\n");
         using (var bin = new BinaryWriter(File.Create(Path.Combine(output, "proof-lat.bin"))))
         {
             for (int i = 0; i < lat.Length; i++) bin.Write(BitConverter.DoubleToInt64Bits(lat[i]));

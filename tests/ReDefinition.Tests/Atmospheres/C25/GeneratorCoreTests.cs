@@ -69,6 +69,19 @@ namespace ReDefinition.Tests.Atmospheres.C25
         }
 
         [TestMethod]
+        public void TheRoundOneGeneratorStillGivesItsHashAndTheSignedOneItsOwn()
+        {
+            byte[] bin = File.ReadAllBytes(RepoRoot.Locate("tests", "data", "generator", "proof-lat.bin"));
+            CoreProbe.Q[] q = CoreProbe.Queries(20000, 77, 3.0e7);
+            for (int i = 0; i < q.Length; i++) q[i].Lat = BitConverter.Int64BitsToDouble(BitConverter.ToInt64(bin, 8 * i));
+            ulong round1 = CoreProbe.HashQueries(new WeatherGenerator(BodyParams.KerbinLike().Round1(), 1), q, null, 0);
+            Assert.AreEqual("3A3A34F462C55CAC", round1.ToString("X16"), "round 1");
+            Assert.AreEqual(DumpReader.Text(Golden, "proofHashRound1"), round1.ToString("X16"));
+            ulong signed = CoreProbe.HashQueries(new WeatherGenerator(BodyParams.KerbinLike().Signed(), 1), q, null, 0);
+            Assert.AreEqual("237126757692E6D9", signed.ToString("X16"), "signed");
+        }
+
+        [TestMethod]
         public void TheSameHoldsForPositionsMadeWithoutThePlatformsAsin()
         {
             CoreProbe.Q[] q = CoreProbe.Queries(20000, 77, 3.0e7);

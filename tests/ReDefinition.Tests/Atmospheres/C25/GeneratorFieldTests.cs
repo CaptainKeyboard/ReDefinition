@@ -71,6 +71,20 @@ namespace ReDefinition.Tests.Atmospheres.C25
         }
 
         [TestMethod]
+        public void TheLeversReachTheRoundTwoParametersAndTheRoundOneSwitchesRestoreRoundOne()
+        {
+            BodyFacts f = FieldFixture.HomeFacts();
+            string off = "REDEFINITION_BODY { name = Testworld ; GENERATOR { LEVERS { Round2Systems = 0 ; Round2Itcz = 0 ; Round2Rain = 0 ; Round2Snow = 0 ; ItczLift = 0.45 ; StratThreshold = 0.075 ; SystemZonalAmp = 0.1 } } }";
+            BodyParams p = GeneratorBodies.Build(FieldFixture.Climate(f, off), f, null, null, new List<string>());
+            Assert.IsFalse(p.Round2Systems || p.Round2Itcz || p.Round2Rain || p.Round2Snow);
+            Assert.AreEqual(0.45, p.ItczLift);
+            Assert.AreEqual(0.1, p.SystemZonalAmp);
+            BodyParams defaults = GeneratorBodies.Build(FieldFixture.Climate(f), f, null, null, new List<string>());
+            Assert.IsTrue(defaults.Round2Systems && defaults.Round2Itcz && defaults.Round2Rain && defaults.Round2Snow, "the generator's own defaults are the newest tuning");
+            Assert.AreEqual(1.6, defaults.ItczLift);
+        }
+
+        [TestMethod]
         public void ADustyBodyThinAirAndNoSeasonsGetTheirOwnNumbers()
         {
             BodyFacts f = FieldFixture.HomeFacts("Dry");
