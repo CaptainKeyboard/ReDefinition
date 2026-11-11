@@ -117,7 +117,11 @@ namespace ReDefinition.Atmospheres
         private readonly Mesh mesh;
         private readonly Vector3[] vertices = new Vector3[1 + Segments * Rings];
 
-        internal ReconDisc(CelestialBody body, Vessel vessel, Vector3d offset, double radiusMetres, double liftMetres, int queue, int layer)
+        private readonly Vector3[] normals = new Vector3[1 + Segments * Rings];
+
+        // With a material given the disc is drawn with it (a lit surface, the terrain stand-in); without, as the flat opaque colour.
+        internal ReconDisc(CelestialBody body, Vessel vessel, Vector3d offset, double radiusMetres, double liftMetres, int queue, int layer,
+                           Material material = null)
         {
             this.body = body;
             this.vessel = vessel;
@@ -131,10 +135,17 @@ namespace ReDefinition.Atmospheres
             mesh.triangles = ReconMesh.DiscTriangles(Segments, Rings);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             MeshRenderer renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = ReconMesh.Flat(Color.white, queue);
+            renderer.sharedMaterial = material != null ? material : ReconMesh.Flat(Color.white, queue);
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             go.SetActive(false);
+        }
+
+        // The material the disc is drawn with (swapped between shots by the shader test).
+        internal Material Material
+        {
+            get { return go.GetComponent<MeshRenderer>().sharedMaterial; }
+            set { go.GetComponent<MeshRenderer>().sharedMaterial = value; }
         }
 
         internal bool Active
@@ -167,6 +178,7 @@ namespace ReDefinition.Atmospheres
             double radius = body.Radius + liftMetres;
             double span = radiusMetres / body.Radius;
             vertices[0] = Vector3.zero;
+            for (int i = 0; i < normals.Length; i++) normals[i] = (Vector3)up;
             for (int r = 1; r <= Rings; r++)
             {
                 double alpha = span * r / Rings;
@@ -179,6 +191,7 @@ namespace ReDefinition.Atmospheres
                 }
             }
             mesh.vertices = vertices;
+            mesh.normals = normals;
             mesh.RecalculateBounds();
         }
 

@@ -403,16 +403,32 @@ namespace ReDefinition.Atmospheres
             Emit("P3.quads_read", counted);
             Emit("P3.max_subdivision_seen", top);
             Emit("P3.vertex_spacing_m", topSpacing);
+            int gridVertices = 0;
             if (quads != null && counted > 0)
             {
                 foreach (PQ quad in quads)
                 {
                     if (quad != null && quad.mesh != null && quad.subdivision == top)
                     {
-                        Emit("P3.quad_vertex_count", quad.mesh.vertexCount);
+                        gridVertices = quad.mesh.vertexCount;
+                        Emit("P3.quad_vertex_count", gridVertices);
                         break;
                     }
                 }
+            }
+            // The spacing the land reaches, from what was read: a cube-face quad of subdivision L spans (pi R / 2) / 2^L of arc at the face
+            // centre and 1.0 to about 1.41 times that over the face, and holds an n x n grid with n the root of the vertex count [VERIFY: the
+            // mesh may carry skirt vertices, then n is slightly too large and the spacing slightly small]. KSC and 55 N are land, where
+            // the quads reach the top level pqs.maxLevel; the quads around the pod over the sea stay coarser.
+            if (gridVertices > 4)
+            {
+                double n = Math.Sqrt(gridVertices);
+                double faceArc = Math.PI * body.Radius / 2.0;
+                double atMaxLevel = faceArc / Math.Pow(2.0, pqs.maxLevel) / Math.Max(1.0, n - 1.0);
+                Emit("P3.grid_n", n);
+                Emit("P3.spacing_analytic_m", atMaxLevel);
+                Emit("P3.spacing_analytic_edge_m", atMaxLevel * 1.41);
+                EmitText("P3.measured_where", "leaf quads around the pod over the sea; land (KSC, 55 N) is the analytic row");
             }
 
             // Parallax: the displacement range of the home body's terrain from its configuration, and the tessellation settings.

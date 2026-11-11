@@ -23,6 +23,8 @@ namespace ReDefinition.Atmospheres
             internal RenderTexture Target;
             internal CommandBuffer Buffer;
             internal Camera Owner;
+            // A tap that samples another tap's target instead of the depth (the consumer of the copy at a later event).
+            internal DepthTap Source;
         }
 
         private static readonly CameraEvent[] DepthEvents =
@@ -30,6 +32,9 @@ namespace ReDefinition.Atmospheres
             CameraEvent.AfterDepthTexture, CameraEvent.AfterGBuffer, CameraEvent.AfterForwardOpaque,
             CameraEvent.BeforeForwardAlpha, CameraEvent.AfterForwardAlpha, CameraEvent.BeforeImageEffects
         };
+
+        // The events that can hold the fallback copy, in the order of preference.
+        private static readonly CameraEvent[] CopyEvents = { CameraEvent.AfterForwardOpaque, CameraEvent.AfterDepthTexture, CameraEvent.AfterGBuffer };
 
         private const int TapWidth = 256, TapHeight = 144;
 
@@ -68,6 +73,24 @@ namespace ReDefinition.Atmospheres
                         taps.Add(tap);
                     }
                 }
+                // The consumers of the copy: at BeforeForwardAlpha, where the transparent queue (3000 and up) begins, a blit reads the copy
+                // made earlier (as a material at that queue would sample it) into a target of its own.
+                foreach (CameraEvent evt in CopyEvents)
+                {
+                    DepthTap source = taps.Find(t => t.Owner == main && t.Event == evt && !t.Global);
+                    if (source == null) continue;
+                    var tap = new DepthTap { Camera = main.name, Event = CameraEvent.BeforeForwardAlpha, Owner = main, Source = source };
+                    tap.Target = new RenderTexture(TapWidth, TapHeight, 0, RenderTextureFormat.RFloat);
+                    tap.Target.Create();
+                    RenderTexture active = RenderTexture.active;
+                    RenderTexture.active = tap.Target;
+                    GL.Clear(false, true, new Color(-1f, -1f, -1f, -1f));
+                    RenderTexture.active = active;
+                    tap.Buffer = new CommandBuffer { name = "recon depth consumer of " + evt };
+                    tap.Buffer.Blit(new RenderTargetIdentifier(source.Target), tap.Target);
+                    main.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, tap.Buffer);
+                    taps.Add(tap);
+                }
             }
             catch (Exception e)
             {
@@ -81,17 +104,18 @@ namespace ReDefinition.Atmospheres
             foreach (DepthTap tap in taps)
             {
                 double[] stats = ReadTap(tap);
-                results[tap.Camera + "|" + tap.Event + "|" + (tap.Global ? "G" : "B")] = stats;
-                json.BeginObject().Text("camera", tap.Camera).Text("event", tap.Event.ToString()).Text("source", tap.Global ? "global" : "builtin").Number("executed", stats[0]).Number("mean", stats[1])
+                string sourceName = tap.Source != null ? "copy of " + tap.Source.Event : tap.Global ? "global" : "builtin";
+                results[tap.Camera + "|" + tap.Event + "|" + (tap.Source != null ? "C" + tap.Source.Event : tap.Global ? "G" : "B")] = stats;
+                json.BeginObject().Text("camera", tap.Camera).Text("event", tap.Event.ToString()).Text("source", sourceName).Number("executed", stats[0]).Number("mean", stats[1])
                     .Number("nonFar", stats[2]).Number("min", stats[3]).Number("max", stats[4]).EndObject();
-                EmitText("P6.depth." + tap.Camera.Replace(' ', '_') + "." + tap.Event + (tap.Global ? ".global" : ".builtin"), "executed=" + Num(stats[0]) + " mean=" + stats[1].ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture)
+                EmitText("P6.depth." + tap.Camera.Replace(' ', '_') + "." + tap.Event + "." + sourceName.Replace(' ', '_'), "executed=" + Num(stats[0]) + " mean=" + stats[1].ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture)
                          + " nonFar=" + Num(stats[2]));
             }
             json.EndArray().EndObject();
             json.Save(DumpPath("depth-taps.json"));
 
             // The verdicts per camera.
-            bool readable = false, fallback = false, fallbackMain = false;
+            bool readable = false, fallback = false, fallbackMain = false, readableMain = false, consumerOk = false;
             var names = new HashSet<string>();
             foreach (DepthTap tap in taps) names.Add(tap.Camera);
             foreach (string camera in names)
@@ -100,11 +124,11 @@ namespace ReDefinition.Atmospheres
                 double[] after = Get(results, camera, CameraEvent.AfterForwardAlpha, true);
                 double[] alphaBuiltin = Get(results, camera, CameraEvent.BeforeForwardAlpha, false);
                 double[] reference = null;
-                CameraEvent[] preference = { CameraEvent.AfterForwardOpaque, CameraEvent.AfterDepthTexture, CameraEvent.AfterGBuffer };
-                foreach (CameraEvent evt in preference)
+                CameraEvent referenceEvent = CameraEvent.AfterForwardOpaque;
+                foreach (CameraEvent evt in CopyEvents)
                 {
                     double[] candidate = Get(results, camera, evt, false);
-                    if (candidate != null && candidate[0] > 0) { reference = candidate; break; }
+                    if (candidate != null && candidate[0] > 0) { reference = candidate; referenceEvent = evt; break; }
                 }
                 bool referenceValid = reference != null && reference[2] > 0.02 && reference[2] < 0.98;
                 bool alphaSame = alpha != null && alpha[0] > 0 && reference != null
@@ -118,13 +142,28 @@ namespace ReDefinition.Atmospheres
                 Emit("P6." + camera.Replace(' ', '_') + ".unchanged_after_alpha", afterSame);
                 if (alphaSame) readable = true;
                 if (referenceValid) fallback = true;
-                // The fallback counts for the verdict only on the camera that draws the pod and the ocean.
-                if (referenceValid && camera == main.name) fallbackMain = true;
+                // The verdict counts the camera that draws the pod and the ocean. The copy is used by a consumer at the start of the
+                // transparent queue: the blit at BeforeForwardAlpha that reads it must see the mean and the sky/surface mix of the reference.
+                if (camera == main.name)
+                {
+                    if (alphaSame) readableMain = true;
+                    if (referenceValid) fallbackMain = true;
+                    double[] consumed;
+                    results.TryGetValue(camera + "|" + CameraEvent.BeforeForwardAlpha + "|C" + referenceEvent, out consumed);
+                    consumerOk = referenceValid && consumed != null && consumed[0] > 0 && reference != null
+                                 && Math.Abs(consumed[1] - reference[1]) <= 0.1 * Math.Abs(reference[1]) + 1e-6
+                                 && Math.Abs(consumed[2] - reference[2]) <= 0.2 * Math.Abs(reference[2]) + 1e-6;
+                    EmitText("P6.fallback_event", referenceEvent.ToString());
+                    Emit("P6.copy_consumed_at_alpha", consumerOk);
+                }
             }
             Emit("P6.depth_readable_3000", readable);
+            Emit("P6.depth_readable_main_camera", readableMain);
             Emit("P6.depth_fallback_ok", fallback);
             Emit("P6.depth_fallback_main_camera", fallbackMain);
-            Emit("P6.depth_ok", readable || fallbackMain);
+            // Direct use on the main camera, or the copy valid and still usable at the start of the transparent queue; RECON.md reads the
+            // two rows readable and fallback and decides which D32, D37 and D38 take.
+            Emit("P6.depth_ok", readableMain || (fallbackMain && consumerOk));
 
             foreach (DepthTap tap in taps)
             {

@@ -89,12 +89,20 @@ namespace ReDefinition.Atmospheres
         // horizontally, falling at vt. The result is the distance travelled along the wind, relative to the ground.
         internal static double PredictChuteDrift(double wind, double vt, double gravity, double seconds, double step = 0.01)
         {
-            if (vt <= 1e-6 || seconds <= 0) return 0;
+            return PredictChuteDriftBetween(wind, vt, gravity, 0, seconds, step);
+        }
+
+        // The same model, the distance travelled between two times after the wind began (the start state is the one at time 0).
+        internal static double PredictChuteDriftBetween(double wind, double vt, double gravity, double from, double to, double step = 0.01)
+        {
+            if (vt <= 1e-6 || to <= from) return 0;
             double c = gravity / (vt * vt);
-            double vx = 0, vz = -vt, x = 0;
-            int steps = (int)Math.Ceiling(seconds / step);
+            double vx = 0, vz = -vt, x = 0, xFrom = 0;
+            int fromStep = (int)Math.Round(from / step);
+            int steps = (int)Math.Ceiling(to / step);
             for (int i = 0; i < steps; i++)
             {
+                if (i == fromStep) xFrom = x;
                 double ux = wind - vx, uz = -vz;
                 double speed = Math.Sqrt(ux * ux + uz * uz);
                 double ax = c * speed * ux;
@@ -103,7 +111,7 @@ namespace ReDefinition.Atmospheres
                 vz += az * step;
                 x += vx * step;
             }
-            return x;
+            return x - xFrom;
         }
 
         // The sum of the cell areas of a latitude-longitude grid that fall under a condition, as a fraction of the whole sphere: a row's

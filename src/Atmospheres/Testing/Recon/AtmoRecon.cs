@@ -93,10 +93,16 @@ namespace ReDefinition.Atmospheres
 
             // The blocking premises first, so that a start that runs out of time loses informative ones; the steps that can disturb the
             // scene go last: the clock jumps (P1), the forced Apply of EVE (P9), the other bodies' terrain (P2more).
-            if (full) foreach (ProbeWait w in Guard("P4", WindDrop())) yield return w;
+            if (!spawnOk)
+            {
+                Say("the pod is not over deep water near the planned place: P4 and the ocean discs are left out");
+                EmitText("P4.error", "the pod is not over the sea at the planned place (Env.pod_offset_m, Env.pod_ground_m)");
+                EmitText((scattererPresent ? "P11" : "P10") + ".error", "the pod is not over the sea at the planned place");
+            }
+            if (full && spawnOk) foreach (ProbeWait w in Guard("P4", WindDrop())) yield return w;
             if (full) foreach (ProbeWait w in Guard("P2", HeightGrid())) yield return w;
             foreach (ProbeWait w in Guard("P6", CameraChain())) yield return w;
-            foreach (ProbeWait w in Guard("P10", DiscOverOcean())) yield return w;
+            if (spawnOk) foreach (ProbeWait w in Guard("P10", DiscOverOcean())) yield return w;
             foreach (ProbeWait w in Guard("P8", ForeignShader())) yield return w;
             foreach (ProbeWait w in Guard("P7", FogFixture())) yield return w;
             if (full)

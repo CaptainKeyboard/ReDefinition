@@ -30,7 +30,13 @@ namespace ReDefinition.Atmospheres
             Emit(tag + ".ocean_overlay_is_scatterer", scattererPresent);
             Emit(tag + ".ocean_renderers", CountOceanRenderers());
             Emit(tag + ".ocean_renderers_scatterer", CountOceanRenderers("Scatterer/"));
-            Emit(tag + ".disc_shader_found", Shader.Find("Hidden/Internal-Colored") != null);
+            bool discShader = Shader.Find("Hidden/Internal-Colored") != null;
+            Emit(tag + ".disc_shader_found", discShader);
+            if (!discShader)
+            {
+                EmitText(tag + ".error", "the shader Hidden/Internal-Colored is not in this player: the disc cannot be drawn");
+                yield break;
+            }
             if (!waited) yield break;
 
             int[] distances = { 100, 1000, 10000 };
@@ -246,33 +252,125 @@ namespace ReDefinition.Atmospheres
 
         // ---------------------------------------------------------------- P8: a shader the game does not know
 
-        // Two cases: two balls in the air (stock KSP/Diffuse and Unity's Legacy Diffuse, swapped between two shots), and the pod's own
-        // renderers dressed in each shader with the pod's texture. The ratio of the foreign to the stock luminance is the row; the one
-        // furthest from 1 counts. Terrain is not tried: the camera cannot be aimed at land reliably, and the shader path is the same.
-        // Two foreign shaders: a surface shader with a deferred pass (the row), and a lit shader without one, which the game draws in its
-        // forward step after the lighting (the ratio is informative: what a shell shader without a deferred pass would look like).
+        // Three cases per shader: two balls in the air (stock KSP/Diffuse and the shader under test, swapped between two shots), the pod's
+        // own renderers dressed in each shader with the pod's texture, and a flat lit mesh over the sea (the terrain stand-in: shells are
+        // drawn over PQS terrain, which the pipeline lights through its own path). The ratio of the foreign to the stock luminance is the
+        // row; the case furthest from 1 counts. Shaders under test:
+        //   foreign   an opaque lit shader of a loaded mod bundle (the case D34's shells are in): the blocking rows (no key);
+        //   builtin   Unity's Legacy Diffuse, a surface shader with a deferred pass (informative);
+        //   forward   a lit shader without a deferred pass, which the game draws in its forward step after the lighting: the ratio is the
+        //             trigger of D34's variant (f) in RECON.md.
         private IEnumerable<ProbeWait> ForeignShader()
         {
             Shader stock = FirstShader("KSP/Diffuse", "KSP/Bumped Specular", "KSP/Specular");
-            Shader foreign = FirstShader("Legacy Shaders/Diffuse", "Diffuse", "Standard");
+            string candidates;
+            Shader foreign = FindBundleShader(out candidates);
+            Shader builtin = FirstShader("Legacy Shaders/Diffuse", "Diffuse", "Standard");
             Shader forwardOnly = FirstShader("Legacy Shaders/VertexLit", "Mobile/VertexLit", "VertexLit");
             EmitText("P8.stock_shader", stock != null ? stock.name : "none");
             EmitText("P8.foreign_shader", foreign != null ? foreign.name : "none");
+            EmitText("P8.foreign_candidates", candidates);
+            EmitText("P8.builtin_shader", builtin != null ? builtin.name : "none");
             EmitText("P8.forward_only_shader", forwardOnly != null ? forwardOnly.name : "none");
+            Emit("P8.foreign_found", foreign != null);
+            if (foreign != null) Emit("P8.foreign_has_deferred_pass", HasLightMode(foreign, "Deferred"));
             Emit("P8.shaders_found", stock != null && foreign != null);
-            if (stock == null || foreign == null) yield break;
+            if (stock == null) yield break;
             if (!Daylight)
             {
                 EmitText("P8.error", "the sun is " + Num(sunElevation) + " degrees over the pod: no daylight for the shader test");
                 yield break;
             }
-            foreach (ProbeWait w in ShaderCase(stock, foreign, "", 0.3f)) yield return w;
+            if (foreign != null)
+            {
+                foreach (ProbeWait w in ShaderCase(stock, foreign, "", 0.3f)) yield return w;
+                // The control: the same foreign shader with a tenth of the albedo must read far from 1, or the test cannot tell.
+                foreach (ProbeWait w in ShaderCase(stock, foreign, "control_", 0.03f)) yield return w;
+            }
+            else
+            {
+                EmitText("P8.error", "no opaque lit shader of a mod bundle was found: the blocking case is missing");
+            }
+            if (builtin != null)
+            {
+                foreach (ProbeWait w in ShaderCase(stock, builtin, "builtin_", 0.3f)) yield return w;
+            }
             if (forwardOnly != null)
             {
                 foreach (ProbeWait w in ShaderCase(stock, forwardOnly, "forward_", 0.3f)) yield return w;
             }
-            // The control: the same foreign shader with a tenth of the albedo must read far from 1, or the test cannot tell.
-            foreach (ProbeWait w in ShaderCase(stock, foreign, "control_", 0.03f)) yield return w;
+        }
+
+        // The first opaque, lit shader of the loaded shaders that does not come from Unity or the game: a mod's own (by name, since a shader
+        // does not know its bundle). Lit means a pass whose LightMode is ForwardBase or Deferred; it needs _MainTex and _Color and an
+        // opaque queue. The candidates (up to twelve, in name order) go to a row, so that the log says what was chosen from.
+        private static Shader FindBundleShader(out string candidates)
+        {
+            string[] ownPrefixes = { "Legacy Shaders/", "KSP/", "Hidden/", "UI/", "Unlit/", "Standard", "Mobile/", "Particles/", "Sprites/", "Skybox/",
+                                     "Nature/", "FX/", "GUI/", "Diffuse", "VertexLit", "Internal", "Hidden", "TextMeshPro", "Autodesk", "Terrain/" };
+            string[] unwanted = { "cloud", "ocean", "sky", "atmos", "terrain", "scaled", "particle", "flare", "shadow", "depth", "billboard", "line",
+                                  "fog", "aurora", "ring", "water", "sprite", "decal", "projector", "debug" };
+            var found = new List<Shader>();
+            foreach (Shader shader in Resources.FindObjectsOfTypeAll<Shader>())
+            {
+                if (shader == null || !shader.isSupported) continue;
+                string name = shader.name;
+                if (string.IsNullOrEmpty(name) || StartsWithAny(name, ownPrefixes)) continue;
+                string lower = name.ToLowerInvariant();
+                bool skip = false;
+                foreach (string word in unwanted)
+                {
+                    if (lower.Contains(word)) skip = true;
+                }
+                if (skip) continue;
+                if (!HasLightMode(shader, "ForwardBase") && !HasLightMode(shader, "Deferred")) continue;
+                bool suited = false;
+                Material probe = null;
+                try
+                {
+                    probe = new Material(shader);
+                    suited = probe.renderQueue <= 2500 && probe.HasProperty("_MainTex") && probe.HasProperty("_Color");
+                }
+                catch (Exception)
+                {
+                }
+                finally
+                {
+                    if (probe != null) UnityEngine.Object.Destroy(probe);
+                }
+                if (suited) found.Add(shader);
+            }
+            found.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            var names = new List<string>();
+            for (int i = 0; i < found.Count && i < 12; i++) names.Add(found[i].name);
+            candidates = found.Count + " candidates: " + (names.Count > 0 ? string.Join(", ", names.ToArray()) : "none");
+            return found.Count > 0 ? found[0] : null;
+        }
+
+        private static bool StartsWithAny(string text, string[] prefixes)
+        {
+            foreach (string prefix in prefixes)
+            {
+                if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        // Whether any pass of the shader carries that LightMode tag.
+        private static bool HasLightMode(Shader shader, string mode)
+        {
+            try
+            {
+                var tag = new ShaderTagId("LightMode");
+                for (int pass = 0; pass < shader.passCount; pass++)
+                {
+                    if (shader.FindPassTagValue(pass, tag).name == mode) return true;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return false;
         }
 
         // The pod's renderers and their own materials while the test materials are on them, so that a step that throws can put them back.
@@ -398,9 +496,55 @@ namespace ReDefinition.Atmospheres
                 Say("P8 " + key + "pod: stock " + luma[0].ToString("0.###") + " other " + luma[1].ToString("0.###"));
             }
 
-            // The row is the case furthest from 1; where one case could not be read, the other.
+            // The terrain stand-in: a large flat lit mesh at the render queue and layer of the ground, over the sea beside the pod, seen from
+            // above at an angle; its middle read with the stock material, the shader under test and the stock material again (the control).
+            double terrainRatio = double.NaN;
+            {
+                PlaceCamera(150f, 40f, 90f);
+                yield return ProbeWait.Seconds(3);
+                Camera view = FlightCamera.fetch.mainCamera;
+                Vector3d groundUp = (vessel.CoMD - body.position).normalized;
+                Vector3 side = Vector3.ProjectOnPlane(view.transform.right, (Vector3)groundUp).normalized;
+                var terrainStock = new Material(stock) { color = grey };
+                var terrainForeign = new Material(foreign) { color = new Color(foreignGrey, foreignGrey, foreignGrey, 1f) };
+                var ground = new ReconDisc(body, vessel, (Vector3d)side * 60.0, 50.0, 3.0, 2000, 15, terrainStock);
+                Action followGround = ground.Update;
+                host.PerFrame.Add(followGround);
+                Vector3 centreView = ViewportOf(view, (Vector3)ground.Centre());
+                bool seen = centreView.z > 0f && centreView.x > 0.08f && centreView.x < 0.92f && centreView.y > 0.08f && centreView.y < 0.92f;
+                Emit("P8." + key + "terrain_in_view", seen);
+                if (seen)
+                {
+                    ground.Active = true;
+                    var medians = new float[3];
+                    Material[] sequence = { terrainStock, terrainForeign, terrainStock };
+                    for (int step = 0; step < 3; step++)
+                    {
+                        ground.Material = sequence[step];
+                        yield return ProbeWait.Frames(SettleFrames);
+                        foreach (ProbeWait w in Capture()) yield return w;
+                        List<float> lumas = lastFrame != null ? lastFrame.Lumas(centreView.x, centreView.y, 0.05, 0.05) : null;
+                        medians[step] = lumas != null && lumas.Count > 0 ? ReconMath.Median(lumas) : float.NaN;
+                    }
+                    if (!float.IsNaN(medians[0]) && !float.IsNaN(medians[1]) && !float.IsNaN(medians[2]) && medians[0] > 1e-5f)
+                    {
+                        terrainRatio = medians[1] / medians[0];
+                        Emit("P8." + key + "terrain_stock_luma", medians[0]);
+                        Emit("P8." + key + "terrain_foreign_luma", medians[1]);
+                        Emit("P8." + key + "terrain_stock_drift", Math.Abs(medians[2] - medians[0]) / medians[0]);
+                        Emit("P8." + key + "terrain_luma_ratio", terrainRatio);
+                        Say("P8 " + key + "terrain: stock " + medians[0].ToString("0.###") + " other " + medians[1].ToString("0.###"));
+                    }
+                }
+                host.PerFrame.Remove(followGround);
+                ground.Destroy();
+                UnityEngine.Object.Destroy(terrainStock);
+                UnityEngine.Object.Destroy(terrainForeign);
+            }
+
+            // The row is the case furthest from 1; where one case could not be read, the others.
             double worst = double.NaN;
-            foreach (double ratio in new[] { ballRatio, partRatio })
+            foreach (double ratio in new[] { ballRatio, partRatio, terrainRatio })
             {
                 if (double.IsNaN(ratio)) continue;
                 if (double.IsNaN(worst) || Math.Abs(ratio - 1.0) > Math.Abs(worst - 1.0)) worst = ratio;

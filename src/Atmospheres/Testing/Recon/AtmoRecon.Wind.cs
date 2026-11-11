@@ -7,8 +7,9 @@ namespace ReDefinition.Atmospheres
 {
     // The hook of the wind experiment (premise P4, the plan's E1): a ModularFlightIntegrator override of UpdateAerodynamics(Part) that
     // lowers the part's rigidbody velocity by a constant wind for the duration of the base call, so that the stock aerodynamics (or the
-    // replacement KSPCommunityFixes installs) compute the drag against the moving air, and puts the velocity back. ModularFlightIntegrator is
-    // reached by reflection and is MIT-licensed (sarbian, GameData/ModularFlightIntegrator/LICENSE.txt); nothing of it is copied.
+    // replacement KSPCommunityFixes installs) compute the drag against the moving air, and puts the velocity back. The body shifted is the
+    // part's own rigidbody or, for a part without one, the first rigidbody up the parent chain (the body the aerodynamics read).
+    // ModularFlightIntegrator is reached by reflection; MIT (sarbian, GameData/ModularFlightIntegrator/LICENSE.txt).
     // [VERIFY] The Register* methods keep one function per slot; the call returns false when another mod holds the slot.
     internal static class ReconWindHook
     {
@@ -63,6 +64,25 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // The rigidbody of a part, or of the nearest ancestor that has one (a physicsless part moves with its parent's body); null if none.
+        internal static object BodyOf(Part part)
+        {
+            for (Part p = part; p != null; p = p.parent)
+            {
+                object body = ReconDyn.Get(p, "Rigidbody");
+                var unityObject = body as UnityEngine.Object;
+                if (body != null && unityObject != null) return body;
+            }
+            return null;
+        }
+
+        // Whether the part has a rigidbody of its own (false: it is physicsless and rides on its parent's body).
+        internal static bool HasOwnBody(Part part)
+        {
+            var unityObject = ReconDyn.Get(part, "Rigidbody") as UnityEngine.Object;
+            return unityObject != null;
+        }
+
         // The override: shift the velocity, run the base, put the velocity back.
         private static void UpdateAerodynamics(object integrator, Part part)
         {
@@ -74,7 +94,7 @@ namespace ReDefinition.Atmospheres
             {
                 if (Wind != Vector3.zero && part != null)
                 {
-                    body = ReconDyn.Get(part, "Rigidbody");
+                    body = BodyOf(part);
                     if (body != null)
                     {
                         if (velocityProperty == null) velocityProperty = body.GetType().GetProperty("velocity");
@@ -134,6 +154,9 @@ namespace ReDefinition.Atmospheres
             }
             ReconWindHook.Watched = chute.part;
             ReconWindHook.Wind = Vector3.zero;
+            // Which body the hook shifts: the canopy's own (false means the canopy is physicsless and rides on its parent's body).
+            Emit("P4.chute_rb_own", ReconWindHook.HasOwnBody(chute.part));
+            Emit("P4.chute_rb_found", ReconWindHook.BodyOf(chute.part) != null);
 
             // A deployment altitude above the drop: the canopy opens fully at once, so that the measurement does not wait for the
             // altitude the stock value asks for.
@@ -159,7 +182,13 @@ namespace ReDefinition.Atmospheres
             var descent = new List<double>();
             ReconWindHook.Samples = 0;
             ReconWindHook.SumDragMagnitude = ReconWindHook.SumDragScalar = 0;
-            foreach (ProbeWait w in SampleFor(ControlSeconds, () => descent.Add(-vessel.verticalSpeed))) yield return w;
+            double peakDragControl = 0;
+            foreach (ProbeWait w in SampleFor(ControlSeconds, () =>
+            {
+                descent.Add(-vessel.verticalSpeed);
+                peakDragControl = Math.Max(peakDragControl, HorizontalDrag(vessel, chute.part));
+            })) yield return w;
+            Emit("P4.control_dragvector_horizontal_ms", peakDragControl);
             double eastA, northA;
             Displacement(body, lat0, lon0, vessel.latitude, vessel.longitude, vessel.altitude, out eastA, out northA);
             double controlDrag = ReconWindHook.Samples > 0 ? ReconWindHook.SumDragMagnitude / ReconWindHook.Samples : double.NaN;
@@ -192,18 +221,42 @@ namespace ReDefinition.Atmospheres
             lat0 = vessel.latitude;
             lon0 = vessel.longitude;
             double altitudeB = vessel.altitude;
-            foreach (ProbeWait w in SampleFor(WindSeconds, null)) yield return w;
+            // The mechanism: the horizontal part of the canopy's own dragVector (the velocity relative to the air the aerodynamics used)
+            // at its peak during the wind period. The drift is measured over the last half of the period, after the pod has swung into
+            // the relative wind; the model assumes the drag is already aligned.
+            double peakDragWind = 0, startUt = Planetarium.GetUniversalTime(), midLat = double.NaN, midLon = double.NaN, midAlt = 0;
+            foreach (ProbeWait w in SampleFor(WindSeconds, () =>
+            {
+                peakDragWind = Math.Max(peakDragWind, HorizontalDrag(vessel, chute.part));
+                if (double.IsNaN(midLat) && Planetarium.GetUniversalTime() - startUt >= 0.5 * WindSeconds)
+                {
+                    midLat = vessel.latitude;
+                    midLon = vessel.longitude;
+                    midAlt = vessel.altitude;
+                }
+            })) yield return w;
             ReconWindHook.Wind = Vector3.zero;
             double eastB, northB;
             Displacement(body, lat0, lon0, vessel.latitude, vessel.longitude, vessel.altitude, out eastB, out northB);
             double windDrag = ReconWindHook.Samples > 0 ? ReconWindHook.SumDragMagnitude / ReconWindHook.Samples : double.NaN;
-            double predicted = ReconMath.PredictChuteDrift(WindSpeed, vt, g, WindSeconds);
             double alongB = AlongBearing(eastB, northB);
+            double eastLate = double.NaN, northLate = double.NaN, alongLate = double.NaN;
+            if (!double.IsNaN(midLat))
+            {
+                Displacement(body, midLat, midLon, vessel.latitude, vessel.longitude, vessel.altitude, out eastLate, out northLate);
+                alongLate = AlongBearing(eastLate, northLate);
+            }
+            double predicted = ReconMath.PredictChuteDrift(WindSpeed, vt, g, WindSeconds);
+            double predictedLate = ReconMath.PredictChuteDriftBetween(WindSpeed, vt, g, 0.5 * WindSeconds, WindSeconds);
+            Emit("P4.dragvector_horizontal_ms", peakDragWind);
             Emit("P4.wind_east_m", eastB);
             Emit("P4.wind_north_m", northB);
             Emit("P4.wind_along_m", alongB);
             Emit("P4.wind_predicted_m", predicted);
-            Emit("P4.wind_error_rel", predicted > 0 ? Math.Abs(alongB - predicted) / predicted : double.NaN);
+            Emit("P4.wind_along_late_m", alongLate);
+            Emit("P4.wind_predicted_late_m", predictedLate);
+            Emit("P4.wind_error_rel", predictedLate > 0 && !double.IsNaN(alongLate) ? Math.Abs(alongLate - predictedLate) / predictedLate : double.NaN);
+            Emit("P4.wind_error_full_rel", predicted > 0 ? Math.Abs(alongB - predicted) / predicted : double.NaN);
             Emit("P4.wind_drag_mag", windDrag);
             Emit("P4.hook_calls", ReconWindHook.Calls);
             Emit("P4.hook_shifted", ReconWindHook.Shifted);
@@ -216,6 +269,14 @@ namespace ReDefinition.Atmospheres
             Say("P4: the pod is " + vessel.situation + " at " + Num(vessel.altitude) + " m");
             ReconWindHook.Watched = null;
             yield return ProbeWait.Seconds(8);
+        }
+
+        // The length of the horizontal part of a part's dragVector (the velocity against the air as the aerodynamics last computed it).
+        private static double HorizontalDrag(Vessel vessel, Part part)
+        {
+            if (vessel == null || part == null) return 0;
+            Vector3 up = ((Vector3)(vessel.CoMD - vessel.mainBody.position)).normalized;
+            return Vector3.ProjectOnPlane(part.dragVector, up).magnitude;
         }
 
         // Calls an action every frame for the game-time seconds given; real time caps it, so that a clock that stops cannot hold the probe.

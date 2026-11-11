@@ -70,6 +70,18 @@ namespace ReDefinition.Tests.Atmospheres.B09
         }
 
         [TestMethod]
+        public void ChuteDriftBetweenTwoTimesIsTheDifferenceOfTheDriftsFromRest()
+        {
+            double full = ReconMath.PredictChuteDrift(20.0, 6.0, 9.81, 30.0);
+            double early = ReconMath.PredictChuteDrift(20.0, 6.0, 9.81, 15.0);
+            double late = ReconMath.PredictChuteDriftBetween(20.0, 6.0, 9.81, 15.0, 30.0);
+            Assert.AreEqual(full - early, late, 1e-6);
+            // After the canopy has caught up with the wind the late stretch is wind times time.
+            Assert.IsTrue(late > 285.0 && late <= 300.0, "late " + late);
+            Assert.AreEqual(0.0, ReconMath.PredictChuteDriftBetween(20.0, 6.0, 9.81, 30.0, 15.0));
+        }
+
+        [TestMethod]
         public void OceanFractionWeighsRowsByTheirArea()
         {
             int w = ReconMath.GridWidth, h = ReconMath.GridHeight;

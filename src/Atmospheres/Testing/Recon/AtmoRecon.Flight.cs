@@ -85,7 +85,23 @@ namespace ReDefinition.Atmospheres
             Vector3d up = (pod.CoMD - pod.mainBody.position).normalized;
             sunElevation = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(toSun, up)))) * 180.0 / Math.PI;
             Emit("Env.sun_elevation_deg", sunElevation);
+
+            // The place the frame convention gave the pod against the place planned: a pod over land would lose P4, P10 and P11 at the end of
+            // a start, so it is checked here and those steps are left out with a row that says why.
+            CelestialBody podBody = pod.mainBody;
+            Vector3d planned = podBody.GetWorldSurfacePosition(podLatitude, podLongitude, 0.0);
+            Vector3d actual = podBody.GetWorldSurfacePosition(pod.latitude, pod.longitude, 0.0);
+            double offsetMetres = (planned - actual).magnitude;
+            double groundHeight = podBody.pqsController.GetSurfaceHeight(podBody.GetRelSurfaceNVector(pod.latitude, pod.longitude)) - podBody.Radius;
+            spawnOk = offsetMetres < 500.0 && groundHeight < -12.0;
+            Emit("Env.pod_offset_m", offsetMetres);
+            Emit("Env.pod_ground_m", groundHeight);
+            Emit("Env.pod_over_sea", groundHeight < 0.0);
+            Emit("Env.spawn_ok", spawnOk);
         }
+
+        // Whether the pod stands over deep water close to the place planned; the steps that need the sea are left out otherwise.
+        private bool spawnOk;
 
         // The sun's elevation over the pod in degrees, set when the flight stands; the tests that need daylight read it.
         private double sunElevation;
