@@ -23,16 +23,8 @@ namespace AtmoSim.Core
         // 2^n for an integer n by repeated squaring of 2 or 0.5 (every product is a power of two, so it is exact).
         private static double Pow2(int n)
         {
-            double b = n >= 0 ? 2.0 : 0.5;
-            int e = n >= 0 ? n : -n;
-            double s = 1.0;
-            while (e > 0)
-            {
-                if ((e & 1) != 0) s *= b;
-                b *= b;
-                e >>= 1;
-            }
-            return s;
+            // the bit pattern of 2^n for -1022 <= n <= 1023 is exact; Exp limits its argument to +-700 so n stays in range
+            return BitConverter.Int64BitsToDouble((long)(n + 1023) << 52);
         }
 
         public static double Exp(double x)
@@ -167,5 +159,40 @@ namespace AtmoSim.Core
         }
 
         public static double Acos(double x) { return HalfPi - Asin(x); }
+
+        // tanh(x) = 1 - 2 / (exp(2x) + 1); saturates beyond |x| = 20.
+        public static double Tanh(double x)
+        {
+            if (x > 20.0) return 1.0;
+            if (x < -20.0) return -1.0;
+            return 1.0 - 2.0 / (Exp(2.0 * x) + 1.0);
+        }
+
+        // A Pade form of tanh, exact at 0, saturated beyond |x| = 3, error below 0.02: used where only the shape of a step matters.
+        public static double TanhFast(double x)
+        {
+            if (x >= 3.0) return 1.0;
+            if (x <= -3.0) return -1.0;
+            double x2 = x * x;
+            return x * (27.0 + x2) / (27.0 + 9.0 * x2);
+        }
+
+        // 0 below a, 1 above b, cubic in between.
+        public static double SmoothStep(double a, double b, double x)
+        {
+            double t = (x - a) / (b - a);
+            if (t <= 0.0) return 0.0;
+            if (t >= 1.0) return 1.0;
+            return t * t * (3.0 - 2.0 * t);
+        }
+
+        // Wraps an angle into [-pi, pi).
+        public static double WrapPi(double x)
+        {
+            return x - TwoPi * Math.Floor((x + Pi) / TwoPi);
+        }
+
+        // Fraction part in [0, 1).
+        public static double Frac(double x) { return x - Math.Floor(x); }
     }
 }

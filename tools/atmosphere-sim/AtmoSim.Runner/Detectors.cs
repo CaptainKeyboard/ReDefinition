@@ -12,12 +12,14 @@ namespace AtmoSim.Runner
         public readonly double[] LatRad, LonRad, LatDeg, Dx, Dy, W;
         public readonly double WSum;
 
-        public MetricGrid(Atmosphere s)
+        // A regular grid, row 0 north, cell centres: latitude 90 - (j + 0.5) 180/NLat, longitude (i + 0.5) 360/NLon (0 to 2 pi).
+        public MetricGrid(int nlon, int nlat, double radiusM)
         {
-            NLon = s.NLon; NLat = s.NLat; A = s.Body.RadiusM;
-            LatRad = (double[])s.PhysLatRad.Clone();
+            NLon = nlon; NLat = nlat; A = radiusM;
+            LatRad = new double[NLat];
+            for (int j = 0; j < NLat; j++) LatRad[j] = (90.0 - (j + 0.5) * 180.0 / NLat) * Math.PI / 180.0;
             LonRad = new double[NLon];
-            for (int i = 0; i < NLon; i++) LonRad[i] = 2.0 * Math.PI * i / NLon;
+            for (int i = 0; i < NLon; i++) LonRad[i] = 2.0 * Math.PI * (i + 0.5) / NLon;
             LatDeg = new double[NLat]; Dx = new double[NLat]; Dy = new double[NLat]; W = new double[NLat];
             for (int j = 0; j < NLat; j++)
             {
@@ -25,9 +27,12 @@ namespace AtmoSim.Runner
                 Dx[j] = A * Math.Cos(LatRad[j]) * 2.0 * Math.PI / NLon;
                 int a = Math.Max(0, j - 1), b = Math.Min(NLat - 1, j + 1);
                 Dy[j] = A * Math.Abs(LatRad[a] - LatRad[b]) / Math.Max(1, b - a);
-                W[j] = s.PhysWeight[j]; WSum += W[j] * NLon;
+                W[j] = Math.Cos(LatRad[j]); WSum += W[j] * NLon;
             }
         }
+
+        // The size of one cell at the equator in metres.
+        public double CellM { get { return A * 2.0 * Math.PI / NLon; } }
 
         public int NearestRow(double latRad)
         {
@@ -60,6 +65,7 @@ namespace AtmoSim.Runner
     public static class Detect
     {
         public const double BeltLo = 35.0, BeltHi = 70.0;
+        public const double MaxBandWidthM = 200000.0;
 
         // D1. p is the surface pressure anomaly (Pa) on the grid; ps the surface pressure; ringKm the ring radius R.
         public static List<Minimum> Minima(MetricGrid g, double[] p, double ps, double ringKm, bool suppress)
@@ -71,16 +77,26 @@ namespace AtmoSim.Runner
                 double m = 0; for (int i = 0; i < nl; i++) m += p[j * nl + i]; m /= nl;
                 for (int i = 0; i < nl; i++) q[j * nl + i] = p[j * nl + i] - m;
             }
+            // box smoothing of radius half the ring radius (at least one cell): white noise is averaged out before the minima are looked for
             var sm = new double[nl * nt];
+            var tmp = new double[nl * nt];
+            double rs = 0.5 * ringKm * 1000.0;
+            int rj = Math.Max(1, (int)Math.Round(rs / g.Dy[nt / 2]));
+            for (int j = 0; j < nt; j++)
+            {
+                int ri = Math.Min(nl / 2 - 1, Math.Max(1, (int)Math.Round(rs / g.Dx[j])));
+                for (int i = 0; i < nl; i++)
+                {
+                    double s = 0;
+                    for (int d = -ri; d <= ri; d++) s += q[j * nl + (i + d + nl) % nl];
+                    tmp[j * nl + i] = s / (2 * ri + 1);
+                }
+            }
             for (int j = 0; j < nt; j++)
                 for (int i = 0; i < nl; i++)
                 {
                     double s = 0; int n = 0;
-                    for (int dj = -1; dj <= 1; dj++)
-                    {
-                        int jj = j + dj; if (jj < 0 || jj >= nt) continue;
-                        for (int di = -1; di <= 1; di++) { s += q[jj * nl + (i + di + nl) % nl]; n++; }
-                    }
+                    for (int d = -rj; d <= rj; d++) { int jj = j + d; if (jj < 0 || jj >= nt) continue; s += tmp[jj * nl + i]; n++; }
                     sm[j * nl + i] = s / n;
                 }
             var list = new List<Minimum>();
@@ -128,12 +144,26 @@ namespace AtmoSim.Runner
         }
 
         // D2. t is the temperature at sigma 0.8, cwp the column cloud-water path.
-        public static List<Band> Bands(MetricGrid g, double[] t, double[] cwp)
+        public static double[] ZonalAnomaly(MetricGrid g, double[] f)
+        {
+            int nl = g.NLon, nt = g.NLat;
+            var r = new double[f.Length];
+            for (int j = 0; j < nt; j++)
+            {
+                double m = 0; for (int i = 0; i < nl; i++) m += f[j * nl + i]; m /= nl;
+                for (int i = 0; i < nl; i++) r[j * nl + i] = f[j * nl + i] - m;
+            }
+            return r;
+        }
+
+        public static List<Band> Bands(MetricGrid g, double[] t, double[] cwp, double minExtentM)
         {
             int nl = g.NLon, nt = g.NLat;
             var sorted = (double[])cwp.Clone(); Array.Sort(sorted);
             double p95 = sorted[(int)(0.95 * (sorted.Length - 1))];
-            double cwpThr = 0.25 * p95;
+            double cwpThr = 0.6 * p95;
+            // zonal anomalies: the equator-to-pole gradient of a small body is itself several K per 100 km and is not a front
+            t = ZonalAnomaly(g, t); cwp = ZonalAnomaly(g, cwp);
             var flagT = new bool[nl * nt]; var flagC = new bool[nl * nt];
             for (int j = 1; j < nt - 1; j++)
             {
@@ -178,7 +208,10 @@ namespace AtmoSim.Runner
                 for (int a = 0; a < cells.Count; a += stride)
                     for (int b = a + stride; b < cells.Count; b += stride)
                         ext = Math.Max(ext, g.DistCells(cells[a] / nl, cells[a] % nl, cells[b] / nl, cells[b] % nl));
-                if (ext < 590000.0) continue;
+                if (ext < minExtentM) continue;
+                // a band is thin: the mean width (area over extent) stays below MaxBandWidthM, which rejects blobs of flagged cells
+                double area = 0; foreach (int c in cells) area += g.Dx[c / nl] * g.Dy[c / nl];
+                if (area / ext > MaxBandWidthM) continue;
                 // second moments in local km around the first cell's longitude
                 int j0 = cells[0] / nl, i0 = cells[0] % nl;
                 double mx = 0, my = 0; var xs = new double[cells.Count]; var ys = new double[cells.Count];
@@ -303,11 +336,16 @@ namespace AtmoSim.Runner
                 double dur = (t.Last - t.First) * frameSeconds;
                 double path = 0;
                 for (int k = 1; k < t.Lat.Count; k++) path += MetricGrid.Dist(a, t.Lat[k - 1], t.Lon[k - 1], t.Lat[k], t.Lon[k]);
-                double net = MetricGrid.Dist(a, t.Lat[0], t.Lon[0], t.Lat[t.Lat.Count - 1], t.Lon[t.Lon.Count - 1]);
-                double dlon = t.Lon[t.Lon.Count - 1] - t.Lon[0];
-                while (dlon > Math.PI) dlon -= 2 * Math.PI; while (dlon < -Math.PI) dlon += 2 * Math.PI;
-                double latm = 0.5 * (t.Lat[0] + t.Lat[t.Lat.Count - 1]);
-                double east = a * Math.Cos(latm) * dlon;
+                // unwrapped displacement: the sum of the per-step east and north displacements (a track may circle the body)
+                double east = 0, north = 0;
+                for (int k = 1; k < t.Lat.Count; k++)
+                {
+                    double dl = t.Lon[k] - t.Lon[k - 1];
+                    while (dl > Math.PI) dl -= 2 * Math.PI; while (dl < -Math.PI) dl += 2 * Math.PI;
+                    east += a * Math.Cos(0.5 * (t.Lat[k] + t.Lat[k - 1])) * dl;
+                    north += a * (t.Lat[k] - t.Lat[k - 1]);
+                }
+                double net = Math.Sqrt(east * east + north * north);
                 life.Add(dur); drift.Add(east / Math.Max(1.0, dur)); straight.Add(path > 0 ? net / path : 1.0);
             }
             var r = new Dictionary<string, object>();
@@ -332,24 +370,27 @@ namespace AtmoSim.Runner
         public readonly Tracker D1, D1NoSuppress, D2, C1a, C2a, C1b, C2b;
         public readonly List<List<Minimum>> MinimaByFrame = new List<List<Minimum>>();
         public readonly List<List<Band>> BandsByFrame = new List<List<Band>>();
-        public readonly int Warm;
+        // A track counts as persistent when it spans at least this many seconds (header H2: one day).
+        public double PersistS = 86400.0;
         public int Frames;
         public long Minima, MinimaRaw, MinimaControlShuffle, MinimaControlNoise;
         private readonly Random rnd = new Random(12345);
-        private readonly int level08;
         public readonly long[] ArmCount = new long[3];
 
-        public FrontsAndLows(Atmosphere s, double frameSeconds, int sigma08Level)
+        private readonly double minExtentM;
+
+        // trackSpeedMs: the largest drift speed the trackers follow (about 1.5 times the jet speed); minExtentCells: length of a front band.
+        public FrontsAndLows(int nlon, int nlat, double radiusM, double ps, double frameSeconds, double rotationS, double ringKm, double trackSpeedMs, int minExtentCells)
         {
-            g = new MetricGrid(s); ps = s.Body.SurfacePressurePa; this.frameSeconds = frameSeconds; rotationS = s.Body.RotationPeriodS;
-            ringKm = Math.Max(3.0 * 2.0 * Math.PI * s.Body.RadiusM / s.NLon / 1000.0, 0.75 * s.DeformationRadiusM / 1000.0);
-            double r25 = 25.0 * 6.0 * 3600.0;
-            D1 = new Tracker(s.Body.RadiusM, r25 * (frameSeconds / 21600.0), 1);
-            D1NoSuppress = new Tracker(s.Body.RadiusM, r25 * (frameSeconds / 21600.0), 1);
-            D2 = new Tracker(s.Body.RadiusM, 400000.0 * (frameSeconds / 21600.0), 0);
-            C1a = new Tracker(s.Body.RadiusM, r25 * (frameSeconds / 21600.0), 1); C2a = new Tracker(s.Body.RadiusM, 400000.0 * (frameSeconds / 21600.0), 0);
-            C1b = new Tracker(s.Body.RadiusM, r25 * (frameSeconds / 21600.0), 1); C2b = new Tracker(s.Body.RadiusM, 400000.0 * (frameSeconds / 21600.0), 0);
-            level08 = sigma08Level;
+            g = new MetricGrid(nlon, nlat, radiusM); this.ps = ps; this.frameSeconds = frameSeconds; this.rotationS = rotationS;
+            this.ringKm = ringKm;
+            minExtentM = minExtentCells * g.CellM;
+            double r1 = trackSpeedMs * frameSeconds;
+            D1 = new Tracker(radiusM, r1, 1);
+            D1NoSuppress = new Tracker(radiusM, r1, 1);
+            D2 = new Tracker(radiusM, r1, 1);
+            C1a = new Tracker(radiusM, r1, 1); C2a = new Tracker(radiusM, r1, 1);
+            C1b = new Tracker(radiusM, r1, 1); C2b = new Tracker(radiusM, r1, 1);
         }
 
         public double RingKm { get { return ringKm; } }
@@ -368,17 +409,14 @@ namespace AtmoSim.Runner
             return r;
         }
 
-        // One frame (every 6 h of game time). Fields are copied views of the atmosphere.
-        public void Frame(Atmosphere s, bool collect)
+        // One frame. p: pressure anomaly (Pa), t: surface air temperature (K), cwp: cloud water proxy; all on the metric grid.
+        public void Frame(double[] p, double[] t, double[] cwp, bool collect)
         {
-            int n2 = s.N2;
-            var p = s.PsAnom;
-            var t = new double[n2]; Array.Copy(s.T3, level08 * n2, t, 0, n2);
-            var cwp = s.CloudPath;
+            int n2 = p.Length;
             int f = Frames++;
             var mins = Detect.Minima(g, p, ps, ringKm, true);
             var minsRaw = Detect.Minima(g, p, ps, ringKm, false);
-            var bands = Detect.Bands(g, t, cwp);
+            var bands = Detect.Bands(g, t, cwp, minExtentM);
             if (collect) { MinimaByFrame.Add(mins); BandsByFrame.Add(bands); }
             D1.Add(f, Pts(mins), null); D1NoSuppress.Add(f, Pts(minsRaw), null);
             var arms = new List<string>();
@@ -389,11 +427,11 @@ namespace AtmoSim.Runner
             var ps1 = new double[n2]; var t1 = new double[n2]; var c1 = new double[n2];
             for (int i = 0; i < n2; i++) { ps1[i] = p[perm[i]]; t1[i] = t[perm[i]]; c1[i] = cwp[perm[i]]; }
             var m1 = Detect.Minima(g, ps1, ps, ringKm, true);
-            var b1 = Detect.Bands(g, t1, c1);
+            var b1 = Detect.Bands(g, t1, c1, minExtentM);
             C1a.Add(f, Pts(m1), null); var ar1 = new List<string>(); C2a.Add(f, Pts(b1, ar1), ar1);
             var ps2 = Noise(p); var t2 = Noise(t); var c2 = Noise(cwp);
             var m2 = Detect.Minima(g, ps2, ps, ringKm, true);
-            var b2 = Detect.Bands(g, t2, c2);
+            var b2 = Detect.Bands(g, t2, c2, minExtentM);
             C1b.Add(f, Pts(m2), null); var ar2 = new List<string>(); C2b.Add(f, Pts(b2, ar2), ar2);
         }
 
@@ -413,7 +451,7 @@ namespace AtmoSim.Runner
         // Summary over frames [f0, f1) as the header defines it. Day = one rotation period of the body.
         public Dictionary<string, object> Summary(int f0, int f1)
         {
-            int persist = (int)Math.Round(12.0 * 3600.0 / frameSeconds); // 12 h of game time (H-4)
+            int persist = (int)Math.Round(PersistS / frameSeconds);
             var r = new Dictionary<string, object>();
             var act = D1.MeanActive(persist, f0, f1); var actRaw = D1NoSuppress.MeanActive(persist, f0, f1);
             r["d1_persistent_active_mean_per_hemisphere_north"] = act[0]; r["d1_persistent_active_mean_per_hemisphere_south"] = act[1];

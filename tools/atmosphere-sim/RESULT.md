@@ -1,274 +1,204 @@
-# Atmosphere simulation proof (B10): RESULT
+# Weather generator proof (B10, rewritten after the owner ruling): RESULT
 
-Status: PHASE 2 done, decision FALLBACK (section P4). The header (H0-H10) was written and signed (REV-B10h-1, conditions H-1..H-4) before the criterion runs; the independent phase-2 review is open.
+Status: PHASE 1 (build and header). The header below is to be signed by an independent reviewer BEFORE any criterion run. No criterion run has been made; exploratory runs made while building are listed in H9.
+Phase 2 (criterion runs, sheets, decision GO or REWORK) follows only after the sign-off.
+
+The first prototype of this package (a two-layer spectral model that failed 9 of 14 criteria) is kept as history at the end of this file. Its core (`Atmosphere`, `Dynamics`, `Spectral`, `Physics`, `EpochField`) and the tests of those parts are deleted.
 
 ---------------------------------------------------------------------------------------------------------------------------
 
-## HEADER (fixed before the runs; sign-off line at the end)
+## HEADER (fixed before the runs)
 
 ### H0 What is built
 
-`tools/atmosphere-sim/AtmoSim.Core` (netstandard2.0, no UnityEngine, no `Math.Exp/Pow/Sin/Cos/Log/Atan` in the step: `DMath` uses only
-`+ - * /`, `Math.Sqrt` and `Math.Floor`, which IEEE 754 rounds exactly). `AtmoSim.Runner` (console, net10.0) and `Tests` (MSTest, net10.0,
-`dotnet test tools/atmosphere-sim/Tests`; 16 tests green at header time: DMath accuracy, spectral round trip, solid-body wind, flux
-divergence, same-seed hash, thread independence, checkpoint = straight run bit for bit, clone, finiteness/bounded wind over 30 days,
-water ledger closure, switches, no-ocean body, epoch derivation and order independence, sub-grid rule).
+`tools/atmosphere-sim/AtmoSim.Core` (netstandard2.0, no UnityEngine, no `Math.Exp/Pow/Sin/Cos/Log/Atan/Tanh` in the generator: `DMath` uses only `+ - * /`, `Math.Sqrt`, `Math.Floor` and the exact bit pattern of 2^n, all exactly rounded or exact in IEEE 754)
+holds the generator. `AtmoSim.Runner` (console, net10.0) holds the detectors, trackers, study and timing commands. `Tests` (MSTest, net10.0) runs with
+`python tools/dotnet_test.py --project tools/atmosphere-sim/Tests/AtmoSim.Tests.csproj`.
 
-Model (one paragraph per part, enough for C25):
+| file | content |
+|---|---|
+| `Core/DMath.cs` (kept, extended) | deterministic Exp, Log, Pow, Sin, Cos, Atan, Atan2, Asin, Acos, Tanh, a fast tanh, SmoothStep, WrapPi |
+| `Core/Hashing.cs` | integer hash (SplitMix style) with `Of(seed, a, b, c)`, `Draw`, the xorshift `Rng` for the synthetic maps |
+| `Core/BodyParams.cs` | the inputs of the generator per body and the eight parameter sets (H2) |
+| `Core/Circulation.cs` | `BodyDerived`: everything derived once from the body (Rossby and Rhines rules, cell count, jet, wave gate, temperature climatology, lattice size, precipitation bands) |
+| `Core/Generator.cs` | `WeatherGenerator.Sample(lat, lon, alt, ut, out Weather)`: climatology, circulation, wave systems and fronts, uplift, cloud water, rain, convective cells, wind, type, dust flag, vertical profile |
+| `Core/SurfaceLayer.cs` | `IceModel` (heat store, Stefan growth, melt, snow insulation) and `SurfaceSite` (snow, wet/dry, dust, ice of one site as a function of the UT) |
+| `Core/MapGen.cs` (adapted) | `HeightGrid` (ocean, terrain, smoothed moisture source, bilinear lookup) and the synthetic continents of a seed |
+| `Core/SubGrid.cs` (adapted) | maps and the 3D window by point evaluation |
+| `Runner/Detectors.cs` (kept, adapted to grids) | metric grid, D1 and D2, tracker, controls |
+| `Runner/Study.cs`, `Timing.cs`, `Evaluate.cs`, `Json.cs`, `Program.cs` | tracker run, frame export, zonal and front debug prints, cost and determinism runs, PASS/FAIL table |
+| `plots/make_sheets.py` (adapted) | contact sheets, orbit view, frame strips, time-lapse, tracker table from the frame export |
 
-1. Dynamical core: two-layer quasi-geostrophic (Phillips type) model on the sphere. Prognostic: potential vorticity of an upper layer
-   (sigma 0.25) and a lower layer (sigma 0.75) as spherical-harmonic coefficients (triangular truncation `DynM`, default T21, Gaussian
-   grid 64x32). Inversion is diagonal in spectral space. Advection of absolute PV (beta term included, f = 2 Omega sin(lat)) by
-   the layer winds, spectral transform method, SSP-RK3 with 2-24 sub-steps chosen from the previous maximum wind (Courant number),
-   hyper-diffusion (time 3 h at the truncation limit), Ekman drag on the lower layer (spin-down 2 Earth days at 4x Earth rotation, scaled with
-   1/sqrt(rotation)), weak drag aloft. The baroclinic deformation radius comes from N, the tropopause height and f0 (N from the lapse rate),
-   scaled by `EddyScale` (default 1, the physical value). The thickness Delta = psi1 - psi2 is the temperature of the column through the thermal
-   wind: T_mid = T_eq,mid(lat,t) + c(lat) (Delta - Delta_eq(lat,t)), c = f0 h(lat) / (R ln 3), h a smooth sign of f that is zero at the equator
-   (regularised inverse near the equator, QG is not valid there). Delta relaxes to Delta_eq with a radiative time tau = cp ps / (g 4 sigma T^3) x 0.7
-   (clamped 1-300 days). Delta_eq follows from the meridional gradient of the equilibrium mid-layer temperature by thermal wind.
-2. Equilibrium: surface temperature T_eq(lat, t) = Tmean x (w + (1-w) Q(lat,t)/Qglobal)^(1/4) x normalisation, Q the daily-mean insolation from
-   declination (obliquity, season phase of the year, eccentricity), w = min(0.95, 0.5 sqrt(ps/101325 Pa)) the share spread by heat transport;
-   lapse rate to the tropopause, isothermal above. This is the stand-in for the B09 temperature samples. Season phase 0 = northern midwinter
-   (SeasonClock). Tilt is an input of insolation (KSP has none; [VERIFY] value 23.4 degrees for the Kerbin-like set until C12 fixes it).
-3. 3D fields on the physics grid (lat-lon Gaussian rows, 128x64 default, K sigma levels, spectral fields synthesised onto it): temperature
-   (equilibrium profile + baroclinic anomaly with a vertical shape + skin-temperature pull on the lowest levels), horizontal wind (interpolated
-   between the layer winds, boundary-layer turning and slow-down below the lower layer so that low-level flow converges into lows, plus a
-   thermal-low flow toward warm air that fades where rotation dominates: sea/land breezes, the day-night circulation of slow rotators),
-   vertical velocity from the QG thermodynamic equation (omega = (c (dDelta/dt + J(psi_bt, Delta) - relaxation) - latent heating) / S),
-   parabolic profile.
-4. Moisture on the physics grid: vapour and cloud water, semi-Lagrangian transport (trilinear, departure point in lat-lon with a polar cos floor
-   0.12, global mass fixer per field), evaporation from ocean (bulk formula, reduced by ice) and from soil water on land, boundary-layer mixing,
-   saturation adjustment with latent heating, moist-static-energy convection (CAPE from a parcel of the lowest two levels, adjustment time 2 h,
-   35 % detrains as cloud water, 65 % rains out, convective updraft sqrt(CAPE) capped at 30 m/s), autoconversion (threshold 0.2 g/kg,
-   time 40 min), fall-out with re-evaporation, column latent heating (capped at 3e-4 K/s) fed back into Delta on the next step.
-5. Surface layer (2D): skin temperature (land relaxation 6 h toward air temperature + insolation anomaly, sea relaxation from the mixed-layer
-   heat capacity `SeaHeatCapacityPerM x SeaMixedDepthM` over 15 W/m2/K), sea ice from the heat deficit/excess of the mixed layer at the freezing
-   point (`SeaFreezeK`, latent heat per volume `IceLatentDensity`) plus Stefan growth under cold air and top melt, snow pack in metres of water
-   equivalent (accumulation when the snow fraction of the wet-bulb-like temperature > 0.5, melt 0.18 mm/K/h, sublimation, wind erosion above
-   12 m/s back to vapour), soil water (capacity 150 mm, overflow to the sea only on a body with a sea), dust lifted over land above a wind threshold
-   on dusty bodies and settling with 2 days.
-6. No storm positions, no injected noise after the initial state. The seed enters only the small initial perturbation of the streamfunctions and the
-   synthetic ocean/terrain maps.
+Deleted: `Atmosphere.cs`, `Dynamics.cs`, `Spectral.cs`, `Physics.cs`, `EpochField.cs`, `EpochStudy.cs`, the old `Study.cs`, and the tests of water ledger, checkpoint, clone, epoch, spin-down, spectral transform.
 
-Deviations from the wording of the brief (reviewer: say if one is not acceptable):
-* Temperature is diagnosed from the prognostic thickness and the surface state, not integrated as a separate 3D prognostic field. Pressure is the
-  geostrophic surface pressure anomaly rho0 f0 h psi2, not a prognostic field.
-* The dynamical core is balanced (QG); gravity waves are not simulated. The tropics have no Hadley circulation; tropical rain comes from
-  convection on warm moist surface air (criterion 3 will show whether that is enough).
-* Latent heating enters through the column mean, not per level.
-* The brief asks to prove the platform functions bit-equal under .NET and Mono, or to avoid them. They are avoided (DMath). The Mono run of the
-  kernel is C25's player test; it is not done here ([VERIFY] on this machine: no Mono run in this package).
+31 tests green at header time (DMath accuracy, determinism across runs, threads, evaluation order, instances and chunkings, UT rewind and jump, finiteness on all sets, zero allocations, planted systems and a planted front found by the detectors, white noise and shuffled field find nothing,
+waves off, rotation off, hand-over amplitude change, level scale, dust, window agreement, cell count by rotation rate, jet season, Stefan law, snow insulation and melt, freeze-up delay by the heat store, salinity, no ice without ocean, snow bounded, ice continuity at the anchor, dust bounded).
 
-### H1 Time, grid, sets, seeds, runs
+### H1 The generator model (one paragraph per part, enough for C25)
 
-* Fixed step: 1 h of game time (primary) and 3 h (A/B pair). "Day" below means one rotation period of the body (6 h for the Kerbin-like set).
-* Grids: 128x64x16 (reference), 96x48x16, 64x32x12. The chosen grid is the LARGEST of the three whose step cost (criterion 5) is <= 30 ms and whose
-  memory is <= 30 MB. It is decided by the timing run, which comes first and does not look at any climate output. All other runs use the chosen grid.
-* Parameter sets (`BodyParams`): Kerbin-like (the fast rotator with oceans of the brief: rotation 21600 s, radius 600 km, year 9 203 545 s, tilt 0.4084,
-  ocean target 0.7), Duna-like (thin, cold, dry, dusty), Eve-like (thick, hot, 70 % ocean target), Laythe-like (95 % ocean), Slow-rotator (Kerbin-like with
-  rotation period 864 000 s, tilt 0.05, ocean target 0.3), No-ocean (Kerbin-like with ocean 0), Cold-world (Kerbin-like with surface mean 258 K).
-  Earth-like (real Earth radius and rotation) is run as a scale sanity check only (not part of the gate).
-* Seeds: Kerbin-like A = 1, B = 2, C = 3; every other set seed 1. Maps: synthetic continents of the seed (`MapGen`); B09 grids replace them when `tests/data/recon/`
-  exists (it does not at header time; every run states which maps it used).
-* Runs (simulated Kerbin years): Kerbin-like seed A >= 10, seeds B and C >= 5, every other set >= 5; first year is spin-up and excluded from statistics
-  unless a criterion says otherwise. One detailed month (30 days) with daily outputs and 6-hourly frames for the sheets. A/B pairs: Coriolis off, ocean off,
-  seed A vs B, step 1 h vs 3 h (each >= 5 years).
-* Tuning cap: ONE structural change after the first complete set of runs (more levels, a baroclinic gradient, a smaller step, or `EddyScale`), then report.
-  No other tuning of parameters after seeing results. Physical constants are fixed in this header's code (commit hash recorded in the sign-off).
+The generator is a pure function of (body, seed, latitude, longitude, altitude, UT). No state, no checkpoints, no epochs; the only caches are per thread and hold values that are themselves pure functions of the UT (the wave systems of the current UT). Time is the UT in seconds; "day" in this header is 86400 s; the Kerbin-like year is 9 203 545 s = 106.5 days, its rotation period is 21 600 s.
 
-### H2 Detectors (frozen thresholds)
+1. Climatological background. Temperature `T = T_ann(x) + (T(x, delta) - T_ann(x)) (1 + 0.15 land)` with `x = sin(lat)`, `T(x, d) = T_norm (w + (1 - w) I(x, sin d))^(1/4)`, `I = 1 - 0.477 P2(x) + 2 x sin d` (at least 0.03; the leading terms of the daily-mean insolation),
+   `w = clamp(0.3 sqrt(p_s / 101325 Pa), 0.2, 0.95)` the share spread by heat transport, `T_norm` fixed so that the area mean of the declination-zero profile is the body's `SurfaceMeanK` (stand-in for the B09 temperature samples; they replace it when they exist).
+   The declination is `d(t) = -obliquity cos(2 pi t / year)` (season phase 0 = northern midwinter, as `SeasonClock`); the sea seasons lag the land by 8 % of the year. The land share is the moisture source smoothed over 30 degrees of arc (a coast line is not a front).
+   Diurnal term `A_d (1 - 0.7 ocean share) (1 - 0.5 cover) cos(lat) cos(d) cos(h - 0.5)` from the sun hour angle `h` (sub-solar longitude `-(Omega - 2 pi / year) t`). Altitude: lapse rate to the tropopause, the drop limited to a quarter of the surface temperature.
+   Humidity proxy `H in 0..1 = h_T (0.04 + 0.96 moist) (1 + 1.2 belt) (1 - 0.55 subtropic)` with `h_T = 1 / (1 + exp(-0.07 (T - T_mean)))`, `belt = exp(-((lat - lat_itcz) / 0.2 rad)^2)` the moist belt (ITCZ) at `lat_itcz = 0.55 d_lag` (the declination 5 % of a year earlier), `subtropic` the dry belt at the Hadley edge. The ocean fraction enters only through `moist`: ocean fraction 0 gives H of at most 0.04 h_T.
+1b. General circulation (closed form, `BodyDerived`). Rhines rule: the number of jets from equator to pole `N_J = 0.5 sqrt(2 Omega a / U_ref)` with `U_ref = 25 m/s` (the Earth gives 3.05). Cells per hemisphere: three for `N_J >= 1.5` (Hadley edge 30, Ferrel edge 60 degrees, jet 48), two for `N_J >= 0.9` (Hadley edge 40, jet 52),
+   one below (broad cell, jet 55). Sub-solar regime weight `1 - SmoothStep(0.25, 0.7, N_J)` (1 for a tidally locked body): the surface flow then points to the sub-solar point (`6 m/s` times the weight) and the moist belt is centred there. Wave gate `SmoothStep(0.35, 1.2, N_J) (1 - sub-solar weight)`.
+   Jet speed (the steering speed of the systems, `c = U_jet`): thermal wind `U_T = g H (dT / T) / (f45 0.4 a)` across the jet zone, saturated by the Rossby bound `U_jet = 0.1 Omega a tanh(0.4 U_T / (0.1 Omega a))` (zero at zero rotation). Deformation radius `Ld = N H / f45`
+   with `N^2 = (g / T)(g / cp - lapse)` (at least 0.3 of the dry value); system radius `R = clamp(0.75 Ld, 0.12 a, 0.45 a)`. Surface winds: the zonal-mean trade, westerly and polar-easterly humps (amplitude `0.35 U_jet`, at least 0.5 m/s) with a meridional component of 0.35 of it, and the zonal-mean pressure structure
+   (equatorial trough, subtropical highs, subpolar lows) as `ZonalPressureAnomaly`. Seasonal shifts: ITCZ `0.55 d_lag`, jet latitude and cell edges `0.22 d_lag` poleward in the summer hemisphere, jet speed `1 - 0.3 hemisphere d_lag / 0.4084` (stronger in winter), lag 5 % of the year.
+2. Moving systems. Per hemisphere `n = clamp(round(2 pi a cos(48 deg) / (1.7 R)), 3, 8)` slots (seven on the Kerbin-like set). Slot `j` has a period `T_j` (hash, 3 to 6 days) and a phase offset; generation `n` of the slot is `hash(seed, hemisphere, j, n)` and lives on `[off + n T_j, off + (n + 1) T_j)` with the amplitude
+   window `sin^2(pi u)`. The generation draws the longitude at mid-life, a latitude offset in the track, the wavelength `3 R (0.85..1.25)`, the cross-track width `1.25 R (0.8..1.2)`, the amplitude `0.025 p_s (0.6..1.2)` and the front amplitude `4.5 K (0.7..1.2)`
+   (scaled by `T_mean / 288`). Its centre moves east with the local jet speed at mid-life: `lon_c(t) = lon_0 + c (t - t_mid) / (a cos lat_c)`. Pressure anomaly `p' = -A e cos(q)` with `q = k (x + 0.45 hemisphere y)` (`x`, `y` metres east and north of the centre, envelope `e` Gaussian in both),
+   temperature anomaly `T' = B e_T tanh(1.6 sin q)` (a narrower envelope along the track, `0.45 lambda`, and a longer one across, `1.28` of the pressure envelope): warm ahead (east), cold behind, a sharp transition line (the FRONT) through the system whose width is set by the tanh; the front strength
+   `F = |grad T'| = B e_T 1.6 k (1 - tanh^2) |cos q| sqrt(1 + 0.45^2)` in K per 100 km. The count per hemisphere stays constant (each slot always has a generation), amplitude changes at hand-over are zero by the window.
+3. Uplift, clouds, rain. `U = clamp(0.85 max(0, -p' / (0.8 A_0)) + 0.5 F / F_ref, 0, 1.4)`. Cloud water `CW = clamp(0.55 H - 0.14, 0, 1) + H (1.1 U + 0.7 F / F_ref) + 0.7 cell`, at most 1.5; coverage `1 - exp(-3 CW)`.
+   Rain `P = body factor (4 max(0, X - 0.12) + 12 max(0, cell - 0.15) / 0.85)` mm/h water equivalent with `X = H (1.1 U + 0.7 F / F_ref)`; the convective share and the type: wet-bulb temperature `T_w = T - freeze - 1.2 K`, snow fraction `1 / (1 + exp((T_w - 1) / 0.9))` (plan 09 section 3.5), rain fraction the rest, sleet fraction `4 f_s f_r`, the type is the largest.
+4. Convective cells. Lattice rows of height `Lc = clamp(50 km sqrt(a / 6371 km), 12, 32 km)` (15.4 km on the Kerbin-like set), in each row `floor(2 pi cos(lat) / (Lc / a))` cells; the lattice drifts with the steering wind of its row (a table by latitude: `1.5` times the surface wind of the circulation plus `0.5` of the jet).
+   Per 3-hour bucket every cell draws presence (`u < p_cell`), a life of 1 to 3 hours with a start inside the bucket (so it lives and ends inside the bucket: no popping at the bucket boundary), a jitter of `0.3 Lc` and a radius `0.3 Lc (0.75..1.25)`
+   (diameter 6.9 to 11.5 km on the Kerbin-like set). Strength `sin^2(pi age / life) exp(-r^2 / radius^2) SmoothStep(0, 0.1, p_cell - u)`; the point evaluation checks the 3 x 3 neighbour cells. `p_cell = clamp(0.8 F/F_ref + 0.9 max(0, I - 0.35) + 0.3 U, 0, 0.95)` with
+   instability `I = clamp(1.3 H + 0.3 warm sector + 0.25 sun heating - 0.3, 0, 1)` taken at the query point (a cell near a threshold of `p_cell` shows as a truncated blob, continuous by the SmoothStep). A present cell adds cloud water, rain, uplift, gusts and a towering profile (top `0.35 .. 1.0` of the tropopause height).
+5. Wind. Geostrophic from the wave pressure field `u_g = -dp/dy / rho f / (f^2 + f_c^2)`, `v_g = dp/dx / rho f / (f^2 + f_c^2)` with `f_c = f(12 degrees)` (a smooth cap near the equator), soft saturation `v_sat tanh(v / v_sat)` with `v_sat = max(15 m/s, 2 U_jet)`, Ekman friction (factor 0.65, turning 25 degrees toward low pressure),
+   plus the circulation wind above; with altitude the wind grows to 2.2 times at half the tropopause height and the jet is added above 0.4 of it. Gust factor `1 + 0.5 cell + 0.3 F / F_ref`.
+6. Surface layer (`SurfaceLayer.cs`). Per site a window of 6-hour samples (temperature at the site height without the diurnal term, rain rate, wind, humidity) is cached; all of the following are functions of the UT only.
+   Snow water equivalent: the recurrence over the last 40 days (160 steps) from a climatological base (up to 120 mm where the climatological temperature is far below freezing), `+ P f_snow` per step, melt `3 mm/(K day)` above freezing, sublimation `0.15 mm/day (1 + wind/8)`, blow-off above 12 m/s; the value at a time is the linear interpolation between the window results of the two surrounding steps (no jump when the window slides); depth = 8 times the water equivalent, at most 2000 mm w.e.
+   Wet/dry state: the decaying sum of the last 16 steps of rain. Dust (dusty bodies on land): deposit 0.05 mm per dry calm step, lifting above the body's wind threshold on dry points (`H < 0.25`, no rain), bounded to 5 mm.
+   Ice (sea texels, ocean fraction at least 0.5), daily steps: the mixed layer (depth `MixedLayerDepthM` 12 m, 4.186e6 J/m3/K) relaxes toward the air temperature with `tau = rho c D / 15 W/m2/K` (39 days); ice forms (10 mm) when `T_ml` reaches the freezing point of the body's liquid `T_f = 273.15 K - 0.054 K/psu x salinity` (271.26 K at 35 psu);
+   Stefan growth `h^2 = h0^2 + 2 k_i / (rho_i L_f) integral (T_f - T_air) dt` (k_i 2.2 W/m/K, rho_i 917, L_f 3.34e5 J/kg: 1.241e-3 m2 per K day), reduced by a snow layer `1 / (1 + k_i h_s / (k_s h))`; melt `6 mm/(K day)` of positive degree-days plus a solar term `(1 - albedo) S dt / (rho_i L_f)` (albedo 0.5, snow covered 0.8, active within 3 K of freezing);
+   under ice `T_ml = T_f`. History: integrated from the CLIMATOLOGICAL annual cycle (the same ice model run over five years on the climatological temperature and insolation of the site, giving `T_ml` and `h` at the four quarter-year boundaries) at the last quarter-year boundary, and again from the previous boundary;
+   the two results are cross-faded with `SmoothStep(0, 0.5 quarter, t - boundary)`: at a boundary the old integration (from the previous boundary) is identical to the new second one, so the result is continuous. Spring ice thicker than autumn ice, the freeze-up and break-up lags and the ice edge emerge from the heat store and the Stefan law.
+   Cost design: the cached window means one new sample per site and 6-hour step; the snow window is evaluated for the two surrounding steps and the last two are cached.
 
-Frames: every 6 h of game time. Belts: 35-70 degrees of each hemisphere.
+### H2 Parameter sets, seeds, data
 
-* D1 pressure minima. Field: p' = rho0 f0 h(lat) psi2 (surface pressure anomaly) minus its zonal mean per latitude row, smoothed with a 3x3 box. A minimum is a cell
-  lower than its 8 neighbours whose value is lower than the mean on a ring of radius R = max(3 cells, 0.75 x deformation radius) by at least 0.4 % of the
-  surface pressure (4 hPa on 1013 hPa). Tracking: greedy nearest neighbour between consecutive frames within 25 m/s x 6 h; one missing frame allowed.
-  A system is persistent if its track lasts >= max(2 days, 12 h). Metric: mean number of simultaneously active persistent tracks per hemisphere in the belt.
-  Criterion 2 requires >= 3 per hemisphere on average (Kerbin-like seed A, years 2-10).
-* D2 front bands. A cell is a band cell if |grad T(sigma 0.8)| >= 3 K per 100 km OR |grad CWP| >= 0.25 x (95th percentile of CWP of that frame) per 100 km
-  (CWP: column cloud water path). Band = 8-connected component of band cells, extent (largest great-circle distance between its cells) >= 20 cells x 29.5 km = 590 km
-  and aspect ratio (sqrt of the ratio of the second-moment eigenvalues) >= 3. A front event is a band tracked (centroid within 400 km per 6 h) for >= 12 h. Criterion 2:
-  >= 1 front event per 10 days per hemisphere in the belt (Kerbin-like seed A, years 2-10).
-* D3 negative controls, run on the same frames: (a) every frame spatially shuffled (cell permutation, seeded), (b) white noise with the frame's mean and standard deviation.
-  Required: persistent tracks per hemisphere <= 0.1 and front events <= 5 % of the real count and <= 0.1 per 10 days, both controls.
-* Tracker numbers for the reviewer (not pass/fail): count, lifetime, drift speed (east component), straightness (net displacement / path length) of the persistent tracks.
+| set | radius km | rotation s | year s | obliquity | p_s Pa | g | mean K | ocean target | notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Kerbin-like (A seed 1, B seed 2, C seed 3) | 600 | 21 600 | 9 203 545 | 0.4084 | 101 325 | 9.81 | 288 | 0.7 | fast rotator with oceans |
+| Duna-like | 320 | 65 517 | 17 315 400 | 0.44 | 6 000 | 2.94 | 215 | 0 | thin, cold, dry, dusty (threshold 10 m/s), body precipitation factor 0.15 |
+| Eve-like | 700 | 80 500 | 5 657 995 | 0.05 | 506 625 | 16.7 | 340 | 0.7 | thick, hot, factor 2.0 |
+| Laythe-like | 500 | 52 980 | 9 203 545 | 0.1 | 60 795 | 7.85 | 290 | 0.95 | ocean world, factor 0.8 |
+| Slow-rotator | 600 | 864 000 | 9 203 545 | 0.05 | 101 325 | 9.81 | 288 | 0.3 | day-night circulation expected, diurnal swing 20 K |
+| Tidally-locked | 600 | = year | 9 203 545 | 0 | 101 325 | 9.81 | 288 | 0.5 | sub-solar point fixed |
+| No-ocean | as Kerbin-like | | | | | | | 0 | the ocean-off control |
+| Cold-world | as Kerbin-like | | | | | | 258 | 0.7 | perennial ice expected |
 
-### H3 Precipitation bands (water-equivalent rate of a grid cell, mm/h; `PrecipMmH`)
+Derived by `BodyDerived` (printed by `AtmoSim.Runner smoke <set>` at header time): Kerbin-like 3 cells, jet count 1.87, jet 17.2 m/s at 48 degrees, deformation radius 282 km, system radius 212 km, 7 slots, surface wind amplitude 6.0 m/s, equator-pole contrast 27.8 K;
+Duna-like 1 cell, 0.78, 3.1 m/s, wave gate 0.51, 5 slots; Eve-like 2 cells, 1.05, 5.5 m/s, wave gate 0.91; Laythe-like 2 cells, 1.09, 5.9 m/s, wave gate 0.95; Slow-rotator 1 cell, 0.30, sub-solar weight 0.97, wave gate 0; Tidally-locked 0.09, sub-solar weight 1; No-ocean and Cold-world as Kerbin-like.
+Earth-like (real Earth radius and rotation) exists as a scale sanity set and is not part of the gate.
 
-| Level | snow (type snow fraction >= 0.5) | rain / sleet |
-|---|---|---|
-| none | < 0.02 | < 0.02 |
-| Flurries (drizzle) | 0.02 - 0.10 | 0.02 - 0.5 |
-| Light | 0.10 - 0.30 | 0.5 - 2.5 |
-| Moderate | 0.30 - 0.80 | 2.5 - 7.6 |
-| Heavy | 0.80 - 2.0 | 7.6 - 25 |
-| Blizzard class | >= 2.0 AND 10 m wind >= 15.6 m/s (else Heavy) | >= 25 (downpour; no wind condition) |
+Data used by every run of phase 2: synthetic continents of the seed (`MapGen.Continents`, 180 x 90 grid, ocean fraction target as above, smoothing 30 degrees), the stand-in climatology of H1 (no B09 samples), obliquity of the Kerbin-like set 23.4 degrees as a stand-in for KSP's missing tilt [VERIFY].
+Every run states in its output that it used synthetic maps. `tests/data/recon/RECON.md` records the K-pre run as not performed (premises P1 temperature curves and P2 height and ocean grid UNKNOWN); the B09 dumps replace the stand-ins in a later re-run, and a run with them is a different run, reported separately.
 
-Sources: snow numbers are LWE equivalents of METAR-style light/moderate/heavy snow ([VERIFY]); rain numbers are the AMS/WMO classes (2.5 / 7.6 mm/h
-for light/moderate/heavy, [VERIFY]); the blizzard wind condition is the NWS 35 mph (plan 09 3.2). `PrecipRateToLevel` of C20 is piecewise linear in
-log10(rate) through (rate -> level01): snow (0.02 -> 0.04), (0.10 -> 0.20), (0.30 -> 0.40), (0.80 -> 0.60), (2.0 -> 0.80), (5.0 -> 1.0);
-rain (0.02 -> 0.04), (0.5 -> 0.20), (2.5 -> 0.40), (7.6 -> 0.60), (25 -> 0.80), (60 -> 1.0); the Blizzard name needs the wind condition. The per-body
-tables for dust, sand, ash, methane are body configuration (C12) and not asserted here.
+### H3 Conventions of the runs
 
-### H4 Criteria with their targets
+* Evaluation grid for the detectors, maps and cover: 256 x 128 (equirectangular, row 0 north). Map-update timing at 512 x 256. Sheets 256 x 128.
+* Frames: 3 h of game time for the tracker runs (60 days = 480 frames), 6 h for the sheets (30 days). Seeds A, B, C on the Kerbin-like set, seed 1 on every other set. Start UT of a run 0 (northern midwinter) unless a criterion names its phases.
+* Seasons of the Kerbin-like set: year phase 0 northern midwinter, 0.25 spring, 0.5 summer, 0.75 autumn; a seasonal value is the mean over 10 days centred on the phase. Cold season of a hemisphere: the quarter of the year centred on its midwinter (north phase 0, south phase 0.5).
+* Absolute precipitation bands (water equivalent mm/h; Level01 anchors in brackets), times the body factor of H2: flurries from 0.05 [0.04], light from 0.25 [0.20], moderate from 1.0 [0.40], heavy from 3.0 [0.60], the top of the scale 8.0 [0.80] and 16.0 [1.00].
+  Levels: none below 0.04 on the Level01 scale; Flurries `0.04 <= L < 0.2`; Light `0.2 <= L < 0.4`; Moderate `0.4 <= L < 0.6`; Heavy `L >= 0.6`; Blizzard: type snow, `L >= 0.8` (8 mm/h water equivalent times the body factor) and 10 m wind at least 15.6 m/s (the 35 mph of the plan 09 table).
+  Per body (factor): Kerbin-like, Slow-rotator, Tidally-locked, No-ocean, Cold-world 1.0 (0.05 / 0.25 / 1.0 / 3.0 / 8.0 mm/h); Duna-like 0.15 (0.0075 / 0.0375 / 0.15 / 0.45 / 1.2); Eve-like 2.0 (0.1 / 0.5 / 2.0 / 6.0 / 16.0); Laythe-like 0.8 (0.04 / 0.2 / 0.8 / 2.4 / 6.4).
+* The cloud/wind/level numbers of the criteria are area-weighted means over the grid unless a criterion says otherwise.
 
-| # | Criterion | PASS when (measured on the chosen grid, step 1 h unless stated) |
-|---|---|---|
-| 1 | Stability | every set >= 5 y, Kerbin-like >= 10 y: no NaN; max wind < 150 m/s; yearly mean global surface temperature within 3 K of `SurfaceMeanK` (years 2+); global atmospheric water in year n+1 within 1 % of year n (years 2+) and the water ledger residual (stores - initial - ocean exchange) <= 1e-6 kg/m2 |
-| 2 | Emergence | D1: >= 3 persistent minima per hemisphere on average; D2: >= 1 front event per 10 days per hemisphere; D3 controls pass; no hand-placed systems (structural: no code path adds storms after the initial state, a unit test and the review of the diff) |
-| 3 | Climate zones | Kerbin-like: annual zonal-mean precipitation |lat| < 10 degrees over |lat| 20-35 degrees >= 3, and |lat| > 75 degrees <= 50 % of the 40-60 degree belt. No-ocean global mean precipitation <= 5 % of Kerbin-like seed A (years 2-5). Slow rotator: amplitude of the wavenumber-1 low-level (sigma 0.9) wind vector in the Sun-fixed longitude frame, 30-day mean, 0-45 degrees, >= 2 x the amplitude of the zonal-mean wind; the Kerbin-like control must show a ratio < 1. Dust: on Duna-like, dust is lifted only in cells whose 10 m wind exceeds 10 m/s (zero lift events below it) and at least 0.5 % of land cell-hours lift. Eve-like: no sea ice, mean surface temperature within 3 K of target, global mean precipitation > 0. Laythe-like: ocean-cell mean precipitation >= 70 % of the Kerbin-like value. Duna-like: global mean precipitation <= 5 % of Kerbin-like. Polar and zonal-mean plots per set are reported |
-| 4 | Absolute precipitation statistics | sites 45-70 degrees, each hemisphere in its cold season (the half of the year in which its equilibrium temperature at 57 degrees is below its annual mean), site-hours of >= 3 years, bands of H3: precipitating share (rate >= 0.02) 20-40 %; Heavy-or-above share of all site-hours in [0.5 %, 5 %]; Blizzard-class share in [0.05 %, 1.5 %]; shares of the precipitating hours ordered Light > Moderate > Heavy > Blizzard |
-| 5 | Cost | measured on this CPU, one thread, Release x64 .NET, exclusive lock, median of 200 steps after warm-up: step <= 30 ms (= 0.5 ms per frame over 60 frames) and resident state + checkpoint <= 30 MB for the chosen grid; 128x64x16 and 64x32x12 reported; GPU only if the CPU variant fails at 64x32x12 |
-| 6 | Determinism and rewind | identical state hash in two runs, on two threads, and for different chunkings of the query loop; checkpoint at day 10 + advance to day 20 = straight run bit for bit; restore at 10 arbitrary earlier times (including Parsek-style jumps back and forth) = straight run; catch-up of 1 y from scratch and from a checkpoint (ms) and checkpoint size reported |
-| 7 | Smoothness | report the 99th percentile change per game second of the interpolated coverage and precipitation maps between steps; stand-in limit 1e-3 per game second [UNKNOWN until C23 measures the real limit] |
-| 8 | Forecast | a clone run 24 h forward equals the continuation bit for bit, also across an epoch boundary and its crossfade; clone + 24 steps <= 1.5 s on a worker, and the rolling continuation <= 1.5 s per 24 h |
-| 9 | Surface layer | snow depth rises during cold precipitation (correlation of dSnow with cold precipitation > 0.9 in the snow-line band) and decays above freezing (no snow cells with air > 278 K for 3 days); bounded over 5 y (year-5 maximum of the global-mean depth <= 1.2 x year-3, no cell above 10 m LWE); no water deposit at ocean fraction 0 (No-ocean snow+rain total <= 1 % of Kerbin-like); dust only above the wind threshold. Snow line table (Kerbin-like seed A, years 3-5, land cells of a 5-degree band around the latitude, both hemispheres each in its own season, cover = depth >= 2 cm snow, four season windows of +-0.05 year around phases 0 / 0.25 / 0.5 / 0.75): 0 degrees <= 0.02 all seasons; 30 <= 0.10 winter, <= 0.02 other seasons; 45 >= 0.30 winter, <= 0.05 summer; 55 >= 0.6 winter, <= 0.05 summer; 70 >= 0.85 winter, <= 0.30 summer; 85 >= 0.95 winter (polar cap), <= 0.60 summer; spring and autumn between summer-0.05 and winter+0.05. A band with fewer than 20 land cells is reported "no land" and counts as FAIL (the synthetic map is then replaced by another seed once, stated) |
-| 10 | Sea ice | Kerbin-like >= 3 y: winter ice edge (lowest latitude where the zonal-mean ice fraction of the ocean cells is >= 0.15, +-0.05 year around midwinter) between 50 and 60 degrees in each hemisphere; mirrored phases (0.25 vs 0.75 of the year): see note A; lag of the maximum ice extent behind midwinter between 0.02 and 0.25 year (freeze-up and break-up durations and their ratio are reported); no ice on No-ocean; ice persists all year on Cold-world (minimum annual ice area >= 20 % of the maximum); no cell has ice where the sea temperature is more than 0.5 K above `SeaFreezeK`; no ice on Eve-like |
-| 11 | Surface wind (10 m = 0.8 x lowest-level wind) | Kerbin-like all cells: P50 in 3-10 m/s, P95 in 8-20 m/s; storm-track ocean cells (45-65 degrees) P99 in 14-28 m/s; Blizzard condition (rate >= 2.0 mm/h and wind >= 15.6 m/s) share of cold-season site-hours in [0.05 %, 1.5 %]; Duna-like P50 < 10 m/s and P99 >= 10 m/s (dust threshold reachable and rare); P50/P95/P99 reported per set |
-| 12 | Convective scale | cells with resolved convective updraft >= 2 m/s exist in the Kerbin-like tropics (>= 0.5 % of cell-steps), median lifetime of the 4-connected updraft clusters (overlap tracking per step) between 1 and 12 h, median cluster area >= 1 cell; the sub-grid rule (`SubGrid.Cores`) is deterministic, gives radii 5-25 km, covers <= 35 % of a cell (unit test, green); the 95th/99th percentile of the resolved updraft and the cell size in km are reported as "cell scale available at GO" |
-| 13 | Bounded catch-up | worst case over 50 arbitrary UTs (steps taken x measured step cost) <= 20 s; the epoch length is DERIVED: epochSteps = floor(20 s / stepCost) - 2 spin-up - 2 crossfade; crossfade: 99th percentile per-step change of the blended coverage/precipitation maps inside the crossfade window <= 3 x the same number outside it; memory of the second trajectory counted |
-| 14 | Pre-signing | this header signed by the reviewer before the runs; D3 passes |
+### H4 Detectors and tracker (frozen thresholds)
 
-Note A (confirmed by REV-B10h-1). The brief says "autumn ice > spring ice at mirrored phases". With ocean heat storage the physical direction at equal
-insolation is the opposite (spring ice > autumn ice: the sea keeps the summer heat into autumn, the Arctic extent at the same insolation is larger in spring than in autumn).
-The test is the PHYSICAL direction: ice area at phase 0.25 over ice area at phase 0.75 for the northern hemisphere, mirrored for the southern; the hemisphere mean of the
-ratio must be >= 1.2 (amendment H-7, a sharpening written before the runs). A ratio below 1.2 or a reversal means the sea heat capacity is too small and is reported as such.
-The brief text "autumn ice > spring ice" is superseded by this note.
+* Metric grid: cell sizes in metres, great-circle distances. Zonal means are removed row by row where a field is compared against its surroundings.
+* D1, pressure minima: the wave pressure anomaly (`PressureAnomPa`) minus its zonal mean; box smoothing of radius half the ring radius (at least one cell); a minimum is a smoothed local minimum in the belt 35 to 70 degrees of either hemisphere whose ring mean (16 points at the ring radius `R_ring`) exceeds the minimum by at least `0.004 p_s`.
+  `R_ring = max(3 cells, 0.5 R_system)` (106 km on the Kerbin-like set). Minima within `R_ring` of a deeper one count as one system.
+* D2, front bands: in the belt 35 to 70 degrees a cell is flagged when the gradient of the zonal anomaly of the surface air temperature is at least 3 K per 100 km (thermal arm) or the gradient of the zonal anomaly of the cloud water is at least `0.6 p95(cloud water)` per 100 km (cloud arm).
+  Connected flagged cells (8-neighbourhood) form a band when they number at least 6, their largest great-circle extent is at least `20 cells x equatorial cell size` (294 km at 256 x 128 on the Kerbin-like set), the mean width (area over extent) is at most 200 km, and the aspect ratio of the second moments is at least 3.
+* Tracker: greedy nearest neighbour per hemisphere, one pass per frame, radius `1.5 U_jet x frame` (at least 3 m/s), at most one missing frame in a track, a track counts as persistent when it spans at least 1 day; swaps (a detection closer to another track's last position) are counted and reported.
+  Lifetime = span first to last frame; east drift = the sum of the per-step east displacements over the span (a track may circle the body); straightness = unwrapped net displacement over path length. Tracks that touch the first or last 3 days of a run are excluded from lifetime statistics.
+* D3 negative controls: the real field spatially shuffled with one permutation, and white noise with the field's mean and standard deviation, through the same detectors and trackers.
 
-Epoch/surface continuity (part of 9, 10 and 13): the snow cover fraction of every table band and the ice-edge latitude, evaluated across epoch boundaries, jump by <= 0.10 (cover)
-and <= 3 degrees (ice edge) within the crossfade window; otherwise the epoch is lengthened within the 20 s bound or the slow state gets the analytic design of C26.
+### H5 Criteria and thresholds (phase 2 measures all of them; GATE = counts for GO; REPORT = shown with its expectation, judged by the reviewer, does not block GO)
 
-### H5 A/B pairs (expected effect first)
+1. COHERENT SYSTEMS (GATE), Kerbin-like seed A, 60 days, 3 h frames, frames of days 3 to 57: mean number of simultaneously alive persistent D1 tracks per hemisphere at least 3.0 in each hemisphere; median lifetime of persistent tracks at least 2.0 days;
+   median east drift of the tracks within 30 % of the mean jet speed of their hemisphere over the run (`JetSpeed(hemisphere, ut)` averaged every 6 h); track straightness median reported; popping: the largest change of one slot's amplitude within one game hour, within 2 h of any hand-over in 60 days, at most 0.5 % of the largest possible amplitude
+   (`SlotAmplitude`; the unit test measures it). Seeds B and C are run and reported.
+2. FRONTS (GATE), same run: at least one persistent (at least 1 day) D2 event per 10 days in each hemisphere (events counted per 10 days of 86400 s; the per 10 body days number is reported); moving with its system: at least 80 % of the persistent front tracks have a D1 track of the same hemisphere within `1.5 R_system` for at least half of their frames,
+   and their median east drift lies within 50 % of the jet speed.
+3. CLIMATE ZONES (REPORT), per set, zonal means over one year (24 samples), expectations: Kerbin-like: the latitude of the zonal-mean precipitation maximum within 15 degrees of the equator, the 20-35 degree mean at most 0.6 of the 0-10 degree mean, the polar (above 75 degrees) mean at most 0.5 of the 40-60 degree mean; No-ocean: global mean cloud cover at most 0.05 and mean precipitation at most 5 % of the Kerbin-like set;
+   Slow-rotator and Tidally-locked: precipitation correlated with the cosine of the angle to the sub-solar point (at least 0.3) and the share of precipitation variance explained by latitude below that of the Kerbin-like set; dust: no dust flag where the wind is below 0.8 of the threshold, on any set (also a unit test).
+4. LEVEL SHARES (GATE), Kerbin-like seeds A, B, C, sites = grid cells with 45 to 70 degrees of latitude in the hemisphere's cold season, one sample every 6 h: precipitating share (rate at least 0.05 mm/h) between 20 % and 40 %; share(Light) > share(Moderate) > share(Heavy) > share(Blizzard); Heavy (level Heavy, blizzard excluded) below 5 %; Blizzard below 1.5 %.
+   Heavy-or-above and Flurries are reported. A seed fails the criterion if any of these fails; the criterion passes if seed A passes and seeds B and C pass the share bounds (20-40 %, heavy, blizzard).
+5. CIRCULATION AND WIND (REPORT with stated ranges). Cells: Kerbin-like 3, Duna-like 1, Eve-like 2, Laythe-like 2, Slow-rotator and Tidally-locked in the sub-solar regime (weight at least 0.9); a rotation sweep (periods 5400, 21 600, 43 200, 86 164, 200 000, 864 000 s on the Kerbin-like body) has non-increasing cell counts.
+   Kerbin-like zonal-mean 10 m zonal wind over one year: 5-25 degrees between -10 and -1.5 m/s (trades), 40-55 degrees between +1.5 and +10 (westerlies), 70-85 degrees between -6 and -0.3 (polar easterlies); jet latitude (maximum of the zonal-mean wind at 0.8 of the tropopause height) between 40 and 56 degrees in each hemisphere, steering jet speed between 10 and 30 m/s;
+   seasonal shifts over a year: ITCZ latitude amplitude between 4 and 15 degrees, jet latitude amplitude between 2 and 8 degrees, lag behind the sub-solar latitude between 0.02 and 0.12 of the year; jet speed larger in the winter hemisphere than in the summer hemisphere.
+   10 m wind percentiles (area weighted, four seasons, 6-hourly): Kerbin-like P50 3 to 9, P95 8 to 20, P99 11 to 26 m/s; storm-track ocean cells (45-65 degrees) P99 14 to 30 m/s; Duna-like P99 8 to 30; Eve-like P99 2 to 15; Laythe-like P99 3 to 20; Slow-rotator and Tidally-locked P99 3 to 15; the blizzard condition (snow, level 0.8 or more, wind 15.6 m/s) reachable (at least one sample in the criterion 4 sites on the Kerbin-like seeds) and rare (below 1.5 %).
+6. COST (GATE), measured under the exclusive lock on this machine, median of at least 5 repeats: `Sample` median at most 3 microseconds with 0 allocations (pattern: random positions, the UT constant over each batch of 256 calls, as maps and windows evaluate; the pattern with a new UT on every call is reported);
+   512 x 256 map update at most 300 ms on one thread; 32 x 32 x 24 window at most 5 ms (one point evaluation per column, the vertical profile of the column for the levels); 24 hourly forecast steps of one site at most 0.1 ms.
+7. DETERMINISM (GATE): identical result hash of 20 000 random (position, altitude, UT) queries across runs, four threads, a shuffled evaluation order and a second generator instance; identical map hashes under different row chunkings; another seed differs. The same under Mono is a C25 row in the WeatherPlayer (not run here).
+8. UT REWIND AND JUMP (GATE): evaluation at UT - 2 days equals the direct evaluation bit for bit after a jump forward by 10 days and back, for 20 000 queries.
+9. SMOOTHNESS (REPORT): 99th percentile of the change per game second of coverage and of Level01 over all texels of a 512 x 256 map, from maps 60 s apart at 24 times of a year; provisional limit 2e-3 per game second (C23's number replaces it when it is smaller); continuous in UT, so no time interpolation.
+10. SURFACE LAYER (GATE): (a) Stefan law unit test within 2 %; (b) sea-ice edge: in each hemisphere's midwinter 10-day mean, the lowest latitude at which at least half of the sea texels of a 2.5-degree row have an ice fraction of at least 0.15 lies between 50 and 60 degrees; (c) the same site series: ice thickness in spring (phase 0.25 north) at least 1.2 times that in autumn (phase 0.75) at a seasonally icy sea site,
+   the delay of ice formation after the daily climatological air temperature falls through `T_f` and the delay of ice loss after it rises through `T_f` both at least 1 day and their ratio (break-up over freeze-up) between 0.3 and 3.0; (d) no ice with ocean fraction 0; none at sea texels within 15 degrees of the equator; perennial ice (thickness above 0.1 m all year) at sea texels above 75 degrees on the Cold-world set; ice at 35 psu never thicker than at 0 psu at the same site and time, and the freezing point 1.89 K lower;
+   (e) melt rate equals the melt factor times the excess temperature within 5 %, the solar term adds melt, a snow cover reduces growth; (f) continuity: the largest thickness change per 10 minutes across the quarter-year boundaries, over three years at five sites, at most 0.03 m; (g) cost: one sea site at most 20 microseconds with the 6-hour window cached (a new window step is reported), one 256 x 128 cover map update at most 150 ms with the window cached (the first update and the update including new window samples are reported).
+   Snow line, Kerbin-like seeds A, B, C: land texels in 2.5-degree rows around the bands 0, 30, 45, 55, 70, 85 degrees north, cover = share with at least 2.5 mm w.e. (2 cm of depth): 0 degrees at most 0.01 in all four seasons; 30 degrees at most 0.10 in all seasons; 45 degrees at least 0.30 in winter and at most 0.05 in summer; 55 degrees above 0.6 in winter and below 0.05 in summer;
+   70 degrees at least 0.9 in winter; 85 degrees at least 0.95 in winter (the polar cap); a band is evaluated on every seed with at least 20 land texels in it, passes when all of them pass, and a band with no evaluated seed is reported NOT EVALUATED and counts as FAIL. Dust deposit appears only on dry points of dusty bodies and lifts only above the wind threshold (Duna-like: deposit zero after a rainy step, none on the Kerbin-like set);
+   wet state: after 3 hours of at least 0.5 mm/h the wet value is at least 0.5 within 6 hours, and at most 0.05 after 5 dry days; snow stays between 0 and 2000 mm w.e. over 5 simulated years at 12 sites (both hemispheres, land and sea texels), no NaN.
+11. CONVECTIVE CELLS (GATE), Kerbin-like seeds A, B, C, belt 35-70 degrees, 60 days: footprint diameter (twice the 1/e radius, a connected component of cell strength at least 0.37 on a 1 km raster of a 150 km patch) between 5 and 25 km; lifetime between 1 and 3 hours (cells followed at 10-minute steps in the lattice frame);
+   density between 0.2 and 8 cells per 10 000 km2 of area where the instability is at least 0.5, and between 0.3 and 10 cells per 100 km of front length (cells within 50 km of a D2 band; length = band extents); share of cell centres within 100 km of a flagged front cell at least 60 % (the enrichment over uniformly placed points is reported).
+12. PRE-SIGNING AND CAUSALITY (GATE): this header signed before the runs; negative control: the D3 controls find at most 0.1 persistent minima per hemisphere and D2 events at most 5 % of the real count and at most 0.1 per 10 days; A/B: seed A vs B give different results (maps differ, correlation of the coverage anomaly with the zonal mean removed below 0.3) and the same seed twice gives the identical hash;
+    waves off: D2 events at most 0.1 per 10 days, no persistent D1 track, and the mean cell strength in the belt 35-70 degrees at most 20 % of that with waves; rotation period multiplied by 1000: wave gate 0, no active system, no persistent D1 track; ocean fraction 0 versus 0.7 (humidity proxy only): coverage at most 0.05.
 
-| Pair | Expected | Metric and PASS |
-|---|---|---|
-| Coriolis off | the vortices vanish | D1 persistent minima per hemisphere <= 25 % of the reference (>= 5 y each) |
-| Ocean off | rainfall collapses | global mean precipitation <= 5 % of the reference |
-| Seed A vs seed B | same climate, different weather | relative L1 difference of annual zonal-mean precipitation <= 10 %; area-weighted spatial correlation of the daily precipitation ANOMALY maps (minus their own zonal mean) after day 10 < 0.3 over the 35-70 degree belts (the raw-map correlation is reported too; it carries the common climate) |
-| Step 1 h vs 3 h | statistically similar | relative L1 difference of annual zonal-mean precipitation <= 15 % |
+Decision rule: GO when every GATE criterion passes; otherwise REWORK. If a GATE criterion fails, only the generator parameters of H6 may be tuned (at most three iterations, a full re-run of the failed criteria after each), then the best numbers and the open defect are reported. The thresholds, detector definitions and the header text do not change after the sign-off.
 
-### H6 Deliverables for the reviewer (paths in `MAINREPO\.local\work\atmosphere-sim\`)
+### H6 Parameters that may be tuned in phase 2 (and nothing else)
 
-Cloud-map contact sheets (daily over one month, equirectangular and orthographic globe at three longitudes), frame-strip sheets (6 h, 8 frames per sheet), tracker table,
-cross-sections through a developing cell and a front, zonal-mean plots per set, precipitation time series at fixed sites (mid-latitude 50 N, tropics 5 N, polar 80 N), `metrics.json`
-(PASS/FAIL with the detector settings), the A/B difference plots, determinism and rewind outputs, the epoch/catch-up arithmetic, the time-lapse (extra for the owner).
+`BodyDerived`: system amplitude (0.025 p_s), front amplitude (4.5 K), slot spacing (1.7 R), the Rhines reference speed, the jet saturation constants; `WeatherGenerator` constants: the cloud and rain coefficients (0.55, 0.14, 1.1, 0.7, 0.12, 4.0 and 12.0 mm/h, cell rain threshold 0.15), the cell presence terms and radii,
+the humidity terms, the lifetime range of generations (inside 2 to 6 days), the front envelope and sharpness, the wind factors; `SurfaceLayer` constants (melt factors, exchange coefficient, mixed-layer depth, anchors). Every change is listed in phase 2 with the iteration number.
 
-### H7 Premise checks at header time
+### H7 Deliverables for the independent reviewer (paths in `MAINREPO\.local\work\atmosphere-sim\`, phase 2)
 
-* A02 platform present (`tools/gpu_lock.py`, lock free). The CPU-only runs do not need the GPU lock except the timing run (criterion 5), which takes `--exclusive`.
-* B09 data (`tests/data/recon/`) absent: synthetic maps and the stand-in temperature profile are used; no premise of this brief is made false by that.
-* `IWeatherField` (A01) read: sampling by (body, lat, lon, alt, ut), maps by `WeatherMapKind`, window by radius, `Advance(budgetMs)`, `StepSeconds`, `Readiness`, clone and checkpoint interfaces.
-  The mapping in this file's phase 2 section follows it.
-* Height/ocean grid source: `src/Atmospheres/OrbitHeights.cs` reads a grid of `OrbitMask.HeightWidth x HeightHeight` PQS heights (B13 may move it); the production port of `OceanFraction`/`TerrainM`
-  is C25's work and is not needed for the proof.
+Cloud-map contact sheets (daily over one month, equirectangular and orthographic orbit views at three longitudes, Kerbin-like seed A), a time-lapse (6-hour steps), frame-strip sheets (6 h steps, 8 frames per sheet with D1 and D2 marks), a ground-level time series of level and wind at 45 N, 55 N, 70 N and the equator, a cross-section through a front and through a cell,
+zonal-mean plots per set, the tracker table (count, lifetime, drift speed, straightness, swaps per hemisphere), `metrics.json` with the PASS/FAIL table and the detector settings, the A/B pairs of criterion 12 (seed A vs B, waves on/off, rotation on/off, ocean on/off), one map sheet each for the Slow-rotator, Duna-like and Eve-like sets, and the interaction rows (sets x seasons x seeds, evaluation order shuffled).
+The reviewer receives the reference expectations (real world: mid-latitude weather is a procession of low-pressure systems moving east every few days with warm and cold fronts, cloud bands along the fronts, steady rain or snow behind the warm front, showers and cells along the cold front; the tropics show a moist belt with convective cells; the subtropics are dry; weather repeats seasonally but never identically), the view table, the sheets and the metrics, not this builder's interpretation.
 
-### H8 Amendments required by the sign-off (written before any criterion run; they close open definitions and change no threshold)
+### H8 Premise checks at header time
 
-* H-1 Epoch parameters. Spin-up window = 20 body days (rotation periods of the body, 120 steps on the Kerbin-like set at 1 h), crossfade length = 4 body days (24 steps).
-  `epochSteps = floor(20 s / stepCost) - 2 x spinUpSteps - 2 x crossfadeSteps` with `spinUpSteps = 20 x RotationPeriodS / StepSeconds` and
-  `crossfadeSteps = 4 x RotationPeriodS / StepSeconds`. They are not changed after results; the one structural retry may change them and the change is reported.
-  The slow surface state (snow, sea ice, soil water) is re-initialised from climatology at each epoch start. At a step cost around 30 ms the whole worker budget is ~660 steps
-  (~28 game days on the Kerbin-like set), so an epoch is short against the seasonal memory of snow and sea ice; the header expects the across-epoch continuity part of
-  criteria 9 and 10 to FAIL in that case. A FAIL there is reported as FAIL and triggers the analytic slow state of C26 (fallback hybrid description), not tuning.
-* H-2 Criterion 2 and `EddyScale`. `EddyScale` is a gameplay scale, not physics. A pass of criterion 2 reached only with `EddyScale` < 1 is reported as "PASS with EddyScale = x (gameplay scale)",
-  not as an emergent result, and it counts as the one structural change. The tracker numbers of the unmodified (`EddyScale` = 1) run are reported in any case. No threshold changes.
-  Physical expectation on the Kerbin-like set: deformation radius about 280 km, fastest-growing wavelength about 1100 km, about 2 waves on the 50 N circle (2424 km), so 2-4 simultaneous lows per hemisphere.
-* H-3 Criterion 3 and the subtropical dry belt. The model has no Hadley circulation and no subsidence. A FAIL of the zonal ratio part of criterion 3 (tropics over subtropics >= 3) is reported
-  as FAIL and enters the FALLBACK evaluation. The single structural retry may be spent on a stated Hadley/subsidence term (a zonal-mean tropical overturning derived from the zonal-mean heating, which dries
-  the 15-35 degree belt); this term is named here so that it is not an after-the-fact choice. If the retry is spent on it, it is not spent on criterion 2.
-* H-4 Persistence of D1 is 12 h of game time (2 body days on the Kerbin-like set is 12 h; the wording "max(2 days, 12 h)" is replaced by "12 h"). Track swaps (a track whose successor is closer to another
-  track's last position than to its own) are an additional reported tracker number; the tracking radius 25 m/s x 6 h = 540 km against an expected spacing of ~1100 km makes swaps possible.
-* H-5 The tracker reports front events split by arm (thermal / cloud-water-path / both). The real field with the frame order shuffled in time (spatially intact) is reported for D1 as an extra (tracks should collapse); it is not a pass/fail control.
-* H-7 see Note A (ratio >= 1.2).
+* A02 platform present (`tools/gpu_lock.py`, `tools/dotnet_test.py`). CPU work only; the lock is needed for the exclusive timing rows of criterion 6 only.
+* `src/Common/Weather/IWeatherField.cs` and `WeatherSample.cs` (A01) read: the generator outputs map to `Level01`, type fractions, wind, gust factor, temperature, cloud cover and optical depth (from cloud water); the production port is C25's.
+* B09: no dumps exist (RECON.md: not run). Stand-in data are used as stated in H2; this makes no premise of this brief false.
+* Precedent: the first prototype's finding that emergent dynamics do not produce coherent travelling systems on a 600 km planet is the reason for this design; nothing of its core is reused.
 
-### H9 Implementation definitions of the analysis tools (written before the criterion runs; they close wording of H2-H5 and change no threshold)
+### H9 Exploratory runs made while building (before this header; disclosed so the reviewer can judge)
 
-* Frame = 6 h of game time. "Day" = one rotation period of the body (H1). Front events are reported per 10 body days (the pass rule) and per 10 Earth days.
-* D1 minima that lie within the ring radius R of a deeper minimum of the same frame count as one system (non-maximum suppression); the count without it is reported too.
-* Statistics start with year 2 (year 1 is spin-up); detector frames of years 2 to the end; the snow-line table, ice tables and the snow/ice annual cycles use years 3-5.
-* Snow cover: `SnowW` (m of water equivalent) >= 0.02 on land cells (ocean fraction < 0.5); "2 cm" is read as 2 cm of water equivalent, "10 m LWE" as `SnowW` <= 10 m.
-* Cold season of a hemisphere: the phases at which the daily-mean insolation at 57 degrees (with the eccentricity factor) is below its annual mean. Sites = grid cells with |lat| 45-70 in the hemisphere's cold season.
-* Criterion 4 classes follow H3 (blizzard class = snow with rate >= 2.0 mm/h and 10 m wind >= 15.6 m/s, or rain >= 25 mm/h). Criterion 11 blizzard condition is the literal rate >= 2.0 mm/h and wind >= 15.6 m/s for any type (snow-only is reported).
-* Wind percentiles of "all cells" are area-weighted (the unweighted ones are reported). Storm-track cells: ocean fraction >= 0.5, |lat| 45-65.
-* Sea ice fraction of a cell = 1 - exp(-IceH / 0.15 m) (as in the model); zonal-mean ice fraction is the mean over the ocean cells of a row; ice area is the area-weighted global fraction. Midwinter = year phase 0 (north) and 0.5 (south).
-* Wave-1 test (criterion 3): last 30 body days of the run, level nearest sigma 0.9, rows |lat| <= 45, longitude relative to the sub-solar longitude of the model's geometry; amplitude = sqrt(cos and sin coefficients of u and v squared), averaged over rows, over the amplitude of the 30-day mean zonal-mean u.
-* Criterion 12: clusters of resolved updraft >= 2 m/s over the whole grid (4-connected), overlap tracking per step in years 2 and 3; shares measured in the tropics (|lat| < 20 degrees).
-* Criterion 7: coverage = min(1, cloud water path / 0.3 kg m-2), precipitation level = piecewise log-linear `PrecipRateToLevel` of H3; the 99th percentile of |change| per game second over all cells and steps of year 2.
-* Epoch tests (criteria 9, 10, 13): two boundaries of the pipeline closest to year 3 phase 0.12 and 0.55; start and end of the crossfade window are compared (snow cover of the six table bands, ice-edge latitude); the crossfade smoothness compares the blended maps inside the window with the same maps in the 24 steps before and after it.
-* Seed comparison maps: 24 h means of the precipitation rate, days 10-70 of year 2. Zonal means of the A/B pairs are the means over years 2 to the end of each run.
-* A map-generator defect (the ocean quantile search divided by an extra factor of the longitude count, which gave all-ocean maps) was fixed before any criterion run; the synthetic land share is then about 28-32 % with the seeds used.
-* Mono: no Mono run in this package (C25's player test).
+Short health runs on the generator were made to find defects, not to measure criteria: `smoke` (ranges of the outputs per set, 40 days on a coarse grid), `zonal` (10-degree band means on the Kerbin-like set, with and without waves and cells), a 30-day `tracker` run on the Kerbin-like set seed 1 with the detectors,
+`frontdebug` (the gradient of one frame), a frame export for the sheet script, and the `cost` command (non-exclusive, noisy). The following changes were made after those runs; none changes a threshold of H5, they are design and detector corrections:
 
-### H10 The one structural retry (decided after the first complete set of runs, before the retry runs)
+* the cloud and rain coefficients were set to a plausible global precipitation (they gave 40-50 % of the globe raining; stratiform threshold 0.06 to 0.12, rate 10 to 4 mm/h, cell rain threshold 0.15);
+* the heat transport share `0.5 sqrt(p/p0)` was lowered to `0.3 sqrt(p/p0)` (at least 0.2) so that the poles are colder; geostrophic wind got the soft saturation (it gave 70 to 150 m/s); the lapse drop is limited to a quarter of the surface temperature;
+* the land/sea contrast of the temperature uses the 30-degree smoothed ocean share and a land factor of 0.15 (a coast line made the temperature gradient 50 to 90 K per 100 km, so that every coast was a front);
+* the front temperature envelope was narrowed along the track and lengthened across (the network of fronts of overlapping systems formed one connected blob of flagged cells); slot spacing 2.2 R to 1.7 R and system amplitude 0.02 to 0.025 p_s (the count of persistent minima was 1.4 per hemisphere at that time);
+* detectors: D1 smoothing by a box of half the ring radius (white noise gave 27 persistent minima per hemisphere before it); D2 on zonal anomalies, the mean-width limit of 200 km (a blob of flagged cells passed as a band), the cloud arm threshold from 0.25 to 0.6 of the 95th percentile, at most one missing frame in D2 tracks (was 0);
+  the tracker drift is the unwrapped east displacement (a system circles the 2424 km circle of the 50 degree parallel about 1.8 times in 69 hours; the endpoint difference gave -2.5 m/s for a planted 17 m/s);
+* the `Window` evaluates one point per column and takes the vertical profile of the column (22 ms for 32 x 32 x 24 by full point evaluation, 1.0 ms by columns); `Exp` takes the bit pattern of 2^n (the `Sample` median fell from 3.5 to 2.9 microseconds in the non-exclusive run).
 
-First set (EddyScale = 1): no persistent pressure minimum in either hemisphere (criterion 2), surface wind P50 about 1.4 m/s. The thermal-wind shear of the model's winter equilibrium
-gradient (about 46 K over 60 degrees of latitude) is about 10 m/s, while the two-layer critical shear is about beta x Ld^2 = 6.2e-10 /(m s) x (282 km)^2 = about 48 m/s on this planet, so the physical
-baroclinic core is stable at the physical deformation radius. The retry is `EddyScale` = 0.5 (Ld^2 four times smaller, critical shear about 12 m/s), one value, all sets rerun with it, nothing else changed.
-Per H-2 a pass of criterion 2 reached this way is reported as "PASS with EddyScale = 0.5 (gameplay scale)". No second retry.
+At the state of the last exploratory run the generator did not yet meet criteria 1 and 2 on seed 1 (about 1.9 and 2.0 persistent minima per hemisphere, median lifetime 42-45 h, 7 front events in 30 days in the north and none in the south); this is stated here, not tuned against, and is the first thing phase 2 measures properly.
+
+### H10 Open points of the header [VERIFY]
+
+* The criterion 9 limit is provisional until C23's number is known. Criterion 5 and 3 are REPORT items as the brief says; their ranges are plausibility ranges set from the real Earth scaled to this planet and from the owner's expectation of "three cells for fast rotators", not measurements of KSP.
+* Time scales are SI days. A game day on the Kerbin-like set is 6 hours; a system (3-6 SI days) lives 12-24 Kerbin days. If the owner wants systems that live a few Kerbin days, the lifetime range of H6 is the knob; the criteria in days would then be restated by the header's author before a new sign-off.
+* The tilt of the Kerbin-like set (23.4 degrees) is an input of the insolation only; KSP has no axial tilt.
 
 ### Sign-off
 
-Reviewer: REV-B10h-1  date: 2026-11-11  verdict: SIGNED under conditions H-1 to H-4 (written above in H8)
-Core commit at header time: efc650c4
+Reviewer: (to be filled by the independent reviewer)  date:  verdict:
+Core commit at header time: (the commit that carries this file)
 
 ---------------------------------------------------------------------------------------------------------------------------
 
 ## PHASE 2 (after the sign-off)
 
-Evidence for the independent reviewer is in `C:\Users\franz\IdeaProjects\ReDefinition\.local\work\atmosphere-sim\` (first set, EddyScale 1) and `...\retry_eddy0p5\` (the one structural retry):
-`metrics.json` (all items with value, threshold, PASS/FAIL), `criteria.md`, `sheets\` (contact sheets, strips, globe views, cross-sections, zonal plots, snow/ice plots, site series, A/B plots, `tracker_table.md`, `timelapse_cloud.gif`),
-`<run>\stats.json` per run, `cost.json`, `determinism.json`, `forecast.json`, `epoch.json` (clean repeat; `epoch_first_run.json` is the first one), `subgrid_test.txt`. Reproduce: `AtmoSim.Runner run|cost|determinism|forecast|epoch|evaluate`, then `plots/make_sheets.py <root>`.
-Data used by every run: synthetic continents of the seed (`MapGen`, land share 28-32 %), stand-in equilibrium temperature (no B09 data yet), Kerbin-like tilt 23.4 degrees [VERIFY], step 1 h (3 h for the A/B pair), grid 128x64x16 (T21 core, 64x32 core grid).
+Not started. Run order: `cost` under the exclusive lock, `determinism`, `tracker` (seeds A, B, C; waves off; rotation x1000), the level, wind, snow, ice, cell and smoothness runs, the sheets, `evaluate`.
 
-### P1 Chosen grid, step, epoch, golden hash
+---------------------------------------------------------------------------------------------------------------------------
 
-* Grid 128x64x16 (largest of the three whose median step is <= 30 ms: 28.94 ms; 96x48x16 22.05 ms; 64x32x12 16.73 ms; p95 37.2 / 27.3 / 21.6 ms). Resident state 11.3 MB, checkpoint 2.56 MB, two trajectories during a crossfade 22.6 MB + checkpoint (all <= 30 MB).
-* Step 1 h. Epoch: spin-up 120 steps (20 body days), crossfade 24 steps (4 body days), epochSteps = floor(20 s / 28.94 ms) - 2 x 120 - 2 x 24 = 403 steps = 67 body days = 16.8 Earth days = 0.158 year.
-* Golden hash (Kerbin-like, seed 1, 128x64x16, step 1 h, 30 days = 720 steps from `Init`): `238C8B2E4DDD9B53`; after 20 body days (120 steps): `587B0AF257F5E605`. Same hash across two runs, two threads and three chunkings.
+## HISTORY: the first prototype (two-layer spectral model), kept for the record
 
-### P2 Criteria (first set, EddyScale 1; the retry set gives the same pass/fail per criterion, differences below)
-
-| # | Result | Numbers (value, threshold) |
-|---|---|---|
-| 1 Stability | FAIL | NaN at step 1 for Duna-like and Slow-rotator (and the Coriolis-off pair); Kerbin-like seed A max wind 152 m/s in year 1 (years 2+ <= 105), Laythe-like 243, Cold-world 178, No-ocean 152 (< 150); yearly atmospheric water drifts 4.3 %/year on Kerbin-like seed A (31.7 -> 26.8 kg/m2 over 10 years; <= 1 %), also Eve 8.8 %, Laythe 10.8 %, No-ocean 9.6 %; mean T2m off target by 3.4 K (seed B), 4.3 (Laythe), 7.8 (Cold-world) (<= 3 K); water ledger <= 1e-6 on all finite runs |
-| 2 Emergence | FAIL | D1 persistent minima per hemisphere 0 / 0 (>= 3), ring radius 212 km; D2 front events 0.15 (N) and 0.09 (S) per 10 body days (>= 1; 0.58 and 0.34 per 10 Earth days), arms thermal 51, cloud-water 37, both 1; D3 shuffled-space control 0.05 (pass), white-noise control 0.41 persistent minima (> 0.1, FAIL), front-event controls pass; no-hand-placed-systems structural check passes |
-| 3 Climate zones | FAIL | tropical/subtropical ratio 5.89 (pass); polar over mid-latitude belt 0.97 (<= 0.5); No-ocean precipitation 14.3 % of Kerbin-like (<= 5 %); Slow-rotator wave-1 test not available (NaN); Kerbin-like control ratio 0.07 (< 1, pass); Duna-like dust test not available (NaN); Eve-like no ice, precipitation 0.12 mm/h; Laythe-like ocean precipitation 2.27 x Kerbin-like |
-| 4 Absolute statistics | FAIL | precipitating share 24.4 % (pass); Heavy-or-above 0.25 % (0.5-5 %); Blizzard class 0 % (0.05-1.5 %); ordering light > moderate > heavy holds, blizzard is empty |
-| 5 Cost | PASS | 28.94 ms per step, 13.2 MB at 128x64x16 (and 22.0 ms / 7.6 MB, 16.7 ms / 2.9 MB for the smaller grids) |
-| 6 Determinism and rewind | PASS | identical hashes (runs, threads, chunkings), checkpoint at day 10 + 10 days = straight run, checkpoint at 0.9 year + remaining = straight run, 10 of 10 arbitrary earlier UTs equal a fresh pipeline; one year from scratch 75.7 s, from the checkpoint 7.2 s; checkpoint 2.56 MB |
-| 7 Smoothness | PASS | 99th percentile change per game second: coverage 2.5e-6, precipitation level 6.3e-5 (stand-in limit 1e-3, UNKNOWN until C23 measures) |
-| 8 Forecast | PASS | clone + 24 steps 0.80 s, rolling 24 steps 0.71 s (<= 1.5 s), equal bit for bit, also across the epoch boundary and crossfade |
-| 9 Surface layer | FAIL | dSnow vs cold precipitation correlation 0.99995 (pass); 41 352 land cell-steps with snow >= 2 cm after 3 body days above 278 K (= 0); bounded (pass); table: N 70 and 85 degrees have no land on seed A (counts FAIL), N 45 has 13 land cells, winter cover 0.21 (N 45), 0.15 (N 55), 0.17 (S 45), 0.05 (S 55), 0.06 (S 70), 0.44 (S 85) against 0.3 / 0.6 / 0.3 / 0.6 / 0.85 / 0.95; summers 0; across the epoch crossfade the snow cover of the 55 N band jumps by 0.90 (<= 0.10) |
-| 10 Sea ice | FAIL | winter ice edge N 51.6 (pass), S 43.3 degrees (50-60); spring/autumn ice ratio 1.4 (N) and 30.6 (S) (>= 1.2, pass); lag of the maximum 0.145 y (N) and 0.075 y (S) (pass); no ice on No-ocean and Eve-like; Cold-world minimum/maximum ice area 1.0; ice edge jumps by 11.2 and 5.6 degrees across the epoch crossfade (<= 3) |
-| 11 Surface wind | FAIL | Kerbin-like P50/P95/P99 1.45 / 8.65 / 22.65 m/s (P50 3-10: FAIL; P95 pass); storm-track ocean P99 2.75 m/s (14-28); blizzard condition share 0 (0.05-1.5 %); Duna-like winds undefined (NaN) |
-| 12 Convective scale | PASS (numbers), see caution | 15.7 % of tropical cell-steps have a resolved updraft >= 2 m/s; the updraft P95 and P99 sit at the 30 m/s cap of the scheme; cluster lifetime median 1 h (one step), area median 1 cell; cell 29.4 x 29.2 km; sub-grid unit test green |
-| 13 Bounded catch-up | FAIL (by 0.9 %) | 50 arbitrary UTs 19.65 s at the median step cost (pass); measured wall time of the worst catch-up 20.18 s on the clean repeat (20.47 s on the first run) (<= 20 s); crossfade p99 change inside / outside ratio 0.8-1.5 (<= 3, pass); real mean step in the pipeline is about 30 ms, the median 28.9 ms was used by the derivation |
-| 14 Pre-signing | FAIL | header signed (REV-B10h-1, H-1..H-4 written before the first run); D3 negative controls: white-noise control finds 0.41 persistent minima per hemisphere (> 0.1) |
-| A/B | FAIL | Coriolis off: the run is NaN (no usable pair); ocean off: precipitation 14.6 % of the reference (<= 5 %); seed A vs B: zonal-mean L1 43 % (<= 10 %; the seed also changes the synthetic continents), anomaly-map correlation 0.49 (< 0.3); step 1 h vs 3 h: L1 222 % (<= 15 %), the 3 h run reaches 445 m/s |
-
-Retry set (`EddyScale` = 0.5, all sets, H10): criteria 5, 6, 7, 8, 12 pass and 1, 2, 3, 4, 9, 10, 11, 13, 14 fail as before. Differences: D1 persistent minima 0.003 (N) / 0 (S) per hemisphere, D2 events 0.09 / 0.24 per 10 body days; both D3 controls fail (9.7 persistent minima per hemisphere on the shuffled and the noise field, ring radius 106 km); Kerbin-like wind P50/P95/P99 2.65 / 12.35 / 24.25 m/s, storm-track P99 10.5 m/s; tropical/subtropical ratio 1.70 (fail); Heavy-or-above 3.9 % (pass) and blizzard class 0.003 % (fail);
-winter snow cover on the Kerbin-like seed B (the replacement seed with land in the high-latitude bands) N 45 0.85, N 55 0.99, N 70 1.0, N 85 0.86 with summers 0; seed A bands without land stay FAIL; S winter ice edge 85 degrees; precipitation of Laythe-like 5.0 x Kerbin-like with 61 m/s P99 wind; max wind 195-309 m/s in year 1; the tracker numbers are in `retry_eddy0p5\sheets\tracker_table.md`.
-Tracker (first set, seed A): no persistent pressure minimum; the D2 bands live 108 h median (250 h mean) with an east drift of 0.01 m/s median: they are quasi-stationary gradient bands, not moving systems. A "PASS with EddyScale = x" does not occur.
-
-### P3 Findings of the runs (defects of the engine, not of the proof harness)
-
-* The two-layer QG core is baroclinically stable on this planet at the physical deformation radius (shear about 10 m/s against about 48 m/s); with `EddyScale` 0.5 the winds grow (P50 1.45 -> 2.65 m/s) but no travelling cyclones appear. The cloud sheets show comma-shaped cloud patterns in the month frames (strip_2.png); the detector finds no pressure minima of 4 hPa depth, the surface-pressure anomaly has a standard deviation of about 0.5-1 hPa.
-* NaN at the first step for the Duna-like body and the slow rotator and with Coriolis off (`AtmoSim.Runner nanscan`, `nanscan2`): rotation 864 000 s alone triggers it on the Kerbin-like body; for Duna-like the radius, the rotation or the tropopause height each removes it when set to the Kerbin value. The cause is not located within the time box.
-* A checkpoint taken late in a year-long run did not continue bit for bit (the winds of the last step choose the sub-step count); fixed in `Atmosphere.cs` (the checkpoint carries `MaxWind` and the ledger), test `CheckpointLateInALongRunEqualsTheStraightRun`.
-* The synthetic map generator produced all-ocean maps (the ocean quantile search divided by an extra factor); fixed before the first run.
-* Slow state (snow, sea ice) re-initialised from climatology at each epoch start jumps by 0.9 (cover) and 5.6-11.2 degrees (ice edge) across the crossfade, as the header (H-1) predicted: the continuous snow line and ice edge need the analytic slow state.
-* Water: atmospheric water decreases by 4 %/year on the Kerbin-like set over 10 years without settling (the model dries out slowly).
-* The seed pair compares different synthetic continents; "same climate" cannot hold by construction (maps are seed-dependent). The retry set gives 27 % L1 and 0.23 anomaly correlation.
-
-### P4 Decision: FALLBACK
-
-Trigger evaluation: GO requires all 14 criteria PASS. Criteria 1, 2, 3, 4, 9, 10, 11, 13 and 14 fail on both sets, including the central one (2: emergence) with and without the structural retry, the cold-season absolute statistics (4), the surface wind (11) and the Duna-like/slow-rotator/Coriolis-off runs (NaN). The decision is FALLBACK (C26). The independent reviewer's verdict "coherent moving systems" is not given by the numbers (no persistent minima, stationary bands).
-
-### P5 What the hybrid (C26) takes from this package
-
-* Kept as engine parts (all green here): `DMath` (deterministic functions), `Rng`, `SubGrid.Cores` (sub-grid cores 5-25 km, deterministic), epoch re-anchoring with crossfade and its cost arithmetic (epoch 403 steps at 28.9 ms), checkpoint/clone/forecast, the state hash, the surface-layer bookkeeping (snow/ice/ledger), the 128x64 maps and their cost (28.9 ms per step is the budget for the whole hybrid), the `PrecipRateToLevel` bands of H3.
-* To be replaced: the emergent dynamics. A deterministic seeded kinematic system generator along storm-track belts (cyclone/front objects as pure functions of seed and UT that persist for days and drift with the zonal flow, written into the same 128x64 fields: pressure, cloud water, precipitation, wind) plus an analytic seasonal climatology for the slow state (zonal-mean temperature, snow line and sea-ice edge as functions of the season phase with a stated lag), which also removes the epoch discontinuity of snow and ice. The tracker numbers (count, lifetime >= 12 h, east drift, straightness) and the D1/D2 detectors of this package are the acceptance harness of that hybrid.
-
-### P6 Mapping to `IWeatherField` (for whichever field becomes the engine)
-
-Level01 and the type from `PrecipMmH` and `SnowFall` through the H3 tables; precipitation visibility and `OpticalDepthVertical` from `CloudPath` and `PrecipMmH`; wind and gusts from `U3`/`V3` at the lowest levels and `Wind10`; coverage and type maps from `CloudPath` and the cloud-water profile; the snow map from `SnowW`, ice from `IceH`; the 3D window from `Qc`/`T3` on the 16 sigma levels with the sub-grid cores of `SubGrid.Cores` inside cells with a resolved updraft.
+Decision of that prototype: FALLBACK. A two-layer quasi-geostrophic core (spherical harmonics T21, a moisture scheme, a surface layer, epoch re-anchoring with crossfade) was built and run on seven sets and 10 simulated Kerbin years. It passed cost, determinism and rewind, smoothness and forecast, and failed stability (NaN at the first step
+for the Duna-like body and the slow rotator), emergence (no persistent pressure minimum in either hemisphere, with and without the one allowed structural retry `EddyScale` 0.5), climate zones, absolute statistics (blizzard class empty), surface wind (P50 1.45 m/s), the surface-layer continuity across epochs and the negative controls (white noise found 0.41 persistent
+minima per hemisphere). Finding: the two-layer core is baroclinically stable on this planet at the physical deformation radius (shear about 10 m/s against about 48 m/s), so travelling cyclones did not appear; the front detector found quasi-stationary gradient bands (east drift 0.01 m/s), not moving systems.
+The owner ruling after it: the simulation is far too detailed; the seen result matters. This package is the replacement.

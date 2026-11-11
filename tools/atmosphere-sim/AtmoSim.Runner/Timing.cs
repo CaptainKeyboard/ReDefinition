@@ -7,158 +7,265 @@ using AtmoSim.Core;
 
 namespace AtmoSim.Runner
 {
-    // Criterion 5 (cost), 6 (determinism and rewind), 8 (forecast) and 13 (bounded catch-up). These runs do not look at any climate output.
+    // Criteria 6 (cost), 7 (determinism) and 8 (UT rewind and jump). These runs do not look at any climate output.
     public static class Timing
     {
-        public static SimConfig Grid(int nlon, int levels, double stepS, ulong seed)
-        {
-            return new SimConfig { NLon = nlon, NLat = nlon / 2, Levels = levels, StepSeconds = stepS, Seed = seed };
-        }
-
-        // Step cost: median of 200 steps after 24 warm-up steps, single thread; resident memory and checkpoint size.
-        public static int Cost(string[] args)
-        {
-            var o = new List<string>();
-            foreach (var g in new[] { new[] { 128, 16 }, new[] { 96, 16 }, new[] { 64, 12 } })
-            {
-                var cfg = Grid(g[0], g[1], 3600.0, 1);
-                var sim = new Atmosphere(BodyParams.KerbinLike(), cfg);
-                for (int i = 0; i < 24; i++) sim.Step();
-                var ms = new double[200];
-                var sw = new Stopwatch();
-                for (int i = 0; i < 200; i++) { sw.Restart(); sim.Step(); ms[i] = sw.Elapsed.TotalMilliseconds; }
-                Array.Sort(ms);
-                double med = ms[100], p95 = ms[190];
-                var st = new MemoryStream(); sim.SaveCheckpoint(st);
-                string line = "{\"grid\":\"" + g[0] + "x" + g[0] / 2 + "x" + g[1] + "\",\"median_ms\":" + F(med) + ",\"p95_ms\":" + F(p95)
-                    + ",\"resident_bytes\":" + sim.ResidentBytes() + ",\"checkpoint_bytes\":" + st.Length + ",\"resident_two_trajectories_bytes\":" + 2 * sim.ResidentBytes() + "}";
-                Console.WriteLine(line); o.Add(line);
-            }
-            if (args.Length > 1) File.WriteAllText(args[1], "[" + string.Join(",\n", o) + "]\n");
-            return 0;
-        }
-
         public static string F(double v) { return v.ToString("R", System.Globalization.CultureInfo.InvariantCulture); }
 
-        // Criterion 6: hashes across runs, threads and chunkings; checkpoint at day 10 + advance to day 20; restore at arbitrary earlier times via the
-        // epoch pipeline; catch-up of one year from scratch and from a checkpoint.
-        public static int Determinism(string[] args)
+        public struct Q { public double Lat, Lon, Alt, Ut; }
+
+        // A fixed set of query points from a seeded stream: random latitude (area weighted), longitude, altitude, time in [0, 3 years of Kerbin].
+        public static Q[] Queries(int n, ulong seed, double utMax)
         {
-            int nlon = int.Parse(args[1]), levels = int.Parse(args[2]);
-            string outFile = args[3];
-            var bp = BodyParams.KerbinLike();
-            var cfg = Grid(nlon, levels, 3600.0, 1);
-            long day = (long)(bp.RotationPeriodS / cfg.StepSeconds);
-            var r = new Dictionary<string, object>();
-
-            // Two runs and two threads (30 days).
-            long n30 = 30 * day;
-            ulong h1 = Straight(bp, cfg, n30, null);
-            ulong h2 = Straight(bp, cfg, n30, null);
-            ulong h3 = 0, h4 = 0;
-            var t1 = new Thread(() => { h3 = Straight(bp, cfg, n30, null); });
-            var t2 = new Thread(() => { h4 = Straight(bp, cfg, n30, null); });
-            t1.Start(); t2.Start(); t1.Join(); t2.Join();
-            r["hash_run1"] = h1.ToString("X16"); r["hash_run2"] = h2.ToString("X16"); r["hash_thread1"] = h3.ToString("X16"); r["hash_thread2"] = h4.ToString("X16");
-            // Chunkings of the advance loop.
-            ulong hc1 = Straight(bp, cfg, n30, new[] { 1 }), hc7 = Straight(bp, cfg, n30, new[] { 7 }), hc24 = Straight(bp, cfg, n30, new[] { 24, 5, 1 });
-            r["hash_chunk1"] = hc1.ToString("X16"); r["hash_chunk7"] = hc7.ToString("X16"); r["hash_chunk_mixed"] = hc24.ToString("X16");
-            bool same = h1 == h2 && h1 == h3 && h1 == h4 && h1 == hc1 && h1 == hc7 && h1 == hc24;
-            r["identical_runs_threads_chunkings"] = same;
-
-            // Checkpoint at day 10 plus advance to day 20 equals the straight run.
-            var a = new Atmosphere(bp, cfg);
-            for (long i = 0; i < 10 * day; i++) a.Step();
-            var ms = new MemoryStream(); a.SaveCheckpoint(ms);
-            var b = new Atmosphere(bp, cfg); ms.Position = 0; b.LoadCheckpoint(ms);
-            for (long i = 0; i < 10 * day; i++) { a.Step(); b.Step(); }
-            r["checkpoint_day10_to_day20_equal"] = a.StateHash() == b.StateHash();
-            r["hash_day20"] = a.StateHash().ToString("X16");
-
-            // Catch-up of 1 year from scratch and from a checkpoint at 0.9 year.
-            long yearSteps = (long)(bp.YearS / cfg.StepSeconds);
-            var sw = Stopwatch.StartNew();
-            var c = new Atmosphere(bp, cfg);
-            long ck = (long)(0.9 * yearSteps);
-            MemoryStream cks = null;
-            for (long i = 0; i < yearSteps; i++) { c.Step(); if (i + 1 == ck) { cks = new MemoryStream(); c.SaveCheckpoint(cks); } }
-            double scratchS = sw.Elapsed.TotalSeconds;
-            sw.Restart();
-            var d = new Atmosphere(bp, cfg); cks.Position = 0; d.LoadCheckpoint(cks);
-            for (long i = ck; i < yearSteps; i++) d.Step();
-            double fromCkS = sw.Elapsed.TotalSeconds;
-            r["catchup_year_from_scratch_s"] = scratchS; r["catchup_year_from_checkpoint_0p9_s"] = fromCkS;
-            r["catchup_from_checkpoint_equals_straight"] = c.StateHash() == d.StateHash();
-            r["checkpoint_bytes"] = cks.Length;
-            File.WriteAllText(outFile, Json.Write(r));
-            Console.WriteLine(Json.Write(r));
-            return same ? 0 : 1;
-        }
-
-        private static ulong Straight(BodyParams bp, SimConfig cfg, long steps, int[] chunks)
-        {
-            var s = new Atmosphere(bp, cfg);
-            long done = 0; int ci = 0;
-            while (done < steps)
+            var r = new Rng(seed);
+            var q = new Q[n];
+            for (int i = 0; i < n; i++)
             {
-                int n = chunks == null ? (int)(steps - done) : chunks[ci++ % chunks.Length];
-                if (n > steps - done) n = (int)(steps - done);
-                for (int i = 0; i < n; i++) s.Step();
-                done += n;
+                q[i].Lat = Math.Asin(2.0 * r.Uniform() - 1.0);
+                q[i].Lon = (2.0 * r.Uniform() - 1.0) * Math.PI;
+                q[i].Alt = r.Uniform() * 12000.0;
+                q[i].Ut = r.Uniform() * utMax;
             }
-            return s.StateHash();
+            return q;
         }
 
-        // Criterion 8: clone + 24 steps equals the continuation; cost; the same across an epoch boundary through the epoch pipeline.
-        public static int Forecast(string[] args)
-        {
-            int nlon = int.Parse(args[1]), levels = int.Parse(args[2]);
-            double stepCostS = double.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) / 1000.0;
-            string outFile = args[4];
-            var bp = BodyParams.KerbinLike();
-            var cfg = Grid(nlon, levels, 3600.0, 1);
-            var r = new Dictionary<string, object>();
-            var s = new Atmosphere(bp, cfg);
-            for (int i = 0; i < 100; i++) s.Step();
-            var sw = Stopwatch.StartNew();
-            var clone = s.Clone();
-            for (int i = 0; i < 24; i++) clone.Step();
-            double cloneS = sw.Elapsed.TotalSeconds;
-            sw.Restart();
-            for (int i = 0; i < 24; i++) s.Step();
-            double rollS = sw.Elapsed.TotalSeconds;
-            r["clone_plus_24_steps_s"] = cloneS; r["rolling_24_steps_s"] = rollS; r["clone_equals_continuation"] = clone.StateHash() == s.StateHash();
+        // ---- criterion 6 ---------------------------------------------------------------------------------------------------
 
-            // Across an epoch boundary: a fresh epoch pipeline asked at ut + 24 h equals the rolling pipeline asked step by step through the crossfade.
-            var d = EpochSetup.Derive(bp, cfg, stepCostS);
-            double boundary = d.EpochSteps * cfg.StepSeconds;
-            double t0 = boundary - 6 * cfg.StepSeconds;
-            var rolling = new EpochField(bp, cfg, d.EpochSteps, d.SpinUp, d.Crossfade);
-            Atmosphere nw, old; double w;
-            for (int i = 0; i <= 30; i++) rolling.StateAt(t0 + i * cfg.StepSeconds, out nw, out old, out w);
-            var fresh = new EpochField(bp, cfg, d.EpochSteps, d.SpinUp, d.Crossfade);
-            fresh.StateAt(t0 + 30 * cfg.StepSeconds, out nw, out old, out w);
-            ulong hFresh = nw.StateHash();
-            rolling.StateAt(t0 + 30 * cfg.StepSeconds, out Atmosphere nw2, out Atmosphere old2, out double w2);
-            r["epoch_steps"] = d.EpochSteps; r["epoch_forecast_across_boundary_equal"] = hFresh == nw2.StateHash() && w == w2;
-            r["epoch_forecast_older_equal"] = (old == null && old2 == null) || (old != null && old2 != null && old.StateHash() == old2.StateHash());
-            File.WriteAllText(outFile, Json.Write(r));
-            Console.WriteLine(Json.Write(r));
+        public static int Cost(string[] args)
+        {
+            string outFile = args.Length > 1 ? args[1] : null;
+            var r = new Dictionary<string, object>();
+            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            Weather w;
+            // warm-up (JIT, thread-local frame, grid)
+            for (int i = 0; i < 20000; i++) g.Sample(0.8, 0.01 * i, 0.0, 1000.0, out w);
+
+            // (a) map-like pattern: 256 consecutive points per UT, UT changes each batch
+            int n = 40000;
+            var tick = new long[n];
+            double toUs = 1e6 / Stopwatch.Frequency;
+            var q = Queries(n, 5, 3.0e7);
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < n; i++)
+            {
+                double ut = 1.0e6 + (i / 256) * 3600.0;
+                long t0 = Stopwatch.GetTimestamp();
+                g.Sample(q[i].Lat, q[i].Lon, q[i].Alt, ut, out w);
+                tick[i] = Stopwatch.GetTimestamp() - t0;
+            }
+            long alloc = GC.GetAllocatedBytesForCurrentThread() - a0;
+            Array.Sort(tick);
+            r["sample_median_us_map_pattern"] = tick[n / 2] * toUs;
+            r["sample_p95_us_map_pattern"] = tick[(int)(0.95 * n)] * toUs;
+            r["sample_allocated_bytes_40000_calls"] = alloc;
+            // (b) every call at a new UT (worst case, includes the system set-up of the frame)
+            for (int i = 0; i < n; i++)
+            {
+                long t0 = Stopwatch.GetTimestamp();
+                g.Sample(q[i].Lat, q[i].Lon, q[i].Alt, q[i].Ut, out w);
+                tick[i] = Stopwatch.GetTimestamp() - t0;
+            }
+            Array.Sort(tick);
+            r["sample_median_us_new_ut_each_call"] = tick[n / 2] * toUs;
+            r["sample_p95_us_new_ut_each_call"] = tick[(int)(0.95 * n)] * toUs;
+            // timer overhead
+            for (int i = 0; i < n; i++) { long t0 = Stopwatch.GetTimestamp(); tick[i] = Stopwatch.GetTimestamp() - t0; }
+            Array.Sort(tick);
+            r["timer_overhead_median_us"] = tick[n / 2] * toUs;
+
+            // (c) 512x256 map update, all fields
+            var cov = new float[512 * 256]; var pr = new float[512 * 256]; var lv = new float[512 * 256]; var tk = new float[512 * 256]; var wd = new float[512 * 256]; var ce = new float[512 * 256];
+            var ms = new double[7];
+            for (int i = 0; i < ms.Length; i++)
+            {
+                var sw = Stopwatch.StartNew();
+                SubGrid.Map(g, 2.0e6 + i * 21600.0, 512, 256, cov, pr, lv, tk, wd, ce);
+                ms[i] = sw.Elapsed.TotalMilliseconds;
+            }
+            Array.Sort(ms); r["map_512x256_median_ms"] = ms[3]; r["map_512x256_min_ms"] = ms[0];
+
+            // (d) 32x32x24 window
+            var dens = new float[32 * 32 * 24];
+            var wm = new double[15];
+            for (int i = 0; i < wm.Length; i++)
+            {
+                var sw = Stopwatch.StartNew();
+                SubGrid.Window(g, 0.8, 0.3, 2.0e6 + i * 600.0, 32, 32, 24, 500.0, 250.0, 0.0, dens);
+                wm[i] = sw.Elapsed.TotalMilliseconds;
+            }
+            Array.Sort(wm); r["window_32x32x24_median_ms"] = wm[7];
+
+            // (e) 24 hourly forecast steps of one site
+            var fm = new double[300];
+            for (int i = 0; i < fm.Length; i++)
+            {
+                var sw = Stopwatch.StartNew();
+                for (int h = 0; h < 24; h++) g.Sample(0.9, 0.4, 0.0, 3.0e6 + i * 5000.0 + h * 3600.0, out w);
+                fm[i] = sw.Elapsed.TotalMilliseconds;
+            }
+            Array.Sort(fm); r["forecast_24_steps_median_ms"] = fm[150];
+
+            // (f) surface layer: one site, warm cache, consecutive 6 h steps
+            var site = new SurfaceSite(g, 1.1, 0.3);
+            var sm = new double[200];
+            double ut0 = 5.0e6;
+            site.Evaluate(ut0);
+            for (int i = 0; i < sm.Length; i++)
+            {
+                var sw = Stopwatch.StartNew();
+                site.Evaluate(ut0 + (i + 1) * 21600.0);
+                sm[i] = sw.Elapsed.TotalMilliseconds * 1000.0;
+            }
+            Array.Sort(sm); r["surface_site_median_us_with_new_step"] = sm[100];
+            // sea site (ice integration included)
+            var seaLat = FindSea(g, 1.0);
+            var sea = new SurfaceSite(g, seaLat[0], seaLat[1]);
+            sea.Evaluate(ut0);
+            for (int i = 0; i < sm.Length; i++)
+            {
+                var sw = Stopwatch.StartNew();
+                sea.Evaluate(ut0 + (i + 1) * 21600.0);
+                sm[i] = sw.Elapsed.TotalMilliseconds * 1000.0;
+            }
+            Array.Sort(sm); r["surface_sea_site_median_us_with_new_step"] = sm[100];
+            // repeat evaluation inside the same step (all caches warm): the cost without any window sampling
+            for (int i = 0; i < sm.Length; i++)
+            {
+                var sw = Stopwatch.StartNew();
+                sea.Evaluate(ut0 + 200 * 21600.0 + (i % 20) * 900.0);
+                sm[i] = sw.Elapsed.TotalMilliseconds * 1000.0;
+            }
+            Array.Sort(sm); r["surface_sea_site_median_us_warm_step"] = sm[100];
+
+            // (g) 256x128 cover map
+            if (args.Length > 2 && args[2] == "covermap")
+            {
+                int nx = 256, ny = 128;
+                var sites = new SurfaceSite[nx * ny];
+                var swb = Stopwatch.StartNew();
+                for (int j = 0; j < ny; j++)
+                    for (int i = 0; i < nx; i++)
+                        sites[j * nx + i] = new SurfaceSite(g, (90.0 - (j + 0.5) * 180.0 / ny) * Math.PI / 180.0, (-180.0 + (i + 0.5) * 360.0 / nx) * Math.PI / 180.0);
+                r["covermap_build_s"] = swb.Elapsed.TotalSeconds;
+                double u0 = 6.0e6;
+                var snow = new float[nx * ny]; var ice = new float[nx * ny];
+                double first;
+                var swf = Stopwatch.StartNew();
+                for (int k = 0; k < sites.Length; k++) { var s = sites[k].Evaluate(u0); snow[k] = (float)s.SnowDepthM; ice[k] = (float)s.IceThicknessM; }
+                first = swf.Elapsed.TotalMilliseconds;
+                r["covermap_first_update_ms"] = first;
+                var ups = new double[4];
+                for (int u = 0; u < ups.Length; u++)
+                {
+                    var swu = Stopwatch.StartNew();
+                    for (int k = 0; k < sites.Length; k++) { var s = sites[k].Evaluate(u0 + (u + 1) * 21600.0); snow[k] = (float)s.SnowDepthM; ice[k] = (float)s.IceThicknessM; }
+                    ups[u] = swu.Elapsed.TotalMilliseconds;
+                }
+                Array.Sort(ups); r["covermap_next_step_update_median_ms"] = ups[2];
+                long smp = 0; foreach (var s in sites) smp += s.SamplesTaken;
+                r["covermap_samples_taken_total"] = smp;
+            }
+
+            string json = Json.Write(r);
+            Console.Write(json);
+            if (outFile != null) File.WriteAllText(outFile, json);
             return 0;
         }
-    }
 
-    public struct EpochSetup
-    {
-        public long EpochSteps, SpinUp, Crossfade;
-        // H-1: spin-up 20 body days, crossfade 4 body days; epoch = floor(20 s / stepCost) - 2 spinUp - 2 crossfade.
-        public static EpochSetup Derive(BodyParams bp, SimConfig cfg, double stepCostS)
+        public static double[] FindSea(WeatherGenerator g, double latRad)
         {
-            var e = new EpochSetup();
-            e.SpinUp = (long)(20.0 * bp.RotationPeriodS / cfg.StepSeconds);
-            e.Crossfade = (long)(4.0 * bp.RotationPeriodS / cfg.StepSeconds);
-            e.EpochSteps = EpochField.DeriveEpochSteps(stepCostS, 20.0, e.SpinUp, e.Crossfade);
-            return e;
+            for (int i = 0; i < 360; i++)
+            {
+                double lon = (-180.0 + i) * Math.PI / 180.0;
+                if (g.Grid.OceanAt(latRad, lon) > 0.95) return new[] { latRad, lon };
+            }
+            return new[] { latRad, 0.0 };
+        }
+
+        // ---- criteria 7 and 8 ---------------------------------------------------------------------------------------------
+
+        private static ulong HashQueries(WeatherGenerator g, Q[] q, int[] order, double utShift)
+        {
+            var hs = new ulong[q.Length];
+            Weather w;
+            for (int k = 0; k < q.Length; k++)
+            {
+                int i = order == null ? k : order[k];
+                g.Sample(q[i].Lat, q[i].Lon, q[i].Alt, q[i].Ut + utShift, out w);
+                hs[i] = WeatherGenerator.HashOf(ref w, (ulong)i);
+            }
+            ulong h = 0xCBF29CE484222325UL;
+            for (int i = 0; i < hs.Length; i++) h = Hash.Mix(h ^ hs[i]);
+            return h;
+        }
+
+        private static ulong HashMap(WeatherGenerator g, int nx, int ny, double ut, int chunkRows)
+        {
+            ulong h = 0xCBF29CE484222325UL;
+            Weather w;
+            for (int j0 = 0; j0 < ny; j0 += chunkRows)
+                for (int j = j0; j < Math.Min(ny, j0 + chunkRows); j++)
+                    for (int i = 0; i < nx; i++)
+                    {
+                        g.Sample((90.0 - (j + 0.5) * 180.0 / ny) * Math.PI / 180.0, (-180.0 + (i + 0.5) * 360.0 / nx) * Math.PI / 180.0, 0.0, ut, out w);
+                        h = WeatherGenerator.HashOf(ref w, h);
+                    }
+            return h;
+        }
+
+        public static int Determinism(string[] args)
+        {
+            string outFile = args.Length > 1 ? args[1] : null;
+            var r = new Dictionary<string, object>();
+            var bp = BodyParams.KerbinLike();
+            var g1 = new WeatherGenerator(bp, 1);
+            var q = Queries(20000, 77, 3.0e7);
+            ulong h1 = HashQueries(g1, q, null, 0), h2 = HashQueries(g1, q, null, 0);
+            var g2 = new WeatherGenerator(bp.Clone(), 1);
+            ulong h3 = HashQueries(g2, q, null, 0);
+            ulong[] th = new ulong[4];
+            var threads = new Thread[4];
+            for (int t = 0; t < 4; t++)
+            {
+                int tt = t;
+                threads[t] = new Thread(() => { th[tt] = HashQueries(g1, q, null, 0); });
+                threads[t].Start();
+            }
+            foreach (var t in threads) t.Join();
+            var order = new int[q.Length]; for (int i = 0; i < order.Length; i++) order[i] = i;
+            var rr = new Rng(99);
+            for (int i = order.Length - 1; i > 0; i--) { int k = (int)(rr.Uniform() * (i + 1)); int tmp = order[i]; order[i] = order[k]; order[k] = tmp; }
+            ulong h4 = HashQueries(g1, q, order, 0);
+            r["hash_run1"] = h1.ToString("X16"); r["hash_run2"] = h2.ToString("X16"); r["hash_second_instance"] = h3.ToString("X16");
+            r["hash_shuffled_order"] = h4.ToString("X16");
+            for (int t = 0; t < 4; t++) r["hash_thread" + t] = th[t].ToString("X16");
+            bool same = h1 == h2 && h1 == h3 && h1 == h4 && h1 == th[0] && h1 == th[1] && h1 == th[2] && h1 == th[3];
+            r["identical_runs_threads_order_instances"] = same;
+            ulong m1 = HashMap(g1, 128, 64, 4.0e6, 1), m2 = HashMap(g1, 128, 64, 4.0e6, 7), m3 = HashMap(g1, 128, 64, 4.0e6, 64);
+            r["map_hash_chunk1"] = m1.ToString("X16"); r["map_hash_chunk7"] = m2.ToString("X16"); r["map_hash_chunk64"] = m3.ToString("X16");
+            bool chunks = m1 == m2 && m1 == m3;
+            r["identical_chunkings"] = chunks;
+            // another seed differs
+            var gB = new WeatherGenerator(bp, 2);
+            ulong hb = HashQueries(gB, q, null, 0);
+            r["seed2_differs"] = hb != h1;
+
+            // criterion 8: rewind and jumps
+            ulong a = HashQueries(g1, q, null, 0);
+            ulong back2 = HashQueries(g1, q, null, -172800.0);
+            ulong fwd = HashQueries(g1, q, null, 864000.0);
+            ulong again = HashQueries(g1, q, null, 0);
+            // the value at UT - 2 days evaluated directly equals the one reached after a jump forward and back
+            ulong direct = HashQueries(new WeatherGenerator(bp, 1), q, null, -172800.0);
+            r["rewind_back2d_equals_direct"] = back2 == direct;
+            r["rewind_return_equals_first"] = a == again;
+            r["jump_forward_differs"] = fwd != a;
+            bool pass = same && chunks && back2 == direct && a == again;
+            r["pass"] = pass;
+            string json = Json.Write(r);
+            Console.Write(json);
+            if (outFile != null) File.WriteAllText(outFile, json);
+            return pass ? 0 : 1;
         }
     }
 }

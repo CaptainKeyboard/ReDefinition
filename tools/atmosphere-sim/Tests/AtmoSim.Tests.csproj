@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AtmoSim.Core\AtmoSim.Core.csproj" />
+    <ProjectReference Include="..\AtmoSim.Runner\AtmoSim.Runner.csproj" />
   </ItemGroup>
 
 </Project>
