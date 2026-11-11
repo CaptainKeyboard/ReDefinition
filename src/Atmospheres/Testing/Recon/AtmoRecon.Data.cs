@@ -234,7 +234,7 @@ namespace ReDefinition.Atmospheres
         {
             CelestialBody kerbin = FlightGlobals.Bodies.Find(x => x.bodyName == "Kerbin");
             if (kerbin == null) yield break;
-            foreach (ProbeWait w in SampleGrid(kerbin, 90)) yield return w;
+            foreach (ProbeWait w in SampleGrid(kerbin, 180)) yield return w;
         }
 
         private IEnumerable<ProbeWait> HeightGridsOthers()

@@ -19,7 +19,7 @@ namespace ReDefinition.Atmospheres
 
         private IEnumerable<ProbeWait> ToFlight()
         {
-            foreach (ProbeWait w in WaitFor(() => HighLogic.LoadedScene == GameScenes.MAINMENU, 300)) yield return w;
+            foreach (ProbeWait w in WaitFor(() => HighLogic.LoadedScene == GameScenes.MAINMENU, 450)) yield return w;
             if (!waited)
             {
                 Fail("the main menu did not come up");

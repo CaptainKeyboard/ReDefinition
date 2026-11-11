@@ -107,12 +107,13 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in Guard("P7", FogFixture())) yield return w;
             if (full)
             {
-                foreach (ProbeWait w in Guard("P5", AudioPaths())) yield return w;
-                foreach (ProbeWait w in Guard("P12", AmbientFactors())) yield return w;
-                foreach (ProbeWait w in Guard("P3", VertexSpacing())) yield return w;
+                // P1 is a blocking premise: it comes before the informative steps, so that a start that runs out of time loses those.
                 foreach (ProbeWait w in Guard("P1", TemperatureSamples())) yield return w;
                 Vessel after = FlightGlobals.ActiveVessel;
                 Emit("P1.vessel_intact", after != null && after.state != Vessel.State.DEAD);
+                foreach (ProbeWait w in Guard("P5", AudioPaths())) yield return w;
+                foreach (ProbeWait w in Guard("P12", AmbientFactors())) yield return w;
+                foreach (ProbeWait w in Guard("P3", VertexSpacing())) yield return w;
                 foreach (ProbeWait w in Guard("P9", EveLayers())) yield return w;
                 foreach (ProbeWait w in Guard("P2more", HeightGridsOthers())) yield return w;
             }

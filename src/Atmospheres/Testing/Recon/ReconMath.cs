@@ -114,6 +114,49 @@ namespace ReDefinition.Atmospheres
             return x - xFrom;
         }
 
+        // The triangles of a UV sphere with (segments + 1) x (rings + 1) vertices, row by row from the pole, front face outward. Unity's front
+        // face is the one for which (b - a) x (c - a) points at the viewer.
+        internal static int[] SphereTriangles(int segments, int rings)
+        {
+            var triangles = new int[segments * rings * 6];
+            int t = 0;
+            for (int r = 0; r < rings; r++)
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    int a = r * (segments + 1) + s, b = a + segments + 1;
+                    triangles[t++] = a; triangles[t++] = a + 1; triangles[t++] = b;
+                    triangles[t++] = a + 1; triangles[t++] = b + 1; triangles[t++] = b;
+                }
+            }
+            return triangles;
+        }
+
+        // The triangles of a disc: the centre vertex first, then rings of the given number of segments. The vertices of a ring run from the
+        // first tangent t1 towards t2 = Cross(up, t1) with increasing index, so (b - a) x (c - a) of each triangle points along up.
+        internal static int[] DiscTriangles(int segments, int rings)
+        {
+            var triangles = new int[segments * 3 + (rings - 1) * segments * 6];
+            int t = 0;
+            for (int s = 0; s < segments; s++)
+            {
+                triangles[t++] = 0;
+                triangles[t++] = 1 + s;
+                triangles[t++] = 1 + (s + 1) % segments;
+            }
+            for (int r = 1; r < rings; r++)
+            {
+                int inner = 1 + (r - 1) * segments, outer = 1 + r * segments;
+                for (int s = 0; s < segments; s++)
+                {
+                    int s1 = (s + 1) % segments;
+                    triangles[t++] = inner + s; triangles[t++] = outer + s; triangles[t++] = inner + s1;
+                    triangles[t++] = inner + s1; triangles[t++] = outer + s; triangles[t++] = outer + s1;
+                }
+            }
+            return triangles;
+        }
+
         // The sum of the cell areas of a latitude-longitude grid that fall under a condition, as a fraction of the whole sphere: a row's
         // weight is the cosine of its latitude. heights are row-major, row 0 at the south pole.
         internal static double OceanFraction(float[] heights, int width, int height, float seaLevel)

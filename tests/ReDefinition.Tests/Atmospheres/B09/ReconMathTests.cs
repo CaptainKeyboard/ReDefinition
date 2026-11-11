@@ -81,6 +81,83 @@ namespace ReDefinition.Tests.Atmospheres.B09
             Assert.AreEqual(0.0, ReconMath.PredictChuteDriftBetween(20.0, 6.0, 9.81, 30.0, 15.0));
         }
 
+        private static double[] Cross(double[] a, double[] b)
+        {
+            return new[] { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
+        }
+
+        private static double[] Sub(double[] a, double[] b)
+        {
+            return new[] { a[0] - b[0], a[1] - b[1], a[2] - b[2] };
+        }
+
+        // Unity's front face is the one for which (b - a) x (c - a) points at the viewer.
+        [TestMethod]
+        public void DiscTrianglesFaceUp()
+        {
+            const int segments = 32, rings = 8;
+            // up = (0,1,0), t1 = (1,0,0), t2 = Cross(up, t1) = (0,0,-1): the vertex layout of ReconDisc.Update.
+            var up = new[] { 0.0, 1.0, 0.0 };
+            var t1 = new[] { 1.0, 0.0, 0.0 };
+            double[] t2 = Cross(up, t1);
+            var vertices = new double[1 + segments * rings][];
+            vertices[0] = new[] { 0.0, 0.0, 0.0 };
+            for (int r = 1; r <= rings; r++)
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    double phi = 2.0 * Math.PI * s / segments, radius = r / (double)rings;
+                    vertices[1 + (r - 1) * segments + s] = new[]
+                    {
+                        radius * (Math.Cos(phi) * t1[0] + Math.Sin(phi) * t2[0]),
+                        radius * (Math.Cos(phi) * t1[1] + Math.Sin(phi) * t2[1]),
+                        radius * (Math.Cos(phi) * t1[2] + Math.Sin(phi) * t2[2])
+                    };
+                }
+            }
+            int[] triangles = ReconMath.DiscTriangles(segments, rings);
+            Assert.AreEqual(segments * 3 + (rings - 1) * segments * 6, triangles.Length);
+            for (int i = 0; i < triangles.Length; i += 3)
+            {
+                double[] a = vertices[triangles[i]], b = vertices[triangles[i + 1]], c = vertices[triangles[i + 2]];
+                double[] normal = Cross(Sub(b, a), Sub(c, a));
+                Assert.IsTrue(normal[1] > 0.0, "triangle " + i / 3 + " faces down, normal y " + normal[1]);
+            }
+        }
+
+        [TestMethod]
+        public void SphereTrianglesFaceOutward()
+        {
+            const int segments = 32, rings = 20;
+            var vertices = new double[(segments + 1) * (rings + 1)][];
+            for (int r = 0; r <= rings; r++)
+            {
+                double theta = Math.PI * r / rings;
+                for (int s = 0; s <= segments; s++)
+                {
+                    double phi = 2.0 * Math.PI * s / segments;
+                    vertices[r * (segments + 1) + s] = new[] { Math.Sin(theta) * Math.Cos(phi), Math.Cos(theta), Math.Sin(theta) * Math.Sin(phi) };
+                }
+            }
+            int[] triangles = ReconMath.SphereTriangles(segments, rings);
+            int faced = 0, degenerate = 0;
+            for (int i = 0; i < triangles.Length; i += 3)
+            {
+                double[] a = vertices[triangles[i]], b = vertices[triangles[i + 1]], c = vertices[triangles[i + 2]];
+                double[] normal = Cross(Sub(b, a), Sub(c, a));
+                double length = Math.Sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+                if (length < 1e-12)
+                {
+                    degenerate++;
+                    continue;
+                }
+                double outward = normal[0] * (a[0] + b[0] + c[0]) + normal[1] * (a[1] + b[1] + c[1]) + normal[2] * (a[2] + b[2] + c[2]);
+                Assert.IsTrue(outward > 0.0, "triangle " + i / 3 + " faces inward");
+                faced++;
+            }
+            Assert.IsTrue(faced > 0 && degenerate <= 2 * segments, "degenerate " + degenerate);
+        }
+
         [TestMethod]
         public void OceanFractionWeighsRowsByTheirArea()
         {

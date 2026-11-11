@@ -125,10 +125,26 @@ namespace ReDefinition.Atmospheres
                 double[] alphaBuiltin = Get(results, camera, CameraEvent.BeforeForwardAlpha, false);
                 double[] reference = null;
                 CameraEvent referenceEvent = CameraEvent.AfterForwardOpaque;
+                // The first event whose copy is valid (it ran and shows both sky and surface); where none is valid, the first that ran, so
+                // that the rows below still compare something. Every event's validity goes to a row.
+                bool chosenValid = false;
                 foreach (CameraEvent evt in CopyEvents)
                 {
                     double[] candidate = Get(results, camera, evt, false);
-                    if (candidate != null && candidate[0] > 0) { reference = candidate; referenceEvent = evt; break; }
+                    bool ran = candidate != null && candidate[0] > 0;
+                    bool valid = ran && candidate[2] > 0.02 && candidate[2] < 0.98;
+                    if (camera == main.name) Emit("P6.copy_valid_" + evt, valid);
+                    if (valid && !chosenValid)
+                    {
+                        reference = candidate;
+                        referenceEvent = evt;
+                        chosenValid = true;
+                    }
+                    else if (ran && reference == null)
+                    {
+                        reference = candidate;
+                        referenceEvent = evt;
+                    }
                 }
                 bool referenceValid = reference != null && reference[2] > 0.02 && reference[2] < 0.98;
                 bool alphaSame = alpha != null && alpha[0] > 0 && reference != null

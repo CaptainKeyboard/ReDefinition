@@ -43,47 +43,12 @@ namespace ReDefinition.Atmospheres
                     normals[r * (segments + 1) + s] = n;
                 }
             }
-            var triangles = new int[segments * rings * 6];
-            int t = 0;
-            for (int r = 0; r < rings; r++)
-            {
-                for (int s = 0; s < segments; s++)
-                {
-                    int a = r * (segments + 1) + s, b = a + segments + 1;
-                    triangles[t++] = a; triangles[t++] = b; triangles[t++] = a + 1;
-                    triangles[t++] = a + 1; triangles[t++] = b; triangles[t++] = b + 1;
-                }
-            }
             var mesh = new Mesh { name = "recon ball" };
             mesh.vertices = vertices;
             mesh.normals = normals;
-            mesh.triangles = triangles;
+            mesh.triangles = ReconMath.SphereTriangles(segments, rings);
             mesh.bounds = new Bounds(Vector3.zero, Vector3.one * radius * 2.2f);
             return mesh;
-        }
-
-        // The triangles of a fan of rings: the centre vertex first, then rings of the given number of segments.
-        internal static int[] DiscTriangles(int segments, int rings)
-        {
-            var triangles = new int[segments * 3 + (rings - 1) * segments * 6];
-            int t = 0;
-            for (int s = 0; s < segments; s++)
-            {
-                triangles[t++] = 0;
-                triangles[t++] = 1 + (s + 1) % segments;
-                triangles[t++] = 1 + s;
-            }
-            for (int r = 1; r < rings; r++)
-            {
-                int inner = 1 + (r - 1) * segments, outer = 1 + r * segments;
-                for (int s = 0; s < segments; s++)
-                {
-                    int s1 = (s + 1) % segments;
-                    triangles[t++] = inner + s; triangles[t++] = inner + s1; triangles[t++] = outer + s;
-                    triangles[t++] = inner + s1; triangles[t++] = outer + s1; triangles[t++] = outer + s;
-                }
-            }
-            return triangles;
         }
 
         // The material of a flat colour that writes depth, from the shader every player has. The render queue is the test's variable.
@@ -132,7 +97,7 @@ namespace ReDefinition.Atmospheres
             go.layer = layer;
             mesh = new Mesh { name = "recon disc" };
             mesh.vertices = vertices;
-            mesh.triangles = ReconMesh.DiscTriangles(Segments, Rings);
+            mesh.triangles = ReconMath.DiscTriangles(Segments, Rings);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             MeshRenderer renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = material != null ? material : ReconMesh.Flat(Color.white, queue);

@@ -27,6 +27,9 @@ namespace ReDefinition.Atmospheres
         internal static int Samples;
         internal static double SumDragMagnitude, SumDragScalar;
 
+        // The peak, since the last reset, of the horizontal part of the watched part's dragVector, taken in the hook once per physics tick.
+        internal static double PeakHorizontal;
+
         private static PropertyInfo velocityProperty;
         private static MethodInfo baseUpdate;
 
@@ -123,6 +126,12 @@ namespace ReDefinition.Atmospheres
                 WatchedDragScalar = part.dragScalar;
                 WatchedDynamicPressure = part.dynamicPressurekPa;
                 Samples++;
+                // Once per physics tick: the horizontal part of the dragVector the aerodynamics just computed.
+                if (part.vessel != null && part.vessel.mainBody != null)
+                {
+                    Vector3 up = ((Vector3)(part.vessel.CoMD - part.vessel.mainBody.position)).normalized;
+                    PeakHorizontal = Math.Max(PeakHorizontal, Vector3.ProjectOnPlane(part.dragVector, up).magnitude);
+                }
                 SumDragMagnitude += part.dragVectorMag;
                 SumDragScalar += part.dragScalar;
             }
@@ -150,6 +159,7 @@ namespace ReDefinition.Atmospheres
             if (chute == null)
             {
                 EmitText("P4.error", "the pod has no ModuleParachute");
+                foreach (ProbeWait w in RescuePod(vessel)) yield return w;
                 yield break;
             }
             ReconWindHook.Watched = chute.part;
@@ -167,6 +177,8 @@ namespace ReDefinition.Atmospheres
             if (!waited)
             {
                 EmitText("P4.error", "the canopy did not open fully, state " + chute.deploymentState + ", altitude " + Num(vessel.altitude));
+                ReconWindHook.Watched = null;
+                foreach (ProbeWait w in RescuePod(vessel)) yield return w;
                 yield break;
             }
             yield return ProbeWait.Seconds(SettleSeconds);
@@ -183,12 +195,14 @@ namespace ReDefinition.Atmospheres
             ReconWindHook.Samples = 0;
             ReconWindHook.SumDragMagnitude = ReconWindHook.SumDragScalar = 0;
             double peakDragControl = 0;
+            ReconWindHook.PeakHorizontal = 0;
             foreach (ProbeWait w in SampleFor(ControlSeconds, () =>
             {
                 descent.Add(-vessel.verticalSpeed);
                 peakDragControl = Math.Max(peakDragControl, HorizontalDrag(vessel, chute.part));
             })) yield return w;
-            Emit("P4.control_dragvector_horizontal_ms", peakDragControl);
+            Emit("P4.control_dragvector_horizontal_ms", ReconWindHook.PeakHorizontal);
+            Emit("P4.control_dragvector_horizontal_frame_ms", peakDragControl);
             double eastA, northA;
             Displacement(body, lat0, lon0, vessel.latitude, vessel.longitude, vessel.altitude, out eastA, out northA);
             double controlDrag = ReconWindHook.Samples > 0 ? ReconWindHook.SumDragMagnitude / ReconWindHook.Samples : double.NaN;
@@ -225,6 +239,7 @@ namespace ReDefinition.Atmospheres
             // at its peak during the wind period. The drift is measured over the last half of the period, after the pod has swung into
             // the relative wind; the model assumes the drag is already aligned.
             double peakDragWind = 0, startUt = Planetarium.GetUniversalTime(), midLat = double.NaN, midLon = double.NaN, midAlt = 0;
+            ReconWindHook.PeakHorizontal = 0;
             foreach (ProbeWait w in SampleFor(WindSeconds, () =>
             {
                 peakDragWind = Math.Max(peakDragWind, HorizontalDrag(vessel, chute.part));
@@ -248,7 +263,8 @@ namespace ReDefinition.Atmospheres
             }
             double predicted = ReconMath.PredictChuteDrift(WindSpeed, vt, g, WindSeconds);
             double predictedLate = ReconMath.PredictChuteDriftBetween(WindSpeed, vt, g, 0.5 * WindSeconds, WindSeconds);
-            Emit("P4.dragvector_horizontal_ms", peakDragWind);
+            Emit("P4.dragvector_horizontal_ms", ReconWindHook.PeakHorizontal);
+            Emit("P4.dragvector_horizontal_frame_ms", peakDragWind);
             Emit("P4.wind_east_m", eastB);
             Emit("P4.wind_north_m", northB);
             Emit("P4.wind_along_m", alongB);
@@ -269,6 +285,20 @@ namespace ReDefinition.Atmospheres
             Say("P4: the pod is " + vessel.situation + " at " + Num(vessel.altitude) + " m");
             ReconWindHook.Watched = null;
             yield return ProbeWait.Seconds(8);
+        }
+
+        // A pod that is still in the air after a step that could not use it goes down to the sea at rest, so that the steps that follow
+        // (P11, P8, P6) are not lost to a crash at terminal speed.
+        private IEnumerable<ProbeWait> RescuePod(Vessel vessel)
+        {
+            CelestialBody body = vessel.mainBody;
+            if (vessel.Splashed || vessel.altitude < 3.0) yield break;
+            Say("P4: the pod is put on the sea at rest (altitude " + Num(vessel.altitude) + " m)");
+            vessel.SetPosition(body.GetWorldSurfacePosition(vessel.latitude, vessel.longitude, 3.0));
+            vessel.ChangeWorldVelocity(-vessel.srf_velocity); // [VERIFY] srf_velocity is the world-frame velocity against the ground
+            foreach (ProbeWait w in WaitFor(() => vessel.Splashed, 60)) yield return w;
+            Emit("P4.rescued_to_sea", waited);
+            yield return ProbeWait.Seconds(3);
         }
 
         // The length of the horizontal part of a part's dragVector (the velocity against the air as the aerodynamics last computed it).
