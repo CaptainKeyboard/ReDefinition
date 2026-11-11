@@ -224,6 +224,8 @@ namespace ReDefinition.Tests.Atmospheres.B12
         internal readonly List<double[]> Calls = new List<double[]>();
         internal int MapCalls, WindowCalls;
         internal Func<double, float, float> Mutate;
+        internal Func<double, Vector3, Vector3> MutateWind;
+        internal bool Covers = true;
 
         internal RecordingField(IWeatherField inner)
         {
@@ -238,7 +240,8 @@ namespace ReDefinition.Tests.Atmospheres.B12
             }
             bool ok = inner.Sample(bodyIndex, latDeg, lonDeg, altM, ut, out sample);
             if (Mutate != null) sample.Level01 = Mutate(ut, sample.Level01);
-            return ok;
+            if (MutateWind != null) sample.WindWorld = MutateWind(ut, sample.WindWorld);
+            return ok && Covers;
         }
 
         public bool GetMap(int bodyIndex, WeatherMapKind kind, double ut, WeatherMap target)

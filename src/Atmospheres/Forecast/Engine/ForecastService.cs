@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using ReDefinition.Core;
 
@@ -35,23 +36,32 @@ namespace ReDefinition.Atmospheres.Forecast
         internal const double SiteIdleSeconds = 600.0;
         // After a failed computation the site is not tried again for this long.
         internal const double RetrySeconds = 30.0;
+        // What the work that cannot go to the worker may take of one frame, in milliseconds (the main-thread budget of the forecast).
+        internal const double MainThreadBudgetMs = 0.1;
 
         private sealed class SiteEntry
         {
             internal ForecastSite Site;
-            internal bool Watched;
+            // On the alert list because a caller asked (Watch) or because the module follows the user's alert sites (SetAutoWatched).
+            internal bool Manual;
+            internal bool Auto;
             internal bool LaunchSite;
             internal volatile ForecastReport Latest;
             internal volatile ForecastResult LatestResult;
             internal volatile bool Pending;
             internal double LastAskedClock;
+            // Read and written from both threads through Volatile.
             internal double RetryClock = double.NegativeInfinity;
             internal AlertTick LastTick;
+
+            internal bool Watched { get { return Manual || Auto; } }
         }
 
         private sealed class Request
         {
             internal bool TracksOnly;
+            internal bool Launch;
+            internal double Clock;
             internal ForecastSite Site;
             internal ulong SiteId;
             internal int BodyIndex;
@@ -129,7 +139,7 @@ namespace ReDefinition.Atmospheres.Forecast
                         int count = ChunkedCompute.StepCountOf(request.HorizonHours, ctx.Rules.StepSeconds);
                         ForecastCacheKey key = ForecastCacheKey.Of(request.Site, ctx, request.Field.DefinitionId, count);
                         siteJob = new ChunkedCompute(request.Site, request.StartUt, request.HorizonHours, ctx, request.Field, cache.Find(key), bodyTracks,
-                            request.Generation);
+                            request.Generation, request.Launch);
                         stage = 2;
                         continue;
                     }
@@ -159,6 +169,7 @@ namespace ReDefinition.Atmospheres.Forecast
         private readonly Queue<Request> mainQueue = new Queue<Request>();
         private readonly Dictionary<int, ForecastTrack[]> lastTracks = new Dictionary<int, ForecastTrack[]>();
         private readonly HashSet<int> tracksPending = new HashSet<int>();
+        private readonly Dictionary<int, double> tracksRetry = new Dictionary<int, double>();
         private readonly Dictionary<int, ulong> rulesByBody = new Dictionary<int, ulong>();
         private Run mainRun;
         private int workerActive;
@@ -214,10 +225,34 @@ namespace ReDefinition.Atmospheres.Forecast
             ForecastReport latest = entry.Latest;
             double now = env.NowUt;
             long generation = cache.Generation;
-            bool current = latest != null && latest.Generation == generation;
-            if (!current || !latest.Available || now >= latest.IssuedUt + ctx.Rules.StepSeconds || now < latest.IssuedUt) Enqueue(entry, ctx);
+            // A report issued after "now" (a revert to an earlier UT) is not the forecast of now.
+            bool current = latest != null && latest.Generation == generation && now >= latest.IssuedUt;
+            if (!current || !latest.Available || now >= latest.IssuedUt + ctx.Rules.StepSeconds || ThresholdsChanged(entry, ctx)) Enqueue(entry, ctx);
             if (current) return latest;
-            return Unavailable(site, now);
+            // Until the first report of a place is made, the report of a place close by (a vessel that moved on) stands in for it.
+            ForecastReport near = NearReport(site, generation, now);
+            return near ?? Unavailable(site, now);
+        }
+
+        private static bool ThresholdsChanged(SiteEntry entry, ForecastContext ctx)
+        {
+            ForecastResult r = entry.LatestResult;
+            return r != null && r.AlertsHash != ctx.AlertsHash;
+        }
+
+        // The report of another site of the body within a degree, if one is current.
+        private ForecastReport NearReport(ForecastSite site, long generation, double now)
+        {
+            lock (gate)
+            {
+                foreach (SiteEntry e in sites.Values)
+                {
+                    ForecastReport r = e.Latest;
+                    if (r == null || !r.Available || r.Generation != generation || now < r.IssuedUt || e.Site.BodyIndex != site.BodyIndex) continue;
+                    if (Math.Abs(e.Site.LatDeg - site.LatDeg) <= 1.0 && Math.Abs(ForecastMath.WrapLon(e.Site.LonDeg - site.LonDeg)) <= 1.0) return r;
+                }
+            }
+            return null;
         }
 
         // WeatherHooks.BodyTracks: the cached tracks of the body (the last ones where the current bucket is not there yet); null while none.
@@ -263,14 +298,35 @@ namespace ReDefinition.Atmospheres.Forecast
         internal void Watch(ForecastSite site, bool launchSite)
         {
             SiteEntry entry = EntryOf(site, true);
-            entry.Watched = true;
+            entry.Manual = true;
             entry.LaunchSite = launchSite;
         }
 
         internal void Unwatch(ForecastSite site)
         {
             SiteEntry entry = EntryOf(site, false);
-            if (entry != null) entry.Watched = false;
+            if (entry != null) entry.Manual = false;
+        }
+
+        // Replaces the sites the module follows for the user's alert sites (the pad, the vessel): these are watched, those that were and are
+        // not in the list any more are not. Sites watched through Watch stay watched.
+        internal void SetAutoWatched(IList<ForecastSite> watched, IList<bool> launch)
+        {
+            var keep = new HashSet<ulong>();
+            for (int i = 0; i < watched.Count; i++)
+            {
+                SiteEntry entry = EntryOf(watched[i], true);
+                entry.Auto = true;
+                entry.LaunchSite = launch[i] || entry.LaunchSite;
+                keep.Add(IdOf(watched[i]));
+            }
+            lock (gate)
+            {
+                foreach (KeyValuePair<ulong, SiteEntry> kv in sites)
+                {
+                    if (!keep.Contains(kv.Key)) kv.Value.Auto = false;
+                }
+            }
         }
 
         // The launch check for a site from its last report.
@@ -279,7 +335,9 @@ namespace ReDefinition.Atmospheres.Forecast
             SiteEntry entry = EntryOf(site, false);
             ForecastContext ctx = env.ContextFor(site.BodyIndex);
             AlertRules rules = ctx != null && ctx.Alerts != null ? ctx.Alerts : AlertRules.Default;
-            return LaunchConditions.Assess(entry == null ? null : entry.Latest, env.NowUt, rules);
+            ForecastResult detail = entry == null ? null : entry.LatestResult;
+            // The exact steps, whatever error the shown ones carry.
+            return LaunchConditions.Assess(detail == null ? null : detail.AlertReport, env.NowUt, rules);
         }
 
         // --- the tick ---
@@ -339,11 +397,13 @@ namespace ReDefinition.Atmospheres.Forecast
                 generation = cache.Generation;
                 ForecastReport latest = e.Latest;
                 bool stale = latest == null || !latest.Available || latest.Generation != generation || now >= latest.IssuedUt + ctx.Rules.StepSeconds
-                    || now < latest.IssuedUt;
+                    || now < latest.IssuedUt || ThresholdsChanged(e, ctx);
                 if (stale) Enqueue(e, ctx);
                 if (!e.Watched || ctx.Alerts == null || !ctx.AlertsOn) continue;
                 evaluator.Rules = ctx.Alerts;
-                ForecastReport usable = latest != null && latest.Generation == generation ? latest : null;
+                // The alerts are made from the exact steps even where the shown ones carry the display-only error.
+                ForecastResult detail = e.LatestResult;
+                ForecastReport usable = latest != null && latest.Generation == generation && now >= latest.IssuedUt && detail != null ? detail.AlertReport : null;
                 AlertTick tick = evaluator.Tick(e.Site, e.LaunchSite, usable, now, ctx.BodyRadiusM);
                 e.LastTick = tick;
                 if (raise == null) continue;
@@ -351,8 +411,14 @@ namespace ReDefinition.Atmospheres.Forecast
             }
         }
 
-        // Main-thread work: one unit of the run that cannot go to the worker, then the next.
+        // Main-thread work: units of the run that cannot go to the worker (a unit is at most one field sample), for as long as the budget of
+        // a frame lasts but at least one. maxUnits caps the units of a call (a test asks for one).
         internal void Pump()
+        {
+            Pump(MainThreadBudgetMs, int.MaxValue);
+        }
+
+        internal void Pump(double budgetMs, int maxUnits)
         {
             if (mainRun == null)
             {
@@ -364,8 +430,17 @@ namespace ReDefinition.Atmospheres.Forecast
             if (mainRun == null) return;
             try
             {
-                if (mainRun.Advance(1)) Publish(mainRun);
-                else return;
+                var clockWatch = Stopwatch.StartNew();
+                int units = 0;
+                bool done;
+                do
+                {
+                    done = mainRun.Advance(1);
+                    units++;
+                }
+                while (!done && units < maxUnits && clockWatch.Elapsed.TotalMilliseconds < budgetMs);
+                if (!done) return;
+                Publish(mainRun);
             }
             catch (Exception e)
             {
@@ -440,7 +515,7 @@ namespace ReDefinition.Atmospheres.Forecast
             int lat = (int)Math.Round(site.LatDeg * 10.0);
             int lon = (int)Math.Round(ForecastMath.WrapLon(site.LonDeg) * 10.0);
             if (lon >= 1800) lon -= 3600;
-            return ForecastMath.Mix(ForecastUncertainty.SiteSubject(site.BodyIndex, lat, lon), (long)Math.Round(site.AltAgl / 100.0));
+            return ForecastUncertainty.SiteSubject(site.BodyIndex, lat, lon);
         }
 
         private SiteEntry EntryOf(ForecastSite site, bool create)
@@ -463,7 +538,7 @@ namespace ReDefinition.Atmospheres.Forecast
 
         private void Enqueue(SiteEntry entry, ForecastContext ctx)
         {
-            if (entry.Pending || clock < entry.RetryClock) return;
+            if (entry.Pending || clock < Volatile.Read(ref entry.RetryClock)) return;
             IWeatherField field = env.Field;
             var r = new Request
             {
@@ -474,7 +549,9 @@ namespace ReDefinition.Atmospheres.Forecast
                 HorizonHours = ctx.Rules.HorizonHours,
                 Context = ctx,
                 Field = field,
-                Generation = cache.Generation
+                Generation = cache.Generation,
+                Launch = entry.LaunchSite,
+                Clock = clock
             };
             entry.Pending = true;
             Submit(r);
@@ -484,6 +561,8 @@ namespace ReDefinition.Atmospheres.Forecast
         {
             lock (gate)
             {
+                double retry;
+                if (tracksRetry.TryGetValue(bodyIndex, out retry) && clock < retry) return;
                 if (!tracksPending.Add(bodyIndex)) return;
             }
             var r = new Request
@@ -494,7 +573,8 @@ namespace ReDefinition.Atmospheres.Forecast
                 HorizonHours = ctx.Rules.HorizonHours,
                 Context = ctx,
                 Field = env.Field,
-                Generation = cache.Generation
+                Generation = cache.Generation,
+                Clock = clock
             };
             Submit(r);
         }
@@ -589,7 +669,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 entry.LatestResult = run.Result;
                 entry.Latest = run.Result.Report;
                 // An estimate is not served as a forecast; ask again in a little while, not at every call.
-                if (!run.Result.Report.Available) entry.RetryClock = clock + 2.0;
+                if (!run.Result.Report.Available) Volatile.Write(ref entry.RetryClock, r.Clock + 2.0);
             }
             entry.Pending = false;
         }
@@ -602,6 +682,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 lock (gate)
                 {
                     tracksPending.Remove(r.BodyIndex);
+                    tracksRetry[r.BodyIndex] = r.Clock + RetrySeconds;
                 }
             }
             else
@@ -614,7 +695,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 if (entry != null)
                 {
                     entry.Pending = false;
-                    entry.RetryClock = clock + RetrySeconds;
+                    Volatile.Write(ref entry.RetryClock, r.Clock + RetrySeconds);
                 }
             }
             if (!warnedFailure && warn != null)

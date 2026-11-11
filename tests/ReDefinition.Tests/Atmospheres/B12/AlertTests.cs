@@ -256,6 +256,84 @@ namespace ReDefinition.Tests.Atmospheres.B12
         }
 
         [TestMethod]
+        public void AReportThatIsIssuedAgainEveryStepDoesNotSplitOrRepeatAStayWithAShortDip()
+        {
+            AlertRules rules = Rules();
+            // Half-hour steps; the report is made again at every tick so that its first step is the dip itself at some tick.
+            var shortDip = new ScriptedField { Level = ut => (ut >= 6 * H && ut < 8 * H && !(ut >= 7 * H && ut < 7.5 * H)) ? 0.7f : 0f };
+            var evaluator = new AlertEvaluator(rules);
+            var all = new List<ForecastAlert>();
+            for (double t = 0; t <= 12 * H; t += 1800.0) all.AddRange(evaluator.Tick(Site(), false, Report(shortDip, t, rules, 1800.0, 12.0), t).Alerts);
+            Console.WriteLine("B12 hysteresis, dip of 30 min, report issued at every tick: " + string.Join("; ", all.Select(a => a.Kind + " " + a.Ut / H)));
+            Assert.AreEqual(1, Count(all, AlertKind.Approaching));
+            Assert.AreEqual(1, Count(all, AlertKind.Arrived));
+            Assert.AreEqual(1, Count(all, AlertKind.Clearing));
+
+            var longDip = new ScriptedField { Level = ut => (ut >= 6 * H && ut < 9 * H && !(ut >= 7 * H && ut < 8 * H)) ? 0.7f : 0f };
+            evaluator = new AlertEvaluator(rules);
+            all.Clear();
+            for (double t = 0; t <= 12 * H; t += 1800.0) all.AddRange(evaluator.Tick(Site(), false, Report(longDip, t, rules, 1800.0, 12.0), t).Alerts);
+            Assert.AreEqual(2, Count(all, AlertKind.Arrived));
+            Assert.AreEqual(2, Count(all, AlertKind.Clearing));
+
+            // The same on hourly steps for a stay that begins and ends exactly on the hour a report is issued.
+            var hourly = new ScriptedField { Level = ut => Stay(ut, 6, 9, 0.7f) + Stay(ut, 11, 12, 0.7f) };
+            evaluator = new AlertEvaluator(rules);
+            all.Clear();
+            for (double t = 0; t <= 14 * H; t += H) all.AddRange(evaluator.Tick(Site(), false, Report(hourly, t, rules), t).Alerts);
+            Assert.AreEqual(2, Count(all, AlertKind.Arrived));
+            Assert.AreEqual(2, Count(all, AlertKind.Clearing));
+            Assert.AreEqual(2, Count(all, AlertKind.Approaching));
+        }
+
+        [TestMethod]
+        public void AWorseningThatHappensAfterALullIsNotRaisedAgainByAReportThatBeginsInTheLull()
+        {
+            // Blizzard first, then Heavy, then Blizzard again inside one stay: the report that begins in the Heavy stretch has not seen the
+            // first peak, but the evaluator has.
+            var field = new ScriptedField { Level = ut => Stay(ut, 5, 7, 0.9f) + Stay(ut, 7, 10, 0.65f) + Stay(ut, 10, 11, 0.9f), WindEast = ut => 20f };
+            AlertRules rules = Rules(2.0);
+            var evaluator = new AlertEvaluator(rules);
+            var all = new List<ForecastAlert>();
+            for (double t = 0; t <= 13 * H; t += H) all.AddRange(evaluator.Tick(Site(), false, Report(field, t, rules), t).Alerts);
+            Console.WriteLine("B12 worsening after a lull: " + string.Join("; ", all.Select(a => a.Kind + " " + a.Ut / H + " " + a.Band)));
+            Assert.AreEqual(0, Count(all, AlertKind.Worsening), "The peak at 10 h is not above the 7 h peak of the same stay.");
+            Assert.AreEqual(1, Count(all, AlertKind.Arrived));
+            Assert.AreEqual(1, Count(all, AlertKind.Clearing));
+        }
+
+        [TestMethod]
+        public void ATickWithoutAUsableReportKeepsTheMemoryAndTheNextOneSummarisesTheGap()
+        {
+            var field = new ScriptedField { Level = ut => Stay(ut, 10, 16, 0.7f) };
+            AlertRules rules = Rules();
+            var evaluator = new AlertEvaluator(rules);
+            ForecastReport report = Report(field, 0.0, rules);
+            evaluator.Tick(Site(), false, report, 0.0);
+            Assert.AreEqual(0, evaluator.Tick(Site(), false, null, 20 * H).Alerts.Count);
+            AlertTick later = evaluator.Tick(Site(), false, report, 20 * H);
+            Assert.IsTrue(later.Summarised);
+            Assert.AreEqual(1, Count(later.Alerts, AlertKind.Approaching));
+            Assert.AreEqual(1, Count(later.Alerts, AlertKind.Arrived));
+            Assert.AreEqual(1, Count(later.Alerts, AlertKind.Clearing));
+        }
+
+        [TestMethod]
+        public void TheAlertSitesSettingNamesThePadAndTheVessel()
+        {
+            AlertSiteSpec empty = AlertSiteSpec.Parse("");
+            Assert.IsTrue(empty.Ksc && empty.Vessel, "Empty means the pad and the vessel.");
+            AlertSiteSpec both = AlertSiteSpec.Parse("KSC, vessel");
+            Assert.IsTrue(both.Ksc && both.Vessel);
+            AlertSiteSpec pad = AlertSiteSpec.Parse("ksc");
+            Assert.IsTrue(pad.Ksc && !pad.Vessel);
+            AlertSiteSpec vessel = AlertSiteSpec.Parse("Vessel;foo");
+            Assert.IsTrue(!vessel.Ksc && vessel.Vessel);
+            AlertSiteSpec none = AlertSiteSpec.Parse("foo bar");
+            Assert.IsTrue(!none.Ksc && !none.Vessel);
+        }
+
+        [TestMethod]
         public void ASystemHandingOverInsideTheHorizonIsOneStayAtTheSite()
         {
             // Two systems with different keys overlap: A fades out while B grows. The level at the site stays above Heavy throughout.

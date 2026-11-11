@@ -161,14 +161,14 @@ namespace ReDefinition.Tests.Atmospheres.B12
                 while (!service.ForecastOf(Site(60.0, 20.0)).Available)
                 {
                     int before = inner.SampleCalls;
-                    service.Pump();
+                    service.Pump(0.0, 1);
                     max = Math.Max(max, inner.SampleCalls - before);
                     calls += inner.SampleCalls - before;
-                    Assert.IsTrue(++ticks < 100000, "The chunked computation did not finish.");
+                    Assert.IsTrue(++ticks < 400000, "The chunked computation did not finish.");
                 }
                 Console.WriteLine("B12 chunks (" + (hidden ? "search of the field" : "systems listed") + "): " + ticks + " Pump calls, at most " + max
                     + " field samples in one call, " + calls + " in all");
-                Assert.IsTrue(max <= (hidden ? 72 : 1), "A call took " + max + " samples.");
+                Assert.IsTrue(max <= 1, "A call took " + max + " samples.");
 
                 var reference = new MovingCellsField(5, 12, true);
                 var other = new ForecastService(Env(hidden ? (IWeatherField)new HiddenSystemsField(reference) : reference, 3.0 * 86400.0));
@@ -342,6 +342,135 @@ namespace ReDefinition.Tests.Atmospheres.B12
             }
             Assert.AreEqual(1, raised.Count(a => a.Kind == AlertKind.Approaching), "A revert to 2 h puts the Approaching in the future again: "
                 + string.Join("; ", raised.Select(a => a.Kind + " " + a.Ut / H)));
+            Assert.AreEqual(0, raised.Count(a => a.Kind == AlertKind.Arrived), "The Arrived is still ahead at 8 h.");
+            env.Ut = 11 * H;
+            service.Tick(2.5);
+            service.WaitIdle(5000);
+            service.Tick(2.5);
+            Assert.AreEqual(1, raised.Count(a => a.Kind == AlertKind.Arrived));
+            Assert.AreEqual(1, raised.Count(a => a.Kind == AlertKind.Approaching), "Nothing else repeats.");
+            Assert.AreEqual(2, raised.Count);
+        }
+
+        [TestMethod]
+        public void AReportIssuedAfterNowIsNotServedAfterARevert()
+        {
+            var field = new MovingCellsField(3);
+            var env = Env(field, 10.0 * 86400.0, Context(geometry: false));
+            var service = new ForecastService(env);
+            service.Tick(0.016);
+            Assert.IsTrue(Await(service, Site()).Available);
+            env.Ut = 2.0 * 86400.0;
+            ForecastReport during = service.ForecastOf(Site());
+            Assert.IsFalse(during.Available, "The report issued at day 10 is not the forecast of day 2.");
+            service.WaitIdle(5000);
+            ForecastReport after = service.ForecastOf(Site());
+            Assert.IsTrue(after.Available);
+            Assert.AreEqual(2.0 * 86400.0, after.IssuedUt);
+        }
+
+        [TestMethod]
+        public void AVesselThatMovedOnIsServedTheReportOfThePlaceNearbyUntilItsOwnIsReady()
+        {
+            var field = new MovingCellsField(4);
+            var env = Env(field, 86400.0, Context(geometry: false));
+            var service = new ForecastService(env);
+            service.Tick(0.016);
+            ForecastReport first = Await(service, Site(50.0, 10.0));
+            Assert.IsTrue(first.Available);
+            ForecastReport moved = service.ForecastOf(Site(50.4, 10.3));
+            Assert.IsTrue(moved.Available, "The vessel crossed into another tenth of a degree; the report nearby stands in.");
+            Assert.AreSame(first, moved);
+            ForecastReport far = service.ForecastOf(Site(52.5, 10.0));
+            Assert.IsFalse(far.Available, "A place far away has no stand-in.");
+            service.WaitIdle(5000);
+        }
+
+        [TestMethod]
+        public void ANewThresholdRefreshesTheReportButNotTheSteps()
+        {
+            var field = new ScriptedField { Level = ut => ut >= 10 * H && ut < 16 * H ? 0.5f : 0f };
+            ForecastContext moderate = new ForecastContext(new ForecastRules(3600.0, 24.0), 0.0, alerts: new AlertRules(3.0, PrecipBand.Moderate, 0f));
+            ForecastContext heavy = new ForecastContext(new ForecastRules(3600.0, 24.0), 0.0, alerts: new AlertRules(3.0, PrecipBand.Heavy, 0f));
+            var env = Env(field, 0.0, moderate);
+            var service = new ForecastService(env);
+            service.Tick(0.016);
+            Assert.IsTrue(Await(service, Site()).Alerts.Length > 0, "Moderate snow is an alert at 10 h.");
+            long generation = WeatherHooks.ForecastGeneration;
+            long reusedBefore = service.Cache.ReusedSteps;
+            env.Contexts = b => heavy;
+            service.ForecastOf(Site());
+            service.WaitIdle(5000);
+            ForecastReport again = service.ForecastOf(Site());
+            Assert.AreEqual(0, again.Alerts.Length, "Under the Heavy threshold the same weather is no alert.");
+            Assert.AreEqual(generation, WeatherHooks.ForecastGeneration, "Thresholds are not part of the rules hash.");
+            Assert.AreEqual(reusedBefore + 24, service.Cache.ReusedSteps, "The steps were reused, not computed again.");
+        }
+
+        [TestMethod]
+        public void AFieldThatDoesNotCoverTheBodyGivesNoForecast()
+        {
+            var inner = new ScriptedField { Level = ut => 0.5f };
+            var field = new RecordingField(inner) { Covers = false };
+            var service = new ForecastService(Env(field, 0.0, Context(geometry: false)));
+            service.Tick(0.016);
+            Assert.IsFalse(Await(service, Site()).Available);
+        }
+
+        [TestMethod]
+        public void TheModuleFollowsTheUsersAlertSitesThroughAutoWatch()
+        {
+            var field = new ScriptedField { Level = ut => ut >= 10 * H && ut < 16 * H ? 0.7f : 0f };
+            var raised = new List<ForecastAlert>();
+            var env = Env(field, 0.0, Context(new AlertRules(3.0, PrecipBand.Heavy, 0f), geometry: false));
+            var service = new ForecastService(env, null, raised.Add);
+            service.Tick(0.016);
+            ForecastSite pad = Site(50.0, 10.0);
+            service.SetAutoWatched(new[] { pad }, new[] { true });
+            Await(service, pad);
+            foreach (double ut in new[] { 0.0, 8 * H, 11 * H })
+            {
+                env.Ut = ut;
+                service.Tick(2.5);
+                service.WaitIdle(5000);
+                service.Tick(2.5);
+            }
+            Assert.AreEqual(1, raised.Count(a => a.Kind == AlertKind.Approaching));
+            Assert.AreEqual(1, raised.Count(a => a.Kind == AlertKind.Arrived));
+            // Taken off the list, a site gets no more alerts, and one watched by hand stays.
+            raised.Clear();
+            service.SetAutoWatched(new ForecastSite[0], new bool[0]);
+            env.Ut = 20 * H;
+            service.Tick(2.5);
+            service.WaitIdle(5000);
+            service.Tick(2.5);
+            Assert.AreEqual(0, raised.Count, "A site that is no longer watched is not evaluated.");
+            service.Watch(pad, false);
+            service.SetAutoWatched(new ForecastSite[0], new bool[0]);
+            env.Ut = 30 * H;
+            service.Tick(2.5);
+            service.WaitIdle(5000);
+            service.Tick(2.5);
+            Assert.IsNotNull(service.LastAlertTick(pad));
+        }
+
+        [TestMethod]
+        public void AFailedTrackSearchIsNotRetriedAtEveryCall()
+        {
+            var inner = new MovingCellsField(5);
+            var field = new RecordingField(new HiddenSystemsField(inner));
+            var env = Env(field, 86400.0);
+            var lines = new List<string>();
+            var service = new ForecastService(env, null, null, lines.Add);
+            service.Tick(0.016);
+            field.MutateWind = (ut, w) => { throw new InvalidOperationException("broken field"); };
+            for (int i = 0; i < 50; i++)
+            {
+                service.BodyTracks(Body);
+                service.WaitIdle(2000);
+            }
+            Assert.IsNotNull(service.LastFailure);
+            Assert.IsTrue(field.Calls.Count < 5000, "The search was started again at every call: " + field.Calls.Count + " samples.");
         }
 
         [TestMethod]

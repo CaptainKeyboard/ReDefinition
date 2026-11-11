@@ -48,14 +48,18 @@ namespace ReDefinition.Atmospheres.Forecast
         internal const double DefaultTrackStepSeconds = 1800.0;
         // The wind of a provider that only answers "now" is carried forward and fades out over this many hours.
         internal const double PersistenceHours = 6.0;
+        // The fastest a weather system is assumed to move, in m/s, for linking a system between two track samples before its motion is
+        // known [VERIFY against the circulation of a body: the jet speed of a fast body is well above this].
+        internal const double DefaultMaxSystemSpeedMs = 80.0;
 
         private readonly IWeatherSource[] windSources;
 
         // radiusM is the body's radius (0 or less: the report has no geometry, no tracks and no distances).
         internal ForecastContext(ForecastRules rules, double bodyRadiusM, double mapRangeKm = DefaultMapRangeKm,
             double trackStepSeconds = DefaultTrackStepSeconds, float uncertainty01 = 0f, WindSourceMode windSource = WindSourceMode.Auto,
-            IWeatherSource[] windSources = null, AlertRules alerts = null, bool alertsOn = true)
+            IWeatherSource[] windSources = null, AlertRules alerts = null, bool alertsOn = true, double maxSystemSpeedMs = DefaultMaxSystemSpeedMs)
         {
+            MaxSystemSpeedMs = maxSystemSpeedMs;
             if (rules == null) throw new ArgumentNullException("rules");
             Rules = rules;
             BodyRadiusM = bodyRadiusM;
@@ -88,6 +92,7 @@ namespace ReDefinition.Atmospheres.Forecast
         internal double BodyRadiusM { get; }
         internal double MapRangeKm { get; }
         internal double TrackStepSeconds { get; }
+        internal double MaxSystemSpeedMs { get; }
         // Zero is exact (the default); above zero the displayed steps and tracks carry the deterministic error of ForecastUncertainty.
         internal float Uncertainty01 { get; }
         internal WindSourceMode WindSource { get; }
@@ -102,17 +107,36 @@ namespace ReDefinition.Atmospheres.Forecast
 
         internal bool HasGeometry { get { return BodyRadiusM > 0.0; } }
 
-        // Whether the steps of an earlier report at the same times may be reused: not with the display-only error (its shift depends on the
-        // issue time) and not with a provider whose "now" is carried forward (it depends on the issue time too).
-        internal bool StepsReusable
+        // The map range in metres, kept to a quarter of a half circumference of the body so that a small body is not covered several times.
+        internal double MapRangeM
         {
-            get { return Uncertainty01 <= 0f && (WindSource == WindSourceMode.Ours || WindSource == WindSourceMode.Off || windSources.Length == 0); }
+            get { return Math.Min(MapRangeKm * 1000.0, 0.25 * Math.PI * BodyRadiusM); }
+        }
+
+        // The hash of the alert thresholds and the alerts switch: a report made under other thresholds lists other alerts and another ETA,
+        // so it is refreshed, but its steps stay valid (they are not in RulesHash).
+        internal ulong AlertsHash
+        {
+            get
+            {
+                AlertRules a = Alerts ?? AlertRules.Default;
+                ulong h = 0xA1E87UL;
+                h = ForecastMath.Mix(h, a.LeadHours);
+                h = ForecastMath.Mix(h, (long)a.MinBand);
+                h = ForecastMath.Mix(h, (double)a.WindMs);
+                h = ForecastMath.Mix(h, (long)a.LaunchMaxBand);
+                h = ForecastMath.Mix(h, (double)a.LaunchMaxWindMs);
+                h = ForecastMath.Mix(h, (double)a.LaunchMinVisibilityM);
+                h = ForecastMath.Mix(h, a.LaunchLeadHours);
+                return ForecastMath.Mix(h, AlertsOn ? 1L : 0L);
+            }
         }
 
         // A context with other alert rules; steps and tracks (and so the cache key) are the same.
         internal ForecastContext WithAlerts(AlertRules alerts, bool alertsOn = true)
         {
-            return new ForecastContext(Rules, BodyRadiusM, MapRangeKm, TrackStepSeconds, Uncertainty01, WindSource, windSources, alerts, alertsOn);
+            return new ForecastContext(Rules, BodyRadiusM, MapRangeKm, TrackStepSeconds, Uncertainty01, WindSource, windSources, alerts, alertsOn,
+                MaxSystemSpeedMs);
         }
 
         private ulong ComputeHash()
@@ -123,6 +147,7 @@ namespace ReDefinition.Atmospheres.Forecast
             h = ForecastMath.Mix(h, BodyRadiusM);
             h = ForecastMath.Mix(h, MapRangeKm);
             h = ForecastMath.Mix(h, TrackStepSeconds);
+            h = ForecastMath.Mix(h, MaxSystemSpeedMs);
             h = ForecastMath.Mix(h, (double)Uncertainty01);
             h = ForecastMath.Mix(h, (long)WindSource);
             for (int i = 0; i < windSources.Length; i++)

@@ -20,12 +20,14 @@ namespace ReDefinition.Atmospheres.Forecast
     // threshold crossing of the hourly steps of a SITE: the user's level or wind reached (Approaching one lead time ahead, Arrived at the
     // crossing), the band rising during the stay (Worsening), the level falling away (Clearing), and the start of a window in which the
     // launch limits hold (LaunchWindow). The id of a system is only a label (the CellKey of the alert).
-    //   Hysteresis: a clear stretch shorter than one hour does not end the stay and does not re-arm; one hour of clear steps does.
+    //   Hysteresis: a clear stretch shorter than one hour does not end the stay and does not re-arm; one hour of clear steps does. The
+    //   evaluator remembers the last step that hit the site, so a stay is one stay however the report window slides over it.
     //   Dedupe: a crossing is keyed by the site, the kind and the step it happens in (and the band for Worsening); a key fires once.
     //   Tick: interval based. The events inside (previous tick, now] are what fires, so a jump of a time warp over a crossing gives the
     //   Approaching and the Arrived of it once each; events beyond the stored steps are not summarised.
     //   Memory: session only. A tick whose UT is before the last one (a revert or a quickload) forgets the keys of events after it.
-    //   A first tick (no memory) fires nothing for events in the past; a stay that is already on fires one Arrived.
+    //   A first tick (no memory) fires nothing for events in the past; a stay that is already on fires one Arrived. A tick without a usable
+    //   report changes nothing, so the next one summarises what the gap passed.
     internal sealed class AlertEvaluator
     {
         private struct Event
@@ -38,13 +40,21 @@ namespace ReDefinition.Atmospheres.Forecast
             internal int StepIndex;
         }
 
+        // What the evaluator knows of the stay before the first step of the report it is given.
+        private struct History
+        {
+            internal bool Known;
+            internal double LastHitUt;
+            internal PrecipBand StayMax;
+        }
+
         private sealed class SiteState
         {
             internal double LastUt = double.NaN;
             internal readonly Dictionary<ulong, double> Fired = new Dictionary<ulong, double>();
             internal bool OngoingFired;
-            // Whether the step at the last tick hit the site, and the highest band of the stay that is on.
-            internal bool LastHitNow;
+            // The last step (its UT) that hit the site, and the highest band of the stay it belongs to.
+            internal double LastHitUt = double.NaN;
             internal PrecipBand StayMax = PrecipBand.None;
         }
 
@@ -85,6 +95,7 @@ namespace ReDefinition.Atmospheres.Forecast
         internal AlertTick Tick(ForecastSite site, bool launchSite, ForecastReport report, double nowUt, double bodyRadiusM = 0.0)
         {
             var result = new AlertTick();
+            if (report == null || !report.Available || report.Steps.Length == 0 || report.StepSeconds <= 0.0) return result;
             ulong siteKey = SiteKey(site);
             SiteState state;
             if (!sites.TryGetValue(siteKey, out state))
@@ -100,9 +111,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 first = true;
             }
             if (first) prev = nowUt;
-            state.LastUt = nowUt;
             Prune(state, nowUt);
-            if (report == null || !report.Available || report.Steps.Length == 0 || report.StepSeconds <= 0.0) return result;
 
             ForecastStep[] steps = report.Steps;
             double step = report.StepSeconds;
@@ -112,29 +121,9 @@ namespace ReDefinition.Atmospheres.Forecast
             result.BeyondHorizon = nowUt > endUt;
 
             var events = new List<Event>();
-            Extract(site, launchSite, report, rules, state.LastHitNow ? state.StayMax : PrecipBand.None, events);
+            var history = new History { Known = !first, LastHitUt = state.LastHitUt, StayMax = state.StayMax };
+            Extract(site, launchSite, report, rules, history, events);
             double lead = rules.LeadHours * 3600.0;
-            // A crossing at the very first step of this report is not seen by the extraction (it cannot tell a stay that began before the
-            // report from one that begins there). The last tick knows: a step that did not hit then and does now is an arrival, a step that
-            // hit and does not now is the clearing, and a higher band than the stay's highest is a worsening.
-            bool hit0 = rules.Hits(steps[0]);
-            if (!first)
-            {
-                if (hit0 && !state.LastHitNow)
-                {
-                    ulong sk = SiteKey(site);
-                    events.Add(Make(AlertKind.Approaching, steps[0].Ut - lead, steps[0].Ut, steps[0].Band, sk, 0, step));
-                    events.Add(Make(AlertKind.Arrived, steps[0].Ut, steps[0].Ut, steps[0].Band, sk, 0, step));
-                }
-                else if (hit0 && state.LastHitNow && (int)steps[0].Band > (int)state.StayMax)
-                {
-                    events.Add(Make(AlertKind.Worsening, steps[0].Ut, steps[0].Ut, steps[0].Band, SiteKey(site), 0, step));
-                }
-                else if (!hit0 && state.LastHitNow && ClearFromStart(steps, rules, step))
-                {
-                    events.Add(Make(AlertKind.Clearing, steps[0].Ut, steps[0].Ut, steps[0].Band, SiteKey(site), 0, step));
-                }
-            }
             for (int i = 0; i < events.Count; i++)
             {
                 Event e = events[i];
@@ -172,7 +161,8 @@ namespace ReDefinition.Atmospheres.Forecast
             }
 
             int nowIndex = LaunchConditions.IndexAt(steps, nowUt);
-            bool hitNow = nowUt >= firstUt && nowUt < endUt && rules.Hits(steps[nowIndex]);
+            bool inWindow = nowUt >= firstUt && nowUt < endUt;
+            bool hitNow = inWindow && rules.Hits(steps[nowIndex]);
             if (!hitNow)
             {
                 state.OngoingFired = false;
@@ -188,28 +178,30 @@ namespace ReDefinition.Atmospheres.Forecast
                 state.OngoingFired = true;
             }
 
-            // What the next tick compares with.
-            state.LastHitNow = hitNow;
-            if (!hitNow)
+            // What the next tick compares with: the last step that hit, and the highest band of its stay.
+            if (inWindow)
             {
-                state.StayMax = PrecipBand.None;
-            }
-            else
-            {
-                int from = LaunchConditions.IndexAt(steps, prev);
-                for (int i = Math.Min(from, nowIndex); i <= nowIndex; i++)
+                int minClear = Math.Max(1, (int)Math.Ceiling(3600.0 / step - 1e-9));
+                int from = first ? nowIndex : Math.Min(LaunchConditions.IndexAt(steps, prev), nowIndex);
+                for (int i = from; i <= nowIndex; i++)
                 {
+                    if (!rules.Hits(steps[i])) continue;
+                    if (double.IsNaN(state.LastHitUt) || steps[i].Ut - state.LastHitUt > minClear * step + 1e-6) state.StayMax = PrecipBand.None;
+                    state.LastHitUt = steps[i].Ut;
                     if ((int)steps[i].Band > (int)state.StayMax) state.StayMax = steps[i].Band;
                 }
             }
+            state.LastUt = nowUt;
 
-            result.Alerts.Sort((a, b) =>
-            {
-                int c = a.Ut.CompareTo(b.Ut);
-                return c != 0 ? c : ((int)a.Kind).CompareTo((int)b.Kind);
-            });
+            result.Alerts.Sort(CompareAlerts);
             if (result.Alerts.Count > 0) result.FirstEventUt = result.Alerts[0].Ut;
             return result;
+        }
+
+        private static int CompareAlerts(ForecastAlert a, ForecastAlert b)
+        {
+            int c = a.Ut.CompareTo(b.Ut);
+            return c != 0 ? c : ((int)a.Kind).CompareTo((int)b.Kind);
         }
 
         // The alerts a report foresees, without memory: every event of it at or after fromUt, in time order. The report carries them in
@@ -217,7 +209,7 @@ namespace ReDefinition.Atmospheres.Forecast
         internal static ForecastAlert[] Preview(ForecastSite site, bool launchSite, ForecastReport report, AlertRules rules, double fromUt, double bodyRadiusM)
         {
             var events = new List<Event>();
-            Extract(site, launchSite, report, rules, PrecipBand.None, events);
+            Extract(site, launchSite, report, rules, new History { Known = false, LastHitUt = double.NaN, StayMax = PrecipBand.None }, events);
             var list = new List<ForecastAlert>();
             for (int i = 0; i < events.Count; i++)
             {
@@ -226,24 +218,8 @@ namespace ReDefinition.Atmospheres.Forecast
                 if (e.Kind == AlertKind.Approaching ? e.ArrivalUt < fromUt : e.Ut < fromUt) continue;
                 list.Add(Make(site, report, e, ut, e.Kind == AlertKind.Approaching ? e.ArrivalUt - ut : 0.0, bodyRadiusM, false, rules));
             }
-            list.Sort((a, b) =>
-            {
-                int c = a.Ut.CompareTo(b.Ut);
-                return c != 0 ? c : ((int)a.Kind).CompareTo((int)b.Kind);
-            });
+            list.Sort(CompareAlerts);
             return list.ToArray();
-        }
-
-        // Whether the steps from the first one are clear for the hour that ends a stay.
-        private static bool ClearFromStart(ForecastStep[] steps, AlertRules rules, double step)
-        {
-            int need = Math.Max(1, (int)Math.Ceiling(3600.0 / step - 1e-9));
-            if (steps.Length < need) return false;
-            for (int i = 0; i < need; i++)
-            {
-                if (rules.Hits(steps[i])) return false;
-            }
-            return true;
         }
 
         // Forgets the keys of events after a time: after a rewind they are in the future again.
@@ -256,7 +232,7 @@ namespace ReDefinition.Atmospheres.Forecast
             }
             for (int i = 0; i < drop.Count; i++) state.Fired.Remove(drop[i]);
             state.OngoingFired = false;
-            state.LastHitNow = false;
+            state.LastHitUt = double.NaN;
             state.StayMax = PrecipBand.None;
         }
 
@@ -271,8 +247,8 @@ namespace ReDefinition.Atmospheres.Forecast
             for (int i = 0; i < drop.Count; i++) state.Fired.Remove(drop[i]);
         }
 
-        // The crossings of a report: one stay per run of hits, with the clear-hour hysteresis.
-        private static void Extract(ForecastSite site, bool launchSite, ForecastReport report, AlertRules rules, PrecipBand ongoingMax, List<Event> into)
+        // The crossings of a report: one stay per run of hits, with the clear-hour hysteresis. history says what came before the first step.
+        private static void Extract(ForecastSite site, bool launchSite, ForecastReport report, AlertRules rules, History history, List<Event> into)
         {
             ForecastStep[] steps = report.Steps;
             if (steps.Length == 0 || report.StepSeconds <= 0.0) return;
@@ -283,6 +259,17 @@ namespace ReDefinition.Atmospheres.Forecast
             bool inStay = false;
             int clearRun = 0;
             PrecipBand maxBand = PrecipBand.None;
+            if (history.Known && !double.IsNaN(history.LastHitUt))
+            {
+                // The stay is still open when fewer than one clear hour lies between its last hit and the first step.
+                long k = (long)Math.Round((steps[0].Ut - history.LastHitUt) / step);
+                if (k >= 0 && k <= minClear)
+                {
+                    inStay = true;
+                    clearRun = (int)Math.Max(0L, k - 1);
+                    maxBand = history.StayMax;
+                }
+            }
             for (int i = 0; i < steps.Length; i++)
             {
                 if (rules.Hits(steps[i]))
@@ -291,8 +278,9 @@ namespace ReDefinition.Atmospheres.Forecast
                     {
                         inStay = true;
                         clearRun = 0;
-                        maxBand = i == 0 && (int)ongoingMax > (int)steps[i].Band ? ongoingMax : steps[i].Band;
-                        if (i > 0)
+                        maxBand = steps[i].Band;
+                        // At the first step of a report without history the stay may have begun before it: no arrival.
+                        if (i > 0 || history.Known)
                         {
                             into.Add(Make(AlertKind.Approaching, steps[i].Ut - lead, steps[i].Ut, steps[i].Band, siteKey, i, step));
                             into.Add(Make(AlertKind.Arrived, steps[i].Ut, steps[i].Ut, steps[i].Band, siteKey, i, step));
@@ -313,8 +301,8 @@ namespace ReDefinition.Atmospheres.Forecast
                     clearRun++;
                     if (clearRun == minClear)
                     {
-                        int at = i - minClear + 1;
-                        into.Add(Make(AlertKind.Clearing, steps[at].Ut, steps[at].Ut, steps[at].Band, siteKey, at, step));
+                        double ut = steps[i].Ut - (minClear - 1) * step;
+                        into.Add(Make(AlertKind.Clearing, ut, ut, steps[i].Band, siteKey, Math.Max(0, i - minClear + 1), step));
                         inStay = false;
                     }
                 }

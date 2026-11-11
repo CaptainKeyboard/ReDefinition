@@ -56,7 +56,14 @@ namespace ReDefinition.Tests.Atmospheres.B12
                     WeatherSample live;
                     liveField.Sample(Body, site.LatDeg, site.LonDeg, site.AltAgl, step.Ut, out live);
                     compared++;
-                    if (Bits(step.Level01) != Bits(live.Level01) || step.Type != live.Type || Bits(step.VisibilityM) != Bits(live.VisibilityM)) mismatches++;
+                    float east, north, gust;
+                    ForecastSampling.OursWind(ref live, out east, out north, out gust);
+                    float wind = (float)Math.Sqrt(east * east + north * north);
+                    if (Bits(step.Level01) != Bits(live.Level01) || step.Type != live.Type || Bits(step.VisibilityM) != Bits(live.VisibilityM)
+                        || Bits(step.WindMs) != Bits(wind) || Bits(step.GustMs) != Bits(gust) || step.Band != PrecipScale.BandOf(live.Level01, wind))
+                    {
+                        mismatches++;
+                    }
                 }
             }
             return mismatches;
@@ -82,6 +89,16 @@ namespace ReDefinition.Tests.Atmospheres.B12
             int mismatches = CountMismatches(other, live, 20, out compared);
             Console.WriteLine("B12 negative control: " + mismatches + " of " + compared + " steps differ");
             Assert.IsTrue(mismatches > compared / 2, "The test did not notice a changed function.");
+        }
+
+        [TestMethod]
+        public void TheEqualityTestSeesAChangedWindToo()
+        {
+            var live = new MovingCellsField(7);
+            var other = new RecordingField(live) { MutateWind = (ut, w) => new UnityEngine.Vector3(w.x * 1.001f, w.y, w.z) };
+            int compared;
+            int mismatches = CountMismatches(other, live, 20, out compared);
+            Assert.IsTrue(mismatches > compared / 2, "The test did not notice a changed wind.");
         }
 
         [TestMethod]
@@ -249,7 +266,27 @@ namespace ReDefinition.Tests.Atmospheres.B12
             Assert.AreNotEqual(a, ForecastCacheKey.Of(Site(50.01, 20.04), ctx, field.DefinitionId + 1, 24));
             Assert.AreNotEqual(a, ForecastCacheKey.Of(Site(50.01, 20.04), Context(1800.0), field.DefinitionId, 24));
             Assert.AreEqual(ForecastCacheKey.Of(Site(0.0, 180.0), ctx, 1, 24), ForecastCacheKey.Of(Site(0.0, -180.0), ctx, 1, 24));
+            Assert.AreEqual(a, ForecastCacheKey.Of(Site(50.01, 20.04, 5000.0), ctx, field.DefinitionId, 24), "The height is not part of the key.");
         }
+
+        [TestMethod]
+        public void AReportOfAnotherPlaceInTheSameTenthOfADegreeDoesNotReuseTheStepsOfTheFirst()
+        {
+            var field = new MovingCellsField(23);
+            ForecastContext ctx = Context();
+            double t0 = 3.0 * 86400.0;
+            ForecastResult first = ForecastEngine.ComputeDetailed(Site(50.01, 20.04), t0, 24.0, ctx, field);
+            ForecastResult sameKey = ForecastEngine.ComputeDetailed(Site(50.03, 20.02), t0 + H, 24.0, ctx, field, first.Entry);
+            Assert.AreEqual(first.Entry.Key, sameKey.Entry.Key, "Both places are the same tenth of a degree.");
+            Assert.AreEqual(0, sameKey.ReusedSteps, "The steps are the field's numbers at the place asked for, so another place computes its own.");
+            ForecastResult samePlace = ForecastEngine.ComputeDetailed(Site(50.01, 20.04), t0 + H, 24.0, ctx, field, first.Entry);
+            Assert.AreEqual(23, samePlace.ReusedSteps);
+            WeatherSample live;
+            field.Sample(Body, 50.03, 20.02, 0.0, sameKey.Report.Steps[3].Ut, out live);
+            Assert.AreEqual(Bits(live.Level01), Bits(sameKey.Report.Steps[3].Level01));
+        }
+
+        private const double H = 3600.0;
 
         [TestMethod]
         public void TheTracksFollowTheSystemsTheFieldListsAndKeepTheirKeys()
@@ -365,11 +402,61 @@ namespace ReDefinition.Tests.Atmospheres.B12
             field.Sample(Body, site.LatDeg, site.LonDeg, 0.0, start + 5 * 3600.0, out s1);
             field.Sample(Body, site.LatDeg, site.LonDeg, 0.0, start + 5 * 3600.0, out s2);
             Assert.AreEqual(Bits(s1.Level01), Bits(s2.Level01));
-            // A new 3-hour issue bucket gives another error.
+            // A new 3-hour issue bucket gives another error for the same UTs; inside one bucket the error is the same hash.
             ForecastReport next = ForecastEngine.Compute(site, start + 3.0 * 3600.0, 24.0, Context(uncertainty: 1f), field);
+            ForecastReport nextExact = ForecastEngine.Compute(site, start + 3.0 * 3600.0, 24.0, Context(), field);
+            int bucketDiffers = 0;
+            for (int k = 3; k < 24; k++)
+            {
+                ForecastStep a = on.Steps[k], b = next.Steps[k - 3];
+                Assert.AreEqual(a.Ut, b.Ut);
+                Assert.AreEqual(Bits(exact.Steps[k].Level01), Bits(nextExact.Steps[k - 3].Level01), "The exact weather is the same whoever asks.");
+                if (Bits(a.Level01) != Bits(b.Level01)) bucketDiffers++;
+            }
+            Assert.IsTrue(bucketDiffers > 0, "Another issue bucket shows another error.");
             Assert.AreNotEqual(ForecastUncertainty.IssueKey(1UL, start), ForecastUncertainty.IssueKey(1UL, start + 3.0 * 3600.0));
             Assert.AreEqual(ForecastUncertainty.IssueKey(1UL, start), ForecastUncertainty.IssueKey(1UL, start + 3.0 * 3600.0 - 1.0));
-            Assert.IsNotNull(next);
+        }
+
+        [TestMethod]
+        public void TheUncertaintyIsDisplayOnlyAlertsEtaAndLaunchReadTheExactSteps()
+        {
+            var field = new MovingCellsField(33);
+            var rules = new AlertRules(minBand: PrecipBand.Light, windMs: 0f);
+            double start = 2.0 * 86400.0 + 900.0;
+            var list = new List<SystemPoint>();
+            field.TryGetSystems(Body, start + 5.0 * H, list);
+            SystemPoint target = list.OrderByDescending(p => p.Strength01).First();
+            ForecastSite site = Site(target.LatDeg, target.LonDeg);
+            ForecastResult exact = ForecastEngine.ComputeDetailed(site, start, 24.0, Context(alerts: rules), field);
+            ForecastResult shown = ForecastEngine.ComputeDetailed(site, start, 24.0, Context(uncertainty: 1f, alerts: rules), field);
+            Assert.AreEqual(exact.ThresholdEtaUt, shown.ThresholdEtaUt, "The ETA is the real weather's.");
+            Assert.AreEqual(exact.ClearUt, shown.ClearUt);
+            Assert.AreSame(shown.AlertReport.Alerts, shown.Report.Alerts);
+            Assert.AreEqual(exact.Report.Alerts.Length, shown.AlertReport.Alerts.Length);
+            for (int k = 0; k < 24; k++)
+            {
+                Assert.AreEqual(Bits(exact.Report.Steps[k].Level01), Bits(shown.AlertReport.Steps[k].Level01), "The alert report holds the exact steps.");
+            }
+            Assert.AreNotSame(shown.Report, shown.AlertReport);
+            Assert.AreSame(exact.Report, exact.AlertReport);
+            // The shown tracks move away from the exact ones with the lead, by at most the stated share of the radius per hour, and are
+            // the same at lead 0.
+            ForecastTrack[] a = exact.Report.Tracks, b = shown.Report.Tracks;
+            Assert.AreEqual(a.Length, b.Length);
+            double moved = 0.0;
+            for (int t = 0; t < a.Length; t++)
+            {
+                for (int i = 0; i < a[t].Ut.Length; i++)
+                {
+                    double d = ForecastMath.DistanceM(a[t].Lat[i], a[t].Lon[i], b[t].Lat[i], b[t].Lon[i], MovingCellsField.RadiusM);
+                    double leadHours = Math.Max(0.0, a[t].Ut[i] - start) / 3600.0;
+                    if (leadHours <= 0.0) Assert.AreEqual(0.0, d, 1e-6, "Zero at lead 0.");
+                    Assert.IsTrue(d <= leadHours * ForecastUncertainty.PositionRadiusPerLeadHour * MovingCellsField.RadiusM * 1.01 + 1.0, "Moved " + d + " m at " + leadHours + " h");
+                    moved = Math.Max(moved, d);
+                }
+            }
+            Assert.IsTrue(moved > 0.0, "The tracks must move somewhere.");
         }
 
         [TestMethod]
@@ -407,12 +494,14 @@ namespace ReDefinition.Tests.Atmospheres.B12
             string folder = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Atmospheres", "Forecast", "Engine");
             string[] files = Directory.GetFiles(folder, "*.cs");
             Assert.IsTrue(files.Length >= 10);
-            var forbidden = new[] { "using UnityEngine", "UnityEngine.", "Planetarium.", "FlightGlobals.", ": MonoBehaviour", "ScreenMessages.", "HighLogic.", "CelestialBody " };
+            var forbidden = new System.Text.RegularExpressions.Regex(
+                @"using UnityEngine|UnityEngine\.|\bVector[234]\b|\bMathf\b|\bDebug\.|\bTime\.|\bPlanetarium\b|\bFlightGlobals\b|\bMonoBehaviour\b|\bScreenMessages\b|\bHighLogic\b|\bCelestialBody\b");
             foreach (string file in files)
             {
                 if (Path.GetFileName(file) == "ForecastModule.cs") continue;
                 string text = File.ReadAllText(file);
-                foreach (string word in forbidden) Assert.IsFalse(text.Contains(word), Path.GetFileName(file) + " names " + word);
+                System.Text.RegularExpressions.Match m = forbidden.Match(text);
+                Assert.IsFalse(m.Success, Path.GetFileName(file) + " names " + m.Value);
             }
         }
     }

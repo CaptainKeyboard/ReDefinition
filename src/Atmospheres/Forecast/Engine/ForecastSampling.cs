@@ -136,10 +136,14 @@ namespace ReDefinition.Atmospheres.Forecast
             return kept;
         }
 
+        // Whether the last Resolve carried a provider's "now" forward: such a step depends on the issue time and is not reused.
+        internal bool LastWasNowcast { get; private set; }
+
         // The wind at a time: the field's wind (east, north, gust) in, the wind of the step out.
         internal void Resolve(double ut, float oursEast, float oursNorth, float oursGust, out float east, out float north, out float gust,
             out float confidence, out WeatherSource source)
         {
+            LastWasNowcast = false;
             if (ctx.WindSource == WindSourceMode.Off)
             {
                 east = 0f;
@@ -170,6 +174,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 gust = (float)(w * nowGust + (1.0 - w) * oursGust);
                 confidence = (float)w;
                 source = WeatherSource.ExternalNowcast(nowProvider.Name);
+                LastWasNowcast = true;
                 return;
             }
             east = oursEast;

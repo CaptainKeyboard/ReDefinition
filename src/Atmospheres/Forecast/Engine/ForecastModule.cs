@@ -9,6 +9,7 @@ namespace ReDefinition.Atmospheres.Forecast
     // the hub also adds it here (the wind bridges of D31); the forecast's wind then follows the same windSource order as the live wind.
     internal static class ForecastWindProviders
     {
+        private static readonly object Gate = new object();
         private static IWeatherSource[] list = new IWeatherSource[0];
         private static long version;
 
@@ -22,7 +23,7 @@ namespace ReDefinition.Atmospheres.Forecast
         internal static void Add(IWeatherSource source)
         {
             if (source == null) throw new ArgumentNullException("source");
-            lock (typeof(ForecastWindProviders))
+            lock (Gate)
             {
                 IWeatherSource[] old = list;
                 if (Array.IndexOf(old, source) >= 0) return;
@@ -36,7 +37,7 @@ namespace ReDefinition.Atmospheres.Forecast
 
         internal static void Remove(IWeatherSource source)
         {
-            lock (typeof(ForecastWindProviders))
+            lock (Gate)
             {
                 IWeatherSource[] old = list;
                 int at = Array.IndexOf(old, source);
@@ -133,6 +134,13 @@ namespace ReDefinition.Atmospheres.Forecast
         private Func<ForecastSite, ForecastReport> forecastSeam;
         private Func<int, ForecastTrack[]> tracksSeam;
         private bool assigned;
+        // Whether the module made its own service around the game (the tests give it one); only then it follows the pad and the vessel.
+        private bool followsGame;
+        private float sitesClock = float.MaxValue;
+        private bool havePad;
+        private int padBody;
+        private double padLat, padLon;
+        private const float AlertSitesSeconds = 2f;
 
         // The running service (null before Init); the forecast window and the alert delivery read details through it.
         internal static ForecastService Service { get; private set; }
@@ -150,7 +158,11 @@ namespace ReDefinition.Atmospheres.Forecast
 
         public void Init()
         {
-            if (service == null) service = new ForecastService(new KspForecastEnvironment(), null, WeatherHooks.RaiseAlert, AtmospheresLog.WarnOnce);
+            if (service == null)
+            {
+                service = new ForecastService(new KspForecastEnvironment(), null, WeatherHooks.RaiseAlert, AtmospheresLog.WarnOnce);
+                followsGame = true;
+            }
             forecastSeam = service.ForecastOf;
             tracksSeam = service.BodyTracks;
             Service = service;
@@ -174,6 +186,52 @@ namespace ReDefinition.Atmospheres.Forecast
             {
                 Release();
             }
+            if (followsGame && service.Available)
+            {
+                sitesClock += dt;
+                if (sitesClock >= AlertSitesSeconds)
+                {
+                    sitesClock = 0f;
+                    UpdateAlertSites();
+                }
+            }
+        }
+
+        // The pad and the active vessel, as the setting alertSites says, are the sites the service keeps alerts for.
+        private void UpdateAlertSites()
+        {
+            AlertSiteSpec spec = AlertSiteSpec.Parse(AtmospheresSettings.AlertSites);
+            var sites = new List<ForecastSite>();
+            var launch = new List<bool>();
+            if (spec.Ksc)
+            {
+                SpaceCenter centre = SpaceCenter.Instance;
+                if (centre != null && centre.cb != null)
+                {
+                    padBody = centre.cb.flightGlobalsIndex;
+                    padLat = centre.Latitude;
+                    padLon = centre.Longitude;
+                    havePad = true;
+                }
+                if (havePad)
+                {
+                    sites.Add(new ForecastSite { BodyIndex = padBody, LatDeg = padLat, LonDeg = padLon, AltAgl = 0.0, Name = "Space Centre" });
+                    launch.Add(true);
+                }
+            }
+            Vessel vessel = spec.Vessel && HighLogic.LoadedSceneIsFlight ? FlightGlobals.ActiveVessel : null;
+            if (vessel != null && vessel.mainBody != null && vessel.mainBody.atmosphere && vessel.altitude < vessel.mainBody.atmosphereDepth
+                && (vessel.situation == Vessel.Situations.LANDED || vessel.situation == Vessel.Situations.SPLASHED
+                    || vessel.situation == Vessel.Situations.PRELAUNCH || vessel.situation == Vessel.Situations.FLYING))
+            {
+                double height = vessel.heightFromTerrain >= 0.0 ? vessel.heightFromTerrain : vessel.altitude;
+                sites.Add(new ForecastSite
+                {
+                    BodyIndex = vessel.mainBody.flightGlobalsIndex, LatDeg = vessel.latitude, LonDeg = vessel.longitude, AltAgl = height, Name = vessel.vesselName
+                });
+                launch.Add(vessel.situation == Vessel.Situations.PRELAUNCH);
+            }
+            service.SetAutoWatched(sites, launch);
         }
 
         public void Shutdown()

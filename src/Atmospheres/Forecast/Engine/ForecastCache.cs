@@ -4,7 +4,7 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres.Forecast
 {
-    // What a cached site report depends on: the site rounded to 0.1 degree (and its height to 100 m), the body, the rules hash, the number
+    // What a cached site report depends on: the site rounded to 0.1 degree, the body, the rules hash, the number
     // of steps, and the field's DefinitionId (the hash of the seed, the rules and the algorithm; never Version, which may change at every
     // call and would empty the cache).
     internal struct ForecastCacheKey : IEquatable<ForecastCacheKey>
@@ -12,7 +12,6 @@ namespace ReDefinition.Atmospheres.Forecast
         internal int Body;
         internal int LatTenth;
         internal int LonTenth;
-        internal int AltHundred;
         internal ulong RulesHash;
         internal long DefinitionId;
         internal int StepCount;
@@ -27,7 +26,6 @@ namespace ReDefinition.Atmospheres.Forecast
                 Body = site.BodyIndex,
                 LatTenth = lat,
                 LonTenth = lon,
-                AltHundred = (int)Math.Round(site.AltAgl / 100.0),
                 RulesHash = ctx.RulesHash,
                 DefinitionId = definitionId,
                 StepCount = stepCount
@@ -36,7 +34,7 @@ namespace ReDefinition.Atmospheres.Forecast
 
         public bool Equals(ForecastCacheKey o)
         {
-            return Body == o.Body && LatTenth == o.LatTenth && LonTenth == o.LonTenth && AltHundred == o.AltHundred && RulesHash == o.RulesHash
+            return Body == o.Body && LatTenth == o.LatTenth && LonTenth == o.LonTenth && RulesHash == o.RulesHash
                 && DefinitionId == o.DefinitionId && StepCount == o.StepCount;
         }
 
@@ -52,7 +50,6 @@ namespace ReDefinition.Atmospheres.Forecast
                 int h = Body;
                 h = h * 31 + LatTenth;
                 h = h * 31 + LonTenth;
-                h = h * 31 + AltHundred;
                 h = h * 31 + (int)(RulesHash ^ (RulesHash >> 32));
                 h = h * 31 + (int)(DefinitionId ^ (DefinitionId >> 32));
                 h = h * 31 + StepCount;
@@ -68,7 +65,12 @@ namespace ReDefinition.Atmospheres.Forecast
         internal long Generation;
         internal double FirstUt;
         internal double StepSeconds;
+        // The exact steps of the field (the display-only error is added on a copy), sampled at exactly this place: a request for another
+        // place of the same tenth of a degree does not reuse them.
         internal ForecastStep[] Steps;
+        internal double LatDeg, LonDeg, AltAgl;
+        // Per step: whether its wind was carried forward from the issue time of the report (such a step is not reused by a later report).
+        internal bool[] Nowcast;
         internal WeatherSource Wind;
         internal long LastUse;
     }

@@ -7,13 +7,14 @@ namespace ReDefinition.Atmospheres.Forecast
     // weather itself is never touched. The error is a timing shift of what a step shows and a position shift of the tracks, both growing
     // with the lead time and zero at lead 0; its direction and size come from a hash of the subject (the site, or the system key) and
     // the 3-hour bucket the forecast was issued in, so the picture does not flicker between reports of one bucket. The confidence of a
-    // step is 1 minus the error scale. The numbers (a quarter of the lead as the most timing shift, 5 km of position per lead hour, the
-    // full error scale at a 24-hour lead) are taste values of the owner's question Q2 [OWNER].
+    // step is 1 minus the error scale. The numbers (a quarter of the lead as the most timing shift, 0.83 % of the body's radius of position
+    // per lead hour, the full error scale at a 24-hour lead) are taste values of the owner's question Q2 [OWNER].
     internal static class ForecastUncertainty
     {
         internal const double IssueBucketSeconds = 3.0 * 3600.0;
         internal const double TimingFraction = 0.25;
-        internal const double PositionMetresPerLeadHour = 5000.0;
+        // The position error at full scale per hour of lead, as a share of the body's radius.
+        internal const double PositionRadiusPerLeadHour = 0.0083;
         internal const double FullErrorLeadSeconds = 24.0 * 3600.0;
 
         // The key of a subject (a site or a system) for the bucket the forecast was issued in.
@@ -58,7 +59,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 {
                     double lead = tr.Ut[i] - startUt;
                     if (lead <= 0.0) continue;
-                    double metres = amount01 * size * (lead / 3600.0) * PositionMetresPerLeadHour;
+                    double metres = amount01 * size * (lead / 3600.0) * PositionRadiusPerLeadHour * bodyRadiusM;
                     double lat, lon;
                     ForecastMath.Offset(tr.Lat[i], tr.Lon[i], metres * Math.Cos(angle), metres * Math.Sin(angle), bodyRadiusM, out lat, out lon);
                     tr.Lat[i] = lat;

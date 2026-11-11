@@ -8,8 +8,9 @@ namespace ReDefinition.Atmospheres.Forecast
     // the radius and the last motion), and answers questions about a set of tracks. Pure, any thread.
     internal static class SystemTracker
     {
-        // The fastest a system is assumed to move when no motion is known yet, in m/s.
-        private const double MaxDriftMs = 80.0;
+        // How many track samples in a row a system may be missed (a level that dips under the detection threshold for one sample) before
+        // its track ends; the track coasts on its last motion meanwhile.
+        private const int MaxMissed = 1;
 
         private sealed class Building
         {
@@ -20,6 +21,7 @@ namespace ReDefinition.Atmospheres.Forecast
             internal readonly List<float> Strength = new List<float>();
             internal ulong Key;
             internal bool Alive = true;
+            internal int Missed;
         }
 
         private struct Pair
@@ -30,10 +32,13 @@ namespace ReDefinition.Atmospheres.Forecast
         }
 
         // Builds tracks from the systems found at each time. times[i] belongs to perTime[i]. minGateM is the least distance a system
-        // may move between two times and still be the same one (the grid spacing of the detector).
-        internal static ForecastTrack[] Build(double[] times, List<SystemPoint>[] perTime, int bodyIndex, double bodyRadiusM, double minGateM)
+        // may move between two times and still be the same one (the grid spacing of the detector); maxSpeedMs is the fastest a system is
+        // assumed to move before its motion is known. A system the source gives a key for keeps that key and is never in two tracks.
+        internal static ForecastTrack[] Build(double[] times, List<SystemPoint>[] perTime, int bodyIndex, double bodyRadiusM, double minGateM,
+            double maxSpeedMs)
         {
             var tracks = new List<Building>();
+            var byKey = new Dictionary<ulong, Building>();
             for (int k = 0; k < times.Length; k++)
             {
                 List<SystemPoint> found = perTime[k];
@@ -48,22 +53,24 @@ namespace ReDefinition.Atmospheres.Forecast
                 {
                     Building t = alive[a];
                     int last = t.Ut.Count - 1;
+                    double gapSteps = dt > 0.0 ? Math.Max(1.0, Math.Round((times[k] - t.Ut[last]) / dt)) : 1.0;
                     double pLat = t.Lat[last], pLon = t.Lon[last];
                     double motionM = 0.0;
                     if (last >= 1)
                     {
-                        double dLat = t.Lat[last] - t.Lat[last - 1];
-                        double dLon = ForecastMath.WrapLon(t.Lon[last] - t.Lon[last - 1]);
-                        pLat = ForecastMath.ClampLat(t.Lat[last] + dLat);
-                        pLon = ForecastMath.WrapLon(t.Lon[last] + dLon);
-                        motionM = ForecastMath.DistanceM(t.Lat[last - 1], t.Lon[last - 1], t.Lat[last], t.Lon[last], bodyRadiusM);
+                        double spanSteps = dt > 0.0 ? Math.Max(1.0, Math.Round((t.Ut[last] - t.Ut[last - 1]) / dt)) : 1.0;
+                        double dLat = (t.Lat[last] - t.Lat[last - 1]) / spanSteps;
+                        double dLon = ForecastMath.WrapLon(t.Lon[last] - t.Lon[last - 1]) / spanSteps;
+                        pLat = ForecastMath.ClampLat(t.Lat[last] + dLat * gapSteps);
+                        pLon = ForecastMath.WrapLon(t.Lon[last] + dLon * gapSteps);
+                        motionM = ForecastMath.DistanceM(t.Lat[last - 1], t.Lon[last - 1], t.Lat[last], t.Lon[last], bodyRadiusM) / spanSteps * gapSteps;
                     }
                     for (int d = 0; d < found.Count; d++)
                     {
                         SystemPoint p = found[d];
                         if (t.Key != 0UL && p.Key != 0UL && t.Key != p.Key) continue;
                         double dist = ForecastMath.DistanceM(pLat, pLon, p.LatDeg, p.LonDeg, bodyRadiusM);
-                        double gate = Math.Max(t.Radius[last], p.RadiusM) + (last >= 1 ? 0.35 * motionM : 0.5 * MaxDriftMs * dt) + minGateM;
+                        double gate = Math.Max(t.Radius[last], p.RadiusM) + (last >= 1 ? 0.35 * motionM : 0.5 * maxSpeedMs * dt * gapSteps) + minGateM;
                         if (t.Key != 0UL && p.Key == t.Key) gate = double.MaxValue;
                         if (dist > gate) continue;
                         pairs.Add(new Pair { Distance = dist, Track = a, Detection = d });
@@ -78,20 +85,33 @@ namespace ReDefinition.Atmospheres.Forecast
                     if (trackTaken[pr.Track] || detectionTaken[pr.Detection]) continue;
                     trackTaken[pr.Track] = true;
                     detectionTaken[pr.Detection] = true;
+                    alive[pr.Track].Missed = 0;
                     Append(alive[pr.Track], times[k], found[pr.Detection]);
                 }
                 for (int a = 0; a < alive.Count; a++)
                 {
-                    if (!trackTaken[a]) alive[a].Alive = false;
+                    if (trackTaken[a]) continue;
+                    alive[a].Missed++;
+                    if (alive[a].Missed > MaxMissed) alive[a].Alive = false;
                 }
                 for (int d = 0; d < found.Count; d++)
                 {
                     if (detectionTaken[d]) continue;
-                    var t = new Building();
                     SystemPoint p = found[d];
+                    Building revived;
+                    if (p.Key != 0UL && byKey.TryGetValue(p.Key, out revived))
+                    {
+                        // The source says this is the system of an earlier track that ended: the track goes on, with a gap.
+                        revived.Alive = true;
+                        revived.Missed = 0;
+                        Append(revived, times[k], p);
+                        continue;
+                    }
+                    var t = new Building();
                     t.Key = p.Key != 0UL ? p.Key : BirthKey(bodyIndex, times[k], p.LatDeg, p.LonDeg);
                     Append(t, times[k], p);
                     tracks.Add(t);
+                    if (p.Key != 0UL) byKey[p.Key] = t;
                 }
             }
             var result = new ForecastTrack[tracks.Count];

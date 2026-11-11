@@ -6,8 +6,8 @@ namespace ReDefinition.Atmospheres.Forecast
     // The forecast engine: the live weather evaluated at later times. The field is a pure function of its arguments and the UT, so the
     // forecast of a site is the same function at the UTs of the steps (exact by construction); nothing is simulated and nothing is stored
     // but a cache of results. Steps, tracks, the ETA of the first crossing of a level and the nearest system are computed here; the
-    // alerts are AlertEvaluator's. Pure and thread safe: no UnityEngine access in the compute path (the sample struct carries a Vector3
-    // by value and nothing else of the engine), no static state, so any thread may call it where the field says ThreadSafe.
+    // alerts are AlertEvaluator's. Pure and thread safe: no engine call in the compute path (the sample struct carries a wind vector
+    // by value and nothing else of the game), no static state, so any thread may call it where the field says ThreadSafe.
     // Technique reference for the shape of the report (an hourly strip with a summary line): the forecast panels of MSFS, yr.no and
     // windy.com.
     internal static class ForecastEngine

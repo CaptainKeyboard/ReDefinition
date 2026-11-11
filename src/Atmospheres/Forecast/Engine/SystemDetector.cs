@@ -25,7 +25,7 @@ namespace ReDefinition.Atmospheres.Forecast
 
     // Finds the systems in a field that cannot list them: local maxima of the precipitation level on a grid, with a radius from the
     // half-maximum along the grid axes and a position refined by a parabola through the maximum and its two neighbours per axis. The grid
-    // is filled one row at a time so that a caller can spread a scan over frames (a row is at most a few dozen samples). A local grid is a
+    // is filled one cell at a time so that a caller can spread a scan over frames (one field sample per call). A local grid is a
     // square around a place; the global grid covers the body in steps of GlobalDegrees. Pure; any thread; one scan object per thread.
     internal sealed class GridScan
     {
@@ -44,6 +44,7 @@ namespace ReDefinition.Atmospheres.Forecast
         private readonly double dLat, dLon;
         private readonly float[] values;
         private double ut;
+        private int cursor;
 
         private GridScan(bool global, IWeatherField field, int bodyIndex, double radiusM, double altM, double centreLat, double centreLon, double rangeM, int half)
         {
@@ -94,27 +95,30 @@ namespace ReDefinition.Atmospheres.Forecast
         internal void Begin(double ut)
         {
             this.ut = ut;
+            cursor = 0;
         }
 
-        // Samples one row of the grid.
-        internal void FillRow(int iy)
+        // Samples the next cell of the grid (one field sample); true when the whole grid has been sampled.
+        internal bool FillNext()
         {
-            for (int ix = 0; ix < Width; ix++)
-            {
-                double lat, lon;
-                Position(ix, iy, 0.0, 0.0, out lat, out lon);
-                WeatherSample s;
-                field.Sample(bodyIndex, lat, lon, altM, ut, out s);
-                float level = s.Level01;
-                values[iy * Width + ix] = float.IsNaN(level) ? 0f : level;
-            }
+            int iy = cursor / Width, ix = cursor % Width;
+            double lat, lon;
+            Position(ix, iy, 0.0, 0.0, out lat, out lon);
+            WeatherSample s;
+            field.Sample(bodyIndex, lat, lon, altM, ut, out s);
+            float level = s.Level01;
+            values[cursor] = float.IsNaN(level) ? 0f : level;
+            cursor++;
+            return cursor >= Width * Height;
         }
 
-        // Scans every row at a time and appends the maxima.
+        // Scans every cell at a time and appends the maxima.
         internal void ScanAll(double ut, List<SystemPoint> into)
         {
             Begin(ut);
-            for (int iy = 0; iy < Height; iy++) FillRow(iy);
+            while (!FillNext())
+            {
+            }
             Collect(into);
         }
 
