@@ -1,0 +1,20 @@
+{
+  "$schema": "schema.json",
+  "name": "K-W3a",
+  "owner": "D30",
+  "description": "Wave W3, forecast, wind, audio and settings: alert count over a scripted UT jump, forecast against live, windows in 3 scenes, wind drift error, NaN count, solar flow, per-layer RMS and bands, IVA delta, footstep count, settings checklist, plus the game-specific rows of C25 (PluginData path, timing inside the KSP process).",
+  "profile": "Medium",
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 1,
+  "starts": [ { "id": "run1", "description": "forecast, wind, audio, settings" } ],
+  "sections": [
+    { "id": "D30", "package": "D30", "title": "Forecast" },
+    { "id": "D31", "package": "D31", "title": "Wind gameplay" },
+    { "id": "D33", "package": "D33", "title": "Audio" },
+    { "id": "D36", "package": "D36", "title": "Settings and profiles" },
+    { "id": "C25", "package": "C25", "title": "Simulation inside KSP" }
+  ],
+  "collect": [],
+  "rows": []
+}

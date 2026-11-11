@@ -1,0 +1,19 @@
+{
+  "$schema": "schema.json",
+  "name": "K-pre",
+  "owner": "B09",
+  "description": "The reconnaissance series (premises P1-P12 of master plan 9.3): run1 with the full mod set, which is also the first real smoke; run2 with Scatterer absent.",
+  "profile": "Medium",
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 2,
+  "starts": [
+    { "id": "run1", "description": "full mod set" },
+    { "id": "run2", "description": "Scatterer absent", "disableMods": ["Scatterer"] }
+  ],
+  "sections": [ { "id": "B09", "package": "B09", "title": "Reconnaissance probe" } ],
+  "collect": [
+    { "from": "GameData/ReDefinition/Atmospheres/PluginData/recon", "to": "tests/data/recon/dumps", "optional": true }
+  ],
+  "rows": []
+}

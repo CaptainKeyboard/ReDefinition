@@ -1,0 +1,23 @@
+# One regular expression per line (Python syntax, matched case-insensitively against each line of text). Blank lines and lines starting
+# with "# " are comments. These are the assurance forms of standing rule 3: a sentence that vouches for what was or was not taken from a
+# source. Sources are named factually instead. tools/checks/check_briefs.py reads this file.
+
+# "nothing taken over", "nothing was copied", "no code was borrowed"
+\b(nothing|none of (it|this|that|the code|the work))\b[^.\n]{0,24}\b(was|is|has been|were|are)?\s*(taken over|taken from|copied|borrowed|adopted|lifted)\b
+\bno (code|text|shader|formula|table|data|assets?|files?)\b[^.\n]{0,16}\b(was|is|has been|were|are)\s+(taken|copied|borrowed|adopted|used)\b
+# "not copied", "not taken over", "not borrowed"
+\bnot (copied|taken over|borrowed|adopted|lifted)\b
+# "without copying", "without taking over"
+\bwithout (copying|taking over|borrowing|lifting)\b
+# "written from scratch", "built from scratch" as a statement about sources
+\b(written|built|made|implemented|developed) (entirely |completely |fully )?from scratch\b
+# "independently written", "clean room"
+\bindependently (written|developed|implemented|derived)\b
+\bclean[- ]room\b
+# "own work, no foreign code"
+\bno (foreign|third[- ]party|external) (code|work|material)\b
+# "licence verified", "we verified the licence", "checked the licence" as a claim on a page
+\b(we|i) (have )?(verified|checked|confirmed|read) (the |its |their )?licen[cs]es?\b
+\blicen[cs]es? (was |were |has been |have been )?(verified|confirmed)\b
+# "like KER/4kSP does it" style borrowing claims
+\b(like|as|the way|just as) (KER|Kerbal Engineer|4kSP|MechJeb|Scatterer|EVE|Parallax|Windy|SPVE) (does|do) it\b

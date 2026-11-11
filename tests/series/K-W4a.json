@@ -1,0 +1,17 @@
+{
+  "$schema": "schema.json",
+  "name": "K-W4a",
+  "owner": "E40",
+  "description": "Wave W4, the full stack: the rows of E41 first (EVE layer list per body, orientation check, Duna visibility and luma, body status table), then the rows of E40 (binding survival in the full stack, level ladder, reference-pair rendering table, RT follow time and RR onset repeated once).",
+  "profile": "Medium",
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 1,
+  "starts": [ { "id": "run1", "description": "bodies first, then integration" } ],
+  "sections": [
+    { "id": "E41", "package": "E41", "title": "Bodies" },
+    { "id": "E40", "package": "E40", "title": "Integration and tuning" }
+  ],
+  "collect": [],
+  "rows": []
+}

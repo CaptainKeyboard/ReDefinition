@@ -1,0 +1,23 @@
+{
+  "$schema": "schema.json",
+  "name": "K-W3b",
+  "owner": "D32",
+  "description": "Wave W3, light and surface: lamp scatter luminance against sigma, frost coverage, camera chain order, aurora edge statistics (start lights), then cover statistics, repaint time, track width, shell motion vectors, RT refit cost, ice fraction against the field, overlay time, depth-fight pixels (start cover).",
+  "profile": "Medium",
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 2,
+  "starts": [
+    { "id": "lights", "description": "lamp scatter, camera frost, aurora" },
+    { "id": "cover", "description": "surface cover and ice" }
+  ],
+  "sections": [
+    { "id": "D32", "package": "D32", "title": "Light in medium" },
+    { "id": "D37", "package": "D37", "title": "Camera frost" },
+    { "id": "D38", "package": "D38", "title": "Aurora" },
+    { "id": "D34", "package": "D34", "title": "Surface cover" },
+    { "id": "D35", "package": "D35", "title": "Ice" }
+  ],
+  "collect": [],
+  "rows": []
+}

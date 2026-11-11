@@ -1,0 +1,19 @@
+{
+  "$schema": "schema.json",
+  "name": "K-W1",
+  "owner": "C23",
+  "description": "The integrated series of wave W1: EVE binding survival across 20 forced Applies, painted RT against EVE render correlation, history reset and depth hook sanity, the C24 transmission estimate against the light probe. Sanity rows of C21, C22 and C24 ride along.",
+  "profile": "Medium",
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 1,
+  "starts": [ { "id": "run1", "description": "full mod set, EVE inside KSP" } ],
+  "sections": [
+    { "id": "C23", "package": "C23", "title": "EVE painter" },
+    { "id": "C21", "package": "C21", "title": "Volume pass sanity" },
+    { "id": "C22", "package": "C22", "title": "Precipitation sanity" },
+    { "id": "C24", "package": "C24", "title": "Composite and RT" }
+  ],
+  "collect": [],
+  "rows": []
+}

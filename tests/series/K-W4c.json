@@ -1,0 +1,15 @@
+{
+  "$schema": "schema.json",
+  "name": "K-W4c",
+  "owner": "E42",
+  "description": "The performance regression: ledger asserts, baseline, cull border, allocations, 8 GB emulation row. A timing series, so the GPU lock is exclusive.",
+  "profile": "Medium",
+  "exclusive": true,
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 1,
+  "starts": [ { "id": "run1", "description": "performance ledger" } ],
+  "sections": [ { "id": "E42", "package": "E42", "title": "Performance regression" } ],
+  "collect": [],
+  "rows": []
+}
