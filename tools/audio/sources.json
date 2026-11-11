@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "note": "One entry per downloaded original. slice_steps.py copies these fields into every shipped file's line of SOUNDS.json. The licence line is the text of the file's own page, read on the web.archive.org snapshot named in archivedUrl (the live page answers scripted requests with HTTP 403).",
+  "sources": {
+    "bsb-2890": {
+      "title": "Footstep in the Snow #2",
+      "author": "Joseph SARDIN",
+      "site": "BigSoundBank",
+      "sourceUrl": "https://bigsoundbank.com/footstep-in-the-snow-2-s2890.html",
+      "archivedUrl": "http://web.archive.org/web/20261020200943/https://bigsoundbank.com/footstep-in-the-snow-2-s2890.html",
+      "downloadUrl": "https://bigsoundbank.com/UPLOAD/bwf-en/2890.wav",
+      "licence": "CC0 1.0 (public-domain equivalent)",
+      "licenceLine": "CC0 (public domain): Free and royalty-free",
+      "licenceFaq": "Yes, because I intentionally release it under the CC0 license (public-domain equivalent). You can download and use it without paying, without creating an account, and without asking for permission.",
+      "pageText": "Footstep in the Snow #2. Human footsteps in the snow. Easy to loop. Made with a sound effect technique. License: CC0 (public domain): Free and royalty-free. Length 00:56. Type: Foley. Channels: Monophonic. Sampling Rate 48,000 Hz. Bit Depth 24 bits. Author: Joseph SARDIN. Sound number: 2,890.",
+      "dateRead": "2026-11-11",
+      "original": "originals/bsb_2890.wav"
+    }
+  }
+}

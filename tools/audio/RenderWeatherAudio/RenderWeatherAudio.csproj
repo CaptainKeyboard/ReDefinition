@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Renders the procedural weather sound to WAV files, outside the game, so that it can be listened to on any speakers
+       (package B15). It compiles the mixer's own source files, not a copy. Outside the solution:
+         dotnet build tools/audio/RenderWeatherAudio -p:DeployToGameData=false
+         tools/audio/RenderWeatherAudio/bin/Release/net48/RenderWeatherAudio.exe <output folder> -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <RootNamespace>RenderWeatherAudio</RootNamespace>
+    <AssemblyName>RenderWeatherAudio</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\..\..\src\Atmospheres\Audio\Dsp\*.cs" Exclude="..\..\..\src\Atmospheres\Audio\Dsp\AudioMapping.cs" LinkBase="Dsp" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

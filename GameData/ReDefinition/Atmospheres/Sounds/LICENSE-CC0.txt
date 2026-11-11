@@ -1,0 +1,17 @@
+Sounds in this folder
+=====================
+
+The files steps_snow_01.ogg to steps_snow_12.ogg are cut and level-adjusted from one recording published under CC0 1.0 Universal
+(Public Domain Dedication):
+
+  "Footstep in the Snow #2" by Joseph SARDIN, BigSoundBank
+  https://bigsoundbank.com/footstep-in-the-snow-2-s2890.html
+
+CC0 1.0 in short: the author waives all copyright and related rights in the work to the extent the law allows, so that anyone may
+copy, change, distribute and use it, also commercially, without asking and without attribution. Credit is given anyway.
+
+Full legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+Summary:         https://creativecommons.org/publicdomain/zero/1.0/
+
+SOUNDS.json lists, for every file here, its source, author, licence line, the archived copy of the source page, the date the page
+was read and how the file was made. The slicing is done by tools/audio/slice_steps.py.
