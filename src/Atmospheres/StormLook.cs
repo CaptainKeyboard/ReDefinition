@@ -5,6 +5,8 @@ namespace ReDefinition.Atmospheres
 {
     // What a storm intensity (0 to 1) looks like: visibility, fog density, veil, flakes. Pure functions, so that the numbers are tested;
     // StormEffect applies them.
+    // LEGACY: PrecipitationLook (Procedural/Look) is the look table of the scale and replaces these curves. This class stays only
+    // because StormFlakes, StormVeil, StormVolume and StormEffect (packages C21, C22 and C25) still read it; the last of them deletes it.
     // Numbers: the fog is ExponentialSquared with density sqrt(3) / visibility, so that 5 % of the contrast is left at the
     // visibility. The visibility goes from 20 km at intensity 0 down to stormVisibility (60 m) at 1, and is about 245 m at 0.5. The
     // fog colour is grey-white scaled by the sun's elevation. The storm is full below 4 km above sea level and gone from 10 km.
