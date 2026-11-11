@@ -96,7 +96,7 @@ namespace ReDefinition.Atmospheres.Forecast
         internal static readonly PinnedSite Pinned = new PinnedSite();
         private static bool haveKsc;
         private static int kscBody;
-        private static double kscLat, kscLon;
+        private static double kscLat, kscLon, kscAlt;
 
         internal static string NameOf(SiteChoice choice)
         {
@@ -121,11 +121,14 @@ namespace ReDefinition.Atmospheres.Forecast
                 kscBody = centre.cb.flightGlobalsIndex;
                 kscLat = centre.Latitude;
                 kscLon = centre.Longitude;
+                // Metres above sea level, the altitude convention of IWeatherField.Sample (CONTRACT.md, "Altitude argument").
+                kscAlt = centre.cb.TerrainAltitude(kscLat, kscLon, true);
             }
             if (!haveKsc) return false;
             site.BodyIndex = kscBody;
             site.LatDeg = kscLat;
             site.LonDeg = kscLon;
+            site.AltAgl = kscAlt;
             return true;
         }
 
@@ -145,6 +148,8 @@ namespace ReDefinition.Atmospheres.Forecast
                 site.BodyIndex = launch.Body.flightGlobalsIndex;
                 site.LatDeg = lat;
                 site.LonDeg = lon;
+                // Terrain altitude above sea level, as the forecast module gives the pad.
+                site.AltAgl = launch.Body.TerrainAltitude(lat, lon, true);
                 return true;
             }
             catch (Exception)
@@ -169,10 +174,9 @@ namespace ReDefinition.Atmospheres.Forecast
                 {
                     Vessel vessel = HighLogic.LoadedSceneIsFlight ? GameGlobals.ActiveVessel : null;
                     if (vessel == null || vessel.mainBody == null) return false;
-                    double height = vessel.heightFromTerrain >= 0.0 ? vessel.heightFromTerrain : vessel.altitude;
                     site = new ForecastSite
                     {
-                        BodyIndex = vessel.mainBody.flightGlobalsIndex, LatDeg = vessel.latitude, LonDeg = vessel.longitude, AltAgl = height, Name = vessel.vesselName
+                        BodyIndex = vessel.mainBody.flightGlobalsIndex, LatDeg = vessel.latitude, LonDeg = vessel.longitude, AltAgl = vessel.altitude, Name = vessel.vesselName
                     };
                     return true;
                 }

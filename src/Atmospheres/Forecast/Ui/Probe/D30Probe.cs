@@ -263,7 +263,11 @@ namespace ReDefinition.Atmospheres.Forecast
                     yield return ProbeWait.Until(() => WeatherHub.Field.Readiness == FieldReadiness.Ready, 150, "the field after the warp step");
                 }
                 yield return ProbeWait.Frames(4);
+                // The scene is rebuilt every half second of real time: wait until it stands at the game's time, then compare against the
+                // game's time (not the scene's own), so that a scene that lags a warp shows as an error.
+                yield return ProbeWait.Until(() => Math.Abs(MapOverlay.Instance.Scene.Ut - Planetarium.GetUniversalTime()) < 2.0, 5, "the overlay at the game time");
                 OverlayScene scene = MapOverlay.Instance.Scene;
+                double gameUt = Planetarium.GetUniversalTime();
                 ForecastTrack[] tracks = WeatherHooks.BodyTracks != null ? WeatherHooks.BodyTracks(scene.BodyIndex) : null;
                 maxRings = Math.Max(maxRings, scene.Rings.Count);
                 if (tracks == null) continue;
@@ -272,7 +276,7 @@ namespace ReDefinition.Atmospheres.Forecast
                     ForecastTrack track = Array.Find(tracks, t => t.CellKey == ring.Key);
                     double lat, lon;
                     float radius, strength, x, y;
-                    if (track == null || !SystemTracker.PositionAt(track, scene.Ut, out lat, out lon, out radius, out strength)) continue;
+                    if (track == null || !SystemTracker.PositionAt(track, gameUt, out lat, out lon, out radius, out strength)) continue;
                     if (!projector.Project(scene.BodyIndex, lat, lon, out x, out y)) continue;
                     double dx = ring.Centre.X - x, dy = ring.Centre.Y - y;
                     maxRingErrorPct = Math.Max(maxRingErrorPct, Math.Sqrt(dx * dx + dy * dy) / Screen.height * 100.0);

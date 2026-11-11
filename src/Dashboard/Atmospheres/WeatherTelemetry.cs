@@ -280,14 +280,15 @@ namespace ReDefinition.Dashboard
             if (HighLogic.LoadedSceneIsFlight && FlightGlobals.fetch != null && FlightGlobals.ActiveVessel != null && FlightGlobals.ActiveVessel.mainBody != null)
             {
                 Vessel v = FlightGlobals.ActiveVessel;
-                double height = v.heightFromTerrain >= 0.0 ? v.heightFromTerrain : v.altitude;
-                site = new ForecastSite { BodyIndex = v.mainBody.flightGlobalsIndex, LatDeg = v.latitude, LonDeg = v.longitude, AltAgl = height, Name = v.vesselName };
+                // AltAgl carries metres above sea level (CONTRACT.md, "Altitude argument").
+                site = new ForecastSite { BodyIndex = v.mainBody.flightGlobalsIndex, LatDeg = v.latitude, LonDeg = v.longitude, AltAgl = v.altitude, Name = v.vesselName };
                 body = v.mainBody.bodyName;
                 return true;
             }
             SpaceCenter centre = SpaceCenter.Instance;
             if (centre == null || centre.cb == null) return false;
-            site = new ForecastSite { BodyIndex = centre.cb.flightGlobalsIndex, LatDeg = centre.Latitude, LonDeg = centre.Longitude, Name = "Space Centre" };
+            site = new ForecastSite { BodyIndex = centre.cb.flightGlobalsIndex, LatDeg = centre.Latitude, LonDeg = centre.Longitude,
+                AltAgl = centre.cb.TerrainAltitude(centre.Latitude, centre.Longitude, true), Name = "Space Centre" };
             body = centre.cb.bodyName;
             return true;
         }

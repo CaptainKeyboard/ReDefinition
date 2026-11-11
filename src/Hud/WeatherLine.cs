@@ -101,10 +101,10 @@ namespace ReDefinition.Hud
             if (source == null || f == null || f.Vessel == null || f.Body == null) return null;
             Vessel vessel = f.Vessel;
             if (!f.Body.atmosphere || vessel.altitude > f.Body.atmosphereDepth) return null;
-            double height = vessel.heightFromTerrain >= 0.0 ? vessel.heightFromTerrain : vessel.altitude;
+            // AltAgl carries metres above sea level (CONTRACT.md, "Altitude argument").
             var site = new ForecastSite
             {
-                BodyIndex = f.Body.flightGlobalsIndex, LatDeg = vessel.latitude, LonDeg = vessel.longitude, AltAgl = height, Name = vessel.vesselName
+                BodyIndex = f.Body.flightGlobalsIndex, LatDeg = vessel.latitude, LonDeg = vessel.longitude, AltAgl = vessel.altitude, Name = vessel.vesselName
             };
             return source(site);
         }
