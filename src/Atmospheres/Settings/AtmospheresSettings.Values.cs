@@ -122,6 +122,7 @@ namespace ReDefinition.Atmospheres
         internal static bool GroundCover => B(Keys.GroundCover);
         internal static float CoverStrength => F(Keys.CoverStrength);
         internal static VehicleCoverMode VehicleCover => E<VehicleCoverMode>(Keys.VehicleCover);
+        internal static VehicleCoverMethod VehicleCoverMethod => E<VehicleCoverMethod>(Keys.VehicleCoverMethod);
         internal static bool Tracks => B(Keys.Tracks);
         internal static float CoverDrift => F(Keys.CoverDrift);
         internal static SeaIceMode SeaIce => E<SeaIceMode>(Keys.SeaIce);

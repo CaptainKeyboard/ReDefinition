@@ -256,6 +256,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | `groundCover` | on | on / off | Ground Cover | needs-weather-effects | cover |
 | `coverStrength` | 1 | 0 to 1 | Cover Strength | needs-ground-cover | - |
 | `vehicleCover` | Landed | Off / Landed / Always | Vehicle Cover | needs-ground-cover | cover |
+| `vehicleCoverMethod` | Shell | Shell / ScreenSpace | Vehicle Cover Method | needs-ground-cover | - |
 | `tracks` | on | on / off | Tracks In Cover | needs-ground-cover | cover |
 | `coverDrift` | 0.3 | 0 to 1 | Cover Drift | needs-ground-cover | - |
 

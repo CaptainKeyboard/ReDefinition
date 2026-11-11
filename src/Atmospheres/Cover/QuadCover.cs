@@ -115,7 +115,7 @@ namespace ReDefinition.Atmospheres
             {
                 double ux, uy, uz;
                 Geo.DirectionOf(latitude[i] * Math.PI / 180.0, longitude[i] * Math.PI / 180.0, out ux, out uy, out uz);
-                double f = CoverWind.Factor(ux, uy, uz, look.WindEast, look.WindNorth, look.Ut, look.Drift, look.Def.DriftStretch, look.Def.Dunes, look.RadiusM);
+                double f = CoverWind.Factor(ux, uy, uz, look.WindEast, look.WindNorth, look.TravelEastM, look.TravelNorthM, look.Drift, look.Def.DriftStretch, look.Def.Dunes, look.RadiusM);
                 double d = CoverDepth.Depth01(look.Def, fieldDepthM, mask, noise[i], look.EdgeNoise, look.Strength);
                 return (float)CoverWind.Redistribute(d, f, look.Drift, NormalEastOf(i), NormalNorthOf(i), look.WindEast, look.WindNorth);
             }
@@ -187,6 +187,8 @@ namespace ReDefinition.Atmospheres
         // The wind drift 0..1 (the layer's drift times the setting), the wind at the quad in m/s, the game time and the body radius.
         internal double Drift;
         internal double WindEast, WindNorth;
+        // How far the pattern has been carried by the wind, in metres east and north (the body's CoverWindTravel).
+        internal double TravelEastM, TravelNorthM;
         internal double Ut;
         internal double RadiusM = 600000.0;
     }

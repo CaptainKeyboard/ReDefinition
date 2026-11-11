@@ -50,13 +50,24 @@ namespace ReDefinition.Raytracing
         // discards everything (DiscardAll.shader), at the alpha-test queue.
         private const string DiscardAll = "Custom/DiscardAll";
 
-        // Per shader, whether it is DiscardAll: a shader's name is a new string each
+        // The cover shell of the atmospheres' vehicle cover (D34): a skin two centimetres over a part that is in the scene already. The
+        // rays would see a second surface there, so it is left out and vehicles are bare in reflections. The name is the contract with
+        // the atmospheres assembly (VehicleCoverGate.ShellShaderName; a test holds the two together).
+        internal const string CoverShellShader = "ReDefinition/AtmospheresShell";
+
+        // Per shader, whether it is left out (DiscardAll or the cover shell): a shader's name is a new string each
         // time it is read.
         private static readonly Dictionary<Shader, bool> discards = new Dictionary<Shader, bool>();
         // A renderer's materials, read into this list rather than a new array each time.
         private static readonly List<Material> sharedMaterials = new List<Material>();
 
-        // Below the transparent queues and not Parallax's DiscardAll; null is not.
+        // Whether a shader of this name is left out of the scene whatever its queue.
+        internal static bool LeftOut(string shaderName)
+        {
+            return shaderName == DiscardAll || shaderName == CoverShellShader;
+        }
+
+        // Below the transparent queues and not Parallax's DiscardAll or the cover shell; null is not.
         internal static bool Opaque(Material material)
         {
             if (material == null) return false;
@@ -67,7 +78,7 @@ namespace ReDefinition.Raytracing
             Shader shader = material.shader;
             if (shader == null) return true;
             bool discard;
-            if (!discards.TryGetValue(shader, out discard)) discards[shader] = discard = shader.name == DiscardAll;
+            if (!discards.TryGetValue(shader, out discard)) discards[shader] = discard = LeftOut(shader.name);
             return !discard;
         }
 

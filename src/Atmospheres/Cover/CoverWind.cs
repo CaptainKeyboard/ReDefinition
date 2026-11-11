@@ -5,8 +5,9 @@ namespace ReDefinition.Atmospheres
 {
     // Wind redistribution of the cover (optional): d' = d x (1 + drift x N(x - w t k)). N is the deterministic SnowNoise advected
     // downwind and stretched along the wind (snow drifts) or ridged with crests across the wind (dunes of sand and dust), plus a bias
-    // from the ground's normal: more on the lee side, less on the windward side. Pure and without state: the same place, wind and time
-    // give the same value in the game and in the tests. Technique after the plan's section 6.1; the pattern's constants are tuning keys.
+    // from the ground's normal: more on the lee side, less on the windward side. Pure: the same place, wind and travel give the same
+    // value in the game and in the tests; the travel is CoverWindTravel's. Technique after the plan's section 6.1; the pattern's
+    // constants are tuning keys.
     internal static class CoverWind
     {
         // The advection of the pattern: metres of travel of the pattern for each metre per second of wind and each second of game time.
@@ -19,22 +20,23 @@ namespace ReDefinition.Atmospheres
         // The most the lee slope moves the depth, as a share of drift.
         internal const double LeeBias = 0.25;
 
-        // The factor 1 + drift x N, N in -1..1, at a place on the unit sphere (direction x, y, z) for a wind in m/s east and north at a
-        // time. stretch is the pattern's length along the wind over its width (1 and up); ridged turns the pattern into dune crests.
-        // Pure.
-        internal static double Factor(double x, double y, double z, double windEastMs, double windNorthMs, double ut, double drift, double stretch,
-            bool ridged, double bodyRadiusM)
+        // The factor 1 + drift x N, N in -1..1, at a place on the unit sphere (direction x, y, z). The wind in m/s east and north at the
+        // place gives the pattern's direction (stretch along it or dune crests across it); travelEastM and travelNorthM are how far the
+        // pattern has been carried so far, in metres (CoverWindTravel: the integral of the wind, so a change of the wind never moves the
+        // pattern as a whole). stretch is the pattern's length along the wind over its width (1 and up); ridged turns the pattern into
+        // dune crests. Pure.
+        internal static double Factor(double x, double y, double z, double windEastMs, double windNorthMs, double travelEastM, double travelNorthM,
+            double drift, double stretch, bool ridged, double bodyRadiusM)
         {
             if (!(drift > 0) || double.IsNaN(x) || double.IsNaN(y) || double.IsNaN(z)) return 1.0;
             double speed = Math.Sqrt(windEastMs * windEastMs + windNorthMs * windNorthMs);
             double ex, ey, ez, nx, ny, nz;
             LocalFrame(x, y, z, out ex, out ey, out ez, out nx, out ny, out nz);
-            // The advected position: back along the wind by speed x time x k, in metres, converted to the unit sphere.
-            double travel = AdvectionPerSecond * ut;
+            // The advected position: back by the travel so far, in metres, converted to the unit sphere.
             double metresToUnit = 1.0 / Math.Max(1.0, bodyRadiusM);
-            double sx = x - (ex * windEastMs + nx * windNorthMs) * travel * metresToUnit;
-            double sy = y - (ey * windEastMs + ny * windNorthMs) * travel * metresToUnit;
-            double sz = z - (ez * windEastMs + nz * windNorthMs) * travel * metresToUnit;
+            double sx = x - (ex * travelEastM + nx * travelNorthM) * metresToUnit;
+            double sy = y - (ey * travelEastM + ny * travelNorthM) * metresToUnit;
+            double sz = z - (ez * travelEastM + nz * travelNorthM) * metresToUnit;
             double n = PatternNoise(sx, sy, sz, windEastMs, windNorthMs, speed, stretch, ridged, ex, ey, ez, nx, ny, nz);
             return Math.Max(0.0, 1.0 + drift * n);
         }

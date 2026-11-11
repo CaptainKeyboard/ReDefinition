@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using ReDefinition.Core;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace ReDefinition.Atmospheres
 {
@@ -14,8 +15,11 @@ namespace ReDefinition.Atmospheres
     //
     // Stack: the shell is a child of the part's renderer, opaque (queue 2001), motionVectorGenerationMode = Object, no shadow caster,
     // receives shadows, depth offset -1 in the shader. The vessel motion-vector rig draws every opaque mesh renderer under a part, so a
-    // shell is repaired like the part. The ray-traced scene must skip the shells (RtFilter; a request to its owner): vehicles are bare in
-    // reflections. Kerbals on EVA carry none. [VERIFY in the player and the game: the rows of series K-W3b and player-D34]
+    // shell is repaired like the part. The ray-traced scene leaves the shells out (RtFilter.LeftOut by the shader's name): vehicles are
+    // bare in reflections. Kerbals on EVA carry none. Only meshes with a stock-like shader get a shell (VehicleCoverGate; RECON P8: a
+    // foreign opaque shader does not look like the stock material under the shell's own lighting); the method ScreenSpace
+    // (vehicleCoverMethod) paints the up-facing pixels of the vessel instead and covers every shader. [VERIFY in the player and the
+    // game: the rows of series K-W3b and player-D34]
     [AtmospheresModule(67)]
     internal sealed class VehicleCover : IAtmospheresModule
     {
@@ -25,7 +29,8 @@ namespace ReDefinition.Atmospheres
 
         // Tuning keys (A01): vehicle.shellOffsetM 0.02 (0.01..0.03), vehicle.partsPerFrame 3, vehicle.maskLow 0.35, vehicle.maskHigh 0.75,
         // vehicle.minUpDot -0.25 (the lowest face-up dot product a shell keeps), vehicle.riseSeconds 1800, vehicle.meltSeconds 3600,
-        // vehicle.shedSpeedMs 20, vehicle.highAltitudeM 1500.
+        // vehicle.shedSpeedMs 20, vehicle.highAltitudeM 1500, vehicle.shellMaxDistanceM 250 (50..1000: shells are drawn within this
+        // distance of the flight camera plus the vessel's size), vehicle.screenGrain 40 (the speck scale of the ScreenSpace method).
         private const float StepSeconds = 1f;
         private const float SaveSeconds = 30f;
 
@@ -52,6 +57,13 @@ namespace ReDefinition.Atmospheres
             internal HashSet<Part> Built = new HashSet<Part>();
             internal bool Wanted;
             internal bool Seeded;
+            // Whether the flight camera is near enough for the shells to be drawn, and the value the shells were set for.
+            internal bool Near = true;
+            internal bool AppliedNear = true;
+            // The screen-space method: the vessel's bounds as a region (its middle in the vessel's frame), found about once a second.
+            internal CoverScreenMath.Region Region;
+            internal Vector3 LocalCentre;
+            internal bool HasRegion;
         }
 
         private readonly Dictionary<uint, VesselRecord> records = new Dictionary<uint, VesselRecord>();
@@ -74,6 +86,19 @@ namespace ReDefinition.Atmospheres
         internal int PartsBuilt { get; private set; }
         internal double LastBuildMs { get; private set; }
         internal int Unreadable { get; private set; }
+        // Meshes left bare in the Shell method because their shader is not a stock-like one (VehicleCoverGate), and the vessels the
+        // screen-space pass painted in the last frame.
+        internal int ForeignBare { get; private set; }
+        internal int ScreenDrawn { get; private set; }
+        internal bool ScreenAttached { get { return screenBuffer != null; } }
+
+        private CoverScreenPass screen;
+        private bool screenTried;
+        private CommandBuffer screenBuffer;
+        private Camera screenCamera;
+        private readonly CoverScreenMath.Region[] regionScratch = new CoverScreenMath.Region[32];
+        private readonly CoverScreenMath.Region[] regionsSelected = new CoverScreenMath.Region[CoverScreenMath.MaxVessels];
+        private readonly HashSet<string> foreignLogged = new HashSet<string>();
 
         public void Init()
         {
@@ -109,6 +134,7 @@ namespace ReDefinition.Atmospheres
             if (!CoverModule.Enabled || mode == VehicleCoverMode.Off)
             {
                 if (records.Count > 0) RemoveAll();
+                DetachScreen();
                 return;
             }
             List<Vessel> loaded = GameGlobals.VesselsLoaded;
@@ -134,7 +160,12 @@ namespace ReDefinition.Atmospheres
                     StepVessel(r, ut, mode);
                 }
             }
-            Build(now);
+            if (AtmospheresSettings.VehicleCoverMethod == VehicleCoverMethod.ScreenSpace) DrawScreen();
+            else
+            {
+                DetachScreen();
+                Build(now);
+            }
             if (dirty && now - lastSave >= SaveSeconds) Save(now);
         }
 
@@ -142,6 +173,12 @@ namespace ReDefinition.Atmospheres
         {
             Flush();
             RemoveAll();
+            DetachScreen();
+            if (screen != null)
+            {
+                screen.Dispose();
+                screen = null;
+            }
             foreach (Mesh m in meshes.Values) if (m != null) UnityEngine.Object.Destroy(m);
             meshes.Clear();
             if (Current == this) Current = null;
@@ -174,6 +211,10 @@ namespace ReDefinition.Atmospheres
 
             VehicleCoverInputs inputs = Inputs(v, state, ut);
             r.Wanted = state != null && VehicleCoverModel.Wanted((VehicleCoverModeLite)(int)mode, inputs.Landed, inputs.AltitudeM);
+            // Near cameras only (brief item 4, U4): a shell two centimetres over a part is a z-fight at a distance, so it is drawn within
+            // vehicle.shellMaxDistanceM of the flight camera (plus the vessel's own size).
+            Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+            r.Near = cam == null || (cam.transform.position - v.transform.position).magnitude <= Tuning.Get("vehicle.shellMaxDistanceM", 250f) + v.vesselSize.magnitude;
             float target, fall;
             double amount = VehicleCoverModel.Step(r.Amount, inputs, Math.Min(dt, 600.0), rates, out target, out fall);
             r.Amount = (float)amount;
@@ -185,6 +226,14 @@ namespace ReDefinition.Atmospheres
                 if (r.Shells.Count > 0) DestroyShells(r);
                 return;
             }
+            if (AtmospheresSettings.VehicleCoverMethod == VehicleCoverMethod.ScreenSpace)
+            {
+                // No shells in this method: the vessel's bounds are the region the screen pass paints in.
+                if (r.Shells.Count > 0) DestroyShells(r);
+                FindRegion(r);
+                return;
+            }
+            r.HasRegion = false;
             // Shells for parts that have none yet are built a few a frame (Build).
             if (r.Pending.Count == 0 && r.Built.Count < v.parts.Count)
                 foreach (Part p in v.parts)
@@ -241,6 +290,127 @@ namespace ReDefinition.Atmospheres
                 case CoverKind.Ash: return s.Type == PrecipType.Ash ? s.Level01 : 0.0;
                 default: return 0.0;
             }
+        }
+
+        // ---- the screen-space method ------------------------------------------------------------------------------------------
+
+        // The bounds of a vessel's renderers as a region (about once a second).
+        private void FindRegion(VesselRecord r)
+        {
+            Vessel v = r.Vessel;
+            bool any = false;
+            Bounds bounds = default(Bounds);
+            foreach (Part p in v.parts)
+            {
+                if (p == null) continue;
+                p.GetComponentsInChildren(false, renderersScratch);
+                for (int i = 0; i < renderersScratch.Count; i++)
+                {
+                    MeshRenderer m = renderersScratch[i];
+                    if (m == null || !m.enabled || m.gameObject.name == ShellName) continue;
+                    if (!any) bounds = m.bounds;
+                    else bounds.Encapsulate(m.bounds);
+                    any = true;
+                }
+                renderersScratch.Clear();
+            }
+            if (!any)
+            {
+                r.HasRegion = false;
+                return;
+            }
+            Vector3 up = UpOf(v);
+            Vector3 e = bounds.extents;
+            r.Region = CoverScreenMath.RegionOf(bounds.center.x, bounds.center.y, bounds.center.z, e.x, e.y, e.z, up.x, up.y, up.z, r.Amount);
+            r.LocalCentre = v.transform.InverseTransformPoint(bounds.center);
+            r.HasRegion = true;
+        }
+
+        private bool MakeScreenPass()
+        {
+            if (screen != null) return true;
+            if (screenTried) return false;
+            screenTried = true;
+            string error;
+            Shader shader = AtmosphereShaders.Get(CoverScreenShaderName, out error);
+            if (shader == null)
+            {
+                AtmospheresLog.WarnOnce("vehicle cover: the screen-space shader is not available (" + error + "); vehicles stay bare.");
+                return false;
+            }
+            screen = new CoverScreenPass(shader);
+            return true;
+        }
+
+        internal const string CoverScreenShaderName = "ReDefinition/AtmospheresShellScreen";
+        internal const UnityEngine.Rendering.CameraEvent ScreenEvent = UnityEngine.Rendering.CameraEvent.BeforeForwardAlpha;
+
+        // Records the screen pass for the flight camera: the regions of the vessels near it, the light and the cover colour.
+        private void DrawScreen()
+        {
+            Camera cam = HighLogic.LoadedSceneIsFlight && FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+            Vessel active = GameGlobals.ActiveVessel;
+            CelestialBody body = active != null ? active.mainBody : null;
+            CoverBodyState state = body != null ? CoverBodies.Of(body) : null;
+            if (cam == null || state == null || !MakeScreenPass())
+            {
+                DetachScreen();
+                return;
+            }
+            int n = 0;
+            foreach (VesselRecord r in records.Values)
+            {
+                if (!r.Wanted || !r.HasRegion || r.Vessel == null || n >= regionScratch.Length) continue;
+                Vector3 c = r.Vessel.transform.TransformPoint(r.LocalCentre);
+                CoverScreenMath.Region g = r.Region;
+                g.X = c.x;
+                g.Y = c.y;
+                g.Z = c.z;
+                g.Amount = r.Amount;
+                regionScratch[n++] = g;
+            }
+            Vector3 camPos = cam.transform.position;
+            int count = CoverScreenMath.Select(regionScratch, n, camPos.x, camPos.y, camPos.z, (float)rates.Visible, regionsSelected);
+            ScreenDrawn = count;
+            if (count == 0)
+            {
+                DetachScreen();
+                return;
+            }
+            if (screenBuffer == null || screenCamera != cam)
+            {
+                DetachScreen();
+                screenBuffer = new CommandBuffer { name = "ReDefinition Atmospheres vehicle cover" };
+                screenCamera = cam;
+                cam.AddCommandBuffer(ScreenEvent, screenBuffer);
+            }
+            cam.depthTextureMode |= DepthTextureMode.Depth;
+            Light sun = Sun.Instance != null ? Sun.Instance.sunLight : null;
+            Vector3 up = ((Vector3)(cam.transform.position - body.transform.position)).normalized;
+            var draw = new CoverScreenDraw
+            {
+                Regions = regionsSelected,
+                Count = count,
+                Up = up,
+                Colour = new Color(state.Def.Red, state.Def.Green, state.Def.Blue, 1f),
+                TowardsSun = sun != null ? -sun.transform.forward : up,
+                SunColour = sun != null ? sun.color * Mathf.Min(sun.intensity, 1.5f) : Color.white,
+                Ambient = RenderSettings.ambientLight,
+                EdgeLow = Tuning.Get("vehicle.maskLow", 0.35f),
+                EdgeHigh = Tuning.Get("vehicle.maskHigh", 0.75f),
+                Grain = Tuning.Get("vehicle.screenGrain", 40f)
+            };
+            screenBuffer.Clear();
+            screen.Record(screenBuffer, ref draw);
+        }
+
+        private void DetachScreen()
+        {
+            if (screenBuffer == null) return;
+            if (screenCamera != null) screenCamera.RemoveCommandBuffer(ScreenEvent, screenBuffer);
+            screenBuffer.Release();
+            screenBuffer = null;
+            screenCamera = null;
         }
 
         // ---- the shells -------------------------------------------------------------------------------------------------------
@@ -314,6 +484,16 @@ namespace ReDefinition.Atmospheres
             MeshFilter filter = source.GetComponent<MeshFilter>();
             Mesh mesh = filter != null ? filter.sharedMesh : null;
             if (mesh == null || !source.enabled || source.sharedMaterial == null || source.sharedMaterial.renderQueue > 2500) return;
+            Shader sourceShader = source.sharedMaterial.shader;
+            string shaderName = sourceShader != null ? sourceShader.name : null;
+            if (!VehicleCoverGate.ShellAccepts(shaderName))
+            {
+                // A foreign opaque shader: the shell would not light like the part (RECON P8). The part stays bare in this method.
+                ForeignBare++;
+                if (foreignLogged.Add(shaderName ?? "(none)"))
+                    AtmospheresLog.Say("vehicle cover: no shell over shader '" + shaderName + "' (not a stock-like shader); vehicleCoverMethod ScreenSpace covers it");
+                return;
+            }
             if (!mesh.isReadable)
             {
                 Unreadable++;
@@ -334,7 +514,7 @@ namespace ReDefinition.Atmospheres
             mr.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
             mr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
             mr.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
-            mr.enabled = r.Amount >= (float)rates.Visible;
+            mr.enabled = r.Amount >= (float)rates.Visible && r.Near;
             r.Shells.Add(new ShellRecord { Source = source, Shell = go, Renderer = mr, BuiltUp = localUp });
             ApplyTo(r, mr, state);
         }
@@ -409,8 +589,9 @@ namespace ReDefinition.Atmospheres
         // The amount, the colour and the up are given to every shell of a vessel through a property block.
         private void ApplyAmount(VesselRecord r, CoverBodyState state)
         {
-            if (Mathf.Abs(r.Amount - r.AppliedAmount) < 0.01f && r.AppliedAmount >= 0f) return;
+            if (Mathf.Abs(r.Amount - r.AppliedAmount) < 0.01f && r.AppliedAmount >= 0f && r.AppliedNear == r.Near) return;
             r.AppliedAmount = r.Amount;
+            r.AppliedNear = r.Near;
             for (int i = r.Shells.Count - 1; i >= 0; i--)
             {
                 ShellRecord s = r.Shells[i];
@@ -434,7 +615,7 @@ namespace ReDefinition.Atmospheres
             block.SetFloat("_EdgeLow", Tuning.Get("vehicle.maskLow", 0.35f));
             block.SetFloat("_EdgeHigh", Tuning.Get("vehicle.maskHigh", 0.75f));
             mr.SetPropertyBlock(block);
-            mr.enabled = r.Amount >= (float)rates.Visible;
+            mr.enabled = r.Amount >= (float)rates.Visible && r.Near;
         }
 
         private void DestroyShells(VesselRecord r)

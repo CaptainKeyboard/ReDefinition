@@ -81,7 +81,7 @@ namespace ReDefinition.Atmospheres
                     return value(AtmospheresSettings.Keys.WindForces) != 0.0 ? null : def.GreyReason;
                 case AtmospheresSettings.GreyReasons.NeedsGroundCover:
                     if (value(AtmospheresSettings.Keys.GroundCover) == 0.0) return def.GreyReason;
-                    if (def.Key == AtmospheresSettings.Keys.VehicleCover && !env.ShellShaders) return SettingHelp.NeedsShellShaders;
+                    if ((def.Key == AtmospheresSettings.Keys.VehicleCover || def.Key == AtmospheresSettings.Keys.VehicleCoverMethod) && !env.ShellShaders) return SettingHelp.NeedsShellShaders;
                     return null;
                 case AtmospheresSettings.GreyReasons.NeedsSeaIce:
                     return value(AtmospheresSettings.Keys.SeaIce) != (double)(int)SeaIceMode.Off ? null : def.GreyReason;

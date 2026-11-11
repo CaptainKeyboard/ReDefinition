@@ -4,8 +4,13 @@ namespace ReDefinition.Atmospheres
 {
     // What the surface cover takes for granted about the game's code (Assembly-CSharp of KSP 1.12). The entries name the members the
     // tracks and the ground cover reach by name; a change of the game that moves one makes the entry Changed and, with
-    // WhenChanged.Fallback, switches the feature off. No method body is relied on, so there is no method fingerprint to record: the
-    // lookups are by name and type. Parallax is reached only through ParallaxLink (its own assumption entries live there).
+    // WhenChanged.Fallback, switches the feature off. The cover calls no method of the game's wheel code: it reads three fields and a
+    // transform, so the entries are checked by name and type, and an IL fingerprint (which ForeignAssumption.Method records for a
+    // method a feature calls) has nothing to attach to. The hooks of the ground quad are overridden by the mod, not called; the entry
+    // checks that they exist with the signature the mod overrides. Deviation from brief item 8, which asks for fingerprints: none is
+    // recorded because no foreign method body is relied on; a wheel contact from WheelCollider.GetGroundHit would add one and was not
+    // taken (ModuleWheelBase.isGrounded and radius give the contact at the 10 Hz of the stamps). Parallax is reached only through
+    // ParallaxLink (its own assumption entries live there).
     [AtmospheresAssumptions]
     internal static class AssumptionsD34
     {

@@ -22,12 +22,14 @@ namespace ReDefinition.Atmospheres
         internal BodyClimate Climate;
         internal CoverDef Def;
         internal readonly CoverMap Map = new CoverMap();
+        // How far the wind has carried the drift pattern (in-session).
+        internal readonly CoverWindTravel WindTravel = new CoverWindTravel();
         // The tracks of the body, made when the first wheel marks (the radius is the body's).
         private TrackTiles tracks;
 
         internal TrackTiles Tracks
         {
-            get { return tracks ?? (tracks = new TrackTiles(Body.Radius)); }
+            get { return tracks ?? (tracks = new TrackTiles(Body.Radius, CoverBodies.TrackMemory)); }
         }
 
         internal bool HasTracks
@@ -38,6 +40,7 @@ namespace ReDefinition.Atmospheres
         // Forgets the tracks (another save game was loaded).
         internal void ResetTracks()
         {
+            if (tracks != null) tracks.Leave();
             tracks = null;
         }
 
@@ -76,6 +79,9 @@ namespace ReDefinition.Atmospheres
     internal static class CoverBodies
     {
         private static readonly Dictionary<int, CoverBodyState> States = new Dictionary<int, CoverBodyState>();
+
+        // The live track tiles of all bodies together stay within TrackTiles.MaxLive (4 MB).
+        internal static readonly TrackBudget TrackMemory = new TrackBudget();
 
         internal static int Count { get { return States.Count; } }
 

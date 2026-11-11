@@ -96,6 +96,15 @@ namespace ReDefinition.Atmospheres
         Always
     }
 
+    // How a vehicle shows cover (key vehicleCoverMethod): Shell puts a second mesh with the up-facing triangles over each part with a
+    // stock-like shader (parts with a foreign opaque shader stay bare); ScreenSpace paints the up-facing pixels in the vessel's bounds
+    // after the opaque pass and needs no mesh, so it also covers parts with a foreign shader.
+    internal enum VehicleCoverMethod
+    {
+        Shell,
+        ScreenSpace
+    }
+
     // Sea ice (key seaIce).
     internal enum SeaIceMode
     {

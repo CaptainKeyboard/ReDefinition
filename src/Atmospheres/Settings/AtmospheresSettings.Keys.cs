@@ -85,6 +85,7 @@ namespace ReDefinition.Atmospheres
             internal const string GroundCover = "groundCover";
             internal const string CoverStrength = "coverStrength";
             internal const string VehicleCover = "vehicleCover";
+            internal const string VehicleCoverMethod = "vehicleCoverMethod";
             internal const string Tracks = "tracks";
             internal const string CoverDrift = "coverDrift";
             internal const string SeaIce = "seaIce";
@@ -317,6 +318,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("groundCover", true, C, "Ground Cover", MASTER, RC),
                 SettingDef.Float("coverStrength", 1.0, 0.0, 1.0, C, "Cover Strength", GC),
                 SettingDef.Choice("vehicleCover", typeof(VehicleCoverMode), VehicleCoverMode.Landed, C, "Vehicle Cover", GC, RC),
+                SettingDef.Choice("vehicleCoverMethod", typeof(VehicleCoverMethod), VehicleCoverMethod.Shell, C, "Vehicle Cover Method", GC),
                 SettingDef.Bool("tracks", true, C, "Tracks In Cover", GC, RC),
                 SettingDef.Float("coverDrift", 0.3, 0.0, 1.0, C, "Cover Drift", GC),
                 SettingDef.Choice("seaIce", typeof(SeaIceMode), SeaIceMode.Orbit, I, "Sea Ice", MASTER, RI),

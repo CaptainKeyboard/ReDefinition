@@ -108,6 +108,7 @@ namespace ReDefinition.Atmospheres
                 { "groundCover", "Lets snow, sand and dust cover the ground and the vehicles." },
                 { "coverStrength", "How thick the cover is: 0 none, 1 as simulated." },
                 { "vehicleCover", "When a vehicle carries cover: Off never, Landed while it stands on the ground, Always." },
+                { "vehicleCoverMethod", "How vehicles show cover: Shell draws a thin second mesh over each part, ScreenSpace paints the up-facing pixels of the vessel and also covers parts with a foreign shader." },
                 { "tracks", "Lets wheels and feet leave tracks in the cover." },
                 { "coverDrift", "How far the wind moves the cover about." },
 

@@ -30,6 +30,51 @@ namespace ReDefinition.Atmospheres
         }
     }
 
+    // The memory the live tiles of all bodies share: at most TrackTiles.MaxLive tiles (4 MB) together, the least recently touched one of
+    // any member goes to its compressed form first. A TrackTiles made without one has a budget of its own.
+    internal sealed class TrackBudget
+    {
+        private readonly List<TrackTiles> members = new List<TrackTiles>();
+        private long clock;
+
+        internal long Tick() { return ++clock; }
+
+        internal void Join(TrackTiles tiles) { if (!members.Contains(tiles)) members.Add(tiles); }
+
+        internal void Leave(TrackTiles tiles) { members.Remove(tiles); }
+
+        internal int TotalLive
+        {
+            get
+            {
+                int n = 0;
+                for (int i = 0; i < members.Count; i++) n += members[i].LiveCount;
+                return n;
+            }
+        }
+
+        // Parks the least recently touched live tile of any member except the one at (keepOwner, keepKey); false where there is none.
+        internal bool EvictOldest(TrackTiles keepOwner, long keepKey)
+        {
+            TrackTiles owner = null;
+            long oldestKey = 0, oldest = long.MaxValue;
+            for (int i = 0; i < members.Count; i++)
+            {
+                long key;
+                long touch;
+                if (members[i].OldestLive(members[i] == keepOwner ? keepKey : (long?)null, out key, out touch) && touch < oldest)
+                {
+                    oldest = touch;
+                    oldestKey = key;
+                    owner = members[i];
+                }
+            }
+            if (owner == null) return false;
+            owner.Park(oldestKey);
+            return true;
+        }
+    }
+
     internal sealed class TrackTiles
     {
         internal const int TexelsPerSide = 256;
@@ -49,11 +94,21 @@ namespace ReDefinition.Atmospheres
         private readonly double radiusM;
         private readonly Dictionary<long, TrackTile> live = new Dictionary<long, TrackTile>();
         private readonly Dictionary<long, byte[]> parked = new Dictionary<long, byte[]>();
-        private long touch;
+        private readonly TrackBudget budget;
 
-        internal TrackTiles(double bodyRadiusM)
+        // budget is the memory shared with the other bodies' tiles (null: one of its own).
+        internal TrackTiles(double bodyRadiusM, TrackBudget budget = null)
         {
             radiusM = bodyRadiusM > 1.0 ? bodyRadiusM : 1.0;
+            this.budget = budget ?? new TrackBudget();
+            this.budget.Join(this);
+        }
+
+        // Gives the shared memory back (the tracks are forgotten).
+        internal void Leave()
+        {
+            budget.Leave(this);
+            live.Clear();
         }
 
         internal int LiveCount { get { return live.Count; } }
@@ -109,7 +164,7 @@ namespace ReDefinition.Atmospheres
             TrackTile tile;
             if (live.TryGetValue(key, out tile))
             {
-                tile.LastTouch = ++touch;
+                tile.LastTouch = budget.Tick();
                 return tile;
             }
             byte[] packed;
@@ -131,29 +186,39 @@ namespace ReDefinition.Atmospheres
 
         private void Add(long key, TrackTile tile)
         {
-            tile.LastTouch = ++touch;
+            tile.LastTouch = budget.Tick();
             live[key] = tile;
-            while (live.Count > MaxLive) EvictOldest(key);
+            while (budget.TotalLive > MaxLive)
+                if (!budget.EvictOldest(this, key)) break;
         }
 
-        // Parks the least recently touched live tile (never the one with the keep key).
-        private void EvictOldest(long keep)
+        // The least recently touched live tile other than the one at skipKey: its key and touch time; false where there is none.
+        internal bool OldestLive(long? skipKey, out long key, out long touchTime)
         {
-            long oldestKey = 0;
-            long oldest = long.MaxValue;
+            key = 0;
+            touchTime = long.MaxValue;
+            bool found = false;
             foreach (KeyValuePair<long, TrackTile> pair in live)
             {
-                if (pair.Key != keep && pair.Value.LastTouch < oldest)
+                if (skipKey.HasValue && pair.Key == skipKey.Value) continue;
+                if (pair.Value.LastTouch < touchTime)
                 {
-                    oldest = pair.Value.LastTouch;
-                    oldestKey = pair.Key;
+                    touchTime = pair.Value.LastTouch;
+                    key = pair.Key;
+                    found = true;
                 }
             }
+            return found;
+        }
+
+        // Moves a live tile to its compressed form.
+        internal void Park(long key)
+        {
             TrackTile tile;
-            if (!live.TryGetValue(oldestKey, out tile) || oldestKey == keep) return;
-            live.Remove(oldestKey);
+            if (!live.TryGetValue(key, out tile)) return;
+            live.Remove(key);
             byte[] packed = Encode(tile);
-            if (packed != null) parked[oldestKey] = packed;
+            if (packed != null) parked[key] = packed;
         }
 
         // Presses a disc of radius halfWidthM at a place at time ut where the cover is at least MinCover: the texels in the disc go to
@@ -229,6 +294,41 @@ namespace ReDefinition.Atmospheres
             TrackTile tile = Get(tx, ty, false);
             if (tile == null) return 0;
             return ShownAt(tile, (int)Math.Floor(east / TexelMetres), (int)Math.Floor(north / TexelMetres), ut);
+        }
+
+        // The pressed runs on a line across a heading: the line passes the place at right angles to the bearing (radians clockwise from
+        // north) and reaches halfSpanM to each side; a run is a stretch of samples (every quarter of a texel) that show something. The
+        // number of runs and their mean length in metres (0 where none): a rover's two tracks give two runs, each about the tyre's width.
+        internal int RunsAcross(double latDeg, double lonDeg, double bearingRad, double halfSpanM, double ut, out double meanRunM)
+        {
+            const double step = TexelMetres * 0.25;
+            double acrossEast = Math.Cos(bearingRad), acrossNorth = -Math.Sin(bearingRad);
+            double cosLat = Math.Max(0.01, Math.Cos(latDeg * Math.PI / 180.0));
+            int runs = 0, inRun = 0;
+            double total = 0;
+            for (double s = -halfSpanM; s <= halfSpanM + 1e-9; s += step)
+            {
+                double lat = latDeg + acrossNorth * s / radiusM * 180.0 / Math.PI;
+                double lon = lonDeg + acrossEast * s / (radiusM * cosLat) * 180.0 / Math.PI;
+                if (Shown(lat, lon, ut) > 0)
+                {
+                    inRun++;
+                    continue;
+                }
+                if (inRun > 0)
+                {
+                    runs++;
+                    total += inRun * step;
+                    inRun = 0;
+                }
+            }
+            if (inRun > 0)
+            {
+                runs++;
+                total += inRun * step;
+            }
+            meanRunM = runs > 0 ? total / runs : 0.0;
+            return runs;
         }
 
         internal static double ShownAt(TrackTile tile, int i, int j, double ut)

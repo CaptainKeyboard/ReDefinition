@@ -13,15 +13,39 @@ namespace ReDefinition.Atmospheres
         // The look of a body for the game time ut, without wind (the wind is set per quad).
         internal static CoverLook Make(CoverBodyState state, double ut)
         {
+            double drift = Drift(state);
+            if (drift > 0) AdvanceTravel(state, ut);
             return new CoverLook
             {
                 Def = state.Def,
                 Strength = AtmospheresSettings.CoverStrength,
                 EdgeNoise = Tuning.Get(EdgeNoiseKey, EdgeNoiseDefault),
-                Drift = Drift(state),
+                Drift = drift,
                 Ut = ut,
-                RadiusM = state.Body.Radius
+                RadiusM = state.Body.Radius,
+                TravelEastM = state.WindTravel.EastM,
+                TravelNorthM = state.WindTravel.NorthM
             };
+        }
+
+        // The places the body's reference wind is the mean of: six points at 40 degrees N/S latitude, 120 degrees apart.
+        private static readonly double[] ReferenceLat = { 40, 40, 40, -40, -40, -40 };
+        private static readonly double[] ReferenceLon = { 0, 120, 240, 60, 180, 300 };
+
+        // Carries the body's pattern on by the mean wind since the last step (at most once a minute of game time).
+        private static void AdvanceTravel(CoverBodyState state, double ut)
+        {
+            CoverWindTravel travel = state.WindTravel;
+            if (!travel.Due(ut)) return;
+            double east = 0, north = 0;
+            for (int i = 0; i < ReferenceLat.Length; i++)
+            {
+                double e, n;
+                WindAt(state, ReferenceLat[i], ReferenceLon[i], 0.0, ut, out e, out n);
+                east += e;
+                north += n;
+            }
+            travel.Advance(ut, east / ReferenceLat.Length, north / ReferenceLat.Length);
         }
 
         // The drift in force: the layer's own times the setting (both 0..1; 0 is off).

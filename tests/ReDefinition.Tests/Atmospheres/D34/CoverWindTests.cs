@@ -15,11 +15,66 @@ namespace ReDefinition.Tests.Atmospheres.D34
             Geo.DirectionOf(lat * Math.PI / 180.0, lon * Math.PI / 180.0, out x, out y, out z);
         }
 
+        // The factor for a wind that has blown steadily since the start: the travel is the wind times the advection times the time.
         private static double F(double lat, double lon, double we, double wn, double ut, double drift, double stretch = 4, bool ridged = false)
+        {
+            return FT(lat, lon, we, wn, we * CoverWind.AdvectionPerSecond * ut, wn * CoverWind.AdvectionPerSecond * ut, drift, stretch, ridged);
+        }
+
+        private static double FT(double lat, double lon, double we, double wn, double travelEast, double travelNorth, double drift, double stretch = 4, bool ridged = false)
         {
             double x, y, z;
             Dir(lat, lon, out x, out y, out z);
-            return CoverWind.Factor(x, y, z, we, wn, ut, drift, stretch, ridged, Radius);
+            return CoverWind.Factor(x, y, z, we, wn, travelEast, travelNorth, drift, stretch, ridged, Radius);
+        }
+
+        [TestMethod]
+        public void AStepOfTheWindDoesNotMoveThePatternAsAWhole()
+        {
+            // After a day of 5 m/s the wind steps to 6 m/s: the travel integrates, so the pattern at the step is unchanged (the old
+            // absolute time x current wind moved it by 1 m/s x 0.01 x UT, ~1e5 m at UT 1e7).
+            var travel = new CoverWindTravel();
+            const double ut0 = 1.0e7;
+            travel.Advance(ut0, 5, 0);
+            travel.Advance(ut0 + 86400, 5, 0);
+            double eastBefore = travel.EastM;
+            Assert.AreEqual(5 * CoverWind.AdvectionPerSecond * 21600.0, eastBefore, 1e-6, "the span counts up to MaxStepSeconds");
+            double before = 0, after = 0, maxDiff = 0;
+            for (double lon = 0; lon < 12; lon += 0.37)
+            {
+                before = FT(55, lon, 5, 0, travel.EastM, travel.NorthM, 1.0, 2.0);
+                after = FT(55, lon, 6, 0, travel.EastM, travel.NorthM, 1.0, 2.0);
+                maxDiff = Math.Max(maxDiff, Math.Abs(before - after));
+            }
+            Assert.AreEqual(0.0, maxDiff, 1e-9, "the same travel gives the same pattern when only the speed along the same direction changes");
+            // One more minute at 6 m/s moves the pattern by 0.36 m, far less than one cell (1.25 km on a 600 km body).
+            double e0 = travel.EastM;
+            travel.Advance(ut0 + 86400 + 60, 6, 0);
+            double movedM = travel.EastM - e0;
+            Assert.AreEqual(6 * CoverWind.AdvectionPerSecond * 60, movedM, 1e-9);
+            Assert.IsTrue(movedM < Radius / CoverWind.FeaturesPerRadius, "less than one cell: " + movedM);
+            double moved = Math.Abs(FT(55, 3, 6, 0, e0, 0, 1.0, 1.0) - FT(55, 3, 6, 0, travel.EastM, 0, 1.0, 1.0));
+            Assert.IsTrue(moved < 0.01, "the pattern barely moved: " + moved);
+        }
+
+        [TestMethod]
+        public void TheTravelIntegratesTheWindAndSurvivesAGameTimeThatGoesBack()
+        {
+            var travel = new CoverWindTravel();
+            Assert.IsTrue(travel.Due(100));
+            travel.Advance(100, 4, 2);
+            Assert.AreEqual(0.0, travel.EastM, 0.0, "the first step only sets the time");
+            Assert.IsFalse(travel.Due(130), "not due within a minute");
+            Assert.IsTrue(travel.Due(160));
+            travel.Advance(160, 4, 2);
+            Assert.AreEqual(4 * 0.01 * 60, travel.EastM, 1e-12);
+            Assert.AreEqual(2 * 0.01 * 60, travel.NorthM, 1e-12);
+            travel.Advance(50, 4, 2);
+            Assert.AreEqual(4 * 0.01 * 60, travel.EastM, 1e-12, "a revert keeps the travel");
+            travel.Advance(110, 10, 0);
+            Assert.AreEqual(4 * 0.01 * 60 + 10 * 0.01 * 60, travel.EastM, 1e-12, "and goes on from the new time");
+            travel.Reset();
+            Assert.AreEqual(0.0, travel.EastM, 0.0);
         }
 
         [TestMethod]

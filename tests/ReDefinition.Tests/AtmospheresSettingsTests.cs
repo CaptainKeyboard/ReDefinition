@@ -153,7 +153,7 @@ namespace ReDefinition.Tests
                 "visibilityExport", "genEnabled", "simGrid", "simLevels", "simSliceMs", "genSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
                 "stormCullDistance", "fogBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
                 "weatherAudio", "weatherAudioVolume", "audioWind", "audioPrecip", "audioFootsteps", "audioFootstepsSurface", "audioDistantStorm", "audioQuietSnow",
-                "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
+                "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "vehicleCoverMethod", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
                 "iceCollision", "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp", "alertScreenMessage", "forecastOverlay",
                 "alertSites", "forecastHorizonHours", "forecastUncertainty", "launchMaxLevel", "launchMaxWindMs", "launchMinVisibilityM", "launchLeadHours",
                 "orbitBodies", "qualityGovernor", "forceLevel", "forceType", "forceBody", "forcePhase", "atmoDebug"
@@ -263,7 +263,7 @@ namespace ReDefinition.Tests
                 { "seasonMode", typeof(SeasonMode) }, { "cloudSource", typeof(CloudSourceKind) }, { "weatherCompose", typeof(WeatherCompose) }, { "windSource", typeof(WindSourceMode) },
                 { "windInjection", typeof(WindInjection) }, { "volumeCompose", typeof(VolumeCompose) }, { "aurora", typeof(AuroraMode) },
                 { "audioMuffling", typeof(AudioMuffling) }, { "eveSound", typeof(EveSoundPolicy) }, { "audioBedSource", typeof(AudioBedSource) },
-                { "vehicleCover", typeof(VehicleCoverMode) }, { "seaIce", typeof(SeaIceMode) }, { "orbitBodies", typeof(OrbitBodiesMode) },
+                { "vehicleCover", typeof(VehicleCoverMode) }, { "vehicleCoverMethod", typeof(VehicleCoverMethod) }, { "seaIce", typeof(SeaIceMode) }, { "orbitBodies", typeof(OrbitBodiesMode) },
                 { "simGrid", typeof(SimGridChoice) }, { "alertMinLevel", typeof(LevelChoice) }, { "launchMaxLevel", typeof(LevelChoice) },
                 { "forceType", typeof(ForceType) }, { "atmoDebug", typeof(AtmoDebugMode) }, { "qualityTier", typeof(ReDefinition.Core.QualityTier) }
             };

@@ -99,6 +99,34 @@ namespace ReDefinition.Atmospheres
             return double.NaN;
         }
 
+        // The bearing of the vessel's ground velocity in radians clockwise from north (its heading where it stands still).
+        private static double BearingOf(Vessel v)
+        {
+            Vector3d velocity = v.srf_velocity;
+            if (velocity.sqrMagnitude < 0.01) velocity = v.transform.forward;
+            return Math.Atan2(Vector3d.Dot(velocity, v.east), Vector3d.Dot(velocity, v.north));
+        }
+
+        // Whether the ray-traced scene of the main mod leaves the cover shell's shader out: asked of RtFilter by reflection (the
+        // atmospheres assembly does not reference the main mod). False where the type or the method is not found.
+        private static bool RtLeavesOutShell()
+        {
+            try
+            {
+                foreach (System.Reflection.Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    Type t = a.GetType("ReDefinition.Raytracing.RtFilter", false);
+                    if (t == null) continue;
+                    System.Reflection.MethodInfo m = t.GetMethod("LeftOut", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                    return m != null && (bool)m.Invoke(null, new object[] { VehicleCoverGate.ShellShaderName });
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return false;
+        }
+
         // The spacing of the vertices of the built quad nearest to the vessel, in metres (a vertex to its neighbour in the row).
         private static double SpacingNear(Vessel v)
         {
@@ -171,6 +199,8 @@ namespace ReDefinition.Atmospheres
 
             // ---- the seasons from the real field, with the orbit mask of each ----------------------------------------------------------
             var seasonFrames = new CoverMap.Frame[4];
+            var alphaNorth = new double[4];
+            var alphaSouth = new double[4];
             double ut0;
             CoverClock.TryUt(out ut0);
             double year = Math.Max(1.0, state.Climate.YearSeconds);
@@ -201,8 +231,10 @@ namespace ReDefinition.Atmospheres
                 OrbitMask.BuildCoordinates(w, h, state.Frame, out lat, out lon);
                 var rgba = new byte[w * h * 4];
                 OrbitMask.Fill(rgba, w, h, OrbitMask.BuildNoise(w, h), null, OrbitMask.HeightWidth, OrbitMask.HeightHeight, lat, lon, seasonFrames[k], state.Def, 1.0, 0.0, false);
-                Emit("D34.season." + k + ".orbit_mean_alpha_north", MeanAlpha(rgba, w, h, 50, 90));
-                Emit("D34.season." + k + ".orbit_mean_alpha_south", MeanAlpha(rgba, w, h, -90, -50));
+                alphaNorth[k] = MeanAlpha(rgba, w, h, 50, 90);
+                alphaSouth[k] = MeanAlpha(rgba, w, h, -90, -50);
+                Emit("D34.season." + k + ".orbit_mean_alpha_north", alphaNorth[k]);
+                Emit("D34.season." + k + ".orbit_mean_alpha_south", alphaSouth[k]);
             }
             if (seasonFrames[0] != null && seasonFrames[2] != null)
             {
@@ -211,6 +243,13 @@ namespace ReDefinition.Atmospheres
                 Emit("D34.season_swing_north", a);
                 Emit("D34.season_swing_south", b);
                 Emit("D34.seasons_differ", Math.Abs(a) + Math.Abs(b) > 0.02);
+                // Seasons 0 and 2 are half a year apart: the hemispheres swing in opposite directions, each by a real amount, and the orbit
+                // mask follows the cover (the polar band's alpha is larger in the season with the larger share, in each hemisphere).
+                Emit("D34.season_swing_north_abs", Math.Abs(a));
+                Emit("D34.season_swing_south_abs", Math.Abs(b));
+                Emit("D34.season_hemispheres_opposed", a * b < 0.0);
+                Emit("D34.orbit_alpha_follows_share_north", (alphaNorth[0] - alphaNorth[2]) * a > 0.0);
+                Emit("D34.orbit_alpha_follows_share_south", (alphaSouth[0] - alphaSouth[2]) * b > 0.0);
             }
 
             // ---- a forced system over the vessel: a patch that fades ----------------------------------------------------------------------
@@ -245,6 +284,19 @@ namespace ReDefinition.Atmospheres
             Emit("D34.vehicle_parts_built", vehicles != null ? vehicles.PartsBuilt : -1);
             Emit("D34.vehicle_unreadable_meshes", vehicles != null ? vehicles.Unreadable : -1);
             Emit("D34.vehicle_build_ms", vehicles != null ? vehicles.LastBuildMs : -1.0);
+            Emit("D34.vehicle_foreign_bare", vehicles != null ? vehicles.ForeignBare : -1);
+            Emit("D34.rt_shell_left_out", RtLeavesOutShell());
+            // The method switch while the vessel still carries cover: ScreenSpace removes the shells and the pass draws for the vessel;
+            // back to Shell the shells return.
+            SetSetting(AtmospheresSettings.Keys.VehicleCoverMethod, (double)(int)VehicleCoverMethod.ScreenSpace);
+            yield return ProbeWait.Seconds(4);
+            Emit("D34.vehicle_screen_attached", vehicles != null && vehicles.ScreenAttached);
+            Emit("D34.vehicle_screen_drawn", vehicles != null ? vehicles.ScreenDrawn : -1);
+            Emit("D34.vehicle_shells_in_screen_method", vehicles != null ? vehicles.ShellCount : -1);
+            SetSetting(AtmospheresSettings.Keys.VehicleCoverMethod, (double)(int)VehicleCoverMethod.Shell);
+            yield return ProbeWait.Seconds(6);
+            Emit("D34.vehicle_screen_detached", vehicles != null && !vehicles.ScreenAttached);
+            Emit("D34.vehicle_shells_returned", vehicles != null ? vehicles.ShellCount : -1);
 
             // ---- the tracks: a circle on the cover ------------------------------------------------------------------------------------------
             TrackModule tracks = TrackModule.Current;
@@ -252,13 +304,41 @@ namespace ReDefinition.Atmospheres
             int marksBefore = tracks != null ? tracks.Marks : 0;
             FlightInputHandler.state.wheelThrottle = 0.35f;
             FlightInputHandler.state.wheelSteer = 0.5f;
-            yield return ProbeWait.Seconds(40);
+            // The width of the tracks at three places of the circle: after 14, 27 and 40 seconds the runs of pressed texels across the
+            // rover's heading at its place (its wheels have just marked there).
+            var widths = new List<double>();
+            for (int place = 1; place <= 3; place++)
+            {
+                yield return ProbeWait.Seconds(place == 1 ? 14 : 13);
+                double utWidth;
+                CoverClock.TryUt(out utWidth);
+                double bearing = BearingOf(vessel);
+                double meanRun = 0;
+                int runs = 0;
+                if (state.HasTracks) runs = state.Tracks.RunsAcross(vessel.latitude, vessel.longitude, bearing, 4.0, utWidth, out meanRun);
+                Emit("D34.track_runs_place" + place, runs);
+                Emit("D34.track_width_place" + place + "_m", meanRun);
+                if (runs >= 2) widths.Add(meanRun);
+            }
+            if (widths.Count >= 2)
+            {
+                double lo = double.MaxValue, hi = 0, sum = 0;
+                foreach (double wdt in widths) { lo = Math.Min(lo, wdt); hi = Math.Max(hi, wdt); sum += wdt; }
+                Emit("D34.track_width_spread", (hi - lo) / (sum / widths.Count));
+                // The trail seen from 30 m: its width in pixels on the flight camera's picture (the pixel is 2 d tan(fov / 2) / height).
+                Camera flightCam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+                if (flightCam != null)
+                {
+                    double pixelAt30 = 2.0 * 30.0 * Math.Tan(flightCam.fieldOfView * 0.5 * Math.PI / 180.0) / Math.Max(1, flightCam.pixelHeight);
+                    Emit("D34.track_width_px_at_30m", sum / widths.Count / pixelAt30);
+                }
+            }
             FlightInputHandler.state.wheelThrottle = 0f;
             FlightInputHandler.state.wheelSteer = 0f;
             double travelled = (vessel.GetWorldPos3D() - start).magnitude;
             Emit("D34.track_marks", tracks != null ? tracks.Marks - marksBefore : -1);
             Emit("D34.track_tiles_live", tracks != null ? tracks.LiveTiles : -1);
-            Emit("D34.track_tile_ram_bytes", tracks != null ? tracks.LiveBytes : -1);
+            Emit("D34.track_tile_total_bytes", (long)CoverBodies.TrackMemory.TotalLive * TrackTiles.TexelsPerSide * TrackTiles.TexelsPerSide);
             yield return ProbeWait.Seconds(3);
             if (tracks != null && state.HasTracks)
             {
@@ -309,6 +389,11 @@ namespace ReDefinition.Atmospheres
             foreach (VehicleCoverMode mode in new[] { VehicleCoverMode.Off, VehicleCoverMode.Always, VehicleCoverMode.Landed, VehicleCoverMode.Off, VehicleCoverMode.Landed })
             {
                 SetSetting(AtmospheresSettings.Keys.VehicleCover, (double)(int)mode);
+                yield return ProbeWait.Seconds(2);
+            }
+            foreach (VehicleCoverMethod method in new[] { VehicleCoverMethod.ScreenSpace, VehicleCoverMethod.Shell, VehicleCoverMethod.ScreenSpace, VehicleCoverMethod.Shell })
+            {
+                SetSetting(AtmospheresSettings.Keys.VehicleCoverMethod, (double)(int)method);
                 yield return ProbeWait.Seconds(2);
             }
             foreach (double on in new[] { 0.0, 1.0, 0.0, 1.0 })

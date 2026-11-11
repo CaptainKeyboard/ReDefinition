@@ -24,6 +24,30 @@ namespace ReDefinition.Atmospheres
         private sealed class Wheels
         {
             internal ModuleWheelBase[] Modules;
+            // The half width of each wheel's mark in metres (TrackWidth), found when the wheel is first met.
+            internal float[] HalfWidths;
+        }
+
+        // The half width of a wheel's mark: the smallest dimension of its largest mesh (TrackWidth), the tuning value where it has none.
+        private static float HalfWidthOf(ModuleWheelBase wheel, float fallback)
+        {
+            if (wheel == null || wheel.wheelTransform == null) return fallback;
+            MeshFilter best = null;
+            float bestVolume = 0f;
+            foreach (MeshFilter f in wheel.wheelTransform.GetComponentsInChildren<MeshFilter>(false))
+            {
+                if (f == null || f.sharedMesh == null) continue;
+                Vector3 s = Vector3.Scale(f.sharedMesh.bounds.size, f.transform.lossyScale);
+                float volume = Mathf.Abs(s.x * s.y * s.z);
+                if (volume > bestVolume)
+                {
+                    bestVolume = volume;
+                    best = f;
+                }
+            }
+            if (best == null) return fallback;
+            Vector3 size = Vector3.Scale(best.sharedMesh.bounds.size, best.transform.lossyScale);
+            return TrackWidth.HalfWidthM(Mathf.Abs(size.x), Mathf.Abs(size.y), Mathf.Abs(size.z), fallback);
         }
 
         private readonly Dictionary<Part, Wheels> wheelsOfPart = new Dictionary<Part, Wheels>();
@@ -133,13 +157,16 @@ namespace ReDefinition.Atmospheres
                 if (!wheelsOfPart.TryGetValue(p, out w))
                 {
                     w = new Wheels { Modules = p.FindModulesImplementing<ModuleWheelBase>().ToArray() };
+                    w.HalfWidths = new float[w.Modules.Length];
+                    for (int k = 0; k < w.Modules.Length; k++) w.HalfWidths[k] = HalfWidthOf(w.Modules[k], halfWidth);
                     wheelsOfPart[p] = w;
                 }
-                foreach (ModuleWheelBase wheel in w.Modules)
+                for (int k = 0; k < w.Modules.Length; k++)
                 {
+                    ModuleWheelBase wheel = w.Modules[k];
                     if (wheel == null || !wheel.isGrounded || wheel.wheelTransform == null) continue;
                     Vector3d contact = (Vector3d)wheel.wheelTransform.position + (Vector3d)(down * Mathf.Max(0.05f, wheel.radius));
-                    Mark(state, wheel, contact, ut, halfWidth, tau, stepM);
+                    Mark(state, wheel, contact, ut, w.HalfWidths[k], tau, stepM);
                 }
             }
         }

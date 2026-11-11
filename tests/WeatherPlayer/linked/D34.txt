@@ -1,0 +1,7 @@
+# Linked into the weather player for the vehicle cover (D34, the L2 shell spike): the shell mesh selection, the screen-space pass (variant
+# (f)) with its region maths, and the two shaders. The module, the vessel model and the ground cover need the game and are not linked.
+src/Atmospheres/Cover/ShellMesh.cs
+src/Atmospheres/Cover/CoverScreenMath.cs
+src/Atmospheres/Cover/CoverScreenPass.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresShell.shader
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresShellScreen.shader

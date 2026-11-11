@@ -54,6 +54,21 @@ namespace ReDefinition.Atmospheres
             return anythingChanged && secondsSinceLast >= MinPassSeconds;
         }
 
+        // Whether another quad may start after elapsedMs of the frame's budget.
+        internal static bool WithinBudget(double elapsedMs, double budgetMs)
+        {
+            return elapsedMs < budgetMs;
+        }
+
+        // The quads one frame paints on a virtual clock where quad i costs quadMs[i] milliseconds: the cursor after the frame and the
+        // milliseconds spent. The same loop as Step's, for the replay of a storm-scale repaint in the tests.
+        internal static int FrameOnVirtualClock(IList<double> quadMs, int cursor, double budgetMs, out double spentMs)
+        {
+            spentMs = 0;
+            while (cursor < quadMs.Count && WithinBudget(spentMs, budgetMs)) spentMs += quadMs[cursor++];
+            return cursor;
+        }
+
         // Whether a finished pass is written to the log.
         internal static bool ShouldLog(int repainted, float secondsSinceLogged)
         {
@@ -66,12 +81,13 @@ namespace ReDefinition.Atmospheres
             if (broken) return;
             if (!passRunning && !StartPass(now)) return;
 
-            long budget = (long)Math.Max(1f, Tuning.Get(BudgetKey, BudgetDefault));
+            double budget = Math.Max(0.25, Tuning.Get(BudgetKey, BudgetDefault));
             var watch = Stopwatch.StartNew();
             passWatch.Start();
             try
             {
-                while (cursor < queue.Count && watch.ElapsedMilliseconds < budget) Repaint(queue[cursor++]);
+                // Ticks, not whole milliseconds: the clock is read before each quad, so a frame overruns by at most one quad.
+                while (cursor < queue.Count && WithinBudget(watch.Elapsed.TotalMilliseconds, budget)) Repaint(queue[cursor++]);
                 int scatters = ScatterQuadsPerFrame;
                 while (cursor >= queue.Count && scatterCursor < scatterQueue.Count && scatters-- > 0) RecolourScatters(scatterQueue[scatterCursor++]);
             }
@@ -192,7 +208,8 @@ namespace ReDefinition.Atmospheres
             {
                 look = new CoverLook
                 {
-                    Def = shared.Def, Strength = shared.Strength, EdgeNoise = shared.EdgeNoise, Drift = shared.Drift, Ut = shared.Ut, RadiusM = shared.RadiusM
+                    Def = shared.Def, Strength = shared.Strength, EdgeNoise = shared.EdgeNoise, Drift = shared.Drift, Ut = shared.Ut, RadiusM = shared.RadiusM,
+                    TravelEastM = shared.TravelEastM, TravelNorthM = shared.TravelNorthM
                 };
                 CoverLooks.WindAt(state, (cover.LatMin + cover.LatMax) * 0.5, (cover.LonMin + cover.LonMax) * 0.5, 0.0, passUt, out look.WindEast, out look.WindNorth);
             }
