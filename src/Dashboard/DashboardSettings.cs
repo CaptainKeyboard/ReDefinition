@@ -17,6 +17,9 @@ namespace ReDefinition.Dashboard
         // The values of the file; they are used only where no host is present.
         internal static bool Network = true;
         internal static string Key = "";
+        // Whether the weather keys (w.forecast, w.alerts) answer and the alert feed listens. It is the dashboard's own switch with and without
+        // ReDefinition: the file below holds it in both cases, since the host has no seam for it (a seam is a change of Common).
+        internal static bool WeatherPush = true;
 
         private static bool loaded;
 
@@ -40,6 +43,8 @@ namespace ReDefinition.Dashboard
             if (ModSettingsFile.TryBool(root, "network", out network)) Network = network;
             string key;
             if (ModSettingsFile.TryString(root, "key", out key)) Key = key;
+            bool push;
+            if (ModSettingsFile.TryBool(root, "weatherPush", out push)) WeatherPush = push;
             return true;
         }
 
@@ -58,6 +63,27 @@ namespace ReDefinition.Dashboard
         {
             root.AddValue("network", Network.ToString());
             root.AddValue("key", Key ?? "");
+            root.AddValue("weatherPush", WeatherPush.ToString());
+        }
+
+        // The weather switch, read from the dashboard's file in every case.
+        internal static bool WeatherPushOn
+        {
+            get
+            {
+                Load();
+                return WeatherPush;
+            }
+        }
+
+        // Sets the weather switch and saves it; the alert feed listens or stops at once.
+        internal static void SetWeatherPush(bool on)
+        {
+            Load();
+            WeatherPush = on;
+            Save();
+            if (on) WeatherTelemetry.Shared.Attach();
+            else WeatherTelemetry.Shared.Detach();
         }
 
         // A random key of eight letters.

@@ -12,6 +12,16 @@ namespace ReDefinition.Dashboard
         // The dialog's rows: the QR code with the address under it, or a line saying why there is none.
         internal static DialogGUIBase[] Content()
         {
+            var rows = new System.Collections.Generic.List<DialogGUIBase>
+            {
+                new DialogGUIToggle(() => DashboardSettings.WeatherPushOn, "Weather on the dashboard", on => DashboardSettings.SetWeatherPush(on), 320f, 24f),
+            };
+            rows.AddRange(Address());
+            return rows.ToArray();
+        }
+
+        private static DialogGUIBase[] Address()
+        {
             if (!DashboardSettings.Ready || !DashboardSettings.NetworkOn)
                 return new DialogGUIBase[] { new DialogGUILabel("Opening the dashboard from other devices is switched off.", true) };
             // The address is looked up afresh each time: the computer may have joined another network.

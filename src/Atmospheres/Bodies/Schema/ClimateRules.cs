@@ -243,8 +243,9 @@ namespace ReDefinition.Atmospheres
     {
         internal static readonly IceRules Default = new IceRules();
 
-        internal IceRules(float floeSizeKm = 3f, float leadFraction = 0.08f, Color? colour = null, float roughness = 0.6f, bool permanent = false, bool liquid = true)
+        internal IceRules(float floeSizeKm = 3f, float leadFraction = 0.08f, Color? colour = null, float roughness = 0.6f, bool permanent = false, bool liquid = true, float passThicknessM = 0.3f)
         {
+            PassThicknessM = passThicknessM;
             FloeSizeKm = floeSizeKm;
             LeadFraction = leadFraction;
             Colour = colour ?? new Color(0.85f, 0.92f, 0.97f, 1f);
@@ -262,6 +263,9 @@ namespace ReDefinition.Atmospheres
         internal bool Permanent { get; }
         // False where the body has no liquid ocean.
         internal bool Liquid { get; }
+        // The thickness in metres above which a vehicle could pass over the ice (key icePassThicknessM); information only, as physical ice is
+        // not built.
+        internal float PassThicknessM { get; }
     }
 
     // Where the generator's ocean-fraction and moisture-source raster comes from.

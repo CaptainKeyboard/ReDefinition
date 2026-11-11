@@ -117,7 +117,7 @@ namespace ReDefinition.Atmospheres
         internal static IceRules Ice(BodyNodeReader r)
         {
             return new IceRules(r.Float("floeSizeKm", 3f, 0.01f, 1000f), r.Float("leadFraction", 0.08f, 0f, 1f), r.Colour("colour"), r.Float("roughness", 0.6f, 0f, 1f),
-                r.Bool("permanent", false), r.Bool("liquid", true));
+                r.Bool("permanent", false), r.Bool("liquid", true), r.Float("icePassThicknessM", 0.3f, 0f, 100f));
         }
 
         internal static GeneratorRules Generator(BodyNodeReader r)

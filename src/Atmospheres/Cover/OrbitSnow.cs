@@ -30,11 +30,14 @@ namespace ReDefinition.Atmospheres
 
         private void Update()
         {
-            if (!AtmospheresSettings.Enabled || !AtmospheresSettings.OrbitOverlay || !AtmospheresSettings.GroundCover)
+            if (!AtmospheresSettings.Enabled || !AtmospheresSettings.OrbitOverlay)
             {
                 if (cover.ActiveBodies > 0) cover.ReleaseAll();
                 return;
             }
+            // The host draws every registered layer and each asks for itself (Wants), so the ice and the cloud shell do not hang on the ground
+            // cover switch; the cover layer alone gives its textures back while that switch is off.
+            if (!AtmospheresSettings.GroundCover && cover.ActiveBodies > 0) cover.ReleaseAll();
             try
             {
                 if (!registered)

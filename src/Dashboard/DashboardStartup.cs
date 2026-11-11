@@ -22,6 +22,8 @@ namespace ReDefinition.Dashboard
             string problem = CommonVersionCheck.Problem("ReDefinition Dashboard", typeof(DashboardStartup).Assembly);
             if (problem != null) Debug.LogWarning(Log.Tag + " " + problem);
             if (DashboardHooks.ConnectContent == null) DashboardHooks.ConnectContent = ConnectDialog.Content;
+            // The alert feed listens from the start of the game, so that a dashboard that connects late reads the last alerts.
+            if (DashboardSettings.WeatherPushOn) WeatherTelemetry.Shared.Attach();
             GameEvents.onGUIApplicationLauncherReady.Add(OnLauncherReady);
             GameEvents.onGUIApplicationLauncherDestroyed.Add(OnLauncherDestroyed);
         }

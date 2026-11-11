@@ -137,6 +137,8 @@ namespace ReDefinition.Atmospheres
         internal static bool AlertWarpStop => B(Keys.AlertWarpStop);
         internal static bool AlertKac => B(Keys.AlertKac);
         internal static bool AlertMessageApp => B(Keys.AlertMessageApp);
+        internal static bool AlertScreenMessage => B(Keys.AlertScreenMessage);
+        internal static bool ForecastOverlay => B(Keys.ForecastOverlay);
         internal static string AlertSites => Text(Keys.AlertSites);
         internal static float ForecastHorizonHours => F(Keys.ForecastHorizonHours);
         internal static float ForecastUncertainty => F(Keys.ForecastUncertainty);

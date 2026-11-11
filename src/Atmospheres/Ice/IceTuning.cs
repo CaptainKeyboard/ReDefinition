@@ -7,10 +7,11 @@ namespace ReDefinition.Atmospheres
     internal static class IceTuning
     {
         // The switch of the near-ground overlay. RECON P10 and P11 measured that an opaque sheet at queue 2504 hides the stock and
-        // Scatterer's ocean at 50 m and 500 m and left 5 km open (a dirty control), so the orbit picture is the default and the overlay
-        // is drawn only where this is on (the series turns it on for its rows; the owner decides the default after the 5 km rows).
+        // Scatterer's ocean at 50 m and 500 m and left 5 km open (a dirty control), so the orbit picture is the default: the setting
+        // seaIce is Orbit until the player picks OrbitAndGround. This key is the series' override of that choice (on by default, so the
+        // setting decides; 0 keeps the overlay off whatever the setting says).
         internal const string GroundOverlayKey = "ice.groundOverlay";
-        internal const bool GroundOverlayDefault = false;
+        internal const bool GroundOverlayDefault = true;
 
         // The lift of the sheet along the normal, in metres (against the depth fight with the ocean), and the extra lift against wave crests.
         internal const string LiftKey = "ice.liftM";

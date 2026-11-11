@@ -125,6 +125,8 @@ namespace ReDefinition.Atmospheres
                 { "alertWarpStop", "Stops time warp when a warning comes." },
                 { "alertKac", "Makes an alarm in Kerbal Alarm Clock for each warning." },
                 { "alertMessageApp", "Puts each warning into the message app." },
+                { "alertScreenMessage", "Shows each warning as a message on the screen." },
+                { "forecastOverlay", "Draws the weather systems and their tracks in the map view." },
                 { "alertSites", "The places to watch, besides the active vessel, as names separated by commas." },
                 { "forecastHorizonHours", "How many hours ahead the forecast looks." },
                 { "forecastUncertainty", "How uncertain the far forecast is made: 0 exact, 1 as uncertain as the simulation allows." },

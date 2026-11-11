@@ -263,7 +263,7 @@ The table of `SettingsTable.All`, in the order of the window.
 
 | Key | Default | Range | Tooltip | Greyed out | Profile row |
 |---|---|---|---|---|---|
-| `seaIce` | OrbitAndGround | Off / Orbit / OrbitAndGround / Physical | Sea Ice | needs-weather-effects | ice |
+| `seaIce` | Orbit | Off / Orbit / OrbitAndGround / Physical | Sea Ice | needs-weather-effects | ice |
 | `iceDrawDistanceKm` | 5 | 1 to 50 | Ice Draw Distance | needs-sea-ice | ice |
 | `iceCollision` | off | on / off | Ice Collision | needs-sea-ice | - |
 
@@ -279,6 +279,8 @@ The table of `SettingsTable.All`, in the order of the window.
 | `alertWarpStop` | off | on / off | Stop Time Warp On Alert | needs-alerts | - |
 | `alertKac` | off | on / off | Kerbal Alarm Clock Alarms | needs-alerts | - |
 | `alertMessageApp` | on | on / off | Message App Alerts | needs-alerts | - |
+| `alertScreenMessage` | on | on / off | Alert Screen Messages | needs-alerts | - |
+| `forecastOverlay` | on | on / off | Forecast Map Overlay | needs-forecast | - |
 | `alertSites` | empty | text | Alert Sites | needs-alerts | - |
 | `forecastHorizonHours` | 24 | 6 to 96 | Forecast Horizon | needs-forecast | forecast |
 | `forecastUncertainty` | 0 | 0 to 1 | Forecast Uncertainty | needs-forecast | - |

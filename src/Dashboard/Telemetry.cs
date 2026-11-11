@@ -69,6 +69,11 @@ namespace ReDefinition.Dashboard
             // while it loads, the saves; g.load[name] (URI-encoded) and g.quit from the main menu.
             sceneReaders["g.scene"] = a => MenuTelemetry.Scene;
             sceneReaders["g.versions"] = a => MenuTelemetry.Versions();
+
+            // The weather of the atmospheres: the forecast of the vessel's place (or the Space Centre) and the last alerts. Both are null without
+            // the atmospheres and while the dashboard's weather switch is off (DashboardSettings.WeatherPush).
+            sceneReaders["w.forecast"] = a => DashboardSettings.WeatherPushOn ? WeatherTelemetry.Shared.Forecast(a) : null;
+            sceneReaders["w.alerts"] = a => DashboardSettings.WeatherPushOn ? WeatherTelemetry.Shared.Alerts(a) : null;
             sceneReaders["g.loading"] = a => MenuTelemetry.Loading();
             sceneReaders["g.saves"] = a => menu.Saves();
             sceneActions["g.load"] = a => menu.Load(a);

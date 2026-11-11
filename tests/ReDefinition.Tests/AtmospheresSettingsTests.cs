@@ -154,7 +154,7 @@ namespace ReDefinition.Tests
                 "stormCullDistance", "fogBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
                 "weatherAudio", "weatherAudioVolume", "audioWind", "audioPrecip", "audioFootsteps", "audioFootstepsSurface", "audioDistantStorm", "audioQuietSnow",
                 "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
-                "iceCollision", "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp",
+                "iceCollision", "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp", "alertScreenMessage", "forecastOverlay",
                 "alertSites", "forecastHorizonHours", "forecastUncertainty", "launchMaxLevel", "launchMaxWindMs", "launchMinVisibilityM", "launchLeadHours",
                 "orbitBodies", "qualityGovernor", "forceLevel", "forceType", "forceBody", "forcePhase", "atmoDebug"
             };

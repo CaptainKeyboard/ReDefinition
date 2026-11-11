@@ -540,6 +540,7 @@
     <Copy SourceFiles="$(OutputPath)ReDefinition.Atmospheres.dll" DestinationFolder="$(_StageAtmospheres)\Plugins" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Atmospheres\$(AtmospheresName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)CHANGELOG.md" DestinationFolder="$(_StageAtmospheres)" />
     <Copy SourceFiles="$(_RepoRoot)src\Atmospheres\README.md" DestinationFolder="$(_StageAtmospheres)" Condition="Exists('$(_RepoRoot)src\Atmospheres\README.md')" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\KerbalAlarmClock-MIT.txt" DestinationFiles="$(_StageAtmospheres)\LICENSE-KerbalAlarmClock.txt" />
     <!-- The static files of the atmospheres (the EVE cloud layer's config and its placeholder map) go into the standalone package too. -->
     <ItemGroup>
       <_AtmospheresStatic Include="$(_RepoRoot)GameData\$(ModName)\Atmospheres\**\*.*" />

@@ -93,6 +93,11 @@ namespace ReDefinition.Planner.Ui
             if (plan.Legs.Count > 0) planLines.Add(Coloured("Orbits", Dim));
             foreach (PlannedLeg leg in plan.Legs) AddWrapped(PlanLegText(leg.Orbit), null, Dim);
 
+            // The weather the legs through the air meet, where the atmospheres publish tracks; nothing otherwise.
+            string[] storms = StormLinesFor(plan, now);
+            if (storms.Length > 0) planLines.Add(Coloured("Weather", Dim));
+            foreach (string storm in storms) AddWrapped(storm, null, Dim);
+
             AddParsekLine();
             if (planLines.Count > MaxPlanLines)
             {
@@ -100,6 +105,31 @@ namespace ReDefinition.Planner.Ui
                 planLines.RemoveRange(MaxPlanLines - 1, planLines.Count - (MaxPlanLines - 1));
                 planLines.Add(Coloured("(" + more + " more lines)", Dim));
             }
+        }
+
+        // The storm lines of a plan, made again for another plan or after a few minutes, as the systems move.
+        private const double StormRefreshSeconds = 300.0;
+        private RoutePlan stormPlan;
+        private double stormAt;
+        private string[] stormLines = new string[0];
+
+        private string[] StormLinesFor(RoutePlan plan, double now)
+        {
+            if (plan != stormPlan || System.Math.Abs(now - stormAt) >= StormRefreshSeconds)
+            {
+                stormPlan = plan;
+                stormAt = now;
+                try
+                {
+                    stormLines = StormOnPlan.LinesOf(plan);
+                }
+                catch (System.Exception e)
+                {
+                    UnityEngine.Debug.LogWarning(ReDefinition.Core.Log.Tag + " Planner: the storm check failed: " + e.Message);
+                    stormLines = new string[0];
+                }
+            }
+            return stormLines;
         }
 
         // "T+1h 05m Burn 1,234 m/s: why"; a step that is no burn has no time and no speed.

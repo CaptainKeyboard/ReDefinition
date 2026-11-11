@@ -99,6 +99,8 @@ namespace ReDefinition.Atmospheres
             internal const string AlertWarpStop = "alertWarpStop";
             internal const string AlertKac = "alertKac";
             internal const string AlertMessageApp = "alertMessageApp";
+            internal const string AlertScreenMessage = "alertScreenMessage";
+            internal const string ForecastOverlay = "forecastOverlay";
             internal const string AlertSites = "alertSites";
             internal const string ForecastHorizonHours = "forecastHorizonHours";
             internal const string ForecastUncertainty = "forecastUncertainty";
@@ -317,7 +319,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Choice("vehicleCover", typeof(VehicleCoverMode), VehicleCoverMode.Landed, C, "Vehicle Cover", GC, RC),
                 SettingDef.Bool("tracks", true, C, "Tracks In Cover", GC, RC),
                 SettingDef.Float("coverDrift", 0.3, 0.0, 1.0, C, "Cover Drift", GC),
-                SettingDef.Choice("seaIce", typeof(SeaIceMode), SeaIceMode.OrbitAndGround, I, "Sea Ice", MASTER, RI),
+                SettingDef.Choice("seaIce", typeof(SeaIceMode), SeaIceMode.Orbit, I, "Sea Ice", MASTER, RI),
                 SettingDef.Float("iceDrawDistanceKm", 5.0, 1.0, 50.0, I, "Ice Draw Distance", SI, RI),
                 SettingDef.Bool("iceCollision", false, I, "Ice Collision", SI),
 
@@ -330,6 +332,8 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("alertWarpStop", false, F, "Stop Time Warp On Alert", AL),
                 SettingDef.Bool("alertKac", false, F, "Kerbal Alarm Clock Alarms", AL),
                 SettingDef.Bool("alertMessageApp", true, F, "Message App Alerts", AL),
+                SettingDef.Bool("alertScreenMessage", true, F, "Alert Screen Messages", AL),
+                SettingDef.Bool("forecastOverlay", true, F, "Forecast Map Overlay", FC),
                 SettingDef.Text("alertSites", "", F, "Alert Sites", AL),
                 SettingDef.Float("forecastHorizonHours", 24.0, 6.0, 96.0, F, "Forecast Horizon", FC, RF),
                 SettingDef.Float("forecastUncertainty", 0.0, 0.0, 1.0, F, "Forecast Uncertainty", FC),
