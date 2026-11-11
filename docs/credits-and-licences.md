@@ -112,6 +112,7 @@ The defaults that ReDefinition's registrations take from these mods are listed i
 | **Hullcam VDS Continued** and **CameraTools** | Albert VDS (Hullcam, original), linuxgurugamer, DavidCrichton (Continued); BrettRyland, jrodrigv, josuenos, Halbann, BahamutoD (CameraTools) | GPL-3.0 (Hullcam, `License.txt`); GPL-3.0 (CameraTools, `License.txt` in its distribution folder) | The upscaler resets its history when the flight camera's target or parent changes, as these mods change it; a cut that keeps both is not detected |
 | **ModuleManager** | ialdabaoth (original), Sarbian, blowfishpro | Creative Commons share-alike per its README; the repository and the 4.2.3 release carry no licence file | ReDefinition's patches (landing-leg grip, Parallax grass room) need it, and a pack can patch the registrations with it |
 | **Harmony** (HarmonyKSP) | Andreas Pardeike; packaged for KSP by gotmachine, DasSkelett, HebaruSan | MIT | ReDefinition's patches of the game and of other mods run on it; it is a requirement |
+| **ModularFlightIntegrator** | sarbian | MIT (its `LICENSE.txt`, Copyright 2014 sarbian) | The reconnaissance probe of the Atmospheres tests registers an `UpdateAerodynamics` override through its public API, by reflection, to try a wind on a parachute drop |
 
 ## Mods whose technique ReDefinition adapted or builds around
 

@@ -81,6 +81,13 @@ namespace ReDefinition.Atmospheres
             material.SetTexture("CloudCoverage", target);
             bool bound = material.GetTexture("CloudCoverage") == target;
             Emit("P9.bind_works", bound);
+            if (!bound)
+            {
+                // Without a binding that took, "our texture is gone after Apply" would be true from the first frame and say nothing.
+                EmitText("P9.error", "the render texture did not bind to CloudCoverage: no latency measured");
+                target.Release();
+                yield break;
+            }
             yield return ProbeWait.Frames(5);
             bool stillBound = material.GetTexture("CloudCoverage") == target;
             Emit("P9.bind_survives_frames", stillBound);

@@ -60,7 +60,12 @@ namespace ReDefinition.Atmospheres
             Say("coast found " + Num(coastDistance) + " m from the pad at bearing " + Num(coastBearing) + ", latitude " + Num(podLatitude) + ", longitude " + Num(podLongitude));
             EmitText("Env.coast", Num(podLatitude) + "," + Num(podLongitude) + " bearing " + Num(coastBearing) + " at " + Num(coastDistance) + " m");
 
+            // The sun must be high for the fog, shader and ambient tests: the clock goes on in steps until it is, here at the space centre
+            // where the body's position is valid, and the flight starts at that time.
+            foreach (ProbeWait w in NoonSearch(home)) yield return w;
+
             Game current = HighLogic.CurrentGame;
+            current.flightState.universalTime = Planetarium.GetUniversalTime();
             current.flightState.protoVessels.RemoveAll(v => v.vesselName == VesselName);
             int index = AddVessel(current, home, full ? Vessel.Situations.FLYING : Vessel.Situations.SPLASHED, podLatitude, podLongitude,
                                   full ? DropAltitude : 0.0);
@@ -72,8 +77,43 @@ namespace ReDefinition.Atmospheres
                 Fail("the flight did not come up");
                 yield break;
             }
-            Say("the flight stands: " + FlightGlobals.ActiveVessel.vesselName + " " + FlightGlobals.ActiveVessel.situation + " at "
-                + Num(FlightGlobals.ActiveVessel.altitude) + " m");
+            Vessel pod = FlightGlobals.ActiveVessel;
+            Say("the flight stands: " + pod.vesselName + " " + pod.situation + " at " + Num(pod.altitude) + " m, " + pod.parts.Count + " parts");
+            Emit("Env.pod_parts", pod.parts.Count);
+            Emit("Env.pod_has_parachute", pod.FindPartModuleImplementing<ModuleParachute>() != null);
+            Vector3d toSun = (FlightGlobals.Bodies[0].position - pod.CoMD).normalized;
+            Vector3d up = (pod.CoMD - pod.mainBody.position).normalized;
+            sunElevation = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(toSun, up)))) * 180.0 / Math.PI;
+            Emit("Env.sun_elevation_deg", sunElevation);
+        }
+
+        // The sun's elevation over the pod in degrees, set when the flight stands; the tests that need daylight read it.
+        private double sunElevation;
+
+        private bool Daylight
+        {
+            get { return sunElevation >= 25.0; }
+        }
+
+        // Moves the clock on in quarter-hour steps until the sun is at least 55 degrees high over the launch pad (at most a solar day).
+        private IEnumerable<ProbeWait> NoonSearch(CelestialBody home)
+        {
+            CelestialBody sun = FlightGlobals.Bodies[0];
+            double step = 900.0;
+            for (int i = 0; i < 40; i++)
+            {
+                Vector3d up = (home.GetWorldSurfacePosition(PadLatitude, PadLongitude, 0.0) - home.position).normalized;
+                Vector3d toSun = (sun.position - home.position).normalized;
+                double elevation = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(toSun, up)))) * 180.0 / Math.PI;
+                if (elevation >= 55.0)
+                {
+                    Say("the sun is " + Num(elevation) + " degrees over the pad after " + i + " steps of " + Num(step) + " s");
+                    yield break;
+                }
+                Planetarium.SetUniversalTime(Planetarium.GetUniversalTime() + step);
+                yield return ProbeWait.Frames(3);
+            }
+            Say("no sun above 55 degrees was found within the search");
         }
 
         private bool FlightReady()
@@ -119,14 +159,31 @@ namespace ReDefinition.Atmospheres
             bool flying = situation == Vessel.Situations.FLYING;
             bool splashed = situation == Vessel.Situations.SPLASHED;
             double ut = Planetarium.GetUniversalTime();
-            ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
+            // The Mk1 pod has no parachute of its own: the Mk16 (parachuteSingle) sits on its top node. The saved form of a stack
+            // attachment is the index of the other part: the pod (part 0) lists "attN = top, 1", the canopy "attN = bottom, 0", and the
+            // canopy's place is the pod's top node (0.6424 m) plus the canopy's bottom node (0.1206 m) below its own origin.
+            uint podId = ShipConstruction.GetUniqueFlightID(game.flightState);
+            uint canopyId = ShipConstruction.GetUniqueFlightID(game.flightState);
+            if (canopyId == podId) canopyId = podId + 1;
+            ConfigNode pod = ProtoVessel.CreatePartNode("mk1pod.v2", podId);
+            ConfigNode canopy = ProtoVessel.CreatePartNode("parachuteSingle", canopyId);
+            pod.SetValue("parent", "0", true);
+            pod.SetValue("position", "0,0,0", true);
+            pod.RemoveValues("attN");
+            pod.AddValue("attN", "top, 1");
+            pod.AddValue("attN", "bottom, -1");
+            canopy.SetValue("parent", "0", true);
+            canopy.SetValue("position", "0,0.763025,0", true);
+            canopy.SetValue("rotation", "0,0,0,1", true);
+            canopy.RemoveValues("attN");
+            canopy.AddValue("attN", "bottom, 0");
             var orbit = new Orbit(0.0, 0.0, body.Radius + 100000.0, 0.0, 0.0, 0.0, ut, body);
             if (flying)
             {
                 Vector3d surface = body.GetWorldSurfacePosition(latitude, longitude, altitude) - body.position;
                 orbit.UpdateFromStateVectors(surface.xzy, Vector3d.Cross(body.angularVelocity, surface).xzy, body, ut);
             }
-            ConfigNode node = ProtoVessel.CreateVesselNode(VesselName, VesselType.Ship, orbit, 0, new[] { part });
+            ConfigNode node = ProtoVessel.CreateVesselNode(VesselName, VesselType.Ship, orbit, 0, new[] { pod, canopy });
             node.SetValue("sit", situation.ToString());
             node.SetValue("landed", "False");
             node.SetValue("splashed", splashed ? "True" : "False");

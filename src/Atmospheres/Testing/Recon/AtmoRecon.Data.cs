@@ -226,7 +226,7 @@ namespace ReDefinition.Atmospheres
                     yield return ProbeWait.Frames(10);
                 }
                 Emit("P2." + name + "_pqs_started", pqs.isStarted);
-                foreach (ProbeWait w in SampleGrid(body, 60)) yield return w;
+                foreach (ProbeWait w in SampleGrid(body, 45)) yield return w;
             }
         }
 
@@ -314,29 +314,41 @@ namespace ReDefinition.Atmospheres
 
         private IEnumerable<ProbeWait> VertexSpacing()
         {
-            DumpBodies();
             CelestialBody body = FlightGlobals.ActiveVessel.mainBody;
             PQS pqs = body.pqsController;
             Emit("P3.pqs_max_level", pqs.maxLevel);
             Emit("P3.pqs_min_level", pqs.minLevel);
+            // pqs.quads holds the six root quads; the quads that are drawn are the leaves of the tree under them (subNodes, until a quad is
+            // not subdivided). [VERIFY] the field names come from the installed Assembly-CSharp; the spacing is the world distance between
+            // the first two vertices of a leaf's mesh, taken through its transform.
             var bySubdivision = new SortedDictionary<int, List<double>>();
-            int counted = 0;
-            PQ[] quads = pqs.quads;
-            if (quads != null)
+            var leaves = new List<PQ>();
+            if (pqs.quads != null)
             {
-                foreach (PQ quad in quads)
-                {
-                    if (quad == null || quad.mesh == null) continue;
-                    Vector3[] verts = quad.verts != null && quad.verts.Length > 1 ? quad.verts : quad.mesh.vertices;
-                    if (verts == null || verts.Length < 2) continue;
-                    double spacing = Vector3.Distance(verts[0], verts[1]);
-                    List<double> list;
-                    if (!bySubdivision.TryGetValue(quad.subdivision, out list)) bySubdivision[quad.subdivision] = list = new List<double>();
-                    if (list.Count < 40) list.Add(spacing);
-                    counted++;
-                    if (counted >= 4000) break;
-                }
+                foreach (PQ root in pqs.quads) CollectLeaves(root, leaves, 6000);
             }
+            int counted = 0;
+            Vector3 podAt = FlightGlobals.ActiveVessel.transform.position;
+            var nearest = new List<KeyValuePair<float, double>>();
+            foreach (PQ quad in leaves)
+            {
+                Vector3[] verts = quad.verts != null && quad.verts.Length > 1 ? quad.verts : quad.mesh.vertices;
+                if (verts == null || verts.Length < 2 || quad.quadTransform == null) continue;
+                double spacing = Vector3.Distance(quad.quadTransform.TransformPoint(verts[0]), quad.quadTransform.TransformPoint(verts[1]));
+                List<double> list;
+                if (!bySubdivision.TryGetValue(quad.subdivision, out list)) bySubdivision[quad.subdivision] = list = new List<double>();
+                if (list.Count < 60) list.Add(spacing);
+                nearest.Add(new KeyValuePair<float, double>(Vector3.Distance(quad.quadTransform.position, podAt), spacing));
+                counted++;
+            }
+            nearest.Sort((x, y) => x.Key.CompareTo(y.Key));
+            double nearSum = 0;
+            int nearCount = Math.Min(8, nearest.Count);
+            for (int i = 0; i < nearCount; i++) nearSum += nearest[i].Value;
+            Emit("P3.leaf_quads", leaves.Count);
+            Emit("P3.vertex_spacing_near_pod_m", nearCount > 0 ? nearSum / nearCount : double.NaN);
+            Emit("P3.nearest_leaf_distance_m", nearCount > 0 ? nearest[0].Key : double.NaN);
+            PQ[] quads = leaves.ToArray();
             var json = new ReconJson().BeginObject().Text("body", body.bodyName).Number("max_level", pqs.maxLevel).BeginArray("by_subdivision");
             int top = -1;
             double topSpacing = double.NaN;
@@ -381,6 +393,18 @@ namespace ReDefinition.Atmospheres
             json.Save(DumpPath("pqs-spacing.json"));
             Say("P3: max level " + pqs.maxLevel + ", top subdivision " + top + ", spacing " + Num(topSpacing) + " m, Parallax scale " + Num(scale));
             yield break;
+        }
+
+        // The leaves of a quad tree that have a mesh: a quad that is subdivided is replaced by its sub nodes.
+        private static void CollectLeaves(PQ quad, List<PQ> leaves, int limit)
+        {
+            if (quad == null || leaves.Count >= limit) return;
+            if (quad.isSubdivided && quad.subNodes != null)
+            {
+                foreach (PQ child in quad.subNodes) CollectLeaves(child, leaves, limit);
+                return;
+            }
+            if (quad.mesh != null) leaves.Add(quad);
         }
 
         private static string ReadText(string path)

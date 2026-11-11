@@ -74,18 +74,31 @@ namespace ReDefinition.Atmospheres
                 yield break;
             }
 
+            try
+            {
+                DumpBodies();
+            }
+            catch (Exception e)
+            {
+                Say("the body list could not be written (" + e.GetType().Name + " " + e.Message + ")");
+            }
+
+            // The blocking premises first, so that a start that runs out of time loses informative ones; the steps that can disturb the
+            // scene go last: the clock jumps (P1), the forced Apply of EVE (P9), the other bodies' terrain (P2more).
             if (full) foreach (ProbeWait w in Guard("P4", WindDrop())) yield return w;
+            if (full) foreach (ProbeWait w in Guard("P2", HeightGrid())) yield return w;
             foreach (ProbeWait w in Guard("P6", CameraChain())) yield return w;
             foreach (ProbeWait w in Guard("P10", DiscOverOcean())) yield return w;
-            foreach (ProbeWait w in Guard("P7", FogFixture())) yield return w;
             foreach (ProbeWait w in Guard("P8", ForeignShader())) yield return w;
+            foreach (ProbeWait w in Guard("P7", FogFixture())) yield return w;
             if (full)
             {
                 foreach (ProbeWait w in Guard("P5", AudioPaths())) yield return w;
                 foreach (ProbeWait w in Guard("P12", AmbientFactors())) yield return w;
                 foreach (ProbeWait w in Guard("P3", VertexSpacing())) yield return w;
-                foreach (ProbeWait w in Guard("P2", HeightGrid())) yield return w;
                 foreach (ProbeWait w in Guard("P1", TemperatureSamples())) yield return w;
+                Vessel after = FlightGlobals.ActiveVessel;
+                Emit("P1.vessel_intact", after != null && after.state != Vessel.State.DEAD);
                 foreach (ProbeWait w in Guard("P9", EveLayers())) yield return w;
                 foreach (ProbeWait w in Guard("P2more", HeightGridsOthers())) yield return w;
             }

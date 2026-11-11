@@ -150,8 +150,12 @@ namespace ReDefinition.Atmospheres
 
             CelestialBody body = vessel.mainBody;
 
+            // The pod should hang at rest with the ground below: a horizontal speed here would be a residue of the start orbit and would
+            // spoil the control.
+            Emit("P4.horizontal_speed_before", vessel.horizontalSrfSpeed);
+
             // Control: no wind.
-            double lat0 = vessel.latitude, lon0 = vessel.longitude, ut0 = Planetarium.GetUniversalTime();
+            double lat0 = vessel.latitude, lon0 = vessel.longitude;
             var descent = new List<double>();
             ReconWindHook.Samples = 0;
             ReconWindHook.SumDragMagnitude = ReconWindHook.SumDragScalar = 0;

@@ -53,6 +53,26 @@
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P11.luma_ratio_50m", "min": 1.5, "note": "P11: the disc region is at least 1.5 times as bright as the ocean" },
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P11.luma_ratio_500m", "min": 1.5, "note": "P11 at 500 m" },
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P11.luma_ratio_5km", "min": 1.5, "note": "P11 at 5 km" },
-    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P12.monotone", "equals": 1, "required": false, "note": "P12 informative: frame luminance falls with the ambient factor (raster ambient only; the RT sky is not driven)" }
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P12.monotone", "equals": 1, "required": false, "note": "P12 informative: frame luminance falls with the ambient factor by at least 0.002 per step (raster ambient only; the RT sky is not driven)" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P12.spread_rel", "min": 0.02, "required": false, "note": "P12 informative: the frame responds to the factor at all" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "Env.pod_has_parachute", "equals": 1, "note": "the two-part vessel loaded with its canopy (precondition of P4)" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "Env.sun_elevation_deg", "min": 25, "note": "daylight for P7, P8 and P12 (run1)" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run2", "metric": "Env.sun_elevation_deg", "min": 25, "note": "daylight for P7 and P8 (run2)" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P1.vessel_intact", "equals": 1, "required": false, "note": "the clock jumps of P1 left the pod alive" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P1.ksc_seasonal_swing_k", "min": 0, "required": false, "note": "P1 informative: Kerbin's seasonal swing at KSC (may legitimately be near 0: stock Kerbin has no tilt)" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P3.vertex_spacing_near_pod_m", "min": 0.001, "required": false, "note": "P3 informative: mean vertex spacing of the 8 leaf quads nearest the pod" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P4.horizontal_speed_before", "max": 5, "note": "P4 precondition: the pod hangs at rest with the ground before the control period" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P5.running_rms_with_tones", "min": 0.01, "required": false, "note": "P5 precondition: the output carries the test tones before the pause" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P5.output_alive", "equals": 1, "required": false, "note": "P5 precondition: the audio output is not dead (a dead output would pass the pause test)" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P6.depth_readable_3000", "min": 0, "required": false, "note": "P6 informative: the global depth texture equals the early depth at BeforeForwardAlpha (decides fallback or direct use in D32, D37, D38)" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P7.targets_in_view", "equals": 1, "required": false, "note": "P7 precondition: both fog targets were in the frame" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P8.shaders_found", "equals": 1, "note": "P8 precondition: the stock and the foreign shader exist in the player" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run2", "metric": "P10.low_disc_fraction_50m", "min": 0.9, "required": false, "note": "P10 informative: the disc lifted 0.3 m (waves may cross it)" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run2", "metric": "P10.low_disc_fraction_500m", "min": 0.9, "required": false, "note": "P10 informative at 500 m" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run2", "metric": "P10.low_disc_fraction_5km", "min": 0.9, "required": false, "note": "P10 informative at 5 km" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P11.low_disc_fraction_50m", "min": 0.9, "required": false, "note": "P11 informative: the disc lifted 0.3 m over Scatterer's waves" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P11.low_disc_fraction_500m", "min": 0.9, "required": false, "note": "P11 informative at 500 m" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P11.low_disc_fraction_5km", "min": 0.9, "required": false, "note": "P11 informative at 5 km" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P11.ocean_renderers_scatterer", "min": 1, "note": "P11 precondition: Scatterer's ocean is drawn (an active renderer whose shader is Scatterer's ocean)" }
   ]
 }

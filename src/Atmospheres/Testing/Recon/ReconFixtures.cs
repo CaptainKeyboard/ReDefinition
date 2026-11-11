@@ -71,7 +71,7 @@ namespace ReDefinition.Atmospheres
         internal static Material Flat(Color color, int queue)
         {
             Shader shader = Shader.Find("Hidden/Internal-Colored");
-            if (shader == null) return null;
+            if (shader == null) throw new InvalidOperationException("the shader Hidden/Internal-Colored is not in this player: the disc cannot be drawn");
             var material = new Material(shader);
             material.SetColor("_Color", color);
             material.SetInt("_SrcBlend", 1);

@@ -12,6 +12,9 @@ namespace ReDefinition.Atmospheres
         internal int Width, Height;
         internal Color[] Pixels;
 
+        // The largest channel value of the frame, linear: a region near 1 in an 8-bit target is saturated.
+        internal float Peak;
+
         // The pixels of a rectangle given as fractions of the frame (centre x, centre y, width, height; y up), as a list of luminances.
         internal List<float> Lumas(double cx, double cy, double w, double h)
         {
@@ -144,13 +147,16 @@ namespace ReDefinition.Atmospheres
                     height = Screen.height;
                     Destroy(read);
                 }
+                // Not clamped: a target in a float format can hold more than 1, and a clamp would hide a saturated region.
+                float peak = 0f;
                 for (int i = 0; i < pixels.Length; i++)
                 {
-                    pixels[i].r = Mathf.GammaToLinearSpace(Mathf.Clamp01(pixels[i].r));
-                    pixels[i].g = Mathf.GammaToLinearSpace(Mathf.Clamp01(pixels[i].g));
-                    pixels[i].b = Mathf.GammaToLinearSpace(Mathf.Clamp01(pixels[i].b));
+                    pixels[i].r = Mathf.GammaToLinearSpace(Mathf.Max(0f, pixels[i].r));
+                    pixels[i].g = Mathf.GammaToLinearSpace(Mathf.Max(0f, pixels[i].g));
+                    pixels[i].b = Mathf.GammaToLinearSpace(Mathf.Max(0f, pixels[i].b));
+                    peak = Mathf.Max(peak, Mathf.Max(pixels[i].r, Mathf.Max(pixels[i].g, pixels[i].b)));
                 }
-                Frame = new ReconFrame { Width = width, Height = height, Pixels = pixels };
+                Frame = new ReconFrame { Width = width, Height = height, Pixels = pixels, Peak = peak };
             }
             catch (Exception e)
             {

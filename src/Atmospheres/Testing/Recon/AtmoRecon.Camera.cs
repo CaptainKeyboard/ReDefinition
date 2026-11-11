@@ -17,6 +17,9 @@ namespace ReDefinition.Atmospheres
         {
             internal string Camera;
             internal CameraEvent Event;
+            // The source: the global _CameraDepthTexture as bound when the event runs (a consumer of the global), or the camera's depth
+            // buffer itself (BuiltinRenderTextureType.Depth).
+            internal bool Global;
             internal RenderTexture Target;
             internal CommandBuffer Buffer;
             internal Camera Owner;
@@ -49,16 +52,18 @@ namespace ReDefinition.Atmospheres
                 {
                     if (!camera.enabled || !(camera.name == "Camera 00" || camera.name == "Camera 01" || camera == main)) continue;
                     foreach (CameraEvent evt in DepthEvents)
+                    for (int kind = 0; kind < 2; kind++)
                     {
-                        var tap = new DepthTap { Camera = camera.name, Event = evt, Owner = camera };
+                        var tap = new DepthTap { Camera = camera.name, Event = evt, Owner = camera, Global = kind == 1 };
                         tap.Target = new RenderTexture(TapWidth, TapHeight, 0, RenderTextureFormat.RFloat);
                         tap.Target.Create();
                         RenderTexture active = RenderTexture.active;
                         RenderTexture.active = tap.Target;
                         GL.Clear(false, true, new Color(-1f, -1f, -1f, -1f));
                         RenderTexture.active = active;
-                        tap.Buffer = new CommandBuffer { name = "recon depth " + evt };
-                        tap.Buffer.Blit(BuiltinRenderTextureType.Depth, tap.Target);
+                        tap.Buffer = new CommandBuffer { name = "recon depth " + evt + (tap.Global ? " global" : " builtin") };
+                        tap.Buffer.Blit(tap.Global ? new RenderTargetIdentifier("_CameraDepthTexture") : new RenderTargetIdentifier(BuiltinRenderTextureType.Depth),
+                                        tap.Target);
                         camera.AddCommandBuffer(evt, tap.Buffer);
                         taps.Add(tap);
                     }
@@ -76,10 +81,10 @@ namespace ReDefinition.Atmospheres
             foreach (DepthTap tap in taps)
             {
                 double[] stats = ReadTap(tap);
-                results[tap.Camera + "|" + tap.Event] = stats;
-                json.BeginObject().Text("camera", tap.Camera).Text("event", tap.Event.ToString()).Number("executed", stats[0]).Number("mean", stats[1])
+                results[tap.Camera + "|" + tap.Event + "|" + (tap.Global ? "G" : "B")] = stats;
+                json.BeginObject().Text("camera", tap.Camera).Text("event", tap.Event.ToString()).Text("source", tap.Global ? "global" : "builtin").Number("executed", stats[0]).Number("mean", stats[1])
                     .Number("nonFar", stats[2]).Number("min", stats[3]).Number("max", stats[4]).EndObject();
-                EmitText("P6.depth." + tap.Camera.Replace(' ', '_') + "." + tap.Event, "executed=" + Num(stats[0]) + " mean=" + stats[1].ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture)
+                EmitText("P6.depth." + tap.Camera.Replace(' ', '_') + "." + tap.Event + (tap.Global ? ".global" : ".builtin"), "executed=" + Num(stats[0]) + " mean=" + stats[1].ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture)
                          + " nonFar=" + Num(stats[2]));
             }
             json.EndArray().EndObject();
@@ -91,13 +96,14 @@ namespace ReDefinition.Atmospheres
             foreach (DepthTap tap in taps) names.Add(tap.Camera);
             foreach (string camera in names)
             {
-                double[] alpha = Get(results, camera, CameraEvent.BeforeForwardAlpha);
-                double[] after = Get(results, camera, CameraEvent.AfterForwardAlpha);
+                double[] alpha = Get(results, camera, CameraEvent.BeforeForwardAlpha, true);
+                double[] after = Get(results, camera, CameraEvent.AfterForwardAlpha, true);
+                double[] alphaBuiltin = Get(results, camera, CameraEvent.BeforeForwardAlpha, false);
                 double[] reference = null;
                 CameraEvent[] preference = { CameraEvent.AfterForwardOpaque, CameraEvent.AfterDepthTexture, CameraEvent.AfterGBuffer };
                 foreach (CameraEvent evt in preference)
                 {
-                    double[] candidate = Get(results, camera, evt);
+                    double[] candidate = Get(results, camera, evt, false);
                     if (candidate != null && candidate[0] > 0) { reference = candidate; break; }
                 }
                 bool referenceValid = reference != null && reference[2] > 0.02 && reference[2] < 0.98;
@@ -108,6 +114,7 @@ namespace ReDefinition.Atmospheres
                                  && Math.Abs(after[1] - reference[1]) <= 0.1 * Math.Abs(reference[1]) + 1e-6;
                 Emit("P6." + camera.Replace(' ', '_') + ".reference_valid", referenceValid);
                 Emit("P6." + camera.Replace(' ', '_') + ".readable_at_alpha", alphaSame);
+                Emit("P6." + camera.Replace(' ', '_') + ".builtin_depth_executes_at_alpha", alphaBuiltin != null && alphaBuiltin[0] > 0);
                 Emit("P6." + camera.Replace(' ', '_') + ".unchanged_after_alpha", afterSame);
                 if (alphaSame) readable = true;
                 if (referenceValid) fallback = true;
@@ -149,10 +156,10 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        private static double[] Get(Dictionary<string, double[]> results, string camera, CameraEvent evt)
+        private static double[] Get(Dictionary<string, double[]> results, string camera, CameraEvent evt, bool global)
         {
             double[] stats;
-            return results.TryGetValue(camera + "|" + evt, out stats) ? stats : null;
+            return results.TryGetValue(camera + "|" + evt + "|" + (global ? "G" : "B"), out stats) ? stats : null;
         }
 
         // executed (1/0), mean of the written values, share of pixels that are neither the near nor the far value, min, max.
