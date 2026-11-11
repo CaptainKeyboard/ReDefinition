@@ -50,6 +50,8 @@ package.
 * Deferred's reflections shader, by Ghassen Lahmar -- GPL-3.0 (Deferred's licence).
   Changed for ReDefinition and compiled into `Shaders/redefinition.shaders`.
 * Telemachus, by TeleIO -- MIT, `LICENSE-Telemachus.txt`. The dashboard follows its API.
+* Kerbal Alarm Clock, by TriggerAu (David Tregoning) -- MIT, `LICENSE-KerbalAlarmClock.txt`. The atmospheres'
+  alarm bridge adapts the pattern of its API wrapper; compiled into `ReDefinition.Atmospheres.dll`.
 * Project Nayuki's QR Code generator -- MIT, `LICENSE-QR-Code-generator.txt`.
   `src/Dashboard/QrCode.cs` is translated from its Java implementation.
 * AMD FidelityFX frame generation runtime, `amd_fidelityfx_framegeneration_dx12.dll`,
