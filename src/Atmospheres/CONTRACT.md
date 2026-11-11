@@ -55,6 +55,7 @@ and never edit a shared one.
 | `IBodyProvider`, `Bodies`, `DefaultBodyProvider` | `Infrastructure/Contracts` | `Bodies.Get(CelestialBody)`, `Bodies.Active`; the default gives a generic climate; the body package assigns the real provider. |
 | `BodyClimate`, `BodyStatus` | `Bodies/Schema` | Immutable: Name, Index, Radius, YearSeconds, DaySeconds, Status (Off(reason), CoverOnly, Full, Broken(reason)), Seed and the rule classes. |
 | `SeasonRules`, `TemperatureRules`, `PrecipRules`, `PrecipTypeRule`, `CoverRules`, `IceRules`, `CellRules`, `CellBand`, `SimRules`, `CloudRules`, `LookRules`, `SoundRules`, `WindRules`, `GameplayRules`, `AuroraRules`, `LightMediumRules`, `FrostRules`, `ForecastRules`, `Curve` | `Bodies/Schema` | The sub-nodes of `REDEFINITION_BODY` (SEASONS, TEMPERATURE, PRECIP with TYPE, COVER, ICE, CELLS, SIM, CLOUDS, LOOK, SOUND, WIND, GAMEPLAY, AURORA, LIGHT_MEDIUM, FROST, FORECAST). Each constructor's parameters default to the generic default. |
+| `SeasonModel` (not part of A01) | `Bodies` | Created by B13 (it owns `Bodies/*.cs` with `SeasonClock` and `SeasonState`): the season data plus the pure `Phase(ut, model)`; A01 only delivers the data class `SeasonRules`. C25 (`BodyForcing`) reads the insolation phase through it; until B13 lands, `SeasonClock` is the phase. |
 | `AtmospheresSettings`, `SettingDef`, `SettingsTable` | `Settings` | The settings (section 6): `Keys`, `Categories`, `GreyReasons`, `ProfileRows`, typed readers, `SetNumber` / `SetText`, `Definitions`. |
 
 ## 3. Rules
@@ -65,6 +66,9 @@ and never edit a shared one.
 - The host (the main mod) writes only `WeatherHooks.Caps` and `WeatherHooks.CloudOpticalDepth`. The atmospheres write everything else.
 - No public member of the seam returns or holds a `UnityEngine.Object` (a test checks it). Visibility is in metres everywhere.
 - `WeatherView.SunTransmission` is the transmission along the current sun ray at the camera; the frame driver writes it from `SunTransmission.From`. Raytracing, solar panels and the sky read only it.
+- Every consumer that writes a wind speed (D31 forces, the aero hook) passes it through `WindNoise.LimitWind`: `Gust` alone changes faster than `MaxWindSlewMsPerS` for a mean wind over about 22 m/s and for a moving observer.
+- Providers start from `WeatherSample.Clear(bodyIndex)`: a `default(WeatherSample)` has `VisibilityM` 0 and the merge would take the visibility of the whole sky to 0. Known: `WeatherView.Clear()` resets the flags and levels but leaves `FogColour`, the veil colours, `FlakeLayers`, `FlakeSeed`, `CloudMapsVersion` and `FrameStamp`; readers check `IsStale` first.
+- `PrecipRateToLevel` (C20) is `PrecipScale.LevelFromRate` plus the knob shifts; C25 calls the Common function.
 - Hook classes are open to later fields: the view is mutated in place, providers derive from `WeatherSourceBase`, and Common bumps are batched.
 - The atmospheres never reference `ReDefinition.dll`; they reach the host through the bridge behind `IPostUpscaleCompositor`.
 
@@ -108,7 +112,7 @@ The level changes density and thickness continuously through the type map's blen
 
 Greyed-out reasons: `needs-weather-effects` (`weatherEffects` off), `needs-eve` (no EVE or `cloudSource` Ours / None), `needs-host-api`, `needs-simulation`, `needs-volume-pass`, `needs-weather-audio`, `needs-forecast`, `needs-alerts`, `needs-wind-forces`, `needs-ground-cover`, `needs-sea-ice`, `needs-light-in-medium`, `needs-precipitation`, `needs-solar-dimming`.
 
-`weatherEffects` is the master of the weather system: off, there is no simulation, no cloud-map painter and no side file. `enabled` stays the switch of the whole mod.
+`weatherEffects` is the master of the weather system: off, there is no simulation, no cloud-map painter and no side file. `enabled` stays the switch of the whole mod. The default of `weatherEffects` is off (master plan Q5) until the K-W3a rows pass; the E40 wave flips it to on. A test that needs weather sets it explicitly.
 
 ### All settings
 
@@ -119,7 +123,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | Key | Default | Range | Tooltip | Greyed out | Profile row |
 |---|---|---|---|---|---|
 | `enabled` | on | on / off | Atmospheres | - | - |
-| `weatherEffects` | on | on / off | Weather Effects | - | - |
+| `weatherEffects` | off | on / off | Weather Effects | - | - |
 | `yearLengthFactor` | 1 | 0.01 to 10 | Season Year Length | - | - |
 | `qualityTier` | Auto | Auto / Low / Medium / High / Ultra / Max | Quality Tier | - | quality |
 | `qualityGovernor` | off | on / off | Quality Governor | needs-weather-effects | quality |
@@ -145,7 +149,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | `windForces` | on | on / off | Wind Forces On Vehicles | needs-weather-effects | wind |
 | `windStrength` | 1 | 0 to 2 | Wind Strength | needs-wind-forces | wind |
 | `windOnLanded` | on | on / off | Wind On Landed Vehicles | needs-wind-forces | - |
-| `gustStrength` | 1 | 0 to 2 | Gust Strength: Visibility And Flake Density Pulse With Wind Gusts For A Few Seconds | needs-weather-effects | - |
+| `gustStrength` | 1 | 0 to 2 | Gust Strength | needs-weather-effects | - |
 | `solarDimming` | off | on / off | Solar Panel Dimming | needs-weather-effects | - |
 | `solarDimmingStrength` | 1 | 0 to 1 | Solar Dimming Strength | needs-solar-dimming | - |
 | `visibilityExport` | on | on / off | Export Visibility | needs-weather-effects | - |
@@ -272,6 +276,8 @@ The table of `SettingsTable.All`, in the order of the window.
 | `atmoDebug` | Off | Off / Contrib / Level / Maps | Debug Overlay | - | - |
 
 ### Audit of the settings that existed before the contract
+
+Removal of the `[Obsolete]` aliases in `Legacy.cs` (26 members, 13 aliases and 13 plain fields; a test counts them and its expected number is lowered by the package that removes them): `StormsEnabled`, `StormFrequency`, `StormSeed`, `StormVisibilityM`, `StormVeil`, `StormSkyDarkening`, `StormEveRainToSnow`, `StormVolume`, `StormVolumeSteps` and `ForceStorm` by C20 (storm effect and volume); `SnowStrength`, `OrbitSnow` and `OrbitSnowWidth` by D34 (cover and orbit snow). The plain fields of deleted features (`WinterSnowLine`, `GroundRefreshMode`, `RefreshSeconds` by D34; `StormSnowfall`, `StormOwnFlakes` by C22; `StormEveSnow`, `StormClouds` by C23; `StormCellRadiusKm`, `StormMaxCells`, `ForceCell*` by C25) go with the same packages. Expected count of `[Obsolete]` members at F50: 0.
 
 The mod is unreleased, so no old name is kept as a key. The C# members of the old names stay as `[Obsolete]` aliases or plain fields in `Settings/AtmospheresSettings.Legacy.cs` until the last caller is gone; the package that deletes the last caller deletes the line.
 

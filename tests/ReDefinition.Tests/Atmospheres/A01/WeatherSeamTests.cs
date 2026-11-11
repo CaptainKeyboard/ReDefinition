@@ -192,6 +192,30 @@ namespace ReDefinition.Tests.Atmospheres.A01
         }
 
         [TestMethod]
+        public void TheLimitedGustStaysWithinTheSlewLimitForAStrongWindAndAMovingObserver()
+        {
+            // A mean wind of 25 m/s and an observer at 100 m/s: Gust alone exceeds the limit, so the consumer applies LimitWind.
+            const float mean = 25f;
+            const double dt = 0.05;
+            float rawWorst = 0f, limitedWorst = 0f;
+            float previousRaw = mean * WindNoise.Gust(0.0, Vector3.zero, Vector3.right, 1f, 3);
+            float limited = previousRaw;
+            for (int i = 1; i < 40000; i++)
+            {
+                double ut = i * dt;
+                var position = new Vector3((float)(100.0 * ut), 0f, 0f);
+                float raw = mean * WindNoise.Gust(ut, position, Vector3.right, 1f, 3);
+                rawWorst = Math.Max(rawWorst, Math.Abs(raw - previousRaw) / (float)dt);
+                previousRaw = raw;
+                float next = WindNoise.LimitWind(limited, raw, (float)dt);
+                limitedWorst = Math.Max(limitedWorst, Math.Abs(next - limited) / (float)dt);
+                limited = next;
+            }
+            Assert.IsTrue(rawWorst > WindNoise.MaxWindSlewMsPerS, "the raw gust is the case that needs the limit: " + rawWorst);
+            Assert.IsTrue(limitedWorst <= WindNoise.MaxWindSlewMsPerS + 1e-3f, "limited change " + limitedWorst + " m/s per s");
+        }
+
+        [TestMethod]
         public void TheSlewLimitsHoldOverManyRandomSteps()
         {
             Assert.AreEqual(0.25f, WindNoise.MaxVisibilitySlewPerS);

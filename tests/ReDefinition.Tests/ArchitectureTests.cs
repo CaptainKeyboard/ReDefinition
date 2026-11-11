@@ -363,6 +363,24 @@ namespace ReDefinition.Tests
             return area == "Ui" && match.Value.Contains("Planner.Ui") ? "PlannerUi" : area;
         }
 
+        // The weather seam in src/Common/Weather holds no game types: its csproj references Assembly-CSharp, so the compiler would not stop one.
+        [TestMethod]
+        public void TheWeatherSeamInCommonNamesNoKspType()
+        {
+            string dir = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Common", "Weather");
+            var forbidden = new Regex(@"\b(CelestialBody|Vessel|FlightGlobals|HighLogic|Part|ProtoVessel|PartModule|ConfigNode)\b");
+            var found = new List<string>();
+            foreach (string file in Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories))
+            {
+                string code = Regex.Replace(File.ReadAllText(file), @"""(\\.|[^""\\])*""", "\"\"");
+                code = Regex.Replace(code, @"/\*.*?\*/", "", RegexOptions.Singleline);
+                code = Regex.Replace(code, "//[^\n]*", "");
+                foreach (Match m in forbidden.Matches(code))
+                    found.Add(Path.GetFileName(file) + ": " + m.Value);
+            }
+            Assert.AreEqual(0, found.Count, "KSP types in src/Common/Weather: " + string.Join(", ", found));
+        }
+
         // Records that the area uses another, with the first file that shows it; an area's own name is no edge.
         private static void AddEdge(Dictionary<System.Tuple<string, string>, string> edges, string area, string used, string file)
         {

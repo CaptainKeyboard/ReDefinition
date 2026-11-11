@@ -234,7 +234,7 @@ namespace ReDefinition.Atmospheres
             {
                 // General
                 SettingDef.Bool("enabled", true, G, "Atmospheres"),
-                SettingDef.Bool("weatherEffects", true, G, "Weather Effects"),
+                SettingDef.Bool("weatherEffects", false, G, "Weather Effects"),
                 SettingDef.Float("yearLengthFactor", 1.0, 0.01, 10.0, G, "Season Year Length"),
                 SettingDef.Choice("qualityTier", typeof(ReDefinition.Core.QualityTier), ReDefinition.Core.QualityTier.Auto, G, "Quality Tier", "", RQ),
                 SettingDef.Bool("qualityGovernor", false, G, "Quality Governor", MASTER, RQ),
@@ -254,7 +254,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("windForces", true, W, "Wind Forces On Vehicles", MASTER, RW),
                 SettingDef.Float("windStrength", 1.0, 0.0, 2.0, W, "Wind Strength", WF, RW),
                 SettingDef.Bool("windOnLanded", true, W, "Wind On Landed Vehicles", WF),
-                SettingDef.Float("gustStrength", 1.0, 0.0, 2.0, W, "Gust Strength: Visibility And Flake Density Pulse With Wind Gusts For A Few Seconds", MASTER),
+                SettingDef.Float("gustStrength", 1.0, 0.0, 2.0, W, "Gust Strength", MASTER),
                 SettingDef.Bool("solarDimming", false, W, "Solar Panel Dimming", MASTER),
                 SettingDef.Float("solarDimmingStrength", 1.0, 0.0, 1.0, W, "Solar Dimming Strength", SOLAR),
                 SettingDef.Bool("visibilityExport", true, W, "Export Visibility", MASTER),
