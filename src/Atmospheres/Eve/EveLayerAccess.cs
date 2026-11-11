@@ -72,7 +72,7 @@ namespace ReDefinition.Atmospheres
         private static PropertyInfo coverageMapProperty, typeMapProperty, mainMaterialProperty, probeMaterialProperty, typesProperty;
         private static PropertyInfo innerProperty, outerProperty, rotationProperty, receivesProperty;
         private static MethodInfo setShadowCaster, sampleCoverage;
-        private static FieldInfo typeNameField, upwardsSpeedField;
+        private static FieldInfo typeNameField;
         private static PropertyInfo shadowMaterialProperty;
         private static FieldInfo textureValueField, textureInitializedField;
 
@@ -137,7 +137,6 @@ namespace ReDefinition.Atmospheres
                     new[] { typeof(RenderTexture), typeof(bool) });
                 sampleCoverage = link.Method(volume, "CloudsRaymarchedVolume", "SampleCoverage", Instance,
                     new[] { typeof(Vector3), typeof(float).MakeByRefType(), typeof(bool) });
-                upwardsSpeedField = link.Field(volume, "CloudsRaymarchedVolume", "upwardsCloudSpeed", Instance, typeof(float));
                 typeNameField = link.Field(cloudType, "CloudType", "typeName", Instance, typeof(string));
                 shadowMaterialProperty = link.Property(clouds2D, "Clouds2D", "ScreenSpaceShadowMaterial", Instance);
                 textureValueField = link.Field(wrapper, "TextureWrapper", "textureValue", Instance, typeof(Texture2D));
@@ -437,14 +436,6 @@ namespace ReDefinition.Atmospheres
             if (h.Layer2D == null) return null;
             PropertyInfo p = h.Layer2D.GetType().GetProperty("CloudRenderingMaterial", BindingFlags.Public | BindingFlags.Instance);
             return p != null ? p.GetValue(h.Layer2D, null) as Material : null;
-        }
-
-        // The vertical speed of the cloud noise (m/s), live every frame in EVE.
-        internal static bool SetUpwardsSpeed(EveLayer h, float metresPerSecond)
-        {
-            if (upwardsSpeedField == null || h.Volume == null) return false;
-            upwardsSpeedField.SetValue(h.Volume, metresPerSecond);
-            return true;
         }
 
         private static double Fract(double x)

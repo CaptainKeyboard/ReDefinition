@@ -28,6 +28,10 @@ namespace ReDefinition.Atmospheres
         private const string Clouds2D = "Atmosphere.Clouds2D";
         private const string CloudType = "Atmosphere.CloudType";
         private const string Wrapper = "Utils.TextureWrapper";
+        private const string Particle = "Atmosphere.ParticleField";
+        private const string Droplets = "Atmosphere.Droplets";
+        private const string Sound = "Atmosphere.AmbientSound";
+        internal const string GroundId = "atmo-c23-eve-ground";
 
         public static readonly ForeignAssumption EvePainter =
             new ForeignAssumption(Id, "EVE", "the cloud maps the weather field paints into EVE's volumetric layers")
@@ -44,11 +48,29 @@ namespace ReDefinition.Atmospheres
                 .Calls(Volume, "ApplyShaderParams")
                 .Method(Volume, "SetShadowCasterTextureParams")
                 .Method(Volume, "SampleCoverage")
-                .Field(Volume, "upwardsCloudSpeed", "System.Single")
                 .Field(CloudType, "typeName", "System.String")
                 .Calls(Clouds2D, "get_ScreenSpaceShadowMaterial").Calls(Clouds2D, "get_CloudRenderingMaterial")
                 .Field(Wrapper, "textureValue", "UnityEngine.Texture2D").Field(Wrapper, "textureInitialized", "System.Boolean")
                 .Tested("a46ebcaed810") // EVE 3.2.2: SetShadowCasterTextureParams and SampleCoverage
                 .OnChange(WhenChanged.Fallback, "the clouds stay as EVE's own config draws them; the field's maps do not reach EVE");
+
+        // What EveRainLink and EveSnowLink reflect into and write: the particle fields, the droplets, the four per-type values and the
+        // ambient sound of a layer. Members read from Atmosphere.dll 3.2.2.0; private ones are reached by name.
+        //   - CloudsRaymarchedVolume.particleField / droplets / ambientSound are the layer's ground effects; ParticleField.currentCoverage
+        //     is what EVE's Update computed from SampleCoverage, particleFieldConfig names the field ("rain" or "snow" in it).
+        //   - CloudType.dropletsDensity, wetSurfacesIntensity, lightningFrequency and ambientVolume are what EVE reads per frame at the
+        //     camera; they are written as original x factor and restored.
+        //   - ParticleField.SetRendererEnabled(bool) switches the field's renderer; AmbientSound.audioSource is the looped sound.
+        public static readonly ForeignAssumption EveGroundEffects =
+            new ForeignAssumption(GroundId, "EVE", "EVE's rain and snow fields, droplets, wet surfaces, lightning and sound scaled by the field's type fractions")
+                .Type(Volume).Type(CloudType).Type(Particle).Type(Droplets).Type(Sound)
+                .Field(Volume, "particleField", Particle).Field(Volume, "droplets", Droplets).Field(Volume, "ambientSound", Sound)
+                .Field(Particle, "particleFieldConfig", "System.String").Field(Particle, "currentCoverage", "System.Single")
+                .Field(CloudType, "dropletsDensity", "System.Single").Field(CloudType, "wetSurfacesIntensity", "System.Single")
+                .Field(CloudType, "lightningFrequency", "System.Single").Field(CloudType, "ambientVolume", "System.Single")
+                .Field(Sound, "audioSource")
+                .Method(Particle, "SetRendererEnabled", "System.Boolean")
+                .Tested("e8681b4d55f7") // EVE 3.2.2: ParticleField.SetRendererEnabled
+                .OnChange(WhenChanged.Fallback, "EVE's rain, snow, droplets, wet surfaces, lightning and sound stay as EVE's own config has them");
     }
 }

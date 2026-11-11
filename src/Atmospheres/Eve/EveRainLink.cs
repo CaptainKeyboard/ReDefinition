@@ -42,6 +42,9 @@ namespace ReDefinition.Atmospheres
         {
             internal object Field;
             internal bool RainField;
+            // The CloudsObject the field belongs to, whether a cloud type of the layer is of the thunder kind (by its name).
+            internal object Layer;
+            internal bool Thunder;
             internal readonly List<TypeRecord> Types = new List<TypeRecord>();
             internal bool Zeroed;
         }
@@ -64,7 +67,11 @@ namespace ReDefinition.Atmospheres
         private static readonly List<Entry> entries = new List<Entry>();
         private static float nextScan;
         private static int lastFrame = -1;
-        private static float lastCoverage;
+        private static float lastCoverage, lastUnpaintedCoverage;
+        private static bool lastUnpaintedThunder;
+        private static FieldInfo typeNameField;
+        // The CloudsObjects the painter binds its maps to (EveCloudModule); their rain is the field's, not EVE's own weather.
+        private static readonly HashSet<object> painted = new HashSet<object>();
         private static bool suppressed;
         private static int fields, dropletLayers, soundLayers, lightningLayers, wetLayers;
 
@@ -100,6 +107,29 @@ namespace ReDefinition.Atmospheres
         internal static float Coverage
         {
             get { return lastCoverage; }
+        }
+
+        // The same over the rain fields of layers the painter does not paint (EVE's own weather, cloudSource Both), and whether the layer
+        // that gave the maximum has a cloud type of the thunder kind. The join with the field's level reads these.
+        internal static float UnpaintedCoverage
+        {
+            get { return lastUnpaintedCoverage; }
+        }
+
+        internal static bool UnpaintedThunder
+        {
+            get { return lastUnpaintedThunder; }
+        }
+
+        // Tells which layers the painter paints (the CloudsObjects it holds a binding for); replaces the earlier set.
+        internal static void SetPainted(IEnumerable<object> layers)
+        {
+            painted.Clear();
+            if (layers == null) return;
+            foreach (object layer in layers)
+            {
+                if (layer != null) painted.Add(layer);
+            }
         }
 
         // The rain particle fields, the layers with droplets, with a rain sound, with lightning and with wet surfaces that the last scan
@@ -145,9 +175,16 @@ namespace ReDefinition.Atmospheres
                 wetIntensity = link.Field(cloudType, "CloudType", "wetSurfacesIntensity", TypeLookup.Any, typeof(float));
                 lightningFrequency = link.Field(cloudType, "CloudType", "lightningFrequency", TypeLookup.Any, typeof(float));
                 ambientVolume = link.Field(cloudType, "CloudType", "ambientVolume", TypeLookup.Any, typeof(float));
+                typeNameField = cloudType.GetField("typeName", TypeLookup.Any);
                 summary = link.Complete
                     ? "found (CloudsObject -> CloudsRaymarchedVolume -> particleField, droplets, CloudType densities)"
                     : "not controllable (missing " + link.MissingText() + ")";
+                if (link.Complete && !AtmospheresAssumptions.Holds(AssumptionsC23.GroundId))
+                {
+                    getList = null;
+                    ForeignAssumption assumption = AtmospheresAssumptions.Find(AssumptionsC23.GroundId);
+                    summary = "not used (" + (assumption != null ? assumption.State + ": " + assumption.Problem : "assumption unknown") + ")";
+                }
             }
             catch (Exception e)
             {
@@ -184,13 +221,16 @@ namespace ReDefinition.Atmospheres
                         bool rain = config != null && config.IndexOf("rain", StringComparison.OrdinalIgnoreCase) >= 0;
                         bool droplets = dropletsField.GetValue(volume) != null;
                         if (!rain && !droplets) continue;
-                        var entry = new Entry { Field = rain ? field : null, RainField = rain };
+                        var entry = new Entry { Field = rain ? field : null, RainField = rain, Layer = layer };
                         IEnumerable types = typesProperty.GetValue(volume, null) as IEnumerable;
                         if (types != null)
                         {
                             foreach (object type in types)
                             {
-                                if (type != null) entry.Types.Add(new TypeRecord { Type = type });
+                                if (type == null) continue;
+                                entry.Types.Add(new TypeRecord { Type = type });
+                                string typeName = typeNameField != null ? typeNameField.GetValue(type) as string : null;
+                                if (TypeRoles.IsStormName(typeName)) entry.Thunder = true;
                             }
                         }
                         found.Add(entry);
@@ -210,6 +250,11 @@ namespace ReDefinition.Atmospheres
                 }
                 entries.Clear();
                 entries.AddRange(found);
+                if (entries.Count == 0)
+                {
+                    lastUnpaintedCoverage = 0f;
+                    lastUnpaintedThunder = false;
+                }
                 Count();
             }
             catch (Exception e)
@@ -272,6 +317,8 @@ namespace ReDefinition.Atmospheres
             if (lastFrame == Time.frameCount) return lastCoverage;
             lastFrame = Time.frameCount;
             float rain = 0f;
+            lastUnpaintedCoverage = 0f;
+            lastUnpaintedThunder = false;
             try
             {
                 for (int i = 0; i < entries.Count; i++)
@@ -281,6 +328,7 @@ namespace ReDefinition.Atmospheres
                     {
                         float current = (float)coverageField.GetValue(entry.Field);
                         if (current > rain) rain = current;
+                        NoteUnpainted(entry, current);
                         if (current != 0f)
                         {
                             coverageField.SetValue(entry.Field, ZeroValue);
@@ -313,6 +361,8 @@ namespace ReDefinition.Atmospheres
             if (lastFrame == Time.frameCount) return lastCoverage;
             lastFrame = Time.frameCount;
             float rain = 0f;
+            lastUnpaintedCoverage = 0f;
+            lastUnpaintedThunder = false;
             try
             {
                 for (int i = 0; i < entries.Count; i++)
@@ -322,6 +372,7 @@ namespace ReDefinition.Atmospheres
                     {
                         float current = (float)coverageField.GetValue(entry.Field);
                         if (current > rain) rain = current;
+                        NoteUnpainted(entry, current);
                         float scaled = GroundEffectMath.Written(current, f.RainField);
                         if (scaled != current)
                         {
@@ -342,6 +393,15 @@ namespace ReDefinition.Atmospheres
             }
             lastCoverage = Mathf.Clamp01(rain);
             return lastCoverage;
+        }
+
+        // Takes a rain field's coverage into the unpainted maximum when its layer is not one the painter paints.
+        private static void NoteUnpainted(Entry entry, float current)
+        {
+            if (entry.Layer != null && painted.Contains(entry.Layer)) return;
+            if (current <= lastUnpaintedCoverage) return;
+            lastUnpaintedCoverage = Mathf.Clamp01(current);
+            lastUnpaintedThunder = entry.Thunder;
         }
 
         // Keeps the first values of a layer's cloud types (once) and writes original x factor.
@@ -404,6 +464,8 @@ namespace ReDefinition.Atmospheres
             nextScan = 0f;
             suppressed = false;
             lastCoverage = 0f;
+            lastUnpaintedCoverage = 0f;
+            lastUnpaintedThunder = false;
         }
 
         private static void Restore(Entry entry)

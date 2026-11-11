@@ -315,18 +315,18 @@ namespace ReDefinition.Tests.Atmospheres.C23
         {
             WeatherSample clear = WeatherSample.Clear(1);
             clear.TemperatureK = 285f;
-            GroundEffectMath.Factors off = EveGroundEffects.FactorsFor(clear, 0.9f, false, 1f, 0.9f);
+            GroundEffectMath.Factors off = EveGroundEffects.FactorsFor(clear, 0.9f, false, false, 1f, 0.9f);
             Assert.AreEqual(0f, off.RainField);
-            GroundEffectMath.Factors both = EveGroundEffects.FactorsFor(clear, 0.9f, true, 1f, 0.9f);
+            GroundEffectMath.Factors both = EveGroundEffects.FactorsFor(clear, 0.9f, false, true, 1f, 0.9f);
             Assert.IsTrue(both.RainField > 0.5f, "warm air: EVE's weather is rain");
             WeatherSample cold = WeatherSample.Clear(1);
             cold.TemperatureK = 262f;
-            GroundEffectMath.Factors snow = EveGroundEffects.FactorsFor(cold, 0.9f, true, 1f, 0.9f);
+            GroundEffectMath.Factors snow = EveGroundEffects.FactorsFor(cold, 0.9f, false, true, 1f, 0.9f);
             Assert.IsTrue(snow.SnowField > 0.5f && snow.RainField < 0.2f, "cold air: EVE's weather is snow");
             WeatherSample field = WeatherSample.Clear(1);
             field.Level01 = 0.7f;
             field.SnowFraction = 1f;
-            GroundEffectMath.Factors own = EveGroundEffects.FactorsFor(field, 0.1f, true, 1f, 0.9f);
+            GroundEffectMath.Factors own = EveGroundEffects.FactorsFor(field, 0.1f, false, true, 1f, 0.9f);
             Assert.AreEqual(1f, own.SnowField, 1e-6);
         }
 

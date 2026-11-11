@@ -19,11 +19,18 @@ namespace ReDefinition.Atmospheres
                 if (rules != null && Contains(rules.StratusTypeNames, name)) slots.Assign(CloudRole.SnowStratus, i);
                 else if (rules != null && Contains(rules.SnowTypeNames, name)) slots.Assign(CloudRole.SnowLight, i);
                 else if (rules != null && Contains(rules.DustTypeNames, name)) slots.Assign(CloudRole.Dust, i);
-                else if (name.IndexOf("storm", StringComparison.OrdinalIgnoreCase) >= 0
-                         || name.IndexOf("thunder", StringComparison.OrdinalIgnoreCase) >= 0
-                         || name.IndexOf("cumulonimbus", StringComparison.OrdinalIgnoreCase) >= 0) slots.Assign(CloudRole.Storm, i);
+                else if (IsStormName(name)) slots.Assign(CloudRole.Storm, i);
             }
             return slots;
+        }
+
+        // Whether a cloud type name is of the storm kind ("storm", "thunder" or "cumulonimbus" in it).
+        internal static bool IsStormName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            return name.IndexOf("storm", StringComparison.OrdinalIgnoreCase) >= 0
+                   || name.IndexOf("thunder", StringComparison.OrdinalIgnoreCase) >= 0
+                   || name.IndexOf("cumulonimbus", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static bool Contains(IReadOnlyList<string> list, string name)

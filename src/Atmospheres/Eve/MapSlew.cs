@@ -74,6 +74,13 @@ namespace ReDefinition.Atmospheres
             return StepLevels(rate, intervalS) >= MinLevelsPerUpdate;
         }
 
+        // Whether a target jumps to the field's map in a pass instead of slewing: on a cut (snap) and on the first run of that target.
+        // Each target (coverage, type) is primed by its own first run, so a type pass skipped on an earlier paint still jumps later.
+        internal static bool Jumps(bool snap, bool targetPrimed)
+        {
+            return snap || !targetPrimed;
+        }
+
         // The seconds a texel needs to cross a change of that size (a share of full scale).
         internal static float SecondsFor(float change, float rate)
         {

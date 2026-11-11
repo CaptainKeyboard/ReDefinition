@@ -32,13 +32,15 @@ namespace ReDefinition.Atmospheres
         }
 
         // The factors in force at the camera for a sample, with the join of EVE's own weather where it applies.
-        internal static GroundEffectMath.Factors FactorsFor(WeatherSample sample, float eveCoverage, bool useEveWeather, float centreC, float widthC)
+        // eveCoverage is the rain coverage of the layers the painter does not paint (EveRainLink.UnpaintedCoverage) and thunderKind
+        // whether that layer has a cloud type of the thunder kind (EveRainLink.UnpaintedThunder).
+        internal static GroundEffectMath.Factors FactorsFor(WeatherSample sample, float eveCoverage, bool thunderKind, bool useEveWeather, float centreC, float widthC)
         {
             float level = sample.Level01;
             float snow = sample.SnowFraction, sleet = sample.SleetFraction, rain = sample.RainFraction;
             if (useEveWeather)
             {
-                float peve = GroundEffectMath.EveLevel(eveCoverage, false, false);
+                float peve = GroundEffectMath.EveLevel(eveCoverage, thunderKind, true);
                 if (peve > level)
                 {
                     float joined = GroundEffectMath.Union(level, peve);

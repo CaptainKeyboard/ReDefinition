@@ -16,6 +16,8 @@ namespace ReDefinition.Atmospheres
         internal bool Mirrored;
         // The number of texels still away from the field's map is unknown on the GPU; Settled counts the updates since the last jump.
         internal bool Primed;
+        // The same for the type target: its pass is skipped while the level-to-type table is not set, so it is primed on its own first run.
+        internal bool TypePrimed;
     }
 
     // The GPU painter of the weather field's maps (brief C23, item 1). From the field's maps (IWeatherField.GetMap: Coverage and
@@ -167,17 +169,18 @@ namespace ReDefinition.Atmospheres
             material.SetFloat("_Shift", shift);
             material.SetFloat("_Mirror", set.Mirrored ? 1f : 0f);
             material.SetFloat("_MaxDelta", maxDelta);
-            bool jump = snap || !set.Primed;
-            material.SetFloat("_Snap", jump ? 1f : 0f);
+            material.SetFloat("_Snap", MapSlew.Jumps(snap, set.Primed) ? 1f : 0f);
             Copy(set.Coverage, set.Scratch);
             material.SetTexture("_Prev", set.Scratch);
             Blit(fieldCoverage, set.Coverage, PassCoverage);
             if (lutTexture != null)
             {
+                material.SetFloat("_Snap", MapSlew.Jumps(snap, set.TypePrimed) ? 1f : 0f);
                 Copy(set.Type, set.Scratch);
                 material.SetTexture("_Prev", set.Scratch);
                 material.SetTexture("_Lut", lutTexture);
                 Blit(fieldLevel, set.Type, PassType);
+                set.TypePrimed = true;
             }
             set.Primed = true;
             Paints++;
