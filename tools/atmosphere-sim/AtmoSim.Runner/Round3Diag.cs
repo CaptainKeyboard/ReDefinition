@@ -25,8 +25,11 @@ namespace AtmoSim.Runner
                     {
                         double lat, lon, amp, mat, rsp, ang;
                         if (!g.SystemInfo(h, s, ut, out lat, out lon, out amp, out mat, out rsp, out ang)) continue;
+                        double life, off; g.SlotTiming(h, s, out life, out off);
+                        double gen = Math.Floor((ut - off) / life), u = (ut - off) / life - gen;
                         Console.WriteLine("day " + (ut / 86400.0).ToString("F2") + " " + (h == 0 ? "N" : "S") + " slot " + s + " lat " + (lat * 180.0 / Math.PI).ToString("F1") + " lon " + (lon * 180.0 / Math.PI).ToString("F1")
-                            + " amp " + amp.ToString("F0") + " Pa angle " + ang.ToString("F0") + " deg mature " + mat + " rsp " + rsp.ToString("F0") + " km");
+                            + " amp " + amp.ToString("F0") + " Pa angle " + ang.ToString("F0") + " deg mature " + mat + " rsp " + rsp.ToString("F0") + " km gen " + gen + " u " + u.ToString("F2")
+                            + " moist " + g.Grid.MoistAt(lat, lon).ToString("F2"));
                     }
             }
             return 0;
@@ -77,6 +80,49 @@ namespace AtmoSim.Runner
             }
             lens.Sort();
             Console.WriteLine("generations " + gens + " active frames " + totalA + " detected " + totalD + " (" + (100.0 * totalD / Math.Max(1, totalA)).ToString("F0") + " %) median longest run " + (lens.Count > 0 ? lens[lens.Count / 2] : 0) + " h");
+            return 0;
+        }
+
+        // follow <body> <seed> <hemi 0|1> <slot> <utStartDays> <stepHours> <count> <halfLatDeg> <halfLonDeg> <nx> <ny> <dir>: map fields of a window that follows the centre of one system
+        // (same files as `frames`; meta carries the window of every frame), for the close-up of the life of a system.
+        public static int Follow(string[] args)
+        {
+            var bp = Study.ByName(args[1]);
+            var g = new WeatherGenerator(bp, ulong.Parse(args[2], CultureInfo.InvariantCulture));
+            int hemi = int.Parse(args[3], CultureInfo.InvariantCulture), slot = int.Parse(args[4], CultureInfo.InvariantCulture);
+            double start = D(args[5]) * 86400.0, step = D(args[6]) * 3600.0; int count = int.Parse(args[7], CultureInfo.InvariantCulture);
+            double hLat = D(args[8]), hLon = D(args[9]); int nx = int.Parse(args[10], CultureInfo.InvariantCulture), ny = int.Parse(args[11], CultureInfo.InvariantCulture);
+            string dir = args[12];
+            Directory.CreateDirectory(dir);
+            string[] names = { "cover", "precip", "level", "front", "pa", "type", "wind", "temp" };
+            var wr = new BinaryWriter[names.Length];
+            for (int k = 0; k < names.Length; k++) wr[k] = new BinaryWriter(File.Create(Path.Combine(dir, "frames_" + names[k] + ".f32")));
+            var windows = new List<object>(); var times = new List<double>(); var ocean = new BinaryWriter(File.Create(Path.Combine(dir, "frames_ocean.f32")));
+            var res = new float[names.Length][];
+            for (int k = 0; k < names.Length; k++) res[k] = new float[nx * ny];
+            for (int f = 0; f < count; f++)
+            {
+                double ut = start + f * step;
+                double lat0, lon0, amp, mat, rsp, ang;
+                g.SystemInfo(hemi, slot, ut, out lat0, out lon0, out amp, out mat, out rsp, out ang);
+                double latC = lat0 * 180.0 / Math.PI, lonC = lon0 * 180.0 / Math.PI;
+                windows.Add(new List<double> { latC - hLat, latC + hLat, lonC - hLon, lonC + hLon }); times.Add(ut);
+                for (int j = 0; j < ny; j++)
+                    for (int i = 0; i < nx; i++)
+                    {
+                        double lat = (latC + hLat - (j + 0.5) * 2.0 * hLat / ny) * Math.PI / 180.0, lon = DMath.WrapPi((lonC - hLon + (i + 0.5) * 2.0 * hLon / nx) * Math.PI / 180.0);
+                        Weather w; g.Sample(lat, lon, 0.0, ut, out w);
+                        int k = j * nx + i;
+                        res[0][k] = (float)w.Coverage; res[1][k] = (float)w.PrecipMmH; res[2][k] = (float)g.Level01(w.PrecipMmH); res[3][k] = (float)w.FrontKPer100Km;
+                        res[4][k] = (float)w.PressureAnomPa; res[5][k] = (float)(int)w.Type; res[6][k] = (float)w.WindSpeed; res[7][k] = (float)w.TempK;
+                        ocean.Write((float)g.Grid.OceanAt(lat, lon));
+                    }
+                for (int q = 0; q < names.Length; q++) foreach (float v in res[q]) wr[q].Write(v);
+            }
+            foreach (var w in wr) w.Close();
+            ocean.Close();
+            File.WriteAllText(Path.Combine(dir, "frames_meta.json"), Json.Write(new Dictionary<string, object> {
+                { "body", bp.Name }, { "nlon", nx }, { "nlat", ny }, { "frames", count }, { "frame_s", step }, { "fields", names }, { "times_s", times }, { "radius_km", bp.RadiusM / 1000.0 }, { "windows", windows }, { "follow", true } }));
             return 0;
         }
 

@@ -79,7 +79,10 @@ namespace AtmoSim.Core
         private readonly int snowSteps;
         private readonly bool smoothAlb, r2snow;
         // The memory of the snow on the ice in seconds (BodyParams.IceSnowMemoryDays), 0 = none.
-        private readonly double memorySteps;
+        private readonly double memorySteps, memoryGrowth, sinLat;
+        // The wet state of the last two evaluated steps (the next evaluation of the map reuses one of them).
+        private long wetM0 = long.MinValue, wetM1 = long.MinValue;
+        private double wetV0, wetV1;
         private readonly float[] tSer, pSer, wSer, hSer;
         // Per-step values that need an Exp, computed once with the sample: snow added by the step (water equivalent, mm) and the decay factor of the wet recurrence.
         private readonly double[] snowAdd, wetDecay, meltDrop;
@@ -101,7 +104,9 @@ namespace AtmoSim.Core
             fluxK = b.SeaHeatFluxWm2 / IceModel.SeaExchangeWm2K;
             tSnow = b.SnowFreezeK;
             smoothAlb = b.SmoothSnowAlbedo;
+            sinLat = DMath.Sin(lat);
             memorySteps = b.IceSnowMemoryDays * 86400.0;
+            memoryGrowth = memorySteps > 0.0 ? DMath.Exp(86400.0 / memorySteps) : 1.0;
             // the degree-day melt with a spread acts on land; the snow on sea ice keeps the round-1 rule (a fast change of the snow depth over ice would move the albedo, and with it the
             // whole integrated ice history, in a few hours: the continuity check of the ice at the anchor boundaries)
             r2snow = b.Round2Snow && !sea;
@@ -109,8 +114,11 @@ namespace AtmoSim.Core
             snowSteps = b.SnowWindowYearFraction > 0.0
                 ? (int)Math.Max(24, Math.Min(SignedSnowWindowSteps, Math.Round(b.SnowWindowYearFraction * b.YearS / StepS)))
                 : SignedSnowWindowSteps;
-            cap6 = Math.Max(need, snowSteps + 8);
-            if (cap6 > 1400) cap6 = 1400;
+            // the ring of cached steps has a power-of-two size so that the slot of a step is a mask, not a long division (the cache only memoises pure values: the results do not depend on its size)
+            int ring = Math.Max(need, snowSteps + 8);
+            if (ring > 1024) ring = 1024;
+            int pow2 = 1; while (pow2 < ring) pow2 <<= 1;
+            cap6 = pow2;
             tSer = new float[cap6]; pSer = new float[cap6]; wSer = new float[cap6]; hSer = new float[cap6];
             snowAdd = new double[cap6]; wetDecay = new double[cap6]; meltDrop = new double[cap6];
             stamp = new long[cap6];
@@ -125,14 +133,29 @@ namespace AtmoSim.Core
         // Daily-mean insolation of the site in units of a quarter of the solar constant.
         private double SolarUnit(double ut)
         {
-            double decl = -b.ObliquityRad * DMath.Cos(DMath.TwoPi * DMath.Frac(ut / b.YearS));
-            return BodyDerived.Insolation(DMath.Sin(lat), DMath.Sin(decl));
+            return BodyDerived.Insolation(sinLat, SinDeclination(ut));
         }
 
         private double ClimSolar(double ut)
         {
+            return b.SolarFluxWm2 * 0.25 * BodyDerived.Insolation(sinLat, SinDeclination(ut));
+        }
+
+        // The sine of the declination at a time: the same for every site, so the last 256 values per thread are memoised (a pure function of the body and the time; the map update of
+        // thousands of sites asks for the same times).
+        [ThreadStatic] private static double[] declKey, declVal;
+        [ThreadStatic] private static BodyParams[] declBody;
+
+        private double SinDeclination(double ut)
+        {
+            if (declKey == null) { declKey = new double[256]; declVal = new double[256]; declBody = new BodyParams[256]; }
+            long bits = BitConverter.DoubleToInt64Bits(ut);
+            int idx = (int)((bits ^ (bits >> 23) ^ (bits >> 41)) & 255);
+            if (declKey[idx] == ut && ReferenceEquals(declBody[idx], b)) return declVal[idx];
             double decl = -b.ObliquityRad * DMath.Cos(DMath.TwoPi * DMath.Frac(ut / b.YearS));
-            return b.SolarFluxWm2 * 0.25 * BodyDerived.Insolation(DMath.Sin(lat), DMath.Sin(decl));
+            double v = DMath.Sin(decl);
+            declKey[idx] = ut; declVal[idx] = v; declBody[idx] = b;
+            return v;
         }
 
         // The climatological annual cycle of the mixed-layer temperature and ice thickness at the four quarter boundaries of the year.
@@ -165,7 +188,7 @@ namespace AtmoSim.Core
 
         // ---- cached 6-hour series ---------------------------------------------------------------------------------------
 
-        private int Slot(long step) { int r = (int)(step % cap6); return r < 0 ? r + cap6 : r; }
+        private int Slot(long step) { return (int)(step & (cap6 - 1)); }
 
         private void Ensure(long step)
         {
@@ -190,7 +213,8 @@ namespace AtmoSim.Core
                 // Round 3 (SnowRadiativeHeatK): the sun heats the snow surface above the air temperature (the radiation term of an enhanced degree-day model), so snow melts
                 // on high ground in summer where the air stays below freezing, and not in winter (small insolation); 0 = round 2
                 double sg = b.SnowTempSpreadK;
-                double su = b.SnowRadiativeHeatK > 0.0 || b.SnowMeltRadPerUnit > 0.0 ? SolarUnit(step * StepS) : 0.0;
+                // the insolation (three transcendental functions) is only needed where the air is within reach of the freezing point: the mean insolation unit is at most 3 for every obliquity
+                double su = t + b.SnowRadiativeHeatK * 3.0 - tSnow < -5.0 * sg ? 0.0 : SolarUnit(step * StepS);
                 double xx = (t + b.SnowRadiativeHeatK * su - tSnow) / sg;
                 if (xx < -5.0) meltDrop[i] = 0.0;
                 else
@@ -244,6 +268,16 @@ namespace AtmoSim.Core
             return v;
         }
 
+        private double WetCached(long m)
+        {
+            if (m == wetM1) return wetV1;
+            if (m == wetM0) return wetV0;
+            double v = WetAt(m);
+            wetM0 = wetM1; wetV0 = wetV1;
+            wetM1 = m; wetV1 = v;
+            return v;
+        }
+
         private double WetAt(long m)
         {
             double wsum = 0.0;
@@ -293,6 +327,7 @@ namespace AtmoSim.Core
             // Daily mean temperature of the step [t, t + dt) from the cached series: linear interpolation at the segment ends and the middle. The end of a step is
             // the start of the next one, so its interpolation is carried over (the same argument, the same value).
             double iStart = Interp(t);
+            double wgt = 0.0, prevDt = 0.0; bool wValid = false;
             while (t < ut)
             {
                 double dt = DMath.Min(86400.0, ut - t);
@@ -301,7 +336,14 @@ namespace AtmoSim.Core
                 double meanT = 0.5 * (0.5 * (iStart + iEnd) + Interp(0.5 * (t + (t + dt))));
                 // Round 3 (IceSnowMemoryDays): the snow of the evaluation time counts for the steps long before it with a decaying weight, so a quick change of the snow does not move
                 // the whole integrated history (the continuity check of the ice, synthetic seed A); 0 = the same snow depth for every step
-                double snowStep = memorySteps > 0.0 ? snowM * DMath.Exp(-(ut - tm) / memorySteps) : snowM;
+                // (the weight of consecutive whole days differs by the constant factor memoryGrowth, so one Exp per call and no snow means no Exp)
+                double snowStep = snowM;
+                if (memorySteps > 0.0 && snowM > 0.0)
+                {
+                    if (wValid && dt == 86400.0 && prevDt == 86400.0) wgt *= memoryGrowth; else wgt = DMath.Exp(-(ut - tm) / memorySteps);
+                    wValid = true; snowStep = snowM * wgt;
+                }
+                prevDt = dt;
                 IceModel.Step(ref tml, ref h, meanT, ClimSolar(tm), snowStep, tFreeze, cap, dt / 86400.0, fluxK, smoothAlb);
                 t += dt;
                 iStart = iEnd;
@@ -329,7 +371,7 @@ namespace AtmoSim.Core
             s.SnowSweMm = swe0 * (1.0 - f) + swe1 * f;
             s.SnowDepthM = s.SnowSweMm * 0.008;
             s.IsSea = sea;
-            double w0 = WetAt(n), w1 = WetAt(n + 1);
+            double w0 = WetCached(n), w1 = WetCached(n + 1);
             s.Wet01 = w0 * (1.0 - f) + w1 * f;
             if (dusty && !sea)
             {

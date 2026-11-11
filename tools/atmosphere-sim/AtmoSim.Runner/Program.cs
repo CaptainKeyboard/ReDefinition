@@ -52,6 +52,7 @@ namespace AtmoSim.Runner
             if (cmd == "diag-systems") return Round3Diag.Systems(args);
             if (cmd == "patch") return Round3Diag.Patch(args);
             if (cmd == "diag-detect") return Round3Diag.DetectFlicker(args);
+            if (cmd == "follow") return Round3Diag.Follow(args);
             if (cmd == "diag-alloc") return Round2Maps.Alloc(args);
             if (cmd == "diag-ice") return Round2Maps.Ice(args);
             if (cmd == "diag-icesite") return Round2Maps.IceSite(args);

@@ -723,7 +723,7 @@ namespace AtmoSim.Tests
         }
 
         public const ulong GoldenRound2Hash = 0xD01F43163C7A1646UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, levers of tuning round 2 (Round2())
-        public const ulong GoldenRound3Hash = 0x8AC7A2B16F5B0E3FUL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 3
+        public const ulong GoldenRound3Hash = 0xA3F0491D2808765FUL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 3
 
         // Tuning round 3 (R3a): the fronts of the generations have angles over a wide range and no more than half of the frames show three strong systems of one hemisphere
         // within ten degrees of each other (round 2: about 0.5).

@@ -75,14 +75,14 @@ namespace AtmoSim.Core
         public double SnowWindowYearFraction = 40.0 / 365.25;
         // L4: share of the cloud and stratiform driver that does not depend on the temperature (0 = the signed H = h_T Hrel).
         public double LiftSaturationFloor = 0.20;
-        public double StratThreshold = 0.08; // 0.075 in round 1 (Round1() restores it)
+        public double StratThreshold = 0.065; // 0.08 in round 2 (Round2() restores it), 0.075 in round 1 (Round1() restores it)
         public double CellRainThreshold = 0.02;
         // L4 (c): convergence lift of the moist belt (0 = signed) and the shift of the belt centre by a longitude wave (rad).
         public double ItczLift = 1.6; // 0.45 in round 1 (Round1() restores it)
         public double ItczWiggleRad = 0.06;
         // L5/L7: cells in the extratropics need a trigger (a front); the front term of the presence probability (0.8 = signed).
         public bool CellTrigger = true;
-        public double CellFrontTerm = 0.35;
+        public double CellFrontTerm = 0.30; // 0.35 in rounds 1 and 2 (Round2() restores it)
         // The trigger factor of the extratropics: SmoothStep(lo, hi, front strength).
         public double CellTriggerLo = 0.6, CellTriggerHi = 1.0;
         // L6: soft-saturation constant of the geostrophic wind as a multiple of the jet speed (the signed generator used max(15, 2 U_jet)); gust noise amplitude.
@@ -127,16 +127,19 @@ namespace AtmoSim.Core
         // The pressure amplitude of a system as a share of the surface pressure (0.025 in the signed generator and in rounds 1 and 2), and the lifetime of a generation (3 to 6 days before).
         public double SystemAmpFraction = 0.025;
         // The steering speed of a system as a multiple of the jet speed of its latitude (1 in rounds 1 and 2).
-        public double SystemSpeedFactor = 1.0;
+        public double SystemSpeedFactor = 1.08;
         // Half-range of the latitude scatter of a generation around the jet latitude, in units of its half-length (0.6 in round 2).
         public double SystemLatScatter = 0.4;
+        // The share of the front strength in the cloud and stratiform driver (0.7 in the signed generator and in rounds 1 and 2): the fronts of round 3 have a constant wavelength across them
+        // and so a smaller area of strong gradient than before.
+        public double FrontCloudGain = 1.15;
         // The amplitude window of a generation: 0 = sin^2 of the life phase (signed, rounds 1 and 2); above 0 a flat-topped smoothstep window rising over this share of the life.
         public double WindowRise = 0.0;
         public double SystemPoleFadeLo = 1.0, SystemPoleFadeHi = 1.35;
         // R3b: mature-stage structure of a system as a function of its life phase: a cloud spiral around the low (windings grow with the age) and a dry slot (a clear wedge between
         // the cold-front band and the cloud head). Amplitudes are shares of the available moisture; the spiral radius is SpiralRadiusFactor times the half-length of the system.
         public bool MatureStructure = true;
-        public double SpiralAmp = 0.55, SpiralRadiusFactor = 1.25, SpiralTurnsMin = 0.35, SpiralTurnsMax = 1.25;
+        public double SpiralAmp = 1.0, SpiralRadiusFactor = 1.1, SpiralTurnsMin = 0.35, SpiralTurnsMax = 1.25;
         public double DrySlotDepth = 0.90, DrySlotAngleDeg = 38.0;
         public double MaturityLo = 0.30, MaturityHi = 0.70;
         // R3c: clusters of the moist belt with a common envelope (a broad longitude pattern of wavenumbers 2 and 3) and softer cores; false = the round-2 patches.
@@ -148,12 +151,15 @@ namespace AtmoSim.Core
         // does not move the whole integrated history; 0 = round 2 (the same snow depth for every step).
         public double IceSnowMemoryDays = 8.0;
 
+        // Diagnostic (the close-up of one system in isolation): only this slot of this hemisphere is evaluated (-1 = all). Not a lever of the proof.
+        public int DebugSingleSlot = -1, DebugSingleHemisphere = 0;
+
         // The round-2 generator: every lever of round 3 switched off (20 000-query hash D01F43163C7A1646).
         public BodyParams Round2()
         {
             var p = Clone();
             p.Round3Systems = false; p.MatureStructure = false; p.Round3Itcz = false; p.SnowRadiativeHeatK = 0.0; p.IceSnowMemoryDays = 0.0;
-            p.SystemSpeedSpread = 0.18; p.SystemLifeMinDays = 3.0; p.SystemLatScatter = 0.6; p.SystemAmpFraction = 0.025; p.SystemSpeedFactor = 1.0; p.WindowRise = 0.0;
+            p.SystemSpeedSpread = 0.18; p.SystemLifeMinDays = 3.0; p.SystemLatScatter = 0.6; p.SystemAmpFraction = 0.025; p.SystemSpeedFactor = 1.0; p.WindowRise = 0.0; p.FrontCloudGain = 0.7; p.CellFrontTerm = 0.35; p.StratThreshold = 0.08;
             return p;
         }
 
