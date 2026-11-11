@@ -12,7 +12,9 @@ This is the only place that builds with deploy, deploys and starts the game; eve
 -p:DeployToGameData=false (tools/dotnet_test.py). A run, inside the GPU lock (tools/gpu_lock.py, exclusive for a timing series):
 
   1. refuses while KSP_x64 runs, and above the run cap of master plan 9.3 (20 starts) without --owner-consent;
-  2. builds src/ReDefinition.csproj of THIS worktree with the default deploy into the KSP folder (and, for a series with
+  2. builds src/ReDefinition.csproj of THIS worktree in the configuration of the definition ("configuration": "Debug" by default,
+     "Release" for a series whose rows are Release limits, such as K-W3a with the audio CPU budget; the report names the
+     configuration that ran) with the default deploy into the KSP folder (and, for a series with
      "bundle": true, the shader bundle through tools/build_atmospheres_bundle.ps1 inside the unity lock; a missing bundle refuses
      the run), then compares the deployed DLLs
      (Main, Common, Planner, Dashboard, Atmospheres) and the shader bundle (build/atmospheres.shaders, installed into the game by this
@@ -631,10 +633,16 @@ class VmControl:
 
 # ---------------------------------------------------------------- build and launch
 
-def build_with_deploy(repo, ksp, dotnet):
-    """Builds src/ReDefinition.csproj of the worktree with the default deploy into the KSP folder. Returns the exit code."""
-    command = [dotnet, "build", os.path.join(repo, "src", "ReDefinition.csproj"), "-nologo", "-v:minimal", "-p:KspRoot=" + ksp]
-    return subprocess.call(command, cwd=repo)
+def build_command(repo, ksp, dotnet, configuration="Debug"):
+    """The command line of the build with deploy, in the given configuration."""
+    return [dotnet, "build", os.path.join(repo, "src", "ReDefinition.csproj"), "-c", configuration, "-nologo", "-v:minimal",
+            "-p:KspRoot=" + ksp]
+
+
+def build_with_deploy(repo, ksp, dotnet, configuration="Debug"):
+    """Builds src/ReDefinition.csproj of the worktree with the default deploy into the KSP folder, in the given configuration (Debug
+    unless the series definition says "configuration": "Release"). Returns the exit code."""
+    return subprocess.call(build_command(repo, ksp, dotnet, configuration), cwd=repo)
 
 
 def build_bundle_with_lock(repo, ksp, who):
@@ -716,7 +724,9 @@ class Runner:
         self.log = log
         h = hooks or {}
         self.ksp_running = h.get("ksp_running", ksp_running_tasklist)
-        self.build = h.get("build", lambda: build_with_deploy(repo, ksp, dotnet))
+        # The configuration of the build in force: set from the series definition just before the build, read by the default hook.
+        self.configuration = "Debug"
+        self.build = h.get("build", lambda: build_with_deploy(repo, ksp, dotnet, self.configuration))
         self.build_bundle = h.get("build_bundle", lambda: build_bundle_with_lock(repo, ksp, who))
         self.launch = h.get("launch", lambda args, timeout, log_path: launch_game(ksp, args, timeout, log_path))
         self.vm = h.get("vm") or VmControl(log=log)
@@ -813,9 +823,11 @@ class Runner:
         stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(self.now()))
         out_dir = os.path.join(self.repo, "build", "atmo-series")
         os.makedirs(out_dir, exist_ok=True)
+        self.configuration = defn.get("configuration", "Debug")
+        self.log("build: configuration %s" % self.configuration)
         code = self.build()
         if code != 0:
-            raise Refusal("the build with deploy failed (exit %s)" % code)
+            raise Refusal("the %s build with deploy failed (exit %s)" % (self.configuration, code))
         if defn.get("bundle"):
             code = self.build_bundle()
             if code != 0:
@@ -823,7 +835,8 @@ class Runner:
         store = tempfile.mkdtemp(prefix="atmo-snap-")
         snap = self.snapshot_plan(store)
         snap.take()
-        report = {"series": name, "time": stamp, "starts": [], "warnings": [], "hashes": [], "restore_mismatches": [], "notes": []}
+        report = {"series": name, "time": stamp, "configuration": self.configuration, "starts": [], "warnings": [], "hashes": [],
+                  "restore_mismatches": [], "notes": []}
         all_results, verdicts, failures = [], {}, []
         try:
             report["hashes"] = self.verify_hashes(require_bundle=bool(defn.get("bundle")))
@@ -933,6 +946,8 @@ def cmd_validate(args):
 
 def print_report(report, defn):
     print(format_table(report["series"], report["table"], report.get("unlisted", ())))
+    if report.get("configuration"):
+        print("build: %s" % report["configuration"])
     for w in report["warnings"]:
         print("warning: " + w)
     for n in report.get("notes", []):
@@ -1126,6 +1141,10 @@ def _selftest():
               and not os.path.exists(os.path.join(ksp, DISABLED_DIR)))
         check("the VM was stopped and started again", any("Stop-VM" in c for c in vm.calls) and any("Start-VM" in c for c in vm.calls))
         check("the report file is written", any(f.startswith("K-test-") and f.endswith(".json") for f in os.listdir(os.path.join(repo, "build", "atmo-series"))))
+        check("the report records the build configuration (Debug by default)", rep.get("configuration") == "Debug")
+        release_command = build_command("wt", "ksp", "dotnet", "Release")
+        check("the build command carries the configuration of the definition", release_command[release_command.index("-c") + 1] == "Release"
+              and build_command("wt", "ksp", "dotnet")[release_command.index("-c") + 1] == "Debug")
         text = format_table("K-test", rep["table"])
         check("the table has the fixed columns", text.splitlines()[1].split() == ["metric", "value", "threshold", "result"])
 

@@ -4,10 +4,16 @@
   "owner": "D30",
   "description": "Wave W3, forecast, wind, audio and settings: alert count over a scripted UT jump, forecast against live, windows in 3 scenes, wind drift error, NaN count, solar flow, per-layer RMS and bands, IVA delta, footstep count, settings checklist, plus the game-specific rows of C25 (PluginData path, timing inside the KSP process).",
   "profile": "Medium",
+  "configuration": "Release",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 1,
-  "starts": [ { "id": "run1", "description": "forecast, wind, audio, settings" } ],
+  "plannedStarts": 4,
+  "starts": [
+    { "id": "run1", "description": "forecast, settings, C25 game rows; the scenario is the crewed vessel on the launch pad (Kerbal X with crew in the probe save's probe.sfs: Landed, in a crewed cabin for the IVA rows)", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"] },
+    { "id": "audio", "description": "weather sound (D33) alone: real pause, warp, map and IVA rows on the crewed pad vessel", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D33Probe"] },
+    { "id": "wind", "description": "wind gameplay (D31) alone on the pad vessel", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "WindProbe"] },
+    { "id": "windground", "description": "wind on craft on the runway (D31) alone", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "WindGroundProbe"] }
+  ],
   "sections": [
     { "id": "D30", "package": "D30", "title": "Forecast" },
     { "id": "D31", "package": "D31", "title": "Wind gameplay" },

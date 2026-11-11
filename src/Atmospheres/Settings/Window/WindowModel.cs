@@ -171,7 +171,10 @@ namespace ReDefinition.Atmospheres
         // The status line of the wind.
         internal string WindLine()
         {
-            return WindStatus.Text(AtmospheresSettings.WindSource, Env.ForeignWindOwner);
+            // The plan in force carries the sentence of the mode table and the cases the table does not know (D31); before the first
+            // plan exists the table's sentence for the chosen mode stands.
+            string text = WindModule.StatusText;
+            return string.IsNullOrEmpty(text) ? WindStatus.Text(AtmospheresSettings.WindSource, Env.ForeignWindOwner) : text;
         }
 
         internal string InjectionLine()

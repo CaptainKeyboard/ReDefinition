@@ -11,6 +11,7 @@
     "owner": { "type": "string", "description": "The package that owns the series definition's content (A02 owns the schema and the skeletons)." },
     "description": { "type": "string" },
     "profile": { "enum": ["Medium"], "description": "The graphics profile of the start. Medium only on the A4500." },
+    "configuration": { "enum": ["Debug", "Release"], "description": "The build configuration of the DLLs the runner builds and deploys (default Debug). A series whose rows are defined by the Release build (a CPU budget) says Release; the report records the configuration that ran." },
     "exclusive": { "type": "boolean", "description": "A timing series: the GPU lock is taken exclusive, builders and dotnet test wait." },
     "maxMinutes": { "type": "number", "minimum": 1, "maximum": 20, "description": "Per start; the runner ends the game after this long. Never above 20." },
     "freeMemoryGb": { "type": "number", "minimum": 12, "description": "The free memory the start needs." },

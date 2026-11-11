@@ -371,7 +371,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
         [TestMethod]
         public void TheWindStatusSaysWhoOwnsTheBaseWindInEveryCellOfTheModeTable()
         {
-            Assert.AreEqual("Wind: FAR owns the base wind, ours adds the storm delta.", WindStatus.Text(WindSourceMode.Auto, "FAR"));
+            Assert.AreEqual("Wind: FAR owns the base wind, ours adds the storm wind on top.", WindStatus.Text(WindSourceMode.Auto, "FAR"));
             Assert.AreEqual("Wind: ours, base wind and storms.", WindStatus.Text(WindSourceMode.Auto, ""));
             Assert.AreEqual("Wind: ours replaces KWP's where it can; see the log.", WindStatus.Text(WindSourceMode.Ours, "KWP"));
             Assert.AreEqual("Wind: ours, base wind and storms.", WindStatus.Text(WindSourceMode.Ours, null));

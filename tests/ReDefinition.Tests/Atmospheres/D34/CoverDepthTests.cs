@@ -203,18 +203,29 @@ namespace ReDefinition.Tests.Atmospheres.D34
         {
             var map = new CoverMap();
             float[] values = Grid(256, 128, (lat, lon) => (float)(0.25 + 0.2 * Math.Sin(lat / 7.0) * Math.Cos(lon / 11.0)));
-            map.Resample(values, 256, 128, 0.5f, 0, 0.0);
-            double best = double.MaxValue;
-            for (int run = 0; run < 8; run++)
+            // Three warm-up resamples (JIT, first allocation), then 15 timed ones. The statement is the MEDIAN against the 5 ms line: a
+            // single slow run caused by a busy machine (other tests in parallel, a collection) does not decide, while a real regression
+            // lifts every run and with it the median.
+            const double LimitMs = 5.0;
+            const int Warm = 3;
+            const int Timed = 15;
+            for (int run = 0; run < Warm; run++)
+            {
+                for (int i = 0; i < values.Length; i++) values[i] += 0.001f * (run + 1);
+                map.Resample(values, 256, 128, 0.5f, run, run);
+            }
+            var times = new double[Timed];
+            for (int run = 0; run < Timed; run++)
             {
                 for (int i = 0; i < values.Length; i++) values[i] += 0.001f * (run + 1);
                 var watch = Stopwatch.StartNew();
-                map.Resample(values, 256, 128, 0.5f, run + 1, run);
-                best = Math.Min(best, watch.Elapsed.TotalMilliseconds);
+                map.Resample(values, 256, 128, 0.5f, Warm + run, Warm + run);
+                times[run] = watch.Elapsed.TotalMilliseconds;
             }
-            Console.WriteLine("D34 coverMap resample best of 8: " + best.ToString("0.00") + " ms");
-            Assert.IsTrue(best < 5.0, "resample took " + best + " ms");
-        }
+            Array.Sort(times);
+            double median = times[Timed / 2];
+            Console.WriteLine("D34 coverMap resample of " + Timed + ": best " + times[0].ToString("0.00") + " ms, median " + median.ToString("0.00") + " ms, worst " + times[Timed - 1].ToString("0.00") + " ms");
+            Assert.IsTrue(median < LimitMs, "resample median " + median + " ms, the line is " + LimitMs + " ms");        }
 
         [TestMethod]
         public void TheMapIsOneMegabyteAndTheTilesCoverIt()

@@ -13,7 +13,7 @@ namespace ReDefinition.Atmospheres
             {
                 case WindSourceMode.Auto:
                     return foreign
-                        ? "Wind: " + foreignOwner + " owns the base wind, ours adds the storm delta."
+                        ? "Wind: " + foreignOwner + " owns the base wind, ours adds the storm wind on top."
                         : "Wind: ours, base wind and storms.";
                 case WindSourceMode.Ours:
                     return foreign
