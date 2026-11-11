@@ -91,6 +91,9 @@ namespace ReDefinition.Planner
         }
 
         // The entries of the seam: the tracks and forecasts the atmospheres publish. Null where there are none.
+        // The type of precipitation is asked at the leg's ground point (the point under the orbit, RouteLeg carries no altitude), so the
+        // site is at sea level of the body on purpose: it is what falls on the surface under the leg. A place nobody has asked for yet
+        // has no report (the seam only queues it), and its entry then reads "precipitation" until the next plan refresh.
         internal static StormOnRouteInfo FindWithSeam(IList<RouteLeg> legs, Func<int, double> radiusM)
         {
             Func<int, ForecastTrack[]> tracks = WeatherHooks.BodyTracks;

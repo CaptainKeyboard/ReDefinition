@@ -78,8 +78,9 @@ namespace ReDefinition.Atmospheres.Forecast
         private string[] richStrip = new string[StripCells];
         private string[] richLead = new string[StripCells];
 
-        // Called after the window is closed, however it was closed.
+        // Called after the window is closed, however it was closed, and after it is opened.
         internal Action OnClosed;
+        internal Action OnOpened;
 
         internal bool IsOpen { get { return shown != null; } }
         internal GameObject Root { get { return shown != null ? shown.gameObject : null; } }
@@ -95,6 +96,7 @@ namespace ReDefinition.Atmospheres.Forecast
         {
             Refresh();
             Build();
+            if (OnOpened != null) OnOpened();
         }
 
         internal void Close()
@@ -105,6 +107,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 shown.Dismiss();
             }
             shown = null;
+            ReleaseBodyChoice();
             if (OnClosed != null) OnClosed();
         }
 
@@ -229,7 +232,7 @@ namespace ReDefinition.Atmospheres.Forecast
             }, 80f, RowHeight);
             var pin = new DialogGUIButton(ForecastStrings.PinHere, Pin, 60f, RowHeight, false);
             pin.tooltipText = ForecastStrings.TooltipPin;
-            return new DialogGUIBase[] { new DialogGUILabel("Latitude", 62f), lat, new DialogGUILabel("Longitude", 70f), lon, pin };
+            return new DialogGUIBase[] { new DialogGUILabel(ForecastStrings.LabelLatitude, 62f), lat, new DialogGUILabel(ForecastStrings.LabelLongitude, 70f), lon, pin };
         }
 
         // The body of the pinned place, or the one the site is on.
@@ -237,7 +240,7 @@ namespace ReDefinition.Atmospheres.Forecast
         {
             List<CelestialBody> all = GameGlobals.Bodies;
             int index = CurrentChoice == SiteChoice.Pinned ? ForecastSites.Pinned.BodyIndex : CurrentBodyIndex();
-            return all != null && index >= 0 && index < all.Count ? all[index].bodyName : "Body";
+            return all != null && index >= 0 && index < all.Count ? all[index].bodyName : ForecastStrings.LabelBody;
         }
 
         private static int CurrentBodyIndex()
@@ -246,7 +249,16 @@ namespace ReDefinition.Atmospheres.Forecast
             return ForecastSites.TryLocate(CurrentChoice, out site) ? site.BodyIndex : ForecastSites.Pinned.BodyIndex;
         }
 
-        // The next body where weather runs becomes the body of the pinned place (its latitude and longitude as typed).
+        // What the body selector replaced: the pinned place and the choice before the first click, put back when the window closes (a body
+        // picked to look at is not a place the player pinned, and it is not kept watched).
+        private bool pinFromBody;
+        private SiteChoice choiceBeforeBody;
+        private bool pinWasSet;
+        private int pinBodyBefore;
+        private double pinLatBefore, pinLonBefore;
+
+        // The next body where weather runs becomes the body of the pinned place (its latitude and longitude as typed), for as long as the
+        // window is open; the pin button makes it the player's own pin.
         private void CycleBody()
         {
             List<CelestialBody> bodies = ForecastSites.WeatherBodies();
@@ -254,6 +266,16 @@ namespace ReDefinition.Atmospheres.Forecast
             int current = CurrentChoice == SiteChoice.Pinned ? ForecastSites.Pinned.BodyIndex : CurrentBodyIndex();
             int at = bodies.FindIndex(b => b.flightGlobalsIndex == current);
             CelestialBody next = bodies[(at + 1) % bodies.Count];
+            if (!pinFromBody)
+            {
+                pinFromBody = true;
+                choiceBeforeBody = CurrentChoice;
+                PinnedSite pin = ForecastSites.Pinned;
+                pinWasSet = pin.Set;
+                pinBodyBefore = pin.BodyIndex;
+                pinLatBefore = pin.LatDeg;
+                pinLonBefore = pin.LonDeg;
+            }
             ForecastSites.Pinned.BodyIndex = next.flightGlobalsIndex;
             ParseInto(ForecastSites.Pinned);
             ForecastSites.Pinned.Set = true;
@@ -267,11 +289,26 @@ namespace ReDefinition.Atmospheres.Forecast
             ForecastSite site;
             int body = ForecastSites.TryLocate(CurrentChoice, out site) ? site.BodyIndex : ForecastSites.Pinned.BodyIndex;
             if (!ParseInto(ForecastSites.Pinned)) return;
+            pinFromBody = false;
             ForecastSites.Pinned.BodyIndex = body;
             ForecastSites.Pinned.Set = true;
             CurrentChoice = SiteChoice.Pinned;
             WatchPinned();
             Refresh();
+        }
+
+        // Puts back the pin and the choice the body selector replaced, and lets the watched place go.
+        private void ReleaseBodyChoice()
+        {
+            if (!pinFromBody) return;
+            pinFromBody = false;
+            PinnedSite pin = ForecastSites.Pinned;
+            pin.Set = pinWasSet;
+            pin.BodyIndex = pinBodyBefore;
+            pin.LatDeg = pinLatBefore;
+            pin.LonDeg = pinLonBefore;
+            if (CurrentChoice == SiteChoice.Pinned) CurrentChoice = choiceBeforeBody;
+            WatchPinned();
         }
 
         private ForecastSite watchedPin;
@@ -334,7 +371,7 @@ namespace ReDefinition.Atmospheres.Forecast
             return new DialogGUIBase[]
             {
                 prev, next,
-                new DialogGUILabel(() => view.StripPages > 1 ? "Hours " + (view.StripPage * StripCells) + " to " + ((view.StripPage + 1) * StripCells) : "Hours 0 to 24", 200f)
+                new DialogGUILabel(() => view.StripPages > 1 ? ForecastStrings.HoursRange(view.StripPage * StripCells, (view.StripPage + 1) * StripCells) : ForecastStrings.HoursDay, 200f)
             };
         }
 
@@ -455,6 +492,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 return;
             }
             shown = null;
+            ReleaseBodyChoice();
             if (OnClosed != null) OnClosed();
         }
 

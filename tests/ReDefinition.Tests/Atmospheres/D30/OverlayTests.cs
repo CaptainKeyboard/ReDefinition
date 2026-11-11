@@ -34,6 +34,13 @@ namespace ReDefinition.Tests.Atmospheres.D30
         {
             var projector = new PlaneProjector();
             const float screenHeight = 600f;
+            // The expectation is written by hand from the tracks' construction (a start place and a constant speed in degrees an hour) and
+            // the plane's own law (400 + 8 pixels a degree east, 300 + 8 a degree north): nothing of it comes from SystemTracker or the builder.
+            var start = new Dictionary<ulong, double[]>
+            {
+                { 1, new[] { 10.0, -60.0, 0.1, 2.0 } },
+                { 2, new[] { -20.0, 30.0, 0.0, -1.5 } }
+            };
             ForecastTrack[] tracks =
             {
                 D30Fixtures.Track(1, 0.0, 10.0, -60.0, 0.1, 2.0, 60, 150000f, 0.7f),
@@ -48,12 +55,9 @@ namespace ReDefinition.Tests.Atmospheres.D30
                 Assert.AreEqual(2, scene.Rings.Count, "Both systems are drawn at " + hours + " h.");
                 foreach (OverlayRing ring in scene.Rings)
                 {
-                    ForecastTrack track = tracks.First(t => t.CellKey == ring.Key);
-                    double lat, lon;
-                    float radius, strength;
-                    Assert.IsTrue(SystemTracker.PositionAt(track, ut, out lat, out lon, out radius, out strength));
-                    float ex, ey;
-                    projector.Project(1, lat, lon, out ex, out ey);
+                    double[] s = start[ring.Key];
+                    double ex = 400.0 + (s[1] + s[3] * hours) * 8.0;
+                    double ey = 300.0 + (s[0] + s[2] * hours) * 8.0;
                     double error = Math.Sqrt((ring.Centre.X - ex) * (ring.Centre.X - ex) + (ring.Centre.Y - ey) * (ring.Centre.Y - ey));
                     worst = Math.Max(worst, error / screenHeight);
                 }

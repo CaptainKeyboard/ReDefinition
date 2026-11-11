@@ -108,6 +108,13 @@ namespace ReDefinition.Tests.Atmospheres.D30
         {
             get { return Running; }
         }
+
+        internal double Rate = 1.0;
+
+        public double WarpRate
+        {
+            get { return Rate; }
+        }
     }
 
     internal sealed class FakeKac : IKacApi

@@ -143,6 +143,133 @@ namespace ReDefinition.Tests.Atmospheres.D30
             Assert.AreEqual(1, sink.WarpStops, "No warp runs.");
         }
 
+        // The evaluator ticks at most every 2 s real, so at a high warp rate its Approaching alert comes long after the time it is stamped
+        // at; the guard in front of it stops the warp before that time (review R3).
+        [TestMethod]
+        public void TheGuardStopsAHighWarpBeforeTheApproachTimeWhereTheEvaluatorsTickComesLate()
+        {
+            const double lead = 3.0, rate = 20000.0, frame = 1.0 / 60.0, tickRealSeconds = 2.0;
+            var field = new ScriptedField { Level = t => t >= 10 * H && t < 16 * H ? 0.7f : 0f };
+            var rules = new AlertRules(lead, PrecipBand.Heavy, 0f);
+            var evaluator = new AlertEvaluator(rules);
+            var ctx = new ForecastContext(new ForecastRules(H, 24.0), 0.0, alerts: rules);
+            ForecastReport report = ForecastEngine.Compute(D30Fixtures.Site(), 0.0, 24.0, ctx, field);
+            ForecastSite site = D30Fixtures.Site();
+
+            // Without the guard: the warp runs, the evaluator ticks every 2 s real, and the alert comes after the time it is stamped at.
+            double ut = 0.0, sinceTick = tickRealSeconds;
+            ForecastAlert late = default(ForecastAlert);
+            bool found = false;
+            while (!found && ut < 24 * H)
+            {
+                ut += rate * frame;
+                sinceTick += frame;
+                if (sinceTick < tickRealSeconds) continue;
+                sinceTick = 0.0;
+                foreach (ForecastAlert a in evaluator.Tick(site, false, report, ut).Alerts)
+                {
+                    if (a.Kind != AlertKind.Approaching) continue;
+                    late = a;
+                    found = true;
+                }
+            }
+            Assert.IsTrue(found);
+            double arrival = late.Ut + late.EtaSeconds;
+            double stamp = arrival - lead * H;
+            Console.WriteLine("D30 warp guard: arrival " + (arrival / H).ToString("0.00") + " h, stamp " + (stamp / H).ToString("0.00") + " h, evaluator's alert at "
+                              + (ut / H).ToString("0.00") + " h at " + rate + "x");
+            Assert.IsTrue(ut > stamp + 3600.0, "The evaluator's tick comes more than an hour after the stamp at this rate: " + ut / H);
+
+            // With the guard on every frame: the warp stops before the stamp, within one second of rate of it, and only once.
+            var sink = new FakeSink { Running = true, Rate = rate, ActiveSite = s => true };
+            AlertDelivery delivery = Make(sink, new AlertDeliverySettings { WarpStop = true });
+            ut = 0.0;
+            while (sink.Running && ut < 24 * H)
+            {
+                ut += rate * frame;
+                delivery.GuardWarp(ut, site, arrival, lead);
+            }
+            Assert.AreEqual(1, sink.WarpStops);
+            Assert.IsTrue(ut <= stamp, "The warp stopped before the stamp: " + ut / H + " h against " + stamp / H);
+            Assert.IsTrue(stamp - ut <= rate * AlertDelivery.GuardRealSeconds, "and within one second of warp of it: " + (stamp - ut));
+
+            // The player warps on: no second stop for the same storm, and none after the stamp.
+            sink.Running = true;
+            Assert.IsFalse(delivery.GuardWarp(ut + 10, site, arrival, lead));
+            Assert.IsFalse(delivery.GuardWarp(stamp + 10, site, arrival, lead));
+            Assert.AreEqual(1, sink.WarpStops);
+            // The Approaching alert that follows for the same storm does not stop it again either.
+            delivery.Receive(late);
+            delivery.Flush(late.Ut);
+            Assert.AreEqual(1, sink.WarpStops);
+        }
+
+        [TestMethod]
+        public void TheGuardStopsNothingForADistantSiteASwitchedOffStopOrAStormInsideTheLeadAndRearmsAfterAReload()
+        {
+            const double lead = 3.0, arrival = 20 * H, stamp = arrival - lead * H;
+            var sink = new FakeSink { Running = true, Rate = 100000.0, ActiveSite = s => false };
+            var settings = new AlertDeliverySettings { WarpStop = true };
+            AlertDelivery delivery = Make(sink, settings);
+            ForecastSite site = D30Fixtures.Site();
+            Assert.IsFalse(delivery.GuardWarp(stamp - 10, site, arrival, lead), "Not the active vessel's site.");
+            sink.ActiveSite = s => true;
+            settings.WarpStop = false;
+            Assert.IsFalse(delivery.GuardWarp(stamp - 10, site, arrival, lead), "The switch is off.");
+            settings.WarpStop = true;
+            sink.Rate = 1000.0;
+            Assert.IsFalse(delivery.GuardWarp(stamp - 10 * H, site, arrival, lead), "Ten hours from the stamp at 1000x is far away.");
+            Assert.AreEqual(0, sink.WarpStops);
+            Assert.IsTrue(delivery.GuardWarp(stamp - 500.0, site, arrival, lead));
+            Assert.AreEqual(1, sink.WarpStops);
+        }
+
+        [TestMethod]
+        public void TheGuardDoesNotStopWhenTheStormIsAlreadyInsideTheLeadOrWhenNoWarpRuns()
+        {
+            const double lead = 3.0, arrival = 20 * H, stamp = arrival - lead * H;
+            var sink = new FakeSink { Running = true, Rate = 1000.0, ActiveSite = s => true };
+            AlertDelivery delivery = Make(sink, new AlertDeliverySettings { WarpStop = true });
+            ForecastSite site = D30Fixtures.Site();
+            Assert.IsFalse(delivery.GuardWarp(stamp - 5000.0, site, arrival, lead), "5000 s from the stamp at 1000x is five seconds: not yet.");
+            Assert.IsFalse(delivery.GuardWarp(stamp + 60.0, site, arrival, lead), "A storm already inside the lead stops no warp.");
+            Assert.IsFalse(delivery.GuardWarp(stamp - 100.0, site, double.NaN, lead), "No storm known.");
+            sink.Running = false;
+            Assert.IsFalse(delivery.GuardWarp(stamp - 100.0, site, arrival, lead), "No warp runs.");
+            sink.Running = true;
+            Assert.IsTrue(delivery.GuardWarp(stamp - 900.0, site, arrival, lead), "900 s from the stamp at 1000x is under a second: stop.");
+            // A reload to before the storm re-arms the guard.
+            delivery.Flush(30 * H);
+            delivery.Flush(1 * H);
+            sink.Running = true;
+            Assert.IsTrue(delivery.GuardWarp(stamp - 900.0, site, arrival, lead));
+            Assert.AreEqual(2, sink.WarpStops);
+        }
+
+        [TestMethod]
+        public void OnlyAGroupTheEvaluatorFoundAsAJumpSaysItPassedDuringTimeWarp()
+        {
+            var sink = new FakeSink();
+            AlertDelivery delivery = Make(sink);
+            // Two ordinary events of one frame (no suffix in their texts): one message, the events named, no claim about a warp.
+            delivery.Receive(Alert(AlertKind.Worsening, 10 * H));
+            delivery.Receive(Alert(AlertKind.Arrived, 10 * H + 60.0));
+            List<DeliveredMessage> made = delivery.Flush(10 * H + 60.0);
+            Assert.AreEqual(1, made.Count);
+            Assert.IsTrue(made[0].Summary);
+            StringAssert.Contains(made[0].Text, "[worsening, arrived]");
+            Assert.IsFalse(made[0].Text.Contains("passed during time warp"), made[0].Text);
+            // The same pair with the evaluator's jump text: the suffix stays.
+            var a = Alert(AlertKind.Approaching, 20 * H);
+            var b = Alert(AlertKind.Arrived, 20 * H);
+            a.Text += ForecastStrings.WarpSummarySuffix;
+            b.Text += ForecastStrings.WarpSummarySuffix;
+            delivery.Receive(a);
+            delivery.Receive(b);
+            made = delivery.Flush(20 * H);
+            StringAssert.Contains(made[0].Text, "passed during time warp");
+        }
+
         [TestMethod]
         public void NothingIsDeliveredWhileTheForecastIsNotUsableOrTheDeliveryIsOffAndWhatArrivedThenIsDropped()
         {

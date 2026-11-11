@@ -61,6 +61,11 @@ namespace ReDefinition.Atmospheres.Forecast
             get { return TimeWarp.fetch != null && TimeWarp.CurrentRateIndex > 0; }
         }
 
+        public double WarpRate
+        {
+            get { return TimeWarp.fetch != null ? TimeWarp.CurrentRate : 1.0; }
+        }
+
         // The active vessel's place is the site when it is on the same body within about 0.2 degrees.
         public bool IsActiveVesselSite(ForecastSite site)
         {

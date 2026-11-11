@@ -124,7 +124,7 @@ namespace ReDefinition.Atmospheres.Forecast
             view.SiteLine = SiteLineOf(input);
             if (view.State != ForecastState.Ready) return view;
 
-            view.IssuedLine = "Issued " + DateOf(input, report.IssuedUt);
+            view.IssuedLine = ForecastStrings.IssuedPrefix + DateOf(input, report.IssuedUt);
             view.WindLine = ForecastFormat.WindSourceLabel(report.Wind) + ConfidenceText(report);
             StormLines(view, input, report);
             LaunchLines(view, input);
@@ -135,7 +135,7 @@ namespace ReDefinition.Atmospheres.Forecast
 
         private static string SiteLineOf(ForecastViewInput input)
         {
-            string name = string.IsNullOrEmpty(input.Site.Name) ? "Site" : input.Site.Name;
+            string name = string.IsNullOrEmpty(input.Site.Name) ? ForecastStrings.LabelSite : input.Site.Name;
             return input.BodyName + ", " + name + ": " + ForecastFormat.Latitude(input.Site.LatDeg) + ", " + ForecastFormat.Longitude(input.Site.LonDeg);
         }
 
@@ -197,7 +197,7 @@ namespace ReDefinition.Atmospheres.Forecast
             double now = input.NowUt;
             if (!d.Known || double.IsNaN(d.ThresholdEtaUt))
             {
-                view.NextStormLine = "No storm within " + Math.Round(input.HorizonHours).ToString("0", Inv) + " h";
+                view.NextStormLine = ForecastStrings.NoStormWithin(Math.Round(input.HorizonHours).ToString("0", Inv));
                 view.ArrivalLine = " ";
                 view.ClearLine = " ";
                 return;
@@ -210,17 +210,17 @@ namespace ReDefinition.Atmospheres.Forecast
             string detail = ForecastFormat.LevelName(band) + (nearest.Length > 0 ? ", " + nearest : "");
             if (d.ActiveAtStart || d.ThresholdEtaUt <= now)
             {
-                view.NextStormLine = "Storm now: " + ForecastFormat.Precip(band, type) + " (" + detail + ")";
-                view.ArrivalLine = "Arrived";
+                view.NextStormLine = ForecastStrings.StormNowPrefix + ForecastFormat.Precip(band, type) + " (" + detail + ")";
+                view.ArrivalLine = ForecastStrings.StormArrived;
             }
             else
             {
-                view.NextStormLine = "Next storm " + LaunchConditions.InText(d.ThresholdEtaUt - now) + " (" + detail + ")";
-                view.ArrivalLine = "Arrives " + DateOf(input, d.ThresholdEtaUt);
+                view.NextStormLine = ForecastStrings.NextStormPrefix + LaunchConditions.InText(d.ThresholdEtaUt - now) + " (" + detail + ")";
+                view.ArrivalLine = ForecastStrings.ArrivesPrefix + DateOf(input, d.ThresholdEtaUt);
             }
             view.ClearLine = double.IsNaN(d.ClearUt)
-                ? "Clears after the forecast horizon"
-                : "Clears " + DateOf(input, d.ClearUt) + " (" + LaunchConditions.InText(d.ClearUt - now) + ")";
+                ? ForecastStrings.ClearsAfterHorizon
+                : ForecastStrings.ClearsPrefix + DateOf(input, d.ClearUt) + " (" + LaunchConditions.InText(d.ClearUt - now) + ")";
         }
 
         private static void LaunchLines(ForecastView view, ForecastViewInput input)
@@ -237,12 +237,12 @@ namespace ReDefinition.Atmospheres.Forecast
             for (int i = 0; i < LaunchReasonLines && i < a.Reasons.Length; i++) view.LaunchReasons[i] = a.Reasons[i];
             if (!double.IsNaN(a.WindowStartUt))
             {
-                view.WindowLine = "Best window in the next 24 h: " + DateOf(input, a.WindowStartUt) + " to " + DateOf(input, a.WindowEndUt) + " ("
-                                  + Math.Round((a.WindowEndUt - a.WindowStartUt) / 3600.0, 1).ToString("0.#", Inv) + " h)";
+                view.WindowLine = ForecastStrings.BestWindow(DateOf(input, a.WindowStartUt), DateOf(input, a.WindowEndUt),
+                    Math.Round((a.WindowEndUt - a.WindowStartUt) / 3600.0, 1).ToString("0.#", Inv));
             }
             else
             {
-                view.WindowLine = a.Status == LaunchStatus.Unavailable ? " " : "No launch window in the next 24 h";
+                view.WindowLine = a.Status == LaunchStatus.Unavailable ? " " : ForecastStrings.NoLaunchWindow;
             }
         }
 

@@ -17,6 +17,9 @@ namespace ReDefinition.Atmospheres.Forecast
         private float kacClock = KacSeconds;
         private bool subscribed;
         private readonly Action<ForecastAlert> receive;
+        private readonly ForecastKey key = new ForecastKey();
+        private ForecastSite guardSite;
+        private double guardEta = double.NaN;
 
         // The running delivery and bridge (the probe and the window read them); null before Init.
         internal static AlertDelivery Delivery { get; private set; }
@@ -59,13 +62,38 @@ namespace ReDefinition.Atmospheres.Forecast
             if (delivery == null || Planetarium.fetch == null) return;
             double now = Planetarium.GetUniversalTime();
             delivery.Flush(now);
+            if (HighLogic.UISkin != null) key.Poll(ForecastWindow.Instance.Toggle);
+            GuardWarp(now);
             EnsureOverlay();
             kacClock += dt;
             if (kacClock >= KacSeconds)
             {
                 kacClock = 0f;
+                RefreshWarpGuard();
                 SyncKac(now);
             }
+        }
+
+        // The active vessel's storm, as the engine's last run has it: refreshed with the alarms (an arrival time is absolute, so it stays
+        // right between refreshes), read every frame by the warp guard.
+        private void RefreshWarpGuard()
+        {
+            guardEta = double.NaN;
+            ForecastService service = ForecastModule.Service;
+            if (!ForecastUiSettings.Delivery().WarpStop || service == null || !service.Available) return;
+            ForecastSite site;
+            if (!ForecastSites.TryLocate(SiteChoice.Vessel, out site)) return;
+            ForecastResult detail = service.DetailOf(site);
+            if (detail == null || detail.ActiveAtStart) return;
+            guardSite = site;
+            guardEta = detail.ThresholdEtaUt;
+        }
+
+        // Stops a running warp before it reaches the time the Approaching alert is stamped at (R3 of the D30 review).
+        private void GuardWarp(double now)
+        {
+            if (double.IsNaN(guardEta)) return;
+            delivery.GuardWarp(now, guardSite, guardEta, AtmospheresSettings.AlertLeadHours);
         }
 
         // The overlay's object exists once the scenes that show it are reached and KSP's skin is there.

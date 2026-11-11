@@ -66,6 +66,39 @@ namespace ReDefinition.Atmospheres.Forecast
 
         internal const string KacAlarmPrefix = "Storm approaching: ";
 
+        // The labels and lines of the window and of the view that were written in place before.
+        internal const string LabelLatitude = "Latitude";
+        internal const string LabelLongitude = "Longitude";
+        internal const string LabelBody = "Body";
+        internal const string LabelSite = "Site";
+        internal const string HoursDay = "Hours 0 to 24";
+        internal const string IssuedPrefix = "Issued ";
+        internal const string StormNowPrefix = "Storm now: ";
+        internal const string NextStormPrefix = "Next storm ";
+        internal const string StormArrived = "Arrived";
+        internal const string ArrivesPrefix = "Arrives ";
+        internal const string ClearsPrefix = "Clears ";
+        internal const string ClearsAfterHorizon = "Clears after the forecast horizon";
+        internal const string NoLaunchWindow = "No launch window in the next 24 h";
+
+        // "Hours 24 to 48".
+        internal static string HoursRange(int from, int to)
+        {
+            return "Hours " + from.ToString(CultureInfo.InvariantCulture) + " to " + to.ToString(CultureInfo.InvariantCulture);
+        }
+
+        // "No storm within 24 h".
+        internal static string NoStormWithin(string hours)
+        {
+            return "No storm within " + hours + " h";
+        }
+
+        // "Best window in the next 24 h: <from> to <to> (3.5 h)".
+        internal static string BestWindow(string from, string to, string hours)
+        {
+            return "Best window in the next 24 h: " + from + " to " + to + " (" + hours + " h)";
+        }
+
         // The hourly cell: the letter of the band and its number ("H4"), so that the level is readable without the colour.
         internal static string Cell(PrecipBand band)
         {

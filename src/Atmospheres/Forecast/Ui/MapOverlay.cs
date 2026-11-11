@@ -129,6 +129,9 @@ namespace ReDefinition.Atmospheres.Forecast
         internal OverlayScene Scene { get { return scene; } }
         internal bool Drawing { get; private set; }
 
+        // The probe's off switch for the on/off comparison of the screen: nothing is drawn while it is set, whatever the settings say.
+        internal bool Suppressed;
+
         // Whether the lines' space is the screen's: origin at the lower left, as large as the screen (the probe checks it, since a vertex
         // is drawn where the pivot of its rectangle puts it).
         internal bool CanvasAligned
@@ -230,7 +233,7 @@ namespace ReDefinition.Atmospheres.Forecast
         // Fills the scene for this frame; true where something is to be drawn.
         private bool Compute()
         {
-            if (!ForecastUiSettings.Overlay || !InMapView() || Planetarium.fetch == null) return false;
+            if (Suppressed || !ForecastUiSettings.Overlay || !InMapView() || Planetarium.fetch == null) return false;
             CelestialBody body = FocusBody();
             if (body == null || !body.atmosphere) return false;
             double now = Planetarium.GetUniversalTime();

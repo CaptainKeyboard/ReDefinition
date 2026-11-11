@@ -7,8 +7,10 @@ namespace ReDefinition.Atmospheres.Forecast
 {
     // The button that opens the forecast window, in the application launcher of the Space Centre, the Tracking Station and the flight
     // (and its map view). The settings button of the atmospheres (SettingsLauncher) is the existing entry point of this assembly and this
-    // follows its pattern. A world button on the Space Centre's buildings through HostSeams.SpaceCentreButton needs a spot on a building
-    // that the main mod owns, so the launcher is the entry point both with and without the main mod [VERIFY with the owner].
+    // follows its pattern. HostSeams.SpaceCentreButton only hands out the sprites of a stock facility button; a button standing on a
+    // building of the Space Centre also needs a FacilitySpot and the WorldButton canvas of the main mod, which the buildings of the
+    // flight scene use (SpaceCentreButtons) and the Space Centre scene does not, so the launcher is the entry point of this window
+    // in every scene, with and without the main mod. The main mod adds the key of the Keys tab (ForecastKey).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class ForecastLauncher : MonoBehaviour
     {
@@ -39,6 +41,11 @@ namespace ReDefinition.Atmospheres.Forecast
                 ForecastWindow.Instance.OnClosed = () =>
                 {
                     if (button != null) button.SetFalse(false);
+                };
+                // The window opened by the key of the Keys tab shows as pressed on the button too.
+                ForecastWindow.Instance.OnOpened = () =>
+                {
+                    if (button != null) button.SetTrue(false);
                 };
             }
             catch (Exception e)
