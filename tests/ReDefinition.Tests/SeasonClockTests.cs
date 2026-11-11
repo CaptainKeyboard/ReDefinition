@@ -94,12 +94,57 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void OnlyKerbinHasSeasons()
+        public void TheModelsClockDecidesThePhase()
         {
-            Assert.IsTrue(SeasonClock.Applies("Kerbin"));
-            Assert.IsFalse(SeasonClock.Applies("Mun"));
-            Assert.IsFalse(SeasonClock.Applies("kerbin"));
-            Assert.IsFalse(SeasonClock.Applies(null));
+            var orbit = new SeasonModel(SeasonClockKind.Orbit, 0, Year, 0, 0.5, false);
+            Assert.AreEqual(0.25, SeasonClock.Phase(Year / 4, orbit), 1e-12);
+            var fixedClock = new SeasonModel(SeasonClockKind.Fixed, 0.3, Year, 0, 0.5, false);
+            Assert.AreEqual(0.3, SeasonClock.Phase(Year / 4, fixedClock), 1e-12);
+            Assert.AreEqual(0.0, SeasonClock.Phase(Year / 4, new SeasonModel(SeasonClockKind.Constant, 0, Year, 0, 0.5, false)));
+            Assert.AreEqual(0.0, SeasonClock.Phase(Year / 4, SeasonModel.None));
+            Assert.AreEqual(0.0, SeasonClock.Phase(Year / 4, (SeasonModel)null));
         }
+
+        [TestMethod]
+        public void TheYearFactorOfAModelScalesItsPhase()
+        {
+            var orbit = new SeasonModel(SeasonClockKind.Orbit, 0, Year, 0, 0.5, false);
+            Assert.AreEqual(SeasonClock.Phase(Year / 8, orbit), SeasonClock.Phase(Year / 80, orbit.WithYearFactor(0.1)), 1e-12);
+            Assert.AreEqual(Year, orbit.WithYearFactor(double.NaN).YearSeconds, 1e-6);
+        }
+
+        [TestMethod]
+        public void ATiltedBodyIsHalfAYearApartWhateverIsConfiguredAndAnUntiltedEccentricOneHasOneYear()
+        {
+            var tilted = new SeasonModel(SeasonClockKind.Orbit, 0, Year, 25, 0.3, false);
+            var eccentric = new SeasonModel(SeasonClockKind.Orbit, 0, Year, 0, 0.5, true);
+            var artificial = new SeasonModel(SeasonClockKind.Orbit, 0, Year, 0, 0.5, false);
+            Assert.AreEqual(0.5, tilted.EffectiveHemisphereOffset, 1e-12);
+            Assert.AreEqual(0.0, eccentric.EffectiveHemisphereOffset, 1e-12);
+            Assert.AreEqual(0.5, artificial.EffectiveHemisphereOffset, 1e-12);
+            Assert.AreEqual(0.5, SeasonClock.Wrap(SeasonClock.HemispherePhase(0.2, false, tilted) - 0.2), 1e-12);
+            Assert.AreEqual(0.0, SeasonClock.Wrap(SeasonClock.HemispherePhase(0.2, false, eccentric) - 0.2), 1e-12);
+        }
+
+        [TestMethod]
+        public void TheSubsolarLatitudeFollowsTheTiltAndIsHighestAtMidsummer()
+        {
+            var tilted = new SeasonModel(SeasonClockKind.Orbit, 0, Year, 25, 0.5, false);
+            Assert.AreEqual(-25.0, tilted.SubsolarLatitudeDegrees(0.0), 1e-9, "northern midwinter: the sun is over the southern tropic");
+            Assert.AreEqual(25.0, tilted.SubsolarLatitudeDegrees(0.5), 1e-9);
+            Assert.AreEqual(0.0, tilted.SubsolarLatitudeDegrees(0.25), 1e-9);
+            Assert.AreEqual(0.0, new SeasonModel(SeasonClockKind.Orbit, 0, Year, 0, 0.5, false).SubsolarLatitudeDegrees(0.5));
+        }
+
+#pragma warning disable CS0618
+        [TestMethod]
+        public void TheObsoleteSingleBodyShimsStillAnswer()
+        {
+            Assert.IsTrue(SeasonClock.Applies(SeasonClock.BodyName));
+            Assert.IsFalse(SeasonClock.Applies("Mun"));
+            Assert.IsFalse(SeasonClock.Applies(null));
+            Assert.AreEqual(0.5, SeasonClock.SouthernOffset);
+        }
+#pragma warning restore CS0618
     }
 }
