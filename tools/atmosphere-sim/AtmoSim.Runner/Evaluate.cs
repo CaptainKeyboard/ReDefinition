@@ -380,7 +380,8 @@ namespace AtmoSim.Runner
 
             // A/B pairs
             var ab = new Crit { Id = 100, Name = "A/B pairs (H5)" };
-            if (A != null && cor != null && cor.Has("detectors"))
+            if (cor != null && cor.B("nan")) ab.Add("Coriolis off: the run stays finite (a vanished vortex field must not be a NaN field)", false, "no NaN", false);
+            else if (A != null && cor != null && cor.Has("detectors"))
             {
                 double refN = A.D("detectors.d1_persistent_active_mean_per_hemisphere_north"), refS = A.D("detectors.d1_persistent_active_mean_per_hemisphere_south");
                 double cn = cor.D("detectors.d1_persistent_active_mean_per_hemisphere_north"), cs = cor.D("detectors.d1_persistent_active_mean_per_hemisphere_south");

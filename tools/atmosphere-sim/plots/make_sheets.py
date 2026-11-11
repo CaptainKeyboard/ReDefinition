@@ -70,7 +70,7 @@ def contact_sheets(root, out, meta, fields, ocean, events):
         a.contour(ocean, levels=[0.5], colors="c", linewidths=0.4, extent=[0, 360, 90, -90])
         a.set_title("day %d (%.1f Earth d)" % (d // per_day, meta["times_s"][d] / 86400.0 - meta["times_s"][0] / 86400.0), fontsize=8)
         a.set_xticks([]); a.set_yticks([])
-    fig.suptitle("Kerbin-like seed A: cloud water path, daily frames over 30 Earth days, equirectangular (cyan = coast)")
+    fig.suptitle("Kerbin-like seed A: cloud water path (dark = more cloud), daily frames over 30 Earth days, equirectangular (cyan = coast)")
     fig.tight_layout(); fig.savefig(os.path.join(out, "contact_cloud_equirect.png"), dpi=70); plt.close(fig)
 
     fig, axs = plt.subplots(6, 5, figsize=(20, 14))
@@ -211,7 +211,7 @@ def ab_plots(root, out):
         if not s:
             continue
         axs[0, col].plot(ref["lat_deg"], ref["zonal_mean_precip_mmh"], label="reference"); axs[0, col].plot(s["lat_deg"], s["zonal_mean_precip_mmh"], label=n); axs[0, col].legend()
-        axs[1, col].plot(s["lat_deg"], np.array(s["zonal_mean_precip_mmh"]) - np.array(ref["zonal_mean_precip_mmh"])); axs[1, col].set_title("difference " + n + " - reference")
+        axs[1, col].plot(s["lat_deg"], np.array(s["zonal_mean_precip_mmh"], dtype=float) - np.array(ref["zonal_mean_precip_mmh"], dtype=float)); axs[1, col].set_title("difference " + n + " - reference")
     fig.suptitle("A/B pairs: zonal-mean precipitation (mm/h) and difference")
     fig.tight_layout(); fig.savefig(os.path.join(out, "ab_zonal.png"), dpi=70); plt.close(fig)
     fa = os.path.join(root, "kerbinA", "daily_precip.f32"); fb = os.path.join(root, "kerbinB", "daily_precip.f32")
