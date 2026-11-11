@@ -3,4 +3,6 @@
 src/Atmospheres/Light/Aurora/AuroraModel.cs
 src/Atmospheres/Light/Aurora/AuroraNoise.cs
 src/Atmospheres/Light/Aurora/AuroraPass.cs
+src/Atmospheres/Light/Aurora/AuroraSkyTest.cs
+src/Atmospheres/Light/Aurora/AuroraMetrics.cs
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresAurora.shader

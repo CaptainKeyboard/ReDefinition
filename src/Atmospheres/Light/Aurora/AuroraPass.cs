@@ -10,6 +10,11 @@ namespace ReDefinition.Atmospheres
     {
         public float Gain, ExposureScale, FoldPhase, RedStart, RayTileM, RayContrast, StepM, MaxSteps, HorizonStartDeg, HorizonFullDeg;
         public float DriftPerS, PathCap, BaseShare;
+        // 1 repeats the ridge across the oval (a second, dimmer band beside the first); 0 keeps one ridge only. A look switch for the
+        // owner's taste sheet (T3), not a fix.
+        public float RidgeRepeat;
+        // The sky reference and tolerance of the copy modes (a tolerance of zero or less tests the far value); see AuroraSkyTests.IsSky.
+        public float SkyDepthRef, SkyDepthTol;
 
         internal static AuroraLook Defaults()
         {
@@ -17,12 +22,12 @@ namespace ReDefinition.Atmospheres
             {
                 Gain = 0.9f, ExposureScale = 1f, FoldPhase = 0.55f, RedStart = 0.55f, RayTileM = 400000f, RayContrast = 0.5f, StepM = 6000f,
                 MaxSteps = 14f, HorizonStartDeg = AuroraModel.HorizonFadeStartDeg, HorizonFullDeg = AuroraModel.HorizonFadeFullDeg,
-                DriftPerS = 0.004f, PathCap = 3f, BaseShare = 0.786f
+                DriftPerS = 0.004f, PathCap = 3f, BaseShare = 0.786f, RidgeRepeat = 1f, SkyDepthRef = 0f, SkyDepthTol = 0f
             };
         }
     }
 
-    // What one draw of the shell needs: where the body is, its pole, the frame of the model, the colours and the way to read the depth.
+    // What one draw of the shell needs: where the body is, its pole, the frame of the model, the colours and the way to find the sky.
     internal struct AuroraDraw
     {
         // The camera's position in the world (the dome is centred on it) and the body's centre relative to the camera.
@@ -41,11 +46,8 @@ namespace ReDefinition.Atmospheres
         // The vertical field of view in radians and the target's size in pixels (the footprint of a pixel, the depth copy).
         public float FovYRad;
         public int WidthPx, HeightPx;
-        // Where the scene's depth can be copied from at the event; null skips the depth test (the dome then covers the terrain).
-        public RenderTargetIdentifier? DepthSource;
-        // True where the depth is the engine's global _CameraDepthTexture (the shader samples it by name; the weather player), false
-        // where DepthSource is a render target to bind (BuiltinRenderTextureType.Depth, the game).
-        public bool DepthIsGlobalTexture;
+        // How the sky is found (AuroraSkyTest): the hardware depth buffer, a copy of one of three depth sources, or not at all.
+        public AuroraSkyTest SkyTest;
     }
 
     // Records the aurora shell: a depth copy and one draw of the dome. Engine only (no game type), so the weather player draws with the
@@ -118,25 +120,38 @@ namespace ReDefinition.Atmospheres
             return mesh;
         }
 
-        // Records the depth copy and the dome into the buffer. The render target is the camera's own (set here).
+        // The shader's passes: the dome with no depth test, the depth copy, and the dome tested against the hardware depth buffer.
+        private const int PassDome = 0, PassCopy = 1, PassDomeZ = 2;
+
+        // The depth source a copy mode reads. BuiltinRenderTextureType.Depth stays empty in KSP's deferred path, ResolvedDepth is the
+        // source the upscaler rig reads there; the global texture is sampled by name in the copy pass.
+        private static RenderTargetIdentifier CopySource(AuroraSkyTest mode)
+        {
+            return mode == AuroraSkyTest.CopyResolved ? new RenderTargetIdentifier(BuiltinRenderTextureType.ResolvedDepth)
+                                                      : new RenderTargetIdentifier(BuiltinRenderTextureType.Depth);
+        }
+
+        // Records the depth copy (copy modes only) and the dome into the buffer. The render target is the camera's own (set here), with
+        // its depth buffer for the ZBuffer mode.
         internal void Record(CommandBuffer cmd, ref AuroraDraw draw)
         {
             if (!draw.Frame.Draw) return;
             AuroraLook look = draw.Look;
             bool reversed = SystemInfo.usesReversedZBuffer;
-            bool useDepth = draw.DepthSource.HasValue;
+            bool useDepth = AuroraSkyTests.UsesCopy(draw.SkyTest);
             float intensity = draw.Frame.Intensity * look.Gain * look.ExposureScale;
 
             if (useDepth)
             {
                 // The copy is global (_AuroraDepth); the property block below does not name it. Made with a draw (shader pass 1), so
                 // that the camera's matrices are not touched the way a Blit would.
+                bool global = draw.SkyTest == AuroraSkyTest.CopyGlobal;
                 cmd.GetTemporaryRT(IdDepth, new RenderTextureDescriptor(Mathf.Max(1, draw.WidthPx), Mathf.Max(1, draw.HeightPx), RenderTextureFormat.RFloat, 0),
                                    FilterMode.Point);
-                cmd.SetGlobalFloat(IdSourceGlobal, draw.DepthIsGlobalTexture ? 1f : 0f);
-                if (!draw.DepthIsGlobalTexture) cmd.SetGlobalTexture(IdDepthSource, draw.DepthSource.Value);
+                cmd.SetGlobalFloat(IdSourceGlobal, global ? 1f : 0f);
+                if (!global) cmd.SetGlobalTexture(IdDepthSource, CopySource(draw.SkyTest));
                 cmd.SetRenderTarget(new RenderTargetIdentifier(IdDepth));
-                cmd.DrawProcedural(Matrix4x4.identity, material, 1, MeshTopology.Triangles, 3, 1);
+                cmd.DrawProcedural(Matrix4x4.identity, material, PassCopy, MeshTopology.Triangles, 3, 1);
             }
             cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
 
@@ -155,8 +170,10 @@ namespace ReDefinition.Atmospheres
             block.SetVector("_AuroraLook2", new Vector4(look.FoldPhase, look.RedStart, pixelAngle, reversed ? 1f : 0f));
             block.SetVector("_AuroraColourA", new Vector4(draw.Colour.r, draw.Colour.g, draw.Colour.b, 1f));
             block.SetVector("_AuroraColourB", new Vector4(Red.r, Red.g, Red.b, 1f));
-            block.SetVector("_AuroraScreen", new Vector4(useDepth ? 1f : 0f, 0f, 0f, 0f));
-            cmd.DrawMesh(dome, Matrix4x4.TRS(draw.CameraPosition, Quaternion.identity, new Vector3(1000f, 1000f, 1000f)), material, 0, 0, block);
+            block.SetVector("_AuroraLook3", new Vector4(look.RidgeRepeat, 0f, 0f, 0f));
+            block.SetVector("_AuroraScreen", new Vector4(useDepth ? 1f : 0f, look.SkyDepthRef, look.SkyDepthTol, 0f));
+            int pass = draw.SkyTest == AuroraSkyTest.ZBuffer ? PassDomeZ : PassDome;
+            cmd.DrawMesh(dome, Matrix4x4.TRS(draw.CameraPosition, Quaternion.identity, new Vector3(1000f, 1000f, 1000f)), material, 0, pass, block);
             if (useDepth) cmd.ReleaseTemporaryRT(IdDepth);
         }
 

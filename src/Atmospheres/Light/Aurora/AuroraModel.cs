@@ -87,14 +87,30 @@ namespace ReDefinition.Atmospheres
             return SmoothStep(0.02f, 0.5f, activity);
         }
 
+        // The compass heading (0 north, 180 south) that faces the oval from a camera at that latitude: north while the oval lies poleward
+        // of the camera, south while it lies equatorward. The weather player and the series probe aim by it.
+        internal static float PoseYawDeg(float ringLatDeg, float cameraLatDeg)
+        {
+            return ringLatDeg >= cameraLatDeg ? 0f : 180f;
+        }
+
         // The whole frame for a body whose rules are given. enabled false (rules or no atmosphere) gives no draw.
         internal static AuroraFrame Compute(double ut, float sunElevationDeg, bool enabled, float minLatDeg, float strength)
         {
+            if (!enabled || strength <= 0f) return new AuroraFrame();
+            float strongEvent = StrongEvent(ut);
+            return FromActivity(Math.Max(Activity(ut), strongEvent), strongEvent, sunElevationDeg, minLatDeg, strength);
+        }
+
+        // The frame for a given activity and event share (the model's own arithmetic; the series and the weather player force an
+        // activity through it).
+        internal static AuroraFrame FromActivity(float activity, float strongEvent, float sunElevationDeg, float minLatDeg, float strength)
+        {
             var f = new AuroraFrame();
-            if (!enabled || strength <= 0f) return f;
+            if (strength <= 0f) return f;
             f.Night = NightGate(sunElevationDeg);
-            f.Event = StrongEvent(ut);
-            f.Activity = Math.Max(Activity(ut), f.Event);
+            f.Event = strongEvent;
+            f.Activity = activity;
             f.RingLatDeg = RingLatitudeDeg(f.Activity, f.Event, minLatDeg);
             f.WidthDeg = WidthDeg(f.Activity);
             f.Intensity = f.Night * ActivityRamp(f.Activity) * strength;

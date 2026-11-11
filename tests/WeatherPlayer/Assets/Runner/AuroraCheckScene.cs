@@ -22,7 +22,7 @@ namespace ReDefinition.WeatherPlayer
     [WeatherScene("aurora-check")]
     public sealed class AuroraCheckScene : AuroraSceneBase
     {
-        private const float LidLimit = 0.12f, DripLimit = 0.03f, BandLimit = 0.02f, PeakMin = 0.004f;
+        private const float LidLimit = 0.12f, DripLimit = 0.03f, BandLimit = 0.02f, PeakMin = AuroraMetrics.PeakMin;
 
         public override IEnumerator Run()
         {
@@ -34,15 +34,19 @@ namespace ReDefinition.WeatherPlayer
             foreach (float sun in new[] { -6f, -12f, -25f })
                 foreach (float activity in new[] { 0.2f, 0.6f, 1.0f })
                     foreach (float lat in new[] { 60f, 70f, 78f })
-                        poses.Add(new[] { sun, activity, lat, 25f });
+                        poses.Add(new[] { sun, activity, lat, 25f, 0f });
             foreach (float lat in new[] { 60f, 70f, 78f })
                 foreach (float elevation in new[] { 10f, 40f })
-                    poses.Add(new[] { -12f, 0.6f, lat, elevation });
+                    poses.Add(new[] { -12f, 0.6f, lat, elevation, 0f });
+            // The dearest poses: the strong event pushes the oval to latitude 60, over a camera at 60, with the longest paths at 10 degrees.
+            poses.Add(new[] { -12f, 1.0f, 60f, 10f, 1f });
+            poses.Add(new[] { -12f, 1.0f, 60f, 25f, 1f });
+            Sink.Info("poses.total", poses.Count);
 
             foreach (float[] pose in poses)
             {
-                float sun = pose[0], activity = pose[1], lat = pose[2], elevation = pose[3];
-                AuroraFrame frame = Forced(activity, sun);
+                float sun = pose[0], activity = pose[1], lat = pose[2], elevation = pose[3], evt = pose[4];
+                AuroraFrame frame = Forced(activity, sun, evt);
                 float yaw = YawFor(frame, lat);
                 SetSun(sun);
                 Look(yaw, elevation);
@@ -56,20 +60,22 @@ namespace ReDefinition.WeatherPlayer
                 float[] mask = Mask(on, off);
                 if (sun == -25f && activity >= 1f && elevation == 25f || (sun == -12f && activity == 0.6f && lat == 60f))
                     SavePicture("pose-s" + (int)(-sun) + "-a" + (int)(activity * 10f + 0.5f) + "-l" + (int)lat + "-e" + (int)elevation, 6f);
-                string key = "s" + (int)(-sun) + "_a" + (int)(activity * 10f + 0.5f) + "_l" + (int)lat + "_e" + (int)elevation;
-                double peak = PeakRowMean(mask, on.Width, on.Height);
+                string key = "s" + (int)(-sun) + "_a" + (int)(activity * 10f + 0.5f) + "_l" + (int)lat + "_e" + (int)elevation + (evt > 0f ? "_ev" : "");
+                AuroraMetrics.Result result = AuroraMetrics.MeasureMask(mask, on.Width, on.Height, elevation, Cam.fieldOfView);
+                double peak = result.Peak;
                 Sink.Info("peak." + key, peak);
                 int latKey = (int)lat;
-                if (peak < PeakMin)
+                if (!result.Judged)
                 {
                     dim++;
+                    Sink.Info("dim." + key, 1);
                     continue;
                 }
                 visibleAt[latKey] = true;
                 measured++;
-                float lid = LidStep(mask, on.Width, on.Height);
-                float drip = DripShare(mask, on.Width, on.Height);
-                float band = BandShare(mask, on.Width, on.Height, elevation, Cam.fieldOfView, 3f, peak);
+                float lid = result.Lid;
+                float drip = result.Drip;
+                float band = result.Band;
                 worstLid = Mathf.Max(worstLid, lid);
                 worstDrip = Mathf.Max(worstDrip, drip);
                 worstBand = Mathf.Max(worstBand, band);
@@ -183,100 +189,16 @@ namespace ReDefinition.WeatherPlayer
             return worst;
         }
 
-        private static double[] RowMeans(float[] mask, int width, int height)
-        {
-            var rows = new double[height];
-            for (int y = 0; y < height; y++)
-            {
-                double sum = 0;
-                for (int x = 0; x < width; x++) sum += mask[y * width + x];
-                rows[y] = sum / width;
-            }
-            return rows;
-        }
-
+        // The metrics are the mod's own (AuroraMetrics, linked), the ones the series probe applies to the game's frames.
         private static double PeakRowMean(float[] mask, int width, int height)
         {
-            double peak = 0;
-            foreach (double r in RowMeans(mask, width, height)) peak = Math.Max(peak, r);
-            return peak;
-        }
-
-        // The largest step between two adjacent rows of the row means, over the peak row mean.
-        private static float LidStep(float[] mask, int width, int height)
-        {
-            double[] rows = RowMeans(mask, width, height);
-            double peak = 0, step = 0;
-            for (int y = 0; y < height; y++) peak = Math.Max(peak, rows[y]);
-            for (int y = 1; y < height; y++) step = Math.Max(step, Math.Abs(rows[y] - rows[y - 1]));
-            return peak > 0 ? (float)(step / peak) : 0f;
-        }
-
-        // The share of columns whose lowest lit row hangs more than 6 % of the height below the median of the columns around it.
-        private static float DripShare(float[] mask, int width, int height)
-        {
-            float top = 0f;
-            foreach (float v in mask) top = Mathf.Max(top, v);
-            float threshold = 0.25f * top;
-            var lowest = new int[width];
-            for (int x = 0; x < width; x++)
-            {
-                lowest[x] = -1;
-                for (int y = 0; y < height; y++)
-                    if (mask[y * width + x] > threshold)
-                    {
-                        lowest[x] = y;
-                        break;
-                    }
-            }
-            int lit = 0, drips = 0;
-            var window = new List<int>();
-            for (int x = 0; x < width; x++)
-            {
-                if (lowest[x] < 0) continue;
-                lit++;
-                window.Clear();
-                for (int k = Math.Max(0, x - 10); k <= Math.Min(width - 1, x + 10); k++)
-                    if (lowest[k] >= 0) window.Add(lowest[k]);
-                window.Sort();
-                int median = window[window.Count / 2];
-                if (median - lowest[x] > 0.06f * height) drips++;
-            }
-            return lit > 0 ? drips / (float)lit : 0f;
-        }
-
-        // The mean mask in the rows below the elevation (the camera looks up by viewElevation degrees), over the peak row mean.
-        private static float BandShare(float[] mask, int width, int height, float viewElevation, float fovY, float limitDeg, double peak)
-        {
-            double tanHalf = Math.Tan(fovY * 0.5 * Math.PI / 180.0);
-            double sum = 0;
-            int count = 0;
-            for (int y = 0; y < height; y++)
-            {
-                double ndc = (y - (height - 1) * 0.5) / (height * 0.5);
-                double elevation = viewElevation + Math.Atan(ndc * tanHalf) * 180.0 / Math.PI;
-                if (elevation >= limitDeg) continue;
-                for (int x = 0; x < width; x++) sum += mask[y * width + x];
-                count += width;
-            }
-            return count > 0 && peak > 0 ? (float)(sum / count / peak) : 0f;
+            return AuroraMetrics.PeakRowMean(mask, width, height);
         }
 
         // The mean mask inside a rectangle, or outside it within the rows the rectangle spans.
         private static double MeanMask(float[] mask, int width, int height, ImageStats.Rect2 r, bool inside)
         {
-            double sum = 0;
-            int count = 0;
-            for (int y = 0; y < height; y++)
-                for (int x = 0; x < width; x++)
-                {
-                    bool within = x >= r.X0 && x < r.X1 && y >= r.Y0 && y < r.Y1;
-                    if (within != inside) continue;
-                    if (!inside && (y < r.Y0 || y >= r.Y1)) continue;
-                    sum += mask[y * width + x];
-                    count++;
-                }
-            return count > 0 ? sum / count : 0;
+            return AuroraMetrics.MeanMask(mask, width, height, r.X0, r.Y0, r.X1, r.Y1, inside);
         }
     }
 }

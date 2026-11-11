@@ -46,12 +46,13 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // The state of the aurora for a forced activity and sun elevation (the model's own functions).
-        internal static AuroraFrame Forced(float activity, float sunElevationDeg)
+        internal static AuroraFrame Forced(float activity, float sunElevationDeg, float strongEvent = 0f)
         {
             var f = new AuroraFrame();
             f.Activity = activity;
+            f.Event = strongEvent;
             f.Night = AuroraModel.NightGate(sunElevationDeg);
-            f.RingLatDeg = AuroraModel.RingLatitudeDeg(activity, 0f, 60f);
+            f.RingLatDeg = AuroraModel.RingLatitudeDeg(activity, strongEvent, 60f);
             f.WidthDeg = AuroraModel.WidthDeg(activity);
             f.Intensity = f.Night * AuroraModel.ActivityRamp(activity);
             f.Draw = f.Intensity > 0.002f;
@@ -61,7 +62,7 @@ namespace ReDefinition.WeatherPlayer
         // The yaw that faces the oval: north (0) while the oval is poleward of the camera, south (180) while it is equatorward.
         internal static float YawFor(AuroraFrame frame, float cameraLatDeg)
         {
-            return frame.RingLatDeg >= cameraLatDeg ? 0f : 180f;
+            return AuroraModel.PoseYawDeg(frame.RingLatDeg, cameraLatDeg);
         }
 
         // The camera at the scene's start place, looking along the yaw (0 is north, towards +z) and up by the elevation in degrees.
@@ -99,8 +100,8 @@ namespace ReDefinition.WeatherPlayer
                 FovYRad = Cam.fieldOfView * Mathf.Deg2Rad,
                 WidthPx = Width,
                 HeightPx = Height,
-                DepthSource = depthTest ? new RenderTargetIdentifier(BuiltinRenderTextureType.Depth) : (RenderTargetIdentifier?)null,
-                DepthIsGlobalTexture = true
+                // The player's depth is the engine's global texture (the forward path fills it); the game's sky test is the series' business.
+                SkyTest = depthTest ? AuroraSkyTest.CopyGlobal : AuroraSkyTest.None
             };
             shell = new CommandBuffer { name = "aurora shell" };
             Pass.Record(shell, ref draw);

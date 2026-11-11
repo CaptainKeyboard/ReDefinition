@@ -36,9 +36,10 @@ namespace ReDefinition.Atmospheres
                     if (name != null && string.Equals(body, bodyName, StringComparison.Ordinal) && IsAuroraName(name)) return name;
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // A reflection failure means "cannot tell": the shell is drawn.
+                // A reflection failure means "cannot tell": the shell is drawn (said once, so that a double aurora can be traced to it).
+                AtmospheresLog.WarnOnce("aurora: the EVE layers could not be read (" + e.GetType().Name + "); the shell is drawn whatever EVE shows");
             }
             return null;
         }
@@ -59,7 +60,9 @@ namespace ReDefinition.Atmospheres
             getList = manager.GetMethod("GetObjectList", Static);
             nameProperty = layer.GetProperty("Name", Instance);
             bodyProperty = layer.GetProperty("Body", Instance);
-            return getList != null && nameProperty != null && bodyProperty != null;
+            bool complete = getList != null && nameProperty != null && bodyProperty != null;
+            if (!complete) AtmospheresLog.WarnOnce("aurora: EVE is installed but its layer list has another shape; foreign aurora layers are not detected");
+            return complete;
         }
     }
 }

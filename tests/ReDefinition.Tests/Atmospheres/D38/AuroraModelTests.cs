@@ -202,12 +202,12 @@ namespace ReDefinition.Tests.Atmospheres.D38
             string shader = File.ReadAllText(Path.Combine(root, "unity", "Assets", "ReDefinitionAtmospheres", "Shaders", "ReDefinitionAtmospheresAurora.shader"));
             Assert.IsTrue(shader.Contains("Shader \"" + AuroraRenderer.ShaderName + "\""), "the shader's name is the one the renderer asks for");
             foreach (string property in new[] { "_AuroraPlanet", "_AuroraPole", "_AuroraRefA", "_AuroraRing", "_AuroraLayer", "_AuroraLook", "_AuroraLook2",
-                                                 "_AuroraColourA", "_AuroraColourB", "_AuroraScreen", "_AuroraNoise", "_AuroraDepth" })
+                                                 "_AuroraLook3", "_AuroraColourA", "_AuroraColourB", "_AuroraScreen", "_AuroraNoise", "_AuroraDepth" })
                 Assert.IsTrue(shader.Contains(property), "the shader declares " + property);
 
             string pass = File.ReadAllText(Path.Combine(root, "src", "Atmospheres", "Light", "Aurora", "AuroraPass.cs"));
             foreach (string property in new[] { "_AuroraPlanet", "_AuroraPole", "_AuroraRefA", "_AuroraRing", "_AuroraLayer", "_AuroraLook", "_AuroraLook2",
-                                                 "_AuroraColourA", "_AuroraColourB", "_AuroraScreen", "_AuroraNoise", "_AuroraDepth" })
+                                                 "_AuroraLook3", "_AuroraColourA", "_AuroraColourB", "_AuroraScreen", "_AuroraNoise", "_AuroraDepth" })
                 Assert.IsTrue(pass.Contains("\"" + property + "\""), "the pass sets " + property);
 
             // Every tuning key the renderer reads has a line in the config, with the same default.

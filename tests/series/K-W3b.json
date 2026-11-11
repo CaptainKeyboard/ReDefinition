@@ -6,10 +6,11 @@
   "profile": "Medium",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 2,
+  "plannedStarts": 3,
   "starts": [
     { "id": "lights", "description": "lamp scatter, camera frost, aurora" },
-    { "id": "cover", "description": "surface cover and ice" }
+    { "id": "cover", "description": "surface cover and ice" },
+    { "id": "aurora", "description": "aurora in the real sky with the full mod set (Scatterer, EVE, TUFX, Parallax): draw order, terrain occlusion, lid / drip / band; only the D38 probe runs in this start", "probeArgs": ["-atmoProbe", "D38Probe"] }
   ],
   "sections": [
     { "id": "D32", "package": "D32", "title": "Light in medium" },

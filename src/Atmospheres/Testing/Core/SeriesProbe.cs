@@ -63,6 +63,7 @@ namespace ReDefinition.Atmospheres
         internal const string StartSwitch = "-atmoStart";
         internal const string VariantsSwitch = "-atmoVariants";
         internal const string KeepSwitch = "-atmoKeep";
+        internal const string OnlySwitch = "-atmoProbe";
         internal const double QuitDelaySeconds = 3.0;
 
         // Where the probe's own lines go (the game's log); a test replaces it.
@@ -186,6 +187,10 @@ namespace ReDefinition.Atmospheres
         {
             string[] args = Args();
             if (!IsActive(args, SeriesName)) return;
+            // A start that names its probe (-atmoProbe D38Probe) leaves the other probes of the series idle: the first probe to finish
+            // quits the game, so a long scenario cannot share a start with the short ones.
+            string only = CommandLine.After(args, OnlySwitch, true);
+            if (!string.IsNullOrEmpty(only) && !string.Equals(only, GetType().Name, StringComparison.OrdinalIgnoreCase)) return;
             StartId = CommandLine.After(args, StartSwitch, true);
             string named = CommandLine.After(args, VariantsSwitch, true);
             variants.Clear();
