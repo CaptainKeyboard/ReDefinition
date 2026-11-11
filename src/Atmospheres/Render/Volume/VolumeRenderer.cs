@@ -107,8 +107,8 @@ namespace ReDefinition.Atmospheres
             };
             if (noise == null)
             {
-                int size = StormVolumeMath.NoiseSize;
-                byte[] voxels = StormNoise.Volume(size, StormVolumeMath.NoisePeriod, StormVolumeMath.NoiseOctaves, StormVolumeMath.NoiseSeed);
+                int size = CurtainMath.NoiseSize;
+                byte[] voxels = StormNoise.Volume(size, CurtainMath.NoisePeriod, CurtainMath.NoiseOctaves, CurtainMath.NoiseSeed);
                 noise = new Texture3D(size, size, size, TextureFormat.RGBA32, true)
                 {
                     name = "volume noise",

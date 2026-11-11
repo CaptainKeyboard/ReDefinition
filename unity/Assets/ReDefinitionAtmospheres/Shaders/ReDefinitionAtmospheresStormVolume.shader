@@ -232,7 +232,7 @@ Shader "ReDefinition/AtmospheresStormVolume"
 
                 if (t1 <= t0) return float4(0, 0, 0, 0);
 
-                float steps = clamp(_Look.y, 2.0, 64.0);
+                float steps = clamp(_Look.y, 4.0, 64.0);
                 float dt = (t1 - t0) / steps;
                 float t = t0 + dt * Dither(i.pos.xy);
                 // Far steps read the smaller levels of the noise, which keeps the picture calm.

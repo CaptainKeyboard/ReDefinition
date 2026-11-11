@@ -26,9 +26,8 @@ src/Atmospheres/**/StormVolumeMath.cs
 # What the linked code names of the raytracing player's runner: the profiler's markers, the proxy's refusal, the rig's sharpness.
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs
 tests/RaytracingPlayer/Assets/Runner/UpscalerRigStub.cs
-# Shaders: the raytracing capture, the storm curtain and the cloud slab.
+# Shaders: the raytracing capture and the storm curtain.
 unity/Assets/ReDefinition/**/ReDefinitionRtCapture.shader
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresStormVolume.shader
-unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresCloudSlab.shader
 # The contribution mask's include, which the test pass of scene contrib-check includes.
 unity/Assets/ReDefinitionAtmospheres/**/AtmoContribution.cginc

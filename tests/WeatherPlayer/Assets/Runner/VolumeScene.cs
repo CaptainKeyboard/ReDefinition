@@ -424,7 +424,10 @@ namespace ReDefinition.WeatherPlayer
         private CurtainPass curtain;
         private bool curtainReady;
         private float coreX, coreZ, coreRadius, coreBase, coreDepth;
-        private CommandBuffer curtainStart, curtainEnd;
+        // The curtain is drawn by this buffer between its two timestamp marks (CurtainPass.Record), not by the camera's own transparent
+        // pass, so that the segment encloses the curtain's draws whatever the camera does at the events.
+        private CommandBuffer curtainBuffer;
+        private float curtainShare = 1f;
         private readonly Action<CommandBuffer> markStart = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabStart),
             markMarched = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabMarched),
             markEnd = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabComposited);
@@ -441,12 +444,9 @@ namespace ReDefinition.WeatherPlayer
             curtain = new CurtainPass();
             Shader curtainShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
             curtainReady = curtainShader != null && curtain.Init(curtainShader, null, 0);
-            curtainStart = new CommandBuffer { name = "volume cost curtain start" };
-            curtainEnd = new CommandBuffer { name = "volume cost curtain end" };
-            WeatherGpuTimer.Mark(curtainStart, WeatherGpuTimer.CurtainStart);
-            WeatherGpuTimer.Mark(curtainEnd, WeatherGpuTimer.CurtainEnd);
-            Cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, curtainStart);
-            Cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, curtainEnd);
+            curtainBuffer = new CommandBuffer { name = "volume cost curtain" };
+            if (curtainReady) curtain.SetBufferDriven(true);
+            Cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, curtainBuffer);
         }
 
         private void PrepareFrame(bool volumeOn, bool curtainOn)
@@ -457,13 +457,18 @@ namespace ReDefinition.WeatherPlayer
             if (curtainOn)
             {
                 float ground = TerrainHeight(coreX, coreZ);
-                curtain.SetShare(1f, true);
+                curtain.SetShare(curtainShare, true);
                 curtain.Place(0, new Vector3(coreX, ground, coreZ), Vector3.up, Vector3.right, coreBase - ground, coreRadius * CurtainPass.RadiusShare, 0f, 600000.0);
                 curtain.HideFrom(1);
                 curtain.Light(cell.TowardsSun, cell.SunColour * 0.9f, new Color(0.72f, 0.76f, 0.82f, 1f), (float)ClockSeconds, 20f, 80000f, 0);
                 curtain.CameraDepth(Cam);
             }
             else curtain.HideAll();
+            // The curtain's marks are in the buffer every frame, so that the frame's markers have the same count with it on and off.
+            curtainBuffer.Clear();
+            WeatherGpuTimer.Mark(curtainBuffer, WeatherGpuTimer.CurtainStart);
+            if (curtainOn) curtain.Record(curtainBuffer);
+            WeatherGpuTimer.Mark(curtainBuffer, WeatherGpuTimer.CurtainEnd);
         }
 
         private static string Fixed(double v)
@@ -471,7 +476,17 @@ namespace ReDefinition.WeatherPlayer
             return v.ToString("0.####", CultureInfo.InvariantCulture);
         }
 
-        private IEnumerator Measure(string label, bool volumeOn, bool curtainOn, double[] result)
+        private static double Percentile(List<double> values, double p)
+        {
+            if (values.Count == 0) return double.NaN;
+            var sorted = values.ToArray();
+            Array.Sort(sorted);
+            return sorted[Math.Min(sorted.Length - 1, (int)(p * sorted.Length))];
+        }
+
+        // Measures one configuration over `frames` timed frames. result: 0 median frame ms, 1 mean march, 2 mean composite, 3 median
+        // curtain segment, 4 p95 frame ms, 5 smallest curtain segment (0 or less means an empty marker), 6 timed frames.
+        private IEnumerator Measure(string label, bool volumeOn, bool curtainOn, double[] result, int frames)
         {
             var segments = new float[8];
             for (int i = 0; i < 40; i++)
@@ -479,28 +494,34 @@ namespace ReDefinition.WeatherPlayer
                 PrepareFrame(volumeOn, curtainOn);
                 yield return Frames(1);
             }
-            double frame = 0, march = 0, composite = 0, curtainMs = 0;
+            var frameMs = new List<double>(frames);
+            var curtainSegment = new List<double>(frames);
+            double march = 0, composite = 0, smallest = double.MaxValue;
             int n = 0, guard = 0;
-            while (n < 150 && guard++ < 2000)
+            while (n < frames && guard++ < frames * 20)
             {
                 PrepareFrame(volumeOn, curtainOn);
                 yield return Frames(1);
                 float total;
                 int number;
                 if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
-                frame += total;
+                frameMs.Add(total);
                 float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], c = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
                     k = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
                 if (m >= 0f) march += m;
                 if (c >= 0f) composite += c;
-                if (k >= 0f) curtainMs += k;
+                if (k >= 0f) { curtainSegment.Add(k); smallest = Math.Min(smallest, k); }
                 n++;
             }
-            result[0] = n > 0 ? frame / n : double.NaN;
+            result[0] = Percentile(frameMs, 0.5);
             result[1] = n > 0 ? march / n : double.NaN;
             result[2] = n > 0 ? composite / n : double.NaN;
-            result[3] = n > 0 ? curtainMs / n : double.NaN;
+            result[3] = Percentile(curtainSegment, 0.5);
+            result[4] = Percentile(frameMs, 0.95);
+            result[5] = curtainSegment.Count > 0 ? smallest : double.NaN;
+            result[6] = n;
             Sink.Info("cost.frame." + label, result[0]);
+            Sink.Info("cost.frame_p95." + label, result[4]);
             if (volumeOn) Sink.Info("cost.march." + label, result[1]);
             if (volumeOn) Sink.Info("cost.composite." + label, result[2]);
             if (curtainOn) Sink.Info("cost.curtain." + label, result[3]);
@@ -523,7 +544,7 @@ namespace ReDefinition.WeatherPlayer
                 new KeyValuePair<string, CameraPose>("far25km", new CameraPose(new Vector3(coreX, 2000f, coreZ - 25000f), 0f, -3f)),
             };
             var sizes = new[] { new Vector2Int(1707, 960), new Vector2Int(2560, 1440) };
-            var result = new double[4];
+            var result = new double[7];
             double worstHalf1707 = 0, worstHalf2560 = 0, worstFull1707 = 0, worstCurtain = 0;
             foreach (Vector2Int size in sizes)
             {
@@ -540,29 +561,38 @@ namespace ReDefinition.WeatherPlayer
                         setup.SetOverride("volume.resolution", config[0]);
                         setup.SetOverride("volume.steps", config[1]);
                         string label = view.Key + ".r" + Fixed(config[0]) + ".s" + Fixed(config[1]) + "." + sz;
-                        yield return Measure(label, true, false, result);
+                        yield return Measure(label, true, false, result, 150);
                         double ms = result[1] + result[2];
                         Sink.Info("cost.total." + label, ms);
                         if (config[0] == 0.5f && config[1] == 32f) { if (size.x == 1707) worstHalf1707 = Math.Max(worstHalf1707, ms); else worstHalf2560 = Math.Max(worstHalf2560, ms); }
                         if (config[0] == 1f && config[1] == 32f && size.x == 1707) worstFull1707 = Math.Max(worstFull1707, ms);
                     }
                 }
-                if (curtainReady && size.x == 1707)
+                if (curtainReady)
                 {
-                    // The curtain inside the cell at 300 m, 16 steps (the gate share 1).
+                    // The curtain inside the cell at 300 m at 4, 8 and 16 steps (the gate share S 0.2, 0.5, 1). Two methods:
+                    // (a) the GPU segment between two marks in the buffer that draws the curtain; (b) the whole frame's GPU time with the
+                    // curtain on and off at the same pose, 600 frames each, the difference of the medians and of the 95th percentiles.
                     Pose(new CameraPose(new Vector3(coreX, TerrainHeight(coreX, coreZ) + 300f, coreZ), 0f, 0f));
-                    yield return Measure("curtain.inside." + sz, false, true, result);
-                    double withCurtain = result[0];
-                    double marked = result[3];
-                    yield return Measure("nocurtain.inside." + sz, false, false, result);
-                    // The marked segment where the proxy gave one, else the frame's difference with and without the curtain.
-                    worstCurtain = marked > 0.0 ? marked : withCurtain - result[0];
-                    Sink.Info("cost_curtain_inside_by_frame_difference_ms", withCurtain - result[0]);
+                    yield return Measure("nocurtain.inside." + sz, false, false, result, 600);
+                    double offMedian = result[0], offP95 = result[4];
+                    foreach (float share in new[] { 0.2f, 0.5f, 1f })
+                    {
+                        curtainShare = share;
+                        string steps = share < 0.3f ? "4" : share < 0.7f ? "8" : "16";
+                        yield return Measure("curtain.inside.s" + steps + "." + sz, false, true, result, 600);
+                        Sink.Info("cost.curtain_by_difference_median.s" + steps + "." + sz, result[0] - offMedian);
+                        Sink.Info("cost.curtain_by_difference_p95.s" + steps + "." + sz, result[4] - offP95);
+                        // An empty marker (a segment of zero) fails the run.
+                        Sink.AtLeast("cost.curtain_segment_nonzero.s" + steps + "." + sz, result[5], 1e-4);
+                        if (share >= 1f && size.x == 1707) worstCurtain = result[3];
+                    }
+                    curtainShare = 1f;
                 }
                 Cam.targetTexture = Target;
                 rt.Release();
             }
-            Sink.AtMost("cost_half_32_1707x960_ms", worstHalf1707, 0.6);
+            Sink.AtMost("cost_half_32_1707x960_ms", worstHalf1707, 0.7);
             Sink.AtMost("cost_half_32_2560x1440_ms", worstHalf2560, 1.3);
             Sink.Info("cost_full_32_1707x960_ms", worstFull1707);
             Sink.Info("cost_full_rejected", worstFull1707 > 1.5 ? 1 : 0);

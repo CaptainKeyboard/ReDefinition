@@ -15,6 +15,7 @@ namespace ReDefinition.Atmospheres
     //
     // The pieces are made once, in a pool of StormMaxCells cells. A cell is anchored to the planet with GetWorldSurfacePosition.
     // Nothing is allocated per frame.
+    [Obsolete("Replaced by CurtainPass (Render/Volume); StormEffect, its only caller, goes when C25 removes the cell scheduler.")]
     internal sealed class StormVolume
     {
         // Cells farther than this from the camera, measured from the edge of the cell, are not drawn, in m.
@@ -53,7 +54,7 @@ namespace ReDefinition.Atmospheres
         internal static float VeilScale = 1f;
 
         // The storm's visibility at the camera now, in m, set by StormEffect; 0 where no storm runs. Inside a cell the rays are marched
-        // no farther than the fog shows (StormVolumeMath.InsideRayM). ClampRays is a diagnostics switch to compare the frame time.
+        // no farther than the fog shows (CurtainMath.InsideRayM). ClampRays is a diagnostics switch to compare the frame time.
         internal static double CameraVisibilityM;
         internal static bool ClampRays = true;
 
@@ -219,10 +220,10 @@ namespace ReDefinition.Atmospheres
             // The curtain starts at the base of EVE's cloud, which is a height above sea level.
             e.BaseAglM = EveLayerStorm.Supplying ? EveLayerStorm.BaseAboveGroundM(e.Ground) : EveCellLayer.BaseAboveGroundM(e.Ground);
             // The bounding cylinder from the lowest point of the volume to just over the cloud base.
-            e.BelowM = StormVolumeMath.BelowM(cell.RadiusM, body.Radius);
+            e.BelowM = CurtainMath.BelowM(cell.RadiusM, body.Radius);
             float rx = (float)cell.RadiusM;
             e.RayTransform.localPosition = new Vector3(0f, -e.BelowM, 0f);
-            e.RayTransform.localScale = new Vector3(rx * StormVolumeMath.Widening, e.BelowM + StormVolumeMath.TopM(e.BaseAglM), rx * StormVolumeMath.Widening);
+            e.RayTransform.localScale = new Vector3(rx * CurtainMath.Widening, e.BelowM + CurtainMath.TopM(e.BaseAglM), rx * CurtainMath.Widening);
         }
 
         // The terrain height above sea level at a place, 0 over the sea; 0 where the planet cannot say.
@@ -282,7 +283,7 @@ namespace ReDefinition.Atmospheres
             camera.depthTextureMode |= DepthTextureMode.Depth;
             Vector3 sunPosition = FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null
                 ? (Vector3)FlightGlobals.Bodies[0].position : Vector3.zero;
-            float curvature = StormVolumeMath.Curvature(body.Radius);
+            float curvature = CurtainMath.Curvature(body.Radius);
             int steps = StormVolumeMath.Steps(AtmospheresSettings.StormVolumeSteps);
             for (int p = 0; p < pool.Length; p++)
             {
@@ -297,12 +298,12 @@ namespace ReDefinition.Atmospheres
                 Vector3 toSun = sunPosition - position;
                 toSun = toSun.sqrMagnitude > 1f ? toSun.normalized : radial;
                 float offsetX, offsetZ, shearX, shearZ, fall;
-                StormVolumeMath.Wind(e.Yaw + 90.0, time, out offsetX, out offsetZ, out shearX, out shearZ, out fall);
+                CurtainMath.Wind(e.Yaw + 90.0, time, out offsetX, out offsetZ, out shearX, out shearZ, out fall);
                 Material m = e.RayMaterial;
                 m.SetVector(IdCell, new Vector4(position.x, position.y, position.z, (float)e.RadiusM));
                 m.SetVector(IdUp, new Vector4(radial.x, radial.y, radial.z, curvature));
                 m.SetVector(IdRight, new Vector4(right.x, right.y, right.z, 0f));
-                m.SetVector(IdHeights, new Vector4((float)e.BaseAglM, StormVolumeMath.TopM(e.BaseAglM), e.BelowM, BaseDark * (float)Mathx.SmoothStep(0.35, 0.8, e.Strength)));
+                m.SetVector(IdHeights, new Vector4((float)e.BaseAglM, CurtainMath.TopM(e.BaseAglM), e.BelowM, BaseDark * (float)Mathx.SmoothStep(0.35, 0.8, e.Strength)));
                 m.SetFloat(IdSnowBoost, VeilProbe ? VeilProbeBoost : VeilScale);
                 m.SetColor(IdVeilTint, VeilProbe ? new Color(1f, 0f, 1f, 1f) : new Color(0f, 0f, 0f, 0f));
                 m.SetVector(IdWind, new Vector4(offsetX, offsetZ, shearX, fall));
@@ -312,7 +313,7 @@ namespace ReDefinition.Atmospheres
                     Vector3 relative = camera.transform.position - position;
                     float height = Vector3.Dot(relative, radial);
                     if (Mathf.Sqrt(Mathf.Max(0f, relative.sqrMagnitude - height * height)) < e.RadiusM)
-                        longest = StormVolumeMath.InsideRayM(CameraVisibilityM, e.BaseAglM, longest);
+                        longest = CurtainMath.InsideRayM(CameraVisibilityM, e.BaseAglM, longest);
                 }
                 m.SetVector(IdLook, new Vector4(e.Fade, steps, shearZ, (float)longest));
                 m.SetVector(IdSun, new Vector4(toSun.x, toSun.y, toSun.z, 0f));
@@ -367,7 +368,7 @@ namespace ReDefinition.Atmospheres
             }
             built = true;
             AtmospheresLog.Say("storm volume: raymarched (bundle " + StormShaders.BundlePath + ", shader " + shader.name + ", noise "
-                      + StormVolumeMath.NoiseSize.ToString(CultureInfo.InvariantCulture) + "^3, " + AtmospheresSettings.StormVolumeSteps.ToString(CultureInfo.InvariantCulture)
+                      + CurtainMath.NoiseSize.ToString(CultureInfo.InvariantCulture) + "^3, " + AtmospheresSettings.StormVolumeSteps.ToString(CultureInfo.InvariantCulture)
                       + " steps, " + cells.ToString(CultureInfo.InvariantCulture) + " cells in the pool, depth texture on), camera " + cam.name + " near "
                       + cam.nearClipPlane.ToString("0.###", CultureInfo.InvariantCulture) + " far " + cam.farClipPlane.ToString("0", CultureInfo.InvariantCulture)
                       + ", range " + (RangeM / 1000).ToString("0", CultureInfo.InvariantCulture) + " km");
@@ -377,8 +378,8 @@ namespace ReDefinition.Atmospheres
         // The 3D noise the volume shader reads: tileable, bilinear, with mip levels for the far steps.
         private static Texture3D MakeNoiseVolume()
         {
-            int size = StormVolumeMath.NoiseSize;
-            byte[] voxels = StormNoise.Volume(size, StormVolumeMath.NoisePeriod, StormVolumeMath.NoiseOctaves, StormVolumeMath.NoiseSeed);
+            int size = CurtainMath.NoiseSize;
+            byte[] voxels = StormNoise.Volume(size, CurtainMath.NoisePeriod, CurtainMath.NoiseOctaves, CurtainMath.NoiseSeed);
             var texture = new Texture3D(size, size, size, TextureFormat.RGBA32, true)
             {
                 name = "ReDefinition Atmospheres storm noise",
@@ -395,12 +396,12 @@ namespace ReDefinition.Atmospheres
         // The bounding cylinder of radius 1 and height 1 (bottom at y 0), with caps.
         private static Mesh CylinderMesh()
         {
-            float[] v = StormVolumeMath.CylinderVertices(StormVolumeMath.Segments);
+            float[] v = CurtainMath.CylinderVertices(CurtainMath.Segments);
             var vertices = new Vector3[v.Length / 3];
             for (int i = 0; i < vertices.Length; i++) vertices[i] = new Vector3(v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
             var mesh = new Mesh { name = "ReDefinition Atmospheres storm cylinder" };
             mesh.vertices = vertices;
-            mesh.triangles = StormVolumeMath.CylinderTriangles(StormVolumeMath.Segments);
+            mesh.triangles = CurtainMath.CylinderTriangles(CurtainMath.Segments);
             mesh.RecalculateBounds();
             return mesh;
         }

@@ -175,7 +175,7 @@ namespace ReDefinition.WeatherPlayer
             f.HeightM = WindowHeight(Coarse);
             float age = (float)(seconds - SnapshotSeconds);
             f.Drift = new Vector2(Wind.x * age, Wind.y * age);
-            f.WindOffset = new Vector2(StormVolumeMath.Wrap(Wind.x * seconds, Look.ErosionTileM * 16.0), StormVolumeMath.Wrap(Wind.y * seconds, Look.ErosionTileM * 16.0));
+            f.WindOffset = new Vector2(CurtainMath.Wrap(Wind.x * seconds, Look.ErosionTileM * 16.0), CurtainMath.Wrap(Wind.y * seconds, Look.ErosionTileM * 16.0));
             f.AdvectVelocity = new Vector3(Wind.x, 0f, Wind.y);
             f.TowardsSun = c.TowardsSun;
             f.SunColour = c.SunColour;

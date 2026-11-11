@@ -83,8 +83,8 @@ namespace ReDefinition.Atmospheres
             }
             if (noise == null)
             {
-                int size = StormVolumeMath.NoiseSize;
-                byte[] voxels = StormNoise.Volume(size, StormVolumeMath.NoisePeriod, StormVolumeMath.NoiseOctaves, StormVolumeMath.NoiseSeed);
+                int size = CurtainMath.NoiseSize;
+                byte[] voxels = StormNoise.Volume(size, CurtainMath.NoisePeriod, CurtainMath.NoiseOctaves, CurtainMath.NoiseSeed);
                 noise = new Texture3D(size, size, size, TextureFormat.RGBA32, true)
                 {
                     name = "curtain noise",
@@ -98,12 +98,12 @@ namespace ReDefinition.Atmospheres
                 madeNoise = true;
             }
             ownNoise = noise;
-            float[] v = StormVolumeMath.CylinderVertices(StormVolumeMath.Segments);
+            float[] v = CurtainMath.CylinderVertices(CurtainMath.Segments);
             var vertices = new Vector3[v.Length / 3];
             for (int i = 0; i < vertices.Length; i++) vertices[i] = new Vector3(v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
             mesh = new Mesh { name = "curtain cylinder" };
             mesh.vertices = vertices;
-            mesh.triangles = StormVolumeMath.CylinderTriangles(StormVolumeMath.Segments);
+            mesh.triangles = CurtainMath.CylinderTriangles(CurtainMath.Segments);
             mesh.RecalculateBounds();
             pool = new Piece[PoolSize];
             for (int p = 0; p < PoolSize; p++)
@@ -170,15 +170,15 @@ namespace ReDefinition.Atmospheres
         {
             if (pool == null || slot < 0 || slot >= pool.Length) return;
             Piece p = pool[slot];
-            float below = StormVolumeMath.BelowM(radius, planetRadius);
-            float top = StormVolumeMath.TopM(baseAgl);
+            float below = CurtainMath.BelowM(radius, planetRadius);
+            float top = CurtainMath.TopM(baseAgl);
             p.Position = position;
             p.BaseAgl = baseAgl;
             p.Radius = radius;
             p.BelowM = below;
             Quaternion rotation = Quaternion.LookRotation(Vector3.Cross(right, up), up);
             p.Transform.SetPositionAndRotation(position, rotation);
-            p.Transform.localScale = new Vector3(radius * StormVolumeMath.Widening, below + top, radius * StormVolumeMath.Widening);
+            p.Transform.localScale = new Vector3(radius * CurtainMath.Widening, below + top, radius * CurtainMath.Widening);
             // The cylinder's origin is its bottom: move it down by BelowM along the local vertical.
             p.Transform.position = position - up * below;
             Material m = p.Material;
@@ -196,7 +196,7 @@ namespace ReDefinition.Atmospheres
             if (pool == null) return;
             float fade = (float)Mathx.SmoothStep(0, 0.35, share);
             float offsetX, offsetZ, shearX, shearZ, fall;
-            StormVolumeMath.Wind(yawDegrees, seconds, out offsetX, out offsetZ, out shearX, out shearZ, out fall);
+            CurtainMath.Wind(yawDegrees, seconds, out offsetX, out offsetZ, out shearX, out shearZ, out fall);
             for (int p = 0; p < pool.Length; p++)
             {
                 Piece piece = pool[p];
@@ -218,6 +218,25 @@ namespace ReDefinition.Atmospheres
             for (int p = Math.Max(0, slot); p < pool.Length; p++)
                 if (pool[p].Root.activeSelf) pool[p].Root.SetActive(false);
             shown = Math.Min(shown, Math.Max(0, slot));
+        }
+
+        // Measurement path: the pieces' own renderers are switched off and the shown pieces are drawn by a command buffer instead, so that
+        // GPU timestamps recorded in the same buffer enclose exactly the curtain's draws, whichever event the camera draws transparents at.
+        internal void SetBufferDriven(bool on)
+        {
+            if (pool == null) return;
+            for (int p = 0; p < pool.Length; p++) pool[p].Root.GetComponent<MeshRenderer>().enabled = !on;
+        }
+
+        // Appends the draw of every shown piece to the buffer (the measurement path; allocates, not for the frame loop).
+        internal void Record(UnityEngine.Rendering.CommandBuffer buffer)
+        {
+            if (pool == null) return;
+            for (int p = 0; p < pool.Length; p++)
+            {
+                Piece piece = pool[p];
+                if (piece.Root.activeSelf) buffer.DrawMesh(mesh, piece.Transform.localToWorldMatrix, piece.Material, 0, 0);
+            }
         }
 
         internal void CameraDepth(Camera camera)

@@ -21,7 +21,7 @@ namespace ReDefinition.WeatherPlayer
         public Color SunColour = new Color(1.00f, 0.96f, 0.88f, 1f);
         public float SunShare = 0.3f;
         public Color Ambient = new Color(0.50f, 0.54f, 0.60f, 1f);
-        // The wind: a direction in degrees, the pattern's speed and the vertical shear as StormVolumeMath has them.
+        // The wind: a direction in degrees, the pattern's speed and the vertical shear as CurtainMath has them.
         public float WindYaw = 20f, WindSpeed = 9f, Shear = 0.25f;
 
         // Sets a field by its name (the command line's -set name=value), false for a name that is not one.
@@ -44,21 +44,19 @@ namespace ReDefinition.WeatherPlayer
         }
     }
 
-    // The own cloud slab and the storm curtain, drawn into the player's camera: the slab by command buffers (the march into a
-    // texture of its own size after the sky, then laid over the scene), the curtain as the mod draws it (a bounding cylinder with
-    // the storm volume's shader). Both read the camera's depth. The GPU time of each goes through the proxy's timestamp queries
-    // where they run (WeatherGpuTimer).
+    // The volume pass of the atmospheres and the storm curtain, drawn into the player's camera: the volume by command buffers (the march
+    // into a texture of its own size after the sky, then laid over the scene), the curtain as the mod draws it (a bounding cylinder with
+    // the curtain shader). Both read the camera's depth. The GPU time of the volume goes through the proxy's timestamp queries
+    // (WeatherGpuTimer); the curtain's is measured by VolumeCostScene.
     internal sealed class WeatherSlab : MonoBehaviour
     {
         private static readonly int IdCell = Shader.PropertyToID("_Cell"), IdUp = Shader.PropertyToID("_Up"),
-            IdRight = Shader.PropertyToID("_Right"), IdSlab = Shader.PropertyToID("_Slab"), IdWind = Shader.PropertyToID("_Wind"),
+            IdRight = Shader.PropertyToID("_Right"), IdWind = Shader.PropertyToID("_Wind"),
             IdLook = Shader.PropertyToID("_Look"), IdSun = Shader.PropertyToID("_Sun"), IdSunColour = Shader.PropertyToID("_SunColour"),
-            IdAmbient = Shader.PropertyToID("_AmbientColour"), IdCamRight = Shader.PropertyToID("_CamRight"),
-            IdCamUp = Shader.PropertyToID("_CamUp"), IdCamForward = Shader.PropertyToID("_CamForward"),
-            IdTargetSize = Shader.PropertyToID("_TargetSize"), IdNoise = Shader.PropertyToID("_Noise"),
-            IdHeights = Shader.PropertyToID("_Heights"), IdSlabTex = Shader.PropertyToID("_WeatherSlabTex");
+            IdAmbient = Shader.PropertyToID("_AmbientColour"), IdNoise = Shader.PropertyToID("_Noise"),
+            IdHeights = Shader.PropertyToID("_Heights");
 
-        // Whether the slab and the curtain are drawn, the settings, the jitter in render pixels, and the frame's number.
+        // Whether the volume and the curtain are drawn, the settings, the jitter in render pixels, and the frame's number.
         internal bool SlabOn = true, CurtainOn = true;
         internal CellSettings Cell = new CellSettings();
         internal Vector2 JitterPixels;
@@ -67,21 +65,20 @@ namespace ReDefinition.WeatherPlayer
         internal float CurtainSteps = 28f;
 
         private Camera cam;
-        private Material slabMaterial, curtainMaterial;
+        private Material curtainMaterial;
         private Texture3D noise;
-        private RenderTexture slabTexture;
-        private CommandBuffer slabBuffer, markBeforeCurtain, markAfterCurtain;
+        private CommandBuffer markBeforeCurtain, markAfterCurtain;
         private GameObject curtainObject;
         private Transform curtainTransform;
 
-        // The march texture the last frame wrote (the volume pass's or the spike slab's), for the analytic motion pass.
-        internal RenderTexture SlabTexture { get { return Volume != null ? Volume.Renderer.Target : slabTexture; } }
+        // The march texture the last frame wrote, for the analytic motion pass.
+        internal RenderTexture SlabTexture { get { return Volume != null ? Volume.Renderer.Target : null; } }
 
-        // Why the slab or the curtain cannot be drawn, or null.
+        // Why the volume or the curtain cannot be drawn, or null.
         internal string Problem;
 
-        // The volume pass of the atmospheres in place of the spike's slab (-volume 1, scenario -scenario, tuning -vset name=v;name=v): the
-        // window, the renderer and the frame numbers. Null where the spike's slab is drawn.
+        // The volume pass of the atmospheres (scenario -scenario, tuning -vset name=v;name=v; -volume 0 draws the curtain alone): the
+        // window, the renderer and the frame numbers.
         internal VolumeSetup Volume;
 
         private static readonly Action<CommandBuffer> MarkSlabStart = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabStart),
@@ -100,15 +97,14 @@ namespace ReDefinition.WeatherPlayer
         internal void Init(Camera camera)
         {
             cam = camera;
-            Shader slabShader = Shader.Find("ReDefinition/AtmospheresCloudSlab");
             Shader curtainShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
-            if (slabShader == null || curtainShader == null)
+            if (curtainShader == null)
             {
-                Problem = "shader missing: slab " + (slabShader != null) + ", curtain " + (curtainShader != null);
+                Problem = "shader missing: curtain";
                 return;
             }
-            int size = StormVolumeMath.NoiseSize;
-            byte[] voxels = StormNoise.Volume(size, StormVolumeMath.NoisePeriod, StormVolumeMath.NoiseOctaves, StormVolumeMath.NoiseSeed);
+            int size = CurtainMath.NoiseSize;
+            byte[] voxels = StormNoise.Volume(size, CurtainMath.NoisePeriod, CurtainMath.NoiseOctaves, CurtainMath.NoiseSeed);
             noise = new Texture3D(size, size, size, TextureFormat.RGBA32, true)
             {
                 name = "weather player noise",
@@ -120,8 +116,6 @@ namespace ReDefinition.WeatherPlayer
             noise.SetPixels32(colours);
             noise.Apply(true, true);
 
-            slabMaterial = new Material(slabShader) { hideFlags = HideFlags.HideAndDontSave };
-            slabMaterial.SetTexture(IdNoise, noise);
             curtainMaterial = new Material(curtainShader) { hideFlags = HideFlags.HideAndDontSave };
             curtainMaterial.SetTexture(IdNoise, noise);
             curtainMaterial.EnableKeyword("STORM_DEPTH");
@@ -134,17 +128,15 @@ namespace ReDefinition.WeatherPlayer
             renderer.receiveShadows = false;
             curtainTransform = curtainObject.transform;
 
-            slabBuffer = new CommandBuffer { name = "weather slab" };
             markBeforeCurtain = new CommandBuffer { name = "weather curtain start" };
             markAfterCurtain = new CommandBuffer { name = "weather curtain end" };
             WeatherGpuTimer.Mark(markBeforeCurtain, WeatherGpuTimer.CurtainStart);
             WeatherGpuTimer.Mark(markAfterCurtain, WeatherGpuTimer.CurtainEnd);
-            cam.AddCommandBuffer(CameraEvent.AfterSkybox, slabBuffer);
             cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, markBeforeCurtain);
             cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, markAfterCurtain);
 
             string volumeArgument = WeatherPass.Argument("-volume");
-            if (volumeArgument != null && volumeArgument != "0")
+            if (volumeArgument != "0")
             {
                 Volume = new VolumeSetup();
                 string vset = WeatherPass.Argument("-vset");
@@ -173,127 +165,59 @@ namespace ReDefinition.WeatherPlayer
             }
         }
 
-        // The bounding cylinder of the curtain, radius 1 and height 1 from y 0, as StormVolume builds it.
+        // The bounding cylinder of the curtain, radius 1 and height 1 from y 0, as CurtainPass builds it.
         private static Mesh CylinderMesh()
         {
-            float[] v = StormVolumeMath.CylinderVertices(StormVolumeMath.Segments);
+            float[] v = CurtainMath.CylinderVertices(CurtainMath.Segments);
             var vertices = new Vector3[v.Length / 3];
             for (int i = 0; i < vertices.Length; i++) vertices[i] = new Vector3(v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
             var mesh = new Mesh { name = "weather player cylinder" };
             mesh.vertices = vertices;
-            mesh.triangles = StormVolumeMath.CylinderTriangles(StormVolumeMath.Segments);
+            mesh.triangles = CurtainMath.CylinderTriangles(CurtainMath.Segments);
             mesh.bounds = new Bounds(new Vector3(0f, 0.5f, 0f), new Vector3(2f, 1f, 2f));
             return mesh;
         }
 
-        // The slab texture at the camera's size times the scale, made again where the size changed.
-        private void EnsureTexture()
-        {
-            int w = Mathf.Max(16, Mathf.RoundToInt(cam.pixelWidth * Cell.Scale));
-            int h = Mathf.Max(16, Mathf.RoundToInt(cam.pixelHeight * Cell.Scale));
-            if (slabTexture != null && slabTexture.width == w && slabTexture.height == h) return;
-            if (slabTexture != null) slabTexture.Release();
-            slabTexture = new RenderTexture(w, h, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear)
-            {
-                name = "weather slab",
-                filterMode = FilterMode.Bilinear,
-                wrapMode = TextureWrapMode.Clamp
-            };
-            slabTexture.Create();
-        }
-
-        // The slab's world frame, the wind offsets of the frame, and the camera's basis; written before the camera culls.
-        // The frame's time is its number over 60, so that a run repeats.
+        // The curtain's frame and the wind offsets of the frame; written before the camera culls. The frame's time is its number
+        // over 60, so that a run repeats.
         internal void Prepare()
         {
-            if (slabMaterial == null) return;
+            if (curtainMaterial == null) return;
             CellSettings c = Cell;
             float time = Frame / 60f;
             double yaw = c.WindYaw * Math.PI / 180.0;
             float dx = (float)Math.Cos(yaw), dz = (float)Math.Sin(yaw);
-            float offsetX = StormVolumeMath.Wrap(dx * c.WindSpeed * time, StormVolumeMath.CloudTileM);
-            float offsetZ = StormVolumeMath.Wrap(dz * c.WindSpeed * time, StormVolumeMath.CloudTileM);
-            float fall = StormVolumeMath.Wrap(StormVolumeMath.FallSpeed * time, StormVolumeMath.StreakTileM);
+            float offsetX = CurtainMath.Wrap(dx * c.WindSpeed * time, CurtainMath.CloudTileM);
+            float offsetZ = CurtainMath.Wrap(dz * c.WindSpeed * time, CurtainMath.CloudTileM);
+            float fall = CurtainMath.Wrap(CurtainMath.FallSpeed * time, CurtainMath.StreakTileM);
 
-            Vector4 cell = new Vector4(0f, 0f, 0f, c.Radius);
-            Vector4 up = new Vector4(0f, 1f, 0f, 0f);
-            Vector4 right = new Vector4(1f, 0f, 0f, 0f);
-            float tanY = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-            float tanX = tanY * cam.aspect;
             Transform t = cam.transform;
-            Vector4 camRight = t.right * tanX;
-            camRight.w = 2f * JitterPixels.x / cam.pixelWidth;
-            Vector4 camUp = t.up * tanY;
-            camUp.w = 2f * JitterPixels.y / cam.pixelHeight;
-            Vector4 camForward = t.forward;
+            Material m = curtainMaterial;
+            m.SetVector(IdCell, new Vector4(0f, 0f, 0f, c.Radius));
+            m.SetVector(IdUp, new Vector4(0f, 1f, 0f, 0f));
+            m.SetVector(IdRight, new Vector4(1f, 0f, 0f, 0f));
+            m.SetVector(IdSun, new Vector4(c.TowardsSun.x, c.TowardsSun.y, c.TowardsSun.z, c.SunShare));
+            m.SetVector(IdSunColour, c.SunColour);
 
-            foreach (Material m in new[] { slabMaterial, curtainMaterial })
-            {
-                m.SetVector(IdCell, cell);
-                m.SetVector(IdUp, up);
-                m.SetVector(IdRight, right);
-                m.SetVector(IdSun, new Vector4(c.TowardsSun.x, c.TowardsSun.y, c.TowardsSun.z, c.SunShare));
-                m.SetVector(IdSunColour, c.SunColour);
-                m.SetVector(IdAmbient, c.Ambient);
-            }
-            slabMaterial.SetVector(IdSlab, new Vector4(c.BaseM, c.TopM, c.Dark, c.Density));
-            slabMaterial.SetVector(IdWind, new Vector4(offsetX, offsetZ, dx * c.Shear, dz * c.Shear));
-            slabMaterial.SetVector(IdLook, new Vector4(c.Steps, 60000f, Frame, c.AnimatedDither ? 1f : 0f));
-            slabMaterial.SetVector(IdCamRight, camRight);
-            slabMaterial.SetVector(IdCamUp, camUp);
-            slabMaterial.SetVector(IdCamForward, camForward);
-
-            // The curtain as StormVolume hands it over.
             float below = 150f;
             curtainTransform.position = new Vector3(0f, -below, 0f);
-            curtainTransform.localScale = new Vector3(c.Radius * StormVolumeMath.Widening, c.BaseM + StormVolumeMath.SnowOnlyHeadroomM + below,
-                                                      c.Radius * StormVolumeMath.Widening);
-            curtainMaterial.SetVector(IdHeights, new Vector4(c.BaseM, c.BaseM + StormVolumeMath.SnowOnlyHeadroomM, below, 0.6f));
-            curtainMaterial.SetVector(IdWind, new Vector4(offsetX, offsetZ, dx * (float)StormVolumeMath.Shear, fall));
+            curtainTransform.localScale = new Vector3(c.Radius * CurtainMath.Widening, c.BaseM + CurtainMath.SnowOnlyHeadroomM + below,
+                                                      c.Radius * CurtainMath.Widening);
+            m.SetVector(IdHeights, new Vector4(c.BaseM, c.BaseM + CurtainMath.SnowOnlyHeadroomM, below, 0.6f));
+            m.SetVector(IdWind, new Vector4(offsetX, offsetZ, dx * (float)CurtainMath.Shear, fall));
             float longest = 60000f + c.Radius * 2f;
             Vector3 p = t.position;
             if (Mathf.Sqrt(p.x * p.x + p.z * p.z) < c.Radius) longest = Mathf.Min(longest, Mathf.Max(4f * 60f, 1.5f * c.BaseM));
-            curtainMaterial.SetVector(IdLook, new Vector4(1f, CurtainSteps, dz * (float)StormVolumeMath.Shear, longest));
-            curtainMaterial.SetVector(IdAmbient, new Color(0.72f, 0.76f, 0.82f, 1f));
+            m.SetVector(IdLook, new Vector4(1f, CurtainSteps, dz * (float)CurtainMath.Shear, longest));
+            m.SetVector(IdAmbient, new Color(0.72f, 0.76f, 0.82f, 1f));
             curtainObject.SetActive(CurtainOn);
 
-            slabBuffer.Clear();
             if (Volume != null)
             {
                 Volume.Renderer.Commands.Clear();
                 if (SlabOn)
                     Volume.Prepare(cam, c, Frame, time, JitterPixels, JitterIndex, MarkSlabStart, MarkSlabMarched, MarkSlabEnd, Volume.Get("volume.analytic", 1f) > 0.5f);
             }
-            else if (SlabOn)
-            {
-                EnsureTexture();
-                WeatherGpuTimer.Mark(slabBuffer, WeatherGpuTimer.SlabStart);
-                slabBuffer.Blit(BuiltinRenderTextureType.None, slabTexture, slabMaterial, 0);
-                WeatherGpuTimer.Mark(slabBuffer, WeatherGpuTimer.SlabMarched);
-                slabBuffer.SetGlobalTexture(IdSlabTex, slabTexture);
-                slabBuffer.Blit(slabTexture, BuiltinRenderTextureType.CameraTarget, slabMaterial, 1);
-                WeatherGpuTimer.Mark(slabBuffer, WeatherGpuTimer.SlabComposited);
-            }
-        }
-
-        // The cell's frame and the camera's basis for the analytic motion pass, into its material.
-        internal void FillMotionMaterial(Material m, float middleHeight)
-        {
-            m.SetVector(IdCell, new Vector4(0f, 0f, 0f, Cell.Radius));
-            m.SetVector(IdUp, new Vector4(0f, 1f, 0f, 0f));
-            float tanY = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-            Transform t = cam.transform;
-            m.SetVector(IdCamRight, t.right * (tanY * cam.aspect));
-            m.SetVector(IdCamUp, t.up * tanY);
-            m.SetVector(IdCamForward, t.forward);
-            m.SetVector("_Mid", new Vector4(middleHeight, 0f, 0f, 0f));
-        }
-
-        // The wind's displacement in one frame, world space, m.
-        internal Vector3 WindStep()
-        {
-            double yaw = Cell.WindYaw * Math.PI / 180.0;
-            return new Vector3((float)Math.Cos(yaw), 0f, (float)Math.Sin(yaw)) * (Cell.WindSpeed / 60f);
         }
     }
 

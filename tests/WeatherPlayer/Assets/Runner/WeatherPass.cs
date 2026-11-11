@@ -30,7 +30,7 @@ namespace ReDefinition.WeatherPlayer
 
         private Camera cam;
         private WeatherSlab slab;
-        private Material capture, fix;
+        private Material capture;
         private RenderTexture colour, depthRaw, depth, motionRaw, motion, upscaled, referenceCopy;
         private IntPtr colourHandle, depthHandle, motionHandle, upscaledHandle;
         private CommandBuffer command;
@@ -90,7 +90,6 @@ namespace ReDefinition.WeatherPlayer
             jitterPhases = Mathf.Max(8, (int)(8f * ratio * ratio));
             jitter = upscalerName != null && upscalerName != "native";
             capture = new Material(Shader.Find("Hidden/ReDefinition/RtCapture"));
-            fix = new Material(Shader.Find("Hidden/ReDefinition/WeatherPlayerSlabMotion"));
             command = new CommandBuffer { name = "weather pass" };
             Meta.Append("# name width height reconstructed worldToCamera(16) gpuProjection(16), Unity's [row, column] row by"
                         + " row; then frame generation's camera as its packet takes it (StreamlineCamera): viewToClip,"
@@ -212,19 +211,6 @@ namespace ReDefinition.WeatherPlayer
                 slab.Volume.Renderer.AppendAnalytic(command, motionRaw, motion, depthRaw, depth, unjittered,
                                                     havePrevious ? previousUnjittered : unjittered, 1f / 60f, Argument("-mvFlip") != null);
             }
-            else if (analytic && slab.SlabOn && slab.SlabTexture != null)
-            {
-                float middle = slab.Cell.BaseM + 0.35f * (slab.Cell.TopM - slab.Cell.BaseM);
-                slab.FillMotionMaterial(fix, middle);
-                fix.SetTexture("_SlabTex", slab.SlabTexture);
-                fix.SetTexture("_SceneDepth", depthRaw);
-                fix.SetVector("_WindStep", slab.WindStep());
-                fix.SetMatrix("_CurViewProj", unjittered);
-                fix.SetMatrix("_PrevViewProj", havePrevious ? previousUnjittered : unjittered);
-                fix.SetVector("_Gate", new Vector4(0.35f, Argument("-mvFlip") != null ? 1f : 0f, 0f, 0f));
-                command.Blit(motionRaw, motion, fix, 0);
-                command.Blit(depthRaw, depth, fix, 1);
-            }
             else
             {
                 command.Blit(motionRaw, motion);
@@ -260,7 +246,7 @@ namespace ReDefinition.WeatherPlayer
                 Read(depth, name + "_depth.bin");
                 Read(motion, name + "_motion.bin");
                 Read(motionRaw, name + "_motionraw.bin");
-                if (slab.SlabTexture != null) Read(slab.SlabTexture, name + "_slab.bin");
+                if (slab.VolumeMode) Read(slab.SlabTexture, name + "_slab.bin");
             }
             previousViewProjection = viewProjectionNow;
             previousUnjittered = unjittered;

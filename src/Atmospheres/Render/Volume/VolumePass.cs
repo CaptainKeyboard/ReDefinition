@@ -261,13 +261,13 @@ namespace ReDefinition.Atmospheres
             f.Up = anchorUp;
             f.East = anchorEastAxis;
             f.North = anchorNorthAxis;
-            f.Curvature = StormVolumeMath.Curvature(planet.Radius > 1.0 ? planet.Radius : FallbackPlanetRadiusM);
+            f.Curvature = CurtainMath.Curvature(planet.Radius > 1.0 ? planet.Radius : FallbackPlanetRadiusM);
             f.HalfWidthM = tier.HalfWidthM;
             f.HeightM = HeightOf(coarse);
             float windE = view.WindWorld.x, windN = view.WindWorld.y;
             float age = (float)(ut - snapshotUt);
             f.Drift = new Vector2(windE * age, windN * age);
-            f.WindOffset = new Vector2(StormVolumeMath.Wrap(windE * ut, look.ErosionTileM * 16.0), StormVolumeMath.Wrap(windN * ut, look.ErosionTileM * 16.0));
+            f.WindOffset = new Vector2(CurtainMath.Wrap(windE * ut, look.ErosionTileM * 16.0), CurtainMath.Wrap(windN * ut, look.ErosionTileM * 16.0));
             f.AdvectVelocity = anchorEastAxis * windE + anchorNorthAxis * windN;
             Vector3 sunPosition = FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null
                 ? (Vector3)FlightGlobals.Bodies[0].position : anchorCentre + anchorUp * 1e9f;

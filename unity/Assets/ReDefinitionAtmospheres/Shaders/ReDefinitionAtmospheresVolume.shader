@@ -6,7 +6,7 @@
 // Dawn", 2015; Guerrilla's "Nubis Evolved", 2023): a base shape eroded by tiled noise (with a curl offset), a dual-lobe Henyey-Greenstein
 // phase, a short march towards the sun, a multiple-scattering approximation by octaves of weaker extinction and a flatter phase (after
 // Hillaire 2016), the powder effect, a dark underside from the cloud mass above, a distance-adaptive step and a transmittance cut-off with
-// energy renormalisation. The code is ours.
+// energy renormalisation. The dither is the interleaved gradient noise of Jimenez (SIGGRAPH 2014).
 //
 // Passes (the half-resolution target is a RenderTexture of the pass; the march samples the depth at its own pixel):
 //   0 MARCH      premultiplied colour and opacity into the target
