@@ -48,7 +48,7 @@ namespace ReDefinition.Tests
             ["Proxy"] = "Core",
             ["Raytracing"] = "Api Core Modules Probe Proxy Scenery Upscaler",
             ["Scaling"] = "Core",
-            ["Atmospheres"] = "Core",
+            ["Atmospheres"] = "Core Ui",
             ["Scenery"] = "Core Raytracing Upscaler",
             ["Settings"] = "Core Migration Proxy Raytracing Vendor",
             ["Ui"] = "Core Scaling Upscaler Window",
@@ -209,7 +209,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheAtmospheresSideUsesNothingOfReDefinitionBeyondCore()
         {
-            var side = new HashSet<string> { "Atmospheres", "Common", "Core" };
+            // Ui is the namespace of the dialog helpers that live in Common (DialogWindow, TabScrollList, TooltipText); src/Ui is not reachable from here.
+            var side = new HashSet<string> { "Atmospheres", "Common", "Core", "Ui" };
             var found = Edges.Value.Where(e => e.Key.Item1 == "Atmospheres" && !side.Contains(e.Key.Item2))
                 .Select(e => e.Key.Item1 + " uses " + e.Key.Item2 + " (" + e.Value + ")").ToList();
             Assert.AreEqual(0, found.Count, "The atmospheres may not use these:\n" + string.Join("\n", found));

@@ -1,0 +1,27 @@
+{
+  "$schema": "../schema.json",
+  "package": "D38",
+  "rows": [
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.shader_loaded", "equals": 1, "note": "D38 sanity: the aurora shader is in the Atmospheres bundle and the renderer started (AuroraRenderer.Ready)" },
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.auto_draws_without_foreign", "equals": 1, "note": "D38 sanity: setting Auto draws the shell where no foreign aurora layer exists (AuroraPolicy)" },
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.auto_leaves_foreign", "equals": 1, "note": "D38 sanity: setting Auto hands a body with a foreign aurora layer over to it" },
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.body_rule_enabled", "equals": 1, "note": "D38 sanity: the AURORA rule of the body is on (the patch in Atmospheres/Aurora/AtmospheresAurora.cfg switches it on for Kerbin)" },
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.model_activity", "min": 0, "max": 1, "note": "D38 informative: the model's activity at the time of the start" },
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.foreign_detected", "required": false, "note": "D38 informative: 1 where an EVE layer with 'aurora' in its name exists on the body (SPVE, EVEVolumetricsAurorae); Auto then leaves the aurora to it" },
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.lid_worst", "max": 0.12, "required": false, "note": "NOT MEASURED yet (needs the series' screenshot step, one night pose per latitude 60/70/78 looking at the oval, shell on and off): largest step between adjacent row means of the contribution mask over the peak row mean (tools/weather_metrics/aurora.py logic, as in the player)" },
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.drip_worst", "max": 0.03, "required": false, "note": "NOT MEASURED yet (same screenshots): share of columns whose lowest lit row hangs more than 6 % of the picture below the median of its neighbours" },
+    { "series": "K-W3b", "section": "D38", "package": "D38", "start": "lights", "metric": "D38.band_worst", "max": 0.02, "required": false, "note": "NOT MEASURED yet (same screenshots): mean contribution below 3 degrees of elevation over the peak row mean" },
+
+    { "series": "player-D38", "section": "D38", "metric": "lid.worst", "max": 0.12, "note": "player stage scene (series aurora): the worst lid step over the grid of 33 poses (sun -6/-12/-25 x activity 0.2/0.6/1.0 x latitude 60/70/78 at 25 degrees, and 10 and 40 degrees at sun -12, activity 0.6)" },
+    { "series": "player-D38", "section": "D38", "metric": "drip.worst", "max": 0.03, "note": "player stage scene: the worst share of dripping columns over the grid" },
+    { "series": "player-D38", "section": "D38", "metric": "band.worst", "max": 0.02, "note": "player stage scene: the worst horizon band share (rows below 3 degrees of elevation) over the grid" },
+    { "series": "player-D38", "section": "D38", "metric": "poses.measured", "min": 18, "note": "player stage scene: poses bright enough to judge (peak row mean at least 0.004); the others are listed as poses.dim" },
+    { "series": "player-D38", "section": "D38", "metric": "occluder.hides_shell", "equals": 1, "note": "player stage scene: a body in front of the view hides the shell (inside <= 1e-4, outside >= 1e-3)" },
+    { "series": "player-D38", "section": "D38", "metric": "repeat.max_diff", "max": 0.00001, "note": "player stage scene: the same state twice gives the same picture (no jitter, no shimmer)" },
+    { "series": "player-D38", "section": "D38", "metric": "day.shell_diff", "max": 0.000001, "note": "player stage scene: the shell at sun +10 changes nothing" },
+    { "series": "player-D38-time", "section": "D38", "metric": "shell_gpu_ms_1440p_equivalent", "max": 0.15, "unit": "ms", "note": "player stage scene (series aurora-time, exclusive): four times the GPU difference with and without the shell at 1280 x 720" },
+
+    { "series": "player-D38", "section": "D38", "metric": "variants.upscaler_trail_vs_baseline", "max": 1.2, "required": false, "note": "OPEN (owner E40, proxy run): trail pixels of the shell under DLSS K/M/L, FSR 3 and XeSS against the baseline + 20 %, RT on and off" },
+    { "series": "player-D38", "section": "D38", "metric": "volumetric.discriminators", "equals": 1, "required": false, "note": "OPEN: the volumetric variant (an EVE layer through the C23 binding) is not built; its three discriminators (lower step size, camera ground vs 10 km, raised minimum altitude) wait for it" }
+  ]
+}

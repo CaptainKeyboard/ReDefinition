@@ -1,0 +1,6 @@
+# Linked into the weather player for the aurora shell (D38): the pure model and noise generator, the draw pass (engine only) and the
+# shader. The renderer module, the policy and the foreign-layer scan need the game and are not linked.
+src/Atmospheres/Light/Aurora/AuroraModel.cs
+src/Atmospheres/Light/Aurora/AuroraNoise.cs
+src/Atmospheres/Light/Aurora/AuroraPass.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresAurora.shader
