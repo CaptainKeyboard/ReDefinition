@@ -17,6 +17,14 @@ namespace AtmoSim.Runner
 
         public static BodyParams ByName(string n)
         {
+            var p = ByNameInner(n);
+            // iteration 2 of the proof (RESULT.md H6): ATMO_COMB=1 switches the comb placement of the slots on for every set
+            if (Environment.GetEnvironmentVariable("ATMO_COMB") == "1") p.CombPlacement = true;
+            return p;
+        }
+
+        private static BodyParams ByNameInner(string n)
+        {
             var p = BySet(n);
             if (ReconDir == null) return p;
             string rb = n == "duna" ? "Duna" : n == "eve" ? "Eve" : n == "laythe" ? "Laythe" : n == "earth" ? null : "Kerbin";
@@ -232,6 +240,71 @@ namespace AtmoSim.Runner
                 { "body", bp.Name }, { "seed", seed }, { "nlon", EvalLon }, { "nlat", EvalLat }, { "frames", frames }, { "frame_s", frameS }, { "fields", names }, { "times_s", times }, { "lat_deg", latDeg }, { "radius_km", bp.RadiusM / 1000.0 }, { "rotation_s", bp.RotationPeriodS } }));
             File.WriteAllText(Path.Combine(dir, "month_events.json"), Json.Write(events));
             Console.WriteLine("wrote " + frames + " frames to " + dir);
+            return 0;
+        }
+
+        // Ground-level series at 45 N, 55 N, 70 N and the equator (hourly) and the cross-sections through the strongest front and the strongest cell of one instant:
+        // series <body> <seed> <startDays> <days> <out.json>   (sections at the middle of the series)
+        public static int Series(string[] args)
+        {
+            var bp = ByName(args[1]);
+            ulong seed = ulong.Parse(args[2]);
+            double start = double.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) * 86400.0;
+            double days = double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
+            var g = new WeatherGenerator(bp, seed);
+            Weather w;
+            var sites = new List<object>();
+            foreach (double latD in new[] { 45.0, 55.0, 70.0, 0.0 })
+            {
+                var t = new List<double>(); var level = new List<double>(); var wind = new List<double>(); var rate = new List<double>(); var temp = new List<double>(); var kind = new List<double>();
+                for (double ut = start; ut < start + days * 86400.0; ut += 3600.0)
+                {
+                    g.Sample(latD * Math.PI / 180.0, 0.5, 0.0, ut, out w);
+                    t.Add((ut - start) / 86400.0); level.Add(g.Level01(w.PrecipMmH)); wind.Add(w.WindSpeed); rate.Add(w.PrecipMmH); temp.Add(w.TempK); kind.Add((double)(int)w.Type);
+                }
+                sites.Add(new Dictionary<string, object> { { "lat", latD }, { "t_days", t }, { "level01", level }, { "wind_ms", wind }, { "rate_mmh", rate }, { "temp_k", temp }, { "type", kind } });
+            }
+            // the middle of the series, moved to the middle of a 3 h cell bucket (cells start inside the bucket, so few exist at its first instant)
+            double utm = Math.Floor((start + 0.5 * days * 86400.0) / WeatherGenerator.CellHourBucketS) * WeatherGenerator.CellHourBucketS + 5400.0;
+            // the strongest front and the strongest cell in the belt at that instant
+            double bf = -1, bfLat = 0, bfLon = 0, bc = -1, bcLat = 0, bcLon = 0;
+            for (int j = 0; j < EvalLat; j++)
+            {
+                double lat = (90.0 - (j + 0.5) * 180.0 / EvalLat) * Math.PI / 180.0;
+                if (Math.Abs(lat) < 35 * Math.PI / 180 || Math.Abs(lat) > 70 * Math.PI / 180) continue;
+                for (int i = 0; i < EvalLon; i++)
+                {
+                    double lon = 2.0 * Math.PI * (i + 0.5) / EvalLon;
+                    g.Sample(lat, lon, 0.0, utm, out w);
+                    // the strongest front that carries cloud (front strength times cloud water)
+                    if (w.FrontKPer100Km * w.CloudWater > bf) { bf = w.FrontKPer100Km * w.CloudWater; bfLat = lat; bfLon = lon; }
+                }
+            }
+            // cells are small: scan the belt of the northern hemisphere on a 0.2 x 0.3 degree raster for the strongest cell
+            // (cells are about 10 km across: a 4 to 5 km raster around the front, 8 degrees of latitude by 20 of longitude)
+            for (double latD = bfLat * 180 / Math.PI - 4.0; latD <= bfLat * 180 / Math.PI + 4.0; latD += 0.04)
+                for (double lonD = bfLon * 180 / Math.PI - 10.0; lonD <= bfLon * 180 / Math.PI + 10.0; lonD += 0.06)
+                {
+                    g.Sample(latD * Math.PI / 180.0, lonD * Math.PI / 180.0, 0.0, utm, out w);
+                    if (w.CellStrength > bc) { bc = w.CellStrength; bcLat = latD * Math.PI / 180.0; bcLon = lonD * Math.PI / 180.0; }
+                }
+            var sections = new List<object>();
+            foreach (var spec in new[] { Tuple.Create("front", bfLat, bfLon, 1200.0), Tuple.Create("cell", bcLat, bcLon, 60.0) })
+            {
+                int nx = 96, nz = 28; var dens = new List<double>(); var tsurf = new List<double>(); var front = new List<double>(); var cell = new List<double>();
+                double a = bp.RadiusM, half = spec.Item4 * 1000.0 * 0.5;
+                for (int k = 0; k < nx; k++)
+                {
+                    double x = -half + k * 2.0 * half / (nx - 1);
+                    double lon = spec.Item3 + x / (a * Math.Cos(spec.Item2));
+                    for (int z = 0; z < nz; z++) { g.Sample(spec.Item2, lon, z * 500.0, utm, out w); dens.Add(w.Density3D); }
+                    g.Sample(spec.Item2, lon, 0.0, utm, out w); tsurf.Add(w.TempK); front.Add(w.FrontKPer100Km); cell.Add(w.CellStrength);
+                }
+                sections.Add(new Dictionary<string, object> { { "kind", spec.Item1 }, { "lat_deg", spec.Item2 * 180 / Math.PI }, { "lon_deg", spec.Item3 * 180 / Math.PI }, { "length_km", spec.Item4 },
+                    { "nx", nx }, { "nz", nz }, { "dz_m", 500.0 }, { "density", dens }, { "temp_k", tsurf }, { "front_k100km", front }, { "cell", cell } });
+            }
+            File.WriteAllText(args[5], Json.Write(new Dictionary<string, object> { { "body", bp.Name }, { "seed", seed }, { "sites", sites }, { "sections", sections }, { "section_ut_days", utm / 86400.0 } }));
+            Console.WriteLine("wrote " + args[5]);
             return 0;
         }
 

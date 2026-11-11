@@ -124,7 +124,7 @@ namespace AtmoSim.Runner
                     r.Add("(d) cold set: smallest ice thickness over a year at " + nper + " sea texels above 75 degrees (m)", nper > 0 ? minPer : double.NaN, "> 0.1 (perennial)", nper > 0 && minPer > 0.1, true, mode, "A");
                     var b35 = Study.ByName("kerbin"); b35.SalinityPsu = 35.0; var b0 = Study.ByName("kerbin"); b0.SalinityPsu = 0.0;
                     var g35 = new WeatherGenerator(b35, 1); var g0 = new WeatherGenerator(b0, 1);
-                    double worst = -1e9; int nsal = 0;
+                    double worst = -1e9; int nsal = 0; string worstAt = "";
                     for (double lat = 55.0; lat <= 85.0; lat += 5.0)
                     {
                         var s35 = SeaSites(g35, lat, 30.0); var s0 = SeaSites(g0, lat, 30.0);
@@ -132,10 +132,14 @@ namespace AtmoSim.Runner
                             for (int k = 0; k < 12; k++)
                             {
                                 double ut = (2.0 + k / 12.0) * b35.YearS;
-                                worst = Math.Max(worst, s35[i].Evaluate(ut).IceThicknessM - s0[i].Evaluate(ut).IceThicknessM); nsal++;
+                            {
+                                double h35 = s35[i].Evaluate(ut).IceThicknessM, h0 = s0[i].Evaluate(ut).IceThicknessM;
+                                if (h35 - h0 > worst) { worst = h35 - h0; worstAt = "lat " + lat + ", site " + i + ", year phase " + (k / 12.0).ToString("F2") + ", 35 psu " + h35.ToString("F3") + " m, 0 psu " + h0.ToString("F3") + " m"; }
+                                nsal++;
+                            }
                             }
                     }
-                    r.Add("(d) ice at 35 psu minus ice at 0 psu, largest difference over " + nsal + " site-times (m)", worst, "<= 0", worst <= 1e-9, true, mode, "A");
+                    r.Add("(d) ice at 35 psu minus ice at 0 psu, largest difference over " + nsal + " site-times (m); worst: " + worstAt, worst, "<= 0", worst <= 1e-9, true, mode, "A");
                     double dTf = b0.FreezePointK - b35.FreezePointK;
                     r.Add("(d) freezing point at 35 psu lower than at 0 psu by (K)", dTf, "1.89 +- 0.01", Math.Abs(dTf - 1.89) <= 0.01, true, mode, "A");
                     // dust and wet/dry state, snow bounds
@@ -179,7 +183,8 @@ namespace AtmoSim.Runner
                         if (Math.Abs(ph - 0.25) < 5.0 * day / year) spring += h[d];
                         if (Math.Abs(ph - 0.75) < 5.0 * day / year) autumn += h[d];
                     }
-                    if (autumn > 1e-6) ratios.Add(spring / autumn);
+                    // an ice-free autumn (zero thickness) counts as the thickness of new ice (0.01 m): the ratio stays defined
+                    ratios.Add(spring / Math.Max(autumn, IceModel.NewIceM * 11.0));
                     // second year: first downward and upward crossing of T_f, then the first ice day / ice-free day after it
                     int half = nd / 2, down = -1, up = -1;
                     for (int d = half; d < nd - 1 && (down < 0 || up < 0); d++)

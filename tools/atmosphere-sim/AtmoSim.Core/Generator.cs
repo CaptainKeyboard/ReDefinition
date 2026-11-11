@@ -154,6 +154,10 @@ namespace AtmoSim.Core
                 double latAbs = DMath.Clamp(jetLat + (Hash.Draw(hg, 1) * 2.0 - 1.0) * 0.5 * ly / a, 0.35, 1.35);
                 double cosC = DMath.Cos(latAbs);
                 double lon0 = (Hash.Draw(hg, 0) * 2.0 - 1.0) * DMath.Pi;
+                // Comb placement (RESULT.md H6, iteration 2, switch BodyParams.CombPlacement): the longitude of slot j of n at mid-life lies in the sector j of the parallel,
+                // jittered by 60 % of the sector width, in a frame that moves with the nominal angular jet speed, so the systems of one hemisphere do not overlap by chance.
+                double comb = DMath.TwoPi * (j + 0.5 + 0.6 * (Hash.Draw(hg, 0) - 0.5)) / n;
+                double omegaRef = D.JetSpeed0 / (a * DMath.Cos(D.JetLat0));
                 double r1 = 0.85 + 0.4 * Hash.Draw(hg, 3);
                 double lambda = 3.0 * r * r1;
                 double lx = 0.9 * lambda;
@@ -161,7 +165,9 @@ namespace AtmoSim.Core
                 var sl = new Slot();
                 sl.Valid = true;
                 sl.LatC = hs * latAbs; sl.CosLatC = cosC;
-                sl.LonC = DMath.WrapPi(lon0 + uj * (ut - tm) / (a * cosC));
+                sl.LonC = Body.CombPlacement
+                    ? DMath.WrapPi(comb + omegaRef * ut + (uj / (a * cosC) - omegaRef) * (ut - tm))
+                    : DMath.WrapPi(lon0 + uj * (ut - tm) / (a * cosC));
                 sl.K = DMath.TwoPi / lambda; sl.Lx = lx; sl.Ly = ly;
                 sl.InvLx2 = 1.0 / (lx * lx); sl.InvLy2 = 1.0 / (ly * ly);
                 // the temperature anomaly (fronts) has a narrower envelope along the track and a longer one across: one dominant front per system

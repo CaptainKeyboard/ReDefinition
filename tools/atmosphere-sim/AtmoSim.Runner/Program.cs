@@ -21,6 +21,7 @@ namespace AtmoSim.Runner
             if (cmd == "smoke") return Study.Smoke(args);
             if (cmd == "month") return Study.Month(args);
             if (cmd == "zonal") return Study.Zonal(args);
+            if (cmd == "series") return Study.Series(args);
             if (cmd == "frontdebug") return Study.FrontDebug(args);
             if (cmd == "cost") return Timing.Cost(args);
             if (cmd == "determinism") return Timing.Determinism(args);

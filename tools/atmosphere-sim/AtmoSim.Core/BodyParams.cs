@@ -53,6 +53,8 @@ namespace AtmoSim.Core
         // Switches of the A/B runs.
         public bool WavesEnabled = true;
         public bool CellsEnabled = true;
+        // Iteration 2 of the B10 proof (RESULT.md H6): slots in sectors of the parallel (a comb) instead of independent uniform longitudes. Off in the signed generator.
+        public bool CombPlacement = false;
         // System generations: lifetime range in days of 86400 s (a generation of a slot lasts one period drawn once per slot).
         public double SystemLifeMinDays = 3.0;
         public double SystemLifeMaxDays = 6.0;

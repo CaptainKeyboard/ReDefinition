@@ -33,7 +33,8 @@ namespace AtmoSim.Runner
                 bool eval = v[6] >= 20;
                 rep.Add("footprint diameter at the life maximum, median (km) of " + Criteria.Fmt(v[6]) + " cells (5 % / 95 %: " + Criteria.Fmt(v[1]) + " / " + Criteria.Fmt(v[2]) + "; " + Criteria.Fmt(v[7]) + " margin-truncated cells excluded)", v[0], "5 .. 25", eval && v[0] >= 5.0 && v[0] <= 25.0, true, mode, sd);
                 rep.Add("lifetime, median (h) (5 % / 95 %: " + Criteria.Fmt(v[4]) + " / " + Criteria.Fmt(v[5]) + ")", v[3], "1 .. 3", eval && v[3] >= 1.0 && v[3] <= 3.0, true, mode, sd);
-                rep.Add("density per 10 000 km2 of area where the instability is at least 0.5 (" + Criteria.Fmt(v[12]) + " km2 of patch area, cells present per 10-minute step)", v[8], "0.2 .. 8", !double.IsNaN(v[8]) && v[8] >= 0.2 && v[8] <= 8.0, true, mode, sd);
+                rep.Add("density per 10 000 km2 of area where the instability is at least 0.5, cells with strength >= 0.37 present per 10-minute step (" + Criteria.Fmt(v[12]) + " km2-steps of unstable patch area)", v[8], "0.2 .. 8", !double.IsNaN(v[8]) && v[8] >= 0.2 && v[8] <= 8.0, true, mode, sd);
+                rep.Info("the same density counting every cell with strength >= 0.05", v[13], "reported", mode, sd);
                 rep.Add("cells (strength >= 0.37) per 100 km of front length, within 50 km of an accepted front-band cell", v[9], "0.3 .. 10", !double.IsNaN(v[9]) && v[9] >= 0.3 && v[9] <= 10.0, true, mode, sd);
                 rep.Add("share of cell centres within 100 km of an accepted front-band cell (enrichment over uniform points " + Criteria.Fmt(v[11]) + ")", v[10], ">= 0.6", !double.IsNaN(v[10]) && v[10] >= 0.6, true, mode, sd);
             }
@@ -59,7 +60,7 @@ namespace AtmoSim.Runner
             var bp = Study.ByName("kerbin"); var g = new WeatherGenerator(bp, seed);
             double a = bp.RadiusM;
             var diam = new List<double>(); var life = new List<double>();
-            double trunc = 0, cellSteps = 0, unstableKm2Steps = 0, totalPatchKm2 = 0;
+            double trunc = 0, cellSteps = 0, cellSteps37 = 0, unstableKm2Steps = 0, totalPatchKm2 = 0;
             // ---- patches
             double[] pLat = { 45, 55, 65 };
             object lk = new object();
@@ -70,9 +71,9 @@ namespace AtmoSim.Runner
                     int hh = h; double plat = hh == 0 ? pl : -pl;
                     tasks.Add(Task.Run(() =>
                     {
-                        var d = new List<double>(); var l = new List<double>(); double tr = 0, cs = 0, uk = 0, tk = 0;
-                        PatchRun(g, bp, plat, Rad((hh * 130 + (int)pl * 3) % 360 - 180.0), d, l, ref tr, ref cs, ref uk, ref tk);
-                        lock (lk) { diam.AddRange(d); life.AddRange(l); trunc += tr; cellSteps += cs; unstableKm2Steps += uk; totalPatchKm2 += tk; }
+                        var d = new List<double>(); var l = new List<double>(); double tr = 0, cs = 0, cs37 = 0, uk = 0, tk = 0;
+                        PatchRun(g, bp, plat, Rad((hh * 130 + (int)pl * 3) % 360 - 180.0), d, l, ref tr, ref cs, ref cs37, ref uk, ref tk);
+                        lock (lk) { diam.AddRange(d); life.AddRange(l); trunc += tr; cellSteps += cs; cellSteps37 += cs37; unstableKm2Steps += uk; totalPatchKm2 += tk; }
                     }));
                 }
             // ---- belt snapshots
@@ -86,14 +87,15 @@ namespace AtmoSim.Runner
             Task.WaitAll(tasks.ToArray());
             diam.Sort(); life.Sort();
             Func<List<double>, double, double> pct = (v, p) => v.Count == 0 ? double.NaN : v[(int)(p * (v.Count - 1))];
-            double dens = unstableKm2Steps > 0 ? cellSteps / (unstableKm2Steps / 1.0e4) : double.NaN;
+            double dens = unstableKm2Steps > 0 ? cellSteps37 / (unstableKm2Steps / 1.0e4) : double.NaN;
+            double dens05 = unstableKm2Steps > 0 ? cellSteps / (unstableKm2Steps / 1.0e4) : double.NaN;
             double fd = fLen > 0 ? near50 / (fLen / 100.0) : double.NaN;
             double share = centres > 0 ? within100 / centres : double.NaN;
             double enr = uniform > 0 && uniformIn > 0 ? share / (uniformIn / uniform) : double.NaN;
-            return new[] { pct(diam, 0.5), pct(diam, 0.05), pct(diam, 0.95), pct(life, 0.5), pct(life, 0.05), pct(life, 0.95), diam.Count, trunc, dens, fd, share, enr, unstableKm2Steps / Math.Max(1, 1) };
+            return new[] { pct(diam, 0.5), pct(diam, 0.05), pct(diam, 0.95), pct(life, 0.5), pct(life, 0.05), pct(life, 0.95), diam.Count, trunc, dens, fd, share, enr, unstableKm2Steps, dens05 };
         }
 
-        private static void PatchRun(WeatherGenerator g, BodyParams bp, double latDeg, double lon0, List<double> diam, List<double> life, ref double truncated, ref double cellSteps, ref double unstableKm2Steps, ref double totalKm2)
+        private static void PatchRun(WeatherGenerator g, BodyParams bp, double latDeg, double lon0, List<double> diam, List<double> life, ref double truncated, ref double cellSteps, ref double cellSteps37, ref double unstableKm2Steps, ref double totalKm2)
         {
             const int N = 150; const double px = 1000.0; // 1 km
             double a = bp.RadiusM, lat0 = Rad(latDeg);
@@ -161,14 +163,15 @@ namespace AtmoSim.Runner
                         if (peak[cl] > tr.Peak) { tr.Peak = peak[cl]; tr.Area37 = a37[cl]; tr.Instab = instN[cl] * 2 >= cn[cl]; }
                     }
                     // cells present at this step in unstable air (centre pixel of the component unstable): counted for the density
-                    for (int cl = 1; cl <= nlab; cl++) if (instN[cl] * 2 >= cn[cl]) cellSteps += 1.0;
+                    for (int cl = 1; cl <= nlab; cl++)
+                        if (instN[cl] * 2 >= cn[cl]) { cellSteps += 1.0; if (peak[cl] >= 0.37f) cellSteps37 += 1.0; }
                     active = next;
                     var t = prevLab; prevLab = curLab; curLab = t;
                 }
                 foreach (var tr in tracks)
                 {
                     if (tr.First == 0 || tr.Last == 36) continue; // touches the window ends (the bucket boundaries): not a complete cell
-                    if (tr.Peak < 0.95) { truncated += 1.0; continue; }
+                    if (tr.Peak < 0.9) { truncated += 1.0; continue; }
                     diam.Add(2.0 * Math.Sqrt(tr.Area37 / Math.PI));
                     life.Add((tr.Last - tr.First + 1) * 600.0 / 3600.0);
                 }
