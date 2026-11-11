@@ -190,6 +190,9 @@ def main(argv):
         bad = 0
         for path, data in files.items():
             on_disk = open(path, "rb").read() if os.path.exists(path) else None
+            # A checkout may turn the line ends into CRLF (core.autocrlf); the text files are compared by their lines.
+            if on_disk is not None and path.endswith(".cfg"):
+                on_disk = on_disk.replace(b"\r\n", b"\n")
             if on_disk != data:
                 print("differs: " + os.path.relpath(path, ROOT))
                 bad += 1
