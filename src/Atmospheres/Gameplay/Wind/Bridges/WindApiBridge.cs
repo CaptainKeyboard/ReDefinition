@@ -7,7 +7,8 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The bridge to WindAPI (Zondulus, CC0 1.0; https://github.com/Zondulus/WindAPI). WindAPI multiplexes the wind that FAR applies: a mod
+    // The bridge to WindAPI (https://github.com/Zondulus/WindAPI; interface shape from the brief, no copy installed, licence not read here
+    // [VERIFY], so no credit row). WindAPI multiplexes the wind that FAR applies: a mod
     // implements WindAPI.IWindProvider (ProviderID, GetWind(CelestialBody, Part, Vector3) returning a world-frame vector) and registers it
     // with WindAPI.WindManager.Instance.RegisterProvider; WindManager.Instance.GetWindAtLocation(body, part, position, ignoreProvider) sums
     // the providers. The bridge reaches both by reflection only: no reference to WindAPI.dll. It does two things.

@@ -118,7 +118,6 @@ The defaults that ReDefinition's registrations take from these mods are listed i
 | **ModuleManager** | ialdabaoth (original), Sarbian, blowfishpro | Creative Commons share-alike per its README; the repository and the 4.2.3 release carry no licence file | ReDefinition's patches (landing-leg grip, Parallax grass room) need it, and a pack can patch the registrations with it |
 | **Harmony** (HarmonyKSP) | Andreas Pardeike; packaged for KSP by gotmachine, DasSkelett, HebaruSan | MIT | ReDefinition's patches of the game and of other mods run on it; it is a requirement |
 | **ModularFlightIntegrator** | sarbian | MIT (its `LICENSE.txt`, Copyright 2014 sarbian) | The Atmospheres' wind on vehicles registers an `UpdateAerodynamics` override through its public API (`RegisterUpdateAerodynamicsOverride`, `BaseFIUpdateAerodynamics`), by reflection, and the reconnaissance probe of the tests tried it on a parachute drop |
-| **WindAPI** | Zondulus | CC0 1.0 (its `License.txt`) | The Atmospheres' wind bridge follows its interface (`WindAPI.IWindProvider` with `ProviderID` and `GetWind(CelestialBody, Part, Vector3)`; `WindManager.Instance` with `RegisterProvider`, `DeregisterProvider` and `GetWindAtLocation`) by reflection, to put the wind this mod applies into FAR's wind and to read the wind the other providers add. WindAPI needs FAR; experimental, as no copy is installed |
 
 ## Mods whose technique ReDefinition adapted or builds around
 

@@ -6,7 +6,7 @@ using ReDefinition.Atmospheres;
 using ReDefinition.Core;
 using UnityEngine;
 
-// The fixtures of the two foreign APIs, in the namespaces and shapes the mods ship them: WindAPI (Zondulus, CC0 1.0) and
+// The fixtures of the two foreign APIs, in the namespaces and shapes the mods ship them: WindAPI [VERIFY] and
 // ModularFlightIntegrator (sarbian, MIT). Plain classes: the bridge reaches them by name and member only.
 namespace WindAPI
 {
