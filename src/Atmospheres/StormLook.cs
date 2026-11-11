@@ -10,6 +10,7 @@ namespace ReDefinition.Atmospheres
     // Numbers: the fog is ExponentialSquared with density sqrt(3) / visibility, so that 5 % of the contrast is left at the
     // visibility. The visibility goes from 20 km at intensity 0 down to stormVisibility (60 m) at 1, and is about 245 m at 0.5. The
     // fog colour is grey-white scaled by the sun's elevation. The storm is full below 4 km above sea level and gone from 10 km.
+    [Obsolete("Replaced by PrecipitationLook; deleted together with StormEffect, StormFlakes, StormVeil and StormVolume when C25 removes the cell scheduler.")]
     internal static class StormLook
     {
         // The visibility in clear air, in metres: where the fog fades out entirely.

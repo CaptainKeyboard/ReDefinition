@@ -82,7 +82,8 @@ namespace ReDefinition.Atmospheres
             return Sun.Instance != null ? Sun.Instance.sunLight : null;
         }
 
-        // Reads the game for this frame. False when there is no flight camera or vessel (the input is then inactive).
+        // Reads the game for this frame. The per-frame allocation of this method and LogChanges is not covered by an L0 test (they touch
+        // the game); the composer is. Measure it in the first L3 series row (GC alloc per frame in flight). False when there is no flight camera or vessel (the input is then inactive).
         private bool Gather(out DriverInput input)
         {
             input = DriverInput.Neutral();

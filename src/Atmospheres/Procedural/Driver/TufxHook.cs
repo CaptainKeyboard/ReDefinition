@@ -8,8 +8,11 @@ namespace ReDefinition.Atmospheres
     // the eye adaptation of the post-processing: postExposure = base - ExposurePerLevel x level. TUFX is reached by reflection only
     // (TUFX.TexturesUnlimitedFXLoader.INSTANCE, CurrentProfile.Settings, the ColorGrading setting and its postExposure parameter; names
     // read in TUFX's source, GPL-3.0-or-later) and nothing is written when any step is missing: the hook is silent when TUFX is absent
-    // or its members differ. postExposure acts in an HDR profile only [VERIFY in the game with TUFX present]. A storm colour LUT is not
-    // switched: TUFX has no member for it that was found, so that part of the plan is not done.
+    // or its members differ. postExposure acts in an HDR profile only [VERIFY in the game with TUFX present]. A storm colour LUT with a
+    // 3 s crossfade is not done: TUFX's ColorGrading has externalLut (used only in GradingMode.External, which replaces the profile's
+    // whole grading) and ldrLut with ldrLutContribution (used only in GradingMode.LowDefinitionRange), while the installed profile
+    // (Blackrack_TUFX) is HDR. A fade would mean switching the grading mode of the player's profile at runtime and baking a LUT; open
+    // item for E40 (needs an in-game look at a TUFX profile), owner package E40.
     internal sealed class TufxHook
     {
         // The exposure lowered at level 1, in EV (the look's constant, Tuning "tufx.exposurePerLevel").
