@@ -112,6 +112,15 @@ def stretch(v):
     return (v - lo) / (hi - lo)
 
 
+def equalize(v):
+    """Each value replaced by its rank over the volume, (rank + 0.5) / count: uniform 0..1, the median 0.5."""
+    flat = np.asarray(v).ravel()
+    order = np.argsort(flat, kind="stable")
+    ranks = np.empty(len(flat))
+    ranks[order] = (np.arange(len(flat)) + 0.5) / len(flat)
+    return ranks.reshape(np.shape(v))
+
+
 SHAPE_PERLIN = (2, 4, 8, 16)
 SHAPE_PERLIN_W = (2.8, 0.8, 0.7, 0.9)
 SHAPE_WORLEY = (4, 8, 16)
@@ -138,7 +147,7 @@ def gen_shape(n, seed=1):
     pn = stretch(pn)
     wn = worley_fbm(u, SHAPE_WORLEY, SHAPE_WORLEY_W, seed + 101)
     pw = wn + pn * (1.0 - wn)  # remap(perlin, 0, 1, worley, 1)
-    return stretch(pw).reshape(n, n, n)
+    return equalize(pw).reshape(n, n, n)
 
 
 def gen_detail(n, seed=2):

@@ -38,6 +38,11 @@ namespace ReDefinition.WeatherPlayer
             foreach (LayersJob job in file.jobs)
             {
                 LayerFrame frame = LayersSetup.Load(job, input, renderer);
+                if (done == 0)
+                {
+                    Sink.Info("noise_generation_ms", renderer.Noise.GenerationMs);
+                    Sink.Info("noise_volume_bytes", renderer.Noise.VolumeBytes);
+                }
                 float tan = Mathf.Tan(job.fovV * Mathf.Deg2Rad * 0.5f);
                 Vector3 right = LayersSetup.V(job.right) * tan * (job.width / (float)job.height), up = LayersSetup.V(job.up) * tan;
                 renderer.SetCamera(LayersSetup.V(job.position), LayersSetup.V(job.forward), right, up, Vector2.zero);

@@ -10,8 +10,9 @@
 // _LayerB[i].z) times the type table's profile, where the type value of the type map picks two neighbouring types of the layer's table
 // and interpolates their base, top and profile. The maps are equirectangular, row 0 at the north pole, column 0 at longitude -180,
 // read in the map frame (_WorldToMap: x towards longitude 0, y towards 90 east, z north) turned by the layer's longitude shift.
-// Basic value noise moves the coverage threshold and erodes the edge; T02 replaces it. The light is ReDefinitionAtmospheresCloudLight.cginc
-// (package T03): dual-lobe phase, octave multiple scattering, powder, light march with cone taps, ambient, extra lights, the light cache.
+// The shape noise moves the coverage threshold and the detail erodes the edge (ReDefinitionAtmospheresNoise.cginc, package T02). The light is
+// ReDefinitionAtmospheresCloudLight.cginc (package T03): dual-lobe phase, octave multiple scattering, powder, light march with cone taps,
+// ambient, extra lights, the light cache.
 //
 // Techniques (no code taken): the sphere-shell ray intervals and the type-by-height table follow the common shell cloud renderers (Schneider,
 // "The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015; Hillaire, "Physically Based Sky, Atmosphere and Cloud
@@ -124,26 +125,6 @@ Shader "ReDefinition/AtmospheresLayers"
             }
         }
 
-        // ---- value noise (basic; the noise package replaces it) ----
-        float Hash3(float3 p)
-        {
-            return frac(sin(dot(p, float3(12.9898, 78.233, 37.719))) * 43758.5453);
-        }
-
-        float Noise3(float3 x)
-        {
-            float3 i = floor(x), f = frac(x);
-            f = f * f * (3.0 - 2.0 * f);
-            float n000 = Hash3(i), n100 = Hash3(i + float3(1, 0, 0)), n010 = Hash3(i + float3(0, 1, 0)), n110 = Hash3(i + float3(1, 1, 0));
-            float n001 = Hash3(i + float3(0, 0, 1)), n101 = Hash3(i + float3(1, 0, 1)), n011 = Hash3(i + float3(0, 1, 1)), n111 = Hash3(i + float3(1, 1, 1));
-            return lerp(lerp(lerp(n000, n100, f.x), lerp(n010, n110, f.x), f.y), lerp(lerp(n001, n101, f.x), lerp(n011, n111, f.x), f.y), f.z);
-        }
-
-        float Fbm3(float3 p)
-        {
-            return 0.5 * Noise3(p) + 0.3 * Noise3(p * 2.03 + 11.7) + 0.2 * Noise3(p * 4.11 + 3.1);
-        }
-
         // ---- maps ----
         float2 MapUv(float3 pc, float shiftDeg)
         {
@@ -156,7 +137,10 @@ Shader "ReDefinition/AtmospheresLayers"
             return float2(u, v);
         }
 
-        // The largest amount the coverage noise moves the map value by (T02 replaces the noise and states its own bound here).
+        // ---- shape and erosion (package T02) ----
+        #include "ReDefinitionAtmospheresNoise.cginc"
+
+        // The largest amount the coverage noise moves the map value by: the shape value is 0 to 1, so the threshold moves by half the amount.
         float CoverageNoiseBound(int li)
         {
             return 0.5 * _LayerD[li].x;
@@ -203,7 +187,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 cov = UNITY_SAMPLE_TEX2DARRAY_LOD(_CovMaps, float3(uv, slice), 0).r;
                 typeValue = UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).r;
             }
-            float noiseAmount = _LayerD[li].x;
             float erosion = 0;
             float typeCount = _LayerC[li].w;
             // The type value spans the table; two neighbouring types are interpolated (heights and profile).
@@ -220,31 +203,23 @@ Shader "ReDefinition/AtmospheresLayers"
             float edge = max(_LayerB[li].z, 1e-4);
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
-            // The noise package states its own bound in CoverageNoiseBound.
             if (_CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
-            if (noiseAmount > 0 && fmod(floor(_CostP.y * 0.5), 2.0) < 0.5)
-            {
-                float n = Fbm3(pc * _LayerD[li].y);
-                cov += (n - 0.5) * noiseAmount;
-            }
-            float s = saturate((cov + coverage - 1.0) / edge + 0.5);
+            // The cost debug bits switch the shape noise (2) and the erosion (4) off.
+            float noiseAmount = fmod(floor(_CostP.y * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
+            if (fmod(floor(_CostP.y * 0.25), 2.0) >= 0.5) erosion = 0;
+            // The coverage share: the map moved by the shape noise, the soft edge, the erosion (read only in the edge band) and the edge hardness (T02).
+            float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion);
             if (s <= 0) return 0;
             float h = (share - b) / (tp - b);
             float prof = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
-            float dens = _LayerB[li].x * s * prof * fade;
-            // (1 - s) is zero inside the cloud body: the erosion has no effect there and its noise is not evaluated.
-            if (erosion > 0 && noiseAmount > 0 && (s < 1.0 || _CostP.x < 0.5) && fmod(floor(_CostP.y * 0.25), 2.0) < 0.5)
-            {
-                float n2 = Fbm3(pc * _LayerD[li].y * 5.3 + 7.0);
-                dens *= saturate(1.0 - erosion * (1.0 - s) * (1.5 - n2));
-            }
-            return dens;
+            return _LayerB[li].x * s * prof * fade;
         }
 
         // ---- light (package T03: the phase, the light march, the octaves, the ambient, the lights, the light cache) ----
         #define CLOUDLIGHT_FUNCS
         #include "ReDefinitionAtmospheresCloudLight.cginc"
         #undef CLOUDLIGHT_FUNCS
+
 
         struct MarchOut
         {
@@ -391,6 +366,11 @@ Shader "ReDefinition/AtmospheresLayers"
                         dirPart = _SunColor.rgb * lit * ph * _PhaseP.w;
                         src = dirPart + ambPart;
                     }
+                    // The colour map's tint of the layer (P15; one when the layer has none).
+                    float3 tint = NoiseTint(li, pc);
+                    src *= tint;
+                    dirPart *= tint;
+                    ambPart *= tint;
                     r.direct += T * dirPart * ext;
                     r.ambient += T * ambPart * ext;
                     r.rgb += T * src * ext;

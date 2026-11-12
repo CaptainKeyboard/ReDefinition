@@ -87,6 +87,8 @@ namespace ReDefinition.Atmospheres
         internal RenderTexture Target { get { return target; } }
         internal CommandBuffer Commands { get { return commands; } }
         internal LayerMapStore Maps { get; } = new LayerMapStore();
+        // The noise volumes and the shape model's numbers (package T02); the driver advances them once per frame (Noise.Advance).
+        internal LayerNoise Noise { get; } = new LayerNoise();
 
         internal bool Init(Shader shader)
         {
@@ -116,6 +118,7 @@ namespace ReDefinition.Atmospheres
             material.SetTexture(IdTypeProfile, profileTexture);
             material.SetTexture(IdTypeInfo, infoTexture);
             commands = new CommandBuffer { name = "ReDefinition layer pass" };
+            Noise.StartGeneration();
             return true;
         }
 
@@ -141,6 +144,7 @@ namespace ReDefinition.Atmospheres
             if (commands != null) commands.Release();
             if (target != null) target.Release();
             Maps.Dispose();
+            Noise.Dispose();
             UnityEngine.Object.Destroy(material);
             UnityEngine.Object.Destroy(profileTexture);
             UnityEngine.Object.Destroy(infoTexture);
@@ -230,6 +234,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
             m.SetVector(IdCostP, new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), 0f));
             if (f.Light != null) f.Light.Upload(m);
+            Noise.Bind(m, layerCount);
         }
 
         // The composite reads the march target's texel size from the material (Unity does not fill it for a texture set globally).

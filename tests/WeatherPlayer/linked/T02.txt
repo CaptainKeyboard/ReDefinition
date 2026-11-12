@@ -1,0 +1,4 @@
+# Linked into the weather player for the noise and shape model (package T02): the generators of the tileable volumes, the CPU model of the
+# shape and erosion, the layer binder (volumes, switches, flow and colour maps) and the shader's include (the shader itself is T01's manifest).
+src/Atmospheres/Render/Layers/Noise/*.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresNoise.cginc

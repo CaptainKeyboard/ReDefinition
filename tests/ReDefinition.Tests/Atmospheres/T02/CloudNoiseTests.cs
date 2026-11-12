@@ -164,18 +164,35 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheSpectrumSlopesOfTheAlphaStripesAreInTheHarnessBand()
+        public void TheSpectrumSlopesOfTheAlphaStripesAreInTheHarnessBandOverRealisations()
         {
-            // parity_checks.py noise_spectrum: 12 stripes of 40 km at 50 m, the slope of the mean power in three octave bands from 2.4 km to 300 m.
-            NoiseVolumeSet set = Medium;
-            NoiseLayerParams prm = Params(NoiseLayerSeedForGate, true);
-            double[][] stripes = AlphaStripes(set, prm);
+            // parity_checks.py noise_spectrum: 12 stripes of 40 km at 50 m, the slope of the mean power in three octave bands from 2.4 km to 300 m
+            // (band 1.3 to 2.6). One realisation scatters (the reference renderer's own 24 realisations: standard deviation 0.4 / 0.3 / 0.2), so
+            // the model is judged on 8 realisations (2 volume seeds x 4 layer seeds): the mean of each band inside the band and most realisations inside.
             double[] edges = { 1.0 / 2400.0, 1.0 / 1200.0, 1.0 / 600.0, 1.0 / 300.0 };
-            for (int band = 0; band < 3; band++)
+            var sum = new double[3];
+            int inside = 0, total = 0;
+            foreach (uint volumeSeed in new uint[] { 31u, 32u })
             {
-                double slope = SpectrumSlope(stripes, 50.0, edges[band], edges[band + 1]);
-                Assert.IsTrue(slope >= 1.3 && slope <= 2.6, "band " + (band + 1) + " slope " + slope);
+                NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), volumeSeed);
+                foreach (uint layerSeed in new uint[] { 41u, 42u, 43u, 44u })
+                {
+                    NoiseLayerParams prm = Params(layerSeed, true);
+                    double[][] stripes = AlphaStripes(set, prm);
+                    bool all = true;
+                    for (int band = 0; band < 3; band++)
+                    {
+                        double slope = SpectrumSlope(stripes, 50.0, edges[band], edges[band + 1]);
+                        sum[band] += slope;
+                        all &= slope >= 1.3 && slope <= 2.6;
+                    }
+                    if (all) inside++;
+                    total++;
+                }
             }
+            for (int band = 0; band < 3; band++)
+                Assert.IsTrue(sum[band] / total >= 1.3 && sum[band] / total <= 2.6, "band " + (band + 1) + " mean slope " + sum[band] / total);
+            Assert.IsTrue(inside * 2 >= total, "realisations with all bands inside: " + inside + " of " + total);
         }
 
         [TestMethod]

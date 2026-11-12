@@ -86,8 +86,19 @@ namespace ReDefinition.Atmospheres
             });
             Stretch(perlinSum);
             for (int i = 0; i < perlinSum.Length; i++) perlinSum[i] = worleySum[i] + perlinSum[i] * (1.0 - worleySum[i]);
-            Stretch(perlinSum);
+            Equalize(perlinSum);
             return ToBytes(perlinSum);
+        }
+
+        // Replaces each value by its rank over the volume (0 to 1, uniform): the shape's median is 0.5, so that a coverage threshold at the
+        // middle of the noise covers half the sky and the noise moves it by as much one way as the other.
+        private static void Equalize(double[] v)
+        {
+            var keys = (double[])v.Clone();
+            var order = new int[v.Length];
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+            Array.Sort(keys, order);
+            for (int rank = 0; rank < order.Length; rank++) v[order[rank]] = (rank + 0.5) / order.Length;
         }
 
         // The detail volume, n^3 bytes (R8).

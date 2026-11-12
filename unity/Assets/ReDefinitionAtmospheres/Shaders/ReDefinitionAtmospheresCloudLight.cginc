@@ -105,6 +105,7 @@ float Luma(float3 c)
 float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot)
 {
     float tau = 0;
+    gNoiseLod = 1;   // the light path reads the shape only, not the erosion detail (T02)
     float3 ax = abs(dir.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 u = normalize(cross(dir, ax));
     float3 v = cross(dir, u);
@@ -146,6 +147,7 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
             tau += acc;
         }
     }
+    gNoiseLod = 0;
     return tau;
 }
 

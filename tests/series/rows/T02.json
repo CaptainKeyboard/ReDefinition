@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema.json",
+  "package": "T02",
+  "rows": [
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-spectrum.b1", "min": 1.3, "max": 2.6, "unit": "exponent", "note": "spectrum slope of the alpha stripes, band 2.4 to 1.2 km (tests/data/parity/checks.json N06: 1.3 to 2.6, fixed by T11); 12 stripes of 40 km at 50 m from the pass; the check judges one realisation" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-spectrum.b2", "min": 1.3, "max": 2.6, "unit": "exponent", "note": "the same, band 1.2 km to 600 m" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-spectrum.b3", "min": 1.3, "max": 2.6, "unit": "exponent", "note": "the same, band 600 to 300 m" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-spectrum.all_bands", "equals": 1, "unit": "flag", "note": "the harness's verdict: all three bands inside" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-repetition", "max": 0.15, "unit": "correlation", "note": "autocorrelation of the 40 x 20 km optical-depth map at the volume's tile distance (N05: 0.15, fixed by T11)" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-repetition.2tiles", "max": 0.15, "unit": "correlation", "note": "at two tile distances" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-repetition.20km", "max": 0.15, "unit": "correlation", "note": "at 20 km, the harness reference's lag" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-repetition.seed2", "max": 0.15, "unit": "correlation", "note": "the tile distance, volume seed 2" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-repetition.seed3", "max": 0.15, "unit": "correlation", "note": "the tile distance, volume seed 3" },
+    { "series": "player-T02", "section": "T02", "metric": "R02-noise-repetition.tiled_detected", "min": 0.5, "unit": "correlation", "note": "with the untiling off the same check reads the tile (the check can fail)" },
+    { "series": "player-T02", "section": "T02", "metric": "noise.cpu_model_tau_p95_rel", "max": 0.03, "unit": "relative", "note": "the pass's optical depth against the CPU model (noise_model.py, float64) on the same 8192 rays: 95th percentile of the relative error over the rays with tau > 0.1" },
+    { "series": "player-T02", "section": "T02", "metric": "noise.cpu_model_edge_rays", "min": 100, "unit": "rays", "note": "the comparison contains rays through the partly covered edge band (0.05 < tau < 0.95)" },
+    { "series": "player-T02", "section": "T02", "metric": "noise.cpu_model_edge_p95_rel", "max": 0.05, "unit": "relative", "note": "the same 95th percentile over the edge rays alone" },
+    { "series": "player-T02", "section": "T02", "metric": "R16-flow-angle.NW", "max": 5.0, "unit": "deg", "note": "the direction the pattern moves in between two flow-map phases against the map's direction, north-west quadrant (brief T02: 5 degrees); NE, SW, SE have other directions" },
+    { "series": "player-T02", "section": "T02", "metric": "R16-flow-angle.NE", "max": 5.0, "unit": "deg", "note": "the same, north-east quadrant" },
+    { "series": "player-T02", "section": "T02", "metric": "R16-flow-angle.SW", "max": 5.0, "unit": "deg", "note": "the same, south-west quadrant" },
+    { "series": "player-T02", "section": "T02", "metric": "R16-flow-angle.SE", "max": 5.0, "unit": "deg", "note": "the same, south-east quadrant" },
+    { "series": "player-T02", "section": "T02", "metric": "R16-flow-length.NW", "max": 0.10, "unit": "relative", "note": "the distance moved against amplitude x phase change, per quadrant" },
+    { "series": "player-T02", "section": "T02", "metric": "R16-flow-length.NE", "max": 0.10, "unit": "relative", "note": "the same" },
+    { "series": "player-T02", "section": "T02", "metric": "R16-flow-length.SW", "max": 0.10, "unit": "relative", "note": "the same" },
+    { "series": "player-T02", "section": "T02", "metric": "R16-flow-length.SE", "max": 0.10, "unit": "relative", "note": "the same" },
+    { "series": "player-T02", "section": "T02", "metric": "noise_generation_ms", "max": 2000.0, "required": false, "unit": "ms", "note": "generation of the Medium volumes on a worker [proposed]; reported" },
+    { "series": "player-T02", "section": "T02", "metric": "noise_volume_bytes", "max": 786432.0, "required": false, "unit": "bytes", "note": "the Medium volumes on the GPU [proposed]: 0.75 MB" },
+    { "series": "player-T02", "section": "T02", "metric": "layers_compiled", "equals": 1, "required": false, "note": "the shader with the noise include compiles in the player" },
+    { "series": "player-T02", "section": "T02", "metric": "layers_finite", "equals": 1, "required": false, "note": "no NaN or infinity in any job" }
+  ]
+}

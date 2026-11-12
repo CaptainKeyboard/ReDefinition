@@ -36,6 +36,7 @@ namespace ReDefinition.WeatherPlayer
                 source.Add(def, null, null);
             }
             renderer.Upload(source);
+            ApplyNoise(job, input, renderer);
             if (anyMap)
             {
                 renderer.Maps.Ensure(job.mapWidth, job.mapHeight);
@@ -74,6 +75,36 @@ namespace ReDefinition.WeatherPlayer
             if (job.cheapShare >= 0f) frame.CheapShare = job.cheapShare;
             if (job.fogShare >= 0f) frame.FogShare = job.fogShare;
             return frame;
+        }
+
+        // The noise model of a job (package T02): the switches, the volumes (generated here, blocking), the flow and colour maps and the layers' motion.
+        private static void ApplyNoise(LayersJob job, string input, LayerRenderer renderer)
+        {
+            LayerNoise noise = renderer.Noise;
+            LayersJobNoise n = job.noise;
+            noise.SetFlowMap(null);
+            noise.SetColourMap(null);
+            if (n != null)
+            {
+                NoiseSwitches sw = noise.Switches;
+                sw.Enabled = n.disabled == 0;
+                sw.Untile = n.noUntile == 0;
+                sw.Curl = n.noCurl == 0;
+                sw.SphereScale = n.sphere > 0f ? n.sphere : 1f;
+                sw.Seed = n.seed == 0u ? 1u : n.seed;
+                sw.SizeLevel = n.sizeLevel;
+                noise.FlowTimeSeconds = n.flowTime;
+                if (!string.IsNullOrEmpty(n.flowMap)) noise.SetFlowMap(NoiseMaps.FromBytes(n.mapWidth, n.mapHeight, File.ReadAllBytes(Path.Combine(input, n.flowMap)), "flow map"));
+                if (!string.IsNullOrEmpty(n.colourMap)) noise.SetColourMap(NoiseMaps.FromBytes(n.mapWidth, n.mapHeight, File.ReadAllBytes(Path.Combine(input, n.colourMap)), "colour map"));
+            }
+            for (int l = 0; l < job.layers.Length; l++)
+            {
+                LayersJobLayer jl = job.layers[l];
+                noise.SetMotion(l, new LayerNoiseMotion { FlowAmplitudeM = jl.flowAmplitude, FlowLooped = jl.flowLooped != 0, ColourStrength = jl.colourStrength });
+                Vector3 drift = jl.drift != null && jl.drift.Length >= 3 ? V(jl.drift) : Vector3.zero;
+                noise.SetState(l, drift, jl.rise);
+            }
+            if (noise.Switches.Enabled) noise.EnsureReady();
         }
 
         internal static byte[] Constant(LayersJob job, byte value)

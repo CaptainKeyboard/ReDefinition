@@ -34,6 +34,28 @@ namespace ReDefinition.WeatherPlayer
         public float noiseAmount, noiseScale, shift;
         public float[] emission;
         public LayersJobType[] types;
+        // The noise model's per-layer numbers (package T02): the flow map's largest displacement in m (0: none) and whether it loops, the
+        // colour map's strength, the distance the detail has risen in m, the drift of the pattern in world space (m, applied as one step).
+        public float flowAmplitude, colourStrength, rise;
+        public int flowLooped;
+        public float[] drift;
+    }
+
+    // The switches and maps of the noise model for a job (package T02). The booleans are inverted so that a job without this object has the
+    // production defaults.
+    [Serializable]
+    public sealed class LayersJobNoise
+    {
+        public int disabled, noUntile, noCurl;
+        // The vertical scale of the spherical lattice (0 or 1: the planet-centred lattice).
+        public float sphere;
+        public uint seed;
+        public int sizeLevel = 1;
+        // Raw RGBA8 maps (mapWidth x mapHeight, row 0 = north) next to jobs.json; empty: none.
+        public string flowMap, colourMap;
+        public int mapWidth, mapHeight;
+        // The flow map's time in seconds (the loop is 120 s).
+        public float flowTime;
     }
 
     [Serializable]
@@ -63,6 +85,8 @@ namespace ReDefinition.WeatherPlayer
         // An occluder sphere (centre, radius) whose depth is the scene's; radius 0: none.
         public float[] occluder;
         public LayersJobLayer[] layers;
+        // The noise model's switches and maps (package T02); null: the defaults.
+        public LayersJobNoise noise;
         // The light of the pictures: sun colour, ambient above and below (rgb each).
         public float[] sunColour, ambientTop, ambientBottom;
     }
