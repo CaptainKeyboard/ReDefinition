@@ -44,6 +44,7 @@ namespace ReDefinition.Tests.Atmospheres.A02
         {
             Log.Clear();
             Results.Clear();
+            SeriesProbe.ForgetRunningProbes();
             SeriesProbe.LogLine = Log.Add;
             AtmoResult.Sink = Results.Add;
         }
@@ -137,6 +138,40 @@ namespace ReDefinition.Tests.Atmospheres.A02
             RunFrames(kept, 60, 0.1f);
             Assert.IsTrue(kept.Passed);
             Assert.AreEqual(0, kept.Quits);
+        }
+
+        private static IEnumerator<ProbeWait> Long(ScriptProbe p)
+        {
+            yield return ProbeWait.Seconds(100);
+        }
+
+        [TestMethod]
+        public void TheGameQuitsOnlyAfterTheLastProbeOfTheStartHasItsVerdict()
+        {
+            var shortProbe = new ScriptProbe { Body = Empty };
+            var longProbe = new ScriptProbe { Body = Long };
+            shortProbe.Init();
+            longProbe.Init();
+            RunFrames(shortProbe, 60, 0.1f);
+            Assert.IsTrue(shortProbe.Finished);
+            Assert.AreEqual(0, shortProbe.Quits, "a probe of the start is still running");
+            longProbe.Tick(0.1f);
+            longProbe.Limit = 1;
+            RunFrames(longProbe, 20, 0.1f);
+            Assert.IsTrue(longProbe.Finished);
+            RunFrames(shortProbe, 40, 0.1f);
+            Assert.AreEqual(1, shortProbe.Quits, "the last verdict lets the game quit");
+        }
+
+        [TestMethod]
+        public void TheProbeSwitchTakesAListOfNames()
+        {
+            Assert.IsTrue(SeriesProbe.NamesProbe("B12Probe,C25Probe", "C25Probe"));
+            Assert.IsTrue(SeriesProbe.NamesProbe("b12probe, c25probe", "C25Probe"));
+            Assert.IsFalse(SeriesProbe.NamesProbe("B12Probe,C25Probe", "D30Probe"));
+            var probe = new ScriptProbe { Body = Empty, Arguments = new[] { "x", "-atmoSeries", "K-test", "-atmoProbe", "Other,ScriptProbe" } };
+            probe.Init();
+            Assert.IsTrue(probe.Active);
         }
 
         private static IEnumerator<ProbeWait> FailingCheck(ScriptProbe p)

@@ -162,6 +162,30 @@ namespace ReDefinition.Atmospheres
             get { return failures; }
         }
 
+        // The probes of the process that run their scenario now; the game quits when none is left.
+        private static readonly List<SeriesProbe> RunningProbes = new List<SeriesProbe>();
+
+        private static bool OthersRunning()
+        {
+            lock (RunningProbes) return RunningProbes.Count > 0;
+        }
+
+        // A test starts from an empty set.
+        internal static void ForgetRunningProbes()
+        {
+            lock (RunningProbes) RunningProbes.Clear();
+        }
+
+        // Whether the -atmoProbe value (one name or a comma-separated list) names the probe class.
+        internal static bool NamesProbe(string list, string className)
+        {
+            foreach (string part in list.Split(','))
+            {
+                if (string.Equals(part.Trim(), className, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
         // The start of the series this run is (-atmoStart), or null.
         internal string StartId { get; private set; }
 
@@ -189,8 +213,10 @@ namespace ReDefinition.Atmospheres
             if (!IsActive(args, SeriesName)) return;
             // A start that names its probe (-atmoProbe D38Probe) leaves the other probes of the series idle: the first probe to finish
             // quits the game, so a long scenario cannot share a start with the short ones.
+            // The switch takes one name or a comma-separated list (-atmoProbe B12Probe,C25Probe): the probes of a list share the start
+            // and the game quits only after the last of them has its verdict.
             string only = CommandLine.After(args, OnlySwitch, true);
-            if (!string.IsNullOrEmpty(only) && !string.Equals(only, GetType().Name, StringComparison.OrdinalIgnoreCase)) return;
+            if (!string.IsNullOrEmpty(only) && !NamesProbe(only, GetType().Name)) return;
             StartId = CommandLine.After(args, StartSwitch, true);
             string named = CommandLine.After(args, VariantsSwitch, true);
             variants.Clear();
@@ -207,6 +233,7 @@ namespace ReDefinition.Atmospheres
             }
             scenario = Scenario();
             state = State.Running;
+            lock (RunningProbes) RunningProbes.Add(this);
             LogLine("Probe: series " + SeriesName + (StartId != null ? " start " + StartId : "") + " begins"
                     + (variants.Count > 0 ? " with variants " + string.Join(",", variants.ToArray()) : ""));
         }
@@ -219,7 +246,7 @@ namespace ReDefinition.Atmospheres
         {
             if (state == State.Finished)
             {
-                if (quitIn >= 0)
+                if (quitIn >= 0 && !OthersRunning())
                 {
                     quitIn -= dt;
                     if (quitIn < 0)
@@ -394,6 +421,7 @@ namespace ReDefinition.Atmospheres
                 failures.Add("reverting the variant failed: " + e.Message);
             }
             state = State.Finished;
+            lock (RunningProbes) RunningProbes.Remove(this);
             LogLine(failures.Count == 0 ? "Probe: PASSED" : "Probe: FAILED (" + string.Join("; ", failures.ToArray()) + ")");
             if (!CommandLine.Has(Args(), KeepSwitch, true)) quitIn = QuitDelaySeconds;
         }
