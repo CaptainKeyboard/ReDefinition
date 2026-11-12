@@ -116,6 +116,29 @@ namespace ReDefinition.WeatherPlayer
             done(pixels);
         }
 
+        // The mean luma of the G-buffer's diffuse target over the ground rectangle after the overlay (a second buffer at the same event
+        // copies the target once the overlay's buffer has run): the diffuse change itself, without the lighting.
+        private IEnumerator Albedo(WetDraw? draw, Action<double> done)
+        {
+            cmd.Clear();
+            if (draw.HasValue)
+            {
+                WetDraw d = draw.Value;
+                pass.RecordGBuffer(cmd, ref d);
+            }
+            var probe = new CommandBuffer { name = "wet-check albedo" };
+            probe.Blit(BuiltinRenderTextureType.GBuffer0, mapRt);
+            Cam.AddCommandBuffer(CameraEvent.BeforeLighting, cmd);
+            Cam.AddCommandBuffer(CameraEvent.BeforeLighting, probe);
+            yield return Frames(3);
+            yield return new WaitForEndOfFrame();
+            Color[] pixels = ReadTexture(mapRt);
+            Cam.RemoveCommandBuffer(CameraEvent.BeforeLighting, probe);
+            Cam.RemoveCommandBuffer(CameraEvent.BeforeLighting, cmd);
+            probe.Release();
+            done(MeanLuma(pixels, 130, 0, 1150, 250));
+        }
+
         // The aid map of the same draw.
         private IEnumerator Aid(WetDraw draw, Action<Color[]> done)
         {
@@ -237,6 +260,13 @@ namespace ReDefinition.WeatherPlayer
             yield return Natural(MakeDraw(1f, 0f, 0f, 288f, 0f, diffuseOnly), p => wetDiffuse = p);
             double lumaDry = MeanLuma(dry, 130, 0, 1150, 250), lumaWet = MeanLuma(wetDiffuse, 130, 0, 1150, 250);
             Sink.Info("ground.luma_dry", lumaDry);
+
+            // --- The diffuse target itself: wet / dry albedo is the configured factor (no lighting, no specular in it).
+            double albedoDry = 0, albedoWet = 0;
+            yield return Albedo(null, v => albedoDry = v);
+            yield return Albedo(MakeDraw(1f, 0f, 0f, 288f, 0f, diffuseOnly), v => albedoWet = v);
+            Sink.Info("albedo.dry_luma", albedoDry);
+            Sink.Reference("wet.albedo_ratio", albedoWet / Math.Max(albedoDry, 1e-6), tuning.WetDiffuse, 0.03, 0.0);
 
             // --- Which G-buffer target carries which part of the picture (the diagnosis): the same diffuse change written into one
             // target, into the other, into none, and a factor of 0 into both (what is left is not the geometry pass's diffuse light).

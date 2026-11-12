@@ -23,6 +23,9 @@ namespace ReDefinition.Atmospheres
         public float SeepMmH;
         // Share of standing water that runs off per hour (a slope or an edge); a capped puddle also runs over.
         public float RunoffPerH;
+        // Share of the water held in the surface layer that runs off per hour (the film on rock, concrete and vessel skin runs down
+        // and drips; the pores of bare ground keep theirs).
+        public float StoredRunoffPerH;
         // Share of the potential evaporation the stored (not standing) water gives at saturation; it falls to a quarter of it when dry
         // (the second stage of drying: water has to come up from the pores).
         public float StoredEvapAtFull;
@@ -66,15 +69,16 @@ namespace ReDefinition.Atmospheres
             switch (kind)
             {
                 case WetClass.Scenery:
-                    return new WetClassParams { StoreMm = 0.3f, SeepMmH = 0f, RunoffPerH = 4f, StoredEvapAtFull = 1f };
+                    return new WetClassParams { StoreMm = 0.3f, SeepMmH = 0f, RunoffPerH = 4f, StoredRunoffPerH = 0.4f, StoredEvapAtFull = 1f };
                 case WetClass.Craft:
-                    return new WetClassParams { StoreMm = 0.15f, SeepMmH = 0f, RunoffPerH = 20f, StoredEvapAtFull = 1f };
+                    return new WetClassParams { StoreMm = 0.15f, SeepMmH = 0f, RunoffPerH = 20f, StoredRunoffPerH = 6f, StoredEvapAtFull = 1f };
                 default:
-                    return new WetClassParams { StoreMm = t.SoilCapMm, SeepMmH = t.SoilKsatMmH, RunoffPerH = 0.05f, StoredEvapAtFull = 1f };
+                    return new WetClassParams { StoreMm = t.SoilCapMm, SeepMmH = t.SoilKsatMmH, RunoffPerH = 0.05f, StoredRunoffPerH = 0f, StoredEvapAtFull = 1f };
             }
         }
 
-        // The saturation vapour pressure of water in kPa (Magnus form) at a temperature in kelvin.
+        // The saturation vapour pressure of water in kPa at a temperature in kelvin: the Magnus form with the coefficients 17.27 and 237.3
+        // of the Tetens/Murray fit. The evaporation below is a Penman-type rate (H. L. Penman, 1948: deficit times a wind function).
         internal static float SaturationKPa(float temperatureK)
         {
             float c = temperatureK - 273.15f;
@@ -119,6 +123,7 @@ namespace ReDefinition.Atmospheres
                 if (s.StandingMm > t.PuddleCapMm) s.StandingMm = t.PuddleCapMm;
                 // Seepage feeds the layer below the puddle up to its store.
                 s.StoredMm = Math.Min(p.StoreMm, s.StoredMm + out1 * 0.5f);
+                s.StoredMm -= s.StoredMm * Math.Min(1f, p.StoredRunoffPerH * hH);
                 // Evaporation takes the standing water first, then the layer at a rate that falls with its dryness.
                 float demand = evap * hH;
                 float fromPuddle = Math.Min(s.StandingMm, demand);
@@ -191,11 +196,13 @@ namespace ReDefinition.Atmospheres
     // which the bands start).
     internal static class PrecipRate
     {
+        private static readonly float[] Starts = { PrecipScale.FlurriesFrom, PrecipScale.LightFrom, PrecipScale.ModerateFrom, PrecipScale.HeavyFrom, PrecipScale.BlizzardFrom };
+
         internal static float FromLevel(float level01, float[] bandRatesMmPerH)
         {
             if (!(level01 > 0f) || bandRatesMmPerH == null || bandRatesMmPerH.Length < 5) return 0f;
             float[] r = bandRatesMmPerH;
-            float[] starts = { PrecipScale.FlurriesFrom, PrecipScale.LightFrom, PrecipScale.ModerateFrom, PrecipScale.HeavyFrom, PrecipScale.BlizzardFrom };
+            float[] starts = Starts;
             if (level01 < starts[0]) return r[0] * (level01 / starts[0]);
             for (int i = 0; i < 4; i++)
                 if (level01 < starts[i + 1]) return Lerp(r[i], r[i + 1], (level01 - starts[i]) / (starts[i + 1] - starts[i]));

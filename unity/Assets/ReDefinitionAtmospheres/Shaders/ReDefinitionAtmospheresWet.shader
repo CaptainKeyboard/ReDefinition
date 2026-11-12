@@ -74,26 +74,29 @@ Shader "ReDefinition/AtmospheresWet"
         return o;
     }
 
-    // The integer hash PCG (technique: M. Jarzynski and M. Olano, "Hash Functions for GPU Rendering", Journal of Computer Graphics
-    // Techniques 9(3), 2020); the cell index is the integer part of the argument, so the pattern is the same on every platform.
-    uint Pcg(uint v)
+    // The 32-bit finaliser of MurmurHash3 (Austin Appleby, public domain) as the integer hash of a lattice cell; the cell index is the
+    // integer part of the argument, so the pattern is the same on every platform.
+    uint Mix32(uint h)
     {
-        uint state = v * 747796405u + 2891336453u;
-        uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-        return (word >> 22u) ^ word;
+        h ^= h >> 16;
+        h *= 0x85ebca6bu;
+        h ^= h >> 13;
+        h *= 0xc2b2ae35u;
+        h ^= h >> 16;
+        return h;
     }
 
     float Hash12(float2 p)
     {
         uint2 q = (uint2)((int2)floor(p));
-        return Pcg(q.x + Pcg(q.y)) * (1.0 / 4294967296.0);
+        return Mix32(q.x + Mix32(q.y ^ 0x9e3779b9u)) * (1.0 / 4294967296.0);
     }
 
     float2 Hash22(float2 p)
     {
         uint2 q = (uint2)((int2)floor(p));
-        uint a = Pcg(q.x + Pcg(q.y));
-        uint b = Pcg(a + 1013904223u);
+        uint a = Mix32(q.x + Mix32(q.y ^ 0x9e3779b9u));
+        uint b = Mix32(a + 0x7f4a7c15u);
         return float2(a, b) * (1.0 / 4294967296.0);
     }
 

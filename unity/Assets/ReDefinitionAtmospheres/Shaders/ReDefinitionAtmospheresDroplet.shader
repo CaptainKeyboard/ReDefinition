@@ -15,8 +15,9 @@
 // trail stay inside its cell. The share of cells that hold a drop follows the wetness (wet^0.85 times the configured coverage over the
 // design coverage of the layers, DESIGN_COVER).
 //
-// Technique reference: the lattice-of-drops idea with a stick-and-slip cycle and a trail is the common way to draw rain on glass in a
-// pixel shader; the arithmetic below is written for this mod (hash, cycle, lens and rim are its own).
+// Technique reference: Martijn Steinrucken, "Heartfelt" (Shadertoy, CC BY-NC-SA 3.0) draws rain on glass from a lattice of drops that
+// stick, run and leave a trail. The lens is a mirror-through-the-centre mapping of the copy of the image; the hash is the finaliser
+// of MurmurHash3 (Austin Appleby, public domain).
 //
 // Motion vectors: none, the overlay is fixed to the screen. Depth: none. Draw order: after the upscaler and before TUFX's effects; in the
 // HUD-less copy. Exposure: colours are relative to the image's own; the quad uses a colour in scene units from the CPU.
@@ -92,20 +93,23 @@ Shader "ReDefinition/AtmospheresDroplet"
 
     float3 Safe(float3 c) { return max(min(c, 64.0), 0.0); }
 
-    // The integer hash PCG (technique: M. Jarzynski and M. Olano, "Hash Functions for GPU Rendering", Journal of Computer Graphics
-    // Techniques 9(3), 2020); the cell index is the integer part of the argument, so the pattern is the same on every platform.
-    uint Pcg(uint v)
+    // The 32-bit finaliser of MurmurHash3 (Austin Appleby, public domain) as the integer hash of a lattice cell; the cell index is the
+    // integer part of the argument, so the pattern is the same on every platform.
+    uint Mix32(uint h)
     {
-        uint state = v * 747796405u + 2891336453u;
-        uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-        return (word >> 22u) ^ word;
+        h ^= h >> 16;
+        h *= 0x85ebca6bu;
+        h ^= h >> 13;
+        h *= 0xc2b2ae35u;
+        h ^= h >> 16;
+        return h;
     }
 
     float2 Hash22(float2 p)
     {
         uint2 q = (uint2)((int2)floor(p));
-        uint a = Pcg(q.x + Pcg(q.y));
-        uint b = Pcg(a + 1013904223u);
+        uint a = Mix32(q.x + Mix32(q.y ^ 0x9e3779b9u));
+        uint b = Mix32(a + 0x7f4a7c15u);
         return float2(a, b) * (1.0 / 4294967296.0);
     }
 

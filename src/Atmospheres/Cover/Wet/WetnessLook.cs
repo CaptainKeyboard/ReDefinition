@@ -66,6 +66,7 @@ namespace ReDefinition.Atmospheres
         // [VERIFY: the player row puddle.share_vs_cover measures the real share against the asked one.]
         internal const float FieldMean = 0.5f;
         internal const float FieldSigma = 0.125f;
+        private static float lastCover = -1f, lastThreshold;
 
         // The threshold of the depression field under which a pixel is in a puddle, so that a share `cover` of level ground is puddle.
         // 0 for no puddles.
@@ -73,18 +74,25 @@ namespace ReDefinition.Atmospheres
         {
             if (!(cover > 0.001f)) return 0f;
             if (cover >= 0.999f) return 1f;
-            return FieldMean + FieldSigma * InverseNormal(cover);
+            // The renderer asks every frame for the same cover: the last answer is kept.
+            if (cover != lastCover)
+            {
+                lastCover = cover;
+                lastThreshold = FieldMean + FieldSigma * InverseNormal(cover);
+            }
+            return lastThreshold;
         }
 
-        // The standard normal distribution function from the error-function approximation of Abramowitz and Stegun, formula 7.1.26 (a US
-        // government publication, public domain; absolute error below 1.5e-7).
+        // The standard normal distribution function by Simpson's rule on the density from 0 to |x| (200 intervals; error below 1e-9).
         internal static double NormalCdf(double x)
         {
-            double z = Math.Abs(x) / Math.Sqrt(2.0);
-            double t = 1.0 / (1.0 + 0.3275911 * z);
-            double poly = ((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592;
-            double erf = 1.0 - poly * t * Math.Exp(-z * z);
-            return x >= 0.0 ? 0.5 * (1.0 + erf) : 0.5 * (1.0 - erf);
+            double a = Math.Abs(x);
+            const int n = 200;
+            double h = a / n, sum = 1.0 + Math.Exp(-0.5 * a * a);
+            for (int i = 1; i < n; i++)
+                sum += (i % 2 == 1 ? 4.0 : 2.0) * Math.Exp(-0.5 * i * h * i * h);
+            double half = sum * h / 3.0 / Math.Sqrt(2.0 * Math.PI);
+            return x >= 0.0 ? 0.5 + half : 0.5 - half;
         }
 
         // The inverse of the standard normal distribution by bisection on NormalCdf.

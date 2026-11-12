@@ -36,6 +36,8 @@ namespace ReDefinition.Atmospheres
         private const float StaleGraceS = 3f;
         // Air temperature the glass is pulled towards in a cabin, and the pane's share of the way (the frost's defaults).
         private const float CabinK = 293f;
+        // The glass temperature from which snow melts into drops on it (a degree under water's freezing point, a ramp of 3 K above).
+        private const float WarmFromK = 272.15f;
         private const float IvaInsulation = 0.7f;
 
         private DropletPass pass;
@@ -225,6 +227,10 @@ namespace ReDefinition.Atmospheres
             {
                 AtmospheresLog.Say("droplets: view " + lastView + " -> " + where);
                 lastView = where;
+                // A host that drew nothing in one view gets another try when the view changes.
+                ivaHostDead = false;
+                evaHostDead = false;
+                hostPendingFrames = 0;
             }
 
             sampleAge += Time.unscaledDeltaTime;
@@ -244,8 +250,12 @@ namespace ReDefinition.Atmospheres
                 LookForInternalCamera();
                 if (internalCamera != null && internalCamera.enabled) look = internalCamera;
             }
-            Vector3 down = (Vector3)(body.position - (Vector3d)look.transform.position).normalized;
-            float gx = Vector3.Dot(down, look.transform.right), gy = Vector3.Dot(down, look.transform.up);
+            // The internal camera lives in the internal space of the cabin: its axes are taken into the world before they are compared
+            // with the world's down and the air's direction [VERIFY in the IVA: the sliding direction follows the head's roll].
+            Quaternion lookRotation = look == internalCamera ? InternalSpace.InternalToWorld(internalCamera.transform.rotation) : look.transform.rotation;
+            Vector3 lookRight = lookRotation * Vector3.right, lookUp = lookRotation * Vector3.up;
+            Vector3 down = (Vector3)(body.position - (Vector3d)flight.transform.position).normalized;
+            float gx = Vector3.Dot(down, lookRight), gy = Vector3.Dot(down, lookUp);
 
             Vector3d camWorld = flight.transform.position;
             BodyFrame.Compute(body, camWorld, ref basis);
@@ -253,7 +263,7 @@ namespace ReDefinition.Atmospheres
             // The air moves over the vessel with the opposite of the vessel's velocity through the air; a drop is pushed along it.
             Vector3d airOver = windWorld - vessel.srf_velocity;
             float airflow = (float)airOver.magnitude;
-            float ax = (float)Vector3d.Dot(airOver, look.transform.right), ay = (float)Vector3d.Dot(airOver, look.transform.up);
+            float ax = (float)Vector3d.Dot(airOver, lookRight), ay = (float)Vector3d.Dot(airOver, lookUp);
             float inPlane = Mathf.Sqrt(ax * ax + ay * ay);
             float airTotal = Mathf.Max((float)airOver.magnitude, 1e-3f);
 
@@ -266,7 +276,7 @@ namespace ReDefinition.Atmospheres
 
             // A pane that is above freezing wets with snow too: the glass is the air's (visor) or between the air and the cabin's.
             float glassK = where == FrostView.Iva ? temperatureK + IvaInsulation * (CabinK - temperatureK) : temperatureK;
-            float warm = float.IsNaN(glassK) ? 1f : Mathf.Clamp01((glassK - 272.15f) / 3f);
+            float warm = float.IsNaN(glassK) ? 1f : Mathf.Clamp01((glassK - WarmFromK) / 3f);
             var input = new DropletInput
             {
                 Dt = Time.timeScale > 0f && !hold ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) : 0f,
@@ -418,8 +428,10 @@ namespace ReDefinition.Atmospheres
                 }
                 Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
                 bool ours = camera == flight || (ActiveView == FrostView.Iva && lastHostCameraInternal);
-                if (pass == null || !ours || !drawReady || ActiveMode != "host" || upscaled == null || abOff) return;
+                // drop.abOff leaves the drops undrawn with every other state unchanged; the hook still counts as answered.
+                if (pass == null || !ours || !drawReady || ActiveMode != "host" || upscaled == null) return;
                 hostPendingFrames = 0;
+                if (abOff) return;
                 DropletDraw d = draw;
                 d.Aspect = (float)upscaled.width / Mathf.Max(upscaled.height, 1);
                 d.InteriorMask = ActiveView == FrostView.Iva && ivaMaskNeeded ? interior.Mask : null;

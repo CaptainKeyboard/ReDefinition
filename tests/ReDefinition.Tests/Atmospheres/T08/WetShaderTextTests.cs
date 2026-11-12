@@ -32,9 +32,9 @@ namespace ReDefinition.Tests.Atmospheres.T08
         [TestMethod]
         public void EveryPropertyThePassesSetIsDeclared()
         {
-            foreach (string name in new[] { "_WetA", "_WetB", "_WetCentre", "_WetEast", "_WetNorth", "_WetC" })
+            foreach (string name in new[] { "_WetA", "_WetB", "_WetCentre", "_WetEast", "_WetNorth", "_WetC", "_WetT" })
                 StringAssert.Contains(wet, "float4 " + name + ";");
-            foreach (string name in new[] { "_DrpA", "_DrpB", "_DrpC", "_DrpQuad" })
+            foreach (string name in new[] { "_DrpA", "_DrpB", "_DrpC", "_DrpD", "_DrpQuad" })
                 StringAssert.Contains(droplet, "float4 " + name + ";");
             foreach (string name in new[] { "sampler2D _MainTex;", "sampler2D _DrpCopy;", "sampler2D _DrpMask;" })
                 StringAssert.Contains(droplet, name);

@@ -2,6 +2,7 @@
 
   python tools/build_weather_player.py --series wet        the scene wet-check: the overlay on Unity's deferred path
   python tools/build_weather_player.py --series droplet    the scene droplet-check: the droplet pass on a window picture
+  python tools/build_weather_player.py --series wet-cost   the scene wet-cost: GPU milliseconds of both passes (exclusive GPU lock)
 
 Series "wet" runs the player's scene wet-check, which draws the mod's own classes (WetSurfacesPass and its shader) on the player's terrain
 and judges itself: the diffuse factor of wet ground against the configured wetDiffuse, the sky and a strength-0 draw untouched, the
@@ -26,3 +27,5 @@ from weather_metrics.core import player_judged  # noqa: E402
 
 register_series("wet", [Stage("scene", ["-mode", "scene", "-scene", "wet-check"])], player_judged("scene"), exclusive=False, who="T08")
 register_series("droplet", [Stage("scene", ["-mode", "scene", "-scene", "droplet-check"])], player_judged("scene"), exclusive=False, who="T08")
+# The cost of the overlay and of the droplet pass: a timing series, the GPU lock exclusive; it needs the proxy beside the player.
+register_series("wet-cost", [Stage("scene", ["-mode", "scene", "-scene", "wet-cost"])], player_judged("scene"), exclusive=True, who="T08")

@@ -42,14 +42,12 @@ namespace ReDefinition.Atmospheres
         private bool initialised;
         private readonly StandDown standDown = new StandDown(FailureLimit, PauseAfterFailuresS);
 
-        private WetState state;
-        private double cursorUt = double.NaN;
+        private readonly WetSiteTracker tracker = new WetSiteTracker();
         private int siteBody = -1;
         private long siteKey = long.MinValue;
-        private double siteLat, siteLon;
-        private bool catchingUp;
+        private double siteLat, siteLon, siteAltM;
         private float sun01 = 1f;
-        private float cloud01;
+        private WetnessCatchUp.Source source;
         private float weatherAge = 1e9f;
         private float rainLevel;
         private float temperatureK = float.NaN;
@@ -78,7 +76,8 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             pass = new WetSurfacesPass(shader);
-            buffer = new CommandBuffer { name = "ReDefinition wet surfaces" };
+            source = WeatherAt;
+            buffer =new CommandBuffer { name = "ReDefinition wet surfaces" };
             initialised = true;
             ActiveMode = "none";
             AtmospheresLog.Say("wet surfaces: ready");
@@ -146,10 +145,8 @@ namespace ReDefinition.Atmospheres
 
         private void ForgetSite()
         {
-            state = default(WetState);
-            cursorUt = double.NaN;
+            tracker.Forget();
             siteKey = long.MinValue;
-            catchingUp = false;
         }
 
         private void Detach()
@@ -171,7 +168,9 @@ namespace ReDefinition.Atmospheres
                 if (!flightScene) ForgetSite();
                 return;
             }
-            bool eveRuns = AtmospheresSettings.CloudSource == CloudSourceKind.Eve && !Tuning.Flag("wet.overEve", false);
+            // EVE draws its own wet surfaces from the cloud types it renders: with it as the renderer (Eve, or Both) this overlay is off.
+            CloudSourceKind cloudSource = AtmospheresSettings.CloudSource;
+            bool eveRuns = (cloudSource == CloudSourceKind.Eve || cloudSource == CloudSourceKind.Both) && !Tuning.Flag("wet.overEve", false);
             if (eveRuns || flight.actualRenderingPath != RenderingPath.DeferredShading)
             {
                 ActiveMode = eveRuns ? "off: EVE draws its own wet surfaces" : "off: the camera is not on the deferred path";
@@ -182,9 +181,8 @@ namespace ReDefinition.Atmospheres
             CelestialBody body = vessel.mainBody;
             BodyClimate climate = Bodies.Get(body);
             if (climate == null) { Detach(); return; }
-            tuning = ReadTuning();
-            bandRates = climate.Precip.BandRatesMmPerH;
-            freezeK = 273.15f;
+            // Where water freezes on this body.
+            freezeK = 273.15f + (float)climate.Temperature.WaterCelsius;
 
             Vector3d camWorld = flight.transform.position;
             double lat = body.GetLatitude(camWorld), lon = body.GetLongitude(camWorld), alt = body.GetAltitude(camWorld);
@@ -195,6 +193,8 @@ namespace ReDefinition.Atmospheres
             if (weatherAge >= WeatherEveryS)
             {
                 weatherAge = 0f;
+                tuning = ReadTuning();
+                bandRates = climate.Precip.BandRatesMmPerH;
                 CelestialBody sunBody = GameGlobals.Sun;
                 if (sunBody != null)
                 {
@@ -205,7 +205,6 @@ namespace ReDefinition.Atmospheres
                 WeatherSample now;
                 if (WeatherHub.Sample(body.flightGlobalsIndex, lat, lon, alt, ut, out now))
                 {
-                    cloud01 = now.CloudCover01;
                     rainLevel = (now.Type == PrecipType.Rain || now.Type == PrecipType.Sleet || now.Type == PrecipType.FreezingRain || now.Type == PrecipType.Methane) ? now.Level01 : 0f;
                     temperatureK = now.TemperatureK;
                 }
@@ -216,27 +215,34 @@ namespace ReDefinition.Atmospheres
             // The site: a new one starts the catch-up from the lookback.
             long key = (long)Math.Floor(lat / SiteDeg) * 100003L + (long)Math.Floor(lon / SiteDeg) + body.flightGlobalsIndex * 7919L * 1000003L;
             double lookback = tuning.LookbackH * 3600.0;
-            if (key != siteKey || double.IsNaN(cursorUt) || ut < cursorUt - 1.0 || ut - cursorUt > lookback)
+            if (key != siteKey || tracker.NeedsStart(ut, lookback))
             {
-                state = default(WetState);
-                cursorUt = ut - lookback;
+                tracker.Start(ut, lookback);
                 siteKey = key;
                 siteBody = body.flightGlobalsIndex;
                 siteLat = (Math.Floor(lat / SiteDeg) + 0.5) * SiteDeg;
                 siteLon = (Math.Floor(lon / SiteDeg) + 0.5) * SiteDeg;
-                catchingUp = true;
+                // The ground of the site, not the camera: the replay reads the weather at the surface.
+                siteAltM = Math.Max(0.0, body.TerrainAltitude(siteLat, siteLon, false));
             }
-            AdvanceState(body, ut);
+            tracker.Advance(source, WetClass.Terrain, ref tuning, ut, StepsPerFrame, SampleEveryS);
 
+            WetState state = tracker.State;
             WetLook look = WetnessLookMath.Eval(WetnessModel.Saturation(ref state, WetClass.Terrain, ref tuning), state.StandingMm, rainLevel, temperatureK, freezeK, snow01, ref tuning);
-            Last = new WetnessModelReading { StoredMm = state.StoredMm, StandingMm = state.StandingMm, Look = look, CatchingUp = catchingUp, Sun01 = sun01 };
+            Last = new WetnessModelReading { StoredMm = state.StoredMm, StandingMm = state.StandingMm, Look = look, CatchingUp = tracker.CatchingUp, Sun01 = sun01 };
+            // A catch-up shows nothing until it has reached the present: a state half way through the replay would pop in and fade.
+            if (tracker.CatchingUp)
+            {
+                Detach();
+                ActiveMode = "catching up";
+                return;
+            }
 
             abOff = Tuning.Flag("wet.abOff", false);
             clock += Time.timeScale > 0f ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) : 0f;
             if (clock > 3600f) clock -= 3600f;
             BodyFrame basis = default(BodyFrame);
             BodyFrame.Compute(body, camWorld, ref basis);
-            double radius = body.Radius + Math.Max(alt, 0.0);
             draw = new WetDraw
             {
                 Look = look,
@@ -274,32 +280,12 @@ namespace ReDefinition.Atmospheres
             return (float)w;
         }
 
-        // Moves the state from the cursor to now: a catch-up of at most StepsPerFrame history steps per frame, then one step per
-        // SampleEveryS of game time.
-        private void AdvanceState(CelestialBody body, double ut)
-        {
-            int budget = StepsPerFrame;
-            double historyS = tuning.HistoryStepH * 3600.0;
-            while (cursorUt < ut && budget > 0)
-            {
-                double span = ut - cursorUt;
-                double stepS = catchingUp ? Math.Min(historyS, span) : span;
-                if (!catchingUp && span < SampleEveryS) break;
-                if (!catchingUp && span > historyS) stepS = Math.Min(historyS, span);
-                WetInput w = WeatherAt(body, cursorUt + 0.5 * stepS);
-                WetnessModel.Step(ref state, ref w, WetClass.Terrain, ref tuning, (float)stepS);
-                cursorUt += stepS;
-                budget--;
-            }
-            if (catchingUp && ut - cursorUt < 1.0) catchingUp = false;
-        }
-
-        // The weather at the site at a UT as the model reads it.
-        private WetInput WeatherAt(CelestialBody body, double ut)
+        // The weather at the site at a UT as the model reads it (the source of the site tracker).
+        private WetInput WeatherAt(double ut)
         {
             var w = new WetInput { TemperatureK = float.NaN, FreezeK = freezeK, Humidity01 = 0.6f, Sun01 = sun01 };
             WeatherSample s;
-            if (!WeatherHub.Sample(siteBody, siteLat, siteLon, 0.0, ut, out s)) return w;
+            if (!WeatherHub.Sample(siteBody, siteLat, siteLon, siteAltM, ut, out s)) return w;
             float rate = PrecipRate.FromLevel(s.Level01, bandRates);
             w.TemperatureK = s.TemperatureK;
             w.WaterMmH = WetnessModel.Intake(s.Type, s.RainFraction, s.SleetFraction, s.SnowFraction, rate, s.TemperatureK, freezeK);
