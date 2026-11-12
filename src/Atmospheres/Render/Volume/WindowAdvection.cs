@@ -9,8 +9,10 @@ namespace ReDefinition.Atmospheres
     // stored state that could drift away from the field:
     //   - the stratiform deck of every column is looked up where the wind of its height has carried it (the layer turns rigidly against the field's patterns by
     //     HeightWind.LayerRate x UT, so layers of different heights slide against each other and never shear into stripes);
+    //     (the layers that carry rain and cells, below 0.2 of the tropopause, move with the patterns and are not offset: HeightWind.LayerDecoupleWeight);
     //   - towers grow in the first quarter of the life of a cell and sink at its end: the top rises with the updraft, the window's updraft is that rise;
-    //   - the top of a tower and its anvil are shifted downwind by the shear aloft (bounded: wind difference x 1800 s);
+    //   - a tower leans downwind with the shear aloft (bounded by half a cell radius): its body is the weighted sum of the cells found at the point, half-way and fully
+    //     upwind, so it is one connected body and a different strongest cell fades in and out; the anvil spreads at the top of the fully shifted lookup;
     //   - the consistency rule: beneath a tall cell the deck is thinned, the anvil lies above it; a column never carries an updraft through an unthinned deck.
     // No feedback into the field. The cost of a refill is 1024 columns of at most three samples each. Allocation free.
     internal static class WindowAdvection

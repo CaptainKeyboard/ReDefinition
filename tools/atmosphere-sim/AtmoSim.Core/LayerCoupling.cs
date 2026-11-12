@@ -17,6 +17,8 @@ namespace AtmoSim.Core
         public bool Deck = true;
         // Add the broad lift of the column to the updraft output (the window of the game wants it); off = the towers' vertical speed only.
         public bool AmbientUpdraft = false;
+        // Largest lean of a tower top as a share of the cell lattice spacing (half a cell radius).
+        public double TiltReach = 0.15;
         public double TiltTimeS = 1800.0, ThinMax = 0.75, GrowFraction = 0.25, SinkShare = 0.45, TopMinM = 2200.0, AnvilShare = 0.6;
         // Height of the stratiform deck the window follows (share of the tropopause height).
         public double DeckHeightFraction = 0.2;
@@ -81,6 +83,20 @@ namespace AtmoSim.Core
             g.MeanWind(lat, lon, 0.9 * topM, ut, out eU, out nU);
             g.MeanWind(lat, lon, 1500.0, ut, out eL, out nL);
             east = (eU - eL) * o.TiltTimeS; north = (nU - nL) * o.TiltTimeS;
+            // the top stays inside the footprint of its own cell: the shift is bounded by half the cell radius (0.3 lattice spacings), so the sheared tower is one connected body
+            double reach = o.TiltReach * g.D.CellLatticeM, len = DMath.Sqrt(east * east + north * north);
+            if (len > reach && len > 0.0) { double k = reach / len; east *= k; north *= k; }
+        }
+
+        // The cell weights of one column along the lean of a tower: the tower at the point (weight 0 at the ground, 1 at the top) is looked up at the point itself, half-way
+        // upwind and fully upwind. The weights of the three lookups at a height share (tent function), so the tower body leans continuously and a cell hand-over blends instead
+        // of switching.
+        private static void LeanWeights(double share, out double w0, out double w1, out double w2)
+        {
+            double s = DMath.Clamp(share, 0.0, 1.0);
+            w0 = s < 0.5 ? 1.0 - 2.0 * s : 0.0;
+            w1 = s < 0.5 ? 2.0 * s : 2.0 - 2.0 * s;
+            w2 = s > 0.5 ? 2.0 * s - 1.0 : 0.0;
         }
 
         // The coverage (0..1) of one layer of clouds at a point: the stratiform pattern looked up where the layer's own wind has carried it, thinned beneath a tall cell, plus the tower
@@ -102,19 +118,27 @@ namespace AtmoSim.Core
             {
                 double cellCov = 1.0 - DMath.Exp(-3.0 * 0.7 * w0.CellStrength);
                 tower = cellCov * (1.0 - DMath.SmoothStep(top - 1500.0, top, layerMidM)) * DMath.SmoothStep(300.0, 1500.0, layerMidM);
-                double dTop = layerMidM - top;
-                if (o.Couple && dTop > -1800.0 && dTop < 2500.0)
+            }
+            if (o.Couple && layerMidM > 2500.0)
+            {
+                // the anvil belongs to the cell found fully upwind along the lean (the same lookup supplies its strength, phase and top, so the anvil is one cell's top; it is
+                // also found downwind of the tower where the point itself has no cell)
+                double east = 0.0, north = 0.0;
+                TiltShift(g, lat, lon, ut, w0.CellStrength > 0.0 ? top : 0.35 * g.Body.TropopauseM, o, out east, out north);
+                Weather wt = w0;
+                if (east != 0.0 || north != 0.0)
                 {
-                    double east, north;
-                    TiltShift(g, lat, lon, ut, top, o, out east, out north);
-                    Weather wt = w0;
-                    if (east != 0.0 || north != 0.0)
+                    double cosLat = DMath.Max(0.02, DMath.Cos(lat));
+                    g.Sample(DMath.Clamp(lat - north / g.Body.RadiusM, -1.5707, 1.5707), DMath.WrapPi(lon - east / (g.Body.RadiusM * cosLat)), 0.0, ut, out wt);
+                }
+                if (wt.CellStrength > 0.0)
+                {
+                    double dTop = layerMidM - TopNow(ref wt, o);
+                    if (dTop > -1800.0 && dTop < 2500.0)
                     {
-                        double cosLat = DMath.Max(0.02, DMath.Cos(lat));
-                        g.Sample(DMath.Clamp(lat - north / g.Body.RadiusM, -1.5707, 1.5707), DMath.WrapPi(lon - east / (g.Body.RadiusM * cosLat)), 0.0, ut, out wt);
+                        double bell = DMath.SmoothStep(-1800.0, -300.0, dTop) * (1.0 - DMath.SmoothStep(300.0, 2500.0, dTop));
+                        anvil = o.AnvilShare * (1.0 - DMath.Exp(-3.0 * 0.7 * wt.CellStrength)) * bell * DMath.SmoothStep(0.5, 1.0, GrowthShare(wt.CellPhase, o));
                     }
-                    double bell = DMath.SmoothStep(-1800.0, -300.0, dTop) * (1.0 - DMath.SmoothStep(300.0, 2500.0, dTop));
-                    anvil = o.AnvilShare * (1.0 - DMath.Exp(-3.0 * 0.7 * wt.CellStrength)) * bell * DMath.SmoothStep(0.5, 1.0, GrowthShare(wt.CellPhase, o));
                 }
             }
             return 1.0 - (1.0 - deck) * (1.0 - tower) * (1.0 - anvil);
@@ -125,55 +149,81 @@ namespace AtmoSim.Core
         // the life of the cell and its upper part is shifted downwind by the shear.
         public static void Column(WeatherGenerator g, double lat, double lon, double ut, double zBaseM, double dzM, int nz, float[] density, int i0, int stride, float[] updraft, LayerOptions o)
         {
-            Weather w0, wd, wt;
+            // Three lookups of the field along the lean of a tower (the point, half-way upwind, fully upwind): the tower at a height is the weighted sum of the cells found at the
+            // three points, so its body leans continuously from the base to the top and a different strongest cell at one of the points fades in and out (weights) instead of
+            // replacing the tower. All three belong to the same lean: the anvil is the top of the fully shifted lookup.
+            Weather w0, wd, wm, wt;
             g.Sample(lat, lon, zBaseM, ut, out w0);
-            wd = w0; wt = w0;
+            wd = w0; wm = w0; wt = w0;
             double deckM = o.DeckHeightFraction * g.Body.TropopauseM;
             double lonL = LayerLon(g, lon, ut, deckM, o);
             if (lonL != lon) g.Sample(lat, lonL, zBaseM, ut, out wd);
-            double top = TopNow(ref w0, o);
-            double topT = top;
-            bool hasCell = w0.CellStrength > 0.0;
-            if (hasCell)
+            double top0 = TopNow(ref w0, o);
+            double east = 0.0, north = 0.0;
+            bool lean = o.Tilt && o.Shear && g.Body.HeightWind;
+            if (lean)
             {
-                double east, north;
-                TiltShift(g, lat, lon, ut, top, o, out east, out north);
+                // the lean follows the tallest top found at the point or upwind, bounded by the reach
+                TiltShift(g, lat, lon, ut, w0.CellStrength > 0.0 ? top0 : 0.35 * g.Body.TropopauseM, o, out east, out north);
                 if (east != 0.0 || north != 0.0)
                 {
                     double cosLat = DMath.Max(0.02, DMath.Cos(lat));
-                    g.Sample(DMath.Clamp(lat - north / g.Body.RadiusM, -1.5707, 1.5707), DMath.WrapPi(lon - east / (g.Body.RadiusM * cosLat)), zBaseM, ut, out wt);
-                    topT = TopNow(ref wt, o);
+                    double bk = g.Body.RadiusM;
+                    g.Sample(DMath.Clamp(lat - 0.5 * north / bk, -1.5707, 1.5707), DMath.WrapPi(lon - 0.5 * east / (bk * cosLat)), zBaseM, ut, out wm);
+                    g.Sample(DMath.Clamp(lat - north / bk, -1.5707, 1.5707), DMath.WrapPi(lon - east / (bk * cosLat)), zBaseM, ut, out wt);
                 }
+                else lean = false;
             }
-            double thinAmp = (o.Couple && hasCell) ? o.ThinMax * DMath.SmoothStep(0.15, 0.6, w0.CellStrength) * DMath.SmoothStep(1500.0, 3000.0, top) : 0.0;
-            double rise = TopRiseMs(ref w0, o);
+            double top1 = lean ? TopNow(ref wm, o) : top0, top2 = lean ? TopNow(ref wt, o) : top0;
+            bool anyCell = w0.CellStrength > 0.0 || (lean && (wm.CellStrength > 0.0 || wt.CellStrength > 0.0));
+            // the height the lean is spread over: the tallest top of the three lookups
+            double topRef = top0; if (lean && wm.CellStrength > 0.0 && top1 > topRef) topRef = top1; if (lean && wt.CellStrength > 0.0 && top2 > topRef) topRef = top2;
+            double rise0 = TopRiseMs(ref w0, o), rise1 = lean ? TopRiseMs(ref wm, o) : 0.0, rise2 = lean ? TopRiseMs(ref wt, o) : 0.0;
+            double thin0 = ThinAmp(ref w0, top0, o), thin1 = lean ? ThinAmp(ref wm, top1, o) : 0.0, thin2 = lean ? ThinAmp(ref wt, top2, o) : 0.0;
             for (int k = 0; k < nz; k++)
             {
                 double alt = zBaseM + k * dzM;
-                double strat = !o.Deck ? 0.0 : wd.StratDensityAt(alt) * (1.0 - thinAmp * (1.0 - DMath.SmoothStep(top - 1000.0, top + 500.0, alt)));
+                double a0 = 1.0, a1 = 0.0, a2 = 0.0;
+                if (lean) LeanWeights(DMath.SmoothStep(0.0, topRef, alt), out a0, out a1, out a2);
+                double thin = a0 * thin0 * (1.0 - DMath.SmoothStep(top0 - 1000.0, top0 + 500.0, alt));
+                if (lean) thin += a1 * thin1 * (1.0 - DMath.SmoothStep(top1 - 1000.0, top1 + 500.0, alt)) + a2 * thin2 * (1.0 - DMath.SmoothStep(top2 - 1000.0, top2 + 500.0, alt));
+                double strat = !o.Deck ? 0.0 : wd.StratDensityAt(alt) * (1.0 - thin);
                 double cell = 0.0, anvil = 0.0;
-                if (hasCell)
+                if (anyCell)
                 {
-                    double c0 = CellDensity(w0.CellStrength, top, alt);
-                    double s = (o.Tilt && o.Shear) ? DMath.SmoothStep(0.55 * top, top, alt) : 0.0;
-                    double c1 = s > 0.0 ? CellDensity(wt.CellStrength, topT, alt) : 0.0;
-                    cell = (1.0 - s) * c0 + s * c1;
+                    cell = a0 * CellDensity(w0.CellStrength, top0, alt);
+                    if (lean) cell += a1 * CellDensity(wm.CellStrength, top1, alt) + a2 * CellDensity(wt.CellStrength, top2, alt);
                     if (o.Couple)
                     {
-                        double dTop = alt - topT;
-                        anvil = o.AnvilShare * wt.CellStrength * DMath.SmoothStep(-1200.0, -200.0, dTop) * (1.0 - DMath.SmoothStep(200.0, 1400.0, dTop));
+                        // the anvil spreads at the top of the cell of the fully shifted lookup; without a lean it is the top of the cell at the point
+                        double dTop = alt - (lean ? top2 : top0);
+                        double sAnvil = lean ? wt.CellStrength : w0.CellStrength;
+                        anvil = o.AnvilShare * sAnvil * DMath.SmoothStep(-1200.0, -200.0, dTop) * (1.0 - DMath.SmoothStep(200.0, 1400.0, dTop));
                     }
                 }
                 double d = strat + 0.9 * (cell + anvil);
                 density[i0 + k * stride] = (float)(d > 1.5 ? 1.5 : d);
                 if (updraft != null)
                 {
-                    double up = hasCell ? rise * DMath.SmoothStep(0.0, 0.04, w0.CellStrength) * DMath.SmoothStep(300.0, 1500.0, alt) * (1.0 - DMath.SmoothStep(top - 300.0, top + 300.0, alt)) : 0.0;
+                    double up = a0 * UpdraftAt(ref w0, top0, rise0, alt);
+                    if (lean) up += a1 * UpdraftAt(ref wm, top1, rise1, alt) + a2 * UpdraftAt(ref wt, top2, rise2, alt);
                     // the broad lift of the column (the field's window has it as 0.3 x the uplift of the column above the first 1500 m)
                     if (o.AmbientUpdraft) up += 0.3 * w0.Uplift * DMath.SmoothStep(0.0, 1500.0, alt);
                     updraft[i0 + k * stride] = (float)up;
                 }
             }
+        }
+
+        // The amplitude of the thinning of the deck beneath the cell of a lookup.
+        private static double ThinAmp(ref Weather w, double top, LayerOptions o)
+        {
+            return (o.Couple && w.CellStrength > 0.0) ? o.ThinMax * DMath.SmoothStep(0.15, 0.6, w.CellStrength) * DMath.SmoothStep(1500.0, 3000.0, top) : 0.0;
+        }
+
+        // The vertical speed of the tower of a lookup at an altitude (the rise of its top, inside the tower).
+        private static double UpdraftAt(ref Weather w, double top, double rise, double alt)
+        {
+            return w.CellStrength > 0.0 ? rise * DMath.SmoothStep(0.0, 0.04, w.CellStrength) * DMath.SmoothStep(300.0, 1500.0, alt) * (1.0 - DMath.SmoothStep(top - 300.0, top + 300.0, alt)) : 0.0;
         }
     }
 }

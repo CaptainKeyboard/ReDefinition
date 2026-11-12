@@ -13,6 +13,8 @@ namespace ReDefinition.Atmospheres
         internal static LayerSteeringMode? SteeringOverride;
         internal static bool? WindShearOverride, VerticalMotionOverride, AnvilTiltOverride;
         internal static bool Couple = true;
+        // The marker test of the probe (E43Probe): a known rate in rad/s that every steered layer is pinned to; null = the shared rate decides.
+        internal static double? MarkerRateRadS;
 
         internal static LayerSteeringMode Steering
         {
@@ -72,13 +74,19 @@ namespace ReDefinition.Atmospheres
         // upwardsCloudSpeed is the layer's own value times (1 + gain x updraft / reference), limited to this change per real second (share of the own value).
         internal const float UpdraftReferenceMs = 3f, UpdraftGain = 1f, UpMaxChangePerS = 0.1f;
 
-        // The rate (rad/s, positive eastward) the layer must turn against the field's patterns for the layer to move with the wind: (wind - pattern) / radius of the parallel.
-        internal static double TargetRate(double windEastMs, double patternMs, double latRad, double radiusM)
+        // The rate (rad/s, positive eastward) the layer turns against the field's patterns: THE rate of the core (HeightWind.LayerRate), the same function the volume window and
+        // the layer maps use, so under cloudSource Both a layer of EVE and the window's deck of the same height move at one speed. windShear off = no drift against the patterns.
+        internal static double SharedRate(BodyDerived d, BodyParams p, double heightM, bool shear)
         {
-            double c = Math.Cos(latRad);
-            if (c < 0.2) c = 0.2;
-            double r = (windEastMs - patternMs) / (radiusM * c);
+            if (!shear) return 0.0;
+            double r = HeightWind.LayerRate(d, p, heightM);
             return r > MaxRateRadS ? MaxRateRadS : (r < -MaxRateRadS ? -MaxRateRadS : r);
+        }
+
+        // The eastward speed (m/s) of a layer at a latitude for a rate (rad/s): the pattern speed there plus the rate on the radius of that parallel.
+        internal static double LayerSpeedMs(double patternMs, double rateRadS, double latRad, double radiusM)
+        {
+            return patternMs + rateRadS * radiusM * Math.Max(0.2, Math.Cos(latRad));
         }
 
         // One step of the rate toward its target with the limit on its change.
@@ -154,8 +162,11 @@ namespace ReDefinition.Atmospheres
             if (!WeatherHub.Field.Sample(body.flightGlobalsIndex, latDeg, lonDeg, height, ut, out sample)) return;
             double latRad = latDeg * Math.PI / 180.0;
             double pattern = HeightWind.PatternDriftMs(s.Generator.D, s.Parameters, Math.Abs(latRad));
-            // windShear off: all layers move with the field's patterns (no drift against them)
-            double target = LayerWindOptions.WindShear ? TargetRate(sample.WindWorld.x, pattern, latRad, s.Parameters.RadiusM) : 0.0;
+            // the rate of the shared definition (not the wind at the viewer): window, layer maps and this layer turn at the same speed; windShear off = no drift against the patterns
+            double target = SharedRate(s.Generator.D, s.Parameters, height, LayerWindOptions.WindShear);
+            // the probe's marker test pins a known rate (both signs) to measure the rotation of the rendered layer; it bypasses the slew limit and is never set outside a probe
+            double? marker = LayerWindOptions.MarkerRateRadS;
+            if (marker.HasValue) target = marker.Value;
             st.TargetRadS = target;
             if (!st.Started)
             {
@@ -163,14 +174,15 @@ namespace ReDefinition.Atmospheres
                 st.RateRadS = EveLayerAccess.TryGetDriftRev(h, out rev0) ? rev0 * 2.0 * Math.PI * Tuning.Get("e43.rotationSign", 1f) : 0.0;
                 st.Started = true;
             }
-            st.RateRadS = StepRate(st.RateRadS, target, dt, MaxAccelRadS2);
+            st.RateRadS = marker.HasValue ? target : StepRate(st.RateRadS, target, dt, MaxAccelRadS2);
             st.Converged = Math.Abs(st.RateRadS - target) < 1.0e-8;
             double rev = RevPerSecond(st.RateRadS, Tuning.Get("e43.rotationSign", 1f));
             EveLayerAccess.SetDriftRev(h, ut, rev);
+            // the field's wind of this height at the viewer: kept for the comparison rows (the layer does not follow it away from the reference latitude)
             st.WindEastMs = sample.WindWorld.x;
             st.WindNorthMs = sample.WindWorld.y;
             st.PatternMs = pattern;
-            st.TotalMs = pattern + st.RateRadS * s.Parameters.RadiusM * Math.Max(0.2, Math.Cos(latRad));
+            st.TotalMs = LayerSpeedMs(pattern, st.RateRadS, latRad, s.Parameters.RadiusM);
             st.HeightM = height;
             st.LatDeg = latDeg;
 

@@ -452,6 +452,28 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // The layer's offset angle about the drift axis in degrees (what SetDriftRev wraps into 0 .. 360).
+        internal static bool TryGetOffsetDeg(EveLayer h, out float degrees)
+        {
+            degrees = 0f;
+            if (h.Pqs == null || offsetField == null) return false;
+            try
+            {
+                var offset = (Vector3)offsetField.GetValue(h.Pqs);
+                degrees = DriftAxis == 'x' ? offset.x : (DriftAxis == 'y' ? offset.y : offset.z);
+                return true;
+            }
+            catch (Exception) { return false; }
+        }
+
+        // An angle in degrees wrapped into 0 .. 360 (the offset repeats every full turn).
+        internal static float WrapDegrees(float degrees)
+        {
+            double d = degrees % 360.0;
+            if (d < 0.0) d += 360.0;
+            return (float)d;
+        }
+
         // Sets the layer's own drift to rev revolutions per second about the polar axis and puts the difference of the phase into the offset, so
         // that the layer does not jump (rotation = fract(ut x mainPeriod) x 360 + offset): offset' = offset + fract(ut x old) x 360 - fract(ut x new) x 360.
         internal static bool SetDriftRev(EveLayer h, double ut, double rev)
@@ -467,7 +489,8 @@ namespace ReDefinition.Atmospheres
                 double old = Convert.ToDouble(axis.GetValue(period));
                 var offset = (Vector3)offsetField.GetValue(h.Pqs);
                 float delta = (float)((Fract(ut * old) - Fract(ut * rev)) * 360.0);
-                if (DriftAxis == 'x') offset.x += delta; else if (DriftAxis == 'y') offset.y += delta; else offset.z += delta;
+                // the offset is an angle: it is wrapped into 0 .. 360 every step, so the float keeps its precision over a session (the layer turns by the same amount)
+                if (DriftAxis == 'x') offset.x = WrapDegrees(offset.x + delta); else if (DriftAxis == 'y') offset.y = WrapDegrees(offset.y + delta); else offset.z = WrapDegrees(offset.z + delta);
                 offsetField.SetValue(h.Pqs, offset);
                 axis.SetValue(period, rev);
                 mainPeriodField.SetValue(h.Pqs, period);

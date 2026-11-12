@@ -274,10 +274,21 @@ namespace AtmoSim.Tests
                     // gate: the two upper layers at every latitude, and the speed at the storm-track latitudes where the rate is taken; the 2000 m layer (a meridional wind part the
                     // polar-axis rotation cannot follow) and the speeds at other latitudes are reported
                     if (z >= 5000.0) { total++; if (angleErr <= 15.0) ok++; }
-                    if (Math.Abs(latDeg) == 45.0 && latDeg > 0) Assert.IsTrue(speedErr <= 0.15, "speed error at 45 deg N latitude, " + z + " m: " + speedErr);
+                    // decision R3: the decks above LayerDecoupleWeight move with the wind of their height (speed error at the storm-track latitude within 15 %); the 2000 m deck
+                    // carries rain and cells and moves with the generator's patterns (the steering flow of the systems), which is faster than the wind of its own height
+                    if (Math.Abs(latDeg) == 45.0 && latDeg > 0 && z >= 5000.0) Assert.IsTrue(speedErr <= 0.15, "speed error at 45 deg N latitude, " + z + " m: " + speedErr);
+                    if (z == 2000.0)
+                    {
+                        // the 2000 m deck is the pattern: its measured motion equals the pattern speed (one source of truth), whatever the wind of its height
+                        double pat = HeightWind.PatternDriftMs(g.D, g.Body, Math.Abs(lat));
+                        Row("E43.layer_low_follows_pattern_error_pct." + latDeg, 100.0 * Math.Abs(m - pat) / pat, "<= 15", "measured motion of the 2000 m deck against the pattern speed " + pat.ToString("0.0") + " m/s");
+                        Assert.IsTrue(Math.Abs(m - pat) <= 0.15 * pat, "2000 m deck " + m + " against the pattern " + pat);
+                        // the polar-axis rotation cannot follow the meridional part of the wind: 15 degrees is not reached by this deck (open defect, stated), the bound is the measured value
+                        Assert.IsTrue(angleErr <= 20.0, "2000 m angle error " + angleErr);
+                    }
                 }
             }
-            Row("E43.layer_drift_angle_ok", ok, "= " + total, "layers at 5000 and 9350 m, 4 latitudes, with an angle error of at most 15 degrees against the wind vector of their height (the 2000 m layer: 16.0 to 17.9 degrees at 35, 45, 55 degrees N latitude and 45 degrees S latitude, reported)");
+            Row("E43.layer_drift_angle_ok", ok, "= " + total, "layers at 5000 and 9350 m, 4 latitudes, with an angle error of at most 15 degrees against the wind vector of their height (the 2000 m layer: 16.0 to 17.9 degrees at 35, 45, 55 degrees N latitude and 45 degrees S latitude: it misses the 15 degrees target, bounded here at 20 degrees; the cause is the meridional wind part that a rotation about the polar axis cannot follow)");
             Assert.AreEqual(total, ok);
         }
 
@@ -399,6 +410,22 @@ namespace AtmoSim.Tests
             double covOn = LayerCoupling.Coverage(g, lat, lon, ut, top + 600.0, on), covOff = LayerCoupling.Coverage(g, lat, lon, ut, top + 600.0, off);
             Row("E43.anvil_coverage_on_minus_off", covOn - covOff, ">= 0", "layer 600 m above the top of a tall cell");
             Assert.IsTrue(covOn >= covOff);
+            // over many cells: the coverage the anvil adds 600 m above the top, as a share of the coverage of the tower itself at 80 % of its height
+            var q = Timing.Queries(1500000, 321, 3.0e7);
+            double sum = 0.0; int cells = 0;
+            for (int i = 0; i < q.Length && cells < 25; i++)
+            {
+                if (Math.Abs(q[i].Lat) > 1.0) continue;
+                Weather t; g.Sample(q[i].Lat, q[i].Lon, 0.0, q[i].Ut, out t);
+                if (t.CellStrength < 0.6 || t.CellPhase < 0.3 || t.CellPhase > 0.55 || t.CellTopM < 7000.0) continue;
+                double tp = LayerCoupling.TopNow(ref t, on);
+                double tower = LayerCoupling.Coverage(g, q[i].Lat, q[i].Lon, q[i].Ut, 0.8 * tp, off);
+                double add = LayerCoupling.Coverage(g, q[i].Lat, q[i].Lon, q[i].Ut, tp + 600.0, on) - LayerCoupling.Coverage(g, q[i].Lat, q[i].Lon, q[i].Ut, tp + 600.0, off);
+                if (tower > 0.1) { sum += add / tower; cells++; }
+            }
+            Assert.IsTrue(cells >= 10, "cells " + cells);
+            Row("E43.anvil_share_of_tower_coverage", sum / cells, ">= 0.05", cells + " cells in the growth to mature phase: the anvil's added coverage 600 m above the top over the tower's coverage");
+            Assert.IsTrue(sum / cells >= 0.05, "share " + sum / cells);
         }
 
         [TestMethod]
@@ -447,6 +474,146 @@ namespace AtmoSim.Tests
             Assert.IsTrue(dot > 0.0 || Math.Sqrt(e * e + n * n) == 0.0);
             double e0, n0; LayerCoupling.TiltShift(g, lat, lon, ut, 8000.0, new LayerOptions { Tilt = false }, out e0, out n0);
             Assert.AreEqual(0.0, e0); Assert.AreEqual(0.0, n0);
+        }
+
+        // The top of a tower is followed on the field itself: the rise the core states (TopRiseMs, the analytic slope) against the change of TopNow between two samples of the
+        // field at the same place 2 minutes apart (the life phase is the generator's own, so the finite difference does not use the slope).
+        [TestMethod]
+        public void TheRiseOfATowerIsTheChangeOfItsTopOnTheField()
+        {
+            var g = Kerbin();
+            var o = new LayerOptions();
+            var q = Timing.Queries(400000, 77, 3.0e7);
+            int n = 0; double worst = 0.0;
+            for (int i = 0; i < q.Length && n < 60; i++)
+            {
+                if (Math.Abs(q[i].Lat) > 1.0) continue;
+                Weather a, b, c;
+                g.Sample(q[i].Lat, q[i].Lon, 0.0, q[i].Ut - 60.0, out a); g.Sample(q[i].Lat, q[i].Lon, 0.0, q[i].Ut, out b); g.Sample(q[i].Lat, q[i].Lon, 0.0, q[i].Ut + 60.0, out c);
+                if (a.CellStrength < 0.3 || b.CellStrength < 0.3 || c.CellStrength < 0.3 || b.CellLifeS <= 0.0) continue;
+                // the same cell at all three times: equal life span
+                if (a.CellLifeS != b.CellLifeS || c.CellLifeS != b.CellLifeS || a.CellTopM != b.CellTopM || c.CellTopM != b.CellTopM) continue;
+                double fd = (LayerCoupling.TopNow(ref c, o) - LayerCoupling.TopNow(ref a, o)) / 120.0, model = LayerCoupling.TopRiseMs(ref b, o);
+                // relative to the larger of the rise itself and the mean rise over the growth phase (the rise passes through zero at the peak, where a relative error means nothing)
+                double scale = Math.Max(Math.Abs(model), (b.CellTopM - Math.Min(o.TopMinM, b.CellTopM)) / (o.GrowFraction * b.CellLifeS) * 0.5);
+                worst = Math.Max(worst, Math.Abs(fd - model) / scale);
+                n++;
+            }
+            Assert.IsTrue(n >= 20, "cells " + n);
+            Row("E43.tower_rise_vs_finite_difference_worst_rel", worst, "<= 0.15", n + " cells of the field: TopRiseMs against the change of TopNow over 2 minutes");
+            Assert.IsTrue(worst <= 0.15, "worst " + worst);
+        }
+
+        // The wind is continuous at the ground: the wind at a few metres above the ground (the branch with every term) against the ground value.
+        [TestMethod]
+        public void TheWindIsContinuousAtTheGround()
+        {
+            var g = Kerbin();
+            var q = Timing.Queries(3000, 19, 3.0e7);
+            double worst = 0.0;
+            for (int i = 0; i < q.Length; i++)
+            {
+                double e0, n0, e1, n1;
+                g.MeanWind(q[i].Lat, q[i].Lon, 0.0, q[i].Ut, out e0, out n0); g.MeanWind(q[i].Lat, q[i].Lon, 3.0, q[i].Ut, out e1, out n1);
+                worst = Math.Max(worst, Math.Max(Math.Abs(e1 - e0), Math.Abs(n1 - n0)));
+            }
+            Row("E43.wind_continuity_at_ground_ms", worst, "<= 0.1", "difference of the large-scale wind between 0 m and 3 m, 3000 queries");
+            Assert.IsTrue(worst <= 0.1, "worst " + worst);
+        }
+
+        // Reference values evaluated by hand from the textbook profile (not from the code's output): the westerly at the jet level of a mid-latitude, the trade wind at the
+        // ground and the sense of the flow on a tidally locked body.
+        [TestMethod]
+        public void TheProfileMatchesValuesEvaluatedFromTheScaling()
+        {
+            var g = Kerbin();
+            double ut = 0.25 * g.Body.YearS, e, n;
+            // at the jet latitude the zonal-mean jet speed is JetSpeed0 at the jet height (rise = 1, fall = 1): the westerly there is at least that, plus the system and cell parts
+            g.MeanWind(g.D.JetLat0, 0.5, HeightWind.JetHeightM(g.Body), ut, out e, out n);
+            Row("E43.jet_level_westerly_over_jet_speed", e / g.D.JetSpeed0, ">= 0.9", "eastward wind at the jet latitude and the jet height against JetSpeed0");
+            Assert.IsTrue(e >= 0.9 * g.D.JetSpeed0, "e " + e + " jet " + g.D.JetSpeed0);
+            // the trade wind at the ground over the Hadley cell is westward (cell circulation), at the jet height aloft it is eastward
+            double lat = 10.0 * Math.PI / 180.0, e1, n1;
+            g.MeanWind(lat, 0.5, 100.0, ut, out e1, out n1);
+            Row("E43.trade_wind_near_ground_ms", e1, "< 0", "10 deg N latitude, 100 m");
+            Assert.IsTrue(e1 < 0.0);
+            // a tidally locked body: the low flow and the return flow aloft point opposite ways at the sub-solar region (the dot product of the winds at 400 m and 6000 m, over points)
+            var t = new WeatherGenerator(BodyParams.TidallyLockedWorld(), 1);
+            int opposite = 0, total = 0;
+            for (int k = 0; k < 400; k++)
+            {
+                double la = -1.2 + 2.4 * ((k * 37) % 400) / 400.0, lo = -3.1 + 6.2 * ((k * 91) % 400) / 400.0, el, nl, eh, nh;
+                t.MeanWind(la, lo, 400.0, 1.0e6, out el, out nl); t.MeanWind(la, lo, 6000.0, 1.0e6, out eh, out nh);
+                if (Speed(el, nl) < 0.5 || Speed(eh, nh) < 0.5) continue;
+                total++; if (el * eh + nl * nh < 0.0) opposite++;
+            }
+            Row("E43.tidal_flow_opposite_share", total > 0 ? (double)opposite / total : 0.0, ">= 0.7", "share of points where the wind at 400 m and at 6000 m point against each other (counted point by point, not a weighted mean)");
+            Assert.IsTrue(total > 100 && opposite >= 0.7 * total, opposite + " of " + total);
+        }
+
+        // The cells of the window seen as one body: a tower is connected from the base to the top (no gap), and it does not end in a vertical wall between neighbouring columns.
+        [TestMethod]
+        public void ATowerIsOneConnectedBodyWithItsAnvilFromTheSameCell()
+        {
+            var g = Kerbin();
+            int controlGaps = TowerGaps(g, new LayerOptions { Deck = false, Couple = true, TiltReach = 4.0 }, 0, out int controlColumns, out double controlWorst);
+            // the control: a lean ten times the reach tears the tower apart, so the row below is able to fail
+            Row("E43.tower_gaps_control_unbounded_lean", controlGaps, "> 0", controlColumns + " columns with the reach of the lean lifted to 4 lattice spacings, worst gap " + controlWorst.ToString("0") + " m");
+            Assert.IsTrue(controlGaps > 0, "the control found no gap");
+            int gaps = TowerGaps(g, new LayerOptions { Deck = false, Couple = true }, 0, out int columns, out double worstGapM);
+            Assert.IsTrue(columns >= 40, "columns " + columns);
+            Row("E43.tower_columns_with_gap", gaps, "= 0", columns + " tower columns, worst gap " + worstGapM.ToString("0") + " m, density threshold 5 % of the column maximum, 200 m steps");
+            Assert.AreEqual(0, gaps, "worst gap " + worstGapM);
+        }
+
+        private static int TowerGaps(WeatherGenerator g, LayerOptions o, int unused, out int columns, out double worstGapM)
+        {
+            var q = Timing.Queries(60000, 91, 3.0e7);
+            const int nz = 96; const double dz = 200.0;
+            var d = new float[nz];
+            columns = 0; worstGapM = 0.0;
+            int gaps = 0;
+            for (int i = 0; i < q.Length; i++)
+            {
+                if (Math.Abs(q[i].Lat) > 1.0) continue;
+                Weather w; g.Sample(q[i].Lat, q[i].Lon, 0.0, q[i].Ut, out w);
+                if (w.CellStrength < 0.4 || LayerCoupling.TopNow(ref w, o) < 5000.0) continue;
+                LayerCoupling.Column(g, q[i].Lat, q[i].Lon, q[i].Ut, 0.0, dz, nz, d, 0, 1, null, o);
+                float max = 0f; for (int k = 0; k < nz; k++) max = Math.Max(max, d[k]);
+                if (max < 0.2f) continue;
+                int first = -1, last = -1;
+                for (int k = 0; k < nz; k++) if (d[k] >= 0.05f * max) { if (first < 0) first = k; last = k; }
+                double gap = 0.0, run = 0.0;
+                for (int k = first; k <= last; k++) { if (d[k] < 0.05f * max) { run += dz; gap = Math.Max(gap, run); } else run = 0.0; }
+                columns++; worstGapM = Math.Max(worstGapM, gap);
+                if (gap > dz) gaps++;
+            }
+            return gaps;
+        }
+
+        [TestMethod]
+        public void TheTowerDoesNotEndInAVerticalWall()
+        {
+            var g = Kerbin();
+            var o = new LayerOptions { Deck = false };
+            var q = Timing.Queries(40000, 29, 3.0e7);
+            const int nz = 48; const double dz = 400.0, dx = 1000.0;
+            var a = new float[nz]; var b = new float[nz];
+            int pairs = 0; double worst = 0.0;
+            for (int i = 0; i < q.Length; i++)
+            {
+                if (Math.Abs(q[i].Lat) > 1.0) continue;
+                Weather w; g.Sample(q[i].Lat, q[i].Lon, 0.0, q[i].Ut, out w);
+                if (w.CellStrength < 0.3) continue;
+                double lon2 = q[i].Lon + dx / (g.Body.RadiusM * Math.Max(0.02, Math.Cos(q[i].Lat)));
+                LayerCoupling.Column(g, q[i].Lat, q[i].Lon, q[i].Ut, 0.0, dz, nz, a, 0, 1, null, o);
+                LayerCoupling.Column(g, q[i].Lat, lon2, q[i].Ut, 0.0, dz, nz, b, 0, 1, null, o);
+                for (int k = 0; k < nz; k++) worst = Math.Max(worst, Math.Abs(a[k] - b[k]));
+                pairs++;
+            }
+            Assert.IsTrue(pairs >= 40, "pairs " + pairs);
+            Row("E43.tower_wall_max_density_step_per_km", worst, "<= 0.5", pairs + " column pairs 1 km apart inside and around cells: largest density difference between neighbours (density 0 .. 1.5)");
+            Assert.IsTrue(worst <= 0.5, "worst " + worst);
         }
 
         // ---- L1: smoothness -----------------------------------------------------------------------------------------------
@@ -500,6 +667,26 @@ namespace AtmoSim.Tests
             double p99 = rates[(int)(0.99 * (rates.Count - 1))];
             Row("E43.window_density_change_p99_per_s", p99, "<= 0.08", "density 0..1.5 per game second, 24 x 24 x 24 window of 60 km, 30 s steps");
             Assert.IsTrue(p99 <= 0.08, "p99 " + p99);
+            // the p99 hides a hand-over of the strongest cell (a pop is a few texels): windows centred on cells of several lives, the largest change and the count above the limit
+            double maxChange = 0.0; int above = 0, texels = 0, windows = 0;
+            var q = Timing.Queries(1500000, 555, 3.0e7);
+            for (int i = 0; i < q.Length && windows < 12; i++)
+            {
+                if (Math.Abs(q[i].Lat) > 1.0) continue;
+                Weather t; g.Sample(q[i].Lat, q[i].Lon, 0.0, q[i].Ut, out t);
+                if (t.CellStrength < 0.3) continue;
+                windows++;
+                SubGrid.WindowLayered(g, q[i].Lat, q[i].Lon, q[i].Ut, nx, ny, nz, 2500.0, 450.0, 0.0, a, null, o);
+                SubGrid.WindowLayered(g, q[i].Lat, q[i].Lon, q[i].Ut + dt, nx, ny, nz, 2500.0, 450.0, 0.0, b, null, o);
+                for (int k = 0; k < a.Length; k++)
+                {
+                    double r = Math.Abs(b[k] - a[k]) / dt; texels++;
+                    if (r > maxChange) maxChange = r;
+                    if (r > 0.08) above++;
+                }
+            }
+            Row("E43.window_density_change_max_at_cells_per_s", maxChange, "<= 0.08", windows + " windows centred on cells, 30 s steps, " + above + " of " + texels + " texels above 0.08 per second");
+            Assert.AreEqual(0, above, "texels above the limit; the largest change " + maxChange);
         }
 
         // ---- the rows' data for the pictures --------------------------------------------------------------------------------

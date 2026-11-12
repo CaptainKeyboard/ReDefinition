@@ -14,33 +14,55 @@ namespace ReDefinition.Tests.Atmospheres.E43
         private const double Kerbin = 600000.0;
 
         [TestMethod]
-        public void AWesterlyWindAbovePatternSpeedTurnsTheLayerEastward()
+        public void TheSteeringAndTheWindowUseTheSameRateAtEveryHeight()
         {
-            double lat = 45.0 * Math.PI / 180.0;
-            double rate = LayerWindSteering.TargetRate(25.0, 17.0, lat, Kerbin);
-            Assert.IsTrue(rate > 0.0);
-            Assert.AreEqual(8.0 / (Kerbin * Math.Cos(lat)), rate, 1e-12);
-            Assert.IsTrue(LayerWindSteering.TargetRate(9.0, 17.0, lat, Kerbin) < 0.0, "a low layer slower than the patterns turns westward against them");
+            // review R2/R7: one definition. The rate the steering writes into EVE is the core's HeightWind.LayerRate, the function the window deck and the layer maps are looked up with.
+            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            foreach (double h in new[] { 500.0, 1500.0, 2200.0, 3500.0, 5000.0, 9350.0, 14000.0 })
+            {
+                double core = HeightWind.LayerRate(g.D, g.Body, h);
+                Assert.AreEqual(core, LayerWindSteering.SharedRate(g.D, g.Body, h, true), 1e-18, "height " + h);
+                Assert.AreEqual(0.0, LayerWindSteering.SharedRate(g.D, g.Body, h, false), "windShear off drifts nothing against the patterns");
+                // the window's deck is looked up at lon - rate x UT with the same function
+                double lon = 1.0, ut = 1.0e6;
+                Assert.AreEqual(DMath.WrapPi(lon - core * ut), LayerCoupling.LayerLon(g, lon, ut, h, new LayerOptions()), 1e-12);
+            }
         }
 
         [TestMethod]
-        public void TheSumOfPatternAndDriftIsTheWindOfTheLayer()
+        public void TheLayersThatCarryRainFollowThePatternsAndTheHighDecksTheWind()
         {
-            // the rule of the brief: pattern motion + EVE's drift = field wind, in both signs, away from the poles
-            foreach (double latDeg in new[] { -60.0, -30.0, 0.0, 20.0, 45.0, 60.0 })
-                foreach (double wind in new[] { -5.0, 3.0, 24.0 })
-                {
-                    double lat = latDeg * Math.PI / 180.0, pattern = 15.0;
-                    double rate = LayerWindSteering.TargetRate(wind, pattern, lat, Kerbin);
-                    double drift = rate * Kerbin * Math.Cos(lat);
-                    Assert.AreEqual(wind, pattern + drift, 1e-9, "lat " + latDeg);
-                }
+            // decision R3: no drift against the patterns below the window's deck height, the full rate above 0.45 of the tropopause
+            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            Assert.AreEqual(0.0, HeightWind.LayerRate(g.D, g.Body, 1500.0), 0.0);
+            Assert.AreEqual(0.0, HeightWind.LayerRate(g.D, g.Body, 0.2 * g.Body.TropopauseM), 0.0);
+            Assert.AreEqual(1.0, HeightWind.LayerDecoupleWeight(g.Body, 0.5 * g.Body.TropopauseM), 0.0);
+            Assert.IsTrue(Math.Abs(HeightWind.LayerRate(g.D, g.Body, 9350.0)) > 1.0e-5, "the jet-level deck turns against the patterns");
+            Assert.IsTrue(HeightWind.LayerRate(g.D, g.Body, 9350.0) > 0.0, "eastward at the storm-track latitude");
+        }
+
+        [TestMethod]
+        public void TheSpeedOfALayerIsThePatternPlusTheRateOnItsParallel()
+        {
+            double lat = 45.0 * Math.PI / 180.0, rate = 2.0e-5;
+            Assert.AreEqual(17.0 + rate * Kerbin * Math.Cos(lat), LayerWindSteering.LayerSpeedMs(17.0, rate, lat, Kerbin), 1e-9);
+            Assert.AreEqual(17.0, LayerWindSteering.LayerSpeedMs(17.0, 0.0, lat, Kerbin), 0.0);
+        }
+
+        [TestMethod]
+        public void TheOffsetAngleIsWrappedIntoOneTurn()
+        {
+            Assert.AreEqual(10f, EveLayerAccess.WrapDegrees(370f), 1e-4);
+            Assert.AreEqual(350f, EveLayerAccess.WrapDegrees(-10f), 1e-4);
+            Assert.AreEqual(0f, EveLayerAccess.WrapDegrees(720f), 1e-4);
+            Assert.IsTrue(EveLayerAccess.WrapDegrees(-1.0e-9f) >= 0f);
         }
 
         [TestMethod]
         public void TheRateIsLimitedNearThePolesAndInItsChange()
         {
-            double rate = LayerWindSteering.TargetRate(40.0, 0.0, 89.0 * Math.PI / 180.0, Kerbin);
+            var gen = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            double rate = LayerWindSteering.SharedRate(gen.D, gen.Body, 9350.0, true);
             Assert.IsTrue(Math.Abs(rate) <= LayerWindSteering.MaxRateRadS + 1e-15);
             double r = 0.0;
             for (int i = 0; i < 10; i++) r = LayerWindSteering.StepRate(r, 5.0e-5, 1.0, LayerWindSteering.MaxAccelRadS2);
