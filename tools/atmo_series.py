@@ -196,6 +196,10 @@ def check_definition(defn, rows_by_package, schema):
     errors = validate_schema(defn, schema, schema)
     if errors:
         return errors
+    for i, entry in enumerate(defn.get("settings", [])):
+        for key, value in entry["set"].items():
+            if not re.match(r"^[A-Za-z0-9_.]+$", key) or isinstance(value, (dict, list)) or value is None:
+                errors.append("settings[%d]: %s must be a plain key with a string, number or boolean value" % (i, key))
     ids = [s["id"] for s in defn["starts"]]
     if len(set(ids)) != len(ids):
         errors.append("starts: duplicate id")
@@ -519,6 +523,37 @@ def apply_profile(cache, ksp):
         dst = os.path.join(ksp, *rel.split("/"))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(cache, *rel.split("/")), dst)
+
+
+def settings_text(value):
+    """A settings value as the files write it (True/False capitalised)."""
+    return str(value)
+
+
+def apply_settings(ksp, settings):
+    """Pins the keys a series names ("settings" in its definition): each key must already stand in the file as 'key = value'
+    (first match, indent kept). Returns the lines written, 'file: key = value'. Raises Refusal for a missing file or key."""
+    written = []
+    for entry in settings or []:
+        path = os.path.join(ksp, *entry["file"].split("/"))
+        if not os.path.isfile(path):
+            raise Refusal("the series pins settings in %s, which does not exist" % entry["file"])
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            lines = f.read().split("\n")
+        for key, value in entry["set"].items():
+            hit = None
+            for i, line in enumerate(lines):
+                m = re.match(r"^(\s*)%s\s*=" % re.escape(key), line)
+                if m:
+                    hit = i
+                    lines[i] = "%s%s = %s%s" % (m.group(1), key, settings_text(value), "\r" if line.endswith("\r") else "")
+                    break
+            if hit is None:
+                raise Refusal("the series pins %s in %s, which has no such key" % (key, entry["file"]))
+            written.append("%s: %s = %s" % (entry["file"], key, settings_text(value)))
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write("\n".join(lines))
+    return written
 
 
 def clean_side_files(ksp):
@@ -867,6 +902,8 @@ class Runner:
         try:
             report["hashes"] = self.verify_hashes(require_bundle=bool(defn.get("bundle")))
             apply_profile(self.profile_cache, self.ksp)
+            for line in apply_settings(self.ksp, defn.get("settings")):
+                self.log("pinned %s" % line)
             self.vm.begin()
             try:
                 for st in starts:
@@ -1193,6 +1230,30 @@ def _selftest():
               and build_command("wt", "ksp", "dotnet")[release_command.index("-c") + 1] == "Debug")
         text = format_table("K-test", rep["table"])
         check("the table has the fixed columns", text.splitlines()[1].split() == ["metric", "value", "threshold", "result"])
+
+        # 1b. Pinned settings: written after the profile, restored byte for byte, a missing key refuses.
+        fresh_ksp()
+        pins = [{"file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": {"graphicsProfile": "High"}},
+                {"file": "settings.cfg", "set": {"SCREEN_RESOLUTION": "1,1"}}]
+        seen = []
+        def pin_launch(args, timeout, log_path):
+            seen.append((open(os.path.join(ksp, "GameData", "ReDefinition", "Main", "PluginData", "settings.cfg")).read(),
+                         open(os.path.join(ksp, "settings.cfg")).read()))
+            return launcher("pass")(args, timeout, log_path)
+        d1b = json.loads(json.dumps(defn))
+        d1b["settings"] = pins
+        rep = runner(launch=pin_launch).execute(d1b)
+        check("pinned settings are in the files while the game runs", seen and "graphicsProfile = High" in seen[0][0] and "SCREEN_RESOLUTION = 1,1" in seen[0][1])
+        check("pinned settings are restored byte for byte", sha256(os.path.join(ksp, "settings.cfg")) == before["settings.cfg"]
+              and sha256(os.path.join(ksp, "GameData/ReDefinition/Main/PluginData/settings.cfg")) == before["GameData/ReDefinition/Main/PluginData/settings.cfg"])
+        fresh_ksp()
+        refused = ""
+        try:
+            apply_settings(ksp, [{"file": "settings.cfg", "set": {"NO_SUCH_KEY": 1}}])
+        except Refusal as e:
+            refused = str(e)
+        check("a pinned key that is not in the file refuses", "no such key" in refused)
+        check("the schema rejects a pinned file outside the snapshot", bool(validate_schema(dict(defn, settings=[{"file": "../x.cfg", "set": {}}]), load_schema(repo), load_schema(repo))))
 
         # 2. A missing expected line is a FAIL.
         d2 = json.loads(json.dumps(defn))

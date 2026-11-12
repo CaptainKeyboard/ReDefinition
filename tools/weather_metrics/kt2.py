@@ -17,7 +17,9 @@ begin line holds the seconds before it and is dropped):
   ms         the cost of the clouds, label independent: frame_ms of the variant minus frame_ms of the variant "off" (no clouds from us, no
              EVE layers: the own starts run with EVE removed) at the same view and resolution. TVC is measured in its own start; its "off"
              is the one of the own start (same universal time, same pose). Valid while the GPU is the limit; a view the CPU limits hides
-             the cost in idle time.
+             the cost in idle time: when the view's or its off frame's GPU idle ("frame start, GPU idle included") is above 10 percent of
+             the frame (idle_pct is emitted per view), an own variant's ms is its labels figure, the view is left out of markers_agree,
+             and the report notes it.
   labels_ms  the cost of the clouds by labels: the own pass puts the markers "ReDefinition clouds: begin" and "ReDefinition clouds: end"
              around itself (GpuMark seam), and the profiler's group "ReDefinition clouds" in "By camera or light" is the sum of both
              segments (not cut by the 45-segment list). TVC: the segments whose label matches --tvc-pattern (a guess until a real report
@@ -25,7 +27,8 @@ begin line holds the seconds before it and is dropped):
 
 The own pass has both numbers; markers_agree is their largest relative gap. A view without a clean report gives no value, never a guess.
 
-Output metrics: T09.perf.<view>.<W>x<H>.ms / .labels_ms / .frame_ms per variant, T09.perf.own_over_tvc.mean, T09.perf.recon4_over_plain.mean,
+Output metrics: T09.perf.<view>.<W>x<H>.ms / .labels_ms / .frame_ms / .idle_pct per variant, T09.perf.own_over_tvc.mean and
+T09.perf.recon4_over_plain.mean (ratios of the sums of the costs over the views, not means of ratios),
 T09.perf.markers_agree, T09.profiler.cloud_segment_present, and the A/B variants at the "inside" view (edge, heightoff, cap2):
 T09.ab.edge_over_plain.<res>, T09.ab.t13_cost_ms.<res>, T09.ab.cap2_over_plain.<res>. Stdlib only.
 """
@@ -138,6 +141,26 @@ def merge(texts):
     return found
 
 
+CPU_BOUND = 0.10   # a view with more GPU idle than this share of its frame is limited by the CPU
+
+
+def idle_share(v):
+    """The share of the frame the GPU idles (the profiler's group IDLE_GROUP over the mean frame), or None."""
+    if v is None or v["idle"] is None or not v["frame"]:
+        return None
+    return v["idle"] / v["frame"]
+
+
+def ratio_of_sums(cost, top, bottom, res=None):
+    """Sum of the costs of variant `top` over the sum of `bottom`, over the views where both have a cost (and `bottom` costs something)."""
+    pairs = [(cost[(top, w, r)], cost[(bottom, w, r)]) for (var, w, r) in cost
+             if var == top and (res is None or r == res) and cost[(top, w, r)] is not None and cost.get((bottom, w, r))]
+    if not pairs:
+        return None
+    denominator = sum(b for _, b in pairs)
+    return sum(t for t, _ in pairs) / denominator if denominator else None
+
+
 def rnd(value):
     return None if value is None else round(value, 4)
 
@@ -150,30 +173,41 @@ def metrics(found, notes=None):
         if value is not None:
             out.append({"metric": metric, "value": rnd(value) if isinstance(value, float) else value, "variant": variant})
 
-    diffs, gaps, cost = {}, [], {}
+    gaps, cost = [], {}
     for (variant, view, res), v in sorted(found.items()):
         base = found.get(("off", view, res))
         prefix = "T09.perf.%s.%s." % (view, res)
         add(prefix + "frame_ms", v["frame"], variant)
+        idle = idle_share(v)
+        add(prefix + "idle_pct", None if idle is None else 100.0 * idle, variant)
         if variant != "off":
             add(prefix + "labels_ms", v["labels"], variant)
             diff = v["frame"] - base["frame"] if v["frame"] is not None and base is not None and base["frame"] is not None else None
+            # The frame difference is the cost only while the GPU is the limit. A view whose frame (or whose off frame) holds more than
+            # 10 percent GPU idle is cpu-bound: the own pass then gets its labels figure as the cost, and the view stays out of markers_agree.
+            bound = CPU_BOUND < max(idle if idle is not None else 0.0, idle_share(base) if base is not None and idle_share(base) is not None else 0.0)
+            if bound:
+                if notes is not None:
+                    notes.append("cpu-bound view %s %s %s (GPU idle %s percent of the frame, off frame %s percent): %s" % (
+                        variant, view, res, "?" if idle is None else "%.0f" % (100.0 * idle),
+                        "?" if base is None or idle_share(base) is None else "%.0f" % (100.0 * idle_share(base)),
+                        "the cost is the labels figure" if variant in OWN_VARIANTS and v["labels"] is not None else "the frame difference stands, read it with care"))
+                if variant in OWN_VARIANTS and v["labels"] is not None:
+                    diff = v["labels"]
             add(prefix + "ms", diff, variant)
             cost[(variant, view, res)] = diff
-            if variant in OWN_VARIANTS and diff is not None and v["labels"] is not None and max(diff, v["labels"]) > 0.5:
+            if variant in OWN_VARIANTS and not bound and diff is not None and v["labels"] is not None and max(diff, v["labels"]) > 0.5:
                 gaps.append(abs(diff - v["labels"]) / max(diff, v["labels"]))
         if notes is not None and variant == "tvc":
             notes.append("TVC %s %s: %d clean report(s); labels matched by the pattern: %s" % (view, res, v["reports"], ", ".join(v["matched"]) or "none"))
             if v["top"] and not any(n.startswith("TVC first report") for n in notes):
                 notes.append("TVC first report, costliest labels: " + " | ".join(v["top"]))
+    # Ratios of sums, not means of ratios: one view with a small cost (orbit_edge, 0.1 to 0.8 ms) would dominate a mean of per-view ratios.
+    # The ".mean" in the two names is kept as the row key.
     for res in sorted({k[2] for k in found}):
-        ratios_t = [cost[("plain", w, r)] / cost[("tvc", w, r)] for (var, w, r) in cost
-                    if var == "plain" and r == res and cost.get(("tvc", w, r)) and cost.get(("plain", w, r)) is not None]
-        add("T09.perf.own_over_tvc." + res, mean(ratios_t))
-    add("T09.perf.own_over_tvc.mean", mean([cost[("plain", w, r)] / cost[("tvc", w, r)] for (var, w, r) in cost
-                                             if var == "plain" and cost.get(("tvc", w, r)) and cost.get(("plain", w, r)) is not None]))
-    add("T09.perf.recon4_over_plain.mean", mean([cost[("recon4", w, r)] / cost[("plain", w, r)] for (var, w, r) in cost
-                                                  if var == "recon4" and cost.get(("plain", w, r)) and cost.get(("recon4", w, r)) is not None]))
+        add("T09.perf.own_over_tvc." + res, ratio_of_sums(cost, "plain", "tvc", res))
+    add("T09.perf.own_over_tvc.mean", ratio_of_sums(cost, "plain", "tvc"))
+    add("T09.perf.recon4_over_plain.mean", ratio_of_sums(cost, "recon4", "plain"))
     add("T09.perf.markers_agree", max(gaps) if gaps else None)
     own_seen = [v["labels"] for (variant, _, _), v in found.items() if variant in OWN_VARIANTS and v["labels"] is not None]
     if any(f[0] in OWN_VARIANTS for f in found):
@@ -233,12 +267,14 @@ def selftest():
         lines += ["    %.3f ms, at most 9.5, 600: %s" % (ms, label) for label, ms in segments]
         return lines
 
-    def view(name, variant, res, frames, clouds=None, tvc=None):
+    def view(name, variant, res, frames, clouds=None, tvc=None, idle=None):
         # the first report (dropped) is junk; then two clean ones
         out = ["T09 view begin: %s %s %s" % (name, variant, res)]
         out += report(99.0, [(OWN_GROUP, 50.0)], [("ReDefinition clouds: end", 50.0)])
         for f in frames:
             groups = [(OWN_GROUP, clouds)] if clouds is not None else []
+            if idle is not None:
+                groups.append((IDLE_GROUP, idle))
             segs = [("ReDefinition clouds: end", clouds - 0.25), ("ReDefinition clouds: begin", 0.25)] if clouds is not None else []
             if tvc is not None:
                 segs = [("Camera 00: EVE volumetric clouds", tvc), ("other", 1.0)]
@@ -274,6 +310,20 @@ def selftest():
     assert [r["value"] for r in out if r["metric"] == "T09.ut_spread_s"] == [0.0], out
     out = series_results({"own": ut % "1000.0", "tvc": ut % "4600.0"})
     assert [r["value"] for r in out if r["metric"] == "T09.ut_spread_s"] == [3600.0], out
+    # ratios are ratios of sums: the small orbit cost does not dominate (a mean of ratios would read 0.75)
+    two = view("ground", "off", "1707x960", [7.0, 7.0]) + view("ground", "plain", "1707x960", [9.0, 9.0], clouds=2.0) \
+        + view("ground", "recon4", "1707x960", [8.0, 8.0], clouds=1.0) \
+        + view("orbit_edge", "off", "1707x960", [5.0, 5.0]) + view("orbit_edge", "plain", "1707x960", [5.2, 5.2], clouds=0.2) \
+        + view("orbit_edge", "recon4", "1707x960", [5.2, 5.2], clouds=0.2)
+    rows = {(r["metric"], r["variant"]): r["value"] for r in metrics(merge([two]))}
+    assert abs(rows[("T09.perf.recon4_over_plain.mean", None)] - 1.2 / 2.2) < 1e-3, rows
+    # a cpu-bound view (more than 10 percent GPU idle): the cost is the labels figure, the view is out of markers_agree, the idle share is a value
+    bound = view("ground", "off", "1707x960", [7.0, 7.0], idle=2.0) + view("ground", "plain", "1707x960", [7.1, 7.1], clouds=0.9, idle=1.5)
+    notes = []
+    rows = {(r["metric"], r["variant"]): r["value"] for r in metrics(merge([bound]), notes)}
+    assert abs(rows[("T09.perf.ground.1707x960.ms", "plain")] - 0.9) < 1e-9, rows
+    assert abs(rows[("T09.perf.ground.1707x960.idle_pct", "off")] - 100.0 * 2.0 / 7.0) < 1e-3, rows
+    assert ("T09.perf.markers_agree", None) not in rows and any("cpu-bound" in n for n in notes), (rows, notes)
     print("kt2 selftest: ok")
 
 

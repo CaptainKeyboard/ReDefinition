@@ -32,6 +32,9 @@ namespace ReDefinition.Atmospheres
         private const double DwellS = 30.0, InsideDwellS = 25.0, CandidateStepS = 3600.0, BaseStepS = 3600.0;
         private const int Candidates = 48, PlaceAttempts = 4, SteadyFrames = 120;
         private const double MinCover = 0.5, SunMinDeg = 15.0, SunMaxDeg = 60.0, PlaceRetryWaitS = 4.0, AimToleranceDeg = 3.0;
+        // vessel.altitude is the centre of mass; the position is set for the vessel's transform, and a tall rocket differs by several metres: 15 m at 200 m (7 percent),
+        // still below any difference the cloud layers (hundreds of metres thick) can make.
+        private const double AltitudeToleranceM = 15.0;
 
         internal struct View
         {
@@ -193,6 +196,8 @@ namespace ReDefinition.Atmospheres
             Application.targetFrameRate = -1;
             Emit("T09.vsync_count", QualitySettings.vSyncCount);
             Check("vertical sync is off", QualitySettings.vSyncCount == 0, "vSyncCount " + QualitySettings.vSyncCount);
+            Emit("T09.target_frame_rate", Application.targetFrameRate);
+            Check("no frame cap is set", NoFrameCap(), "targetFrameRate " + Application.targetFrameRate);
 
             double siteLat = vessel.latitude, siteLon = vessel.longitude;
             foreach (ProbeWait w in ChooseUt(body, siteLat, siteLon)) yield return w;
@@ -292,6 +297,35 @@ namespace ReDefinition.Atmospheres
 
         // --- One view ---------------------------------------------------------------------------------------------------------------------
 
+        // No cap on the frame: a cap (KSP's FRAMERATE_LIMIT, set again by KSP's settings) would hide the cost of a cheap view in idle time.
+        private static bool NoFrameCap()
+        {
+            return Application.targetFrameRate <= 0 && QualitySettings.vSyncCount == 0;
+        }
+
+        // The size the scene is rendered at, per view: the own pass's depth target (the camera it draws into) while it draws, else the flight camera's
+        // pixel size (the upscaler redirects the camera into its render target). The series' keys are window sizes, so the two must be equal
+        // (NativeAA); with the upscaler on Auto the 2560x1440 window renders 1707x960 and the second resolution measures nothing new.
+        private void CheckRenderSize(View view, string variant)
+        {
+            OwnCloudModule own = OwnCloudModule.Current;
+            int w, h;
+            if (own != null && variant != "off" && variant != "tvc" && own.Stats.RenderWidth > 0) { w = own.Stats.RenderWidth; h = own.Stats.RenderHeight; }
+            else
+            {
+                Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+                if (cam == null) { Check("the render size is known in the " + view.Name + " view (" + variant + ")", false, "no flight camera"); return; }
+                w = cam.pixelWidth;
+                h = cam.pixelHeight;
+            }
+            string prefix = "T09.view." + view.Name + ".";
+            EmitText(prefix + "render_size", w + "x" + h);
+            Emit(prefix + "render_width", w);
+            Emit(prefix + "render_height", h);
+            Check("the scene renders at the window size in the " + view.Name + " view (" + variant + ")", w == Screen.width && h == Screen.height,
+                  "render " + w + "x" + h + ", window " + Screen.width + "x" + Screen.height + " (the series pins quality NativeAA)");
+        }
+
         private IEnumerable<ProbeWait> Dwell(CelestialBody body, double lat, double lon, View view, string variant, double seconds)
         {
             OwnCloudModule own = OwnCloudModule.Current;
@@ -304,6 +338,9 @@ namespace ReDefinition.Atmospheres
             int frames = Math.Max(1, Time.frameCount - framesBefore);
             string prefix = "T09.view." + view.Name + ".";
             Emit(prefix + "frames", frames);
+            Emit(prefix + "fps", frames / Math.Max(0.001, seconds));
+            Check("no frame cap in the " + view.Name + " view (" + variant + ")", NoFrameCap(), "targetFrameRate " + Application.targetFrameRate + ", vSyncCount " + QualitySettings.vSyncCount);
+            CheckRenderSize(view, variant);
             if (variant == "tvc")
             {
                 Check("TVC kept drawing in the " + view.Name + " view", EveRenderCompat.Status == EveRenderStatus.Ready && EveCloudStats.LayersBound > 0 && EveRenderCompat.FailureLines == 0,
@@ -397,7 +434,7 @@ namespace ReDefinition.Atmospheres
                 Vessel vessel = FlightGlobals.ActiveVessel;
                 double az, el;
                 CameraAim(out az, out el);
-                double altitudeError = Math.Abs(vessel.altitude - wantedAltitude), tolerance = Math.Max(5.0, 0.02 * wantedAltitude);
+                double altitudeError = Math.Abs(vessel.altitude - wantedAltitude), tolerance = Math.Max(AltitudeToleranceM, 0.02 * wantedAltitude);
                 double aimError = Math.Abs(el - wantedPitch), headingError = Math.Abs(WrapDeg(az - view.HeadingDeg));
                 bool altitudeOk = altitudeError <= tolerance, aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
                 detail = "altitude " + vessel.altitude.ToString("0") + " m against " + wantedAltitude.ToString("0") + ", camera elevation " + el.ToString("0.0") + " against "

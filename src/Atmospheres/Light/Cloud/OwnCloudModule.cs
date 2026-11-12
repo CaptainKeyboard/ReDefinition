@@ -49,6 +49,8 @@ namespace ReDefinition.Atmospheres
             public int BufferAttaches;
             // Whether the light cache is filled and read in the frame just recorded (cloudLightCache on).
             public bool LightCacheOn;
+            // The size of the camera the pass draws into (its depth target): the render size, which the upscaler sets below the window size.
+            public int RenderWidth, RenderHeight;
             public string Mode = "off", Why = "not started";
             public int Layers;
             public bool NearMarchActive;
@@ -778,6 +780,8 @@ namespace ReDefinition.Atmospheres
         private void EnsureDepthTarget(Camera cam)
         {
             int w = cam.pixelWidth, h = cam.pixelHeight;
+            Stats.RenderWidth = w;
+            Stats.RenderHeight = h;
             if (depthTarget != null && depthTarget.width == w && depthTarget.height == h) return;
             if (depthTarget != null) { depthTarget.Release(); UnityEngine.Object.Destroy(depthTarget); }
             depthTarget = new RenderTexture(w, h, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear)
