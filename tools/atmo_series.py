@@ -664,6 +664,10 @@ def launch_game(ksp, args, timeout, log_path, exe_prefix=None, grace=PROBE_GRACE
     """Starts the game from its folder and waits: until it quits, until the probe's verdict line has been in the log for the grace
     time, or until the timeout. Returns (how it ended, exit code or None)."""
     command = (exe_prefix or [os.path.join(ksp, "KSP_x64.exe")]) + args
+    # A start that names several probes (-atmoProbe A,B) ends after the verdict line of each of them.
+    expected = 1
+    if "-atmoProbe" in args and args.index("-atmoProbe") + 1 < len(args):
+        expected = max(1, len([p for p in args[args.index("-atmoProbe") + 1].split(",") if p.strip()]))
     proc = subprocess.Popen(command, cwd=ksp, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     stop = threading.Event()
     foreground = None
@@ -696,7 +700,7 @@ def launch_game(ksp, args, timeout, log_path, exe_prefix=None, grace=PROBE_GRACE
                 return "timeout after %d s" % timeout, None
             try:
                 with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-                    seen = PROBE_RE.search(f.read()) is not None
+                    seen = len(PROBE_RE.findall(f.read())) >= expected
             except OSError:
                 seen = False
             if seen and verdict_at is None:

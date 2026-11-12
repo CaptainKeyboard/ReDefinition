@@ -7,9 +7,10 @@
   "configuration": "Release",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 4,
+  "plannedStarts": 5,
   "starts": [
-    { "id": "run1", "description": "forecast, settings, C25 game rows; the scenario is the crewed vessel on the launch pad (Kerbal X with crew in the probe save's probe.sfs: Landed, in a crewed cabin for the IVA rows)", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"] },
+    { "id": "run1", "description": "forecast sites (B12) and the C25 game rows in the flight of the crewed vessel on the launch pad (Kerbal X with crew in the probe save's probe.sfs); the two probes share the start and the game quits after the last verdict", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "B12Probe,C25Probe"] },
+    { "id": "spacecentre", "description": "settings window (D36) and forecast window, alert, tracking station and flight (D30): the game stays at the space centre, D30 launches Kerbal X itself", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeSpaceCentre", "-redefinitionProbeClouds", "-atmoProbe", "D36Probe,D30Probe"] },
     { "id": "audio", "description": "weather sound (D33) alone: real pause, warp, map and IVA rows on the crewed pad vessel", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D33Probe"] },
     { "id": "wind", "description": "wind gameplay (D31) alone on the pad vessel", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "WindProbe"] },
     { "id": "windground", "description": "wind on craft on the runway (D31) alone", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "WindGroundProbe"] }

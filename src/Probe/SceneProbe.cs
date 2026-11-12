@@ -53,6 +53,8 @@ namespace ReDefinition.Probe
         internal static bool Launched;
         // -redefinitionProbeSea: a capsule afloat out at sea, no land within kilometres.
         internal const string SeaArgument = "-redefinitionProbeSea";
+        // -redefinitionProbeSpaceCentre: stay at the space centre instead of flying the vessel.
+        internal const string SpaceCentreArgument = "-redefinitionProbeSpaceCentre";
         // -redefinitionProbeCoast, with it: the capsule off the island airfield's shore.
         internal const string CoastArgument = "-redefinitionProbeCoast";
         // -redefinitionProbeGrass: a capsule on a field of Parallax's grass, kilometres from the
@@ -157,6 +159,18 @@ namespace ReDefinition.Probe
                 double day = home != null && home.solarRotationPeriod ? home.solarDayLength : 21600.0;
                 game.flightState.universalTime += day * double.Parse(days, CultureInfo.InvariantCulture);
                 Debug.Log(Log.Tag + " Probe: " + days + " solar days of " + day.ToString("0.###", CultureInfo.InvariantCulture) + " s on.");
+            }
+            // -redefinitionProbeSpaceCentre: the probe's game is left at the space centre (a series probe that measures the space
+            // centre and the tracking station, then launches the flight itself).
+            if (CommandLine.Has(SceneProbe.SpaceCentreArgument))
+            {
+                HighLogic.SaveFolder = SceneProbe.SaveFolder;
+                HighLogic.CurrentGame = game;
+                // The pad cleared of the save's vessel, as KSP clears it for a launch (the probe launches the flight itself).
+                game.flightState.protoVessels.RemoveAll(v => v.situation == Vessel.Situations.PRELAUNCH);
+                Debug.Log(Log.Tag + " Probe: to the space centre.");
+                HighLogic.LoadScene(GameScenes.SPACECENTER);
+                yield break;
             }
             int index = SceneProbe.VesselName != null
                 ? game.flightState.protoVessels.FindIndex(v => v.vesselName == SceneProbe.VesselName)
