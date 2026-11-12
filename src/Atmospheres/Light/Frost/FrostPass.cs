@@ -35,6 +35,8 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdCopy = Shader.PropertyToID("_FrostCopy");
         private static readonly int IdCopyTexel = Shader.PropertyToID("_FrostCopy_TexelSize");
         private static readonly int IdMask = Shader.PropertyToID("_FrostMask");
+        private static readonly int IdBefore = Shader.PropertyToID("_FrostBefore");
+        private static readonly int IdAfter = Shader.PropertyToID("_FrostAfter");
         private static readonly int IdA = Shader.PropertyToID("_FrostA");
         private static readonly int IdB = Shader.PropertyToID("_FrostB");
         private static readonly int IdC = Shader.PropertyToID("_FrostC");
@@ -51,7 +53,7 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdTiles = Shader.PropertyToID("_FrostTiles");
 
         // The passes of the shader that are drawn by index (the quad is the pass without a light mode, drawn by Graphics.DrawMesh).
-        internal const int PassHost = 0, PassCopy = 1, PassMask = 3;
+        internal const int PassHost = 0, PassCopy = 1, PassMask = 3, PassMaskDiff = 4;
         internal const int QuadQueue = 3500;
 
         private readonly Material host;
@@ -173,6 +175,28 @@ namespace ReDefinition.Atmospheres
             cmd.SetGlobalTexture(IdMain, depth);
             cmd.SetRenderTarget(mask);
             cmd.DrawProcedural(Matrix4x4.identity, host, PassMask, MeshTopology.Triangles, 3, 1);
+        }
+
+        // The interior mask from the picture instead of the depth, first half: at the start of the internal camera's frame, a half-size
+        // copy of the target it is about to draw into (the flight camera's picture so far).
+        internal void RecordMaskBefore(CommandBuffer cmd, int width, int height)
+        {
+            cmd.GetTemporaryRT(IdBefore, Math.Max(1, width), Math.Max(1, height), 0, FilterMode.Point, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            cmd.Blit(new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget), new RenderTargetIdentifier(IdBefore));
+        }
+
+        // Second half, after the internal camera drew: a copy of the target again, and the mask is 1 where the two copies differ. Frees
+        // both copies.
+        internal void RecordMaskAfter(CommandBuffer cmd, int width, int height, RenderTexture mask)
+        {
+            cmd.GetTemporaryRT(IdAfter, Math.Max(1, width), Math.Max(1, height), 0, FilterMode.Point, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            cmd.Blit(new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget), new RenderTargetIdentifier(IdAfter));
+            cmd.SetGlobalTexture(IdMain, new RenderTargetIdentifier(IdAfter));
+            cmd.SetGlobalTexture(IdBefore, new RenderTargetIdentifier(IdBefore));
+            cmd.SetRenderTarget(mask);
+            cmd.DrawProcedural(Matrix4x4.identity, host, PassMaskDiff, MeshTopology.Triangles, 3, 1);
+            cmd.ReleaseTemporaryRT(IdAfter);
+            cmd.ReleaseTemporaryRT(IdBefore);
         }
 
         // Queues the fallback quad for a camera (Graphics.DrawMesh, queue 3500): a plain alpha overlay in the scene. Draws nothing where

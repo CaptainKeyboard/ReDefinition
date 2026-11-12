@@ -25,6 +25,9 @@ namespace ReDefinition.Atmospheres
         private Camera camera;
         private CommandBuffer buffer;
         private CameraEvent bufferEvent;
+        // The buffer at the start of the internal camera's frame for the picture-difference way, or null.
+        private CommandBuffer beforeBuffer;
+        private CameraEvent beforeEvent;
         private RenderTexture mask;
         private int builtFrame = -1;
         private int builtWay = -1;
@@ -173,10 +176,22 @@ namespace ReDefinition.Atmospheres
             {
                 FrostMaskJudge.Way way = FrostMaskJudge.Ways[judge.Current];
                 buffer = new CommandBuffer { name = "ReDefinition Atmospheres frost interior mask" };
-                pass.RecordMask(buffer, new RenderTargetIdentifier(BuiltinRenderTextureType.Depth), mask);
+                bufferEvent = EventOf(way.Event);
+                if (way.Diff)
+                {
+                    // The picture before the internal camera draws and after it; the mask is where they differ.
+                    beforeBuffer = new CommandBuffer { name = "ReDefinition Atmospheres frost interior mask (start)" };
+                    pass.RecordMaskBefore(beforeBuffer, mask.width, mask.height);
+                    beforeEvent = camera.actualRenderingPath == RenderingPath.DeferredShading ? CameraEvent.BeforeGBuffer : CameraEvent.BeforeForwardOpaque;
+                    camera.AddCommandBuffer(beforeEvent, beforeBuffer);
+                    pass.RecordMaskAfter(buffer, mask.width, mask.height, mask);
+                }
+                else
+                {
+                    pass.RecordMask(buffer, new RenderTargetIdentifier(BuiltinRenderTextureType.Depth), mask);
+                }
                 // The camera goes on drawing into its own target.
                 buffer.SetRenderTarget(new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget));
-                bufferEvent = EventOf(way.Event);
                 if (way.ForceDepth)
                 {
                     savedDepthMode = camera.depthTextureMode;
@@ -189,7 +204,7 @@ namespace ReDefinition.Atmospheres
                 pinnedCoverage = -1f;
                 requestPending = false;
                 readAge = 0f;
-                AtmospheresLog.Say("camera frost: the interior mask is taken at " + way.Event + (way.ForceDepth ? " with the depth texture asked for" : "")
+                AtmospheresLog.Say("camera frost: the interior mask is taken at " + way.Event + (way.Diff ? " as the difference of the picture from the start of the camera's frame" : way.ForceDepth ? " with the depth texture asked for" : "")
                                    + " (way " + judge.Current + ")");
             }
             ReadBack();
@@ -251,6 +266,12 @@ namespace ReDefinition.Atmospheres
 
         private void RemoveBuffer()
         {
+            if (beforeBuffer != null)
+            {
+                if (camera != null) camera.RemoveCommandBuffer(beforeEvent, beforeBuffer);
+                beforeBuffer.Release();
+                beforeBuffer = null;
+            }
             if (buffer == null) return;
             if (camera != null)
             {

@@ -87,6 +87,9 @@ namespace ReDefinition.Atmospheres
         internal static string ActiveMode { get; private set; }
         internal static float LastExposure { get; private set; }
         internal static float LastGrowth { get; private set; }
+        // The level the exposure settles at for the last step (CameraFrost.Ceiling) and the airflow over the glass that went into it.
+        internal static float LastCeiling { get; private set; }
+        internal static float LastAirflowMs { get; private set; }
         internal static int LastFlakes { get; private set; }
         internal static int LastDrops { get; private set; }
         // Frames in which a command was recorded or a quad was queued; stays put while the frost is inactive.
@@ -442,6 +445,8 @@ namespace ReDefinition.Atmospheres
 
             LastExposure = state.Exposure;
             LastGrowth = state.Growth;
+            LastCeiling = state.Ceiling;
+            LastAirflowMs = airflow;
             LastFlakes = state.FlakeCount;
             LastDrops = state.DropCount;
             ActiveView = where;
@@ -591,6 +596,8 @@ namespace ReDefinition.Atmospheres
             ActiveView = FrostView.Off;
             LastExposure = 0f;
             LastGrowth = 0f;
+            LastCeiling = 0f;
+            LastAirflowMs = 0f;
             LastFlakes = 0;
             LastDrops = 0;
             IvaMaskValid = false;

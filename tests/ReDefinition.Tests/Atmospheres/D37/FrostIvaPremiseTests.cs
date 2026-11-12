@@ -82,12 +82,16 @@ namespace ReDefinition.Tests.Atmospheres.D37
         }
 
         [TestMethod]
-        public void TheWaysStartWithTheReconEvent()
+        public void TheWaysStartWithThePictureDifferenceAndKeepTheReconEventBehindIt()
         {
-            // RECON P6: the depth is valid from BeforeForwardAlpha on; that event with the depth texture asked for is tried first.
-            Assert.AreEqual("BeforeForwardAlpha", FrostMaskJudge.Ways[0].Event);
-            Assert.IsTrue(FrostMaskJudge.Ways[0].ForceDepth);
-            Assert.IsTrue(FrostMaskJudge.Ways.Length >= 3);
+            // The repeat run read a full mask (1.000) in all four depth ways, so the way that reads no depth goes first. RECON P6: the
+            // depth is valid from BeforeForwardAlpha on; that event with the depth texture asked for is the first depth way.
+            Assert.IsTrue(FrostMaskJudge.Ways[0].Diff);
+            Assert.IsFalse(FrostMaskJudge.Ways[0].ForceDepth);
+            Assert.AreEqual("BeforeForwardAlpha", FrostMaskJudge.Ways[1].Event);
+            Assert.IsTrue(FrostMaskJudge.Ways[1].ForceDepth);
+            Assert.IsFalse(FrostMaskJudge.Ways[1].Diff);
+            Assert.IsTrue(FrostMaskJudge.Ways.Length >= 4);
             Assert.IsTrue(FrostMaskJudge.Plausible(0.2f));
             Assert.IsFalse(FrostMaskJudge.Plausible(0f));
             Assert.IsFalse(FrostMaskJudge.Plausible(1f));
@@ -280,6 +284,39 @@ namespace ReDefinition.Tests.Atmospheres.D37
         }
 
         [TestMethod]
+        public void TheCeilingTheProbeJudgesAgainstIsWhereTheExposureSettles()
+        {
+            // The calm row compares the settled exposure with CameraFrost.Ceiling for the airflow actually over the glass (a vessel that
+            // moves is not calm): ratio 1 for any airflow, and the ceiling follows the airflow.
+            foreach (float airflow in new[] { 0f, 5f, 17f, 40f })
+            {
+                FrostTuning t = FrostTuning.Defaults();
+                var frost = new CameraFrost();
+                FrostInput input = Snow(FrostView.Eva, 255f, airflow);
+                for (int i = 0; i < 30 * 400; i++) frost.Step(ref input, ref t);
+                Assert.IsTrue(frost.Ceiling > 0.5f, "airflow " + airflow);
+                Assert.AreEqual(frost.Ceiling, frost.Exposure, 0.005f, "airflow " + airflow);
+            }
+            var calm = new CameraFrost();
+            var moving = new CameraFrost();
+            FrostTuning tuning = FrostTuning.Defaults();
+            FrostInput a = Snow(FrostView.Eva, 255f, 0f), b = Snow(FrostView.Eva, 255f, 17f);
+            calm.Step(ref a, ref tuning);
+            moving.Step(ref b, ref tuning);
+            Assert.IsTrue(moving.Ceiling > calm.Ceiling + 0.1f, "17 m/s of vessel speed raises the ceiling above the wind-free one");
+        }
+
+        [TestMethod]
+        public void ThePictureDifferencePassIsInTheShader()
+        {
+            string root = RepoRoot.Root("src", "ReDefinition.csproj");
+            string shader = File.ReadAllText(Path.Combine(root, "unity", "Assets", "ReDefinitionAtmospheres", "Shaders", "ReDefinitionAtmospheresFrost.shader"));
+            StringAssert.Contains(shader, "Name \"FrostInteriorDiff\"");
+            StringAssert.Contains(shader, "sampler2D _FrostBefore;");
+            Assert.AreEqual(4, FrostPass.PassMaskDiff, "the pass index the renderer draws is the fifth pass of the shader");
+        }
+
+        [TestMethod]
         public void TheIvaGlassStartsToFrostBelowMinusSixtyThreeCelsiusOfAirAndFullyBelowMinusNinetySeven()
         {
             // The owner decision of review R5 in numbers: with the shipped insulation 0.7 the cabin glass is air + 0.7 * (20 C - air); frost
@@ -324,7 +361,7 @@ namespace ReDefinition.Tests.Atmospheres.D37
             string rows = File.ReadAllText(Path.Combine(root, "tests", "series", "rows", "D37.json"));
             foreach (string name in new[] { "D37.iva_mask_ok", "D37.iva_hook_calls", "D37.iva_hook_camera_known", "D37.iva_hook_calls_drawn",
                                             "D37.iva_ab_host_control_changed", "D37.iva_ab_props_clear", "D37.iva_ab_orientation_ok", "D37.iva_policy_ok",
-                                            "D37.exposure_ceiling_20ms", "D37.exposure_ceiling_calm" })
+                                            "D37.exposure_ceiling_20ms", "D37.exposure_ceiling_calm_ratio" })
             {
                 Match line = Regex.Match(rows, "\\{[^{}]*\"metric\": \"" + Regex.Escape(name) + "\"[^{}]*\\}");
                 Assert.IsTrue(line.Success, name + " has no row");

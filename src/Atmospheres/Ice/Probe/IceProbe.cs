@@ -99,46 +99,82 @@ namespace ReDefinition.Atmospheres
             luma = n > 0 ? sum / n : 0.0;
         }
 
-        private static readonly double[][] Boxes =
+        // The boxes the pose measures: up to four of Candidates that SeaBoxes found on open sea for the camera's pose, in that order. The
+        // repeat run's fixed boxes at x 0.15 / 0.85 gave 0 in both left boxes and 1 in both right ones while the ray test said all four
+        // were on the sea: a box can lie on land that stands above the ray (a coast, a spit) which the sea-sphere hit does not see.
+        private static double[][] Boxes = new double[0][];
+
+        // The first four are the earlier fixed boxes; the rest lets a pose with land on one side still find four sea boxes.
+        private static readonly double[][] Candidates =
         {
-            new[] { 0.15, 0.25 }, new[] { 0.85, 0.25 }, new[] { 0.15, 0.45 }, new[] { 0.85, 0.45 }
+            new[] { 0.15, 0.25 }, new[] { 0.85, 0.25 }, new[] { 0.15, 0.45 }, new[] { 0.85, 0.45 },
+            new[] { 0.28, 0.25 }, new[] { 0.72, 0.25 }, new[] { 0.28, 0.45 }, new[] { 0.72, 0.45 },
+            new[] { 0.15, 0.35 }, new[] { 0.85, 0.35 }, new[] { 0.28, 0.35 }, new[] { 0.72, 0.35 },
+            new[] { 0.15, 0.15 }, new[] { 0.85, 0.15 }, new[] { 0.28, 0.15 }, new[] { 0.72, 0.15 }
         };
 
-        // How many of the four boxes lie on the sea: the rays through the box centre and its four corners meet the sphere of the sea level
-        // and the coast map says sea at every hit. A box on land or in the sky makes the near rows void (a magenta share that cannot reach 1
-        // because the box is not on water must not be read as the sheet failing, and a clean control over land is no evidence either).
-        // [VERIFY] The frame's row 0 is taken as the bottom of the picture (Texture2D.ReadPixels), so a box centre cy is a viewport y.
-        private static int BoxesOnSea(IceBodyState state, CelestialBody body)
+        // Whether the five rays of a box (centre and corners) reach the sea sphere at a point the coast map calls sea, and the terrain
+        // under the ray stays below the ray all the way (the ray is marched in 64 steps, closer ones denser).
+        private static bool SeaBox(IceBodyState state, CelestialBody body, Camera cam, double cx, double cy)
         {
-            Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-            if (cam == null || state == null || state.Shore == null) return 0;
             Quaternion toSphere = Quaternion.Inverse(body.bodyTransform != null ? body.bodyTransform.rotation : body.transform.rotation);
             double seaRadius = state.SeaRadiusM;
             Vector3d centre = body.position;
-            int onSea = 0;
+            PQS pqs = body.pqsController;
+            bool terrain = pqs != null && pqs.isStarted;
+            for (int k = 0; k < 5; k++)
+            {
+                double vx = cx + (k == 1 || k == 3 ? -0.05 : k == 2 || k == 4 ? 0.05 : 0.0);
+                double vy = cy + (k == 1 || k == 2 ? -0.05 : k == 3 || k == 4 ? 0.05 : 0.0);
+                Ray ray = cam.ViewportPointToRay(new Vector3((float)vx, (float)vy, 0f));
+                Vector3d o = (Vector3d)ray.origin - centre;
+                Vector3d d = ((Vector3d)ray.direction).normalized;
+                double bq = Vector3d.Dot(o, d);
+                double c = Vector3d.Dot(o, o) - seaRadius * seaRadius;
+                double disc = bq * bq - c;
+                if (disc < 0.0) return false;
+                double t = -bq - Math.Sqrt(disc);
+                if (t <= 0.0) return false;
+                Vector3 dirWorld = (Vector3)(o + d * t).normalized;
+                Vector3 dir = toSphere * dirWorld;
+                if (!ShoreGrid.IsSeaAt(state.Shore, dir.x, dir.y, dir.z)) return false;
+                if (!terrain) continue;
+                for (int i = 1; i < 64; i++)
+                {
+                    double f = i / 64.0;
+                    Vector3d p = o + d * (t * f * f);
+                    double r = p.magnitude;
+                    Vector3 local = toSphere * (Vector3)(p / r);
+                    if (pqs.GetSurfaceHeight(new Vector3d(local.x, local.y, local.z)) > r) return false;
+                }
+            }
+            return true;
+        }
+
+        // Chooses the boxes of the current pose from Candidates (at most four) and returns how many were found.
+        private static int ChooseBoxes(IceBodyState state, CelestialBody body)
+        {
+            Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+            var chosen = new List<double[]>();
+            if (cam != null && state != null && state.Shore != null)
+                for (int i = 0; i < Candidates.Length && chosen.Count < 4; i++)
+                    if (SeaBox(state, body, cam, Candidates[i][0], Candidates[i][1])) chosen.Add(Candidates[i]);
+            Boxes = chosen.ToArray();
+            return Boxes.Length;
+        }
+
+        // Draws the frame of every chosen box into a copy of the pixels (green) for the picture sheets.
+        private static Color[] Outlined(ReconFrame frame)
+        {
+            var copy = (Color[])frame.Pixels.Clone();
             for (int b = 0; b < Boxes.Length; b++)
             {
-                bool all = true;
-                for (int k = 0; k < 5 && all; k++)
-                {
-                    double vx = Boxes[b][0] + (k == 1 || k == 3 ? -0.05 : k == 2 || k == 4 ? 0.05 : 0.0);
-                    double vy = Boxes[b][1] + (k == 1 || k == 2 ? -0.05 : k == 3 || k == 4 ? 0.05 : 0.0);
-                    Ray ray = cam.ViewportPointToRay(new Vector3((float)vx, (float)vy, 0f));
-                    Vector3d o = (Vector3d)ray.origin - centre;
-                    Vector3d d = ((Vector3d)ray.direction).normalized;
-                    double bq = Vector3d.Dot(o, d);
-                    double c = Vector3d.Dot(o, o) - seaRadius * seaRadius;
-                    double disc = bq * bq - c;
-                    if (disc < 0.0) { all = false; break; }
-                    double t = -bq - Math.Sqrt(disc);
-                    if (t <= 0.0) { all = false; break; }
-                    Vector3 dirWorld = (Vector3)(o + d * t).normalized;
-                    Vector3 dir = toSphere * dirWorld;
-                    if (!ShoreGrid.IsSeaAt(state.Shore, dir.x, dir.y, dir.z)) all = false;
-                }
-                if (all) onSea++;
+                int x0 = Math.Max(0, (int)((Boxes[b][0] - 0.05) * frame.Width)), x1 = Math.Min(frame.Width - 1, (int)((Boxes[b][0] + 0.05) * frame.Width));
+                int y0 = Math.Max(0, (int)((Boxes[b][1] - 0.05) * frame.Height)), y1 = Math.Min(frame.Height - 1, (int)((Boxes[b][1] + 0.05) * frame.Height));
+                for (int x = x0; x <= x1; x++) { copy[y0 * frame.Width + x] = Color.green; copy[y1 * frame.Width + x] = Color.green; }
+                for (int y = y0; y <= y1; y++) { copy[y * frame.Width + x0] = Color.green; copy[y * frame.Width + x1] = Color.green; }
             }
-            return onSea;
+            return copy;
         }
 
         // Reads the frame at the end of this frame (the screen, with the interface hidden by the caller).
@@ -500,6 +536,16 @@ namespace ReDefinition.Atmospheres
                         EmitText(prefix + "error", "a frame could not be read");
                         continue;
                     }
+                    int boxesOnSea = ChooseBoxes(state, body);
+                    // The pictures of the pose: natural (full ice, no leads) and the aid view, each beside the heat map of its difference
+                    // to the view without the sheet, the chosen boxes outlined in green. Where the boxes of a pose fail, the picture says
+                    // what the camera saw there.
+                    float[] baselineLuma = SeriesPictures.Luma(baseline.Pixels);
+                    if (aid.Width == baseline.Width && aid.Height == baseline.Height)
+                    {
+                        SeriesPictures.SaveSheet("D35-near-" + names[d] + "-natural", Outlined(natural), baselineLuma, natural.Width, natural.Height);
+                        SeriesPictures.SaveSheet("D35-near-" + names[d] + "-aid", Outlined(aid), baselineLuma, aid.Width, aid.Height);
+                    }
                     double min = 1.0, sum = 0.0, controlMax = 0.0, lumaDiff = 0.0;
                     for (int b = 0; b < Boxes.Length; b++)
                     {
@@ -514,12 +560,13 @@ namespace ReDefinition.Atmospheres
                         controlMax = Math.Max(controlMax, Math.Max(mb, mc));
                         lumaDiff += Math.Abs(ln - lb) / Math.Max(1e-4, lb);
                     }
+                    if (Boxes.Length == 0) min = 0.0;
                     Emit(prefix + "aid_magenta_min", min);
-                    Emit(prefix + "aid_magenta_mean", sum / Boxes.Length);
+                    double boxCount = Math.Max(1, Boxes.Length);
+                    Emit(prefix + "aid_magenta_mean", sum / boxCount);
                     Emit(prefix + "control_magenta_max", controlMax);
-                    Emit(prefix + "natural_luma_change", lumaDiff / Boxes.Length);
-                    Emit(prefix + "frame_changed", aid.LitFraction() > 0.0 && Math.Abs(sum / Boxes.Length - controlMax) > 0.2);
-                    int boxesOnSea = BoxesOnSea(state, body);
+                    Emit(prefix + "natural_luma_change", lumaDiff / boxCount);
+                    Emit(prefix + "frame_changed", aid.LitFraction() > 0.0 && Math.Abs(sum / boxCount - controlMax) > 0.2);
                     Emit(prefix + "boxes_on_sea", boxesOnSea);
                     // 1 when the sheet hides the water in every box of a clean, on-water measurement; 0 otherwise. At 5 km this number is the
                     // answer to the open RECON P10/P11 question; the rows around it fail when the measurement is void.

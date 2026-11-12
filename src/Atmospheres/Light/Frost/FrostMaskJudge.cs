@@ -19,16 +19,22 @@ namespace ReDefinition.Atmospheres
         {
             internal readonly string Event;
             internal readonly bool ForceDepth;
+            // The mask is the difference between the target at the start of the internal camera's frame and at Event, not its depth.
+            internal readonly bool Diff;
 
-            internal Way(string eventName, bool forceDepth)
+            internal Way(string eventName, bool forceDepth, bool diff = false)
             {
                 Event = eventName;
                 ForceDepth = forceDepth;
+                Diff = diff;
             }
         }
 
+        // Way 0 reads no depth: in the repeat run all four depth ways read a full mask (coverage 1.000) and the IVA drew no frost, so
+        // the picture difference goes first and the depth ways stay behind it for a setup where it fails.
         internal static readonly Way[] Ways =
         {
+            new Way("BeforeImageEffects", false, true),
             new Way("BeforeForwardAlpha", true),
             new Way("BeforeForwardAlpha", false),
             new Way("AfterForwardOpaque", true),

@@ -59,6 +59,7 @@ Shader "ReDefinition/AtmospheresFrost"
     sampler2D _FrostCopy;
     float4 _FrostCopy_TexelSize;
     sampler2D _FrostMask;
+    sampler2D _FrostBefore;
 
     // x = reach of the rim frost (share of the half-diagonal), y = exposure, z = aspect (width / height), w = unused.
     float4 _FrostA;
@@ -343,6 +344,30 @@ Shader "ReDefinition/AtmospheresFrost"
                 #else
                 float covered = d < 0.99999 ? 1.0 : 0.0;
                 #endif
+                return float4(covered, 0, 0, 1);
+            }
+            ENDCG
+        }
+
+        // 4: the interior mask from the picture itself: 1 where the internal camera changed the image between the start of its frame
+        // (_FrostBefore) and the end of it (_MainTex). Needs no depth: whatever the cabin draws over the world differs from the world.
+        Pass
+        {
+            Name "FrostInteriorDiff"
+            Tags { "LightMode" = "FrostInteriorDiff" }
+            Blend Off
+
+            CGPROGRAM
+            #pragma target 3.5
+            #pragma vertex vertProc
+            #pragma fragment frag
+
+            float4 frag(v2f i) : SV_Target
+            {
+                float3 a = Safe(tex2D(_MainTex, i.uv).rgb);
+                float3 b = Safe(tex2D(_FrostBefore, i.uv).rgb);
+                float3 d = abs(a - b);
+                float covered = max(d.r, max(d.g, d.b)) > 0.004 ? 1.0 : 0.0;
                 return float4(covered, 0, 0, 1);
             }
             ENDCG

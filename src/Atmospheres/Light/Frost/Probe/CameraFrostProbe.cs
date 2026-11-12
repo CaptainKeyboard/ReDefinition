@@ -229,6 +229,14 @@ namespace ReDefinition.Atmospheres
                 field.WindWorld = Vector3.zero;
                 yield return ProbeWait.Seconds(14);
                 Emit("D37.exposure_ceiling_calm", CameraFrostRenderer.LastExposure);
+                // The airflow over the glass is the vessel's speed against the air, not the field's wind: a vessel that moves keeps
+                // the "calm" case above the wind-free ceiling (0.845 against 0.6875 in the repeat run). So the settled exposure is
+                // judged against the ceiling the state machine computes for the airflow it was given.
+                Emit("D37.calm_airflow_ms", CameraFrostRenderer.LastAirflowMs);
+                Emit("D37.exposure_ceiling_model", CameraFrostRenderer.LastCeiling);
+                Emit("D37.exposure_ceiling_calm_ratio", CameraFrostRenderer.LastCeiling > 0.01f
+                    ? CameraFrostRenderer.LastExposure / CameraFrostRenderer.LastCeiling
+                    : float.NaN);
                 module.ResetState();
                 field.WindWorld = new Vector3(20f, 0f, 0f);
                 yield return ProbeWait.Seconds(14);
@@ -407,6 +415,7 @@ namespace ReDefinition.Atmospheres
 
                     // Every way of taking the mask, one after the other, the coverage each gives: the record of which event of the internal
                     // camera holds a valid depth (review R1). Information; the required rows are iva_mask_ok and the A/B above.
+                    bool diffPlausible = !CameraFrostRenderer.IvaMaskNeeded;
                     if (CameraFrostRenderer.IvaMaskNeeded)
                     {
                         for (int way = 0; way < FrostMaskJudge.Ways.Length; way++)
@@ -414,11 +423,14 @@ namespace ReDefinition.Atmospheres
                             ForceTuning("frost.ivaMaskWay", way);
                             yield return ProbeWait.Seconds(5);
                             Emit("D37.iva_mask_cov_way" + way, CameraFrostRenderer.IvaMaskCoverage);
-                            EmitText("D37.iva_mask_event_way" + way, FrostMaskJudge.Ways[way].Event + (FrostMaskJudge.Ways[way].ForceDepth ? "+depth" : ""));
+                            FrostMaskJudge.Way w = FrostMaskJudge.Ways[way];
+                            EmitText("D37.iva_mask_event_way" + way, (w.Diff ? "diff:" : "") + w.Event + (w.ForceDepth ? "+depth" : ""));
+                            if (w.Diff) diffPlausible = FrostMaskJudge.Plausible(CameraFrostRenderer.IvaMaskCoverage);
                         }
                         ForceTuning("frost.ivaMaskWay", -1f);
                         yield return ProbeWait.Seconds(1);
                     }
+                    Emit("D37.iva_mask_diff_plausible", diffPlausible);
 
                     // Map view: nothing is drawn while it is on.
                     bool map = false;

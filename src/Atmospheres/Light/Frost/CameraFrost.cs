@@ -93,6 +93,11 @@ namespace ReDefinition.Atmospheres
         // The most recent growth (reach of the rim frost), share of the half-diagonal.
         internal float Growth { get; private set; }
 
+        // The level the exposure is pulled towards once the time in weather has run up (the cap at full ramp) for the last step's
+        // input: level * type * cold * wind term * strength * gain. The series compares the settled exposure with it, because the
+        // airflow over the glass includes the vessel's own speed and so is not zero where the field's wind is.
+        internal float Ceiling { get; private set; }
+
         // The stuck flakes and the drops. Slots; Alive says which are in use.
         internal FrostFlake[] Flakes { get { return flakes; } }
         internal FrostDrop[] Drops { get { return drops; } }
@@ -133,6 +138,7 @@ namespace ReDefinition.Atmospheres
             prevGust = 0f;
             dropCarry = 0f;
             Growth = 0f;
+            Ceiling = 0f;
             seeded = false;
             Array.Clear(flakes, 0, flakes.Length);
             Array.Clear(drops, 0, drops.Length);
@@ -216,6 +222,7 @@ namespace ReDefinition.Atmospheres
             if (intensity > 0.02f) weatherS += dt; else weatherS = Math.Max(0f, weatherS - 2f * dt);
             float ramp = FrostShape.Clamp01(weatherS / Math.Max(t.BuildS, 1f));
             float cap = FrostShape.Clamp01(intensity * t.Gain * (t.RampBase + (1f - t.RampBase) * ramp));
+            Ceiling = FrostShape.Clamp01(intensity * t.Gain);
 
             if (cap > exposure)
             {
