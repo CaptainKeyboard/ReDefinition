@@ -9,10 +9,13 @@ namespace ReDefinition.Atmospheres
     {
         internal const string Prefix = Log.Tag + " Atmospheres: ";
 
+        // Where the lines of information go: the game's log. A test replaces it (the engine's log call cannot run outside the game).
+        internal static Action<string> SayLine = line => Debug.Log(line);
+
         // A line of information.
         internal static void Say(string message)
         {
-            Debug.Log(Prefix + message);
+            SayLine(Prefix + message);
         }
 
         // A warning of a kind (CompatibilityLog counts them per kind and drops the repeats).

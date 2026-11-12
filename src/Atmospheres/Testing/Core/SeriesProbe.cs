@@ -133,10 +133,13 @@ namespace ReDefinition.Atmospheres
             return null;
         }
 
+        // The command line a test gives the probe instead of the game's.
+        internal string[] CommandLineOverride;
+
         // The game's command line; a test overrides it.
         protected virtual string[] Args()
         {
-            return Environment.GetCommandLineArgs();
+            return CommandLineOverride ?? Environment.GetCommandLineArgs();
         }
 
         // Whether the command line asks for this series. K-pre, Kpre and kpre are the same name.
@@ -439,7 +442,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The game's clock.
-        protected void ForceUniversalTime(double ut)
+        protected virtual void ForceUniversalTime(double ut)
         {
             Planetarium.SetUniversalTime(ut);
         }

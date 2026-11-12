@@ -54,8 +54,10 @@ namespace ReDefinition.Atmospheres
             new View { Name = "sky3", AglM = 200.0, PitchDeg = 38.0, HeadingDeg = 270.0, CameraDistM = 100.0 }
         };
 
-        private bool holding;
-        private ReconHost host;
+        // The game the scenario reads and drives; a test replaces it with a fake world (IT09World).
+        internal IT09World Game = new KspT09World();
+        // The most real seconds the clock step waits for the weather field to answer at the site.
+        internal const double FieldWaitS = 120.0;
         private int fewestFrames = int.MaxValue;
         private double fewestRatio = double.MaxValue;
         private double utChosen, coverChosen, sunChosen;
@@ -172,28 +174,29 @@ namespace ReDefinition.Atmospheres
         protected override string LostGround()
         {
             if (!flightReached) return null;
-            if (HighLogic.LoadedScene != GameScenes.FLIGHT) return "the flight scene was left during the scenario (scene " + HighLogic.LoadedScene + ")";
-            if (!InFlightReady() || FlightCamera.fetch == null) return "the active vessel or the flight camera is gone during the scenario";
+            string scene = Game.SceneNotFlight();
+            if (scene != null) return "the flight scene was left during the scenario (scene " + scene + ")";
+            if (!InFlightReady() || !Game.FlightCameraPresent()) return "the active vessel or the flight camera is gone during the scenario";
             return null;
+        }
+
+        protected override void ForceUniversalTime(double ut)
+        {
+            Game.UniversalTime = ut;
         }
 
         protected override IEnumerator<ProbeWait> Scenario()
         {
-            // The scene first: outside the flight FlightGlobals.ActiveVessel dereferences an object that does not exist (the first K-T2 start failed so
-            // in the main menu).
+            // The scene first: outside the flight the active vessel dereferences an object that does not exist (the first K-T2 start failed so in the
+            // main menu). The game is read through Game (T09World.cs), whose members assume the flight; this wait is the guard.
             yield return ProbeWait.Until(() =>
             {
-                if (!InFlightReady() || FlightCamera.fetch == null) return false;
-                Vessel v = FlightGlobals.ActiveVessel;
-                return v.loaded && !v.packed && v.mainBody != null;
+                if (!InFlightReady() || !Game.FlightCameraPresent()) return false;
+                return Game.VesselUnpacked();
             }, 330, "the flight scene with an unpacked vessel");
             flightReached = true;
             yield return ProbeWait.Frames(120);
-            // The clock is chosen from the field's samples, which answer false while the field has not built the body's state: wait for it.
-            yield return ProbeWait.Until(() => WeatherHub.Field != null && WeatherHub.Field.Readiness == FieldReadiness.Ready, 150, "the weather field to be ready");
-            Vessel vessel = FlightGlobals.ActiveVessel;
-            CelestialBody body = vessel.mainBody;
-            if (!body.atmosphere)
+            if (!Game.BodyHasAtmosphere)
             {
                 Emit("T09.skipped_no_atmosphere", true);
                 yield break;
@@ -203,25 +206,24 @@ namespace ReDefinition.Atmospheres
             // documented winner), and no vertical sync (the GPU frame time of a synced frame is the refresh period whatever the clouds cost).
             string asked = CommandLine.After(Args(), "-screen-width", true);
             int askedWidth;
-            EmitText("T09.screen", Screen.width + "x" + Screen.height + " (asked " + (asked ?? "nothing") + ")");
-            if (asked != null && int.TryParse(asked, out askedWidth) && Screen.width != askedWidth)
+            EmitText("T09.screen", Game.ScreenWidth + "x" + Game.ScreenHeight + " (asked " + (asked ?? "nothing") + ")");
+            if (asked != null && int.TryParse(asked, out askedWidth) && Game.ScreenWidth != askedWidth)
             {
-                Fail("the window is " + Screen.width + "x" + Screen.height + " and the start asked for a width of " + askedWidth + "; the timing keys would not match the rows");
+                Fail("the window is " + Game.ScreenWidth + "x" + Game.ScreenHeight + " and the start asked for a width of " + askedWidth + "; the timing keys would not match the rows");
                 yield break;
             }
-            QualitySettings.vSyncCount = 0;
-            Application.targetFrameRate = -1;
-            Emit("T09.vsync_count", QualitySettings.vSyncCount);
-            Check("vertical sync is off", QualitySettings.vSyncCount == 0, "vSyncCount " + QualitySettings.vSyncCount);
-            Emit("T09.target_frame_rate", Application.targetFrameRate);
-            Check("no frame cap is set", NoFrameCap(), "targetFrameRate " + Application.targetFrameRate);
+            Game.VSyncCount = 0;
+            Game.TargetFrameRate = -1;
+            Emit("T09.vsync_count", Game.VSyncCount);
+            Check("vertical sync is off", Game.VSyncCount == 0, "vSyncCount " + Game.VSyncCount);
+            Emit("T09.target_frame_rate", Game.TargetFrameRate);
+            Check("no frame cap is set", NoFrameCap(), "targetFrameRate " + Game.TargetFrameRate);
 
-            double siteLat = vessel.latitude, siteLon = vessel.longitude;
-            foreach (ProbeWait w in ChooseUt(body, siteLat, siteLon)) yield return w;
+            double siteLat = Game.VesselLatitude, siteLon = Game.VesselLongitude;
+            foreach (ProbeWait w in ChooseUt(Game.BodyIndex, siteLat, siteLon)) yield return w;
             if (!utOk)
             {
-                Fail("no universal time in " + Candidates + " hours from the base has a cover of at least " + MinCover + " over the site and the sun " + SunMinDeg + " to " + SunMaxDeg
-                     + " degrees up; the timing would not describe a covered daylight sky");
+                Fail(utFailure);
                 yield break;
             }
             Emit("T09.ut", utChosen);
@@ -236,10 +238,10 @@ namespace ReDefinition.Atmospheres
                 if (variant == "tvc")
                 {
                     // A start without Scatterer freezes the frame in EVE's raymarch pass (EveRenderCompat): it is not entered.
-                    bool scatterer = EveRenderCompat.ScattererLoaded, eve = EveLayerAccess.Available;
+                    bool scatterer = Game.ScattererLoaded, eve = Game.EveAvailable;
                     Emit("T09.tvc.scatterer_loaded", scatterer);
                     Emit("T09.tvc.eve_available", eve);
-                    Emit("T09.tvc.volumetric_layers", EveLayerAccess.VolumetricLayerCount());
+                    Emit("T09.tvc.volumetric_layers", Game.VolumetricLayerCount);
                     if (!scatterer || !eve)
                     {
                         Fail("the TVC variant needs EVE and Scatterer (Scatterer loaded " + scatterer + ", EVE usable " + eve + ")");
@@ -253,15 +255,11 @@ namespace ReDefinition.Atmospheres
                 if (variant == "tvc")
                 {
                     // EVE's layers are found by the painter's scan (every few seconds) and bound to the maps; wait for it, then state what stands.
-                    yield return ProbeWait.Until(() =>
-                    {
-                        EveCloudModule painter = EveCloudModule.Current;
-                        return EveRenderCompat.EffectiveSource(CloudSourceKind.Eve) == CloudSourceKind.Eve && painter != null && painter.FirstBoundLayer() != null;
-                    }, 60, "EVE's layer to be bound to the maps of the field (TVC)");
-                    EmitText("T09.tvc.status", EveRenderCompat.Status + ": " + EveRenderCompat.Reason);
-                    Emit("T09.tvc.layers_bound", EveCloudStats.LayersBound);
-                    Check("TVC draws: EVE's renderer is ready and a layer is bound", EveRenderCompat.Status == EveRenderStatus.Ready && EveCloudStats.LayersBound > 0,
-                          EveRenderCompat.Status + ", bound " + EveCloudStats.LayersBound);
+                    yield return ProbeWait.Until(() => Game.EveLayerBound, 60, "EVE's layer to be bound to the maps of the field (TVC)");
+                    EmitText("T09.tvc.status", Game.EveStatusText);
+                    Emit("T09.tvc.layers_bound", Game.EveLayersBound);
+                    Check("TVC draws: EVE's renderer is ready and a layer is bound", Game.EveRendererReady && Game.EveLayersBound > 0,
+                          Game.EveStatusText + ", bound " + Game.EveLayersBound);
                 }
                 else if (IsOwn(variant))
                 {
@@ -278,23 +276,22 @@ namespace ReDefinition.Atmospheres
 
                 if (variant == "gain")
                 {
-                    foreach (ProbeWait w in GainScenario(body, siteLat, siteLon)) yield return w;
+                    foreach (ProbeWait w in GainScenario(siteLat, siteLon)) yield return w;
                 }
                 else
                 {
                     foreach (View view in Views)
                     {
                         if (InsideOnly(variant) && view.Name != "inside") continue;
-                        foreach (ProbeWait w in PlaceChecked(body, siteLat, siteLon, view)) yield return w;
+                        foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
                         if (!placeOk) continue;
-                        foreach (ProbeWait w in Dwell(body, siteLat, siteLon, view, variant, InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
+                        foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
                     }
                 }
                 if (IsOwn(variant)) EmitVariantTotals(variant);
                 EndVariant();
             }
-            if (host != null) host.PerFrame.Remove(HoldVessel);
-            holding = false;
+            Game.StopHold();
         }
 
         // The counters of the module after a variant. The worst times leave the first call out (the JIT is in it); the first ones are emitted apart.
@@ -315,9 +312,9 @@ namespace ReDefinition.Atmospheres
         // --- One view ---------------------------------------------------------------------------------------------------------------------
 
         // No cap on the frame: a cap (KSP's FRAMERATE_LIMIT, set again by KSP's settings) would hide the cost of a cheap view in idle time.
-        private static bool NoFrameCap()
+        private bool NoFrameCap()
         {
-            return Application.targetFrameRate <= 0 && QualitySettings.vSyncCount == 0;
+            return Game.TargetFrameRate <= 0 && Game.VSyncCount == 0;
         }
 
         // The size the scene is rendered at, per view: the own pass's depth target (the camera it draws into) while it draws, else the flight camera's
@@ -330,38 +327,35 @@ namespace ReDefinition.Atmospheres
             if (own != null && variant != "off" && variant != "tvc" && own.Stats.RenderWidth > 0) { w = own.Stats.RenderWidth; h = own.Stats.RenderHeight; }
             else
             {
-                Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-                if (cam == null) { Check("the render size is known in the " + view.Name + " view (" + variant + ")", false, "no flight camera"); return; }
-                w = cam.pixelWidth;
-                h = cam.pixelHeight;
+                if (!Game.CameraPixelSize(out w, out h)) { Check("the render size is known in the " + view.Name + " view (" + variant + ")", false, "no flight camera"); return; }
             }
             string prefix = "T09.view." + view.Name + ".";
             EmitText(prefix + "render_size", w + "x" + h);
             Emit(prefix + "render_width", w);
             Emit(prefix + "render_height", h);
-            Check("the scene renders at the window size in the " + view.Name + " view (" + variant + ")", w == Screen.width && h == Screen.height,
-                  "render " + w + "x" + h + ", window " + Screen.width + "x" + Screen.height + " (the series pins quality NativeAA)");
+            Check("the scene renders at the window size in the " + view.Name + " view (" + variant + ")", w == Game.ScreenWidth && h == Game.ScreenHeight,
+                  "render " + w + "x" + h + ", window " + Game.ScreenWidth + "x" + Game.ScreenHeight + " (the series pins quality NativeAA)");
         }
 
-        private IEnumerable<ProbeWait> Dwell(CelestialBody body, double lat, double lon, View view, string variant, double seconds)
+        private IEnumerable<ProbeWait> Dwell(double lat, double lon, View view, string variant, double seconds)
         {
             OwnCloudModule own = OwnCloudModule.Current;
             int drawnBefore = own != null ? own.Stats.FramesDrawn : 0;
-            int framesBefore = Time.frameCount;
-            string size = Screen.width + "x" + Screen.height;
+            int framesBefore = Game.FrameCount;
+            string size = Game.ScreenWidth + "x" + Game.ScreenHeight;
             AtmospheresLog.Say("T09 view begin: " + view.Name + " " + variant + " " + size);
             yield return ProbeWait.Seconds(seconds);
             AtmospheresLog.Say("T09 view end: " + view.Name + " " + variant + " " + size);
-            int frames = Math.Max(1, Time.frameCount - framesBefore);
+            int frames = Math.Max(1, Game.FrameCount - framesBefore);
             string prefix = "T09.view." + view.Name + ".";
             Emit(prefix + "frames", frames);
             Emit(prefix + "fps", frames / Math.Max(0.001, seconds));
-            Check("no frame cap in the " + view.Name + " view (" + variant + ")", NoFrameCap(), "targetFrameRate " + Application.targetFrameRate + ", vSyncCount " + QualitySettings.vSyncCount);
+            Check("no frame cap in the " + view.Name + " view (" + variant + ")", NoFrameCap(), "targetFrameRate " + Game.TargetFrameRate + ", vSyncCount " + Game.VSyncCount);
             CheckRenderSize(view, variant);
             if (variant == "tvc")
             {
-                Check("TVC kept drawing in the " + view.Name + " view", EveRenderCompat.Status == EveRenderStatus.Ready && EveCloudStats.LayersBound > 0 && EveRenderCompat.FailureLines == 0,
-                      EveRenderCompat.Status + ", bound " + EveCloudStats.LayersBound + ", invalid-pass lines " + EveRenderCompat.FailureLines);
+                Check("TVC kept drawing in the " + view.Name + " view", Game.EveRendererReady && Game.EveLayersBound > 0 && Game.EveFailureLines == 0,
+                      Game.EveStatusText + ", bound " + Game.EveLayersBound + ", invalid-pass lines " + Game.EveFailureLines);
                 yield break;
             }
             int drawn = own != null ? own.Stats.FramesDrawn - drawnBefore : 0;
@@ -384,51 +378,71 @@ namespace ReDefinition.Atmospheres
             Check("the pass ran as " + ExpectedMode(variant) + " in the " + view.Name + " view (" + variant + ")", mode == ExpectedMode(variant), mode);
             double altitude = Math.Min(20000.0, view.AglM);
             WeatherSample s;
-            if (WeatherHub.Sample(body.flightGlobalsIndex, lat, lon, altitude, Planetarium.GetUniversalTime(), out s)) Emit(prefix + "cover_at_view_height", s.CloudCover01);
+            if (WeatherHub.Sample(Game.BodyIndex, lat, lon, altitude, Game.UniversalTime, out s)) Emit(prefix + "cover_at_view_height", s.CloudCover01);
         }
 
         // --- The clock --------------------------------------------------------------------------------------------------------------------
 
+        private string utFailure;
+
         // The first candidate time from the fixed base on whose sky over the site is covered by at least half of the layers' cover AND whose sun
         // stands in the band; the clock is set to it. The cover is asked of the field without moving the clock; only candidates with cover set it.
-        private IEnumerable<ProbeWait> ChooseUt(CelestialBody body, double lat, double lon)
+        // The field answers false at the site until it has built the body's state (the hub holds a NullField that reports Ready until the atmospheres
+        // assign the real one, and the real one reports Ready before the first body state exists), so a pass with candidates the field did not
+        // answer for is repeated every second, up to FieldWaitS, until a candidate fits or all 48 are answered; a field that answers for some times
+        // only is covered by the same rule. The candidates are not sampled once and abandoned.
+        private IEnumerable<ProbeWait> ChooseUt(int bodyIndex, double lat, double lon)
         {
             utOk = false;
-            double start = Planetarium.GetUniversalTime();
+            utFailure = null;
+            double start = Game.UniversalTime;
             double baseUt = Math.Ceiling(start / BaseStepS) * BaseStepS;
-            int unsampled = 0, covered = 0;
-            for (int k = 0; k < Candidates; k++)
+            double giveUpAt = Elapsed + FieldWaitS;
+            int unsampled, covered, passes = 0;
+            while (true)
             {
-                double t = baseUt + k * CandidateStepS;
-                WeatherSample s;
-                if (!WeatherHub.Sample(body.flightGlobalsIndex, lat, lon, 3000.0, t, out s))
+                passes++;
+                unsampled = 0;
+                covered = 0;
+                for (int k = 0; k < Candidates; k++)
                 {
-                    unsampled++;
-                    continue;
+                    double t = baseUt + k * CandidateStepS;
+                    WeatherSample s;
+                    if (!WeatherHub.Sample(bodyIndex, lat, lon, 3000.0, t, out s))
+                    {
+                        unsampled++;
+                        continue;
+                    }
+                    if (s.CloudCover01 < MinCover) continue;
+                    covered++;
+                    ForceUniversalTime(t);
+                    yield return ProbeWait.Frames(6);
+                    double elevation = Game.SunElevationDeg();
+                    if (elevation < SunMinDeg || elevation > SunMaxDeg) continue;
+                    utChosen = t;
+                    coverChosen = s.CloudCover01;
+                    sunChosen = elevation;
+                    utOk = true;
+                    Emit("T09.ut_jump_s", t - start);
+                    if (passes > 1) AtmospheresLog.Say("T09 clock: the field answered after " + (Elapsed - (giveUpAt - FieldWaitS)).ToString("0") + " s (" + passes + " passes)");
+                    yield break;
                 }
-                if (s.CloudCover01 < MinCover) continue;
-                covered++;
-                ForceUniversalTime(t);
-                yield return ProbeWait.Frames(6);
-                double elevation = SunElevationDeg(FlightGlobals.ActiveVessel);
-                if (elevation < SunMinDeg || elevation > SunMaxDeg) continue;
-                utChosen = t;
-                coverChosen = s.CloudCover01;
-                sunChosen = elevation;
-                utOk = true;
-                Emit("T09.ut_jump_s", t - start);
-                yield break;
+                if (unsampled == 0 || Elapsed >= giveUpAt) break;
+                yield return ProbeWait.Seconds(1);
             }
-            AtmospheresLog.Say("T09 clock: no candidate (" + unsampled + " not sampled, " + covered + " covered but not in the sun band)");
-        }
-
-        private static double SunElevationDeg(Vessel v)
-        {
-            CelestialBody sun = GameGlobals.Sun;
-            if (sun == null || v == null || v.mainBody == null) return 90.0;
-            Vector3d toSun = (sun.position - v.GetWorldPos3D()).normalized;
-            Vector3d up = (v.GetWorldPos3D() - v.mainBody.position).normalized;
-            return Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(toSun, up)))) * 180.0 / Math.PI;
+            AtmospheresLog.Say("T09 clock: no candidate (" + unsampled + " not sampled, " + covered + " covered but not in the sun band, " + passes + " passes)");
+            if (unsampled > 0)
+            {
+                IWeatherField field = WeatherHub.Field;
+                utFailure = "the weather field did not answer at the site for " + unsampled + " of " + Candidates + " candidate times within " + FieldWaitS.ToString("0")
+                            + " s (field " + (field != null ? field.GetType().Name + ", readiness " + field.Readiness : "none") + "; " + covered
+                            + " answered with cover and none of them stood in the sun band); the clock cannot be chosen";
+            }
+            else
+            {
+                utFailure = "no universal time in " + Candidates + " hours from the base has a cover of at least " + MinCover + " over the site and the sun " + SunMinDeg + " to " + SunMaxDeg
+                            + " degrees up (" + covered + " had the cover); the timing would not describe a covered daylight sky";
+            }
         }
 
         // --- Placement --------------------------------------------------------------------------------------------------------------------
@@ -439,27 +453,26 @@ namespace ReDefinition.Atmospheres
         // Place, then check that the vessel is at the height asked for (within 2 percent, at least 5 m) and the camera looks where asked (within
         // AimToleranceDeg), and place again (up to PlaceAttempts times) when not; a view that cannot be placed fails the probe and is left out, because
         // a view measured at the pad would pass as the orbit view. The real altitude and aim are emitted.
-        private IEnumerable<ProbeWait> PlaceChecked(CelestialBody body, double lat, double lon, View view)
+        private IEnumerable<ProbeWait> PlaceChecked(double lat, double lon, View view)
         {
             placeOk = false;
             string detail = "";
             for (int attempt = 0; attempt < PlaceAttempts && !placeOk; attempt++)
             {
                 if (attempt > 0) yield return ProbeWait.Seconds(PlaceRetryWaitS);
-                foreach (ProbeWait w in Place(body, lat, lon, view)) yield return w;
+                foreach (ProbeWait w in Place(lat, lon, view)) yield return w;
                 foreach (ProbeWait w in Aim(view.HeadingDeg, wantedPitch, view.CameraDistM)) yield return w;
-                Vessel vessel = FlightGlobals.ActiveVessel;
+                double vesselAltitude = Game.VesselAltitude;
                 double az, el;
-                CameraAim(out az, out el);
-                double altitudeError = Math.Abs(vessel.altitude - wantedAltitude), tolerance = Math.Max(AltitudeToleranceM, 0.02 * wantedAltitude);
+                Game.CameraAim(out az, out el);
+                double altitudeError = Math.Abs(vesselAltitude - wantedAltitude), tolerance = Math.Max(AltitudeToleranceM, 0.02 * wantedAltitude);
                 double aimError = Math.Abs(el - wantedPitch), headingError = Math.Abs(WrapDeg(az - view.HeadingDeg));
                 bool altitudeOk = altitudeError <= tolerance, aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
-                detail = "altitude " + vessel.altitude.ToString("0") + " m against " + wantedAltitude.ToString("0") + ", camera elevation " + el.ToString("0.0") + " against "
-                         + wantedPitch.ToString("0.0") + ", heading " + az.ToString("0") + " against " + view.HeadingDeg.ToString("0") + ", situation " + vessel.situation
-                         + ", packed " + vessel.packed;
+                detail = "altitude " + vesselAltitude.ToString("0") + " m against " + wantedAltitude.ToString("0") + ", camera elevation " + el.ToString("0.0") + " against "
+                         + wantedPitch.ToString("0.0") + ", heading " + az.ToString("0") + " against " + view.HeadingDeg.ToString("0") + ", " + Game.VesselState;
                 AtmospheresLog.Say("T09 view placed: " + view.Name + " attempt " + (attempt + 1) + " of " + PlaceAttempts + ": " + detail + (altitudeOk && aimOk ? " (ok)" : " (not yet)"));
                 string prefix = "T09.view." + view.Name + ".";
-                Emit(prefix + "altitude_m", vessel.altitude);
+                Emit(prefix + "altitude_m", vesselAltitude);
                 Emit(prefix + "elevation_deg", el);
                 Emit(prefix + "azimuth_deg", az);
                 placeOk = altitudeOk && aimOk;
@@ -468,58 +481,23 @@ namespace ReDefinition.Atmospheres
         }
 
         // The vessel at rest in the air over the site at the view's height, upright, held.
-        private IEnumerable<ProbeWait> Place(CelestialBody body, double lat, double lon, View view)
+        private IEnumerable<ProbeWait> Place(double lat, double lon, View view)
         {
-            Vessel vessel = FlightGlobals.ActiveVessel;
             double terrain = 0.0;
-            try { terrain = body.TerrainAltitude(lat, lon, true); } catch (Exception) { terrain = 0.0; }
+            try { terrain = Game.TerrainAltitude(lat, lon); } catch (Exception) { terrain = 0.0; }
             wantedAltitude = Math.Max(0.0, terrain) + view.AglM;
-            Vector3d up = body.GetSurfaceNVector(lat, lon);
-            Vector3d place = body.GetWorldSurfacePosition(lat, lon, wantedAltitude);
-            vessel.SetPosition(place);
-            vessel.SetRotation(Quaternion.FromToRotation(Vector3.up, (Vector3)up));
-            FloatingOrigin.SetOffset(place);
-            Krakensbane.ResetVelocityFrame(true);
-            vessel.SetWorldVelocity(body.getRFrmVel(vessel.GetWorldPos3D()));
-            CheatOptions.IgnoreMaxTemperature = true;
-            CheatOptions.NoCrashDamage = true;
-            if (!holding)
-            {
-                holding = true;
-                host = ReconHost.Get();
-                host.PerFrame.Add(HoldVessel);
-            }
+            Game.PlaceVessel(lat, lon, wantedAltitude);
+            Game.StartHold();
             yield return ProbeWait.Frames(20);
             wantedPitch = view.PitchDeg;
             if (double.IsNaN(wantedPitch))
             {
                 // The limb: the horizon lies below the horizontal by acos(R / (R + h)); the camera looks at it.
-                double h = vessel.altitude;
-                wantedPitch = -Math.Acos(body.Radius / (body.Radius + Math.Max(0.0, h))) * 180.0 / Math.PI;
+                double h = Game.VesselAltitude;
+                double radius = Game.BodyRadius;
+                wantedPitch = -Math.Acos(radius / (radius + Math.Max(0.0, h))) * 180.0 / Math.PI;
             }
             yield return ProbeWait.Frames(12);
-        }
-
-        private static void HoldVessel()
-        {
-            if (!InFlightReady()) return;
-            Vessel v = FlightGlobals.ActiveVessel;
-            if (v == null || v.mainBody == null) return;
-            v.SetWorldVelocity(v.mainBody.getRFrmVel(v.GetWorldPos3D()));
-        }
-
-        // The camera's compass heading and elevation in degrees (0 north, 90 east).
-        private static void CameraAim(out double azimuthDeg, out double elevationDeg)
-        {
-            Camera cam = FlightCamera.fetch.mainCamera;
-            CelestialBody body = FlightGlobals.currentMainBody;
-            Vector3d forward = cam.transform.forward;
-            Vector3d up = ((Vector3d)cam.transform.position - body.position).normalized;
-            Vector3d axis = body.RotationAxis.normalized;
-            Vector3d north = (axis - up * Vector3d.Dot(axis, up)).normalized;
-            Vector3d east = Vector3d.Cross(up, north);
-            azimuthDeg = Math.Atan2(Vector3d.Dot(forward, east), Vector3d.Dot(forward, north)) * 180.0 / Math.PI;
-            elevationDeg = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(forward, up)))) * 180.0 / Math.PI;
         }
 
         private static double WrapDeg(double d)
@@ -533,20 +511,17 @@ namespace ReDefinition.Atmospheres
         // picture. The camera's real aim is read back and corrected; the sign of each correction is learnt from whether the error shrank.
         private IEnumerable<ProbeWait> Aim(double azimuthDeg, double elevationDeg, double distance)
         {
-            FlightCamera fc = FlightCamera.fetch;
-            fc.maxDistance = Mathf.Max(fc.maxDistance, (float)distance + 100f);
-            fc.minDistance = Mathf.Min(fc.minDistance, (float)distance);
-            fc.SetDistanceImmediate((float)distance);
+            Game.SetCameraDistance(distance);
             // A camera below the vessel (a negative camPitch) looks up.
-            fc.camPitch = -(float)(elevationDeg * Math.PI / 180.0);
-            fc.camHdg = (float)(WrapDeg(azimuthDeg + 180.0) * Math.PI / 180.0);
+            Game.CameraPitch = -(float)(elevationDeg * Math.PI / 180.0);
+            Game.CameraHeading = (float)(WrapDeg(azimuthDeg + 180.0) * Math.PI / 180.0);
             float signH = 1f, signP = 1f;
             double lastEz = double.NaN, lastEe = double.NaN;
             for (int i = 0; i < 12; i++)
             {
                 yield return ProbeWait.Frames(3);
                 double az, el;
-                CameraAim(out az, out el);
+                Game.CameraAim(out az, out el);
                 double ez = WrapDeg(azimuthDeg - az), ee = elevationDeg - el;
                 if (Math.Abs(ez) < AimToleranceDeg / 2.0 && Math.Abs(ee) < AimToleranceDeg / 2.0) break;
                 if (!double.IsNaN(lastEz))
@@ -556,8 +531,8 @@ namespace ReDefinition.Atmospheres
                 }
                 lastEz = ez;
                 lastEe = ee;
-                fc.camHdg += signH * (float)(ez * Math.PI / 180.0);
-                fc.camPitch -= signP * (float)(ee * Math.PI / 180.0);
+                Game.CameraHeading += signH * (float)(ez * Math.PI / 180.0);
+                Game.CameraPitch -= signP * (float)(ee * Math.PI / 180.0);
             }
             yield return ProbeWait.Frames(3);
         }
@@ -568,11 +543,12 @@ namespace ReDefinition.Atmospheres
         // colour's luminance at gain 1 and at gain 2 (expected ratio 2); the moon's light colour likewise where a moon or planet lights the clouds at
         // this time (the provider answers, and the cloudMoonLights count lets a light through). The gains are tuning keys: the visual calibration of
         // the sun's unit against the sky is the row T09.exposure.cloud_over_sky, which this probe does not read.
-        private IEnumerable<ProbeWait> GainScenario(CelestialBody body, double lat, double lon)
+        private IEnumerable<ProbeWait> GainScenario(double lat, double lon)
         {
             View inside = Views[1];
-            foreach (ProbeWait w in PlaceChecked(body, lat, lon, inside)) yield return w;
+            foreach (ProbeWait w in PlaceChecked(lat, lon, inside)) yield return w;
             OwnCloudModule own = OwnCloudModule.Current;
+            if (own == null) Check("the own cloud module exists for the gain check", false, "OwnCloudModule.Current is null");
             if (!placeOk || own == null) yield break;
             yield return ProbeWait.Seconds(2);
             float sunBase = own.Frame.SunColour.grayscale;
@@ -583,10 +559,7 @@ namespace ReDefinition.Atmospheres
             Check("cloud.sunGain 2 doubles the sun colour of the pass", sunBase > 1e-6f && Math.Abs(sunDouble / sunBase - 2f) < 0.1f, sunBase.ToString("0.000") + " -> " + sunDouble.ToString("0.000"));
             ClearForced();
 
-            Vector3 towards;
-            Color colour;
-            Vector3d eye = FlightCamera.fetch.mainCamera.transform.position;
-            bool answers = CloudBridgeLights.Moon != null && CloudBridgeLights.Moon(body, eye, out towards, out colour);
+            bool answers = Game.MoonProviderAnswers();
             Emit("T09.moon.provider_answers", answers);
             yield return ProbeWait.Frames(10);
             float moonBase = own.Frame.Light.Lights[0].Colour.grayscale;
