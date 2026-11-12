@@ -1,0 +1,13 @@
+# Linked into the weather player for the wet surfaces and the window droplets (T08): the models, the look mapping, the tuning structs,
+# the draw passes (engine only) and the shaders. The renderer modules name game types and are not linked. PrecipScale.cs holds the
+# precipitation types and the level scale (the camera frost links it as well; a file named in two manifests is one file).
+src/Atmospheres/Cover/Wet/WetnessTuning.cs
+src/Atmospheres/Cover/Wet/WetnessModel.cs
+src/Atmospheres/Cover/Wet/WetnessLook.cs
+src/Atmospheres/Cover/Wet/WetSurfacesPass.cs
+src/Atmospheres/Light/Droplets/DropletTuning.cs
+src/Atmospheres/Light/Droplets/DropletModel.cs
+src/Atmospheres/Light/Droplets/DropletPass.cs
+src/Common/Weather/PrecipScale.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresWet.shader
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresDroplet.shader

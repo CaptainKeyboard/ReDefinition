@@ -60,6 +60,48 @@ namespace ReDefinition.Atmospheres
         {
             return float.IsNaN(v) ? 0f : Math.Min(Math.Max(v, 0f), 1f);
         }
+
+        // The depression field of the shader (three octaves of value noise with weights 0.55, 0.30 and 0.15) is close to a normal
+        // distribution around 0.5; each octave has a variance of (1/12) times the mean squared weight of the interpolation, about 0.0375.
+        // [VERIFY: the player row puddle.share_vs_cover measures the real share against the asked one.]
+        internal const float FieldMean = 0.5f;
+        internal const float FieldSigma = 0.125f;
+
+        // The threshold of the depression field under which a pixel is in a puddle, so that a share `cover` of level ground is puddle.
+        // 0 for no puddles.
+        internal static float FieldThreshold(float cover)
+        {
+            if (!(cover > 0.001f)) return 0f;
+            if (cover >= 0.999f) return 1f;
+            return FieldMean + FieldSigma * InverseNormal(cover);
+        }
+
+        // The inverse of the standard normal distribution (the rational approximation of P. J. Acklam; relative error below 1.2e-9).
+        internal static float InverseNormal(float p)
+        {
+            double[] a = { -3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00 };
+            double[] b = { -5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01 };
+            double[] c = { -7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00 };
+            double[] d = { 7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00 };
+            double pl = 0.02425, q, r, x;
+            if (p < pl)
+            {
+                q = Math.Sqrt(-2.0 * Math.Log(p));
+                x = (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0);
+            }
+            else if (p <= 1.0 - pl)
+            {
+                q = p - 0.5;
+                r = q * q;
+                x = (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1.0);
+            }
+            else
+            {
+                q = Math.Sqrt(-2.0 * Math.Log(1.0 - p));
+                x = -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0);
+            }
+            return (float)x;
+        }
     }
 
     // Advances the wetness of a site through an interval of game time by reading the weather of the interval from a source, so that a

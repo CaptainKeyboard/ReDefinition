@@ -9,10 +9,11 @@
 //           view; the in-game contribution mask is atmoDebug = contrib).
 //
 // The population is a pure function of the window's wetness, the clock and the sliding velocity, built from a hash lattice (no list of
-// drops, no state on the GPU). Two layers: large drops that stick and run (a lattice aligned with the way they run; each lattice cell
-// holds at most one drop, on a cycle of its own: stuck, a quick run, stuck, and a new drop forms when the cycle restarts) and small
-// beads that stay. The cells are laid out along the sliding direction so that a drop's run and its trail stay inside its cell. The
-// share of cells that hold a drop follows the wetness (wet^0.85 times the configured coverage over the design coverage of 0.35).
+// drops, no state on the GPU). Three layers: runners, large drops that stick and run (a lattice aligned with the way they run; each
+// lattice cell holds at most one drop, on a cycle of its own: stuck, a quick run, stuck, and a new drop forms when the cycle restarts),
+// middle drops that stay, and small beads that stay. The runners' cells are long along the sliding direction so that a drop's run and its
+// trail stay inside its cell. The share of cells that hold a drop follows the wetness (wet^0.85 times the configured coverage over the
+// design coverage of the layers, DESIGN_COVER).
 //
 // Technique reference: the lattice-of-drops idea with a stick-and-slip cycle and a trail is the common way to draw rain on glass in a
 // pixel shader; the arithmetic below is written for this mod (hash, cycle, lens and rim are its own).
@@ -112,8 +113,9 @@ Shader "ReDefinition/AtmospheresDroplet"
         float radius;    // in picture heights
     };
 
-    // design coverage of the two layers at full wetness: big drops 0.18, beads 0.17
-    #define DESIGN_COVER 0.35
+    // The share of the glass the three layers cover when every cell holds its drop (measured by the weather player, row
+    // droplet.design_cover); the wetness thins the cells out so that the covered share follows wet^0.85 * the configured coverage.
+    #define DESIGN_COVER 0.36
 
     Drops Evaluate(float2 p)
     {
@@ -130,65 +132,89 @@ Shader "ReDefinition/AtmospheresDroplet"
         float s = dot(p, dir), c = dot(p, perp);
         float t = _DrpA.y;
 
-        // ---- the large drops
+        float r = _DrpB.w;
+        // All offsets below are in picture heights. A cell is addressed along the sliding direction (s) and across it (c).
+
+        // ---- the runners: large drops that stick and run. A cell is long along the run (7 widths), so that a run of 14 radii and its
+        // trail stay inside it.
         {
-            float r = _DrpB.w;
-            float cell = 3.2 * r;
-            float2 q = float2(s, c) / cell;
-            float2 id = floor(q);
-            float2 f = frac(q);
+            float cellC = 3.4 * r, cellS = 7.0 * cellC;
+            float2 id = floor(float2(s / cellS, c / cellC));
+            float2 f = float2(s - id.x * cellS, c - id.y * cellC);
             float2 h = Hash22(id);
             float2 h2 = Hash22(id + 31.7);
             if (h.x < present)
             {
                 // The cycle: stuck, a quick run over 40 % of it, stuck. A new drop forms when it restarts (the radius grows in).
-                float travel = 0.36;
+                float travel = 0.6 * cellS;
                 float eff = max(speed, 0.004) * (0.6 + 0.8 * h2.x);
-                float period = travel * cell / eff * 2.5;
+                float period = travel / eff * 2.5;
                 float phase = frac(t / period + h2.y);
                 float run = smoothstep(0.5, 0.9, phase);
                 float born = smoothstep(0.0, 0.12, phase);
-                float2 centre = float2(0.32 + travel * run, 0.32 + 0.36 * h.y);
-                float rad = r * (0.5 + 0.5 * h2.y) / cell * born;
-                float2 dd = (f - centre) / max(rad, 1e-4);
+                float s0 = 0.1 * cellS;
+                float2 centre = float2(s0 + travel * run, cellC * (0.3 + 0.4 * h.y));
+                float rad = max(r * (0.5 + 0.5 * h2.y) * born, 1e-5);
+                float2 local = (f - centre) / rad;
                 // Elongated along the run a little.
-                dd.x /= 1.12;
-                float qd = length(dd);
+                float2 shaped = float2(local.x / 1.12, local.y);
+                float qd = length(shaped);
                 d.disc = 1.0 - smoothstep(0.86, 1.0, qd);
-                float2 lensLocal = (f - centre) / max(rad, 1e-4);
-                d.lens = dir * lensLocal.x + perp * lensLocal.y;
+                d.lens = dir * local.x + perp * local.y;
                 d.rim = smoothstep(0.55, 1.0, qd) * d.disc;
-                d.spot = exp(-dot(dd - float2(-0.35, 0.35), dd - float2(-0.35, 0.35)) * 9.0) * step(qd, 1.0);
-                d.radius = rad * cell;
+                d.spot = exp(-dot(shaped - float2(-0.35, 0.35), shaped - float2(-0.35, 0.35)) * 9.0) * step(qd, 1.0);
+                d.radius = rad;
                 // The wet trail: from where the drop started this cycle to where it is, narrow.
-                float startS = 0.32;
-                float along = f.x;
-                float inTrail = step(startS, along) * step(along, centre.x - rad * 0.8);
-                float across = abs(f.y - centre.y) / max(rad * 0.28, 1e-4);
+                float inTrail = step(s0, f.x) * step(f.x, centre.x - rad * 0.8);
+                float across = abs(f.y - centre.y) / max(rad * 0.28, 1e-5);
                 d.trail = inTrail * (1.0 - smoothstep(0.6, 1.0, across)) * run * (1.0 - smoothstep(0.93, 1.0, phase)) * 0.9;
             }
         }
-        // ---- the beads: small, many, they stay
+        // ---- the middle drops: they stay.
         {
-            float cell = 1.45 * _DrpB.w;
+            float cell = 2.4 * r;
+            float2 q = float2(s, c) / cell + 17.0;
+            float2 id = floor(q);
+            float2 f = (frac(q)) * cell;
+            float2 h = Hash22(id + 3.7);
+            float2 h2 = Hash22(id + 61.9);
+            if (h.x < present)
+            {
+                float2 centre = cell * float2(0.3 + 0.4 * h.y, 0.3 + 0.4 * h2.x);
+                float rad = r * (0.4 + 0.2 * h2.y);
+                float2 local = (f - centre) / rad;
+                float qd = length(local);
+                float disc = 1.0 - smoothstep(0.86, 1.0, qd);
+                if (disc > d.disc)
+                {
+                    d.disc = disc;
+                    d.lens = dir * local.x + perp * local.y;
+                    d.rim = smoothstep(0.55, 1.0, qd) * disc;
+                    d.spot = exp(-dot(local - float2(-0.35, 0.35), local - float2(-0.35, 0.35)) * 9.0) * step(qd, 1.0);
+                    d.radius = rad;
+                }
+            }
+        }
+        // ---- the beads: small, many, they stay.
+        {
+            float cell = 1.3 * r;
             float2 q = float2(s, c) / cell + 53.0;
             float2 id = floor(q);
-            float2 f = frac(q);
+            float2 f = frac(q) * cell;
             float2 h = Hash22(id + 7.1);
             float2 h2 = Hash22(id + 91.3);
             if (h.x < present)
             {
-                float2 centre = float2(0.3 + 0.4 * h.y, 0.3 + 0.4 * h2.x);
-                float rad = 0.3 * (0.6 + 0.4 * h2.y);
-                float qd = length((f - centre) / rad);
-                float bead = 1.0 - smoothstep(0.8, 1.0, qd);
-                // A bead that sits on a big drop's disc is part of it.
+                float2 centre = cell * float2(0.3 + 0.4 * h.y, 0.3 + 0.4 * h2.x);
+                float rad = r * (0.25 + 0.15 * h2.y);
+                float2 local = (f - centre) / rad;
+                float bead = 1.0 - smoothstep(0.8, 1.0, length(local));
+                // A bead that sits on a drop's disc is part of it.
                 d.bead = bead * (1.0 - d.disc);
                 if (d.disc < 0.01 && bead > 0.0)
                 {
-                    float2 lensLocal = (f - centre) / rad;
-                    d.lens = dir * lensLocal.x + perp * lensLocal.y;
-                    d.radius = rad * cell;
+                    d.lens = dir * local.x + perp * local.y;
+                    d.radius = rad;
                 }
             }
         }

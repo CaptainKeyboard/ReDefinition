@@ -8,6 +8,10 @@
 //             target 0 (diffuse, occlusion)   rgb multiplied by the diffuse factor of the wet ground or the puddle
 //             target 1 (specular, smoothness) smoothness (alpha) raised; the specular colour is untouched (colour mask A)
 //             target 2 (normal)               rgb blended towards the flat puddle normal with the rings (alpha = the puddle weight)
+//             target 3 (emission, ambient)    rgb multiplied by the same diffuse factor: the geometry pass bakes the ambient light times
+//                                             the albedo into it, so without this the wet ground would darken in the sun's light only
+//                                             (a self-lit part on wet ground is darkened with it; ground has no emission) [VERIFY with
+//                                             the installed Deferred mod, whose lighting shaders are not in the player]
 //   pass 1  aid map: the same arithmetic written as a picture, R = local wetness, G = puddle share, B = up-facing share, A = ripples
 //           (the weather player's second view of every wetness picture; the in-game contribution mask is atmoDebug = contrib).
 //
@@ -32,7 +36,8 @@ Shader "ReDefinition/AtmospheresWet"
 
     sampler2D_float _CameraDepthTexture;
 
-    // x = diffuse factor of wet ground (1 dry), y = smoothness added, z = puddle share of the ground, w = ripples 0..1.
+    // x = diffuse factor of wet ground (1 dry), y = smoothness added, z = the depression field's threshold under which water stands
+    // (0: no puddles), w = ripples 0..1.
     float4 _WetA;
     // x = diffuse factor in a puddle, y = smoothness of a puddle, z = frozen share, w = the clock in seconds (the rings).
     float4 _WetB;
@@ -180,11 +185,11 @@ Shader "ReDefinition/AtmospheresWet"
         float inPuddle = 1.0 - smoothstep(_WetA.z - soft, _WetA.z + soft, field);
         float level = smoothstep(_WetC.z, min(_WetC.z + 0.04, 0.999), upn) * edgeOk;
         w.puddle = inPuddle * level * step(0.001, _WetA.z) * _WetC.w;
-        w.ripples = _WetA.w;
 
-        // The puddle surface: flat (up), with the rings' slope when it rains.
+        // The puddle surface: flat (up), with the rings' slope when it rains. The aid map's ripple channel is the rings' slope itself.
         float3 east = normalize(_WetEast.xyz), north = normalize(_WetNorth.xyz);
         float2 slope = Rings(pm, _WetB.w) * _WetA.w * (1.0 - _WetB.z);
+        w.ripples = saturate(length(slope) * 4.0);
         w.normal = normalize(up - east * slope.x - north * slope.y);
         return true;
     }
@@ -204,9 +209,11 @@ Shader "ReDefinition/AtmospheresWet"
             Blend 0 DstColor Zero
             Blend 1 One One
             Blend 2 SrcAlpha OneMinusSrcAlpha
+            Blend 3 DstColor Zero
             ColorMask RGB 0
             ColorMask A 1
             ColorMask RGB 2
+            ColorMask RGB 3
 
             CGPROGRAM
             #pragma target 4.0
@@ -218,6 +225,7 @@ Shader "ReDefinition/AtmospheresWet"
                 float4 gb0 : SV_Target0;
                 float4 gb1 : SV_Target1;
                 float4 gb2 : SV_Target2;
+                float4 gb3 : SV_Target3;
             };
 
             Out frag(v2f i)
@@ -233,6 +241,9 @@ Shader "ReDefinition/AtmospheresWet"
                 o.gb0 = float4(diffuse, diffuse, diffuse, 1);
                 o.gb1 = float4(0, 0, 0, smoothAdd);
                 o.gb2 = float4(w.normal * 0.5 + 0.5, w.puddle * 0.92);
+                // The fourth target holds the emission and the ambient light the geometry pass already added (the indirect diffuse is
+                // baked into it times the albedo); the wet ground reflects less of that light too, so it is scaled by the same factor.
+                o.gb3 = float4(diffuse, diffuse, diffuse, 1);
                 return o;
             }
             ENDCG

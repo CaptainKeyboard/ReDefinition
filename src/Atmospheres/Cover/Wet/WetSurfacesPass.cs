@@ -43,7 +43,8 @@ namespace ReDefinition.Atmospheres
         {
             new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer0),
             new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer1),
-            new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer2)
+            new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer2),
+            new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer3)
         };
 
         internal WetSurfacesPass(Shader shader)
@@ -61,7 +62,7 @@ namespace ReDefinition.Atmospheres
         private void Set(ref WetDraw d)
         {
             WetLook l = d.Look;
-            material.SetVector(IdA, new Vector4(l.DiffuseFactor, l.SmoothAdd, l.PuddleCover, l.Ripples));
+            material.SetVector(IdA, new Vector4(l.DiffuseFactor, l.SmoothAdd, WetnessLookMath.FieldThreshold(l.PuddleCover), l.Ripples));
             material.SetVector(IdB, new Vector4(l.PuddleDiffuse, l.PuddleSmooth, l.Frozen, d.ClockS));
             material.SetVector(IdCentre, new Vector4(d.CentreRel.x, d.CentreRel.y, d.CentreRel.z, 0f));
             material.SetVector(IdEast, new Vector4(d.East.x, d.East.y, d.East.z, d.EastM));
@@ -71,7 +72,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // Adds the G-buffer overlay to the buffer. Nothing is recorded where the draw has nothing to do. The buffer's render target is
-        // set here (the three G-buffer targets and the camera's depth), so the caller adds it at BeforeLighting and nothing else.
+        // set here (the four G-buffer targets and the camera's depth), so the caller adds it at BeforeLighting and nothing else.
         internal void RecordGBuffer(CommandBuffer cmd, ref WetDraw d)
         {
             if (!NeedsDraw(ref d)) return;
