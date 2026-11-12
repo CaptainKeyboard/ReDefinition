@@ -168,7 +168,9 @@ float3 NoiseFlowDir(int li, float3 pc)
 }
 
 // The share of the column that is cloud at a point of a layer (T01's threshold when the volumes are not ready or the layer has no noise).
-float NoiseShare(int li, float3 pc, float cov, float coverage, float edge, float amount, float erosion)
+// The single sample; the layer shader calls NoiseShare of ReDefinitionAtmospheresFarView.cginc (package T06), which takes the mean over the noise
+// where the march's spacing is wider than the noise.
+float NoiseShareNear(int li, float3 pc, float cov, float coverage, float edge, float amount, float erosion)
 {
     float scale = _LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 0;
     if (_NoiseP.x < 0.5 || amount <= 0 || scale <= 0)

@@ -1,0 +1,4 @@
+# Linked into the weather player for the far view (package T06): the settings and the maths of the aerial perspective, the shape noise's distance
+# LOD and the hand-over, and the include the layer shader reads (the layer shader itself is linked by T01.txt).
+src/Atmospheres/Render/Layers/FarView/*.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresFarView.cginc

@@ -81,6 +81,25 @@ namespace ReDefinition.WeatherPlayer
             if (job.costLeap >= 0f) frame.EmptyLeap = job.costLeap;
             if (job.costCut >= 0f) frame.LightCutoff = job.costCut;
             if (job.lightStride >= 0) frame.LightStride = job.lightStride;
+            if (job.far != null)
+            {
+                FarViewSettings far = frame.Far;
+                far.Haze = job.far.haze != 0;
+                far.ShapeMean = job.far.shapeMean != 0;
+                far.HazeStrength = job.far.hazeStrength;
+                far.MiePerM = job.far.mie;
+                far.RayleighHeightM = job.far.rayleighHeight;
+                far.MieHeightM = job.far.mieHeight;
+                far.LodStart = job.far.lodStart;
+                far.LodEnd = job.far.lodEnd;
+                if (job.far.rayleigh != null && job.far.rayleigh.Length >= 3) far.RayleighPerM = V(job.far.rayleigh);
+                far.Inscatter = Rgb(job.far.inscatter, far.Inscatter);
+                far.Policy = job.far.policy != 0;
+                far.MinSamples = job.far.minSamples;
+                if (job.far.refine > 0f) far.RefineFraction = job.far.refine;
+                // The march policy of the far view: the step budget, the shortest step and the entry's finest step by the camera's altitude.
+                far.ApplyTo(frame, V(job.position).magnitude - job.planetRadius, job.planetRadius);
+            }
             if (job.cheapShare >= 0f) frame.CheapShare = job.cheapShare;
             if (job.fogShare >= 0f) frame.FogShare = job.fogShare;
             return frame;

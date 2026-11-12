@@ -19,6 +19,57 @@ namespace ReDefinition.Atmospheres
         // The shell stands this much above the planet's radius, as a share of it: above the terrain and below EVE's 2D layer.
         internal const float RadiusShare = 1.0012f;
 
+        // The map view's fade (P69, package T06): the shell is hidden while the map camera is closer to the body than 2.5 radii and fully
+        // shown from 3.5 radii, smooth between.
+        internal const double MapFadeFromRadii = 2.5, MapFadeToRadii = 3.5;
+
+        // Below this opacity the shell is not drawn at all.
+        internal const float MinVisibleOpacity = 0.004f;
+
+        // The opacity of the shell for the camera (package T06): it is the far picture of the same layers the near march draws, so its weight is
+        // what the near march leaves, a smooth cross-fade through the hand-over band (FarViewMath.NearWeight) and not a second layer drawn over
+        // the first. Where the near march is not drawing (nearMarchActive false: the own clouds are off or the cloud source is not ours) the shell
+        // is the only picture and stays at full weight at any altitude. In the map view the near march is off and the fade of the map view applies.
+        internal static float Opacity(double cameraAltitudeM, double bodyRadiusM, bool nearMarchActive, bool mapView, double mapDistanceRadii, bool mapFadeOn)
+        {
+            double weight = 1.0;
+            if (mapView)
+            {
+                if (mapFadeOn) weight = FarViewMath.MapFade(mapDistanceRadii, MapFadeFromRadii, MapFadeToRadii);
+            }
+            else if (nearMarchActive)
+            {
+                weight = 1.0 - FarViewMath.NearWeight(cameraAltitudeM, bodyRadiusM * FarViewMath.BandStartRadii, bodyRadiusM * FarViewMath.BandEndRadii);
+            }
+            return (float)weight;
+        }
+
+        // Whether the near march draws for the body (the integration sets it; false: the shell is the only picture) and whether the map view fades the
+        // shell (off until the setting mapViewCloudFade exists and the owner agrees: the shell stays at full weight in the map view as it was).
+        internal bool NearMarchActive;
+        internal bool MapFadeEnabled;
+
+        // The shell's opacity now: from the flight camera's altitude over the body, or in the map view and the tracking station from the map
+        // camera's distance in body radii.
+        private float CurrentOpacity(CelestialBody b)
+        {
+            bool map = MapView.MapIsEnabled || HighLogic.LoadedScene == GameScenes.TRACKSTATION;
+            double altitude = 0.0, radii = 0.0;
+            if (map)
+            {
+                // [VERIFY] GetCameraTransform is the map camera's transform in scaled space (the unit of the body's scaled transform).
+                Transform planetarium = PlanetariumCamera.fetch != null ? PlanetariumCamera.fetch.GetCameraTransform() : null;
+                if (planetarium != null)
+                    radii = (planetarium.position - b.scaledBody.transform.position).magnitude / (b.Radius * ScaledSpace.InverseScaleFactor);
+            }
+            else
+            {
+                Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+                if (flight != null) altitude = ((Vector3d)flight.transform.position - b.position).magnitude - b.Radius;
+            }
+            return Opacity(altitude, b.Radius, NearMarchActive, map, radii, MapFadeEnabled);
+        }
+
         private readonly Func<CelestialBody, bool> wants;
         private readonly Func<RenderTexture> picture;
         private GameObject shell;
@@ -85,7 +136,15 @@ namespace ReDefinition.Atmospheres
                 Hide();
                 return;
             }
+            // The far picture's weight (package T06): hidden where the near march or the map fade leaves nothing of it.
+            float opacity = CurrentOpacity(b);
+            if (opacity < MinVisibleOpacity)
+            {
+                Hide();
+                return;
+            }
             material.SetTexture("_Picture", picture());
+            material.SetFloat("_Opacity", opacity);
             Vector3 sun = SunDirection(b);
             material.SetVector("_SunDir", sun);
             if (!shell.activeSelf) shell.SetActive(true);

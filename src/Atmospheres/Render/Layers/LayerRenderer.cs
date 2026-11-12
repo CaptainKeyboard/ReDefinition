@@ -27,6 +27,8 @@ namespace ReDefinition.Atmospheres
         // writes its own over these when set; the light's numbers (octaves, powder, ambient, extra lights, cache) live there.
         public Vector4 Phase = new Vector4(0.8f, -0.3f, 0.9f, 0.9f);
         public CloudLightSettings Light = new CloudLightSettings();
+        // The far view (package T06): the aerial perspective of the clouds and the shape noise's distance LOD; both off until the integration switches them on.
+        public FarViewSettings Far = new FarViewSettings();
         // A body with a surface ends the ray on the sea-level sphere; a gas giant lets it through the hollow shell (P24).
         public bool HasSurface = true;
         // The march target's size over the camera's, and whether the scene's depth limits the march and the composite (P64).
@@ -258,6 +260,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             m.SetVector(Shader.PropertyToID("_RefineP"), new Vector4(Mathf.Max(0f, f.RefineBudget), Mathf.Clamp(f.RefineFraction, 0.01f, 1f), Mathf.Max(0.1f, f.EdgePower), f.HashDither ? 2f : (f.FixedConeRotation ? 1f : 0f)));
             if (f.Light != null) f.Light.Upload(m);
+            if (f.Far != null) f.Far.Upload(m);
             Noise.Bind(m, layerCount);
         }
 

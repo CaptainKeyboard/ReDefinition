@@ -145,6 +145,8 @@ Shader "ReDefinition/AtmospheresLayers"
 
         // ---- shape and erosion (package T02) ----
         #include "ReDefinitionAtmospheresNoise.cginc"
+        // ---- far view (package T06: aerial perspective, the shape's mean over the noise at wide spacing) ----
+        #include "ReDefinitionAtmospheresFarView.cginc"
 
         // The largest amount the coverage noise moves the map value by: the shape value is 0 to 1, so the threshold moves by half the amount.
         float CoverageNoiseBound(int li)
@@ -239,6 +241,8 @@ Shader "ReDefinition/AtmospheresLayers"
             float3 direct;
             float3 ambient;
             float lightTaps;
+            float distSum;    // sum over the steps of (weight in the ray's colour) x distance, for the mean distance of the cloud (T06)
+            float weightSum;
         };
 
         float Ign(float2 p, float frame)
@@ -263,6 +267,7 @@ Shader "ReDefinition/AtmospheresLayers"
             r.rgb = 0; r.alpha = 0; r.tau = 0; r.steps = 0; r.first = -1;
             r.tauLayer = 0;
             r.direct = 0; r.ambient = 0; r.lightTaps = 0;
+            r.distSum = 0; r.weightSum = 0;
             if (_StepP.w > 0.5)
             {
                 float g0, g1;
@@ -318,7 +323,11 @@ Shader "ReDefinition/AtmospheresLayers"
                 // Cheap and fog layers take a share of the step budget (they carry no detail the full count would resolve).
                 float share01 = kind > 1.5 && kind < 2.5 ? _SkipP.w : (kind > 0.5 && kind < 1.5 ? _SkipP.z : 1.0);
                 float stepLen = max(_StepP.x * (1.0 + s0[k] * _MarchP.z), 1e-3);
-                int count = (int)clamp(ceil(len / stepLen), 1.0, max(1.0, floor(maxSteps * share01 + 0.5)));
+                // The far view (T06) keeps at least _FarD.w samples in a span: a thin layer seen from far away has a step longer than itself, and one
+                // sample at a jittered place is a coin toss of the cloud's coverage that changes with the step count (the coverage of an orbit view
+                // jumped by 14 percent between two altitudes where the count went from two to one).
+                float minCount = max(1.0, _FarD.w);
+                int count = (int)clamp(ceil(len / stepLen), minCount, max(minCount, floor(maxSteps * share01 + 0.5)));
                 float dt = len / count;
                 gNoiseFoot = dt;   // the sample spacing: the erosion detail's distance LOD (T02)
                 // The samples lie on the grid s0 + dt * (i + jitter). An empty sample lets the next ones leap over 1, 2 .. leapMax grid
@@ -440,6 +449,8 @@ Shader "ReDefinition/AtmospheresLayers"
                     r.direct += T * dirPart * ext;
                     r.ambient += T * ambPart * ext;
                     r.rgb += T * src * ext;
+                    r.distSum += T * ext * (t - 0.5 * dts);
+                    r.weightSum += T * ext;
                     T *= 1.0 - ext;
                     r.tau += dtau;
                     tauSince += dtau;
@@ -450,6 +461,12 @@ Shader "ReDefinition/AtmospheresLayers"
             // A ray that ended on the early-out is opaque: the remaining transmittance (up to the threshold, 1 %) would show a bright background (the
             // sun's or the moon's disc, a lit planet) as a dot through a thick cloud (T03v2).
             r.alpha = T < _MarchP.w ? 1.0 : 1.0 - exp(-r.tau);
+            // Aerial perspective (T06): the air between the camera and the cloud's mean distance thins the cloud's colour towards the horizon sky.
+            if (_FarA.x > 0.5 && r.weightSum > 1e-9)
+            {
+                float3 airT = exp(-FarAirTau(o, d, r.distSum / r.weightSum));
+                r.rgb = r.rgb * airT + r.alpha * _FarC.rgb * (1.0 - airT);
+            }
             return r;
         }
 

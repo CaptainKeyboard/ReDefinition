@@ -60,9 +60,22 @@ namespace ReDefinition.WeatherPlayer
         public float flowTime;
     }
 
+    // The far view of a job (package T06): the aerial perspective (off unless haze is 1) with the air's coefficients and the in-scattered colour, and
+    // the shape noise's distance LOD (off unless shapeMean is 1). A job without this object leaves both off.
+    [Serializable]
+    public sealed class LayersJobFar
+    {
+        public int haze, shapeMean, policy, minSamples;
+        // refine: the finest step of the entry above the band as a share of the grid step (0: the settings' default).
+        public float refine, hazeStrength = 1f, mie = 4.44e-6f, rayleighHeight = 8000f, mieHeight = 1200f, lodStart = 1f, lodEnd = 3f;
+        public float[] rayleigh, inscatter;
+    }
+
     [Serializable]
     public sealed class LayersJob
     {
+        // The far view (package T06); null: off.
+        public LayersJobFar far;
         public string id;
         // "aux": alpha, tau, steps and first-hit arrays; "lum": the march's radiance and alpha; "color": the natural and the aid pictures.
         public string mode;

@@ -35,6 +35,13 @@ namespace ReDefinition.Atmospheres
         // The opacity of the picture where the field says there is no precipitation: the plain cloud cover, a little less than full.
         internal const float FaintOpacity = 0.35f;
 
+        // The alpha of a texel of the picture where the swirl is not drawn: the coverage times the opacity of the level (the ORBIT pass of
+        // ReDefinition/AtmospheresMapPaint, in float). The map view's check against the field's coverage map (package T06) reads this.
+        internal static float PictureAlpha(float coverage01, float level01)
+        {
+            return (coverage01 <= 0f ? 0f : coverage01 >= 1f ? 1f : coverage01) * OpacityAt(level01);
+        }
+
         // The grey of the picture's clouds: light for a thin deck, darker with the level.
         internal static float GreyAt(float level01)
         {
