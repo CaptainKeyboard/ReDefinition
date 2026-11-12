@@ -61,6 +61,10 @@ namespace ReDefinition.Atmospheres
         // The product's budget is 0.5: the entry of a cloud is found to 1/8 of the grid step (the look sheet's A/B: the grain of a single frame
         // falls by 25 to 78 percent, the dither is left to the temporal reconstruction).
         public float RefineBudget = 0f, RefineFraction = 0.25f, EdgePower = 1f;
+        // Package T14, the contour gate of the entry refinement (0: off, every ray refines; above 0 the alpha step to a neighbouring pixel of its 2 x 2 quad,
+        // or to a neighbouring march sample in the reconstruction's block mode, above which a ray is re-marched with the refinement on; the other rays keep
+        // the grid step). RefineGateFirst is the same for the relative step of the first hit's distance (0: not used).
+        public float RefineGate = 0f, RefineGateFirst = 0f;
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
         public bool FixedConeRotation;
         // The per-pixel dither of the step offset and of the light cone is an integer hash (white noise); false: the interleaved gradient noise,
@@ -282,6 +286,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             m.SetVector(Shader.PropertyToID("_RefineP"), new Vector4(Mathf.Max(0f, f.RefineBudget), Mathf.Clamp(f.RefineFraction, 0.01f, 1f), Mathf.Max(0.1f, f.EdgePower), f.HashDither ? 2f : (f.FixedConeRotation ? 1f : 0f)));
+            m.SetVector(Shader.PropertyToID("_RefineG"), new Vector4(Mathf.Max(0f, f.RefineGate), Mathf.Max(0f, f.RefineGateFirst), 0f, 0f));
             if (f.Light != null) f.Light.Upload(m);
             if (f.Far != null) f.Far.Upload(m);
             Noise.Bind(m, layerCount);

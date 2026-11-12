@@ -64,6 +64,12 @@ Shader "ReDefinition/AtmospheresLayers"
         // The cloud's entry and edge (stream T): x the optical depth one step may add at the entry (it grows with the ray's optical depth; 0: off),
         // y the finest step as a share of the grid step, z the exponent of the coverage share in the density (1: linear).
         float4 _RefineP;
+        // The contour gate of the entry refinement (package T14): x the alpha step to a neighbour of the 2 x 2 quad above which a ray is marched again with the
+        // refinement on (0: off, every ray refines), y the same for the first hit's relative distance step (0: not used), z, w 0.
+        float4 _RefineG;
+        // The gate's state while a ray marches: the refinement is on (1) or held back for the first march of a gated pixel (0); and a draw that must not gate
+        // (the edge draw of package T12 returns early per pixel, so a quad's derivatives are not defined there) sets gGateOff.
+        static float gRefineOn = 1.0, gGateOff = 0.0;
         // The temporal reconstruction (package T05): the march target holds one pixel of every N x N block of the full target.
         float4 _ReconP;      // block size N (1: the target is the full target), the block offset x and y in full pixels, 0
         float4 _ReconD;      // the full target's width and height in pixels, the march target's width and height in pixels
@@ -357,7 +363,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 // The entry refinement (stream T): the first dense sample after an empty one only says the entry lies within one grid step; the
                 // ray goes back to the last empty sample and walks to the entry in the finest step, so that the cloud's surface is found to the finest
                 // step and not to the grid step (the grid step's quantisation is the hatching and the banding of a solid cloud).
-                bool refine = _RefineP.x > 0.0;
+                bool refine = _RefineP.x > 0.0 && gRefineOn > 0.5;
                 float fineStep = dt * _RefineP.y;
                 bool fine = false, inside = false;
                 float tFineEnd = 0.0;
@@ -524,7 +530,31 @@ Shader "ReDefinition/AtmospheresLayers"
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
             float tmax = SceneDistance(i.uv, d);
             float2 pixel = i.uv * (_ReconP.x < 1.5 ? _ScreenParams.xy : _ReconD.xy);
-            MarchOut r = March(o, d, tmax, pixel);
+            MarchOut r;
+            // The contour gate (T14): march without the refinement first, look at the alpha (and the first hit) of the 2 x 2 quad, and march again with
+            // the refinement only where the quad holds a contour. One call site in a two-pass loop (two call sites inline the march twice, which the shader
+            // compiler does not survive); the derivatives are taken in the first pass, in uniform flow.
+            bool gated = _RefineG.x > 0.0 && _RefineP.x > 0.0 && gGateOff < 0.5;
+            float vote = 1.0;
+            r = (MarchOut)0;
+            [loop] for (int gp = 0; gp < 2; gp++)
+            {
+                if (gp == 0 || vote > 0.5)
+                {
+                    gRefineOn = (gated && gp == 0) ? 0.0 : 1.0;
+                    r = March(o, d, tmax, pixel);
+                }
+                if (gp == 0)
+                {
+                    if (!gated) break;
+                    float firstD = max(r.first, 0.0);
+                    float stepA = abs(ddx(r.alpha)) + abs(ddy(r.alpha));
+                    float stepF = (abs(ddx(firstD)) + abs(ddy(firstD))) / max(firstD, 1.0);
+                    float contour = (stepA > _RefineG.x || (_RefineG.y > 0.0 && stepF > _RefineG.y)) ? 1.0 : 0.0;
+                    vote = contour + abs(ddx(contour)) + abs(ddy(contour));
+                }
+            }
+            gRefineOn = 1.0;
             if (_LimitP.y > 1.5 && _LimitP.y < 2.5)
             {
                 float3 c = r.tauLayer.x * float3(0.9, 0.3, 0.2) + r.tauLayer.y * float3(0.2, 0.7, 0.9) + r.tauLayer.z * float3(0.9, 0.8, 0.2) + r.tauLayer.w * float3(0.4, 0.9, 0.3);

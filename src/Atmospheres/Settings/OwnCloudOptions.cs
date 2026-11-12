@@ -14,7 +14,8 @@ namespace ReDefinition.Atmospheres
         // are the compiled defaults of LayerFrame.
         internal const string TuneCoverageBound = "layers.coverageBound", TuneLightStride = "layers.lightStride", TuneLightCutoff = "layers.lightCutoff",
             TuneEmptyLeap = "layers.emptyLeap", TuneCheapShare = "layers.cheapShare", TuneFogShare = "layers.fogShare",
-            TuneRefineBudget = "layers.refineBudget", TuneRefineFraction = "layers.refineFraction", TuneEdgePower = "layers.edgePower";
+            TuneRefineBudget = "layers.refineBudget", TuneRefineFraction = "layers.refineFraction", TuneEdgePower = "layers.edgePower",
+            TuneRefineGate = "layers.refineGate", TuneRefineGateFirst = "layers.refineGateFirst";
 
         // The tuning keys of the light's look constants (T03); the compiled defaults are the fields of CloudLightSettings.
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
@@ -24,6 +25,10 @@ namespace ReDefinition.Atmospheres
 
         // The optical depth one step may add where a ray enters a cloud when cloudEntryRefinement is on (the product budget of the look sheets).
         internal const float EntryRefineBudget = 0.5f;
+
+        // The contour gate of the refinement (T14, cloudRefineAtContours): the alpha step to a neighbouring pixel above which a ray refines, and the relative
+        // first-hit step (0: not used). The values are the sweep's pick of tools/weather_metrics/refine.py.
+        internal const float RefineGateAlpha = 0.12f, RefineGateFirstStep = 0f;
 
         private static readonly CloudLightSettings Compiled = new CloudLightSettings();
         private static readonly LayerFrame CompiledFrame = new LayerFrame();
@@ -111,6 +116,10 @@ namespace ReDefinition.Atmospheres
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
             f.RefineBudget = On(v, AtmospheresSettings.Keys.CloudEntryRefinement) ? Mathf.Max(0f, Tuning.Get(TuneRefineBudget, EntryRefineBudget)) : 0f;
             f.RefineFraction = Mathf.Clamp(Tuning.Get(TuneRefineFraction, CompiledFrame.RefineFraction), 0.0625f, 1f);
+            // T14: the contour gate of the refinement (the alpha step of the 2 x 2 quad above which a ray refines; the first-hit step is off).
+            bool gate = f.RefineBudget > 0f && On(v, AtmospheresSettings.Keys.CloudRefineAtContours);
+            f.RefineGate = gate ? Mathf.Max(0.001f, Tuning.Get(TuneRefineGate, RefineGateAlpha)) : 0f;
+            f.RefineGateFirst = gate ? Mathf.Max(0f, Tuning.Get(TuneRefineGateFirst, RefineGateFirstStep)) : 0f;
             f.EdgePower = Mathf.Max(1f, Tuning.Get(TuneEdgePower, CompiledFrame.EdgePower));
         }
 
@@ -200,11 +209,14 @@ namespace ReDefinition.Atmospheres
             return On(v, AtmospheresSettings.Keys.CloudFarMapFade);
         }
 
-        // T05: the reconstruction. Mode Full marches every pixel every frame (the setting's default); the block is read in Block mode only.
+        // T05, T14: the reconstruction. The slider cloudResolution is the level: 1 marches every pixel every frame (the default, ReconMode.Full), 2 to 4 march one
+        // pixel of every 2 x 2, 3 x 3 or 4 x 4 block (ReconMode.Block). The mode setting's Low (prototype B, a smaller march target) overrides the slider.
         internal static void Apply(ReconSettings s, Func<string, double> v)
         {
-            s.Mode = (ReconMode)Math.Max(0, Math.Min(2, (int)v(AtmospheresSettings.Keys.CloudReconMode)));
-            s.Block = Math.Max(2, Math.Min(4, (int)v(AtmospheresSettings.Keys.CloudReconBlock)));
+            int level = ReconPattern.ClampLevel((int)v(AtmospheresSettings.Keys.CloudResolution));
+            bool low = (ReconMode)Math.Max(0, Math.Min(2, (int)v(AtmospheresSettings.Keys.CloudReconMode))) == ReconMode.Low;
+            s.Mode = low ? ReconMode.Low : (level > 1 ? ReconMode.Block : ReconMode.Full);
+            s.Block = Math.Max(2, level);
         }
 
         internal static void Apply(ReconSettings s)

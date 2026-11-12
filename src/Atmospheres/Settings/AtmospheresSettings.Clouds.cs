@@ -51,7 +51,8 @@ namespace ReDefinition.Atmospheres
             internal const string CloudShadowFloor = "cloudShadowFloor";
             // Own clouds: the temporal reconstruction (T05)
             internal const string CloudReconMode = "cloudReconMode";
-            internal const string CloudReconBlock = "cloudReconBlock";
+            internal const string CloudResolution = "cloudResolution";
+            internal const string CloudRefineAtContours = "cloudRefineAtContours";
             // Own clouds: the look fixes of T03v2 and the far view (T06), the switches of the review of wave 4
             internal const string CloudSunMarchLong = "cloudSunMarchLong";
             internal const string CloudSunWhiteBalance = "cloudSunWhiteBalance";
@@ -97,7 +98,8 @@ namespace ReDefinition.Atmospheres
         internal static float CloudShadowFloor => F(Keys.CloudShadowFloor);
 
         internal static ReconMode CloudReconMode => E<ReconMode>(Keys.CloudReconMode);
-        internal static int CloudReconBlock => I(Keys.CloudReconBlock);
+        internal static int CloudResolution => I(Keys.CloudResolution);
+        internal static bool CloudRefineAtContours => B(Keys.CloudRefineAtContours);
 
         internal static bool CloudSunMarchLong => B(Keys.CloudSunMarchLong);
         internal static bool CloudSunWhiteBalance => B(Keys.CloudSunWhiteBalance);
@@ -127,7 +129,7 @@ namespace ReDefinition.Atmospheres
             const string NOISE = AtmospheresSettings.GreyReasons.NeedsCloudNoise;
             const string SHADOW = AtmospheresSettings.GreyReasons.NeedsCloudShadows;
             const string TAPS = AtmospheresSettings.GreyReasons.NeedsAmbientTaps;
-            const string RECON = AtmospheresSettings.GreyReasons.NeedsReconstruction;
+            const string REFINE = AtmospheresSettings.GreyReasons.NeedsEntryRefinement;
             const string RV = AtmospheresSettings.ProfileRows.Volume;
 
             return new[]
@@ -146,6 +148,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("cloudNoiseDistanceLod", true, CL, "Cloud Noise Distance Detail", NOISE),
                 SettingDef.Bool("cloudFineDetail", true, CL, "Cloud Fine Detail Octave", NOISE),
                 SettingDef.Bool("cloudEntryRefinement", false, CL, "Cloud Entry Refinement", OWN),
+                SettingDef.Bool("cloudRefineAtContours", false, CL, "Cloud Refine Only At Contours", REFINE),
                 SettingDef.Bool("cloudHashDither", true, CL, "Cloud White Dither", OWN),
 
                 // The light (T03)
@@ -163,9 +166,11 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Choice("cloudShadowQuality", typeof(CloudDetailLevel), CloudDetailLevel.Medium, CL, "Cloud Shadow Quality", SHADOW, RV),
                 SettingDef.Float("cloudShadowFloor", 0.0, 0.0, 1.0, CL, "Cloud Shadow Floor", SHADOW),
 
-                // The temporal reconstruction (T05): off (every pixel marched every frame) until the owner agrees to the 4 x 4 block look (a sixteenth of the pixels per frame)
+                // The temporal reconstruction (T05) and the resolution slider (T14): level 1 marches every pixel every frame, 2 to 4 march one pixel of every
+                // 2 x 2, 3 x 3 or 4 x 4 block per frame; 1 (full resolution) until the owner agrees to a lower level. The mode's Low is prototype B and
+                // overrides the slider. The tier mapping is open for the owner (TierRows.NotSet).
                 SettingDef.Choice("cloudReconMode", typeof(ReconMode), ReconMode.Full, CL, "Cloud Reconstruction", OWN),
-                SettingDef.Int("cloudReconBlock", 4, 2, 4, CL, "Cloud Reconstruction Block", RECON),
+                SettingDef.Int("cloudResolution", 1, 1, 4, CL, "Cloud Resolution", OWN, RV),
 
                 // The sun march and the look fixes of T03v2: the short march (4 km) is what the parity rows measured; the white balance and the decay are the
                 // fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)

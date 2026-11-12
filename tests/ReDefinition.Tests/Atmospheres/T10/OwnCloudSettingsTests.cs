@@ -21,7 +21,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             "ownClouds", "layerCap", "layerStepQuality", "layerStepGrowth", "cloudNoise", "cloudNoiseUntile", "cloudNoiseCurl", "cloudNoiseTier",
             "cloudNoiseDistanceLod", "cloudFineDetail", "cloudEntryRefinement", "cloudHashDither", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
             "cloudSunTint", "cloudMoonLights", "cloudAmbientTaps", "cloudAmbientReuse", "cloudLightCache", "cloudShadows", "cloudShadowQuality",
-            "cloudShadowFloor", "cloudReconMode", "cloudReconBlock", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
+            "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudRefineAtContours", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
         };
 
         private static Func<string, double> Defaults(params object[] pairs)
@@ -149,7 +149,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var v = Defaults("cloudNoise", 0, "cloudNoiseUntile", 0, "cloudNoiseCurl", 0, "cloudNoiseTier", 0, "cloudNoiseDistanceLod", 0, "cloudFineDetail", 0,
                 "layerStepQuality", 0, "layerStepGrowth", 0.5, "cloudHashDither", 0, "cloudEntryRefinement", 1, "cloudLightQuality", 0, "cloudLightOctaves", 1,
                 "cloudPowder", 0.25, "cloudSunTint", 0, "cloudAmbientTaps", 1, "cloudAmbientReuse", 2, "cloudShadowQuality", 0, "cloudShadowFloor", 0.4,
-                "cloudReconMode", (int)ReconMode.Block, "cloudReconBlock", 3);
+                "cloudReconMode", (int)ReconMode.Full, "cloudResolution", 3);
             var noise = new NoiseSwitches();
             OwnCloudOptions.Apply(noise, v);
             Assert.IsFalse(noise.Enabled || noise.Untile || noise.Curl || noise.DistanceLod || noise.FineDetail);
@@ -205,6 +205,80 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0f, light.Lights[1].Colour.r);
             OwnCloudOptions.LimitMoonLights(light, Defaults("cloudMoonLights", 0));
             Assert.AreEqual(0f, light.Lights[0].Colour.r);
+        }
+
+        [TestMethod]
+        public void TheResolutionSliderPicksTheReconstructionLevel()
+        {
+            SettingDef slider = AtmospheresSettings.Definition("cloudResolution");
+            Assert.AreEqual(1.0, slider.Default, "full resolution until the owner agrees to a lower level");
+            Assert.AreEqual(1.0, slider.Min);
+            Assert.AreEqual((double)ReconPattern.MaxLevel, slider.Max, "the slider offers the levels the pattern has a stride for");
+            var recon = new ReconSettings();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(ReconMode.Full, recon.Mode);
+            for (int level = 2; level <= ReconPattern.MaxLevel; level++)
+            {
+                OwnCloudOptions.Apply(recon, Defaults("cloudResolution", level));
+                Assert.AreEqual(ReconMode.Block, recon.Mode, "level " + level);
+                Assert.AreEqual(level, recon.Block, "level " + level);
+            }
+            // The mode setting's Block is no longer the way to a block: the slider at 1 means every pixel.
+            OwnCloudOptions.Apply(recon, Defaults("cloudReconMode", (int)ReconMode.Block, "cloudResolution", 1));
+            Assert.AreEqual(ReconMode.Full, recon.Mode);
+            // Low (prototype B) overrides the slider.
+            OwnCloudOptions.Apply(recon, Defaults("cloudReconMode", (int)ReconMode.Low, "cloudResolution", 3));
+            Assert.AreEqual(ReconMode.Low, recon.Mode);
+            Assert.AreEqual(1, ReconPattern.ClampLevel(-5));
+            Assert.AreEqual(ReconPattern.MaxLevel, ReconPattern.ClampLevel(99));
+            Assert.IsTrue(TierRows.NotSet.ContainsKey("cloudResolution"), "the tier mapping is open and says why");
+            Assert.AreEqual(AtmospheresSettings.ProfileRows.Volume, slider.ProfileRow);
+        }
+
+        [TestMethod]
+        public void EveryLevelOfTheSliderHasAStrideThatVisitsAllCells()
+        {
+            for (int n = 2; n <= ReconPattern.MaxLevel; n++)
+            {
+                int cells = n * n, stride = -1;
+                // BlockOffset(n, 1) is the cell after the stride: its linear index is the stride.
+                int x, y;
+                ReconPattern.BlockOffset(n, 1, out x, out y);
+                stride = y * n + x;
+                Assert.IsTrue(stride > 1 && Gcd(stride, cells) == 1, "level " + n + " stride " + stride + " is coprime with " + cells);
+                var seen = new HashSet<int>();
+                for (int i = 0; i < cells; i++)
+                {
+                    ReconPattern.BlockOffset(n, i, out x, out y);
+                    seen.Add(y * n + x);
+                }
+                Assert.AreEqual(cells, seen.Count, "level " + n);
+            }
+        }
+
+        private static int Gcd(int a, int b)
+        {
+            return b == 0 ? a : Gcd(b, a % b);
+        }
+
+        [TestMethod]
+        public void TheContourGateNeedsTheRefinementAndFollowsItsTuningKeys()
+        {
+            Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudRefineAtContours").Default, "off until the owner agrees");
+            var frame = new LayerFrame();
+            OwnCloudOptions.Apply(frame, Defaults("cloudRefineAtContours", 1));
+            Assert.AreEqual(0f, frame.RefineGate, "no refinement, nothing to gate");
+            OwnCloudOptions.Apply(frame, Defaults("cloudEntryRefinement", 1, "cloudRefineAtContours", 1));
+            Assert.AreEqual(OwnCloudOptions.RefineGateAlpha, frame.RefineGate);
+            Assert.AreEqual(OwnCloudOptions.RefineGateFirstStep, frame.RefineGateFirst);
+            OwnCloudOptions.Apply(frame, Defaults("cloudEntryRefinement", 1));
+            Assert.AreEqual(0f, frame.RefineGate, "the switch off: every ray refines");
+            Tuning.SetOverride(OwnCloudOptions.TuneRefineGate, 0.3f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults("cloudEntryRefinement", 1, "cloudRefineAtContours", 1));
+            Assert.AreEqual(0.3f, frame.RefineGate, 1e-6f);
+            Tuning.ClearOverrides();
+            NextFrame();
         }
 
         [TestMethod]
@@ -275,8 +349,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsCloudShadows, Reason("cloudShadowFloor", noShadow, eve));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsAmbientTaps, Reason("cloudAmbientReuse", own, eve));
             Assert.IsNull(Reason("cloudAmbientReuse", Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1, "cloudAmbientTaps", 1), eve));
-            Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsReconstruction, Reason("cloudReconBlock", own, eve));
-            Assert.IsNull(Reason("cloudReconBlock", Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1, "cloudReconMode", (int)ReconMode.Block), eve));
+            Assert.IsNull(Reason("cloudResolution", own, eve));
+            Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsEntryRefinement, Reason("cloudRefineAtContours", own, eve));
+            Assert.IsNull(Reason("cloudRefineAtContours", Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1, "cloudEntryRefinement", 1), eve));
             // The master switch is the root of all of them.
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsMaster, Reason("cloudNoise", Defaults(), eve));
         }

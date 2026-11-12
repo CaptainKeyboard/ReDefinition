@@ -1,0 +1,12 @@
+{
+  "$schema": "../schema.json",
+  "package": "T14",
+  "rows": [
+    { "series": "player-T14", "section": "T14", "metric": "refine.cost_ratio.V-ground", "max": 0.85, "note": "contour gate g12 against the refinement on every ray; measured 0.66 (inside 0.68, stack-below 0.76, orbit-edge 1.04 FAILS)" },
+    { "series": "player-T14", "section": "T14", "metric": "refine.band_recovery.V-ground", "max": 0.5, "note": "band RMS of g12 over the unrefined pass; measured 0.96 (the gate recovers nothing): FAILS, kept as the open defect. The first-hit gate g12f recovers 0.2 to 0.9 but costs 1.0 to 1.7 x the full refinement" },
+    { "series": "player-T14", "section": "T14", "metric": "refine.interior_err.ground", "max": 0.02, "note": "T12 brief limit; measured 0.0278 with g12 (refinement on every ray 0.0098, off 0.0280)" },
+    { "series": "player-T14", "section": "T14", "metric": "light.cost_ratio.V-ground.cache", "required": false, "note": "light cache on against off, 32 km box: measured 0.72 (inside 0.84, above 0.66, stack-below 0.69); the fill adds 0.12 to 0.25 ms (cost.fill)" },
+    { "series": "player-T14", "section": "T14", "metric": "light.cost_ratio.V-ground.ao2", "required": false, "note": "ambient taps with reuse 2 against the default without taps: measured 1.23; reuse 0 1.37, reuse 1 1.23" },
+    { "series": "player-T14", "section": "T14", "metric": "light.cost_ratio.V-ground.sun9", "required": false, "note": "sun march 9000 m against 4000 m: measured 1.00 (0.97 to 1.00 on the four views)" }
+  ]
+}

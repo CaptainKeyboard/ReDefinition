@@ -97,6 +97,7 @@ namespace ReDefinition.WeatherPlayer
                 if (job.layerScale != null && job.layerScale.Length >= 3) s.LayerScale[0] = new Vector3(job.layerScale[0], job.layerScale[1], job.layerScale[2]);
             }
             s.AmbientOcclusionTaps = job.aoTaps != 0;
+            s.UpReuse = job.upReuse;
             s.DiffusionDecay = job.diffusionDecay;
             s.SunAirWhiteBalance = job.sunAirBalance != 0;
             s.SunAirHeightM = job.sunAirHeight;

@@ -40,11 +40,16 @@ from weather_metrics import layers as L  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
 BUILD = os.path.join(REPO, "build", "weather-series")
-INPUT = os.path.join(BUILD, "T03-in")
+# The length of the sun march of the parity and hold-out jobs: 4000 m is the shipped default (the length these rows were measured at); T14 re-runs them at
+# 9000 m (LayerFrame.SunMarchLongM, the key cloudSunMarchLong) with T03_SUN_MARCH=9000 so that the owner can decide the product default. The inputs and the
+# pictures of another length live in folders of their own.
+SUN_MARCH_M = float(os.environ.get("T03_SUN_MARCH", "4000"))
+SUN_TAG = "" if SUN_MARCH_M == 4000.0 else "-m%d" % int(SUN_MARCH_M)
+INPUT = os.path.join(BUILD, "T03-in" + SUN_TAG)
 FIT_INPUT = os.path.join(BUILD, "T03-fit-in")
 VIEWS_INPUT = os.path.join(BUILD, "T03-views-in")
-OURS = os.path.join(BUILD, "T03-ours")
-PICTURES = os.path.join(BUILD, "T03-pictures")
+OURS = os.path.join(BUILD, "T03-ours" + SUN_TAG)
+PICTURES = os.path.join(BUILD, "T03-pictures" + SUN_TAG)
 REFERENCE = os.environ.get("T03_REFERENCE", os.path.join(REPO, "build", "parity-ref-cell"))
 R = pr.KERBIN_RADIUS
 SUN_E = math.pi
@@ -83,7 +88,7 @@ def cell_camera(w, h=None):
 def light_job(jid, cam, layers, width, height, sun, aid=0, planet=R, cell=False, sun_colour=None, amb_top=None, amb_bottom=None,
               layer_kw=None, **over):
     """One job of the light scene: the layer-pass job of the camera and layers plus the light's numbers (MODEL, overridden by over)."""
-    kw = dict(maxSteps=128, minStep=1.0, stepGrowth=0.0, jitter=0.0, earlyOut=0.0, sunMarch=4000.0, sunSteps=int(MODEL["sunSteps"]),
+    kw = dict(maxSteps=128, minStep=1.0, stepGrowth=0.0, jitter=0.0, earlyOut=0.0, sunMarch=SUN_MARCH_M, sunSteps=int(MODEL["sunSteps"]),
               costLeap=1.0, costCut=0.0, lightStride=1)   # exact: no leaps, no reuse of the light march (T01c's cost controls are off)
     kw.update(layer_kw or {})
     sc = sun_colour if sun_colour is not None else [SUN_E] * 3

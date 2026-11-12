@@ -1,3 +1,5 @@
+using System;
+
 namespace ReDefinition.Atmospheres
 {
     // The sampling patterns of the temporal reconstruction (package T05), without any engine type so that the tests can run them.
@@ -25,6 +27,15 @@ namespace ReDefinition.Atmospheres
                 index /= b;
             }
             return r;
+        }
+
+        // The levels of the resolution slider (T14): 1 is every pixel every frame, N in 2 to MaxLevel the N x N block. BlockOffset has a stride for these only
+        // (a stride coprime with N * N that sends neighbouring frames far apart); a larger block would walk in raster order and is not offered.
+        internal const int MaxLevel = 4;
+
+        internal static int ClampLevel(int level)
+        {
+            return Math.Max(1, Math.Min(MaxLevel, level));
         }
 
         // The mean number of frames until a pixel gets a new sample of its own: N * N.

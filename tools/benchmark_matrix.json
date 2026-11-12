@@ -262,7 +262,7 @@
     {
       "id": "weather-5",
       "name": "Own clouds switches",
-      "description": "The on/off and choice settings of the own cloud system (ReDefinition Atmospheres, stream T, package T10), one rendering for each switch flipped from the group's base, FSR 3 at raytracing Off without frame generation. The base of the group is the own system drawing: cloudSource Ours and ownClouds on, every other switch at its default (the default of ownClouds in the table is off until the integration package T09 accepts the system). The rows are: the switch off, a quality choice at Low, the entry refinement on, the ambient taps and the light cache on, and the reconstruction at Block (the 4 x 4 block default of cloudReconBlock) and at Low (half-size march). The numbers and the tuning keys of the system are in weather-6.",
+      "description": "The on/off and choice settings of the own cloud system (ReDefinition Atmospheres, stream T, package T10), one rendering for each switch flipped from the group's base, FSR 3 at raytracing Off without frame generation. The base of the group is the own system drawing: cloudSource Ours and ownClouds on, every other switch at its default (the default of ownClouds in the table is off until the integration package T09 accepts the system). The rows are: the switch off, a quality choice at Low, the entry refinement on, the ambient taps and the light cache on, the refinement at the contours only (T14), and the reconstruction at Block (cloudResolution 4, the 4 x 4 block) and at Low (half-size march). The resolution levels 2 and 3 are in weather-6. The numbers and the tuning keys of the system are in weather-6.",
       "scenes": ["pad"],
       "techniques": ["fsr3"],
       "raytracing": ["Off"],
@@ -281,6 +281,7 @@
         {"id": "weather-cloudNoiseDistanceLod", "name": "Cloud Noise Distance Detail false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudNoiseDistanceLod": "False"}},
         {"id": "weather-cloudFineDetail", "name": "Cloud Fine Detail Octave false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudFineDetail": "False"}},
         {"id": "weather-cloudEntryRefinement", "name": "Cloud Entry Refinement true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True"}},
+        {"id": "weather-cloudRefineAtContours", "name": "Cloud Refine Only At Contours true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True", "atmo.cloudRefineAtContours": "True"}},
         {"id": "weather-cloudHashDither", "name": "Cloud White Dither false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudHashDither": "False"}},
         {"id": "weather-cloudLightQuality", "name": "Cloud Light Quality Low", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudLightQuality": "Low"}},
         {"id": "weather-cloudSunTint", "name": "Cloud Sun Colour Through Air false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunTint": "False"}},
@@ -288,7 +289,7 @@
         {"id": "weather-cloudLightCache", "name": "Cloud Light Cache true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudLightCache": "True"}},
         {"id": "weather-cloudShadows", "name": "Cloud Shadows false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudShadows": "False"}},
         {"id": "weather-cloudShadowQuality", "name": "Cloud Shadow Quality Low", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudShadowQuality": "Low"}},
-        {"id": "weather-cloudReconMode", "name": "Cloud Reconstruction Block", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudReconMode": "Block"}},
+        {"id": "weather-cloudReconMode", "name": "Cloud Reconstruction Block, Cloud Resolution 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudReconMode": "Block", "atmo.cloudResolution": "4"}},
         {"id": "weather-cloudReconModeLow", "name": "Cloud Reconstruction Low", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudReconMode": "Low"}}
       ]
     },
@@ -303,7 +304,7 @@
       "opacity_micromaps": null,
       "frame_generation": ["fsr"],
       "latency": ["none"],
-      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.layerCap": "4", "atmo.layerStepGrowth": "2", "atmo.cloudLightOctaves": "4", "atmo.cloudPowder": "0.8075", "atmo.cloudMoonLights": "2", "atmo.cloudAmbientTaps": "False", "atmo.cloudAmbientReuse": "0", "atmo.cloudShadowFloor": "0", "atmo.cloudReconMode": "Full", "atmo.cloudReconBlock": "4", "atmo.cloudEntryRefinement": "False", "atmo.layers.coverageBound": "1", "atmo.layers.lightStride": "2", "atmo.layers.lightCutoff": "0.05", "atmo.layers.emptyLeap": "1", "atmo.layers.refineBudget": "0.5"},
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.layerCap": "4", "atmo.layerStepGrowth": "2", "atmo.cloudLightOctaves": "4", "atmo.cloudPowder": "0.8075", "atmo.cloudMoonLights": "2", "atmo.cloudAmbientTaps": "False", "atmo.cloudAmbientReuse": "0", "atmo.cloudShadowFloor": "0", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1", "atmo.cloudEntryRefinement": "False", "atmo.cloudRefineAtContours": "False", "atmo.layers.coverageBound": "1", "atmo.layers.lightStride": "2", "atmo.layers.lightCutoff": "0.05", "atmo.layers.emptyLeap": "1", "atmo.layers.refineBudget": "0.5"},
       "tweaks": [
         {"id": "weather-layerCap", "name": "Own Cloud Layer Cap 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layerCap": "2"}},
         {"id": "weather-layerStepGrowth", "name": "Own Cloud Step Growth 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layerStepGrowth": "0"}},
@@ -312,9 +313,8 @@
         {"id": "weather-cloudMoonLights", "name": "Cloud Moon Lights 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudMoonLights": "0"}},
         {"id": "weather-cloudAmbientReuse", "name": "Cloud Ambient Tap Reuse 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudAmbientTaps": "True", "atmo.cloudAmbientReuse": "2"}},
         {"id": "weather-cloudShadowFloor", "name": "Cloud Shadow Floor 0.5", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudShadowFloor": "0.5"}},
-        {"id": "weather-cloudReconBlock2", "name": "Cloud Reconstruction Block 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudReconMode": "Block", "atmo.cloudReconBlock": "2"}},
-        {"id": "weather-cloudReconBlock3", "name": "Cloud Reconstruction Block 3", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudReconMode": "Block", "atmo.cloudReconBlock": "3"}},
-        {"id": "weather-layersCoverageBound", "name": "Own clouds coverage bound off", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.coverageBound": "0"}},
+        {"id": "weather-cloudResolution2", "name": "Cloud Resolution 2 (2 x 2 block)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudResolution": "2"}},
+        {"id": "weather-cloudResolution3", "name": "Cloud Resolution 3 (3 x 3 block)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudResolution": "3"}},        {"id": "weather-layersCoverageBound", "name": "Own clouds coverage bound off", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.coverageBound": "0"}},
         {"id": "weather-layersLightStride", "name": "Own clouds light stride 1", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.lightStride": "1"}},
         {"id": "weather-layersLightCutoff", "name": "Own clouds sun march cutoff 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.lightCutoff": "0"}},
         {"id": "weather-layersEmptyLeap", "name": "Own clouds empty leap 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.emptyLeap": "4"}},
@@ -356,6 +356,7 @@
       "latency": ["none"],
       "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudSunMarchLong": "False", "atmo.cloudSunWhiteBalance": "True", "atmo.cloudDiffusionDecay": "0.02", "atmo.cloudFarHaze": "False", "atmo.cloudFarShapeMean": "False", "atmo.cloudFarMinSamples": "0", "atmo.cloudFarPolicy": "False", "atmo.cloudFarMapFade": "False"},
       "tweaks": [
+        {"id": "weather-layersRefineGate", "name": "Own clouds refinement gate 0.25", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True", "atmo.cloudRefineAtContours": "True", "atmo.layers.refineGate": "0.25"}},
         {"id": "weather-cloudSunMarchLong", "name": "Cloud Long Sun March true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunMarchLong": "True"}},
         {"id": "weather-cloudSunWhiteBalance", "name": "Cloud Sun White Balance false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunWhiteBalance": "False"}},
         {"id": "weather-cloudDiffusionDecay", "name": "Cloud Diffusion Decay 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudDiffusionDecay": "0"}},

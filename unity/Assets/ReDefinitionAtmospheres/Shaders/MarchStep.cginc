@@ -28,6 +28,8 @@ bool EdgeBlockFlagged(float2 fullUv)
 float4 EdgePass0(v2f i)
 {
     if (_EdgeP.x > 0.5 && !EdgeBlockFlagged(FullUv(i.uv))) return float4(0, 0, 0, 0);
+    // The contour gate of package T14 takes quad derivatives, which the edge draw's per-pixel early return leaves undefined: that draw refines as asked.
+    gGateOff = _EdgeP.x > 0.5 ? 1.0 : 0.0;
     return Pass0(i);
 }
 

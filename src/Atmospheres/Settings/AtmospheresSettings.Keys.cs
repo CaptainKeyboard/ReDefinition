@@ -171,14 +171,14 @@ namespace ReDefinition.Atmospheres
             internal const string NeedsCloudNoise = "needs-cloud-noise";
             internal const string NeedsCloudShadows = "needs-cloud-shadows";
             internal const string NeedsAmbientTaps = "needs-ambient-taps";
-            internal const string NeedsReconstruction = "needs-reconstruction";
+            internal const string NeedsEntryRefinement = "needs-entry-refinement";
             internal const string NeedsLightning = "needs-lightning";
 
             internal static readonly string[] All =
             {
                 NeedsMaster, NeedsEve, NeedsHost, NeedsSim, NeedsVolume, NeedsAudio, NeedsForecast, NeedsAlerts, NeedsWindForces, NeedsGroundCover,
                 NeedsSeaIce, NeedsLightInMedium, NeedsPrecip, NeedsSolarDimming, NeedsOwnSource, NeedsOwnClouds, NeedsCloudNoise, NeedsCloudShadows,
-                NeedsAmbientTaps, NeedsReconstruction, NeedsLightning
+                NeedsAmbientTaps, NeedsEntryRefinement, NeedsLightning
             };
         }
 

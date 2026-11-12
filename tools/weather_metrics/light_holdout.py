@@ -33,7 +33,7 @@ from weather_metrics import parity_ref as pr  # noqa: E402
 from weather_metrics import parity_run as run  # noqa: E402
 
 REPO = Lt.REPO
-INPUT = os.path.join(REPO, "build", "weather-series", "T03-holdout-in")
+INPUT = os.path.join(REPO, "build", "weather-series", "T03-holdout-in" + Lt.SUN_TAG)
 REF_DIR = os.path.join(REPO, "build", "parity-ref-holdout")
 R = pr.KERBIN_RADIUS
 TOLERANCE = 0.25
