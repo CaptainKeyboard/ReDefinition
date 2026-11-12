@@ -3,7 +3,10 @@ using System.Reflection;
 using ReDefinition.Api.Internal;
 using ReDefinition.Core;
 using ReDefinition.Hud;
+using ReDefinition.Modules;
+using ReDefinition.Probe;
 using ReDefinition.Proxy;
+using ReDefinition.Raytracing;
 using ReDefinition.Upscaler;
 using ReDefinition.Scaling;
 using UnityEngine;
@@ -39,6 +42,15 @@ namespace ReDefinition
             EveOpticalDepthLink.Refresh();
         }
 
+        // The moons' light for the own clouds: the same source as the ground and the EVE clouds, at the player's night-cloud percentage.
+        internal static bool CloudMoonLight(CelestialBody main, Vector3d eye, out Vector3 towards, out Color colour)
+        {
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            float percent = addon != null ? addon.Live.NightClouds : OwnSettings.DefaultNightClouds;
+            CelestialBody body;
+            return RtReflectors.CloudLight(main, eye, percent, out body, out towards, out colour);
+        }
+
         private static void Fill()
         {
             HostSeams.StandsAlone = () => false;
@@ -51,6 +63,8 @@ namespace ReDefinition
             {
                 if (ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.Live.DashboardKey = key;
             };
+            HostSeams.CloudMoonLight = CloudMoonLight;
+            HostSeams.GpuMark = GpuProfiler.Mark;
             HostSeams.SpaceCentreButton = name =>
             {
                 KscButtons.Look held = KscButtons.Get(name);

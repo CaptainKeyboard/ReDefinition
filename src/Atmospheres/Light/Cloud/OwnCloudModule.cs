@@ -47,6 +47,8 @@ namespace ReDefinition.Atmospheres
             public string Mode = "off", Why = "not started";
             public int Layers;
             public bool NearMarchActive;
+            // Whether the cloud shadow's rig is switched on this frame (ownClouds, cloudShadows and a layer) and whether its renderer exists.
+            public bool ShadowOn, ShadowReady;
         }
 
         internal static OwnCloudModule Current { get; private set; }
@@ -58,6 +60,8 @@ namespace ReDefinition.Atmospheres
         private readonly WeatherMap coverageMap = new WeatherMap(), typeMap = new WeatherMap(), layerMap = new WeatherMap();
         private LayerRenderer renderer;
         private LayerReconstructDriver driver;
+        private CloudShadowRenderer shadowRenderer;
+        private CloudShadowRig shadowRig;
         private Material depthMaterial;
         private CommandBuffer depthCommands;
         private RenderTexture depthTarget;
@@ -198,6 +202,8 @@ namespace ReDefinition.Atmospheres
             {
                 Camera.onPreCull += OnPreCull;
                 preCullSubscribed = true;
+                // After this module's handler, so the rig's handler of the same cull reads the frame written just before it.
+                if (shadowRig != null) shadowRig.Start();
             }
         }
 
@@ -207,6 +213,7 @@ namespace ReDefinition.Atmospheres
             try
             {
                 FillFrame(cam, pendingBody, pendingClimate, pendingField, pendingUt, pendingNow);
+                FillShadow(pendingBody, frame);
                 Record(cam, pendingBody);
                 PublishStats(pendingNow);
             }
@@ -263,8 +270,52 @@ namespace ReDefinition.Atmospheres
             if (reconShader != null && d.Init(reconShader, edgeShader)) driver = d;
             else AtmospheresLog.Say("own clouds: the reconstruction is not available (" + (reconError ?? "it does not compile") + "); the plain pass draws");
             if (edgeShader == null) AtmospheresLog.Say("own clouds: the edge mode shader is missing (" + edgeError + ")");
-            AtmospheresLog.Say("own clouds: ready, shaders loaded (layers, depth" + (driver != null ? ", reconstruct" : "") + (edgeShader != null ? ", edge" : "") + ")");
+            BuildShadow();
+            AtmospheresLog.Say("own clouds: ready, shaders loaded (layers, depth" + (driver != null ? ", reconstruct" : "") + (edgeShader != null ? ", edge" : "")
+                               + (shadowRenderer != null ? ", cloud shadow" : "") + ")");
             return true;
+        }
+
+        // The cloud shadow's renderer (T04), made with the pass; the rig that attaches its buffers starts after this module's pre-cull handler
+        // is subscribed (Run), so that the rig reads the frame the handler has just written. Without the shader the clouds draw without shadow.
+        private void BuildShadow()
+        {
+            string error;
+            Shader shader = AtmosphereShaders.Get(CloudShadowRenderer.ShaderName, out error);
+            var s = new CloudShadowRenderer();
+            if (shader == null || !s.Init(shader))
+            {
+                AtmospheresLog.Say("own clouds: the cloud shadow is not available (" + (error ?? s.Problem) + ")");
+                return;
+            }
+            shadowRenderer = s;
+            Stats.ShadowReady = true;
+            shadowRig = new CloudShadowRig(s, ShadowRole, () => Sun.Instance != null ? Sun.Instance.sunLight : null);
+        }
+
+        // The scene's cameras take the shadow; the scaled-space camera's disc is not wired (its frame is in scaled-space units, open in T09).
+        internal static CloudShadowRole ShadowRole(Camera camera)
+        {
+            CloudShadowRole role = CloudShadowRig.ClassifyByName(camera);
+            return role == CloudShadowRole.Scene ? role : CloudShadowRole.None;
+        }
+
+        // The shadow's frame from the pass's: the same planet, map frame and sun. On only where the switches say so (CloudShadowSwitches.Active).
+        private void FillShadow(CelestialBody b, LayerFrame f)
+        {
+            if (shadowRig == null) return;
+            bool on = OwnCloudOptions.ShadowActive(AtmospheresSettings.Number, CloudSourceKind.Ours, stack != null ? stack.LayerCount : 0);
+            shadowRig.Enabled = on;
+            Stats.ShadowOn = on;
+            if (!on) return;
+            CloudShadowFrame s = shadowRig.Frame;
+            s.PlanetCenter = f.PlanetCenter;
+            s.RadiusUnits = b.Radius;
+            s.MetresPerUnit = 1f;
+            s.WorldToMap = f.WorldToMap;
+            s.TowardsSun = f.TowardsSun;
+            OwnCloudOptions.Apply(s, AtmospheresSettings.Number);
+            shadowRenderer.Upload(stack, renderer.Maps);
         }
 
         private void EnsureStack(BodyClimate c, CelestialBody b, IWeatherField field, double ut, float now)
@@ -317,6 +368,8 @@ namespace ReDefinition.Atmospheres
         {
             Stats.Mode = "off";
             Stats.NearMarchActive = false;
+            Stats.ShadowOn = false;
+            if (shadowRig != null) shadowRig.Enabled = false;
             pendingCamera = null;
             SetShell(false);
             Detach();
@@ -332,6 +385,10 @@ namespace ReDefinition.Atmospheres
             }
             Hide();
             DropStack("shutdown");
+            if (shadowRig != null) shadowRig.Stop();
+            shadowRig = null;
+            if (shadowRenderer != null) shadowRenderer.Dispose();
+            shadowRenderer = null;
             if (driver != null) driver.Dispose();
             driver = null;
             if (renderer != null) renderer.Dispose();

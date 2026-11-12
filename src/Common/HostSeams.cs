@@ -33,5 +33,18 @@ namespace ReDefinition.Core
 
         // The space centre's own button of that name with its sprites; null alone, and the caller draws its own.
         internal static Func<string, SpaceCentreLook> SpaceCentreButton = name => null;
+
+        // The light the moons and planets give the clouds of a body seen from an eye (world space): towards them, weighted by brightness,
+        // and the colour in units of the sunlight, linear. False alone and where none lights the clouds.
+        internal delegate bool CloudMoonLightFn(CelestialBody main, Vector3d eye, out Vector3 towards, out Color colour);
+        internal static CloudMoonLightFn CloudMoonLight = (CelestialBody main, Vector3d eye, out Vector3 towards, out Color colour) =>
+        {
+            towards = Vector3.up;
+            colour = Color.black;
+            return false;
+        };
+
+        // Puts a GPU profiler marker with that label into a command buffer; does nothing alone.
+        internal static Action<UnityEngine.Rendering.CommandBuffer, string> GpuMark = (buffer, label) => { };
     }
 }
