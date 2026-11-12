@@ -1,0 +1,3 @@
+# Linked into the weather player for the parity harness (package T11): nothing. The scene 'parity' (Assets/Runner/ParityScene.cs) and its
+# GPU reference shader (Assets/Runner/ParityResources/Resources/ReDefinitionAtmospheresParityRef.shader) are the player's own files; the
+# offline renderer is tools/weather_metrics/parity_ref.py and reads tests/data/parity/scenes.json, which is not linked.

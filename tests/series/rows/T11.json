@@ -1,0 +1,11 @@
+{
+  "$schema": "../schema.json",
+  "package": "T11",
+  "rows": [
+    { "series": "player-T11", "section": "T11", "metric": "tau_rel_error", "max": 0.02, "note": "the GPU reference path against the offline renderer on the same density field, mean relative optical-depth error over the pixels with tau > 0.05 (the midpoint rule of both; float32 against float64), per view" },
+    { "series": "player-T11", "section": "T11", "metric": "lum_rel_error", "max": 0.03, "note": "mean relative error of the total radiance (cloud and what lies behind it), single scattering, per view" },
+    { "series": "player-T11", "section": "T11", "metric": "cloud_rel_error", "max": 0.05, "note": "mean relative error of the cloud's own radiance, single scattering, per view (the sun march of both has 64 steps per layer)" },
+    { "series": "player-T11", "section": "T11", "metric": "parity_shader", "equals": 1, "required": false, "note": "the player found the GPU reference shader" },
+    { "series": "player-T11", "section": "T11", "metric": "parity_finite", "equals": 1, "required": false, "note": "no NaN or infinity in any view" }
+  ]
+}

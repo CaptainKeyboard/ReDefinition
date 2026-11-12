@@ -1,0 +1,23 @@
+{
+  "$comment": "The seven synthetic scenes of the parity harness as the weather player's scene 'parity' draws them (GPU reference path) and as tools/weather_metrics/parity_player.py rebuilds them for the offline renderer. Metres and degrees; yaw 0 (north is +y, east is +x, up is +z); flat = a plane ground at z 0 instead of the sphere of radius 600000. layers = [base altitude, top altitude, peak extinction in 1/m, shape mode (0 none, 1 cell, 2 strip edge)]. cell = [centre altitude, horizontal radius, vertical radius] for mode 1, [edge x] for mode 2. occluder = [cx, cy, cz, radius]. The same numbers are in ParityScene.cs (tests/WeatherPlayer/Assets/Runner).",
+  "planetRadius": 600000.0,
+  "width": 96,
+  "height": 72,
+  "viewSteps": 128,
+  "lightSteps": 64,
+  "phase": { "g1": 0.85, "g2": -0.3, "w1": 0.92, "albedo": 0.999 },
+  "environment": { "zenith": 0.30, "horizon": 0.55, "ground": 0.12, "groundAlbedo": 0.3 },
+  "views": [
+    { "id": "uniform-deck", "scene": "uniform-deck", "flat": false, "position": [0, 0, 600002], "pitch": 25, "fov": 60, "sunAzimuth": 200, "sunElevation": 38, "layers": [[1700, 2500, 0.01, 0]] },
+    { "id": "slab", "scene": "slab", "flat": true, "position": [0, 0, 2], "pitch": 40, "fov": 60, "sunAzimuth": 200, "sunElevation": 45, "layers": [[2000, 3000, 0.006, 0]] },
+    { "id": "single-cloud", "scene": "single-cloud", "flat": true, "position": [0, -8000, 2000], "pitch": 0, "fov": 16, "sunAzimuth": 90, "sunElevation": 50, "layers": [[1412, 2588, 0.02, 1]], "cell": [2000, 800, 560] },
+    { "id": "plane-terrain", "scene": "plane-terrain", "flat": true, "position": [0, 0, 600], "pitch": -45, "fov": 50, "sunAzimuth": 90, "sunElevation": 40, "layers": [[2000, 2200, 0.02, 2]], "cell": [2503] },
+    { "id": "two-slab", "scene": "two-slab", "flat": true, "position": [0, 0, 2], "pitch": 40, "fov": 60, "sunAzimuth": 200, "sunElevation": 45, "layers": [[1500, 1900, 0.005, 0], [3000, 3400, 0.0075, 0]] },
+    { "id": "mountain-silhouette", "scene": "mountain-silhouette", "flat": true, "position": [0, 0, 100], "pitch": 4, "fov": 50, "sunAzimuth": 160, "sunElevation": 35, "layers": [[1500, 2100, 0.008333333, 0]], "occluder": [0, 30000, -29100, 30000] },
+    { "id": "altitude-8000", "scene": "altitude-sweep", "flat": false, "position": [0, 0, 608000], "pitch": -45, "fov": 50, "sunAzimuth": 200, "sunElevation": 30, "layers": [[2200, 2500, 0.02, 0]] },
+    { "id": "altitude-50000", "scene": "altitude-sweep", "flat": false, "position": [0, 0, 650000], "pitch": -45, "fov": 50, "sunAzimuth": 200, "sunElevation": 30, "layers": [[2200, 2500, 0.02, 0]] },
+    { "id": "altitude-100000", "scene": "altitude-sweep", "flat": false, "position": [0, 0, 700000], "pitch": -45, "fov": 50, "sunAzimuth": 200, "sunElevation": 30, "layers": [[2200, 2500, 0.02, 0]] },
+    { "id": "altitude-200000", "scene": "altitude-sweep", "flat": false, "position": [0, 0, 800000], "pitch": -45, "fov": 50, "sunAzimuth": 200, "sunElevation": 30, "layers": [[2200, 2500, 0.02, 0]] },
+    { "id": "altitude-260000", "scene": "altitude-sweep", "flat": false, "position": [0, 0, 860000], "pitch": -45, "fov": 50, "sunAzimuth": 200, "sunElevation": 30, "layers": [[2200, 2500, 0.02, 0]] }
+  ]
+}
