@@ -4,12 +4,16 @@ Stdlib only.
 
   python tools/atmo_series.py run <series> [--start <id>] [--who <id>] [--ksp <KSP folder>] [--owner-consent]
   python tools/atmo_series.py run <series> --dry --log <recorded KSP.log> [--start <id>]
+  python tools/atmo_series.py preflight <series> [--start <id>] [--ksp <KSP folder>]
   python tools/atmo_series.py validate [<series>]
   python tools/atmo_series.py modset-restore [--ksp <KSP folder>]
   python tools/atmo_series.py selftest
 
 This is the only place that builds with deploy, deploys and starts the game; every other build and test uses
--p:DeployToGameData=false (tools/dotnet_test.py). A run, inside the GPU lock (tools/gpu_lock.py, exclusive for a timing series):
+-p:DeployToGameData=false (tools/dotnet_test.py). Before anything is touched, `run` calls the offline preflight
+(tools/atmo_preflight.py, also `preflight <series>`): runner = worktree version, series valid, the planned KSP command line, the pins, the
+snapshot round trip, KSP/orphans/VMs/RAM/locks, deploy and mod-set plans, KSPCF's PNG texture cache, the probe's save, craft and scene
+guard; any FAIL refuses the run. A run, inside the GPU lock (tools/gpu_lock.py, exclusive for a timing series):
 
   1. refuses while KSP_x64 runs, and above the run cap of master plan 9.3 (20 starts) without --owner-consent;
   2. builds src/ReDefinition.csproj of THIS worktree in the configuration of the definition ("configuration": "Debug" by default,
@@ -775,6 +779,19 @@ def launch_game(ksp, args, timeout, log_path, exe_prefix=None, grace=PROBE_GRACE
 
 # ---------------------------------------------------------------- the runner
 
+def plan_args(name, st):
+    """The command line arguments of one start (what Runner.execute passes to KSP_x64.exe). The default window size only where the
+    start names none: a switch twice on the command line has no documented winner."""
+    args = ["-popupwindow"]
+    if "-screen-width" not in st.get("probeArgs", []):
+        args += ["-screen-width", "1600", "-screen-height", "900"]
+    args += ["-atmoSeries", name, "-atmoStart", st["id"]]
+    if st.get("variants"):
+        args += ["-atmoVariants", ",".join(st["variants"])]
+    args += st.get("probeArgs", [])
+    return args
+
+
 class Runner:
     def __init__(self, repo, ksp, mainrepo, who="series", dotnet=DEFAULT_DOTNET, hooks=None, log=print):
         self.repo = repo
@@ -916,14 +933,7 @@ class Runner:
                         free = self.free_gb()
                         if free < need:
                             raise Refusal("only %.1f GB of memory are free (%g needed); close Rider, OneDrive, Toolbox, Edge" % (free, need))
-                        # The default window size only where the start names none: a switch twice on the command line has no documented winner.
-                        args = ["-popupwindow"]
-                        if "-screen-width" not in st.get("probeArgs", []):
-                            args += ["-screen-width", "1600", "-screen-height", "900"]
-                        args += ["-atmoSeries", name, "-atmoStart", st["id"]]
-                        if st.get("variants"):
-                            args += ["-atmoVariants", ",".join(st["variants"])]
-                        args += st.get("probeArgs", [])
+                        args = plan_args(name, st)
                         timeout = min(defn.get("maxMinutes", MAX_MINUTES), MAX_MINUTES) * 60
                         ksp_log = os.path.join(self.ksp, "KSP.log")
                         if os.path.exists(ksp_log):
@@ -1055,6 +1065,14 @@ def cmd_run(args):
     ksp = args.ksp or os.environ.get("KspRoot") or DEFAULT_KSP
     mainrepo = gpu_lock.main_repo()
     who = args.who or "series-" + defn["name"]
+    # Before anything is touched (lock, build, deploy): the offline preflight; any FAIL refuses the run.
+    import atmo_preflight
+    results = atmo_preflight.run_preflight(repo, defn["name"], args.start, ksp, mainrepo, who, dotnet=_dotnet())
+    if not atmo_preflight.preflight_ok(results):
+        print(atmo_preflight.format_preflight(defn["name"], results))
+        print("REFUSED: the preflight has FAIL(s); nothing was touched")
+        return 2
+    print(atmo_preflight.format_preflight(defn["name"], results))
     minutes = min(defn.get("maxMinutes", MAX_MINUTES), MAX_MINUTES) * len([s for s in defn["starts"] if args.start in (None, s["id"])]) + 15
     path = gpu_lock.lock_path("gpu")
     info = gpu_lock.wait_acquire(path, who, minutes, defn.get("exclusive", False), "gpu", os.getpid(), "atmo_series run " + defn["name"])
@@ -1068,6 +1086,21 @@ def cmd_run(args):
         gpu_lock.release(path, who, os.getpid(), info["since"])
     print_report(report, defn)
     return 0 if report["ok"] else 1
+
+
+def _dotnet():
+    return DEFAULT_DOTNET if os.path.exists(DEFAULT_DOTNET) else "dotnet"
+
+
+def cmd_preflight(args):
+    """Prints the offline preflight of a series (or one start); exit 0 when there is no FAIL."""
+    import atmo_preflight
+    repo = os.path.abspath(args.worktree)
+    ksp = args.ksp or os.environ.get("KspRoot") or DEFAULT_KSP
+    mainrepo = gpu_lock.main_repo()
+    results = atmo_preflight.run_preflight(repo, args.series, args.start, ksp, mainrepo, args.who or "series-" + args.series, dotnet=_dotnet())
+    print(atmo_preflight.format_preflight(args.series, results))
+    return 0 if atmo_preflight.preflight_ok(results) else 1
 
 
 def cmd_modset_restore(args):
@@ -1414,6 +1447,10 @@ def _selftest():
         check("equals with a tolerance passes inside it", r[1] == "PASS")
         r = evaluate_row({"metric": "x", "required": False}, [])
         check("a missing optional line is SKIP", r[1] == "SKIP")
+
+        # 13. The offline preflight (tools/atmo_preflight.py): every check with a failing and a passing fixture.
+        import atmo_preflight
+        atmo_preflight.selftest(check)
     finally:
         shutil.rmtree(root, ignore_errors=True)
     print("selftest: %s" % ("PASSED" if not failures else "FAILED (%s)" % ", ".join(failures)))
@@ -1432,6 +1469,11 @@ def main(argv):
     s.add_argument("--dry", action="store_true")
     s.add_argument("--log")
     s.add_argument("--owner-consent", action="store_true", help="the owner agreed to starts above the run cap")
+    s = sub.add_parser("preflight")
+    s.add_argument("series")
+    s.add_argument("--start")
+    s.add_argument("--who")
+    s.add_argument("--ksp")
     s = sub.add_parser("validate")
     s.add_argument("series", nargs="?")
     s = sub.add_parser("modset-restore")
@@ -1442,6 +1484,8 @@ def main(argv):
         return _selftest()
     if args.cmd == "validate":
         return cmd_validate(args)
+    if args.cmd == "preflight":
+        return cmd_preflight(args)
     if args.cmd == "modset-restore":
         return cmd_modset_restore(args)
     return cmd_run(args)
