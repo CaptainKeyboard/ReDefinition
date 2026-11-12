@@ -266,8 +266,9 @@ namespace ReDefinition.Atmospheres
         {
             yield return ProbeWait.Until(() =>
             {
+                if (!InFlightReady()) return false;
                 Vessel v = FlightGlobals.ActiveVessel;
-                return v != null && v.loaded && !v.packed && v.mainBody != null && FlightGlobals.ready;
+                return v.loaded && !v.packed && v.mainBody != null;
             }, 120, "the vessel to unpack");
             yield return ProbeWait.Frames(120);
         }

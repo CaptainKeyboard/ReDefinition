@@ -166,14 +166,31 @@ namespace ReDefinition.Atmospheres
 
         // --- The scenario -----------------------------------------------------------------------------------------------------------------
 
+        private bool flightReached;
+
+        // Every later step reads the vessel and the flight camera: when the scene changes or the vessel is gone, the probe ends with that reason.
+        protected override string LostGround()
+        {
+            if (!flightReached) return null;
+            if (HighLogic.LoadedScene != GameScenes.FLIGHT) return "the flight scene was left during the scenario (scene " + HighLogic.LoadedScene + ")";
+            if (!InFlightReady() || FlightCamera.fetch == null) return "the active vessel or the flight camera is gone during the scenario";
+            return null;
+        }
+
         protected override IEnumerator<ProbeWait> Scenario()
         {
+            // The scene first: outside the flight FlightGlobals.ActiveVessel dereferences an object that does not exist (the first K-T2 start failed so
+            // in the main menu).
             yield return ProbeWait.Until(() =>
             {
+                if (!InFlightReady() || FlightCamera.fetch == null) return false;
                 Vessel v = FlightGlobals.ActiveVessel;
-                return v != null && v.loaded && !v.packed && v.mainBody != null && FlightGlobals.ready && FlightCamera.fetch != null;
-            }, 150, "the flight scene with an unpacked vessel");
+                return v.loaded && !v.packed && v.mainBody != null;
+            }, 330, "the flight scene with an unpacked vessel");
+            flightReached = true;
             yield return ProbeWait.Frames(120);
+            // The clock is chosen from the field's samples, which answer false while the field has not built the body's state: wait for it.
+            yield return ProbeWait.Until(() => WeatherHub.Field != null && WeatherHub.Field.Readiness == FieldReadiness.Ready, 150, "the weather field to be ready");
             Vessel vessel = FlightGlobals.ActiveVessel;
             CelestialBody body = vessel.mainBody;
             if (!body.atmosphere)
@@ -485,6 +502,7 @@ namespace ReDefinition.Atmospheres
 
         private static void HoldVessel()
         {
+            if (!InFlightReady()) return;
             Vessel v = FlightGlobals.ActiveVessel;
             if (v == null || v.mainBody == null) return;
             v.SetWorldVelocity(v.mainBody.getRFrmVel(v.GetWorldPos3D()));

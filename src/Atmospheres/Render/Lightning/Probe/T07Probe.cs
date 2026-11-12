@@ -46,7 +46,7 @@ namespace ReDefinition.Atmospheres
         protected override IEnumerator<ProbeWait> Scenario()
         {
             LightningModule module = null;
-            yield return ProbeWait.Until(() => { module = LightningModule.Current; return module != null && FlightGlobals.ActiveVessel != null && FlightGlobals.currentMainBody != null; }, 120, "the flight scene and the lightning module");
+            yield return ProbeWait.Until(() => { module = LightningModule.Current; return module != null && HighLogic.LoadedScene == GameScenes.FLIGHT && FlightGlobals.ready && FlightGlobals.ActiveVessel != null && FlightGlobals.currentMainBody != null; }, 330, "the flight scene and the lightning module");
             CelestialBody body = FlightGlobals.currentMainBody;
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (!body.atmosphere)

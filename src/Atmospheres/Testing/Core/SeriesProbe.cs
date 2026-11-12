@@ -79,6 +79,7 @@ namespace ReDefinition.Atmospheres
         private double waited;
         private double elapsed;
         private double quitIn = -1;
+        private string conditionError;
         private readonly List<string> failures = new List<string>();
         private readonly List<string> variants = new List<string>();
         private string variant;
@@ -113,6 +114,23 @@ namespace ReDefinition.Atmospheres
         // Puts a variant back; called by EndVariant.
         protected virtual void RevertVariant(string name)
         {
+        }
+
+        // Whether the game is in the flight scene with a ready active vessel: the guard of the first wait of every probe that needs the flight.
+        // FlightGlobals.ActiveVessel dereferences the FlightGlobals object, which does not exist in the main menu, so the scene is asked first.
+        // A test replaces the state with Func<bool>.
+        internal static Func<bool> FlightReadyState = () => HighLogic.LoadedScene == GameScenes.FLIGHT && FlightGlobals.ready && FlightGlobals.fetch != null && FlightGlobals.ActiveVessel != null;
+
+        protected static bool InFlightReady()
+        {
+            return FlightReadyState();
+        }
+
+        // A probe that needs the flight returns a reason here once its flight is gone (the scene changed, the vessel was destroyed); the base then
+        // ends the scenario with that failure instead of letting the next step throw. Null while all is well, and before the flight was reached.
+        protected virtual string LostGround()
+        {
+            return null;
         }
 
         // The game's command line; a test overrides it.
@@ -266,8 +284,17 @@ namespace ReDefinition.Atmospheres
             }
             try
             {
+                string lost = LostGround();
+                if (lost != null)
+                {
+                    failures.Add(lost);
+                    wait = null;
+                    Finish(null);
+                    return;
+                }
                 if (wait != null && !Satisfied(dt)) return;
                 wait = null;
+                conditionError = null;
                 if (scenario.MoveNext())
                 {
                     wait = scenario.Current;
@@ -307,11 +334,21 @@ namespace ReDefinition.Atmospheres
                     secondsLeft -= dt;
                     return secondsLeft <= 0;
                 default:
-                    if (wait.Condition()) return true;
+                    // A condition that throws (a game object that does not exist yet, as in the main menu) has not come true yet: the wait goes on
+                    // and the last exception is named in the timeout, so a condition that never works is still reported.
+                    try
+                    {
+                        if (wait.Condition()) return true;
+                    }
+                    catch (Exception e)
+                    {
+                        conditionError = e.GetType().Name + " " + e.Message;
+                    }
                     waited += dt;
                     if (waited > wait.SecondCount)
                     {
-                        failures.Add("timeout after " + wait.SecondCount.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " s waiting for " + wait.Description);
+                        failures.Add("timeout after " + wait.SecondCount.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " s waiting for " + wait.Description
+                                     + (conditionError != null ? " (the condition threw: " + conditionError + ")" : ""));
                         wait = null;
                         Finish(null);
                     }
