@@ -1,0 +1,23 @@
+{
+  "$schema": "schema.json",
+  "name": "K-T2",
+  "owner": "T09",
+  "description": "The performance comparison of TVC and the own cloud pass (owner order 2026-11-12). Five views (ground, inside the deck, above, orbit edge, three-layer sky) at one universal time chosen by the field's cover, the same camera for every variant, at 1707x960 and 2560x1440, Medium, A4500. Variants of one start: tvc (cloudSource Eve, TVC draws the maps of our field), plain (own pass, reconstruction off), recon4 (reconstruction in 4x4 blocks), entry (plain plus the entry refinement). The milliseconds are the GPU profiler's segments of the cloud command buffers (-redefinitionGpuProfile), read from the log by tools/weather_metrics/kt2.py, never a timer around the probe. A timing series, so the GPU lock is exclusive. Expected results are written in tests/series/rows/T09.json before the run.",
+  "profile": "Medium",
+  "exclusive": true,
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 4,
+  "bundle": true,
+  "starts": [
+    { "id": "tvc1707", "description": "TVC alone at 1707x960: the five views, 35 s each; needs EVE with the raymarched layers and Scatterer", "variants": ["tvc"], "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe"] },
+    { "id": "own1707", "description": "the own pass at 1707x960 in three variants (plain, recon4, entry): the five views, 35 s each, 15 views in about 12 minutes", "variants": ["plain", "recon4", "entry"], "disableMods": [], "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe"] },
+    { "id": "tvc2560", "description": "TVC alone at 2560x1440", "variants": ["tvc"], "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe"] },
+    { "id": "own2560", "description": "the own pass at 2560x1440 in three variants", "variants": ["plain", "recon4", "entry"], "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe"] }
+  ],
+  "sections": [
+    { "id": "T09", "package": "T09", "title": "Own clouds against TVC" }
+  ],
+  "collect": [],
+  "rows": []
+}

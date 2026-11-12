@@ -106,6 +106,12 @@ namespace ReDefinition.Atmospheres
             return steering.TryGetValue(h, out st) ? st : null;
         }
 
+        // The 2D cloud shell (null before the painter exists): the own cloud pass sets its NearMarchActive (package T09).
+        internal OwnShell Shell
+        {
+            get { return shell; }
+        }
+
         internal IList<EveLayer> CurrentLayers
         {
             get { return layers; }

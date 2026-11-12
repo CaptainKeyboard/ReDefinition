@@ -327,6 +327,24 @@
     },
     {
       "id": "weather-7",
+      "name": "Own clouds in the game (integration)",
+      "description": "The tuning keys of the module that draws the own cloud pass in the game (package T09): the camera event it sits at and the sun's reddening with Scatterer loaded. Base: the own system drawing at the table's defaults.",
+      "scenes": ["pad"],
+      "techniques": ["fsr3"],
+      "raytracing": ["Off"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True"},
+      "tweaks": [
+        {"id": "weather-cloudEventAfterAlpha", "name": "Own clouds pass at AfterForwardAlpha", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.cameraEvent": "1"}},
+        {"id": "weather-cloudEventImageEffects", "name": "Own clouds pass at BeforeImageEffects", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.cameraEvent": "2"}},
+        {"id": "weather-cloudSunAirWithScatterer", "name": "Own clouds redden the sun again with Scatterer loaded", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.sunAirWithScatterer": "1"}}
+      ]
+    },
+    {
+      "id": "weather-7",
       "name": "Own clouds look and far view",
       "description": "The look fixes of the cloud light (T03v2) and the far view of the own clouds (T06), one rendering for each switch flipped from the group's base, FSR 3 at raytracing Off without frame generation. The base is the own system drawing (cloudSource Ours, ownClouds on) at the table's defaults: the short 4 km sun march, the white balance on, the diffusion decay 0.02, the far view off. The rows: the 9 km sun march, the white balance off, the diffusion decay 0 (the earlier saturating glow), the far haze, the shape mean, 4 minimum samples, the march policy and the map fade on.",
       "scenes": ["pad"],
