@@ -1,0 +1,142 @@
+using System;
+using ReDefinition.Core;
+using UnityEngine;
+
+namespace ReDefinition.Atmospheres
+{
+    // The R8 maps of the layer stack on the GPU: one coverage slice and one type slice per layer in two texture arrays, equirectangular
+    // with row 0 at the north pole and column 0 at longitude -180 (the field's WeatherMap layout, so a map is copied as it is). A map
+    // moves toward its target with the slew limit of MapSlew, texel by texel, so that no change is a flash (the same limit as the
+    // painted maps of EVE; the upscalers and the frame generation follow a drifting edge, not a jump).
+    internal sealed class LayerMapStore
+    {
+        private readonly byte[][] coverageNow = new byte[CloudLayerDef.MaxLayers][];
+        private readonly byte[][] coverageGoal = new byte[CloudLayerDef.MaxLayers][];
+        private readonly byte[][] typeNow = new byte[CloudLayerDef.MaxLayers][];
+        private readonly byte[][] typeGoal = new byte[CloudLayerDef.MaxLayers][];
+        private readonly bool[] coveragePrimed = new bool[CloudLayerDef.MaxLayers];
+        private readonly bool[] typePrimed = new bool[CloudLayerDef.MaxLayers];
+        private readonly bool[] dirtyCoverage = new bool[CloudLayerDef.MaxLayers];
+        private readonly bool[] dirtyType = new bool[CloudLayerDef.MaxLayers];
+        private Color32[] scratch;
+
+        internal Texture2DArray Coverage { get; private set; }
+        internal Texture2DArray Types { get; private set; }
+        internal int Width { get; private set; }
+        internal int Height { get; private set; }
+
+        // Makes the arrays at a size (all layers share it); a size change drops the contents.
+        internal void Ensure(int width, int height)
+        {
+            if (width < 2 || height < 2) throw new ArgumentOutOfRangeException("width");
+            if (Coverage != null && Width == width && Height == height) return;
+            Dispose();
+            Width = width;
+            Height = height;
+            Coverage = Make("layer coverage maps");
+            Types = Make("layer type maps");
+            scratch = new Color32[width * height];
+            for (int i = 0; i < CloudLayerDef.MaxLayers; i++)
+            {
+                coverageNow[i] = new byte[width * height];
+                coverageGoal[i] = new byte[width * height];
+                typeNow[i] = new byte[width * height];
+                typeGoal[i] = new byte[width * height];
+                coveragePrimed[i] = typePrimed[i] = false;
+                dirtyCoverage[i] = dirtyType[i] = true;
+            }
+        }
+
+        private Texture2DArray Make(string name)
+        {
+            var array = new Texture2DArray(Width, Height, CloudLayerDef.MaxLayers, TextureFormat.R8, false, true)
+            {
+                name = name,
+                filterMode = FilterMode.Bilinear,
+                wrapModeU = TextureWrapMode.Repeat,
+                wrapModeV = TextureWrapMode.Clamp
+            };
+            return array;
+        }
+
+        // Sets the targets of a layer from the field's maps (either may be null: that map keeps its target). Values are 0 to 1 as bytes;
+        // the first target of a map jumps (it is primed by it), later ones are reached with the slew limit.
+        internal void SetTargets(int layer, WeatherMap coverageMap, WeatherMap typeMap)
+        {
+            if (coverageMap != null) Copy(coverageMap, coverageGoal[layer]);
+            if (typeMap != null) Copy(typeMap, typeGoal[layer]);
+        }
+
+        // A map given as bytes directly (a test map, the player's input).
+        internal void SetTargetBytes(int layer, byte[] coverageBytes, byte[] typeBytes)
+        {
+            if (coverageBytes != null) Array.Copy(coverageBytes, coverageGoal[layer], coverageGoal[layer].Length);
+            if (typeBytes != null) Array.Copy(typeBytes, typeGoal[layer], typeGoal[layer].Length);
+        }
+
+        private void Copy(WeatherMap map, byte[] target)
+        {
+            if (map.Width != Width || map.Height != Height) throw new ArgumentException("The map is " + map.Width + "x" + map.Height + ", the store " + Width + "x" + Height + ".");
+            map.PackBytes(0f, 1f);
+            Array.Copy(map.Bytes, target, target.Length);
+        }
+
+        // Moves every layer's maps toward their targets by the slew limit over dt seconds and uploads what changed. snap jumps to the
+        // targets (a cut), as does the first step of each map. Returns the number of texels still short of their target.
+        internal int Step(float dt, float rate, bool snap)
+        {
+            int open = 0;
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
+            {
+                open += StepOne(coverageNow[l], coverageGoal[l], ref coveragePrimed[l], ref dirtyCoverage[l], dt, rate, snap);
+                open += StepOne(typeNow[l], typeGoal[l], ref typePrimed[l], ref dirtyType[l], dt, rate, snap);
+            }
+            bool coverageDirty = false, typeDirty = false;
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
+            {
+                if (dirtyCoverage[l]) { Upload(Coverage, l, coverageNow[l]); dirtyCoverage[l] = false; coverageDirty = true; }
+                if (dirtyType[l]) { Upload(Types, l, typeNow[l]); dirtyType[l] = false; typeDirty = true; }
+            }
+            if (coverageDirty) Coverage.Apply(false);
+            if (typeDirty) Types.Apply(false);
+            return open;
+        }
+
+        private static int StepOne(byte[] now, byte[] goal, ref bool primed, ref bool dirty, float dt, float rate, bool snap)
+        {
+            if (MapSlew.Jumps(snap, primed))
+            {
+                if (!primed || !SameBytes(now, goal)) dirty = true;
+                Array.Copy(goal, now, now.Length);
+                primed = true;
+                return 0;
+            }
+            // A map at its target is not stepped or uploaded (one comparison per texel); a step that starts short of the target is an upload.
+            if (SameBytes(now, goal)) return 0;
+            int open = MapSlew.StepMap(now, goal, rate, dt);
+            dirty = true;
+            return open;
+        }
+
+        private static bool SameBytes(byte[] a, byte[] b)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        private void Upload(Texture2DArray array, int slice, byte[] bytes)
+        {
+            for (int i = 0; i < bytes.Length; i++) scratch[i] = new Color32(bytes[i], bytes[i], bytes[i], 255);
+            array.SetPixels32(scratch, slice, 0);
+        }
+
+        internal void Dispose()
+        {
+            if (Coverage != null) UnityEngine.Object.Destroy(Coverage);
+            if (Types != null) UnityEngine.Object.Destroy(Types);
+            Coverage = null;
+            Types = null;
+        }
+    }
+}

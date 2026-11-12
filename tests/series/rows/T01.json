@@ -1,0 +1,21 @@
+{
+  "$schema": "../schema.json",
+  "package": "T01",
+  "rows": [
+    { "series": "player-T01", "section": "T01", "metric": "R01-horizon-below", "max": 2.0, "unit": "px", "note": "farthest row with cloud alpha > 0.05 against the analytic horizon row, camera 2 m below a deck 1700 to 2500 m on a 600 km body (tests/data/parity/checks.json N04, fixed by T11)" },
+    { "series": "player-T01", "section": "T01", "metric": "R01-horizon-inside", "max": 2.0, "unit": "px", "note": "camera 2 km inside the deck (thin deck, density 0.002 per m)" },
+    { "series": "player-T01", "section": "T01", "metric": "R01-horizon-above", "max": 2.0, "unit": "px", "note": "camera 8 km above the deck, pitch -8 deg" },
+    { "series": "player-T01", "section": "T01", "metric": "R03-vertical-profile", "max": 0.05, "unit": "share of total tau", "note": "cumulative optical depth by height against the integral of the authored curve" },
+    { "series": "player-T01", "section": "T01", "metric": "R03-type-ramp", "max": 0.02, "unit": "share of thickness", "note": "base and top at a type-map ramp (two types, six places on the ramp) against the lerp of the two types' heights" },
+    { "series": "player-T01", "section": "T01", "metric": "R04-coverage-fraction", "max": 0.03, "unit": "fraction points", "note": "covered fraction of the nadir pixels (alpha > 0.5) against the share of the ranked test map below coverage 0.4" },
+    { "series": "player-T01", "section": "T01", "metric": "R04-map-orientation", "max": 0.5, "unit": "deg", "note": "marker blob (3 deg cap at 20 deg N latitude, 30 deg E longitude) found from the pixels, great-circle distance to its latitude and longitude" },
+    { "series": "player-T01", "section": "T01", "metric": "R05-stack-alpha", "max": 0.02, "unit": "absolute alpha", "note": "two stacked layers (optical depth 2 and 3): alpha against 1 - (1-a1)(1-a2)" },
+    { "series": "player-T01", "section": "T01", "metric": "R05-stack-alpha.thin", "max": 0.02, "unit": "absolute alpha", "note": "the same with thin layers (optical depth 0.3 and 0.5), where the alphas are not 1" },
+    { "series": "player-T01", "section": "T01", "metric": "R05-boundary-crossing", "max": 0.03, "unit": "relative per frame", "note": "luminance change per frame, 20 m/s through the lower boundary of a slab, production sampling (48 steps, 3 sun steps, interleaved gradient noise with the frame number fixed)" },
+    { "series": "player-T01", "section": "T01", "metric": "R05-boundary-crossing.fixed_sampling", "max": 0.03, "unit": "relative per frame", "note": "the same with 256 steps and the midpoint rule" },
+    { "series": "player-T01", "section": "T01", "metric": "R17-depth-edge", "max": 1.0, "unit": "px", "note": "mean absolute distance between the cloud's occlusion edge and the depth discontinuity of a mountain sphere, per row" },
+    { "series": "player-T01", "section": "T01", "metric": "gas_giant.tau_error", "max": 0.03, "unit": "share of the largest tau", "note": "a body without a surface: rays through the hollow shell against the chord lengths sigma * (chord outer - chord inner)" },
+    { "series": "player-T01", "section": "T01", "metric": "layers_compiled", "equals": 1, "required": false, "note": "the shader compiles in the player" },
+    { "series": "player-T01", "section": "T01", "metric": "layers_finite", "equals": 1, "required": false, "note": "no NaN or infinity in any job" }
+  ]
+}

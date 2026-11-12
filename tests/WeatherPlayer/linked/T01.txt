@@ -1,0 +1,17 @@
+# Linked into the weather player for the layer core (package T01): the layer model, the shell geometry, the type table and the CPU density,
+# the stack, the map store and the renderer, as they are in the mod, with the field types the maps use, the slew limit and the shader.
+src/Atmospheres/Bodies/Schema/CloudRules.cs
+src/Atmospheres/Bodies/Schema/Curve.cs
+src/Atmospheres/Render/Layers/Core/LayerGeometry.cs
+src/Atmospheres/Render/Layers/Core/LayerDensity.cs
+src/Atmospheres/Render/Layers/Core/LayerStack.cs
+src/Atmospheres/Render/Layers/Core/LayerStackSource.cs
+src/Atmospheres/Render/Layers/LayerMapStore.cs
+src/Atmospheres/Render/Layers/LayerRenderer.cs
+src/Atmospheres/Eve/MapSlew.cs
+src/Common/**/WeatherMap.cs
+src/Common/**/IWeatherField.cs
+src/Common/**/WeatherSample.cs
+src/Common/**/PrecipScale.cs
+src/Common/**/Forecast.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresLayers.shader
