@@ -8,10 +8,12 @@
 //             target 0 (diffuse, occlusion)   rgb multiplied by the diffuse factor of the wet ground or the puddle
 //             target 1 (specular, smoothness) smoothness (alpha) raised; the specular colour is untouched (colour mask A)
 //             target 2 (normal)               rgb blended towards the flat puddle normal with the rings (alpha = the puddle weight)
-//             target 3 (emission, ambient)    rgb multiplied by the same diffuse factor: the geometry pass bakes the ambient light times
-//                                             the albedo into it, so without this the wet ground would darken in the sun's light only
-//                                             (a self-lit part on wet ground is darkened with it; ground has no emission) [VERIFY with
-//                                             the installed Deferred mod, whose lighting shaders are not in the player]
+//             target 3 (camera target)       rgb multiplied by the same diffuse factor: at this event the camera's target holds the
+//                                             emission and the ambient light times the albedo that the geometry pass baked in (the
+//                                             weather player measured that the G-buffer's own fourth texture is not it at this event),
+//                                             so without this the wet ground would darken in the sun's light only (a self-lit part on
+//                                             wet ground is darkened with it; ground has no emission) [VERIFY with the installed
+//                                             Deferred mod, whose lighting shaders are not in the player]
 //   pass 1  aid map: the same arithmetic written as a picture, R = local wetness, G = puddle share, B = up-facing share, A = ripples
 //           (the weather player's second view of every wetness picture; the in-game contribution mask is atmoDebug = contrib).
 //
@@ -50,6 +52,9 @@ Shader "ReDefinition/AtmospheresWet"
     // x = scale of the depression noise (cycles per m for the biggest octave), y = puddle edge softness, z = least up-facing share a
     // puddle needs, w = global strength 0..1 (the A/B switch writes 0).
     float4 _WetC;
+    // 1 leaves a G-buffer target as it is (x diffuse, y smoothness, z normal, w emission and ambient); 0 writes it. The weather player's
+    // diagnosis of which target carries which part of the picture; the mod always writes 0.
+    float4 _WetT;
 
     #ifndef REDEFINITION_ATMO_CONTRIBUTION_INCLUDED
     #define REDEFINITION_ATMO_CONTRIBUTION_INCLUDED
@@ -69,18 +74,27 @@ Shader "ReDefinition/AtmospheresWet"
         return o;
     }
 
+    // The integer hash PCG (technique: M. Jarzynski and M. Olano, "Hash Functions for GPU Rendering", Journal of Computer Graphics
+    // Techniques 9(3), 2020); the cell index is the integer part of the argument, so the pattern is the same on every platform.
+    uint Pcg(uint v)
+    {
+        uint state = v * 747796405u + 2891336453u;
+        uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+        return (word >> 22u) ^ word;
+    }
+
     float Hash12(float2 p)
     {
-        float3 p3 = frac(float3(p.xyx) * 0.1031);
-        p3 += dot(p3, p3.yzx + 33.33);
-        return frac((p3.x + p3.y) * p3.z);
+        uint2 q = (uint2)((int2)floor(p));
+        return Pcg(q.x + Pcg(q.y)) * (1.0 / 4294967296.0);
     }
 
     float2 Hash22(float2 p)
     {
-        float3 p3 = frac(float3(p.xyx) * float3(0.1031, 0.1030, 0.0973));
-        p3 += dot(p3, p3.yzx + 33.33);
-        return frac((p3.xx + p3.yz) * p3.zy);
+        uint2 q = (uint2)((int2)floor(p));
+        uint a = Pcg(q.x + Pcg(q.y));
+        uint b = Pcg(a + 1013904223u);
+        return float2(a, b) * (1.0 / 4294967296.0);
     }
 
     // Value noise whose lattice repeats every `period` cells, so that the pattern is the same on both sides of the wrap of the
@@ -120,10 +134,12 @@ Shader "ReDefinition/AtmospheresWet"
             float2 f = frac(q) - 0.5;
             float2 h = Hash22(cell + layer * 3.1);
             float phase = frac(t * (0.8 + 0.4 * h.x) + h.y);
-            float2 c = (h - 0.5) * 0.5;
+            // The ring stays inside its cell (centre within 0.2 of the middle, radius at most 0.22, a tail of 0.06), so that no ring is
+            // cut off by the lattice.
+            float2 c = (h - 0.5) * 0.4;
             float2 d = f - c;
             float r = length(d);
-            float radius = phase * 0.45;
+            float radius = phase * 0.22;
             float ring = exp(-pow((r - radius) * 18.0, 2.0)) * (1.0 - phase) * (1.0 - phase);
             slope += (r > 1e-4 ? d / r : float2(0, 0)) * ring * 0.55;
         }
@@ -238,12 +254,14 @@ Shader "ReDefinition/AtmospheresWet"
                 float diffuse = lerp(ground, ground * _WetB.x, w.puddle);
                 float smoothAdd = _WetA.y * w.wet;
                 smoothAdd = lerp(smoothAdd, _WetB.y, w.puddle);
-                o.gb0 = float4(diffuse, diffuse, diffuse, 1);
-                o.gb1 = float4(0, 0, 0, smoothAdd);
-                o.gb2 = float4(w.normal * 0.5 + 0.5, w.puddle * 0.92);
+                float d0 = lerp(diffuse, 1.0, _WetT.x);
+                o.gb0 = float4(d0, d0, d0, 1);
+                o.gb1 = float4(0, 0, 0, smoothAdd * (1.0 - _WetT.y));
+                o.gb2 = float4(w.normal * 0.5 + 0.5, w.puddle * 0.92 * (1.0 - _WetT.z));
                 // The fourth target holds the emission and the ambient light the geometry pass already added (the indirect diffuse is
                 // baked into it times the albedo); the wet ground reflects less of that light too, so it is scaled by the same factor.
-                o.gb3 = float4(diffuse, diffuse, diffuse, 1);
+                float d3 = lerp(diffuse, 1.0, _WetT.w);
+                o.gb3 = float4(d3, d3, d3, 1);
                 return o;
             }
             ENDCG

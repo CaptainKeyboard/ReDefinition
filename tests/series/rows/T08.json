@@ -1,0 +1,44 @@
+{
+  "$schema": "../schema.json",
+  "package": "T08",
+  "rows": [
+    { "series": "player-T08", "section": "T08", "metric": "deferred.active", "equals": 1, "note": "wet-check: the camera really is on Unity's deferred path (the player's own deferred path, not the installed Deferred mod's lighting shaders: that is the K-T1 row below)" },
+    { "series": "player-T08", "section": "T08", "metric": "target.albedo_only.darkens", "max": 0.95, "unit": "ratio", "note": "wet-check: the diffuse change written only into the G-buffer's diffuse target darkens the lit ground (measured 0.828 at wetDiffuse 0.62)" },
+    { "series": "player-T08", "section": "T08", "metric": "target.ambient_only.darkens", "max": 0.95, "unit": "ratio", "note": "wet-check: the same written only into the camera target, which holds the baked ambient light at BeforeLighting (measured 0.890); a write to GBuffer3 at that event changes nothing, the diagnosis is in the diag.* info lines" },
+    { "series": "player-T08", "section": "T08", "metric": "wet.diffuse_share_of_ground_luma", "min": 0.6, "unit": "share", "note": "wet-check: the share of the ground's lit luma that a diffuse factor of 0 removes (the rest is the sun's specular highlight; measured 0.744 with the sky reflection switched off)" },
+    { "series": "player-T08", "section": "T08", "metric": "wet.diffuse_ratio", "min": 0.69, "max": 0.75, "unit": "ratio", "note": "wet-check: wet / dry ground luma for the configured wetDiffuse 0.62, equal to 1 - (1 - 0.62) x the diffuse share within 3 % (a linearity check of the overlay; measured 0.7177)" },
+    { "series": "player-T08", "section": "T08", "metric": "ab.sky_max_diff", "max": 0.00195, "unit": "luma", "note": "wet-check A/B: the sky rows are identical with the overlay on and off" },
+    { "series": "player-T08", "section": "T08", "metric": "ab.strength0_max_diff", "max": 0.00195, "unit": "luma", "note": "wet-check A/B: a draw with strength 0 is the dry picture" },
+    { "series": "player-T08", "section": "T08", "metric": "frozen.darkens_less_than_liquid", "equals": 1, "note": "wet-check: frozen water darkens less than liquid water (real: glaze darkens little)" },
+    { "series": "player-T08", "section": "T08", "metric": "snow_cover.darkens_less_than_liquid", "equals": 1, "note": "wet-check: under snow cover the ground darkens less (the snow is what is seen)" },
+    { "series": "player-T08", "section": "T08", "metric": "puddle.share_vs_cover.c0.20", "equals": 0.2, "tolerance": 0.08, "unit": "share of level ground", "note": "wet-check: the share of level ground the aid map marks as puddle against the asked share 0.2 (measured 0.237; the depression field's threshold comes from a normal approximation, FieldThreshold)" },
+    { "series": "player-T08", "section": "T08", "metric": "puddle.share_vs_cover.c0.40", "equals": 0.4, "tolerance": 0.08, "unit": "share of level ground", "note": "wet-check: the same for 0.4 (measured 0.427)" },
+    { "series": "player-T08", "section": "T08", "metric": "puddle.share_vs_cover.c0.55", "equals": 0.55, "tolerance": 0.08, "unit": "share of level ground", "note": "wet-check: the same for 0.55 (measured 0.555)" },
+    { "series": "player-T08", "section": "T08", "metric": "ripples.rain_pixels", "min": 500, "unit": "px", "note": "wet-check: rain rings exist on the puddles close to the ground while it rains" },
+    { "series": "player-T08", "section": "T08", "metric": "ripples.frozen_pixels", "max": 0, "unit": "px", "note": "wet-check: no rings on frozen puddles" },
+    { "series": "player-T08", "section": "T08", "metric": "ripples.dry_pixels", "max": 0, "unit": "px", "note": "wet-check: no rings on dry ground" },
+    { "series": "player-T08", "section": "T08", "metric": "puddle.sun_glint_peak_ratio", "min": 1.5, "unit": "ratio", "note": "wet-check: the brightest pixel of a view that looks along the mirror direction of the sun, puddle over dry ground (measured 2.17): a puddle is a mirror for the sun although it is darker" },
+
+    { "series": "player-T08", "section": "T08", "metric": "wet0.max_diff", "max": 0.00195, "unit": "luma", "note": "droplet-check: a pane with no water leaves the picture as it is" },
+    { "series": "player-T08", "section": "T08", "metric": "under_skip.max_diff", "max": 0.00195, "unit": "luma", "note": "droplet-check: under the skip level nothing is drawn" },
+    { "series": "player-T08", "section": "T08", "metric": "wet0.covered", "max": 0, "unit": "share", "note": "droplet-check: the aid map is empty at wetness 0" },
+    { "series": "player-T08", "section": "T08", "metric": "droplet.design_cover", "equals": 0.28, "tolerance": 0.042, "unit": "share of the glass", "note": "droplet-check: the share the three layers cover when every cell holds its drop (DESIGN_COVER of the shader; measured 0.2766)" },
+    { "series": "player-T08", "section": "T08", "metric": "coverage.w0.25", "equals": 0.0831, "tolerance": 0.025, "unit": "share of the glass", "note": "droplet-check: covered share at wetness 0.25 against drop.coverMax x wetness^0.85 (measured 0.086)" },
+    { "series": "player-T08", "section": "T08", "metric": "coverage.w0.50", "equals": 0.1498, "tolerance": 0.045, "unit": "share of the glass", "note": "droplet-check: the same at 0.5 (measured 0.154)" },
+    { "series": "player-T08", "section": "T08", "metric": "coverage.w1.00", "equals": 0.27, "tolerance": 0.081, "unit": "share of the glass", "note": "droplet-check: the same at 1 (measured 0.268)" },
+    { "series": "player-T08", "section": "T08", "metric": "coverage.rises_with_wetness", "equals": 1, "note": "droplet-check: the covered share rises with the wetness" },
+    { "series": "player-T08", "section": "T08", "metric": "lens.ramp_slope_ratio", "equals": -1.16, "tolerance": 0.348, "unit": "ratio", "note": "droplet-check: across a drop the picture's horizontal ramp runs backwards with the slope -(2.4 x refraction - 1) (measured -1.162)" },
+    { "series": "player-T08", "section": "T08", "metric": "trail.down.anisotropy", "min": 2, "unit": "ratio", "note": "droplet-check: trails lie along the sliding direction (slide down): the autocorrelation of the trail map at 6 px is at least twice as high along the slide as across it (across is 0 in the run, so the figure only says the orientation is right)" },
+    { "series": "player-T08", "section": "T08", "metric": "trail.right.anisotropy", "min": 2, "unit": "ratio", "note": "droplet-check: the same for a slide to the right" },
+    { "series": "player-T08", "section": "T08", "metric": "mask.wall_pixels_changed", "max": 0, "unit": "px", "note": "droplet-check: where the interior mask is 1 not a pixel changes" },
+    { "series": "player-T08", "section": "T08", "metric": "mask.window_pixels_with_drops", "min": 20000, "unit": "px", "note": "droplet-check: the window part carries drops" },
+    { "series": "player-T08", "section": "T08", "metric": "ab.outside_drops_max_diff", "max": 0.00195, "unit": "luma", "note": "droplet-check A/B: outside the drops the picture is untouched" },
+
+    { "series": "player-T08", "section": "T08", "metric": "cost.wet_gbuffer_ms_at_1080p", "max": 0.3, "unit": "ms", "note": "wet-cost (exclusive lock): the overlay with puddles and rings in Unity's deferred G-buffer, scaled from 1280 x 720 to 1920 x 1080 (measured 0.074 ms at 720p, 0.166 ms at 1080p, A4500)" },
+    { "series": "player-T08", "section": "T08", "metric": "cost.droplet_host_ms_at_1080p", "max": 0.25, "unit": "ms", "note": "wet-cost (exclusive lock): the droplet host composite at full wetness, scaled to 1920 x 1080 (measured 0.062 ms at 720p, 0.141 ms at 1080p, A4500)" },
+
+    { "series": "K-T1", "section": "T08", "package": "T08", "start": "wet", "metric": "T08.wet_overlay_runs_on_deferred_mod", "equals": 1, "required": false, "note": "K-T1 record (probe not written: the series definition K-T1 does not exist yet): the overlay draws in the game with the installed Deferred mod and with Parallax terrain in the picture; whether the diffuse change reaches the lit picture there is what the player cannot say (the player has Unity's own deferred lighting)" },
+    { "series": "K-T1", "section": "T08", "package": "T08", "start": "wet", "metric": "T08.wet_time_constants", "min": 0, "required": false, "note": "K-T1 record (probe not written): the time of the layer to dry from saturation in a forced dry spell against DryTimeS, and the 6 h jump against the stepwise state (L0 rows WetnessModelTests cover the maths)" },
+    { "series": "K-T1", "section": "T08", "package": "T08", "start": "droplets", "metric": "T08.droplets_iva_mask_ok", "equals": 1, "required": false, "note": "K-T1 record (probe not written): in the IVA the droplets use the interior mask of their own and leave the cabin clear (the frost's rows D37.iva_mask_ok say whether that mask works in the game)" }
+  ]
+}

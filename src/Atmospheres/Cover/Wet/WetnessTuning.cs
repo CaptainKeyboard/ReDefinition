@@ -18,7 +18,7 @@ namespace ReDefinition.Atmospheres
     //   wet.wetDiffuse 0.62 (0.5-0.8)    diffuse luminance of fully wet ground against dry ground
     //   wet.wetSmooth 0.45 (0.2-0.7)     smoothness added at full wetness (G-buffer smoothness is 0 to 1)
     //   wet.wetPow 0.6 (0.4-1)           saturation to wetness curve (a little water already darkens)
-    //   wet.puddleMax 0.55 (0.2-0.8)     largest share of the ground a puddle field covers
+    //   wet.puddleMax 0.35 (0.2-0.8)     largest share of the ground a puddle field covers (a soaked bare ground has a fifth to a half)
     //   wet.puddleFullMm 6 (3-12)        standing water at which the puddle share is largest
     //   wet.puddleDarken 0.8 (0.6-1)     extra diffuse factor in a puddle
     //   wet.puddleSmooth 0.95 (0.8-1)    smoothness in a puddle
@@ -45,7 +45,7 @@ namespace ReDefinition.Atmospheres
                 WetDiffuse = 0.62f,
                 WetSmooth = 0.45f,
                 WetPow = 0.6f,
-                PuddleMax = 0.55f,
+                PuddleMax = 0.35f,
                 PuddleFullMm = 6f,
                 PuddleDarken = 0.8f,
                 PuddleSmooth = 0.95f,

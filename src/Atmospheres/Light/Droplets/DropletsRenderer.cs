@@ -140,6 +140,8 @@ namespace ReDefinition.Atmospheres
             t.SkipBelow = Tuning.Get("drop.skipBelow", t.SkipBelow);
             t.QuadAlpha = Tuning.Get("drop.quadAlpha", t.QuadAlpha);
             t.SizePx = Tuning.Get("drop.sizePx", t.SizePx);
+            t.Rim = Tuning.Get("drop.rim", t.Rim);
+            t.TrailAlpha = Tuning.Get("drop.trailAlpha", t.TrailAlpha);
             return t.Clamped();
         }
 

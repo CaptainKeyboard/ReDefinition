@@ -56,6 +56,8 @@ Shader "ReDefinition/AtmospheresDroplet"
     float4 _DrpB;
     // x = 1 where the interior mask is bound, y = opacity of the quad, z = light 0..1, w = configured coverage at full wetness.
     float4 _DrpC;
+    // x = darkening of a drop's rim, y = opacity of the wet trails.
+    float4 _DrpD;
     // rgb = colour of the rims and highlights for the quad (scene units).
     float4 _DrpQuad;
 
@@ -90,18 +92,21 @@ Shader "ReDefinition/AtmospheresDroplet"
 
     float3 Safe(float3 c) { return max(min(c, 64.0), 0.0); }
 
-    float2 Hash22(float2 p)
+    // The integer hash PCG (technique: M. Jarzynski and M. Olano, "Hash Functions for GPU Rendering", Journal of Computer Graphics
+    // Techniques 9(3), 2020); the cell index is the integer part of the argument, so the pattern is the same on every platform.
+    uint Pcg(uint v)
     {
-        float3 p3 = frac(float3(p.xyx) * float3(0.1031, 0.1030, 0.0973));
-        p3 += dot(p3, p3.yzx + 33.33);
-        return frac((p3.xx + p3.yz) * p3.zy);
+        uint state = v * 747796405u + 2891336453u;
+        uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+        return (word >> 22u) ^ word;
     }
 
-    float Hash12(float2 p)
+    float2 Hash22(float2 p)
     {
-        float3 p3 = frac(float3(p.xyx) * 0.1031);
-        p3 += dot(p3, p3.yzx + 33.33);
-        return frac((p3.x + p3.y) * p3.z);
+        uint2 q = (uint2)((int2)floor(p));
+        uint a = Pcg(q.x + Pcg(q.y));
+        uint b = Pcg(a + 1013904223u);
+        return float2(a, b) * (1.0 / 4294967296.0);
     }
 
     // What the drops do at a point of the picture (picture heights, y up): the disc's weight, the wet trail's, the bead's, the lens
@@ -113,9 +118,13 @@ Shader "ReDefinition/AtmospheresDroplet"
         float radius;    // in picture heights
     };
 
+    // Rotation by an angle given as (cos, sin), and back.
+    float2 Rot2(float2 v, float2 cs) { return float2(cs.x * v.x - cs.y * v.y, cs.y * v.x + cs.x * v.y); }
+    float2 Unrot2(float2 v, float2 cs) { return float2(cs.x * v.x + cs.y * v.y, -cs.y * v.x + cs.x * v.y); }
+
     // The share of the glass the three layers cover when every cell holds its drop (measured by the weather player, row
     // droplet.design_cover); the wetness thins the cells out so that the covered share follows wet^0.85 * the configured coverage.
-    #define DESIGN_COVER 0.36
+    #define DESIGN_COVER 0.28
 
     Drops Evaluate(float2 p)
     {
@@ -146,34 +155,35 @@ Shader "ReDefinition/AtmospheresDroplet"
             if (h.x < present)
             {
                 // The cycle: stuck, a quick run over 40 % of it, stuck. A new drop forms when it restarts (the radius grows in).
-                float travel = 0.6 * cellS;
+                // Every drop starts and runs its own way: where in the cell it forms (0.04 to 0.15 of its length) and how far it goes.
+                float2 h3 = Hash22(id + 77.3);
+                float s0 = cellS * (0.04 + 0.11 * h3.x);
+                float travel = cellS * (0.35 + 0.30 * h3.y);
                 float eff = max(speed, 0.004) * (0.6 + 0.8 * h2.x);
                 float period = travel / eff * 2.5;
                 float phase = frac(t / period + h2.y);
                 float run = smoothstep(0.5, 0.9, phase);
                 float born = smoothstep(0.0, 0.12, phase);
-                float s0 = 0.1 * cellS;
                 float2 centre = float2(s0 + travel * run, cellC * (0.3 + 0.4 * h.y));
                 float rad = max(r * (0.5 + 0.5 * h2.y) * born, 1e-5);
                 float2 local = (f - centre) / rad;
                 // Elongated along the run a little.
                 float2 shaped = float2(local.x / 1.12, local.y);
-                float qd = length(shaped);
-                d.disc = 1.0 - smoothstep(0.86, 1.0, qd);
+                d.disc = 1.0 - smoothstep(0.86, 1.0, length(shaped));
                 d.lens = dir * local.x + perp * local.y;
-                d.rim = smoothstep(0.55, 1.0, qd) * d.disc;
-                d.spot = exp(-dot(shaped - float2(-0.35, 0.35), shaped - float2(-0.35, 0.35)) * 9.0) * step(qd, 1.0);
                 d.radius = rad;
                 // The wet trail: from where the drop started this cycle to where it is, narrow.
                 float inTrail = step(s0, f.x) * step(f.x, centre.x - rad * 0.8);
-                float across = abs(f.y - centre.y) / max(rad * 0.28, 1e-5);
+                float across = abs(f.y - centre.y) / max(rad * 0.45, 1e-5);
                 d.trail = inTrail * (1.0 - smoothstep(0.6, 1.0, across)) * run * (1.0 - smoothstep(0.93, 1.0, phase)) * 0.9;
             }
         }
         // ---- the middle drops: they stay.
         {
+            // The lattice is turned by 31 degrees against the sliding direction so that the rows of drops do not read as a grid.
+            const float2 cs = float2(0.857, 0.515);
             float cell = 2.4 * r;
-            float2 q = float2(s, c) / cell + 17.0;
+            float2 q = Rot2(float2(s, c), cs) / cell + 17.0;
             float2 id = floor(q);
             float2 f = (frac(q)) * cell;
             float2 h = Hash22(id + 3.7);
@@ -183,22 +193,22 @@ Shader "ReDefinition/AtmospheresDroplet"
                 float2 centre = cell * float2(0.3 + 0.4 * h.y, 0.3 + 0.4 * h2.x);
                 float rad = r * (0.4 + 0.2 * h2.y);
                 float2 local = (f - centre) / rad;
-                float qd = length(local);
-                float disc = 1.0 - smoothstep(0.86, 1.0, qd);
+                float disc = 1.0 - smoothstep(0.86, 1.0, length(local));
                 if (disc > d.disc)
                 {
+                    float2 inLattice = Unrot2(local, cs);
                     d.disc = disc;
-                    d.lens = dir * local.x + perp * local.y;
-                    d.rim = smoothstep(0.55, 1.0, qd) * disc;
-                    d.spot = exp(-dot(local - float2(-0.35, 0.35), local - float2(-0.35, 0.35)) * 9.0) * step(qd, 1.0);
+                    d.lens = dir * inLattice.x + perp * inLattice.y;
                     d.radius = rad;
                 }
             }
         }
         // ---- the beads: small, many, they stay.
         {
+            // Turned by -23 degrees.
+            const float2 cs = float2(0.9205, -0.3907);
             float cell = 1.3 * r;
-            float2 q = float2(s, c) / cell + 53.0;
+            float2 q = Rot2(float2(s, c), cs) / cell + 53.0;
             float2 id = floor(q);
             float2 f = frac(q) * cell;
             float2 h = Hash22(id + 7.1);
@@ -213,10 +223,19 @@ Shader "ReDefinition/AtmospheresDroplet"
                 d.bead = bead * (1.0 - d.disc);
                 if (d.disc < 0.01 && bead > 0.0)
                 {
-                    d.lens = dir * local.x + perp * local.y;
+                    float2 inLattice = Unrot2(local, cs);
+                    d.lens = dir * inLattice.x + perp * inLattice.y;
                     d.radius = rad;
                 }
             }
+        }
+        // The rim and the spot of the light follow from the lens position in the picture's own axes: the light comes from the upper left.
+        {
+            float qd = length(d.lens);
+            float inside = step(0.001, d.disc) * step(qd, 1.0);
+            d.rim = smoothstep(0.55, 1.0, qd) * d.disc;
+            float2 toLight = d.lens - float2(-0.35, 0.35);
+            d.spot = exp(-dot(toLight, toLight) * 9.0) * inside;
         }
         return d;
     }
@@ -255,7 +274,7 @@ Shader "ReDefinition/AtmospheresDroplet"
                 float keep = 1.0;
                 if (_DrpC.x > 0.5) keep = 1.0 - tex2Dlod(_DrpMask, float4(i.uv, 0, 0)).r;
                 float disc = max(d.disc, d.bead * 0.9);
-                float total = max(disc, d.trail * 0.35) * keep;
+                float total = max(disc, d.trail * _DrpD.y) * keep;
                 clip(total - 0.003);
 
                 // The lens: the picture seen through the drop is upside down and compressed, a point of the drop at lens (in radii from
@@ -265,11 +284,11 @@ Shader "ReDefinition/AtmospheresDroplet"
                 float2 offUv = float2(off.x / _DrpA.z, flip ? -off.y : off.y);
                 float3 sharp = Safe(tex2D(_DrpCopy, i.uv).rgb);
                 float3 seen = Safe(tex2D(_DrpCopy, i.uv + offUv).rgb);
-                float3 col = seen * (1.0 - 0.45 * d.rim) * (1.0 + 0.06);
+                float3 col = seen * (1.0 - _DrpD.x * d.rim) * (1.0 + 0.06);
                 col += _DrpC.z * (0.55 * d.spot + 0.12 * d.bead);
-                // The trail is a faint wet streak: the picture a little brighter and flatter.
-                float3 streak = lerp(sharp, seen, 0.4) * 0.97;
-                bool isDisc = disc >= d.trail * 0.35;
+                // The trail is a thin wet streak: the picture seen through the film, a little darker, with the light's glint on it.
+                float3 streak = lerp(sharp, seen, 0.5) * 0.72 + _DrpC.z * 0.05;
+                bool isDisc = disc >= d.trail * _DrpD.y;
                 return AtmoContribOutput(float4(isDisc ? col : streak, total), total, ATMO_FEATURE_DROPLETS);
             }
             ENDCG
@@ -310,7 +329,7 @@ Shader "ReDefinition/AtmospheresDroplet"
                 float2 p = float2(i.uv.x * _DrpA.z, i.uv.y);
                 Drops d = Evaluate(p);
                 float disc = max(d.disc, d.bead * 0.9);
-                float total = max(disc * (0.35 + 0.55 * d.rim), d.trail * 0.2) * _DrpC.y;
+                float total = max(disc * (0.35 + 0.55 * d.rim), d.trail * _DrpD.y * 0.6) * _DrpC.y;
                 clip(total - 0.003);
                 float3 col = _DrpQuad.rgb * (0.25 + 0.75 * saturate(d.spot * 1.5 + d.rim * 0.4));
                 return AtmoContribOutput(float4(col, total), total, ATMO_FEATURE_DROPLETS);

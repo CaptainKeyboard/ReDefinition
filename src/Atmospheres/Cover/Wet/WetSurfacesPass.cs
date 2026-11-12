@@ -19,6 +19,11 @@ namespace ReDefinition.Atmospheres
         internal float Strength;
         // Scale of the biggest depression feature in cycles per metre.
         internal float NoiseScale;
+        // The weather player's diagnosis: 1 in a component leaves that G-buffer target as it is (x diffuse, y smoothness, z normal,
+        // w emission and ambient). The default (all 0) writes every target, as the mod does.
+        internal Vector4 SkipTargets;
+        // The fourth target is the G-buffer's emission texture instead of the camera's own target (the weather player's diagnosis).
+        internal bool EmissionIsGBuffer3;
     }
 
     // Records the wet overlay (shader ReDefinition/AtmospheresWet) into a command buffer: one full-screen triangle into the camera's
@@ -37,9 +42,21 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdEast = Shader.PropertyToID("_WetEast");
         private static readonly int IdNorth = Shader.PropertyToID("_WetNorth");
         private static readonly int IdC = Shader.PropertyToID("_WetC");
+        private static readonly int IdT = Shader.PropertyToID("_WetT");
 
         private readonly Material material;
+        // The three G-buffer targets and, in the fourth slot, the camera's own target: at BeforeLighting that is the buffer that holds the
+        // emission and the ambient light the geometry pass baked in (the weather player measured that a write to GBuffer3 at this event
+        // changes nothing and a write to the camera target changes the ambient part of the picture).
         private static readonly RenderTargetIdentifier[] GBuffer =
+        {
+            new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer0),
+            new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer1),
+            new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer2),
+            new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget)
+        };
+        // The same with the G-buffer's own fourth texture (the weather player's diagnosis).
+        private static readonly RenderTargetIdentifier[] GBufferEmissionTexture =
         {
             new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer0),
             new RenderTargetIdentifier(BuiltinRenderTextureType.GBuffer1),
@@ -68,6 +85,7 @@ namespace ReDefinition.Atmospheres
             material.SetVector(IdEast, new Vector4(d.East.x, d.East.y, d.East.z, d.EastM));
             material.SetVector(IdNorth, new Vector4(d.North.x, d.North.y, d.North.z, d.NorthM));
             // Puddle edge softness, the least up-facing share a puddle needs (cos 25 degrees), the strength.
+            material.SetVector(IdT, d.SkipTargets);
             material.SetVector(IdC, new Vector4(d.NoiseScale > 0f ? d.NoiseScale : 1f / 32f, 0.04f, 0.906f, d.Strength));
         }
 
@@ -77,7 +95,7 @@ namespace ReDefinition.Atmospheres
         {
             if (!NeedsDraw(ref d)) return;
             Set(ref d);
-            cmd.SetRenderTarget(GBuffer, BuiltinRenderTextureType.CameraTarget);
+            cmd.SetRenderTarget(d.EmissionIsGBuffer3 ? GBufferEmissionTexture : GBuffer, BuiltinRenderTextureType.CameraTarget);
             cmd.DrawProcedural(Matrix4x4.identity, material, PassGBuffer, MeshTopology.Triangles, 3, 1);
         }
 

@@ -100,7 +100,7 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // The lit picture with the overlay recorded from the draw (or without any).
-        private IEnumerator Natural(WetDraw? draw, Action<Color[]> done)
+        private IEnumerator Natural(WetDraw? draw, Action<Color[]> done, CameraEvent at = CameraEvent.BeforeLighting)
         {
             cmd.Clear();
             if (draw.HasValue)
@@ -108,11 +108,11 @@ namespace ReDefinition.WeatherPlayer
                 WetDraw d = draw.Value;
                 pass.RecordGBuffer(cmd, ref d);
             }
-            Cam.AddCommandBuffer(CameraEvent.BeforeLighting, cmd);
+            Cam.AddCommandBuffer(at, cmd);
             yield return Frames(3);
             yield return new WaitForEndOfFrame();
             Color[] pixels = ReadTexture(Target);
-            Cam.RemoveCommandBuffer(CameraEvent.BeforeLighting, cmd);
+            Cam.RemoveCommandBuffer(at, cmd);
             done(pixels);
         }
 
@@ -145,6 +145,14 @@ namespace ReDefinition.WeatherPlayer
             return n == 0 ? 0 : sum / n;
         }
 
+        private static double MaxLuma(Color[] p)
+        {
+            double max = 0;
+            for (int y = 0; y < H * 2 / 3; y++)
+                for (int x = 0; x < W; x++) max = Math.Max(max, Luma(p[y * W + x]));
+            return max;
+        }
+
         private static byte Channel(float v)
         {
             return (byte)Mathf.Clamp(Mathf.RoundToInt(Mathf.Pow(Mathf.Clamp01(v), 1f / 2.2f) * 255f), 0, 255);
@@ -158,6 +166,21 @@ namespace ReDefinition.WeatherPlayer
             {
                 Color c = pixels[i];
                 bytes[i] = aid ? new Color32(Channel(c.r), Channel(c.g), Channel(c.b), 255) : new Color32(Channel(c.r), Channel(c.g), Channel(c.b), 255);
+            }
+            tex.SetPixels32(bytes);
+            tex.Apply(false);
+            File.WriteAllBytes(Path.Combine(Output, name), tex.EncodeToPNG());
+            UnityEngine.Object.Destroy(tex);
+        }
+
+        private void SaveAlpha(string name, Color[] pixels)
+        {
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, false);
+            var bytes = new Color32[W * H];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                byte g = Channel(pixels[i].a);
+                bytes[i] = new Color32(g, g, g, 255);
             }
             tex.SetPixels32(bytes);
             tex.Apply(false);
@@ -199,12 +222,78 @@ namespace ReDefinition.WeatherPlayer
             WetnessTuning diffuseOnly = tuning;
             diffuseOnly.WetSmooth = 0f;
             diffuseOnly.PuddleMax = 0f;
+            // The sky is not reflected in this part: the ground's reflection of the sky (a share of the picture that no diffuse factor
+            // touches) would hide the diffuse change the row is about.
+            var blackSky = new Cubemap(16, TextureFormat.RGBA32, false);
+            var blackPixels = new Color[16 * 16];
+            for (int i = 0; i < blackPixels.Length; i++) blackPixels[i] = Color.black;
+            for (int face = 0; face < 6; face++) blackSky.SetPixels(blackPixels, (CubemapFace)face);
+            blackSky.Apply();
+            RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
+            RenderSettings.customReflection = blackSky;
+            yield return Frames(6);
             Color[] dry = null, wetDiffuse = null;
             yield return Natural(null, p => dry = p);
             yield return Natural(MakeDraw(1f, 0f, 0f, 288f, 0f, diffuseOnly), p => wetDiffuse = p);
             double lumaDry = MeanLuma(dry, 130, 0, 1150, 250), lumaWet = MeanLuma(wetDiffuse, 130, 0, 1150, 250);
             Sink.Info("ground.luma_dry", lumaDry);
-            Sink.Reference("wet.diffuse_ratio", lumaWet / Math.Max(lumaDry, 1e-6), tuning.WetDiffuse, 0.04, 0.0);
+
+            // --- Which G-buffer target carries which part of the picture (the diagnosis): the same diffuse change written into one
+            // target, into the other, into none, and a factor of 0 into both (what is left is not the geometry pass's diffuse light).
+            string[] names = { "both", "albedo_only", "ambient_only", "none" };
+            Vector4[] skips = { Vector4.zero, new Vector4(0f, 1f, 1f, 1f), new Vector4(1f, 1f, 1f, 0f), new Vector4(1f, 1f, 1f, 1f) };
+            for (int i = 0; i < names.Length; i++)
+            {
+                WetDraw dd = MakeDraw(1f, 0f, 0f, 288f, 0f, diffuseOnly);
+                dd.SkipTargets = skips[i];
+                Color[] shot = null;
+                yield return Natural(dd, p => shot = p);
+                double targetRatio = MeanLuma(shot, 130, 0, 1150, 250) / Math.Max(lumaDry, 1e-6);
+                Sink.Info("diag.target." + names[i] + ".ratio", targetRatio);
+                // Each of the two targets that hold diffuse light must change the picture by itself.
+                if (i == 1 || i == 2) Sink.AtMost("target." + names[i] + ".darkens", targetRatio, 0.95);
+            }
+            // Which event and which fourth target reach the ambient light: the ambient-only write at each combination.
+            foreach (CameraEvent ev in new[] { CameraEvent.BeforeLighting, CameraEvent.AfterGBuffer })
+                foreach (bool cameraTarget in new[] { false, true })
+                {
+                    WetDraw dd = MakeDraw(1f, 0f, 0f, 288f, 0f, diffuseOnly);
+                    dd.SkipTargets = new Vector4(1f, 1f, 1f, 0f);
+                    dd.EmissionIsGBuffer3 = !cameraTarget;
+                    dd.Look.DiffuseFactor = 0f;
+                    Color[] shot = null;
+                    yield return Natural(dd, p => shot = p, ev);
+                    Sink.Info("diag.ambient_factor0." + ev + (cameraTarget ? ".cameratarget" : ".gbuffer3") + ".ratio", MeanLuma(shot, 130, 0, 1150, 250) / Math.Max(lumaDry, 1e-6));
+                }
+            {
+                WetDraw black = MakeDraw(1f, 0f, 0f, 288f, 0f, diffuseOnly);
+                black.Look.DiffuseFactor = 0f;
+                Color[] shot = null;
+                yield return Natural(black, p => shot = p);
+                double ratioFactor0 = MeanLuma(shot, 130, 0, 1150, 250) / Math.Max(lumaDry, 1e-6);
+                Sink.Info("diag.factor0.ratio", ratioFactor0);
+                // What is left with a diffuse factor of 0 is the picture's light that is not diffuse (the sun's highlight on the ground);
+                // the diffuse share S of the ground's luma is the rest. A diffuse factor f then gives 1 - (1 - f) S: the overlay scales
+                // the diffuse light and nothing else, in both targets that hold it.
+                double share = 1.0 - ratioFactor0;
+                Sink.AtLeast("wet.diffuse_share_of_ground_luma", share, 0.6);
+                Sink.Reference("wet.diffuse_ratio", lumaWet / Math.Max(lumaDry, 1e-6), 1.0 - (1.0 - tuning.WetDiffuse) * share, 0.03, 0.0);
+            }
+            Cam.renderingPath = RenderingPath.Forward;
+            yield return Frames(4);
+            Color[] forwardDry = null;
+            yield return Natural(null, p => forwardDry = p);
+            Sink.Info("diag.forward_dry.ratio_to_deferred_dry", MeanLuma(forwardDry, 130, 0, 1150, 250) / Math.Max(lumaDry, 1e-6));
+            Cam.renderingPath = RenderingPath.DeferredShading;
+            yield return Frames(4);
+
+            // The sky is reflected again from here on; the dry picture and its luma are taken again in that state.
+            RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Skybox;
+            RenderSettings.customReflection = null;
+            yield return Frames(6);
+            yield return Natural(null, p => dry = p);
+            lumaDry = MeanLuma(dry, 130, 0, 1150, 250);
+            Sink.Info("ground.luma_dry_with_sky_reflection", lumaDry);
 
             // --- The sky and the far field are untouched; a draw with strength 0 is the dry picture.
             double skyDiff = 0;
@@ -232,8 +321,26 @@ namespace ReDefinition.WeatherPlayer
             double frozenRatio = MeanLuma(frozen, 130, 0, 1150, 250) / lumaDry, liquidRatio = MeanLuma(puddles, 130, 0, 1150, 250) / lumaDry;
             Sink.Info("ground.luma_frozen", frozenRatio);
             Sink.Info("ground.luma_snow_cover", MeanLuma(snowy, 130, 0, 1150, 250) / lumaDry);
-            Sink.Flag("frozen.darkens_less_than_liquid", frozenRatio > liquidRatio + 0.02);
-            Sink.Flag("snow_cover.darkens_less_than_liquid", MeanLuma(snowy, 130, 0, 1150, 250) / lumaDry > liquidRatio + 0.05);
+
+            // The liquid, frozen and snow-covered comparison over the whole of a high view (many cells of the puddle field; a patch of a
+            // few square metres is inside a puddle or not by chance).
+            PlaceHigh();
+            Color[] dryHigh = null, puddleHigh = null, frozenHigh = null, snowHigh = null;
+            yield return Natural(null, p => dryHigh = p);
+            yield return Natural(MakeDraw(1f, 6f, 0.3f, 288f, 0f, tuning), p => puddleHigh = p);
+            yield return Natural(MakeDraw(1f, 6f, 0.3f, 265f, 0f, tuning), p => frozenHigh = p);
+            yield return Natural(MakeDraw(1f, 6f, 0f, 285f, 1f, tuning), p => snowHigh = p);
+            double lumaHigh = MeanLuma(dryHigh, 0, 0, W, H);
+            double liquidHigh = MeanLuma(puddleHigh, 0, 0, W, H) / lumaHigh, frozenHighRatio = MeanLuma(frozenHigh, 0, 0, W, H) / lumaHigh, snowHighRatio = MeanLuma(snowHigh, 0, 0, W, H) / lumaHigh;
+            Sink.Info("high.luma_liquid", liquidHigh);
+            Sink.Info("high.luma_frozen", frozenHighRatio);
+            Sink.Info("high.luma_snow_cover", snowHighRatio);
+            Sink.Flag("frozen.darkens_less_than_liquid", frozenHighRatio > liquidHigh + 0.02);
+            Sink.Flag("snow_cover.darkens_less_than_liquid", snowHighRatio > liquidHigh + 0.05);
+            Save("t08-wet-natural-high-dry.png", dryHigh, false);
+            Save("t08-wet-natural-high-frozen.png", frozenHigh, false);
+            Save("t08-wet-natural-high-snowcover.png", snowHigh, false);
+            PlaceCamera(0f, 25f);
 
             // --- The aid maps, the share of puddles against the asked share, the rings.
             PlaceHigh();
@@ -278,11 +385,21 @@ namespace ReDefinition.WeatherPlayer
             allPuddles.PuddleMax = 1f;
             WetDraw mirror = MakeDraw(1f, tuning.PuddleFullMm, 0f, 288f, 0f, allPuddles);
             yield return Natural(mirror, p => glintPuddle = p);
-            double glintRatio = MeanLuma(glintPuddle, 600, 330, 680, 390) / Math.Max(MeanLuma(glintDry, 600, 330, 680, 390), 1e-6);
-            Sink.AtLeast("puddle.sun_glint_ratio", glintRatio, 1.5);
+            // The sun's mirror image in a puddle is a small spot: the brightest pixel of the view, not the mean of a patch.
+            Sink.Info("puddle.sun_glint_patch_ratio", MeanLuma(glintPuddle, 600, 330, 680, 390) / Math.Max(MeanLuma(glintDry, 600, 330, 680, 390), 1e-6));
+            Sink.AtLeast("puddle.sun_glint_peak_ratio", MaxLuma(glintPuddle) / Math.Max(MaxLuma(glintDry), 1e-6), 1.5);
+            // The diagnosis: the brightest pixel of the lower two thirds with nothing, with the smoothness alone and with the puddle.
+            WetDraw smoothOnly = mirror;
+            smoothOnly.SkipTargets = new Vector4(1f, 0f, 1f, 1f);
+            Color[] glintSmooth = null;
+            yield return Natural(smoothOnly, p => glintSmooth = p);
+            Sink.Info("diag.glint_max.dry", MaxLuma(glintDry));
+            Sink.Info("diag.glint_max.smooth_only", MaxLuma(glintSmooth));
+            Sink.Info("diag.glint_max.puddle", MaxLuma(glintPuddle));
             Color[] glintWet = null;
             yield return Natural(MakeDraw(1f, 0f, 0f, 288f, 0f, tuning), p => glintWet = p);
-            Sink.Info("wet.sun_glint_ratio", MeanLuma(glintWet, 600, 330, 680, 390) / Math.Max(MeanLuma(glintDry, 600, 330, 680, 390), 1e-6));
+            Sink.Info("wet.sun_glint_peak_ratio", MaxLuma(glintWet) / Math.Max(MaxLuma(glintDry), 1e-6));
+            Save("t08-wet-natural-glint-wet.png", glintWet, false);
 
             // --- The pictures: natural and aid, unique names.
             PlaceCamera(0f, 25f);
@@ -291,8 +408,14 @@ namespace ReDefinition.WeatherPlayer
             Save("t08-wet-natural-puddles-rain.png", puddles, false);
             Save("t08-wet-natural-frozen.png", frozen, false);
             Save("t08-wet-natural-snowcover.png", snowy, false);
-            Save("t08-wet-aid-rings-rain-near.png", aidRain, true);
-            Save("t08-wet-aid-rings-frozen-near.png", aidFrozen, true);
+            // The rings' slope (the aid map's alpha) as a grey picture.
+            SaveAlpha("t08-wet-aid-rings-rain-near.png", aidRain);
+            SaveAlpha("t08-wet-aid-rings-frozen-near.png", aidFrozen);
+            Color[] naturalRings = null;
+            PlaceNear();
+            yield return Natural(ringsRainDraw, p => naturalRings = p);
+            PlaceCamera(0f, 25f);
+            Save("t08-wet-natural-rings-rain-near.png", naturalRings, false);
             PlaceHigh();
             Color[] aidHigh = null, naturalHigh = null;
             WetDraw highDraw = MakeDraw(1f, 6f, 0.3f, 288f, 0f, tuning);

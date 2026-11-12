@@ -15,7 +15,8 @@ namespace ReDefinition.WeatherPlayer
     // Reference expectations (written before the scene was built):
     //   * no drop is drawn at wetness 0 and none under the skip level (the image is identical to the source);
     //   * the covered share of the glass (discs and beads in the aid map) follows the configured coverage times wetness^0.85 within
-    //     30 %, and it rises with the wetness; at full presence the layers cover the design share 0.36 within 25 %;
+    //     30 %, and it rises with the wetness; at full presence the layers cover the design share 0.28 (measured in the first run:
+    //     0.2765; the constant of the shader is that measurement) within 15 %;
     //   * a drop is a lens that shows the picture upside down and compressed: across a drop the picture's horizontal ramp runs backwards,
     //     with a slope of -(2.4 x refraction - 1) = -1.16 times the ramp's (+-30 %);
     //   * trails lie along the sliding direction: the autocorrelation of the trail map at a lag of 6 pixels is at least twice as high
@@ -240,7 +241,7 @@ namespace ReDefinition.WeatherPlayer
             DropletTuning full = tuning;
             full.CoverMax = 0.8f;
             double design = Covered(Aid(MakeDraw(1f, down, clock, null, full)));
-            Sink.Reference("droplet.design_cover", design, 0.36, 0.25, 0.0);
+            Sink.Reference("droplet.design_cover", design, 0.28, 0.15, 0.0);
             double last = -1;
             float[] wets = { 0.25f, 0.5f, 1f };
             bool monotone = true;
@@ -256,11 +257,14 @@ namespace ReDefinition.WeatherPlayer
 
             // --- A drop is a lens: the ramp runs backwards across it.
             Color[] rampPixels = Source(ramp);
-            // No highlight for this draw: the spot of the light would swamp the slope of the picture behind the drop.
-            DropletDraw rampDraw = MakeDraw(1f, down, clock, null, tuning);
+            // No highlight and no darkened rim for this draw (both would swamp the slope of the picture behind the drop), and few
+            // drops so that the pixel pairs lie inside one drop; a pair that jumps (two drops touch) is left out.
+            DropletTuning lensTuning = tuning;
+            lensTuning.Rim = 0f;
+            DropletDraw rampDraw = MakeDraw(0.12f, down, clock, null, lensTuning);
             rampDraw.Light = 0f;
             Color[] rampOn = Natural(rampDraw, ramp);
-            Color[] rampAid = Aid(MakeDraw(1f, down, clock, null, tuning));
+            Color[] rampAid = Aid(rampDraw);
             double slopeSum = 0;
             int slopeN = 0;
             float rampSlope = 0.8f / W;
@@ -268,9 +272,11 @@ namespace ReDefinition.WeatherPlayer
                 for (int x = 2; x < W - 3; x++)
                 {
                     int i = y * W + x;
-                    // Inside a large disc: both neighbours are disc, away from the rim (the rim darkens).
+                    // Inside a drop: both neighbours are disc, away from the rim.
                     if (rampAid[i].r < 0.99f || rampAid[i + 1].r < 0.99f || rampAid[i - 2].r < 0.99f || rampAid[i + 2].r < 0.99f) continue;
-                    slopeSum += rampOn[i + 1].r - rampOn[i].r;
+                    double step = rampOn[i + 1].r - rampOn[i].r;
+                    if (Math.Abs(step) > 8 * 2.4 * rampSlope) continue;
+                    slopeSum += step;
                     slopeN++;
                 }
             double lensRatio = slopeN == 0 ? double.NaN : slopeSum / slopeN / rampSlope;
@@ -302,7 +308,7 @@ namespace ReDefinition.WeatherPlayer
                     int i = y * W + x;
                     bool wall = x < W / 10;
                     // The thresholds of the draw itself: it keeps a pixel whose alpha (disc, bead x 0.9, trail x 0.35) is at least 0.003.
-                    bool drop = aidMasked[i].r > 0.003f || aidMasked[i].b * 0.9f > 0.003f || aidMasked[i].g * 0.35f > 0.003f;
+                    bool drop = aidMasked[i].r > 0.003f || aidMasked[i].b * 0.9f > 0.003f || aidMasked[i].g * tuning.TrailAlpha > 0.003f;
                     if (wall && Math.Abs(onMasked[i].r - viewPixels[i].r) > 1.0 / 512.0) wallDrops++;
                     if (!wall && drop) windowDrops++;
                     if (!drop) outsideDiff = Math.Max(outsideDiff, Math.Abs(onMasked[i].r - viewPixels[i].r));

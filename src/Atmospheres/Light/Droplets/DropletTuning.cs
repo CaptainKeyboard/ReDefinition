@@ -15,7 +15,9 @@ namespace ReDefinition.Atmospheres
     //   drop.slideG 0.045 (0.01-0.15)  speed of a drop under gravity, picture heights per second
     //   drop.slideAir 0.55 (0-1.5)     speed of a drop in an airflow of blowRefMs, picture heights per second
     //   drop.lagS 0.6 (0.1-3)          seconds the sliding direction takes to follow the airflow
-    //   drop.coverMax 0.34 (0.1-0.6)   share of the glass the drops cover at full wetness
+    //   drop.coverMax 0.27 (0.1-0.28)  share of the glass the drops cover at full wetness (the layers cover 0.28 at most, DESIGN_COVER)
+    //   drop.rim 0.45 (0-0.9)          darkening of the rim of a drop
+    //   drop.trailAlpha 0.6 (0-1)      opacity of the wet trails
     //   drop.refraction 0.9 (0-2)      strength of the lens in a drop
     //   drop.skipBelow 0.02 (0.005-0.1) wetness under which the pass is skipped
     //   drop.quadAlpha 0.55 (0.2-1)    opacity of the fallback quad
@@ -23,6 +25,7 @@ namespace ReDefinition.Atmospheres
     internal struct DropletTuning
     {
         public float FillS, DryStillS, BlowRefMs, BlowS, CatchRefMs, SnowMelt, SlideG, SlideAir, LagS, CoverMax, Refraction, SkipBelow, QuadAlpha, SizePx;
+        public float Rim, TrailAlpha;
 
         internal static DropletTuning Defaults()
         {
@@ -37,11 +40,13 @@ namespace ReDefinition.Atmospheres
                 SlideG = 0.045f,
                 SlideAir = 0.55f,
                 LagS = 0.6f,
-                CoverMax = 0.34f,
+                CoverMax = 0.27f,
                 Refraction = 0.9f,
                 SkipBelow = 0.02f,
                 QuadAlpha = 0.55f,
-                SizePx = 7f
+                SizePx = 7f,
+                Rim = 0.45f,
+                TrailAlpha = 0.6f
             };
         }
 
@@ -62,6 +67,8 @@ namespace ReDefinition.Atmospheres
             t.SkipBelow = C(t.SkipBelow, 0f, 0.5f);
             t.QuadAlpha = C(t.QuadAlpha, 0f, 1f);
             t.SizePx = C(t.SizePx, 1f, 40f);
+            t.Rim = C(t.Rim, 0f, 0.9f);
+            t.TrailAlpha = C(t.TrailAlpha, 0f, 1f);
             return t;
         }
 

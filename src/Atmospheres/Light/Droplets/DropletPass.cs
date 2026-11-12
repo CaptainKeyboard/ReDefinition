@@ -35,6 +35,7 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdA = Shader.PropertyToID("_DrpA");
         private static readonly int IdB = Shader.PropertyToID("_DrpB");
         private static readonly int IdC = Shader.PropertyToID("_DrpC");
+        private static readonly int IdD = Shader.PropertyToID("_DrpD");
         private static readonly int IdQuad = Shader.PropertyToID("_DrpQuad");
         private static readonly int IdCopy = Shader.PropertyToID("_DrpCopy");
         private static readonly int IdMask = Shader.PropertyToID("_DrpMask");
@@ -72,8 +73,10 @@ namespace ReDefinition.Atmospheres
             Vector4 a = new Vector4(d.Wet01, d.ClockS, d.Aspect > 0.1f ? d.Aspect : 16f / 9f, d.FlipY ? 1f : 0f);
             Vector4 b = new Vector4(d.Slide.x, d.Slide.y, d.Tuning.Refraction, RadiusOf(ref d.Tuning));
             Vector4 c = new Vector4(d.InteriorMask != null ? 1f : 0f, d.Tuning.QuadAlpha, d.Light, d.Tuning.CoverMax);
+            Vector4 dd = new Vector4(d.Tuning.Rim, d.Tuning.TrailAlpha, 0f, 0f);
             if (onBuffer)
             {
+                cmd.SetGlobalVector(IdD, dd);
                 cmd.SetGlobalVector(IdA, a);
                 cmd.SetGlobalVector(IdB, b);
                 cmd.SetGlobalVector(IdC, c);
@@ -81,6 +84,7 @@ namespace ReDefinition.Atmospheres
             }
             else
             {
+                m.SetVector(IdD, dd);
                 m.SetVector(IdA, a);
                 m.SetVector(IdB, b);
                 m.SetVector(IdC, c);
