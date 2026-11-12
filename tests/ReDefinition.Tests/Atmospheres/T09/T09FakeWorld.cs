@@ -82,11 +82,29 @@ namespace ReDefinition.Tests.Atmospheres.T09
         internal int Body = 1;
         internal string Situation = "FLYING";
 
-        // The flight camera: heading and pitch in radians as FlightCamera keeps them; a stuck camera ignores the probe.
+        // The flight camera: heading and pitch in radians as FlightCamera keeps them (the game clamps the pitch to +-PitchLimitDeg); a stuck camera ignores the probe.
+        // The aim the camera really has follows its commands with a lag (first order, LagS seconds), through the mapping of its mode: FREE is the convention of the
+        // ground views (azimuth = heading - 180, elevation = minus the pitch); AUTO above the atmosphere is ORBITAL, whose axes are rotated against the local horizon by
+        // OrbitalMixDeg and which turns against the horizon by RotationDriftDegPerS (the rotating frame). HeadingSign and PitchSign invert an axis.
         private float hdg, pitch;
+        private double actualAz, actualEl, aimAtRealS = double.NaN;
         internal bool CameraStuck;
         internal double StuckAzimuth = 10.0, StuckElevation = 0.0;
         internal double CameraDistance;
+        internal double LagS = 0.2, PitchLimitDeg = 85.0, OrbitalMixDeg, RotationDriftDegPerS, HeadingSign = 1.0, PitchSign = 1.0;
+        // Whether the game honours the probe's request for the FREE mode; the aim must converge in both cases.
+        internal bool FreeModeWorks = true;
+        internal bool FreeMode;
+        // The pose the vessel really has: its height drifts from the placement on (the hold fails) by the function of the seconds since the placement; the
+        // horizontal distance from the anchor in metres per second; the camera's distance from the vessel as a multiple of the one asked for (a vessel that is a dot).
+        internal Func<double, double> AltitudeDrift = s => 0.0;
+        internal double HorizontalDriftMPerS;
+        internal Func<double, double> CameraDistanceFactor = s => 1.0;
+        // The pose moves when a read starts or ends (the placement is reordered behind the probe's back).
+        internal double AltitudeJumpOnCaptureBegin, AltitudeJumpOnCaptureTake;
+        // The hold's corrections as a real hold reports them.
+        internal int Corrections;
+        internal double WorstDrift;
 
         // The sun's elevation over the vessel: 65 degrees times the sine of the day's phase (a Kerbin day is 6 hours).
         internal Func<double, double> Sun = ut => 65.0 * Math.Sin(2.0 * Math.PI * ut / 21600.0);
@@ -120,8 +138,43 @@ namespace ReDefinition.Tests.Atmospheres.T09
             if (VsyncSticks) Vsync = 1;
             if (Frames > 0 && Module != null && FlightReady) UpdateModule();
             if (Held && FlightReady) { /* the hold keeps the velocity; position is the placement's */ }
+            if (FlightReady) StepCamera(dt);
             Tuning.Instance.BeginFrame(Frames);
         }
+
+        // The aim the commands lead to (degrees), with the mode's frame, and the lag towards it.
+        private void StepCamera(double dt)
+        {
+            double h = hdg * 180.0 / Math.PI, p = pitch * 180.0 / Math.PI;
+            double az = Wrap(h - 180.0) * HeadingSign, el = -p * PitchSign;
+            if (!FreeMode)
+            {
+                // The inertial frame's axes against the local horizon: a rotation of the view direction about the east axis (at the equator the inertial pole is the
+                // local north), then the turn of the frame against the horizon as it goes round the body.
+                double t = (OrbitalMixDeg + RotationDriftDegPerS * Math.Max(0.0, RealS - placedCallS)) * Math.PI / 180.0;
+                double a = az * Math.PI / 180.0, e = el * Math.PI / 180.0;
+                double north = Math.Cos(e) * Math.Cos(a), east = Math.Cos(e) * Math.Sin(a), up = Math.Sin(e);
+                double north2 = north * Math.Cos(t) + up * Math.Sin(t), up2 = -north * Math.Sin(t) + up * Math.Cos(t);
+                az = Math.Atan2(east, north2) * 180.0 / Math.PI;
+                el = Math.Asin(Math.Max(-1.0, Math.Min(1.0, up2))) * 180.0 / Math.PI;
+            }
+            if (double.IsNaN(aimAtRealS))
+            {
+                actualAz = az;
+                actualEl = el;
+            }
+            else
+            {
+                double k = 1.0 - Math.Exp(-dt / Math.Max(1e-6, LagS));
+                actualAz = Wrap(actualAz + k * Wrap(az - actualAz));
+                actualEl += k * (el - actualEl);
+            }
+            aimAtRealS = RealS;
+        }
+
+        // The mode's pose as the probe reads it: the height and the horizontal distance the hold failed to keep, the camera's distance from the vessel.
+        private double SincePlacementS { get { return double.IsInfinity(placeAtS) ? 0.0 : Math.Max(0.0, RealS - placeAtS); } }
+        private double placedCallS, jump;
 
         private void UpdateModule()
         {
@@ -174,9 +227,36 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 RequireFlight();
                 if (RealS >= placeAtS) Altitude = placeTarget;
-                return Altitude;
+                return Altitude + jump + (RealS >= placeAtS && !double.IsInfinity(placeAtS) ? AltitudeDrift(SincePlacementS) : 0.0);
             }
         }
+
+        public T09Pose ReadPose()
+        {
+            RequireFlight();
+            double asl = VesselAltitude;
+            double az, el;
+            CameraAim(out az, out el);
+            double distance = CameraDistance * CameraDistanceFactor(SincePlacementS);
+            double vertical = asl - (placeTarget + 0.0);
+            double horizontal = HorizontalDriftMPerS * SincePlacementS;
+            return new T09Pose
+            {
+                VesselAsl = asl,
+                VesselAgl = asl - Terrain,
+                CameraAsl = asl + distance * Math.Sin(-el * Math.PI / 180.0),
+                CameraAgl = asl + distance * Math.Sin(-el * Math.PI / 180.0) - Terrain,
+                CameraToVesselM = distance,
+                AzimuthDeg = az,
+                ElevationDeg = el,
+                DriftM = Held ? Math.Sqrt(vertical * vertical + horizontal * horizontal) : 0.0
+            };
+        }
+
+        public int HoldCorrections { get { return Corrections; } }
+        public double HoldWorstDriftM { get { return WorstDrift; } }
+        public string CameraModeText { get { return FreeMode ? "FREE" : "AUTO (ORBITAL)"; } }
+        public void UseFreeCamera() { RequireFlight(); if (FreeModeWorks) FreeMode = true; }
 
         public string VesselState { get { RequireFlight(); return "situation " + Situation + ", packed False"; } }
 
@@ -186,6 +266,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             int call = PlaceCalls++;
             placeTarget = PlaceResult(call, altitude);
             placeAtS = RealS + PlaceLagS(call);
+            placedCallS = RealS;
+            jump = 0.0;
         }
 
         public void StartHold() { RequireFlight(); if (!Held) { Held = true; HoldStartedAtS = RealS; } }
@@ -208,13 +290,25 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 elevationDeg = StuckElevation;
                 return;
             }
-            // FlightCamera: camHdg = heading + 180 degrees, camPitch = minus the elevation.
-            azimuthDeg = Wrap(hdg * 180.0 / Math.PI - 180.0);
-            elevationDeg = -pitch * 180.0 / Math.PI;
+            // FlightCamera: camHdg = heading + 180 degrees, camPitch = minus the elevation; the camera lags behind its commands (StepCamera).
+            if (double.IsNaN(aimAtRealS)) StepCamera(0.0);
+            azimuthDeg = actualAz;
+            elevationDeg = actualEl;
         }
 
         public float CameraHeading { get { RequireFlight(); return hdg; } set { RequireFlight(); if (!CameraStuck) hdg = value; } }
-        public float CameraPitch { get { RequireFlight(); return pitch; } set { RequireFlight(); if (!CameraStuck) pitch = value; } }
+
+        public float CameraPitch
+        {
+            get { RequireFlight(); return pitch; }
+            set
+            {
+                RequireFlight();
+                if (CameraStuck) return;
+                double limit = PitchLimitDeg * Math.PI / 180.0;
+                pitch = (float)Math.Max(-limit, Math.Min(limit, value));
+            }
+        }
         public void SetCameraDistance(double distance) { RequireFlight(); CameraDistance = distance; }
 
         public bool CameraPixelSize(out int width, out int height)
@@ -272,6 +366,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             if (readFaultNow == "throw") throw new InvalidOperationException("ReadPixels failed");
             if (readFaultNow == "nobegin") return false;
             Stamp("capbegin");
+            jump += AltitudeJumpOnCaptureBegin;
             readReadyFrame = Frames + 1;
             return true;
         }
@@ -288,6 +383,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public T09Image CaptureTake()
         {
             Stamp("take");
+            jump += AltitudeJumpOnCaptureTake;
             if (readFaultNow == "takethrows") throw new InvalidOperationException("the frame was released");
             if (readFaultNow == "none") return null;
             var image = new T09Image { Width = 16, Height = 9, Pixels = new Color[16 * 9] };

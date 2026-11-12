@@ -754,7 +754,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void AScenarioThatRunsLateStopsThePicturesBeforeTheLimitAndStillPasses()
         {
             // The flight comes 95 s late: the pictures of the last views would push the scenario over its 19 minute limit.
-            Run r = Start(null, x => x.World.FlightReadyAtS = 150.0);
+            // The fake's frames are 0.1 s, so its camera needs a hundred times the real frames to settle after every placement; a quick camera keeps the scenario's
+            // length the one of the real game.
+            Run r = Start(null, x => { x.World.FlightReadyAtS = 150.0; x.World.LagS = 0.03; });
             Drive(r);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             AssertNoUnhandled(r);

@@ -33,6 +33,17 @@ namespace ReDefinition.Atmospheres
         // The sun's elevation over the vessel's horizon in degrees.
         double SunElevationDeg();
 
+        // Where the vessel and the flight camera are now, all in one read (the camera the pass draws into and the picture is read from): used at the
+        // end of every dwell and around every capture, because the placement check alone says only where the vessel stood a few seconds earlier.
+        T09Pose ReadPose();
+        // How often the hold moved the vessel back since the last placement and the largest distance it had drifted (metres).
+        int HoldCorrections { get; }
+        double HoldWorstDriftM { get; }
+        // The flight camera's mode as the game names it (AUTO and the mode it resolves to), and forcing the mode whose heading and pitch are relative to the
+        // local horizon (above the atmosphere AUTO resolves to ORBITAL, whose axes are the inertial frame's).
+        string CameraModeText { get; }
+        void UseFreeCamera();
+
         // The flight camera: compass heading and elevation of its view (0 north, 90 east).
         void CameraAim(out double azimuthDeg, out double elevationDeg);
         float CameraHeading { get; set; }
@@ -74,6 +85,15 @@ namespace ReDefinition.Atmospheres
         void AidOff();
         // Writes the picture as a PNG named name, scaled down by the whole factor; returns the size of the file, throws where it cannot write.
         long SavePicture(string name, T09Image image, int factor);
+    }
+
+    // The pose of the vessel and the flight camera at one moment. Heights are metres over sea level and over the terrain below the point (the ocean counts
+    // as terrain at sea level); the aim is the camera's forward direction against the local north and up at the camera.
+    internal struct T09Pose
+    {
+        internal double VesselAsl, VesselAgl, CameraAsl, CameraAgl, CameraToVesselM, AzimuthDeg, ElevationDeg;
+        // How far the vessel is from the point the hold keeps it at (metres); 0 where no hold has an anchor yet.
+        internal double DriftM;
     }
 
     // A picture the probe read from the flight camera.
@@ -140,6 +160,20 @@ namespace ReDefinition.Atmospheres
             vessel.SetWorldVelocity(body.getRFrmVel(vessel.GetWorldPos3D()));
             CheatOptions.IgnoreMaxTemperature = true;
             CheatOptions.NoCrashDamage = true;
+            // The hold's anchor is the vessel's own position at the next frame (the centre of mass, not the transform the placement set); the hold
+            // statistics start again for this view. No engine may push the vessel out of the pose: start 42's vessel climbed from 4.6 km to 23 km in 25 s.
+            anchorPending = true;
+            corrections = 0;
+            worstDrift = 0.0;
+            try
+            {
+                FlightInputHandler.state.mainThrottle = 0f;
+                foreach (ModuleEngines engine in vessel.FindPartModulesImplementing<ModuleEngines>())
+                {
+                    if (engine.EngineIgnited) engine.Shutdown();
+                }
+            }
+            catch (Exception) { /* a vessel without engines or an input handler that is not there yet: nothing to shut down */ }
         }
 
         public void StartHold()
@@ -156,12 +190,83 @@ namespace ReDefinition.Atmospheres
             holding = false;
         }
 
-        private static void HoldVessel()
+        // The body-fixed point the hold keeps the vessel at (latitude, longitude, altitude of its centre of mass), set at the first frame after a placement.
+        private bool anchorPending, hasAnchor;
+        private double anchorLat, anchorLon, anchorAlt;
+        private int corrections;
+        private double worstDrift;
+        // Metres of drift the hold tolerates before it puts the vessel back; at 90 frames a second a vessel moving at the body's rotation speed (175 m/s) is 2 m a frame.
+        private const double HoldToleranceM = 5.0;
+
+        public int HoldCorrections { get { return corrections; } }
+        public double HoldWorstDriftM { get { return worstDrift; } }
+
+        // Every frame: the velocity of the ground under the vessel, and the vessel back at its anchor when it has moved away. Setting the velocity alone did not hold
+        // the vessel in start 42 (it left the pose within seconds: east at the body's rotation speed at 265 m, then upward at up to 1.6 km/s at 4.6 km, shedding its
+        // stages on the way); the position is what the pictures and the timing depend on, so the hold owns it.
+        private void HoldVessel()
         {
             if (!SeriesProbe.FlightReadyState()) return;
             Vessel v = FlightGlobals.ActiveVessel;
             if (v == null || v.mainBody == null) return;
-            v.SetWorldVelocity(v.mainBody.getRFrmVel(v.GetWorldPos3D()));
+            CelestialBody body = v.mainBody;
+            Vector3d now = v.GetWorldPos3D();
+            if (anchorPending)
+            {
+                body.GetLatLonAlt(now, out anchorLat, out anchorLon, out anchorAlt);
+                anchorPending = false;
+                hasAnchor = true;
+            }
+            if (hasAnchor)
+            {
+                Vector3d target = body.GetWorldSurfacePosition(anchorLat, anchorLon, anchorAlt);
+                double drift = (now - target).magnitude;
+                worstDrift = Math.Max(worstDrift, drift);
+                if (drift > HoldToleranceM)
+                {
+                    v.SetPosition(target);
+                    corrections++;
+                    now = target;
+                }
+            }
+            try { FlightInputHandler.state.mainThrottle = 0f; } catch (Exception) { /* no input handler */ }
+            v.SetWorldVelocity(body.getRFrmVel(now));
+        }
+
+        public T09Pose ReadPose()
+        {
+            Vessel v = FlightGlobals.ActiveVessel;
+            CelestialBody body = v.mainBody;
+            Camera cam = FlightCamera.fetch.mainCamera;
+            var pose = new T09Pose();
+            double lat, lon, alt;
+            Vector3d vesselPos = v.GetWorldPos3D();
+            body.GetLatLonAlt(vesselPos, out lat, out lon, out alt);
+            pose.VesselAsl = alt;
+            pose.VesselAgl = alt - body.TerrainAltitude(lat, lon, true);
+            Vector3d camPos = cam.transform.position;
+            body.GetLatLonAlt(camPos, out lat, out lon, out alt);
+            pose.CameraAsl = alt;
+            pose.CameraAgl = alt - body.TerrainAltitude(lat, lon, true);
+            pose.CameraToVesselM = (camPos - vesselPos).magnitude;
+            CameraAim(out pose.AzimuthDeg, out pose.ElevationDeg);
+            if (hasAnchor && !anchorPending) pose.DriftM = (vesselPos - body.GetWorldSurfacePosition(anchorLat, anchorLon, anchorAlt)).magnitude;
+            return pose;
+        }
+
+        public string CameraModeText
+        {
+            get
+            {
+                FlightCamera fc = FlightCamera.fetch;
+                Vessel v = FlightGlobals.ActiveVessel;
+                return fc.mode == FlightCamera.Modes.AUTO && v != null ? "AUTO (" + FlightCamera.GetAutoModeForVessel(v) + ")" : fc.mode.ToString();
+            }
+        }
+
+        public void UseFreeCamera()
+        {
+            FlightCamera.fetch.mode = FlightCamera.Modes.FREE;
         }
 
         public double SunElevationDeg()

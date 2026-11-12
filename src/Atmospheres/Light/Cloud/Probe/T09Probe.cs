@@ -27,7 +27,12 @@ namespace ReDefinition.Atmospheres
     // Pictures (T09Pictures.cs): after the dwell of each view and variant, in a short extra window after the "T09 view end" line ("T09 capture begin" and
     // "end" lines around it, rows T09.view.<view>.pictures / capture_s / capture_bytes), one natural picture and, for the own pass, one aid picture
     // (the layer shader's optical-depth aid). A fault of the pictures is a named warning ("Probe: warning <name>", row T09.warning.<name>), never a failure.
-    // Not run in the game yet [VERIFY]: placement of the vessel at 300 km (the hold works at the heights of K-W3b).
+    // Pose (start 42 showed that the placement check alone is not enough: the vessel left its pose within seconds, shed its stages, and the pictures showed space
+    // and a dot): the hold (T09World.cs) puts the vessel back at its anchor, the dwell reads the pose every 10 s and at its end (T09.pose_held_<view>_<variant>,
+    // rows T09.view.<view>.hold_corrections / hold_worst_drift_m), and every picture reads it when the capture starts and when it is taken
+    // (T09.pose_picture_<name>, rows T09.pic.<name>.alt_m, alt_agl_m, cam_alt_m, cam_agl_m, elev_deg, heading_deg, cam_dist_m, drift_m); a view or picture whose pose
+    // deviates fails named and the picture is not saved. The camera is forced to FREE before the aim (AUTO is ORBITAL above the atmosphere).
+    // Not run in the game yet [VERIFY]: the hold's position correction (Vessel.SetPosition every few frames) and the FREE mode's aim at 300 km.
     [AtmospheresModule(985)]
     internal sealed class T09Probe : SeriesProbe
     {
@@ -390,7 +395,21 @@ namespace ReDefinition.Atmospheres
             int framesBefore = Game.FrameCount;
             string size = Game.ScreenWidth + "x" + Game.ScreenHeight;
             AtmospheresLog.Say("T09 view begin: " + view.Name + " " + variant + " " + size);
-            yield return ProbeWait.Seconds(seconds);
+            // The dwell in slices: the pose is read at the end of each (the placement check says only where the vessel stood a few seconds before the dwell; in
+            // start 42 it had left the pose within seconds), the first deviation fails the view named and the pictures of it are not taken.
+            viewPoseOk = true;
+            viewWorstDriftM = 0.0;
+            double dwelled = 0.0;
+            while (dwelled < seconds - 1e-9)
+            {
+                double slice = Math.Min(HeldSliceS, seconds - dwelled);
+                yield return ProbeWait.Seconds(slice);
+                dwelled += slice;
+                CheckHeld(view, variant, dwelled);
+            }
+            Emit("T09.view." + view.Name + ".hold_corrections", Game.HoldCorrections);
+            Emit("T09.view." + view.Name + ".hold_worst_drift_m", Math.Max(viewWorstDriftM, Game.HoldWorstDriftM));
+            if (viewPoseOk) Check("T09.pose_held_" + view.Name + "_" + variant, true, "pose kept for " + seconds.ToString("0") + " s, worst drift " + viewWorstDriftM.ToString("0.0") + " m, hold corrections " + Game.HoldCorrections);
             AtmospheresLog.Say("T09 view end: " + view.Name + " " + variant + " " + size);
             int frames = Math.Max(1, Game.FrameCount - framesBefore);
             string prefix = "T09.view." + view.Name + ".";
@@ -427,6 +446,56 @@ namespace ReDefinition.Atmospheres
             if (WeatherHub.Sample(Game.BodyIndex, lat, lon, altitude, Game.UniversalTime, out s)) Emit(prefix + "cover_at_view_height", s.CloudCover01);
         }
 
+        // --- The pose at the end of a dwell and around a capture ---------------------------------------------------------------------------
+
+        private const double HeldSliceS = 10.0, DriftToleranceM = 100.0, DistanceToleranceFraction = 0.25, DistanceToleranceMinM = 10.0, HeadingToleranceDeg = 15.0;
+        private bool viewPoseOk;
+        private double viewWorstDriftM;
+
+        // What deviates from the view's target in this pose (null where nothing does): the vessel's height over sea level against the one asked for, the camera's
+        // elevation and heading, the camera's distance from the vessel (a vessel that is a dot has left the camera: start 42's pictures) and the vessel's distance from
+        // the point the hold keeps it at.
+        private string PoseProblem(View view, T09Pose p)
+        {
+            var problems = new List<string>();
+            double tolerance = Math.Max(AltitudeToleranceM, 0.02 * wantedAltitude);
+            if (Math.Abs(p.VesselAsl - wantedAltitude) > tolerance)
+                problems.Add("altitude " + p.VesselAsl.ToString("0") + " m (" + p.VesselAgl.ToString("0") + " over the terrain) against " + wantedAltitude.ToString("0"));
+            if (Math.Abs(p.ElevationDeg - wantedPitch) > AimToleranceDeg)
+                problems.Add("camera elevation " + p.ElevationDeg.ToString("0.0") + " against " + wantedPitch.ToString("0.0"));
+            if (Math.Abs(wantedPitch) < 80.0 && Math.Abs(WrapDeg(p.AzimuthDeg - view.HeadingDeg)) > HeadingToleranceDeg)
+                problems.Add("camera heading " + p.AzimuthDeg.ToString("0") + " against " + view.HeadingDeg.ToString("0"));
+            double distanceTolerance = Math.Max(DistanceToleranceMinM, DistanceToleranceFraction * view.CameraDistM);
+            if (p.CameraToVesselM > 0.0 && Math.Abs(p.CameraToVesselM - view.CameraDistM) > distanceTolerance)
+                problems.Add("camera " + p.CameraToVesselM.ToString("0") + " m from the vessel against " + view.CameraDistM.ToString("0"));
+            if (p.DriftM > DriftToleranceM) problems.Add("the vessel is " + p.DriftM.ToString("0") + " m from the point it is held at");
+            return problems.Count == 0 ? null : string.Join(", ", problems.ToArray());
+        }
+
+        private void CheckHeld(View view, string variant, double dwelled)
+        {
+            T09Pose p = Game.ReadPose();
+            viewWorstDriftM = Math.Max(viewWorstDriftM, p.DriftM);
+            string problem = PoseProblem(view, p);
+            if (problem == null || !viewPoseOk) return;
+            viewPoseOk = false;
+            Check("T09.pose_held_" + view.Name + "_" + variant, false, problem + " after " + dwelled.ToString("0") + " s of the dwell (the placement was ok; hold corrections " + Game.HoldCorrections
+                  + ", worst drift " + Game.HoldWorstDriftM.ToString("0") + " m, camera mode " + Game.CameraModeText + ")");
+        }
+
+        // The rows of one picture: where the camera and the vessel were when it was read.
+        private void EmitPose(string prefix, T09Pose p)
+        {
+            Emit(prefix + "alt_m", p.VesselAsl);
+            Emit(prefix + "alt_agl_m", p.VesselAgl);
+            Emit(prefix + "cam_alt_m", p.CameraAsl);
+            Emit(prefix + "cam_agl_m", p.CameraAgl);
+            Emit(prefix + "elev_deg", p.ElevationDeg);
+            Emit(prefix + "heading_deg", p.AzimuthDeg);
+            Emit(prefix + "cam_dist_m", p.CameraToVesselM);
+            Emit(prefix + "drift_m", p.DriftM);
+        }
+
         // --- The pictures -----------------------------------------------------------------------------------------------------------------
 
         // Real seconds before the scenario's limit from which no picture is taken (the measurement is what the start is for).
@@ -460,6 +529,11 @@ namespace ReDefinition.Atmospheres
         private IEnumerable<ProbeWait> Pictures(View view, string variant)
         {
             if (picturesStopped) yield break;
+            if (!viewPoseOk)
+            {
+                Warn("pose_mismatch", view.Name + " " + variant + ": the pose left the view during the dwell (T09.pose_held_" + view.Name + "_" + variant + "); no picture of a pose that is not the view's");
+                yield break;
+            }
             if (Elapsed > MaxSeconds - PictureReserveS)
             {
                 picturesStopped = true;
@@ -504,6 +578,10 @@ namespace ReDefinition.Atmospheres
             T09Image image = null;
             string fault = null;
             bool started = false;
+            bool half = !T09Pictures.FullSize(view.Name, variant);
+            string name = T09Pictures.Name(StartId, view.Name, variant, Game.ScreenWidth, Game.ScreenHeight, kind, half);
+            // The pose of the camera the picture is read from (the flight camera the pass and the timing use), at the moment the read starts.
+            T09Pose before = Game.ReadPose();
             try { started = Game.CaptureBegin(); }
             catch (Exception e) { fault = "the read threw " + e.GetType().Name + " " + e.Message; }
             if (started)
@@ -534,9 +612,20 @@ namespace ReDefinition.Atmospheres
             {
                 Warn("aid_equals_natural", what + ": the aid picture equals the natural one (the aid mode did not reach the pass)");
             }
+            // The pose when the read was taken: both ends must be the view's pose, else the picture shows another place than its name says.
+            T09Pose after = Game.ReadPose();
+            string poseRows = "T09.pic." + name + ".";
+            EmitPose(poseRows, before);
+            Emit(poseRows + "drift_after_m", after.DriftM);
+            string poseProblem = PoseProblem(view, before) ?? PoseProblem(view, after);
+            if (poseProblem != null)
+            {
+                Check("T09.pose_picture_" + name, false, poseProblem + " (read starting " + before.VesselAsl.ToString("0") + " m, ending " + after.VesselAsl.ToString("0") + " m)");
+                Warn("pose_mismatch", name + ": " + poseProblem + "; the picture is not saved");
+                NoteFault();
+                yield break;
+            }
             if (!aid) naturalPixels = image.Pixels;
-            bool half = !T09Pictures.FullSize(view.Name, variant);
-            string name = T09Pictures.Name(StartId, view.Name, variant, Game.ScreenWidth, Game.ScreenHeight, kind, half);
             long bytes;
             try { bytes = Game.SavePicture(name, image, half ? 2 : 1); }
             catch (Exception e)
@@ -663,14 +752,16 @@ namespace ReDefinition.Atmospheres
                 if (attempt > 0) yield return ProbeWait.Seconds(PlaceRetryWaitS);
                 foreach (ProbeWait w in Place(lat, lon, view)) yield return w;
                 foreach (ProbeWait w in Aim(view.HeadingDeg, wantedPitch, view.CameraDistM)) yield return w;
-                double vesselAltitude = Game.VesselAltitude;
-                double az, el;
-                Game.CameraAim(out az, out el);
+                T09Pose placed = Game.ReadPose();
+                double vesselAltitude = placed.VesselAsl;
+                double az = placed.AzimuthDeg, el = placed.ElevationDeg;
                 double altitudeError = Math.Abs(vesselAltitude - wantedAltitude), tolerance = Math.Max(AltitudeToleranceM, 0.02 * wantedAltitude);
                 double aimError = Math.Abs(el - wantedPitch), headingError = Math.Abs(WrapDeg(az - view.HeadingDeg));
                 bool altitudeOk = altitudeError <= tolerance, aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
                 detail = "altitude " + vesselAltitude.ToString("0") + " m against " + wantedAltitude.ToString("0") + ", camera elevation " + el.ToString("0.0") + " against "
-                         + wantedPitch.ToString("0.0") + ", heading " + az.ToString("0") + " against " + view.HeadingDeg.ToString("0") + ", " + Game.VesselState;
+                         + wantedPitch.ToString("0.0") + ", heading " + az.ToString("0") + " against " + view.HeadingDeg.ToString("0") + ", " + Game.VesselState
+                         + ", " + placed.VesselAgl.ToString("0") + " m over the terrain, camera " + placed.CameraAsl.ToString("0") + " m (" + placed.CameraAgl.ToString("0") + " over the terrain) "
+                         + placed.CameraToVesselM.ToString("0") + " m from the vessel, mode " + Game.CameraModeText + (aimNote != null && !(altitudeOk && aimOk) ? ", aim: " + aimNote : "");
                 AtmospheresLog.Say("T09 view placed: " + view.Name + " attempt " + (attempt + 1) + " of " + PlaceAttempts + ": " + detail + (altitudeOk && aimOk ? " (ok)" : " (not yet)"));
                 string prefix = "T09.view." + view.Name + ".";
                 Emit(prefix + "altitude_m", vesselAltitude);
@@ -693,10 +784,10 @@ namespace ReDefinition.Atmospheres
             wantedPitch = view.PitchDeg;
             if (double.IsNaN(wantedPitch))
             {
-                // The limb: the horizon lies below the horizontal by acos(R / (R + h)); the camera looks at it.
-                double h = Game.VesselAltitude;
-                double radius = Game.BodyRadius;
-                wantedPitch = -Math.Acos(radius / (radius + Math.Max(0.0, h))) * 180.0 / Math.PI;
+                // The limb: the horizon lies below the horizontal by acos(R / (R + h)); the camera looks at it. On Kerbin (R 600 km) at 300 km that is 48.2 degrees,
+                // not the 17.6 degrees of a planet the size of the Earth. The height is the one asked for, not a read of the vessel: a vessel that drifts must not
+                // move the target with it.
+                wantedPitch = -HorizonDipDeg(Game.BodyRadius, wantedAltitude);
             }
             yield return ProbeWait.Frames(12);
         }
@@ -708,34 +799,160 @@ namespace ReDefinition.Atmospheres
             return d;
         }
 
-        // Turns the flight camera to the compass heading and elevation: it orbits the vessel and looks at it, so the vessel sits at the centre of the
-        // picture. The camera's real aim is read back and corrected; the sign of each correction is learnt from whether the error shrank.
+        // The angle below the horizontal at which the horizon lies for an eye at the height over a body of the radius (degrees, positive).
+        internal static double HorizonDipDeg(double radius, double heightM)
+        {
+            return Math.Acos(radius / (radius + Math.Max(0.0, heightM))) * 180.0 / Math.PI;
+        }
+
+        // The aim of the last Aim call: the rounds it needed and, where it did not converge, why (named in the placement line and the failure).
+        private int aimRounds;
+        private string aimNote;
+        private const int MaxAimRounds = 8, SettleMaxSteps = 40;
+        private const double SettleStillDeg = 0.05, MaxAimStepDeg = 60.0;
+
+        // Frames until the flight camera's aim has stopped moving (two reads two frames apart agree within SettleStillDeg), at most SettleMaxSteps x 2 frames. The
+        // camera follows its heading and pitch with a lag, so an aim read right after a command is the old one; correcting from it winds up (start 42: elevations of
+        // -86, -82, -81 and -75 degrees against -48.2 in four attempts).
+        private IEnumerable<ProbeWait> SettleAim()
+        {
+            double az, el;
+            Game.CameraAim(out az, out el);
+            for (int i = 0; i < SettleMaxSteps; i++)
+            {
+                yield return ProbeWait.Frames(2);
+                double az2, el2;
+                Game.CameraAim(out az2, out el2);
+                bool still = Math.Abs(WrapDeg(az2 - az)) < SettleStillDeg && Math.Abs(el2 - el) < SettleStillDeg;
+                az = az2;
+                el = el2;
+                if (still) yield break;
+            }
+        }
+
+        // The loop aims for AimGoalDeg (a camera that turns against the horizon by 0.0167 degrees a second in the orbital frame moves half a degree in a dwell); it
+        // only reports a note where the error stays above half the tolerance.
+        private const double CalibrationStepDeg = 15.0, AimGoalDeg = 0.75;
+        // The result of Move: the aim after the settle and the move the game stored (it clamps the pitch).
+        private double moveAz, moveEl, madeH, madeP;
+
+        private IEnumerable<ProbeWait> Move(double headingStepDeg, double pitchStepDeg)
+        {
+            double oldH = Game.CameraHeading * 180.0 / Math.PI, oldP = Game.CameraPitch * 180.0 / Math.PI;
+            Command(oldH + headingStepDeg, oldP + pitchStepDeg);
+            foreach (ProbeWait w in SettleAim()) yield return w;
+            Game.CameraAim(out moveAz, out moveEl);
+            madeH = WrapDeg(Game.CameraHeading * 180.0 / Math.PI - oldH);
+            madeP = Game.CameraPitch * 180.0 / Math.PI - oldP;
+        }
+
+        private void Command(double headingDeg, double pitchDeg)
+        {
+            Game.CameraHeading = (float)(headingDeg * Math.PI / 180.0);
+            Game.CameraPitch = (float)(pitchDeg * Math.PI / 180.0);
+        }
+
+        // Turns the flight camera to the compass heading and elevation: it orbits the vessel and looks at it, so the vessel sits at the centre of the picture.
+        // The camera is forced to FREE (above the atmosphere AUTO resolves to ORBITAL, whose heading axis is the inertial pole: at the equator a change of heading
+        // moves the elevation, and the per-axis loop that learnt one sign per axis could not converge). The aim is then solved as two equations in two unknowns:
+        // the response of the measured (azimuth, elevation) to the commanded (heading, pitch) is a 2 x 2 matrix, started from the convention of the ground views (the
+        // camera at heading + 180 degrees, pitch minus the elevation) and corrected after every settled move (Broyden), so an inverted sign, swapped or mixed axes and a
+        // lagging camera all converge, and a camera that does not respond is named. aimRounds and aimNote say what happened.
         private IEnumerable<ProbeWait> Aim(double azimuthDeg, double elevationDeg, double distance)
         {
+            aimRounds = 0;
+            aimNote = null;
             Game.SetCameraDistance(distance);
-            // A camera below the vessel (a negative camPitch) looks up.
-            Game.CameraPitch = -(float)(elevationDeg * Math.PI / 180.0);
-            Game.CameraHeading = (float)(WrapDeg(azimuthDeg + 180.0) * Math.PI / 180.0);
-            float signH = 1f, signP = 1f;
-            double lastEz = double.NaN, lastEe = double.NaN;
-            for (int i = 0; i < 12; i++)
+            Game.UseFreeCamera();
+            double h = WrapDeg(azimuthDeg + 180.0), p = -elevationDeg;
+            Command(h, p);
+            foreach (ProbeWait w in SettleAim()) yield return w;
+            double az, el;
+            Game.CameraAim(out az, out el);
+            double j11 = 1.0, j12 = 0.0, j21 = 0.0, j22 = -1.0;
+            // Within the placement tolerance the convention is right (a small error is a lag or a limit): no calibration.
+            bool inTolerance = Math.Abs(WrapDeg(azimuthDeg - az)) < AimToleranceDeg && Math.Abs(elevationDeg - el) < AimToleranceDeg;
+            if (!inTolerance)
             {
-                yield return ProbeWait.Frames(3);
-                double az, el;
-                Game.CameraAim(out az, out el);
-                double ez = WrapDeg(azimuthDeg - az), ee = elevationDeg - el;
-                if (Math.Abs(ez) < AimToleranceDeg / 2.0 && Math.Abs(ee) < AimToleranceDeg / 2.0) break;
-                if (!double.IsNaN(lastEz))
+                // The convention of the ground views did not give the aim: measure the response with one move of each axis before solving (an inverted or mixed axis
+                // cannot be learnt from one rank-1 update; 4 rounds were not enough in the fake).
+                double az0 = az, el0 = el;
+                foreach (ProbeWait w in Move(CalibrationStepDeg, 0.0)) yield return w;
+                if (Math.Abs(madeH) < 0.5 * CalibrationStepDeg)
                 {
-                    if (Math.Abs(ez) > Math.Abs(lastEz) + 0.5) signH = -signH;
-                    if (Math.Abs(ee) > Math.Abs(lastEe) + 0.5) signP = -signP;
+                    aimNote = "the game did not take the heading command (heading stayed, aim " + moveAz.ToString("0.0") + "/" + moveEl.ToString("0.0") + ")";
+                    yield break;
                 }
-                lastEz = ez;
-                lastEe = ee;
-                Game.CameraHeading += signH * (float)(ez * Math.PI / 180.0);
-                Game.CameraPitch -= signP * (float)(ee * Math.PI / 180.0);
+                j11 = WrapDeg(moveAz - az0) / madeH;
+                j21 = (moveEl - el0) / madeH;
+                double az1 = moveAz, el1 = moveEl;
+                foreach (ProbeWait w in Move(0.0, CalibrationStepDeg)) yield return w;
+                if (Math.Abs(madeP) < 0.5 * CalibrationStepDeg)
+                {
+                    // At the pitch limit: the other way.
+                    az1 = moveAz;
+                    el1 = moveEl;
+                    foreach (ProbeWait w in Move(0.0, -CalibrationStepDeg)) yield return w;
+                }
+                if (Math.Abs(madeP) >= 0.5 * CalibrationStepDeg)
+                {
+                    j12 = WrapDeg(moveAz - az1) / madeP;
+                    j22 = (moveEl - el1) / madeP;
+                }
+                az = moveAz;
+                el = moveEl;
             }
-            yield return ProbeWait.Frames(3);
+            for (int round = 0; round < MaxAimRounds; round++)
+            {
+                bool useAz = Math.Abs(elevationDeg) < 80.0;
+                double ez = useAz ? WrapDeg(azimuthDeg - az) : 0.0, ee = elevationDeg - el;
+                if (Math.Abs(ez) < AimGoalDeg && Math.Abs(ee) < AimGoalDeg) break;
+                double det = j11 * j22 - j12 * j21;
+                if (Math.Abs(det) < 0.05)
+                {
+                    aimNote = "the camera's aim does not respond to heading and pitch (response matrix determinant " + det.ToString("0.000") + " after " + aimRounds + " rounds, aim "
+                              + az.ToString("0.0") + "/" + el.ToString("0.0") + ")";
+                    yield break;
+                }
+                double dh = (ez * j22 - j12 * ee) / det, dp = (j11 * ee - j21 * ez) / det;
+                double big = Math.Max(Math.Abs(dh), Math.Abs(dp));
+                if (big > MaxAimStepDeg)
+                {
+                    dh *= MaxAimStepDeg / big;
+                    dp *= MaxAimStepDeg / big;
+                }
+                aimRounds++;
+                foreach (ProbeWait w in Move(dh, dp)) yield return w;
+                double az2 = moveAz, el2 = moveEl;
+                // What the game stored (it clamps the pitch) is the move that was made.
+                double n = madeH * madeH + madeP * madeP;
+                if (n > 1e-9)
+                {
+                    // Broyden's rank-one update, only where the move answered unlike the model (a lagging, drifting camera answers within noise and must not spoil it).
+                    double r2 = (el2 - el) - (j21 * madeH + j22 * madeP);
+                    double r1 = useAz && Math.Abs(el2) < 80.0 ? WrapDeg(az2 - az) - (j11 * madeH + j12 * madeP) : 0.0;
+                    double predicted = Math.Sqrt(Math.Pow(j11 * madeH + j12 * madeP, 2) + Math.Pow(j21 * madeH + j22 * madeP, 2));
+                    if (Math.Sqrt(r1 * r1 + r2 * r2) > 0.2 * predicted + 0.5)
+                    {
+                        j21 += r2 * madeH / n;
+                        j22 += r2 * madeP / n;
+                        j11 += r1 * madeH / n;
+                        j12 += r1 * madeP / n;
+                    }
+                }
+                else
+                {
+                    aimNote = "the game did not take the command (heading and pitch stayed, aim " + az2.ToString("0.0") + "/" + el2.ToString("0.0") + ")";
+                    yield break;
+                }
+                az = az2;
+                el = el2;
+            }
+            double finalEz = Math.Abs(elevationDeg) < 80.0 ? Math.Abs(WrapDeg(azimuthDeg - az)) : 0.0, finalEe = Math.Abs(elevationDeg - el);
+            if (finalEz >= AimToleranceDeg / 2.0 || finalEe >= AimToleranceDeg / 2.0)
+            {
+                aimNote = "after " + aimRounds + " rounds the aim is " + az.ToString("0.0") + "/" + el.ToString("0.0") + " against " + azimuthDeg.ToString("0.0") + "/" + elevationDeg.ToString("0.0");
+            }
         }
 
         // --- The gains --------------------------------------------------------------------------------------------------------------------
