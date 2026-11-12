@@ -117,6 +117,9 @@ namespace ReDefinition.Atmospheres
         // The layer stack that stands (null while the pass is off): the CPU consumers read it.
         internal ICloudLayerSource Stack { get { return stack; } }
         internal LayerRenderer Renderer { get { return renderer; } }
+        // The camera and the event the pass's buffers stand on (the K-T2d probe logs them; null / BeforeForwardAlpha before the first frame).
+        internal Camera AttachedCamera { get { return attachedCamera; } }
+        internal CameraEvent AttachedEvent { get { return attachedEvent; } }
         internal LayerReconstructDriver Driver { get { return driver; } }
         internal LayerFrame Frame { get { return frame; } }
 

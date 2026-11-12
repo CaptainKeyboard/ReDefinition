@@ -15,6 +15,9 @@ namespace ReDefinition.Atmospheres
         // The largest channel value of the frame, linear: a region near 1 in an 8-bit target is saturated.
         internal float Peak;
 
+        // The values as the target held them, before the gamma-to-linear step of Pixels (set only while ReconHost.KeepRaw is on; else null).
+        internal Color[] Raw;
+
         // The pixels of a rectangle given as fractions of the frame (centre x, centre y, width, height; y up), as a list of luminances.
         internal List<float> Lumas(double cx, double cy, double w, double h)
         {
@@ -90,6 +93,9 @@ namespace ReDefinition.Atmospheres
         // the disc on and off, so the target did not follow the scene; the liveness step in AtmoRecon decides.
         internal bool UseScreen;
 
+        // Keep a copy of the values as the target held them (ReconFrame.Raw) next to the converted Pixels: the numeric readouts of series K-T2d compare units.
+        internal bool KeepRaw;
+
         // Called every frame before the cameras cull; fixtures rebuild their meshes here.
         internal readonly List<Action> PerFrame = new List<Action>();
 
@@ -153,6 +159,7 @@ namespace ReDefinition.Atmospheres
                 }
                 // Not clamped: a target in a float format can hold more than 1, and a clamp would hide a saturated region.
                 float peak = 0f;
+                Color[] raw = KeepRaw ? (Color[])pixels.Clone() : null;
                 for (int i = 0; i < pixels.Length; i++)
                 {
                     pixels[i].r = Mathf.GammaToLinearSpace(Mathf.Max(0f, pixels[i].r));
@@ -160,7 +167,7 @@ namespace ReDefinition.Atmospheres
                     pixels[i].b = Mathf.GammaToLinearSpace(Mathf.Max(0f, pixels[i].b));
                     peak = Mathf.Max(peak, Mathf.Max(pixels[i].r, Mathf.Max(pixels[i].g, pixels[i].b)));
                 }
-                Frame = new ReconFrame { Width = width, Height = height, Pixels = pixels, Peak = peak };
+                Frame = new ReconFrame { Width = width, Height = height, Pixels = pixels, Peak = peak, Raw = raw };
             }
             catch (Exception e)
             {

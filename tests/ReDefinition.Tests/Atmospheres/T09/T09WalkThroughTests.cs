@@ -83,7 +83,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return h == 2 || h == 5 ? 0.2f : 0.8f;
         }
 
-        private Run Start(string[] variants, Action<Run> tweak = null, string width = "1707", string startId = "own1707")
+        private Run Start(string[] variants, Action<Run> tweak = null, string width = "1707", string startId = "own1707", string series = "K-T2")
         {
             var r = new Run();
             r.World = new FakeWorld();
@@ -104,7 +104,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             var module = new OwnCloudModule();
             module.Init();
             r.World.Module = module;
-            var args = new List<string> { "KSP_x64.exe", "-atmoSeries", "K-T2", "-atmoStart", startId, "-screen-width", width, "-screen-height", "960", "-atmoProbe", "T09Probe" };
+            var args = new List<string> { "KSP_x64.exe", "-atmoSeries", series, "-atmoStart", startId, "-screen-width", width, "-screen-height", "960", "-atmoProbe", "T09Probe" };
             if (variants != null)
             {
                 args.Add("-atmoVariants");

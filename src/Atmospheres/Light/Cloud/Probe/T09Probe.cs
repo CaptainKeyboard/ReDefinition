@@ -34,7 +34,9 @@ namespace ReDefinition.Atmospheres
     // deviates fails named and the picture is not saved. The camera is forced to FREE before the aim (AUTO is ORBITAL above the atmosphere).
     // Not run in the game yet [VERIFY]: the hold's position correction (Vessel.SetPosition every few frames) and the FREE mode's aim at 300 km.
     [AtmospheresModule(985)]
-    internal sealed class T09Probe : SeriesProbe
+    // Series K-T2d (T09ProbeDiag.cs, the same class): the diagnosis of the black own clouds of start 42, one start of the variant plain with numeric readouts; the game's
+    // command line (-atmoSeries K-T2d) picks it, -atmoProbe names this class in both series.
+    internal sealed partial class T09Probe : SeriesProbe
     {
         internal const string Series = "K-T2";
         private const double DwellS = 30.0, InsideDwellS = 25.0, CandidateStepS = 3600.0, BaseStepS = 3600.0;
@@ -73,17 +75,17 @@ namespace ReDefinition.Atmospheres
 
         protected override string SeriesName
         {
-            get { return Series; }
+            get { return IsDiag ? DiagSeries : Series; }
         }
 
         protected override double MaxSeconds
         {
-            get { return 19 * 60; }
+            get { return IsDiag ? DiagMaxSeconds : 19 * 60; }
         }
 
         protected override IList<string> DefaultVariants
         {
-            get { return new[] { "off", "plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache", "gain" }; }
+            get { return IsDiag ? new[] { "plain" } : new[] { "off", "plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache", "gain" }; }
         }
 
         // --- Variants ---------------------------------------------------------------------------------------------------------------------
@@ -226,6 +228,16 @@ namespace ReDefinition.Atmospheres
 
         protected override IEnumerator<ProbeWait> Scenario()
         {
+            return IsDiag ? DiagScenario() : StandardScenario();
+        }
+
+        // False after a Prelude that ended the scenario (no atmosphere, a window of another size): the scenario returns without more.
+        private bool preludeOk;
+
+        // The steps both series start with: the flight scene, the atmosphere, the window, no sync and no cap, the product switches.
+        private IEnumerable<ProbeWait> Prelude()
+        {
+            preludeOk = false;
             // The scene first: outside the flight the active vessel dereferences an object that does not exist (the first K-T2 start failed so in the
             // main menu). The game is read through Game (T09World.cs), whose members assume the flight; this wait is the guard.
             yield return ProbeWait.Until(() =>
@@ -261,6 +273,13 @@ namespace ReDefinition.Atmospheres
             // The product switches the chain needs, whatever the player's settings say (weatherEffects is off by default: the generator's field is then
             // never installed and the clock step waits for a NullField, start 41).
             ApplyProductSwitches();
+            preludeOk = true;
+        }
+
+        private IEnumerator<ProbeWait> StandardScenario()
+        {
+            foreach (ProbeWait w in Prelude()) yield return w;
+            if (!preludeOk) yield break;
 
             double siteLat = Game.VesselLatitude, siteLon = Game.VesselLongitude;
             foreach (ProbeWait w in ChooseUt(Game.BodyIndex, siteLat, siteLon)) yield return w;

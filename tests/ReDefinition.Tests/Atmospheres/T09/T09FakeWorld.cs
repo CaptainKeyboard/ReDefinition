@@ -386,6 +386,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             jump += AltitudeJumpOnCaptureTake;
             if (readFaultNow == "takethrows") throw new InvalidOperationException("the frame was released");
             if (readFaultNow == "none") return null;
+            if (KeepRaw) return RawImage();
             var image = new T09Image { Width = 16, Height = 9, Pixels = new Color[16 * 9] };
             for (int i = 0; i < image.Pixels.Length; i++)
             {
@@ -393,6 +394,82 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 image.Pixels[i] = AidIsOn && !AidIgnored ? new Color(v, 0.2f, 1f - v, 1f) : new Color(v, v, v, 1f);
             }
             return image;
+        }
+
+        // --- K-T2d ------------------------------------------------------------------------------------------------------------------
+
+        public bool KeepRaw { get; set; }
+        // A probe that misreads the field of view puts the horizon far off the picture (EmptyHorizon): its regions come out empty while the picture itself stays right.
+        public double CameraFovDeg { get { return EmptyHorizon ? 2.0 : FovDeg; } }
+        internal double FovDeg = 60.0;
+        internal int LayerMaskNow;
+        internal int AidModeNow;
+        // The picture of the sky: the sun-lit sea below the horizon, the blue sky above it; the own pass, when it draws all layers, replaces the sky by a deck of
+        // DeckRadiance times the sun gain (clipped at ClipAt) where DeckCovers says so (by the picture's column). A model of the real thing with the numbers the test chooses.
+        internal float SkyLuma = 0.5f, SeaLuma = 0.7f, DeckRadiance = 0.075f, ClipAt = 1f;
+        internal Func<int, int, bool> DeckCovers = (x, y) => true;
+        // The state the picture shows (a test can tamper with it): the deck is drawn when the pass is on, draws every layer and the aid is off.
+        internal bool NoRawPixels, EmptyHorizon;
+        internal int RawWidth = 64, RawHeight = 36;
+        internal readonly List<string> EnvironmentRequests = new List<string>();
+        internal bool EnvironmentThrows;
+
+        public void SetLayerMask(int mask)
+        {
+            LayerMaskNow = mask;
+            if (Module != null) Module.Frame.LayerMask = mask;
+        }
+
+        public bool AidOn(int mode)
+        {
+            RequireFlight();
+            if (!AidAvailable) return false;
+            AidIsOn = true;
+            AidModeNow = mode;
+            Stamp("aidon" + mode);
+            return true;
+        }
+
+        public IList<KeyValuePair<string, string>> EnvironmentLines()
+        {
+            RequireFlight();
+            EnvironmentRequests.Add(Frames + "@" + RealS.ToString("0.0"));
+            if (EnvironmentThrows) throw new InvalidOperationException("no light");
+            return new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>("sunLight", "Sun: intensity 1.2"),
+                new KeyValuePair<string, string>("colourSpace", "active Gamma")
+            };
+        }
+
+        private T09Image RawImage()
+        {
+            int w = RawWidth, h = RawHeight;
+            double elevation, azimuth;
+            CameraAim(out azimuth, out elevation);
+            // Independent of T09Readout: the horizon's angle below the horizontal, then its row by the pinhole model.
+            double cameraHeight = VesselAltitude;
+            double dip = Math.Acos(Radius / (Radius + Math.Max(0.0, cameraHeight)));
+            double angleFromAxis = -dip - elevation * Math.PI / 180.0;
+            double horizonV = 0.5 + Math.Tan(angleFromAxis) / (2.0 * Math.Tan(FovDeg * Math.PI / 360.0));
+            float gain = Tuning.Get(OwnCloudModule.TuneSunGain, 1f);
+            bool deck = Module != null && Module.Stats.Mode != "off" && LayerMaskNow == 0 && !AidIsOn;
+            bool aid = AidIsOn && !AidIgnored && AidModeNow == 4;
+            var raw = new Color[w * h];
+            for (int y = 0; y < h; y++)
+            {
+                double v = (y + 0.5) / h;
+                for (int x = 0; x < w; x++)
+                {
+                    float l = v > horizonV ? SkyLuma : SeaLuma;
+                    Color c = new Color(l, l, l, 1f);
+                    bool covered = DeckCovers(x, y);
+                    if (deck && covered) c = new Color(Math.Min(ClipAt, DeckRadiance * gain), Math.Min(ClipAt, DeckRadiance * gain), Math.Min(ClipAt, DeckRadiance * gain), 1f);
+                    if (aid && covered && Module != null && Module.Stats.Mode != "off" && LayerMaskNow == 0) c = new Color(0.3f, 0.5f, 0.1f, 1f);
+                    raw[y * w + x] = c;
+                }
+            }
+            return new T09Image { Width = w, Height = h, Pixels = NoRawPixels ? new Color[w * h] : (Color[])raw.Clone(), Raw = NoRawPixels ? null : raw };
         }
 
         public bool AidOn()

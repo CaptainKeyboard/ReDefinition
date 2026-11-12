@@ -83,6 +83,14 @@ namespace ReDefinition.Atmospheres
         // Switches the aid view of the own pass on (the layer shader's optical-depth picture over the scene); false where the pass has none.
         bool AidOn();
         void AidOff();
+        // K-T2d: the aid picture of a given mode (4: the direct light against the ambient, the light taps), the vertical field of view of the flight camera (degrees),
+        // the raw copy of the next read (T09Image.Raw: the values as the target held them), and the log lines about the light and the target (key, text).
+        bool AidOn(int mode);
+        double CameraFovDeg { get; }
+        // Which layers the pass draws (bit i = layer i; 0 = all): a mask that names no layer gives the baseline frame with the pass still running.
+        void SetLayerMask(int mask);
+        bool KeepRaw { get; set; }
+        System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> EnvironmentLines();
         // Writes the picture as a PNG named name, scaled down by the whole factor; returns the size of the file, throws where it cannot write.
         long SavePicture(string name, T09Image image, int factor);
     }
@@ -101,6 +109,8 @@ namespace ReDefinition.Atmospheres
     {
         internal int Width, Height;
         internal Color[] Pixels;
+        // The values as the camera target held them (no gamma step), where the read asked for them (IT09World.KeepRaw); else null.
+        internal Color[] Raw;
     }
 
     // The game's own world: the calls T09Probe made directly before the seam.
@@ -396,6 +406,7 @@ namespace ReDefinition.Atmospheres
         {
             ReconHost host = ReconHost.Get();
             if (host.Reading) return false;
+            host.KeepRaw = KeepRaw;
             host.Read();
             return true;
         }
@@ -405,7 +416,30 @@ namespace ReDefinition.Atmospheres
         public T09Image CaptureTake()
         {
             ReconFrame f = ReconHost.Get().Frame;
-            return f == null ? null : new T09Image { Width = f.Width, Height = f.Height, Pixels = f.Pixels };
+            return f == null ? null : new T09Image { Width = f.Width, Height = f.Height, Pixels = f.Pixels, Raw = f.Raw };
+        }
+
+        public bool KeepRaw { get; set; }
+
+        public void SetLayerMask(int mask)
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            if (m != null) m.Frame.LayerMask = mask;
+        }
+
+        public double CameraFovDeg { get { return FlightCamera.fetch.mainCamera.fieldOfView; } }
+
+        public System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> EnvironmentLines()
+        {
+            return T09Environment.Read();
+        }
+
+        public bool AidOn(int mode)
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            if (m == null || m.Renderer == null || !m.Renderer.Ready || m.Stats.Mode == "off") return false;
+            m.Frame.AidMode = mode;
+            return true;
         }
 
         // The layer shader's aid picture 1 (optical depth as a heat map over the scene); the module fills the frame's other fields every frame but not this one.
