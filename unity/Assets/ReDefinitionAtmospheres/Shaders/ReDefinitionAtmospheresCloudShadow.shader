@@ -9,8 +9,7 @@
 // Credit: the passes, their order and the depth-aware upsample are adapted from the shaders of EnvironmentalVisualEnhancements (EVE Redux,
 // MIT): Assets/Shaders/DepthDownscaling/DownscaleDepth.shader, FindNearestDepth.cginc and BlendScreenSpaceShadows.shader (the downscale of the
 // depth to half size keeping the farthest value, the nearest-depth choice of the low-resolution texel, the multiply into the sun mask in pass
-// 2 and into the colour in pass 3, sky pixels 1, and the world position from the depth along the pixel's ray). The density, the shells, the
-// sun disc and the darkness law are the own system's. Technique: Hillaire, "Physically Based Sky, Atmosphere and Cloud Rendering in
+// 2 and into the colour in pass 3, sky pixels 1, and the world position from the depth along the pixel's ray). Technique: Hillaire, "Physically Based Sky, Atmosphere and Cloud Rendering in
 // Frostbite", 2016, section 5.9 (the cloud shadow as the transmittance along the sun, read by every surface).
 //
 // Passes: 0 downscale the depth (farthest of the block), 1 the shadow at half size (R8), 2 multiply into the sun's shadow mask, 3 multiply into
@@ -41,6 +40,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         UNITY_DECLARE_TEX2DARRAY(_CsCovMaps);
         UNITY_DECLARE_TEX2DARRAY(_CsTypeMaps);
         float4 _CsMapDim;
+        float _CsDebug;
 
         Texture2D _CameraDepthTexture;
         float4 _CameraDepthTexture_TexelSize;
@@ -277,10 +277,10 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float4 frag(v2f i) : SV_Target
             {
                 float2 inv = 1.0.xx / max(1.0.xx, _ScreenParams.xy);
-                int2 a = (i.uv - 0.5 * inv) * _CsDepthSource_TexelSize.zw;
-                int2 b = (i.uv + 0.5 * inv) * _CsDepthSource_TexelSize.zw;
-                a = clamp(a, 0, _CsDepthSource_TexelSize.zw);
-                b = clamp(b, 0, _CsDepthSource_TexelSize.zw);
+                int2 a = (i.uv - 0.5 * inv) * _CameraDepthTexture_TexelSize.zw;
+                int2 b = (i.uv + 0.5 * inv) * _CameraDepthTexture_TexelSize.zw;
+                a = clamp(a, 0, _CameraDepthTexture_TexelSize.zw);
+                b = clamp(b, 0, _CameraDepthTexture_TexelSize.zw);
 #if defined(UNITY_REVERSED_Z)
                 float result = 1.0;
 #else
@@ -289,7 +289,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 for (int y = a.y; y < b.y; y++)
                     for (int x = a.x; x < b.x; x++)
                     {
-                        float d = _CsDepthSource.Load(int3(x, y, 0)).r;
+                        float d = _CameraDepthTexture.Load(int3(x, y, 0)).r;
 #if defined(UNITY_REVERSED_Z)
                         result = min(result, d);
 #else
@@ -313,10 +313,10 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 float raw = tex2Dlod(_CsDepthHalf, float4(i.uv, 0, 0)).r;
                 if (IsSky(raw)) return 1.0;
                 float3 world = WorldPosFromDepth(i.uv, raw);
-                // A point 5 cm above the surface, so that a ray from the ground does not start inside it.
+                // A point half a metre above the surface, so that a ray from the ground does not start inside it (a float at 6e5 m steps by 6 cm).
                 float3 pc = (world - _CsPlanet.xyz) * _CsSun.w;
                 float3 up = normalize(pc);
-                return SunFactor(pc + up * 0.05, _CsPlanet.w * _CsSun.w);
+                return SunFactor(pc + up * 0.5, _CsPlanet.w * _CsSun.w);
             }
             ENDCG
         }
@@ -351,6 +351,13 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float4 frag(v2f i) : SV_Target
             {
                 float raw = _CameraDepthTexture.SampleLevel(cs_point_clamp_sampler, i.uv, 0).r;
+                // Diagnostic outputs of the probe (the scene sets _CsDebug; 0 is the product): 1 a constant, 2 the camera's depth, 3 the
+                // downscaled depth, 4 the height of the reconstructed point, 5 the half-size shadow without the depth-aware choice.
+                if (_CsDebug == 1) return 0.5;
+                if (_CsDebug == 2) return saturate(Linear01Depth(raw) * 20.0);
+                if (_CsDebug == 3) return saturate(Linear01Depth(tex2Dlod(_CsDepthHalf, float4(i.uv, 0, 0)).r) * 20.0);
+                if (_CsDebug == 4) return saturate(WorldPosFromDepth(i.uv, raw).y / 3000.0 + 0.5);
+                if (_CsDebug == 5) return tex2Dlod(_CsShadowHalf, float4(i.uv, 0, 0)).r;
                 if (IsSky(raw)) return 1.0;
                 float2 nearestUv = FindNearestDepthUV(i.uv, raw);
                 float s = tex2Dlod(_CsShadowHalf, float4(nearestUv, 0, 0)).r;
@@ -382,6 +389,41 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 if (!IsSky(raw) && length(WorldPosFromDepth(i.uv, raw) - _WorldSpaceCameraPos) < t0 * 0.99) return 1.0;
                 float3 pc = (o + d * t0) * _CsSun.w;
                 return SunFactor(pc, _CsPlanet.w * _CsSun.w).xxxx;
+            }
+            ENDCG
+        }
+
+        Pass // 5: the same as pass 0 for the ocean's depth texture (_CsDepthSource, set by the ocean buffer). Last, so that the pass numbers of
+             // the renderer (CloudShadowRenderer.Pass*) are the file order.
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 4.0
+
+            float4 frag(v2f i) : SV_Target
+            {
+                float2 inv = 1.0.xx / max(1.0.xx, _ScreenParams.xy);
+                int2 a = (i.uv - 0.5 * inv) * _CsDepthSource_TexelSize.zw;
+                int2 b = (i.uv + 0.5 * inv) * _CsDepthSource_TexelSize.zw;
+                a = clamp(a, 0, _CsDepthSource_TexelSize.zw);
+                b = clamp(b, 0, _CsDepthSource_TexelSize.zw);
+#if defined(UNITY_REVERSED_Z)
+                float result = 1.0;
+#else
+                float result = 0.0;
+#endif
+                for (int y = a.y; y < b.y; y++)
+                    for (int x = a.x; x < b.x; x++)
+                    {
+                        float d = _CsDepthSource.Load(int3(x, y, 0)).r;
+#if defined(UNITY_REVERSED_Z)
+                        result = min(result, d);
+#else
+                        result = max(result, d);
+#endif
+                    }
+                return result;
             }
             ENDCG
         }

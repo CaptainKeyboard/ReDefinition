@@ -20,6 +20,8 @@ namespace ReDefinition.Atmospheres
         // light that always remains (0: the pure Beer-Lambert shadow).
         public int StepsPerSpan = 8, DiscTaps = 4;
         public float Floor;
+        // A diagnostic output of the forward pass for the probe (0: the shadow); see the shader's pass 3.
+        public int Debug;
     }
 
     // The cloud shadow's drawing (package T04): the material, the type table and map textures it reads, and the command buffers that build the
@@ -30,11 +32,10 @@ namespace ReDefinition.Atmospheres
     // mask at LightEvent.AfterScreenspaceMask, the camera buffer at CameraEvent.AfterForwardOpaque for forward rendering, and the ocean
     // variant that Scatterer asks for) is adapted from EnvironmentalVisualEnhancements (EVE Redux, MIT):
     // Atmosphere/RaymarchedClouds/LightVolume/ScreenSpaceShadowsManager.cs, classes ScreenSpaceShadowsManager and ScreenSpaceShadowsRenderer.
-    // Not adapted: the carrier object, the reflection-probe tweak and the registration of materials; the shadow itself is the own layers'.
     internal sealed class CloudShadowRenderer
     {
         internal const string ShaderName = "ReDefinition/AtmospheresCloudShadow";
-        internal const int PassDownscale = 0, PassShadow = 1, PassMask = 2, PassColour = 3, PassDisc = 4;
+        internal const int PassDownscale = 0, PassShadow = 1, PassMask = 2, PassColour = 3, PassDisc = 4, PassDownscaleSource = 5;
 
         internal static readonly string TextureNameShadows = "ReDefinitionCloudShadows";
         internal static readonly string TextureNameDepth = "ReDefinitionCloudShadowsDepth";
@@ -58,6 +59,14 @@ namespace ReDefinition.Atmospheres
         private long uploadedVersion = -1;
         private LayerStackSource uploadedSource;
 
+        // The half-size shadow target: 16 bits where the platform has them (the factor under a thick cloud, exp(-6) and less, is below the
+        // 8-bit step of 1/255), else 8 bits as EVE's. The sun's mask it is multiplied into is 8 bits anyway; the colour multiply of the forward
+        // path and the ocean texture keep the finer steps.
+        internal static RenderTextureFormat ShadowFormat
+        {
+            get { return SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R16) ? RenderTextureFormat.R16 : RenderTextureFormat.R8; }
+        }
+
         internal string Problem { get; private set; }
         internal bool Ready { get { return material != null && profileTexture != null; } }
         internal Material Material { get { return material; } }
@@ -70,7 +79,7 @@ namespace ReDefinition.Atmospheres
                 return false;
             }
             material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-            if (material.passCount < 5)
+            if (material.passCount < 6)
             {
                 Problem = "the cloud shadow shader does not compile (" + material.passCount + " passes)";
                 return false;
@@ -152,6 +161,7 @@ namespace ReDefinition.Atmospheres
             Material m = material;
             m.SetVector(IdPlanet, new Vector4(f.PlanetCenter.x, f.PlanetCenter.y, f.PlanetCenter.z, (float)f.RadiusUnits));
             m.SetMatrix(IdWorldToMap, f.WorldToMap);
+            m.SetFloat("_CsDebug", f.Debug);
             m.SetVector(IdSun, new Vector4(f.TowardsSun.x, f.TowardsSun.y, f.TowardsSun.z, f.MetresPerUnit));
             m.SetVector(IdParams, new Vector4(Mathf.Clamp(f.StepsPerSpan, 1, 24), Mathf.Clamp(f.DiscTaps, 1, 8), Mathf.Clamp01(f.Floor), layerCount));
             m.SetVectorArray(IdLayerA, layerA);
@@ -161,20 +171,24 @@ namespace ReDefinition.Atmospheres
         }
 
         // The sun's buffer for a camera of that size (deferred rendering): the depth to half size, the shadow at half size, and the multiply into
-        // the sun's shadow mask. Goes on the sun light at LightEvent.AfterScreenspaceMask. depthSource is the camera's depth texture.
-        internal void RecordSunBuffer(CommandBuffer cb, int width, int height)
+        // the sun's shadow mask. Two buffers on the sun light at LightEvent.AfterScreenspaceMask, in this order: the build (it changes the
+        // render target) and the display (CurrentActive is then the mask again, as EVE's two buffers do it).
+        internal void RecordSunBuffer(CommandBuffer build, CommandBuffer display, int width, int height)
         {
-            cb.Clear();
-            RecordShadow(cb, width, height, new RenderTargetIdentifier("_CameraDepthTexture"));
-            cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, material, PassMask);
-            ReleaseShadow(cb);
+            build.Clear();
+            RecordShadow(build, width, height);
+            display.Clear();
+            display.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, material, PassMask);
+            ReleaseShadow(display);
         }
 
         // The camera's buffer for forward rendering: the same shadow multiplied into the colour. Goes on the camera at AfterForwardOpaque.
         internal void RecordForwardBuffer(CommandBuffer cb, int width, int height)
         {
             cb.Clear();
-            RecordShadow(cb, width, height, new RenderTargetIdentifier("_CameraDepthTexture"));
+            RecordShadow(cb, width, height);
+            // The blits above left a temporary texture as the render target: back to the camera's.
+            cb.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
             cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, material, PassColour);
             ReleaseShadow(cb);
         }
@@ -205,22 +219,22 @@ namespace ReDefinition.Atmospheres
             cb.SetGlobalVector("_CsDepthSource_TexelSize", new Vector4(1f / width, 1f / height, width, height));
             cb.SetGlobalVector("_CsDepthHalf_TexelSize", new Vector4(1f / w, 1f / h, w, h));
             cb.SetGlobalTexture(IdDepthSource, oceanDepth);
-            cb.Blit(BuiltinRenderTextureType.None, depthId, material, PassDownscale);
+            cb.Blit(BuiltinRenderTextureType.None, depthId, material, PassDownscaleSource);
             cb.SetGlobalTexture(IdDepthHalf, depthId);
             cb.Blit(BuiltinRenderTextureType.None, shadowId, material, PassShadow);
             cb.SetGlobalTexture(OceanShadowsName, shadowId);
         }
 
-        private void RecordShadow(CommandBuffer cb, int fullW, int fullH, RenderTargetIdentifier depthSource)
+        // The shadow at half size from the camera's depth texture (a global texture of Unity's, read by name in the shader: it is not a
+        // temporary render texture, so a command buffer cannot bind it by an identifier).
+        private void RecordShadow(CommandBuffer cb, int fullW, int fullH)
         {
             int w = Mathf.Max(1, fullW / 2), h = Mathf.Max(1, fullH / 2);
             int depthId = Shader.PropertyToID(TextureNameDepth), shadowId = Shader.PropertyToID(TextureNameShadows);
             cb.GetTemporaryRT(depthId, w, h, 0, FilterMode.Point, RenderTextureFormat.RFloat);
-            cb.GetTemporaryRT(shadowId, w, h, 0, FilterMode.Bilinear, RenderTextureFormat.R8);
-            // The sizes the shader divides by are set by hand: a texture named by a render target identifier carries no size of its own.
-            cb.SetGlobalVector("_CsDepthSource_TexelSize", new Vector4(1f / fullW, 1f / fullH, fullW, fullH));
+            cb.GetTemporaryRT(shadowId, w, h, 0, FilterMode.Bilinear, ShadowFormat);
+            // The size the shader divides by is set by hand: a temporary render texture named by an identifier carries no size of its own.
             cb.SetGlobalVector("_CsDepthHalf_TexelSize", new Vector4(1f / w, 1f / h, w, h));
-            cb.SetGlobalTexture(IdDepthSource, depthSource);
             cb.Blit(BuiltinRenderTextureType.None, depthId, material, PassDownscale);
             cb.SetGlobalTexture(IdDepthHalf, depthId);
             cb.Blit(BuiltinRenderTextureType.None, shadowId, material, PassShadow);

@@ -3,21 +3,25 @@
 // tests/WeatherPlayer/linked/T04.txt and compiled out of the test project (the symbol is defined by Unity only).
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using ReDefinition.Atmospheres;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace ReDefinition.WeatherPlayer
 {
-    // The cloud shadow on the GPU against the analytic expectations, with the mod's own CloudShadowRenderer and CloudShadowRig (forward path:
-    // the colour multiply at AfterForwardOpaque; the deferred mask pass 2 differs from it only in where the product goes). The planet is a 600 km
-    // body with its centre 600 km below the origin and its map frame turned so that up is world +y, east +x and north +z. The cloud is a slab
-    // 20 m thick at 2000 m whose coverage map is 1 west of longitude 0 and 0 east of it (a hard edge: the threshold of the bilinear map), or 1
-    // everywhere. The sun stands in the east. A camera looks straight down; the picture with the rig off is the lit ground, the picture with it on
-    // is the shadowed ground, and their ratio per pixel is the shadow factor (the lighting cancels).
+    // The cloud shadow on the GPU against the analytic expectations, with the mod's own CloudShadowRenderer and CloudShadowRig (the forward
+    // path: the colour multiply at AfterForwardOpaque; the deferred mask pass 2 differs from it only in where the product goes). The planet is a 600 km body
+    // with its centre 600 km below the origin and its map frame turned so that up is world +y, east +x and north +z. The cloud is a slab 20 m
+    // thick at 2000 m whose coverage map is 1 west of longitude 0 and 0 east of it (a hard edge: the threshold of the bilinear map), or 1
+    // everywhere. The sun stands in the east. A camera looks straight down; the picture without the buffer is the lit ground, the picture with
+    // it is the shadowed ground, and their ratio per pixel is the shadow factor (the lighting cancels).
+    //
+    // "shadow_buffer_acts" gates the rest: the diagnostic output 1 of the forward pass is a constant 0.5 and must halve the picture. The
+    // ratio of the picture read back with and without the buffer is the factor; the 8-bit or half-float target quantises it, which is why the
+    // darkness metric floors the expected value.
     //
     // Captures (the 'ours' column of tools/weather_metrics/parity_run.py table, one folder per check id with meta.json) go to <out>/ours/, the
     // pictures (natural and aid: the factor in false colour) to <out>/.
@@ -25,12 +29,15 @@ namespace ReDefinition.WeatherPlayer
     public sealed class CloudShadowScene : WeatherSceneBase
     {
         private const double R = 600000.0;
-        private const int MapW = 2048, MapH = 1024;
+        // A map of 16384 by 2 texels: a texel is 230 m of longitude, so that the edge of the bilinear threshold is placed to under a metre
+        // (the weights of the filter have 8 bits); the cloud does not change with the latitude.
+        private const int MapW = 16384, MapH = 2;
         private const float SlabBase = 1990f, SlabTop = 2010f, SlabCentre = 2000f;
 
         private CloudShadowRenderer renderer;
-        private CloudShadowRig rig;
         private LayerMapStore maps;
+        private CloudShadowRig rig;
+        private CloudShadowFrame frame { get { return rig.Frame; } }
         private float[] lit, shadowed;
         private string oursFolder;
 
@@ -43,14 +50,36 @@ namespace ReDefinition.WeatherPlayer
             bool ok = renderer.Init(shader);
             Sink.Flag("shadow_compiled", ok);
             if (!ok) yield break;
-            maps = new LayerMapStore();
-            maps.Ensure(MapW, MapH);
+            // The mod's own rig puts the forward buffer on the camera in Camera.onPreCull and takes it off in Camera.onPostRender.
             rig = new CloudShadowRig(renderer, c => c == Cam ? CloudShadowRole.Scene : CloudShadowRole.None, () => Sun);
             rig.Start();
+            // The sea reaches 25 km: the shadow edge of the 20 degree view falls at 5.5 km and its view reaches 9.6 km.
+            GameObject sea = GameObject.Find("Sea");
+            if (sea != null) sea.transform.localScale = new Vector3(5000f, 1f, 5000f);
+            // The vehicle and the small object are large enough to cover several pixels from the camera's height.
+            Vehicle.transform.localScale = new Vector3(12f, 10f, 12f);
+            maps = new LayerMapStore();
+            maps.Ensure(MapW, MapH);
             Directory.CreateDirectory(Output);
             oursFolder = Path.Combine(Output, "ours");
             Directory.CreateDirectory(oursFolder);
             bool finite = true;
+
+            // ---- does the buffer act at all: the diagnostic output 1 is a constant 0.5 ----
+            SetCloud(1f, false);
+            SetSun(45.0);
+            Pose(new CameraPose(new Vector3(-300f, 1500f, 0f), 0f, 90f));
+            frame.Debug = 1;
+            yield return Capture();
+            double[] dx, dr;
+            RowRatio(out dx, out dr);
+            double dm = 0.0;
+            for (int i = dr.Length / 4; i < dr.Length * 3 / 4; i++) dm += dr[i];
+            dm /= dr.Length / 2;
+            Sink.Info("debug1.mean_ratio", dm);
+            bool acts = Math.Abs(dm - 0.5) < 0.05;
+            Sink.Flag("shadow_buffer_acts", acts);
+            frame.Debug = 0;
 
             // ---- the shadow of a hard edge: displacement and penumbra, at 20, 45 and 70 degrees ----
             double[] elevations = { 20.0, 45.0, 70.0 };
@@ -67,7 +96,7 @@ namespace ReDefinition.WeatherPlayer
                 RowRatio(out xs, out ratio);
                 foreach (double v in ratio) if (double.IsNaN(v) || double.IsInfinity(v)) finite = false;
                 double lo = double.MaxValue, hi = double.MinValue;
-                foreach (double v in ratio) { lo = Math.Min(lo, v); hi = Math.Max(hi, v); }
+                foreach (double v in ratio) { if (double.IsNaN(v)) continue; lo = Math.Min(lo, v); hi = Math.Max(hi, v); }
                 double x50 = Crossing(xs, ratio, 0.5 * (lo + hi));
                 double shift = -x50;
                 double err = Math.Abs(shift - expected) / expected;
@@ -110,7 +139,9 @@ namespace ReDefinition.WeatherPlayer
                 for (int i = ratio.Length / 4; i < ratio.Length * 3 / 4; i++) { mean += ratio[i]; n++; }
                 mean /= n;
                 double want = Math.Exp(-tau / Math.Sin(Math.PI / 4.0));
-                double err = Math.Abs(mean - want) / want;
+                // The relative error, with the expected value floored at 1e-4: the target has 16 bits (1.5e-5 a step), so a factor below
+                // that is a black pixel whatever its exact value (tau 20 is 5e-13).
+                double err = Math.Abs(mean - want) / Math.Max(want, 1e-4);
                 worstDark = Math.Max(worstDark, err);
                 Sink.Info("factor.tau" + tau.ToString(CultureInfo.InvariantCulture), mean);
                 Sink.Info("factor_expected.tau" + tau.ToString(CultureInfo.InvariantCulture), want);
@@ -125,26 +156,29 @@ namespace ReDefinition.WeatherPlayer
             Pose(new CameraPose(new Vector3(500f, 1500f, 0f), 0f, 90f));
             var small = GameObject.CreatePrimitive(PrimitiveType.Cube);
             small.name = "Small object";
-            small.transform.position = new Vector3(900f, TerrainHeight(900f, 60f) + 2.5f, 60f);
-            small.transform.localScale = new Vector3(5f, 5f, 5f);
+            small.transform.localScale = new Vector3(12f, 12f, 12f);
+            small.transform.position = new Vector3(900f, TerrainHeight(900f, 60f) + 6f, 60f);
             UnityEngine.Object.Destroy(small.GetComponent<Collider>());
             yield return Capture();
             Vector3 vehicleTop = Vehicle.transform.position + Vector3.up * 10f;
-            double sea = Patch(new Vector3(-300f, 0f, 0f), 6), land = Patch(new Vector3(300f, TerrainHeight(300f, 0f), 0f), 6);
-            double terrain = Patch(new Vector3(840f, TerrainHeight(840f, 0f), 0f), 3);
-            double vessel = Patch(vehicleTop, 2), obj = Patch(small.transform.position + Vector3.up * 2.5f, 1);
+            double seaFactor = Patch(new Vector3(-300f, 0f, 0f), 6), land = Patch(new Vector3(300f, TerrainHeight(300f, 0f), 0f), 6);
+            double terrain = Patch(new Vector3(850f, TerrainHeight(850f, 0f), 0f), 3);
+            double vessel = Patch(vehicleTop, 1), obj = Patch(small.transform.position + Vector3.up * 6f, 1);
             double want1 = Math.Exp(-1.0 / Math.Sin(Math.PI / 4.0));
-            Sink.Info("receiver.sea", sea);
+            Sink.Info("receiver.sea", seaFactor);
             Sink.Info("receiver.land", land);
             Sink.Info("receiver.terrain_at_vessel", terrain);
             Sink.Info("receiver.vessel", vessel);
             Sink.Info("receiver.small_object", obj);
             Sink.Info("receiver.expected", want1);
             double spread = (Math.Max(Math.Max(terrain, vessel), obj) - Math.Min(Math.Min(terrain, vessel), obj)) / ((terrain + vessel + obj) / 3.0);
-            Sink.AtMost("R11-shadow-receivers", spread, 0.03);
-            Sink.AtMost("R13-ocean-land", Math.Abs(sea - land) / land, 0.05);
+            // What this measures: the forward colour multiply with the depth reconstructed on surfaces at different heights and normals, the
+            // player's sea being a plane and not Scatterer's ocean. The deferred mask and the ocean hook are measured in the game (K-T1).
+            // A ratio of 1 everywhere also gives a spread of 0: the first two metrics are meaningful only with shadow_buffer_acts == 1.
+            Sink.AtMost("forward.receivers_spread", acts ? spread : 1.0, 0.03);
+            Sink.AtMost("forward.sea_land", acts ? Math.Abs(seaFactor - land) / land : 1.0, 0.05);
             WriteCapture("R11-shadow-receivers", "{\"factors\": {\"terrain\": " + N(terrain) + ", \"vessel\": " + N(vessel) + ", \"small_object\": " + N(obj) + "}}");
-            WriteCapture("R13-ocean-land", "{\"water\": " + N(sea) + ", \"land\": " + N(land) + "}");
+            WriteCapture("R13-ocean-land", "{\"water\": " + N(seaFactor) + ", \"land\": " + N(land) + "}");
             SavePictures("receivers");
 
             Sink.Flag("shadow_finite", finite);
@@ -183,25 +217,26 @@ namespace ReDefinition.WeatherPlayer
             toMap.SetRow(1, new Vector4(1f, 0f, 0f, 0f));
             toMap.SetRow(2, new Vector4(0f, 0f, 1f, 0f));
             toMap.SetRow(3, new Vector4(0f, 0f, 0f, 1f));
-            CloudShadowFrame f = rig.Frame;
-            f.PlanetCenter = new Vector3(0f, (float)-R, 0f);
-            f.RadiusUnits = R;
-            f.MetresPerUnit = 1f;
-            f.WorldToMap = toMap;
-            f.TowardsSun = toSun;
-            f.StepsPerSpan = 12;
-            f.DiscTaps = 8;
-            f.Floor = 0f;
+            frame.PlanetCenter = new Vector3(0f, (float)-R, 0f);
+            frame.RadiusUnits = R;
+            frame.MetresPerUnit = 1f;
+            frame.WorldToMap = toMap;
+            frame.TowardsSun = toSun;
+            frame.StepsPerSpan = 12;
+            frame.DiscTaps = 8;
+            frame.Floor = 0f;
         }
 
-        // Renders the lit ground (rig off) and the shadowed ground (rig on) from the current pose.
+        // Renders the lit ground (no buffer) and the shadowed ground (the renderer's forward buffer on the camera) from the current pose.
         private IEnumerator Capture()
         {
             rig.Enabled = false;
             yield return Frames(4);
+            yield return new WaitForEndOfFrame();
             lit = Grab();
             rig.Enabled = true;
             yield return Frames(4);
+            yield return new WaitForEndOfFrame();
             shadowed = Grab();
         }
 
@@ -273,7 +308,7 @@ namespace ReDefinition.WeatherPlayer
         private static double Width1090(double[] x, double[] y)
         {
             double lo = double.MaxValue, hi = double.MinValue;
-            foreach (double v in y) { lo = Math.Min(lo, v); hi = Math.Max(hi, v); }
+            foreach (double v in y) { if (double.IsNaN(v)) continue; lo = Math.Min(lo, v); hi = Math.Max(hi, v); }
             return Math.Abs(Crossing(x, y, lo + 0.9 * (hi - lo)) - Crossing(x, y, lo + 0.1 * (hi - lo)));
         }
 

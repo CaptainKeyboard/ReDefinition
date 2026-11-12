@@ -21,6 +21,9 @@ namespace ReDefinition.Atmospheres
     // recorded again when the camera's size changes (the upscaler changes the render size when it attaches, detaches or changes mode; the
     // size is read from the camera each frame and not kept, which is what EveCompatibility has to force EVE's own renderer to do).
     //
+    // The weather player's scene cloud-shadow (tests/ReDefinition.Tests/Atmospheres/T04/Probe) drives the forward path of this rig and
+    // measures the picture with and without it; the deferred path (the sun's mask), the disc and the ocean texture are not run by it.
+    //
     // Order against the rest of the frame, stated for the upscaler rig and the other mask writers [VERIFY in K-T1]:
     //  - Deferred: the sun's mask is multiplied by this buffer at AfterScreenspaceMask, after Unity has built the mask from the shadow maps
     //    and before the lighting pass reads it. The multiply commutes with the other multipliers on the same event (EVE's shadows, Scatterer's
@@ -35,7 +38,7 @@ namespace ReDefinition.Atmospheres
         private readonly CloudShadowRenderer renderer;
         private readonly Func<Camera, CloudShadowRole> classify;
         private readonly Func<Light> sun;
-        private CommandBuffer maskBuffer, forwardBuffer, discBuffer;
+        private CommandBuffer maskBuffer, maskDisplayBuffer, forwardBuffer, discBuffer;
         private int recordedWidth, recordedHeight, recordedMode;
         private Light attachedLight;
         private Camera attachedCamera;
@@ -72,7 +75,8 @@ namespace ReDefinition.Atmospheres
         internal void Start()
         {
             if (subscribed) return;
-            maskBuffer = new CommandBuffer { name = "ReDefinition cloud shadow (sun mask)" };
+            maskBuffer = new CommandBuffer { name = "ReDefinition cloud shadow (sun mask, build)" };
+            maskDisplayBuffer = new CommandBuffer { name = "ReDefinition cloud shadow (sun mask, display)" };
             forwardBuffer = new CommandBuffer { name = "ReDefinition cloud shadow (forward)" };
             discBuffer = new CommandBuffer { name = "ReDefinition cloud shadow (disc)" };
             Camera.onPreCull += OnPreCull;
@@ -87,6 +91,7 @@ namespace ReDefinition.Atmospheres
             Camera.onPostRender -= OnPostRender;
             Detach();
             maskBuffer.Release();
+            maskDisplayBuffer.Release();
             forwardBuffer.Release();
             discBuffer.Release();
             subscribed = false;
@@ -110,11 +115,13 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             renderer.Apply(Frame);
+            // The shadow reads the camera's depth texture.
+            camera.depthTextureMode |= DepthTextureMode.Depth;
             bool deferred = camera.actualRenderingPath == RenderingPath.DeferredShading;
             int mode = deferred ? 1 : 2;
             if (recordedWidth != w || recordedHeight != h || recordedMode != mode)
             {
-                if (deferred) renderer.RecordSunBuffer(maskBuffer, w, h);
+                if (deferred) renderer.RecordSunBuffer(maskBuffer, maskDisplayBuffer, w, h);
                 else renderer.RecordForwardBuffer(forwardBuffer, w, h);
                 recordedWidth = w;
                 recordedHeight = h;
@@ -125,6 +132,7 @@ namespace ReDefinition.Atmospheres
                 Light light = sun();
                 if (light == null) return;
                 light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, maskBuffer);
+                light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, maskDisplayBuffer);
                 attachedLight = light;
             }
             else
@@ -143,7 +151,11 @@ namespace ReDefinition.Atmospheres
 
         private void Detach()
         {
-            if (attachedLight != null) attachedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskBuffer);
+            if (attachedLight != null)
+            {
+                attachedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskBuffer);
+                attachedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskDisplayBuffer);
+            }
             attachedLight = null;
             if (attachedCamera != null && attachedCameraBuffer != null) attachedCamera.RemoveCommandBuffer(attachedEvent, attachedCameraBuffer);
             attachedCamera = null;

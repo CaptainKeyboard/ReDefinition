@@ -30,14 +30,14 @@ namespace ReDefinition.Atmospheres
 
         // The optical depth along the ray o + t d for t from 0 to tMax, all layers, each scaled by its ShadowStrength. No distance fade:
         // the fade belongs to the camera's picture, not to the sun.
-        internal double PathOpticalDepth(double ox, double oy, double oz, double dx, double dy, double dz, double tMax)
+        internal double PathOpticalDepth(double ox, double oy, double oz, double dx, double dy, double dz, double tMax, bool withStrength = true)
         {
             double tau = 0.0;
             for (int i = 0; i < source.LayerCount; i++)
             {
                 CloudLayerDef layer = source.LayerAt(i);
-                if (layer.ShadowStrength <= 0f) continue;
-                tau += LayerOpticalDepth(i, ox, oy, oz, dx, dy, dz, tMax) * layer.ShadowStrength;
+                if (withStrength && layer.ShadowStrength <= 0f) continue;
+                tau += LayerOpticalDepth(i, ox, oy, oz, dx, dy, dz, tMax) * (withStrength ? layer.ShadowStrength : 1f);
             }
             return tau;
         }
@@ -108,7 +108,8 @@ namespace ReDefinition.Atmospheres
             double la = latDeg * Math.PI / 180.0, lo = lonDeg * Math.PI / 180.0;
             double ux = Math.Cos(la) * Math.Cos(lo), uy = Math.Cos(la) * Math.Sin(lo), uz = Math.Sin(la);
             double r = source.BodyRadiusM + altitudeM;
-            return PathOpticalDepth(ux * r, uy * r, uz * r, ux, uy, uz, double.MaxValue);
+            // The physical optical depth: the layers' shadow strength is a look setting of the shadow and does not scale it.
+            return PathOpticalDepth(ux * r, uy * r, uz * r, ux, uy, uz, double.MaxValue, false);
         }
     }
 

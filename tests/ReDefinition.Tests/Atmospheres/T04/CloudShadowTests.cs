@@ -142,11 +142,22 @@ namespace ReDefinition.Tests
                 double t = CloudShadowMath.TwoStreamTransmission(tau, g);
                 Assert.IsTrue(t < previous);
                 previous = t;
-                double total = CloudShadowMath.TotalTransmission(tau / Math.Sin(Math.PI / 4.0), tau, g);
+                double total = CloudShadowMath.TotalTransmission(tau / Math.Sin(Math.PI / 4.0), tau);
                 Assert.IsTrue(total >= CloudShadowMath.DirectTransmission(tau / Math.Sin(Math.PI / 4.0)));
                 Assert.IsTrue(total <= 1.0);
             }
             Assert.AreEqual(1.0, CloudShadowMath.TwoStreamTransmission(0.0, g), 0.0);
+        }
+
+        [TestMethod]
+        public void TheFittedTransmissionFollowsTheReferenceRenderersSunOnlyRunWithinThreePercent()
+        {
+            // tools/weather_metrics/parity_ref.py, environment light 0, 150 ground samples, slab 200 m thick, sun 45 degrees.
+            double[] taus = { 0.1, 1.0, 5.0, 20.0 };
+            double[] reference = { 0.9825, 0.9566, 0.6689, 0.1785 };
+            for (int i = 0; i < taus.Length; i++)
+                Assert.AreEqual(reference[i], CloudShadowMath.FittedTransmission(taus[i]), 0.03 * reference[i], "tau " + taus[i]);
+            Assert.AreEqual(1.0, CloudShadowMath.FittedTransmission(0.0), 0.0);
         }
 
         [TestMethod]
@@ -450,7 +461,7 @@ namespace ReDefinition.Tests
                 var taus = new List<double> { 0.1, 1.0, 5.0, 20.0 };
                 var factors = new List<double>();
                 foreach (double tau in taus)
-                    factors.Add(CloudShadowMath.TotalTransmission(tau / Math.Sin(Math.PI / 4.0), tau, asym));
+                    factors.Add(CloudShadowMath.TotalTransmission(tau / Math.Sin(Math.PI / 4.0), tau));
                 Write(folder, "R12-shadow-vs-tau", Json("taus", taus, "factors", factors));
             }
             // R13-ocean-land: a patch on the sea (0 m) and a patch on land (60 m) in the middle of a wide shadow.

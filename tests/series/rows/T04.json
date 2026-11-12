@@ -10,8 +10,9 @@
     { "series": "player-T04", "section": "T04", "metric": "R11-shadow-darkness.tau1", "max": 0.10, "unit": "relative", "note": "tau 1" },
     { "series": "player-T04", "section": "T04", "metric": "R11-shadow-darkness.tau5", "max": 0.10, "unit": "relative", "note": "tau 5" },
     { "series": "player-T04", "section": "T04", "metric": "R11-shadow-darkness.tau20", "max": 0.10, "unit": "relative", "note": "tau 20" },
-    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-receivers", "max": 0.03, "unit": "relative spread", "note": "terrain beside the vehicle, the vehicle's top and a small object in one shadow (tau 1): largest spread of their factors" },
-    { "series": "player-T04", "section": "T04", "metric": "R13-ocean-land", "max": 0.05, "unit": "relative", "note": "mean factor on the sea plane against the beach in one wide shadow (the player's sea is a plane, not Scatterer's ocean: the ocean hook itself is a K-T1 row)" },
+    { "series": "player-T04", "section": "T04", "metric": "forward.receivers_spread", "max": 0.03, "unit": "relative spread", "note": "forward colour multiply only: terrain beside the vehicle, the vehicle's top and a 12 m cube in one shadow (tau 1): largest spread of their factors (the deferred mask and a kerbal are K-T1)" },
+    { "series": "player-T04", "section": "T04", "metric": "forward.sea_land", "max": 0.05, "unit": "relative", "note": "forward colour multiply only: mean factor on the player's sea plane against the beach in one wide shadow (Scatterer's ocean and its texture are a K-T1 row)" },
+    { "series": "player-T04", "section": "T04", "metric": "shadow_buffer_acts", "equals": 1, "note": "the diagnostic output 1 (a constant 0.5) multiplies the picture by 0.5 within 0.05; the gate for the other rows of this series (forward.* fail while it is 0)" },
     { "series": "player-T04", "section": "T04", "metric": "shadow_compiled", "equals": 1, "required": false, "note": "the shadow shader compiles in the player" },
     { "series": "player-T04", "section": "T04", "metric": "shadow_finite", "equals": 1, "required": false, "note": "no NaN or infinity in any ratio row" }
   ]

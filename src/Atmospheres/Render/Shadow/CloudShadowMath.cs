@@ -5,7 +5,7 @@ namespace ReDefinition.Atmospheres
     // The pure maths of the cloud shadow (package T04): the darkness law, the sun disc's penumbra, the displacement of a shadow and the
     // diffuse light a cloud passes on. The shader (ReDefinitionAtmospheresCloudShadow.shader) mirrors these functions in float.
     //
-    // Technique (no code taken): a cloud shadow is a transmittance of the sun's direct light along the sun ray, T = exp(-tau) with tau the
+    // Technique: a cloud shadow is a transmittance of the sun's direct light along the sun ray, T = exp(-tau) with tau the
     // optical depth of the clouds on that ray (Beer-Lambert); Hillaire, "Physically Based Sky, Atmosphere and Cloud Rendering in
     // Frostbite", 2016, section 5.9 bakes the same transmittance of the cloud layer along the sun into a 2D map that every surface reads.
     // The sun is a disc of 9.31 mrad (the mean angular diameter, 0.5334 deg), so a hard edge in the sky becomes a penumbra on the ground:
@@ -51,13 +51,27 @@ namespace ReDefinition.Atmospheres
             return forwardWeight * forwardG + (1.0 - forwardWeight) * backG;
         }
 
-        // The sun's irradiance under a cloud as a share of the open sky's, with the diffuse floor: the direct beam plus the part of the
-        // scattered light that comes down (the scattered share 1 - exp(-tauSun) of the beam, a share TwoStreamTransmission of it reaching
-        // the ground, the rest sent back up). Never below the direct beam, never above 1.
-        internal static double TotalTransmission(double tauAlongSun, double tauVertical, double asymmetry)
+        // The sun's energy that reaches the ground under a slab of vertical optical depth tauV, beam and scattered light together, for the
+        // dual-lobe phase function of the reference renderer (g 0.85 and -0.3, forward weight 0.92, albedo 0.999), as a share of the open sky's.
+        // The two-stream form above is linear in tau and too dark for this forward-heavy phase function at tau 1 to 20; the reference
+        // renderer's sun-only run (environment light 0, 150 ground samples, slab of 200 m, sun at 45 degrees) gives 0.9825, 0.9566, 0.6689
+        // and 0.1785 for tau 0.1, 1, 5 and 20, and 1 / T - 1 = A tau^P with A 0.0453 and P 1.54 follows them to 3 % (0.9987, 0.957, 0.649,
+        // 0.180). The numbers belong to that phase function; the lighting package (T03) owns the phase and may refit them. [VERIFY]
+        internal const double FitA = 0.0453, FitP = 1.54;
+
+        internal static double FittedTransmission(double tauVertical)
+        {
+            if (tauVertical <= 0.0) return 1.0;
+            return 1.0 / (1.0 + FitA * Math.Pow(tauVertical, FitP));
+        }
+
+        // The sun's irradiance under a cloud as a share of the open sky's, with the diffuse floor: never below the direct beam along the sun
+        // path, never above 1. This is the mask value only where the lighting wants the floor in it (CloudShadowFrame.Floor); the shadow mask
+        // itself is the direct beam.
+        internal static double TotalTransmission(double tauAlongSun, double tauVertical)
         {
             double direct = DirectTransmission(tauAlongSun);
-            double total = direct + (1.0 - direct) * TwoStreamTransmission(tauVertical, asymmetry);
+            double total = FittedTransmission(tauVertical);
             return total < direct ? direct : total > 1.0 ? 1.0 : total;
         }
 
