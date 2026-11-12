@@ -91,10 +91,16 @@ namespace ReDefinition.Atmospheres
             if (!Ready(craft)) Fail("D31: " + craft + " did not come up on the runway");
         }
 
+        // Stock craft files carry a localisation tag as the ship name (ship = #autoLOC_501176); the launched vessel may keep the tag.
+        private static string NameOf(Vessel v)
+        {
+            return KSP.Localization.Localizer.Format(v.vesselName);
+        }
+
         private static bool Ready(string craft)
         {
             Vessel v = GameGlobals.ActiveVessel;
-            return v != null && v.loaded && !v.packed && v.vesselName == craft;
+            return v != null && v.loaded && !v.packed && NameOf(v) == craft;
         }
 
         private static double HorizontalDrag(Vessel v, Part part)
@@ -107,7 +113,7 @@ namespace ReDefinition.Atmospheres
         {
             v.ActionGroups.SetGroup(KSPActionGroup.Brakes, true);
             yield return ProbeWait.Until(() => v.Landed && v.srfSpeed < 0.3, 90, "the vessel at rest on the runway");
-            Emit("D31." + v.vesselName.Replace(" ", "_") + "_at_rest", v.Landed && v.srfSpeed < 0.3);
+            Emit("D31." + NameOf(v).Replace(" ", "_") + "_at_rest", v.Landed && v.srfSpeed < 0.3);
             yield return ProbeWait.Seconds(3);
         }
 
