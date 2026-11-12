@@ -39,6 +39,9 @@ namespace ReDefinition.Atmospheres
         private bool waitedOk;
         private float shellGain = 0.9f;
 
+        // The limits of the elevation a pose aims at: the flight camera's pitch stops short of the zenith, and the horizon fade hides the curtain under a few degrees.
+        private const double MinAimDeg = 10.0, MaxAimDeg = 75.0;
+
         private struct SkyPose
         {
             internal string Name;
@@ -366,6 +369,19 @@ namespace ReDefinition.Atmospheres
         // between two shell-off frames (clouds, water, exposure, the upscaler's jitter). The noise floor row keeps the raw pair.
         private float[] poseOff, poseNoise, poseEnv;
 
+        // The control's worst reading and where it came from (every condition of the start measures one; the row takes the worst, the log names its place).
+        private double noiseFloor;
+        private string noiseFloorAt = "";
+
+        private void NoteNoise(double value, string where)
+        {
+            if (value > noiseFloor)
+            {
+                noiseFloor = value;
+                noiseFloorAt = where;
+            }
+        }
+
         private IEnumerable<ProbeWait> OffFrames(float activity, float evt, AuroraSkyTest test, AuroraEvent camEvent)
         {
             poseOff = null;
@@ -455,7 +471,8 @@ namespace ReDefinition.Atmospheres
             // A reference pose that cannot be placed (no night at the latitude and date, or the vessel is held) leaves out the draw-order and
             // terrain rows, which are read at it, and the series goes on with the poses of the artefact rows.
             var reference = new SkyPose { Name = "ref", Lat = 70f, Activity = 1f, Event = 0f, Elevation = 25f };
-            double noiseFloor = 0.0;
+            noiseFloor = 0.0;
+            noiseFloorAt = "";
             AuroraPoseSolver.Plan referencePlan = PlanFor(reference.Lat);
             if (referencePlan.Skip)
             {
@@ -484,7 +501,7 @@ namespace ReDefinition.Atmospheres
             float[] off = poseOff, noise = poseNoise, env = poseEnv;
             foreach (ProbeWait w in Show(true, reference.Activity, 0f, AuroraSkyTest.None, AuroraEvent.AfterForwardAlpha)) yield return w;
             foreach (ProbeWait w in Shot()) yield return w;
-            bool live = env != null && lastLuma != null && AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(lastLuma, env), lastWidth, lastHeight) >= AuroraMetrics.PeakMin;
+            bool live = env != null && lastLuma != null && AuroraMetrics.PeakRowMean(AuroraMetrics.MaskSky(lastLuma, env), lastWidth, lastHeight) >= AuroraMetrics.PeakMin;
             bool screen = false;
             if (!live)
             {
@@ -496,7 +513,7 @@ namespace ReDefinition.Atmospheres
                 env = poseEnv;
                 foreach (ProbeWait w in Show(true, reference.Activity, 0f, AuroraSkyTest.None, AuroraEvent.AfterForwardAlpha)) yield return w;
                 foreach (ProbeWait w in Shot()) yield return w;
-                live = env != null && lastLuma != null && AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(lastLuma, env), lastWidth, lastHeight) >= AuroraMetrics.PeakMin;
+                live = env != null && lastLuma != null && AuroraMetrics.PeakRowMean(AuroraMetrics.MaskSky(lastLuma, env), lastWidth, lastHeight) >= AuroraMetrics.PeakMin;
             }
             SaveSheet("ref-none_after-liveness", env);
             Emit("D38.sky.frame_from_screen", screen);
@@ -514,7 +531,8 @@ namespace ReDefinition.Atmospheres
             var peaks = new Dictionary<string, double>();
             var lit = new Dictionary<string, double>();
             var refMasks = new Dictionary<string, float[]>();
-            noiseFloor = AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(noise, off), lastWidth, lastHeight);
+            noiseFloor = AuroraMetrics.PeakRowMean(AuroraMetrics.MaskSky(noise, off), lastWidth, lastHeight);
+            noiseFloorAt = "reference/none_after";
             foreach (VariantDef v in OrderVariants)
             {
                 BeginVariant(v.Name);
@@ -526,13 +544,13 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in Shot()) yield return w;
                 if (lastLuma != null && vOff != null && vEnv != null)
                 {
-                    float[] mask = AuroraMetrics.Mask(lastLuma, vEnv);
+                    float[] mask = AuroraMetrics.MaskSky(lastLuma, vEnv);
                     double peak = AuroraMetrics.PeakRowMean(mask, lastWidth, lastHeight);
                     double share = AuroraMetrics.LitShare(mask, 1e-4f);
                     peaks[v.Name] = peak;
                     lit[v.Name] = share;
                     refMasks[v.Name] = mask;
-                    noiseFloor = Math.Max(noiseFloor, AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(poseNoise, vOff), lastWidth, lastHeight));
+                    NoteNoise(AuroraMetrics.PeakRowMean(AuroraMetrics.MaskSky(poseNoise, vOff), lastWidth, lastHeight), v.Name);
                     Emit("D38.order.peak", peak);
                     Emit("D38.order.lit_share", share);
                     SaveSheet("ref-" + v.Name, vEnv);
@@ -584,8 +602,8 @@ namespace ReDefinition.Atmospheres
                     foreach (ProbeWait w in Shot()) yield return w;
                     if (lastLuma != null && vEnv != null)
                     {
-                        float[] mask = AuroraMetrics.Mask(lastLuma, vEnv);
-                        double mean = AuroraMetrics.MeanMask(mask, lastWidth, lastHeight, x0, y0, x1, y1, true);
+                        float[] mask = AuroraMetrics.MaskSky(lastLuma, vEnv);
+                        double mean =AuroraMetrics.MeanMask(mask, lastWidth, lastHeight, x0, y0, x1, y1, true);
                         inside[v.Name] = mean;
                         Emit("D38.terrain.inside", mean);
                         SaveSheet("ball-" + v.Name, vEnv);
@@ -600,7 +618,7 @@ namespace ReDefinition.Atmospheres
                 float[] cEnv = poseEnv;
                 foreach (ProbeWait w in Show(true, reference.Activity, 0f, AuroraSkyTest.ZBuffer, AuroraEvent.BeforeForwardAlpha)) yield return w;
                 foreach (ProbeWait w in Shot()) yield return w;
-                double control = lastLuma != null && cEnv != null ? AuroraMetrics.MeanMask(AuroraMetrics.Mask(lastLuma, cEnv), lastWidth, lastHeight, x0, y0, x1, y1, true) : 0.0;
+                double control = lastLuma != null && cEnv != null ? AuroraMetrics.MeanMask(AuroraMetrics.MaskSky(lastLuma, cEnv), lastWidth, lastHeight, x0, y0, x1, y1, true) : 0.0;
                 SaveSheet("ball-control-no-ball", cEnv);
                 Emit("D38.terrain.control_inside", control);
                 Func<string, double> inOf = n => { double p; return inside.TryGetValue(n, out p) ? p : double.NaN; };
@@ -616,14 +634,17 @@ namespace ReDefinition.Atmospheres
             // ---- Lid, drip and band at a night pose per latitude, the default draw (D38-02).
         Poses:
             var poses = new List<SkyPose>();
+            // The poses aim at the curtain: Elevation is the offset from the elevation at which the camera sees the middle of the curtain over the oval (c0 = centred), not an
+            // absolute elevation. At a fixed 25 degrees the oval stood almost overhead at lat 70 (the layer is 55 to 70 km up, the oval 42 km away) and the picture showed the
+            // curtain cut by the frame's top edge (K-W3 repeat, pose l70_a10_e25).
             foreach (float lat in new[] { 60f, 70f, 78f })
             {
                 foreach (float activity in new[] { 1f, 0.6f })
-                    poses.Add(new SkyPose { Name = "l" + (int)lat + "_a" + (int)(activity * 10f + 0.5f) + "_e25", Lat = lat, Activity = activity, Event = lat == 60f ? 1f : 0f, Elevation = 25f });
+                    poses.Add(new SkyPose { Name = "l" + (int)lat + "_a" + (int)(activity * 10f + 0.5f) + "_c0", Lat = lat, Activity = activity, Event = lat == 60f ? 1f : 0f, Elevation = 0f });
             }
-            poses.Add(new SkyPose { Name = "l70_a10_e10", Lat = 70f, Activity = 1f, Event = 0f, Elevation = 10f });
-            poses.Add(new SkyPose { Name = "l70_a10_e40", Lat = 70f, Activity = 1f, Event = 0f, Elevation = 40f });
-            double worstLid = 0, worstDrip = 0, worstBand = 0;
+            poses.Add(new SkyPose { Name = "l78_a10_cm20", Lat = 78f, Activity = 1f, Event = 0f, Elevation = -20f });
+            poses.Add(new SkyPose { Name = "l70_a10_cp15", Lat = 70f, Activity = 1f, Event = 0f, Elevation = 15f });
+            double worstLid = 0, worstDrip = 0, worstBand = 0, worstEdge = 0;
             int judged = 0, dim = 0, skipped = 0, unplaced = 0;
             foreach (SkyPose pose in poses)
             {
@@ -645,7 +666,12 @@ namespace ReDefinition.Atmospheres
                 }
                 AuroraFrame frame = AuroraModel.FromActivity(pose.Activity, pose.Event, (float)plan.WantedDeg, 60f, 1f);
                 double yaw = AuroraModel.PoseYawDeg(frame.RingLatDeg, pose.Lat);
-                foreach (ProbeWait w in Aim(yaw, pose.Elevation)) yield return w;
+                CelestialBody poseBody = FlightGlobals.currentMainBody;
+                double midAltitude = poseBody.atmosphereDepth * (AuroraRenderer.ReadLook().BaseShare + 1.0) * 0.5;
+                double curtainEl = AuroraPoseSolver.CurtainElevationDeg(frame.RingLatDeg, pose.Lat, poseBody.Radius, midAltitude);
+                double poseAimEl = Math.Max(MinAimDeg, Math.Min(MaxAimDeg, curtainEl + pose.Elevation));
+                Emit("D38.sky.curtain_el_deg." + pose.Name, curtainEl);
+                foreach (ProbeWait w in Aim(yaw, poseAimEl)) yield return w;
                 double az, el;
                 CameraAim(out az, out el);
                 foreach (ProbeWait w in OffFrames(pose.Activity, pose.Event, AuroraSkyTest.ZBuffer, AuroraEvent.BeforeForwardAlpha)) yield return w;
@@ -659,8 +685,13 @@ namespace ReDefinition.Atmospheres
                     continue;
                 }
                 double fovNow = FlightCamera.fetch.mainCamera.fieldOfView;
-                noiseFloor = Math.Max(noiseFloor, AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(pNoise, pOff), lastWidth, lastHeight));
-                AuroraMetrics.Result r = AuroraMetrics.Measure(lastLuma, pEnv, lastWidth, lastHeight, el, fovNow);
+                NoteNoise(AuroraMetrics.PeakRowMean(AuroraMetrics.MaskSky(pNoise, pOff), lastWidth, lastHeight), pose.Name);
+                float[] poseMask = AuroraMetrics.MaskSky(lastLuma, pEnv);
+                AuroraMetrics.Result r = AuroraMetrics.MeasureMask(poseMask, lastWidth, lastHeight, el, fovNow);
+                // How much of the curtain the frame's top and bottom rows cut (informative): a curtain that meets the edge is a framing, not a lid.
+                float edge = AuroraMetrics.EdgeShare(poseMask, lastWidth, lastHeight, 2);
+                worstEdge = Math.Max(worstEdge, edge);
+                Emit("D38.sky.edge_share." + pose.Name, edge);
                 Emit("D38.sky.peak." + pose.Name, r.Peak);
                 Emit("D38.sky.sun_deg." + pose.Name, PoseSunDeg());
                 Emit("D38.sky.aim_el_deg." + pose.Name, el);
@@ -687,6 +718,8 @@ namespace ReDefinition.Atmospheres
             Emit("D38.sky.poses_unplaced", unplaced);
             Emit("D38.sky.poses_accounted", judged + dim + skipped + unplaced);
             Emit("D38.sky.noise_floor", noiseFloor);
+            Emit("D38.sky.edge_share_worst", worstEdge);
+            Say("the noise control's worst reading " + Num(noiseFloor) + " came from " + (noiseFloorAt.Length > 0 ? noiseFloorAt : "no condition"));
             Emit("D38.sky.pose_sun_error_deg", worstSunError);
 
             // ---- Frame time at the dearest pose (lat 60 with the strong event, elevation 10: the longest paths): the mean time of a frame

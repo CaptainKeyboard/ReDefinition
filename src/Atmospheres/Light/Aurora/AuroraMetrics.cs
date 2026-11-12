@@ -36,6 +36,40 @@ namespace ReDefinition.Atmospheres
             return m;
         }
 
+        // The luminance above which a pixel is an object (a moon or planet disc, a vessel with its flame, a lamp) and not sky. The shell's own light stays well under it
+        // (the peak row means of the real sky are 0.13 and below); objects flicker from frame to frame (the upscaler's jitter, a flame) by large amounts, which no
+        // measure of the shell may count (K-W3 repeat: the noise floor read 0.417 and the occluder was set on a rocket's flame).
+        internal const float ObjectLuma = 0.45f;
+
+        // The positive part of the difference of two luminance images, with every pixel that is an object in either image left out (zero).
+        internal static float[] MaskSky(float[] on, float[] off)
+        {
+            var m = new float[on.Length];
+            for (int i = 0; i < m.Length; i++)
+            {
+                if (on[i] > ObjectLuma || off[i] > ObjectLuma) continue;
+                m[i] = Math.Max(0f, on[i] - off[i]);
+            }
+            return m;
+        }
+
+        // The mean mask of the outermost `rows` rows at the top and at the bottom of the frame (the larger of the two) over the peak row mean: how much of the shell is
+        // cut by the frame's edge. A curtain that meets the edge is a framing, not a lid.
+        internal static float EdgeShare(float[] mask, int width, int height, int rows)
+        {
+            double[] means = RowMeans(mask, width, height);
+            double peak = 0;
+            foreach (double r in means) peak = Math.Max(peak, r);
+            if (peak <= 0 || rows < 1 || 2 * rows > height) return 0f;
+            double bottom = 0, top = 0;
+            for (int i = 0; i < rows; i++)
+            {
+                bottom += means[i];
+                top += means[height - 1 - i];
+            }
+            return (float)(Math.Max(bottom, top) / rows / peak);
+        }
+
         // The pixel-wise larger of two shell-off images of the same pose. The mask against it keeps only what exceeds the variation the
         // sky shows by itself between two frames without the shell.
         internal static float[] Envelope(float[] a, float[] b)

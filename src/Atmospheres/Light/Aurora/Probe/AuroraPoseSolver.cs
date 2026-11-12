@@ -23,6 +23,17 @@ namespace ReDefinition.Atmospheres
             internal bool Skip;
         }
 
+        // The elevation (degrees over the horizontal) at which a camera at cameraLatDeg sees the middle of the curtain over the oval at ringLatDeg: the curtain stands at
+        // midAltitudeM over the surface along the meridian, central angle |ring - camera|. In the camera's frame the point is at x = (R + h) sin(theta), y = (R + h) cos(theta) - R.
+        // Under the oval (theta 0) it is straight overhead, 90 degrees; the series poses aim at it (plus an offset) so that the curtain is in the picture and not above its edge.
+        internal static double CurtainElevationDeg(double ringLatDeg, double cameraLatDeg, double bodyRadiusM, double midAltitudeM)
+        {
+            double theta = Math.Abs(ringLatDeg - cameraLatDeg) * Math.PI / 180.0;
+            double r = bodyRadiusM + midAltitudeM;
+            double x = r * Math.Sin(theta), y = r * Math.Cos(theta) - bodyRadiusM;
+            return Math.Atan2(y, x) * 180.0 / Math.PI;
+        }
+
         // The lowest and the highest sun elevation over a turn of the body at the latitude (degrees).
         internal static void Range(double latDeg, double declinationDeg, out double lowestDeg, out double highestDeg)
         {

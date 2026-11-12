@@ -60,6 +60,34 @@ namespace ReDefinition.Tests.Atmospheres.D38
         }
 
         [TestMethod]
+        public void TheSkyMaskLeavesOutObjectsThatFlickerByThemselves()
+        {
+            // a flame (pixel 0) and a disc (pixel 1) change by large amounts between two frames; the curtain (pixel 2) by a little
+            float[] off = { 0.90f, 0.70f, 0.10f, 0.10f };
+            float[] on = { 0.50f, 1.00f, 0.25f, 0.10f };
+            float[] raw = AuroraMetrics.Mask(on, off);
+            float[] sky = AuroraMetrics.MaskSky(on, off);
+            Assert.AreEqual(0.30f, raw[1], 1e-6f, "the raw mask counts the disc");
+            Assert.AreEqual(0f, sky[0]);
+            Assert.AreEqual(0f, sky[1]);
+            Assert.AreEqual(0.15f, sky[2], 1e-6f, "the curtain stays");
+            Assert.AreEqual(0f, sky[3]);
+        }
+
+        [TestMethod]
+        public void TheEdgeShareSaysHowMuchOfTheCurtainTheFrameCuts()
+        {
+            const int W = 4, H = 10;
+            var cut = new float[W * H];
+            for (int y = 6; y < H; y++) for (int x = 0; x < W; x++) cut[y * W + x] = 0.2f;   // a curtain that runs off the top edge
+            Assert.AreEqual(1f, AuroraMetrics.EdgeShare(cut, W, H, 2), 1e-6f);
+            var inside = new float[W * H];
+            for (int y = 4; y < 7; y++) for (int x = 0; x < W; x++) inside[y * W + x] = 0.2f;
+            Assert.AreEqual(0f, AuroraMetrics.EdgeShare(inside, W, H, 2), 1e-6f);
+            Assert.AreEqual(0f, AuroraMetrics.EdgeShare(new float[W * H], W, H, 2), "an empty mask has no edge");
+        }
+
+        [TestMethod]
         public void TheHeatMapIsRedWhereBrighterAndBlueWhereDarker()
         {
             float scale;

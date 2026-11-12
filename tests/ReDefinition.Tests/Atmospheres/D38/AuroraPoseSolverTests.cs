@@ -72,6 +72,19 @@ namespace ReDefinition.Tests.Atmospheres.D38
         }
 
         [TestMethod]
+        public void TheCurtainStandsOverheadUnderTheOvalAndLowerTheFartherAway()
+        {
+            const double R = 600000.0, Mid = 62500.0;
+            Assert.AreEqual(90.0, AuroraPoseSolver.CurtainElevationDeg(70.0, 70.0, R, Mid), 1e-6, "under the oval");
+            double near = AuroraPoseSolver.CurtainElevationDeg(66.0, 70.0, R, Mid);
+            double far = AuroraPoseSolver.CurtainElevationDeg(66.0, 78.0, R, Mid);
+            // 4 degrees of latitude on Kerbin are 42 km along the meridian: the middle of the layer is seen from 55 to 60 degrees up (the K-W3 repeat picture at the top edge)
+            Assert.IsTrue(near > 50.0 && near < 65.0, "near " + near);
+            Assert.IsTrue(far < near && far > 15.0 && far < 35.0, "far " + far);
+            Assert.AreEqual(near, AuroraPoseSolver.CurtainElevationDeg(74.0, 70.0, R, Mid), 1e-9, "the same on either side of the camera");
+        }
+
+        [TestMethod]
         public void TheDeclinationIsTheAngleAboveTheEquatorPlane()
         {
             Assert.AreEqual(0.0, AuroraPoseSolver.DeclinationDeg(0.0), 1e-9);
