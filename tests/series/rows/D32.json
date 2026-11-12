@@ -539,8 +539,19 @@
       "package": "D32",
       "start": "lamp",
       "metric": "D32.beam_axis_elevation_deg",
-      "required": false,
-      "note": "informative: the elevation of the aimed-at lamp's axis above the horizontal (degrees); near 90 or -90 the beam is seen end-on and the placement search has little to find"
+      "min": -45,
+      "max": 45,
+      "unit": "deg",
+      "note": "the elevation of the aimed-at lamp's axis above the horizontal (degrees); near 90 or -90 the beam is seen end-on, so the frame rows below measure nothing (the pad vessel's own lamps point at -88 degrees with a 3 m reach: the probe adds a horizontal spot lamp of its own, LampProbe.CreateTestLamp)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lamp",
+      "metric": "D32.beam_lamp_is_probe_lamp",
+      "equals": 1,
+      "note": "the side lamp the module draws and the probe aims at is the probe's own horizontal lamp and not one of the craft's down lights"
     },
     {
       "series": "K-W3b",

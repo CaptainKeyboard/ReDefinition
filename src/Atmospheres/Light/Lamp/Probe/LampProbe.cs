@@ -176,6 +176,7 @@ namespace ReDefinition.Atmospheres
             {
                 LogLine("D32: the probe could not put everything back (" + e.GetType().Name + " " + e.Message + ")");
             }
+            DestroyTestLamp();
             ClearForced();
         }
 
@@ -200,6 +201,54 @@ namespace ReDefinition.Atmospheres
             {
                 Restore();
             }
+        }
+
+        // ---- the probe's own lamp ----
+        // What is representative: the module reads every Light under a part of a loaded vessel (LampLights), scores them and draws the lamp with the most horizontal axis
+        // first (LampScatter side lamp). A spot light of this size and angle is what a stock spotlight part gives the module (a spot, a few tens of metres, wide cone) [VERIFY the
+        // stock part's numbers]; the pad vessel's own lamps are down lights with a 3 m reach, which the module draws correctly but which show no beam from the side. The
+        // test lamp is a child of the root part, lies horizontal along the local north, follows the light action group like a real lamp, and is destroyed in Restore.
+        private const float TestLampRangeM = 60f, TestLampSpotAngleDeg = 60f, TestLampIntensity = 1.5f, TestLampLiftM = 1.5f;
+        private GameObject testLampObject;
+        private Light testLamp;
+
+        private void CreateTestLamp(Vessel vessel)
+        {
+            Part root = vessel.rootPart;
+            if (root == null) return;
+            Vector3 up = ((Vector3)vessel.CoMD - (Vector3)vessel.mainBody.position).normalized;
+            Vector3 forward = Vector3.ProjectOnPlane((Vector3)vessel.north, up);
+            if (forward.sqrMagnitude < 1e-6f) forward = Vector3.ProjectOnPlane(Vector3.forward, up);
+            forward.Normalize();
+            testLampObject = new GameObject("ReDefinition-D32-probe-lamp");
+            testLampObject.transform.SetParent(root.transform, true);
+            testLampObject.transform.position = (Vector3)vessel.CoMD + up * TestLampLiftM;
+            testLampObject.transform.rotation = Quaternion.LookRotation(forward, up);
+            testLamp = testLampObject.AddComponent<Light>();
+            testLamp.type = LightType.Spot;
+            testLamp.range = TestLampRangeM;
+            testLamp.spotAngle = TestLampSpotAngleDeg;
+            testLamp.intensity = TestLampIntensity;
+            testLamp.color = new Color(1f, 0.95f, 0.85f);
+            testLamp.shadows = LightShadows.None;
+            testLamp.enabled = false;
+            LogLine("D32: the probe added a spot lamp of its own: range " + TestLampRangeM.ToString("0", CultureInfo.InvariantCulture) + " m, cone "
+                    + TestLampSpotAngleDeg.ToString("0", CultureInfo.InvariantCulture) + " degrees, horizontal along the local north, "
+                    + TestLampLiftM.ToString("0.0", CultureInfo.InvariantCulture) + " m above the centre of mass");
+        }
+
+        // The craft's lights and the probe's lamp together (the lamp follows the light action group like a real one).
+        private void SetLights(Vessel vessel, bool on)
+        {
+            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, on);
+            if (testLamp != null) testLamp.enabled = on;
+        }
+
+        private void DestroyTestLamp()
+        {
+            if (testLampObject != null) UnityEngine.Object.Destroy(testLampObject);
+            testLampObject = null;
+            testLamp = null;
         }
 
         // ---- frame reading ----
@@ -298,9 +347,18 @@ namespace ReDefinition.Atmospheres
                     + LampScatter.SideLampRange.ToString("0.0", CultureInfo.InvariantCulture) + " m, half angle "
                     + (LampScatter.SideLampHalfAngleRad * Mathf.Rad2Deg).ToString("0", CultureInfo.InvariantCulture) + " degrees, beam points to "
                     + range.ToString("0.0", CultureInfo.InvariantCulture) + " m");
+            lastElevation = elevation;
+            lampIsProbeLamp = testLamp != null && (lamp - testLamp.transform.position).magnitude < 0.5f;
             Emit("D32.beam_axis_elevation_deg", elevation);
+            Emit("D32.beam_lamp_is_probe_lamp", lampIsProbeLamp);
             Emit("D32.beam_reach_m", range);
         }
+
+        // The elevation of the aimed-at lamp's axis and whether that lamp is the probe's own (set by CapturePoints).
+        private double lastElevation = double.NaN;
+        private bool lampIsProbeLamp;
+        // A beam whose axis is steeper than this is seen end-on or not at all from the side: the frame rows are no measurement of a beam.
+        private const double MaxAxisElevationDeg = 45.0;
 
         // The beam is held to this length for the points, in metres.
         private const float BeamReachCapM = 40f;
@@ -615,12 +673,14 @@ namespace ReDefinition.Atmospheres
             lightsVessel = vessel;
             lightsWere = vessel.ActionGroups[KSPActionGroup.Light];
             Emit("D32.lights_initially_on", lightsWere);
-            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, false);
+            // The pad vessel's own lamps point straight down (K-W3 repeat: axis -88 degrees, reach 3 m), so no beam is seen from the side. The probe adds one spot lamp of its own.
+            CreateTestLamp(vessel);
+            SetLights(vessel, false);
             yield return ProbeWait.Seconds(4);
             Emit("D32.lights_off_candidates", LampScatter.LitCandidates);
 
             // Lights on, clear air: lit candidates exist, nothing is drawn, nothing is attached.
-            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, true);
+            SetLights(vessel, true);
             yield return ProbeWait.Seconds(4);
             Emit("D32.lit_candidates", LampScatter.LitCandidates);
             Emit("D32.clear_air_draws", LampScatter.LastDrawCount);
@@ -628,7 +688,7 @@ namespace ReDefinition.Atmospheres
             Emit("D32.clear_air_sigma", LampScatter.LastSigma.Total);
 
             // 2. Snow round the vessel. The lights go off first: snow without a lit lamp draws nothing.
-            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, false);
+            SetLights(vessel, false);
             // The game's field takes no forcing (nothing in the game installs one), so the probe installs a ForcedField: constant snow
             // at -18 C everywhere, level SnowLevel; Restore puts the game's own field back.
             bool forced = InstallSnow();
@@ -644,7 +704,7 @@ namespace ReDefinition.Atmospheres
             Emit("D32.snow_level", WeatherHooks.View.Level);
             yield return ProbeWait.Seconds(4);
             Emit("D32.lights_off_draws", LampScatter.LastDrawCount);
-            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, true);
+            SetLights(vessel, true);
             yield return ProbeWait.Until(() => LampScatter.LitCandidates > 0, 20, "a lit lamp");
 
             bool live = false;
@@ -689,6 +749,9 @@ namespace ReDefinition.Atmospheres
                         geometry = pointsInView >= PointCount - 1;
                         // The premise of every frame row: a camera sees the beam. Without it the probe fails and says so.
                         Check("D32.beam_geometry", geometry, pointsInView + " of " + PointCount + " beam points in view");
+                        // The beam must be one that can be seen: a near-vertical axis (the pad vessel's down lights) or a lamp that is not the probe's own fails the premise.
+                        Check("D32.beam_axis_horizontal", Math.Abs(lastElevation) <= MaxAxisElevationDeg, "axis elevation " + lastElevation.ToString("0", CultureInfo.InvariantCulture) + " degrees, limit " + MaxAxisElevationDeg.ToString("0", CultureInfo.InvariantCulture));
+                        Check("D32.beam_lamp_is_probe_lamp", lampIsProbeLamp, "the drawn side lamp is " + (lampIsProbeLamp ? "the probe's own" : "another lamp"));
                     }
                     else
                     {

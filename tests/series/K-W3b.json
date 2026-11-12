@@ -3,6 +3,7 @@
   "name": "K-W3b",
   "owner": "D32",
   "description": "Wave W3, light: lamp scatter luminance against sigma (start lamp), camera frost coverage and chain order (start frost), the aurora shell's state (start model) and the aurora in the real sky (start aurora), surface cover (start cover) and the sea ice (start ice, a capsule afloat on the sea through -redefinitionProbeSea, which the near-ground rows need). Every start flies the launch-pad vessel of the probe save and runs exactly one probe, because the first probe that finishes ends the game. The shader bundle is built before the run.",
+  "configuration": "Release",
   "profile": "Medium",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
