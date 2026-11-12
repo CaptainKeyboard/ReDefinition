@@ -41,6 +41,8 @@ namespace ReDefinition.Atmospheres
         double HoldWorstDriftM { get; }
         // The vessel stands at the placed point and the hold is anchored there; and the hold's state in words (for the log).
         bool HoldReached { get; }
+        // The vessel has stood within the hold's tolerance for a stretch of frames in a row: a picture may be taken.
+        bool HoldStable { get; }
         string HoldStatus { get; }
         // The flight camera's mode as the game names it (AUTO and the mode it resolves to), and forcing the mode whose heading and pitch are relative to the
         // local horizon (above the atmosphere AUTO resolves to ORBITAL, whose axes are the inertial frame's).
@@ -193,11 +195,16 @@ namespace ReDefinition.Atmospheres
             holding = true;
             host = ReconHost.Get();
             host.PerFrame.Add(HoldVessel);
+            host.PerFixed.Add(HoldVesselStep);
         }
 
         public void StopHold()
         {
-            if (host != null) host.PerFrame.Remove(HoldVessel);
+            if (host != null)
+            {
+                host.PerFrame.Remove(HoldVessel);
+                host.PerFixed.Remove(HoldVesselStep);
+            }
             holding = false;
         }
 
@@ -227,6 +234,16 @@ namespace ReDefinition.Atmospheres
                 Vessel v = FlightGlobals.ActiveVessel;
                 try { FlightInputHandler.state.mainThrottle = 0f; } catch (Exception) { /* no input handler */ }
                 v.SetWorldVelocity(v.mainBody.getRFrmVel(v.GetWorldPos3D()));
+                // No spin either: a part that turns takes the vessel's centre of mass and the camera's anchor with it.
+                try
+                {
+                    foreach (Part p in v.parts)
+                    {
+                        Rigidbody rb = p.Rigidbody;
+                        if (rb != null && !rb.isKinematic) rb.angularVelocity = Vector3.zero;
+                    }
+                }
+                catch (Exception) { /* parts not built yet */ }
             }
         }
 
@@ -236,6 +253,7 @@ namespace ReDefinition.Atmospheres
         public int HoldCorrections { get { return Hold.Corrections; } }
         public double HoldWorstDriftM { get { return Hold.WorstDriftM; } }
         public bool HoldReached { get { return Hold.Reached; } }
+        public bool HoldStable { get { return Hold.Stable; } }
         public string HoldStatus { get { return Hold.Status; } }
 
         // Every frame. Setting the velocity alone did not hold the vessel in start 42 (it left the pose within seconds: east at the body's rotation speed at 265 m, then
@@ -246,6 +264,15 @@ namespace ReDefinition.Atmospheres
             Vessel v = FlightGlobals.ActiveVessel;
             if (v == null || v.mainBody == null) return;
             Hold.Tick();
+        }
+
+        // Before every physics step: the command and the ground's velocity again (the game moved the vessel 3.5 m a step between two per-frame ticks in start 44).
+        private void HoldVesselStep()
+        {
+            if (!SeriesProbe.FlightReadyState()) return;
+            Vessel v = FlightGlobals.ActiveVessel;
+            if (v == null || v.mainBody == null) return;
+            Hold.FixedTick();
         }
 
         public T09Pose ReadPose()

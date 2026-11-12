@@ -20,7 +20,9 @@ namespace ReDefinition.Atmospheres
         internal const string DiagSeries = "K-T2d";
         internal const double DiagMaxSeconds = 8 * 60;
         // The covers asked for (the cover of the field at 3 km): the target and the band that counts as hitting it.
-        private const double LowTarget = 0.3, LowMin = 0.2, LowMax = 0.4, HighTarget = 0.7, HighMin = 0.6, HighMax = 0.8;
+        private const double LowMin = 0.2, LowMax = 0.4, HighTarget = 0.7, HighMin = 0.6, HighMax = 0.8;
+        // The two covers must differ by at least this to be an experiment; the picks' sun elevation band (the wide one is SunMinDeg to SunMaxDeg of K-T2).
+        private const double MinCoverGap = 0.15, NarrowSunMinDeg = 30.0, NarrowSunMaxDeg = 55.0;
         // The far window of the cover scan: from 48 hours on, a candidate every 7800 s (not a divisor of the 6 h day, so the sun's phase differs from candidate to candidate)
         // up to 10 days of 21600 s.
         private const double FarStepS = 7800.0;
@@ -127,57 +129,85 @@ namespace ReDefinition.Atmospheres
                                + (field != null ? field.GetType().Name + ", readiness " + field.Readiness : "none") + "; gates: " + CloudGates.Describe(AtmospheresSettings.Number) + ")";
                 yield break;
             }
-            foreach (ProbeWait w in PickCover(LowTarget, LowMin, LowMax, double.NaN)) yield return w;
-            if (!picked)
+            // The two picks share one sun band, so that low against high is a comparison of cover and not of sun elevation (start 44: 45.5 against 15.6 degrees). The narrow band
+            // 30 to 55 degrees first; where it holds no pair (a body or a day length that never puts the sun there at a candidate hour) the wide band 15 to 60.
+            double coverRange = 0.0, minSeen = double.MaxValue, maxSeen = double.MinValue;
+            foreach (CoverCandidate c in coverCandidates)
             {
-                coverFailure = "no candidate hour has the sun " + SunMinDeg + " to " + SunMaxDeg + " degrees up (" + coverCandidates.Count + " answered)";
+                minSeen = Math.Min(minSeen, c.Cover);
+                maxSeen = Math.Max(maxSeen, c.Cover);
+            }
+            coverRange = maxSeen - minSeen;
+            bool lowOff = false, narrow = false;
+            string failure = null;
+            for (int band = 0; band < 2 && !coverOk; band++)
+            {
+                double sunMin = band == 0 ? NarrowSunMinDeg : SunMinDeg, sunMax = band == 0 ? NarrowSunMaxDeg : SunMaxDeg;
+                // Low: the lowest cover available whose sun is in the band (even above 0.4: the band 0.2 to 0.4 only decides the cover_off_band flag).
+                foreach (ProbeWait w in PickCover(true, double.NaN, double.NaN, double.NaN, double.NaN, sunMin, sunMax, double.NaN)) yield return w;
+                if (!picked)
+                {
+                    failure = "no candidate hour has the sun " + sunMin.ToString("0") + " to " + sunMax.ToString("0") + " degrees up (" + coverCandidates.Count + " answered)";
+                    continue;
+                }
+                lowUt = pickUt; lowCover = pickCover; lowSun = pickSun;
+                lowOff = lowCover < LowMin || lowCover > LowMax;
+                // High: the cover nearest to 0.7 (first inside 0.6 to 0.8) that is at least MinCoverGap above the low one, with the sun in the same band.
+                foreach (ProbeWait w in PickCover(false, HighTarget, HighMin, HighMax, lowUt, sunMin, sunMax, lowCover + MinCoverGap)) yield return w;
+                if (!picked)
+                {
+                    failure = coverRange < MinCoverGap
+                        ? "the two covers are the same: the field's covers at the site span " + minSeen.ToString("0.00") + " to " + maxSeen.ToString("0.00") + " over " + coverCandidates.Count + " candidates (less than " + MinCoverGap.ToString("0.00") + " apart)"
+                        : "no second candidate hour (the first is " + lowUt.ToString("0") + ", cover " + lowCover.ToString("0.00") + ") has a cover at least " + MinCoverGap.ToString("0.00") + " higher with the sun " + sunMin.ToString("0") + " to " + sunMax.ToString("0") + " degrees up";
+                    continue;
+                }
+                highUt = pickUt; highCover = pickCover; highSun = pickSun;
+                narrow = band == 0;
+                coverOk = true;
+            }
+            if (!coverOk)
+            {
+                coverFailure = failure;
                 yield break;
             }
-            lowUt = pickUt; lowCover = pickCover; lowSun = pickSun;
-            bool lowOff = pickedOffBand;
-            foreach (ProbeWait w in PickCover(HighTarget, HighMin, HighMax, lowUt)) yield return w;
-            if (!picked)
-            {
-                coverFailure = "no second candidate hour (the first is " + lowUt.ToString("0") + ") has the sun in the band";
-                yield break;
-            }
-            highUt = pickUt; highCover = pickCover; highSun = pickSun;
-            Emit("T09d.cover_off_band", lowOff || pickedOffBand);
+            bool highOff = highCover < HighMin || highCover > HighMax;
+            Emit("T09d.cover_off_band", lowOff || highOff);
+            Emit("T09d.sun_band_narrow", narrow);
+            Emit("T09d.sun_band_min_deg", narrow ? NarrowSunMinDeg : SunMinDeg);
+            Emit("T09d.sun_band_max_deg", narrow ? NarrowSunMaxDeg : SunMaxDeg);
+            Emit("T09d.sun_elev_diff_deg", Math.Abs(lowSun - highSun));
             // The product has no override of the cloud cover (coverStrength is the surface cover's; ISurfaceForcing forces precipitation), so a field that never drops under
-            // 0.4 gives a low pick above the band: the start goes on and the rows name the covers. Only the same cover twice is no experiment.
-            Emit("T09d.covers_distinct", highCover - lowCover >= 0.15);
-            if (highCover - lowCover < 0.02)
-            {
-                coverFailure = "the two covers are the same: low " + lowCover.ToString("0.00") + ", high " + highCover.ToString("0.00");
-                yield break;
-            }
-            coverOk = true;
+            // 0.4 gives a low pick above the band: the start goes on and the rows name the covers. Only a pair under MinCoverGap apart is no experiment (failed above).
+            Emit("T09d.covers_distinct", highCover - lowCover >= MinCoverGap);
         }
 
-        // The candidate nearest to the target cover (first those inside the band, then the others) whose sun is in the band; the clock is set to try it.
-        private IEnumerable<ProbeWait> PickCover(double target, double min, double max, double avoidUt)
+        // The candidate whose sun is in [sunMin, sunMax] and which is lowest in cover (lowest) or nearest to the target cover (first those inside [min, max], then the others),
+        // at least minCover where that is given; the clock is set to try it.
+        private IEnumerable<ProbeWait> PickCover(bool lowest, double target, double min, double max, double avoidUt, double sunMin, double sunMax, double minCover)
         {
             picked = false;
             pickedOffBand = false;
             var order = new List<CoverCandidate>(coverCandidates);
-            order.Sort((a, b) => Math.Abs(a.Cover - target).CompareTo(Math.Abs(b.Cover - target)));
-            for (int pass = 0; pass < 2 && !picked; pass++)
+            if (lowest) order.Sort((a, b) => a.Cover.CompareTo(b.Cover));
+            else order.Sort((a, b) => Math.Abs(a.Cover - target).CompareTo(Math.Abs(b.Cover - target)));
+            for (int pass = 0; pass < (lowest ? 1 : 2) && !picked; pass++)
             {
                 int tried = 0;
                 foreach (CoverCandidate c in order)
                 {
                     if (c.Ut == avoidUt) continue;
-                    bool inBand = c.Cover >= min && c.Cover <= max;
-                    if (inBand != (pass == 0)) continue;
+                    if (!double.IsNaN(minCover) && c.Cover < minCover) continue;
+                    bool inBand = lowest || (c.Cover >= min && c.Cover <= max);
+                    if (!lowest && inBand != (pass == 0)) continue;
                     if (tried++ >= MaxClockTries) break;
                     ForceUniversalTime(c.Ut);
                     yield return ProbeWait.Frames(6);
                     double elevation = Game.SunElevationDeg();
-                    if (elevation < SunMinDeg || elevation > SunMaxDeg) continue;
+                    if (elevation < sunMin || elevation > sunMax) continue;
                     pickUt = c.Ut;
                     pickCover = c.Cover;
                     pickSun = elevation;
-                    pickedOffBand = pass == 1;
+                    pickedOffBand = !inBand;
                     picked = true;
                     yield break;
                 }

@@ -467,6 +467,9 @@ namespace ReDefinition.Atmospheres
 
         // --- The pose at the end of a dwell and around a capture ---------------------------------------------------------------------------
 
+        // The vessel is held within 5 m (T09Hold.ToleranceM) at the capture; 20 m leaves room for the sampling and is far below the 200 to 500 m of start 44.
+        // K-T2d is a diagnosis whose frames are compared pixel for pixel; K-T2 keeps its older 100 m.
+        private const double PlacedDriftToleranceM = 20.0, DiagDriftToleranceM = 20.0;
         private const double HeldSliceS = 10.0, DriftToleranceM = 100.0, DistanceToleranceFraction = 0.25, DistanceToleranceMinM = 10.0, HeadingToleranceDeg = 15.0;
         private bool viewPoseOk;
         private double viewWorstDriftM;
@@ -487,7 +490,7 @@ namespace ReDefinition.Atmospheres
             double distanceTolerance = Math.Max(DistanceToleranceMinM, DistanceToleranceFraction * view.CameraDistM);
             if (p.CameraToVesselM > 0.0 && Math.Abs(p.CameraToVesselM - view.CameraDistM) > distanceTolerance)
                 problems.Add("camera " + p.CameraToVesselM.ToString("0") + " m from the vessel against " + view.CameraDistM.ToString("0"));
-            if (p.DriftM > DriftToleranceM) problems.Add("the vessel is " + p.DriftM.ToString("0") + " m from the point it is held at");
+            if (p.DriftM > (IsDiag ? DiagDriftToleranceM : DriftToleranceM)) problems.Add("the vessel is " + p.DriftM.ToString("0") + " m from the point it is held at");
             return problems.Count == 0 ? null : string.Join(", ", problems.ToArray());
         }
 
@@ -600,6 +603,8 @@ namespace ReDefinition.Atmospheres
             bool half = !T09Pictures.FullSize(view.Name, variant);
             string name = T09Pictures.Name(StartId, view.Name, variant, Game.ScreenWidth, Game.ScreenHeight, kind, half);
             // The pose of the camera the picture is read from (the flight camera the pass and the timing use), at the moment the read starts.
+            // The pose has to have been stable for a stretch of frames: wait for it (at most 60 frames) rather than read a vessel that is still settling.
+            for (int i = 0; i < 12 && Game.HoldReached && !Game.HoldStable; i++) yield return ProbeWait.Frames(5);
             T09Pose before = Game.ReadPose();
             try { started = Game.CaptureBegin(); }
             catch (Exception e) { fault = "the read threw " + e.GetType().Name + " " + e.Message; }
@@ -776,7 +781,8 @@ namespace ReDefinition.Atmospheres
                 double az = placed.AzimuthDeg, el = placed.ElevationDeg;
                 double altitudeError = Math.Abs(vesselAltitude - wantedAltitude), tolerance = Math.Max(AltitudeToleranceM, 0.02 * wantedAltitude);
                 double aimError = Math.Abs(el - wantedPitch), headingError = Math.Abs(WrapDeg(az - view.HeadingDeg));
-                bool altitudeOk = altitudeError <= tolerance, aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
+                // The altitude is the centre of mass's, which the hold now brings to the target within 5 m: a drift of more than 20 m is a placement that has to be repeated.
+                bool altitudeOk = altitudeError <= tolerance && (!IsDiag || placed.DriftM <= PlacedDriftToleranceM), aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
                 detail = "altitude " + vesselAltitude.ToString("0") + " m against " + wantedAltitude.ToString("0") + ", camera elevation " + el.ToString("0.0") + " against "
                          + wantedPitch.ToString("0.0") + ", heading " + az.ToString("0") + " against " + view.HeadingDeg.ToString("0") + ", " + Game.VesselState
                          + ", " + placed.VesselAgl.ToString("0") + " m over the terrain, camera " + placed.CameraAsl.ToString("0") + " m (" + placed.CameraAgl.ToString("0") + " over the terrain) "
@@ -806,6 +812,8 @@ namespace ReDefinition.Atmospheres
             // The game applies the placement and refreshes the vessel's centre of mass a physics step later: the hold anchors only once the vessel stands at the placed point
             // (start 43 anchored the old position, 85 m). At most 150 more frames; the pose check that follows names a vessel that did not arrive.
             for (int i = 0; i < 30 && !Game.HoldReached; i++) yield return ProbeWait.Frames(5);
+            // And stands there for a stretch of frames (start 44: the vessel left the hold by 200 to 500 m within a second of a view's placement check).
+            for (int i = 0; i < 12 && Game.HoldReached && !Game.HoldStable; i++) yield return ProbeWait.Frames(5);
             AtmospheresLog.Say("T09 hold: " + Game.HoldStatus + " for the " + view.Name + " view (wanted " + wantedAltitude.ToString("0") + " m)");
             wantedPitch = view.PitchDeg;
             if (double.IsNaN(wantedPitch))

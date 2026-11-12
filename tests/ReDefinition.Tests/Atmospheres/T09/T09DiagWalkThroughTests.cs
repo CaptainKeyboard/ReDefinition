@@ -210,6 +210,41 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
+        public void BothPicksStandInTheNarrowSunBandAndTheLowOneIsTheLowestCoverAvailable()
+        {
+            // The sun alternates between 20 and 50 degrees by the hour; covers 0.50 to 0.80, none under 0.4: the low pick is the lowest cover whose sun is in 30 to 55.
+            Run r = StartDiag(x =>
+            {
+                x.World.Sun = ut => ((long)Math.Round(ut / 3600.0)) % 2 == 0 ? 20.0 : 50.0;
+                x.Field.Cover = ut => 0.5f + 0.075f * (float)(((long)Math.Round(ut / 3600.0) / 2 % 5 + 5) % 5) / 1f;
+            });
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(1.0, Number(r, "T09d.sun_band_narrow"), "the narrow band held a pair");
+            Assert.AreEqual(30.0, Number(r, "T09d.sun_band_min_deg"));
+            Assert.AreEqual(55.0, Number(r, "T09d.sun_band_max_deg"));
+            Assert.AreEqual(50.0, Number(r, "T09d.low.sun_elev_deg"), 1e-6);
+            Assert.AreEqual(50.0, Number(r, "T09d.high.sun_elev_deg"), 1e-6);
+            Assert.AreEqual(0.0, Number(r, "T09d.sun_elev_diff_deg"), 1e-6);
+            Assert.AreEqual(0.5, Number(r, "T09d.low.cover"), 1e-6, "the lowest cover available, above the band 0.2 to 0.4");
+            Assert.AreEqual(1.0, Number(r, "T09d.cover_off_band"));
+            Assert.IsTrue(Number(r, "T09d.high.cover") - Number(r, "T09d.low.cover") >= 0.15 - 1e-6);
+            Assert.AreEqual(1.0, Number(r, "T09d.covers_distinct"));
+        }
+
+        [TestMethod]
+        public void NoPairOfCoversAtLeast015ApartFailsNamedAndAPairJustAboveItIsTaken()
+        {
+            Run apart = StartDiag(x => x.Field.Cover = ut => (((long)Math.Round(ut / 3600.0)) % 2 == 0) ? 0.5f : 0.62f);
+            Drive(apart, 0.02);
+            AssertNamedFailure(apart, "the two covers are the same");
+            Run ok = StartDiag(x => x.Field.Cover = ut => (((long)Math.Round(ut / 3600.0)) % 2 == 0) ? 0.5f : 0.66f);
+            Drive(ok, 0.02);
+            Assert.IsTrue(ok.Probe.Passed, Dump(ok));
+            Assert.AreEqual(1.0, Number(ok, "T09d.covers_distinct"));
+        }
+
+        [TestMethod]
         public void AReadWithoutRawValuesFailsNamed()
         {
             Run r = StartDiag(x => x.World.NoRawPixels = true);

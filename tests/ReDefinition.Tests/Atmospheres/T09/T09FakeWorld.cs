@@ -52,33 +52,90 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // on that read. Without it (the default) a placement is seen at once and the hold is a flag, as the older tests expect.
         internal bool RealisticHold;
         internal int PlaceDelayFrames = 3, ReadLagFrames = 5;
+        // What start 44 showed the game does besides: the vessel is read at its centre of mass but SetPosition moves the transform, ComOffsetM higher; the vessel is released with
+        // gravity on (it falls until KeepVelocity zeroes the velocity); the surface turns under it, so a held vessel still moves ResidualEastMS (175 m/s at 600 km) east
+        // relative to the surface between two sets; and the game hitches (a frame of HitchS seconds every HitchEveryS seconds, the physics running its steps meanwhile,
+        // no per-frame tick in between). Physics steps are PhysicsDt long, the hold's FixedTick runs before each.
+        internal double ComOffsetM = 9.35, GravityMS2 = 9.8, ResidualEastMS = 175.0, HitchEveryS, HitchS = 0.7, PhysicsDt = 0.02;
         private T09Hold hold;
-        private double trueAlt = 70.0, pendingAlt;
-        private int pendingApplyFrame = -1;
-        private readonly List<double> altHistory = new List<double>();
+        private double comAlt = 70.0, comEastM, vAlt, physicsAccumulator, nextHitchAtS = double.NaN;
+        // The sets the game has not applied yet: the physics step (frame) from which each counts, the transform altitude and east position it moves to.
+        private readonly List<double[]> pendingSets = new List<double[]>();
+        // The reads the hold gets: the centre of mass at each of the last frames.
+        private readonly List<double[]> history = new List<double[]>();
         internal T09Hold TheHold { get { return hold; } }
-        internal double TrueAltitude { get { return trueAlt; } set { trueAlt = value; } }
+        // The centre of mass's altitude and its distance east of the site (the truth, not the lagging read).
+        internal double TrueAltitude { get { return comAlt; } set { comAlt = value; } }
+        internal double TrueEastM { get { return comEastM; } set { comEastM = value; } }
+        internal int PhysicsSteps;
+        private double MetresPerDegree { get { return Radius * Math.PI / 180.0; } }
+
+        // The distance of the true centre of mass from a point over the site (metres).
+        internal double TrueDistanceM(double altitude) { return Math.Sqrt(comEastM * comEastM + (comAlt - altitude) * (comAlt - altitude)); }
 
         public void Read(out double lat, out double lon, out double alt)
         {
             lat = SiteLat;
-            lon = SiteLon;
-            alt = altHistory.Count == 0 ? trueAlt : altHistory[Math.Max(0, altHistory.Count - 1 - ReadLagFrames)];
+            double east = comEastM;
+            alt = comAlt;
+            if (history.Count > 0)
+            {
+                double[] h = history[Math.Max(0, history.Count - 1 - ReadLagFrames)];
+                alt = h[0];
+                east = h[1];
+            }
+            lon = SiteLon + east / MetresPerDegree;
         }
 
-        public void Set(double lat, double lon, double alt) { trueAlt = PlaceResult(Math.Max(0, PlaceCalls - 1), alt); }
-        public double Distance(double lat1, double lon1, double alt1, double lat2, double lon2, double alt2) { return Math.Abs(alt1 - alt2); }
-        public void KeepVelocity() { }
-
-        private void StepRealisticHold()
+        public void Set(double lat, double lon, double alt)
         {
-            if (pendingApplyFrame >= 0 && Frames >= pendingApplyFrame)
+            double transformAlt = PlaceResult(Math.Max(0, PlaceCalls - 1), alt);
+            pendingSets.Add(new[] { Frames, transformAlt, (lon - SiteLon) * MetresPerDegree });
+        }
+
+        public double Distance(double lat1, double lon1, double alt1, double lat2, double lon2, double alt2)
+        {
+            double dx = (lon1 - lon2) * MetresPerDegree, dy = (lat1 - lat2) * MetresPerDegree, dz = alt1 - alt2;
+            return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        // The game zeroes the vertical velocity; the surface's turning stays (it is the frame, not the velocity that was wrong).
+        public void KeepVelocity() { vAlt = 0.0; }
+
+        // One physics step: the hold's command first (the game's FixedUpdate), then the sets that are due, then gravity and the surface turning.
+        private void PhysicsStep()
+        {
+            PhysicsSteps++;
+            if (Held && hold != null) hold.FixedTick();
+            for (int i = pendingSets.Count - 1; i >= 0; i--)
             {
-                trueAlt = pendingAlt;
-                pendingApplyFrame = -1;
+                double[] s = pendingSets[i];
+                if (Frames < (int)s[0]) continue;
+                comAlt = s[1] - ComOffsetM;
+                comEastM = s[2];
+                pendingSets.RemoveAt(i);
             }
-            altHistory.Add(trueAlt);
-            if (altHistory.Count > ReadLagFrames + 2) altHistory.RemoveAt(0);
+            comAlt += vAlt * PhysicsDt;
+            vAlt -= GravityMS2 * PhysicsDt;
+            comEastM += ResidualEastMS * PhysicsDt;
+        }
+
+        private void StepRealisticHold(double dt)
+        {
+            if (double.IsNaN(nextHitchAtS)) nextHitchAtS = HitchEveryS > 0.0 ? RealS + HitchEveryS : double.PositiveInfinity;
+            physicsAccumulator += dt;
+            if (HitchEveryS > 0.0 && RealS >= nextHitchAtS)
+            {
+                physicsAccumulator += HitchS;
+                nextHitchAtS = RealS + HitchEveryS;
+            }
+            while (physicsAccumulator >= PhysicsDt)
+            {
+                physicsAccumulator -= PhysicsDt;
+                PhysicsStep();
+            }
+            history.Add(new[] { comAlt, comEastM });
+            if (history.Count > ReadLagFrames + 2) history.RemoveAt(0);
             if (Held && hold != null) hold.Tick();
         }
 
@@ -172,7 +229,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             if (CapSticks) FrameRateCap = 60;
             if (VsyncSticks) Vsync = 1;
             if (Frames > 0 && Module != null && FlightReady) UpdateModule();
-            if (RealisticHold && FlightReady) StepRealisticHold();
+            if (RealisticHold && FlightReady) StepRealisticHold(dt);
             if (FlightReady) StepCamera(dt);
             Tuning.Instance.BeginFrame(Frames);
         }
@@ -298,6 +355,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public int HoldCorrections { get { return RealisticHold && hold != null ? hold.Corrections : Corrections; } }
         public double HoldWorstDriftM { get { return RealisticHold && hold != null ? hold.WorstDriftM : WorstDrift; } }
         public bool HoldReached { get { return !RealisticHold || (hold != null && hold.Reached); } }
+        public bool HoldStable { get { return !RealisticHold || (hold != null && hold.Stable); } }
         public string HoldStatus { get { return hold != null ? hold.Status : "no hold"; } }
         public string CameraModeText { get { return FreeMode ? "FREE" : "AUTO (ORBITAL)"; } }
         public void UseFreeCamera() { RequireFlight(); if (FreeModeWorks) FreeMode = true; }
@@ -314,8 +372,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             jump = 0.0;
             if (RealisticHold)
             {
-                pendingAlt = placeTarget;
-                pendingApplyFrame = Frames + PlaceDelayFrames;
+                pendingSets.Add(new[] { Frames + PlaceDelayFrames, placeTarget, (lon - SiteLon) * MetresPerDegree });
                 if (hold == null) hold = new T09Hold(this, m => AtmospheresLog.Say(m));
                 hold.Begin(lat, lon, altitude);
             }

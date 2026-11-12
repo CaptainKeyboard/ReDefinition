@@ -99,6 +99,9 @@ namespace ReDefinition.Atmospheres
         // Called every frame before the cameras cull; fixtures rebuild their meshes here.
         internal readonly List<Action> PerFrame = new List<Action>();
 
+        // Called before every physics step (FixedUpdate): the K-T2 hold sets the vessel's position and velocity here, since a per-frame tick leaves a step or more unheld.
+        internal readonly List<Action> PerFixed = new List<Action>();
+
         // Called at the end of every frame (the depth probes read their targets here).
         internal readonly List<Action> EndOfFrame = new List<Action>();
 
@@ -175,6 +178,21 @@ namespace ReDefinition.Atmospheres
                 Frame = null;
             }
             Reading = false;
+        }
+
+        private void FixedUpdate()
+        {
+            for (int i = 0; i < PerFixed.Count; i++)
+            {
+                try
+                {
+                    PerFixed[i]();
+                }
+                catch (Exception e)
+                {
+                    AtmospheresLog.Failed("recon", "a per-step hook failed", e);
+                }
+            }
         }
 
         private void LateUpdate()
