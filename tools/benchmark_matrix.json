@@ -398,6 +398,27 @@
       ]
     },
     {
+      "id": "weather-9",
+      "name": "Cheap entry refinement of the own clouds",
+      "description": "The two cheap forms of the cloud entry refinement (package T15), one rendering for each value flipped from the group's base, FSR 3 at raytracing Off without frame generation. The base is the own system drawing (cloudSource Ours, ownClouds on) with the refinement off at full resolution. The rows: 2, 3 and 4 bisection steps, 3 bisection steps at cloudResolution 4, and the refinement restricted to the edge mask with 0 and with 3 bisection steps elsewhere (this switches the edge-adaptive picture on). The full refinement (weather-cloudEntryRefinement) is the comparison row of weather-5.",
+      "scenes": ["pad"],
+      "techniques": ["fsr3"],
+      "raytracing": ["Off"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1", "atmo.cloudEntryRefinement": "False", "atmo.cloudRefineAtContours": "False", "atmo.cloudRefineBisect": "0", "atmo.cloudRefineEdgeMask": "False"},
+      "tweaks": [
+        {"id": "weather-cloudRefineBisect2", "name": "Cloud Entry Bisection Steps 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "2"}},
+        {"id": "weather-cloudRefineBisect3", "name": "Cloud Entry Bisection Steps 3", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "3"}},
+        {"id": "weather-cloudRefineBisect4", "name": "Cloud Entry Bisection Steps 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "4"}},
+        {"id": "weather-cloudRefineBisect3Res4", "name": "Cloud Entry Bisection Steps 3, Cloud Resolution 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "3", "atmo.cloudReconMode": "Block", "atmo.cloudResolution": "4"}},
+        {"id": "weather-cloudRefineEdgeMask", "name": "Cloud Refine At Edge Mask true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineEdgeMask": "True"}},
+        {"id": "weather-cloudRefineEdgeMaskBisect3", "name": "Cloud Refine At Edge Mask true, Cloud Entry Bisection Steps 3", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineEdgeMask": "True", "atmo.cloudRefineBisect": "3"}}
+      ]
+    },
+    {
       "id": "rt-weather",
       "name": "Raytracing in a blizzard",
       "description": "What the weather does to the rays (package C24b): FSR 3 at raytracing Full without frame generation, the weather forced to level 0.9 (a blizzard) in every phase. The plain rendering has the fog on the rays (mod.rtWeatherFog) and neither quality cost; then one rendering each without the fog, with the reach capped to three times the visibility (mod.rtWeatherReachCap), with one bounce fewer (mod.rtWeatherFewerBounces) and with both costs. The two costs are quality reductions and off by default until the owner agrees; this group measures what they save (the raytracing segment of the frame) so that the agreement can rest on numbers. The settings reach the game as mod.<key> and atmo.<key> live keys of the probe; the probe's routing of the atmo. prefix to AtmospheresSettings is not there yet.",

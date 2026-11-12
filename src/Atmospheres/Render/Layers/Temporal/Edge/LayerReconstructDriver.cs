@@ -49,7 +49,7 @@ namespace ReDefinition.Atmospheres
         // block the options hold. Off, the reconstructor does not run and the caller draws the layer pass as it did (LayerRenderer.Prepare).
         internal bool Configure(Func<string, float, float> tuning, ReconSettings options)
         {
-            bool on = EdgeSettings.ReconstructorOn(tuning) || options.Mode != ReconMode.Full;
+            bool on = EdgeSettings.ReconstructorOn(tuning) || options.Mode != ReconMode.Full || options.RefineAtMask;
             if (!on) return false;
             playerSettings = options.Clone();
             if (options.Mode == ReconMode.Full)
@@ -58,6 +58,13 @@ namespace ReDefinition.Atmospheres
                 playerSettings.Block = EdgeSettings.CoarseBlock;
             }
             playerSettings.Edge = EdgeSettings.From(tuning);
+            // Package T15: the entry refinement restricted to the edge mask is the edge mode with its step band (the blocks the mask does not flag take the
+            // bisection steps of the frame instead).
+            if (options.RefineAtMask)
+            {
+                playerSettings.Edge.Enabled = true;
+                playerSettings.Edge.StepBand = true;
+            }
             return true;
         }
 

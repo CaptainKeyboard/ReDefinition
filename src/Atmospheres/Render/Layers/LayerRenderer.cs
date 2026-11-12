@@ -65,6 +65,14 @@ namespace ReDefinition.Atmospheres
         // or to a neighbouring march sample in the reconstruction's block mode, above which a ray is re-marched with the refinement on; the other rays keep
         // the grid step). RefineGateFirst is the same for the relative step of the first hit's distance (0: not used).
         public float RefineGate = 0f, RefineGateFirst = 0f;
+        // Package T15, the surface refinement by bisection: the halvings of the interval between the last empty and the first dense sample that move the
+        // sample to the cloud's entry (0: off). It acts only where the entry refinement above is off: on the whole picture, or in the blocks of the edge
+        // mode that the edge mask does not flag when the refinement is restricted to the mask (ReconSettings.RefineAtMask).
+        public int RefineBisect = 0;
+        // The optical depth one step may add inside a cloud without the entry walk (the refinement's step budget alone; 0: off). Acts only where the full
+        // refinement is off, like RefineBisect.
+        public float RefineStepBudget = 0f;
+        public const int MaxRefineBisect = 6;
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
         public bool FixedConeRotation;
         // The per-pixel dither of the step offset and of the light cone is an integer hash (white noise); false: the interleaved gradient noise,
@@ -308,7 +316,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             m.SetVector(Shader.PropertyToID("_RefineP"), new Vector4(Mathf.Max(0f, f.RefineBudget), Mathf.Clamp(f.RefineFraction, 0.01f, 1f), Mathf.Max(0.1f, f.EdgePower), f.HashDither ? 2f : (f.FixedConeRotation ? 1f : 0f)));
-            m.SetVector(Shader.PropertyToID("_RefineG"), new Vector4(Mathf.Max(0f, f.RefineGate), Mathf.Max(0f, f.RefineGateFirst), 0f, 0f));
+            m.SetVector(Shader.PropertyToID("_RefineG"), new Vector4(Mathf.Max(0f, f.RefineGate), Mathf.Max(0f, f.RefineGateFirst), Mathf.Clamp(f.RefineBisect, 0, LayerFrame.MaxRefineBisect), Mathf.Max(0f, f.RefineStepBudget)));
             if (f.Light != null) f.Light.Upload(m);
             if (f.Far != null) f.Far.Upload(m);
             Noise.Bind(m, layerCount);

@@ -35,6 +35,9 @@ namespace ReDefinition.Atmospheres
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
         public EdgeSettings Edge;
+        // Package T15 (cloudRefineEdgeMask): the entry refinement runs only in the blocks the edge mask flags, so the driver switches the edge mode and its
+        // step band on; the other blocks take the frame's bisection steps (LayerFrame.RefineBisect).
+        public bool RefineAtMask;
 
         internal ReconSettings Clone()
         {

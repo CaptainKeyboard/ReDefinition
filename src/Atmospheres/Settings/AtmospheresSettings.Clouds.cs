@@ -53,6 +53,8 @@ namespace ReDefinition.Atmospheres
             internal const string CloudReconMode = "cloudReconMode";
             internal const string CloudResolution = "cloudResolution";
             internal const string CloudRefineAtContours = "cloudRefineAtContours";
+            internal const string CloudRefineBisect = "cloudRefineBisect";
+            internal const string CloudRefineEdgeMask = "cloudRefineEdgeMask";
             // Own clouds: the look fixes of T03v2 and the far view (T06), the switches of the review of wave 4
             internal const string CloudSunMarchLong = "cloudSunMarchLong";
             internal const string CloudSunWhiteBalance = "cloudSunWhiteBalance";
@@ -100,6 +102,8 @@ namespace ReDefinition.Atmospheres
         internal static ReconMode CloudReconMode => E<ReconMode>(Keys.CloudReconMode);
         internal static int CloudResolution => I(Keys.CloudResolution);
         internal static bool CloudRefineAtContours => B(Keys.CloudRefineAtContours);
+        internal static int CloudRefineBisect => I(Keys.CloudRefineBisect);
+        internal static bool CloudRefineEdgeMask => B(Keys.CloudRefineEdgeMask);
 
         internal static bool CloudSunMarchLong => B(Keys.CloudSunMarchLong);
         internal static bool CloudSunWhiteBalance => B(Keys.CloudSunWhiteBalance);
@@ -149,6 +153,10 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("cloudFineDetail", true, CL, "Cloud Fine Detail Octave", NOISE),
                 SettingDef.Bool("cloudEntryRefinement", false, CL, "Cloud Entry Refinement", OWN),
                 SettingDef.Bool("cloudRefineAtContours", false, CL, "Cloud Refine Only At Contours", REFINE),
+                // Package T15: two cheap forms of the entry refinement, both off until the owner agrees (the first replaces the second march by a few
+                // density reads at an entry, the second restricts the full refinement to the blocks of the edge mode that the edge mask flags).
+                SettingDef.Int("cloudRefineBisect", 0, 0, 4, CL, "Cloud Entry Bisection Steps", OWN, RV),
+                SettingDef.Bool("cloudRefineEdgeMask", false, CL, "Cloud Refine At Edge Mask", OWN, RV),
                 SettingDef.Bool("cloudHashDither", true, CL, "Cloud White Dither", OWN),
 
                 // The light (T03)
