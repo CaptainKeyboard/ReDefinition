@@ -26,11 +26,22 @@ namespace ReDefinition.Atmospheres
     //
     // Order against the rest of the frame, stated for the upscaler rig and the other mask writers [VERIFY in K-T1]:
     //  - Deferred: the sun's mask is multiplied by this buffer at AfterScreenspaceMask, after Unity has built the mask from the shadow maps
-    //    and before the lighting pass reads it. The multiply commutes with the other multipliers on the same event (EVE's shadows, Scatterer's
-    //    caustics mask, the vessel shadow layer's mask), so the order among them does not matter; a writer that REPLACES the mask would.
-    //  - The depth is the camera's depth texture, which exists at that point under deferred shading; it carries the upscaler's jitter and render
-    //    size. The shadow is a function of the world position only (no history, no per-frame noise), so it needs no motion vectors and no
-    //    reactive mask; it moves with the cloud, slowly, and a sub-pixel change of the reconstructed position changes it by a hair.
+    //    and before the lighting pass reads it. Unity builds that mask only for a light with shadows (Light.shadows != None, as KSP's sun
+    //    has); the mask holds the sun's term only, so the sky ambient is not touched and the ground under a dense cloud keeps the sky light.
+    //    The multiply commutes with the other multipliers on the same event (EVE's shadows, Scatterer's caustics mask), so the order among
+    //    them does not matter; a writer that REPLACES the mask would not.
+    //  - The depth is the camera's depth texture, which exists at that point under deferred shading. The upscaler rig (Rig/CameraRedirect)
+    //    redirects the camera into its own render-size texture, so camera.pixelWidth/Height are the render size (the buffers are recorded
+    //    again when it changes), and jitters camera.projectionMatrix in OnPreRender, after this rig's OnPreCull; the depth and the
+    //    reconstruction both use the jittered matrix of the frame [VERIFY: unity_CameraInvProjection is the jittered inverse]. The shadow
+    //    is a function of the world position only (no history, no per-frame noise), so it needs no motion vectors and no reactive mask for
+    //    DLSS; it moves with the cloud (tens of metres a second, well under a pixel a frame), and a sub-pixel change of the reconstructed
+    //    position changes it by a hair; the penumbra is a few metres wide (h x 9.31 mrad / sin^2 e), not a pixel-sharp edge to flicker.
+    //  - The vessel shadow layer (Upscaler/FrameGeneration/VesselShadowLayer) keeps a permanent buffer on the brightest shadow-casting
+    //    directional light at the same event that COPIES the mask for the frame generation replay. This rig adds its buffers per camera in
+    //    OnPreCull, so they run after the copy: the replayed vessel shadow sees the mask without the cloud shadow. Where a vessel lies in a
+    //    cloud shadow its own shadow is then drawn on ground that is already dark [VERIFY in K-T1; the fix is a hook that lets the layer
+    //    copy after this multiply].
     //  - Forward: the camera's buffer at AfterForwardOpaque, once the opaque geometry and its depth exist. Forward shading has no separate sun
     //    term to scale, so the colour is multiplied by 1 - share (1 - mask), where share is the sun's part of a lit surface's colour (the
     //    scene's sun light against its ambient, ForwardShare): the ambient part is kept, and a surface under a dense cloud stays lit by the

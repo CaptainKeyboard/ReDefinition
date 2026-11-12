@@ -53,6 +53,7 @@ namespace ReDefinition.WeatherPlayer
             // The mod's own rig puts the forward buffer on the camera in Camera.onPreCull and takes it off in Camera.onPostRender.
             rig = new CloudShadowRig(renderer, c => c == Cam ? CloudShadowRole.Scene : CloudShadowRole.None, () => Sun);
             rig.Start();
+            NaturalMode(false);
             // The sea reaches 25 km: the shadow edge of the 20 degree view falls at 5.5 km and its view reaches 9.6 km.
             GameObject sea = GameObject.Find("Sea");
             if (sea != null) sea.transform.localScale = new Vector3(5000f, 1f, 5000f);
@@ -120,6 +121,14 @@ namespace ReDefinition.WeatherPlayer
                 }
                 else if (e == 20.0) SavePictures("edge20");
                 else SavePictures("edge70");
+                if (e < 60.0)
+                {
+                    // The same view as a player sees it: the product's setting (the cloud's scattered light in the mask, the ambient kept).
+                    NaturalMode(true);
+                    yield return Capture();
+                    SavePictures("edge" + (int)e + "-natural");
+                    NaturalMode(false);
+                }
             }
             Sink.Info("R11-shadow-displacement.worst", worstShift);
 
@@ -181,6 +190,102 @@ namespace ReDefinition.WeatherPlayer
             WriteCapture("R13-ocean-land", "{\"water\": " + N(seaFactor) + ", \"land\": " + N(land) + "}");
             SavePictures("receivers");
 
+            // ---- the vehicle and the ground in the product's setting: lit by the sky under the shadow, not black ----
+            NaturalMode(true);
+            yield return Capture();
+            SavePictures("receivers-natural");
+            double vesselNatural = Patch(vehicleTop, 1);
+            Sink.Info("natural.vessel_tau1", vesselNatural);
+            NaturalMode(false);
+
+            // ---- R12 on the GPU: the mask with the diffuse floor under a wide cloud against the fitted total transmission (the player's
+            // measurement of the R12 'ours' column; the reference is the photon walk of the harness) ----
+            frame.DiffuseShare = 1f;
+            var r12 = new System.Collections.Generic.List<double>();
+            double worstTotal = 0.0;
+            foreach (double tau in taus)
+            {
+                SetCloud((float)tau, false);
+                SetSun(45.0);
+                Pose(new CameraPose(new Vector3(-300f, 1500f, 0f), 0f, 90f));
+                yield return Capture();
+                double[] xs, ratio;
+                RowRatio(out xs, out ratio);
+                double mean = 0.0;
+                int n = 0;
+                for (int i = ratio.Length / 4; i < ratio.Length * 3 / 4; i++) { mean += ratio[i]; n++; }
+                mean /= n;
+                double want = CloudShadowMath.TotalTransmission(tau / Math.Sin(Math.PI / 4.0), tau);
+                double err = Math.Abs(mean - want) / want;
+                worstTotal = Math.Max(worstTotal, err);
+                r12.Add(mean);
+                Sink.Info("total.tau" + tau.ToString(CultureInfo.InvariantCulture), mean);
+                Sink.Info("total_expected.tau" + tau.ToString(CultureInfo.InvariantCulture), want);
+                Sink.AtMost("R12-gpu-total.tau" + tau.ToString(CultureInfo.InvariantCulture), err, 0.05);
+            }
+            Sink.Info("R12-gpu-total.worst", worstTotal);
+            WriteCapture("R12-shadow-vs-tau", "{\"taus\": " + List(taus) + ", \"factors\": " + List(r12.ToArray()) + "}");
+
+            // ---- the ground under a dense cloud (tau 20): the colour keeps the ambient share, the picture is not black ----
+            NaturalMode(true);
+            SetCloud(20f, false);
+            SetSun(45.0);
+            Pose(new CameraPose(new Vector3(-300f, 1500f, 0f), 0f, 90f));
+            yield return Capture();
+            var landPoint = new Vector3(300f, TerrainHeight(300f, 0f), 0f);
+            yield return MeasureShare(landPoint, 6);
+            double maskDense = CloudShadowMath.TotalTransmission(20.0 / Math.Sin(Math.PI / 4.0), 20.0);
+            double wantDense = ExpectedNatural(maskDense);
+            double gotDense = Patch(landPoint, 6);
+            Sink.Info("forward.share_measured", measuredShare);
+            Sink.Info("forward.share_model", ModelShare(45.0));
+            // The land patch slopes about 4 degrees away from the sun and reflects some sky, which the flat-ground formula leaves out: 12 %.
+            Sink.AtMost("forward.share_model_vs_measured", Math.Abs(ModelShare(45.0) - measuredShare) / measuredShare, 0.12);
+            Sink.Info("forward.dense_ratio", gotDense);
+            Sink.Info("forward.dense_expected_measured_share", wantDense);
+            // The forward path applies 1 - share (1 - mask) with the model's share: that is what it must reproduce exactly. How far the model's
+            // share is from what a material really gives (Unity's Standard shader weights the sun's term by the Disney diffuse factor, which
+            // the ambient does not get) is the line forward.share_model_vs_measured above and forward.dense_vs_measured below.
+            double wantModel = 1.0 - ModelShare(45.0) * (1.0 - maskDense);
+            Sink.Info("forward.dense_expected_model_share", wantModel);
+            Sink.AtMost("forward.dense_ambient_kept", acts ? Math.Abs(gotDense - wantModel) / wantModel : 1.0, 0.04);
+            Sink.Info("forward.dense_vs_measured", Math.Abs(gotDense - wantDense) / wantDense);
+            Sink.AtLeast("forward.dense_not_black", gotDense, 0.3);
+            SavePictures("dense-tau20-natural");
+
+            // ---- the deferred path: the same cloud through the sun's shadow mask (needs a shadow-casting sun) ----
+            // The sun's screen-space mask exists only inside the shadow distance (the camera is 1500 m up), so the distance is set wide.
+            Cam.renderingPath = RenderingPath.DeferredShading;
+            QualitySettings.shadows = ShadowQuality.HardOnly;
+            QualitySettings.shadowDistance = 5000f;
+            QualitySettings.shadowCascades = 2;
+            Sun.shadows = LightShadows.Hard;
+            rig.Enabled = false;
+            yield return Frames(6);
+            bool deferredOn = Cam.actualRenderingPath == RenderingPath.DeferredShading;
+            Sink.Flag("deferred_active", deferredOn);
+            if (deferredOn)
+            {
+                yield return Capture();
+                yield return MeasureShare(landPoint, 6);
+                double wantMask = ExpectedNatural(maskDense);
+                double gotMask = Patch(landPoint, 6);
+                Sink.Info("deferred.share_measured", measuredShare);
+                Sink.Info("deferred.dense_ratio", gotMask);
+                Sink.Info("deferred.dense_expected", wantMask);
+                // A ratio of 1 means the sun's mask was never multiplied (no mask event fired): reported apart from the value check.
+                Sink.Flag("deferred_mask_ran", Math.Abs(gotMask - 1.0) > 0.05);
+                Sink.AtMost("deferred.dense_ambient_kept", Math.Abs(gotMask - wantMask) / wantMask, 0.10);
+                // The two paths differ by the forward path's share model (see above): a line, not a limit.
+                Sink.Info("deferred.against_forward", Math.Abs(gotMask - gotDense) / gotDense);
+                SavePictures("dense-tau20-deferred");
+            }
+            Cam.renderingPath = RenderingPath.Forward;
+            Sun.shadows = LightShadows.None;
+            QualitySettings.shadowDistance = 150f;
+            QualitySettings.shadows = ShadowQuality.Disable;
+            NaturalMode(false);
+
             Sink.Flag("shadow_finite", finite);
             rig.Stop();
             renderer.Dispose();
@@ -227,6 +332,61 @@ namespace ReDefinition.WeatherPlayer
             frame.Floor = 0f;
         }
 
+        // The analytic checks measure the pure direct beam through the whole colour (no diffuse floor, no ambient share); the natural
+        // pictures and the ambient checks run the product's setting: the diffuse floor in the mask and the sun's share of the colour read from
+        // the scene's light.
+        private void NaturalMode(bool on)
+        {
+            frame.DiffuseShare = on ? 1f : 0f;
+            rig.AutoForwardShare = on;
+            if (!on) frame.ForwardDirectShare = 1f;
+        }
+
+        // The share of the sun in the colour the camera really reads at a world point (flat-ish land): the lit picture against the picture with
+        // the sun switched off (ambient only), measured, so that the expected ratio of the natural checks does not repeat the formula of the rig.
+        private double measuredShare;
+        private IEnumerator MeasureShare(Vector3 world, int halfPixels)
+        {
+            bool was = rig.Enabled;
+            rig.Enabled = false;
+            yield return Frames(3);
+            yield return new WaitForEndOfFrame();
+            float[] withSun = Grab();
+            float intensity = Sun.intensity;
+            Sun.intensity = 0f;
+            yield return Frames(3);
+            yield return new WaitForEndOfFrame();
+            float[] ambientOnly = Grab();
+            Sun.intensity = intensity;
+            rig.Enabled = was;
+            Vector3 s = Cam.WorldToScreenPoint(world);
+            int cx = Mathf.RoundToInt(s.x), cy = Mathf.RoundToInt(s.y);
+            double a = 0.0, b = 0.0;
+            for (int y = cy - halfPixels; y <= cy + halfPixels; y++)
+                for (int x = cx - halfPixels; x <= cx + halfPixels; x++)
+                {
+                    int i = y * Target.width + x;
+                    if (x < 0 || y < 0 || x >= Target.width || y >= Target.height) continue;
+                    a += withSun[i];
+                    b += ambientOnly[i];
+                }
+            measuredShare = a > 1e-9 ? 1.0 - b / a : 1.0;
+        }
+
+        // The ratio the product's setting must give on that surface for a mask value: the colour keeps its ambient share.
+        private double ExpectedNatural(double mask)
+        {
+            return 1.0 - measuredShare * (1.0 - mask);
+        }
+
+        // The share the rig's model (CloudShadowMath.DirectShare of the sun and ambient settings) gives, for the same point of view.
+        private double ModelShare(double elevationDeg)
+        {
+            double lum = Sun.intensity * (0.2126 * Sun.color.r + 0.7152 * Sun.color.g + 0.0722 * Sun.color.b);
+            Color a = RenderSettings.ambientLight;
+            return CloudShadowMath.DirectShare(lum, Math.Sin(elevationDeg * Math.PI / 180.0), 0.2126 * a.r + 0.7152 * a.g + 0.0722 * a.b);
+        }
+
         // Renders the lit ground (no buffer) and the shadowed ground (the renderer's forward buffer on the camera) from the current pose.
         private IEnumerator Capture()
         {
@@ -238,7 +398,10 @@ namespace ReDefinition.WeatherPlayer
             yield return Frames(4);
             yield return new WaitForEndOfFrame();
             shadowed = Grab();
+            shadowedColour = grabbedColour;
         }
+
+        private Color[] grabbedColour, shadowedColour;
 
         private float[] Grab()
         {
@@ -249,6 +412,7 @@ namespace ReDefinition.WeatherPlayer
             tex.Apply();
             RenderTexture.active = previous;
             Color[] px = tex.GetPixels();
+            grabbedColour = px;
             UnityEngine.Object.Destroy(tex);
             var l = new float[px.Length];
             for (int i = 0; i < px.Length; i++) l[i] = (px[i].r + px[i].g + px[i].b) / 3f;
@@ -318,19 +482,39 @@ namespace ReDefinition.WeatherPlayer
             int w = Target.width, h = Target.height;
             var natural = new Texture2D(w, h, TextureFormat.RGB24, false);
             var aid = new Texture2D(w, h, TextureFormat.RGB24, false);
+            // The natural picture is shown at a fixed gain per capture: the mean of the lit picture goes to 0.5 (the player's fake light is dim).
+            double meanLit = 0.0;
+            for (int i = 0; i < lit.Length; i++) meanLit += lit[i];
+            meanLit /= Math.Max(1, lit.Length);
+            float gain = (float)Mathf.Clamp(0.5f / Mathf.Max((float)meanLit, 1e-3f), 1f, 8f);
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
                 {
                     int i = y * w + x;
-                    float v = Mathf.Clamp01(shadowed[i]);
-                    natural.SetPixel(x, y, new Color(v, v, v));
-                    float r = Mathf.Clamp01(Ratio(x, y));
-                    aid.SetPixel(x, y, r > 0.5f ? Color.Lerp(Color.red, Color.white, (r - 0.5f) * 2f) : Color.Lerp(Color.black, Color.red, r * 2f));
+                    Color c = shadowedColour[i];
+                    natural.SetPixel(x, y, new Color(Mathf.Clamp01(c.r * gain), Mathf.Clamp01(c.g * gain), Mathf.Clamp01(c.b * gain)));
+                    aid.SetPixel(x, y, AidColour(Ratio(x, y)));
                 }
+            // The scale of the aid picture: the bottom strip runs from a factor of 0.001 (left) to 1 (right); ticks at 0.001, 0.01, 0.1 and 1.
+            for (int x = 0; x < w / 2; x++)
+            {
+                float v = x / (float)(w / 2 - 1);
+                bool tick = Mathf.Abs(v * 3f - Mathf.Round(v * 3f)) < 0.004f;
+                for (int y = 0; y < 24; y++)
+                    aid.SetPixel(x, y, tick ? Color.cyan : AidColour(Mathf.Pow(10f, (v - 1f) * 3f)));
+            }
             File.WriteAllBytes(Path.Combine(Output, "shadow-" + label + ".png"), natural.EncodeToPNG());
             File.WriteAllBytes(Path.Combine(Output, "shadow-" + label + "-aid.png"), aid.EncodeToPNG());
             UnityEngine.Object.Destroy(natural);
             UnityEngine.Object.Destroy(aid);
+        }
+
+        // The shadow factor in false colour on a log scale (white 1, red 0.03, black 0.001 and less); NaN (no lit reference) is blue.
+        private static Color AidColour(float ratio)
+        {
+            if (float.IsNaN(ratio)) return Color.blue;
+            float v = Mathf.Clamp01(1f + Mathf.Log10(Mathf.Max(ratio, 1e-3f)) / 3f);
+            return v > 0.5f ? Color.Lerp(Color.red, Color.white, (v - 0.5f) * 2f) : Color.Lerp(Color.black, Color.red, v * 2f);
         }
 
         private void WriteCapture(string id, string json)

@@ -191,10 +191,11 @@ namespace ReDefinition.Atmospheres
 
         // The camera's buffer for forward rendering: the same shadow multiplied into the colour (the sun's share of it only,
         // CloudShadowFrame.ForwardDirectShare). Goes on the camera at AfterForwardOpaque. afterShadow runs between the shadow and the
-        // multiply (the cost scene puts its GPU timestamp there).
-        internal void RecordForwardBuffer(CommandBuffer cb, int width, int height, Action<CommandBuffer> afterShadow = null)
+        // multiply, beforeShadow at the start (the cost scene puts its GPU timestamps there).
+        internal void RecordForwardBuffer(CommandBuffer cb, int width, int height, Action<CommandBuffer> beforeShadow = null, Action<CommandBuffer> afterShadow = null)
         {
             cb.Clear();
+            if (beforeShadow != null) beforeShadow(cb);
             RecordShadow(cb, width, height);
             if (afterShadow != null) afterShadow(cb);
             // The blits above left a temporary texture as the render target: back to the camera's.
