@@ -16,8 +16,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import gpu_lock  # noqa: E402
 from atmo_series import (BUILD_ARTIFACTS, BUNDLE, DEFAULT_DOTNET, DEFAULT_REPO, DISABLED_DIR, MOD_FOLDERS, PROFILE_CACHE_REL,  # noqa: E402
-                         Refusal, Snapshot, apply_settings, free_memory_gb, ksp_running_tasklist, load_series, plan_args, settings_text,
-                         sha256)
+                         Refusal, Snapshot, apply_settings, free_memory_gb, is_texture_cache_file, ksp_running_tasklist, load_series,
+                         plan_args, settings_text, sha256, tree_files)
 
 PASS, WARN, FAIL, INFO = "PASS", "WARN", "FAIL", "INFO"
 TEXTURE_CACHE_REL = "GameData/KSPCommunityFixes/PluginData/TextureCache"
@@ -351,6 +351,20 @@ def pf_scene_guard(repo, probe_args):
     return [(PASS, "probe scene guard", "%s checks GameScenes.FLIGHT" % os.path.basename(hits[0]) if uses else "no flight state used")]
 
 
+def pf_profile_cache(profile_cache):
+    """The profile cache is copied over the install before every start. It must hold no KSPCF texture cache file: an index without
+    its data files made the loader of K-T2 starts 37 and 38 fail (apply_profile skips such files now, but they do not belong there)."""
+    if not profile_cache or not os.path.isdir(profile_cache):
+        return [(PASS, "profile cache texture files", "no profile cache folder")]
+    bad = [rel for rel in tree_files(profile_cache) if is_texture_cache_file(rel)]
+    if bad:
+        folder = os.path.join(profile_cache, *TEXTURE_CACHE_REL.split("/"))
+        return [(FAIL, "profile cache texture files", "%d KSPCF texture cache file(s) in the profile cache (%s); remedy: Remove-Item -Recurse "
+                                                      "-Force '%s' (or move it out of the profile cache)" %
+                 (len(bad), ", ".join(bad[:3]) + (", ..." if len(bad) > 3 else ""), folder))]
+    return [(PASS, "profile cache texture files", "none (KSPCF builds its own cache)")]
+
+
 def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script_repo=None, dotnet=DEFAULT_DOTNET):
     """All checks of a series start, without starting or changing anything. Returns the list of (status, check, detail)."""
     h = hooks or {}
@@ -380,6 +394,7 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
                             os.path.isfile(os.path.join(repo, "tools", "build_atmospheres_bundle.ps1")))
     results += pf_modsets(ksp, starts, h.get("mod_folders"))
     results += pf_texture_cache(ksp)
+    results += pf_profile_cache(profile_cache)
     for st in starts:
         results += pf_probe_files(ksp, st.get("probeArgs", []))
         results += pf_scene_guard(repo, st.get("probeArgs", []))
@@ -534,6 +549,18 @@ def selftest(check):
         os.remove(os.path.join(tc, "textureData.json"))
         check("preflight texture cache: files without an index FAIL", status(pf_texture_cache(ksp)) == FAIL)
         shutil.rmtree(tc)
+
+        # the profile cache holds no KSPCF texture cache file
+        pcache = os.path.join(root, "pcache")
+        write(os.path.join(pcache, "GameData", "BetterTimeWarp", "x.cfg"))
+        check("preflight profile cache: no texture cache file PASSes", status(pf_profile_cache(pcache)) == PASS)
+        write(os.path.join(pcache, *TEXTURE_CACHE_REL.split("/"), "textureData.json"))
+        r = pf_profile_cache(pcache)
+        check("preflight profile cache: a textureData.json FAILs with the remedy", status(r) == FAIL and "Remove-Item" in r[0][2])
+        os.remove(os.path.join(pcache, *TEXTURE_CACHE_REL.split("/"), "textureData.json"))
+        write(os.path.join(pcache, *TEXTURE_CACHE_REL.split("/"), "1913803525"))
+        check("preflight profile cache: a data file FAILs", status(pf_profile_cache(pcache)) == FAIL)
+        shutil.rmtree(pcache)
 
         # probe files
         check("preflight probe files: missing save and craft WARN", status(pf_probe_files(ksp, []), "probe save") == WARN and status(pf_probe_files(ksp, []), "probe craft") == WARN)

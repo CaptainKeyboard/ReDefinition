@@ -51,6 +51,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import atmo_logguard  # noqa: E402
 import gpu_lock  # noqa: E402
 
 DEFAULT_REPO = os.path.dirname(HERE)
@@ -522,11 +523,24 @@ def tree_files(root):
 
 
 def apply_profile(cache, ksp):
-    """Copies the files of the profile cache over the KSP folder (the Medium settings of the mods)."""
+    """Copies the files of the profile cache over the KSP folder (the Medium settings of the mods). KSPCF's texture cache files are
+    never copied: a bare index without its data files made the loader of K-T2 starts 37 and 38 fail. Returns the skipped files."""
+    skipped = []
     for rel in tree_files(cache):
+        if is_texture_cache_file(rel):
+            skipped.append(rel)
+            print("apply_profile: skipped %s (KSPCF texture cache files are not injected)" % rel, flush=True)
+            continue
         dst = os.path.join(ksp, *rel.split("/"))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(cache, *rel.split("/")), dst)
+    return skipped
+
+
+def is_texture_cache_file(rel):
+    """Whether a path relative to the KSP folder (or the profile cache) is KSPCF's PNG texture cache: the index or a data file."""
+    low = rel.replace("\\", "/").lower()
+    return low.endswith("/texturedata.json") or low == "texturedata.json" or "/texturecache/" in "/" + low or low.endswith("/texturecache")
 
 
 def settings_text(value):
@@ -749,12 +763,19 @@ def launch_game(ksp, args, timeout, log_path, exe_prefix=None, grace=PROBE_GRACE
         threading.Thread(target=keep, daemon=True).start()
     started = time.time()
     verdict_at = None
+    guard = atmo_logguard.LogGuard(started)
+    tail = atmo_logguard.LogTail(log_path)
     try:
         while True:
             code = proc.poll()
             if code is not None:
                 return "quit", code
             now = time.time()
+            reason = guard.feed_text(tail.read_new(), now)
+            if reason:
+                gpu_lock.kill_tree(proc.pid)
+                proc.wait()
+                return "aborted: " + reason, None
             if now - started > timeout:
                 gpu_lock.kill_tree(proc.pid)
                 proc.wait()
@@ -876,7 +897,8 @@ class Runner:
             snap.add_file(f)
         if os.path.isdir(self.profile_cache):
             for rel in tree_files(self.profile_cache):
-                snap.add_file(rel)
+                if not is_texture_cache_file(rel):  # apply_profile never copies these
+                    snap.add_file(rel)
         return snap
 
     # -- the run
@@ -955,7 +977,7 @@ class Runner:
                         all_results += results
                         verdicts[st["id"]] = verdict
                         report["warnings"] += ["%s: %s" % (st["id"], w) for w in warnings]
-                        if how.startswith("timeout"):
+                        if how.startswith("timeout") or how.startswith("aborted"):
                             failures.append(("start@" + st["id"], how))
                         self.collect(defn, report)
                     finally:
@@ -1451,6 +1473,39 @@ def _selftest():
         # 13. The offline preflight (tools/atmo_preflight.py): every check with a failing and a passing fixture.
         import atmo_preflight
         atmo_preflight.selftest(check)
+
+        # 14. apply_profile never injects KSPCF texture cache files; the loader guard ends a lost load.
+        pcache = os.path.join(root, "pc14")
+        pksp = os.path.join(root, "ksp14")
+        tcrel = "GameData/KSPCommunityFixes/PluginData/TextureCache"
+        for rel in (tcrel + "/textureData.json", tcrel + "/12345", "GameData/Other/a.cfg"):
+            os.makedirs(os.path.dirname(os.path.join(pcache, *rel.split("/"))), exist_ok=True)
+            with open(os.path.join(pcache, *rel.split("/")), "w") as f:
+                f.write("x")
+        with contextlib.redirect_stdout(io.StringIO()) as out14:
+            skipped = apply_profile(pcache, pksp)
+        check("apply_profile skips the KSPCF texture cache files and logs them",
+              len(skipped) == 2 and not os.path.exists(os.path.join(pksp, *tcrel.split("/"))) and "skipped" in out14.getvalue()
+              and os.path.isfile(os.path.join(pksp, "GameData", "Other", "a.cfg")))
+        g = atmo_logguard.LogGuard(0)
+        check("loader guard: 20 LOAD FAILED lines pass, 21 abort",
+              g.feed_text("LOAD FAILED x\n" * 20, 1) is None and g.feed_text("LOAD FAILED x\n", 2) is not None)
+        g = atmo_logguard.LogGuard(0)
+        check("loader guard: a healthy load passes", g.feed_text("[LOG] a\n[LOG] b\n", 5) is None and g.tick(100) is None)
+        g = atmo_logguard.LogGuard(0)
+        g.feed_text("[LOG] a\n", 200)
+        check("loader guard: 240 s of loading with 60 s silence aborts", g.tick(250) is None and g.tick(260) is None and g.tick(261) is not None)
+        g = atmo_logguard.LogGuard(0)
+        g.feed_text("Scene Change : From LOADING to MAINMENU\n", 10)
+        check("loader guard: silence after the loading scene does not abort", g.tick(1000) is None)
+        script = os.path.join(root, "fake_ksp.py")
+        flog = os.path.join(root, "fake.log")
+        with open(script, "w") as f:
+            f.write("import sys,time\nwith open(sys.argv[1],'w') as g:\n    for i in range(50):\n        g.write('LOAD FAILED : x\\n'); g.flush()\n"
+                    "time.sleep(60)\n")
+        t14 = time.time()
+        how, code = launch_game(root, [flog], 55, flog, exe_prefix=[sys.executable, script], poll=0.1)
+        check("launch_game kills the game on the guard and says why", how.startswith("aborted: ") and time.time() - t14 < 30, how)
     finally:
         shutil.rmtree(root, ignore_errors=True)
     print("selftest: %s" % ("PASSED" if not failures else "FAILED (%s)" % ", ".join(failures)))
