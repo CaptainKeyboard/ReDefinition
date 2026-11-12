@@ -45,8 +45,43 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // The game as the K-T2 probe sees it, with every number the walk-through needs to turn: the scene, the vessel, the flight camera, the window, the
     // clock and the own cloud module's counters. Advance(dt) is one frame. Any member of the flight (vessel, camera) throws a NullReferenceException before
     // the flight is ready, as FlightGlobals.ActiveVessel does in the main menu.
-    internal sealed class FakeWorld : IT09World
+    internal sealed class FakeWorld : IT09World, IHoldVessel
     {
+        // The game's placement as it really is (start 43): SetPosition shows in the read of the centre of mass only after a physics step. With RealisticHold the vessel's
+        // true altitude changes PlaceDelayFrames frames after the placement, the read lags the true altitude by ReadLagFrames, and the real hold (T09Hold) runs every frame
+        // on that read. Without it (the default) a placement is seen at once and the hold is a flag, as the older tests expect.
+        internal bool RealisticHold;
+        internal int PlaceDelayFrames = 3, ReadLagFrames = 5;
+        private T09Hold hold;
+        private double trueAlt = 70.0, pendingAlt;
+        private int pendingApplyFrame = -1;
+        private readonly List<double> altHistory = new List<double>();
+        internal T09Hold TheHold { get { return hold; } }
+        internal double TrueAltitude { get { return trueAlt; } set { trueAlt = value; } }
+
+        public void Read(out double lat, out double lon, out double alt)
+        {
+            lat = SiteLat;
+            lon = SiteLon;
+            alt = altHistory.Count == 0 ? trueAlt : altHistory[Math.Max(0, altHistory.Count - 1 - ReadLagFrames)];
+        }
+
+        public void Set(double lat, double lon, double alt) { trueAlt = PlaceResult(Math.Max(0, PlaceCalls - 1), alt); }
+        public double Distance(double lat1, double lon1, double alt1, double lat2, double lon2, double alt2) { return Math.Abs(alt1 - alt2); }
+        public void KeepVelocity() { }
+
+        private void StepRealisticHold()
+        {
+            if (pendingApplyFrame >= 0 && Frames >= pendingApplyFrame)
+            {
+                trueAlt = pendingAlt;
+                pendingApplyFrame = -1;
+            }
+            altHistory.Add(trueAlt);
+            if (altHistory.Count > ReadLagFrames + 2) altHistory.RemoveAt(0);
+            if (Held && hold != null) hold.Tick();
+        }
+
         // Real seconds since the game started, frames, universal time, the game's time scale.
         internal double RealS;
         internal int Frames;
@@ -137,7 +172,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             if (CapSticks) FrameRateCap = 60;
             if (VsyncSticks) Vsync = 1;
             if (Frames > 0 && Module != null && FlightReady) UpdateModule();
-            if (Held && FlightReady) { /* the hold keeps the velocity; position is the placement's */ }
+            if (RealisticHold && FlightReady) StepRealisticHold();
             if (FlightReady) StepCamera(dt);
             Tuning.Instance.BeginFrame(Frames);
         }
@@ -226,6 +261,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             get
             {
                 RequireFlight();
+                if (RealisticHold)
+                {
+                    double read;
+                    double lat, lon;
+                    Read(out lat, out lon, out read);
+                    return read + jump;
+                }
                 if (RealS >= placeAtS) Altitude = placeTarget;
                 return Altitude + jump + (RealS >= placeAtS && !double.IsInfinity(placeAtS) ? AltitudeDrift(SincePlacementS) : 0.0);
             }
@@ -249,12 +291,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 CameraToVesselM = distance,
                 AzimuthDeg = az,
                 ElevationDeg = el,
-                DriftM = Held ? Math.Sqrt(vertical * vertical + horizontal * horizontal) : 0.0
+                DriftM = RealisticHold ? (hold != null ? hold.DriftM() : 0.0) : (Held ? Math.Sqrt(vertical * vertical + horizontal * horizontal) : 0.0)
             };
         }
 
-        public int HoldCorrections { get { return Corrections; } }
-        public double HoldWorstDriftM { get { return WorstDrift; } }
+        public int HoldCorrections { get { return RealisticHold && hold != null ? hold.Corrections : Corrections; } }
+        public double HoldWorstDriftM { get { return RealisticHold && hold != null ? hold.WorstDriftM : WorstDrift; } }
+        public bool HoldReached { get { return !RealisticHold || (hold != null && hold.Reached); } }
+        public string HoldStatus { get { return hold != null ? hold.Status : "no hold"; } }
         public string CameraModeText { get { return FreeMode ? "FREE" : "AUTO (ORBITAL)"; } }
         public void UseFreeCamera() { RequireFlight(); if (FreeModeWorks) FreeMode = true; }
 
@@ -268,6 +312,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             placeAtS = RealS + PlaceLagS(call);
             placedCallS = RealS;
             jump = 0.0;
+            if (RealisticHold)
+            {
+                pendingAlt = placeTarget;
+                pendingApplyFrame = Frames + PlaceDelayFrames;
+                if (hold == null) hold = new T09Hold(this, m => AtmospheresLog.Say(m));
+                hold.Begin(lat, lon, altitude);
+            }
         }
 
         public void StartHold() { RequireFlight(); if (!Held) { Held = true; HoldStartedAtS = RealS; } }

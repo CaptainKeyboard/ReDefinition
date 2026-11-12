@@ -39,6 +39,9 @@ namespace ReDefinition.Atmospheres
         // How often the hold moved the vessel back since the last placement and the largest distance it had drifted (metres).
         int HoldCorrections { get; }
         double HoldWorstDriftM { get; }
+        // The vessel stands at the placed point and the hold is anchored there; and the hold's state in words (for the log).
+        bool HoldReached { get; }
+        string HoldStatus { get; }
         // The flight camera's mode as the game names it (AUTO and the mode it resolves to), and forcing the mode whose heading and pitch are relative to the
         // local horizon (above the atmosphere AUTO resolves to ORBITAL, whose axes are the inertial frame's).
         string CameraModeText { get; }
@@ -170,11 +173,9 @@ namespace ReDefinition.Atmospheres
             vessel.SetWorldVelocity(body.getRFrmVel(vessel.GetWorldPos3D()));
             CheatOptions.IgnoreMaxTemperature = true;
             CheatOptions.NoCrashDamage = true;
-            // The hold's anchor is the vessel's own position at the next frame (the centre of mass, not the transform the placement set); the hold
-            // statistics start again for this view. No engine may push the vessel out of the pose: start 42's vessel climbed from 4.6 km to 23 km in 25 s.
-            anchorPending = true;
-            corrections = 0;
-            worstDrift = 0.0;
+            // The hold starts again for this view: it waits until the vessel's centre of mass really stands at the placed point, then anchors there (T09Hold).
+            // No engine may push the vessel out of the pose: start 42's vessel climbed from 4.6 km to 23 km in 25 s.
+            Hold.Begin(lat, lon, altitude);
             try
             {
                 FlightInputHandler.state.mainThrottle = 0f;
@@ -200,47 +201,51 @@ namespace ReDefinition.Atmospheres
             holding = false;
         }
 
-        // The body-fixed point the hold keeps the vessel at (latitude, longitude, altitude of its centre of mass), set at the first frame after a placement.
-        private bool anchorPending, hasAnchor;
-        private double anchorLat, anchorLon, anchorAlt;
-        private int corrections;
-        private double worstDrift;
-        // Metres of drift the hold tolerates before it puts the vessel back; at 90 frames a second a vessel moving at the body's rotation speed (175 m/s) is 2 m a frame.
-        private const double HoldToleranceM = 5.0;
+        // The hold (T09Hold) on the active vessel: reads its centre of mass, sets its position, keeps the ground's velocity.
+        private sealed class KspHoldVessel : IHoldVessel
+        {
+            public void Read(out double lat, out double lon, out double alt)
+            {
+                Vessel v = FlightGlobals.ActiveVessel;
+                v.mainBody.GetLatLonAlt(v.GetWorldPos3D(), out lat, out lon, out alt);
+            }
 
-        public int HoldCorrections { get { return corrections; } }
-        public double HoldWorstDriftM { get { return worstDrift; } }
+            public void Set(double lat, double lon, double alt)
+            {
+                Vessel v = FlightGlobals.ActiveVessel;
+                v.SetPosition(v.mainBody.GetWorldSurfacePosition(lat, lon, alt));
+            }
 
-        // Every frame: the velocity of the ground under the vessel, and the vessel back at its anchor when it has moved away. Setting the velocity alone did not hold
-        // the vessel in start 42 (it left the pose within seconds: east at the body's rotation speed at 265 m, then upward at up to 1.6 km/s at 4.6 km, shedding its
-        // stages on the way); the position is what the pictures and the timing depend on, so the hold owns it.
+            public double Distance(double lat1, double lon1, double alt1, double lat2, double lon2, double alt2)
+            {
+                CelestialBody body = FlightGlobals.ActiveVessel.mainBody;
+                return (body.GetWorldSurfacePosition(lat1, lon1, alt1) - body.GetWorldSurfacePosition(lat2, lon2, alt2)).magnitude;
+            }
+
+            public void KeepVelocity()
+            {
+                Vessel v = FlightGlobals.ActiveVessel;
+                try { FlightInputHandler.state.mainThrottle = 0f; } catch (Exception) { /* no input handler */ }
+                v.SetWorldVelocity(v.mainBody.getRFrmVel(v.GetWorldPos3D()));
+            }
+        }
+
+        private T09Hold hold;
+        private T09Hold Hold { get { return hold ?? (hold = new T09Hold(new KspHoldVessel(), m => AtmospheresLog.Say(m))); } }
+
+        public int HoldCorrections { get { return Hold.Corrections; } }
+        public double HoldWorstDriftM { get { return Hold.WorstDriftM; } }
+        public bool HoldReached { get { return Hold.Reached; } }
+        public string HoldStatus { get { return Hold.Status; } }
+
+        // Every frame. Setting the velocity alone did not hold the vessel in start 42 (it left the pose within seconds: east at the body's rotation speed at 265 m, then
+        // upward at up to 1.6 km/s at 4.6 km, shedding its stages on the way); the position is what the pictures and the timing depend on, so the hold owns it.
         private void HoldVessel()
         {
             if (!SeriesProbe.FlightReadyState()) return;
             Vessel v = FlightGlobals.ActiveVessel;
             if (v == null || v.mainBody == null) return;
-            CelestialBody body = v.mainBody;
-            Vector3d now = v.GetWorldPos3D();
-            if (anchorPending)
-            {
-                body.GetLatLonAlt(now, out anchorLat, out anchorLon, out anchorAlt);
-                anchorPending = false;
-                hasAnchor = true;
-            }
-            if (hasAnchor)
-            {
-                Vector3d target = body.GetWorldSurfacePosition(anchorLat, anchorLon, anchorAlt);
-                double drift = (now - target).magnitude;
-                worstDrift = Math.Max(worstDrift, drift);
-                if (drift > HoldToleranceM)
-                {
-                    v.SetPosition(target);
-                    corrections++;
-                    now = target;
-                }
-            }
-            try { FlightInputHandler.state.mainThrottle = 0f; } catch (Exception) { /* no input handler */ }
-            v.SetWorldVelocity(body.getRFrmVel(now));
+            Hold.Tick();
         }
 
         public T09Pose ReadPose()
@@ -260,7 +265,7 @@ namespace ReDefinition.Atmospheres
             pose.CameraAgl = alt - body.TerrainAltitude(lat, lon, true);
             pose.CameraToVesselM = (camPos - vesselPos).magnitude;
             CameraAim(out pose.AzimuthDeg, out pose.ElevationDeg);
-            if (hasAnchor && !anchorPending) pose.DriftM = (vesselPos - body.GetWorldSurfacePosition(anchorLat, anchorLon, anchorAlt)).magnitude;
+            pose.DriftM = Hold.DriftM();
             return pose;
         }
 

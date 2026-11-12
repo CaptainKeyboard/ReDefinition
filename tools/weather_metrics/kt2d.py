@@ -71,6 +71,9 @@ def analyse(values, notes):
     for view in views:
         for cover in sorted({k[1] for k in values if k[0] == view}):
             def get(gain, stat):
+                # A frame whose pose was not the view's (pose_ok 0) is not used: the numbers of the wrong place say nothing about the deck.
+                if values.get((view, cover, gain, "pose_ok")) == 0.0:
+                    return None
                 return values.get((view, cover, gain, stat))
             medians = [(g, get("g%d" % g, "deck_median")) for g in GAINS]
             below_clip = [(g, v) for g, v in medians if v is not None and (get("g%d" % g, "deck_clipped") or 0.0) < 0.05 and v < CLIP]
@@ -136,6 +139,11 @@ def selftest():
     rows = analyse(parse([_fake("ground", "low", 0.5, 0.7, 2.0, 1.0)]), [])
     got = {r["metric"]: r["value"] for r in rows}
     assert got["T09d.ground.low.verdict"] == 0 and "T09d.ground.low.slope" not in got, got
+    # A frame flagged pose_ok 0 is left out.
+    bad = _fake("ground", "high", 0.5, 0.7, 0.05, 1.0) + '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.g4.pose_ok","value":0.0}'
+    rows = analyse(parse([bad]), [])
+    got = {r["metric"]: r["value"] for r in rows}
+    assert abs(got["T09d.ground.high.slope"] - 1.0) < 0.1 and got["T09d.ground.high.verdict"] in (0, 1), got
     # Lines of another series and text values are ignored; an empty log gives nothing.
     assert parse(['ATMORESULT {"series":"K-T2","metric":"T09d.a.b.c.d","value":1.0}', 'ATMORESULT {"series":"K-T2d","metric":"T09d.env.sunLight","value":"x"}']) == {}
     assert analyse({}, []) == []

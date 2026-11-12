@@ -788,7 +788,10 @@ namespace ReDefinition.Atmospheres
                 Emit(prefix + "azimuth_deg", az);
                 placeOk = altitudeOk && aimOk;
             }
-            if (!placeOk) Check("T09.pose_placed_" + view.Name + "_" + CurrentVariant, false, detail);
+            if (placeOk) yield break;
+            // K-T2 is a timing series: a view that cannot be placed fails it. K-T2d is a diagnosis: the frames are read where the vessel stands, flagged, and the start goes on.
+            if (IsDiag) Warn("pose_placed_" + view.Name, detail + " (the readouts of this view are flagged pose_ok 0 and taken anyway)");
+            else Check("T09.pose_placed_" + view.Name + "_" + CurrentVariant, false, detail);
         }
 
         // The vessel at rest in the air over the site at the view's height, upright, held.
@@ -800,6 +803,10 @@ namespace ReDefinition.Atmospheres
             Game.PlaceVessel(lat, lon, wantedAltitude);
             Game.StartHold();
             yield return ProbeWait.Frames(20);
+            // The game applies the placement and refreshes the vessel's centre of mass a physics step later: the hold anchors only once the vessel stands at the placed point
+            // (start 43 anchored the old position, 85 m). At most 150 more frames; the pose check that follows names a vessel that did not arrive.
+            for (int i = 0; i < 30 && !Game.HoldReached; i++) yield return ProbeWait.Frames(5);
+            AtmospheresLog.Say("T09 hold: " + Game.HoldStatus + " for the " + view.Name + " view (wanted " + wantedAltitude.ToString("0") + " m)");
             wantedPitch = view.PitchDeg;
             if (double.IsNaN(wantedPitch))
             {

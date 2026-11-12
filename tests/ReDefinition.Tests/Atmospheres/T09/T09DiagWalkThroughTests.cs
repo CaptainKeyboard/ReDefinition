@@ -54,11 +54,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: series K-T2d start diag1707 begins with variants plain")));
 
             // The clock: the cover nearest 0.3 with the sun in the band (hour 1: 0.31), the cover nearest 0.7 with the sun in the band (hour 2: 0.72); the others are emitted.
-            Assert.AreEqual(0.31, Number(r, "T09d.low.cover"), 1e-6);
-            Assert.AreEqual(0.72, Number(r, "T09d.high.cover"), 1e-6);
+            // (a far candidate at a rounded hour may carry 0.30 or 0.70 with the sun in the band: still the nearest to the targets)
+            Assert.AreEqual(0.30, Number(r, "T09d.low.cover"), 0.015);
+            Assert.AreEqual(0.71, Number(r, "T09d.high.cover"), 0.015);
             Assert.AreEqual(0.0, Number(r, "T09d.cover_off_band"));
-            Assert.AreEqual(48.0, Number(r, "T09d.candidates"));
-            Assert.AreEqual(48, r.Rows.Count(l => l.Contains("\"metric\":\"T09.cover.")), "one T09.cover row per candidate hour");
+            Assert.AreEqual(158.0, Number(r, "T09d.candidates"), "48 hourly candidates and 110 far ones");
+            Assert.AreEqual(110.0, Number(r, "T09d.candidates_far"));
+            Assert.AreEqual(158, r.Rows.Count(l => l.Contains("\"metric\":\"T09.cover.")), "one T09.cover row per candidate");
+            Assert.AreEqual(1.0, Number(r, "T09d.covers_distinct"));
+            Assert.AreEqual(Number(r, "T09d.frames"), Number(r, "T09d.frames_pose_ok"), "every frame had the view's pose");
             Assert.IsTrue(Number(r, "T09d.low.sun_elev_deg") >= 15 && Number(r, "T09d.high.sun_elev_deg") <= 60);
             Assert.AreNotEqual(Number(r, "T09d.low.ut"), Number(r, "T09d.high.ut"));
 
@@ -115,6 +119,32 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(envFirst > firstFrame);
         }
 
+        // Start 43: the game applies a placement a few frames late and the read of the centre of mass lags it; the vessel stands at 85.35 m before the placement.
+        private Run StartRealistic(Action<Run> tweak = null)
+        {
+            return StartDiag(x =>
+            {
+                x.World.RealisticHold = true;
+                x.World.TrueAltitude = 85.35;
+                x.World.Terrain = 64.0;
+                if (tweak != null) tweak(x);
+            });
+        }
+
+        [TestMethod]
+        public void ARealisticPlacementIsHeldAtThePlacedPointNotAtTheOldOne()
+        {
+            Run r = StartRealistic();
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            string anchor = r.Log.FirstOrDefault(l => l.StartsWith("T09 hold anchor: "));
+            Assert.IsNotNull(anchor, "the anchor is logged");
+            Assert.IsTrue(r.Log.Count(l => l.StartsWith("T09 hold anchor: ")) >= 4, "once for each of the four placements");
+            Assert.IsFalse(r.Log.Any(l => l.StartsWith("T09 hold anchor: ") && l.Contains("85.3")), "no anchor at the old position: " + anchor);
+            Assert.AreEqual(4, Values(r, "T09.view.ground.altitude_m", "plain").Count + Values(r, "T09.view.above.altitude_m", "plain").Count, "each view placed at the first attempt");
+            Assert.AreEqual(64.0 + 200.0, Number(r, "T09.view.ground.altitude_m", "plain"), 15.0);
+        }
+
         [TestMethod]
         public void ADeckThatIsNotThereGivesNoDeckRowsAndNoFailure()
         {
@@ -138,12 +168,42 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void APoseThatLeavesBetweenTheReadsFailsNamedAndGivesNoReadout()
+        public void APoseThatLeavesBetweenTheReadsIsFlaggedAndTheReadoutIsTakenAnyway()
         {
             Run r = StartDiag(x => x.World.AltitudeJumpOnCaptureTake = 400.0);
             Drive(r, 0.02);
-            AssertNamedFailure(r, "T09.pose_picture_");
-            Assert.AreEqual(0, Values(r, "T09d.ground.low.off.sky_median", "plain").Count, "no readout of a pose that is not the view's");
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(0.0, Row(r, "T09d.ground.low.off.pose_ok"), "the frame is flagged");
+            Assert.AreEqual(0.5, Row(r, "T09d.ground.low.off.sky_median"), 1e-4, "and read");
+            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 24);
+            Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning pose_mismatch")));
+            Assert.AreEqual(24, r.World.Saved.Count, "the pictures are saved");
+        }
+
+        [TestMethod]
+        public void AVesselThatNeverReachesItsViewIsReadWhereItStandsAndTheStartGoesOn()
+        {
+            Run r = StartRealistic(x => x.World.PlaceResult = (call, wanted) => 85.35);
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(24.0, Row(r, "T09d.frames"));
+            Assert.AreEqual(0.0, Row(r, "T09d.frames_pose_ok"));
+            Assert.AreEqual(0.0, Row(r, "T09d.ground.high.placed_ok"));
+            Assert.IsTrue(Row(r, "T09d.ground.high.g1.deck_median") > 0, "the readout is there");
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 hold anchor: ") && l.Contains("placing it again")), "the hold placed it again");
+            Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning pose_placed_ground")), "named");
+        }
+
+        [TestMethod]
+        public void CoversThatCannotBeFarApartAreTakenAndFlaggedNotFailed()
+        {
+            Run r = StartDiag(x => x.Field.Cover = ut => (((int)Math.Round(ut / 3600.0) % 6 + 6) % 6) < 2 ? 0.47f : 0.64f);
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(1.0, Number(r, "T09d.cover_off_band"));
+            Assert.AreEqual(0.47, Number(r, "T09d.low.cover"), 1e-6);
+            Assert.AreEqual(0.64, Number(r, "T09d.high.cover"), 1e-6);
+            Assert.AreEqual(1.0, Number(r, "T09d.covers_distinct"));
         }
 
         [TestMethod]
@@ -171,11 +231,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TwoCoversThatDoNotDifferFailNamedBeforeAnyView()
+        public void TheSameCoverTwiceFailsNamedBeforeAnyView()
         {
             Run r = StartDiag(x => x.Field.Cover = ut => 0.5f);
             Drive(r, 0.02);
-            AssertNamedFailure(r, "too close to tell apart");
+            AssertNamedFailure(r, "the two covers are the same");
             Assert.IsFalse(r.Log.Any(l => l.StartsWith("T09 view begin")));
             Assert.AreEqual(0, r.World.PlaceCalls, "nothing was placed");
         }

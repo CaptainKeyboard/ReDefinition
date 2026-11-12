@@ -21,6 +21,10 @@ namespace ReDefinition.Atmospheres
         internal const double DiagMaxSeconds = 8 * 60;
         // The covers asked for (the cover of the field at 3 km): the target and the band that counts as hitting it.
         private const double LowTarget = 0.3, LowMin = 0.2, LowMax = 0.4, HighTarget = 0.7, HighMin = 0.6, HighMax = 0.8;
+        // The far window of the cover scan: from 48 hours on, a candidate every 7800 s (not a divisor of the 6 h day, so the sun's phase differs from candidate to candidate)
+        // up to 10 days of 21600 s.
+        private const double FarStepS = 7800.0;
+        private const int FarCandidates = 110;
         private const int MaxClockTries = 24, DiagSettleFrames = 30, DiagAidFrames = 8;
         // Real seconds the maps need after a clock jump (a map round every second, the slew limit 0.08 a second).
         private const double MapSettleS = 20.0, EnvEveryS = 30.0;
@@ -50,6 +54,7 @@ namespace ReDefinition.Atmospheres
         private string coverFailure;
         private double lowUt, lowCover, lowSun, highUt, highCover, highSun, pickUt, pickCover, pickSun;
         private double nextEnvAt;
+        private int diagFrames, diagFramesPoseOk;
         private bool envEmitted;
 
         // --- The clock: two times with different covers -----------------------------------------------------------------------------------
@@ -64,27 +69,34 @@ namespace ReDefinition.Atmospheres
             double start = Game.UniversalTime;
             double baseUt = Math.Ceiling(start / BaseStepS) * BaseStepS;
             double giveUpAt = Elapsed + FieldWaitS;
-            int unsampled;
+            int unsampled, farAnswered;
             while (true)
             {
                 unsampled = 0;
+                farAnswered = 0;
                 coverCandidates.Clear();
-                for (int k = 0; k < Candidates; k++)
+                int sampled = 0;
+                // The near window: every hour for Candidates hours (the pass repeats until all of them answer); then a far window, one candidate every FarStepS up to FarDays
+                // days, taken as they answer (the field may not answer far ahead). 20 samples a frame, so that the main thread is not held for the whole scan.
+                for (int k = 0; k < Candidates + FarCandidates; k++)
                 {
-                    double t = baseUt + k * CandidateStepS;
+                    bool far = k >= Candidates;
+                    double t = far ? baseUt + Candidates * CandidateStepS + (k - Candidates + 1) * FarStepS : baseUt + k * CandidateStepS;
                     WeatherSample s;
-                    if (!WeatherHub.Sample(bodyIndex, lat, lon, 3000.0, t, out s))
+                    if (WeatherHub.Sample(bodyIndex, lat, lon, 3000.0, t, out s))
                     {
-                        unsampled++;
-                        continue;
+                        coverCandidates.Add(new CoverCandidate { Ut = t, Cover = s.CloudCover01 });
+                        if (far) farAnswered++;
                     }
-                    coverCandidates.Add(new CoverCandidate { Ut = t, Cover = s.CloudCover01 });
+                    else if (!far) unsampled++;
+                    if (++sampled % 20 == 0) yield return ProbeWait.Frames(1);
                 }
                 if (unsampled == 0 || Elapsed >= giveUpAt) break;
                 yield return ProbeWait.Seconds(1);
             }
             foreach (CoverCandidate c in coverCandidates) Emit("T09.cover." + ((long)c.Ut).ToString(CultureInfo.InvariantCulture), c.Cover);
             Emit("T09d.candidates", coverCandidates.Count);
+            Emit("T09d.candidates_far", farAnswered);
             Emit("T09d.candidates_unanswered", unsampled);
             if (coverCandidates.Count == 0)
             {
@@ -109,9 +121,12 @@ namespace ReDefinition.Atmospheres
             }
             highUt = pickUt; highCover = pickCover; highSun = pickSun;
             Emit("T09d.cover_off_band", lowOff || pickedOffBand);
-            if (highCover - lowCover < 0.15)
+            // The product has no override of the cloud cover (coverStrength is the surface cover's; ISurfaceForcing forces precipitation), so a field that never drops under
+            // 0.4 gives a low pick above the band: the start goes on and the rows name the covers. Only the same cover twice is no experiment.
+            Emit("T09d.covers_distinct", highCover - lowCover >= 0.15);
+            if (highCover - lowCover < 0.02)
             {
-                coverFailure = "the two covers are too close to tell apart: low " + lowCover.ToString("0.00") + ", high " + highCover.ToString("0.00");
+                coverFailure = "the two covers are the same: low " + lowCover.ToString("0.00") + ", high " + highCover.ToString("0.00");
                 yield break;
             }
             coverOk = true;
@@ -199,6 +214,9 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in DiagCover("high", highUt, highCover)) yield return w;
             Game.StopHold();
             Game.KeepRaw = false;
+            Emit("T09d.frames", diagFrames);
+            Emit("T09d.frames_pose_ok", diagFramesPoseOk);
+            Emit("T09d.frames_pose_bad", diagFrames - diagFramesPoseOk);
             Emit("T09.pictures.saved", picturesSaved);
             Emit("T09.pictures.bytes", picturesBytes);
             Emit("T09.pictures.warnings", pictureWarnings);
@@ -218,7 +236,8 @@ namespace ReDefinition.Atmospheres
             foreach (View view in new[] { Views[0], Views[2] })
             {
                 foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
-                if (!placeOk) continue;
+                // A view that was not reached is read where the vessel stands, with the pose flagged in every row (PlaceChecked named it in a warning).
+                Emit("T09d." + view.Name + "." + tag + ".placed_ok", placeOk);
                 WeatherSample s;
                 if (WeatherHub.Sample(Game.BodyIndex, siteLat, siteLon, Math.Min(20000.0, view.AglM), Game.UniversalTime, out s)) Emit("T09d." + view.Name + "." + tag + ".cover_at_view_height", s.CloudCover01);
                 foreach (ProbeWait w in DiagView(view, tag)) yield return w;
@@ -316,12 +335,12 @@ namespace ReDefinition.Atmospheres
             T09Pose after = Game.ReadPose();
             EmitPose("T09.pic." + name + ".", before);
             Emit("T09.pic." + name + ".drift_after_m", after.DriftM);
+            // A pose that is not the view's does not stop the start: the frame is read and measured, flagged pose_ok 0 with the pose it really had (the rows T09.pic.<name>.*).
             string poseProblem = PoseProblem(view, before) ?? PoseProblem(view, after);
-            if (poseProblem != null)
-            {
-                Check("T09.pose_picture_" + name, false, poseProblem + " (read starting " + before.VesselAsl.ToString("0") + " m, ending " + after.VesselAsl.ToString("0") + " m); no readout of a pose that is not the view's");
-                yield break;
-            }
+            bool poseOk = poseProblem == null;
+            diagFrames++;
+            if (poseOk) diagFramesPoseOk++;
+            else Warn("pose_mismatch", name + ": " + poseProblem + " (read starting " + before.VesselAsl.ToString("0") + " m, ending " + after.VesselAsl.ToString("0") + " m); read anyway, pose_ok 0");
             if (!picturesStopped)
             {
                 try
@@ -345,8 +364,10 @@ namespace ReDefinition.Atmospheres
                 yield break;
             }
             string p = "T09d." + view.Name + "." + tag + "." + gainTag + ".";
+            Emit(p + "pose_ok", poseOk);
+            Emit(p + "pose_alt_m", after.VesselAsl);
             if (aid) EmitAid(p, reading);
-            else EmitReading(p, what, reading, baseline, gainTag == "off");
+            else EmitReading(p, what, reading, baseline, gainTag == "off", poseOk);
             diagReading = reading;
         }
 
@@ -369,10 +390,11 @@ namespace ReDefinition.Atmospheres
         }
 
         // The rows of one natural frame. The sky and the ground region must hold samples (an empty one means the horizon is off the picture or the pose is lost: a failed check).
-        private void EmitReading(string p, string what, T09Readout.Reading r, T09Readout.Reading off, bool isOff)
+        private void EmitReading(string p, string what, T09Readout.Reading r, T09Readout.Reading off, bool isOff, bool poseOk)
         {
-            Check("T09d.region_sky_" + p.TrimEnd('.'), r.Sky.Count > 0, what + ": " + r.Sky.Count + " sky samples (horizon at " + r.HorizonV.ToString("0.000") + " of the picture's height)");
-            Check("T09d.region_ground_" + p.TrimEnd('.'), r.Ground.Count > 0, what + ": " + r.Ground.Count + " sea or ground samples (horizon at " + r.HorizonV.ToString("0.000") + ")");
+            // An empty region of a frame whose pose is not the view's is no fault of the readout (the horizon may really be out of the picture): the check holds for good poses only.
+            Check("T09d.region_sky_" + p.TrimEnd('.'), r.Sky.Count > 0 || !poseOk, what + ": " + r.Sky.Count + " sky samples (horizon at " + r.HorizonV.ToString("0.000") + " of the picture's height)");
+            Check("T09d.region_ground_" + p.TrimEnd('.'), r.Ground.Count > 0 || !poseOk, what + ": " + r.Ground.Count + " sea or ground samples (horizon at " + r.HorizonV.ToString("0.000") + ")");
             Emit(p + "horizon_v", r.HorizonV);
             Emit(p + "peak", r.Peak);
             EmitStat(p + "sky_", r.Sky);
