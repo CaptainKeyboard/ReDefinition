@@ -25,6 +25,10 @@ namespace ReDefinition.Atmospheres
         public int SizeLevel = 1;
         // The seed of the volumes and of the layers' offsets.
         public uint Seed = 1;
+        // The untiling displacement's amplitude and cell in noise scales (0: the model's constants); a probe for the sweep of the warp.
+        public float WarpAmplitude, WarpCell;
+        // The fine octave of the erosion detail (stream T): the detail volume read again at 2.37 times the frequency.
+        public bool FineDetail = true;
     }
 
     // The motion and the maps of one layer's noise: the drift of the whole noise with the local wind, the rise of the detail (P18), the
@@ -209,6 +213,7 @@ namespace ReDefinition.Atmospheres
                 Seed = NoiseSeeds.LayerSeed(Switches.Seed, layer),
                 SphereScale = Switches.SphereScale,
                 NoDistanceLod = !Switches.DistanceLod,
+                NoFineDetail = !Switches.FineDetail,
                 ReferenceRadiusM = referenceRadiusM,
                 UpDistanceM = rise[layer]
             };
@@ -221,12 +226,14 @@ namespace ReDefinition.Atmospheres
             EnsureDefaults();
             bool on = Switches.Enabled && Ready;
             material.SetVector(IdP, new Vector4(on ? 1f : 0f, Switches.Untile ? 1f : 0f, Switches.Curl ? 1f : 0f, Switches.SphereScale));
-            material.SetVector(IdQ, new Vector4((float)NoiseModel.WarpAmplitudeScales, (float)NoiseModel.WarpCellScales, (float)NoiseModel.CurlAmplitudeScales,
+            material.SetVector(IdQ, new Vector4(Switches.WarpAmplitude > 0f ? Switches.WarpAmplitude : (float)NoiseModel.WarpAmplitudeScales,
+                                                Switches.WarpCell > 0f ? Switches.WarpCell : (float)NoiseModel.WarpCellScales, (float)NoiseModel.CurlAmplitudeScales,
                                                 (float)((flowTime / FlowLoopSeconds) % 1.0)));
             material.SetVector(IdR, new Vector4((float)NoiseModel.HardnessBase, (float)NoiseModel.HardnessGain, (float)NoiseModel.ShapePeriodScales,
                                                 (float)NoiseModel.DetailPeriodScales));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
+            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? (float)NoiseModel.FineDetailWeight : 0f, (float)NoiseModel.FineDetailFrequency, 0f, 0f));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);

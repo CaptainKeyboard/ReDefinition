@@ -112,13 +112,14 @@ DAY = dict(sunColour=[3.0, 2.9, 2.7], ambientTop=[0.35, 0.42, 0.55], ambientBott
 
 
 def cu_layer(name="cumulus", cov_map="cu.r8", coverage=0.3, inner=1400.0, outer=3200.0):
-    return L.layer(inner, outer, 0.03, [L.slab_type("cumulus", 0.0, 0.8, CUMULUS, 0.5)], coverage=coverage, softness=0.2, cov_map=cov_map,
-                   noise=0.5, noise_scale=700.0, name=name)
+    # softness and noise amount: 0.3 and 0.35 (were 0.2 and 0.5; the noise A/B of stream T: the grain of the single frame falls by about a third)
+    return L.layer(inner, outer, 0.03, [L.slab_type("cumulus", 0.0, 0.8, CUMULUS, 0.5)], coverage=coverage, softness=0.3, cov_map=cov_map,
+                   noise=0.35, noise_scale=700.0, name=name)
 
 
 def deck_layer(cov_map="deck.r8", coverage=0.93, inner=900.0, outer=2300.0):
-    return L.layer(inner, outer, 0.02, [L.slab_type("stratus", 0.0, 0.9, STRATUS, 0.3)], coverage=coverage, softness=0.18, cov_map=cov_map,
-                   noise=0.4, noise_scale=900.0, name="deck")
+    return L.layer(inner, outer, 0.02, [L.slab_type("stratus", 0.0, 0.9, STRATUS, 0.3)], coverage=coverage, softness=0.27, cov_map=cov_map,
+                   noise=0.28, noise_scale=900.0, name="deck")
 
 
 def cirrus_layer(cov_map="cirrus.r8"):
@@ -128,7 +129,7 @@ def cirrus_layer(cov_map="cirrus.r8"):
 
 def storm_layer():
     types = [L.slab_type("cumulus", 0.0, 0.22, CUMULUS, 0.5), L.slab_type("cumulonimbus", 0.0, 1.0, ANVIL, 0.6)]
-    return L.layer(800.0, 11500.0, 0.035, types, coverage=0.5, softness=0.12, cov_map="cell.r8", type_map="cell-type.r8", noise=0.5,
+    return L.layer(800.0, 11500.0, 0.035, types, coverage=0.5, softness=0.18, cov_map="cell.r8", type_map="cell-type.r8", noise=0.35,
                    noise_scale=800.0, name="cell")
 
 
@@ -253,6 +254,9 @@ def jobs():
         j = L.job("LS-%s" % s["id"], "color", cam, s["layers"], SIZE[0], SIZE[1], sun=L.sun_vector(cam.pos, s["sun"][0], s["sun"][1]),
                   maxSteps=48, minStep=25.0, stepGrowth=0.0002, jitter=1.0, earlyOut=0.01, sunSteps=3, mapWidth=MAP_W, mapHeight=MAP_H)
         j.update(s["light"])
+        # The entry refinement (stream T): the sheet shows the cloud surface found to a 1/8 of the grid step; the product's default is off until its
+        # cost (+40 to 60 percent of the march at 1 / 0.25) is agreed.
+        j.update(refineBudget=0.5, refineFraction=0.125)
         if s.get("space"):
             j["space"] = 1
             j["maxSteps"] = 64

@@ -48,6 +48,17 @@ namespace ReDefinition.Atmospheres
         public int CostDebug;
         // Package T05: inside a cloud the step grows by this share of the transmittance the ray has already lost (0: a fixed step).
         public float TransmittanceGrowth;
+        // The cloud's entry and edge (stream T, the noisy look): RefineBudget is the optical depth one step may add where the ray enters a cloud
+        // (it grows with the ray's optical depth so far; 0: off, the step is the grid step), RefineFraction the finest step as a share of the
+        // grid step, EdgePower the exponent of the coverage share in the density (1: linear; above 1 the density's tail towards the edge is thinner).
+        // The product's budget is 0.5: the entry of a cloud is found to 1/8 of the grid step (the look sheet's A/B: the grain of a single frame
+        // falls by 25 to 78 percent, the dither is left to the temporal reconstruction).
+        public float RefineBudget = 0f, RefineFraction = 0.25f, EdgePower = 1f;
+        // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
+        public bool FixedConeRotation;
+        // The per-pixel dither of the step offset and of the light cone is an integer hash (white noise); false: the interleaved gradient noise,
+        // whose power spectrum has discrete peaks that show as a regular pattern in a single frame (the look sheet's peak ratio 10 to 13 against 5 to 9).
+        public bool HashDither = true;
 
         // The cost measure of package T05 on top of T01c's: the growth of the step with the lost transmittance (2). The parity jobs leave it off.
         internal void UseProductCost()
@@ -243,6 +254,7 @@ namespace ReDefinition.Atmospheres
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
+            m.SetVector(Shader.PropertyToID("_RefineP"), new Vector4(Mathf.Max(0f, f.RefineBudget), Mathf.Clamp(f.RefineFraction, 0.01f, 1f), Mathf.Max(0.1f, f.EdgePower), f.HashDither ? 2f : (f.FixedConeRotation ? 1f : 0f)));
             if (f.Light != null) f.Light.Upload(m);
             Noise.Bind(m, layerCount);
         }

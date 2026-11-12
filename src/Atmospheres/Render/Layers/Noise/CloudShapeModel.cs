@@ -69,6 +69,8 @@ namespace ReDefinition.Atmospheres
         internal double WarpAmplitude, WarpCell, CurlAmplitude;
         // True: the erosion detail is read at every sample however coarse the march is (the distance LOD off).
         internal bool NoDistanceLod;
+        // True: no fine octave of the erosion detail.
+        internal bool NoFineDetail;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
@@ -160,6 +162,12 @@ namespace ReDefinition.Atmospheres
         // (the unit vector nx, ny, nz at the point).
         internal static double DetailAt(NoiseVolumeSet set, ref NoiseLayerParams prm, double qx, double qy, double qz, double nx, double ny, double nz)
         {
+            return DetailAt(set, ref prm, qx, qy, qz, nx, ny, nz, 1.0);
+        }
+
+        // The same read at freq times the frequency (the fine octave; the volume's offset decorrelates it from the first read).
+        internal static double DetailAt(NoiseVolumeSet set, ref NoiseLayerParams prm, double qx, double qy, double qz, double nx, double ny, double nz, double freq)
+        {
             double sp = NoiseModel.ShapePeriodScales * prm.ScaleM, dp = NoiseModel.DetailPeriodScales * prm.ScaleM;
             if (prm.Curl)
             {
@@ -174,6 +182,12 @@ namespace ReDefinition.Atmospheres
             qx -= nx * prm.UpDistanceM;
             qy -= ny * prm.UpDistanceM;
             qz -= nz * prm.UpDistanceM;
+            if (freq != 1.0)
+            {
+                qx = qx * freq + 0.31 * dp;
+                qy = qy * freq + 0.57 * dp;
+                qz = qz * freq + 0.83 * dp;
+            }
             return Trilinear(set.Detail, set.DetailN, 1, 0, qx / dp, qy / dp, qz / dp);
         }
 
@@ -197,8 +211,14 @@ namespace ReDefinition.Atmospheres
         // beyond that the samples are too far apart to show the cells (they would only shimmer), and the erosion reads the volume's mean.
         internal static double DetailLod(ref NoiseLayerParams prm, double footM)
         {
+            return DetailLod(ref prm, footM, 1.0);
+        }
+
+        // The same for the fine octave, whose cell is freq times smaller.
+        internal static double DetailLod(ref NoiseLayerParams prm, double footM, double freq)
+        {
             if (prm.NoDistanceLod || footM <= 0.0) return 0.0;
-            double cell = NoiseModel.DetailFinestCellScales * prm.ScaleM;
+            double cell = NoiseModel.DetailFinestCellScales * prm.ScaleM / freq;
             double full = NoiseModel.DetailLodFullFootCells * cell, off = NoiseModel.DetailLodOffFootCells * cell;
             double x = (footM - full) / Math.Max(off - full, 1e-3);
             return x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
@@ -230,11 +250,22 @@ namespace ReDefinition.Atmospheres
             if (s <= 0.0 || s >= 1.0 || erosion <= 0.0 || !fine) return s;
             double lod = DetailLod(ref prm, footM);
             double d = set.DetailMean;
+            double r = Math.Sqrt(px * px + py * py + pz * pz);
             if (lod < 1.0)
             {
-                double r = Math.Sqrt(px * px + py * py + pz * pz);
                 d = DetailAt(set, ref prm, qx, qy, qz, px / r, py / r, pz / r);
                 if (lod > 0.0) d += (set.DetailMean - d) * lod;
+            }
+            if (!prm.NoFineDetail)
+            {
+                double lod2 = DetailLod(ref prm, footM, NoiseModel.FineDetailFrequency);
+                double d2 = set.DetailMean;
+                if (lod2 < 1.0)
+                {
+                    d2 = DetailAt(set, ref prm, qx, qy, qz, px / r, py / r, pz / r, NoiseModel.FineDetailFrequency);
+                    if (lod2 > 0.0) d2 += (set.DetailMean - d2) * lod2;
+                }
+                d += (d2 - d) * NoiseModel.FineDetailWeight;
             }
             return Erode(s, d, erosion);
         }

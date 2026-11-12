@@ -97,10 +97,28 @@ namespace ReDefinition.WeatherPlayer
                     }
                     else
                     {
+                        frame.FrameNumber = 0;
+                        renderer.Apply(frame);
                         Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassMarch);
                         yield return new WaitForEndOfFrame();
                     }
                     float[] natural = Read(target);
+                    // Accumulation: the mean of the frames 0 .. N - 1 (premultiplied radiance and alpha average linearly).
+                    for (int accum = 1; accum < job.accumulate; accum++)
+                    {
+                        frame.FrameNumber = accum;
+                        renderer.Apply(frame);
+                        Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassMarch);
+                        yield return new WaitForEndOfFrame();
+                        float[] more = Read(target);
+                        for (int i = 0; i < natural.Length; i++) natural[i] += more[i];
+                    }
+                    if (job.accumulate > 1)
+                    {
+                        float inv = 1f / job.accumulate;
+                        for (int i = 0; i < natural.Length; i++) natural[i] *= inv;
+                    }
+                    frame.FrameNumber = 0;
                     frame.AidMode = 1;
                     renderer.Apply(frame);
                     Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassMarch);

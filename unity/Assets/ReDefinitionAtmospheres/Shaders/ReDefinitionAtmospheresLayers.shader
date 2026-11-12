@@ -61,6 +61,9 @@ Shader "ReDefinition/AtmospheresLayers"
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
+        // The cloud's entry and edge (stream T): x the optical depth one step may add at the entry (it grows with the ray's optical depth; 0: off),
+        // y the finest step as a share of the grid step, z the exponent of the coverage share in the density (1: linear).
+        float4 _RefineP;
         // The temporal reconstruction (package T05): the march target holds one pixel of every N x N block of the full target.
         float4 _ReconP;      // block size N (1: the target is the full target), the block offset x and y in full pixels, 0
         float4 _ReconD;      // the full target's width and height in pixels, the march target's width and height in pixels
@@ -213,6 +216,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // The coverage share: the map moved by the shape noise, the soft edge, the erosion (read only in the edge band) and the edge hardness (T02).
             float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion);
             if (s <= 0) return 0;
+            if (_RefineP.z > 0.05 && _RefineP.z != 1.0) s = pow(s, _RefineP.z);
             float h = (share - b) / (tp - b);
             float prof = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
             return _LayerB[li].x * s * prof * fade;
@@ -241,6 +245,16 @@ Shader "ReDefinition/AtmospheresLayers"
         {
             p += 5.588238 * frame;
             return frac(52.9829189 * frac(dot(p, float2(0.06711056, 0.00583715))));
+        }
+
+        // The per-pixel dither: _RefineP.w 0 the interleaved gradient noise, 2 an integer hash (white; a probe for the spectral peaks of the gradient noise).
+        float Dither(float2 p, float frame)
+        {
+            if (_RefineP.w < 1.5) return Ign(p, frame);
+            uint3 u = uint3(asuint((int)floor(p.x)), asuint((int)floor(p.y)), asuint((int)frame));
+            uint h = u.x * 1664525u + u.y * 1013904223u + u.z * 2891336453u;
+            h ^= h >> 16; h *= 0x7FEB352Du; h ^= h >> 15; h *= 0x846CA68Bu; h ^= h >> 16;
+            return (h >> 8) * (1.0 / 16777216.0);
         }
 
         MarchOut March(float3 o, float3 d, float tmax, float2 pixel)
@@ -285,8 +299,8 @@ Shader "ReDefinition/AtmospheresLayers"
             float T = 1.0;
             float mu = dot(_Sun.xyz, d);
             float ph = Phase(mu);
-            float jitter = lerp(0.5, Ign(pixel, _StepP.z), _StepP.y);
-            float rot = Ign(pixel + 17.0, _StepP.z) * 6.2831853;   // the cone's rotation of the light taps
+            float jitter = lerp(0.5, Dither(pixel, _StepP.z), _StepP.y);
+            float rot = Dither(pixel + 17.0, _StepP.z) * 6.2831853 * (_RefineP.w > 0.5 && _RefineP.w < 1.5 ? 0.0 : 1.0);   // the cone's rotation of the light taps (_RefineP.w 1: a fixed rotation, a probe)
             int maxSteps = (int)_MarchP.x;
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;
@@ -314,6 +328,13 @@ Shader "ReDefinition/AtmospheresLayers"
                 float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
+                // The entry refinement (stream T): the first dense sample after an empty one only says the entry lies within one grid step; the
+                // ray goes back to the last empty sample and walks to the entry in the finest step, so that the cloud's surface is found to the finest
+                // step and not to the grid step (the grid step's quantisation is the hatching and the banding of a solid cloud).
+                bool refine = _RefineP.x > 0.0;
+                float fineStep = dt * _RefineP.y;
+                bool fine = false, inside = false;
+                float tFineEnd = 0.0;
                 [loop] for (int i = 0; i < 512; i++)
                 {
                     if (t >= tEnd) break;
@@ -324,6 +345,15 @@ Shader "ReDefinition/AtmospheresLayers"
                     r.steps += 1;
                     if (dens <= 0)
                     {
+                        inside = false;
+                        if (fine)
+                        {
+                            tLast = t;
+                            t += fineStep;
+                            // Past the sample that sent the ray back (a hit the fine grid missed): the grid step goes on.
+                            if (t >= tFineEnd) fine = false;
+                            continue;
+                        }
                         tLast = t;
                         arrived = leap;
                         t += dt * leap;
@@ -337,11 +367,28 @@ Shader "ReDefinition/AtmospheresLayers"
                         arrived = 1.0;
                         continue;
                     }
+                    if (refine && !fine && !inside)
+                    {
+                        float tBack = max(tLast, s0[k]);
+                        if (t - tBack > fineStep * 1.5)
+                        {
+                            fine = true;
+                            tFineEnd = t;
+                            t = tBack + fineStep;
+                            leap = 1.0;
+                            continue;
+                        }
+                    }
+                    fine = false;
+                    inside = true;
                     leap = 1.0;
                     tLast = t;
                     // COST (T05): inside a cloud the step grows with what the ray has already lost (_CostP.w): a ray that is nearly opaque
                     // needs no fine sampling of what lies behind. The sample stands for its whole step, so the optical depth uses it.
                     float dts = min(dt * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dt));
+                    // The optical depth one step adds is bounded by a budget that grows with what the ray has already gathered: the entry is
+                    // sampled finely, the inside coarsely (stream T).
+                    if (refine) dts = min(dts, max(_RefineP.x * (1.0 + r.tau) / dens, fineStep));
                     t += dts;
                     if (r.first < 0) r.first = t - dts;
                     float dtau = dens * dts;

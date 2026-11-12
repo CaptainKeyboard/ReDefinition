@@ -265,11 +265,12 @@ namespace ReDefinition.Tests
                 double light = CloudShapeModel.Share(set, ref prm, x, y, z, 1.0, 0.0, 0.2, 1.0, 0.5, false);
                 if (light <= 0.0 || light >= 1.0) continue;
                 edge++;
-                // Coarse march: the erosion reads the volume's mean, whatever the position; fine march: the full detail, as without a spacing.
+                // Coarse march: the erosion reads the volume's mean, whatever the position (both octaves dropped); fine march (the spacing within the
+                // fine octave's own cell, a 2.37th of the first one): the full detail, as without a spacing.
                 double coarse = CloudShapeModel.Share(set, ref prm, x, y, z, 1.0, 0.0, 0.2, 1.0, 0.5, true, 4.0 * cell);
                 Assert.AreEqual(CloudShapeModel.Erode(light, set.DetailMean, 0.5), coarse, 1e-12);
                 Assert.AreEqual(CloudShapeModel.Share(set, ref prm, x, y, z, 1.0, 0.0, 0.2, 1.0, 0.5, true),
-                                CloudShapeModel.Share(set, ref prm, x, y, z, 1.0, 0.0, 0.2, 1.0, 0.5, true, 0.5 * cell), 1e-12);
+                                CloudShapeModel.Share(set, ref prm, x, y, z, 1.0, 0.0, 0.2, 1.0, 0.5, true, 0.4 * cell), 1e-12);
             }
             Assert.IsTrue(edge > 100, "edge samples " + edge);
         }

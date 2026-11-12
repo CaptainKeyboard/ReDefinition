@@ -46,7 +46,9 @@ namespace ReDefinition.WeatherPlayer
     [Serializable]
     public sealed class LayersJobNoise
     {
-        public int disabled, noUntile, noCurl, noLod;
+        public int disabled, noUntile, noCurl, noLod, noFine;
+        // The untiling warp's amplitude and cell in noise scales (0: the model's constants).
+        public float warpAmplitude, warpCell;
         // The vertical scale of the spherical lattice (0 or 1: the planet-centred lattice).
         public float sphere;
         public uint seed;
@@ -81,6 +83,14 @@ namespace ReDefinition.WeatherPlayer
         // The cost controls of the march (LayerFrame): coverage bound, leap, sun cut-off, cheap/fog step shares, lit steps per sun march; a
         // negative value leaves the product's default. resolution < 1 marches into a smaller target and composites up (colour jobs).
         public int costBound = -1, lightStride = -1;
+        // The natural picture of a colour job is the mean of this many frames (the frame numbers 0 .. accumulate - 1 move the per-pixel step
+        // offset and the light cone's rotation): what the temporal reconstruction converges to under a still camera (0 or 1: one frame).
+        // costDebug: the march's cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion); the jitter mode (0: the product's
+        // dither, 1: none) is the job's jitter value.
+        public int accumulate = 1, costDebug;
+        // The product's transmittance growth of the step (1) and the entry refinement and edge exponent (stream T; 0 / 1 leave the frame's defaults).
+        public int productCost, fixedCone, ignDither;
+        public float refineBudget, refineFraction, edgePower;
         public float costLeap = -1f, costCut = -1f, cheapShare = -1f, fogShare = -1f;
         // An occluder sphere (centre, radius) whose depth is the scene's; radius 0: none.
         public float[] occluder;

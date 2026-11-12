@@ -264,9 +264,14 @@ DETAIL_LOD_FULL = 1.0        # the march spacing in cells up to which the detail
 DETAIL_LOD_OFF = 2.0         # and from which it is dropped (the erosion then reads the volume's mean)
 
 
-def detail_lod(prm, foot):
-    """The distance LOD of the erosion detail, 0 (full) to 1 (dropped), for the march's sample spacing `foot` (m; scalar or array)."""
-    cell = DETAIL_FINEST_CELL * prm.scale
+FINE_DETAIL_WEIGHT = 0.4       # the fine octave of the erosion detail: the volume read again at FINE_DETAIL_FREQ times the frequency
+FINE_DETAIL_FREQ = 2.37
+
+
+def detail_lod(prm, foot, freq=1.0):
+    """The distance LOD of the erosion detail, 0 (full) to 1 (dropped), for the march's sample spacing `foot` (m; scalar or array); freq: the
+    fine octave's frequency over the first read (its cell is that much smaller)."""
+    cell = DETAIL_FINEST_CELL * prm.scale / freq
     x = (np.asarray(foot, dtype=np.float64) - DETAIL_LOD_FULL * cell) / max((DETAIL_LOD_OFF - DETAIL_LOD_FULL) * cell, 1e-3)
     return np.clip(x, 0.0, 1.0)
 
@@ -278,9 +283,16 @@ def detail_value(vols, p, prm, foot=None):
         c = trilinear(vols.curl, q / prm.shape_period)
         q = q + c * (prm.curl_amp * prm.scale)
     d = trilinear(vols.detail, q / prm.detail_period)
+    mean = float(vols.detail.mean())
     if foot is not None:
-        lod = detail_lod(prm, foot)
-        d = d + (float(vols.detail.mean()) - d) * lod
+        d = d + (mean - d) * detail_lod(prm, foot)
+    if getattr(prm, "fine", True):
+        dp = prm.detail_period
+        q2 = q * FINE_DETAIL_FREQ + np.array([0.31, 0.57, 0.83]) * dp
+        d2 = trilinear(vols.detail, q2 / dp)
+        if foot is not None:
+            d2 = d2 + (mean - d2) * detail_lod(prm, foot, FINE_DETAIL_FREQ)
+        d = d + (d2 - d) * FINE_DETAIL_WEIGHT
     return d
 
 

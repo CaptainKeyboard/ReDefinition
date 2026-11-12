@@ -27,6 +27,8 @@ namespace ReDefinition.Atmospheres
         // Amplitude over cell is the nominal gradient of the displacement (0.46; it was 8 / 7 = 1.14, which folded the lookup over itself in 31 % of
         // the volume and smeared the deck). Measured (noise_model.py, 20000 points): spectral norm of the displacement's Jacobian p99 1.74, folded
         // share 3.9 %, p99 stretch 2.5 (before: 4.3, 31 %, 4.8).
+        // Stream T: 3 / 20 would lower the grain measure of the look sheet's storm cell (hf 0.040 to 0.028) but fails the repetition check
+        // (tile lag 0.33 over seeds against 0.12) and the spectrum band 3 (slope 2.88 against 2.6), so 6.5 / 14 stays.
         internal const double WarpAmplitudeScales = 6.5;
         internal const double WarpCellScales = 14.0;
         // The curl displacement of the detail lookup, in noise scales.
@@ -37,6 +39,11 @@ namespace ReDefinition.Atmospheres
         internal const double DetailFinestCellScales = 0.5;
         internal const double DetailLodFullFootCells = 1.0;
         internal const double DetailLodOffFootCells = 2.0;
+        // The fine octave of the erosion detail (stream T): the same detail volume read again at FineDetailFrequency times the frequency (a cell of
+        // 0.5 / 2.37 noise scales, about 150 m at a scale of 700 m, where the first read has 350 m), blended in with FineDetailWeight. The volume's
+        // texel is then 37 m, so the finer octave is not magnified. The distance LOD drops it once the march spacing exceeds its own cell.
+        internal const double FineDetailWeight = 0.4;
+        internal const double FineDetailFrequency = 2.37;
         // The edge hardness of a type: 1 + HardnessGain * erosion (the share of the soft edge that is cut away).
         internal const double HardnessBase = 1.0;
         internal const double HardnessGain = 4.0;

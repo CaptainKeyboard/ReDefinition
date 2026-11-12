@@ -68,6 +68,15 @@ namespace ReDefinition.WeatherPlayer
                 AmbientBottom = Rgb(job.ambientBottom, new Color(0.14f, 0.15f, 0.16f))
             };
             // The cost controls keep the product's default (the LayerFrame's) where the job does not name a value.
+            frame.CostDebug = job.costDebug;
+            if (job.productCost != 0) frame.UseProductCost();
+            frame.FixedConeRotation = job.fixedCone != 0;
+            frame.HashDither = job.ignDither == 0;
+            // The measurement jobs (aux, lum) integrate on the grid step as their CPU references do; the pictures take the product's refinement.
+            if (job.mode != "color" && job.refineBudget == 0f) frame.RefineBudget = 0f;
+            if (job.refineBudget != 0f) frame.RefineBudget = Mathf.Max(0f, job.refineBudget);   // negative: off
+            if (job.refineFraction > 0f) frame.RefineFraction = job.refineFraction;
+            if (job.edgePower > 0f) frame.EdgePower = job.edgePower;
             if (job.costBound >= 0) frame.CoverageBound = job.costBound != 0;
             if (job.costLeap >= 0f) frame.EmptyLeap = job.costLeap;
             if (job.costCut >= 0f) frame.LightCutoff = job.costCut;
@@ -91,6 +100,9 @@ namespace ReDefinition.WeatherPlayer
                 sw.Untile = n.noUntile == 0;
                 sw.Curl = n.noCurl == 0;
                 sw.DistanceLod = n.noLod == 0;
+                sw.FineDetail = n.noFine == 0;
+                sw.WarpAmplitude = n.warpAmplitude;
+                sw.WarpCell = n.warpCell;
                 sw.SphereScale = n.sphere > 0f ? n.sphere : 1f;
                 sw.Seed = n.seed == 0u ? 1u : n.seed;
                 sw.SizeLevel = n.sizeLevel;

@@ -31,6 +31,8 @@ float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y
 float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's finest cell (noise scales), y/z the march spacing in cells up to which the detail is
                          // read in full / from which it is dropped (z = 0: LOD off), w the detail volume's mean (what the erosion reads once dropped)
 
+float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read
+
 // 1 on the light path: no erosion there (the light march reads the shape only).
 static int gNoiseLod = 0;
 // The march's sample spacing in m at the current sample (set by the march per layer span; 0: unknown, no distance LOD).
@@ -100,12 +102,15 @@ float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
     return q;
 }
 
-float NoiseDetailAt(int li, float3 q, float3 up, float scale)
+// The detail at a lookup point; freq 1 the first read, _NoiseT.y the fine octave (the volume's offset decorrelates it).
+float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 {
     if (_NoiseP.z > 0.5)
         q += (tex3Dlod(_NoiseCurl, float4(q / (_NoiseR.z * scale), 0)).rgb * 2.0 - 1.0) * (_NoiseQ.z * scale);
     q -= up * _NoiseLayer[li].w;
-    return tex3Dlod(_NoiseDetail, float4(q / (_NoiseR.w * scale), 0)).r;
+    float dp = _NoiseR.w * scale;
+    if (freq != 1.0) q = q * freq + float3(0.31, 0.57, 0.83) * dp;
+    return tex3Dlod(_NoiseDetail, float4(q / dp, 0)).r;
 }
 
 // The share of the column that is cloud at a point for one flow offset.
@@ -123,10 +128,28 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
         lod = saturate((gNoiseFoot - _NoiseS.y * cell) / max((_NoiseS.z - _NoiseS.y) * cell, 1e-3));
     }
     float d = _NoiseS.w;
+    float3 upv = pc / max(length(pc), 1.0);
     [branch] if (lod < 1.0)
     {
-        d = NoiseDetailAt(li, q, pc / max(length(pc), 1.0), scale);
+        d = NoiseDetailAt(li, q, upv, scale, 1.0);
         d += (_NoiseS.w - d) * lod;
+    }
+    // The fine octave, dropped by the distance LOD once the march spacing exceeds its own (smaller) cell.
+    [branch] if (_NoiseT.x > 0)
+    {
+        float lod2 = 0;
+        if (_NoiseS.z > 0 && gNoiseFoot > 0)
+        {
+            float cell2 = _NoiseS.x * scale / _NoiseT.y;
+            lod2 = saturate((gNoiseFoot - _NoiseS.y * cell2) / max((_NoiseS.z - _NoiseS.y) * cell2, 1e-3));
+        }
+        float d2 = _NoiseS.w;
+        [branch] if (lod2 < 1.0)
+        {
+            d2 = NoiseDetailAt(li, q, upv, scale, _NoiseT.y);
+            d2 += (_NoiseS.w - d2) * lod2;
+        }
+        d += (d2 - d) * _NoiseT.x;
     }
     float er = erosion * (1.0 - d);
     float c = saturate((s - er) / max(1.0 - er, 1e-3));
