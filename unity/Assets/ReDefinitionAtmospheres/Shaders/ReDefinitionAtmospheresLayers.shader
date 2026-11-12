@@ -65,7 +65,9 @@ Shader "ReDefinition/AtmospheresLayers"
         // y the finest step as a share of the grid step, z the exponent of the coverage share in the density (1: linear).
         float4 _RefineP;
         // The contour gate of the entry refinement (package T14): x the alpha step to a neighbour of the 2 x 2 quad above which a ray is marched again with the
-        // refinement on (0: off, every ray refines), y the same for the first hit's relative distance step (0: not used), z, w 0.
+        // refinement on (0: off, every ray refines), y the same for the first hit's relative distance step (0: not used), z the bisection steps of the
+        // surface refinement (package T15: with the entry refinement off, the first dense sample after an empty one is moved to the entry by this many
+        // halvings of the interval between the two samples; 0: off), w 0.
         float4 _RefineG;
         // The gate's state while a ray marches: the refinement is on (1) or held back for the first march of a gated pixel (0); and a draw that must not gate
         // (the edge draw of package T12 returns early per pixel, so a quad's derivatives are not defined there) sets gGateOff.
@@ -364,9 +366,14 @@ Shader "ReDefinition/AtmospheresLayers"
                 // ray goes back to the last empty sample and walks to the entry in the finest step, so that the cloud's surface is found to the finest
                 // step and not to the grid step (the grid step's quantisation is the hatching and the banding of a solid cloud).
                 bool refine = _RefineP.x > 0.0 && gRefineOn > 0.5;
+                // Package T15, the surface refinement by bisection: without the full refinement the entry is found by halving the interval between the last
+                // empty and the first dense sample a few times (a few density reads at an entry, no second march).
+                int bisectSteps = refine ? 0 : (int)(_RefineG.z + 0.5);
                 float fineStep = dt * _RefineP.y;
                 bool fine = false, inside = false;
                 float tFineEnd = 0.0;
+                int bis = 0;
+                float bLo = 0.0, bHi = 0.0;
                 [loop] for (int i = 0; i < 512; i++)
                 {
                     if (t >= tEnd) break;
@@ -375,6 +382,15 @@ Shader "ReDefinition/AtmospheresLayers"
                     float share;
                     float dens = LayerDensity(li, pc, alt, t, share);
                     r.steps += 1;
+                    if (bis > 0)
+                    {
+                        // A midpoint of the entry search (T15): dense moves the dense end down, empty the empty end up; after the last one the ray goes on at
+                        // the dense end (its density is read again there, the one extra read of the search).
+                        if (dens > 0) bHi = t; else bLo = t;
+                        bis -= 1;
+                        t = bis > 0 ? 0.5 * (bLo + bHi) : bHi;
+                        continue;
+                    }
                     if (dens <= 0)
                     {
                         inside = false;
@@ -411,6 +427,19 @@ Shader "ReDefinition/AtmospheresLayers"
                             continue;
                         }
                     }
+                    // Only after an empty sample of this span (tLast before the span start means the span began inside a cloud: nothing to find).
+                    if (bisectSteps > 0 && !inside && tLast >= s0[k])
+                    {
+                        // The bisection walks through the loop's own density read (a second call site of LayerDensity inlines the noise twice and the
+                        // shader compiler does not survive it): the next samples are the midpoints, then the loop goes on from the dense end.
+                        bis = bisectSteps;
+                        bLo = tLast;
+                        bHi = t;
+                        inside = true;
+                        leap = 1.0;
+                        t = 0.5 * (bLo + bHi);
+                        continue;
+                    }
                     fine = false;
                     inside = true;
                     leap = 1.0;
@@ -421,6 +450,8 @@ Shader "ReDefinition/AtmospheresLayers"
                     // The optical depth one step adds is bounded by a budget that grows with what the ray has already gathered: the entry is
                     // sampled finely, the inside coarsely (stream T).
                     if (refine) dts = min(dts, max(_RefineP.x * (1.0 + r.tau) / dens, fineStep));
+                    // Package T15, sweep 2: the same optical depth budget without the entry walk (_RefineG.w; 0: off).
+                    else if (_RefineG.w > 0.0) dts = min(dts, max(_RefineG.w * (1.0 + r.tau) / dens, fineStep));
                     t += dts;
                     if (r.first < 0) r.first = t - dts;
                     float dtau = dens * dts;

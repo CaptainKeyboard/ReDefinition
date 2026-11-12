@@ -123,7 +123,13 @@ namespace ReDefinition.Atmospheres
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
-            f.RefineBudget = On(v, AtmospheresSettings.Keys.CloudEntryRefinement) ? Mathf.Max(0f, Tuning.Get(TuneRefineBudget, EntryRefineBudget)) : 0f;
+            // T15: the edge mask restriction needs the refinement in the flagged blocks, so it switches the budget on by itself; the bisection steps
+            // act where no full refinement runs (the whole picture, or the blocks the mask does not flag).
+            bool maskOn = On(v, AtmospheresSettings.Keys.CloudRefineEdgeMask)
+                          && (ReconMode)Math.Max(0, Math.Min(2, (int)v(AtmospheresSettings.Keys.CloudReconMode))) != ReconMode.Low;
+            bool refineOn = On(v, AtmospheresSettings.Keys.CloudEntryRefinement) || maskOn;
+            f.RefineBudget = refineOn ? Mathf.Max(0f, Tuning.Get(TuneRefineBudget, EntryRefineBudget)) : 0f;
+            f.RefineBisect = Math.Max(0, Math.Min(LayerFrame.MaxRefineBisect, (int)v(AtmospheresSettings.Keys.CloudRefineBisect)));
             f.RefineFraction = Mathf.Clamp(Tuning.Get(TuneRefineFraction, CompiledFrame.RefineFraction), 0.0625f, 1f);
             // T14: the contour gate of the refinement (the alpha step of the 2 x 2 quad above which a ray refines; the first-hit step is off).
             bool atContours = On(v, AtmospheresSettings.Keys.CloudRefineAtContours);
@@ -227,6 +233,8 @@ namespace ReDefinition.Atmospheres
             bool low = (ReconMode)Math.Max(0, Math.Min(2, (int)v(AtmospheresSettings.Keys.CloudReconMode))) == ReconMode.Low;
             s.Mode = low ? ReconMode.Low : (level > 1 ? ReconMode.Block : ReconMode.Full);
             s.Block = Math.Max(2, level);
+            // The mask restriction runs the edge mode, which marches the 4 x 4 coarse block; the mode Low overrides it.
+            s.RefineAtMask = On(v, AtmospheresSettings.Keys.CloudRefineEdgeMask) && !low;
         }
 
         internal static void Apply(ReconSettings s)

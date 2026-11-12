@@ -21,7 +21,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             "ownClouds", "layerCap", "layerStepQuality", "layerStepGrowth", "cloudNoise", "cloudNoiseUntile", "cloudNoiseCurl", "cloudNoiseTier",
             "cloudNoiseDistanceLod", "cloudFineDetail", "cloudEntryRefinement", "cloudHashDither", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
             "cloudSunTint", "cloudMoonLights", "cloudAmbientTaps", "cloudAmbientReuse", "cloudLightCache", "cloudShadows", "cloudShadowQuality",
-            "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudRefineAtContours", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
+            "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudRefineAtContours", "cloudRefineBisect", "cloudRefineEdgeMask", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
         };
 
         private static Func<string, double> Defaults(params object[] pairs)
@@ -279,6 +279,33 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.3f, frame.RefineGate, 1e-6f);
             Tuning.ClearOverrides();
             NextFrame();
+        }
+
+        [TestMethod]
+        public void TheCheapRefinementsAreOffByDefaultAndReachTheFrameAndTheReconstruction()
+        {
+            Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudRefineBisect").Default, "off until the owner agrees");
+            Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudRefineEdgeMask").Default, "off until the owner agrees");
+            Assert.IsTrue(TierRows.NotSet.ContainsKey("cloudRefineBisect") && TierRows.NotSet.ContainsKey("cloudRefineEdgeMask"), "no tier sets them, and says why");
+            var frame = new LayerFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(0, frame.RefineBisect);
+            Assert.AreEqual(0f, frame.RefineBudget, "nothing on: no refinement");
+            OwnCloudOptions.Apply(frame, Defaults("cloudRefineBisect", 3));
+            Assert.AreEqual(3, frame.RefineBisect);
+            Assert.AreEqual(0f, frame.RefineBudget, "the bisection replaces the refinement, it does not switch it on");
+            OwnCloudOptions.Apply(frame, Defaults("cloudRefineBisect", 99));
+            Assert.AreEqual(LayerFrame.MaxRefineBisect, frame.RefineBisect);
+            OwnCloudOptions.Apply(frame, Defaults("cloudRefineEdgeMask", 1));
+            Assert.AreEqual(OwnCloudOptions.EntryRefineBudget, frame.RefineBudget, "the mask restriction refines in the flagged blocks");
+            var recon = new ReconSettings();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.IsFalse(recon.RefineAtMask);
+            OwnCloudOptions.Apply(recon, Defaults("cloudRefineEdgeMask", 1));
+            Assert.IsTrue(recon.RefineAtMask);
+            var driver = new LayerReconstructDriver();
+            Assert.IsTrue(driver.Configure((key, fallback) => fallback, recon), "the mask restriction runs the reconstruction");
+            Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsOwnClouds, AtmospheresSettings.Definition("cloudRefineBisect").GreyReason);
         }
 
         [TestMethod]
