@@ -80,7 +80,21 @@ namespace ReDefinition.Atmospheres
         // with no axial tilt (at 78 degrees latitude the midnight sun stands at -12).
         internal static float WantedSunDeg(float latDeg)
         {
-            return Math.Max(-12f, -(90f - Math.Abs(latDeg)) + 1f);
+            return (float)AuroraPoseSolver.Solve(latDeg, 0.0).WantedDeg;
+        }
+
+        // The sun's declination at the body now (the angle of the direction to the sun above the body's equator plane).
+        private static double SunDeclinationDeg(CelestialBody body)
+        {
+            Vector3d toSun = (FlightGlobals.Bodies[0].position - body.position).normalized;
+            return AuroraPoseSolver.DeclinationDeg(Vector3d.Dot(toSun, body.RotationAxis.normalized));
+        }
+
+        // The plan of a pose at a latitude on the current body at the current time.
+        private static AuroraPoseSolver.Plan PlanFor(double latDeg)
+        {
+            CelestialBody body = FlightGlobals.currentMainBody;
+            return AuroraPoseSolver.Solve(latDeg, body != null ? SunDeclinationDeg(body) : 0.0);
         }
 
         // The direction from the body's centre to the place at that latitude where the sun stands at that elevation, on the night side
@@ -216,6 +230,7 @@ namespace ReDefinition.Atmospheres
                 terrain = 0.0;
             }
             altitude = Math.Max(HoverAltitude, terrain + TerrainClearance);
+            placeDirection = dir;
             return PlaceSteps(vessel, body, dir, altitude);
         }
 
@@ -259,22 +274,50 @@ namespace ReDefinition.Atmospheres
 
         // Place, then check the sun's elevation at the camera against the wanted one and place again (up to three tries) when it is
         // off by more than the tolerance. The worst error of all poses is the row D38.sky.pose_sun_error_deg.
+        // A pose that cannot be placed fails the probe (Check) and is left out; the poses after it are still taken, so that one start
+        // returns every picture it can. placeOk says whether the last call placed. Every attempt logs where the vessel really is (the
+        // distance along the surface from the place asked for and the vessel's own state), so that a vessel the game holds back says
+        // why; the attempts after the first wait PlaceRetryWaitS first, in case the hold is a state that ends by itself.
+        private bool placeOk;
+        private Vector3d placeDirection;
+        private const int PlaceAttempts = 4;
+        private const double PlaceRetryWaitS = 4.0;
+
         private IEnumerable<ProbeWait> PlaceChecked(double latDeg, double sunDeg)
         {
+            placeOk = false;
             double error = double.MaxValue;
-            for (int attempt = 0; attempt < 3; attempt++)
+            for (int attempt = 0; attempt < PlaceAttempts; attempt++)
             {
+                if (attempt > 0) yield return ProbeWait.Seconds(PlaceRetryWaitS);
                 double altitude;
                 IEnumerable<ProbeWait> steps = Place(latDeg, sunDeg, out altitude);
                 placedAltitude = altitude;
                 foreach (ProbeWait w in steps) yield return w;
                 yield return ProbeWait.Frames(12);
                 error = Math.Abs(PoseSunDeg() - sunDeg);
-                if (error <= PoseSunToleranceDeg) break;
-                Say("placement at " + Num(latDeg) + " degrees latitude: the sun stands " + Num(PoseSunDeg()) + " degrees, " + Num(sunDeg) + " asked for; placing again");
+                if (error <= PoseSunToleranceDeg)
+                {
+                    placeOk = true;
+                    break;
+                }
+                Say("placement at " + Num(latDeg) + " degrees latitude, attempt " + (attempt + 1) + " of " + PlaceAttempts + ": the sun stands "
+                    + Num(PoseSunDeg()) + " degrees, " + Num(sunDeg) + " asked for; " + VesselState(placeDirection));
             }
             worstSunError = Math.Max(worstSunError, error);
-            if (error > PoseSunToleranceDeg) Fail("D38: the pose at " + Num(latDeg) + " degrees latitude could not be placed with the sun at " + Num(sunDeg) + " degrees (error " + Num(error) + ")");
+            if (!placeOk) Check("D38.pose_placed_" + Num(latDeg) + "N", false, "the pose at " + Num(latDeg) + " degrees N latitude could not be placed with the sun at " + Num(sunDeg) + " degrees (error " + Num(error) + ")");
+        }
+
+        // The vessel's own state against the place asked for, for the log.
+        private static string VesselState(Vector3d wantedDirection)
+        {
+            Vessel v = FlightGlobals.ActiveVessel;
+            if (v == null || v.mainBody == null) return "no active vessel";
+            Vector3d radial = (v.GetWorldPos3D() - v.mainBody.position).normalized;
+            double angle = Math.Acos(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(radial, wantedDirection.normalized))));
+            return "the vessel is " + Num(angle * v.mainBody.Radius / 1000.0) + " km along the surface from it, " + v.situation + ", loaded " + v.loaded
+                   + ", packed " + v.packed + ", altitude " + Num(v.altitude) + " m, latitude " + Num(v.latitude) + ", " + v.parts.Count + " parts, speed "
+                   + Num(v.srfSpeed) + " m/s";
         }
 
         private static void HoldVessel()
@@ -408,10 +451,26 @@ namespace ReDefinition.Atmospheres
             Emit("D38.sky.scatterer_present", present.Exists(p => p.IndexOf("Scatterer", StringComparison.OrdinalIgnoreCase) >= 0));
 
             // ---- The reference pose: lat 70, activity 1, elevation 25, sun -12.
+            // A reference pose that cannot be placed (no night at the latitude and date, or the vessel is held) leaves out the draw-order and
+            // terrain rows, which are read at it, and the series goes on with the poses of the artefact rows.
             var reference = new SkyPose { Name = "ref", Lat = 70f, Activity = 1f, Event = 0f, Elevation = 25f };
-            foreach (ProbeWait w in PlaceChecked(reference.Lat, WantedSunDeg(reference.Lat))) yield return w;
+            double noiseFloor = 0.0;
+            AuroraPoseSolver.Plan referencePlan = PlanFor(reference.Lat);
+            if (referencePlan.Skip)
+            {
+                Say("the reference pose at " + Num(reference.Lat) + " degrees N latitude has no night: the lowest sun is " + Num(referencePlan.LowestDeg)
+                    + " degrees at a declination of " + Num(referencePlan.DeclinationDeg) + " degrees; the order and terrain rows are left out");
+                Check("D38.reference_pose", false, "no night at " + Num(reference.Lat) + " degrees N latitude at this date");
+                goto Poses;
+            }
+            foreach (ProbeWait w in PlaceChecked(reference.Lat, referencePlan.WantedDeg)) yield return w;
+            if (!placeOk)
+            {
+                Say("the reference pose could not be placed; the order and terrain rows are left out");
+                goto Poses;
+            }
             double altitude = placedAltitude;
-            AuroraFrame refFrame = AuroraModel.FromActivity(reference.Activity, reference.Event, WantedSunDeg(reference.Lat), 60f, 1f);
+            AuroraFrame refFrame = AuroraModel.FromActivity(reference.Activity, reference.Event, (float)referencePlan.WantedDeg, 60f, 1f);
             foreach (ProbeWait w in Aim(AuroraModel.PoseYawDeg(refFrame.RingLatDeg, reference.Lat), reference.Elevation)) yield return w;
             double aimAz, aimEl;
             CameraAim(out aimAz, out aimEl);
@@ -445,6 +504,7 @@ namespace ReDefinition.Atmospheres
             {
                 // Nothing else can be read from a frame that does not move with the shell; the rows say so by being missing or false.
                 Say("the frame did not change with the shell (target and screen); the real-sky rows are left out");
+                Check("D38.order.frame_live", false, "the frame did not change with the shell");
                 Cleanup();
                 yield break;
             }
@@ -453,7 +513,7 @@ namespace ReDefinition.Atmospheres
             var peaks = new Dictionary<string, double>();
             var lit = new Dictionary<string, double>();
             var refMasks = new Dictionary<string, float[]>();
-            double noiseFloor = AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(noise, off), lastWidth, lastHeight);
+            noiseFloor = AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(noise, off), lastWidth, lastHeight);
             foreach (VariantDef v in OrderVariants)
             {
                 BeginVariant(v.Name);
@@ -553,6 +613,7 @@ namespace ReDefinition.Atmospheres
             }
 
             // ---- Lid, drip and band at a night pose per latitude, the default draw (D38-02).
+        Poses:
             var poses = new List<SkyPose>();
             foreach (float lat in new[] { 60f, 70f, 78f })
             {
@@ -562,11 +623,26 @@ namespace ReDefinition.Atmospheres
             poses.Add(new SkyPose { Name = "l70_a10_e10", Lat = 70f, Activity = 1f, Event = 0f, Elevation = 10f });
             poses.Add(new SkyPose { Name = "l70_a10_e40", Lat = 70f, Activity = 1f, Event = 0f, Elevation = 40f });
             double worstLid = 0, worstDrip = 0, worstBand = 0;
-            int judged = 0, dim = 0;
+            int judged = 0, dim = 0, skipped = 0, unplaced = 0;
             foreach (SkyPose pose in poses)
             {
-                foreach (ProbeWait w in PlaceChecked(pose.Lat, WantedSunDeg(pose.Lat))) yield return w;
-                AuroraFrame frame = AuroraModel.FromActivity(pose.Activity, pose.Event, WantedSunDeg(pose.Lat), 60f, 1f);
+                // The sun elevation the latitude reaches at this date; a latitude with no night is skipped with its name.
+                AuroraPoseSolver.Plan plan = PlanFor(pose.Lat);
+                if (plan.Skip)
+                {
+                    Say("pose " + pose.Name + " skipped: no night at " + Num(pose.Lat) + " degrees N latitude, the lowest sun is " + Num(plan.LowestDeg)
+                        + " degrees at a declination of " + Num(plan.DeclinationDeg) + " degrees");
+                    Emit("D38.sky.skipped_lowest_sun_deg." + pose.Name, plan.LowestDeg);
+                    skipped++;
+                    continue;
+                }
+                foreach (ProbeWait w in PlaceChecked(pose.Lat, plan.WantedDeg)) yield return w;
+                if (!placeOk)
+                {
+                    unplaced++;
+                    continue;
+                }
+                AuroraFrame frame = AuroraModel.FromActivity(pose.Activity, pose.Event, (float)plan.WantedDeg, 60f, 1f);
                 double yaw = AuroraModel.PoseYawDeg(frame.RingLatDeg, pose.Lat);
                 foreach (ProbeWait w in Aim(yaw, pose.Elevation)) yield return w;
                 double az, el;
@@ -606,6 +682,9 @@ namespace ReDefinition.Atmospheres
             Emit("D38.band_worst", worstBand);
             Emit("D38.sky.poses_judged", judged);
             Emit("D38.sky.poses_dim", dim);
+            Emit("D38.sky.poses_skipped", skipped);
+            Emit("D38.sky.poses_unplaced", unplaced);
+            Emit("D38.sky.poses_accounted", judged + dim + skipped + unplaced);
             Emit("D38.sky.noise_floor", noiseFloor);
             Emit("D38.sky.pose_sun_error_deg", worstSunError);
 
@@ -614,8 +693,9 @@ namespace ReDefinition.Atmospheres
             // GPU figure is the weather player's (shell_gpu_ms_1440p_equivalent).
             {
                 double alt;
-                foreach (ProbeWait w in Place(60.0, WantedSunDeg(60f), out alt)) yield return w;
-                AuroraFrame frame = AuroraModel.FromActivity(1f, 1f, WantedSunDeg(60f), 60f, 1f);
+                AuroraPoseSolver.Plan dearPlan = PlanFor(60.0);
+                foreach (ProbeWait w in Place(60.0, dearPlan.WantedDeg, out alt)) yield return w;
+                AuroraFrame frame = AuroraModel.FromActivity(1f, 1f, (float)dearPlan.WantedDeg, 60f, 1f);
                 foreach (ProbeWait w in Aim(AuroraModel.PoseYawDeg(frame.RingLatDeg, 60f), 10.0)) yield return w;
                 double onSum = 0, offSum = 0;
                 for (int round = 0; round < 3; round++)

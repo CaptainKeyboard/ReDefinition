@@ -274,54 +274,95 @@ namespace ReDefinition.Atmospheres
         }
 
         // The beam's points in the world, from the first drawn lamp (valid while a lamp is drawn).
-        private void CapturePoints()
+        private void CapturePoints(Vessel vessel)
         {
             pointWorld = new Vector3[PointCount];
             pointU = new double[PointCount];
             pointV = new double[PointCount];
-            Vector3 lamp = LampScatter.FirstDrawPosition, axis = LampScatter.FirstDrawAxis;
-            // The beam is seen as far as the visibility the medium gives (about 4 / sigma), not to the lamp's whole range.
-            float range = Mathf.Min(LampScatter.FirstDrawRange, 4f / Mathf.Max(LampScatter.LastSigma.Total, 0.001f));
+            Vector3 lamp = LampScatter.SideLampPosition, axis = LampScatter.SideLampAxis.normalized;
+            // The beam is seen as far as the visibility the medium gives (about 4 / sigma) and not to the lamp's whole range; a long
+            // beam is also held to BeamReachCapM, so that the camera that sees all of it stays near the vessel.
+            float range = Mathf.Min(Mathf.Min(LampScatter.SideLampRange, 4f / Mathf.Max(LampScatter.LastSigma.Total, 0.001f)), BeamReachCapM);
             for (int i = 0; i < PointCount; i++)
             {
                 double fx, fy;
                 LampProbeMath.SegmentPoint(0, 0, 1, 0, i, PointCount, PointFrom, PointTo, out fx, out fy);
                 pointWorld[i] = lamp + axis * (range * (float)fx);
             }
+            // The lamp as the probe aims at it, for the log: the premise of every frame row below is that the beam can be seen.
+            Vector3 up = (lamp - (Vector3)vessel.mainBody.position).normalized;
+            Vector3 fromCoM = lamp - (Vector3)vessel.CoMD;
+            double elevation = LampProbeMath.ElevationDeg(axis.x, axis.y, axis.z, up.x, up.y, up.z);
+            LogLine("D32: the lamp the probe aims at: " + fromCoM.magnitude.ToString("0.0", CultureInfo.InvariantCulture) + " m from the vessel's centre of mass, axis "
+                    + elevation.ToString("0", CultureInfo.InvariantCulture) + " degrees above the horizontal, range "
+                    + LampScatter.SideLampRange.ToString("0.0", CultureInfo.InvariantCulture) + " m, half angle "
+                    + (LampScatter.SideLampHalfAngleRad * Mathf.Rad2Deg).ToString("0", CultureInfo.InvariantCulture) + " degrees, beam points to "
+                    + range.ToString("0.0", CultureInfo.InvariantCulture) + " m");
+            Emit("D32.beam_axis_elevation_deg", elevation);
+            Emit("D32.beam_reach_m", range);
         }
 
-        // Puts the camera on the side of the beam: the heading (of four) at which the beam's span on the screen is the longest.
+        // The beam is held to this length for the points, in metres.
+        private const float BeamReachCapM = 40f;
+        // The camera placements tried, nearest first: distance from the vessel (m), pitch (degrees), and eight headings round it.
+        private static readonly float[] CameraDistancesM = { 30f, 45f, 70f, 110f };
+        private static readonly float[] CameraPitchesDeg = { 10f, 35f, -10f };
+        private const int CameraHeadings = 8;
+        // A beam that spans at least this share of the frame diagonal with every point in view is good enough to stop the search.
+        private const double GoodSpan = 0.25;
+
+        // Puts the camera where the whole beam is in view: tries distances from near to far, three pitches and eight headings, projects
+        // the beam's points for each, and keeps the first placement that shows every point over a good span, else the one with the
+        // longest span that shows at least PointCount - 1 points. When none does the premise of the frame rows is false: the probe fails
+        // (Check) and says which placements were tried.
         private IEnumerable<ProbeWait> PlaceCamera()
         {
             FlightCamera fc = FlightCamera.fetch;
             Camera cam = fc.mainCamera;
-            float bestHeading = fc.camHdg;
-            double bestSpan = -1.0;
-            int bestInView = 0;
-            for (int k = 0; k < 4; k++)
+            fc.maxDistance = Mathf.Max(fc.maxDistance, CameraDistancesM[CameraDistancesM.Length - 1] + 20f);
+            fc.minDistance = Mathf.Min(fc.minDistance, 20f);
+            var tried = new List<float[]>();
+            var inViewList = new List<int>();
+            var spanList = new List<double>();
+            int pick = -1;
+            int mostInView = 0;
+            for (int d = 0; d < CameraDistancesM.Length && !(pick >= 0 && spanList[pick] >= GoodSpan); d++)
             {
-                float heading = (float)(k * Math.PI / 2.0);
-                fc.maxDistance = Mathf.Max(fc.maxDistance, 60f);
-                fc.minDistance = Mathf.Min(fc.minDistance, 20f);
-                fc.SetDistanceImmediate(30f);
-                fc.camPitch = 10f * Mathf.Deg2Rad;
-                fc.camHdg = heading;
-                yield return ProbeWait.Frames(4);
-                ProjectPoints(cam);
-                double span = Math.Sqrt(Math.Pow(pointU[0] - pointU[PointCount - 1], 2) + Math.Pow(pointV[0] - pointV[PointCount - 1], 2));
-                if (pointsInView >= PointCount - 1 && span > bestSpan)
+                for (int p = 0; p < CameraPitchesDeg.Length && !(pick >= 0 && spanList[pick] >= GoodSpan); p++)
                 {
-                    bestSpan = span;
-                    bestHeading = heading;
-                    bestInView = pointsInView;
+                    for (int k = 0; k < CameraHeadings; k++)
+                    {
+                        float heading = (float)(k * 2.0 * Math.PI / CameraHeadings);
+                        fc.SetDistanceImmediate(CameraDistancesM[d]);
+                        fc.camPitch = CameraPitchesDeg[p] * Mathf.Deg2Rad;
+                        fc.camHdg = heading;
+                        yield return ProbeWait.Frames(3);
+                        ProjectPoints(cam);
+                        double span = Math.Sqrt(Math.Pow(pointU[0] - pointU[PointCount - 1], 2) + Math.Pow(pointV[0] - pointV[PointCount - 1], 2));
+                        tried.Add(new[] { CameraDistancesM[d], CameraPitchesDeg[p], heading });
+                        inViewList.Add(pointsInView);
+                        spanList.Add(span);
+                        mostInView = Math.Max(mostInView, pointsInView);
+                        pick = LampProbeMath.ChoosePlacement(inViewList, spanList, PointCount, GoodSpan);
+                        if (pick >= 0 && spanList[pick] >= GoodSpan) break;
+                    }
                 }
             }
-            fc.camHdg = bestHeading;
-            yield return ProbeWait.Seconds(1);
-            ProjectPoints(cam);
+            if (pick < 0) pick = LampProbeMath.ChoosePlacement(inViewList, spanList, PointCount - 1, GoodSpan);
+            if (pick >= 0)
+            {
+                fc.SetDistanceImmediate(tried[pick][0]);
+                fc.camPitch = tried[pick][1] * Mathf.Deg2Rad;
+                fc.camHdg = tried[pick][2];
+                yield return ProbeWait.Seconds(1);
+                ProjectPoints(cam);
+            }
             Emit("D32.beam_points_in_view", pointsInView);
-            Emit("D32.beam_screen_span", Math.Max(bestSpan, 0.0));
-            if (bestInView == 0) LogLine("D32: no camera heading shows the beam");
+            Emit("D32.beam_screen_span", pick >= 0 ? Math.Max(spanList[pick], 0.0) : 0.0);
+            LogLine("D32: camera placements tried " + tried.Count + ", the most beam points in view in any " + mostInView + " of " + PointCount
+                    + (pick >= 0 ? "; kept distance " + tried[pick][0].ToString("0", CultureInfo.InvariantCulture) + " m, pitch "
+                                   + tried[pick][1].ToString("0", CultureInfo.InvariantCulture) + " degrees, heading "
+                                   + (tried[pick][2] * Mathf.Rad2Deg).ToString("0", CultureInfo.InvariantCulture) + " degrees" : "; none shows the beam"));
         }
 
         // One sample: the per-point lumas of a frame read now.
@@ -643,9 +684,15 @@ namespace ReDefinition.Atmospheres
                     Emit("D32.cpu_ms", LampScatter.CpuMs);
                     if (LampScatter.LastDrawCount > 0 && host != null)
                     {
-                        CapturePoints();
+                        CapturePoints(vessel);
                         foreach (ProbeWait w in PlaceCamera()) yield return w;
                         geometry = pointsInView >= PointCount - 1;
+                        // The premise of every frame row: a camera sees the beam. Without it the probe fails and says so.
+                        Check("D32.beam_geometry", geometry, pointsInView + " of " + PointCount + " beam points in view");
+                    }
+                    else
+                    {
+                        Check("D32.beam_geometry", false, "no lamp was drawn in the snow variant (draws " + LampScatter.LastDrawCount + ")");
                     }
                 }
                 if (geometry && !liveChecked)
@@ -653,6 +700,7 @@ namespace ReDefinition.Atmospheres
                     liveChecked = true;
                     foreach (ProbeWait w in FrameLiveness(vessel, v => live = v)) yield return w;
                     Emit("D32.frame_live", live);
+                    Check("D32.frame_live", live, "a wall in front of the camera must move the luma of the frame");
                 }
                 if (geometry && live && (name == "all" || name == "none" || name == "cloud"))
                 {
@@ -707,6 +755,9 @@ namespace ReDefinition.Atmospheres
             // interface hidden, as RECON's screen source does). Without a live screen they have no value and fail as missing.
             bool screenSource = geometry && live && liveScreen;
             Emit("D32.smear_source_screen", screenSource);
+            // With an upscaler on, the temporal rows need the screen; without a live screen they would be missing and the probe would
+            // still print PASSED.
+            if (upscaler != UpscalerKind.None) Check("D32.smear_source_screen", screenSource, "geometry " + geometry + ", frame live " + live + ", screen live " + liveScreen);
             if (screenSource && upscaler != UpscalerKind.None && fc != null)
             {
                 host.UseScreen = true;

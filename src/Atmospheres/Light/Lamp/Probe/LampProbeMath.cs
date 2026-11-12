@@ -116,6 +116,38 @@ namespace ReDefinition.Atmospheres
             return best >= 0 && top >= min ? best : -1;
         }
 
+        // The camera placement to keep out of the ones tried, each with the number of beam points in view and the screen span of the
+        // beam (a fraction of the frame diagonal). The first placement with at least `needed` points in view and a span of at least
+        // `goodSpan` is taken at once (the search runs from the nearest camera outwards); else the placement with the largest span
+        // among those with `needed` points in view; -1 when none has them. A beam that is in view only as a speck (a small span) is
+        // kept as the last resort, because a reading along a speck is still a reading.
+        internal static int ChoosePlacement(IList<int> inView, IList<double> span, int needed, double goodSpan)
+        {
+            if (inView == null || span == null || inView.Count != span.Count) return -1;
+            int best = -1;
+            double bestSpan = -1.0;
+            for (int i = 0; i < inView.Count; i++)
+            {
+                if (inView[i] < needed) continue;
+                if (span[i] >= goodSpan) return i;
+                if (span[i] > bestSpan)
+                {
+                    bestSpan = span[i];
+                    best = i;
+                }
+            }
+            return best;
+        }
+
+        // The elevation of a direction above the horizontal plane of a place (degrees): 90 for the direction of the vertical.
+        internal static double ElevationDeg(double dx, double dy, double dz, double upX, double upY, double upZ)
+        {
+            double length = Math.Sqrt(dx * dx + dy * dy + dz * dz), upLength = Math.Sqrt(upX * upX + upY * upY + upZ * upZ);
+            if (length < 1e-12 || upLength < 1e-12) return 0.0;
+            double s = (dx * upX + dy * upY + dz * upZ) / (length * upLength);
+            return Math.Asin(Math.Max(-1.0, Math.Min(1.0, s))) * 180.0 / Math.PI;
+        }
+
         // The mean of the values; NaN for none.
         internal static double Mean(IList<double> values)
         {

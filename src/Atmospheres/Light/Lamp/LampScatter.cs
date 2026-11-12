@@ -106,11 +106,13 @@ namespace ReDefinition.Atmospheres
         // module could draw, as opposed to KnownLights, which counts the lights of the parts whether they are on or not.
         internal static int LitCandidates { get; private set; }
 
-        // The first drawn lamp of the last frame: where it is, which way it points and how far it reaches (world space), for the probe
-        // that puts its sample points on the beam. Valid while LastDrawCount > 0.
-        internal static Vector3 FirstDrawPosition { get; private set; }
-        internal static Vector3 FirstDrawAxis { get; private set; }
-        internal static float FirstDrawRange { get; private set; }
+        // The drawn lamp of the last frame whose axis is the most horizontal (a beam seen from the side shows its length; one that points
+        // up or down is seen end-on or leaves the picture): where it is, which way it points, how far it reaches and its half angle
+        // (world space), for the probe that puts its sample points on the beam. Valid while LastDrawCount > 0.
+        internal static Vector3 SideLampPosition { get; private set; }
+        internal static Vector3 SideLampAxis { get; private set; }
+        internal static float SideLampRange { get; private set; }
+        internal static float SideLampHalfAngleRad { get; private set; }
 
         // The cloud density the lamp scatter would see at a world position (the probe samples EVE's layers and the volume pass with it).
         internal float ProbeCloudDensity(Vector3 world, CelestialBody body)
@@ -424,9 +426,23 @@ namespace ReDefinition.Atmospheres
             }
             if (drawCount > 0)
             {
-                FirstDrawPosition = draws[0].Position;
-                FirstDrawAxis = draws[0].Axis;
-                FirstDrawRange = draws[0].Range;
+                int side = 0;
+                float sideVertical = float.MaxValue;
+                for (int k = 0; k < drawCount; k++)
+                {
+                    Vector3 up = (draws[k].Position - (Vector3)body.position).normalized;
+                    // A point lamp has no axis, so a spot lamp is preferred whatever its tilt.
+                    float vertical = Mathf.Abs(Vector3.Dot(draws[k].Axis.normalized, up)) + (draws[k].HalfAngleRad > 0f ? 0f : 10f);
+                    if (vertical < sideVertical)
+                    {
+                        sideVertical = vertical;
+                        side = k;
+                    }
+                }
+                SideLampPosition = draws[side].Position;
+                SideLampAxis = draws[side].Axis;
+                SideLampRange = draws[side].Range;
+                SideLampHalfAngleRad = draws[side].HalfAngleRad;
             }
             // The medium at the first lamp of the set, whether or not a lamp is drawn (the probe reads it every frame).
             LastSigma = firstParts;

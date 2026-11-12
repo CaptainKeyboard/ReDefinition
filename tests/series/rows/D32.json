@@ -531,7 +531,25 @@
       "start": "lamp",
       "metric": "D32.beam_points_in_view",
       "min": 7,
-      "note": "at least 7 of the 8 points along the beam (15 % to 75 % of the reach) are in the picture from the chosen side view"
+      "note": "at least 7 of the 8 points along the beam (15 % to 75 % of the reach, held to 40 m) are in the picture from the camera placement the probe found (distances 30 to 110 m, three pitches, eight headings, aimed from the axis of the drawn spot lamp whose axis is the most horizontal); the probe also fails itself (Check D32.beam_geometry) when no placement shows the beam"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lamp",
+      "metric": "D32.beam_axis_elevation_deg",
+      "required": false,
+      "note": "informative: the elevation of the aimed-at lamp's axis above the horizontal (degrees); near 90 or -90 the beam is seen end-on and the placement search has little to find"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lamp",
+      "metric": "D32.beam_reach_m",
+      "required": false,
+      "note": "informative: the length of beam the eight points span (the smallest of the lamp's range, 4 / sigma and 40 m), metres"
     },
     {
       "series": "K-W3b",
