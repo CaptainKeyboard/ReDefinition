@@ -86,22 +86,26 @@ namespace ReDefinition.Atmospheres
         // Samples the field at the site and 3 km for every candidate hour from the base (the field answers false until it has built the body's state: the pass repeats every
         // second up to FieldWaitS), emits every answer, and picks the hour whose cover is nearest to 0.3 and the one nearest to 0.7 whose sun stands in the band. A cover outside
         // the band is taken only when nothing in it fits, and is named in T09d.cover_off_band.
-        private IEnumerable<ProbeWait> ChooseCoverTimes(int bodyIndex, double lat, double lon)
+        // The candidates: every hour for Candidates hours from the base (repeated every second up to FieldWaitS until all of them answer: the field answers false until it has built
+        // the body's state), then one candidate every FarStepS up to 10 days, taken as they answer. 20 samples a frame, so that the main thread is not held for the whole scan.
+        // Fills coverCandidates and the counts candUnsampled (near candidates the field did not answer) and candFarAnswered. K-T2 and K-T2d share it.
+        private int candUnsampled, candFarAnswered, candPasses;
+        private double candWaitedS;
+
+        private IEnumerable<ProbeWait> SampleCoverCandidates(int bodyIndex, double lat, double lon)
         {
-            coverOk = false;
-            coverFailure = null;
             double start = Game.UniversalTime;
             double baseUt = Math.Ceiling(start / BaseStepS) * BaseStepS;
             double giveUpAt = Elapsed + FieldWaitS;
-            int unsampled, farAnswered;
+            candPasses = 0;
             while (true)
             {
-                unsampled = 0;
-                farAnswered = 0;
+                candPasses++;
+                candWaitedS = Elapsed - (giveUpAt - FieldWaitS);
+                candUnsampled = 0;
+                candFarAnswered = 0;
                 coverCandidates.Clear();
                 int sampled = 0;
-                // The near window: every hour for Candidates hours (the pass repeats until all of them answer); then a far window, one candidate every FarStepS up to FarDays
-                // days, taken as they answer (the field may not answer far ahead). 20 samples a frame, so that the main thread is not held for the whole scan.
                 for (int k = 0; k < Candidates + FarCandidates; k++)
                 {
                     bool far = k >= Candidates;
@@ -110,14 +114,22 @@ namespace ReDefinition.Atmospheres
                     if (WeatherHub.Sample(bodyIndex, lat, lon, 3000.0, t, out s))
                     {
                         coverCandidates.Add(new CoverCandidate { Ut = t, Cover = s.CloudCover01 });
-                        if (far) farAnswered++;
+                        if (far) candFarAnswered++;
                     }
-                    else if (!far) unsampled++;
+                    else if (!far) candUnsampled++;
                     if (++sampled % 20 == 0) yield return ProbeWait.Frames(1);
                 }
-                if (unsampled == 0 || Elapsed >= giveUpAt) break;
+                if (candUnsampled == 0 || Elapsed >= giveUpAt) break;
                 yield return ProbeWait.Seconds(1);
             }
+        }
+
+        private IEnumerable<ProbeWait> ChooseCoverTimes(int bodyIndex, double lat, double lon)
+        {
+            coverOk = false;
+            coverFailure = null;
+            foreach (ProbeWait w in SampleCoverCandidates(bodyIndex, lat, lon)) yield return w;
+            int unsampled = candUnsampled, farAnswered = candFarAnswered;
             foreach (CoverCandidate c in coverCandidates) Emit("T09.cover." + ((long)c.Ut).ToString(CultureInfo.InvariantCulture), c.Cover);
             Emit("T09d.candidates", coverCandidates.Count);
             Emit("T09d.candidates_far", farAnswered);

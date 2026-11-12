@@ -711,7 +711,7 @@ def selftest(check):
               status(pf_hash_plan(repo, ksp, {"bundle": True}, True, False), "bundle build") == FAIL)
 
         # mod sets
-        folders = {"EVE": ["EnvironmentalVisualEnhancements"]}
+        folders = {"EVE": ["EnvironmentalVisualEnhancements"], "Trajectories": ["Trajectories"]}
         os.makedirs(os.path.join(ksp, "GameData", "EnvironmentalVisualEnhancements"))
         r = pf_modsets(ksp, [{"id": "s", "disableMods": ["EVE"]}], folders)
         check("preflight mod sets: a restorable plan PASSes", status(r, "disabled-mods") == PASS and status(r, "no leftover") == PASS)

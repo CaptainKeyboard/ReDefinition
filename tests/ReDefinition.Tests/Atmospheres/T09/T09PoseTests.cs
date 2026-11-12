@@ -124,11 +124,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(slow.Probe.Passed, Dump(slow));
             Assert.IsTrue(slow.World.Saved.Count > 0, "pictures were taken");
 
+            // 12 m/s: the placement itself is past the 20 m the placement accepts (both series, as K-T2d), so the view is not entered.
             Run fast = Start(new[] { "plain" }, x => x.World.HorizontalDriftMPerS = 12.0);
             Drive(fast);
-            AssertNamedFailure(fast, "T09.pose_held_ground_plain");
-            Assert.IsTrue(fast.Probe.Failures.Any(f => f.Contains("m from the point it is held at")), fast.Joined);
+            AssertNamedFailure(fast, "T09.pose_placed_ground_plain");
+            Assert.IsTrue(fast.Probe.Failures.Any(f => f.Contains("m from the held point")), fast.Joined);
             Assert.AreEqual(0, fast.World.Saved.Count);
+
+            // 3.2 m/s: the placement is ok (under 20 m after a few seconds), and the dwell drifts past 100 m (about 110 m by its end): the view fails named, no picture.
+            Run mid = Start(new[] { "plain" }, x => x.World.HorizontalDriftMPerS = 3.2);
+            Drive(mid);
+            AssertNamedFailure(mid, "T09.pose_held_ground_plain");
+            Assert.IsTrue(mid.Probe.Failures.Any(f => f.Contains("m from the point it is held at")), mid.Joined);
+            Assert.AreEqual(0, mid.World.Saved.Count);
         }
 
         [TestMethod]

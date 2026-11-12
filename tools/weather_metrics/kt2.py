@@ -29,8 +29,11 @@ The own pass has both numbers; markers_agree is their largest relative gap. A vi
 
 Output metrics: T09.perf.<view>.<W>x<H>.ms / .labels_ms / .frame_ms / .idle_pct per variant, T09.perf.own_over_tvc.mean and
 T09.perf.recon4_over_plain.mean (ratios of the sums of the costs over the views, not means of ratios),
-T09.perf.markers_agree, T09.profiler.cloud_segment_present, and the A/B variants at the "inside" view (edge, heightoff, cap2):
-T09.ab.edge_over_plain.<res>, T09.ab.t13_cost_ms.<res>, T09.ab.cap2_over_plain.<res>. Stdlib only.
+T09.perf.markers_agree, T09.profiler.cloud_segment_present, and the A/B variants at the "inside" view (edge, heightoff, cap2, cache, entry):
+T09.ab.edge_over_plain.<res>, T09.ab.t13_cost_ms.<res>, T09.ab.cap2_over_plain.<res>. The cloud resolution levels recon2, recon3 and recon4
+(recon2 and recon3 are measured in ground, inside and above only) over plain: T09.perf.<level>_over_plain.3views[.<res>] (ratio of sums over the
+three common views) and T09.perf.<view>.<res>.<level>_over_plain. The noise rows of the probe (T09.noise.<view>.flicker / hf per variant) come
+out as T09.noise.<view>.<stat>_over_plain and T09.noise.<stat>_over_plain.mean per level. Stdlib only.
 """
 import argparse
 import json
@@ -48,8 +51,14 @@ SEGMENT = re.compile(r"^\s+([\d.]+) ms, at most ([\d.]+), (\d+): (.*)$")
 OWN_GROUP = "ReDefinition clouds"
 IDLE_GROUP = "frame start, GPU idle included"
 TVC_DEFAULT = r"[Vv]olumetric|EVE|EnvironmentalVisualEnhancements"
-OWN_VARIANTS = ("plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache")
-AB = {"edge": "edge_over_plain", "cap2": "cap2_over_plain", "cache": "cache_over_plain"}
+OWN_VARIANTS = ("plain", "recon2", "recon3", "recon4", "entry", "edge", "heightoff", "cap2", "cache")
+AB = {"edge": "edge_over_plain", "cap2": "cap2_over_plain", "cache": "cache_over_plain", "entry": "entry_over_plain"}
+# The cloud resolution levels (the slider cloudResolution); recon2 and recon3 are measured in three views only, so every level's ratio to plain is also given over those.
+LEVELS = ("recon2", "recon3", "recon4")
+COMMON_VIEWS = ("ground", "inside", "above")
+# The noise rows the probe emits per variant and view (T09ProbeNoise.cs) and the views they are read in.
+NOISE_STATS = ("flicker", "hf")
+NOISE_VIEWS = ("ground", "above")
 
 # Lines the runner prints and records with the report: the labels a TVC pattern matched, and the top labels of the first clean TVC report.
 NOTES = []
@@ -151,10 +160,11 @@ def idle_share(v):
     return v["idle"] / v["frame"]
 
 
-def ratio_of_sums(cost, top, bottom, res=None):
-    """Sum of the costs of variant `top` over the sum of `bottom`, over the views where both have a cost (and `bottom` costs something)."""
+def ratio_of_sums(cost, top, bottom, res=None, views=None):
+    """Sum of the costs of variant `top` over the sum of `bottom`, over the views where both have a cost (and `bottom` costs something);
+    `views` limits the views."""
     pairs = [(cost[(top, w, r)], cost[(bottom, w, r)]) for (var, w, r) in cost
-             if var == top and (res is None or r == res) and cost[(top, w, r)] is not None and cost.get((bottom, w, r))]
+             if var == top and (res is None or r == res) and (views is None or w in views) and cost[(top, w, r)] is not None and cost.get((bottom, w, r))]
     if not pairs:
         return None
     denominator = sum(b for _, b in pairs)
@@ -208,6 +218,15 @@ def metrics(found, notes=None):
         add("T09.perf.own_over_tvc." + res, ratio_of_sums(cost, "plain", "tvc", res))
     add("T09.perf.own_over_tvc.mean", ratio_of_sums(cost, "plain", "tvc"))
     add("T09.perf.recon4_over_plain.mean", ratio_of_sums(cost, "recon4", "plain"))
+    # Every level against plain over the three views all levels share, per view and per resolution as well.
+    for level in LEVELS:
+        add("T09.perf.%s_over_plain.3views" % level, ratio_of_sums(cost, level, "plain", None, COMMON_VIEWS))
+        for res in sorted({k[2] for k in found}):
+            add("T09.perf.%s_over_plain.3views.%s" % (level, res), ratio_of_sums(cost, level, "plain", res, COMMON_VIEWS))
+        for (var, view, res), value in sorted(cost.items()):
+            plain = cost.get(("plain", view, res))
+            if var == level and value is not None and plain:
+                add("T09.perf.%s.%s.%s_over_plain" % (view, res, level), value / plain)
     add("T09.perf.markers_agree", max(gaps) if gaps else None)
     own_seen = [v["labels"] for (variant, _, _), v in found.items() if variant in OWN_VARIANTS and v["labels"] is not None]
     if any(f[0] in OWN_VARIANTS for f in found):
@@ -238,6 +257,10 @@ def series_results(texts):
     uts = [u for u in (universal_time(t) for t in texts.values()) if u is not None]
     if len(uts) > 1:
         out.append({"metric": "T09.ut_spread_s", "value": max(uts) - min(uts), "variant": None})
+    values = {}
+    for t in texts.values():
+        values.update(noise_values(t))
+    out.extend(noise_ratios(values))
     return out
 
 
@@ -256,6 +279,41 @@ def universal_time(text):
             if obj.get("metric") == "T09.ut" and isinstance(obj.get("value"), (int, float)):
                 return float(obj["value"])
     return None
+
+
+def noise_values(text):
+    """{(variant, view, stat): value} of the probe's T09.noise.<view>.<stat> result lines in one start's log (the last one of a key wins)."""
+    found = {}
+    for line in text.splitlines():
+        m = UT_LINE.search(line)
+        if not m or '"T09.noise.' not in m.group(1):
+            continue
+        try:
+            obj = json.loads(m.group(1))
+        except ValueError:
+            continue
+        parts = str(obj.get("metric", "")).split(".")
+        if len(parts) == 4 and parts[:2] == ["T09", "noise"] and isinstance(obj.get("value"), (int, float)) and obj.get("variant"):
+            found[(obj["variant"], parts[2], parts[3])] = float(obj["value"])
+    return found
+
+
+def noise_ratios(values):
+    """The noise of each reconstruction level over plain's, per view (T09.noise.<view>.<stat>_over_plain) and as the mean over the views
+    (T09.noise.<stat>_over_plain.mean), for the flicker and the high-frequency energy. A level with no plain value in a view gives none."""
+    out = []
+    for stat in NOISE_STATS:
+        for level in LEVELS:
+            ratios = []
+            for view in NOISE_VIEWS:
+                top, bottom = values.get((level, view, stat)), values.get(("plain", view, stat))
+                if top is None or not bottom:
+                    continue
+                ratios.append(top / bottom)
+                out.append({"metric": "T09.noise.%s.%s_over_plain" % (view, stat), "value": rnd(top / bottom), "variant": level})
+            if ratios:
+                out.append({"metric": "T09.noise.%s_over_plain.mean" % stat, "value": rnd(sum(ratios) / len(ratios)), "variant": level})
+    return out
 
 
 def selftest():
@@ -317,6 +375,33 @@ def selftest():
         + view("orbit_edge", "recon4", "1707x960", [5.2, 5.2], clouds=0.2)
     rows = {(r["metric"], r["variant"]): r["value"] for r in metrics(merge([two]))}
     assert abs(rows[("T09.perf.recon4_over_plain.mean", None)] - 1.2 / 2.2) < 1e-3, rows
+    # the resolution levels over plain, over the three common views: recon4 has the orbit view too, recon2 and recon3 do not
+    levels = view("ground", "off", "1707x960", [7.0, 7.0]) + view("ground", "plain", "1707x960", [9.0, 9.0], clouds=2.0) \
+        + view("ground", "recon2", "1707x960", [8.0, 8.0], clouds=1.0) + view("ground", "recon3", "1707x960", [7.8, 7.8], clouds=0.8) \
+        + view("ground", "recon4", "1707x960", [7.6, 7.6], clouds=0.6) \
+        + view("above", "off", "1707x960", [6.0, 6.0]) + view("above", "plain", "1707x960", [10.0, 10.0], clouds=4.0) \
+        + view("above", "recon2", "1707x960", [8.0, 8.0], clouds=2.0) + view("above", "recon3", "1707x960", [7.5, 7.5], clouds=1.5) \
+        + view("above", "recon4", "1707x960", [7.0, 7.0], clouds=1.0) \
+        + view("orbit_edge", "off", "1707x960", [5.0, 5.0]) + view("orbit_edge", "plain", "1707x960", [5.4, 5.4], clouds=0.4) \
+        + view("orbit_edge", "recon4", "1707x960", [5.2, 5.2], clouds=0.2)
+    rows = {(r["metric"], r["variant"]): r["value"] for r in metrics(merge([levels]))}
+    assert abs(rows[("T09.perf.recon2_over_plain.3views", None)] - (1.0 + 2.0) / (2.0 + 4.0)) < 1e-3, rows      # frame differences: ground 1 and 2, above 2 and 4
+    assert abs(rows[("T09.perf.recon4_over_plain.3views", None)] - (0.6 + 1.0) / (2.0 + 4.0)) < 1e-3, rows     # without the orbit view that only recon4 and plain have
+    assert abs(rows[("T09.perf.ground.1707x960.recon2_over_plain", None)] - 0.5) < 1e-3, rows
+    assert ("T09.perf.recon3_over_plain.3views.1707x960", None) in rows and ("T09.perf.ground.1707x960.recon2_over_plain", None) in rows, rows
+    # the noise rows: the level over plain per view and as the mean
+    def noise(variant, view, stat, value):
+        return 'ATMORESULT {"series":"K-T2","metric":"T09.noise.%s.%s","value":%s,"variant":"%s"}' % (view, stat, value, variant)
+    text = "\n".join([noise("plain", "ground", "flicker", 0.02), noise("recon2", "ground", "flicker", 0.008), noise("recon4", "ground", "flicker", 0.0024),
+                      noise("plain", "above", "flicker", 0.04), noise("recon4", "above", "flicker", 0.008), noise("plain", "ground", "hf", 0.02), noise("recon4", "ground", "hf", 0.004)])
+    rows = {(r["metric"], r["variant"]): r["value"] for r in noise_ratios(noise_values(text))}
+    assert abs(rows[("T09.noise.ground.flicker_over_plain", "recon2")] - 0.4) < 1e-3, rows
+    assert abs(rows[("T09.noise.ground.flicker_over_plain", "recon4")] - 0.12) < 1e-3, rows
+    assert abs(rows[("T09.noise.flicker_over_plain.mean", "recon4")] - 0.16) < 1e-3, rows                    # (0.12 + 0.2) / 2
+    assert abs(rows[("T09.noise.hf_over_plain.mean", "recon4")] - 0.2) < 1e-3 and ("T09.noise.above.flicker_over_plain", "recon2") not in rows, rows
+    assert ("T09.noise.flicker_over_plain.mean", "recon3") not in rows, rows
+    out = series_results({"own": text})
+    assert any(r["metric"] == "T09.noise.flicker_over_plain.mean" for r in out), out
     # a cpu-bound view (more than 10 percent GPU idle): the cost is the labels figure, the view is out of markers_agree, the idle share is a value
     bound = view("ground", "off", "1707x960", [7.0, 7.0], idle=2.0) + view("ground", "plain", "1707x960", [7.1, 7.1], clouds=0.9, idle=1.5)
     notes = []

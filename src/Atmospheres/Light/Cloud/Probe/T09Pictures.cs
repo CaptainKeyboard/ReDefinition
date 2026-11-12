@@ -40,10 +40,16 @@ namespace ReDefinition.Atmospheres
             return variant != "off" && variant != "tvc";
         }
 
-        // Frames the aid view is shown before the read: the reconstruction needs its history (4 x 4 blocks: 16 frames) to fill the picture.
+        // Frames the aid view is shown before the read: the reconstruction needs its history (N x N blocks: N * N frames, 16 at level 4) to fill the picture.
         internal static int SettleFrames(string variant)
         {
-            return variant == "recon4" || variant == "edge" ? 16 : 6;
+            switch (variant)
+            {
+                case "recon3": return 12;
+                case "recon4":
+                case "edge": return 16;
+                default: return 6;
+            }
         }
 
         private static string Clean(string s)

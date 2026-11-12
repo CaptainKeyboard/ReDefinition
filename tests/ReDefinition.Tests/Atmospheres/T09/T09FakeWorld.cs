@@ -279,7 +279,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 s.Why = "ownClouds is off";
                 return;
             }
-            bool recon = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudResolution) >= 4.0;
+            bool recon = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudResolution) >= 2.0;
             s.Mode = recon ? "reconstruct" : "plain";
             s.Why = "drawing";
             s.LightCacheOn = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudLightCache) > 0.5;
@@ -474,7 +474,28 @@ namespace ReDefinition.Tests.Atmospheres.T09
             if (readFaultNow == "throw") throw new InvalidOperationException("ReadPixels failed");
             if (readFaultNow == "nobegin") return false;
             Stamp("capbegin");
+            lastReadRaw = false;
             jump += AltitudeJumpOnCaptureBegin;
+            readReadyFrame = Frames + 1;
+            return true;
+        }
+
+        // The noise reads (CaptureBeginRaw): counted and faulted apart from the pictures' reads, so that a test of the pictures does not depend on how many noise reads lie between them.
+        internal Func<int, string> RawReadFault = n => null;
+        internal int RawReadCalls;
+        private bool lastReadRaw;
+        // The frame at which each noise read began.
+        internal readonly List<int> RawBeginFrames = new List<int>();
+
+        public bool CaptureBeginRaw()
+        {
+            RequireFlight();
+            readFaultNow = RawReadFault(RawReadCalls++);
+            if (readFaultNow == "throw") throw new InvalidOperationException("ReadPixels failed");
+            if (readFaultNow == "nobegin") return false;
+            Stamp("rawbegin");
+            RawBeginFrames.Add(Frames);
+            lastReadRaw = true;
             readReadyFrame = Frames + 1;
             return true;
         }
@@ -494,7 +515,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             jump += AltitudeJumpOnCaptureTake;
             if (readFaultNow == "takethrows") throw new InvalidOperationException("the frame was released");
             if (readFaultNow == "none") return null;
-            if (KeepRaw) return RawImage();
+            if (KeepRaw || lastReadRaw) return RawImage();
             var image = new T09Image { Width = 16, Height = 9, Pixels = new Color[16 * 9] };
             for (int i = 0; i < image.Pixels.Length; i++)
             {
@@ -518,6 +539,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
         internal Func<int, int, bool> DeckCovers = (x, y) => true;
         // The state the picture shows (a test can tamper with it): the deck is drawn when the pass is on, draws every layer and the aid is off.
         internal bool NoRawPixels, EmptyHorizon;
+        // The grain of the picture, in luminance: DeckNoise on the deck, scaled by the reconstruction level (level 1 to 4: NoiseByLevel), FloorNoise on every pixel (the camera's jitter);
+        // both deterministic in (frame, x, y), so that two frames of one pose a frame apart differ and the same frame twice does not.
+        internal float DeckNoise, FloorNoise;
+        internal float[] NoiseByLevel = { 1f, 0.4f, 0.2f, 0.12f };
+
+        private static float Hash(int frame, int x, int y)
+        {
+            uint h = (uint)frame * 73856093u ^ (uint)x * 19349663u ^ (uint)y * 83492791u;
+            h ^= h >> 13; h *= 1274126177u; h ^= h >> 16;
+            return (h & 0xFFFFu) / 65535f - 0.5f;
+        }
         internal int RawWidth = 64, RawHeight = 36;
         internal readonly List<string> EnvironmentRequests = new List<string>();
         internal bool EnvironmentThrows;
@@ -572,7 +604,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     float l = v > horizonV ? SkyLuma : SeaLuma;
                     Color c = new Color(l, l, l, 1f);
                     bool covered = DeckCovers(x, y);
-                    if (deck && covered) c = new Color(Math.Min(ClipAt, DeckRadiance * gain), Math.Min(ClipAt, DeckRadiance * gain), Math.Min(ClipAt, DeckRadiance * gain), 1f);
+                    if (deck && covered)
+                    {
+                        float d = DeckRadiance * gain;
+                        // Per-frame grain on the deck, smaller at the reconstruction levels (the level is the slider's), and a floor on every pixel.
+                        if (DeckNoise > 0f) d += DeckNoise * NoiseByLevel[(int)Math.Max(1, Math.Min(4, AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudResolution))) - 1] * Hash(Frames, x, y);
+                        d = Math.Min(ClipAt, d);
+                        c = new Color(d, d, d, 1f);
+                    }
+                    if (FloorNoise > 0f) c = new Color(c.r + FloorNoise * Hash(Frames, x + 1000, y), c.g, c.b, 1f);
                     if (aid && covered && Module != null && Module.Stats.Mode != "off" && LayerMaskNow == 0) c = new Color(0.3f, 0.5f, 0.1f, 1f);
                     raw[y * w + x] = c;
                 }

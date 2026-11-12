@@ -72,6 +72,8 @@ MOD_FOLDERS = {
     "Scatterer": ["scatterer", "ScattererAtmosphereCache", "StockScattererConfigs"],
     "Deferred": ["zzz_Deferred"],
     "TUFX": ["TUFX", "Blackrack_TUFX.cfg"],
+    # Throws a NullReferenceException every few seconds in the flight scene (RealMaxAtmosphereAltitude, 96 a run in K-T2 start 42): CPU load that hides GPU cost.
+    "Trajectories": ["Trajectories"],
     "Parallax": ["ParallaxContinued", "Parallax_StockPlanetTextures", "Parallax_StockScatterTextures", "Parallax_StockTerrainTextures"],
 }
 

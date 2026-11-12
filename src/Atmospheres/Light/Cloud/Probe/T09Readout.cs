@@ -116,6 +116,84 @@ namespace ReDefinition.Atmospheres
             return reading;
         }
 
+        // --- Noise: two frames of one pose a frame apart -------------------------------------------------------------------------------------
+
+        // A pixel is in the noise region when the frame with the pass (a) differs from the baseline of the same pose by the deck's rule (DeckRelativeChange, DeckMinChange); the vessel
+        // box and the picture's top and bottom edge are left out. Every pixel is read (no stride): the high-pass needs the neighbours.
+        internal struct NoiseReading
+        {
+            // Pixels in the region and their share of the picture.
+            internal int Count;
+            internal double RegionFraction;
+            // The mean luminance of frame a in the region (the scale the other numbers are read against).
+            internal double MeanLuma;
+            // Flicker: the mean absolute difference of luminance between a and b over the region (what shimmers from one frame to the next), and the same between the two
+            // baseline frames over the same region (the floor of everything that is not the pass: the camera's jitter, the sea, the sky).
+            internal double Flicker, FloorFlicker;
+            // High-frequency energy: the root mean square of (luminance minus the mean of its four neighbours) over the region pixels whose four neighbours are in the region too
+            // (the cloud's own edges are left out), averaged over a and b. White noise of deviation s reads 1.118 s.
+            internal double Hf;
+            internal int HfCount;
+        }
+
+        internal const int NoiseMinPixels = 500;
+
+        internal static NoiseReading Noise(Color[] baseline, Color[] baseline2, Color[] a, Color[] b, int width, int height)
+        {
+            int n = width * height;
+            if (baseline == null || baseline2 == null || a == null || b == null || baseline.Length != n || baseline2.Length != n || a.Length != n || b.Length != n || width < 4 || height < 4)
+                throw new ArgumentException("the four frames do not match the size");
+            var la = new float[n]; var lb = new float[n]; var l0 = new float[n]; var l1 = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                la[i] = Luminance(a[i]);
+                lb[i] = Luminance(b[i]);
+                l0[i] = Luminance(baseline[i]);
+                l1[i] = Luminance(baseline2[i]);
+            }
+            var region = new bool[n];
+            var reading = new NoiseReading();
+            double lumaSum = 0.0, flickerSum = 0.0, floorSum = 0.0;
+            for (int y = 0; y < height; y++)
+            {
+                double v = (y + 0.5) / height;
+                if (v < EdgeLow || v > EdgeHigh) continue;
+                for (int x = 0; x < width; x++)
+                {
+                    double u = (x + 0.5) / width;
+                    if (InVessel(u, v)) continue;
+                    int i = y * width + x;
+                    float o = l0[i];
+                    if (Math.Abs(la[i] - o) <= Math.Max(DeckMinChange, DeckRelativeChange * o)) continue;
+                    region[i] = true;
+                    reading.Count++;
+                    lumaSum += la[i];
+                    flickerSum += Math.Abs(lb[i] - la[i]);
+                    floorSum += Math.Abs(l1[i] - l0[i]);
+                }
+            }
+            reading.RegionFraction = reading.Count / (double)n;
+            if (reading.Count == 0) return reading;
+            reading.MeanLuma = lumaSum / reading.Count;
+            reading.Flicker = flickerSum / reading.Count;
+            reading.FloorFlicker = floorSum / reading.Count;
+            double hfSum = 0.0;
+            for (int y = 1; y < height - 1; y++)
+            {
+                for (int x = 1; x < width - 1; x++)
+                {
+                    int i = y * width + x;
+                    if (!region[i] || !region[i - 1] || !region[i + 1] || !region[i - width] || !region[i + width]) continue;
+                    double da = la[i] - 0.25 * (la[i - 1] + la[i + 1] + la[i - width] + la[i + width]);
+                    double db = lb[i] - 0.25 * (lb[i - 1] + lb[i + 1] + lb[i - width] + lb[i + width]);
+                    hfSum += 0.5 * (da * da + db * db);
+                    reading.HfCount++;
+                }
+            }
+            reading.Hf = reading.HfCount > 0 ? Math.Sqrt(hfSum / reading.HfCount) : 0.0;
+            return reading;
+        }
+
         // The sampled values of one region.
         private sealed class Region
         {

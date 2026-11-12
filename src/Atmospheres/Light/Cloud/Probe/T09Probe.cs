@@ -15,14 +15,17 @@ namespace ReDefinition.Atmospheres
     //
     // Variants of one start (-atmoVariants, in this order): off (no clouds from us, cloudSource None; the own starts run with EVE removed, so nothing
     // else draws clouds), tvc (cloudSource Eve: EVE's raymarched layers draw the maps of our field; its own start, it needs EVE and Scatterer),
-    // plain (own pass, reconstruction off), recon4 (reconstruction in 4 x 4 blocks), entry (plain plus the entry refinement); then the A/B variants
-    // that need one view only (the "inside" view): edge (the edge-adaptive mode, T12), heightoff (the four height switches off, T13: cost of the
-    // height variation = plain minus heightoff), cap2 (the layer cap at 2), cache (the light cache on: its saving = plain minus cache, fill included), and gain (no dwell: the sun and moon gains reach the pass).
+    // plain (own pass, resolution level 1: every pixel every frame), recon2, recon3 and recon4 (the levels of the slider cloudResolution: one pixel of every 2 x 2, 3 x 3 or 4 x 4 block
+    // per frame; recon2 and recon3 in the views ground, inside and above only, for the time); then the A/B variants that need one view only (the "inside" view): cache (the light cache
+    // on: its saving = plain minus cache, fill included), cap2 (the layer cap at 2), entry (plain plus the entry refinement), and, when asked for with -atmoVariants but not in the
+    // default list (time): edge (the edge-adaptive mode, T12) and heightoff (the four height switches off, T13: cost of the height variation = plain minus heightoff); and gain (no
+    // dwell: the sun and moon gains reach the pass).
     // The views: ground (200 m above the pad, looking up), inside (inside the lowest cumulus layer), above (between the cumulus tops and the cirrus,
     // looking down), orbit_edge (300 km, looking at the limb), sky3 (200 m, higher pitch under all layers).
-    // The weather is the field's at one universal time: from a fixed base (the next full hour of the clock at the start, one hour apart), the first
-    // time whose cover over the site at 3 km is at least half AND whose sun stands 15 to 60 degrees over the site; the same for every variant and, as
-    // the base is the same, for every start. TVC draws its own layer set (the pack's layers plus the painter's layer at 2700 m), the own stack its
+    // The weather is the field's at one universal time, chosen as K-T2d chooses its picks (ChooseUt): from a fixed base (the next full hour of the clock at the start) the hourly
+    // candidates and a far window of 10 days; the candidate whose cover over the site at 3 km is nearest to 0.65 (at least 0.5) with the sun 30 to 55 degrees up (the wide band 15 to 60
+    // only where the narrow one holds none); the same for every variant and, as the base is the same, for every start. The timing window of each view starts after the hold's
+    // stable gate (StableGate). TVC draws its own layer set (the pack's layers plus the painter's layer at 2700 m), the own stack its
     // four layers: the columns compare two systems at the same camera, not equal clouds.
     // Pictures (T09Pictures.cs): after the dwell of each view and variant, in a short extra window after the "T09 view end" line ("T09 capture begin" and
     // "end" lines around it, rows T09.view.<view>.pictures / capture_s / capture_bytes), one natural picture and, for the own pass, one aid picture
@@ -85,7 +88,7 @@ namespace ReDefinition.Atmospheres
 
         protected override IList<string> DefaultVariants
         {
-            get { return IsDiag ? new[] { "plain" } : new[] { "off", "plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache", "gain" }; }
+            get { return IsDiag ? new[] { "plain" } : new[] { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "entry", "gain" }; }
         }
 
         // --- Variants ---------------------------------------------------------------------------------------------------------------------
@@ -98,13 +101,55 @@ namespace ReDefinition.Atmospheres
         // The variants that are measured in the "inside" view only.
         private static bool InsideOnly(string variant)
         {
-            return variant == "edge" || variant == "heightoff" || variant == "cap2" || variant == "cache";
+            return variant == "edge" || variant == "heightoff" || variant == "cap2" || variant == "cache" || variant == "entry";
+        }
+
+        // recon2 and recon3 are measured in the three views that carry the clouds against a surface (ground, inside, above), recon4 and the baselines in all five: the time budget
+        // of the probe (19 minutes, a view window costs about 36 s) does not hold two more levels in five views. The ratios to plain are read over the common three views.
+        private static bool ThreeViewsOnly(string variant)
+        {
+            return variant == "recon2" || variant == "recon3";
+        }
+
+        private static bool Measured(string variant, View view)
+        {
+            if (InsideOnly(variant)) return view.Name == "inside";
+            if (ThreeViewsOnly(variant)) return view.Name == "ground" || view.Name == "inside" || view.Name == "above";
+            return true;
         }
 
         // What the module reports as its mode for the variant while it draws.
         private static string ExpectedMode(string variant)
         {
-            return variant == "recon4" || variant == "edge" ? "reconstruct" : "plain";
+            return IsReconLevel(variant) || variant == "edge" ? "reconstruct" : "plain";
+        }
+
+        // The cloud resolution levels (the slider cloudResolution): plain is level 1, recon2 to recon4 march one pixel of every 2 x 2, 3 x 3 or 4 x 4 block.
+        private static bool IsReconLevel(string variant)
+        {
+            return ReconLevel(variant) > 1;
+        }
+
+        internal static int ReconLevel(string variant)
+        {
+            switch (variant)
+            {
+                case "recon2": return 2;
+                case "recon3": return 3;
+                case "recon4": return 4;
+                default: return 1;
+            }
+        }
+
+        // The variants whose picture noise is read (T09Noise.cs): the plain pass and every reconstruction level, in the views that show clouds against a surface.
+        private static bool NoiseVariant(string variant)
+        {
+            return variant == "plain" || IsReconLevel(variant);
+        }
+
+        private static bool NoiseView(View view)
+        {
+            return view.Name == "ground" || view.Name == "above";
         }
 
         protected override void ApplyVariant(string name)
@@ -119,9 +164,11 @@ namespace ReDefinition.Atmospheres
                     SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.None);
                     SetSetting(AtmospheresSettings.Keys.OwnClouds, 0.0);
                     break;
+                case "recon2":
+                case "recon3":
                 case "recon4":
                     UseOwn();
-                    SetSetting(AtmospheresSettings.Keys.CloudResolution, 4.0);
+                    SetSetting(AtmospheresSettings.Keys.CloudResolution, (double)ReconLevel(name));
                     break;
                 case "entry":
                     UseOwn();
@@ -205,6 +252,11 @@ namespace ReDefinition.Atmospheres
         {
             ClearForced();
             try { Game.AidOff(); } catch (Exception) { /* the aid view is a picture aid; the game may be gone */ }
+            // The noise read draws no layer for a few frames (T09ProbeNoise.cs); a scenario that ends inside it leaves the mask open.
+            if (!IsDiag)
+            {
+                try { Game.SetLayerMask(0); } catch (Exception) { /* the game may be gone */ }
+            }
         }
 
         // --- The scenario -----------------------------------------------------------------------------------------------------------------
@@ -291,9 +343,13 @@ namespace ReDefinition.Atmospheres
             Emit("T09.ut", utChosen);
             Emit("T09.cover", coverChosen);
             Emit("T09.sun_elev_deg", sunChosen);
+            Emit("T09.sun_band_narrow", utNarrow);
             Check("the sky is covered at the chosen time", coverChosen >= MinCover, coverChosen.ToString("0.00"));
             Check("the sun stands in the band at the chosen time", sunChosen >= SunMinDeg && sunChosen <= SunMaxDeg, sunChosen.ToString("0.0") + " degrees");
-            yield return ProbeWait.Seconds(3);
+            // The maps follow a clock jump at the slew limit (0.08 a second): the same wait as K-T2d's before its first view.
+            AtmospheresLog.Say("T09 clock: ut " + utChosen.ToString("0") + ", cover " + coverChosen.ToString("0.00") + ", sun " + sunChosen.ToString("0.0") + " degrees ("
+                               + (utNarrow ? "narrow" : "wide") + " band); waiting " + MapSettleS.ToString("0") + " s for the maps");
+            yield return ProbeWait.Seconds(MapSettleS);
             CheckPicturesFolder();
 
             foreach (string variant in Variants)
@@ -346,11 +402,16 @@ namespace ReDefinition.Atmospheres
                 {
                     foreach (View view in Views)
                     {
-                        if (InsideOnly(variant) && view.Name != "inside") continue;
+                        if (!Measured(variant, view)) continue;
                         foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
                         if (!placeOk) continue;
+                        foreach (ProbeWait w in StableGate(view, variant)) yield return w;
                         foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
+                        if (NoiseVariant(variant) && NoiseView(view))
+                        {
+                            foreach (ProbeWait w in Noise(view, variant)) yield return w;
+                        }
                     }
                 }
                 if (IsOwn(variant)) EmitVariantTotals(variant);
@@ -467,8 +528,9 @@ namespace ReDefinition.Atmospheres
 
         // --- The pose at the end of a dwell and around a capture ---------------------------------------------------------------------------
 
-        // The vessel is held within 5 m (T09Hold.ToleranceM) at the capture; 20 m leaves room for the sampling and is far below the 200 to 500 m of start 44.
-        // K-T2d is a diagnosis whose frames are compared pixel for pixel; K-T2 keeps its older 100 m.
+        // The vessel is held within 5 m (T09Hold.ToleranceM) at the capture; 20 m leaves room for the sampling and is far below the 200 to 500 m of start 44. The placement
+        // (both series) and K-T2d's frames, which are compared pixel for pixel, use 20 m; the dwell of K-T2 keeps its 100 m (DriftToleranceM): a timing window does not depend
+        // on where the vessel stands within a hundred metres, and the hold's own trace says how it stood.
         private const double PlacedDriftToleranceM = 20.0, DiagDriftToleranceM = 20.0;
         private const double HeldSliceS = 10.0, DriftToleranceM = 100.0, DistanceToleranceFraction = 0.25, DistanceToleranceMinM = 10.0, HeadingToleranceDeg = 15.0;
         private bool viewPoseOk;
@@ -698,64 +760,77 @@ namespace ReDefinition.Atmospheres
         // --- The clock --------------------------------------------------------------------------------------------------------------------
 
         private string utFailure;
+        // The cover the clock aims at (the field's at 3 km): a covered sky that is not a closed sheet either (K-T2d start 45: 0.67 gave discrete cumulus, 0.47 a closed deck).
+        private const double CoverTarget = 0.65;
+        private bool utNarrow;
 
-        // The first candidate time from the fixed base on whose sky over the site is covered by at least half of the layers' cover AND whose sun
-        // stands in the band; the clock is set to it. The cover is asked of the field without moving the clock; only candidates with cover set it.
-        // The field answers false at the site until it has built the body's state (the hub holds a NullField that reports Ready until the atmospheres
-        // assign the real one, and the real one reports Ready before the first body state exists), so a pass with candidates the field did not
-        // answer for is repeated every second, up to FieldWaitS, until a candidate fits or all 48 are answered; a field that answers for some times
-        // only is covered by the same rule. The candidates are not sampled once and abandoned.
+        // One universal time for every variant and view, chosen as K-T2d chooses its picks: the candidates are the hours from the fixed base (the next full hour of the clock at
+        // the start) and a far window up to 10 days (SampleCoverCandidates), the field is asked at the site and 3 km without moving the clock, and the candidate whose cover is
+        // nearest to CoverTarget (at least MinCover) with the sun in the narrow band 30 to 55 degrees is taken; the wide band 15 to 60 only where the narrow one holds none.
+        // A higher sun gives the light K-T2d measured the pass at (start 45: 45.5 degrees), a lower one the warm sunset colours of start 44. The clock is set to each candidate
+        // to read the sun's elevation (the cover is the field's, the sun the game's), at most MaxClockTries per band, and left at the chosen one.
         private IEnumerable<ProbeWait> ChooseUt(int bodyIndex, double lat, double lon)
         {
             utOk = false;
             utFailure = null;
             double start = Game.UniversalTime;
-            double baseUt = Math.Ceiling(start / BaseStepS) * BaseStepS;
-            double giveUpAt = Elapsed + FieldWaitS;
-            int unsampled, covered, passes = 0;
-            while (true)
+            foreach (ProbeWait w in SampleCoverCandidates(bodyIndex, lat, lon)) yield return w;
+            Emit("T09.candidates", coverCandidates.Count);
+            Emit("T09.candidates_far", candFarAnswered);
+            var order = new List<CoverCandidate>();
+            foreach (CoverCandidate c in coverCandidates)
             {
-                passes++;
-                unsampled = 0;
-                covered = 0;
-                for (int k = 0; k < Candidates; k++)
+                if (c.Cover >= MinCover) order.Add(c);
+            }
+            // Nearest to the target first; the earlier time wins a tie, so that a start is repeatable.
+            order.Sort((a, b) =>
+            {
+                int byCover = Math.Abs(a.Cover - CoverTarget).CompareTo(Math.Abs(b.Cover - CoverTarget));
+                return byCover != 0 ? byCover : a.Ut.CompareTo(b.Ut);
+            });
+            int covered = order.Count;
+            for (int band = 0; band < 2 && !utOk; band++)
+            {
+                double sunMin = band == 0 ? NarrowSunMinDeg : SunMinDeg, sunMax = band == 0 ? NarrowSunMaxDeg : SunMaxDeg;
+                int tried = 0;
+                foreach (CoverCandidate c in order)
                 {
-                    double t = baseUt + k * CandidateStepS;
-                    WeatherSample s;
-                    if (!WeatherHub.Sample(bodyIndex, lat, lon, 3000.0, t, out s))
-                    {
-                        unsampled++;
-                        continue;
-                    }
-                    if (s.CloudCover01 < MinCover) continue;
-                    covered++;
-                    ForceUniversalTime(t);
+                    if (tried++ >= MaxClockTries) break;
+                    ForceUniversalTime(c.Ut);
                     yield return ProbeWait.Frames(6);
                     double elevation = Game.SunElevationDeg();
-                    if (elevation < SunMinDeg || elevation > SunMaxDeg) continue;
-                    utChosen = t;
-                    coverChosen = s.CloudCover01;
+                    if (elevation < sunMin || elevation > sunMax) continue;
+                    utChosen = c.Ut;
+                    coverChosen = c.Cover;
                     sunChosen = elevation;
+                    utNarrow = band == 0;
                     utOk = true;
-                    Emit("T09.ut_jump_s", t - start);
-                    if (passes > 1) AtmospheresLog.Say("T09 clock: the field answered after " + (Elapsed - (giveUpAt - FieldWaitS)).ToString("0") + " s (" + passes + " passes)");
-                    yield break;
+                    Emit("T09.ut_jump_s", c.Ut - start);
+                    break;
                 }
-                if (unsampled == 0 || Elapsed >= giveUpAt) break;
-                yield return ProbeWait.Seconds(1);
             }
-            AtmospheresLog.Say("T09 clock: no candidate (" + unsampled + " not sampled, " + covered + " covered but not in the sun band, " + passes + " passes)");
-            if (unsampled > 0)
+            if (utOk)
+            {
+                if (candPasses > 1) AtmospheresLog.Say("T09 clock: the field answered after " + candWaitedS.ToString("0") + " s (" + candPasses + " passes)");
+                yield break;
+            }
+            AtmospheresLog.Say("T09 clock: no candidate (" + candUnsampled + " not sampled, " + covered + " covered but not in the sun band, " + candPasses + " passes)");
+            if (candUnsampled > 0)
             {
                 IWeatherField field = WeatherHub.Field;
-                utFailure = "the weather field did not answer at the site for " + unsampled + " of " + Candidates + " candidate times within " + FieldWaitS.ToString("0")
-                            + " s (field " + (field != null ? field.GetType().Name + ", readiness " + field.Readiness : "none") + "; gates: " + CloudGates.Describe(AtmospheresSettings.Number) + "; " + covered
-                            + " answered with cover and none of them stood in the sun band); the clock cannot be chosen";
+                utFailure = "the weather field did not answer at the site for " + candUnsampled + " of " + Candidates + " candidate times within " + FieldWaitS.ToString("0")
+                            + " s (field " + (field != null ? field.GetType().Name + ", readiness " + field.Readiness : "none") + "; gates: " + CloudGates.Describe(AtmospheresSettings.Number)
+                            + "; " + covered + " answered with cover and none of them stood in the sun band); the clock cannot be chosen";
+            }
+            else if (covered == 0)
+            {
+                utFailure = "no universal time in " + Candidates + " hours from the base or in the " + candFarAnswered + " later candidates up to 10 days has a cover of at least " + MinCover
+                            + " over the site (" + coverCandidates.Count + " answered); the timing would not describe a covered sky";
             }
             else
             {
-                utFailure = "no universal time in " + Candidates + " hours from the base has a cover of at least " + MinCover + " over the site and the sun " + SunMinDeg + " to " + SunMaxDeg
-                            + " degrees up (" + covered + " had the cover); the timing would not describe a covered daylight sky";
+                utFailure = "no universal time with a cover of at least " + MinCover + " over the site has the sun " + SunMinDeg + " to " + SunMaxDeg + " degrees up (" + covered
+                            + " of " + coverCandidates.Count + " candidates had the cover, " + (2 * Math.Min(covered, MaxClockTries)) + " were tried); the timing would not describe a covered daylight sky";
             }
         }
 
@@ -782,11 +857,11 @@ namespace ReDefinition.Atmospheres
                 double altitudeError = Math.Abs(vesselAltitude - wantedAltitude), tolerance = Math.Max(AltitudeToleranceM, 0.02 * wantedAltitude);
                 double aimError = Math.Abs(el - wantedPitch), headingError = Math.Abs(WrapDeg(az - view.HeadingDeg));
                 // The altitude is the centre of mass's, which the hold now brings to the target within 5 m: a drift of more than 20 m is a placement that has to be repeated.
-                bool altitudeOk = altitudeError <= tolerance && (!IsDiag || placed.DriftM <= PlacedDriftToleranceM), aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
+                bool altitudeOk = altitudeError <= tolerance && placed.DriftM <= PlacedDriftToleranceM, aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
                 detail = "altitude " + vesselAltitude.ToString("0") + " m against " + wantedAltitude.ToString("0") + ", camera elevation " + el.ToString("0.0") + " against "
                          + wantedPitch.ToString("0.0") + ", heading " + az.ToString("0") + " against " + view.HeadingDeg.ToString("0") + ", " + Game.VesselState
                          + ", " + placed.VesselAgl.ToString("0") + " m over the terrain, camera " + placed.CameraAsl.ToString("0") + " m (" + placed.CameraAgl.ToString("0") + " over the terrain) "
-                         + placed.CameraToVesselM.ToString("0") + " m from the vessel, mode " + Game.CameraModeText + (aimNote != null && !(altitudeOk && aimOk) ? ", aim: " + aimNote : "");
+                         + placed.CameraToVesselM.ToString("0") + " m from the vessel, " + placed.DriftM.ToString("0.0") + " m from the held point, mode " + Game.CameraModeText + (aimNote != null && !(altitudeOk && aimOk) ? ", aim: " + aimNote : "");
                 AtmospheresLog.Say("T09 view placed: " + view.Name + " attempt " + (attempt + 1) + " of " + PlaceAttempts + ": " + detail + (altitudeOk && aimOk ? " (ok)" : " (not yet)"));
                 string prefix = "T09.view." + view.Name + ".";
                 Emit(prefix + "altitude_m", vesselAltitude);

@@ -82,6 +82,8 @@ namespace ReDefinition.Atmospheres
         string PicturesFolderProblem();
         // Starts the read of the flight camera's picture at the end of this frame; false where no read can start.
         bool CaptureBegin();
+        // The same, and the read keeps the raw values (T09Image.Raw) whatever KeepRaw says: the noise read of K-T2 (T09ProbeNoise.cs).
+        bool CaptureBeginRaw();
         bool CaptureBusy { get; }
         // The picture read (linear colours, row 0 at the bottom), or null where the read failed. Taken once.
         T09Image CaptureTake();
@@ -439,6 +441,15 @@ namespace ReDefinition.Atmospheres
             ReconHost host = ReconHost.Get();
             if (host.Reading) return false;
             host.KeepRaw = KeepRaw;
+            host.Read();
+            return true;
+        }
+
+        public bool CaptureBeginRaw()
+        {
+            ReconHost host = ReconHost.Get();
+            if (host.Reading) return false;
+            host.KeepRaw = true;
             host.Read();
             return true;
         }

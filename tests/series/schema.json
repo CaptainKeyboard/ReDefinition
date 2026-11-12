@@ -43,7 +43,7 @@
       "properties": {
         "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
         "description": { "type": "string" },
-        "disableMods": { "type": "array", "items": { "enum": ["EVE", "Scatterer", "Deferred", "TUFX", "Parallax"] }, "description": "The mods whose GameData folders are moved away for this start." },
+        "disableMods": { "type": "array", "items": { "enum": ["EVE", "Scatterer", "Deferred", "TUFX", "Parallax", "Trajectories"] }, "description": "The mods whose GameData folders are moved away for this start." },
         "productSwitches": { "type": "object", "description": "As the series-level key, for this start only (merged over the series': a key in both takes the start's value)." },
         "variants": { "type": "array", "items": { "type": "string" }, "description": "Variants the probe switches inside this one start (-atmoVariants a,b)." },
         "probeArgs": { "type": "array", "items": { "type": "string" }, "description": "More arguments for the game's command line." },
