@@ -227,7 +227,8 @@ def declared_types(repo, with_settings=True):
     names = set()
     roots = [os.path.join(repo, "src", "Common", "Weather"), os.path.join(repo, "src", "Atmospheres", "Infrastructure"),
              os.path.join(repo, "src", "Atmospheres", "Bodies", "Schema"),
-             os.path.join(repo, "src", "Atmospheres", "Generator"), os.path.join(repo, "src", "Atmospheres", "Field")]
+             os.path.join(repo, "src", "Atmospheres", "Generator"), os.path.join(repo, "src", "Atmospheres", "Field"),
+             os.path.join(repo, "src", "Atmospheres", "Forecast")]
     if with_settings:
         roots.append(os.path.join(repo, "src", "Atmospheres", "Settings"))
     for root in roots:

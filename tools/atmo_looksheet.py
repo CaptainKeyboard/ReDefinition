@@ -169,7 +169,7 @@ def index_text(out, date, groups, table, looksheet, links, made, missing, observ
                       "Real clouds: " + looksheet.REFERENCE[s["id"]], ""]
             entries = links.get(s["id"], [])
             if entries:
-                lines.append("Photographs (not copied into the repository):")
+                lines.append("Photographs (links only; the images are not stored in the repository):")
                 for e in entries:
                     lines.append("- [%s](%s) - licence: %s (checked %s)" % (e["title"], e["url"], e["licence"], e.get("checked", "")))
                 lines.append("")

@@ -6,7 +6,7 @@ namespace ReDefinition.Atmospheres
 {
     // The data form of the own cloud system's layers for one body (package T10): what the LAYER sub-nodes of CLOUDS say, before any map
     // or renderer exists. A spec is plain data; Build turns it into the CloudLayerDef the layer stack and the pass read. The values in the
-    // shipped files are our own, authored from real cloud base and top ranges and extinction coefficients (the header of each file names
+    // shipped files come from real cloud base and top ranges and extinction coefficients (the header of each file names
     // them). Example:
     //
     //   CLOUDS

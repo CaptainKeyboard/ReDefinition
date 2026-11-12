@@ -22,9 +22,10 @@ def _vendor_ok(entry, vendor):
 # What a group names that is not a part of the matrix it overrides.
 GROUP_META = ("id", "name", "description", "default", "scenes", "variants", "show")
 # A group's values of these merge into the matrix's; every other key it names replaces the matrix's.
-GROUP_MERGED = ("proxy_load", "mod_settings")
-# What only a group has: its renderings of live proxy keys and the values every other phase has.
-GROUP_EXTRA = ("tweaks", "tweak_defaults")
+GROUP_MERGED = ("proxy_load", "mod_settings", "tweak_defaults")
+# What only a group has: its renderings of live proxy keys. Its tweak_defaults (the values every other phase has) merge into the
+# matrix's, so that the matrix's rtCutoutTest stays pinned in every group.
+GROUP_EXTRA = ("tweaks",)
 # The lists a group may name entries of by id, or extend ({"extends": id, ...}).
 GROUP_LISTS = ("techniques", "frame_generation", "latency")
 

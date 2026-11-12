@@ -786,7 +786,7 @@ class DocTest(unittest.TestCase):
             p["measured"]["fps"] = round(p["measured"]["fps"] * fps_scale, 1)
         start = {"id": "amd-rtoff-fsr"}
         start.update(parsed)
-        return {"stamp": stamp, "date": "2026-10-20T18:00:00", "finished": "2026-10-20T18:40:00",
+        return {"stamp": stamp, "date": "2026-10-20T18:00:00", "finished": "2026-10-20T18:40:00", "groups": ["main"],
                 "git": {"short": "abc1234", "branch": "feat/raytracing", "dirty": False},
                 "machine": {"adapters": [{"name": "NVIDIA RTX A4500", "driver": "32.0.15.9716", "nvidia_driver": "597.16",
                                           "refresh_hz": 120}], "cpu": "AMD Ryzen 5 5600X", "memory_gb": 31.9},
@@ -870,7 +870,9 @@ class GroupTest(unittest.TestCase):
         self.assertEqual([g["id"] for g in bm.select_groups(self.matrix)], ["main"])
         self.assertEqual({s["group"] for s in bm.expand(self.matrix, "NVIDIA", self.ALL)[0]}, {"main"})
         ids = [g["id"] for g in bm.group_list(self.matrix)]
-        self.assertEqual(ids, ["main", "rt-modes", "frame-steps", "dlssg-presets", "latency-brake", "blas", "grass"])
+        self.assertEqual(ids, ["main", "rt-modes", "frame-steps", "dlssg-presets", "latency-brake", "blas", "grass",
+                               "weather-1", "weather-2", "weather-3", "weather-4", "weather-5", "weather-6",
+                               "weather-integration", "weather-7", "weather-8", "rt-weather"])
         self.assertEqual([g["id"] for g in bm.select_groups(self.matrix, ["all"])], ids)
         self.assertEqual([g["id"] for g in bm.select_groups(self.matrix, ["blas", "main"])], ["main", "blas"])
         with self.assertRaises(ValueError):
@@ -1141,7 +1143,7 @@ class GroupTest(unittest.TestCase):
 
     # A group that names a scene the matrix does not define raises.
     def test_a_scene_the_matrix_does_not_define_is_refused(self):
-        self.matrix["groups"][-1]["scenes"] = ["moon"]
+        next(g for g in self.matrix["groups"] if g["id"] == "grass")["scenes"] = ["moon"]
         with self.assertRaises(ValueError):
             bm.expand(self.matrix, "NVIDIA", self.ALL, ["grass"])
 
