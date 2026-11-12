@@ -145,6 +145,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             s.WorstHeightMs = 6.5;
             s.WorstUploadMs = 1.4;
             s.WorstMapMs = 1.2;
+            s.WorstHeightMainMs = 0.9;
+            s.WorstMapMainMs = 0.8;
             s.FirstHeightMs = 30.0;
             s.FirstMapMs = 12.0;
             // The frame the module fills: the sun's colour scaled by cloud.sunGain, the first extra light by cloud.moonGain.

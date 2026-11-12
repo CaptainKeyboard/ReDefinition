@@ -348,6 +348,8 @@ namespace ReDefinition.Atmospheres
             Emit("T09.height_build_worst_ms", own.Stats.WorstHeightMs);
             Emit("T09.height_upload_worst_ms", own.Stats.WorstUploadMs);
             Emit("T09.map_fetch_worst_ms", own.Stats.WorstMapMs);
+            Emit("T09.height_build_main_ms", own.Stats.WorstHeightMainMs);
+            Emit("T09.map_fetch_main_ms", own.Stats.WorstMapMainMs);
             Emit("T09.height_build_first_ms", own.Stats.FirstHeightMs);
             Emit("T09.map_fetch_first_ms", own.Stats.FirstMapMs);
             Emit("T09.buffer_attaches", own.Stats.BufferAttaches);

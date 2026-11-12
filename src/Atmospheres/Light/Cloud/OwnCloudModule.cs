@@ -46,6 +46,9 @@ namespace ReDefinition.Atmospheres
             // The worst times leave the first call out (Mono's JIT and the first catch-up of the generator are in it; FirstHeightMs and
             // FirstMapMs keep it). The upload is the height slices written to the GPU, one a frame (LayerRenderer.StepHeights).
             public double LastHeightMs, WorstHeightMs, LastMapMs, WorstMapMs, FirstHeightMs, FirstMapMs, WorstUploadMs;
+            // What the main thread pays: the worst single frame of the height build (begin, pump, apply) and of the map fetch (one step), first call
+            // and the forced rounds of a new stack left out. The rows above are the build's own time on the worker (height) and a fetch round's sum (maps).
+            public double WorstHeightMainMs, WorstMapMainMs;
             public int BufferAttaches;
             // Whether the light cache is filled and read in the frame just recorded (cloudLightCache on).
             public bool LightCacheOn;
@@ -99,6 +102,14 @@ namespace ReDefinition.Atmospheres
         private double pendingUt;
         private float pendingNow;
         private int heightSwitches = -1;
+        // The height maps are built off the main thread; the main thread pumps it with this budget (ms) a frame and applies what it finishes.
+        private readonly HeightJob heightJob = new HeightJob();
+        private const double HeightPumpBudgetMs = 0.8;
+        private bool heightMainSeen, heightFailedLogged;
+        // A map fetch round is spread over frames: -1 none, 0 shared coverage, 1 type, 2 + l the layer l. A round for a new stack runs in one frame.
+        private int fetchStep = -1;
+        private bool fetchHaveShared, fetchHaveType, fetchAll;
+        private double fetchRoundMs;
         private double lastUt = double.NaN;
         private CloudBridgeAir.Air air;
         private int airBody = -1;
@@ -403,6 +414,8 @@ namespace ReDefinition.Atmospheres
             Stats.Layers = stack.LayerCount;
             forceMaps = forceHeights = snapMaps = true;
             mapsPrimed = false;
+            fetchStep = -1;
+            heightJob.Cancel();
             renderer.Maps.Ensure(MapWidth, MapHeight);
             renderer.Noise.Switches.SphereScale = c.Clouds.SphereScale > 0f ? c.Clouds.SphereScale : 1f;
             OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()));
@@ -421,6 +434,8 @@ namespace ReDefinition.Atmospheres
         private void DropStack(string reason)
         {
             if (stack == null) return;
+            heightJob.Cancel();
+            fetchStep = -1;
             stack = null;
             stackKey = "";
             stackSpecs = null;
@@ -451,6 +466,7 @@ namespace ReDefinition.Atmospheres
                 Camera.onPreCull -= OnPreCull;
                 preCullSubscribed = false;
             }
+            heightJob.Cancel();
             Hide();
             DropStack("shutdown");
             if (shadowRig != null) shadowRig.Stop();
@@ -504,31 +520,33 @@ namespace ReDefinition.Atmospheres
         // and the type value from the precipitation level; the maps move to their targets with the slew limit (LayerMapStore.Step).
         private void FetchMaps(CelestialBody b, IWeatherField field, double ut, float now, float dt)
         {
-            bool due = OwnCloudPlan.Due(now, nextMaps, OwnCloudPlan.MapIntervalS, forceMaps);
-            if (due)
+            // A round (the shared coverage, the type, then each layer's coverage) takes one step a frame, each a copy of 0.5 MB and a packing to
+            // bytes, so that no frame pays for all of them; a round for a new stack, which snaps the maps, runs in the frame it starts.
+            if (fetchStep < 0 && OwnCloudPlan.Due(now, nextMaps, OwnCloudPlan.MapIntervalS, forceMaps))
             {
-                var watch = Stopwatch.StartNew();
                 nextMaps = now + OwnCloudPlan.MapIntervalS;
-                bool haveShared = field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Coverage, ut, coverageMap) && coverageMap.Width == MapWidth && coverageMap.Height == MapHeight;
-                bool haveType = field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Precipitation, ut, typeMap) && typeMap.Width == MapWidth && typeMap.Height == MapHeight;
-                GeneratorField gf = GeneratorModule.Current;
-                if (haveShared && haveType)
-                {
-                    for (int l = 0; l < stack.LayerCount; l++)
-                    {
-                        WeatherMap cover = coverageMap;
-                        if (gf != null && gf.GetLayerCoverage(b.flightGlobalsIndex, ut, CloudBridgeStack.MidHeightM(stack.LayerAt(l)), layerMap)
-                            && layerMap.Width == MapWidth && layerMap.Height == MapHeight) cover = layerMap;
-                        renderer.Maps.SetTargets(l, cover, typeMap);
-                        // The target bytes are copied into the store; the shared scratch map can serve the next layer.
-                    }
-                    stepMaps = true;
-                    Stats.MapFetches++;
-                }
-                Stats.LastMapMs = watch.Elapsed.TotalMilliseconds;
-                if (Stats.MapFetches <= 1 && Stats.FirstMapMs == 0.0) Stats.FirstMapMs = Stats.LastMapMs;
-                else Stats.WorstMapMs = Math.Max(Stats.WorstMapMs, Stats.LastMapMs);
+                fetchStep = 0;
+                fetchHaveShared = fetchHaveType = false;
+                fetchAll = forceMaps || !mapsPrimed;
+                fetchRoundMs = 0.0;
                 forceMaps = false;
+            }
+            if (fetchStep >= 0)
+            {
+                long stepStart = Stopwatch.GetTimestamp();
+                do
+                {
+                    FetchStep(b, field, ut);
+                } while (fetchStep >= 0 && fetchAll);
+                double stepMs = (Stopwatch.GetTimestamp() - stepStart) * 1000.0 / Stopwatch.Frequency;
+                fetchRoundMs += stepMs;
+                if (!fetchAll && Stats.MapFetches > 0) Stats.WorstMapMainMs = Math.Max(Stats.WorstMapMainMs, stepMs);
+                if (fetchStep < 0)
+                {
+                    Stats.LastMapMs = fetchRoundMs;
+                    if (Stats.MapFetches <= 1 && Stats.FirstMapMs == 0.0) Stats.FirstMapMs = Stats.LastMapMs;
+                    else Stats.WorstMapMs = Math.Max(Stats.WorstMapMs, Stats.LastMapMs);
+                }
             }
             if (stepMaps)
             {
@@ -539,23 +557,79 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The height maps of the layers (T13): at a slow rhythm, after a switch changed and after the stack was built.
+        // One step of a fetch round (see FetchMaps). The packing to bytes happens once per map; the store copies the bytes into the layers.
+        private void FetchStep(CelestialBody b, IWeatherField field, double ut)
+        {
+            int step = fetchStep++;
+            if (step == 0)
+            {
+                fetchHaveShared = field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Coverage, ut, coverageMap) && coverageMap.Width == MapWidth && coverageMap.Height == MapHeight;
+                if (fetchHaveShared) coverageMap.PackBytes(0f, 1f);
+                return;
+            }
+            if (step == 1)
+            {
+                fetchHaveType = field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Precipitation, ut, typeMap) && typeMap.Width == MapWidth && typeMap.Height == MapHeight;
+                if (fetchHaveType) typeMap.PackBytes(0f, 1f);
+                if (!(fetchHaveShared && fetchHaveType)) fetchStep = -1;
+                return;
+            }
+            int l = step - 2;
+            GeneratorField gf = GeneratorModule.Current;
+            byte[] cover = coverageMap.Bytes;
+            if (gf != null && gf.GetLayerCoverage(b.flightGlobalsIndex, ut, CloudBridgeStack.MidHeightM(stack.LayerAt(l)), layerMap)
+                && layerMap.Width == MapWidth && layerMap.Height == MapHeight)
+            {
+                layerMap.PackBytes(0f, 1f);
+                cover = layerMap.Bytes;
+            }
+            renderer.Maps.SetTargetBytes(l, cover, typeMap.Bytes);
+            if (l + 1 < stack.LayerCount) return;
+            fetchStep = -1;
+            stepMaps = true;
+            Stats.MapFetches++;
+        }
+
+        // The height maps of the layers (T13): at a slow rhythm, after a switch changed and after the stack was built. The build runs on a worker
+        // (HeightJob) from a copy of what it reads; the main thread starts it, reads a field that is not thread safe in slices of a budget, and
+        // applies a finished result to the stack it was planned for.
         private void BuildHeights(CelestialBody b, IWeatherField field, double ut, float now)
         {
+            long start = Stopwatch.GetTimestamp();
             OwnCloudOptions.Apply(heightTuning);
             int switches = (heightTuning.BaseVariation ? 1 : 0) | (heightTuning.BasePhysics ? 2 : 0) | (heightTuning.TopFromUpdraft ? 4 : 0) | (heightTuning.BaseRagged ? 8 : 0);
             bool changed = switches != heightSwitches;
             heightSwitches = switches;
-            if (!OwnCloudPlan.Due(now, nextHeights, OwnCloudPlan.HeightInterval(TimeWarp.CurrentRate), forceHeights || changed)) return;
-            nextHeights = now + OwnCloudPlan.HeightInterval(TimeWarp.CurrentRate);
-            forceHeights = false;
-            var watch = Stopwatch.StartNew();
-            // The field hands its maps at the generator's size (512 x 256); the builder asks for the same, a smaller size would read nothing.
-            HeightDriver.Update(stack, field, heightTuning, ut, (uint)(b.flightGlobalsIndex + 1) * 0x9E3779B1u, MapWidth, MapHeight);
-            Stats.HeightBuilds++;
-            Stats.LastHeightMs = watch.Elapsed.TotalMilliseconds;
-            if (Stats.HeightBuilds <= 1 && Stats.FirstHeightMs == 0.0) Stats.FirstHeightMs = Stats.LastHeightMs;
-            else Stats.WorstHeightMs = Math.Max(Stats.WorstHeightMs, Stats.LastHeightMs);
+            HeightResult done;
+            HeightTake take = heightJob.TryTake(out done);
+            if (take == HeightTake.Ready && ReferenceEquals(done.Source, stack))
+            {
+                done.ApplyTo(stack);
+                Stats.HeightBuilds++;
+                Stats.LastHeightMs = done.ElapsedMs;
+                if (Stats.HeightBuilds <= 1 && Stats.FirstHeightMs == 0.0) Stats.FirstHeightMs = Stats.LastHeightMs;
+                else Stats.WorstHeightMs = Math.Max(Stats.WorstHeightMs, Stats.LastHeightMs);
+            }
+            else if (take == HeightTake.Failed && !heightFailedLogged)
+            {
+                heightFailedLogged = true;
+                AtmospheresLog.Say("own clouds: a height build failed on the worker (" + heightJob.LastError + "); the next one is tried at the next interval");
+            }
+            // A build in the air began before a switch changed or the stack was replaced: its maps are not the ones wanted.
+            if (heightJob.Busy && (changed || forceHeights)) heightJob.Cancel();
+            if (heightJob.Busy) heightJob.Pump(HeightPumpBudgetMs);
+            else if (OwnCloudPlan.Due(now, nextHeights, OwnCloudPlan.HeightInterval(TimeWarp.CurrentRate), forceHeights || changed))
+            {
+                nextHeights = now + OwnCloudPlan.HeightInterval(TimeWarp.CurrentRate);
+                forceHeights = false;
+                // The field hands its maps at the generator's size (512 x 256); the builder asks for the same, a smaller size would read nothing.
+                HeightPlan plan = HeightPlan.Make(stack, heightTuning, ut, (uint)(b.flightGlobalsIndex + 1) * 0x9E3779B1u, MapWidth, MapHeight);
+                heightJob.Begin(plan, field, stack);
+                heightJob.Pump(HeightPumpBudgetMs);
+            }
+            double ms = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+            if (heightMainSeen) Stats.WorstHeightMainMs = Math.Max(Stats.WorstHeightMainMs, ms);
+            heightMainSeen = true;
         }
 
         // --- The frame's numbers ------------------------------------------------------------------------------------------------------------
@@ -801,8 +875,9 @@ namespace ReDefinition.Atmospheres
             nextStats = now + Math.Max(5f, Tuning.Get(TuneStatsS, 30f));
             AtmospheresLog.Say("own clouds: " + Stats.Mode + ", " + Stats.Layers + " layers, frames " + Stats.FramesDrawn + " (plain " + Stats.PlainFrames + ", reconstruct "
                                + Stats.ReconFrames + "), map fetches " + Stats.MapFetches + " (last " + Stats.LastMapMs.ToString("0.0") + " ms, worst "
-                               + Stats.WorstMapMs.ToString("0.0") + " ms), height builds " + Stats.HeightBuilds + " (last " + Stats.LastHeightMs.ToString("0.0")
-                               + " ms, worst " + Stats.WorstHeightMs.ToString("0.0") + " ms, first " + Stats.FirstHeightMs.ToString("0.0") + " ms), height upload worst "
+                               + Stats.WorstMapMs.ToString("0.0") + " ms, main step worst " + Stats.WorstMapMainMs.ToString("0.0") + " ms), height builds " + Stats.HeightBuilds
+                               + " (last " + Stats.LastHeightMs.ToString("0.0") + " ms on the worker, worst " + Stats.WorstHeightMs.ToString("0.0") + " ms, first "
+                               + Stats.FirstHeightMs.ToString("0.0") + " ms, main thread worst " + Stats.WorstHeightMainMs.ToString("0.0") + " ms), height upload worst "
                                + Stats.WorstUploadMs.ToString("0.0") + " ms, buffer attaches " + Stats.BufferAttaches + ", history cuts " + (driver != null ? driver.CutCount : 0)
                                + (driver != null && driver.LastCutReason != null ? " (last: " + driver.LastCutReason + ")" : ""));
         }

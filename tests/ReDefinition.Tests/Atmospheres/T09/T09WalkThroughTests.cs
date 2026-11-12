@@ -254,9 +254,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The module's totals after every own variant, and the gains.
             foreach (string v in new[] { "plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache", "gain" })
             {
-                Assert.IsTrue(Number(r, "T09.height_build_worst_ms", v) > 0 && Number(r, "T09.height_build_worst_ms", v) <= 12, v);
+                Assert.IsTrue(Number(r, "T09.height_build_worst_ms", v) > 0 && Number(r, "T09.height_build_worst_ms", v) <= 1500, v);
+                Assert.IsTrue(Number(r, "T09.height_build_main_ms", v) <= 2, v);
                 Assert.IsTrue(Number(r, "T09.height_upload_worst_ms", v) <= 3, v);
-                Assert.IsTrue(Number(r, "T09.map_fetch_worst_ms", v) <= 3, v);
+                Assert.IsTrue(Number(r, "T09.map_fetch_worst_ms", v) <= 8, v);
+                Assert.IsTrue(Number(r, "T09.map_fetch_main_ms", v) <= 2, v);
                 Assert.IsTrue(Number(r, "T09.buffer_attaches", v) <= 6, v);
             }
             foreach (string v in new[] { "plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache" })
@@ -283,7 +285,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             string root = RepoRoot.Root("tests", "series", "rows", "T09.json");
             string rows = File.ReadAllText(Path.Combine(root, "tests", "series", "rows", "T09.json"));
             foreach (string metric in new[] { "T09.ut", "T09.cover", "T09.sun_elev_deg", "T09.view.frames_drawn", "T09.view.frames_ratio", "T09.height_build_worst_ms",
-                                              "T09.height_upload_worst_ms", "T09.map_fetch_worst_ms", "T09.buffer_attaches", "T09.gain.sun_ratio", "T09.gain.moon_ratio", "T09.moon.provider_answers" })
+                                              "T09.height_build_main_ms", "T09.map_fetch_main_ms", "T09.height_upload_worst_ms", "T09.map_fetch_worst_ms", "T09.buffer_attaches", "T09.gain.sun_ratio", "T09.gain.moon_ratio", "T09.moon.provider_answers" })
             {
                 Assert.IsTrue(rows.Contains("\"metric\": \"" + metric + "\""), metric + " is a row of the series file");
                 Assert.IsTrue(Values(r, metric).Count > 0, metric + " is emitted by the probe");

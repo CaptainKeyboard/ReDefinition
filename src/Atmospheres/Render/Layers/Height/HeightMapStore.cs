@@ -8,7 +8,8 @@ namespace ReDefinition.Atmospheres
     // range (HeightMaps), so a texel of 128 is exactly zero. A layer without maps has a neutral slice and its shader flag off.
     internal sealed class HeightMapStore
     {
-        private Color32[] scratch;
+        // A neutral slice as RGBA32 bytes (128, 128, 128, 255 per texel).
+        private byte[] neutral;
 
         internal Texture2DArray Maps { get; private set; }
         internal int Width { get; private set; }
@@ -29,9 +30,9 @@ namespace ReDefinition.Atmospheres
                 wrapModeU = TextureWrapMode.Repeat,
                 wrapModeV = TextureWrapMode.Clamp
             };
-            scratch = new Color32[width * height];
-            for (int i = 0; i < scratch.Length; i++) scratch[i] = new Color32(128, 128, 128, 255);
-            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) Maps.SetPixels32(scratch, l, 0);
+            neutral = new byte[width * height * 4];
+            for (int i = 0; i < neutral.Length; i++) neutral[i] = (i & 3) == 3 ? (byte)255 : (byte)128;
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) Maps.SetPixelData(neutral, 0, l, 0);
             Maps.Apply(false);
         }
 
@@ -45,7 +46,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // Writes the slices of the stack's height field (null maps give a neutral slice) and applies the array once. On the calling frame:
-        // 4 layers of 512 x 256 texels are several milliseconds; the game queues the upload instead (Queue, Step).
+        // 4 layers of 512 x 256 texels are a copy of 2 MB; the game queues the upload instead (Queue, Step).
         internal void Upload(LayerHeightField field, int layerCount)
         {
             Queue(field, layerCount);
@@ -73,7 +74,8 @@ namespace ReDefinition.Atmospheres
             nextSlice = 0;
         }
 
-        // Writes up to that many queued slices and applies the array; does nothing when none waits.
+        // Writes up to that many queued slices (a copy of the bytes the worker prepared, no conversion) and applies the array once, with the
+        // last slice, so that the GPU gets the four layers together and the upload of 2 MB happens once per build, not once per slice.
         internal void Step(int slices)
         {
             if (queued == null) return;
@@ -82,13 +84,11 @@ namespace ReDefinition.Atmospheres
                 int l = nextSlice++;
                 HeightMaps m = l < queuedCount ? queued.MapsOf(l) : null;
                 if (m != null && (m.Width != Width || m.Height != Height)) m = null;
-                var neutral = new Color32(128, 128, 128, 255);
-                for (int i = 0; i < scratch.Length; i++)
-                    scratch[i] = m == null ? neutral : new Color32(m.Bytes[i * 3], m.Bytes[i * 3 + 1], m.Bytes[i * 3 + 2], 255);
-                Maps.SetPixels32(scratch, l, 0);
+                Maps.SetPixelData(m == null ? neutral : m.MakeRgba(), 0, l, 0);
             }
+            if (nextSlice < CloudLayerDef.MaxLayers) return;
             Maps.Apply(false);
-            if (nextSlice >= CloudLayerDef.MaxLayers) queued = null;
+            queued = null;
         }
 
         internal void Dispose()

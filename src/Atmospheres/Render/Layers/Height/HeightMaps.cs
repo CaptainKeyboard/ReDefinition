@@ -33,6 +33,26 @@ namespace ReDefinition.Atmospheres
         internal float VariationRangeM { get; }
         // Width x Height x 3 bytes: root, top, variation.
         internal byte[] Bytes { get; }
+        // The same texels as RGBA32 for the GPU (the fourth byte 255), made by MakeRgba on the worker so that the main thread only copies.
+        internal byte[] Rgba { get; private set; }
+
+        // Fills Rgba from Bytes (once; a second call keeps the first). Not for the main thread of the game: 131072 texels.
+        internal byte[] MakeRgba()
+        {
+            byte[] rgba = Rgba;
+            if (rgba != null) return rgba;
+            int n = Width * Height;
+            rgba = new byte[n * 4];
+            for (int i = 0; i < n; i++)
+            {
+                rgba[i * 4] = Bytes[i * 3];
+                rgba[i * 4 + 1] = Bytes[i * 3 + 1];
+                rgba[i * 4 + 2] = Bytes[i * 3 + 2];
+                rgba[i * 4 + 3] = 255;
+            }
+            Rgba = rgba;
+            return rgba;
+        }
 
         internal static byte Encode(double valueM, double rangeM)
         {
@@ -95,7 +115,7 @@ namespace ReDefinition.Atmospheres
     // the same bytes.
     internal static class HeightMapBuilder
     {
-        internal static HeightMaps Build(HeightInputs input, HeightTuning t, double bodyRadiusM, uint seed)
+        internal static HeightMaps Build(HeightInputs input, HeightTuning t, double bodyRadiusM, uint seed, HeightNoiseCache cache = null)
         {
             int w = input.Width, h = input.Height, n = w * h;
             var maps = new HeightMaps(w, h, t.RootRangeM, t.TopRangeM, t.VariationRangeM);
@@ -133,8 +153,7 @@ namespace ReDefinition.Atmospheres
                 }
                 if (t.VariationAmplitudeM > 0f)
                 {
-                    float[] noise = SphereNoise(w, h, bodyRadiusM, t.VariationWavelengthM, seed);
-                    Standardise(noise, h, w);
+                    float[] noise = StandardNoise(cache, w, h, bodyRadiusM, t.VariationWavelengthM, seed);
                     for (int i = 0; i < n; i++) variation[i] = noise[i] * t.VariationAmplitudeM;
                 }
             }
@@ -142,11 +161,7 @@ namespace ReDefinition.Atmospheres
             if (t.TopFromUpdraft && input.Updraft != null)
             {
                 float[] jitter = null;
-                if (t.TopJitterM > 0f)
-                {
-                    jitter = SphereNoise(w, h, bodyRadiusM, 0.35 * t.VariationWavelengthM, seed ^ 0x9E3779B9u);
-                    Standardise(jitter, h, w);
-                }
+                if (t.TopJitterM > 0f) jitter = StandardNoise(cache, w, h, bodyRadiusM, 0.35 * t.VariationWavelengthM, seed ^ 0x9E3779B9u);
                 for (int i = 0; i < n; i++)
                     top[i] = (float)HeightModel.TopTermM(t, input.Updraft[i]) + (jitter != null ? jitter[i] * t.TopJitterM : 0f);
             }
@@ -158,6 +173,16 @@ namespace ReDefinition.Atmospheres
                 maps.Bytes[i * 3 + 2] = HeightMaps.Encode(variation[i], maps.VariationRangeM);
             }
             return maps;
+        }
+
+        // The noise field of a size, wavelength and seed at zero mean and unit deviation: it does not depend on the weather, so a cache holds it
+        // (read only: callers must not write into the array). Without a cache it is made each time; the values are the same.
+        private static float[] StandardNoise(HeightNoiseCache cache, int w, int h, double bodyRadiusM, double wavelengthM, uint seed)
+        {
+            if (cache != null) return cache.Get(w, h, bodyRadiusM, wavelengthM, seed);
+            float[] noise = SphereNoise(w, h, bodyRadiusM, wavelengthM, seed);
+            Standardise(noise, h, w);
+            return noise;
         }
 
         // Two octaves of value noise on the sphere, wavelength in m on the ground, values about -1 to 1.
