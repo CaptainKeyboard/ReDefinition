@@ -201,10 +201,12 @@ def check_definition(defn, rows_by_package, schema):
     errors = validate_schema(defn, schema, schema)
     if errors:
         return errors
-    for i, entry in enumerate(defn.get("settings", [])):
-        for key, value in entry["set"].items():
-            if not re.match(r"^[A-Za-z0-9_.]+$", key) or isinstance(value, (dict, list)) or value is None:
-                errors.append("settings[%d]: %s must be a plain key with a string, number or boolean value" % (i, key))
+    pin_lists = [("settings", defn.get("settings", []))] + [("starts[%s].settings" % s.get("id"), s.get("settings", [])) for s in defn["starts"]]
+    for where, entries in pin_lists:
+        for i, entry in enumerate(entries):
+            for key, value in entry["set"].items():
+                if not re.match(r"^[A-Za-z0-9_.]+$", key) or isinstance(value, (dict, list)) or value is None:
+                    errors.append("%s[%d]: %s must be a plain key with a string, number or boolean value" % (where, i, key))
     ids = [s["id"] for s in defn["starts"]]
     if len(set(ids)) != len(ids):
         errors.append("starts: duplicate id")
@@ -546,6 +548,21 @@ def is_texture_cache_file(rel):
 def settings_text(value):
     """A settings value as the files write it (True/False capitalised)."""
     return str(value)
+
+
+def merge_settings(*lists):
+    """Merges pin lists (series-wide first, then a start's own): per file, a later list adds keys and overrides the value of a key
+    an earlier one set. Returns a new list of {"file", "set"} entries, one per file, in order of first appearance."""
+    merged = {}
+    for entries in lists:
+        for entry in entries or []:
+            merged.setdefault(entry["file"], {}).update(entry["set"])
+    return [{"file": f, "set": dict(keys)} for f, keys in merged.items()]
+
+
+def effective_settings(defn, st):
+    """The pins one start runs with: the series' pins, overridden and extended by the start's own ("settings" of the start)."""
+    return merge_settings(defn.get("settings"), st.get("settings"))
 
 
 def apply_settings(ksp, settings):
@@ -943,12 +960,26 @@ class Runner:
             apply_profile(self.profile_cache, self.ksp)
             for line in apply_settings(self.ksp, defn.get("settings")):
                 self.log("pinned %s" % line)
+            # The files the starts pin on their own, as the series-wide pins left them: every start begins from this state, so that a
+            # key one start pinned does not stay in the file for the next.
+            own_files = sorted({e["file"] for s in starts for e in s.get("settings", [])})
+            base_files = {}
+            for rel in own_files:
+                path = os.path.join(self.ksp, *rel.split("/"))
+                if os.path.isfile(path):
+                    with open(path, "rb") as f:
+                        base_files[rel] = f.read()
             self.vm.begin()
             try:
                 for st in starts:
                     info = {"id": st["id"], "how": None, "exit": None, "seconds": None}
                     report["starts"].append(info)
                     try:
+                        for rel, data in base_files.items():
+                            with open(os.path.join(self.ksp, *rel.split("/")), "wb") as f:
+                                f.write(data)
+                        for line in apply_settings(self.ksp, st.get("settings")):
+                            self.log("pinned for %s: %s" % (st["id"], line))
                         modsets.disable(st.get("disableMods", []))
                         removed = clean_side_files(self.ksp)
                         need = defn.get("freeMemoryGb", 12)
@@ -1301,6 +1332,42 @@ def _selftest():
         check("pinned settings are in the files while the game runs", seen and "graphicsProfile = High" in seen[0][0] and "SCREEN_RESOLUTION = 1,1" in seen[0][1])
         check("pinned settings are restored byte for byte", sha256(os.path.join(ksp, "settings.cfg")) == before["settings.cfg"]
               and sha256(os.path.join(ksp, "GameData/ReDefinition/Main/PluginData/settings.cfg")) == before["GameData/ReDefinition/Main/PluginData/settings.cfg"])
+        # 1c. Per-start pins: merged over the series' pins, written per start (no key leaks into the next start), root settings.cfg
+        # (CRLF, like KSP's own file) back byte for byte.
+        root_cfg = b"SYNC_VBL = 1\r\nSCREEN_RESOLUTION_WIDTH = 2560\r\nSCREEN_RESOLUTION_HEIGHT = 1440\r\nFULLSCREEN = True\r\nEXTRA = 7\r\nTAIL = 1"
+        fresh_ksp()
+        write(os.path.join(ksp, "settings.cfg"), root_cfg, True)
+        root_before = sha256(os.path.join(ksp, "settings.cfg"))
+        win = lambda w, h: {"file": "settings.cfg", "set": {"SCREEN_RESOLUTION_WIDTH": w, "SCREEN_RESOLUTION_HEIGHT": h, "FULLSCREEN": False}}
+        d1c = json.loads(json.dumps(defn))
+        d1c["settings"] = [{"file": "settings.cfg", "set": {"SYNC_VBL": 0, "SCREEN_RESOLUTION_WIDTH": 1}}]
+        d1c["starts"] = [dict(d1c["starts"][0], settings=[win(1707, 960), {"file": "settings.cfg", "set": {"EXTRA": 9}}]),
+                         dict(d1c["starts"][1], settings=[win(2560, 1440)])]
+        merged = effective_settings(d1c, d1c["starts"][0])
+        check("per-start pins override and extend the series' pins", merged == [{"file": "settings.cfg", "set": {
+              "SYNC_VBL": 0, "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": False, "EXTRA": 9}}], str(merged))
+        check("the series' own list is not changed by the merge", d1c["settings"][0]["set"] == {"SYNC_VBL": 0, "SCREEN_RESOLUTION_WIDTH": 1})
+        seen_cfg = []
+        def start_launch(args, timeout, log_path):
+            with open(os.path.join(ksp, "settings.cfg"), "rb") as f:
+                seen_cfg.append(f.read())
+            return launcher("pass")(args, timeout, log_path)
+        rep = runner(launch=start_launch).execute(d1c)
+        first, second = (seen_cfg + [b"", b""])[:2]
+        check("the first start runs with its own window size, the extra key and the series pin",
+              b"SCREEN_RESOLUTION_WIDTH = 1707\r\n" in first and b"SCREEN_RESOLUTION_HEIGHT = 960\r\n" in first and b"FULLSCREEN = False\r\n" in first
+              and b"EXTRA = 9\r\n" in first and b"SYNC_VBL = 0\r\n" in first)
+        check("the second start has its own size and the first start's extra key is back to the original",
+              b"SCREEN_RESOLUTION_WIDTH = 2560\r\n" in second and b"SCREEN_RESOLUTION_HEIGHT = 1440\r\n" in second and b"EXTRA = 7\r\n" in second
+              and b"SYNC_VBL = 0\r\n" in second)
+        check("the pinned files keep their CRLF line endings and the missing final newline", first.count(b"\r\n") == root_cfg.count(b"\r\n")
+              and not first.endswith(b"\n"))
+        check("the root settings.cfg is back byte for byte after a run with per-start pins", sha256(os.path.join(ksp, "settings.cfg")) == root_before
+              and not rep["restore_mismatches"])
+        d1c["starts"][0]["settings"] = [{"file": "settings.cfg", "set": {"NO_SUCH_KEY": 1}}]
+        rep = runner(launch=start_launch).execute(d1c)
+        check("a per-start pin of a missing key refuses the run and the file is still restored", not rep["ok"]
+              and sha256(os.path.join(ksp, "settings.cfg")) == root_before)
         fresh_ksp()
         refused = ""
         try:

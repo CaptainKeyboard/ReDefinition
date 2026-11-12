@@ -44,7 +44,8 @@
         "description": { "type": "string" },
         "disableMods": { "type": "array", "items": { "enum": ["EVE", "Scatterer", "Deferred", "TUFX", "Parallax"] }, "description": "The mods whose GameData folders are moved away for this start." },
         "variants": { "type": "array", "items": { "type": "string" }, "description": "Variants the probe switches inside this one start (-atmoVariants a,b)." },
-        "probeArgs": { "type": "array", "items": { "type": "string" }, "description": "More arguments for the game's command line." }
+        "probeArgs": { "type": "array", "items": { "type": "string" }, "description": "More arguments for the game's command line." },
+        "settings": { "type": "array", "items": { "$ref": "#/definitions/settingsFile" }, "description": "Pins of this start only: merged over the series' pins (a key named in both takes the start's value), written just before the start and put back with the snapshot. KSP applies SCREEN_RESOLUTION_WIDTH, SCREEN_RESOLUTION_HEIGHT and FULLSCREEN from settings.cfg over the command line, so a start with its own window size pins them here." }
       }
     },
     "settingsFile": {

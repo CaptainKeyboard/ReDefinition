@@ -17,7 +17,7 @@ sys.path.insert(0, HERE)
 import gpu_lock  # noqa: E402
 from atmo_series import (BUILD_ARTIFACTS, BUNDLE, DEFAULT_DOTNET, DEFAULT_REPO, DISABLED_DIR, MOD_FOLDERS, PROFILE_CACHE_REL,  # noqa: E402
                          Refusal, Snapshot, apply_settings, free_memory_gb, is_texture_cache_file, ksp_running_tasklist, load_series,
-                         plan_args, settings_text, sha256, tree_files)
+                         plan_args, settings_text, sha256, tree_files, effective_settings, merge_settings)
 
 PASS, WARN, FAIL, INFO = "PASS", "WARN", "FAIL", "INFO"
 TEXTURE_CACHE_REL = "GameData/KSPCommunityFixes/PluginData/TextureCache"
@@ -115,8 +115,39 @@ def pf_args(args, st):
     return out
 
 
-def pf_pins(ksp, profile_cache, settings):
-    """Each pinned key stands exactly once in the file it is written to (after the profile cache's copy of the file is applied)."""
+def pf_resolution(st, effective):
+    """KSP applies SCREEN_RESOLUTION_WIDTH/HEIGHT and FULLSCREEN of settings.cfg over -screen-width/-screen-height: the start's
+    effective pins must hold the size its command line asks for (the plan_args default 1600x900 where it names none), windowed."""
+    probe = st.get("probeArgs", [])
+
+    def asked(flag, default):
+        return probe[probe.index(flag) + 1] if flag in probe and probe.index(flag) + 1 < len(probe) else default
+
+    want = {"SCREEN_RESOLUTION_WIDTH": asked("-screen-width", "1600"), "SCREEN_RESOLUTION_HEIGHT": asked("-screen-height", "900"),
+            "FULLSCREEN": "False"}
+    pinned = {}
+    for entry in effective:
+        if entry["file"] == "settings.cfg":
+            pinned.update({k: settings_text(v) for k, v in entry["set"].items()})
+    problems = []
+    for key, target in want.items():
+        got = pinned.get(key)
+        if got is None:
+            problems.append("%s is not pinned (add \"%s\": %s to the start's settings for settings.cfg)" %
+                            (key, key, "false" if key == "FULLSCREEN" else target))
+        elif got != target:
+            problems.append("%s is pinned to %s, the start needs %s" % (key, got, target))
+    name = "resolution pins [%s]" % st["id"]
+    if problems:
+        # A start that names no window size takes the runner's default 1600x900 on the command line, which no series relies on
+        # (their probes do not check the size): a warning, not a refusal.
+        return [(FAIL if "-screen-width" in probe else WARN, name, "; ".join(problems) + " (KSP would open the window at the size of settings.cfg, not of the command line)")]
+    return [(PASS, name, "%sx%s windowed, equal to the command line" % (want["SCREEN_RESOLUTION_WIDTH"], want["SCREEN_RESOLUTION_HEIGHT"]))]
+
+
+def pf_pins(ksp, profile_cache, settings, label=""):
+    """Each pinned key stands exactly once in the file it is written to (after the profile cache's copy of the file is applied).
+    `label` (a start's id) is put into the check names of that start's own pins."""
     out = []
     for entry in settings or []:
         rel = entry["file"]
@@ -132,9 +163,11 @@ def pf_pins(ksp, profile_cache, settings):
             hits = [re.match(r"^\s*%s\s*=\s*(.*?)\s*$" % re.escape(key), line) for line in lines]
             hits = [m for m in hits if m]
             if len(hits) != 1:
-                out.append((FAIL, "pin %s" % key, "%s (%s) has the key %d times, exactly once is required" % (rel, origin, len(hits))))
+                out.append((FAIL, "pin %s%s" % (key, " [%s]" % label if label else ""),
+                            "%s (%s) has the key %d times, exactly once is required" % (rel, origin, len(hits))))
             else:
-                out.append((PASS, "pin %s" % key, "%s: %s -> %s (%s)" % (rel, hits[0].group(1), settings_text(value), origin)))
+                out.append((PASS, "pin %s%s" % (key, " [%s]" % label if label else ""),
+                            "%s: %s -> %s (%s)" % (rel, hits[0].group(1), settings_text(value), origin)))
     return out
 
 
@@ -381,7 +414,10 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
     for st in starts:
         results += pf_args(plan_args(defn["name"], st), st)
     results += pf_pins(ksp, profile_cache, defn.get("settings"))
-    results += pf_snapshot_selftest(defn.get("settings"))
+    for st in starts:
+        results += pf_pins(ksp, profile_cache, st.get("settings"), st["id"])
+        results += pf_resolution(st, effective_settings(defn, st))
+    results += pf_snapshot_selftest(merge_settings(defn.get("settings"), *[s.get("settings") for s in starts]))
     results += pf_ksp_running(h.get("ksp_running", ksp_running_tasklist)())
     results += pf_orphans(h.get("processes", list_processes)(), ksp)
     states = {n: h.get("vm_state", vm_state)(n) for n in VM_NAMES}
@@ -471,6 +507,23 @@ def selftest(check):
         cache = os.path.join(root, "cache")
         write(os.path.join(cache, "settings.cfg"), "SYNC_VBL = 3\nFRAMERATE_LIMIT = 60\n")
         check("preflight pins: the profile cache's copy of the file is the one read", "(profile cache)" in pf_pins(ksp, cache, pins)[0][2])
+
+        # resolution pins
+        st1707 = {"id": "s1707", "probeArgs": ["-screen-width", "1707", "-screen-height", "960"]}
+        good_pins = [{"file": "settings.cfg", "set": {"SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": False}}]
+        check("preflight resolution: pins equal to the command line, windowed PASS", status(pf_resolution(st1707, good_pins)) == PASS)
+        r = pf_resolution(st1707, [])
+        check("preflight resolution: no pins FAIL and name the remedy", status(r) == FAIL and "SCREEN_RESOLUTION_WIDTH is not pinned" in r[0][2]
+              and "\"FULLSCREEN\": false" in r[0][2])
+        wrong = [{"file": "settings.cfg", "set": {"SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": False}}]
+        r = pf_resolution(st1707, wrong)
+        check("preflight resolution: the size of another start FAILs", status(r) == FAIL and "pinned to 2560, the start needs 1707" in r[0][2])
+        full = [{"file": "settings.cfg", "set": {"SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": True}}]
+        check("preflight resolution: FULLSCREEN True FAILs", status(pf_resolution(st1707, full)) == FAIL)
+        check("preflight resolution: a start without its own size only warns", status(pf_resolution({"id": "d"}, [])) == WARN)
+        defn_pins = {"settings": [{"file": "settings.cfg", "set": {"SCREEN_RESOLUTION_WIDTH": 1, "SYNC_VBL": 0}}]}
+        check("preflight resolution: the start's pin overrides the series-wide one",
+              status(pf_resolution(st1707, effective_settings(defn_pins, dict(st1707, settings=good_pins)))) == PASS)
 
         # snapshot selftest
         check("preflight snapshot selftest: restore equals the original PASS", status(pf_snapshot_selftest(pins)) == PASS)
@@ -579,7 +632,8 @@ def selftest(check):
         shutil.copytree(os.path.join(DEFAULT_REPO, "tests", "series"), os.path.join(repo, "tests", "series"))
         write(os.path.join(ksp, "GameData", "ReDefinition", "Main", "PluginData", "settings.cfg"),
               "raytracing = Light\nframeGeneration = True\nqualityAuto = True\nquality = Quality\n")
-        write(os.path.join(ksp, "settings.cfg"), "SYNC_VBL = 0\nFRAMERATE_LIMIT = 120\n")
+        write(os.path.join(ksp, "settings.cfg"), "SYNC_VBL = 0\nFRAMERATE_LIMIT = 120\nSCREEN_RESOLUTION_WIDTH = 2560\n"
+                                                 "SCREEN_RESOLUTION_HEIGHT = 1440\nFULLSCREEN = True\n")
         write(os.path.join(repo, "tools", "build_atmospheres_bundle.ps1"))
         hooks = {"git_head": lambda p: "1" * 40, "ksp_running": lambda: False, "processes": lambda: [], "vm_state": lambda n: "Off",
                  "free_gb": lambda: 20.0, "read_gpu": lambda: None, "read_unity": lambda: None, "profile_cache": os.path.join(root, "nocache"),
@@ -590,6 +644,9 @@ def selftest(check):
         write(os.path.join(tc, "textureData.json"), index)
         whole = run_preflight(repo, "K-T2", "own1707", ksp, root, "me", hooks, script_repo=os.path.join(root, "other"))
         check("preflight whole run: the inconsistent texture cache is a FAIL", not preflight_ok(whole) and any(x[1] == "KSPCF texture cache" and x[0] == FAIL for x in whole))
+        check("preflight whole run: K-T2's own1707 resolution pins are checked and PASS",
+              any(x[1] == "resolution pins [own1707]" and x[0] == PASS for x in run_preflight(repo, "K-T2", "own1707", ksp, root, "me", hooks,
+                                                                                        script_repo=os.path.join(root, "other"))))
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
