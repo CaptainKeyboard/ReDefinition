@@ -177,6 +177,9 @@ namespace ReDefinition.Atmospheres.Forecast
         private double slowReal;
         private double lastSlowUt = double.NaN;
         private long lastDefinitionId = long.MinValue;
+        // The generation the last slow tick ran under, and whether a report was dropped for an older generation since (set on the worker).
+        private long lastSlowGeneration = long.MinValue;
+        private int refreshWanted;
         private bool available;
         private bool warnedFailure;
         private volatile Exception lastFailure;
@@ -364,11 +367,20 @@ namespace ReDefinition.Atmospheres.Forecast
             Pump();
             double now = env.NowUt;
             bool rewound = !double.IsNaN(lastSlowUt) && now < lastSlowUt;
-            if (slowReal >= SlowTickRealSeconds && (double.IsNaN(lastSlowUt) || rewound || now - lastSlowUt >= SlowTickGameSeconds))
+            // The reports of an older generation are refreshed at once, not at the next game-time slow tick (five game minutes): a changed
+            // definition, a bumped generation or a report that was dropped because the generation rose while it was computed.
+            long generation = cache.Generation;
+            bool regenerated = generation != lastSlowGeneration || Interlocked.Exchange(ref refreshWanted, 0) != 0;
+            if (slowReal >= SlowTickRealSeconds && (double.IsNaN(lastSlowUt) || rewound || regenerated || now - lastSlowUt >= SlowTickGameSeconds))
             {
                 slowReal = 0.0;
                 SlowTick(now);
                 lastSlowUt = now;
+                lastSlowGeneration = cache.Generation;
+            }
+            else if (regenerated)
+            {
+                Interlocked.Exchange(ref refreshWanted, 1);
             }
         }
 
@@ -670,6 +682,11 @@ namespace ReDefinition.Atmospheres.Forecast
                 entry.Latest = run.Result.Report;
                 // An estimate is not served as a forecast; ask again in a little while, not at every call.
                 if (!run.Result.Report.Available) Volatile.Write(ref entry.RetryClock, r.Clock + 2.0);
+            }
+            else if (run.Result != null)
+            {
+                // Made under an older generation: dropped, and the next tick computes it again.
+                Interlocked.Exchange(ref refreshWanted, 1);
             }
             entry.Pending = false;
         }

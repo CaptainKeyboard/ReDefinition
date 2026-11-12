@@ -35,6 +35,9 @@ namespace ReDefinition.Tests.Atmospheres.D30
                 if (longest[col] == null || text.Length > longest[col].Length) longest[col] = text;
             };
             take(0, ForecastFormat.Lead(48 * 3600.0));
+            // The leads of a day with the minutes of the issue time ("+10 h 5 min", measured 59.76 pixels in the game).
+            take(0, ForecastFormat.Lead(23 * 3600.0 + 5 * 60.0));
+            take(0, ForecastFormat.Lead(10 * 3600.0 + 5 * 60.0));
             foreach (PrecipBand band in Enum.GetValues(typeof(PrecipBand))) take(1, ForecastFormat.LevelName(band));
             foreach (PrecipType type in Enum.GetValues(typeof(PrecipType))) take(2, LaunchConditions.TypeName(type));
             take(3, ForecastFormat.Visibility(9500f));

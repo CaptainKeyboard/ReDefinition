@@ -84,7 +84,9 @@ namespace ReDefinition.Atmospheres.Forecast
         // The widths of the table columns in pixels, 508 of the 510 pixels of a row. The longest text of each column (the bold header or the
         // longest cell, e.g. "freezing rain") is held to its width by ForecastColumnFitTests at an assumed width of a character; K-W3a
         // measured 13 of 253 labels wrapping with the widths 56, 100, 62, 66, 96, 52 and 70, and the probe now names the labels that wrap.
-        internal static readonly float[] ColumnWidths = { 52f, 86f, 92f, 76f, 76f, 50f, 76f };
+        // K-W3b2 measured the lead column of 52 pixels too narrow for "+10 h 5 min" (59.76 pixels in the game); the test now takes the
+        // longest lead of the horizon, with the minutes the strip's times carry.
+        internal static readonly float[] ColumnWidths = { 72f, 78f, 88f, 74f, 70f, 50f, 76f };
 
         private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
