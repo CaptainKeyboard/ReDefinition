@@ -126,7 +126,12 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.Keys.SeaIce, "a choice of the player's" },
             { AtmospheresSettings.Keys.IceDrawDistanceKm, "a distance the owner has not given a tier row" },
             { AtmospheresSettings.Keys.ForecastEnabled, "a switch of the player's" },
-            { AtmospheresSettings.Keys.ForecastHorizonHours, "a length of time the player wants, not a size" }
+            { AtmospheresSettings.Keys.ForecastHorizonHours, "a length of time the player wants, not a size" },
+            { AtmospheresSettings.Keys.LayerCap, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
+            { AtmospheresSettings.Keys.LayerStepQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
+            { AtmospheresSettings.Keys.CloudNoiseTier, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
+            { AtmospheresSettings.Keys.CloudLightQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
+            { AtmospheresSettings.Keys.CloudShadowQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" }
         };
 
         // Keys a tier sets whose entry in the key table names no profile row (orbitMapWidth has none: the table has no Orbit row). A

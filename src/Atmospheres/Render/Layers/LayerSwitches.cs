@@ -3,9 +3,9 @@ using System;
 namespace ReDefinition.Atmospheres
 {
     // The switches of the own cloud system's layer core (package T01): whether it draws at all, how many layers at most, and the march
-    // quality. The settings that carry them (ownClouds, layerCap, layerStepQuality) and their rows in tools/benchmark_matrix.json are
-    // requested from the settings package (A01/D36); until they exist the values below are the compiled defaults. ownClouds is off until
-    // the integration package (T09) accepts the system, then on for cloudSource Ours; under Volumetric the system is always off.
+    // quality. The settings that carry them (ownClouds, layerCap, layerStepQuality; AtmospheresSettings.Clouds.cs) reach the structs through
+    // OwnCloudOptions, and their rows are in tools/benchmark_matrix.json (group weather-5). ownClouds is off until the integration package
+    // (T09) accepts the system, then on for cloudSource Ours; under Volumetric the system is always off.
     internal static class LayerSwitches
     {
         // The default of ownClouds.

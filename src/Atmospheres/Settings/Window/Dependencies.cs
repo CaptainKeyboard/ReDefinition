@@ -91,6 +91,37 @@ namespace ReDefinition.Atmospheres
                     return value(AtmospheresSettings.Keys.PrecipDensity) > 0.0 ? null : def.GreyReason;
                 case AtmospheresSettings.GreyReasons.NeedsSolarDimming:
                     return value(AtmospheresSettings.Keys.SolarDimming) != 0.0 ? null : def.GreyReason;
+                case AtmospheresSettings.GreyReasons.NeedsOwnSource:
+                case AtmospheresSettings.GreyReasons.NeedsOwnClouds:
+                case AtmospheresSettings.GreyReasons.NeedsCloudNoise:
+                case AtmospheresSettings.GreyReasons.NeedsCloudShadows:
+                case AtmospheresSettings.GreyReasons.NeedsAmbientTaps:
+                case AtmospheresSettings.GreyReasons.NeedsReconstruction:
+                    return OwnCloudReason(def, value, env);
+                default:
+                    return null;
+            }
+        }
+
+        // The own cloud system's rows (package T10), root first: the system draws only where the source in force is Ours (EVE missing turns Eve and
+        // Both into Ours, CloudModeModel.Effective), then ownClouds itself, then the branch switch the row hangs on.
+        private static string OwnCloudReason(SettingDef def, Func<string, double> value, WindowEnvironment env)
+        {
+            var source = (CloudSourceKind)(int)value(AtmospheresSettings.Keys.CloudSource);
+            bool ours = CloudModeModel.Effective(source, !env.EveInstalled) == CloudSourceKind.Ours;
+            if (!ours) return AtmospheresSettings.GreyReasons.NeedsOwnSource;
+            if (def.GreyReason == AtmospheresSettings.GreyReasons.NeedsOwnSource) return null;
+            if (value(AtmospheresSettings.Keys.OwnClouds) == 0.0) return AtmospheresSettings.GreyReasons.NeedsOwnClouds;
+            switch (def.GreyReason)
+            {
+                case AtmospheresSettings.GreyReasons.NeedsCloudNoise:
+                    return value(AtmospheresSettings.Keys.CloudNoise) != 0.0 ? null : def.GreyReason;
+                case AtmospheresSettings.GreyReasons.NeedsCloudShadows:
+                    return value(AtmospheresSettings.Keys.CloudShadows) != 0.0 ? null : def.GreyReason;
+                case AtmospheresSettings.GreyReasons.NeedsAmbientTaps:
+                    return value(AtmospheresSettings.Keys.CloudAmbientTaps) != 0.0 ? null : def.GreyReason;
+                case AtmospheresSettings.GreyReasons.NeedsReconstruction:
+                    return (int)value(AtmospheresSettings.Keys.CloudReconMode) == (int)ReconMode.Block ? null : def.GreyReason;
                 default:
                     return null;
             }

@@ -148,7 +148,105 @@ namespace ReDefinition.Atmospheres
             if (r.Has("cloudSource")) source = r.Enum("cloudSource", CloudSourceKind.Ours);
             return new CloudRules(source, r.Enum("discover", CloudDiscovery.Auto), r.String("baseLayer", ""), r.List("weatherLayers"),
                 r.Has("snowTypeNames") ? r.List("snowTypeNames") : null, r.Has("stratusTypeNames") ? r.List("stratusTypeNames") : null,
-                r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64));
+                r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), CloudLayers(r), r.Float("sphereScale", 1f, 0.25f, 1f));
+        }
+
+        // The most LAYER nodes and TYPE nodes a body's own cloud set holds (the set may be larger than the draw limit; groups and the cap choose).
+        internal const int MaxLayerSpecs = 8;
+
+        // The LAYER nodes of CLOUDS (CloudLayerSpec): a layer or type that cannot be read is a warning and is left out, never an exception.
+        internal static List<CloudLayerSpec> CloudLayers(BodyNodeReader clouds)
+        {
+            var layers = new List<CloudLayerSpec>();
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            ConfigNode[] nodes = clouds.Nodes("LAYER");
+            for (int n = 0; n < nodes.Length; n++)
+            {
+                BodyNodeReader r = clouds.Wrap(nodes[n], "LAYER");
+                string name = r.String("name", "");
+                if (name.Length == 0)
+                {
+                    r.Warn("name", "a LAYER node without a name is ignored");
+                    continue;
+                }
+                if (layers.Count >= MaxLayerSpecs)
+                {
+                    r.Warn("name", "at most " + MaxLayerSpecs + " LAYER nodes count; " + name + " is ignored");
+                    continue;
+                }
+                if (!names.Add(name))
+                {
+                    r.Warn("name", "the layer " + name + " is there twice; the first one counts");
+                    continue;
+                }
+                double inner = r.Double("innerAltitudeM", double.NaN, -1.0e7, 1.0e7);
+                double outer = r.Double("outerAltitudeM", double.NaN, -1.0e7, 1.0e7);
+                if (double.IsNaN(inner) || double.IsNaN(outer) || !(outer > inner))
+                {
+                    r.Warn("outerAltitudeM", "the layer " + name + " needs innerAltitudeM below outerAltitudeM; it is ignored");
+                    continue;
+                }
+                var types = new List<CloudTypeSpec>();
+                ConfigNode[] typeNodes = r.Nodes("TYPE");
+                for (int t = 0; t < typeNodes.Length && types.Count < CloudLayerDef.MaxTypes; t++)
+                {
+                    CloudTypeSpec type = CloudType(r.Wrap(typeNodes[t], "TYPE"), name);
+                    if (type != null) types.Add(type);
+                }
+                if (types.Count == 0)
+                {
+                    r.Warn("TYPE", "the layer " + name + " has no readable TYPE node; it is ignored");
+                    continue;
+                }
+                layers.Add(new CloudLayerSpec(name, (float)inner, (float)outer, r.Float("sigmaPerM", 0.03f, 1.0e-6f, 10f), r.Enum("kind", LayerKind.Weather),
+                    r.String("group", ""), r.Float("coverage", 1f, 0f, 1f), r.Float("edgeSoftness", 0.15f, 0f, 1f), r.Float("fadeNearM", 0f, 0f, 1.0e9f),
+                    r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
+                    r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types));
+            }
+            return layers;
+        }
+
+        // TYPE { name, baseShare, topShare, erosion, PROFILE { key0 = x y, key1 = ... } }; null (with a warning) where the type is unusable.
+        private static CloudTypeSpec CloudType(BodyNodeReader r, string layer)
+        {
+            string name = r.String("name", "");
+            float baseShare = r.Float("baseShare", 0f, 0f, 1f), topShare = r.Float("topShare", 1f, 0f, 1f);
+            if (name.Length == 0 || !(topShare > baseShare))
+            {
+                r.Warn("topShare", "a type of " + layer + " needs a name and baseShare below topShare; it is ignored");
+                return null;
+            }
+            Curve profile = ProfileCurve(r.Child("PROFILE"));
+            if (profile == null)
+            {
+                r.Warn("PROFILE", "the type " + name + " of " + layer + " needs a PROFILE with keys 'height density' (height 0 to 1 ascending); it is ignored");
+                return null;
+            }
+            return new CloudTypeSpec(name, baseShare, topShare, r.Float("erosion", 0.3f, 0f, 1f), profile);
+        }
+
+        // PROFILE { key0 = height density, ... }: heights 0 to 1 ascending, densities 0 to 1. Null where there is no valid curve.
+        private static Curve ProfileCurve(BodyNodeReader r)
+        {
+            if (!r.Present) return null;
+            var xs = new List<float>();
+            var ys = new List<float>();
+            for (int i = 0; i < 64; i++)
+            {
+                string text = r.Raw("key" + i);
+                if (text == null) break;
+                string[] parts = text.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                double x, y;
+                if (parts.Length != 2 || !BodyNodeReader.TryNumber(parts[0], out x) || !BodyNodeReader.TryNumber(parts[1], out y)
+                    || x < 0.0 || x > 1.0 || y < 0.0 || y > 1.0 || (xs.Count > 0 && !(x > xs[xs.Count - 1])))
+                {
+                    r.Warn("key" + i, "'" + text + "' is not 'height density' with both in 0 to 1 and the heights ascending; the profile is ignored");
+                    return null;
+                }
+                xs.Add((float)x);
+                ys.Add((float)y);
+            }
+            return xs.Count == 0 ? null : new Curve(xs.ToArray(), ys.ToArray());
         }
 
         internal static LookRules Look(BodyNodeReader r)

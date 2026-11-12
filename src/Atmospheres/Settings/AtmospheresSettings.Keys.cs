@@ -9,7 +9,7 @@ namespace ReDefinition.Atmospheres
     internal static partial class AtmospheresSettings
     {
         // The key of every setting in the file, once.
-        internal static class Keys
+        internal static partial class Keys
         {
             // General
             internal const string Enabled = "enabled";
@@ -165,11 +165,19 @@ namespace ReDefinition.Atmospheres
             internal const string NeedsLightInMedium = "needs-light-in-medium";
             internal const string NeedsPrecip = "needs-precipitation";
             internal const string NeedsSolarDimming = "needs-solar-dimming";
+            // The own cloud system (T10): the source that must be Ours, the switch the other rows hang on, and the rows each branch hangs on.
+            internal const string NeedsOwnSource = "needs-own-source";
+            internal const string NeedsOwnClouds = "needs-own-clouds";
+            internal const string NeedsCloudNoise = "needs-cloud-noise";
+            internal const string NeedsCloudShadows = "needs-cloud-shadows";
+            internal const string NeedsAmbientTaps = "needs-ambient-taps";
+            internal const string NeedsReconstruction = "needs-reconstruction";
 
             internal static readonly string[] All =
             {
                 NeedsMaster, NeedsEve, NeedsHost, NeedsSim, NeedsVolume, NeedsAudio, NeedsForecast, NeedsAlerts, NeedsWindForces, NeedsGroundCover,
-                NeedsSeaIce, NeedsLightInMedium, NeedsPrecip, NeedsSolarDimming
+                NeedsSeaIce, NeedsLightInMedium, NeedsPrecip, NeedsSolarDimming, NeedsOwnSource, NeedsOwnClouds, NeedsCloudNoise, NeedsCloudShadows,
+                NeedsAmbientTaps, NeedsReconstruction
             };
         }
 
@@ -364,6 +372,8 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Float("forcePhase", -1.0, -1.0, 1.0, D, "Force Season Phase", "", "", ForcePhaseRule),
                 SettingDef.Choice("atmoDebug", typeof(AtmoDebugMode), AtmoDebugMode.Off, D, "Debug Overlay")
             };
+            // The own cloud system's rows (AtmospheresSettings.Clouds.cs); the window groups by category, so they stand with the other Clouds rows.
+            t.AddRange(CloudSettingRows.Rows());
             return t.AsReadOnly();
         }
 

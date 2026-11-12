@@ -169,6 +169,33 @@ The table of `SettingsTable.All`, in the order of the window.
 | `lightWeatherFrequency` | 1 | 0 to 2 | Light Weather Frequency | needs-simulation | - |
 | `heavyShare` | 1 | 0 to 2 | Heavy Weather Share | needs-simulation | - |
 | `typeByTemperature` | on | on / off | Precipitation Type By Temperature | needs-weather-effects | - |
+| `ownClouds` | off | on / off | Own Volumetric Clouds | needs-own-source | - |
+| `layerCap` | 4 | 1 to 4 | Own Cloud Layer Cap | needs-own-clouds | volume |
+| `layerStepQuality` | Medium | Low / Medium / High | Own Cloud Step Quality | needs-own-clouds | volume |
+| `layerStepGrowth` | 2 | 0 to 4 | Own Cloud Step Growth | needs-own-clouds | - |
+| `cloudNoise` | on | on / off | Cloud Shape Noise | needs-own-clouds | - |
+| `cloudNoiseUntile` | on | on / off | Cloud Noise Untiling | needs-cloud-noise | - |
+| `cloudNoiseCurl` | on | on / off | Cloud Noise Curl | needs-cloud-noise | - |
+| `cloudNoiseTier` | Medium | Low / Medium / High | Cloud Noise Size | needs-cloud-noise | volume |
+| `cloudNoiseDistanceLod` | on | on / off | Cloud Noise Distance Detail | needs-cloud-noise | - |
+| `cloudFineDetail` | on | on / off | Cloud Fine Detail Octave | needs-cloud-noise | - |
+| `cloudEntryRefinement` | off | on / off | Cloud Entry Refinement | needs-own-clouds | - |
+| `cloudHashDither` | on | on / off | Cloud White Dither | needs-own-clouds | - |
+| `cloudLightQuality` | High | Low / Medium / High | Cloud Light Quality | needs-own-clouds | volume |
+| `cloudLightOctaves` | 4 | 1 to 4 | Cloud Scattering Octaves | needs-own-clouds | - |
+| `cloudPowder` | 0.8075 | 0 to 1 | Cloud Powder Effect | needs-own-clouds | - |
+| `cloudSunTint` | on | on / off | Cloud Sun Colour Through Air | needs-own-clouds | - |
+| `cloudMoonLights` | 2 | 0 to 2 | Cloud Moon Lights | needs-own-clouds | - |
+| `cloudAmbientTaps` | off | on / off | Cloud Ambient Taps | needs-own-clouds | - |
+| `cloudAmbientReuse` | 0 | 0 to 2 | Cloud Ambient Tap Reuse | needs-ambient-taps | - |
+| `cloudLightCache` | off | on / off | Cloud Light Cache | needs-own-clouds | - |
+| `cloudShadows` | on | on / off | Cloud Shadows | needs-own-clouds | - |
+| `cloudShadowQuality` | Medium | Low / Medium / High | Cloud Shadow Quality | needs-cloud-shadows | volume |
+| `cloudShadowFloor` | 0 | 0 to 1 | Cloud Shadow Floor | needs-cloud-shadows | - |
+| `cloudReconMode` | Full | Full / Block / Low | Cloud Reconstruction | needs-own-clouds | - |
+| `cloudReconBlock` | 4 | 2 to 4 | Cloud Reconstruction Block | needs-reconstruction | - |
+
+The own cloud system's keys (package T10) follow the stream T option structs: `LayerSwitches`, `NoiseSwitches`, `CloudLightSettings`, `CloudShadowSwitches`, `ReconSettings`; `OwnCloudOptions` writes them from the values. The default of `ownClouds` is off until the integration package (T09) accepts the system; the quality-reducing choices (`cloudReconMode` Block or Low, `cloudEntryRefinement`) are off until the owner agrees. The cost controls and the look constants of the light have no row here: they are tuning keys (`layers.coverageBound`, `layers.lightStride`, `layers.lightCutoff`, `layers.emptyLeap`, `layers.cheapShare`, `layers.fogShare`, `layers.refineBudget`, `layers.refineFraction`, `layers.edgePower`, `light.octaveA`, `light.octaveB`, `light.octaveC`, `light.msBrightness`, `light.diffusion`, `light.diffusionTau`, `light.msIsotropy`, `light.ambientOcclusion`, `light.ambientGain`, `light.skyTint`, `light.ambientFloor`) with the compiled values of the structs as defaults. The sphere scale of the noise is a body key (`sphereScale` in `CLOUDS`) and the layer set of a body is the `LAYER` nodes of `CLOUDS` (`CloudLayerSpec`).
 
 **Wind**
 

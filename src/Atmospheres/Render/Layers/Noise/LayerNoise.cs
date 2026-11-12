@@ -6,8 +6,9 @@ using UnityEngine;
 namespace ReDefinition.Atmospheres
 {
     // The switches of the shape model (package T02). Each is an A/B pair of the verification (curl on/off, untiling on/off, noise on/off). The
-    // settings that carry them (cloudNoise, cloudNoiseUntile, cloudNoiseCurl, cloudNoiseTier) and their rows in tools/benchmark_matrix.json
-    // are requested from the settings package (A01/D36); until they exist the values below are the compiled defaults.
+    // settings that carry them (cloudNoise, cloudNoiseUntile, cloudNoiseCurl, cloudNoiseTier and the others in AtmospheresSettings.Clouds.cs)
+    // reach this object through OwnCloudOptions.Apply, and their rows are in tools/benchmark_matrix.json (group weather-5); the values below
+    // are the compiled defaults.
     internal sealed class NoiseSwitches
     {
         // The volumes drive the shape and the erosion; off: T01's plain coverage threshold (no noise, no cost).

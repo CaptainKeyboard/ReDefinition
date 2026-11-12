@@ -22,8 +22,10 @@ namespace ReDefinition.Atmospheres
         // Source is null where the player's cloudSource setting decides.
         internal CloudRules(CloudSourceKind? source = null, CloudDiscovery discover = CloudDiscovery.Auto, string baseLayer = "",
             IEnumerable<string> weatherLayers = null, IEnumerable<string> snowTypeNames = null, IEnumerable<string> stratusTypeNames = null,
-            IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0)
+            IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0, IEnumerable<CloudLayerSpec> layers = null, float sphereScale = 1f)
         {
+            Layers = SchemaList.Of(layers);
+            SphereScale = sphereScale;
             Source = source;
             Discover = discover;
             BaseLayer = baseLayer ?? "";
@@ -47,6 +49,12 @@ namespace ReDefinition.Atmospheres
         internal IReadOnlyList<string> DustTypeNames { get; }
         // Key eveLayerCap: the most EVE layers the painter drives for this body; 0 follows the player's setting.
         internal int EveLayerCap { get; }
+        // The LAYER sub-nodes: the layer set of the own cloud system for this body (empty: the body has none of its own). A body with
+        // atmosphere and no LAYER nodes draws no own clouds.
+        internal IReadOnlyList<CloudLayerSpec> Layers { get; }
+        // Key sphereScale: the vertical scale of the noise lattice about the layers' reference radius (NoiseSwitches.SphereScale; 1: the
+        // lattice is planet-centred).
+        internal float SphereScale { get; }
     }
 
     // The colours and limits of the body's air. Node LOOK.

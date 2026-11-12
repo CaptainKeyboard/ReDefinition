@@ -3,9 +3,9 @@ using System;
 namespace ReDefinition.Atmospheres
 {
     // The switches of the cloud shadow (package T04). The settings that carry them (cloudShadows, cloudShadowQuality, cloudShadowFloor) and
-    // their rows in tools/benchmark_matrix.json are requested from the settings package (T10/D36); until they exist the values below are the
-    // compiled defaults. cloudShadows follows ownClouds (LayerSwitches): no own clouds, no own shadow; under cloudSource Volumetric the shadow
-    // is TVC's own and ours stays off.
+    // their rows in tools/benchmark_matrix.json (group weather-5) are declared in AtmospheresSettings.Clouds.cs and reach the shadow's frame
+    // through OwnCloudOptions.Apply. cloudShadows follows ownClouds (LayerSwitches): no own clouds, no own shadow; under cloudSource
+    // Volumetric the shadow is TVC's own and ours stays off.
     internal static class CloudShadowSwitches
     {
         // The default of cloudShadows: on whenever the own clouds are.
