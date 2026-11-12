@@ -113,7 +113,9 @@ namespace ReDefinition.Atmospheres.Audio
         }
 
         // Plays one step: the sampled crunch under the procedural thump, at the foot position.
-        internal void PlayStep(AudioClip crunch, StepVoice voice, float volume, Vector3 position, bool leftFoot)
+        // rse: the router of Rocket Sound Enhancement's clip settings, or null where the step is not to go through its mixer (RSE absent, or the
+        // own low-pass is the one muffler).
+        internal void PlayStep(AudioClip crunch, StepVoice voice, float volume, Vector3 position, bool leftFoot, RseClipRouter rse = null)
         {
             if (!Alive) return;
             thump.transform.position = position;
@@ -123,6 +125,9 @@ namespace ReDefinition.Atmospheres.Audio
                 foot.transform.position = position;
                 foot.Stop();
                 foot.clip = crunch;
+                // RSE routes only the sources it saw when it applied its settings; a clip set now is routed here.
+                var group = rse != null ? rse.GroupFor(crunch.name) as UnityEngine.Audio.AudioMixerGroup : null;
+                if (group != null) foot.outputAudioMixerGroup = group;
                 foot.pitch = voice.Pitch;
                 foot.volume = Mathf.Clamp01(voice.Gain * volume);
                 foot.Play();

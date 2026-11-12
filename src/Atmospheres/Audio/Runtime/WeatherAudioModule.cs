@@ -45,6 +45,7 @@ namespace ReDefinition.Atmospheres.Audio
         private bool rsePresent;
         private bool rseRoutes;
         private bool rseChecked;
+        private RseClipRouter rseRouter;
         private bool rseGroupObserved;
         private bool rseGroupEverSeen;
         private bool stepsStoppedForPause;
@@ -472,9 +473,15 @@ namespace ReDefinition.Atmospheres.Audio
             rseChecked = true;
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (string.Equals(assembly.GetName().Name, "RocketSoundEnhancement", StringComparison.Ordinal)) { rsePresent = true; break; }
+                if (string.Equals(assembly.GetName().Name, "RocketSoundEnhancement", StringComparison.Ordinal))
+                {
+                    rsePresent = true;
+                    rseRouter = RseClipRouter.FromAssembly(assembly);
+                    break;
+                }
             }
             if (!rsePresent) return;
+            if (rseRouter == null) AtmospheresLog.WarnOnce("weather sound: RSE is installed but its clip routing table was not found; the footsteps keep the own low-pass");
             try
             {
                 // Every one of our twelve clips must be in a routing node, not the first alone.
@@ -570,7 +577,7 @@ namespace ReDefinition.Atmospheres.Audio
                 AudioListener at = FindListener(now);
                 if (at != null) position = at.transform.position + at.transform.forward * 2f;
             }
-            objects.PlayStep(crunch, voice, volume, position, ev.LeftFoot);
+            objects.PlayStep(crunch, voice, volume, position, ev.LeftFoot, muffling.DetachFromRse ? null : rseRouter);
             stepsPlayed++;
         }
 

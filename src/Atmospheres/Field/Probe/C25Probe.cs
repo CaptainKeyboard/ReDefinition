@@ -99,21 +99,46 @@ namespace ReDefinition.Atmospheres
             worker.Join();
             Emit("C25.worker_equals_main", sumMain == sumWorker);
 
-            var ticks = new long[4000];
-            for (int i = 0; i < ticks.Length; i++)
+            // The cost rows measure the steady state of a Release build: every path has been through the JIT (the 4000 answers above, a first
+            // map and a first window below, each timed apart as the cold row), the collector has run, and a row is the MEDIAN of many short
+            // batches (a batch is 256 answers, so the timer's own cost is spread over them; one stall of the game's other threads or of the
+            // collector moves one batch, not the row). The 99th percentile of the batches is reported beside it. A Debug build is named in the
+            // log: its numbers are not the gate's.
+#if DEBUG
+            EmitText("C25.timing_build", "Debug");
+#else
+            EmitText("C25.timing_build", "Release");
+#endif
+            GC.Collect();
+            const int Batch = 256, Batches = 48;
+            var batchUs = new double[Batches];
+            for (int b = 0; b < Batches; b++)
             {
                 long t0 = Stopwatch.GetTimestamp();
-                field.Sample(index, -80.0 + 160.0 * (i % 97) / 97.0, -180.0 + 360.0 * (i % 89) / 89.0, 50.0 * (i % 13), ut + 3600.0 * (i / 256), out s);
-                ticks[i] = Stopwatch.GetTimestamp() - t0;
+                for (int j = 0; j < Batch; j++)
+                {
+                    int i = b * Batch + j;
+                    field.Sample(index, -80.0 + 160.0 * (i % 97) / 97.0, -180.0 + 360.0 * (i % 89) / 89.0, 50.0 * (i % 13), ut + 3600.0 * (i / 256), out s);
+                }
+                batchUs[b] = (Stopwatch.GetTimestamp() - t0) * 1e6 / Stopwatch.Frequency / Batch;
             }
-            Array.Sort(ticks);
-            Emit("C25.sample_median_us", ticks[ticks.Length / 2] * 1e6 / Stopwatch.Frequency);
+            Emit("C25.sample_median_us", Percentile(batchUs, 0.5));
+            Emit("C25.sample_p99_us", Percentile(batchUs, 0.99));
 
             var weather = new GeneratorMaps.Weather2D();
             var watch = Stopwatch.StartNew();
             bool rendered = GeneratorMaps.RenderWeather(state, ut, weather);
-            Emit("C25.map_render_ms", watch.Elapsed.TotalMilliseconds);
+            Emit("C25.map_render_cold_ms", watch.Elapsed.TotalMilliseconds);
             Emit("C25.map_rendered", rendered);
+            GC.Collect();
+            var mapMs = new double[5];
+            for (int r = 0; r < mapMs.Length; r++)
+            {
+                watch.Restart();
+                GeneratorMaps.RenderWeather(state, ut + 60.0 * (r + 1), weather);
+                mapMs[r] = watch.Elapsed.TotalMilliseconds;
+            }
+            Emit("C25.map_render_ms", Percentile(mapMs, 0.5));
 
             // A read of a finished map costs the main thread a copy only.
             field.Maps.RenderNow(index, ut);
@@ -124,11 +149,29 @@ namespace ReDefinition.Atmospheres
             Emit("C25.map_read_ms", watch.Elapsed.TotalMilliseconds / 20.0);
 
             var window = new WeatherWindow();
-            field.FillWindow(index, FlightGlobals.ActiveVessel.latitude, FlightGlobals.ActiveVessel.longitude, 30.0, ut, window);
             watch.Restart();
-            bool filled = field.FillWindow(index, FlightGlobals.ActiveVessel.latitude, FlightGlobals.ActiveVessel.longitude, 30.0, ut, window);
-            Emit("C25.window_ms", watch.Elapsed.TotalMilliseconds);
+            field.FillWindow(index, FlightGlobals.ActiveVessel.latitude, FlightGlobals.ActiveVessel.longitude, 30.0, ut, window);
+            Emit("C25.window_cold_ms", watch.Elapsed.TotalMilliseconds);
+            GC.Collect();
+            var windowMs = new double[25];
+            bool filled = true;
+            for (int r = 0; r < windowMs.Length; r++)
+            {
+                watch.Restart();
+                filled &= field.FillWindow(index, FlightGlobals.ActiveVessel.latitude, FlightGlobals.ActiveVessel.longitude, 30.0, ut + 600.0 * r, window);
+                windowMs[r] = watch.Elapsed.TotalMilliseconds;
+            }
+            Emit("C25.window_ms", Percentile(windowMs, 0.5));
+            Emit("C25.window_p99_ms", Percentile(windowMs, 0.99));
             Emit("C25.window_filled", filled);
+        }
+
+        // The value at the fraction p of the sorted values (nearest rank); the input is sorted in place.
+        private static double Percentile(double[] values, double p)
+        {
+            Array.Sort(values);
+            int rank = (int)Math.Ceiling(p * values.Length) - 1;
+            return values[Math.Max(0, Math.Min(values.Length - 1, rank))];
         }
     }
 }
