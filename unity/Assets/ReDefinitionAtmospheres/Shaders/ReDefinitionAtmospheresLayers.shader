@@ -561,6 +561,7 @@ Shader "ReDefinition/AtmospheresLayers"
             }
             return sum / max(wsum, 1e-6);
         }
+        #include "MarchStep.cginc"
         ENDCG
 
         Pass

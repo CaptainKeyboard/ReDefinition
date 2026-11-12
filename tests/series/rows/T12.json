@@ -1,0 +1,17 @@
+{
+  "$schema": "../schema.json",
+  "package": "T12",
+  "rows": [
+    { "series": "player-T12", "section": "T12", "metric": "edgecost.mask.V-stack-below.e.1707x960", "max": 0.1, "unit": "ms", "note": "mask passes (state, two dilations); brief limit 0.1 ms; measured 0.03 ms" },
+    { "series": "player-T12", "section": "T12", "metric": "edgecost.total.V-ground.e.1707x960", "max": 0.8, "unit": "ms", "note": "T05 typical-view budget; measured 1.80 ms (the edge march's warps are partly idle, see the report): FAILS, kept as the acceptance row" },
+    { "series": "player-T12", "section": "T12", "metric": "edgecost.total.V-stack-below.e.1707x960", "max": 1.2, "unit": "ms", "note": "T05 worst-view budget; measured 3.62 ms: FAILS, kept as the acceptance row" },
+    { "series": "player-T12", "section": "T12", "metric": "edgeq.ground.e.interior_err", "max": 0.02, "note": "brief: luminance error in thick blocks within 2 percent [proposed]; measured 0.0225 (eN: 0.0126)" },
+    { "series": "player-T12", "section": "T12", "metric": "edgeq.ground.e.seam", "max": 0.01, "note": "brief: luminance step at block borders <= 1 percent [proposed]; measured 0.0012" },
+    { "series": "player-T12", "section": "T12", "metric": "edgeq.ground.e.contour_cover", "min": 0.95, "note": "share of the reference's contour pixels in a flagged block; measured 0.988" },
+    { "series": "player-T12", "section": "T12", "metric": "edget.V-ground.turn12.e.ghost_move", "max": 0.012, "note": "C21 N14 limit as in T05; measured 0.0041" },
+    { "series": "player-T12", "section": "T12", "metric": "edget.V-ground.turn12.e.trail_px", "max": 0.14, "note": "C21 N14 limit as in T05; measured 0.0153" },
+    { "series": "player-T12", "section": "T12", "metric": "edget.V-ground.turn12.e.shimmer", "max": 0.0015, "note": "shimmer limit of the T05 brief; measured 0.0008" },
+    { "series": "player-T12", "section": "T12", "metric": "edget.V-ground.cut.e.converge_frames", "max": 20, "note": "T05 value: reconstruction cycle 16 + 4; measured 3" },
+    { "series": "player-T12", "section": "T12", "metric": "edget.V-stack-below.cut.e.cover_f2", "min": 0.9, "note": "a new edge is flagged within 2 frames [proposed]; measured 0.608 on the stack-below view: FAILS" }
+  ]
+}

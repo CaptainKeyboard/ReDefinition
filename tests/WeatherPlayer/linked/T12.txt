@@ -1,0 +1,6 @@
+# Linked into the weather player for the edge-adaptive resolution of the cloud pass (package T12): the edge settings and math, the driver and the
+# edge part of the reconstructor, their shaders and the include of the layer shader (the layer core comes from T01.txt, the reconstructor and the
+# temporal rig from T05.txt). The scenes are in tests/WeatherPlayer/Assets/Runner/EdgeAdaptiveScene.cs.
+src/Atmospheres/Render/Layers/Temporal/Edge/*.cs
+unity/Assets/**/ReDefinitionAtmospheresEdge.shader
+unity/Assets/**/MarchStep.cginc

@@ -318,7 +318,11 @@
         {"id": "weather-layersLightStride", "name": "Own clouds light stride 1", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.lightStride": "1"}},
         {"id": "weather-layersLightCutoff", "name": "Own clouds sun march cutoff 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.lightCutoff": "0"}},
         {"id": "weather-layersEmptyLeap", "name": "Own clouds empty leap 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.emptyLeap": "4"}},
-        {"id": "weather-layersRefineBudget", "name": "Own clouds entry refinement budget 1", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True", "atmo.layers.refineBudget": "1"}}
+        {"id": "weather-layersRefineBudget", "name": "Own clouds entry refinement budget 1", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True", "atmo.layers.refineBudget": "1"}},
+        {"id": "weather-layersReconstructor", "name": "Own clouds reconstructor on (4 x 4 block)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1"}},
+        {"id": "weather-layersEdgeAdaptive", "name": "Own clouds edge-adaptive resolution", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.cloudEntryRefinement": "True"}},
+        {"id": "weather-layersEdgeMaskDilation", "name": "Own clouds edge mask dilation 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.layers.edgeMaskDilation": "2"}},
+        {"id": "weather-layersEdgeStepBand", "name": "Own clouds edge step band off", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.cloudEntryRefinement": "True", "atmo.layers.edgeStepBand": "0"}}
       ]
     },
     {

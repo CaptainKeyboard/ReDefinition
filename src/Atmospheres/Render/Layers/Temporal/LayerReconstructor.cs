@@ -33,6 +33,13 @@ namespace ReDefinition.Atmospheres
         public Vector3 DriftPerFrame;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
+        // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
+        public EdgeSettings Edge;
+
+        internal ReconSettings Clone()
+        {
+            return (ReconSettings)MemberwiseClone();
+        }
 
         // Probe camera policy (P61): a camera that is not the player's view (a reflection probe, a map or screenshot camera) renders rarely and from
         // poses that jump, so it has no history to keep: its own LayerReconstructor, one march at the reduced size, no jitter, composited at
@@ -46,7 +53,7 @@ namespace ReDefinition.Atmospheres
     // Prototype A of the temporal work (and the plumbing of prototype B): marches the layer pass into a block-sampled or reduced target and
     // writes the full target (premultiplied radiance, alpha) that the layer shader's composite lays over the camera target. The reconstruction
     // keeps the last full target as its history, so the camera's motion and the wind's carry it (ReDefinitionAtmospheresReconstruct.shader).
-    internal sealed class LayerReconstructor
+    internal sealed partial class LayerReconstructor
     {
         internal const string ShaderName = "ReDefinition/AtmospheresReconstruct";
 
@@ -56,9 +63,19 @@ namespace ReDefinition.Atmospheres
             IdCamRight = Shader.PropertyToID("_CamRight"), IdCamUp = Shader.PropertyToID("_CamUp"), IdPrevPos = Shader.PropertyToID("_PrevPos"),
             IdPrevF = Shader.PropertyToID("_PrevF"), IdPrevR = Shader.PropertyToID("_PrevR"), IdPrevU = Shader.PropertyToID("_PrevU"),
             IdShellR = Shader.PropertyToID("_ShellR"), IdDrift = Shader.PropertyToID("_Drift"), IdMarchTex = Shader.PropertyToID("_MarchTex"),
-            IdSceneDepth = Shader.PropertyToID("_SceneDepth"), IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize");
+            IdSceneDepth = Shader.PropertyToID("_SceneDepth"), IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize"),
+            IdRefineP = Shader.PropertyToID("_RefineP"), IdEdgeP = Shader.PropertyToID("_EdgeP"), IdEdgeMask = Shader.PropertyToID("_EdgeMask"),
+            IdEdgeTex = Shader.PropertyToID("_EdgeTex"), IdEdgeTexel = Shader.PropertyToID("_EdgeTex_TexelSize"), IdEdgeK = Shader.PropertyToID("_EdgeK"),
+            IdEdgeD = Shader.PropertyToID("_EdgeD"), IdReconE = Shader.PropertyToID("_ReconE");
+        internal const string EdgeShaderName = "ReDefinition/AtmospheresEdge";
 
         private Material material;
+        // Package T12: the edge shader's material, the layer material's copy for the edge draw, the edge pattern's samples, the mask's state (last
+        // frame's and this frame's), the dilation's middle step and the final mask, and the counter of the edge pattern.
+        private Material edgeMaterial, edgeLayers;
+        private RenderTexture edgeLow, stateLast, stateNew, dilated, mask;
+        private bool haveEdgeState;
+        private int edgeIndex;
         // The march target and the two full targets: the last finished one is the history, the other receives the frame.
         private RenderTexture low, latest, spare, output;
         private Vector3 previousPosition, previousForward, previousRight, previousUp;
@@ -77,6 +94,16 @@ namespace ReDefinition.Atmospheres
         // The block offset the last Record marched (Block mode), in full pixels.
         internal Vector2 LastOffset { get; private set; }
 
+        // Package T12: the edge mask of the last Record (one texel per 4 x 4 block; null before the first edge frame), the edge pattern's samples,
+        // the blocks the dilation widened it by, and the extra marks (may be null) after the mask passes and after the edge march.
+        internal RenderTexture Mask { get { return mask; } }
+        internal RenderTexture EdgeMarch { get { return edgeLow; } }
+        // The mask's state before the dilation (this frame's, after Record) and the coarse samples, for the measurements.
+        internal RenderTexture MaskState { get { return stateLast; } }
+        internal RenderTexture MaskHorizontal { get { return dilated; } }
+        internal int LastDilation { get; private set; }
+        internal Action<CommandBuffer> MarkMask, MarkEdge;
+
         internal bool Init(Shader shader)
         {
             if (shader == null) return false;
@@ -84,11 +111,21 @@ namespace ReDefinition.Atmospheres
             return material.shader.isSupported;
         }
 
+        // The edge shader (package T12); the edge mode of Record needs it.
+        internal bool InitEdge(Shader shader)
+        {
+            if (shader == null) return false;
+            edgeMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            return edgeMaterial.shader.isSupported;
+        }
+
         // The next frame has no history (a teleport, a scene change, a changed layer stack).
         internal void Reset()
         {
             haveHistory = false;
+            haveEdgeState = false;
             blockIndex = 0;
+            edgeIndex = 0;
         }
 
         internal void Dispose()
@@ -96,9 +133,26 @@ namespace ReDefinition.Atmospheres
             if (low != null) { low.Release(); UnityEngine.Object.Destroy(low); }
             if (latest != null) { latest.Release(); UnityEngine.Object.Destroy(latest); }
             if (spare != null) { spare.Release(); UnityEngine.Object.Destroy(spare); }
+            foreach (RenderTexture rt in new[] { edgeLow, stateLast, stateNew, dilated, mask })
+                if (rt != null) { rt.Release(); UnityEngine.Object.Destroy(rt); }
             if (material != null) UnityEngine.Object.Destroy(material);
-            material = null;
+            if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
+            if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
+            material = edgeMaterial = edgeLayers = null;
             low = latest = spare = output = null;
+            edgeLow = stateLast = stateNew = dilated = mask = null;
+        }
+
+        private static RenderTexture MakeMask(string name, int w, int h)
+        {
+            var rt = new RenderTexture(Mathf.Max(w, 2), Mathf.Max(h, 2), 0, RenderTextureFormat.R8, RenderTextureReadWrite.Linear)
+            {
+                name = name,
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            rt.Create();
+            return rt;
         }
 
         private static RenderTexture Make(string name, int w, int h, FilterMode filter)
@@ -147,7 +201,8 @@ namespace ReDefinition.Atmospheres
             }
             RenderTexture history = latest;
             output = spare;
-            int n = s.Mode == ReconMode.Block ? Mathf.Clamp(s.Block, 2, 4) : 1;
+            bool edgeOn = s.Mode == ReconMode.Block && s.Edge != null && s.Edge.Enabled && edgeMaterial != null;
+            int n = edgeOn ? EdgeSettings.CoarseBlock : (s.Mode == ReconMode.Block ? Mathf.Clamp(s.Block, 2, 4) : 1);
             float scale = s.Mode == ReconMode.Low ? Mathf.Clamp(s.Resolution, 0.1f, 1f) : (s.Mode == ReconMode.Full ? 1f : 1f / n);
             int lw = s.Mode == ReconMode.Block ? (w + n - 1) / n : Mathf.RoundToInt(w * scale);
             int lh = s.Mode == ReconMode.Block ? (h + n - 1) / n : Mathf.RoundToInt(h * scale);
@@ -184,6 +239,19 @@ namespace ReDefinition.Atmospheres
             }
             layers.SetVector(IdReconD, new Vector4(w, h, low.width, low.height));
             LastOffset = offset;
+            layers.SetVector(IdEdgeP, new Vector4(0f, EdgeSettings.CoarseBlock, 0f, 0f));
+            if (edgeOn)
+            {
+                // The edge draw is the layer material's copy with the edge pattern's numbers; the coarse draw runs without the entry refinement
+                // when the step band is on (the refinement is paid in the flagged blocks only).
+                if (edgeLayers == null || edgeLayers.shader != layers.shader) edgeLayers = new Material(layers.shader) { hideFlags = HideFlags.HideAndDontSave };
+                edgeLayers.CopyPropertiesFromMaterial(layers);
+                if (s.Edge.StepBand)
+                {
+                    Vector4 refine = layers.GetVector(IdRefineP);
+                    layers.SetVector(IdRefineP, new Vector4(0f, refine.y, refine.z, refine.w));
+                }
+            }
 
             if (markStart != null) markStart(cb);
             cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
@@ -199,6 +267,11 @@ namespace ReDefinition.Atmospheres
                 cb.SetRenderTarget(output);
                 cb.ClearRenderTarget(false, true, Color.clear);
                 cb.Blit(low, output, layers, LayerRenderer.PassComposite);
+            }
+            else if (edgeOn)
+            {
+                RecordEdge(cb, renderer, f, camera, s, w, h, offset, history, tanX, tanY);
+                haveHistory = true;
             }
             else
             {
