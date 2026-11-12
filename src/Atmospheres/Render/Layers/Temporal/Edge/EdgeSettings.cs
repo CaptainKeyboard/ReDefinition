@@ -12,7 +12,9 @@ namespace ReDefinition.Atmospheres
             TuneReconstructor = "layers.reconstructorEnabled", TuneThreshold = "layers.edgeThreshold", TunePersist = "layers.edgePersist";
 
         // The compiled defaults. The reconstruction and the edge mode are off until the owner agrees (they reduce quality against the full pass).
-        internal const bool AdaptiveDefault = false, ReconstructorDefault = false, StepBandDefault = true;
+        // The step band is off too: with it the coarse draw has no entry refinement and thick or grazing interiors (orbit edge, interior error
+        // 0.35, seam 0.16) get a visible dark patch with a hard border; it stays a switch for the views where it passes (review T12/T13, B2).
+        internal const bool AdaptiveDefault = false, ReconstructorDefault = false, StepBandDefault = false;
         // The mask's numbers as the sweep of the verification picked them (see tools/weather_metrics/edge.py, the three sweeps).
         internal const float ThresholdDefault = 0.06f;
         internal const int DilationDefault = 1, PersistDefault = 4;

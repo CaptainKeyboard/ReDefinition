@@ -322,7 +322,7 @@
         {"id": "weather-layersReconstructor", "name": "Own clouds reconstructor on (4 x 4 block)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1"}},
         {"id": "weather-layersEdgeAdaptive", "name": "Own clouds edge-adaptive resolution", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.cloudEntryRefinement": "True"}},
         {"id": "weather-layersEdgeMaskDilation", "name": "Own clouds edge mask dilation 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.layers.edgeMaskDilation": "2"}},
-        {"id": "weather-layersEdgeStepBand", "name": "Own clouds edge step band off", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.cloudEntryRefinement": "True", "atmo.layers.edgeStepBand": "0"}}
+        {"id": "weather-layersEdgeStepBand", "name": "Own clouds edge step band on", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.cloudEntryRefinement": "True", "atmo.layers.edgeStepBand": "1"}}
       ]
     },
     {

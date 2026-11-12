@@ -154,6 +154,10 @@ def views():
         "down": dict(site="down", alt=30000.0, pitch=-90.0, yaw=90.0, fov=50.0, sun=(120.0, 45.0), layers=[cu_layer()], aux=True, ab=False),
         "sky3": dict(site="sky3", alt=8000.0, pitch=2.0, yaw=90.0, fov=75.0, sun=(150.0, 40.0), layers=[cu_layer(), alto_layer(), cirrus_layer()],
                      aux=True, ab=False),
+        # Review T12/T13 C4: the field views. Under a broken cumulus field (clouds overhead, low sun so that the bases are lit from the side) and
+        # above the field looking down at an angle; natural pictures plus the aid pictures.
+        "fieldbelow": dict(site="fieldbelow", alt=2.0, pitch=25.0, yaw=90.0, fov=80.0, sun=(200.0, 22.0), layers=[cu_layer()], aux=True, ab=True),
+        "fieldabove": dict(site="fieldabove", alt=4200.0, pitch=-25.0, yaw=90.0, fov=70.0, sun=(120.0, 30.0), layers=[cu_layer()], aux=True, ab=False),
     }
 
 
@@ -172,6 +176,10 @@ def write_maps():
     sites["above"] = find_site(cu, 0.3, 8.0, 6.0, 0.4)
     sites["down"] = find_site(cu, 0.3, 0.0, 12.0, 0.45)
     sites["sky3"] = find_site(cu, 0.3, 8.0, 6.0, 0.35)
+    # A broken field: about 25 % cloud within 6 km around the camera (below), about 30 % in a box 4 km ahead (above). A first sweep with 45 %
+    # gave a solid deck below and a featureless white picture above.
+    sites["fieldbelow"] = find_site(cu, 0.3, 0.0, 6.0, 0.25)
+    sites["fieldabove"] = find_site(cu, 0.3, 4.0, 8.0, 0.3)
     return sites, cu
 
 
@@ -387,7 +395,7 @@ def collect(ctx):
                 shutil.copy(src, os.path.join(PICTURES, "t13-%s-%s.png" % (vid, name)))
 
     stats = {}
-    for vid in ("below", "side", "above", "down", "sky3"):
+    for vid in ("below", "side", "above", "down", "sky3", "fieldbelow", "fieldabove"):
         for name in ("before", "after", "norag", "toponly"):
             jid = "t13-%s-aux-%s" % (vid, name)
             if not os.path.isfile(os.path.join(folder, jid + "-alpha.npy")):
@@ -398,7 +406,8 @@ def collect(ctx):
             hit = (alpha > 0.5) & (first >= 0.0)
             alt_hit = np.where(hit, alt, np.nan)
             stats[(vid, name)] = dict(alpha=alpha, alt=alt_hit, pts=pts, elev=elev, hit=hit)
-            lo, hi = {"below": (900.0, 1700.0), "side": (900.0, 1700.0), "above": (2000.0, 3600.0), "down": (2000.0, 3600.0)}.get(vid, (1000.0, 11000.0))
+            lo, hi = {"below": (900.0, 1700.0), "side": (900.0, 1700.0), "above": (2000.0, 3600.0), "down": (2000.0, 3600.0),
+                                 "fieldbelow": (900.0, 1700.0), "fieldabove": (2000.0, 3600.0)}.get(vid, (1000.0, 11000.0))
             write_aid(os.path.join(PICTURES, "t13-%s-aid-base%s.png" % (vid, "" if name == "after" else "-" + name)), alt_hit, lo, hi,
                       "first hit altitude, %s" % name)
 
@@ -451,7 +460,12 @@ def collect(ctx):
                         bt.append(np.nanmean(blk))
                         bu.append(np.nanmean(upfull[y0:y0 + 50, x0:x0 + 50]))
             out.append(Metric.info("top.down.n_cells", float(len(bt))))
-            out.append(Metric.at_least("top.down.corr_cores", float(np.corrcoef(bt, bu)[0, 1]) if len(bt) > 10 else float("nan"), 0.7).based("gate"))
+            # Two gates, both at the brief's 0.7. HISTORY: the first definition (the cores below, per pixel) gave 0.09; the block means (written after
+            # that first result) gave 0.73 and later 0.79-0.81. The brief's own definition ("at cell centres") stays as the second gate and is
+            # reported as it is (0.12 to 0.22 in the earlier runs).
+            out.append(Metric.at_least("top.down.corr_blocks_1500m", float(np.corrcoef(bt, bu)[0, 1]) if len(bt) > 10 else float("nan"), 0.7).based("gate"))
+            core = up >= np.percentile(up, 80.0)
+            out.append(Metric.at_least("top.down.corr_cores_brief", float(np.corrcoef(top[core], up[core])[0, 1]), 0.7).based("gate"))
             out.append(Metric.info("top.down.corr_all_toponly", float(np.corrcoef(top, up)[0, 1])))
             out.append(Metric.info("top.down.delta_std_m", float(np.std(top))))
     s = stats.get(("down", "after"))
@@ -481,10 +495,13 @@ def collect(ctx):
             alt = np.where(mask & s["hit"], s["alt"], np.nan)
             energies[name] = highpass_rms(alt)
             out.append(Metric.info("rough.below.%s.rms_m" % name, energies[name]))
-    if "after" in energies and "before" in energies and energies["before"] == energies["before"]:
-        out.append(Metric.at_least("rough.below.ragged_over_flat", energies["after"] / max(energies["before"], 1.0), 2.0).based("gate"))
+    # The gate is a real ratio: the ragged render over the render with the same variation and physics but a smooth base (the "norag" variant). Source:
+    # the T13 brief, acceptance "Underside roughness ... above the flat-base render by >= 2x [proposed]". The ratio against the BEFORE render
+    # (energy 0.03 m, a flat plane) is reported as info only and is not clamped.
     if "after" in energies and "norag" in energies and energies["norag"] > 0:
-        out.append(Metric.info("rough.below.ragged_over_smooth", energies["after"] / energies["norag"]))
+        out.append(Metric.at_least("rough.below.ragged_over_smooth", energies["after"] / energies["norag"], 2.0).based("gate"))
+    if "after" in energies and "before" in energies and energies["before"] > 0:
+        out.append(Metric.info("rough.below.ragged_over_before", energies["after"] / energies["before"]))
 
     # A/B: each switch changes the picture (it is not a no-op), and the identity of all-off against before.
     def diff(a_name, b_name):
@@ -497,7 +514,12 @@ def collect(ctx):
     # The renderer's own repeat difference (the same job twice) is the floor; all switches off may not exceed it.
     floor = diff("t13-below-before2", "t13-below-before")
     out.append(Metric.info("ab.repeat_floor.mean_abs", floor))
-    out.append(Metric.at_most("ab.alloff_equals_before.mean_abs", diff("t13-below-alloff", "t13-below-before"), 1.5 * floor + 1e-6).based("new"))
+    alloff = diff("t13-below-alloff", "t13-below-before")
+    out.append(Metric.at_most("ab.alloff_equals_before.mean_abs", alloff, 1.5 * floor + 1e-6).based("new"))
+    # The row-file form of the same test: the excess over the limit 1.5 x floor + 1e-6 (the floor is measured per run, a row cannot carry it), must be 0.
+    out.append(Metric.at_most("ab.alloff_excess_over_floor_limit", max(0.0, alloff - (1.5 * floor + 1e-6)) if alloff == alloff and floor == floor else float("nan"),
+                              0.0).based("new"))
+    out.append(Metric.info("ab.fieldbelow.after_vs_before.mean_abs", diff("t13-fieldbelow-after", "t13-fieldbelow-before")))
     for vid in ("below", "side"):
         out.append(Metric.at_least("ab.%s.after_differs_from_before" % vid, diff("t13-%s-after" % vid, "t13-%s-before" % vid), 0.002).based("new"))
         for name in ("novar", "nophys", "norag", "notop"):

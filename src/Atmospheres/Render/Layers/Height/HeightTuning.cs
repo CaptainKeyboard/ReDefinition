@@ -8,11 +8,13 @@ namespace ReDefinition.Atmospheres
     // vary over the sky instead of being one level per type. The four switches carry the settings cloudBaseVariation, cloudBasePhysics,
     // cloudTopFromUpdraft and baseRagged (OwnCloudOptions.Apply); the rest are the look and physics constants of a body, read from the
     // keys of its CLOUDS node (Parse), so that no body's value lives in code (a gas giant or a dusty moon sets its own).
+    // The four switches default ON only conditionally: the K-T1 rows T13.height_cost_ms (<= 0.1 ms) and T13.ragged_base_shimmer (<= 0.0015) are
+    // unmeasured; flip the defaults to OFF at T09's first start if either is red (tests/series/rows/T13.json, .local T13-status.md).
     //
     // References (named in the check list of the package, MAINREPO\.local\plans\atmospheres\tvc-parity.md rows P06-P10, P20):
     //   lifting condensation level LCL ~ 125 m per K of dew-point spread (Lawrence 2005, BAMS 86, "The relationship between relative
     //   humidity and the dewpoint temperature in moist air"; the Espy relation), the Magnus formula for the dew point (a = 17.62,
-    //   b = 243.12 C, Alduchov and Eskridge 1996); cumulus bases lie at one level locally with a spread of tens to a few hundred metres;
+    //   b = 243.12 C, WMO CIMO Guide 2008; Alduchov and Eskridge 1996 give 17.625 and 243.04); cumulus bases lie at one level locally with a spread of tens to a few hundred metres;
     //   the WMO cloud levels for the stacked layers.
     internal sealed class HeightTuning
     {

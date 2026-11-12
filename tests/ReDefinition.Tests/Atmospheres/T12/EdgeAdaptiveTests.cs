@@ -113,11 +113,11 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void SwitchesAreOffAndTheBandOnByDefault()
+        public void SwitchesAndTheBandAreOffByDefault()
         {
             EdgeSettings d = EdgeSettings.From((key, def) => def);
             Assert.IsFalse(d.Enabled);
-            Assert.IsTrue(d.StepBand);
+            Assert.IsFalse(d.StepBand);
             Assert.IsFalse(EdgeSettings.ReconstructorOn((key, def) => def));
             EdgeSettings on = EdgeSettings.From((key, def) => key == EdgeSettings.TuneEdgeAdaptive ? 1f : (key == EdgeSettings.TuneDilation ? 99f : def));
             Assert.IsTrue(on.Enabled);
