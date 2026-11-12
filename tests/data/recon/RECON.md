@@ -70,6 +70,7 @@ frame or the depth in that state (P6 depth, P7, P8, P10 of run2) is void. The pr
 - ModularFlightIntegrator 1.2.10 (MIT) with `RegisterUpdateAerodynamicsOverride`; KSPCommunityFixes is present and replaces `UpdateAerodynamics`.
 - `CelestialBody.GetFullTemperature(Vector3d)` is the sun-based offset, not a temperature; `GetFullTemperature(double altitude, double offset)` is the temperature. The assemblies of EVE and Parallax are `EVEManager` and `ParallaxContinued`.
 - `KerbalEVA` has no step sound hook and no `OnGround`.
+- Flight camera chain with the rig running (K-W3b start `frost`, 2026-11-12, Medium, DLSS): `GalaxyCamera` (-4) < `Camera ScaledSpace` (-3) < `Camera 00` (0) < `markerCam` (1) < `ReDefinitionPresenter` (1.1) < `UIMainCamera` (90) < `UIVectorCamera` (91) < `Camera` (100). The presenter sits 0.1 behind the last camera the rig redirects, so it follows the stack (0.1 in the run2 dump, 1.1 here). Until the rig has built its stack the chain is `GalaxyCamera`, `Camera ScaledSpace`, `Camera 00`, `Canvas Camera`, `UIVectorCamera`, `Camera`, without presenter and without `markerCam`.
 - EVE's texture names on `EVE/RaymarchCloud`: `CloudCoverage`, `CloudType` (2D), `cubeCloudCoverage*`, `cubeCloudType*` (cube); the shader declares none of them as properties.
 
 ## Not measured, and why

@@ -134,21 +134,44 @@ namespace ReDefinition.Atmospheres
             return small;
         }
 
-        // The flight chain as the repository measured it (tests/data/recon/dumps/run2-cameras-flight.json, the game run of the recon
-        // series; RECON.md P6 names the depth of Camera 00 only): the scaled-space camera before Camera 00, Camera 00 before the presenter,
-        // the presenter before the marker and UI cameras. With the rig running (rigRuns) the presenter must be there: without it the
-        // check would pass on a chain of Camera 00 alone.
+        // The flight chain as the game measured it once the rig runs (K-W3b start "frost", 2026-11-12, log line after "Upscaler running"):
+        //   GalaxyCamera(-4) < Camera ScaledSpace(-3) < Camera 00(0) < markerCam(1) < ReDefinitionPresenter(1.1) < UIMainCamera(90)
+        //   < UIVectorCamera(91) < Camera(100)
+        // The recon dump run2-cameras-flight.json has the presenter at 0.1, before markerCam: the rig puts the presenter 0.1 behind the
+        // LAST camera it redirects (UpscalerCameras: lastDepth + 0.1), so the presenter's depth follows the stack, and the stable facts
+        // are: the scaled-space camera before Camera 00, every redirected camera before the presenter, the presenter before the UI
+        // cameras. Before the rig has built its stack (the first seconds of the flight) the chain holds Camera 00 only and no presenter;
+        // with the rig running (rigRuns) the presenter must be there, so that a chain read too early fails instead of passing.
         internal static bool ChainMatchesRecon(List<KeyValuePair<float, string>> chain, bool rigRuns)
         {
             float scaled = DepthOf(chain, "Camera ScaledSpace"), main = DepthOf(chain, "Camera 00"), presenter = DepthOf(chain, "ReDefinitionPresenter");
-            float marker = DepthOf(chain, "markerCam"), ui = DepthOf(chain, "UIMainCamera");
+            float marker = DepthOf(chain, "markerCam"), ui = DepthOf(chain, "UIMainCamera"), vector = DepthOf(chain, "UIVectorCamera");
             if (float.IsNaN(main)) return false;
             if (rigRuns && float.IsNaN(presenter)) return false;
             if (!float.IsNaN(scaled) && !(scaled < main)) return false;
             if (!float.IsNaN(presenter) && !(main < presenter)) return false;
-            if (!float.IsNaN(presenter) && !float.IsNaN(marker) && !(presenter < marker)) return false;
+            if (!float.IsNaN(presenter) && !float.IsNaN(marker) && !(main < marker && marker < presenter)) return false;
+            if (!float.IsNaN(presenter) && !float.IsNaN(ui) && !(presenter < ui)) return false;
+            if (!float.IsNaN(presenter) && !float.IsNaN(vector) && !(presenter < vector)) return false;
             if (!float.IsNaN(ui) && !(main < ui)) return false;
             return true;
+        }
+
+        // Whether the rig has built its stack: the presenter camera is in the chain.
+        private static bool RigBuilt()
+        {
+            List<KeyValuePair<float, string>> chain;
+            Chain(out chain);
+            return !float.IsNaN(DepthOf(chain, "ReDefinitionPresenter"));
+        }
+
+        // The probe's weather: the field's level and the diagnostic force (AtmospheresSettings.ForceLevel), so that the level the frame
+        // driver publishes follows at once. Without the force the driver moves the level at most 1/90 per game second
+        // (LevelLimiter), so a 14 s window would reach 0.16 and the ceiling rows could not hold; the shower pulse is off for the same reason.
+        private void Weather(ConstantWeatherField field, float level)
+        {
+            field.Level01 = level;
+            SetSetting(AtmospheresSettings.Keys.ForceLevel, level);
         }
 
         protected override IEnumerator<ProbeWait> Scenario()
@@ -169,7 +192,13 @@ namespace ReDefinition.Atmospheres
             if (module == null || !module.PassReady) yield break;
             Emit("D37.atlas_build_ms", CameraFrostRenderer.AtlasBuildMs);
 
-            // The camera chain in the flight view.
+            // The camera chain in the flight view, read once the rig has built its stack (the first frames of the flight have Camera 00
+            // alone; the upscaler reports itself a moment later still).
+            // Neither wait ends the probe: a start without the rig or an upscaler records the rows as they are (rig_runs, upscaler_runs).
+            for (int k = 0; k < 1200 && Services.PostUpscale.HostAvailable && !RigBuilt(); k++)
+                yield return ProbeWait.Frames(3);
+            for (int k = 0; k < 600 && Services.PostUpscale.HostAvailable && WeatherHooks.Caps.Upscaler == UpscalerKind.None; k++)
+                yield return ProbeWait.Frames(3);
             List<KeyValuePair<float, string>> flightChain;
             EmitText("D37.camera_chain_flight", Chain(out flightChain));
             Emit("D37.camera_chain_order_matches", ChainMatchesRecon(flightChain, Services.PostUpscale.HostAvailable));
@@ -180,6 +209,7 @@ namespace ReDefinition.Atmospheres
             IWeatherField previous = WeatherHub.Field;
             var field = new ConstantWeatherField { Level01 = 0f, Type = PrecipType.Snow, TemperatureK = 245f, WindWorld = new Vector3(8f, 0f, 0f) };
             WeatherHub.Field = field;
+            ForceTuning("driver.showerPulse", 0f);
             ForceTuning("frost.buildS", 4f);
             ForceTuning("frost.clearS", 4f);
             ForceTuning("frost.ivaLagS", 2f);
@@ -194,7 +224,7 @@ namespace ReDefinition.Atmospheres
                 // The ceiling of the exposure (review R7) with the shipped wind reference and cold: a level-1 snowfall at -18 C settles at
                 // 0.6875 without wind and reaches 1 from about 11 m/s of airflow on. The build time is shortened as above.
                 ForceTuning("frost.windRefMs", 20f);
-                field.Level01 = 1f;
+                Weather(field, 1f);
                 field.TemperatureK = 255f;
                 field.WindWorld = Vector3.zero;
                 yield return ProbeWait.Seconds(14);
@@ -203,19 +233,19 @@ namespace ReDefinition.Atmospheres
                 field.WindWorld = new Vector3(20f, 0f, 0f);
                 yield return ProbeWait.Seconds(14);
                 Emit("D37.exposure_ceiling_20ms", CameraFrostRenderer.LastExposure);
-                field.Level01 = 0f;
+                Weather(field, 0f);
                 field.TemperatureK = 245f;
                 field.WindWorld = new Vector3(8f, 0f, 0f);
                 ForceTuning("frost.windRefMs", 10f);
                 module.ResetState();
 
                 // Snow at 245 K builds the exposure; no weather clears it.
-                field.Level01 = 0.9f;
+                Weather(field, 0.9f);
                 yield return ProbeWait.Until(() => CameraFrostRenderer.LastExposure > 0.5f, 40, "the exposure to build");
                 Emit("D37.exposure_builds", CameraFrostRenderer.LastExposure > 0.5f);
                 Emit("D37.exposure_peak", CameraFrostRenderer.LastExposure);
                 Emit("D37.growth_at_peak", CameraFrostRenderer.LastGrowth);
-                field.Level01 = 0f;
+                Weather(field, 0f);
                 yield return ProbeWait.Until(() => CameraFrostRenderer.LastExposure < 0.02f, 40, "the exposure to clear");
                 Emit("D37.exposure_clears", CameraFrostRenderer.LastExposure < 0.02f);
 
@@ -242,14 +272,14 @@ namespace ReDefinition.Atmospheres
 
                     // A clear pane in a view that can draw records nothing: frames drawn while no weather and a clear glass.
                     module.ResetState();
-                    field.Level01 = 0f;
+                    Weather(field, 0f);
                     yield return ProbeWait.Seconds(2);
                     int drawnBefore = CameraFrostRenderer.DrawnFrames;
                     yield return ProbeWait.Frames(90);
                     Emit("D37.inactive_drawn_frames", CameraFrostRenderer.DrawnFrames - drawnBefore);
 
                     module.ResetState();
-                    field.Level01 = 0.9f;
+                    Weather(field, 0.9f);
                     yield return ProbeWait.Seconds(12);
                     Emit("D37.iva_warm_cabin_clear", CameraFrostRenderer.LastExposure < 0.02f);
                     Emit("D37.iva_warm_cabin_exposure", CameraFrostRenderer.LastExposure);
@@ -426,6 +456,7 @@ namespace ReDefinition.Atmospheres
             finally
             {
                 WeatherHub.Field = previous;
+                SetSetting(AtmospheresSettings.Keys.ForceLevel, -1.0);
                 tap.Dispose();
                 ClearForced();
                 module.ResetState();

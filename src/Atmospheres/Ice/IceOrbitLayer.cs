@@ -24,6 +24,8 @@ namespace ReDefinition.Atmospheres
         // Real seconds after the last request when a body's shell is hidden, and when its picture is freed.
         internal const float HideSeconds = 1.5f;
         internal const float FreeSeconds = 20f;
+        // Real seconds between two tries to fit the map layout while the shell is not calibrated.
+        internal const float CalibrationRetryS = 0.5f;
 
         private readonly Dictionary<int, BodyShell> shells = new Dictionary<int, BodyShell>();
         private readonly List<int> scratch = new List<int>();
@@ -101,6 +103,9 @@ namespace ReDefinition.Atmospheres
             private Material material;
             private Texture2D picture;
             private bool calibrated;
+            private int calibrationTries;
+            private float calibrationTriedAt;
+            private double calibrationWorstDeg;
             private double shiftDeg;
             private bool mirrored;
             private bool broken;
@@ -127,6 +132,8 @@ namespace ReDefinition.Atmospheres
             internal double ShiftDeg { get { return shiftDeg; } }
             internal bool Mirrored { get { return mirrored; } }
             internal bool Calibrated { get { return calibrated; } }
+            internal int CalibrationTries { get { return calibrationTries; } }
+            internal double CalibrationWorstDeg { get { return calibrationWorstDeg; } }
 
             internal BodyShell(CelestialBody body, IceBodyState state)
             {
@@ -146,6 +153,7 @@ namespace ReDefinition.Atmospheres
                         return;
                     }
                     if (shell == null && !Build()) return;
+                    RetryCalibration();
                     if (resultReady) Upload();
                     Schedule(ut);
                     bool show = calibrated && picture != null && ComposedCount > 0;
@@ -209,10 +217,30 @@ namespace ReDefinition.Atmospheres
                     wrapModeV = TextureWrapMode.Clamp
                 };
                 calibrated = Calibrate(out shiftDeg, out mirrored);
+                calibrationTries = 1;
+                calibrationTriedAt = Time.realtimeSinceStartup;
                 AtmospheresLog.Say("sea ice: the orbit shell of " + body.name + " is built (picture " + IceOrbitPicture.Width + "x" + IceOrbitPicture.Height + ", map layout shift "
-                                   + shiftDeg.ToString("0.#", CultureInfo.InvariantCulture) + " deg, " + (mirrored ? "mirrored" : "not mirrored") + (calibrated ? "" : ", NOT calibrated: no shell") + ").");
+                                   + shiftDeg.ToString("0.#", CultureInfo.InvariantCulture) + " deg, " + (mirrored ? "mirrored" : "not mirrored")
+                                   + (calibrated ? "" : ", NOT calibrated yet: worst error " + calibrationWorstDeg.ToString("0.#", CultureInfo.InvariantCulture)
+                                                        + " deg, tried again every " + CalibrationRetryS.ToString("0.#", CultureInfo.InvariantCulture) + " s") + ").");
                 shell.SetActive(false);
                 return true;
+            }
+
+            // The shell can be built while the scene is still loading (K-W3b: built at the start of the flight scene's load, the scaled
+            // body not yet placed, the three places missed by far and the shell stayed off for the whole session). The layout is tried
+            // again until the three places fit; the shell shows only when they do.
+            private void RetryCalibration()
+            {
+                if (calibrated || shell == null) return;
+                float now = Time.realtimeSinceStartup;
+                if (now - calibrationTriedAt < CalibrationRetryS) return;
+                calibrationTriedAt = now;
+                calibrationTries++;
+                calibrated = Calibrate(out shiftDeg, out mirrored);
+                if (calibrated)
+                    AtmospheresLog.Say("sea ice: the orbit shell of " + body.name + " is calibrated after " + calibrationTries + " tries (map layout shift "
+                                       + shiftDeg.ToString("0.#", CultureInfo.InvariantCulture) + " deg, " + (mirrored ? "mirrored" : "not mirrored") + ").");
             }
 
             // Where the field's map lies on the scaled body's sphere, from three places (EveMapLayout, the way the cloud shell does it).
@@ -227,7 +255,9 @@ namespace ReDefinition.Atmospheres
                     Vector3 local = scaled.InverseTransformPoint(scaledPosition).normalized;
                     EveCoverageMath.Uv(local.x, local.y, local.z, out u, out v);
                 };
-                return EveMapLayout.Calibrate(layerOf, 1.0, out shift, out mirror, out worst);
+                bool fits = EveMapLayout.Calibrate(layerOf, 1.0, out shift, out mirror, out worst);
+                calibrationWorstDeg = worst;
+                return fits;
             }
 
             private Vector3 SunDirection()
@@ -316,6 +346,7 @@ namespace ReDefinition.Atmospheres
                 picture = null;
                 Visible = false;
                 calibrated = false;
+                calibrationTries = 0;
                 ComposedCount = 0;
                 composedStamp = int.MinValue;
                 composedUt = double.NaN;

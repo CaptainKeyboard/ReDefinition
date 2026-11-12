@@ -32,6 +32,8 @@ namespace ReDefinition.Atmospheres
         internal const string ForceFractionKey = "ice.forceFraction";
         // A lead fraction that replaces the body's while it is 0 or more; -1 off.
         internal const string LeadOverrideKey = "ice.leadOverride";
+        // 1: the module does not read the field's maps (the series asks for other times itself and must not be pulled back to the clock).
+        internal const string HoldMapsKey = "ice.holdMaps";
         // 1: the sheet draws flat magenta where it is (the aid view of the series).
         internal const string AidKey = "ice.aid";
 

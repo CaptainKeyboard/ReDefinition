@@ -281,12 +281,18 @@ namespace ReDefinition.Atmospheres
                 var thickness = new WeatherMap();
                 var snow = new WeatherMap();
                 bool got = false;
-                for (int tries = 0; tries < 40 && !got; tries++)
+                // The module's own read (every 3 s, for the clock's time) is held: the generator renders its surface maps for the time
+                // asked last, so the two askers pulled the maps back and forth and phases 1 and 3 never held at the moment of the read
+                // (K-W3b: phase 0 and 2 ready, 1 and 3 not after 40 s). The probe asks again every 0.25 s, which keeps its time the last.
+                ForceTuning(IceTuning.HoldMapsKey, 1f);
+                float mapsUntil = Time.realtimeSinceStartup + 90f;
+                while (!got && Time.realtimeSinceStartup < mapsUntil)
                 {
                     got = WeatherHub.Field.GetMap(index, WeatherMapKind.IceFraction, ut, fraction) && Math.Abs(fraction.Ut - ut) < 3600.0
                           && WeatherHub.Field.GetMap(index, WeatherMapKind.IceThickness, ut, thickness) && Math.Abs(thickness.Ut - ut) < 3600.0;
-                    if (!got) yield return ProbeWait.Seconds(1);
+                    if (!got) yield return ProbeWait.Seconds(0.25f);
                 }
+                Emit("D35.phase." + k + ".map_seconds_wait", 90f - (mapsUntil - Time.realtimeSinceStartup));
                 Emit("D35.phase." + k + ".map_ready", got);
                 if (!got) continue;
                 if (!WeatherHub.Field.GetMap(index, WeatherMapKind.SnowCover, ut, snow)) snow.Width = 0;
@@ -357,6 +363,7 @@ namespace ReDefinition.Atmospheres
                 phaseReady[k] = true;
                 yield return ProbeWait.Frames(1);
             }
+            ForceTuning(IceTuning.HoldMapsKey, 0f);
             Emit("D35.coverage_worst_error", worstError);
             Emit("D35.coast.phases_measured", coastN);
             Emit("D35.coast.error_cpu", worstCoast);
@@ -379,6 +386,16 @@ namespace ReDefinition.Atmospheres
             IceOrbitLayer.BodyShell shell = orbit.ShellOf(body);
             if (shell != null)
             {
+                // The shell retries its calibration every IceOrbitLayer.CalibrationRetryS while the host draws it (the first run built
+                // it during the scene load and it never fitted): give it time to fit, then record how it went.
+                for (int k = 0; k < 600 && !shell.Calibrated; k++)
+                {
+                    CoverClock.TryUt(out utNow);
+                    OrbitOverlayHost.Draw(body, true, utNow);
+                    yield return ProbeWait.Frames(2);
+                }
+                Emit("D35.orbit_shell_calibration_tries", shell.CalibrationTries);
+                Emit("D35.orbit_shell_calibration_worst_deg", shell.CalibrationWorstDeg);
                 Emit("D35.orbit_shell_calibrated", shell.Calibrated);
                 yield return ProbeWait.Frames(2);
                 OrbitOverlayHost.Draw(body, true, utNow);
@@ -514,10 +531,16 @@ namespace ReDefinition.Atmospheres
                 ForceTuning(IceTuning.AidKey, 0f);
                 ForceTuning(IceTuning.ForceFractionKey, 0.6f);
                 ForceTuning(IceTuning.LeadOverrideKey, -1f);
-                double onMs = 0, offMs = 0;
-                for (int round = 0; round < 2; round++)
+                // Four rounds at the same pose: the sea ice off, the DEFAULT path (setting seaIce Orbit: the orbit picture only, nothing near
+                // the ground), the sea ice off again (the noise of two equal rounds), and the OPTIONAL ground sheet (seaIce
+                // OrbitAndGround with the overlay on). The first run measured only the last against the first, so its 2.07 ms was the
+                // optional sheet's cost, not the default's.
+                var roundMs = new double[4];
+                for (int round = 0; round < 4; round++)
                 {
-                    ForceTuning(IceTuning.GroundOverlayKey, round == 0 ? 0f : 1f);
+                    int mode = round == 1 ? (int)SeaIceMode.Orbit : round == 3 ? (int)SeaIceMode.OrbitAndGround : (int)SeaIceMode.Off;
+                    SetSetting(AtmospheresSettings.Keys.SeaIce, (double)mode);
+                    ForceTuning(IceTuning.GroundOverlayKey, round == 3 ? 1f : 0f);
                     yield return ProbeWait.Seconds(3);
                     double sum = 0;
                     int frames = 0;
@@ -528,12 +551,15 @@ namespace ReDefinition.Atmospheres
                         frames++;
                         yield return ProbeWait.Frames(1);
                     }
-                    if (round == 0) offMs = frames > 0 ? sum / frames * 1000.0 : 0;
-                    else onMs = frames > 0 ? sum / frames * 1000.0 : 0;
+                    roundMs[round] = frames > 0 ? sum / frames * 1000.0 : 0;
                 }
-                Emit("D35.frame_ms_overlay_off", offMs);
-                Emit("D35.frame_ms_overlay_on", onMs);
-                Emit("D35.ground_frame_ms_delta", onMs - offMs);
+                double offMs = 0.5 * (roundMs[0] + roundMs[2]);
+                Emit("D35.frame_ms_off", offMs);
+                Emit("D35.frame_ms_noise", Math.Abs(roundMs[0] - roundMs[2]));
+                Emit("D35.frame_ms_default_path", roundMs[1]);
+                Emit("D35.ground_frame_ms_default_delta", roundMs[1] - offMs);
+                Emit("D35.frame_ms_overlay_on", roundMs[3]);
+                Emit("D35.ground_frame_ms_delta", roundMs[3] - offMs);
                 Emit("D35.overlay_triangles", module.Ground.Triangles);
                 Emit("D35.overlay_build_ms", module.Ground.LastBuildMs);
                 try { GameEvents.onShowUI.Fire(); } catch (Exception) { }

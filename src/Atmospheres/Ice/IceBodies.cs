@@ -152,6 +152,9 @@ namespace ReDefinition.Atmospheres
         internal bool RefreshMaps(float now, double ut)
         {
             if (now < nextMap && MapsValid) return false;
+            // The series reads the field's maps at other times than the clock's; the generator renders its surface maps for the time
+            // asked last, so the module's own request every MapSeconds would pull them back to now while the series waits for its phase.
+            if (Tuning.Flag(IceTuning.HoldMapsKey, false)) return false;
             nextMap = now + MapSeconds;
             IWeatherField field = WeatherHub.Field;
             bool ok = false;

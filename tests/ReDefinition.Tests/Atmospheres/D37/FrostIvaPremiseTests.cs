@@ -208,14 +208,32 @@ namespace ReDefinition.Tests.Atmospheres.D37
         [TestMethod]
         public void TheChainCheckNeedsThePresenterWhereTheRigRuns()
         {
-            List<KeyValuePair<float, string>> withPresenter = Chain("Camera ScaledSpace", -3, "Camera 00", 0, "ReDefinitionPresenter", 0.1, "markerCam", 1, "UIMainCamera", 90);
+            // The chain measured in the game with the rig running (K-W3b frost, 2026-11-12).
+            List<KeyValuePair<float, string>> measured = Chain("GalaxyCamera", -4, "Camera ScaledSpace", -3, "Camera 00", 0, "markerCam", 1, "ReDefinitionPresenter", 1.1,
+                "UIMainCamera", 90, "UIVectorCamera", 91, "Camera", 100);
+            // The chain as the game had it before the rig built its stack: what the first run read and judged against the presenter.
+            List<KeyValuePair<float, string>> tooEarly = Chain("GalaxyCamera", -4, "Camera ScaledSpace", -3, "Camera 00", 0, "Canvas Camera ", 0, "UIVectorCamera", 91, "Camera", 100);
             List<KeyValuePair<float, string>> bare = Chain("Camera 00", 0);
-            Assert.IsTrue(CameraFrostProbe.ChainMatchesRecon(withPresenter, true));
-            Assert.IsTrue(CameraFrostProbe.ChainMatchesRecon(withPresenter, false));
+            Assert.IsTrue(CameraFrostProbe.ChainMatchesRecon(measured, true));
+            Assert.IsTrue(CameraFrostProbe.ChainMatchesRecon(measured, false));
+            Assert.IsFalse(CameraFrostProbe.ChainMatchesRecon(tooEarly, true), "a chain read before the rig built its stack fails while the rig runs");
+            Assert.IsTrue(CameraFrostProbe.ChainMatchesRecon(tooEarly, false));
             Assert.IsFalse(CameraFrostProbe.ChainMatchesRecon(bare, true), "no presenter while the rig runs says nothing about the rig order");
             Assert.IsTrue(CameraFrostProbe.ChainMatchesRecon(bare, false), "without the rig the main camera alone is the chain");
             Assert.IsFalse(CameraFrostProbe.ChainMatchesRecon(Chain("Camera ScaledSpace", 1, "Camera 00", 0, "ReDefinitionPresenter", 0.1), true));
-            Assert.IsFalse(CameraFrostProbe.ChainMatchesRecon(Chain("Camera 00", 0, "ReDefinitionPresenter", 0.1, "markerCam", 0.05), true));
+            Assert.IsFalse(CameraFrostProbe.ChainMatchesRecon(Chain("Camera 00", 0, "markerCam", 1.2, "ReDefinitionPresenter", 1.1), true), "a redirected camera behind the presenter");
+            Assert.IsFalse(CameraFrostProbe.ChainMatchesRecon(Chain("Camera 00", 0, "ReDefinitionPresenter", 1.1, "UIMainCamera", 1.0), true), "the UI cameras draw after the presenter");
+        }
+
+        [TestMethod]
+        public void TheDriverRaisesTheLevelTooSlowlyForTheProbesCeilingWindow()
+        {
+            // The first game run set the field to level 1 and read the exposure after 14 s: the frame driver moves the level at most
+            // 1/90 per game second, so the frost saw 0.16, not 1. The probe forces the level (AtmospheresSettings.ForceLevel jumps it).
+            float level = 0f;
+            for (int i = 0; i < 14 * 30; i++) level = LevelLimiter.Step(level, 1f, 1.0 / 30.0, false);
+            Assert.AreEqual(14f / 90f, level, 1e-3f);
+            Assert.AreEqual(1f, LevelLimiter.Step(0f, 1f, 1.0 / 30.0, true), "a forced level jumps");
         }
 
         [TestMethod]
