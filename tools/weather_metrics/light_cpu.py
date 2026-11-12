@@ -21,8 +21,8 @@ SUN_E = math.pi
 class Params(object):
     """The light's numbers; the names are the jobs' (light.py MODEL)."""
     DEFAULTS = dict(forwardG=0.85, backG=-0.3, forwardWeight=0.92, albedo=0.999, octaves=4, octaveA=0.3081, octaveB=0.5482, octaveC=0.898,
-                    msBrightness=2.9358, diffusion=0.8732, diffusionTau=35.807, powder=0.8075, powderLength=460.05, ambientFloor=0.05,
-                    ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.2447, sunSteps=4, tapRatio=2.0, msIsotropy=0.7552)
+                    msBrightness=2.9358, diffusion=1.3, diffusionTau=35.807, powder=0.8075, powderLength=400.0, ambientFloor=0.05,
+                    ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.25, sunSteps=4, tapRatio=2.0, msIsotropy=0.7552, diffusionDecay=0.02)
 
     def __init__(self, **kw):
         self.__dict__.update(self.DEFAULTS)
@@ -172,7 +172,7 @@ def render(p, cell, cam, sun, sky_top, sky_bottom, steps=128, sun_col=SUN_E, sun
             share = np.clip((alt - cell.inner) / (cell.outer - cell.inner), 0.0, 1.0)
             tau_sun = light_tau(cell, pc, sun, int(p.sunSteps), p.tapRatio)
             sc = sun_col if sun_air is None else sun_col * sun_air(pc)
-            diffuse = p.diffusion * INV4PI * (1.0 - np.exp(-tau_sun / max(p.diffusionTau, 1e-3)))
+            diffuse = p.diffusion * INV4PI * (1.0 - np.exp(-tau_sun / max(p.diffusionTau, 1e-3))) / (1.0 + max(p.diffusionDecay, 0.0) * tau_sun)
             direct = sc * (octave_sum(p, mu, tau_sun) + diffuse)
             powder = 1.0 + (1.0 - np.exp(-2.0 * dens * p.powderLength) - 1.0) * min(max(p.powder, 0.0), 1.0)   # lerp(1, 1 - exp(-2 sigma L), strength)
             sky = (sky_bottom + (sky_top - sky_bottom) * share) * p.ambientGain   # grey light: the sky tint changes nothing

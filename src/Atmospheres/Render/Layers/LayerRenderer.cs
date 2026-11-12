@@ -19,7 +19,9 @@ namespace ReDefinition.Atmospheres
         // in m, the transmittance at which a ray ends, the jitter share (0: the midpoint rule, 1: the interleaved gradient noise).
         public int MaxSteps = 48, SunSteps = 3;
         public float StepGrowth = 0.0002f, MinStepM = 25f, EarlyOut = 0.01f, Jitter = 1f;
-        public float SunMarchM = 4000f;
+        // The longest path of the light march through a layer, in m (the taps stay 3: the cost is the same). 4000 m left the base and the shaded flank of a
+        // deep storm cell as bright as its top (the light came from the first 4 km of cloud only); 9000 m darkens them (T03v2 look sheets S2, before / after).
+        public float SunMarchM = 9000f;
         public int FrameNumber;
         // The dual-lobe phase function and the single-scattering albedo: forward g, back g, forward weight, albedo. Light (package T03)
         // writes its own over these when set; the light's numbers (octaves, powder, ambient, extra lights, cache) live there.

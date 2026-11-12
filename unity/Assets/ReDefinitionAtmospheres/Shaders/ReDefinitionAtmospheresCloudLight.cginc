@@ -26,6 +26,7 @@ float4 _LightS;   // moon taps, up taps, ambient gain, light cache (1 on)
 float4 _LightT;   // bolt count, sun tap count override (0: the march's own), light cache fill taps, ambient occlusion mode (0 analytic from the local density, 1 taps straight up at every lit sample, 2 taps reused with the sun march, 3 reused and moved by the ray's progress)
 float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is)
 float4 _LightU;   // diffusion share (light that has diffused into the deep core, isotropic, as a share of the sun's isotropic light), its optical depth scale, isotropic share of the octaves above the first
+float4 _LightV;   // diffusion decay with the optical depth towards the light (0: the saturating term), unused, unused, unused
 float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, unused
 float4 _MoonDir[2], _MoonCol[2];   // towards the light; colour times intensity (rgb, 0: off)
 float4 _BoltPos[4], _BoltCol[4];   // planet frame position and range (w); colour times intensity
@@ -112,6 +113,8 @@ float3 SunAir(float3 pc, float3 sunDir)
     float elev = asin(s) * 57.29577951;
     float m = 1.0 / (max(s, 0.0) + 0.50572 * pow(max(elev + 6.07995, 0.05), -1.6364));
     float3 tau = _SunAir.xyz * exp(-max(length(pc) - _PlanetR, 0.0) / _SunAir.w);
+    // White balance (T03v2, _LightU.w): the frame's sun colour is the sun at the zenith above the point; only the air path beyond it reddens.
+    if (_LightU.w > 0.5) m = max(m - 1.0, 0.0);
     return exp(-tau * m) * smoothstep(-0.02, 0.0, s);
 }
 
@@ -225,7 +228,8 @@ float3 DirectOfLight(float3 col, float3 ldir, float3 pc, float3 d, int li, int s
     float tau = tauIn >= 0 ? tauIn : LightTau(pc, ldir, li, steps, t, _LightR.x, rot);
     // The octaves thin out with depth (exp(-tau a^n)); deep in a thick core the light that entered has diffused and leaves isotropically, which
     // the octaves cannot reach at tau of tens: a saturating isotropic term takes over there, nothing at the sunlit edge (tau -> 0).
-    float diffuse = _LightU.x * LIGHT_INV4PI * (1.0 - exp(-tau / max(_LightU.y, 1e-3)));
+    // T03v2: the term falls off again by 1 / (1 + decay tau) (a conservatively scattering slab's transmission), so that the far side of a thick cloud is dark.
+    float diffuse = _LightU.x * LIGHT_INV4PI * (1.0 - exp(-tau / max(_LightU.y, 1e-3))) / (1.0 + _LightV.x * tau);
     return col * (OctaveSum(dot(d, ldir), tau, _LightR.w * _LightL[li].x) + diffuse);
 }
 

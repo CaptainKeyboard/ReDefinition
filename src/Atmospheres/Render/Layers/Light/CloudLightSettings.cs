@@ -34,14 +34,20 @@ namespace ReDefinition.Atmospheres
         public int Octaves = 4;
         public float OctaveA = 0.3081f, OctaveB = 0.5482f, OctaveC = 0.898f, MsBrightness = 2.9358f;
         // The diffusion term: the isotropic light of the deep core as a share of the sun's isotropic light, and the optical depth over which it builds up.
-        public float Diffusion = 0.8732f, DiffusionTau = 35.807f;
+        // (T03v2, fitted on five cells of three optical depths and checked on six others, tools/weather_metrics/light_holdout.py: the strength 1.3, 0.87 before.)
+        public float Diffusion = 1.3f, DiffusionTau = 35.807f;
         // The isotropic share of the phase of the octaves above the first (0..1; light that scattered several times has lost its direction).
         public float MsIsotropy = 0.7552f;
         // Powder: strength 0..1 and the length in m over which the density is judged.
-        public float PowderStrength = 0.8075f, PowderLengthM = 460.05f;
+        // (T03v2: the length 400 m, 460 before; with 460 the rim of a cell came out 15 to 25 % too bright against the reference on all of the hold-out cells,
+        // with 250 the thin cirrus came out at 0.69 of it and with 350 the silver lining of R06 0.7 points outside its tolerance.)
+        public float PowderStrength = 0.8075f, PowderLengthM = 400f;
         // The ambient: the floor as a share of the sun's isotropic share (never below 3 %), the occlusion by what lies above (0: the
         // gradient of the sky colour alone), the tint (0 grey, 1 the sky's own hue) and the gain.
-        public float AmbientFloor = 0.05f, AmbientOcclusion = 1.2765f, SkyTint = 0.7f, AmbientGain = 0.2447f;
+        public float AmbientFloor = 0.05f, AmbientOcclusion = 1.2765f, SkyTint = 0.7f;
+        // The gain of the sky radiance as an isotropic source: a scatterer lit by the whole hemisphere of radiance L has the source pi L / (4 pi) = L / 4
+        // (T03v2: the earlier fit ended at 0.2447, next to the lower wall 0.2 of its range, for this reason; the physical value is set and no longer fitted).
+        public float AmbientGain = 0.25f;
         // How the occlusion reads what lies above: false (default) from the local density and the layer's remaining height, with no taps; true: UpSteps taps
         // straight up (the earlier path, kept as a switch for the cost table; 0.9 to 2.4 ms more at 1707 x 960).
         public bool AmbientOcclusionTaps;
@@ -50,6 +56,13 @@ namespace ReDefinition.Atmospheres
         // supplies a reddened colour, e.g. from Scatterer, sets it to zero).
         public Vector3 SunAirTau = new Vector3(0.0764f, 0.138f, 0.295f);
         public float SunAirHeightM = 8000f;
+        // The frame's sun colour is the sun's colour at the zenith above the point; only the air path beyond the zenith reddens it (see CloudLightMath.SunAir).
+        // False: the frame's colour counts as outside the air (the earlier behaviour, kept for the comparison table).
+        public bool SunAirWhiteBalance = true;
+        // The decay of the diffusion term with the optical depth towards the light; 0: the saturating term of FX-T03 (kept as a switch). Fitted over five
+        // cells of three optical depths, the harness's deck and its cirrus (0.02; the two-stream slab value 0.75 (1 - g) = 0.15 put the thick deck at 0.37
+        // of the reference radiance, 0 left the cell interiors and the deck 32 % too bright: tools/weather_metrics/light_holdout.py, round 5).
+        public float DiffusionDecay = 0.02f;
         // The light march: taps towards the sun (0: the frame's SunSteps), the spread of the taps over a cone (tangent of the half angle),
         // the growth of the step from tap to tap, taps for each extra light and for the ambient's tap straight up.
         public int SunStepsOverride;
@@ -80,7 +93,7 @@ namespace ReDefinition.Atmospheres
                 LightR = Shader.PropertyToID("_LightR"), LightS = Shader.PropertyToID("_LightS"), LightT = Shader.PropertyToID("_LightT"),
                 LightL = Shader.PropertyToID("_LightL"), MoonDir = Shader.PropertyToID("_MoonDir"), MoonCol = Shader.PropertyToID("_MoonCol"),
                 BoltPos = Shader.PropertyToID("_BoltPos"), BoltCol = Shader.PropertyToID("_BoltCol"), CellA = Shader.PropertyToID("_CellA"),
-                CellB = Shader.PropertyToID("_CellB"), LightU = Shader.PropertyToID("_LightU"), SunAir = Shader.PropertyToID("_SunAir"), PhaseP = Shader.PropertyToID("_PhaseP");
+                CellB = Shader.PropertyToID("_CellB"), LightU = Shader.PropertyToID("_LightU"), SunAir = Shader.PropertyToID("_SunAir"), LightV = Shader.PropertyToID("_LightV"), PhaseP = Shader.PropertyToID("_PhaseP");
         }
 
         private readonly Vector4[] layerL = new Vector4[CloudLayerDef.MaxLayers], moonDir = new Vector4[MaxLights], moonCol = new Vector4[MaxLights],
@@ -117,7 +130,8 @@ namespace ReDefinition.Atmospheres
             float upMode = AmbientOcclusionTaps ? 1f + Mathf.Clamp(UpReuse, 0, 2) : 0f;
             m.SetVector(Ids.LightT, new Vector4(Mathf.Clamp(BoltCount, 0, MaxBolts), Mathf.Clamp(SunStepsOverride, 0, 64), Mathf.Clamp(CacheFillSteps, 1, 64), upMode));
             m.SetVector(Ids.SunAir, new Vector4(SunAirTau.x, SunAirTau.y, SunAirTau.z, Mathf.Max(SunAirHeightM, 0f)));
-            m.SetVector(Ids.LightU, new Vector4(Mathf.Max(Diffusion, 0f), Mathf.Max(DiffusionTau, 0.01f), Mathf.Clamp01(MsIsotropy), 0f));
+            m.SetVector(Ids.LightU, new Vector4(Mathf.Max(Diffusion, 0f), Mathf.Max(DiffusionTau, 0.01f), Mathf.Clamp01(MsIsotropy), SunAirWhiteBalance ? 1f : 0f));
+            m.SetVector(Ids.LightV, new Vector4(Mathf.Max(DiffusionDecay, 0f), 0f, 0f, 0f));
             for (int i = 0; i < layerL.Length; i++)
             {
                 Vector3 s = i < LayerScale.Length ? LayerScale[i] : Vector3.one;

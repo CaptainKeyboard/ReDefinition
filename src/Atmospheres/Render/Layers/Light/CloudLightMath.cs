@@ -101,15 +101,28 @@ namespace ReDefinition.Atmospheres
         // The share of the sun's light that reaches a point after the air above it (mirrors SunAir of the shader): Beer-Lambert with the extinction
         // tauZenith (per channel, at sea level along the zenith), the airmass of Kasten and Young (1989, Applied Optics 28: 1 / (sin h +
         // 0.50572 (h + 6.07995 deg)^-1.6364)) and the air thinning exponentially with the altitude. Zero for a sun below the horizon.
-        internal static double SunAir(double sinElevation, double tauZenith, double altitudeM, double scaleHeightM)
+        // whiteBalance (T03v2): the frame's sun colour is the colour of the sun at the zenith above the point (the white point of the exposure); only the
+        // air path beyond the zenith's reddens it, so the air mass enters as (m - 1). Without it the sun is yellow already at 35 degrees (a cloud top in
+        // the sun comes out sand-beige, 0.69 blue-to-red) because the frame's colour is then counted as outside the air and a camera or an eye would
+        // have removed that cast again.
+        internal static double SunAir(double sinElevation, double tauZenith, double altitudeM, double scaleHeightM, bool whiteBalance = false)
         {
             if (scaleHeightM <= 0.0) return 1.0;
             double s = Math.Max(-1.0, Math.Min(1.0, sinElevation));
             double elevation = Math.Asin(s) * 180.0 / Math.PI;
             double airmass = 1.0 / (Math.Max(s, 0.0) + 0.50572 * Math.Pow(Math.Max(elevation + 6.07995, 0.05), -1.6364));
+            if (whiteBalance) airmass = Math.Max(airmass - 1.0, 0.0);
             double tau = tauZenith * Math.Exp(-Math.Max(altitudeM, 0.0) / scaleHeightM);
             double t = Math.Max(0.0, Math.Min(1.0, (s + 0.02) / 0.02));
             return Math.Exp(-tau * airmass) * t * t * (3.0 - 2.0 * t);
+        }
+
+        // The deep-core diffusion term's share at optical depth tau towards the light (mirrors the shader): it builds up with the depth and then falls
+        // off by 1 / (1 + decay tau), the form of a conservatively scattering slab's transmission (two-stream: T = 1 / (1 + 0.75 (1 - g) tau)), so that a
+        // thick cloud is darker at its far side; the decay itself is fitted (CloudLightSettings.DiffusionDecay). decay 0 keeps the saturating term of FX-T03.
+        internal static double DiffusionShare(double tau, double tauScale, double decay)
+        {
+            return (1.0 - Math.Exp(-tau / Math.Max(tauScale, 1e-3))) / (1.0 + Math.Max(decay, 0.0) * tau);
         }
 
         // The powder factor: 1 - exp(-2 sigma L) blended in by strength.

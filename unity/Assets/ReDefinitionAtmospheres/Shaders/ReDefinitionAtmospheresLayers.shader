@@ -300,7 +300,10 @@ Shader "ReDefinition/AtmospheresLayers"
             float mu = dot(_Sun.xyz, d);
             float ph = Phase(mu);
             float jitter = lerp(0.5, Dither(pixel, _StepP.z), _StepP.y);
-            float rot = Dither(pixel + 17.0, _StepP.z) * 6.2831853 * (_RefineP.w > 0.5 && _RefineP.w < 1.5 ? 0.0 : 1.0);   // the cone's rotation of the light taps (_RefineP.w 1: a fixed rotation, a probe)
+            // The cone's rotation of the light taps (_RefineP.w 1: a fixed rotation, a probe): a blue-noise pattern in space (the interleaved gradient noise,
+            // whose error is high-frequency and so is removed by the reconstruction's filter) advanced in time by the golden ratio, which spreads the
+            // frames' rotations evenly (Roberts 2018, the R1 sequence), independent of the step dither's white hash (T03v2).
+            float rot = frac(Ign(pixel + 17.0, 0.0) + 0.61803398875 * _StepP.z) * 6.2831853 * (_RefineP.w > 0.5 && _RefineP.w < 1.5 ? 0.0 : 1.0);
             int maxSteps = (int)_MarchP.x;
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;
@@ -444,7 +447,9 @@ Shader "ReDefinition/AtmospheresLayers"
                     if (T < _MarchP.w) break;
                 }
             }
-            r.alpha = 1.0 - exp(-r.tau);
+            // A ray that ended on the early-out is opaque: the remaining transmittance (up to the threshold, 1 %) would show a bright background (the
+            // sun's or the moon's disc, a lit planet) as a dot through a thick cloud (T03v2).
+            r.alpha = T < _MarchP.w ? 1.0 : 1.0 - exp(-r.tau);
             return r;
         }
 

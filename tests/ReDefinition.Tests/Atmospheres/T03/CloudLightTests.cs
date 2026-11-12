@@ -78,6 +78,41 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheWhiteBalancedSunIsWhiteAtTheZenithAndKeepsOnlyThePathBeyondItReddening()
+        {
+            double[] tau = { 0.0764, 0.138, 0.295 };
+            // At the zenith above the point the colour is the frame's own (T03v2); the air mass enters as (m - 1).
+            double zenith = CloudLightMath.SunAir(1.0, tau[2], 3000.0, 8000.0, true);
+            Assert.AreEqual(1.0, zenith, 2e-3);
+            double s35 = Math.Sin(35.0 * Math.PI / 180.0);
+            double r = CloudLightMath.SunAir(s35, tau[0], 3000.0, 8000.0, true), b = CloudLightMath.SunAir(s35, tau[2], 3000.0, 8000.0, true);
+            Assert.IsTrue(b / r > 0.85, "a cloud top in the sun at 35 degrees is white, not sand-beige: " + b / r);
+            double unbalancedB = CloudLightMath.SunAir(s35, tau[2], 3000.0, 8000.0, false), unbalancedR = CloudLightMath.SunAir(s35, tau[0], 3000.0, 8000.0, false);
+            Assert.IsTrue(unbalancedB / unbalancedR < b / r, "the unbalanced law is the more yellow");
+            double s2 = Math.Sin(2.0 * Math.PI / 180.0);
+            Assert.IsTrue(CloudLightMath.SunAir(s2, tau[2], 3000.0, 8000.0, true) / CloudLightMath.SunAir(s2, tau[0], 3000.0, 8000.0, true) < 0.1,
+                "a sun at 2 degrees still loses its blue first");
+        }
+
+        [TestMethod]
+        public void TheDiffusionShareBuildsUpAndThenFallsOffAndTheZeroDecayIsTheSaturatingTerm()
+        {
+            Assert.AreEqual(1.0 - Math.Exp(-10.0 / 35.8), CloudLightMath.DiffusionShare(10.0, 35.8, 0.0), 1e-12);
+            double shallow = CloudLightMath.DiffusionShare(1.0, 8.0, 0.15), mid = CloudLightMath.DiffusionShare(5.0, 8.0, 0.15), deep = CloudLightMath.DiffusionShare(200.0, 8.0, 0.15);
+            Assert.IsTrue(mid > shallow, "builds up with the depth");
+            Assert.IsTrue(deep < mid, "and falls off in a thick cloud");
+            Assert.IsTrue(deep < 0.05, "the far side of a very thick cloud is dark: " + deep);
+        }
+
+        [TestMethod]
+        public void TheAmbientGainIsTheIsotropicShareOfTheHemisphereAndWhiteBalanceIsOn()
+        {
+            var d = new CloudLightSettings();
+            Assert.AreEqual(0.25f, d.AmbientGain, 1e-6f);
+            Assert.IsTrue(d.SunAirWhiteBalance);
+        }
+
+        [TestMethod]
         public void TheOctavesLetMoreLightReachTheDeepCoreThanBeerLambertAlone()
         {
             double deep = 6.0;
