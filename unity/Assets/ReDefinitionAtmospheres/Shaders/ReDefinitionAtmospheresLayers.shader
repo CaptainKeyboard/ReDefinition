@@ -10,8 +10,8 @@
 // _LayerB[i].z) times the type table's profile, where the type value of the type map picks two neighbouring types of the layer's table
 // and interpolates their base, top and profile. The maps are equirectangular, row 0 at the north pole, column 0 at longitude -180,
 // read in the map frame (_WorldToMap: x towards longitude 0, y towards 90 east, z north) turned by the layer's longitude shift.
-// Basic value noise moves the coverage threshold and erodes the edge; T02 replaces it. The lighting is a single-scattering stand-in
-// (a short march towards the sun with dual-lobe Henyey-Greenstein, a sky gradient); T03 replaces it.
+// Basic value noise moves the coverage threshold and erodes the edge; T02 replaces it. The light is ReDefinitionAtmospheresCloudLight.cginc
+// (package T03): dual-lobe phase, octave multiple scattering, powder, light march with cone taps, ambient, extra lights, the light cache.
 //
 // Techniques (no code taken): the sphere-shell ray intervals and the type-by-height table follow the common shell cloud renderers (Schneider,
 // "The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015; Hillaire, "Physically Based Sky, Atmosphere and Cloud
@@ -21,7 +21,7 @@
 // cheap-sample march (SIGGRAPH 2015, same reference); the coverage bound lets the noise run only where the map can reach the threshold.
 //
 // Passes: 0 march into a premultiplied (radiance, alpha) target, 1 depth-aware composite over the camera target, 2 aux output
-// (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures.
+// (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures, 3 light cache fill (T03).
 Shader "ReDefinition/AtmospheresLayers"
 {
     SubShader
@@ -63,6 +63,11 @@ Shader "ReDefinition/AtmospheresLayers"
         sampler2D_float _SceneDepth;
         sampler2D _MarchTex;
         float4 _MarchTex_TexelSize;
+
+        // The light's uniforms and the parity test cell (package T03).
+        #define CLOUDLIGHT_DECLARE
+        #include "ReDefinitionAtmospheresCloudLight.cginc"
+        #undef CLOUDLIGHT_DECLARE
 
         struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
 
@@ -178,6 +183,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
             share = (alt - inner) / (outer - inner);
             if (share < 0 || share > 1) return 0;
+            if (_CellA.w > 0) return li == 0 ? CellDensity(pc) : 0;   // the parity test cell (T03)
             float fade = 1.0;
             float fadeNear = _LayerC[li].x, fadeFar = _LayerC[li].y;
             if (fadeFar > fadeNear)
@@ -235,50 +241,10 @@ Shader "ReDefinition/AtmospheresLayers"
             return dens;
         }
 
-        // ---- light (single-scattering stand-in) ----
-        float Hg(float mu, float g)
-        {
-            return (1.0 - g * g) / (4.0 * PI * pow(max(1.0 + g * g - 2.0 * g * mu, 1e-6), 1.5));
-        }
-
-        float Phase(float mu)
-        {
-            return _PhaseP.z * Hg(mu, _PhaseP.x) + (1.0 - _PhaseP.z) * Hg(mu, _PhaseP.y);
-        }
-
-        // The optical depth from a point towards the sun through all layers: the layer's own span with geometric steps up to _Sun.w, the others coarser.
-        float SunTau(float3 pc, int own, float t)
-        {
-            float tau = 0;
-            int steps = (int)_MarchP.y;
-            [loop] for (int lj = 0; lj < MAXL; lj++)
-            {
-                if (lj >= (int)_LayerCount) break;
-                float4 sp;
-                LayerSpans(lj, pc, _Sun.xyz, 1e30, sp);
-                int n = lj == own ? steps : max(1, steps / 2);
-                [loop] for (int k = 0; k < 2; k++)
-                {
-                    float a = k == 0 ? sp.x : sp.z, b = k == 0 ? sp.y : sp.w;
-                    if (b <= a) continue;
-                    b = min(b, a + _Sun.w);
-                    float norm = pow(2.0, (float)n) - 1.0;
-                    float prev = a;
-                    [loop] for (int i = 0; i < 8; i++)
-                    {
-                        if (i >= n) break;
-                        float edge = a + (b - a) * (pow(2.0, (float)(i + 1)) - 1.0) / norm;
-                        float mid = 0.5 * (prev + edge);
-                        float3 q = pc + _Sun.xyz * mid;
-                        float qa = length(q) - _PlanetR;
-                        float qs;
-                        tau += LayerDensity(lj, q, qa, t, qs) * (edge - prev);
-                        prev = edge;
-                    }
-                }
-            }
-            return tau;
-        }
+        // ---- light (package T03: the phase, the light march, the octaves, the ambient, the lights, the light cache) ----
+        #define CLOUDLIGHT_FUNCS
+        #include "ReDefinitionAtmospheresCloudLight.cginc"
+        #undef CLOUDLIGHT_FUNCS
 
         struct MarchOut
         {
@@ -288,6 +254,9 @@ Shader "ReDefinition/AtmospheresLayers"
             float steps;
             float first;
             float4 tauLayer;
+            float3 direct;
+            float3 ambient;
+            float lightTaps;
         };
 
         float Ign(float2 p, float frame)
@@ -301,6 +270,7 @@ Shader "ReDefinition/AtmospheresLayers"
             MarchOut r;
             r.rgb = 0; r.alpha = 0; r.tau = 0; r.steps = 0; r.first = -1;
             r.tauLayer = 0;
+            r.direct = 0; r.ambient = 0; r.lightTaps = 0;
             if (_StepP.w > 0.5)
             {
                 float g0, g1;
@@ -318,6 +288,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 if (_LimitP.z > 0 && fmod(floor(_LimitP.z / pow(2.0, (float)li)), 2.0) < 0.5) continue;
                 float4 sp;
                 LayerSpans(li, o, d, tmax, sp);
+                CellClip(o, d, sp);
                 if (sp.y > sp.x) { s0[n] = sp.x; s1[n] = sp.y; sl[n] = li; n++; }
                 if (sp.w > sp.z) { s0[n] = sp.z; s1[n] = sp.w; sl[n] = li; n++; }
             }
@@ -337,6 +308,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float mu = dot(_Sun.xyz, d);
             float ph = Phase(mu);
             float jitter = lerp(0.5, Ign(pixel, _StepP.z), _StepP.y);
+            float rot = Ign(pixel + 17.0, _StepP.z) * 6.2831853;   // the cone's rotation of the light taps
             int maxSteps = (int)_MarchP.x;
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;
@@ -360,7 +332,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float t = s0[k] + dt * jitter;
                 float tLast = t - dt;
                 float leap = 1.0, arrived = 1.0;
-                float3 sunT = 1.0;
+                float sunTau = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
                 [loop] for (int i = 0; i < 512; i++)
@@ -392,33 +364,35 @@ Shader "ReDefinition/AtmospheresLayers"
                     if (r.first < 0) r.first = t - dt;
                     float dtau = dens * dt;
                     float ext = 1.0 - exp(-dtau);
-                    float3 src;
+                    float3 src, dirPart = 0, ambPart = 0;
                     if (kind > 2.5)
                     {
                         src = _LayerE[li].rgb;
                     }
+                    else if (kind < 0.5)
+                    {
+                        // The light march costs most: a step that weighs less than the cut-off, or that follows a march by fewer than _CostP.z
+                        // lit steps, reuses the optical depth towards the sun of the last march of this span (package T01c).
+                        float reuse = -1.0;
+                        if (noLight) reuse = 0.0;
+                        else if (haveSun && !(T * ext >= lightCut && sinceLight + 1.0 >= _CostP.z)) { reuse = sunTau; sinceLight += 1.0; }
+                        float taps, tauUsed;
+                        src = LightSource(pc, d, dens, share, li, t - dt, rot, reuse, dirPart, ambPart, taps, tauUsed);
+                        if (reuse < 0.0) { sunTau = tauUsed; haveSun = true; sinceLight = 0.0; }
+                        r.lightTaps += taps;
+                    }
                     else
                     {
-                        float3 amb = lerp(_AmbientBottom.rgb, _AmbientTop.rgb, saturate(share));
-                        float3 sun = 0;
-                        if (kind < 0.5)
-                        {
-                            // The sun march costs most: a step that weighs less than the cut-off, or that follows a march by fewer than
-                            // _CostP.z lit steps, reuses the last sun transmittance of this span.
-                            if (noLight) sunT = 1.0;
-                            else if (!haveSun || (T * ext >= lightCut && sinceLight + 1.0 >= _CostP.z))
-                            {
-                                sunT = exp(-SunTau(pc, li, t - dt));
-                                haveSun = true;
-                                sinceLight = 0.0;
-                            }
-                            else sinceLight += 1.0;
-                            sun = _SunColor.rgb * sunT * ph;
-                        }
-                        else if (kind < 1.5) sun = _SunColor.rgb * exp(-dens * dt * 4.0) * ph;
-                        else sun = _SunColor.rgb * 0.25 * ph;
-                        src = _PhaseP.w * (sun + amb);
+                        // Cheap and fog layers: no march towards the light (a local estimate and a fixed share).
+                        float3 sky = lerp(_AmbientBottom.rgb, _AmbientTop.rgb, saturate(share));
+                        sky = lerp(Luma(sky).xxx, sky, _LightR.z) * _LightS.z * _LightL[li].z;
+                        ambPart = max(sky * _PhaseP.w, (_LightQ.z * Luma(_SunColor.rgb) * LIGHT_INV4PI).xxx);
+                        float lit = kind < 1.5 ? exp(-dens * dt * 4.0) : 0.25;
+                        dirPart = _SunColor.rgb * lit * ph * _PhaseP.w;
+                        src = dirPart + ambPart;
                     }
+                    r.direct += T * dirPart * ext;
+                    r.ambient += T * ambPart * ext;
                     r.rgb += T * src * ext;
                     T *= 1.0 - ext;
                     r.tau += dtau;
@@ -449,17 +423,27 @@ Shader "ReDefinition/AtmospheresLayers"
 
         float4 Pass0(v2f i)
         {
+            // Aid 3: the phase function over mu = 2 u - 1 (r: octave 0, g: octave 1), the parity check's normalisation probe.
+            if (_LimitP.y > 2.5 && _LimitP.y < 3.5)
+            {
+                float w = 1.0 / max(abs(ddx(i.uv.x)), 1e-6);
+                float m = floor(i.uv.x * w + 0.01) / max(w - 1.0, 1.0) * 2.0 - 1.0;
+                return float4(Phase(m), Phase(m, _LightP.w), 0, 1);
+            }
             float3 d = RayDir(i.uv);
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
             float tmax = SceneDistance(i.uv, d);
             float2 pixel = i.uv * _ScreenParams.xy;
             MarchOut r = March(o, d, tmax, pixel);
-            if (_LimitP.y > 1.5)
+            if (_LimitP.y > 1.5 && _LimitP.y < 2.5)
             {
                 float3 c = r.tauLayer.x * float3(0.9, 0.3, 0.2) + r.tauLayer.y * float3(0.2, 0.7, 0.9) + r.tauLayer.z * float3(0.9, 0.8, 0.2) + r.tauLayer.w * float3(0.4, 0.9, 0.3);
                 float s = max(r.tau, 1e-6);
                 return float4(c / s * r.alpha, r.alpha);
             }
+            // Aid 4: the direct light (r) against the ambient (b) and the step count's share of the budget (g); aid 5: the step map.
+            if (_LimitP.y > 3.5 && _LimitP.y < 4.5) return float4(Luma(r.direct), r.lightTaps, Luma(r.ambient), r.alpha);
+            if (_LimitP.y > 4.5) return float4(Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * step(0.5, r.steps), 1.0);
             if (_LimitP.y > 0.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
             return float4(r.rgb, r.alpha);
         }
@@ -531,6 +515,27 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             float4 frag(v2f i) : SV_Target { return PassAux(i); }
+            ENDCG
+        }
+
+        // Pass 3 (T03, light cache prototype): fills the atlas with the optical depth towards the sun (r) and straight up (g) at the voxel centres.
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 3.5
+            float4 frag(v2f i) : SV_Target
+            {
+                int tilesX = (int)_CacheB.w;
+                int rows = (CACHE_NZ + tilesX - 1) / tilesX;
+                float2 pixel = floor(i.uv * float2(tilesX * CACHE_N, rows * CACHE_N));
+                float3 p = CacheVoxelCentre(pixel);
+                int steps = max(1, (int)_LightT.z);
+                float tauSun = LightTau(p, _Sun.xyz, -1, steps, 0.0, 0.0, 0.0);
+                float tauUp = LightTau(p, normalize(p), -1, max(1, (int)_LightS.y), 0.0, 0.0, 0.0);
+                return float4(tauSun, tauUp, 0, 0);
+            }
             ENDCG
         }
     }

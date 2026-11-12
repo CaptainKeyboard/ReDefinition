@@ -1,0 +1,13 @@
+{
+  "$schema": "../schema.json",
+  "package": "T03",
+  "rows": [
+    { "series": "player-T03", "section": "T03", "metric": "R06-phase-integral", "max": 0.01, "note": "the shader's phase function integrates to 1 over the sphere (weather player, series T03-light)" },
+    { "series": "player-T03", "section": "T03", "metric": "R07-light-steps", "max": 0.1, "note": "sun term at the configured taps against 64 taps, single scattering, the cell" },
+    { "series": "player-T03", "section": "T03", "metric": "R08-ambient-floor", "min": 0.03, "note": "ambient over the sun's isotropic share with a black sky" },
+    { "series": "player-T03", "section": "T03", "metric": "R10-cache-direct", "max": 16, "note": "frames to settle after a 5 degree sun step (the pass keeps no state)" },
+    { "series": "player-T03", "section": "T03", "metric": "R10-cache-ambient", "max": 300, "note": "frames to settle after an ambient step" },
+    { "series": "player-T03", "section": "T03", "metric": "R10-cache-jump", "max": 0.03, "note": "frame-to-frame luminance jump while the camera climbs 1 km at the production sampling" },
+    { "series": "player-T03", "section": "T03", "metric": "defaults_equal_model", "max": 0.0001, "required": false, "note": "the compiled defaults of CloudLightSettings draw the same as the explicit numbers of the fit" }
+  ]
+}

@@ -21,8 +21,10 @@ namespace ReDefinition.Atmospheres
         public float StepGrowth = 0.0002f, MinStepM = 25f, EarlyOut = 0.01f, Jitter = 1f;
         public float SunMarchM = 4000f;
         public int FrameNumber;
-        // The dual-lobe phase function and the single-scattering albedo: forward g, back g, forward weight, albedo.
+        // The dual-lobe phase function and the single-scattering albedo: forward g, back g, forward weight, albedo. Light (package T03)
+        // writes its own over these when set; the light's numbers (octaves, powder, ambient, extra lights, cache) live there.
         public Vector4 Phase = new Vector4(0.8f, -0.3f, 0.9f, 0.9f);
+        public CloudLightSettings Light = new CloudLightSettings();
         // A body with a surface ends the ray on the sea-level sphere; a gas giant lets it through the hollow shell (P24).
         public bool HasSurface = true;
         // The march target's size over the camera's, and whether the scene's depth limits the march and the composite (P64).
@@ -227,6 +229,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdPhaseP, f.Phase);
             m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
             m.SetVector(IdCostP, new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), 0f));
+            if (f.Light != null) f.Light.Upload(m);
         }
 
         // The composite reads the march target's texel size from the material (Unity does not fill it for a texture set globally).

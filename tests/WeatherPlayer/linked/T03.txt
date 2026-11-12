@@ -1,0 +1,5 @@
+# Linked into the weather player for the cloud light (package T03): the light's maths and settings, the light cache, and the include the
+# layer shader reads (the layer shader itself is linked by T01.txt).
+src/Atmospheres/Render/Layers/Light/*.cs
+src/Atmospheres/Render/LightCache/*.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresCloudLight.cginc
