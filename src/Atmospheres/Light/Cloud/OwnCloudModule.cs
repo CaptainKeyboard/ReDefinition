@@ -26,14 +26,15 @@ namespace ReDefinition.Atmospheres
     //  - masks: no reactive mask for DLSS. HUD-less frame generation: the pass is part of the scene colour before the HUD. Raytracing: the
     //    rays see the layers through RtOwnClouds (a separate package of the raytracing pack); this module does not feed them.
     //  - draw order: after the lit opaque scene and before the transparents (CameraEvent.BeforeForwardAlpha, tuning cloud.cameraEvent).
-    //  - exposure: the clouds are written in the scene's radiance (the sun light's colour times its intensity times cloud.sunGain), so TUFX
-    //    and the auto exposure tone-map clouds and sky together. [VERIFY] the sun gain against the sky in the first integrated series.
+    //  - exposure: the pass is given pi times the scene's sun colour (it is radiometric, Unity's legacy lights have no 1/pi; cloud.sunUnit) and its radiance
+    //    is encoded relative to the sun's display value at the final composite (CloudOutputStage: cloud.exposure, cloud.outputGamma 2.2), so the clouds
+    //    sit in the display units of the Gamma-space target that holds the sky and the sea; TUFX and the auto exposure then tone-map all of it together.
     [AtmospheresModule(61)]
     internal sealed class OwnCloudModule : IAtmospheresModule
     {
         // The tuning keys of this module (ATMO_TUNING { key = value }, or a matrix row atmo.<key>).
         internal const string TuneCameraEvent = "cloud.cameraEvent", TuneSunGain = "cloud.sunGain", TuneSunAirWithScatterer = "cloud.sunAirWithScatterer",
-            TuneMoonGain = "cloud.moonGain", TuneStatsS = "cloud.statsS", TuneReaddEveryFrame = "cloud.readdEveryFrame";
+            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma", TuneStatsS = "cloud.statsS", TuneReaddEveryFrame = "cloud.readdEveryFrame";
         private const int MapWidth = GeneratorMaps.Width, MapHeight = GeneratorMaps.Height;
         private const float SunGainDefault = 1f;
         // The most layers of the field's coverage cache; the type value of a layer is the precipitation level, 0 (fair) to 1 (storm).
@@ -666,8 +667,14 @@ namespace ReDefinition.Atmospheres
             f.TowardsSun = toSun.sqrMagnitude > 1f ? toSun.normalized : Vector3.up;
             Light sun = Sun.Instance != null ? Sun.Instance.sunLight : null;
             float gain = Tuning.Get(TuneSunGain, SunGainDefault);
-            Color sunColour = sun != null ? sun.color * (sun.intensity * gain) : Color.white * gain;
+            // The scene's sun colour is the display value of a white card facing the sun (the output stage's white); the pass is radiometric and gets pi times it.
+            Color sceneSun = sun != null ? sun.color * sun.intensity : Color.white;
+            float sunUnit = Tuning.Get(TuneSunUnit, CloudOutputStage.SunUnitDefault);
+            Color sunColour = sceneSun * (sunUnit * gain);
             f.SunColour = sunColour;
+            f.OutputExposure = Tuning.Get(TuneExposure, CloudOutputStage.ExposureDefault);
+            f.OutputGamma = Tuning.Get(TuneOutputGamma, CloudOutputStage.GammaDefault);
+            f.OutputWhite = Math.Max(0.01f, sceneSun.grayscale);
             Color ambientTop, ambientBottom;
             if (RenderSettings.ambientMode == AmbientMode.Trilight)
             {

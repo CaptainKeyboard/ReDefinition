@@ -182,7 +182,7 @@ namespace ReDefinition.Atmospheres
             Material layers = renderer.Material;
             cb.SetGlobalVector(IdMarchTexel, new Vector4(1f / output.width, 1f / output.height, output.width, output.height));
             cb.SetGlobalTexture(IdMarchTex, output);
-            cb.Blit(output, destination, layers, LayerRenderer.PassComposite);
+            cb.Blit(output, destination, layers, LayerRenderer.PassCompositeOut);
             if (markEnd != null) markEnd(cb);
         }
 

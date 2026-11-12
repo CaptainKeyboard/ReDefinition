@@ -58,6 +58,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _StepP;       // shortest step in m, jitter 0..1, frame number, has surface (1) or gas giant (0)
         float4 _LimitP;      // ray length limit in m (<= 0: none), aid mode (0 natural, 1 optical depth, 2 layer colours), layer mask, use scene depth
         float4 _PhaseP;      // g forward, g back, forward weight, albedo
+        float4 _OutP;        // display stage of the final composite (pass 4): exposure, 1 / gamma, white (the sun's display value), on (1)
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
@@ -636,6 +637,18 @@ Shader "ReDefinition/AtmospheresLayers"
             }
             return sum / max(wsum, 1e-6);
         }
+        // The display stage (CloudOutputStage.cs is its CPU twin and the test's reference): the march's radiance is physical, the target it is
+        // written into holds display values of a Gamma-space scene whose white is the sun's own display value W. Per channel, on the colour
+        // without the coverage (rgb / alpha): D = W * (c * exposure / W) ^ (1 / gamma), then back to premultiplied. Natural frames only.
+        float4 OutputStage(float4 c)
+        {
+            if (_OutP.w < 0.5 || _LimitP.y > 0.5) return c;
+            float w = max(_OutP.z, 1e-4);
+            float a = max(c.a, 1e-4);
+            float3 u = max(c.rgb / a * _OutP.x / w, 0.0);
+            c.rgb = w * pow(u, _OutP.y) * c.a;
+            return c;
+        }
         #include "MarchStep.cginc"
         ENDCG
 
@@ -688,6 +701,18 @@ Shader "ReDefinition/AtmospheresLayers"
                 float tauUp = LightTau(p, normalize(p), -1, max(1, (int)_LightS.y), 0.0, 0.0, 0.0);
                 return float4(tauSun, tauUp, 0, 0);
             }
+            ENDCG
+        }
+
+        // Pass 4: the final composite over the camera target, with the display stage (_OutP; identical to pass 1 while it is off).
+        Pass
+        {
+            Blend One OneMinusSrcAlpha
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 3.5
+            float4 frag(v2f i) : SV_Target { return OutputStage(PassComposite(i)); }
             ENDCG
         }
     }

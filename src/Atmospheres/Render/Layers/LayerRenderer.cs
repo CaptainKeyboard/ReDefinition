@@ -41,6 +41,9 @@ namespace ReDefinition.Atmospheres
         // layers drawn (bit i = layer i; 0 = all).
         public float RayLimitM;
         public int AidMode, LayerMask;
+        // The display stage of the final composite (pass 4, CloudOutputStage is its reference): exposure, the gamma the radiance is encoded with (1: the stage is
+        // off, the pass writes its radiance as it is) and the white of the stage, the sun's display value of the scene. The weather player leaves it off.
+        public float OutputExposure = 1f, OutputGamma = 1f, OutputWhite = 1f;
         // The cost controls of the march (package T01c). CoverageBound: the noise is evaluated only where the map can reach the threshold
         // (exact). EmptyLeap: the most grid steps one leap over empty samples takes (1: none). LightCutoff: a step whose weight in the
         // ray's colour is below this reuses the sun transmittance of the span's last lit step (0: every step marches to the sun).
@@ -91,7 +94,7 @@ namespace ReDefinition.Atmospheres
     internal sealed class LayerRenderer
     {
         internal const string ShaderName = "ReDefinition/AtmospheresLayers";
-        internal const int PassMarch = 0, PassComposite = 1, PassAux = 2;
+        internal const int PassMarch = 0, PassComposite = 1, PassAux = 2, PassCompositeOut = 4;
 
         private static readonly int IdPlanetR = Shader.PropertyToID("_PlanetR"), IdPlanetCenter = Shader.PropertyToID("_PlanetCenter"),
             IdWorldToMap = Shader.PropertyToID("_WorldToMap"), IdCamPos = Shader.PropertyToID("_CamPos"),
@@ -311,6 +314,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdStepP, new Vector4(f.MinStepM, f.Jitter, f.FrameNumber, f.HasSurface ? 1f : 0f));
             m.SetVector(IdLimitP, new Vector4(f.RayLimitM, f.AidMode, f.LayerMask, f.UseSceneDepth ? 1f : 0f));
             m.SetVector(IdPhaseP, f.Phase);
+            m.SetVector(Shader.PropertyToID("_OutP"), new Vector4(Mathf.Max(0f, f.OutputExposure), 1f / Mathf.Max(1f, f.OutputGamma), Mathf.Max(1e-4f, f.OutputWhite), f.OutputGamma > 1.0001f ? 1f : 0f));
             m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
@@ -375,7 +379,7 @@ namespace ReDefinition.Atmospheres
             if (markMarched != null) markMarched(commands);
             SetMarchTexel(target);
             commands.SetGlobalTexture(IdMarchTex, target);
-            commands.Blit(target, BuiltinRenderTextureType.CameraTarget, material, PassComposite);
+            commands.Blit(target, BuiltinRenderTextureType.CameraTarget, material, PassCompositeOut);
             if (markEnd != null) markEnd(commands);
         }
     }

@@ -102,9 +102,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
 
             // The poses are verified at every capture (the rows of the pictures).
-            Assert.IsTrue(r.Rows.Count(l => l.Contains("\"metric\":\"T09.pic.") && l.Contains(".alt_m\"")) >= 24, "a pose row for each of the 24 frames");
-            // 2 covers x 2 views x (off + 4 gains + aid) pictures, half size.
-            Assert.AreEqual(24, r.World.Saved.Count);
+            Assert.IsTrue(r.Rows.Count(l => l.Contains("\"metric\":\"T09.pic.") && l.Contains(".alt_m\"")) >= 36, "a pose row for each of the 36 frames");
+            // 2 covers x 2 views x (off + 4 gains + 3 stage variants + aid) pictures, half size.
+            Assert.AreEqual(36, r.World.Saved.Count);
+            foreach (string tag in new[] { "u1", "p1", "pe2" })
+                Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_high-" + tag + "-1707x960-natural-half")), "the stage variant " + tag + " has its picture");
+            Assert.IsTrue(Row(r, "T09d.ground.high.p1.deck_median") > 0 && Row(r, "T09d.above.low.pe2.deck_vs_g1") > 0, "the stage variants have rows");
             Assert.IsTrue(r.World.SavedFactor.All(f => f == 2));
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_low-g16-1707x960-natural-half")), string.Join(",", r.World.Saved.Take(4).ToArray()));
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-above_high-aid4-1707x960-aid-direct-half")));
@@ -175,9 +178,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.low.off.pose_ok"), "the frame is flagged");
             Assert.AreEqual(0.5, Row(r, "T09d.ground.low.off.sky_median"), 1e-4, "and read");
-            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 24);
+            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 36);
             Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning pose_mismatch")));
-            Assert.AreEqual(24, r.World.Saved.Count, "the pictures are saved");
+            Assert.AreEqual(36, r.World.Saved.Count, "the pictures are saved");
         }
 
         [TestMethod]
@@ -186,7 +189,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run r = StartRealistic(x => x.World.PlaceResult = (call, wanted) => 85.35);
             Drive(r, 0.02);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.AreEqual(24.0, Row(r, "T09d.frames"));
+            Assert.AreEqual(36.0, Row(r, "T09d.frames"));
             Assert.AreEqual(0.0, Row(r, "T09d.frames_pose_ok"));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.high.placed_ok"));
             Assert.IsTrue(Row(r, "T09d.ground.high.g1.deck_median") > 0, "the readout is there");

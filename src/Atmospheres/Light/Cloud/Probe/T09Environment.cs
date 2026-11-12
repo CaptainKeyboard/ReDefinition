@@ -75,9 +75,10 @@ namespace ReDefinition.Atmospheres
             if (own != null)
             {
                 lines.Add(Line("composition", "event " + own.AttachedEvent + " on " + (own.AttachedCamera != null ? own.AttachedCamera.name : "no camera") + "; the march (resolution "
-                               + (f != null ? F(f.Resolution) : "n/a") + " of the camera) is composited by pass 1 of the layer shader into BuiltinRenderTextureType.CameraTarget (the camera's target"
-                               + (cam != null && cam.targetTexture != null ? " texture" : ", the back buffer") + ") with Blend One OneMinusSrcAlpha: rgb + dst * (1 - alpha), the march's radiance raw, "
-                               + "no exposure, no gamma step; mode " + own.Stats.Mode + ", drawn frames " + own.Stats.FramesDrawn));
+                               + (f != null ? F(f.Resolution) : "n/a") + " of the camera) is composited by pass 4 of the layer shader into BuiltinRenderTextureType.CameraTarget (the camera's target"
+                               + (cam != null && cam.targetTexture != null ? " texture" : ", the back buffer") + ") with Blend One OneMinusSrcAlpha: rgb + dst * (1 - alpha); display stage "
+                               + (f != null ? "exposure " + F(f.OutputExposure) + ", gamma " + F(f.OutputGamma) + (f.OutputGamma > CloudOutputStage.OffGamma ? "" : " (off: the radiance raw)") + ", white " + F(f.OutputWhite) : "n/a")
+                               + ", pass sun colour " + (f != null ? F(f.SunColour.grayscale) : "n/a") + "; mode " + own.Stats.Mode + ", drawn frames " + own.Stats.FramesDrawn));
             }
             return lines;
         }

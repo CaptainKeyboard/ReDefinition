@@ -88,6 +88,29 @@ def analyse(values, notes):
             if s is not None and len(below_clip) >= 2:
                 verdict = 1 if 0.8 <= s <= 1.2 else (-1 if s < 0.5 else 0)
             add("T09d.%s.%s.verdict" % (view, cover), verdict)
+            # The output stage (CloudOutputStage), gain 1, measured after the ladder: u1 the units alone (sun unit pi, no gamma), p1 the product's stage
+            # (pi, gamma 2.2, exposure 1), pe2 the same at exposure 2. Expected, written before the start (ground view: sun 15.6 degrees up, sea 0.443, sky 0.458):
+            #   u1 / g1 = pi (3.0 to 3.3: the deck is direct light; from above the ambient part is not scaled, so 1.5 to 2.6),
+            #   p1 / off sea: ground 0.27 to 0.43 (0.34), above 0.8 to 1.4 (1.1); p1 / off sky (ground) 0.27 to 0.40,
+            #   pe2 / p1 = 2 ^ (1 / 2.2) = 1.37 (1.30 to 1.40) while the deck is below the white (0.415).
+            u1, p1, pe2, g1 = get("u1", "deck_median"), get("p1", "deck_median"), get("pe2", "deck_median"), get("g1", "deck_median")
+            sea, sky = get("off", "ground_median"), get("off", "sky_median")
+            stage_ok = None
+            if u1 is not None and g1:
+                add("T09d.%s.%s.stage.u1_over_g1" % (view, cover), u1 / g1)
+            if p1 is not None and sea:
+                add("T09d.%s.%s.stage.p1_over_sea" % (view, cover), p1 / sea)
+                lo, hi = (0.27, 0.43) if view == "ground" else (0.8, 1.4)
+                stage_ok = lo <= p1 / sea <= hi
+            if p1 is not None and sky and view == "ground":
+                add("T09d.%s.%s.stage.p1_over_sky" % (view, cover), p1 / sky)
+            if p1 is not None and pe2 is not None and p1 > 1e-6:
+                add("T09d.%s.%s.stage.pe2_over_p1" % (view, cover), pe2 / p1)
+            if stage_ok is not None:
+                add("T09d.%s.%s.stage.verdict" % (view, cover), 1 if stage_ok else -1)
+                notes.append("%-12s stage: u1 %s p1 %s pe2 %s | p1 / sea %.2f -> %s" % (
+                    head, "-" if u1 is None else "%.3f" % u1, "%.3f" % p1, "-" if pe2 is None else "%.3f" % pe2, p1 / sea,
+                    "commensurable" if stage_ok else "outside the expected band"))
             cells = " ".join("g%d %s" % (g, "-" if v is None else "%.3f" % v) for g, v in medians)
             notes.append("%-12s deck median: %s | off sky %s, off sea %s | slope %s verdict %s | reach gain %s" % (
                 head, cells,
@@ -144,6 +167,19 @@ def selftest():
     rows = analyse(parse([bad]), [])
     got = {r["metric"]: r["value"] for r in rows}
     assert abs(got["T09d.ground.high.slope"] - 1.0) < 0.1 and got["T09d.ground.high.verdict"] in (0, 1), got
+    # The output stage: the values the unit test pins for the K-T2d ground view (raw 0.0145, sea 0.443, sky 0.458): u1 pi times, p1 0.152, pe2 1.37 times p1.
+    stage = _fake("ground", "high", 0.458, 0.443, 0.0145, 1.0) + "".join(
+        '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.%s.deck_median","value":%r,"variant":"plain"}' % (tag, v)
+        for tag, v in (("u1", 0.0456), ("p1", 0.152), ("pe2", 0.208)))
+    notes = []
+    got = {r["metric"]: r["value"] for r in analyse(parse([stage]), notes)}
+    assert abs(got["T09d.ground.high.stage.u1_over_g1"] - 3.14) < 0.05, got
+    assert abs(got["T09d.ground.high.stage.p1_over_sea"] - 0.343) < 0.01 and got["T09d.ground.high.stage.verdict"] == 1, got
+    assert abs(got["T09d.ground.high.stage.p1_over_sky"] - 0.332) < 0.01, got
+    assert abs(got["T09d.ground.high.stage.pe2_over_p1"] - 1.37) < 0.02, got
+    assert any("commensurable" in n for n in notes), notes
+    black = _fake("ground", "high", 0.458, 0.443, 0.0145, 1.0) + '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.p1.deck_median","value":0.0145}'
+    assert {r["metric"]: r["value"] for r in analyse(parse([black]), [])}["T09d.ground.high.stage.verdict"] == -1
     # Lines of another series and text values are ignored; an empty log gives nothing.
     assert parse(['ATMORESULT {"series":"K-T2","metric":"T09d.a.b.c.d","value":1.0}', 'ATMORESULT {"series":"K-T2d","metric":"T09d.env.sunLight","value":"x"}']) == {}
     assert analyse({}, []) == []

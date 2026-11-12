@@ -33,6 +33,28 @@ namespace ReDefinition.Atmospheres
         internal static readonly float[] DiagGains = { 1f, 4f, 16f, 64f };
         private const string AidDirect = "aid-direct";
 
+        // The variants of the output stage measured at gain 1 after the ladder: tag, sun unit, gamma, exposure. u1: the units alone; p1: the product's defaults (pi, 2.2, 1);
+        // pe2: the product's stage at exposure 2 (the deck must rise by 2 ^ (1 / 2.2) = 1.37 where it is below the white).
+        internal struct StageVariant
+        {
+            internal string Tag;
+            internal float SunUnit, Gamma, Exposure;
+        }
+
+        internal static readonly StageVariant[] StageVariants =
+        {
+            new StageVariant { Tag = "u1", SunUnit = CloudOutputStage.SunUnitDefault, Gamma = 1f, Exposure = 1f },
+            new StageVariant { Tag = "p1", SunUnit = CloudOutputStage.SunUnitDefault, Gamma = CloudOutputStage.GammaDefault, Exposure = CloudOutputStage.ExposureDefault },
+            new StageVariant { Tag = "pe2", SunUnit = CloudOutputStage.SunUnitDefault, Gamma = CloudOutputStage.GammaDefault, Exposure = 2f }
+        };
+
+        // The pass as it was before the output stage: radiometric sun colour = the scene's, no encoding.
+        private void ForceRawStage()
+        {
+            ForceTuning(OwnCloudModule.TuneSunUnit, 1f);
+            ForceTuning(OwnCloudModule.TuneOutputGamma, 1f);
+        }
+
         private bool? diagCache;
 
         private bool IsDiag
@@ -263,8 +285,10 @@ namespace ReDefinition.Atmospheres
             foreach (float gain in DiagGains)
             {
                 string gainTag = "g" + gain.ToString("0", CultureInfo.InvariantCulture);
+                // The ladder runs with the output stage off (sun unit 1, no gamma): the pass as K-T2d start 44 measured it, so the rows stay comparable.
+                ClearForced();
+                ForceRawStage();
                 if (gain != 1f) ForceTuning(OwnCloudModule.TuneSunGain, gain);
-                else ClearForced();
                 yield return ProbeWait.Frames(DiagSettleFrames);
                 LogEnvironment(false);
                 if (own != null)
@@ -282,6 +306,42 @@ namespace ReDefinition.Atmospheres
             }
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
+
+            // The output stage (CloudOutputStage), gain 1, in the same start: the units alone (sun unit pi, no gamma), the product's stage, and the product's stage at exposure 2.
+            // Rows T09d.<view>.<cover>.<tag>.* like the ladder's; the expected numbers are in tests/series/K-T2d.json and kt2d.py.
+            foreach (StageVariant variant in StageVariants)
+            {
+                ClearForced();
+                ForceTuning(OwnCloudModule.TuneSunUnit, variant.SunUnit);
+                ForceTuning(OwnCloudModule.TuneOutputGamma, variant.Gamma);
+                ForceTuning(OwnCloudModule.TuneExposure, variant.Exposure);
+                yield return ProbeWait.Frames(DiagSettleFrames);
+                if (own != null)
+                {
+                    Emit(head + variant.Tag + ".sun_luma", own.Frame.SunColour.grayscale);
+                    Emit(head + variant.Tag + ".stage_gamma", own.Frame.OutputGamma);
+                    Emit(head + variant.Tag + ".stage_white", own.Frame.OutputWhite);
+                }
+                foreach (ProbeWait w in DiagTake(view, tag, variant.Tag, false, off)) yield return w;
+                if (diagReading != null && one != null && one.Deck.Count > 0 && diagReading.Deck.Count > 0 && one.Deck.Median > 1e-6f)
+                    Emit(head + variant.Tag + ".deck_vs_g1", diagReading.Deck.Median / one.Deck.Median);
+            }
+            ClearForced();
+            yield return ProbeWait.Frames(DiagSettleFrames);
+
+            // What the pass's maps hold at the site, per layer (the layer's own coverage map and the type value): the cover the series picked is the field's at 3 km, the
+            // rain deck reads its map at its own mid height, so the number the shape sees is this one. The model (CloudCoverModel) turns it into a closed share.
+            if (own != null && own.Stack != null)
+            {
+                for (int l = 0; l < own.Stack.LayerCount; l++)
+                {
+                    float layerCover, layerType;
+                    try { own.Stack.SampleMaps(l, Game.VesselLatitude, Game.VesselLongitude, out layerCover, out layerType); }
+                    catch (Exception e) { Warn("layer_maps_fault", e.GetType().Name + " " + e.Message); break; }
+                    Emit(head + "layer" + l + "_map_cover", layerCover);
+                    Emit(head + "layer" + l + "_map_type", layerType);
+                }
+            }
 
             // The aid picture of the direct light (r), the light taps (g) and the ambient (b) over the deck the natural frame showed.
             bool on = false;
