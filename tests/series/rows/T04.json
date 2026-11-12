@@ -1,0 +1,18 @@
+{
+  "$schema": "../schema.json",
+  "package": "T04",
+  "rows": [
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-displacement.e20", "max": 0.01, "unit": "relative", "note": "edge of a hard slab at 2000 m, sun 20 degrees: the shadow edge's shift against h / tan(e) (tests/data/parity/checks.json R11, analytic)" },
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-displacement.e45", "max": 0.01, "unit": "relative", "note": "the same at 45 degrees" },
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-displacement.e70", "max": 0.01, "unit": "relative", "note": "the same at 70 degrees" },
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-penumbra", "max": 0.25, "unit": "share of the expected width", "note": "10 to 90 % width of the shadow edge of a hard slab at 45 degrees against 0.687 x h x 9.31 mrad / sin^2(e): the error beyond a slack of two pixels, as a share of the expected width" },
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-darkness.tau0.1", "max": 0.10, "unit": "relative", "note": "the ground factor under a wide slab against exp(-tau / sin 45), vertical tau 0.1" },
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-darkness.tau1", "max": 0.10, "unit": "relative", "note": "tau 1" },
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-darkness.tau5", "max": 0.10, "unit": "relative", "note": "tau 5" },
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-darkness.tau20", "max": 0.10, "unit": "relative", "note": "tau 20" },
+    { "series": "player-T04", "section": "T04", "metric": "R11-shadow-receivers", "max": 0.03, "unit": "relative spread", "note": "terrain beside the vehicle, the vehicle's top and a small object in one shadow (tau 1): largest spread of their factors" },
+    { "series": "player-T04", "section": "T04", "metric": "R13-ocean-land", "max": 0.05, "unit": "relative", "note": "mean factor on the sea plane against the beach in one wide shadow (the player's sea is a plane, not Scatterer's ocean: the ocean hook itself is a K-T1 row)" },
+    { "series": "player-T04", "section": "T04", "metric": "shadow_compiled", "equals": 1, "required": false, "note": "the shadow shader compiles in the player" },
+    { "series": "player-T04", "section": "T04", "metric": "shadow_finite", "equals": 1, "required": false, "note": "no NaN or infinity in any ratio row" }
+  ]
+}
