@@ -159,6 +159,22 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
+        // True makes Upload queue the height maps and StepHeights write them one slice a frame (the game); false writes them at once in Upload
+        // (the weather player and the tests, which read the result in the same frame).
+        internal bool SpreadHeights;
+
+        // Writes the next queued height slice; cheap when none waits. Call once a frame after Upload.
+        internal void StepHeights()
+        {
+            if (Heights.Pending) Heights.Step(1);
+        }
+
+        // Whether the buffer is on that camera at that event now (by this renderer's own bookkeeping, not the camera's list).
+        internal bool IsAttachedTo(Camera camera, CameraEvent cameraEvent)
+        {
+            return attached != null && ReferenceEquals(attached, camera) && attachedEvent == cameraEvent;
+        }
+
         // Puts the buffer on the camera at that event.
         internal void Attach(Camera camera, CameraEvent cameraEvent)
         {
@@ -179,7 +195,12 @@ namespace ReDefinition.Atmospheres
         {
             Detach();
             if (commands != null) commands.Release();
-            if (target != null) target.Release();
+            if (target != null)
+            {
+                target.Release();
+                UnityEngine.Object.Destroy(target);
+                target = null;
+            }
             Maps.Dispose();
             Heights.Dispose();
             Noise.Dispose();
@@ -228,7 +249,8 @@ namespace ReDefinition.Atmospheres
                 }
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++) layerH[l] = layerH2[l] = Vector4.zero;
-            Heights.Upload(source.Heights, layerCount);
+            if (SpreadHeights) Heights.Queue(source.Heights, layerCount);
+            else Heights.Upload(source.Heights, layerCount);
             profileTexture.SetPixelData(profile, 0);
             profileTexture.Apply(false);
             infoTexture.SetPixels(info);
@@ -311,7 +333,11 @@ namespace ReDefinition.Atmospheres
             int w = Mathf.Max(16, Mathf.RoundToInt(camera.pixelWidth * resolution));
             int h = Mathf.Max(16, Mathf.RoundToInt(camera.pixelHeight * resolution));
             if (target != null && target.width == w && target.height == h) return;
-            if (target != null) target.Release();
+            if (target != null)
+            {
+                target.Release();
+                UnityEngine.Object.Destroy(target);
+            }
             target = new RenderTexture(w, h, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear)
             {
                 name = "layer march",

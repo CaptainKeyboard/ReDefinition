@@ -21,6 +21,16 @@
     "starts": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/start" } },
     "sections": { "type": "array", "items": { "$ref": "#/definitions/section" }, "description": "The order of the table; a row names its section. Without sections, one section 'main'." },
     "collect": { "type": "array", "items": { "$ref": "#/definitions/collect" } },
+    "metrics": {
+      "type": "array",
+      "description": "Scripts that compute result lines from the logs of all starts after the last start (a number that needs more than the ATMORESULT lines, such as the GPU profiler's milliseconds). The script (relative to the worktree) defines series_results(texts) -> [{metric, value, variant}], texts being {start id: log text}, and may fill a module list NOTES that the report prints. The values are judged by the rows like any other line; a script that raises fails the run.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["script"],
+        "properties": { "script": { "type": "string" } }
+      }
+    },
     "rows": { "type": "array", "items": { "$ref": "#/definitions/row" }, "description": "Rows of the skeleton itself; the packages' rows come from tests/series/rows/<Id>.json." }
   },
   "definitions": {

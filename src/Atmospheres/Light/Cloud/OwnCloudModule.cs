@@ -33,7 +33,7 @@ namespace ReDefinition.Atmospheres
     {
         // The tuning keys of this module (ATMO_TUNING { key = value }, or a matrix row atmo.<key>).
         internal const string TuneCameraEvent = "cloud.cameraEvent", TuneSunGain = "cloud.sunGain", TuneSunAirWithScatterer = "cloud.sunAirWithScatterer",
-            TuneMoonGain = "cloud.moonGain", TuneStatsS = "cloud.statsS", TuneMaxFlightAltitudeM = "cloud.maxAltitudeM";
+            TuneMoonGain = "cloud.moonGain", TuneStatsS = "cloud.statsS", TuneReaddEveryFrame = "cloud.readdEveryFrame";
         private const int MapWidth = GeneratorMaps.Width, MapHeight = GeneratorMaps.Height;
         private const float SunGainDefault = 1f;
         // The most layers of the field's coverage cache; the type value of a layer is the precipitation level, 0 (fair) to 1 (storm).
@@ -43,7 +43,10 @@ namespace ReDefinition.Atmospheres
         internal sealed class Statistics
         {
             public int FramesDrawn, StackBuilds, MapFetches, HeightBuilds, Cuts, ReconFrames, PlainFrames;
-            public double LastHeightMs, WorstHeightMs, LastMapMs, WorstMapMs;
+            // The worst times leave the first call out (Mono's JIT and the first catch-up of the generator are in it; FirstHeightMs and
+            // FirstMapMs keep it). The upload is the height slices written to the GPU, one a frame (LayerRenderer.StepHeights).
+            public double LastHeightMs, WorstHeightMs, LastMapMs, WorstMapMs, FirstHeightMs, FirstMapMs, WorstUploadMs;
+            public int BufferAttaches;
             public string Mode = "off", Why = "not started";
             public int Layers;
             public bool NearMarchActive;
@@ -71,7 +74,13 @@ namespace ReDefinition.Atmospheres
         private string stackKey = "";
         private CelestialBody body;
         private int structureVersion, weatherCuts;
-        private bool broken, shadersFailed, snapMaps, cold, haveCold, noiseWaitLogged, depthSeenLogged;
+        private bool broken, shadersFailed, snapMaps, cold, haveCold, noiseWaitLogged, depthSeenLogged, uploadSeen;
+        // The buffers stand on the camera (they are added when absent, not every frame); the next time they are looked for on the camera.
+        private bool buffersOn;
+        private float nextBufferCheck;
+        // The inputs of the stack that stands, so that the once-a-second check allocates nothing when they have not changed.
+        private IReadOnlyList<CloudLayerSpec> stackSpecs;
+        private int stackCap = -1, stackPick = -1;
         private float nextMaps, nextHeights, nextStats, nextWind, nextStackCheck;
         private bool forceMaps, forceHeights, stepMaps, scattererLoaded, mapsPrimed, preCullSubscribed;
         private const int MaxFailures = 3;
@@ -171,7 +180,14 @@ namespace ReDefinition.Atmospheres
             }
             FetchMaps(b, field, ut, now, dt);
             BuildHeights(b, field, ut, now);
+            // The upload of a new stack and the height slices (one a frame) are timed: the worst frame is a hitch of the pass (the first call, with Mono's
+            // JIT in it, is left out of the worst).
+            long uploadStart = Stopwatch.GetTimestamp();
             renderer.Upload(stack);
+            renderer.StepHeights();
+            double uploadMs = (Stopwatch.GetTimestamp() - uploadStart) * 1000.0 / Stopwatch.Frequency;
+            if (uploadSeen) Stats.WorstUploadMs = Math.Max(Stats.WorstUploadMs, uploadMs);
+            uploadSeen = true;
             // The noise volumes are made on a worker (a change of the size level makes them again); until they are up nothing is drawn.
             OwnCloudOptions.Apply(renderer.Noise.Switches);
             // A generation that failed is not started again every frame (Problem stays until the size level or the seed changes it).
@@ -251,24 +267,53 @@ namespace ReDefinition.Atmospheres
                 AtmospheresLog.WarnOnce("own clouds: " + error + "; the own clouds are not drawn");
                 return false;
             }
+            // Everything is made in locals and handed to the fields at the end: a failure or an exception on the way disposes what was made and
+            // leaves the module without a half-built renderer (which would throw on every frame until the module switched itself off).
             var r = new LayerRenderer();
-            if (!r.Init(layers))
-            {
-                shadersFailed = true;
-                AtmospheresLog.WarnOnce("own clouds: " + r.Problem + "; the own clouds are not drawn");
-                return false;
-            }
-            renderer = r;
-            scattererLoaded = EveRenderCompat.ScattererLoaded;
-            depthMaterial = new Material(depth) { hideFlags = HideFlags.HideAndDontSave };
-            depthCommands = new CommandBuffer { name = "ReDefinition layer depth" };
-            // The reconstruction and its edge mode need their shaders; without them the plain pass draws (the setting stays off in effect).
+            Material depthMat = null;
+            CommandBuffer depthCb = null;
+            LayerReconstructDriver d = null;
+            bool done = false;
             string reconError, edgeError;
-            Shader reconShader = AtmosphereShaders.Get(LayerReconstructor.ShaderName, out reconError);
-            Shader edgeShader = AtmosphereShaders.Get(LayerReconstructor.EdgeShaderName, out edgeError);
-            var d = new LayerReconstructDriver();
-            if (reconShader != null && d.Init(reconShader, edgeShader)) driver = d;
-            else AtmospheresLog.Say("own clouds: the reconstruction is not available (" + (reconError ?? "it does not compile") + "); the plain pass draws");
+            Shader edgeShader;
+            try
+            {
+                if (!r.Init(layers))
+                {
+                    shadersFailed = true;
+                    AtmospheresLog.WarnOnce("own clouds: " + r.Problem + "; the own clouds are not drawn");
+                    return false;
+                }
+                depthMat = new Material(depth) { hideFlags = HideFlags.HideAndDontSave };
+                depthCb = new CommandBuffer { name = "ReDefinition layer depth" };
+                // The reconstruction and its edge mode need their shaders; without them the plain pass draws (the setting stays off in effect).
+                Shader reconShader = AtmosphereShaders.Get(LayerReconstructor.ShaderName, out reconError);
+                edgeShader = AtmosphereShaders.Get(LayerReconstructor.EdgeShaderName, out edgeError);
+                d = new LayerReconstructDriver();
+                if (reconShader == null || !d.Init(reconShader, edgeShader))
+                {
+                    AtmospheresLog.Say("own clouds: the reconstruction is not available (" + (reconError ?? "it does not compile") + "); the plain pass draws");
+                    d.Dispose();
+                    d = null;
+                }
+                done = true;
+            }
+            finally
+            {
+                if (!done)
+                {
+                    if (d != null) d.Dispose();
+                    if (depthCb != null) depthCb.Release();
+                    if (depthMat != null) UnityEngine.Object.Destroy(depthMat);
+                    r.Dispose();
+                }
+            }
+            r.SpreadHeights = true;
+            renderer = r;
+            depthMaterial = depthMat;
+            depthCommands = depthCb;
+            driver = d;
+            scattererLoaded = EveRenderCompat.ScattererLoaded;
             if (edgeShader == null) AtmospheresLog.Say("own clouds: the edge mode shader is missing (" + edgeError + ")");
             BuildShadow();
             AtmospheresLog.Say("own clouds: ready, shaders loaded (layers, depth" + (driver != null ? ", reconstruct" : "") + (edgeShader != null ? ", edge" : "")
@@ -304,7 +349,7 @@ namespace ReDefinition.Atmospheres
         private void FillShadow(CelestialBody b, LayerFrame f)
         {
             if (shadowRig == null) return;
-            bool on = OwnCloudOptions.ShadowActive(AtmospheresSettings.Number, CloudSourceKind.Ours, stack != null ? stack.LayerCount : 0);
+            bool on = OwnCloudOptions.ShadowActive(OwnCloudOptions.LiveSettings,CloudSourceKind.Ours, stack != null ? stack.LayerCount : 0);
             shadowRig.Enabled = on;
             Stats.ShadowOn = on;
             if (!on) return;
@@ -314,7 +359,7 @@ namespace ReDefinition.Atmospheres
             s.MetresPerUnit = 1f;
             s.WorldToMap = f.WorldToMap;
             s.TowardsSun = f.TowardsSun;
-            OwnCloudOptions.Apply(s, AtmospheresSettings.Number);
+            OwnCloudOptions.Apply(s, OwnCloudOptions.LiveSettings);
             shadowRenderer.Upload(stack, renderer.Maps);
         }
 
@@ -323,6 +368,8 @@ namespace ReDefinition.Atmospheres
             // Checked once a second (a build allocates): the temperature at the camera picks the member of a group, the layer cap limits the count.
             if (stack != null && now < nextStackCheck) return;
             nextStackCheck = now + 1f;
+            // Read again each second: the first look of EveRenderCompat may come after this module's first build.
+            scattererLoaded = EveRenderCompat.ScattererLoaded;
             WeatherSample sample;
             Vector3d at = FlightCamera.fetch.mainCamera.transform.position;
             double temperature = 288.0;
@@ -331,9 +378,15 @@ namespace ReDefinition.Atmospheres
             CloudBridgeStack.PickByTemperature(temperature, haveCold && cold, OwnCloudPlan.FreezingBandK, out cold);
             haveCold = true;
             int pickIndex = cold ? 1 : 0;
+            int draw = OwnCloudOptions.LayersToDraw(OwnCloudOptions.LiveSettings, c.Clouds.Layers.Count);
+            // The stack is a function of the specs, the cap and the pick: the same inputs give the same stack, so nothing is built to compare keys.
+            if (stack != null && ReferenceEquals(stackSpecs, c.Clouds.Layers) && stackCap == draw && stackPick == pickIndex
+                && stack.BodyIndex == b.flightGlobalsIndex) return;
             string key;
-            int draw = OwnCloudOptions.LayersToDraw(AtmospheresSettings.Number, c.Clouds.Layers.Count);
-            LayerStackSource candidate = CloudBridgeStack.Build(c.Clouds.Layers, draw, g => pickIndex, b.flightGlobalsIndex, b.Radius, b.hasSolidSurface, out key);
+            LayerStackSource candidate = BuildStack(c, b, draw, pickIndex, out key);
+            stackSpecs = c.Clouds.Layers;
+            stackCap = draw;
+            stackPick = pickIndex;
             if (stack != null && key == stackKey && stack.BodyIndex == b.flightGlobalsIndex) return;
             stack = candidate;
             stackKey = key;
@@ -351,11 +404,18 @@ namespace ReDefinition.Atmospheres
                                + (cold ? "cold" : "warm") + " group members");
         }
 
+        // In its own method so that the closure over the pick lives only on a build, not in the once-a-second check.
+        private static LayerStackSource BuildStack(BodyClimate c, CelestialBody b, int draw, int pickIndex, out string key)
+        {
+            return CloudBridgeStack.Build(c.Clouds.Layers, draw, g => pickIndex, b.flightGlobalsIndex, b.Radius, b.hasSolidSurface, out key);
+        }
+
         private void DropStack(string reason)
         {
             if (stack == null) return;
             stack = null;
             stackKey = "";
+            stackSpecs = null;
             OwnCloudOpticalDepth.Bind(null);
             OwnCloudHook.Detach();
             Stats.Layers = 0;
@@ -407,6 +467,17 @@ namespace ReDefinition.Atmospheres
             if (renderer != null) { renderer.Detach(); renderer.Commands.Clear(); }
             if (depthCommands != null) depthCommands.Clear();
             attachedCamera = null;
+            buffersOn = false;
+        }
+
+        // Whether the camera holds a buffer of that name at the event (GetCommandBuffers hands out new wrapper objects, so the names are compared).
+        private static bool CameraHolds(Camera cam, CameraEvent at, string name)
+        {
+            foreach (CommandBuffer cb in cam.GetCommandBuffers(at))
+            {
+                if (cb.name == name) return true;
+            }
+            return false;
         }
 
         private static void SetShell(bool nearMarchActive)
@@ -444,7 +515,8 @@ namespace ReDefinition.Atmospheres
                     Stats.MapFetches++;
                 }
                 Stats.LastMapMs = watch.Elapsed.TotalMilliseconds;
-                Stats.WorstMapMs = Math.Max(Stats.WorstMapMs, Stats.LastMapMs);
+                if (Stats.MapFetches <= 1 && Stats.FirstMapMs == 0.0) Stats.FirstMapMs = Stats.LastMapMs;
+                else Stats.WorstMapMs = Math.Max(Stats.WorstMapMs, Stats.LastMapMs);
                 forceMaps = false;
             }
             if (stepMaps)
@@ -471,7 +543,8 @@ namespace ReDefinition.Atmospheres
             HeightDriver.Update(stack, field, heightTuning, ut, (uint)(b.flightGlobalsIndex + 1) * 0x9E3779B1u, MapWidth, MapHeight);
             Stats.HeightBuilds++;
             Stats.LastHeightMs = watch.Elapsed.TotalMilliseconds;
-            Stats.WorstHeightMs = Math.Max(Stats.WorstHeightMs, Stats.LastHeightMs);
+            if (Stats.HeightBuilds <= 1 && Stats.FirstHeightMs == 0.0) Stats.FirstHeightMs = Stats.LastHeightMs;
+            else Stats.WorstHeightMs = Math.Max(Stats.WorstHeightMs, Stats.LastHeightMs);
         }
 
         // --- The frame's numbers ------------------------------------------------------------------------------------------------------------
@@ -524,7 +597,7 @@ namespace ReDefinition.Atmospheres
                 moon = moonColour * (sunLuminance * Tuning.Get(TuneMoonGain, 1f));
                 f.Light.Lights[0] = new CloudLight { Towards = towards, Colour = moon };
             }
-            OwnCloudOptions.LimitMoonLights(f.Light, AtmospheresSettings.Number);
+            OwnCloudOptions.LimitMoonLights(f.Light, OwnCloudOptions.LiveSettings);
             LightningModule lightning = LightningModule.Current;
             if (lightning != null) lightning.FillBolts(f.Light, b, OwnCloudPlan.FlashPeakScale(sunLuminance));
             else f.Light.BoltCount = 0;
@@ -591,22 +664,32 @@ namespace ReDefinition.Atmospheres
             EnsureDepthTarget(cam);
             CameraEvent when = Events[OwnCloudPlan.CameraEventIndex(Tuning.Get(TuneCameraEvent, 0f))];
             cam.depthTextureMode |= DepthTextureMode.Depth;
+            // The buffers are added once and stay on the camera; their contents are recorded anew every frame. Taking them off and adding them
+            // back every frame is not needed for the order (the depth buffer is added first, the layer buffer after it, and a buffer another mod adds
+            // later runs after both) and the GPU profiler records that doing so between its markers darkens the frame (GpuProfiler.LayOutCamera), which
+            // the profiled K-T2 starts would run into. They are added again when the camera or the event changes, after the pass was hidden, and when a
+            // look at the camera once a second does not find them (a camera that was rebuilt). cloud.readdEveryFrame = 1 gives the old behaviour.
+            bool readd = Tuning.Flag(TuneReaddEveryFrame, false);
             if (!ReferenceEquals(attachedCamera, cam) || attachedEvent != when)
             {
                 Detach();
                 attachedCamera = cam;
                 attachedEvent = when;
             }
-            else
+            else if (buffersOn && Time.realtimeSinceStartup >= nextBufferCheck)
             {
-                // Re-added in order every frame: the depth buffer has to run before the layer buffer, and another mod's buffer may have been
-                // added between them.
+                nextBufferCheck = Time.realtimeSinceStartup + 1f;
+                if (!CameraHolds(cam, attachedEvent, depthCommands.name) || !CameraHolds(cam, attachedEvent, renderer.Commands.name)) readd = true;
+            }
+            if (readd && buffersOn)
+            {
                 cam.RemoveCommandBuffer(attachedEvent, depthCommands);
                 renderer.Detach();
+                buffersOn = false;
             }
             depthCommands.Clear();
             depthCommands.Blit(BuiltinRenderTextureType.None, depthTarget, depthMaterial);
-            cam.AddCommandBuffer(attachedEvent, depthCommands);
+            if (!buffersOn) cam.AddCommandBuffer(attachedEvent, depthCommands);
 
             renderer.Commands.Clear();
             var depth = new RenderTargetIdentifier(depthTarget);
@@ -639,7 +722,13 @@ namespace ReDefinition.Atmospheres
                 Stats.PlainFrames++;
                 Stats.Mode = "plain";
             }
-            renderer.Attach(cam, attachedEvent);
+            if (!buffersOn)
+            {
+                renderer.Attach(cam, attachedEvent);
+                buffersOn = true;
+                nextBufferCheck = Time.realtimeSinceStartup + 1f;
+                Stats.BufferAttaches++;
+            }
             Stats.FramesDrawn++;
             Stats.NearMarchActive = true;
             Stats.Why = "drawing";
@@ -674,7 +763,8 @@ namespace ReDefinition.Atmospheres
             AtmospheresLog.Say("own clouds: " + Stats.Mode + ", " + Stats.Layers + " layers, frames " + Stats.FramesDrawn + " (plain " + Stats.PlainFrames + ", reconstruct "
                                + Stats.ReconFrames + "), map fetches " + Stats.MapFetches + " (last " + Stats.LastMapMs.ToString("0.0") + " ms, worst "
                                + Stats.WorstMapMs.ToString("0.0") + " ms), height builds " + Stats.HeightBuilds + " (last " + Stats.LastHeightMs.ToString("0.0")
-                               + " ms, worst " + Stats.WorstHeightMs.ToString("0.0") + " ms), history cuts " + (driver != null ? driver.CutCount : 0)
+                               + " ms, worst " + Stats.WorstHeightMs.ToString("0.0") + " ms, first " + Stats.FirstHeightMs.ToString("0.0") + " ms), height upload worst "
+                               + Stats.WorstUploadMs.ToString("0.0") + " ms, buffer attaches " + Stats.BufferAttaches + ", history cuts " + (driver != null ? driver.CutCount : 0)
                                + (driver != null && driver.LastCutReason != null ? " (last: " + driver.LastCutReason + ")" : ""));
         }
     }

@@ -34,6 +34,7 @@ Series definitions are tests/series/K-*.json, rows tests/series/rows/<Id>.json, 
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -296,6 +297,27 @@ def parse_log(text, series):
             continue
         results.append({"metric": obj["metric"], "value": obj["value"], "variant": obj.get("variant"), "line": number})
     return results, warnings, verdict
+
+
+def metric_results(repo, defn, texts):
+    """The result lines the series' metric scripts ("metrics": [{"script": "tools/..."}]) compute from the logs of all starts, texts being
+    {start id: log text}. A script defines series_results(texts) -> [{metric, value, variant}] and may fill a module list NOTES.
+    Returns (results, notes, failures); a script that cannot run or answers wrongly is a failure of the run, not a silent gap."""
+    results, notes, failures = [], [], []
+    for item in defn.get("metrics", []):
+        path = os.path.join(repo, *item["script"].split("/"))
+        try:
+            spec = importlib.util.spec_from_file_location("atmo_metric_" + re.sub(r"\W", "_", item["script"]), path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            for r in module.series_results(texts):
+                if not isinstance(r, dict) or "metric" not in r or r.get("value") is None:
+                    continue
+                results.append({"metric": r["metric"], "value": r["value"], "variant": r.get("variant"), "line": 0})
+            notes += list(getattr(module, "NOTES", []))
+        except Exception as e:  # a metric script is code of the series: its failure fails the run with the reason
+            failures.append(("metrics@" + item["script"], "%s: %s" % (type(e).__name__, e)))
+    return results, notes, failures
 
 
 # ---------------------------------------------------------------- evaluation and the table
@@ -841,7 +863,7 @@ class Runner:
         snap.take()
         report = {"series": name, "time": stamp, "configuration": self.configuration, "starts": [], "warnings": [], "hashes": [],
                   "restore_mismatches": [], "notes": []}
-        all_results, verdicts, failures = [], {}, []
+        all_results, verdicts, failures, texts = [], {}, [], {}
         try:
             report["hashes"] = self.verify_hashes(require_bundle=bool(defn.get("bundle")))
             apply_profile(self.profile_cache, self.ksp)
@@ -857,7 +879,11 @@ class Runner:
                         free = self.free_gb()
                         if free < need:
                             raise Refusal("only %.1f GB of memory are free (%g needed); close Rider, OneDrive, Toolbox, Edge" % (free, need))
-                        args = ["-popupwindow", "-screen-width", "1600", "-screen-height", "900", "-atmoSeries", name, "-atmoStart", st["id"]]
+                        # The default window size only where the start names none: a switch twice on the command line has no documented winner.
+                        args = ["-popupwindow"]
+                        if "-screen-width" not in st.get("probeArgs", []):
+                            args += ["-screen-width", "1600", "-screen-height", "900"]
+                        args += ["-atmoSeries", name, "-atmoStart", st["id"]]
                         if st.get("variants"):
                             args += ["-atmoVariants", ",".join(st["variants"])]
                         args += st.get("probeArgs", [])
@@ -875,6 +901,7 @@ class Runner:
                             with open(ksp_log, "r", encoding="utf-8", errors="replace") as f:
                                 text = f.read()
                             shutil.copy2(ksp_log, os.path.join(out_dir, "%s-%s-%s.log" % (name, stamp, st["id"])))
+                        texts[st["id"]] = text
                         results, warnings, verdict = parse_log(text, name)
                         for r in results:
                             r["start"] = st["id"]
@@ -901,6 +928,11 @@ class Runner:
             shutil.rmtree(store, ignore_errors=True)
             if bad:
                 failures.append(("restore", "not equal to the original: " + ", ".join(bad)))
+        measured, measure_notes, measure_failures = metric_results(self.repo, defn, texts) if texts else ([], [], [])
+        all_results += measured
+        failures += measure_failures
+        report["notes"] += measure_notes
+        report["measures"] = measured
         table, ok = evaluate(defn, all_results, {s["id"]: verdicts.get(s["id"]) for s in starts if s["id"] in verdicts} if verdicts else {}, failures,
                              ran=[s["id"] for s in starts])
         listed = {r["metric"] for r in defn.get("rows", [])}
@@ -971,13 +1003,16 @@ def cmd_run(args):
             print("--dry needs --log <recorded KSP.log>")
             return 2
         with open(args.log, "r", encoding="utf-8", errors="replace") as f:
-            results, warnings, verdict = parse_log(f.read(), defn["name"])
+            log_text = f.read()
+        results, warnings, verdict = parse_log(log_text, defn["name"])
         sid = args.start or defn["starts"][0]["id"]
         for r in results:
             r["start"] = sid
-        table, ok = evaluate(defn, results, {sid: verdict}, ran=[sid])
+        measured, notes, measure_failures = metric_results(repo, defn, {sid: log_text})
+        results += measured
+        table, ok = evaluate(defn, results, {sid: verdict}, measure_failures, ran=[sid])
         listed = {r["metric"] for r in defn.get("rows", [])}
-        print_report({"series": defn["name"], "table": table, "warnings": ["dry: " + w for w in warnings],
+        print_report({"series": defn["name"], "table": table, "warnings": ["dry: " + w for w in warnings], "notes": notes,
                       "unlisted": sorted({r["metric"] for r in results if r["metric"] not in listed})}, defn)
         return 0 if ok else 1
     ksp = args.ksp or os.environ.get("KspRoot") or DEFAULT_KSP
@@ -1122,6 +1157,13 @@ def _selftest():
         check("series definition and row file validate against the schema", not errs, "; ".join(errs[:3]))
         check("rows of a row file are merged by series name", any(r["metric"] == "m1" and r.get("start") == "run1" for r in defn["rows"])
               and not any(r["metric"] == "zzz" for r in defn["rows"]))
+        write(os.path.join(repo, "tools", "metric_stub.py"),
+              "NOTES = []\ndef series_results(texts):\n    NOTES.append('n=%d' % len(texts))\n    return [{'metric': 'calc', 'value': 2.5, 'variant': 'v'}, {'metric': 'none', 'value': None}]\n")
+        got, got_notes, got_fail = metric_results(repo, {"metrics": [{"script": "tools/metric_stub.py"}]}, {"a": "x", "b": "y"})
+        check("a metric script's lines join the results, a null value is left out, its notes come back",
+              [r["metric"] for r in got] == ["calc"] and got_notes == ["n=2"] and not got_fail)
+        _r, _n, got_fail = metric_results(repo, {"metrics": [{"script": "tools/missing_metric.py"}]}, {})
+        check("a metric script that cannot run fails the run", len(got_fail) == 1)
         bad = dict(definition, maxMinutes=45)
         check("the schema rejects a start above 20 minutes", bool(validate_schema(bad, load_schema(repo), load_schema(repo))))
         for name in sorted(f[:-5] for f in os.listdir(os.path.join(DEFAULT_REPO, "tests", "series")) if re.match(r"K-.*\.json$", f)):

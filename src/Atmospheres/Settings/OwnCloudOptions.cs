@@ -33,9 +33,18 @@ namespace ReDefinition.Atmospheres
         private static readonly CloudLightSettings Compiled = new CloudLightSettings();
         private static readonly LayerFrame CompiledFrame = new LayerFrame();
 
+        // One delegate for the process: a method group made at each call is a new object each time (about eight Apply calls a frame).
+        private static readonly Func<string, double> LiveNumber = AtmospheresSettings.Number;
+
         private static Func<string, double> Live
         {
-            get { return AtmospheresSettings.Number; }
+            get { return LiveNumber; }
+        }
+
+        // The same delegate for callers outside this class that pass the live numbers on every frame.
+        internal static Func<string, double> LiveSettings
+        {
+            get { return LiveNumber; }
         }
 
         private static bool On(Func<string, double> v, string key)
