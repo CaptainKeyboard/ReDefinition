@@ -105,5 +105,8 @@ namespace ReDefinition.WeatherPlayer
         public float[] skyHorizon, skyZenith, groundColour;
         public float exposure;
         public int space;
+        // The sun or moon disc of the backdrop (radiance as a multiple of the sun colour through the air; 0: none), the share of its aureole and the
+        // stars' brightness (0: none) (T03v2).
+        public float discGain, aureole, stars;
     }
 }

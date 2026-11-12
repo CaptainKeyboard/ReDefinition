@@ -210,6 +210,8 @@ namespace ReDefinition.WeatherPlayer
 
         // The sky behind the clouds: a gradient from the horizon to the zenith by the ray's elevation over the local horizontal, the ground
         // below the sea-level sphere lit by the sun.
+        private static CloudLightSettings DiscAir;
+
         private static Color Backdrop(LayersJob job, Vector3 origin, Vector3 d)
         {
             Vector3 up = origin.normalized;
@@ -222,6 +224,35 @@ namespace ReDefinition.WeatherPlayer
                 float closest = Vector3.Cross(origin, d).magnitude - job.planetRadius;
                 float glow = Mathf.Exp(-Mathf.Max(0f, closest) / 25000f) * 0.55f;
                 sky = new Color(0.30f, 0.50f, 1.0f) * glow * 0.6f;
+            }
+            // The sun's (or, at night, the moon's) disc, its aureole and the stars (T03v2; off where discGain and stars are 0). The disc is the frame's
+            // sun colour through the air path (the shader's white-balanced law) times discGain, so that it saturates the tone map; the angular radius is the real one.
+            if (job.space == 0 && job.discGain > 0f)
+            {
+                Vector3 sd = LayersSetup.V(job.sun);
+                float cosA = Mathf.Clamp(Vector3.Dot(d, sd), -1f, 1f);
+                float theta = Mathf.Acos(cosA);
+                float sinElev = Vector3.Dot(sd, up);
+                CloudLightSettings air = DiscAir ?? (DiscAir = new CloudLightSettings());
+                Color sc = LayersSetup.Rgb(job.sunColour, new Color(3.0f, 2.9f, 2.7f));
+                float alt = Mathf.Max(origin.magnitude - job.planetRadius, 0f);
+                Color through = new Color(sc.r * (float)CloudLightMath.SunAir(sinElev, air.SunAirTau.x, alt, air.SunAirHeightM, true),
+                                          sc.g * (float)CloudLightMath.SunAir(sinElev, air.SunAirTau.y, alt, air.SunAirHeightM, true),
+                                          sc.b * (float)CloudLightMath.SunAir(sinElev, air.SunAirTau.z, alt, air.SunAirHeightM, true));
+                const float DiscRadius = 0.00465f;   // 0.2666 degrees
+                if (theta < DiscRadius) sky += through * job.discGain;
+                // The aureole: forward-scattering haze around the disc, falling off with the angle.
+                float a = theta / 0.06f;
+                sky += through * (0.04f / Mathf.Pow(1f + a * a, 1.5f)) * job.aureole;
+            }
+            if (job.space == 0 && job.stars > 0f && s > 0.02f)
+            {
+                // Point stars on a lattice of directions (a hash per cell), dimmer near the horizon (the air's extinction).
+                var cell = new Vector3Int(Mathf.FloorToInt(d.x * 260f), Mathf.FloorToInt(d.y * 260f), Mathf.FloorToInt(d.z * 260f));
+                uint h = (uint)(cell.x * 73856093) ^ (uint)(cell.y * 19349663) ^ (uint)(cell.z * 83492791);
+                h ^= h >> 16; h *= 0x7FEB352Du; h ^= h >> 15; h *= 0x846CA68Bu; h ^= h >> 16;
+                float r1 = (h & 0xFFFFu) / 65535f, r2 = ((h >> 16) & 0xFFFFu) / 65535f;
+                if (r1 > 0.985f) sky += new Color(0.85f, 0.92f, 1.0f) * job.stars * Mathf.Pow(r2, 3f) * Mathf.Clamp01(s * 3f);
             }
             Color groundAlbedo = LayersSetup.Rgb(job.groundColour, new Color(0.20f, 0.24f, 0.16f));
             if (job.hasSurface != 0)

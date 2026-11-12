@@ -48,6 +48,10 @@ namespace ReDefinition.WeatherPlayer
         // The ambient occlusion by taps straight up (1) or from the local density (0, the compiled default), and the sun's colour through the air
         // (extinction rgb at the zenith, scale height; height 0: the job's sun colour as is). Applied whatever useDefaults says.
         public int aoTaps;
+        // The decay of the diffusion term with the optical depth (T03v2; 0: the saturating term) and the sun colour's white balance (1: the frame's colour is
+        // the zenith colour). Applied whatever useDefaults says.
+        public float diffusionDecay;
+        public int sunAirBalance;
         public float[] sunAirTau;
         public float sunAirHeight;
     }

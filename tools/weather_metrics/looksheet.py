@@ -108,7 +108,15 @@ def find_site(values, coverage, ahead_km, half_km, want_ahead, near_km=None, wan
 # --------------------------------------------------------------------------------------------------------------------------------
 GROUPS = [("ground", "Ground views"), ("side", "Side views at 8 km"), ("above", "From above"), ("light", "Low sun, sunset, night")]
 
-DAY = dict(sunColour=[3.0, 2.9, 2.7], ambientTop=[0.35, 0.42, 0.55], ambientBottom=[0.14, 0.15, 0.16])
+# The frame's sun colour is the sun's colour at the zenith above the point (white): the shader's air path reddens it by the elevation (T03v2).
+# discGain / aureole / stars draw the sun disc, its haze and the stars in the player's backdrop.
+SUN = [3.0, 3.0, 3.0]
+SUN_MARCH_M = 9000.0
+DISC = dict(discGain=60.0, aureole=6.0)
+# The tone map's exposure of the daylight scenes is 2.0 (the sun colour 3.0 puts a lit cloud top at about 0.5 to 0.8 in linear units; the sky is a
+# scene input, set to the real ratio of a clear sky to a sunlit cloud of about 1 : 3).
+DAY = dict(sunColour=SUN, ambientTop=[0.35, 0.42, 0.55], ambientBottom=[0.14, 0.15, 0.16], skyHorizon=[0.34, 0.42, 0.55], skyZenith=[0.14, 0.26, 0.55],
+           exposure=2.0, **DISC)
 
 
 def cu_layer(name="cumulus", cov_map="cu.r8", coverage=0.3, inner=1400.0, outer=3200.0):
@@ -150,16 +158,17 @@ def scene_table():
         dict(id="O1", group="above", title="From orbit (300 km) at the limb", site="orbit", alt=300000.0, pitch=-44.0, fov=55.0, sun=(120.0, 35.0),
              layers=[deck_layer("orbit.r8", 0.6, 1000.0, 2400.0), cirrus_layer()], light=dict(DAY), space=1),
         dict(id="L1", group="light", title="Low sun (7 deg), looking towards it", site="cu-ground", alt=2.0, pitch=10.0, fov=60.0, sun=(90.0, 7.0),
-             layers=[cu_layer()], light=dict(sunColour=[2.9, 2.2, 1.5], ambientTop=[0.30, 0.34, 0.45], ambientBottom=[0.12, 0.12, 0.13],
-                                             skyHorizon=[0.80, 0.68, 0.55], skyZenith=[0.22, 0.36, 0.68])),
+             layers=[cu_layer()], light=dict(sunColour=SUN, ambientTop=[0.30, 0.34, 0.45], ambientBottom=[0.12, 0.12, 0.13],
+                                             skyHorizon=[0.55, 0.42, 0.32], skyZenith=[0.12, 0.22, 0.50], exposure=2.0, **DISC)),
         dict(id="L2", group="light", title="Sunset (sun at 1.5 deg), looking towards it", site="cu-west", alt=2.0, pitch=8.0, fov=60.0, yaw=270.0,
              sun=(270.0, 1.5), layers=[cu_layer()],
-             light=dict(sunColour=[2.6, 1.0, 0.35], ambientTop=[0.20, 0.18, 0.26], ambientBottom=[0.10, 0.07, 0.06],
-                        skyHorizon=[0.75, 0.30, 0.15], skyZenith=[0.10, 0.14, 0.28], groundColour=[0.12, 0.10, 0.08])),
+             light=dict(sunColour=SUN, ambientTop=[0.20, 0.18, 0.26], ambientBottom=[0.10, 0.07, 0.06],
+                        skyHorizon=[0.75, 0.30, 0.15], skyZenith=[0.10, 0.14, 0.28], groundColour=[0.12, 0.10, 0.08], exposure=2.0, **DISC)),
         dict(id="L3", group="light", title="Night, moon at 30 deg", site="cu-moon", alt=2.0, pitch=14.0, fov=60.0, yaw=120.0, sun=(120.0, 30.0),
              layers=[cu_layer()],
              light=dict(sunColour=[0.0100, 0.0108, 0.0125], ambientTop=[0.0012, 0.0016, 0.0028], ambientBottom=[0.0003, 0.0004, 0.0006],
-                        skyHorizon=[0.0006, 0.0007, 0.0011], skyZenith=[0.00015, 0.0002, 0.0004], groundColour=[0.0008, 0.0009, 0.0006], exposure=150.0)),
+                        skyHorizon=[0.0020, 0.0024, 0.0036], skyZenith=[0.0005, 0.0007, 0.0014], groundColour=[0.0008, 0.0009, 0.0006], exposure=150.0,
+                        discGain=3000.0, aureole=8.0, stars=0.012)),
     ]
 
 
@@ -257,6 +266,9 @@ def jobs():
         # The entry refinement (stream T): the sheet shows the cloud surface found to a 1/8 of the grid step; the product's default is off until its
         # cost (+40 to 60 percent of the march at 1 / 0.25) is agreed.
         j.update(refineBudget=0.5, refineFraction=0.125)
+        # The sun march reaches 9 km instead of the product's 4 km: the base of a deep cell lies under more than 4 km of cloud along the sun's ray (T03v2 look
+        # experiment; the product's 4 km is unchanged and the parity jobs keep it).
+        j["sunMarch"] = SUN_MARCH_M
         if s.get("space"):
             j["space"] = 1
             j["maxSteps"] = 64
