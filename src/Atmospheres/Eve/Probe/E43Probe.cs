@@ -70,18 +70,36 @@ namespace ReDefinition.Atmospheres
             ProbeShots shots = ProbeShots.Ensure();
             try { GameEvents.onHideUI.Fire(); } catch (Exception) { }
             if (FlightCamera.fetch != null) FlightCamera.fetch.camPitch = -1.0f;
-            yield return ProbeWait.Seconds(3.0);
             Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : Camera.main;
             Vector3 centre = body.position;
-            Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.8f, 0f));
             double layerRadius = body.Radius + height;
-            // the ray against the sphere of the layer (the far side of the near hit is the layer seen from below)
-            Vector3 oc = ray.origin - centre;
-            double bq = Vector3.Dot(oc, ray.direction), cq = Vector3.Dot(oc, oc) - layerRadius * layerRadius, disc = bq * bq - cq;
-            bool hit = disc > 0.0 && (-bq + Math.Sqrt(disc)) > 0.0;
+            // The marker needs clouds in view: eight headings are tried, the one whose point on the layer carries the most cloud cover (the field's cover above that place) is kept.
+            double bestCover = -1.0; float bestHdg = FlightCamera.fetch != null ? FlightCamera.fetch.camHdg : 0f;
+            float hdg0 = bestHdg;
+            for (int k = 0; k < 8; k++)
+            {
+                if (FlightCamera.fetch != null) FlightCamera.fetch.camHdg = hdg0 + k * (float)(Math.PI / 4.0);
+                yield return ProbeWait.Seconds(0.6);
+                Vector3 ptry;
+                if (!UpwardLayerHit(cam, centre, layerRadius, out ptry)) continue;
+                WeatherSample probe;
+                if (!WeatherHub.Field.Sample(body.flightGlobalsIndex, body.GetLatitude(ptry), body.GetLongitude(ptry), height, Planetarium.GetUniversalTime(), out probe)) continue;
+                if (probe.CloudCover01 > bestCover) { bestCover = probe.CloudCover01; bestHdg = FlightCamera.fetch != null ? FlightCamera.fetch.camHdg : 0f; }
+            }
+            if (FlightCamera.fetch != null) FlightCamera.fetch.camHdg = bestHdg;
+            yield return ProbeWait.Seconds(3.0);
+            Vector3 pc;
+            // the view has to point UP at the layer sphere: from inside the sphere a ray that looks down also meets it, on the far side through the body
+            bool hit = UpwardLayerHit(cam, centre, layerRadius, out pc);
             Emit("E43.marker.camera_hits_layer", hit);
-            if (!hit) { try { GameEvents.onShowUI.Fire(); } catch (Exception) { } yield break; }
-            Vector3 pc = ray.origin + ray.direction * (float)(-bq + Math.Sqrt(disc));
+            Emit("E43.marker.cloud_cover_in_view", bestCover);
+            if (!hit) { Fail("E43 marker: the camera does not look up at the layer sphere"); try { GameEvents.onShowUI.Fire(); } catch (Exception) { } yield break; }
+            if (bestCover < 0.2)
+            {
+                Fail("E43 marker: no cloud in view at any of eight headings (best cover " + bestCover.ToString("F2") + "), the block matching has no structure to follow");
+                try { GameEvents.onShowUI.Fire(); } catch (Exception) { }
+                yield break;
+            }
             Vector3 east = ((Vector3)body.getRFrmVel(pc)).normalized;
             Vector3 s0 = cam.WorldToScreenPoint(pc), s1 = cam.WorldToScreenPoint(pc + east * 100f);
             double latPc = body.GetLatitude(pc) * Math.PI / 180.0;
@@ -132,6 +150,21 @@ namespace ReDefinition.Atmospheres
                 shots.WriteScreen("E43-marker-aid.png", aid, sw, sh);
             }
             try { GameEvents.onShowUI.Fire(); } catch (Exception) { }
+        }
+
+        // The point where the view ray (sky part of the screen) meets the sphere of the layer, only when the ray points away from the body's centre
+        // (dot with the local up above 0.2, about 12 degrees above the horizon) and the sphere is ahead of the camera.
+        private static bool UpwardLayerHit(Camera cam, Vector3 centre, double layerRadius, out Vector3 point)
+        {
+            point = Vector3.zero;
+            if (cam == null) return false;
+            Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.8f, 0f));
+            Vector3 oc = ray.origin - centre;
+            if (Vector3.Dot(ray.direction, oc.normalized) < 0.2f) return false;
+            double bq = Vector3.Dot(oc, ray.direction), cq = Vector3.Dot(oc, oc) - layerRadius * layerRadius, disc = bq * bq - cq;
+            if (disc <= 0.0 || (-bq + Math.Sqrt(disc)) <= 0.0) return false;
+            point = ray.origin + ray.direction * (float)(-bq + Math.Sqrt(disc));
+            return true;
         }
 
         private static EveLayer LowestSteered(EveCloudModule module)
@@ -227,14 +260,17 @@ namespace ReDefinition.Atmospheres
                         LayerSteerState st = module.SteeringOf(h);
                         if (st == null || !st.Started) continue;
                         started++;
-                        if (st.Converged) converged++;
+                        // exact: StepRate returns the target itself on the last step, while Converged accepts 1e-8, which is 10 times the limit of the rate_error rows
+                        if (st.RateRadS == st.TargetRadS) converged++;
                         double prevRate, prevTime;
                         if (lastRate.TryGetValue(h, out prevRate) && lastTime.TryGetValue(h, out prevTime) && st.LastRealTime > prevTime)
                             worstAccel = Math.Max(worstAccel, Math.Abs(st.RateRadS - prevRate) / (st.LastRealTime - prevTime));
                         lastRate[h] = st.RateRadS;
                         lastTime[h] = st.LastRealTime;
                     }
-                    if (variant == "steer-main" && started >= 2 && converged == started && Time.realtimeSinceStartup - start > 5.0) break;
+                    if (variant == "steer-main" && started >= 1 && converged == started && Time.realtimeSinceStartup - start > 5.0) break;
+                    // no layer has started steering after a minute: none will, the wait would only use the time of the start
+                    if (variant == "steer-main" && started == 0 && Time.realtimeSinceStartup - start > 60.0) break;
                     yield return ProbeWait.Frames(1);
                 }
                 // the drift is read back from EVE's own member (CloudsPQS.mainPeriod), not from the steering's state: the pattern's speed plus that drift is the layer's motion
@@ -246,6 +282,13 @@ namespace ReDefinition.Atmospheres
                 }
                 steered.Sort((a, b) => module.SteeringOf(a).HeightM.CompareTo(module.SteeringOf(b).HeightM));
                 Emit("E43.layers_steered." + variant, steered.Count);
+                // Kerbin has one layer whose drift the mod may steer (ReDefinition-Atmospheres-Kerbin); the stock pack's layers carry timeSettings and are left to EVE (BindingTracker).
+                // So steer-main needs at least one, and with one the "low" and "high" rows read the same layer. Two or more are reported, not required.
+                if (variant == "steer-main")
+                {
+                    Emit("E43.layers_steered_two_or_more.steer-main", steered.Count >= 2);
+                    if (steered.Count == 0) Fail("E43 steer-main: no layer was steered within " + limit.ToString("F0") + " s (no bound layer without timeSettings, or the steering never started)");
+                }
                 Emit("E43.rate_change_max_rad_s2." + variant, worstAccel);
                 // option B: the layers are painted from the layer maps of their heights while EVE's own drift stays stopped (no layer drifts by itself)
                 int drifting = 0, bound = 0;
@@ -259,7 +302,7 @@ namespace ReDefinition.Atmospheres
                 Emit("E43.layer_sets_in_use." + variant, module.LayerSetsInUse);
                 Emit("E43.layers_drifting_by_eve." + variant, drifting);
                 Emit("E43.layers_bound." + variant, bound);
-                if (steered.Count >= 2)
+                if (steered.Count >= 1)
                 {
                     double radius = body != null ? body.Radius : 600000.0;
                     for (int k = 0; k < 2; k++)

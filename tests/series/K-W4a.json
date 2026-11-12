@@ -7,7 +7,7 @@
   "maxMinutes": 20,
   "freeMemoryGb": 12,
   "plannedStarts": 1,
-  "starts": [ { "id": "run1", "description": "bodies first, then integration" } ],
+  "starts": [ { "id": "run1", "description": "the wind of the layers (E43): flies the launch-pad vessel of the probe save with the clouds on; the first probe that finishes ends the game, so this start runs E43Probe alone (the rows of E41 and E40 need their own start)", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "E43Probe"] } ],
   "sections": [
     { "id": "E41", "package": "E41", "title": "Bodies" },
     { "id": "E43", "package": "E43", "title": "Wind by height and vertical motion" },
