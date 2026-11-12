@@ -150,14 +150,52 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheFittedTransmissionFollowsTheReferenceRenderersSunOnlyRunWithinThreePercent()
+        public void TheFittedTransmissionFollowsTheSlabFluxReferenceWithinOnePercentAndFallsWithTau()
         {
-            // tools/weather_metrics/parity_ref.py, environment light 0, 150 ground samples, slab 200 m thick, sun 45 degrees.
+            // tools/weather_metrics/parity_ref.py slab_sun_transmission: sun 45 degrees, 400000 photons a point (sampling error 0.2 %).
             double[] taus = { 0.1, 1.0, 5.0, 20.0 };
-            double[] reference = { 0.9825, 0.9566, 0.6689, 0.1785 };
+            double[] reference = { 0.9852, 0.8570, 0.5221, 0.2045 };
+            double previous = 1.0;
             for (int i = 0; i < taus.Length; i++)
-                Assert.AreEqual(reference[i], CloudShadowMath.FittedTransmission(taus[i]), 0.03 * reference[i], "tau " + taus[i]);
+            {
+                double fitted = CloudShadowMath.FittedTransmission(taus[i]);
+                Assert.AreEqual(reference[i], fitted, 0.01 * reference[i], "tau " + taus[i]);
+                Assert.IsTrue(fitted < previous);
+                previous = fitted;
+            }
             Assert.AreEqual(1.0, CloudShadowMath.FittedTransmission(0.0), 0.0);
+        }
+
+        [TestMethod]
+        public void TheDirectShareOfTheColourIsTheSunsPartAndNeverTheWholeUnderAmbientLight()
+        {
+            // The weather player's scene: sun 0.8, ambient luminance about 0.32, sun at 45 degrees.
+            double share = CloudShadowMath.DirectShare(0.8, Math.Sin(Math.PI / 4.0), 0.32);
+            Assert.AreEqual(0.6387, share, 1e-3);
+            // A dense cloud (mask 0) leaves 1 - share of the colour: the ground is not black.
+            Assert.IsTrue(1.0 - share * (1.0 - 0.0) > 0.3);
+            Assert.AreEqual(1.0, CloudShadowMath.DirectShare(0.8, 1.0, 0.0), 0.0);
+            Assert.AreEqual(0.0, CloudShadowMath.DirectShare(0.8, -0.2, 0.3), 0.0);
+        }
+
+        [TestMethod]
+        public void OneRendererCastsTheShadowOfADeckWhateverTheCloudSource()
+        {
+            Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.Ours, false));
+            Assert.AreEqual(CloudShadowSwitches.Caster.Eve, CloudShadowSwitches.WhoCasts(CloudSourceKind.Eve, false));
+            Assert.AreEqual(CloudShadowSwitches.Caster.Eve, CloudShadowSwitches.WhoCasts(CloudSourceKind.Both, false));
+            // Where EVE cannot render, the source in force is Ours and so is the caster.
+            Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.Eve, true));
+            Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.Both, true));
+            Assert.AreEqual(CloudShadowSwitches.Caster.None, CloudShadowSwitches.WhoCasts(CloudSourceKind.None, false));
+            // The own shadow is drawn exactly where Ours casts: LayerSwitches.Active admits only the source Ours.
+            foreach (CloudSourceKind source in new[] { CloudSourceKind.Ours, CloudSourceKind.Eve, CloudSourceKind.Both, CloudSourceKind.None })
+                foreach (bool blocked in new[] { false, true })
+                {
+                    CloudSourceKind inForce = CloudModeModel.Effective(source, blocked);
+                    bool ownDraws = LayerSwitches.Active(true, inForce);
+                    Assert.AreEqual(ownDraws, CloudShadowSwitches.WhoCasts(source, blocked) == CloudShadowSwitches.Caster.Ours, source + "/" + blocked);
+                }
         }
 
         [TestMethod]

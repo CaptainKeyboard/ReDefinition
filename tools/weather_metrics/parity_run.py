@@ -327,17 +327,20 @@ def cap_shadow_darkness(tau=4.0, e_deg=45.0):
 TAUS = (0.1, 1.0, 5.0, 20.0)
 
 
-def cap_shadow_vs_tau(q, ground_samples=12):
-    """Ground irradiance under a thick slab over the open ground's, with the diffuse floor: the reference curve."""
-    out = []
-    open_r = pr.Renderer(pr.DensityField(F, []), pr.Sun.at(np.array([0, 0, F]), 90, 45), light_steps=16, order=1, ground_full_samples=600)
-    base = float(open_r.ground_radiance(np.array([[0.0, 0.0, F]]))[0])
+def cap_shadow_vs_tau(q, photons=None):
+    """The sun's irradiance under a plane-parallel slab over the open ground's, beam plus scattered light (the reference curve).
+
+    The curve is the slab-flux photon walk of parity_ref.slab_sun_transmission, not the ground radiance of the image renderer: that
+    estimate of the diffuse light was a one-sample-per-direction Monte Carlo with a truncated scattering order, whose value at tau 20
+    ran from 4e-5 to 0.29 over its settings (4e-5, 0.29, 0.093, 0.076), so the curve was not monotone; the walk conserves energy and
+    its sampling error is 0.2 % at 400000 photons (amendment of package FX-T04 to T11's reference)."""
+    photons = photons or (400000 if q["order"] < 64 else 2000000)
+    out, err = [], []
     for tau in TAUS:
-        layer = pr.Layer("slab", 1900.0, 2100.0, tau / 200.0)
-        field = pr.DensityField(F, [layer])
-        r = renderer(field, pr.Sun.at(np.array([0, 0, F]), 90, 45), dict(q, order=max(q["order"], 12)), ground_full_samples=ground_samples, sun_disc=1)
-        out.append(float(r.ground_radiance(np.array([[0.0, 0.0, F]]), disc=1)[0]) / base)
-    return {"taus": list(TAUS), "factors": np.array(out), "ref_factors": np.array(out)}
+        share, e = pr.slab_sun_transmission(tau, 45.0, photons=photons)
+        out.append(share)
+        err.append(e)
+    return {"taus": list(TAUS), "factors": np.array(out), "ref_factors": np.array(out), "ref_error": list(err), "elevation_deg": 45.0, "photons": photons}
 
 
 def reference_captures(quality="quick"):
@@ -580,6 +583,20 @@ def selftest(quick=True, fast=False):
     # Light march: the sun term of a homogeneous slab follows exp(-tau / sin e).
     m = pc.run_check("shadow_darkness", cap_shadow_darkness(4.0, 45.0), dict(spec["R11-shadow-darkness"], threshold={"max": 0.01}))
     t.add("sun transmittance = exp(-tau / sin e)", "%.5f" % m.value, "<= 0.01", m.ok, "(factor %.5f, exp %.5f)" % (m.detail["factor"], m.reference))
+
+    # R12 reference curve: monotone in tau, the same for two seeds, energy conserving, and the two-stream result as an independent value.
+    c1 = cap_shadow_vs_tau(q)["ref_factors"]
+    c2 = np.array([pr.slab_sun_transmission(tau, 45.0, photons=400000, seed=99)[0] for tau in TAUS])
+    mono = bool(np.all(np.diff(c1) < 0) and np.all(np.diff(c2) < 0))
+    t.add("R12 reference curve falls with tau", "%s" % ", ".join("%.4f" % v for v in c1), "monotone", mono)
+    seed_err = float(np.max(np.abs(c1 - c2) / c1))
+    t.add("R12 reference, two seeds", "%.4f" % seed_err, "<= 0.02", seed_err <= 0.02)
+    g1 = pr.Phase().w1 * pr.Phase().g1 + (1.0 - pr.Phase().w1) * pr.Phase().g2
+    two_stream = np.array([1.0 / (1.0 + 0.75 * (1.0 - g1) * tau) for tau in TAUS])
+    ts_err = float(np.max(np.abs(c1 - two_stream) / c1))
+    t.add("R12 reference against the two-stream slab", "%.4f" % ts_err, "<= 0.08", ts_err <= 0.08, "(Meador and Weaver 1980, asymmetry %.3f)" % g1)
+    a1, _ = pr.slab_sun_transmission(5.0, 45.0, albedo=1.0, photons=100000)
+    t.add("R12 reference, no absorption, tau 5", "%.4f" % a1, "within 0.08 of two-stream", abs(a1 - two_stream[2]) / two_stream[2] <= 0.08)
 
     if not fast:
         # Convergence: the reference against a 4x longer one (view and light steps) on the cell.

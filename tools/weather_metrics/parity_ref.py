@@ -546,6 +546,45 @@ def scene_uniform_deck(base=2200.0, top=2500.0, tau_vertical=8.0, radius=KERBIN_
     return DensityField(radius, [Layer("deck", base, top, sigma)])
 
 
+def slab_sun_transmission(tau, elevation_deg, phase=None, albedo=0.999, photons=400000, seed=4321, chunk=200000):
+    """The sun's irradiance on the ground under a plane-parallel homogeneous slab of vertical optical depth tau, as a share of the
+    open ground's: beam plus all scattered light, no sky, no ground bounce (the slab-flux reference of check R12).
+
+    An analog photon walk: free paths from -ln(u) in optical-depth units, absorption with probability 1 - albedo at each
+    collision, scattering directions drawn from the phase function. Every photon carries the same flux through the horizontal
+    plane, so the share is the fraction that crosses the ground plane. It conserves energy at any tau (no truncation of the
+    scattering order, which loses the multiply scattered light of a thick forward-scattering slab) and its sampling error is
+    sqrt(T (1 - T) / photons) (0.2 % at 400000 photons for T = 0.18), the same for every tau and every seed. Returns (share, error)."""
+    phase = phase or Phase()
+    rng = np.random.default_rng(seed)
+    hits = 0
+    total = 0
+    c0 = math.sin(math.radians(elevation_deg))
+    while total < photons:
+        n = min(chunk, photons - total)
+        total += n
+        depth = np.zeros(n)
+        # The direction as a 3-vector with the downward cosine in z (+z = towards the ground).
+        d = np.zeros((n, 3))
+        d[:, 0] = math.sqrt(max(1.0 - c0 * c0, 0.0))
+        d[:, 2] = c0
+        alive = np.arange(n)
+        while len(alive):
+            s = -np.log(1.0 - rng.random(len(alive)))
+            depth[alive] += d[alive, 2] * s
+            reached = depth[alive] >= tau
+            escaped = depth[alive] < 0.0
+            hits += int(reached.sum())
+            keep = ~(reached | escaped)
+            keep &= rng.random(len(alive)) < albedo
+            alive = alive[keep]
+            if len(alive):
+                mu = phase.sample_cos(rng, len(alive))
+                d[alive] = scatter_directions(d[alive], mu, rng)
+    share = hits / float(total)
+    return share, math.sqrt(max(share * (1.0 - share), 1e-12) / total)
+
+
 def scene_slab(tau, thickness=1000.0, base=2000.0):
     """A plane-parallel homogeneous slab of vertical optical depth tau on a planet whose curvature is invisible."""
     return DensityField(FLAT_RADIUS, [Layer("slab", base, base + thickness, tau / thickness)])

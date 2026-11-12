@@ -20,6 +20,12 @@ namespace ReDefinition.Atmospheres
         // light that always remains (0: the pure Beer-Lambert shadow).
         public int StepsPerSpan = 8, DiscTaps = 4;
         public float Floor;
+        // The weight of the light a cloud scatters down (CloudShadowMath.FittedTransmission of the vertical optical depth) in the mask: 1 lifts
+        // the mask under a thick cloud to the diffuse share of the open ground's sun, 0 leaves the pure direct beam (the analytic checks).
+        public float DiffuseShare = 1f;
+        // Forward shading only: the share of the lit colour that is the sun's direct light (CloudShadowMath.DirectShare); the ambient share
+        // is not darkened. 1 multiplies the whole colour (the analytic checks).
+        public float ForwardDirectShare = 1f;
         // A diagnostic output of the forward pass for the probe (0: the shadow); see the shader's pass 3.
         public int Debug;
     }
@@ -44,7 +50,7 @@ namespace ReDefinition.Atmospheres
         internal static readonly string OceanDepthName = "ScattererDownscaledOceanDepthTexture";
 
         private static readonly int IdPlanet = Shader.PropertyToID("_CsPlanet"), IdWorldToMap = Shader.PropertyToID("_CsWorldToMap"),
-            IdSun = Shader.PropertyToID("_CsSun"), IdParams = Shader.PropertyToID("_CsParams"), IdLayerA = Shader.PropertyToID("_CsLayerA"),
+            IdSun = Shader.PropertyToID("_CsSun"), IdParams = Shader.PropertyToID("_CsParams"), IdParams2 = Shader.PropertyToID("_CsParams2"), IdLayerA = Shader.PropertyToID("_CsLayerA"),
             IdLayerB = Shader.PropertyToID("_CsLayerB"), IdLayerC = Shader.PropertyToID("_CsLayerC"), IdLayerD = Shader.PropertyToID("_CsLayerD"),
             IdTypeProfile = Shader.PropertyToID("_CsTypeProfile"), IdTypeInfo = Shader.PropertyToID("_CsTypeInfo"),
             IdCovMaps = Shader.PropertyToID("_CsCovMaps"), IdTypeMaps = Shader.PropertyToID("_CsTypeMaps"), IdMapDim = Shader.PropertyToID("_CsMapDim"),
@@ -164,6 +170,7 @@ namespace ReDefinition.Atmospheres
             m.SetFloat("_CsDebug", f.Debug);
             m.SetVector(IdSun, new Vector4(f.TowardsSun.x, f.TowardsSun.y, f.TowardsSun.z, f.MetresPerUnit));
             m.SetVector(IdParams, new Vector4(Mathf.Clamp(f.StepsPerSpan, 1, 24), Mathf.Clamp(f.DiscTaps, 1, 8), Mathf.Clamp01(f.Floor), layerCount));
+            m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), 0f, 0f));
             m.SetVectorArray(IdLayerA, layerA);
             m.SetVectorArray(IdLayerB, layerB);
             m.SetVectorArray(IdLayerC, layerC);
@@ -182,11 +189,14 @@ namespace ReDefinition.Atmospheres
             ReleaseShadow(display);
         }
 
-        // The camera's buffer for forward rendering: the same shadow multiplied into the colour. Goes on the camera at AfterForwardOpaque.
-        internal void RecordForwardBuffer(CommandBuffer cb, int width, int height)
+        // The camera's buffer for forward rendering: the same shadow multiplied into the colour (the sun's share of it only,
+        // CloudShadowFrame.ForwardDirectShare). Goes on the camera at AfterForwardOpaque. afterShadow runs between the shadow and the
+        // multiply (the cost scene puts its GPU timestamp there).
+        internal void RecordForwardBuffer(CommandBuffer cb, int width, int height, Action<CommandBuffer> afterShadow = null)
         {
             cb.Clear();
             RecordShadow(cb, width, height);
+            if (afterShadow != null) afterShadow(cb);
             // The blits above left a temporary texture as the render target: back to the camera's.
             cb.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
             cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, material, PassColour);

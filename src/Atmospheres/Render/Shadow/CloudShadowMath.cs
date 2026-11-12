@@ -53,11 +53,14 @@ namespace ReDefinition.Atmospheres
 
         // The sun's energy that reaches the ground under a slab of vertical optical depth tauV, beam and scattered light together, for the
         // dual-lobe phase function of the reference renderer (g 0.85 and -0.3, forward weight 0.92, albedo 0.999), as a share of the open sky's.
-        // The two-stream form above is linear in tau and too dark for this forward-heavy phase function at tau 1 to 20; the reference
-        // renderer's sun-only run (environment light 0, 150 ground samples, slab of 200 m, sun at 45 degrees) gives 0.9825, 0.9566, 0.6689
-        // and 0.1785 for tau 0.1, 1, 5 and 20, and 1 / T - 1 = A tau^P with A 0.0453 and P 1.54 follows them to 3 % (0.9987, 0.957, 0.649,
-        // 0.180). The numbers belong to that phase function; the lighting package (T03) owns the phase and may refit them. [VERIFY]
-        internal const double FitA = 0.0453, FitP = 1.54;
+        // The reference is the slab-flux photon walk of tools/weather_metrics/parity_ref.py (slab_sun_transmission, sun at 45 degrees, 400000
+        // photons a point, sampling error 0.2 %): 0.9852, 0.8570, 0.5221 and 0.2045 for tau 0.1, 1, 5 and 20 (the same for every seed; the
+        // two-stream form above gives 0.9822, 0.8464, 0.5242 and 0.2160 with the asymmetry 0.758 of the phase function, within 6 %).
+        // 1 / T - 1 = A tau^P with A 0.168 and P 1.05 follows the four points to 0.3 % (0.9852, 0.8561, 0.5236, 0.2042). The numbers belong
+        // to that phase function; the lighting package (T03) owns the phase and may refit them. An earlier fit (A 0.0453, P 1.54) followed the
+        // image renderer's ground radiance, whose diffuse estimate lost the multiply scattered light (see tools/weather_metrics/parity_run.py
+        // cap_shadow_vs_tau). [VERIFY] for suns other than 45 degrees: the reference was run there only.
+        internal const double FitA = 0.168, FitP = 1.05;
 
         internal static double FittedTransmission(double tauVertical)
         {
@@ -73,6 +76,16 @@ namespace ReDefinition.Atmospheres
             double direct = DirectTransmission(tauAlongSun);
             double total = FittedTransmission(tauVertical);
             return total < direct ? direct : total > 1.0 ? 1.0 : total;
+        }
+
+        // The share of a lit surface's colour that is the sun's direct light, for the forward path (which cannot tell the sun's term from the
+        // ambient): sunLuminance x cosine of the sun's zenith angle over that plus the ambient luminance. Unity's diffuse lighting is
+        // albedo x (ambient + light colour x intensity x N.L), so a horizontal surface has this share whatever its albedo.
+        internal static double DirectShare(double sunLuminance, double cosZenith, double ambientLuminance)
+        {
+            double sun = Math.Max(0.0, sunLuminance) * Math.Max(0.0, cosZenith);
+            double total = sun + Math.Max(0.0, ambientLuminance);
+            return total <= 1e-9 ? 1.0 : sun / total;
         }
 
         // The i-th of n directions across the sun's disc for a sun towards (sx, sy, sz): a Vogel spiral of equal-area cells, so that the mean

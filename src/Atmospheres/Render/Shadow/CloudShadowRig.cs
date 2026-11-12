@@ -31,8 +31,10 @@ namespace ReDefinition.Atmospheres
     //  - The depth is the camera's depth texture, which exists at that point under deferred shading; it carries the upscaler's jitter and render
     //    size. The shadow is a function of the world position only (no history, no per-frame noise), so it needs no motion vectors and no
     //    reactive mask; it moves with the cloud, slowly, and a sub-pixel change of the reconstructed position changes it by a hair.
-    //  - Forward: the camera's buffer at AfterForwardOpaque, once the opaque geometry and its depth exist; it darkens everything drawn, ambient
-    //    light included (the same fall-back as EVE's).
+    //  - Forward: the camera's buffer at AfterForwardOpaque, once the opaque geometry and its depth exist. Forward shading has no separate sun
+    //    term to scale, so the colour is multiplied by 1 - share (1 - mask), where share is the sun's part of a lit surface's colour (the
+    //    scene's sun light against its ambient, ForwardShare): the ambient part is kept, and a surface under a dense cloud stays lit by the
+    //    sky. EVE's own forward fall-back multiplies the whole colour; ours does not.
     internal sealed class CloudShadowRig
     {
         private readonly CloudShadowRenderer renderer;
@@ -114,10 +116,11 @@ namespace ReDefinition.Atmospheres
                 attachedCameraBuffer = discBuffer;
                 return;
             }
-            renderer.Apply(Frame);
             // The shadow reads the camera's depth texture.
             camera.depthTextureMode |= DepthTextureMode.Depth;
             bool deferred = camera.actualRenderingPath == RenderingPath.DeferredShading;
+            if (!deferred && AutoForwardShare) Frame.ForwardDirectShare = ForwardShare(camera);
+            renderer.Apply(Frame);
             int mode = deferred ? 1 : 2;
             if (recordedWidth != w || recordedHeight != h || recordedMode != mode)
             {
@@ -142,6 +145,39 @@ namespace ReDefinition.Atmospheres
                 attachedEvent = CameraEvent.AfterForwardOpaque;
                 attachedCameraBuffer = forwardBuffer;
             }
+        }
+
+        // Whether the forward path reads the share of the colour that is the sun's from the scene's light and ambient each frame (the default)
+        // or keeps Frame.ForwardDirectShare as the owner set it (the analytic checks set 1).
+        internal bool AutoForwardShare { get; set; } = true;
+
+        // The sun's share of a horizontal surface's colour at the camera, from the scene's sun light and ambient setting.
+        private float ForwardShare(Camera camera)
+        {
+            Light light = sun();
+            if (light == null) return 1f;
+            Vector3 up = camera.transform.position - Frame.PlanetCenter;
+            double cosZ = up.sqrMagnitude > 0f ? Vector3.Dot(up.normalized, Frame.TowardsSun) : 1.0;
+            double sunLum = light.intensity * Luminance(light.color);
+            double ambient;
+            switch (RenderSettings.ambientMode)
+            {
+                case AmbientMode.Trilight: ambient = Luminance(RenderSettings.ambientEquatorColor); break;
+                case AmbientMode.Skybox:
+                    var probe = RenderSettings.ambientProbe;
+                    var dirs = new[] { Vector3.up };
+                    var colours = new Color[1];
+                    probe.Evaluate(dirs, colours);
+                    ambient = Luminance(colours[0]) * RenderSettings.ambientIntensity;
+                    break;
+                default: ambient = Luminance(RenderSettings.ambientLight); break;
+            }
+            return (float)CloudShadowMath.DirectShare(sunLum, cosZ, ambient);
+        }
+
+        private static double Luminance(Color c)
+        {
+            return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
         }
 
         private void OnPostRender(Camera camera)

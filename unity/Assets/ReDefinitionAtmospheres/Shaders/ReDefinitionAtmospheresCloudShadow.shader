@@ -31,6 +31,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float4x4 _CsWorldToMap;  // rotation from that space into the map frame (x towards longitude 0, y towards 90 east, z north)
         float4 _CsSun;           // towards the sun (unit), w: metres per unit of the space (1 in the scene, 6000 in scaled space)
         float4 _CsParams;        // steps per span, sun disc taps, floor (share of the direct light that always remains), layer count
+        float4 _CsParams2;       // x: weight of the diffuse floor in the mask (0: the pure direct beam), y: share of the lit colour that is the sun's direct light (forward path)
         float4 _CsLayerA[4];     // inner altitude, outer altitude, tight inner altitude, tight outer altitude (m)
         float4 _CsLayerB[4];     // sigma per m, coverage, edge softness, shadow strength
         float4 _CsLayerC[4];     // -, -, map slice (< 0: no map), type count
@@ -183,8 +184,19 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             return tau;
         }
 
-        // The sun's direct light left at a point (pc relative to the planet's centre, in metres): the mean of exp(-tau) over the taps across the
-        // sun's disc, the floor under it. The taps are a fixed pattern (no per-frame or per-pixel noise: nothing for the upscaler to chase).
+        // The sun's total irradiance under a slab of vertical optical depth tauV as a share of the open ground's, beam and scattered light
+        // together: 1 / (1 + A tauV^P) (CloudShadowMath.FittedTransmission, fitted to the slab-flux photon walk of the parity reference,
+        // 0.2 % at tau 0.1, 1, 5 and 20).
+        float DiffuseShare(float tauV)
+        {
+            return tauV <= 0 ? 1.0 : 1.0 / (1.0 + 0.168 * pow(tauV, 1.05));
+        }
+
+        // The sun's light that reaches a point (pc relative to the planet's centre, in metres): the mean of exp(-tau) over the taps across the
+        // sun's disc (the direct beam), lifted to the light a cloud scatters down (DiffuseShare of the vertical optical depth, which a
+        // plane-parallel cloud has as tau along the sun x cos of the zenith angle) by the weight _CsParams2.x, and the floor under it. The
+        // taps are a fixed pattern (no per-frame or per-pixel noise: nothing for the upscaler to chase). Sky ambient is not in this factor:
+        // the deferred mask scales the sun's term only, and the forward colour multiply keeps the ambient share of the colour (pass 3).
         float SunFactor(float3 pc, float radius)
         {
             float3 s = _CsSun.xyz;
@@ -195,9 +207,11 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             if (HitSphere(pc, s, radius, t0, t1) && t0 > 0) tmax = t0;
             int taps = (int)_CsParams.y;
             float sum = 0;
+            float tauSum = 0;
             if (taps <= 1)
             {
-                sum = exp(-PathTau(pc, s, tmax, radius));
+                tauSum = PathTau(pc, s, tmax, radius);
+                sum = exp(-tauSum);
             }
             else
             {
@@ -209,10 +223,18 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                     float r = 0.5 * 9.31e-3 * sqrt((i + 0.5) / taps);
                     float a = i * 2.399963229728653;
                     float3 d = normalize(s + u * (r * cos(a)) + v * (r * sin(a)));
-                    sum += exp(-PathTau(pc, d, tmax, radius));
+                    float tau = PathTau(pc, d, tmax, radius);
+                    tauSum += tau;
+                    sum += exp(-tau);
                 }
                 sum /= taps;
+                tauSum /= taps;
             }
+            // The vertical optical depth from the sun path: a sun on or under the horizon has no plane-parallel reading, the share stays at the
+            // direct beam there (the sun's light at the horizon through a cloud is the beam's business).
+            float cosZ = dot(normalize(pc), s);
+            float diffuse = cosZ > 0.05 ? DiffuseShare(tauSum * cosZ) : 0.0;
+            sum = max(sum, _CsParams2.x * diffuse);
             return lerp(_CsParams.z, 1.0, saturate(sum));
         }
 
@@ -361,6 +383,9 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 if (IsSky(raw)) return 1.0;
                 float2 nearestUv = FindNearestDepthUV(i.uv, raw);
                 float s = tex2Dlod(_CsShadowHalf, float4(nearestUv, 0, 0)).r;
+                // Forward shading has no separate sun term: the factor scales the sun's share of the colour only, the ambient share stays
+                // (without it the ground under a dense cloud turns black although the sky still lights it).
+                s = 1.0 - _CsParams2.y * (1.0 - s);
                 return s.xxxx;
             }
             ENDCG
