@@ -71,8 +71,7 @@ namespace ReDefinition.Atmospheres
                     break;
                 case "recon4":
                     UseOwn();
-                    SetSetting(AtmospheresSettings.Keys.CloudReconMode, (double)(int)ReconMode.Block);
-                    SetSetting(AtmospheresSettings.Keys.CloudReconBlock, 4.0);
+                    SetSetting(AtmospheresSettings.Keys.CloudResolution, 4.0);
                     break;
                 case "entry":
                     UseOwn();

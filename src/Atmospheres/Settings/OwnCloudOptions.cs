@@ -117,7 +117,8 @@ namespace ReDefinition.Atmospheres
             f.RefineBudget = On(v, AtmospheresSettings.Keys.CloudEntryRefinement) ? Mathf.Max(0f, Tuning.Get(TuneRefineBudget, EntryRefineBudget)) : 0f;
             f.RefineFraction = Mathf.Clamp(Tuning.Get(TuneRefineFraction, CompiledFrame.RefineFraction), 0.0625f, 1f);
             // T14: the contour gate of the refinement (the alpha step of the 2 x 2 quad above which a ray refines; the first-hit step is off).
-            bool gate = f.RefineBudget > 0f && On(v, AtmospheresSettings.Keys.CloudRefineAtContours);
+            bool atContours = On(v, AtmospheresSettings.Keys.CloudRefineAtContours);
+            bool gate = f.RefineBudget > 0f && atContours;
             f.RefineGate = gate ? Mathf.Max(0.001f, Tuning.Get(TuneRefineGate, RefineGateAlpha)) : 0f;
             f.RefineGateFirst = gate ? Mathf.Max(0f, Tuning.Get(TuneRefineGateFirst, RefineGateFirstStep)) : 0f;
             f.EdgePower = Mathf.Max(1f, Tuning.Get(TuneEdgePower, CompiledFrame.EdgePower));
