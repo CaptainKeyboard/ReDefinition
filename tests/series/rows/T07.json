@@ -1,0 +1,19 @@
+{
+  "$schema": "../schema.json",
+  "package": "T07",
+  "rows": [
+    { "series": "player-T07", "section": "T07", "metric": "R22-lightning-flash.day", "min": 2.0, "unit": "ratio", "note": "luminance of the harness cell by day (sun 40 degrees) with a cloud-internal flash at its peak over the luminance before; tests/data/parity/checks.json R22-lightning-flash (threshold 2, plan 4.3)" },
+    { "series": "player-T07", "section": "T07", "metric": "R22-lightning-flash.dusk", "min": 2.0, "unit": "ratio", "note": "the same at sunset" },
+    { "series": "player-T07", "section": "T07", "metric": "R22-lightning-flash.night", "min": 2.0, "unit": "ratio", "note": "the same at night, lit by a faint moon" },
+    { "series": "player-T07", "section": "T07", "metric": "flash.level_linearity", "max": 0.03, "unit": "relative", "note": "the light the flash adds at night is linear in the envelope level (levels 0.25, 0.5, 0.75 against 1)" },
+    { "series": "player-T07", "section": "T07", "metric": "flash.range_monotone", "min": 1, "unit": "flag", "note": "the light the cloud gets grows with the reach of the flash light (400, 800, 1600, 3200 m)" },
+    { "series": "player-T07", "section": "T07", "metric": "flash.day.lit_share", "min": 0.5, "unit": "share of the cloud's pixels", "note": "a cloud-internal flash lights the cloud as a whole: the share of its pixels that rise by more than half (real-world band: the whole cloud lights up)" },
+    { "series": "player-T07", "section": "T07", "metric": "flash.night.lit_share", "min": 0.5, "unit": "share of the cloud's pixels", "note": "the same at night" },
+    { "series": "player-T07", "section": "T07", "metric": "flash.finite", "min": 1, "unit": "flag", "note": "no NaN or infinity in any picture of the series" },
+
+    { "series": "K-T1", "section": "T07", "metric": "T07.thunder_delay_error", "max": 0.05, "unit": "relative", "required": false, "note": "game row, probe pending: |delay played - d / 343| / (d / 343) of the thunder voices, realistic delay on (R22-lightning-delay)" },
+    { "series": "K-T1", "section": "T07", "metric": "T07.gate_violations", "max": 0, "unit": "bolts", "required": false, "note": "game row, probe pending: bolts spawned at a warp rate of 5 or above or under a cover of 0.1 (R22-lightning-gate)" },
+    { "series": "K-T1", "section": "T07", "metric": "T07.event_rate_monotone", "min": 1, "unit": "flag", "required": false, "note": "game row, probe pending: more flashes at a higher level for the same seed and hour" },
+    { "series": "K-T1", "section": "T07", "metric": "T07.max_strokes_per_second", "max": 3, "unit": "strokes", "required": false, "note": "game row, probe pending: the most strokes that begin in any second with the limit at 3" }
+  ]
+}
