@@ -111,7 +111,7 @@ GROUPS = [("ground", "Ground views"), ("side", "Side views at 8 km"), ("above", 
 DAY = dict(sunColour=[3.0, 2.9, 2.7], ambientTop=[0.35, 0.42, 0.55], ambientBottom=[0.14, 0.15, 0.16])
 
 
-def cu_layer(name="cumulus", cov_map="cu.r8", coverage=0.45, inner=1400.0, outer=3600.0):
+def cu_layer(name="cumulus", cov_map="cu.r8", coverage=0.3, inner=1400.0, outer=3200.0):
     return L.layer(inner, outer, 0.03, [L.slab_type("cumulus", 0.0, 0.8, CUMULUS, 0.5)], coverage=coverage, softness=0.2, cov_map=cov_map,
                    noise=0.5, noise_scale=700.0, name=name)
 
@@ -207,11 +207,11 @@ def site_positions():
     cu = fbm(11, 2, 7, 0.6)
     sites = {}
     # ground: the 12 km box ahead clouds about 0.45 of the sky
-    sites["cu-ground"] = find_site(cu, 0.45, 8.0, 6.0, 0.45)[:2]
+    sites["cu-ground"] = find_site(cu, 0.3, 8.0, 6.0, 0.3)[:2]
     # side: a cumulus field 12 km ahead (half 6 km, about half cloud), the camera itself in a clear patch (3 km box under 0.25)
-    sites["cu-west"] = find_site(cu, 0.45, 8.0, 6.0, 0.45, yaw=270.0)[:2]
-    sites["cu-moon"] = find_site(cu, 0.45, 8.0, 6.0, 0.45, yaw=120.0)[:2]
-    sites["cu-side"] = find_site(cu, 0.45, 12.0, 6.0, 0.55, 3.0, 0.15)[:2]
+    sites["cu-west"] = find_site(cu, 0.3, 8.0, 6.0, 0.3, yaw=270.0)[:2]
+    sites["cu-moon"] = find_site(cu, 0.3, 8.0, 6.0, 0.3, yaw=120.0)[:2]
+    sites["cu-side"] = find_site(cu, 0.3, 12.0, 6.0, 0.4, 3.0, 0.05)[:2]
     deck = fbm(12, 2, 6, 0.55)
     sites["deck"] = find_site(deck, 0.93, 6.0, 6.0, 0.97)[:2]
     above = fbm(13, 2, 7, 0.6)
