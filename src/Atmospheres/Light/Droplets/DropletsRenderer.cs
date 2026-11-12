@@ -194,7 +194,7 @@ namespace ReDefinition.Atmospheres
             Vessel vessel = HighLogic.LoadedSceneIsFlight ? GameGlobals.ActiveVessel : null;
             Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             bool flightScene = HighLogic.LoadedSceneIsFlight && vessel != null && vessel.mainBody != null && flight != null;
-            bool settingsOn = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && Tuning.Flag("drop.enabled", true);
+            bool settingsOn = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && AtmospheresSettings.WindowDroplets;
             drawReady = false;
             if (!flightScene || !settingsOn)
             {

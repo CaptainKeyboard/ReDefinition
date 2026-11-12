@@ -161,7 +161,7 @@ namespace ReDefinition.Atmospheres
             Vessel vessel = HighLogic.LoadedSceneIsFlight ? GameGlobals.ActiveVessel : null;
             Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             bool flightScene = HighLogic.LoadedSceneIsFlight && vessel != null && vessel.mainBody != null && flight != null;
-            bool on = flightScene && AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && Tuning.Flag("wet.enabled", true);
+            bool on = flightScene && AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && AtmospheresSettings.WetSurfaces;
             if (!on)
             {
                 Detach();

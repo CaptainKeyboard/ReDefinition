@@ -52,6 +52,15 @@ namespace ReDefinition.Atmospheres
             // Own clouds: the temporal reconstruction (T05)
             internal const string CloudReconMode = "cloudReconMode";
             internal const string CloudReconBlock = "cloudReconBlock";
+            // Own clouds: the look fixes of T03v2 and the far view (T06), the switches of the review of wave 4
+            internal const string CloudSunMarchLong = "cloudSunMarchLong";
+            internal const string CloudSunWhiteBalance = "cloudSunWhiteBalance";
+            internal const string CloudDiffusionDecay = "cloudDiffusionDecay";
+            internal const string CloudFarHaze = "cloudFarHaze";
+            internal const string CloudFarShapeMean = "cloudFarShapeMean";
+            internal const string CloudFarMinSamples = "cloudFarMinSamples";
+            internal const string CloudFarPolicy = "cloudFarPolicy";
+            internal const string CloudFarMapFade = "cloudFarMapFade";
         }
 
         // --- Own clouds ---
@@ -84,6 +93,15 @@ namespace ReDefinition.Atmospheres
 
         internal static ReconMode CloudReconMode => E<ReconMode>(Keys.CloudReconMode);
         internal static int CloudReconBlock => I(Keys.CloudReconBlock);
+
+        internal static bool CloudSunMarchLong => B(Keys.CloudSunMarchLong);
+        internal static bool CloudSunWhiteBalance => B(Keys.CloudSunWhiteBalance);
+        internal static float CloudDiffusionDecay => F(Keys.CloudDiffusionDecay);
+        internal static bool CloudFarHaze => B(Keys.CloudFarHaze);
+        internal static bool CloudFarShapeMean => B(Keys.CloudFarShapeMean);
+        internal static int CloudFarMinSamples => I(Keys.CloudFarMinSamples);
+        internal static bool CloudFarPolicy => B(Keys.CloudFarPolicy);
+        internal static bool CloudFarMapFade => B(Keys.CloudFarMapFade);
     }
 
     // The rows of the own cloud system in the key table, in the order of the window (they follow the other Clouds rows). A default is the
@@ -138,7 +156,20 @@ namespace ReDefinition.Atmospheres
 
                 // The temporal reconstruction (T05): off (every pixel marched every frame) until the owner agrees to the 4 x 4 block look (a sixteenth of the pixels per frame)
                 SettingDef.Choice("cloudReconMode", typeof(ReconMode), ReconMode.Full, CL, "Cloud Reconstruction", OWN),
-                SettingDef.Int("cloudReconBlock", 4, 2, 4, CL, "Cloud Reconstruction Block", RECON)
+                SettingDef.Int("cloudReconBlock", 4, 2, 4, CL, "Cloud Reconstruction Block", RECON),
+
+                // The sun march and the look fixes of T03v2: the short march (4 km) is what the parity rows measured; the white balance and the decay are the
+                // fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)
+                SettingDef.Bool("cloudSunMarchLong", false, CL, "Cloud Long Sun March", OWN),
+                SettingDef.Bool("cloudSunWhiteBalance", true, CL, "Cloud Sun White Balance", OWN),
+                SettingDef.Float("cloudDiffusionDecay", 0.02, 0.0, 0.2, CL, "Cloud Diffusion Decay", OWN),
+
+                // The far view (T06): all off until the owner agrees; the quality reducing march policy and the map fade included
+                SettingDef.Bool("cloudFarHaze", false, CL, "Cloud Far Haze", OWN),
+                SettingDef.Bool("cloudFarShapeMean", false, CL, "Cloud Far Shape Mean", OWN),
+                SettingDef.Int("cloudFarMinSamples", 0, 0, 16, CL, "Cloud Far Minimum Samples", OWN),
+                SettingDef.Bool("cloudFarPolicy", false, CL, "Cloud Far March Policy", OWN),
+                SettingDef.Bool("cloudFarMapFade", false, CL, "Cloud Far Map Fade", OWN)
             };
         }
     }

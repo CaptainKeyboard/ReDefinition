@@ -87,6 +87,7 @@ namespace ReDefinition.Atmospheres
             f.MinStepM = minStep;
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
             f.HashDither = On(v, AtmospheresSettings.Keys.CloudHashDither);
+            f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
             // The cost controls and the entry's refinement: tuning keys with the compiled values of the frame.
             f.CoverageBound = Tuning.Flag(TuneCoverageBound, CompiledFrame.CoverageBound);
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
@@ -116,6 +117,8 @@ namespace ReDefinition.Atmospheres
             s.PowderStrength = (float)v(AtmospheresSettings.Keys.CloudPowder);
             s.SunAirHeightM = On(v, AtmospheresSettings.Keys.CloudSunTint) ? Compiled.SunAirHeightM : 0f;
             s.AmbientOcclusionTaps = On(v, AtmospheresSettings.Keys.CloudAmbientTaps);
+            s.SunAirWhiteBalance = On(v, AtmospheresSettings.Keys.CloudSunWhiteBalance);
+            s.DiffusionDecay = Math.Max(0f, (float)v(AtmospheresSettings.Keys.CloudDiffusionDecay));
             s.UpReuse = (int)v(AtmospheresSettings.Keys.CloudAmbientReuse);
             if (s.Cache != null) s.Cache.Enabled = On(v, AtmospheresSettings.Keys.CloudLightCache);
             s.OctaveA = Tuning.Get(TuneOctaveA, Compiled.OctaveA);
@@ -160,6 +163,27 @@ namespace ReDefinition.Atmospheres
         internal static bool ShadowActive(Func<string, double> v, CloudSourceKind source, int layerCount)
         {
             return CloudShadowSwitches.Active(On(v, AtmospheresSettings.Keys.CloudShadows), Active(v, source), layerCount);
+        }
+
+        // T06: the far view's switches. The air's coefficients, the colour of the in-scattered light and the lod range are not settings: the integration
+        // (T09) supplies them from the body and the sky.
+        internal static void Apply(FarViewSettings s, Func<string, double> v)
+        {
+            s.Haze = On(v, AtmospheresSettings.Keys.CloudFarHaze);
+            s.ShapeMean = On(v, AtmospheresSettings.Keys.CloudFarShapeMean);
+            s.MinSamples = Math.Max(0, Math.Min(16, (int)v(AtmospheresSettings.Keys.CloudFarMinSamples)));
+            s.Policy = On(v, AtmospheresSettings.Keys.CloudFarPolicy);
+        }
+
+        internal static void Apply(FarViewSettings s)
+        {
+            Apply(s, Live);
+        }
+
+        // Whether the map view fades the cloud shell with the camera's distance (OwnShell.MapFadeEnabled).
+        internal static bool MapFade(Func<string, double> v)
+        {
+            return On(v, AtmospheresSettings.Keys.CloudFarMapFade);
         }
 
         // T05: the reconstruction. Mode Full marches every pixel every frame (the setting's default); the block is read in Block mode only.

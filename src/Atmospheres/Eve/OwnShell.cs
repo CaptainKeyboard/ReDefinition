@@ -45,7 +45,8 @@ namespace ReDefinition.Atmospheres
         }
 
         // Whether the near march draws for the body (the integration sets it; false: the shell is the only picture) and whether the map view fades the
-        // shell (off until the setting mapViewCloudFade exists and the owner agrees: the shell stays at full weight in the map view as it was).
+        // shell (off until the owner agrees to the setting cloudFarMapFade: the shell stays at full weight in the map view as it was; the field is the
+        // override of a caller that sets it).
         internal bool NearMarchActive;
         internal bool MapFadeEnabled;
 
@@ -67,7 +68,7 @@ namespace ReDefinition.Atmospheres
                 Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
                 if (flight != null) altitude = ((Vector3d)flight.transform.position - b.position).magnitude - b.Radius;
             }
-            return Opacity(altitude, b.Radius, NearMarchActive, map, radii, MapFadeEnabled);
+            return Opacity(altitude, b.Radius, NearMarchActive, map, radii, MapFadeEnabled || AtmospheresSettings.CloudFarMapFade);
         }
 
         private readonly Func<CelestialBody, bool> wants;

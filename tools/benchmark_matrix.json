@@ -322,6 +322,54 @@
       ]
     },
     {
+      "id": "weather-7",
+      "name": "Own clouds look and far view",
+      "description": "The look fixes of the cloud light (T03v2) and the far view of the own clouds (T06), one rendering for each switch flipped from the group's base, FSR 3 at raytracing Off without frame generation. The base is the own system drawing (cloudSource Ours, ownClouds on) at the table's defaults: the short 4 km sun march, the white balance on, the diffusion decay 0.02, the far view off. The rows: the 9 km sun march, the white balance off, the diffusion decay 0 (the earlier saturating glow), the far haze, the shape mean, 4 minimum samples, the march policy and the map fade on.",
+      "scenes": ["pad"],
+      "techniques": ["fsr3"],
+      "raytracing": ["Off"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudSunMarchLong": "False", "atmo.cloudSunWhiteBalance": "True", "atmo.cloudDiffusionDecay": "0.02", "atmo.cloudFarHaze": "False", "atmo.cloudFarShapeMean": "False", "atmo.cloudFarMinSamples": "0", "atmo.cloudFarPolicy": "False", "atmo.cloudFarMapFade": "False"},
+      "tweaks": [
+        {"id": "weather-cloudSunMarchLong", "name": "Cloud Long Sun March true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunMarchLong": "True"}},
+        {"id": "weather-cloudSunWhiteBalance", "name": "Cloud Sun White Balance false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunWhiteBalance": "False"}},
+        {"id": "weather-cloudDiffusionDecay", "name": "Cloud Diffusion Decay 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudDiffusionDecay": "0"}},
+        {"id": "weather-cloudFarHaze", "name": "Cloud Far Haze true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudFarHaze": "True"}},
+        {"id": "weather-cloudFarShapeMean", "name": "Cloud Far Shape Mean true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudFarShapeMean": "True"}},
+        {"id": "weather-cloudFarMinSamples", "name": "Cloud Far Minimum Samples 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudFarMinSamples": "4"}},
+        {"id": "weather-cloudFarPolicy", "name": "Cloud Far March Policy true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudFarPolicy": "True"}},
+        {"id": "weather-cloudFarMapFade", "name": "Cloud Far Map Fade true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudFarMapFade": "True"}}
+      ]
+    },
+    {
+      "id": "weather-8",
+      "name": "Wet surfaces, droplets and lightning",
+      "description": "The wet overlay (T08), the window droplets (T08) and the lightning (T07), one rendering for each switch flipped from the group's base, FSR 3 at raytracing Off without frame generation, in forced rain (forceLevel 0.9, forceType Rain). The base has all three features on with every lightning part on at the table's defaults (each of the three is off in the table until the owner agrees). The rows: the wet overlay off, the droplets off, the lightning off, one stroke per second, the brightness 0.5, and each lightning part off in turn (bolts, ground light, cloud flash, thunder, the realistic thunder delay).",
+      "scenes": ["pad"],
+      "techniques": ["fsr3"],
+      "raytracing": ["Off"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.forceLevel": "0.9", "atmo.forceType": "Rain", "atmo.wetSurfaces": "True", "atmo.windowDroplets": "True", "atmo.lightning": "True", "atmo.lightningMaxPerSecond": "3", "atmo.lightningBrightness": "1", "atmo.lightningBolts": "True", "atmo.lightningTerrainLight": "True", "atmo.lightningCloudFlash": "True", "atmo.lightningThunder": "True", "atmo.lightningRealisticDelay": "True"},
+      "tweaks": [
+        {"id": "weather-wetSurfaces", "name": "Wet Surfaces false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.wetSurfaces": "False"}},
+        {"id": "weather-windowDroplets", "name": "Window Droplets false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.windowDroplets": "False"}},
+        {"id": "weather-lightning", "name": "Lightning false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightning": "False"}},
+        {"id": "weather-lightningMaxPerSecond", "name": "Lightning Strokes Per Second 1", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningMaxPerSecond": "1"}},
+        {"id": "weather-lightningBrightness", "name": "Lightning Brightness 0.5", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningBrightness": "0.5"}},
+        {"id": "weather-lightningBolts", "name": "Lightning Bolts false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningBolts": "False"}},
+        {"id": "weather-lightningTerrainLight", "name": "Lightning Ground Light false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningTerrainLight": "False"}},
+        {"id": "weather-lightningCloudFlash", "name": "Lightning Cloud Flash false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningCloudFlash": "False"}},
+        {"id": "weather-lightningThunder", "name": "Lightning Thunder false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningThunder": "False"}},
+        {"id": "weather-lightningRealisticDelay", "name": "Lightning Thunder Delay false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningRealisticDelay": "False"}}
+      ]
+    },
+    {
       "id": "rt-weather",
       "name": "Raytracing in a blizzard",
       "description": "What the weather does to the rays (package C24b): FSR 3 at raytracing Full without frame generation, the weather forced to level 0.9 (a blizzard) in every phase. The plain rendering has the fog on the rays (mod.rtWeatherFog) and neither quality cost; then one rendering each without the fog, with the reach capped to three times the visibility (mod.rtWeatherReachCap), with one bounce fewer (mod.rtWeatherFewerBounces) and with both costs. The two costs are quality reductions and off by default until the owner agrees; this group measures what they save (the raytracing segment of the frame) so that the agreement can rest on numbers. The settings reach the game as mod.<key> and atmo.<key> live keys of the probe; the probe's routing of the atmo. prefix to AtmospheresSettings is not there yet.",

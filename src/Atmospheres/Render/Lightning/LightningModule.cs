@@ -17,7 +17,7 @@ namespace ReDefinition.Atmospheres
     // the generator's cells and levels, a pure function of the field and the time.
     //
     // Rendering statement: the bolt is an additive mesh in layer Local (Bolt shader), no motion vectors, no reactive mask; a flash start
-    // requests an upscaler history reset (the picture's brightness jumps in a few milliseconds). The cloud flash is the point light of the
+    // does not reset the upscaler's history (the brightness jumps in a few milliseconds; the interaction rows decide). The cloud flash is the point light of the
     // cloud pass (CloudLightSettings.Bolts), the terrain light a pooled Unity point light, at most two. Exposure follows the camera's.
     [AtmospheresModule(71)]
     internal sealed class LightningModule : IAtmospheresModule
@@ -120,6 +120,7 @@ namespace ReDefinition.Atmospheres
 
         public void Tick(float dt)
         {
+            LightningSwitches.Apply(AtmospheresSettings.Number);
             if (!LightningSwitches.Enabled || !HighLogic.LoadedSceneIsFlight || FlightCamera.fetch == null)
             {
                 if (flashes.Count > 0 || voices.Count > 0) Clear();
@@ -232,8 +233,8 @@ namespace ReDefinition.Atmospheres
             FlashEnvelope.BumpTimes(ref e, strokeScratch);
             for (int k = 0; k < e.Bumps; k++) StrokeTimes.Add(e.Ut + strokeScratch[k]);
             if (StrokeTimes.Count > 4096) StrokeTimes.RemoveRange(0, 2048);
-            // The brightness jumps within a few milliseconds: the upscaler and frame generation drop their history for it.
-            if (f.DistanceM < 40000f) Services.PostUpscale.RequestHistoryReset("lightning flash");
+            // No history reset of the upscaler per flash (review of wave 4): up to three strokes per second would cost a frame of unfiltered image each.
+            // The flash is a brightness change of the exposure's kind; the DLSS and frame generation interaction rows decide whether a reset is needed.
             if (LightningSwitches.Thunder) MakeThunder(e, f.DistanceM, warp, (Vector3)(from - camWorld), ut - e.Ut);
         }
 

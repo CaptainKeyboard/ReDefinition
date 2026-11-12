@@ -172,12 +172,13 @@ namespace ReDefinition.Atmospheres
             internal const string NeedsCloudShadows = "needs-cloud-shadows";
             internal const string NeedsAmbientTaps = "needs-ambient-taps";
             internal const string NeedsReconstruction = "needs-reconstruction";
+            internal const string NeedsLightning = "needs-lightning";
 
             internal static readonly string[] All =
             {
                 NeedsMaster, NeedsEve, NeedsHost, NeedsSim, NeedsVolume, NeedsAudio, NeedsForecast, NeedsAlerts, NeedsWindForces, NeedsGroundCover,
                 NeedsSeaIce, NeedsLightInMedium, NeedsPrecip, NeedsSolarDimming, NeedsOwnSource, NeedsOwnClouds, NeedsCloudNoise, NeedsCloudShadows,
-                NeedsAmbientTaps, NeedsReconstruction
+                NeedsAmbientTaps, NeedsReconstruction, NeedsLightning
             };
         }
 
@@ -374,6 +375,8 @@ namespace ReDefinition.Atmospheres
             };
             // The own cloud system's rows (AtmospheresSettings.Clouds.cs); the window groups by category, so they stand with the other Clouds rows.
             t.AddRange(CloudSettingRows.Rows());
+            // The wet surfaces, the window droplets and the lightning (AtmospheresSettings.Effects.cs).
+            t.AddRange(EffectSettingRows.Rows());
             return t.AsReadOnly();
         }
 

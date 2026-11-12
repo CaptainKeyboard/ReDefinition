@@ -54,6 +54,7 @@ namespace ReDefinition.Atmospheres
                 Emit("T07.skipped_no_atmosphere", true);
                 yield break;
             }
+            LightningSwitches.Manual = true;
             LightningSwitches.Enabled = true;
             LightningSwitches.MaxBumpsPerSecond = 3;
             LightningSwitches.ThunderSettings.RealisticDelay = true;

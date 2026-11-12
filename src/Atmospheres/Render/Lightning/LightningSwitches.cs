@@ -2,9 +2,9 @@ using ReDefinition.Atmospheres.Audio;
 
 namespace ReDefinition.Atmospheres
 {
-    // The switches and numbers of the lightning (package T07) until the settings package (T10) carries them: lightning is off until the
-    // owner accepts the look (it is a quality cost with lights and a bolt per flash), the photosensitivity limit is on at the common safety
-    // threshold of three flashes in any second. The probe and the tests set the fields; the settings package will replace the reads.
+    // The switches and numbers of the lightning (package T07): lightning is off until the owner accepts the look (it is a quality cost with lights
+    // and a bolt per flash), the photosensitivity limit is on at the common safety threshold of three flashes in any second. The settings
+    // (AtmospheresSettings.Effects.cs) reach the fields through Apply; the probe sets Manual and the fields itself.
     internal static class LightningSwitches
     {
         internal const bool EnabledDefault = false;
@@ -28,8 +28,26 @@ namespace ReDefinition.Atmospheres
         internal const float CloudPeak = 1.6f;
         internal const float TerrainLightRangeM = 9000f, TerrainLightPeak = 7f;
 
+        // True: a caller (the probe, a test) has set the fields itself and Apply leaves them alone. Reset clears it.
+        internal static bool Manual;
+
+        // Writes the settings (the keys lightning and lightning*) into the fields; the module calls it at the start of every tick.
+        internal static void Apply(System.Func<string, double> v)
+        {
+            if (Manual) return;
+            Enabled = v(AtmospheresSettings.Keys.Lightning) != 0.0;
+            MaxBumpsPerSecond = System.Math.Max(1, System.Math.Min(3, (int)v(AtmospheresSettings.Keys.LightningMaxPerSecond)));
+            Brightness = (float)System.Math.Max(0.0, System.Math.Min(1.0, v(AtmospheresSettings.Keys.LightningBrightness)));
+            Bolts = v(AtmospheresSettings.Keys.LightningBolts) != 0.0;
+            TerrainLight = v(AtmospheresSettings.Keys.LightningTerrainLight) != 0.0;
+            CloudFlash = v(AtmospheresSettings.Keys.LightningCloudFlash) != 0.0;
+            Thunder = v(AtmospheresSettings.Keys.LightningThunder) != 0.0;
+            ThunderSettings.RealisticDelay = v(AtmospheresSettings.Keys.LightningRealisticDelay) != 0.0;
+        }
+
         internal static void Reset()
         {
+            Manual = false;
             Enabled = EnabledDefault;
             MaxBumpsPerSecond = MaxBumpsPerSecondDefault;
             Brightness = 1f;

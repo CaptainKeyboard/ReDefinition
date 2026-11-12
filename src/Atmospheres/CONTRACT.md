@@ -139,7 +139,7 @@ The level changes density and thickness continuously through the type map's blen
 
 `AtmospheresSettings` holds every setting of the project in one table (`SettingsTable.All`, `Settings/AtmospheresSettings.Keys.cs`), stored in `PluginData/settings.cfg` of the mod and nowhere else. A key is added there and nowhere else; packages only read (`AtmospheresSettings.GustStrength`, ...). Reset puts a setting back to its default. A value outside its range is brought into it, a value that is not a number is ignored. Tooltips are Title Case words. The window and the profiles are package D36's; the greyed-out reason ids are `AtmospheresSettings.GreyReasons` and the profile rows `AtmospheresSettings.ProfileRows`.
 
-Greyed-out reasons: `needs-weather-effects` (`weatherEffects` off), `needs-eve` (no EVE or `cloudSource` Ours / None), `needs-host-api`, `needs-simulation`, `needs-volume-pass`, `needs-weather-audio`, `needs-forecast`, `needs-alerts`, `needs-wind-forces`, `needs-ground-cover`, `needs-sea-ice`, `needs-light-in-medium`, `needs-precipitation`, `needs-solar-dimming`.
+Greyed-out reasons: `needs-weather-effects` (`weatherEffects` off), `needs-eve` (no EVE or `cloudSource` Ours / None), `needs-host-api`, `needs-simulation`, `needs-volume-pass`, `needs-weather-audio`, `needs-forecast`, `needs-alerts`, `needs-wind-forces`, `needs-ground-cover`, `needs-sea-ice`, `needs-light-in-medium`, `needs-precipitation`, `needs-solar-dimming`, `needs-own-source`, `needs-own-clouds`, `needs-cloud-noise`, `needs-cloud-shadows`, `needs-ambient-taps`, `needs-reconstruction`, `needs-lightning`.
 
 `weatherEffects` is the master of the weather system: off, there is no simulation, no cloud-map painter and no side file. `enabled` stays the switch of the whole mod. The default of `weatherEffects` is off (master plan Q5) until the K-W3a rows pass; the E40 wave flips it to on. A test that needs weather sets it explicitly.
 
@@ -194,8 +194,16 @@ The table of `SettingsTable.All`, in the order of the window.
 | `cloudShadowFloor` | 0 | 0 to 1 | Cloud Shadow Floor | needs-cloud-shadows | - |
 | `cloudReconMode` | Full | Full / Block / Low | Cloud Reconstruction | needs-own-clouds | - |
 | `cloudReconBlock` | 4 | 2 to 4 | Cloud Reconstruction Block | needs-reconstruction | - |
+| `cloudSunMarchLong` | off | on / off | Cloud Long Sun March | needs-own-clouds | - |
+| `cloudSunWhiteBalance` | on | on / off | Cloud Sun White Balance | needs-own-clouds | - |
+| `cloudDiffusionDecay` | 0.02 | 0 to 0.2 | Cloud Diffusion Decay | needs-own-clouds | - |
+| `cloudFarHaze` | off | on / off | Cloud Far Haze | needs-own-clouds | - |
+| `cloudFarShapeMean` | off | on / off | Cloud Far Shape Mean | needs-own-clouds | - |
+| `cloudFarMinSamples` | 0 | 0 to 16 | Cloud Far Minimum Samples | needs-own-clouds | - |
+| `cloudFarPolicy` | off | on / off | Cloud Far March Policy | needs-own-clouds | - |
+| `cloudFarMapFade` | off | on / off | Cloud Far Map Fade | needs-own-clouds | - |
 
-The own cloud system's keys (package T10) follow the stream T option structs: `LayerSwitches`, `NoiseSwitches`, `CloudLightSettings`, `CloudShadowSwitches`, `ReconSettings`; `OwnCloudOptions` writes them from the values. The default of `ownClouds` is off until the integration package (T09) accepts the system; the quality-reducing choices (`cloudReconMode` Block or Low, `cloudEntryRefinement`) are off until the owner agrees. The cost controls and the look constants of the light have no row here: they are tuning keys (`layers.coverageBound`, `layers.lightStride`, `layers.lightCutoff`, `layers.emptyLeap`, `layers.cheapShare`, `layers.fogShare`, `layers.refineBudget`, `layers.refineFraction`, `layers.edgePower`, `light.octaveA`, `light.octaveB`, `light.octaveC`, `light.msBrightness`, `light.diffusion`, `light.diffusionTau`, `light.msIsotropy`, `light.ambientOcclusion`, `light.ambientGain`, `light.skyTint`, `light.ambientFloor`) with the compiled values of the structs as defaults. The sphere scale of the noise is a body key (`sphereScale` in `CLOUDS`) and the layer set of a body is the `LAYER` nodes of `CLOUDS` (`CloudLayerSpec`).
+The own cloud system's keys (package T10) follow the stream T option structs: `LayerSwitches`, `NoiseSwitches`, `CloudLightSettings`, `CloudShadowSwitches`, `ReconSettings`; `OwnCloudOptions` writes them from the values. The default of `ownClouds` is off until the integration package (T09) accepts the system; the quality-reducing choices (`cloudReconMode` Block or Low, `cloudEntryRefinement`) are off until the owner agrees. The cost controls and the look constants of the light have no row here: they are tuning keys (`layers.coverageBound`, `layers.lightStride`, `layers.lightCutoff`, `layers.emptyLeap`, `layers.cheapShare`, `layers.fogShare`, `layers.refineBudget`, `layers.refineFraction`, `layers.edgePower`, `light.octaveA`, `light.octaveB`, `light.octaveC`, `light.msBrightness`, `light.diffusion`, `light.diffusionTau`, `light.msIsotropy`, `light.ambientOcclusion`, `light.ambientGain`, `light.skyTint`, `light.ambientFloor`) with the compiled values of the structs as defaults. The look fixes and the far view of the own clouds have keys too (`cloudSunMarchLong`: the sun march is 4 km, the length the parity rows measured, and 9 km when on; `cloudSunWhiteBalance`, `cloudDiffusionDecay`; `cloudFarHaze`, `cloudFarShapeMean`, `cloudFarMinSamples`, `cloudFarPolicy`, `cloudFarMapFade`, all off), and so have the wet surfaces (`wetSurfaces`), the window droplets (`windowDroplets`) and the lightning (`lightning` and eight `lightning*` keys), each off until the owner agrees. The sphere scale of the noise is a body key (`sphereScale` in `CLOUDS`) and the layer set of a body is the `LAYER` nodes of `CLOUDS` (`CloudLayerSpec`).
 
 **Wind**
 
@@ -262,6 +270,15 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 | `aurora` | Auto | Off / Auto / Shell2D / Volumetric | Aurora | needs-weather-effects | light |
 | `auroraAmbientTint` | 0.3 | 0 to 1 | Aurora Ambient Tint | needs-weather-effects | - |
 | `cameraFrost` | on | on / off | Camera Frost | needs-weather-effects | light |
+| `windowDroplets` | off | on / off | Window Droplets | needs-weather-effects | - |
+| `lightning` | off | on / off | Lightning | needs-weather-effects | - |
+| `lightningMaxPerSecond` | 3 | 1 to 3 | Lightning Strokes Per Second | needs-lightning | - |
+| `lightningBrightness` | 1 | 0 to 1 | Lightning Brightness | needs-lightning | - |
+| `lightningBolts` | on | on / off | Lightning Bolts | needs-lightning | - |
+| `lightningTerrainLight` | on | on / off | Lightning Ground Light | needs-lightning | - |
+| `lightningCloudFlash` | on | on / off | Lightning Cloud Flash | needs-lightning | - |
+| `lightningThunder` | on | on / off | Lightning Thunder | needs-lightning | - |
+| `lightningRealisticDelay` | on | on / off | Lightning Thunder Delay | needs-lightning | - |
 
 **Audio**
 
@@ -290,6 +307,7 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 | `vehicleCoverMethod` | Shell | Shell / ScreenSpace | Vehicle Cover Method | needs-ground-cover | - |
 | `tracks` | on | on / off | Tracks In Cover | needs-ground-cover | cover |
 | `coverDrift` | 0.3 | 0 to 1 | Cover Drift | needs-ground-cover | - |
+| `wetSurfaces` | off | on / off | Wet Surfaces | needs-weather-effects | - |
 
 **Ice**
 

@@ -91,6 +91,8 @@ namespace ReDefinition.Atmospheres
                     return value(AtmospheresSettings.Keys.PrecipDensity) > 0.0 ? null : def.GreyReason;
                 case AtmospheresSettings.GreyReasons.NeedsSolarDimming:
                     return value(AtmospheresSettings.Keys.SolarDimming) != 0.0 ? null : def.GreyReason;
+                case AtmospheresSettings.GreyReasons.NeedsLightning:
+                    return value(AtmospheresSettings.Keys.Lightning) != 0.0 ? null : def.GreyReason;
                 case AtmospheresSettings.GreyReasons.NeedsOwnSource:
                 case AtmospheresSettings.GreyReasons.NeedsOwnClouds:
                 case AtmospheresSettings.GreyReasons.NeedsCloudNoise:
