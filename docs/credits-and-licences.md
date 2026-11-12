@@ -55,6 +55,7 @@ Deferred, and both state GPL version 3 without "or later".
 | `lowbias32` integer hash (Chris Wellons, hash-prospector), second use | The Unlicense | Code taken | The same 32-bit mixer in `Atmospheres/Light/Lamp/LampMath.cs`, which fills the noise table the flake glints of the lamp scatter are read from |
 | `lowbias32` integer hash (Chris Wellons, hash-prospector), third use | The Unlicense | Code taken | The same 32-bit mixer, called as `PrecipMath.Hash` from `Atmospheres/Light/Frost/FrostAtlas.cs`, which seeds the Voronoi cells and the noise of the camera frost's procedural atlas |
 | `lowbias32` integer hash (Chris Wellons, hash-prospector), fourth use | The Unlicense | Code taken | The same 32-bit mixer in `Atmospheres/Ice/IceHash.cs`, `ReDefinitionAtmospheresIceOverlay.shader` and `tools/weather_metrics/ice.py`, which hashes the lattice cells of the sea ice's Worley floes, value noise and dither |
+| `lowbias32` integer hash (Chris Wellons, hash-prospector), fifth use | The Unlicense | Code taken | The same 32-bit mixer in `Atmospheres/Render/Layers/Noise/NoiseHash.cs`, `ReDefinitionAtmospheresNoise.cginc` and `tools/weather_metrics/noise_model.py`, which hashes the lattice points of the cloud noise volumes (Perlin and Worley octaves) and of the untiling displacement of the lookup |
 | FidelityFX documentation (denoising, super resolution, frame interpolation) and the Anti-Lag 2 README | as AMD publishes it | Reference | The source for FSR's upscaler, frame generation and denoiser, and for the calls of Anti-Lag 2 |
 
 ### Intel
