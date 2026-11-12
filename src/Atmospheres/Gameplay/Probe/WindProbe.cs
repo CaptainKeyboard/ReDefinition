@@ -142,12 +142,28 @@ namespace ReDefinition.Atmospheres
                 SetSetting(AtmospheresSettings.Keys.WindSource, (double)(int)cell.Mode);
                 // The wind is asked for at every frame for 5 s: the vessel's step restarts its 3 s ramp after a gap of more than a second
                 // between two asks (K-W3a: one ask after a 3 s wait always met the ramp at zero), and the ramp has to be over before it is read.
-                double settleEnd = Time.realtimeSinceStartup + 5.0;
-                while (Time.realtimeSinceStartup < settleEnd)
+                // The reference is read when the wind stopped changing, not after a fixed time: the slew limit builds the wind from zero at
+                // a finite rate (K-W3a repeat: 0.133 m/s read in the build-up, the settled value is 1.0 m/s, so every ratio against it was wrong).
+                // At least 5 s, then until two readings a second apart agree within 0.5 %; at most 90 s for the first cell (a build-up from zero), 20 s for the others.
+                double settleStart = Time.realtimeSinceStartup;
+                double settleMin = settleStart + 5.0, settleMax = settleStart + (cell.Name == "ours_absent" ? 90.0 : 20.0);
+                double lastLength = -1.0, lastReadAt = settleStart;
+                bool settled = false;
+                while (Time.realtimeSinceStartup < settleMax)
                 {
-                    if (WindService.Plan.AppliesAnything) WindService.WindFor(v);
+                    double length = 0.0;
+                    if (WindService.Plan.AppliesAnything) length = WindService.WindFor(v).Length;
                     yield return ProbeWait.Frames(1);
+                    double now = Time.realtimeSinceStartup;
+                    if (now >= settleMin && now - lastReadAt >= 1.0)
+                    {
+                        if (lastLength >= 0.0 && Math.Abs(length - lastLength) <= 0.005 * Math.Max(length, 0.0) + 1e-4) { settled = true; break; }
+                        lastLength = length;
+                        lastReadAt = now;
+                    }
                 }
+                Emit("D31.mode_" + cell.Name + "_settled", settled);
+                Emit("D31.mode_" + cell.Name + "_settle_s", Time.realtimeSinceStartup - settleStart);
                 double applied = WindService.Plan.AppliesAnything ? WindService.WindFor(v).Length : 0.0;
                 if (cell.Name == "ours_absent")
                 {
@@ -223,6 +239,20 @@ namespace ReDefinition.Atmospheres
             return Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(toSun, up))));
         }
 
+        // The file a SaveGame result names: the result as it is, with ".sfs", and each of them under the game folder; null where none exists.
+        private static string ResolveSavePath(string returned)
+        {
+            if (string.IsNullOrEmpty(returned)) return null;
+            string root = KSPUtil.ApplicationRootPath;
+            string[] candidates =
+            {
+                returned, returned + ".sfs",
+                Path.Combine(root, returned), Path.Combine(root, returned + ".sfs")
+            };
+            foreach (string c in candidates) if (File.Exists(c)) return c;
+            return null;
+        }
+
         private IEnumerable<ProbeWait> SolarScenario(Vessel v)
         {
             List<ModuleDeployableSolarPanel> panels = Panels(v);
@@ -283,6 +313,9 @@ namespace ReDefinition.Atmospheres
             }
             bool same = false;
             int found = 0;
+            // SaveGame returns "saves/<folder>/<name>" (the log line of the game says the same): relative to the game folder and without the extension (K-W3a repeat:
+            // the file d31wind.sfs was written and File.Exists(path) was false, so no value was found).
+            path = ResolveSavePath(path);
             if (!string.IsNullOrEmpty(path) && File.Exists(path))
             {
                 string text = File.ReadAllText(path);

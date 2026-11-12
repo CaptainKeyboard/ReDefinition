@@ -221,7 +221,10 @@ namespace ReDefinition.Atmospheres
             Say("soak warp: physics rates " + SoakWarp.Describe(TimeWarp.fetch.physicsWarpRates) + ", index " + warpIndex + ", current index " + TimeWarp.CurrentRateIndex
                 + ", mode " + TimeWarp.WarpMode);
             Emit("D31.soak_warp_rate", TimeWarp.CurrentRate);
-            Emit("D31.soak_warp_table_rate", SoakWarp.RateAt(TimeWarp.fetch.physicsWarpRates, warpIndex));
+            float tableRate = SoakWarp.RateAt(TimeWarp.fetch.physicsWarpRates, warpIndex);
+            Emit("D31.soak_warp_table_rate", tableRate);
+            // The game's table (1, 4, 8, 12 in 1.12) has no 3: the rate to hold is the table's rate nearest to 3, and the game has to run exactly that.
+            Emit("D31.soak_warp_is_table_rate", Math.Abs(TimeWarp.CurrentRate - tableRate) < 0.01f);
             Emit("D31.soak_warp_in_force", TimeWarp.WarpMode == TimeWarp.Modes.LOW && TimeWarp.CurrentRateIndex == warpIndex);
             int bad = 0, failures0 = WindService.FailureCount + WindHook.Failures;
             double maxSpeed = 0.0, started = Ut(), lastLog = started;
