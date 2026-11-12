@@ -6,7 +6,7 @@ namespace ReDefinition.Atmospheres
     // (ReDefinitionAtmospheresCloudLight.cginc) mirrors every function here; the unit tests judge these, the weather player judges the shader
     // against the same checks (tools/weather_metrics/light.py).
     //
-    // Techniques (no code taken): the dual-lobe Henyey-Greenstein phase (Henyey and Greenstein 1941) with the forward lobe for the silver
+    // Technique sources: the dual-lobe Henyey-Greenstein phase (Henyey and Greenstein 1941) with the forward lobe for the silver
     // lining; the octave multiple-scattering approximation of Wrenninge, Kulla and Lundqvist ("Oz: The Great and Volumetric", 2013) as
     // applied to clouds by Hillaire ("Physically Based Sky, Atmosphere and Cloud Rendering in Frostbite", 2016, sections 5.7 and 5.8);
     // the cone-spread taps of the light march follow Schneider ("The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015),
@@ -56,7 +56,9 @@ namespace ReDefinition.Atmospheres
         }
 
         // The most energy the octaves can scatter, relative to a single scattering of the same unattenuated light: the sum of their weights.
-        // With b <= 0.5 and msBrightness <= 1 it stays below 2.
+        // With b <= 0.5 and msBrightness <= 1 it stays below 2. The fitted defaults (msBrightness 7.9, b 0.437) give 6.6: the octaves
+        // thin out with depth (exp(-tau a^n)) and the powder factor cuts the thin parts, so the energy actually scattered stays inside the
+        // reference's albedo-limited radiance (checks R08, R09); the weights themselves are not an energy bound.
         internal static double OctaveEnergy(int count, double b, double msBrightness)
         {
             double sum = 0, bn = 1;

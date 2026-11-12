@@ -7,7 +7,7 @@
 // energy-conserving step of Hillaire 2016, section 5.6.3):
 //   J = albedo * ( powder * sum over lights Lc * sum_{n<N} b^n * Phase(mu, c^n) * exp(-tau_light * a^n)  +  ambient )
 //   Phase  dual-lobe Henyey-Greenstein, forward g1, back g2, weight w1; octave n scales both g by c^n (Wrenninge et al. 2013 style octaves,
-//          applied as in Hillaire 2016, section 5.8: a, b, c <= 1, so that the octave energy stays bounded)
+//          applied as in Hillaire 2016, section 5.8; a, b, c <= 1; the fitted brightness above 1 is documented in CloudLightMath.OctaveEnergy)
 //   tau    the optical depth towards the light: a short march of a few taps with growing steps, optionally spread in a cone
 //          (Schneider 2015: cone-sampled light march); octave n sees the medium thinned by a^n, the stand-in for light that scatters
 //          more than once and reaches the sample around the dense core
@@ -262,7 +262,9 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
         if (tauUp < 0) taps += max(1, (int)_LightS.y);
         open = exp(-tu * _LightQ.w);
     }
-    float3 floorLight = _LightQ.z * Luma(_SunColor.rgb) * LIGHT_INV4PI;
+    // The floor is a share of the isotropic light of all lights, so a night lit by a moon is not black either.
+    float lightLuma = Luma(_SunColor.rgb) + Luma(_MoonCol[0].rgb) + Luma(_MoonCol[1].rgb);
+    float3 floorLight = _LightQ.z * lightLuma * LIGHT_INV4PI;
     dirPart = direct * powder * _PhaseP.w;
     ambPart = max(sky * open * _PhaseP.w, floorLight.xxx);
     return dirPart + ambPart + BoltLight(pc) * _PhaseP.w;

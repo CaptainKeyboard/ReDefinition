@@ -60,10 +60,12 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheOctaveEnergyStaysBoundedForTheDefaultWeights()
+        public void TheOctaveEnergyIsBelowTwoForUnitBrightnessAndTheFittedDefaultsStayBelowSeven()
         {
             Assert.IsTrue(CloudLightMath.OctaveEnergy(4, 0.5, 1.0) < 2.0);
             Assert.AreEqual(1.0, CloudLightMath.OctaveEnergy(1, 0.5, 1.0), 1e-12);
+            var d = new CloudLightSettings();
+            Assert.IsTrue(CloudLightMath.OctaveEnergy(d.Octaves, d.OctaveB, d.MsBrightness) < 7.0);
         }
 
         [TestMethod]
