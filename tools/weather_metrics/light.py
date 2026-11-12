@@ -52,9 +52,9 @@ ENV = pr.Environment(0.30, 0.55, 0.12)
 CELL_CENTRE = [0.0, 0.0, R + 2000.0]
 
 # The light's numbers as the parity run fixed them (CloudLightSettings holds the same values).
-MODEL = dict(forwardG=0.85, backG=-0.3, forwardWeight=0.92, albedo=0.999, octaves=4, octaveA=0.445, octaveB=0.437, octaveC=0.81, msBrightness=7.923, diffusion=2.093, diffusionTau=16.847,
-             powder=1.0, powderLength=184.1, ambientFloor=0.05, ambientOcclusion=1.563, skyTint=0.7, ambientGain=0.6, sunSteps=4, moonSteps=2,
-             upSteps=2, coneSpread=0.0, tapRatio=2.0, cacheFillSteps=12)
+MODEL = dict(forwardG=0.85, backG=-0.3, forwardWeight=0.92, albedo=0.999, octaves=4, octaveA=0.3081, octaveB=0.5482, octaveC=0.898, msBrightness=2.9358, diffusion=0.8732, diffusionTau=35.807,
+             powder=0.8075, powderLength=460.05, ambientFloor=0.05, ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.2447, sunSteps=4, moonSteps=2,
+             upSteps=2, coneSpread=0.0, tapRatio=2.0, cacheFillSteps=12, msIsotropy=0.7552)
 # The harness environment as the shader's ambient: the sky's mean over the sphere at the cell's top, the ground's share lower down.
 AMBIENT_TOP, AMBIENT_BOTTOM = 0.30, 0.15
 
@@ -96,7 +96,7 @@ def light_job(jid, cam, layers, width, height, sun, aid=0, planet=R, cell=False,
     j.update(over)
     j["sunSteps"] = int(j["sunSteps"])
     if cell:
-        j.update(cellCentre=CELL_CENTRE, cellRadius=800.0, cellVertical=560.0, cellSigma=0.02)
+        j.update(cellCentre=CELL_CENTRE, cellRadius=800.0, cellVertical=560.0, cellSigma=over.get("cellSigma", 0.02))
     return j
 
 
@@ -162,8 +162,13 @@ def reference_numbers():
 # --------------------------------------------------------------------------------------------------------------------------------
 # The fit: the look constants against the reference (series T03-fit)
 # --------------------------------------------------------------------------------------------------------------------------------
-FIT_FIELDS = ("octaveA", "octaveB", "octaveC", "msBrightness", "powder", "powderLength", "ambientOcclusion", "ambientGain", "diffusion", "diffusionTau")
-FIT_CASES = (("near", 0.0, 8.0), ("far", 75.0, 8.0), ("side", 90.0, 50.0), ("back", 180.0, 35.0))
+FIT_FIELDS = ("octaveA", "octaveB", "octaveC", "msBrightness", "powder", "powderLength", "ambientOcclusion", "ambientGain", "diffusion", "diffusionTau", "msIsotropy")
+FIT_CASES = (("near", 0.0, 8.0), ("far", 75.0, 8.0), ("side", 90.0, 50.0), ("back", 180.0, 35.0), ("ns", 0.0, 20.0))
+# The octaves may not scatter more than the perfect diffuser's radiance E / pi, which is 4 times the isotropic source E / 4 pi that their weights are
+# measured in (CloudLightMath.EnergyBound; FX-T03: the earlier fit had no bound, reached 6.6 and made a cloud towards the sun 2.4 times too bright).
+ENERGY_CAP = 4.0
+# The image-level views of the fit: the reference images (parity-ref-images) of these cases are compared region by region.
+FIT_IMAGE_VIEWS = (("ns", "near-sun"), ("side", "side"), ("back", "behind"))
 FIT_W = 64
 
 
@@ -175,21 +180,52 @@ def fit_jobs(sets, w=FIT_W):
     return jobs
 
 
+def octave_energy(p):
+    """The sum of the octave weights of a parameter set (CloudLightMath.OctaveEnergy)."""
+    return 1.0 + p["msBrightness"] * sum(p["octaveB"] ** n for n in range(1, int(MODEL["octaves"])))
+
+
 def fit_sets(n, seed, ranges):
     rng = np.random.default_rng(seed)
     sets = []
-    for _ in range(n):
-        sets.append({f: float(rng.uniform(*ranges[f])) for f in FIT_FIELDS})
+    while len(sets) < n:
+        p = {f: float(rng.uniform(*ranges[f])) for f in FIT_FIELDS}
+        if octave_energy(p) <= ENERGY_CAP:
+            sets.append(p)
     return sets
 
 
-FIT_RANGES = dict(octaveA=(0.2, 0.98), octaveB=(0.2, 0.9), octaveC=(0.2, 0.9), msBrightness=(0.5, 8.0), powder=(0.0, 1.0), powderLength=(50.0, 600.0),
-                  ambientOcclusion=(0.0, 2.5), ambientGain=(0.6, 3.0), diffusion=(0.0, 3.0), diffusionTau=(2.0, 30.0))
+FIT_RANGES = dict(octaveA=(0.2, 0.98), octaveB=(0.2, 0.9), octaveC=(0.1, 0.9), msBrightness=(0.2, 3.0), powder=(0.0, 1.0), powderLength=(50.0, 600.0),
+                  ambientOcclusion=(0.0, 2.5), ambientGain=(0.2, 3.0), diffusion=(0.0, 4.0), diffusionTau=(2.0, 40.0), msIsotropy=(0.0, 1.0))
+
+
+def _ref_image(view):
+    z = np.load(os.path.join(REPO, "build", "parity-ref-images", view + ".npz"))
+    return z["alpha"], z["cloud"]
+
+
+def region_means(alpha, lum, ref_alpha):
+    """Mean radiance over the cloud's core, its top, middle and bottom thirds and its rim (alpha between 0.15 and 0.8 of the reference)."""
+    core = (ref_alpha > 0.9) & (alpha > 0.9)
+    ys = np.where(ref_alpha.max(axis=1) > 0.5)[0]
+    y0, y1 = ys.min(), ys.max()
+    out = {"core": float(lum[core].mean())}
+    for name, (f0, f1) in (("top", (0.0, 0.33)), ("mid", (0.33, 0.66)), ("bot", (0.66, 1.0))):
+        m = np.zeros_like(core)
+        rows = slice(y0 + int(f0 * (y1 - y0)), y0 + int(f1 * (y1 - y0)) + 1)
+        m[rows] = core[rows]
+        out[name] = float(lum[m].mean()) if m.any() else out["core"]
+    rim = (ref_alpha > 0.15) & (ref_alpha < 0.8) & (alpha > 0.1)
+    out["rim"] = float(lum[rim].mean()) if rim.any() else out["core"]
+    return out
 
 
 def fit_scores(folder, sets, ref):
-    """Per set: the four figures and the normalised violation (1 = on the edge of the tolerance; below 1 = inside) of the checks."""
+    """Per set: the figures and the normalised violation (1 = on the edge of the tolerance; below 1 = inside) of the checks. FX-T03: the score
+    also holds the image-level comparison with the reference images (core, thirds and rim of the near-sun, side and behind views), so that
+    a set cannot be right at the four edge figures and wrong in the body (the earlier fit: 2.4 times too bright towards the sun)."""
     out = []
+    refs = {case: _ref_image(view) for case, view in FIT_IMAGE_VIEWS}
     for k, p in enumerate(sets):
         imgs = {name: cell_img(folder, "F%03d-%s" % (k, name))[0] for name, _, _ in FIT_CASES}
         near, far = run.edge_source(imgs["near"])[0], run.edge_source(imgs["far"])[0]
@@ -201,11 +237,22 @@ def fit_scores(folder, sets, ref):
         v_silver = max(abs(silver - ref["silver"]) / (0.15 * ref["silver"]), (2.0 - silver) / 2.0)
         v_base = abs(ratio - ref["base_top"]) / (0.20 * ref["base_top"])
         v_powder = abs(dip - ref["powder"]) / (0.25 * ref["powder"])
-        # The absolute levels too (the ratios alone leave the brightness free): within 25 % of the reference's own radiance.
         levels = dict(top=top, base=base, silver_near=near, edge_j=e, interior_j=i)
-        v_level = max(abs(levels[k] / ref[k] - 1.0) / 0.25 for k in levels)
-        out.append(dict(params=p, silver=silver, base_top=ratio, powder_dip=dip, levels=levels, violation=max(v_silver, v_base, v_powder, v_level),
-                        parts=(v_silver, v_base, v_powder, v_level)))
+        v_level = max(abs(levels[k2] / ref[k2] - 1.0) / 0.25 for k2 in levels)
+        regions = {}
+        v_img = 0.0
+        for case, _ in FIT_IMAGE_VIEWS:
+            ra, rc = refs[case]
+            img = imgs[case]
+            rm = region_means(ra, rc, ra)
+            om = region_means(img.alpha, img.cloud, ra)
+            regions[case] = {r: om[r] / max(rm[r], 1e-9) for r in rm}
+            v_img = max(v_img, max(abs(v - 1.0) for v in regions[case].values()) / 0.25)
+        energy = octave_energy(p)
+        v_energy = max(0.0, energy / ENERGY_CAP - 1.0) * 10.0
+        out.append(dict(params=p, silver=silver, base_top=ratio, powder_dip=dip, levels=levels, regions=regions, energy=energy,
+                        violation=max(v_silver, v_base, v_powder, v_level, v_img, v_energy),
+                        parts=(v_silver, v_base, v_powder, v_level, v_img)))
     return out
 
 
@@ -260,9 +307,43 @@ VIEW_TABLE = (
     ("near-sun", 0.0, 20.0, None, None, None),
     ("side", 90.0, 50.0, None, None, None),
     ("behind", 180.0, 35.0, None, None, None),
-    ("sunset", 90.0, 3.0, SUNSET_COLOUR, ([0.20, 0.17, 0.20], [0.10, 0.08, 0.08]), None),
+    ("low", 90.0, 8.0, None, ([0.20, 0.25, 0.40], [0.12, 0.10, 0.09]), None),
+    ("sunset", 90.0, 2.0, None, ([0.08, 0.10, 0.18], [0.10, 0.06, 0.045]), None),
+    ("storm", 90.0, 40.0, None, None, None),
     ("night", 90.0, -12.0, [0.0, 0.0, 0.0], ([0.02, 0.025, 0.04], [0.01, 0.012, 0.02]), (flat_sun(0.0, 45.0), NIGHT_MOON_COLOUR)),
 )
+# Views that look up at a layer (no cell): a thick deck seen from below and a thin cirrus, id -> (base, top, vertical optical depth, sun elevation).
+UP_VIEWS = {"deck": (2000.0, 2600.0, 25.0, 25.0), "cirrus": (8000.0, 8400.0, 0.4, 25.0)}
+
+
+def up_job(jid, vid, aid=0, w=64, harness=False):
+    """A view up at a layer. harness: the harness's own grey environment and the white sun, the setting the reference renderer rendered
+    (build/parity-ref-images/updecks.json, 16 x 12 px) for the 'deck' and 'cirrus' checks."""
+    base, top, tau, el = UP_VIEWS[vid]
+    cam = pr.Camera([0.0, 0.0, R + 2.0], 0.0, 35.0, w, int(w * 0.75), 60.0)
+    if harness:
+        return light_job(jid, cam, [L.layer(base, top, tau / (top - base))], cam.width, cam.height, flat_sun(200.0, el), aid=aid)
+    over = dict(SUN_AIR) if vid in AIR_VIEWS else {}
+    return light_job(jid, cam, [L.layer(base, top, tau / (top - base))], cam.width, cam.height, flat_sun(200.0, el), aid=aid,
+                     amb_top=[0.25, 0.32, 0.5], amb_bottom=[0.10, 0.10, 0.10], **over)
+
+
+def up_reference(vid):
+    path = os.path.join(REPO, "build", "parity-ref-images", "updecks.json")
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        d = json.load(f)[vid]
+    return np.array(d["alpha"]), np.array(d["cloud"])
+
+
+def up_ratio(folder, vid):
+    """Our mean cloud radiance over the reference's, on the 16 x 12 view of the harness setting; (alpha ours, alpha reference, ratio)."""
+    ref = up_reference(vid)
+    if ref is None or not os.path.isfile(os.path.join(folder, "DK-%s-r.npy" % vid)):
+        return None
+    r, g, b, a = (plane(folder, "DK-%s" % vid, c) for c in "rgba")
+    return float(a.mean()), float(ref[0].mean()), float(((r + g + b) / 3.0).mean() / ref[1].mean())
 AB_VARIANTS = (
     ("full", {}),
     ("no-powder", dict(powder=0.0)),
@@ -277,9 +358,18 @@ AB_VARIANTS = (
 )
 
 
+# The views whose sun is seen through the air (FX-T03: the shader's SunAir with the compiled default extinction); the others keep the white sun
+# of the parity reference. Both the cell views and the extra views below use it for the low sun.
+SUN_AIR = dict(sunAirTau=[0.0764, 0.138, 0.295], sunAirHeight=8000.0)
+AIR_VIEWS = ("low", "sunset", "deck", "cirrus", "storm")
+
+
 def view_job(jid, spec, variant=None, aid=0, w=96):
     _, az, el, sun_col, amb, extra = spec
-    over = dict(variant or {})
+    over = dict(SUN_AIR) if spec[0] in AIR_VIEWS else {}
+    over.update(variant or {})
+    if spec[0] == "storm":
+        over["cellSigma"] = 0.05
     kw = {}
     if sun_col is not None:
         kw["sun_colour"] = sun_col
@@ -333,6 +423,10 @@ def build_jobs():
     for spec in VIEW_TABLE:
         jobs.append(view_job("V-%s" % spec[0], spec))
         jobs.append(view_job("VA-%s" % spec[0], spec, aid=4))
+    for vid in UP_VIEWS:
+        jobs.append(up_job("V-%s" % vid, vid))
+        jobs.append(up_job("VA-%s" % vid, vid, aid=4))
+        jobs.append(up_job("DK-%s" % vid, vid, w=16, harness=True))
     for name, over in AB_VARIANTS:
         jobs.append(view_job("AB-%s" % name, VIEW_TABLE[1], over))
         jobs.append(view_job("ABA-%s" % name, VIEW_TABLE[1], over, aid=4))
@@ -522,6 +616,14 @@ def collect(ctx):
     a, b = plane(folder, "DF", "g"), plane(folder, "BT", "g")
     out.append(Metric.at_most("defaults_equal_model", float(np.abs(a - b).max()), 1e-4).based("new"))
     out.extend(cache_metrics(folder))
+    # The layers seen from below against the reference renderer (FX-T03): a thick deck, a thin cirrus; within 25 % of the reference's radiance.
+    for vid in UP_VIEWS:
+        u = up_ratio(folder, vid)
+        if u is not None:
+            out.append(Metric.info("deck.%s.alpha_ours" % vid, u[0]))
+            out.append(Metric.info("deck.%s.alpha_reference" % vid, u[1]))
+            out.append(Metric.at_most("deck.%s.radiance_error" % vid, abs(u[2] - 1.0), 0.25).based("gate"))
+            out.append(Metric.info("deck.%s.radiance_ratio" % vid, u[2]))
     out.extend(pictures(folder))
     for m in out:
         if m.value is not None and not isinstance(m.value, str):
@@ -574,14 +676,17 @@ def sky_of(view_id):
     return SKY_COLOUR.get(view_id, DAY_SKY)
 
 
-def natural_image(folder, jid, sky=None):
-    """The march's radiance over a backdrop: the sky above the horizon row, a darker ground below (the view's own sky colour)."""
+def natural_image(folder, jid, sky=None, all_sky=False):
+    """The march's radiance over a backdrop: the sky above the horizon row, a darker ground below (the view's own sky colour); all_sky: the
+    view looks up and sees sky everywhere."""
     r, g, b, a = (plane(folder, jid, c) for c in "rgba")
     sky = DAY_SKY if sky is None else sky
     h, w = a.shape
     chans = []
     for ch, s in zip((r, g, b), sky):
         back = backdrop(h, w, s, 0.22 * s)
+        if all_sky:
+            back = np.full((h, w), s)
         chans.append(tone(ch + (1 - a) * back))
     return np.stack(chans, axis=-1)
 
@@ -641,11 +746,10 @@ def reference_image(view_id):
 
 def pictures(folder):
     out = []
-    for spec in VIEW_TABLE:
-        vid = spec[0]
+    for vid in [s[0] for s in VIEW_TABLE] + list(UP_VIEWS):
         if not os.path.isfile(os.path.join(folder, "V-%s-r.npy" % vid)):
             continue
-        nat = natural_image(folder, "V-%s" % vid, sky_of(vid))
+        nat = natural_image(folder, "V-%s" % vid, sky_of(vid), all_sky=vid in UP_VIEWS)
         sp, steps = split_image(folder, "VA-%s" % vid)
         panels, labels = [nat, sp, steps], ["ours natural", "direct (red) | ambient (blue)", "light taps per pixel"]
         refimg = reference_image(vid)
@@ -708,6 +812,10 @@ COST_INPUT = os.path.join(BUILD, "T03-cost-in")
 COST_VIEWS = ("V-ground", "V-inside", "V-above", "V-stack-below")
 COST_VARIANTS = (
     ("default", {}),
+    ("ao-taps", dict(aoTaps=1)),
+    ("cone", dict(coneSpread=0.15)),
+    ("sun-air", dict(SUN_AIR)),
+    ("steps3", dict(sunSteps=3)),
     ("light-minimal", dict(octaves=1, ambientOcclusion=0.0, sunSteps=1, diffusion=0.0)),
     ("steps2", dict(sunSteps=2)),
     ("octaves1", dict(octaves=1)),
@@ -778,7 +886,7 @@ def fit_round(n):
     """Writes the sweep of round n: round 1 over the full ranges, rounds 2 and 3 around the best sets of the round before."""
     scores_path = os.path.join(FIT_INPUT, "scores.json")
     if n <= 1 or not os.path.isfile(scores_path):
-        sets = fit_sets(120, 11, FIT_RANGES)
+        sets = fit_sets(200, 12, FIT_RANGES)
     else:
         with open(scores_path, encoding="utf-8") as f:
             best = json.load(f)[:5]
@@ -787,8 +895,12 @@ def fit_round(n):
         sets = []
         for k in range(120):
             base = best[k % len(best)]["params"]
-            sets.append({f: float(np.clip(base[f] + rng.uniform(-1, 1) * width * (FIT_RANGES[f][1] - FIT_RANGES[f][0]), *FIT_RANGES[f]))
-                         for f in FIT_FIELDS})
+            for _try in range(50):
+                cand = {f: float(np.clip(base[f] + rng.uniform(-1, 1) * width * (FIT_RANGES[f][1] - FIT_RANGES[f][0]), *FIT_RANGES[f]))
+                        for f in FIT_FIELDS}
+                if octave_energy(cand) <= ENERGY_CAP:
+                    break
+            sets.append(cand)
     write_fit_inputs(sets)
     print("round %d: %d sets" % (n, len(sets)))
 

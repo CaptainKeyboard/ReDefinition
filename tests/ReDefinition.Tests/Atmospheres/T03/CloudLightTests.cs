@@ -51,6 +51,33 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheIsotropicShareMovesTheHigherOctavesTowardsOneOverFourPi()
+        {
+            double mu = Math.Cos(10.0 * Math.PI / 180.0), tau = 0.5;
+            double directional = CloudLightMath.OctaveSum(mu, tau, 4, 0.5, 0.5, 0.5, 1.0, G1, G2, W1, 0.0);
+            double isotropic = CloudLightMath.OctaveSum(mu, tau, 4, 0.5, 0.5, 0.5, 1.0, G1, G2, W1, 1.0);
+            double first = CloudLightMath.Phase(mu, G1, G2, W1, 1.0) * Math.Exp(-tau);
+            Assert.IsTrue(isotropic < directional, "near the sun the isotropic octaves carry less than the forward-peaked ones");
+            double rest = 0, bn = 0.5, an = 0.5;
+            for (int i = 1; i < 4; i++) { rest += bn * CloudLightMath.InvFourPi * Math.Exp(-tau * an); bn *= 0.5; an *= 0.5; }
+            Assert.AreEqual(first + rest, isotropic, 1e-9);
+        }
+
+        [TestMethod]
+        public void TheSunComesOutRedWhenItIsLow()
+        {
+            double[] tau = { 0.0764, 0.138, 0.295 };
+            double highR = CloudLightMath.SunAir(Math.Sin(60.0 * Math.PI / 180.0), tau[0], 2000.0, 8000.0);
+            double highB = CloudLightMath.SunAir(Math.Sin(60.0 * Math.PI / 180.0), tau[2], 2000.0, 8000.0);
+            double lowR = CloudLightMath.SunAir(Math.Sin(2.0 * Math.PI / 180.0), tau[0], 2000.0, 8000.0);
+            double lowB = CloudLightMath.SunAir(Math.Sin(2.0 * Math.PI / 180.0), tau[2], 2000.0, 8000.0);
+            Assert.IsTrue(highB / highR > 0.8, "a high sun stays nearly white");
+            Assert.IsTrue(lowB / lowR < 0.1, "a sun at 2 degrees loses its blue first: " + lowB / lowR);
+            Assert.AreEqual(0.0, CloudLightMath.SunAir(-0.2, tau[0], 0.0, 8000.0), 1e-12);
+            Assert.AreEqual(1.0, CloudLightMath.SunAir(0.5, tau[0], 0.0, 0.0), 1e-12, "a zero height keeps the frame's colour");
+        }
+
+        [TestMethod]
         public void TheOctavesLetMoreLightReachTheDeepCoreThanBeerLambertAlone()
         {
             double deep = 6.0;
@@ -60,12 +87,13 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheOctaveEnergyIsBelowTwoForUnitBrightnessAndTheFittedDefaultsStayBelowSeven()
+        public void TheOctaveEnergyIsBelowTwoForUnitBrightnessAndTheFittedDefaultsStayInsideTheDiffuserBound()
         {
             Assert.IsTrue(CloudLightMath.OctaveEnergy(4, 0.5, 1.0) < 2.0);
             Assert.AreEqual(1.0, CloudLightMath.OctaveEnergy(1, 0.5, 1.0), 1e-12);
             var d = new CloudLightSettings();
-            Assert.IsTrue(CloudLightMath.OctaveEnergy(d.Octaves, d.OctaveB, d.MsBrightness) < 7.0);
+            // The bound of a perfect diffuser: radiance E / pi is 4 times the isotropic source E / 4 pi.
+            Assert.IsTrue(CloudLightMath.OctaveEnergy(d.Octaves, d.OctaveB, d.MsBrightness) <= CloudLightMath.EnergyBound);
         }
 
         [TestMethod]

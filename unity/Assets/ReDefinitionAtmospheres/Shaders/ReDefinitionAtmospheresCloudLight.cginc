@@ -23,8 +23,9 @@ float4 _LightP;   // octaves (1..4), a (light thinning per octave), b (weight pe
 float4 _LightQ;   // powder strength, powder length (m), ambient floor (share of the sun share), ambient occlusion strength (0: gradient only)
 float4 _LightR;   // cone spread (tan of the half angle, 0: straight), tap step ratio, sky tint multiplier (0 grey .. 1 sky hue), multiple scattering brightness
 float4 _LightS;   // moon taps, up taps, ambient gain, light cache (1 on)
-float4 _LightT;   // bolt count, sun tap count override (0: the march's own), light cache fill taps, unused
-float4 _LightU;   // diffusion share (light that has diffused into the deep core, isotropic, as a share of the sun's isotropic light), its optical depth scale
+float4 _LightT;   // bolt count, sun tap count override (0: the march's own), light cache fill taps, ambient occlusion mode (0 analytic from the local density, 1 taps straight up)
+float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is)
+float4 _LightU;   // diffusion share (light that has diffused into the deep core, isotropic, as a share of the sun's isotropic light), its optical depth scale, isotropic share of the octaves above the first
 float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, unused
 float4 _MoonDir[2], _MoonCol[2];   // towards the light; colour times intensity (rgb, 0: off)
 float4 _BoltPos[4], _BoltCol[4];   // planet frame position and range (w); colour times intensity
@@ -98,6 +99,20 @@ float Phase(float mu)
 float Luma(float3 c)
 {
     return dot(c, float3(0.2126, 0.7152, 0.0722));
+}
+
+// The share of the sun's colour that reaches a point after the air above it (FX-T03): Beer-Lambert with an extinction per channel, the
+// airmass of Kasten and Young (1989, Applied Optics 28: m = 1 / (sin h + 0.50572 (h + 6.07995 deg)^-1.6364)) and the air thinning with the
+// point's altitude. A low sun comes out red (blue is removed first); the sun below the horizon gives nothing.
+float3 SunAir(float3 pc, float3 sunDir)
+{
+    if (_SunAir.w <= 0) return 1.0;
+    float3 up = pc * rsqrt(max(dot(pc, pc), 1.0));
+    float s = clamp(dot(up, sunDir), -1.0, 1.0);
+    float elev = asin(s) * 57.29577951;
+    float m = 1.0 / (max(s, 0.0) + 0.50572 * pow(max(elev + 6.07995, 0.05), -1.6364));
+    float3 tau = _SunAir.xyz * exp(-max(length(pc) - _PlanetR, 0.0) / _SunAir.w);
+    return exp(-tau * m) * smoothstep(-0.02, 0.0, s);
 }
 
 // The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size over at most _Sun.w m,
@@ -195,7 +210,9 @@ float OctaveSum(float mu, float tau, float msBrightness)
     float an = 1.0, bn = 1.0, cn = 1.0;
     [unroll] for (int i = 0; i < 4; i++)
     {
-        if (i < n) sum += (i == 0 ? 1.0 : msBrightness) * bn * Phase(mu, cn) * exp(-tau * an);
+        // The octaves above the first stand for light that has scattered several times: their directions are more isotropic than the single
+        // scattering's, which _LightU.z (the isotropic share) expresses (FX-T03).
+        if (i < n) sum += (i == 0 ? 1.0 : msBrightness) * bn * (i == 0 ? Phase(mu, cn) : lerp(Phase(mu, cn), LIGHT_INV4PI, _LightU.z)) * exp(-tau * an);
         an *= _LightP.y; bn *= _LightP.z; cn *= _LightP.w;
     }
     return sum;
@@ -243,9 +260,10 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     }
     if (tauReuse >= 0) tauSun = tauReuse;
     taps = tauSun >= 0 ? 0.5 : steps;
-    if (tauSun < 0 && Luma(_SunColor.rgb) > 0) tauSun = LightTau(pc, sunDir, li, steps, t, _LightR.x, rot);
+    float3 sunCol = _SunColor.rgb * SunAir(pc, sunDir);
+    if (tauSun < 0 && Luma(sunCol) > 0) tauSun = LightTau(pc, sunDir, li, steps, t, _LightR.x, rot);
     tauSunOut = max(tauSun, 0.0);
-    float3 direct = DirectOfLight(_SunColor.rgb, sunDir, pc, d, li, steps, t, max(tauSun, 0.0), rot);
+    float3 direct = DirectOfLight(sunCol, sunDir, pc, d, li, steps, t, max(tauSun, 0.0), rot);
     [unroll] for (int m = 0; m < 2; m++)
     {
         direct += DirectOfLight(_MoonCol[m].rgb, _MoonDir[m].xyz, pc, d, li, max(1, (int)_LightS.x), t, -1.0, rot);
@@ -259,13 +277,22 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     float open = 1.0;
     if (_LightQ.w > 0)
     {
-        float3 up = normalize(pc);
-        float tu = tauUp >= 0 ? tauUp : LightTau(pc, up, li, max(1, (int)_LightS.y), t, 0, 0);
-        if (tauUp < 0) taps += max(1, (int)_LightS.y);
+        float tu;
+        if (tauUp >= 0) tu = tauUp;
+        else if (_LightT.w > 0.5)
+        {
+            tu = LightTau(pc, normalize(pc), li, max(1, (int)_LightS.y), t, 0, 0);
+            taps += max(1, (int)_LightS.y);
+        }
+        else
+        {
+            // FX-T03: the optical depth straight up from the local density and the layer's remaining height (no extra taps: the taps cost 0.9 to 2.4 ms).
+            tu = dens * max(_LayerA[li].y - (length(pc) - _PlanetR), 0.0);
+        }
         open = exp(-tu * _LightQ.w);
     }
     // The floor is a share of the isotropic light of all lights, so a night lit by a moon is not black either.
-    float lightLuma = Luma(_SunColor.rgb) + Luma(_MoonCol[0].rgb) + Luma(_MoonCol[1].rgb);
+    float lightLuma = Luma(sunCol) + Luma(_MoonCol[0].rgb) + Luma(_MoonCol[1].rgb);
     float3 floorLight = _LightQ.z * lightLuma * LIGHT_INV4PI;
     dirPart = direct * powder * _PhaseP.w;
     ambPart = max(sky * open * _PhaseP.w, floorLight.xxx);

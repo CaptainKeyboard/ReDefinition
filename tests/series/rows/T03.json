@@ -8,6 +8,8 @@
     { "series": "player-T03", "section": "T03", "metric": "R10-cache-direct", "max": 16, "note": "frames to settle after a 5 degree sun step (the pass keeps no state)" },
     { "series": "player-T03", "section": "T03", "metric": "R10-cache-ambient", "max": 300, "note": "frames to settle after an ambient step" },
     { "series": "player-T03", "section": "T03", "metric": "R10-cache-jump", "max": 0.03, "note": "frame-to-frame luminance jump while the camera climbs 1 km at the production sampling" },
+    { "series": "player-T03", "section": "T03", "metric": "deck.deck.radiance_error", "max": 0.25, "note": "thick deck seen from below, mean radiance against the reference renderer (FX-T03)" },
+    { "series": "player-T03", "section": "T03", "metric": "deck.cirrus.radiance_error", "max": 0.25, "note": "thin cirrus seen from below, mean radiance against the reference renderer (FX-T03)" },
     { "series": "player-T03", "section": "T03", "metric": "defaults_equal_model", "max": 0.0001, "required": false, "note": "the compiled defaults of CloudLightSettings draw the same as the explicit numbers of the fit" }
   ]
 }

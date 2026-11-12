@@ -352,7 +352,8 @@ Shader "ReDefinition/AtmospheresLayers"
                         if (noLight) reuse = 0.0;
                         else if (haveSun && !(T * ext >= lightCut && sinceLight + 1.0 >= _CostP.z)) { reuse = sunTau; sinceLight += 1.0; }
                         float taps, tauUsed;
-                        src = LightSource(pc, d, dens, share, li, t - dt, rot, reuse, dirPart, ambPart, taps, tauUsed);
+                        // The cone's rotation advances by the golden angle from one lit sample to the next, so that the per-pixel pattern averages out along the ray (FX-T03).
+                        src = LightSource(pc, d, dens, share, li, t - dt, rot + r.steps * 2.3999632, reuse, dirPart, ambPart, taps, tauUsed);
                         if (reuse < 0.0) { sunTau = tauUsed; haveSun = true; sinceLight = 0.0; }
                         r.lightTaps += taps;
                     }
@@ -363,7 +364,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         sky = lerp(Luma(sky).xxx, sky, _LightR.z) * _LightS.z * _LightL[li].z;
                         ambPart = max(sky * _PhaseP.w, (_LightQ.z * Luma(_SunColor.rgb) * LIGHT_INV4PI).xxx);
                         float lit = kind < 1.5 ? exp(-dens * dt * 4.0) : 0.25;
-                        dirPart = _SunColor.rgb * lit * ph * _PhaseP.w;
+                        dirPart = _SunColor.rgb * SunAir(pc, _Sun.xyz) * lit * ph * _PhaseP.w;
                         src = dirPart + ambPart;
                     }
                     // The colour map's tint of the layer (P15; one when the layer has none).

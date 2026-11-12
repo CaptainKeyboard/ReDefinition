@@ -42,23 +42,29 @@ namespace ReDefinition.Atmospheres
         }
 
         // sum over octaves n < count of  (n == 0 ? 1 : msBrightness) * b^n * Phase(mu, c^n) * exp(-tau * a^n).
+        // msIsotropy blends the phase of the octaves above the first towards the isotropic 1 / 4 pi (light that scattered several times).
         internal static double OctaveSum(double mu, double tau, int count, double a, double b, double c, double msBrightness,
-                                         double forwardG, double backG, double forwardWeight)
+                                         double forwardG, double backG, double forwardWeight, double msIsotropy = 0.0)
         {
             double sum = 0, an = 1, bn = 1, cn = 1;
             int n = Math.Max(1, Math.Min(count, 4));
             for (int i = 0; i < n; i++)
             {
-                sum += (i == 0 ? 1.0 : msBrightness) * bn * Phase(mu, forwardG, backG, forwardWeight, cn) * Math.Exp(-tau * an);
+                double p = Phase(mu, forwardG, backG, forwardWeight, cn);
+                if (i > 0) p += (InvFourPi - p) * msIsotropy;
+                sum += (i == 0 ? 1.0 : msBrightness) * bn * p * Math.Exp(-tau * an);
                 an *= a; bn *= b; cn *= c;
             }
             return sum;
         }
 
+        // The bound on the octave energy: the source function of a perfect white diffuser lit by the sun is E / pi, which is 4 times the
+        // isotropic source E / 4 pi that the weights are measured in. An octave set whose weights add up to more than this scatters more
+        // than a thick, non-absorbing cloud can return (FX-T03: the earlier fit reached 6.6 and made a cloud towards the sun 2.4 times too bright).
+        internal const double EnergyBound = 4.0;
+
         // The most energy the octaves can scatter, relative to a single scattering of the same unattenuated light: the sum of their weights.
-        // With b <= 0.5 and msBrightness <= 1 it stays below 2. The fitted defaults (msBrightness 7.9, b 0.437) give 6.6: the octaves
-        // thin out with depth (exp(-tau a^n)) and the powder factor cuts the thin parts, so the energy actually scattered stays inside the
-        // reference's albedo-limited radiance (checks R08, R09); the weights themselves are not an energy bound.
+        // With b <= 0.5 and msBrightness <= 1 it stays below 2; the fitted defaults (msBrightness 2.71, b 0.515) give 3.5, inside EnergyBound.
         internal static double OctaveEnergy(int count, double b, double msBrightness)
         {
             double sum = 0, bn = 1;
@@ -90,6 +96,20 @@ namespace ReDefinition.Atmospheres
         internal static double AmbientFloor(double floorShare, double sunLuminance)
         {
             return floorShare * sunLuminance * InvFourPi;
+        }
+
+        // The share of the sun's light that reaches a point after the air above it (mirrors SunAir of the shader): Beer-Lambert with the extinction
+        // tauZenith (per channel, at sea level along the zenith), the airmass of Kasten and Young (1989, Applied Optics 28: 1 / (sin h +
+        // 0.50572 (h + 6.07995 deg)^-1.6364)) and the air thinning exponentially with the altitude. Zero for a sun below the horizon.
+        internal static double SunAir(double sinElevation, double tauZenith, double altitudeM, double scaleHeightM)
+        {
+            if (scaleHeightM <= 0.0) return 1.0;
+            double s = Math.Max(-1.0, Math.Min(1.0, sinElevation));
+            double elevation = Math.Asin(s) * 180.0 / Math.PI;
+            double airmass = 1.0 / (Math.Max(s, 0.0) + 0.50572 * Math.Pow(Math.Max(elevation + 6.07995, 0.05), -1.6364));
+            double tau = tauZenith * Math.Exp(-Math.Max(altitudeM, 0.0) / scaleHeightM);
+            double t = Math.Max(0.0, Math.Min(1.0, (s + 0.02) / 0.02));
+            return Math.Exp(-tau * airmass) * t * t * (3.0 - 2.0 * t);
         }
 
         // The powder factor: 1 - exp(-2 sigma L) blended in by strength.

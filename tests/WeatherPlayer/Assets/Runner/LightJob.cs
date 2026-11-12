@@ -26,7 +26,7 @@ namespace ReDefinition.WeatherPlayer
         public float forwardG = 0.85f, backG = -0.3f, forwardWeight = 0.92f, albedo = 0.999f;
         // The octaves.
         public int octaves = 4;
-        public float octaveA = 0.5f, octaveB = 0.5f, octaveC = 0.5f, msBrightness = 1f, diffusion, diffusionTau = 8f;
+        public float octaveA = 0.5f, octaveB = 0.5f, octaveC = 0.5f, msBrightness = 1f, diffusion, diffusionTau = 8f, msIsotropy;
         // Powder, ambient, tint.
         public float powder, powderLength = 150f, ambientFloor = 0.03f, ambientOcclusion, skyTint = 0.7f, ambientGain = 1f;
         // The light march: taps towards the sun, the cone, the step ratio, taps for the moons and straight up.
@@ -45,5 +45,10 @@ namespace ReDefinition.WeatherPlayer
         public int cacheFillSteps = 12;
         // A per-layer multiple scattering brightness, powder and ambient scale (x, y, z of layer 0).
         public float[] layerScale;
+        // The ambient occlusion by taps straight up (1) or from the local density (0, the compiled default), and the sun's colour through the air
+        // (extinction rgb at the zenith, scale height; height 0: the job's sun colour as is). Applied whatever useDefaults says.
+        public int aoTaps;
+        public float[] sunAirTau;
+        public float sunAirHeight;
     }
 }

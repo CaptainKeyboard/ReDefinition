@@ -89,13 +89,16 @@ namespace ReDefinition.WeatherPlayer
             {
                 s.ForwardG = job.forwardG; s.BackG = job.backG; s.ForwardWeight = job.forwardWeight; s.Albedo = job.albedo;
                 s.Octaves = job.octaves; s.OctaveA = job.octaveA; s.OctaveB = job.octaveB; s.OctaveC = job.octaveC; s.MsBrightness = job.msBrightness;
-                s.Diffusion = job.diffusion; s.DiffusionTau = job.diffusionTau;
+                s.Diffusion = job.diffusion; s.DiffusionTau = job.diffusionTau; s.MsIsotropy = job.msIsotropy;
                 s.PowderStrength = job.powder; s.PowderLengthM = job.powderLength;
                 s.AmbientFloor = job.ambientFloor; s.AmbientOcclusion = job.ambientOcclusion; s.SkyTint = job.skyTint; s.AmbientGain = job.ambientGain;
                 s.SunStepsOverride = job.sunSteps; s.MoonSteps = job.moonSteps; s.UpSteps = job.upSteps;
                 s.ConeSpread = job.coneSpread; s.TapRatio = job.tapRatio; s.CacheFillSteps = job.cacheFillSteps;
                 if (job.layerScale != null && job.layerScale.Length >= 3) s.LayerScale[0] = new Vector3(job.layerScale[0], job.layerScale[1], job.layerScale[2]);
             }
+            s.AmbientOcclusionTaps = job.aoTaps != 0;
+            s.SunAirHeightM = job.sunAirHeight;
+            if (job.sunAirTau != null && job.sunAirTau.Length >= 3) s.SunAirTau = new Vector3(job.sunAirTau[0], job.sunAirTau[1], job.sunAirTau[2]);
             SetLight(s, 0, job.moonDir0, job.moonCol0);
             SetLight(s, 1, job.moonDir1, job.moonCol1);
             int bolts = job.boltRange == null ? 0 : Math.Min(job.boltRange.Length, CloudLightSettings.MaxBolts);
