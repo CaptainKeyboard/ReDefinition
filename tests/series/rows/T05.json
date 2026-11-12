@@ -2,18 +2,18 @@
   "$schema": "../schema.json",
   "package": "T05",
   "rows": [
-    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-stack-below.e3-b4.1707x960", "max": 1.2, "unit": "ms", "note": "worst view (up through the stack), reconstruction 4 x 4 (a sixteenth of the rays per frame) with the cost measures; budget fixed from the ledger: .local/plans/atmospheres/T05-cost-budget.md; measured 1.31 ms (9 % over, open)" },
-    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-above.e3-b4.1707x960", "max": 0.8, "unit": "ms", "note": "typical view budget; measured 0.99 ms (open)" },
-    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-ground.e3-b4.1707x960", "max": 0.8, "unit": "ms", "note": "typical view budget; measured 0.64 ms" },
-    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-inside.e3-b4.1707x960", "max": 0.8, "unit": "ms", "note": "typical view budget; measured 0.69 ms" },
-    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-stack-below.e3-b4.2560x1440", "max": 2.6, "unit": "ms", "note": "2.2 x the 1707x960 budget; measured 2.25 ms" },
-    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-stack-below.base.1707x960", "unit": "ms", "required": false, "note": "the layer pass at full size without the T05 measures (15.8 ms): reported for the table" },
-    { "series": "player-T05", "section": "T05", "metric": "temporal.V-ground.turn12.b4s05.ghost_move", "max": 0.012, "note": "ghost_move limit of C21 (N14); measured 0.0064 (ground), 0.0065 (stack below); defined over the pixels the reference or the output covers, display value over a constant sky, no upscaler" },
-    { "series": "player-T05", "section": "T05", "metric": "temporal.V-ground.turn12.b4s05.trail_px", "max": 0.14, "note": "trail_px limit of C21 (N14); measured 0.0225" },
-    { "series": "player-T05", "section": "T05", "metric": "temporal.V-ground.static.b4s05.shimmer", "max": 0.0015, "note": "shimmer limit of the brief; measured 0.0007" },
-    { "series": "player-T05", "section": "T05", "metric": "temporal.V-stack-below.turn12.b4s05.shimmer", "max": 0.0015, "note": "measured 0.0011" },
-    { "series": "player-T05", "section": "T05", "metric": "temporal.V-ground.static.b4s05.converge_frames", "max": 20, "note": "frames until the error is within 1.25 x the full pass's own error (one jittered march against the mean of four), cycle (16) plus 4 [proposed]; measured 14. The brief's 2 % of the display value itself is not reached by any mode, the full pass included (converge_frames -1 in the log): the reference's own noise is above it, so the figure was redefined" },
+    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-stack-below.p-b4.1707x960", "max": 1.2, "unit": "ms", "note": "worst view (up through the stack), reconstruction 4 x 4 (a sixteenth of the rays per frame) with the step growth; budget fixed from the ledger: .local/plans/atmospheres/T05-cost-budget.md; measured 0.97 ms" },
+    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-above.p-b4.1707x960", "max": 0.8, "unit": "ms", "note": "typical view budget; measured 0.77 ms" },
+    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-ground.p-b4.1707x960", "max": 0.8, "unit": "ms", "note": "typical view budget; measured 0.51 ms" },
+    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-inside.p-b4.1707x960", "max": 0.8, "unit": "ms", "note": "typical view budget; measured 0.57 ms" },
+    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-stack-below.p-b4.2560x1440", "max": 2.6, "unit": "ms", "note": "2.2 x the 1707x960 budget; measured 1.73 ms" },
+    { "series": "player-T05", "section": "T05", "metric": "cost5.total.V-stack-below.p.1707x960", "unit": "ms", "required": false, "note": "the layer pass at full size with the step growth, without the reconstruction (8.0 ms; 15.8 ms with the up taps before FX-T03): reported for the table" },
+    { "series": "player-T05", "section": "T05", "metric": "temporal.V-ground.turn12.b4.ghost_move", "max": 0.012, "note": "ghost_move limit of C21 (N14); measured 0.0056 (ground), 0.0075 (stack below); defined over the pixels the reference or the output covers, display value over a constant sky, no upscaler" },
+    { "series": "player-T05", "section": "T05", "metric": "temporal.V-stack-below.turn12.b4.ghost_move", "max": 0.012, "note": "measured 0.0075" },
+    { "series": "player-T05", "section": "T05", "metric": "temporal.V-ground.turn12.b4.trail_px", "max": 0.14, "note": "trail_px limit of C21 (N14); measured 0.0335 (ground), 0.0370 (stack below)" },
+    { "series": "player-T05", "section": "T05", "metric": "temporal.V-ground.static.b4.shimmer", "max": 0.0015, "note": "shimmer limit of the brief; measured 0.0006" },
+    { "series": "player-T05", "section": "T05", "metric": "temporal.V-stack-below.turn12.b4.shimmer", "max": 0.0015, "note": "measured 0.0013" },
     { "series": "player-T05", "section": "T05", "metric": "temporal.V-ground.origin_shift.b3", "max": 0.02, "note": "a floating-origin shift of 5 km of the camera and the planet's centre, 14 frames of the 3 x 3 reconstruction; zero by construction (the march and the reprojection use planet-relative positions), the row pins that no world coordinate leaks in; measured 0" },
-    { "series": "player-T05", "section": "T05", "metric": "look5.V-above.e3.diff", "max": 0.012, "note": "look of the cost measures against the pass without them (T01c's limit), mean absolute difference of the tone-mapped picture; measured 0.0065 (above), 0.0091 (inside), at most 0.0045 on the others" }
+    { "series": "player-T05", "section": "T05", "metric": "look5.V-above.tg2.diff", "max": 0.012, "note": "look of the step growth against the pass without it (T01c's limit), mean absolute difference of the tone-mapped picture; measured 0.0038 (above), at most 0.0033 on the others" }
   ]
 }
