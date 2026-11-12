@@ -83,7 +83,8 @@ def cell_camera(w, h=None):
 def light_job(jid, cam, layers, width, height, sun, aid=0, planet=R, cell=False, sun_colour=None, amb_top=None, amb_bottom=None,
               layer_kw=None, **over):
     """One job of the light scene: the layer-pass job of the camera and layers plus the light's numbers (MODEL, overridden by over)."""
-    kw = dict(maxSteps=128, minStep=1.0, stepGrowth=0.0, jitter=0.0, earlyOut=0.0, sunMarch=4000.0, sunSteps=int(MODEL["sunSteps"]))
+    kw = dict(maxSteps=128, minStep=1.0, stepGrowth=0.0, jitter=0.0, earlyOut=0.0, sunMarch=4000.0, sunSteps=int(MODEL["sunSteps"]),
+              costLeap=1.0, costCut=0.0, lightStride=1)   # exact: no leaps, no reuse of the light march (T01c's cost controls are off)
     kw.update(layer_kw or {})
     sc = sun_colour if sun_colour is not None else [SUN_E] * 3
     top = amb_top if amb_top is not None else [AMBIENT_TOP] * 3
@@ -250,7 +251,7 @@ UNIFORM_STEPS_SET = (1, 2, 3, 4, 8, 16, 64)
 CLIMB_FRAMES, CLIMB_FROM, CLIMB_TO = 61, 8000.0, 9000.0
 SUN_STEP_FRAMES = 16
 # The production sampling of the planet scenes (T01): 48 steps, the step growing with the distance, the interleaved gradient noise, the early out.
-PRODUCTION = dict(maxSteps=48, minStep=25.0, stepGrowth=0.0002, jitter=1.0, earlyOut=0.01)
+PRODUCTION = dict(maxSteps=48, minStep=25.0, stepGrowth=0.0002, jitter=1.0, earlyOut=0.01, costLeap=-1.0, costCut=-1.0, lightStride=-1)
 # The side and sunset/night light of the pictures.
 SUNSET_COLOUR = [3.0, 1.35, 0.55]
 NIGHT_MOON_COLOUR = [0.30, 0.34, 0.50]
