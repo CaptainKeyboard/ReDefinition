@@ -47,6 +47,8 @@ namespace ReDefinition.Atmospheres
             // FirstMapMs keep it). The upload is the height slices written to the GPU, one a frame (LayerRenderer.StepHeights).
             public double LastHeightMs, WorstHeightMs, LastMapMs, WorstMapMs, FirstHeightMs, FirstMapMs, WorstUploadMs;
             public int BufferAttaches;
+            // Whether the light cache is filled and read in the frame just recorded (cloudLightCache on).
+            public bool LightCacheOn;
             public string Mode = "off", Why = "not started";
             public int Layers;
             public bool NearMarchActive;
@@ -63,6 +65,9 @@ namespace ReDefinition.Atmospheres
         private readonly WeatherMap coverageMap = new WeatherMap(), typeMap = new WeatherMap(), layerMap = new WeatherMap();
         private LayerRenderer renderer;
         private LayerReconstructDriver driver;
+        private LightCache lightCache;
+        // The side of the light cache's box: T14 measured the 32 km box.
+        private const float CacheBoxM = 32000f;
         private CloudShadowRenderer shadowRenderer;
         private CloudShadowRig shadowRig;
         private Material depthMaterial;
@@ -451,6 +456,9 @@ namespace ReDefinition.Atmospheres
             shadowRenderer = null;
             if (driver != null) driver.Dispose();
             driver = null;
+            frame.Light.Cache = null;
+            if (lightCache != null) lightCache.Dispose();
+            lightCache = null;
             if (renderer != null) renderer.Dispose();
             renderer = null;
             if (depthCommands != null) depthCommands.Release();
@@ -553,6 +561,14 @@ namespace ReDefinition.Atmospheres
         {
             LayerFrame f = frame;
             OwnCloudOptions.Apply(f);
+            // The light cache (cloudLightCache, default off): made when the switch is first on, filled in the pass's buffer every frame, handed to the
+            // light settings so that the shader reads it only while Enabled (OwnCloudOptions.Apply sets that from the key).
+            if (lightCache == null && AtmospheresSettings.CloudLightCache)
+            {
+                lightCache = new LightCache { Size = new Vector3(CacheBoxM, CacheBoxM, CacheBoxM) };
+                AtmospheresLog.Say("own clouds: light cache made (" + LightCache.GridN + " x " + LightCache.GridN + " x " + LightCache.GridNz + " voxels over " + CacheBoxM + " m)");
+            }
+            f.Light.Cache = lightCache;
             OwnCloudOptions.Apply(f.Light);
             OwnCloudOptions.Apply(f.Far);
             f.HasSurface = b.hasSolidSurface;
@@ -563,6 +579,8 @@ namespace ReDefinition.Atmospheres
 
             // The light: the sun's direction and colour, the scene's ambient light, the moons, the lightning.
             Vector3 camPos = cam.transform.position;
+            // The cache's box (planet frame) follows the camera, its corner snapped to whole voxels.
+            if (lightCache != null && lightCache.Enabled) lightCache.Follow(camPos - f.PlanetCenter);
             CelestialBody sunBody = GameGlobals.Sun;
             Vector3 toSun = sunBody != null ? (Vector3)sunBody.position - camPos : ((Vector3)b.position - camPos) + Vector3.up * 1e9f;
             f.TowardsSun = toSun.sqrMagnitude > 1f ? toSun.normalized : Vector3.up;
@@ -704,6 +722,7 @@ namespace ReDefinition.Atmospheres
                 driver.PlayerCamera = cam;
                 int scene = (int)HighLogic.LoadedScene * 100000 + b.flightGlobalsIndex;
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkBegin);
+                RecordCacheFill(renderer.Commands);
                 driver.Record(renderer.Commands, renderer, frame, cam, depth, BuiltinRenderTextureType.CameraTarget, Time.frameCount, scene,
                               CloudBridgeLights.ResetRequests, weatherCuts, structureVersion);
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkEnd);
@@ -715,7 +734,11 @@ namespace ReDefinition.Atmospheres
                 Action<CommandBuffer> begin = null, end = null;
                 if (CloudBridgeLights.Mark != null)
                 {
-                    begin = cb => CloudBridgeLights.Mark(cb, CloudBridgeLights.MarkBegin);
+                    begin = cb =>
+                    {
+                        CloudBridgeLights.Mark(cb, CloudBridgeLights.MarkBegin);
+                        RecordCacheFill(cb);
+                    };
                     end = cb => CloudBridgeLights.Mark(cb, CloudBridgeLights.MarkEnd);
                 }
                 renderer.Prepare(cam, frame, depth, begin, null, end);
@@ -739,6 +762,17 @@ namespace ReDefinition.Atmospheres
                 AtmospheresLog.Say("own clouds: drawing at " + attachedEvent + " on " + cam.name + ", depth target " + depthTarget.width + "x" + depthTarget.height
                                    + ", camera depth mode " + cam.depthTextureMode + ", rendering path " + cam.actualRenderingPath);
             }
+        }
+
+        // The fill of the light cache (pass 3 of the layer shader, the whole atlas) at the head of the pass's buffer, with the material state of this
+        // frame's Apply; nothing while the cache is off. [VERIFY] in the game: the reconstruction's own Apply calls leave the lighting numbers as they are.
+        private void RecordCacheFill(CommandBuffer cb)
+        {
+            bool on = lightCache != null && lightCache.Enabled && renderer != null && renderer.Ready;
+            Stats.LightCacheOn = on;
+            if (!on) return;
+            lightCache.Ensure();
+            cb.Blit(BuiltinRenderTextureType.None, lightCache.Atlas, renderer.Material, LightCache.PassFill);
         }
 
         private void EnsureDepthTarget(Camera cam)

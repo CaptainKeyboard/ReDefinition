@@ -45,8 +45,8 @@ SEGMENT = re.compile(r"^\s+([\d.]+) ms, at most ([\d.]+), (\d+): (.*)$")
 OWN_GROUP = "ReDefinition clouds"
 IDLE_GROUP = "frame start, GPU idle included"
 TVC_DEFAULT = r"[Vv]olumetric|EVE|EnvironmentalVisualEnhancements"
-OWN_VARIANTS = ("plain", "recon4", "entry", "edge", "heightoff", "cap2")
-AB = {"edge": "edge_over_plain", "cap2": "cap2_over_plain"}
+OWN_VARIANTS = ("plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache")
+AB = {"edge": "edge_over_plain", "cap2": "cap2_over_plain", "cache": "cache_over_plain"}
 
 # Lines the runner prints and records with the report: the labels a TVC pattern matched, and the top labels of the first clean TVC report.
 NOTES = []

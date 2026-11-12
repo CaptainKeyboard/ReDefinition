@@ -17,7 +17,7 @@ namespace ReDefinition.Atmospheres
     // else draws clouds), tvc (cloudSource Eve: EVE's raymarched layers draw the maps of our field; its own start, it needs EVE and Scatterer),
     // plain (own pass, reconstruction off), recon4 (reconstruction in 4 x 4 blocks), entry (plain plus the entry refinement); then the A/B variants
     // that need one view only (the "inside" view): edge (the edge-adaptive mode, T12), heightoff (the four height switches off, T13: cost of the
-    // height variation = plain minus heightoff), cap2 (the layer cap at 2), and gain (no dwell: the sun and moon gains reach the pass).
+    // height variation = plain minus heightoff), cap2 (the layer cap at 2), cache (the light cache on: its saving = plain minus cache, fill included), and gain (no dwell: the sun and moon gains reach the pass).
     // The views: ground (200 m above the pad, looking up), inside (inside the lowest cumulus layer), above (between the cumulus tops and the cirrus,
     // looking down), orbit_edge (300 km, looking at the limb), sky3 (200 m, higher pitch under all layers).
     // The weather is the field's at one universal time: from a fixed base (the next full hour of the clock at the start, one hour apart), the first
@@ -70,7 +70,7 @@ namespace ReDefinition.Atmospheres
 
         protected override IList<string> DefaultVariants
         {
-            get { return new[] { "off", "plain", "recon4", "entry", "edge", "heightoff", "cap2", "gain" }; }
+            get { return new[] { "off", "plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache", "gain" }; }
         }
 
         // --- Variants ---------------------------------------------------------------------------------------------------------------------
@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
         // The variants that are measured in the "inside" view only.
         private static bool InsideOnly(string variant)
         {
-            return variant == "edge" || variant == "heightoff" || variant == "cap2";
+            return variant == "edge" || variant == "heightoff" || variant == "cap2" || variant == "cache";
         }
 
         // What the module reports as its mode for the variant while it draws.
@@ -128,6 +128,10 @@ namespace ReDefinition.Atmospheres
                     UseOwn();
                     SetSetting(AtmospheresSettings.Keys.LayerCap, 2.0);
                     break;
+                case "cache":
+                    UseOwn();
+                    SetSetting(AtmospheresSettings.Keys.CloudLightCache, 1.0);
+                    break;
                 default:
                     UseOwn();
                     break;
@@ -144,6 +148,7 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.CloudResolution, 1.0);
             SetSetting(AtmospheresSettings.Keys.CloudEntryRefinement, 0.0);
             SetSetting(AtmospheresSettings.Keys.CloudRefineAtContours, 0.0);
+            SetSetting(AtmospheresSettings.Keys.CloudLightCache, 0.0);
             SetSetting(AtmospheresSettings.Keys.LayerCap, (double)CloudLayerDef.MaxLayers);
             SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 1.0);
             SetSetting(AtmospheresSettings.Keys.CloudBasePhysics, 1.0);
@@ -318,6 +323,9 @@ namespace ReDefinition.Atmospheres
             fewestRatio = Math.Min(fewestRatio, ratio);
             string why = own != null ? own.Stats.Why : "no module";
             Check("the own pass drew in the " + view.Name + " view (" + variant + ")", drawn >= 60 && ratio >= 0.95, drawn + " of " + frames + " frames, why: " + why);
+            bool cacheOn = own != null && own.Stats.LightCacheOn;
+            Emit(prefix + "light_cache_on", cacheOn);
+            Check("the light cache is " + (variant == "cache" ? "filled" : "off") + " in the " + view.Name + " view (" + variant + ")", cacheOn == (variant == "cache"), "cache on: " + cacheOn);
             string mode = own != null ? own.Stats.Mode : "none";
             Check("the pass ran as " + ExpectedMode(variant) + " in the " + view.Name + " view (" + variant + ")", mode == ExpectedMode(variant), mode);
             double altitude = Math.Min(20000.0, view.AglM);

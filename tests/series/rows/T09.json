@@ -109,6 +109,8 @@
     { "series": "K-T2", "section": "T09", "metric": "T09.ab.edge_over_plain.1707x960", "unit": "ratio", "note": "the edge-adaptive mode over plain at the inside view, labels measure. Expected 0.5 to 0.8." },
     { "series": "K-T2", "section": "T09", "metric": "T09.ab.edge_over_plain.2560x1440", "unit": "ratio", "note": "the same at 2560x1440." },
     { "series": "K-T2", "section": "T09", "metric": "T09.ab.cap2_over_plain.1707x960", "max": 0.9, "unit": "ratio", "note": "the layer cap at 2 over all four layers at the inside view, labels measure: dropping two layers must make the pass cheaper (at most 0.9). Proves the cap reaches the stack and prices a layer." },
-    { "series": "K-T2", "section": "T09", "metric": "T09.ab.cap2_over_plain.2560x1440", "max": 0.9, "unit": "ratio", "note": "the same at 2560x1440." }
+    { "series": "K-T2", "section": "T09", "metric": "T09.ab.cap2_over_plain.2560x1440", "max": 0.9, "unit": "ratio", "note": "the same at 2560x1440." },
+    { "series": "K-T2", "section": "T09", "metric": "T09.ab.cache_over_plain.1707x960", "max": 0.95, "unit": "ratio", "note": "the light cache on (cloudLightCache, filled every frame by the pass's own buffer, 32 km box) over off at the inside view, labels measure with the fill in it. T14 measured 0.67 to 0.84 on the player (fill 0.12 to 0.25 ms). Expected 0.65 to 0.9; above 0.95 the cache does not pay in the game. Default stays off until the owner decides." },
+    { "series": "K-T2", "section": "T09", "metric": "T09.ab.cache_over_plain.2560x1440", "max": 0.95, "unit": "ratio", "note": "the same at 2560x1440." }
   ]
 }
