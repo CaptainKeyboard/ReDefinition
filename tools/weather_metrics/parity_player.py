@@ -107,7 +107,9 @@ def collect(ctx):
             # has no cloud on any ray (the camera is under the layer, looking down), so only its radiance (the strip's shadow) is judged.
             skipped = (view["scene"] == "two-slab" and name in ("lum_rel_error", "cloud_rel_error")) or \
                       (view["scene"] == "plane-terrain" and name in ("tau_rel_error", "cloud_rel_error"))
-            if name == "covered" or row is None or skipped:
+            # A figure over an empty set (no pixel with cloud light, as under a thick deck lit from above) is reported, not judged.
+            empty = isinstance(value, float) and math.isnan(value) and name in ("tau_rel_error", "cloud_rel_error")
+            if name == "covered" or row is None or skipped or empty:
                 out.append(Metric.info(key, value))
             elif "max" in row:
                 out.append(Metric.at_most(key, value, row["max"]))
