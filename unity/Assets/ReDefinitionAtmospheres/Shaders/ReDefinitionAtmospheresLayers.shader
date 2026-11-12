@@ -60,7 +60,10 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _PhaseP;      // g forward, g back, forward weight, albedo
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
-        float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), 0
+        float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
+        // The temporal reconstruction (package T05): the march target holds one pixel of every N x N block of the full target.
+        float4 _ReconP;      // block size N (1: the target is the full target), the block offset x and y in full pixels, 0
+        float4 _ReconD;      // the full target's width and height in pixels, the march target's width and height in pixels
         sampler2D_float _SceneDepth;
         sampler2D _MarchTex;
         float4 _MarchTex_TexelSize;
@@ -307,7 +310,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float t = s0[k] + dt * jitter;
                 float tLast = t - dt;
                 float leap = 1.0, arrived = 1.0;
-                float sunTau = 0.0;
+                float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
                 [loop] for (int i = 0; i < 512; i++)
@@ -335,9 +338,12 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     leap = 1.0;
                     tLast = t;
-                    t += dt;
-                    if (r.first < 0) r.first = t - dt;
-                    float dtau = dens * dt;
+                    // COST (T05): inside a cloud the step grows with what the ray has already lost (_CostP.w): a ray that is nearly opaque
+                    // needs no fine sampling of what lies behind. The sample stands for its whole step, so the optical depth uses it.
+                    float dts = min(dt * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dt));
+                    t += dts;
+                    if (r.first < 0) r.first = t - dts;
+                    float dtau = dens * dts;
                     float ext = 1.0 - exp(-dtau);
                     float3 src, dirPart = 0, ambPart = 0;
                     if (kind > 2.5)
@@ -351,10 +357,18 @@ Shader "ReDefinition/AtmospheresLayers"
                         float reuse = -1.0;
                         if (noLight) reuse = 0.0;
                         else if (haveSun && !(T * ext >= lightCut && sinceLight + 1.0 >= _CostP.z)) { reuse = sunTau; sinceLight += 1.0; }
-                        float taps, tauUsed;
+                        float taps, tauUsed, upUsed;
+                        // Up mode 3 moves the reused optical depth straight up by what the ray has crossed since: the column above a point that is lower
+                        // by h holds the density integral over h more, which along the ray is the optical depth since times the ray's vertical share.
+                        float upReuse = -1.0;
+                        if (reuse >= 0.0)
+                        {
+                            upReuse = upTau;
+                            if (_LightT.w > 2.5) upReuse = max(upTau - dot(d, normalize(pc)) * tauSince, 0.0);
+                        }
                         // The cone's rotation advances by the golden angle from one lit sample to the next, so that the per-pixel pattern averages out along the ray (FX-T03).
-                        src = LightSource(pc, d, dens, share, li, t - dt, rot + r.steps * 2.3999632, reuse, dirPart, ambPart, taps, tauUsed);
-                        if (reuse < 0.0) { sunTau = tauUsed; haveSun = true; sinceLight = 0.0; }
+                        src = LightSource(pc, d, dens, share, li, t - dts, rot + r.steps * 2.3999632, reuse, upReuse, dirPart, ambPart, taps, tauUsed, upUsed);
+                        if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                         r.lightTaps += taps;
                     }
                     else
@@ -377,6 +391,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     r.rgb += T * src * ext;
                     T *= 1.0 - ext;
                     r.tau += dtau;
+                    tauSince += dtau;
                     r.tauLayer += dtau * float4(li == 0, li == 1, li == 2, li == 3);
                     if (T < _MarchP.w) break;
                 }
@@ -402,8 +417,18 @@ Shader "ReDefinition/AtmospheresLayers"
             return t < 0.5 ? lerp(float3(0.05, 0.05, 0.30), float3(0.20, 0.80, 0.50), t * 2.0) : lerp(float3(0.20, 0.80, 0.50), float3(0.95, 0.20, 0.10), (t - 0.5) * 2.0);
         }
 
+        // The uv of the full-target pixel a march texel stands for (the texel's own uv when the target is not a block sample, T05).
+        float2 FullUv(float2 uv)
+        {
+            if (_ReconP.x < 1.5) return uv;
+            // The march target's own size: a command buffer's blit does not update _ScreenParams to the target it draws into.
+            float2 low = floor(uv * _ReconD.zw);
+            return (low * _ReconP.x + _ReconP.yz + 0.5) / _ReconD.xy;
+        }
+
         float4 Pass0(v2f i)
         {
+            i.uv = FullUv(i.uv);
             // Aid 3: the phase function over mu = 2 u - 1 (r: octave 0, g: octave 1), the parity check's normalisation probe.
             if (_LimitP.y > 2.5 && _LimitP.y < 3.5)
             {
@@ -414,7 +439,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float3 d = RayDir(i.uv);
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
             float tmax = SceneDistance(i.uv, d);
-            float2 pixel = i.uv * _ScreenParams.xy;
+            float2 pixel = i.uv * (_ReconP.x < 1.5 ? _ScreenParams.xy : _ReconD.xy);
             MarchOut r = March(o, d, tmax, pixel);
             if (_LimitP.y > 1.5 && _LimitP.y < 2.5)
             {

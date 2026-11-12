@@ -46,6 +46,14 @@ namespace ReDefinition.Atmospheres
         // LightStride: a lit step marches to the sun only every this many lit steps of a span; the steps between reuse the last result.
         public int LightStride = 2;
         public int CostDebug;
+        // Package T05: inside a cloud the step grows by this share of the transmittance the ray has already lost (0: a fixed step).
+        public float TransmittanceGrowth;
+
+        // The cost measure of package T05 on top of T01c's: the growth of the step with the lost transmittance (2). The parity jobs leave it off.
+        internal void UseProductCost()
+        {
+            TransmittanceGrowth = 2f;
+        }
     }
 
     // The layer pass's drawing: the material, the type table textures, the maps and the command buffer that marches and composites. It
@@ -232,9 +240,19 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdLimitP, new Vector4(f.RayLimitM, f.AidMode, f.LayerMask, f.UseSceneDepth ? 1f : 0f));
             m.SetVector(IdPhaseP, f.Phase);
             m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
-            m.SetVector(IdCostP, new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), 0f));
+            // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
+            m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
+            m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             if (f.Light != null) f.Light.Upload(m);
             Noise.Bind(m, layerCount);
+        }
+
+        // The middle sphere of the first layer (package T05's reprojection places the cloud of a pixel on it).
+        internal CloudLayerFrameInfo FirstLayerShell()
+        {
+            var info = new CloudLayerFrameInfo();
+            if (layerCount > 0) info.MiddleRadius = (float)radius + 0.5f * (layerA[0].x + layerA[0].y);
+            return info;
         }
 
         // The composite reads the march target's texel size from the material (Unity does not fill it for a texture set globally).

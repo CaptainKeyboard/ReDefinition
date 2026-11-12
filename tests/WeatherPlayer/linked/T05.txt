@@ -1,0 +1,5 @@
+# Linked into the weather player for the temporal work (package T05): the reconstruction (prototype A) and the reduced-resolution march
+# (prototype B) around the layer pass, their shader, and the scenes that measure cost and stability (the layer core comes from T01.txt).
+src/Atmospheres/Render/Layers/Temporal/*.cs
+tests/ReDefinition.Tests/Atmospheres/T05/Probe/TemporalScene.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresReconstruct.shader

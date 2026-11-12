@@ -23,7 +23,7 @@ float4 _LightP;   // octaves (1..4), a (light thinning per octave), b (weight pe
 float4 _LightQ;   // powder strength, powder length (m), ambient floor (share of the sun share), ambient occlusion strength (0: gradient only)
 float4 _LightR;   // cone spread (tan of the half angle, 0: straight), tap step ratio, sky tint multiplier (0 grey .. 1 sky hue), multiple scattering brightness
 float4 _LightS;   // moon taps, up taps, ambient gain, light cache (1 on)
-float4 _LightT;   // bolt count, sun tap count override (0: the march's own), light cache fill taps, ambient occlusion mode (0 analytic from the local density, 1 taps straight up)
+float4 _LightT;   // bolt count, sun tap count override (0: the march's own), light cache fill taps, ambient occlusion mode (0 analytic from the local density, 1 taps straight up at every lit sample, 2 taps reused with the sun march, 3 reused and moved by the ray's progress)
 float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is)
 float4 _LightU;   // diffusion share (light that has diffused into the deep core, isotropic, as a share of the sun's isotropic light), its optical depth scale, isotropic share of the octaves above the first
 float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, unused
@@ -245,8 +245,10 @@ float3 BoltLight(float3 pc)
 
 // The source function at a march sample of a lit layer (kind 0 weather). dir and amb return the direct and ambient parts (the aid view).
 // tauReuse >= 0: the optical depth towards the sun of an earlier sample of the span (the cost package's reuse); tauSunOut returns the one used.
-float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float rot, float tauReuse, out float3 dirPart, out float3 ambPart,
-                   out float taps, out float tauSunOut)
+// tauUpReuse >= 0: the optical depth straight up of an earlier sample (the cost package T05's up-tap reuse, UpMode 1); tauUpOut returns the one used.
+// _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
+float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float rot, float tauReuse, float tauUpReuse, out float3 dirPart,
+                   out float3 ambPart, out float taps, out float tauSunOut, out float tauUpOut)
 {
     float3 sunDir = _Sun.xyz;
     int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
@@ -275,10 +277,12 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     float l = Luma(sky);
     sky = lerp(l.xxx, sky, _LightR.z) * _LightS.z * _LightL[li].z;
     float open = 1.0;
+    tauUpOut = 0;
     if (_LightQ.w > 0)
     {
         float tu;
         if (tauUp >= 0) tu = tauUp;
+        else if (_LightT.w > 1.5 && tauUpReuse >= 0) tu = tauUpReuse;
         else if (_LightT.w > 0.5)
         {
             tu = LightTau(pc, normalize(pc), li, max(1, (int)_LightS.y), t, 0, 0);
@@ -289,6 +293,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
             // FX-T03: the optical depth straight up from the local density and the layer's remaining height (no extra taps: the taps cost 0.9 to 2.4 ms).
             tu = dens * max(_LayerA[li].y - (length(pc) - _PlanetR), 0.0);
         }
+        tauUpOut = tu;
         open = exp(-tu * _LightQ.w);
     }
     // The floor is a share of the isotropic light of all lights, so a night lit by a moon is not black either.
