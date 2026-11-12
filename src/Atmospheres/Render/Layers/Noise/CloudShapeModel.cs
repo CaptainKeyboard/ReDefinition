@@ -29,11 +29,13 @@ namespace ReDefinition.Atmospheres
         internal byte[] Shape, Detail, Curl;
         // The milliseconds the generation took.
         internal double GenerationMs;
+        // The mean of the detail volume (0 to 1): what the erosion reads where the distance LOD has dropped the detail.
+        internal double DetailMean;
 
         // Generates the set at the sizes (blocking; the loader runs this on a worker).
         internal static NoiseVolumeSet Generate(NoiseSizes sizes, uint seed)
         {
-            return new NoiseVolumeSet
+            var set = new NoiseVolumeSet
             {
                 ShapeN = sizes.Shape,
                 DetailN = sizes.Detail,
@@ -42,6 +44,10 @@ namespace ReDefinition.Atmospheres
                 Detail = NoiseVolumes.Detail(sizes.Detail, seed + NoiseVolumes.DetailSeedOffset),
                 Curl = NoiseVolumes.Curl(sizes.Curl, seed + NoiseVolumes.CurlSeedOffset)
             };
+            long sum = 0;
+            for (int i = 0; i < set.Detail.Length; i++) sum += set.Detail[i];
+            set.DetailMean = sum / (255.0 * set.Detail.Length);
+            return set;
         }
     }
 
@@ -61,6 +67,8 @@ namespace ReDefinition.Atmospheres
         internal double FlowX, FlowY, FlowZ;
         // Overrides of the model constants (0: the compiled value).
         internal double WarpAmplitude, WarpCell, CurlAmplitude;
+        // True: the erosion detail is read at every sample however coarse the march is (the distance LOD off).
+        internal bool NoDistanceLod;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
@@ -184,10 +192,29 @@ namespace ReDefinition.Atmospheres
             return Math.Min(1.0, c * Hardness(erosion));
         }
 
+        // The distance LOD of the erosion detail (0: full detail, 1: dropped): the march's sample spacing (footM, m) against the detail's finest
+        // cell. The detail is read in full while the spacing is within DetailLodFullFootCells cells, faded out until DetailLodOffFootCells cells;
+        // beyond that the samples are too far apart to show the cells (they would only shimmer), and the erosion reads the volume's mean.
+        internal static double DetailLod(ref NoiseLayerParams prm, double footM)
+        {
+            if (prm.NoDistanceLod || footM <= 0.0) return 0.0;
+            double cell = NoiseModel.DetailFinestCellScales * prm.ScaleM;
+            double full = NoiseModel.DetailLodFullFootCells * cell, off = NoiseModel.DetailLodOffFootCells * cell;
+            double x = (footM - full) / Math.Max(off - full, 1e-3);
+            return x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
+        }
+
         // The coverage share of a layer at a point: the map's value cov plus the shape noise moves the threshold, the soft edge turns it into
         // a share, the detail erodes it. noiseAmount 0 or no volumes: the plain threshold (T01's function).
         internal static double Share(NoiseVolumeSet set, ref NoiseLayerParams prm, double px, double py, double pz, double cov, double coverage, double edge,
                                      double noiseAmount, double erosion, bool fine)
+        {
+            return Share(set, ref prm, px, py, pz, cov, coverage, edge, noiseAmount, erosion, fine, 0.0);
+        }
+
+        // The same with the march's sample spacing (footM, m; 0: the sample stands alone, no LOD).
+        internal static double Share(NoiseVolumeSet set, ref NoiseLayerParams prm, double px, double py, double pz, double cov, double coverage, double edge,
+                                     double noiseAmount, double erosion, bool fine, double footM)
         {
             edge = Math.Max(edge, 1e-4);
             if (set == null || noiseAmount <= 0.0)
@@ -201,8 +228,14 @@ namespace ReDefinition.Atmospheres
             double x = (cov + (n - 0.5) * noiseAmount + coverage - 1.0) / edge + 0.5;
             double s = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
             if (s <= 0.0 || s >= 1.0 || erosion <= 0.0 || !fine) return s;
-            double r = Math.Sqrt(px * px + py * py + pz * pz);
-            double d = DetailAt(set, ref prm, qx, qy, qz, px / r, py / r, pz / r);
+            double lod = DetailLod(ref prm, footM);
+            double d = set.DetailMean;
+            if (lod < 1.0)
+            {
+                double r = Math.Sqrt(px * px + py * py + pz * pz);
+                d = DetailAt(set, ref prm, qx, qy, qz, px / r, py / r, pz / r);
+                if (lod > 0.0) d += (set.DetailMean - d) * lod;
+            }
             return Erode(s, d, erosion);
         }
     }

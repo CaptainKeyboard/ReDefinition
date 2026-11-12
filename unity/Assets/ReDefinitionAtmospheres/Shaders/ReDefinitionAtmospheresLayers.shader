@@ -303,6 +303,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float stepLen = max(_StepP.x * (1.0 + s0[k] * _MarchP.z), 1e-3);
                 int count = (int)clamp(ceil(len / stepLen), 1.0, max(1.0, floor(maxSteps * share01 + 0.5)));
                 float dt = len / count;
+                gNoiseFoot = dt;   // the sample spacing: the erosion detail's distance LOD (T02)
                 // The samples lie on the grid s0 + dt * (i + jitter). An empty sample lets the next ones leap over 1, 2 .. leapMax grid
                 // points; a leap that lands on cloud goes back to the grid point after the last empty one, so a cloud is always entered
                 // at the grid's own resolution and only features narrower than the leap can be passed over.

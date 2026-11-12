@@ -90,6 +90,7 @@ namespace ReDefinition.WeatherPlayer
                 sw.Enabled = n.disabled == 0;
                 sw.Untile = n.noUntile == 0;
                 sw.Curl = n.noCurl == 0;
+                sw.DistanceLod = n.noLod == 0;
                 sw.SphereScale = n.sphere > 0f ? n.sphere : 1f;
                 sw.Seed = n.seed == 0u ? 1u : n.seed;
                 sw.SizeLevel = n.sizeLevel;

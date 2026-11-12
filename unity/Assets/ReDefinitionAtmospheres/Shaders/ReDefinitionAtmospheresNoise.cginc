@@ -28,8 +28,13 @@ float4 _NoiseR;          // hardness base, hardness gain, shape period, detail p
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
 float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y flow looped (1) or one phase (0), z colour map strength, w rise of the detail in m
 
+float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's finest cell (noise scales), y/z the march spacing in cells up to which the detail is
+                         // read in full / from which it is dropped (z = 0: LOD off), w the detail volume's mean (what the erosion reads once dropped)
+
 // 1 on the light path: no erosion there (the light march reads the shape only).
 static int gNoiseLod = 0;
+// The march's sample spacing in m at the current sample (set by the march per layer span; 0: unknown, no distance LOD).
+static float gNoiseFoot = 0;
 
 uint NzLow(uint x)
 {
@@ -110,7 +115,19 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     float n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.z * scale), 0)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
     if (s <= 0 || s >= 1.0 || erosion <= 0 || gNoiseLod != 0) return s;
-    float d = NoiseDetailAt(li, q, pc / max(length(pc), 1.0), scale);
+    // The distance LOD: the sample spacing against the detail's finest cell; once the spacing exceeds the cell the detail is dropped (the volume's mean).
+    float lod = 0;
+    if (_NoiseS.z > 0 && gNoiseFoot > 0)
+    {
+        float cell = _NoiseS.x * scale;
+        lod = saturate((gNoiseFoot - _NoiseS.y * cell) / max((_NoiseS.z - _NoiseS.y) * cell, 1e-3));
+    }
+    float d = _NoiseS.w;
+    [branch] if (lod < 1.0)
+    {
+        d = NoiseDetailAt(li, q, pc / max(length(pc), 1.0), scale);
+        d += (_NoiseS.w - d) * lod;
+    }
     float er = erosion * (1.0 - d);
     float c = saturate((s - er) / max(1.0 - er, 1e-3));
     return saturate(c * (_NoiseR.x + _NoiseR.y * erosion));

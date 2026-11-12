@@ -216,7 +216,7 @@ def value_vec(p, seed):
 class Params(object):
     """The constants of the model. Everything that is a length is a multiple of the layer's scale."""
 
-    def __init__(self, scale=375.0, untile=True, warp_amp=8.0, warp_cell=7.0, curl=True, curl_amp=0.6, seed=1, offset=(0.0, 0.0, 0.0),
+    def __init__(self, scale=375.0, untile=True, warp_amp=6.5, warp_cell=14.0, curl=True, curl_amp=0.6, seed=1, offset=(0.0, 0.0, 0.0),
                  erosion=0.5, hard_base=1.0, hard_gain=4.0):
         self.scale, self.untile, self.warp_amp, self.warp_cell, self.curl, self.curl_amp = scale, untile, warp_amp, warp_cell, curl, curl_amp
         self.seed, self.offset, self.erosion, self.hard_base, self.hard_gain = seed, np.asarray(offset, dtype=np.float64), erosion, hard_base, hard_gain
@@ -259,12 +259,29 @@ def shape_value(vols, p, prm):
     return trilinear(vols.shape, q / prm.shape_period)
 
 
-def detail_value(vols, p, prm):
+DETAIL_FINEST_CELL = 0.5     # the detail's finest cell in noise scales (DetailPeriodScales / 8)
+DETAIL_LOD_FULL = 1.0        # the march spacing in cells up to which the detail is read in full
+DETAIL_LOD_OFF = 2.0         # and from which it is dropped (the erosion then reads the volume's mean)
+
+
+def detail_lod(prm, foot):
+    """The distance LOD of the erosion detail, 0 (full) to 1 (dropped), for the march's sample spacing `foot` (m; scalar or array)."""
+    cell = DETAIL_FINEST_CELL * prm.scale
+    x = (np.asarray(foot, dtype=np.float64) - DETAIL_LOD_FULL * cell) / max((DETAIL_LOD_OFF - DETAIL_LOD_FULL) * cell, 1e-3)
+    return np.clip(x, 0.0, 1.0)
+
+
+def detail_value(vols, p, prm, foot=None):
+    """The erosion detail at points p, 0..1; with a sample spacing `foot` (m) faded to the volume's mean by the distance LOD."""
     q = lookup_point(p, prm)
     if prm.curl:
         c = trilinear(vols.curl, q / prm.shape_period)
         q = q + c * (prm.curl_amp * prm.scale)
-    return trilinear(vols.detail, q / prm.detail_period)
+    d = trilinear(vols.detail, q / prm.detail_period)
+    if foot is not None:
+        lod = detail_lod(prm, foot)
+        d = d + (float(vols.detail.mean()) - d) * lod
+    return d
 
 
 def erode(s, d, erosion, prm):
@@ -329,7 +346,7 @@ def layer_seed(seed, layer):
     return int(hash3(layer, 3, 5, seed)) & 0xFFFFFF
 
 
-def planet_ray_tau(vols, prm, origin, dirs, planet_r, inner, outer, sigma, max_steps, min_step, growth, coverage=0.0, amount=1.0, edge=0.15, jitter=0.5):
+def planet_ray_tau(vols, prm, origin, dirs, planet_r, inner, outer, sigma, max_steps, min_step, growth, coverage=0.0, amount=1.0, edge=0.15, jitter=0.5, distance_lod=True):
     """The optical depth of rays from `origin` along `dirs` (N, 3) through one layer (inner..outer altitude) by the shader's march: the
     sphere spans of the layer, the midpoint rule, count = clamp(ceil(len / step), 1, max_steps), the density sigma * share (the slab type
     with profile 1, erosion prm.erosion). The ground ends the ray."""
@@ -366,7 +383,7 @@ def planet_ray_tau(vols, prm, origin, dirs, planet_r, inner, outer, sigma, max_s
         pts = pts[act]
         n_shape = shape_value(vols, pts, prm)
         s = np.clip(((n_shape - 0.5) * amount + coverage) / edge + 0.5, 0.0, 1.0)
-        d = detail_value(vols, pts, prm)
+        d = detail_value(vols, pts, prm, foot=dt[act] if distance_lod else None)
         s = erode(s, d, prm.erosion, prm)
         tau[act] += sigma * s * dt[act]
     return tau

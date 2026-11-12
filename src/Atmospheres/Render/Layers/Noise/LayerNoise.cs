@@ -16,6 +16,9 @@ namespace ReDefinition.Atmospheres
         public bool Untile = true;
         // P05: the curl distortion of the erosion lookup.
         public bool Curl = true;
+        // The distance LOD of the erosion detail: beyond a march spacing of about one detail cell the detail is faded out (it could only
+        // shimmer there); off: the detail is read at every sample (a cost A/B).
+        public bool DistanceLod = true;
         // P03: the vertical scale of the lattice about the layer's reference radius (1: the planet-centred lattice).
         public float SphereScale = 1f;
         // The volume size level: 0 Low, 1 Medium, 2 High and above (NoiseSizes.ForLevel).
@@ -50,7 +53,7 @@ namespace ReDefinition.Atmospheres
 
         private static readonly int IdShape = Shader.PropertyToID("_NoiseShape"), IdDetail = Shader.PropertyToID("_NoiseDetail"),
             IdCurl = Shader.PropertyToID("_NoiseCurl"), IdFlow = Shader.PropertyToID("_NoiseFlow"), IdColour = Shader.PropertyToID("_NoiseColour"),
-            IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"),
+            IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"), IdS = Shader.PropertyToID("_NoiseS"),
             IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer");
 
         private readonly Vector4[] offsets = new Vector4[CloudLayerDef.MaxLayers], layerData = new Vector4[CloudLayerDef.MaxLayers];
@@ -63,6 +66,7 @@ namespace ReDefinition.Atmospheres
         private double flowTime;
         private int sizeLevelBuilt = -1;
         private uint seedBuilt;
+        private double detailMean = 0.5;
 
         internal NoiseSwitches Switches { get; } = new NoiseSwitches();
         // The time the flow map has run, in seconds (the loop is FlowLoopSeconds); Advance adds to it, a measurement sets it.
@@ -129,6 +133,7 @@ namespace ReDefinition.Atmospheres
             detailTexture = Make3D(set.DetailN, TextureFormat.R8, set.Detail, "cloud noise detail");
             curlTexture = Make3D(set.CurlN, TextureFormat.RGBA32, set.Curl, "cloud noise curl");
             GenerationMs = set.GenerationMs;
+            detailMean = set.DetailMean;
             VolumeBytes = (long)set.Shape.Length + set.Detail.Length + set.Curl.Length;
         }
 
@@ -203,6 +208,7 @@ namespace ReDefinition.Atmospheres
                 OffsetZ = bz - driftZ[layer],
                 Seed = NoiseSeeds.LayerSeed(Switches.Seed, layer),
                 SphereScale = Switches.SphereScale,
+                NoDistanceLod = !Switches.DistanceLod,
                 ReferenceRadiusM = referenceRadiusM,
                 UpDistanceM = rise[layer]
             };
@@ -219,6 +225,8 @@ namespace ReDefinition.Atmospheres
                                                 (float)((flowTime / FlowLoopSeconds) % 1.0)));
             material.SetVector(IdR, new Vector4((float)NoiseModel.HardnessBase, (float)NoiseModel.HardnessGain, (float)NoiseModel.ShapePeriodScales,
                                                 (float)NoiseModel.DetailPeriodScales));
+            material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
+                                                Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);

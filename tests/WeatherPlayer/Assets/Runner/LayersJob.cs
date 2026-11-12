@@ -46,7 +46,7 @@ namespace ReDefinition.WeatherPlayer
     [Serializable]
     public sealed class LayersJobNoise
     {
-        public int disabled, noUntile, noCurl;
+        public int disabled, noUntile, noCurl, noLod;
         // The vertical scale of the spherical lattice (0 or 1: the planet-centred lattice).
         public float sphere;
         public uint seed;

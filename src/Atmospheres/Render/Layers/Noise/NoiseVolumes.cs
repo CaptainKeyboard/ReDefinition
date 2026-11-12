@@ -24,10 +24,19 @@ namespace ReDefinition.Atmospheres
         internal const double ShapePeriodScales = 16.0;
         internal const double DetailPeriodScales = 4.0;
         // The untiling displacement: amplitude and lattice cell of the value noise, in noise scales.
-        internal const double WarpAmplitudeScales = 8.0;
-        internal const double WarpCellScales = 7.0;
+        // Amplitude over cell is the nominal gradient of the displacement (0.46; it was 8 / 7 = 1.14, which folded the lookup over itself in 31 % of
+        // the volume and smeared the deck). Measured (noise_model.py, 20000 points): spectral norm of the displacement's Jacobian p99 1.74, folded
+        // share 3.9 %, p99 stretch 2.5 (before: 4.3, 31 %, 4.8).
+        internal const double WarpAmplitudeScales = 6.5;
+        internal const double WarpCellScales = 14.0;
         // The curl displacement of the detail lookup, in noise scales.
         internal const double CurlAmplitudeScales = 0.6;
+        // The distance LOD of the erosion detail (CloudShapeModel.DetailLod): the detail's finest cell in noise scales (the detail period over
+        // its largest cell count, DetailPeriodScales / 8), and the march's sample spacing in those cells up to which the detail is read in
+        // full and from which it is dropped (the sample spacing then exceeds the cell, so the detail could only shimmer).
+        internal const double DetailFinestCellScales = 0.5;
+        internal const double DetailLodFullFootCells = 1.0;
+        internal const double DetailLodOffFootCells = 2.0;
         // The edge hardness of a type: 1 + HardnessGain * erosion (the share of the soft edge that is cut away).
         internal const double HardnessBase = 1.0;
         internal const double HardnessGain = 4.0;
