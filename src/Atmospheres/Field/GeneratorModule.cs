@@ -46,7 +46,7 @@ namespace ReDefinition.Atmospheres
         public void Tick(float dt)
         {
             if (field == null) return;
-            bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && AtmospheresSettings.GenEnabled;
+            bool on = CloudGates.GeneratorInstalled(AtmospheresSettings.Number);
             if (!on)
             {
                 Uninstall();

@@ -19,7 +19,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // What it cannot cover: the real flight camera and vessel physics, the GPU's timings and the profiler's labels (tools/weather_metrics/kt2.py reads those
     // from the log; its own --selftest covers the parsing), the game's load, the order of the game's own frame callbacks and the real field's state.
     [TestClass]
-    public class T09WalkThroughTests
+    public partial class T09WalkThroughTests
     {
         private static readonly string[] AllOwn = { "off", "plain", "recon4", "entry", "edge", "heightoff", "cap2", "cache", "gain" };
         private static int frameBase = 100;
@@ -30,6 +30,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             internal FakeField Field;
             internal T09Probe Probe;
             internal readonly List<string> Log = new List<string>();
+            // The game's frame at which each log line was written (same index as Log).
+            internal readonly List<int> LogFrames = new List<int>();
             internal readonly List<string> Rows = new List<string>();
             internal int Quits;
             internal string Verdict;
@@ -81,7 +83,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return h == 2 || h == 5 ? 0.2f : 0.8f;
         }
 
-        private Run Start(string[] variants, Action<Run> tweak = null, string width = "1707")
+        private Run Start(string[] variants, Action<Run> tweak = null, string width = "1707", string startId = "own1707")
         {
             var r = new Run();
             r.World = new FakeWorld();
@@ -89,15 +91,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
             frameBase += 100000;
             r.Field = new FakeField { RealNow = () => r.World.RealS, Cover = CoverByHour };
             r.Field.ReadyAtS = 0;
-            WeatherHub.Field = r.Field;
-            SeriesProbe.LogLine = r.Log.Add;
-            AtmospheresLog.SayLine = line => r.Log.Add(line.StartsWith(AtmospheresLog.Prefix, StringComparison.Ordinal) ? line.Substring(AtmospheresLog.Prefix.Length) : line);
+            // The hub holds the NullField until the generator's gate (GeneratorModule.Tick: CloudGates.GeneratorInstalled) installs the field; Drive runs the gate.
+            WeatherHub.Field = null;
+            SeriesProbe.LogLine = m => { r.Log.Add(m); r.LogFrames.Add(r.World.Frames); };
+            AtmospheresLog.SayLine = line =>
+            {
+                r.Log.Add(line.StartsWith(AtmospheresLog.Prefix, StringComparison.Ordinal) ? line.Substring(AtmospheresLog.Prefix.Length) : line);
+                r.LogFrames.Add(r.World.Frames);
+            };
             AtmoResult.Sink = r.Rows.Add;
             SeriesProbe.FlightReadyState = () => r.World.FlightReady;
             var module = new OwnCloudModule();
             module.Init();
             r.World.Module = module;
-            var args = new List<string> { "KSP_x64.exe", "-atmoSeries", "K-T2", "-atmoStart", "own1707", "-screen-width", width, "-screen-height", "960", "-atmoProbe", "T09Probe" };
+            var args = new List<string> { "KSP_x64.exe", "-atmoSeries", "K-T2", "-atmoStart", startId, "-screen-width", width, "-screen-height", "960", "-atmoProbe", "T09Probe" };
             if (variants != null)
             {
                 args.Add("-atmoVariants");
@@ -111,12 +118,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         // Frames until the verdict (and the quit three seconds later), dt seconds each, at most maxS real seconds.
-        private static void Drive(Run r, double dt = 0.1, double maxS = 3600.0)
+        private static void Drive(Run r, double dt = 0.1, double maxS = 3600.0, Action<Run> perFrame = null)
         {
             while (r.World.RealS < maxS && !(r.Probe.Finished && r.Quits > 0))
             {
+                // GeneratorModule.Tick: the field of the generator is the hub's only while the gate is open, the NullField otherwise.
+                WeatherHub.Field = CloudGates.GeneratorInstalled(AtmospheresSettings.Number) ? r.Field : null;
                 r.World.Advance(dt);
                 r.Probe.Tick((float)dt);
+                if (perFrame != null) perFrame(r);
                 if (r.Probe.Finished && r.Verdict == null) r.Verdict = r.Log.LastOrDefault(l => l.StartsWith("Probe: PASSED") || l.StartsWith("Probe: FAILED"));
             }
         }
@@ -393,7 +403,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
             });
             Drive(r);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.AreEqual(1000800.0 + 5 * 3600.0, Number(r, "T09.ut"), 1e-6);
+            // The field is the hub's from the frame after the probe's switches (the generator's gate), so the pass that sees it answer depends on that frame: the
+            // hour chosen is the first of the candidates the field answered for, which is hour 1 of a day (the only one that fits) in every case.
+            double chosen = Number(r, "T09.ut");
+            Assert.AreEqual(1, (int)Math.Round(chosen / 3600.0) % 6, "hour 1 of the day, ut " + chosen);
+            Assert.AreEqual(0.0, chosen % 3600.0, 1e-6);
             Assert.IsTrue(r.Log.Any(l => l.Contains("T09 clock: the field answered after")));
         }
 
@@ -555,6 +569,228 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.0, Number(r, "T09.moon.provider_answers", "gain"));
             Assert.IsTrue(Values(r, "T09.gain.moon_note").Count > 0);
             Assert.AreEqual(0, Values(r, "T09.gain.moon_ratio").Count);
+        }
+
+        // --- The pictures ---------------------------------------------------------------------------------------------------------------
+
+        private static readonly string[] OwnWithAid = { "plain", "recon4", "entry" };
+        private static readonly string[] InsideOnlyVariants = { "edge", "heightoff", "cap2", "cache" };
+
+        // The [begin, end] frames of every measured window, from the probe's own lines.
+        private static List<int[]> Windows(Run r)
+        {
+            var windows = new List<int[]>();
+            for (int i = 0; i < r.Log.Count; i++)
+            {
+                if (!r.Log[i].StartsWith("T09 view begin: ")) continue;
+                int end = r.Log.FindIndex(i + 1, l => l.StartsWith("T09 view end: "));
+                Assert.IsTrue(end > i, "a view end follows the begin at " + i);
+                windows.Add(new[] { r.LogFrames[i], r.LogFrames[end] });
+            }
+            return windows;
+        }
+
+        private static string Full(string view, string variant, string kind, bool half = false)
+        {
+            return "t09-own1707-" + view + "-" + variant + "-1707x960-" + kind + (half ? "-half" : "");
+        }
+
+        [TestMethod]
+        public void AHealthyOwnStartTakesOneNaturalAndOneAidPicturePerViewAfterItsWindow()
+        {
+            Run r = Start(null);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+
+            // 4 variants x 5 views natural, 3 own variants x 5 views aid, 4 inside-only variants natural and aid.
+            Assert.AreEqual(20 + 15 + 8, r.World.Saved.Count, string.Join("\n", r.World.Saved.ToArray()));
+            Assert.AreEqual(r.World.Saved.Count, r.World.Saved.Distinct().Count(), "names are unique");
+            Assert.AreEqual(43.0, Number(r, "T09.pictures.saved"));
+            Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
+            Assert.IsTrue(Number(r, "T09.pictures.bytes") > 0);
+            Assert.IsFalse(r.World.AidIsOn, "the aid view is off at the end");
+
+            // Names and sizes: full size for the key views of off and plain, half size for the rest.
+            Assert.IsTrue(r.World.Saved.Contains(Full("ground", "off", "natural")));
+            Assert.IsTrue(r.World.Saved.Contains(Full("inside", "plain", "natural")));
+            Assert.IsTrue(r.World.Saved.Contains(Full("above", "plain", "aid-opticaldepth")));
+            Assert.IsTrue(r.World.Saved.Contains(Full("orbit_edge", "off", "natural", true)));
+            Assert.IsTrue(r.World.Saved.Contains(Full("sky3", "plain", "natural", true)));
+            Assert.IsTrue(r.World.Saved.Contains(Full("ground", "recon4", "aid-opticaldepth", true)));
+            Assert.IsTrue(r.World.Saved.Contains(Full("inside", "cache", "aid-opticaldepth", true)));
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-off-") && n.Contains("aid")), "the baseline has no aid view");
+            for (int i = 0; i < r.World.Saved.Count; i++)
+            {
+                bool half = r.World.Saved[i].EndsWith("-half", StringComparison.Ordinal);
+                Assert.AreEqual(half ? 2 : 1, r.World.SavedFactor[i], r.World.Saved[i]);
+            }
+
+            // The order inside one capture: the natural read and save, then the aid on, the read, the aid off, the save.
+            int first = r.World.Events.IndexOf("save:" + Full("ground", "plain", "natural") + ":1");
+            Assert.IsTrue(first > 1);
+            Assert.AreEqual("capbegin,take", string.Join(",", r.World.Events.Skip(first - 2).Take(2).ToArray()));
+            Assert.AreEqual("aidon,capbegin,take,aidoff,save:" + Full("ground", "plain", "aid-opticaldepth") + ":1", string.Join(",", r.World.Events.Skip(first + 1).Take(5).ToArray()));
+
+            // Outside the measured windows: no picture event lies inside a window.
+            List<int[]> windows = Windows(r);
+            Assert.AreEqual(24, windows.Count);
+            for (int i = 0; i < r.World.Stamps.Count; i++)
+            {
+                int s = r.World.Stamps[i];
+                Assert.IsFalse(windows.Any(w => s > w[0] && s < w[1]), "event " + r.World.Events[i] + " at frame " + s + " is inside a measured window");
+            }
+            // The log: begin, end, capture begin, capture end, for every view of every variant, each pair naming the same view and variant.
+            var kinds = r.Log.Where(l => l.StartsWith("T09 view begin: ") || l.StartsWith("T09 view end: ") || l.StartsWith("T09 capture begin: ") || l.StartsWith("T09 capture end: ")).ToList();
+            Assert.AreEqual(24 * 4, kinds.Count);
+            for (int i = 0; i < kinds.Count; i += 4)
+            {
+                string tag = kinds[i].Substring("T09 view begin: ".Length);
+                Assert.AreEqual("T09 view end: " + tag, kinds[i + 1]);
+                Assert.AreEqual("T09 capture begin: " + tag, kinds[i + 2]);
+                Assert.AreEqual("T09 capture end: " + tag, kinds[i + 3]);
+            }
+            // The capture began after the window's end line, and the picture rows carry the cost.
+            int endLine = r.Log.IndexOf("T09 view end: ground plain 1707x960"), capLine = r.Log.IndexOf("T09 capture begin: ground plain 1707x960");
+            Assert.IsTrue(endLine >= 0 && capLine > endLine);
+            Assert.IsTrue(r.LogFrames[capLine] >= r.LogFrames[endLine]);
+            Assert.AreEqual(2.0, Number(r, "T09.view.ground.pictures", "plain"));
+            Assert.AreEqual(1.0, Number(r, "T09.view.ground.pictures", "off"));
+            Assert.IsTrue(Number(r, "T09.view.ground.capture_s", "plain") > 0.0);
+            Assert.IsTrue(Number(r, "T09.view.ground.capture_bytes", "plain") > 0.0);
+            Assert.IsTrue(r.Probe.Elapsed < 18.5 * 60, "scenario time with the pictures " + r.Probe.Elapsed.ToString("0") + " s");
+            foreach (string v in OwnWithAid) Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: picture " + Full("sky3", v, "aid-opticaldepth", true))), v);
+            foreach (string v in InsideOnlyVariants) Assert.IsFalse(r.Log.Any(l => l.Contains("-ground-" + v + "-")), v + " has the inside view only");
+        }
+
+        [TestMethod]
+        public void ATvcStartTakesTheNaturalPictureOfEachViewAndNoAid()
+        {
+            Run r = Start(new[] { "tvc" });
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(5, r.World.Saved.Count);
+            Assert.IsFalse(r.World.Events.Contains("aidon"));
+            Assert.IsTrue(r.World.Saved.Contains(Full("ground", "tvc", "natural")));
+            Assert.IsTrue(r.World.Saved.Contains(Full("orbit_edge", "tvc", "natural", true)));
+            Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
+        }
+
+        [TestMethod]
+        public void TheBaselineAloneTakesNaturalPicturesOnly()
+        {
+            Run r = Start(new[] { "off" });
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(5, r.World.Saved.Count);
+            Assert.AreEqual(0, r.World.Events.Count(e => e == "aidon"));
+        }
+
+        private static void AssertPicturesFailedButSeriesWentOn(Run r, string warning, int expectedViews)
+        {
+            Assert.IsTrue(r.Probe.Passed, "a fault of the pictures does not fail the series: " + Dump(r));
+            AssertNoUnhandled(r);
+            Assert.AreEqual(expectedViews, r.Log.Count(l => l.StartsWith("T09 view end: ")), "every view was still measured");
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: warning " + warning + ": ")), "the warning " + warning + " is named\n" + Dump(r));
+            Assert.IsTrue(Values(r, "T09.warning." + warning).Count > 0, "the warning is a row");
+            Assert.IsFalse(r.World.AidIsOn, "the aid view is off");
+        }
+
+        [TestMethod]
+        public void AReadThatThrowsOrFailsIsANamedWarningAndTheSeriesGoesOn()
+        {
+            foreach (string fault in new[] { "throw", "none", "busy", "busythrows", "takethrows", "nobegin" })
+            {
+                Run r = Start(new[] { "plain" }, x => x.World.ReadFault = n => fault);
+                Drive(r);
+                AssertPicturesFailedButSeriesWentOn(r, "capture_failed", 5);
+                Assert.AreEqual(0, r.World.Saved.Count, fault);
+                Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: warning pictures_stopped: ")), fault + ": four in a row stop the pictures");
+                Assert.AreEqual(4, r.Log.Count(l => l.StartsWith("Probe: warning capture_failed: ")), fault);
+            }
+        }
+
+        [TestMethod]
+        public void AReadThatFailsOnceIsSkippedAndTheNextPictureIsTaken()
+        {
+            Run r = Start(new[] { "plain" }, x => x.World.ReadFault = n => n == 3 ? "throw" : null);
+            Drive(r);
+            AssertPicturesFailedButSeriesWentOn(r, "capture_failed", 5);
+            Assert.AreEqual(9, r.World.Saved.Count, "ten pictures, one failed");
+            Assert.IsFalse(r.Log.Any(l => l.StartsWith("Probe: warning pictures_stopped")));
+        }
+
+        [TestMethod]
+        public void ADiskThatIsFullIsANamedWarningAndStopsThePicturesAfterFourInARow()
+        {
+            Run r = Start(new[] { "plain", "recon4" }, x => x.World.SaveFault = n => "full");
+            Drive(r);
+            AssertPicturesFailedButSeriesWentOn(r, "picture_not_saved", 10);
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: warning picture_not_saved: ") && l.Contains("not enough space")));
+            Assert.AreEqual(4, r.World.SaveCalls, "the pictures stopped after four saves in a row");
+            Assert.AreEqual(0, r.World.Saved.Count);
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: warning pictures_stopped: ")));
+
+            Run denied = Start(new[] { "plain" }, x => x.World.SaveFault = n => n < 2 ? "denied" : null);
+            Drive(denied);
+            AssertPicturesFailedButSeriesWentOn(denied, "picture_not_saved", 5);
+            Assert.AreEqual(8, denied.World.Saved.Count, "two failed, the others were saved");
+            Assert.IsFalse(denied.Log.Any(l => l.StartsWith("Probe: warning pictures_stopped")));
+        }
+
+        [TestMethod]
+        public void AFolderThatCannotBeWrittenIsKnownBeforeTheFirstViewAndNoPictureIsTried()
+        {
+            Run r = Start(new[] { "plain" }, x => x.World.FolderProblem = "C:\\ksp\\series-pictures cannot be written");
+            Drive(r);
+            AssertPicturesFailedButSeriesWentOn(r, "pictures_folder", 5);
+            Assert.AreEqual(0, r.World.ReadCalls);
+            Assert.AreEqual(0, r.World.Events.Count);
+            Assert.AreEqual(0, r.Log.Count(l => l.StartsWith("T09 capture begin")));
+        }
+
+        [TestMethod]
+        public void AScenarioThatRunsLateStopsThePicturesBeforeTheLimitAndStillPasses()
+        {
+            // The flight comes 95 s late: the pictures of the last views would push the scenario over its 19 minute limit.
+            Run r = Start(null, x => x.World.FlightReadyAtS = 150.0);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            AssertNoUnhandled(r);
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: warning pictures_time: ")), Dump(r));
+            Assert.IsTrue(r.World.Saved.Count > 0 && r.World.Saved.Count < 43, "some pictures were taken, not all: " + r.World.Saved.Count);
+            Assert.AreEqual(24, r.Log.Count(l => l.StartsWith("T09 view end: ")), "every view was measured");
+        }
+
+        [TestMethod]
+        public void AModuleWithoutAnAidViewGivesTheNaturalPictureAndAWarning()
+        {
+            Run r = Start(null, x => x.World.AidAvailable = false);
+            Drive(r);
+            AssertPicturesFailedButSeriesWentOn(r, "no_aid_view", 24);
+            Assert.AreEqual(20 + 4, r.World.Saved.Count, "natural pictures only");
+            Assert.AreEqual(15 + 4, r.Log.Count(l => l.StartsWith("Probe: warning no_aid_view: ")));
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("aid")));
+        }
+
+        [TestMethod]
+        public void AnAidModeThatDoesNothingIsNamedAndTheAidPictureIsStillKept()
+        {
+            Run r = Start(new[] { "plain" }, x => x.World.AidIgnored = true);
+            Drive(r);
+            AssertPicturesFailedButSeriesWentOn(r, "aid_equals_natural", 5);
+            Assert.AreEqual(10, r.World.Saved.Count);
+            Assert.AreEqual(5, r.Log.Count(l => l.StartsWith("Probe: warning aid_equals_natural: ")));
+        }
+
+        [TestMethod]
+        public void TheAidViewIsOffAfterAnAidReadFailsAndEveryOnHasItsOff()
+        {
+            Run r = Start(new[] { "plain", "entry" }, x => x.World.ReadFault = n => n % 2 == 1 ? "takethrows" : null);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.IsFalse(r.World.AidIsOn);
+            int on = r.World.Events.Count(e => e == "aidon"), off = r.World.Events.Count(e => e == "aidoff");
+            Assert.AreEqual(on, off, "every aid switch-on has its switch-off");
         }
 
         // --- Faults of the TVC start ----------------------------------------------------------------------------------------------------

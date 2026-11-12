@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -60,6 +61,26 @@ namespace ReDefinition.Atmospheres
 
         // Whether a moon or planet lights the clouds from the camera's place.
         bool MoonProviderAnswers();
+
+        // The pictures (T09Pictures.cs). Null where the folder can take them; else the reason it cannot (not writable, nearly full).
+        string PicturesFolderProblem();
+        // Starts the read of the flight camera's picture at the end of this frame; false where no read can start.
+        bool CaptureBegin();
+        bool CaptureBusy { get; }
+        // The picture read (linear colours, row 0 at the bottom), or null where the read failed. Taken once.
+        T09Image CaptureTake();
+        // Switches the aid view of the own pass on (the layer shader's optical-depth picture over the scene); false where the pass has none.
+        bool AidOn();
+        void AidOff();
+        // Writes the picture as a PNG named name, scaled down by the whole factor; returns the size of the file, throws where it cannot write.
+        long SavePicture(string name, T09Image image, int factor);
+    }
+
+    // A picture the probe read from the flight camera.
+    internal sealed class T09Image
+    {
+        internal int Width, Height;
+        internal Color[] Pixels;
     }
 
     // The game's own world: the calls T09Probe made directly before the seam.
@@ -243,6 +264,63 @@ namespace ReDefinition.Atmospheres
             Color colour;
             Vector3d eye = FlightCamera.fetch.mainCamera.transform.position;
             return CloudBridgeLights.Moon != null && CloudBridgeLights.Moon(FlightGlobals.ActiveVessel.mainBody, eye, out towards, out colour);
+        }
+
+        private const long LeastFreeBytes = 300L * 1024 * 1024;
+
+        public string PicturesFolderProblem()
+        {
+            try
+            {
+                string folder = SeriesPictures.Folder;
+                Directory.CreateDirectory(folder);
+                string probe = Path.Combine(folder, "t09-write-test.tmp");
+                File.WriteAllText(probe, "x");
+                File.Delete(probe);
+                long free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(folder))).AvailableFreeSpace;
+                if (free < LeastFreeBytes) return "only " + (free / (1024 * 1024)) + " MB are free on the drive of " + folder;
+                return null;
+            }
+            catch (Exception e)
+            {
+                return SeriesPictures.Folder + " cannot be written (" + e.GetType().Name + " " + e.Message + ")";
+            }
+        }
+
+        public bool CaptureBegin()
+        {
+            ReconHost host = ReconHost.Get();
+            if (host.Reading) return false;
+            host.Read();
+            return true;
+        }
+
+        public bool CaptureBusy { get { return ReconHost.Get().Reading; } }
+
+        public T09Image CaptureTake()
+        {
+            ReconFrame f = ReconHost.Get().Frame;
+            return f == null ? null : new T09Image { Width = f.Width, Height = f.Height, Pixels = f.Pixels };
+        }
+
+        // The layer shader's aid picture 1 (optical depth as a heat map over the scene); the module fills the frame's other fields every frame but not this one.
+        public bool AidOn()
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            if (m == null || m.Renderer == null || !m.Renderer.Ready || m.Stats.Mode == "off") return false;
+            m.Frame.AidMode = 1;
+            return true;
+        }
+
+        public void AidOff()
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            if (m != null) m.Frame.AidMode = 0;
+        }
+
+        public long SavePicture(string name, T09Image image, int factor)
+        {
+            return SeriesPictures.SaveImage(name, image.Pixels, image.Width, image.Height, factor);
         }
     }
 }

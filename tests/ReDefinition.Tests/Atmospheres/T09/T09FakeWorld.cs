@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using ReDefinition.Atmospheres;
 using ReDefinition.Core;
 using UnityEngine;
@@ -124,7 +125,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         private void UpdateModule()
         {
-            bool own = AtmospheresSettings.Number(AtmospheresSettings.Keys.OwnClouds) > 0.5 && (int)AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSource) == (int)CloudSourceKind.Ours;
+            // The real gates: the settings half is CloudGates.OwnPassSwitches, and the pass hides itself while the hub holds the NullField (OwnCloudModule.Run).
+            bool own = CloudGates.OwnPassSwitches(AtmospheresSettings.Number, false) && !(WeatherHub.Field is NullField);
             OwnCloudModule.Statistics s = Module.Stats;
             if (!own)
             {
@@ -237,5 +239,88 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public int EveLayersBound { get { return EveLayers; } }
         public int EveFailureLines { get { return EveFailures; } }
         public bool MoonProviderAnswers() { RequireFlight(); return MoonAnswers; }
+
+        // --- The pictures -----------------------------------------------------------------------------------------------------------
+
+        // What the probe did, in order: "aidon", "aidoff", "capbegin", "take", "save:<name>:<factor>" (each with the frame in Stamps).
+        internal readonly List<string> Events = new List<string>();
+        internal readonly List<int> Stamps = new List<int>();
+        internal bool AidAvailable = true, AidIsOn;
+        // A pass whose aid mode does nothing: the aid picture equals the natural one.
+        internal bool AidIgnored;
+        internal string FolderProblem;
+        // The n-th read (0-based) of the start: "throw" (CaptureBegin throws), "none" (no picture), "busy" (never ready), "busythrows", "takethrows", "nobegin" or null.
+        internal Func<int, string> ReadFault = n => null;
+        // The n-th save (0-based): "full" (IOException), "denied" (UnauthorizedAccessException) or null.
+        internal Func<int, string> SaveFault = n => null;
+        internal readonly List<string> Saved = new List<string>();
+        internal readonly List<int> SavedFactor = new List<int>();
+        internal int ReadCalls, SaveCalls;
+        private int readReadyFrame = -1;
+        private string readFaultNow;
+
+        private void Stamp(string e) { Events.Add(e); Stamps.Add(Frames); }
+
+        public string PicturesFolderProblem() { return FolderProblem; }
+
+        public bool CaptureBegin()
+        {
+            RequireFlight();
+            readFaultNow = ReadFault(ReadCalls++);
+            if (readFaultNow == "throw") throw new InvalidOperationException("ReadPixels failed");
+            if (readFaultNow == "nobegin") return false;
+            Stamp("capbegin");
+            readReadyFrame = Frames + 1;
+            return true;
+        }
+
+        public bool CaptureBusy
+        {
+            get
+            {
+                if (readFaultNow == "busythrows") throw new InvalidOperationException("the host is gone");
+                return readFaultNow == "busy" || Frames < readReadyFrame;
+            }
+        }
+
+        public T09Image CaptureTake()
+        {
+            Stamp("take");
+            if (readFaultNow == "takethrows") throw new InvalidOperationException("the frame was released");
+            if (readFaultNow == "none") return null;
+            var image = new T09Image { Width = 16, Height = 9, Pixels = new Color[16 * 9] };
+            for (int i = 0; i < image.Pixels.Length; i++)
+            {
+                float v = (i % 16) / 16f;
+                image.Pixels[i] = AidIsOn && !AidIgnored ? new Color(v, 0.2f, 1f - v, 1f) : new Color(v, v, v, 1f);
+            }
+            return image;
+        }
+
+        public bool AidOn()
+        {
+            RequireFlight();
+            if (!AidAvailable) return false;
+            AidIsOn = true;
+            Stamp("aidon");
+            return true;
+        }
+
+        public void AidOff()
+        {
+            if (AidIsOn) Stamp("aidoff");
+            AidIsOn = false;
+        }
+
+        public long SavePicture(string name, T09Image image, int factor)
+        {
+            string fault = SaveFault(SaveCalls++);
+            Stamp("save:" + name + ":" + factor);
+            if (fault == "full") throw new IOException("There is not enough space on the disk");
+            if (fault == "denied") throw new UnauthorizedAccessException("access to the path is denied");
+            Saved.Add(name);
+            SavedFactor.Add(factor);
+            return 40000 / factor;
+        }
     }
 }

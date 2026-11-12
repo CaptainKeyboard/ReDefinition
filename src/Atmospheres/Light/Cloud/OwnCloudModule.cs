@@ -151,6 +151,7 @@ namespace ReDefinition.Atmospheres
             int specs = c != null ? c.Clouds.Layers.Count : 0;
             bool want = OwnCloudPlan.Wanted(AtmospheresSettings.Enabled, flight, b != null && b.atmosphere, c != null && c.Status.WeatherRuns,
                                             OwnCloudOptions.Active(source), specs, MapView.MapIsEnabled);
+            // (the settings half of this gate is CloudGates.OwnPassSwitches; the audit of K-T2 evaluates it with a start's effective settings)
             if (!want)
             {
                 Stats.Why = !AtmospheresSettings.Enabled ? "mod off" : !flight ? "no flight scene" : c == null ? "no body config" :

@@ -209,7 +209,7 @@ namespace ReDefinition.Atmospheres
                 nextRenderCheck = checkNow + RenderCheckIntervalS;
                 EveRenderCompat.Update(EveLayerAccess.Available);
             }
-            bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects;
+            bool on = CloudGates.EvePainterOn(AtmospheresSettings.Number);
             CelestialBody b = BodyWatcher.ActiveBody;
             BodyClimate c = b != null ? Bodies.Get(b) : null;
             if (!on || b == null || c == null || !c.Status.WeatherRuns || !b.atmosphere)

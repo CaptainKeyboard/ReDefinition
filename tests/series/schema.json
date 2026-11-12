@@ -19,6 +19,7 @@
     "bundle": { "type": "boolean", "description": "The series needs the shader bundle: the runner builds build/atmospheres.shaders with Unity in batch mode inside the unity lock after the DLL build, and refuses when it is missing afterwards." },
     "settings": { "type": "array", "items": { "$ref": "#/definitions/settingsFile" }, "description": "Settings the series pins for every start: per file, keys that must already stand in it and the values they get. The runner writes them after the Medium profile is applied and the snapshot restores the files byte for byte afterwards (never edit the installed files by hand)." },
     "expectProbeLine": { "type": "boolean", "description": "Whether the log must carry 'Probe: PASSED' and no 'Probe: FAILED' (default true)." },
+    "productSwitches": { "type": "object", "description": "Atmospheres settings (key: wanted value, a number or a choice name) the series needs on for its probe to measure anything: the weather generator's gate (enabled, weatherEffects, genEnabled), the cloud renderer's (ownClouds, cloudSource). The preflight prints each with the value the start would have (the install's settings.cfg of the Atmospheres, else the default of the setting) and FAILs a key that is off and neither pinned in 'settings' nor set by the probe named in -atmoProbe (a SetSetting(AtmospheresSettings.Keys.<Key> in its source). Start-level keys win." },
     "starts": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/start" } },
     "sections": { "type": "array", "items": { "$ref": "#/definitions/section" }, "description": "The order of the table; a row names its section. Without sections, one section 'main'." },
     "collect": { "type": "array", "items": { "$ref": "#/definitions/collect" } },
@@ -43,6 +44,7 @@
         "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
         "description": { "type": "string" },
         "disableMods": { "type": "array", "items": { "enum": ["EVE", "Scatterer", "Deferred", "TUFX", "Parallax"] }, "description": "The mods whose GameData folders are moved away for this start." },
+        "productSwitches": { "type": "object", "description": "As the series-level key, for this start only (merged over the series': a key in both takes the start's value)." },
         "variants": { "type": "array", "items": { "type": "string" }, "description": "Variants the probe switches inside this one start (-atmoVariants a,b)." },
         "probeArgs": { "type": "array", "items": { "type": "string" }, "description": "More arguments for the game's command line." },
         "settings": { "type": "array", "items": { "$ref": "#/definitions/settingsFile" }, "description": "Pins of this start only: merged over the series' pins (a key named in both takes the start's value), written just before the start and put back with the snapshot. KSP applies SCREEN_RESOLUTION_WIDTH, SCREEN_RESOLUTION_HEIGHT and FULLSCREEN from settings.cfg over the command line, so a start with its own window size pins them here." }

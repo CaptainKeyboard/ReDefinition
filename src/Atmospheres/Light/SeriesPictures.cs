@@ -155,6 +155,36 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // Writes one linear picture as <folder>/<name>.png, scaled down by a whole factor (1: full size). Returns the size of the file. Unlike
+        // SaveSheet it throws where it cannot write (a full disk, a folder that is not writable): the caller names the fault.
+        internal static long SaveImage(string name, Color[] linear, int width, int height, int factor)
+        {
+            if (linear == null || linear.Length != width * height) throw new ArgumentException("the picture has no " + width + "x" + height + " pixels");
+            int w, h;
+            Color[] scaled = Downscale(linear, width, height, Math.Max(1, factor), out w, out h);
+            var encoded = new Color[scaled.Length];
+            for (int i = 0; i < encoded.Length; i++)
+            {
+                Color c = scaled[i];
+                encoded[i] = new Color(Encode(c.r), Encode(c.g), Encode(c.b), 1f);
+            }
+            var texture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            byte[] png;
+            try
+            {
+                texture.SetPixels(encoded);
+                texture.Apply(false);
+                png = texture.EncodeToPNG();
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(texture);
+            }
+            Directory.CreateDirectory(Folder);
+            File.WriteAllBytes(Path.Combine(Folder, name + ".png"), png);
+            return png.Length;
+        }
+
         private static float Encode(float linear)
         {
             if (float.IsNaN(linear) || float.IsInfinity(linear)) return 0f;

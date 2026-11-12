@@ -24,6 +24,9 @@ namespace ReDefinition.Atmospheres
     // time whose cover over the site at 3 km is at least half AND whose sun stands 15 to 60 degrees over the site; the same for every variant and, as
     // the base is the same, for every start. TVC draws its own layer set (the pack's layers plus the painter's layer at 2700 m), the own stack its
     // four layers: the columns compare two systems at the same camera, not equal clouds.
+    // Pictures (T09Pictures.cs): after the dwell of each view and variant, in a short extra window after the "T09 view end" line ("T09 capture begin" and
+    // "end" lines around it, rows T09.view.<view>.pictures / capture_s / capture_bytes), one natural picture and, for the own pass, one aid picture
+    // (the layer shader's optical-depth aid). A fault of the pictures is a named warning ("Probe: warning <name>", row T09.warning.<name>), never a failure.
     // Not run in the game yet [VERIFY]: placement of the vessel at 300 km (the hold works at the heights of K-W3b).
     [AtmospheresModule(985)]
     internal sealed class T09Probe : SeriesProbe
@@ -143,6 +146,36 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // The switches the weather field and the cloud renderers depend on (CloudGates.cs), set before the clock step and logged with their effective values.
+        // False only in a test that runs the probe as it was before start 41 (it did not set these switches).
+        internal bool SetsProductSwitches = true;
+
+        private void ApplyProductSwitches()
+        {
+            if (!SetsProductSwitches) return;
+            SetSetting(AtmospheresSettings.Keys.Enabled, 1.0);
+            SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
+            SetSetting(AtmospheresSettings.Keys.GenEnabled, 1.0);
+            AtmospheresLog.Say("T09 gates: " + CloudGates.Describe(AtmospheresSettings.Number));
+            EmitText("T09.gates", CloudGates.Describe(AtmospheresSettings.Number));
+            Check("the weather generator's field is installed by its gate (enabled, weatherEffects, genEnabled)", CloudGates.GeneratorInstalled(AtmospheresSettings.Number),
+                  CloudGates.Describe(AtmospheresSettings.Number));
+        }
+
+        // After a variant's switches are set: the gate of the renderer the variant measures is open (own: ownClouds with the source Ours; TVC: EVE's painter).
+        private void CheckVariantGates(string variant)
+        {
+            string described = CloudGates.Describe(AtmospheresSettings.Number);
+            AtmospheresLog.Say("T09 gates (" + variant + "): " + described);
+            if (variant == "off") return;
+            if (variant == "tvc")
+            {
+                Check("EVE's painter gate is open (tvc)", CloudGates.EvePainterOn(AtmospheresSettings.Number), described);
+                return;
+            }
+            Check("the own pass's switches are open (" + variant + ")", CloudGates.OwnPassSwitches(AtmospheresSettings.Number, false), described);
+        }
+
         // The own pass with every switch of the series at its starting value (the defaults of the product but for the ones the variants change).
         private void UseOwn()
         {
@@ -164,6 +197,7 @@ namespace ReDefinition.Atmospheres
         protected override void RevertVariant(string name)
         {
             ClearForced();
+            try { Game.AidOff(); } catch (Exception) { /* the aid view is a picture aid; the game may be gone */ }
         }
 
         // --- The scenario -----------------------------------------------------------------------------------------------------------------
@@ -219,6 +253,10 @@ namespace ReDefinition.Atmospheres
             Emit("T09.target_frame_rate", Game.TargetFrameRate);
             Check("no frame cap is set", NoFrameCap(), "targetFrameRate " + Game.TargetFrameRate);
 
+            // The product switches the chain needs, whatever the player's settings say (weatherEffects is off by default: the generator's field is then
+            // never installed and the clock step waits for a NullField, start 41).
+            ApplyProductSwitches();
+
             double siteLat = Game.VesselLatitude, siteLon = Game.VesselLongitude;
             foreach (ProbeWait w in ChooseUt(Game.BodyIndex, siteLat, siteLon)) yield return w;
             if (!utOk)
@@ -232,6 +270,7 @@ namespace ReDefinition.Atmospheres
             Check("the sky is covered at the chosen time", coverChosen >= MinCover, coverChosen.ToString("0.00"));
             Check("the sun stands in the band at the chosen time", sunChosen >= SunMinDeg && sunChosen <= SunMaxDeg, sunChosen.ToString("0.0") + " degrees");
             yield return ProbeWait.Seconds(3);
+            CheckPicturesFolder();
 
             foreach (string variant in Variants)
             {
@@ -249,6 +288,7 @@ namespace ReDefinition.Atmospheres
                     }
                 }
                 BeginVariant(variant);
+                CheckVariantGates(variant);
                 fewestFrames = int.MaxValue;
                 fewestRatio = double.MaxValue;
                 yield return ProbeWait.Seconds(4);
@@ -286,12 +326,16 @@ namespace ReDefinition.Atmospheres
                         foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
                         if (!placeOk) continue;
                         foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
+                        foreach (ProbeWait w in Pictures(view, variant)) yield return w;
                     }
                 }
                 if (IsOwn(variant)) EmitVariantTotals(variant);
                 EndVariant();
             }
             Game.StopHold();
+            Emit("T09.pictures.saved", picturesSaved);
+            Emit("T09.pictures.bytes", picturesBytes);
+            Emit("T09.pictures.warnings", pictureWarnings);
         }
 
         // The counters of the module after a variant. The worst times leave the first call out (the JIT is in it); the first ones are emitted apart.
@@ -381,6 +425,161 @@ namespace ReDefinition.Atmospheres
             if (WeatherHub.Sample(Game.BodyIndex, lat, lon, altitude, Game.UniversalTime, out s)) Emit(prefix + "cover_at_view_height", s.CloudCover01);
         }
 
+        // --- The pictures -----------------------------------------------------------------------------------------------------------------
+
+        // Real seconds before the scenario's limit from which no picture is taken (the measurement is what the start is for).
+        private const double PictureReserveS = 60.0;
+        private int picturesSaved, pictureWarnings, pictureFaults;
+        private long picturesBytes;
+        private bool picturesStopped;
+        private Color[] naturalPixels;
+
+        // A fault of the pictures is a named warning, never a failure: the timing series is what the start is for. Row T09.warning.<name>, log line "Probe: warning".
+        private void Warn(string name, string detail)
+        {
+            pictureWarnings++;
+            LogLine("Probe: warning " + name + ": " + detail);
+            EmitText("T09.warning." + name, detail);
+        }
+
+        // A folder that cannot take pictures is known before the first view: the start takes none and says why.
+        private void CheckPicturesFolder()
+        {
+            string problem;
+            try { problem = Game.PicturesFolderProblem(); }
+            catch (Exception e) { problem = "the folder check threw " + e.GetType().Name + " " + e.Message; }
+            if (problem == null) return;
+            picturesStopped = true;
+            Warn("pictures_folder", problem + "; the start takes no pictures");
+        }
+
+        // After the dwell of a view (so after its "T09 view end" line and outside the window the timing rows are cut from): the natural picture and,
+        // for the own pass, the aid picture, with the cost in rows. A picture that fails is a warning and the next one is tried.
+        private IEnumerable<ProbeWait> Pictures(View view, string variant)
+        {
+            if (picturesStopped) yield break;
+            if (Elapsed > MaxSeconds - PictureReserveS)
+            {
+                picturesStopped = true;
+                Warn("pictures_time", "the scenario is at " + Elapsed.ToString("0") + " s of " + MaxSeconds.ToString("0") + " s; the pictures stop so that the measurement ends in time");
+                yield break;
+            }
+            double began = Elapsed;
+            int savedBefore = picturesSaved;
+            long bytesBefore = picturesBytes;
+            string size = Game.ScreenWidth + "x" + Game.ScreenHeight;
+            AtmospheresLog.Say("T09 capture begin: " + view.Name + " " + variant + " " + size);
+            naturalPixels = null;
+            foreach (ProbeWait w in Shoot(view, variant, T09Pictures.Natural)) yield return w;
+            if (T09Pictures.HasAid(variant) && !picturesStopped)
+            {
+                foreach (ProbeWait w in Shoot(view, variant, T09Pictures.AidKind)) yield return w;
+            }
+            naturalPixels = null;
+            AtmospheresLog.Say("T09 capture end: " + view.Name + " " + variant + " " + size);
+            string prefix = "T09.view." + view.Name + ".";
+            Emit(prefix + "pictures", picturesSaved - savedBefore);
+            Emit(prefix + "capture_s", Elapsed - began);
+            Emit(prefix + "capture_bytes", picturesBytes - bytesBefore);
+        }
+
+        private IEnumerable<ProbeWait> Shoot(View view, string variant, string kind)
+        {
+            bool aid = kind != T09Pictures.Natural;
+            string what = view.Name + " " + variant + " " + kind;
+            if (aid)
+            {
+                bool on = false;
+                try { on = Game.AidOn(); }
+                catch (Exception e) { Warn("aid_view_fault", what + ": " + e.GetType().Name + " " + e.Message); }
+                if (!on)
+                {
+                    Warn("no_aid_view", what + ": the own pass has no aid view now (module missing, renderer not ready or pass off); the natural picture stands alone");
+                    yield break;
+                }
+                yield return ProbeWait.Frames(T09Pictures.SettleFrames(variant));
+            }
+            T09Image image = null;
+            string fault = null;
+            bool started = false;
+            try { started = Game.CaptureBegin(); }
+            catch (Exception e) { fault = "the read threw " + e.GetType().Name + " " + e.Message; }
+            if (started)
+            {
+                double giveUp = Elapsed + T09Pictures.ReadWaitS;
+                while (CaptureBusy(ref fault) && Elapsed < giveUp) yield return ProbeWait.Frames(1);
+                if (fault == null && CaptureBusy(ref fault)) fault = "the read did not finish in " + T09Pictures.ReadWaitS.ToString("0") + " s";
+                if (fault == null)
+                {
+                    try { image = Game.CaptureTake(); }
+                    catch (Exception e) { fault = "taking the read threw " + e.GetType().Name + " " + e.Message; }
+                    if (fault == null && (image == null || image.Pixels == null || image.Pixels.Length != image.Width * image.Height || image.Pixels.Length == 0)) fault = "the read gave no picture";
+                }
+            }
+            else if (fault == null) fault = "no read could start (one is still under way)";
+            if (aid)
+            {
+                try { Game.AidOff(); }
+                catch (Exception e) { Warn("aid_view_fault", what + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
+            }
+            if (fault != null)
+            {
+                Warn("capture_failed", what + ": " + fault);
+                NoteFault();
+                yield break;
+            }
+            if (aid && naturalPixels != null && !Differs(naturalPixels, image.Pixels))
+            {
+                Warn("aid_equals_natural", what + ": the aid picture equals the natural one (the aid mode did not reach the pass)");
+            }
+            if (!aid) naturalPixels = image.Pixels;
+            bool half = !T09Pictures.FullSize(view.Name, variant);
+            string name = T09Pictures.Name(StartId, view.Name, variant, Game.ScreenWidth, Game.ScreenHeight, kind, half);
+            long bytes;
+            try { bytes = Game.SavePicture(name, image, half ? 2 : 1); }
+            catch (Exception e)
+            {
+                Warn("picture_not_saved", name + ".png: " + e.GetType().Name + " " + e.Message);
+                NoteFault();
+                yield break;
+            }
+            pictureFaults = 0;
+            picturesSaved++;
+            picturesBytes += bytes;
+            LogLine("Probe: picture " + name + ".png (" + image.Width + "x" + image.Height + (half ? " read, half size written" : "") + ", " + bytes + " bytes)");
+        }
+
+        private bool CaptureBusy(ref string fault)
+        {
+            try { return Game.CaptureBusy; }
+            catch (Exception e)
+            {
+                fault = "waiting for the read threw " + e.GetType().Name + " " + e.Message;
+                return false;
+            }
+        }
+
+        // Faults in a row stop the pictures (a full disk would encode every picture for nothing); one picture that works resets the count.
+        private void NoteFault()
+        {
+            pictureFaults++;
+            if (pictureFaults < T09Pictures.FaultLimit) return;
+            picturesStopped = true;
+            Warn("pictures_stopped", pictureFaults + " pictures in a row failed; the start takes no more");
+        }
+
+        // Whether two pictures of one size differ anywhere on a coarse grid (by more than 0.002 in a channel, linear).
+        private static bool Differs(Color[] a, Color[] b)
+        {
+            if (a.Length != b.Length) return true;
+            int step = Math.Max(1, a.Length / 4096);
+            for (int i = 0; i < a.Length; i += step)
+            {
+                if (Math.Abs(a[i].r - b[i].r) > 0.002f || Math.Abs(a[i].g - b[i].g) > 0.002f || Math.Abs(a[i].b - b[i].b) > 0.002f) return true;
+            }
+            return false;
+        }
+
         // --- The clock --------------------------------------------------------------------------------------------------------------------
 
         private string utFailure;
@@ -435,7 +634,7 @@ namespace ReDefinition.Atmospheres
             {
                 IWeatherField field = WeatherHub.Field;
                 utFailure = "the weather field did not answer at the site for " + unsampled + " of " + Candidates + " candidate times within " + FieldWaitS.ToString("0")
-                            + " s (field " + (field != null ? field.GetType().Name + ", readiness " + field.Readiness : "none") + "; " + covered
+                            + " s (field " + (field != null ? field.GetType().Name + ", readiness " + field.Readiness : "none") + "; gates: " + CloudGates.Describe(AtmospheresSettings.Number) + "; " + covered
                             + " answered with cover and none of them stood in the sun band); the clock cannot be chosen";
             }
             else

@@ -278,6 +278,8 @@ def load_series(repo, name):
 
 RESULT_RE = re.compile(r"ATMORESULT\s*(\{.*\})\s*$")
 PROBE_RE = re.compile(r"Probe:\s*(PASSED|FAILED)")
+# A fault of a side task of the probe (the pictures of K-T2) that does not fail the series: "Probe: warning <name>: <detail>".
+PROBE_WARNING_RE = re.compile(r"Probe: warning (\S+): (.*)$")
 
 
 def parse_log(text, series):
@@ -290,6 +292,10 @@ def parse_log(text, series):
         m = PROBE_RE.search(line)
         if m:
             verdict = "FAILED" if (m.group(1) == "FAILED" or verdict == "FAILED") else "PASSED"
+        m = PROBE_WARNING_RE.search(line)
+        if m:
+            warnings.append("probe warning %s: %s" % (m.group(1), m.group(2).strip()))
+            continue
         if "ATMORESULT" not in line:
             continue
         m = RESULT_RE.search(line)
@@ -1052,14 +1058,21 @@ class Runner:
                 if not item.get("optional"):
                     report["warnings"].append("collect: %s is missing" % item["from"])
                 continue
+            collected = report.setdefault("collected", [])
             if os.path.isdir(src):
                 for rel in tree_files(src):
                     target = os.path.join(dst, *rel.split("/"))
-                    os.makedirs(os.path.dirname(target), exist_ok=True)
-                    shutil.copy2(os.path.join(src, *rel.split("/")), target)
+                    try:
+                        os.makedirs(os.path.dirname(target), exist_ok=True)
+                        shutil.copy2(os.path.join(src, *rel.split("/")), target)
+                    except OSError as e:
+                        report["warnings"].append("collect: %s could not be copied to %s (%s)" % (rel, item["to"], e))
+                        continue
+                    collected.append({"file": rel, "to": item["to"], "bytes": os.path.getsize(target)})
             else:
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 shutil.copy2(src, dst)
+                collected.append({"file": os.path.basename(dst), "to": os.path.dirname(item["to"]) or ".", "bytes": os.path.getsize(dst)})
 
 
 # ---------------------------------------------------------------- commands
@@ -1080,6 +1093,17 @@ def cmd_validate(args):
     return 1 if bad else 0
 
 
+def collected_lines(collected):
+    """The files the run copied out of the game (the pictures of K-T2 among them): one summary line per target folder, then every file with its size."""
+    lines = []
+    for to in sorted({c["to"] for c in collected}):
+        files = sorted({c["file"]: c["bytes"] for c in collected if c["to"] == to}.items())
+        lines.append("collected: %d file(s), %.1f MB into %s" % (len(files), sum(b for _f, b in files) / 1048576.0, to))
+        for f, b in files:
+            lines.append("  %s (%.0f KB)" % (f, b / 1024.0))
+    return lines
+
+
 def print_report(report, defn):
     print(format_table(report["series"], report["table"], report.get("unlisted", ())))
     if report.get("configuration"):
@@ -1088,6 +1112,8 @@ def print_report(report, defn):
         print("warning: " + w)
     for n in report.get("notes", []):
         print("note: " + n)
+    for line in collected_lines(report.get("collected", [])):
+        print(line)
 
 
 def cmd_run(args):
@@ -1306,6 +1332,20 @@ def _selftest():
         after = {r: sha256(os.path.join(ksp, r)) for r in before}
         check("side files and settings equal the originals byte for byte after the run", before == after and not rep["restore_mismatches"])
         check("the file the series collects is in the worktree", os.path.isfile(os.path.join(repo, "tests", "data", "test", "checkpoint.bin")))
+        check("the collected files are listed in the report and printed", any(c["file"] == "checkpoint.bin" for c in rep.get("collected", []))
+              and any("checkpoint.bin" in line for line in collected_lines(rep.get("collected", []))))
+        _r, probe_warnings, _v = parse_log("12:00 [ReDefinition] Probe: warning capture_failed: ground plain natural: the read gave no picture\n", "K-test")
+        check("a probe warning line is a warning of the report with its name and detail", probe_warnings == ["probe warning capture_failed: ground plain natural: the read gave no picture"])
+        pictures = os.path.join(ksp, "GameData", "ReDefinition", "Atmospheres", "PluginData", "series-pictures")
+        write(os.path.join(pictures, "t09-own1707-ground-off-1707x960-natural.png"), b"png", True)
+        write(os.path.join(pictures, "t09-own1707-ground-plain-1707x960-aid-opticaldepth-half.png"), b"png2", True)
+        pic_report = {"warnings": []}
+        runner().collect({"collect": [{"from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures", "to": ".local/work/series-pictures/K-test", "optional": True}]}, pic_report)
+        picture_lines = collected_lines(pic_report["collected"])
+        check("a pictures folder is copied next to the logs and every picture is listed with its target",
+              os.path.isfile(os.path.join(main, ".local", "work", "series-pictures", "K-test", "t09-own1707-ground-off-1707x960-natural.png"))
+              and picture_lines[0].startswith("collected: 2 file(s)") and any("aid-opticaldepth-half.png" in line for line in picture_lines))
+        shutil.rmtree(pictures)
         check("mod folders are back after a run with disabled mods", all(os.path.isdir(os.path.join(ksp, "GameData", m)) for m in ("EnvironmentalVisualEnhancements", "scatterer"))
               and not os.path.exists(os.path.join(ksp, DISABLED_DIR)))
         check("the VM was stopped and started again", any("Stop-VM" in c for c in vm.calls) and any("Start-VM" in c for c in vm.calls))

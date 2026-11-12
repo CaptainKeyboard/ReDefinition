@@ -398,6 +398,140 @@ def pf_profile_cache(profile_cache):
     return [(PASS, "profile cache texture files", "none (KSPCF builds its own cache)")]
 
 
+ATMO_SETTINGS_FILE = "GameData/ReDefinition/Atmospheres/PluginData/settings.cfg"
+SETTING_DEF_RE = re.compile(r'SettingDef\.(?:Bool|Int|Float|Choice)\(\s*"(\w+)"\s*,\s*(?:typeof\([\w.]+\)\s*,\s*)?([^,)]+)')
+
+
+def norm_setting(value):
+    """A setting's value as text in one form: true/false become 1/0, a number loses its zeros, a choice keeps its member name in lower case."""
+    low = str(value).strip().strip('"').lower()
+    if low == "true":
+        return "1"
+    if low == "false":
+        return "0"
+    try:
+        return "%g" % float(low)
+    except ValueError:
+        return low.split(".")[-1]
+
+
+def setting_defaults(repo):
+    """The default of every setting, read from the SettingDef lines of src/Atmospheres/Settings."""
+    found = {}
+    folder = os.path.join(repo, "src", "Atmospheres", "Settings")
+    for root, _d, names in os.walk(folder):
+        for n in names:
+            if n.endswith(".cs"):
+                with open(os.path.join(root, n), "r", encoding="utf-8", errors="replace") as f:
+                    for m in SETTING_DEF_RE.finditer(f.read()):
+                        found.setdefault(m.group(1), m.group(2).strip())
+    return found
+
+
+def pf_product_switches(repo, ksp, defn, st):
+    """The Atmospheres switches the series needs ("productSwitches" in the series and the start): for each, the value the start would have
+    (the install's Atmospheres settings.cfg, else the default of the setting) and what makes it the wanted one: it already is, a pin in
+    'settings', or a SetSetting of it in the probe named by -atmoProbe. FAIL where it is off and nothing turns it on (start 41: weatherEffects is
+    off by default, the generator never installed its field, and the clock step waited for a NullField). Prints current -> wanted."""
+    wanted = dict(defn.get("productSwitches", {}))
+    wanted.update(st.get("productSwitches", {}))
+    if not wanted:
+        return [(PASS, "product switches [%s]" % st["id"], "the start names none")]
+    defaults = setting_defaults(repo)
+    path = os.path.join(ksp, *ATMO_SETTINGS_FILE.split("/"))
+    in_file = {}
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f.read().split("\n"):
+                m = re.match(r"^\s*(\w+)\s*=\s*(.*?)\s*$", line)
+                if m:
+                    in_file[m.group(1)] = m.group(2)
+    pinned = {}
+    for entry in list(defn.get("settings", [])) + list(st.get("settings", [])):
+        if entry["file"] == ATMO_SETTINGS_FILE:
+            pinned.update(entry["set"])
+    probe_args = st.get("probeArgs", [])
+    probe_text, probe_name = "", None
+    if "-atmoProbe" in probe_args and probe_args.index("-atmoProbe") + 1 < len(probe_args):
+        probe_name = probe_args[probe_args.index("-atmoProbe") + 1]
+        for root, _d, names in os.walk(os.path.join(repo, "src")):
+            if probe_name + ".cs" in names:
+                with open(os.path.join(root, probe_name + ".cs"), "r", encoding="utf-8", errors="replace") as f:
+                    probe_text = f.read()
+                break
+    out = []
+    for key, want in sorted(wanted.items()):
+        if key in in_file:
+            current, origin = in_file[key], "install"
+        elif key in defaults:
+            current, origin = defaults[key], "default"
+        else:
+            out.append((FAIL, "product switch %s [%s]" % (key, st["id"]), "no setting of this name in src/Atmospheres/Settings"))
+            continue
+        label = "%s: %s (%s) -> %s" % (key, current.split(".")[-1], origin, want)
+        const = key[0].upper() + key[1:]
+        if norm_setting(current) == norm_setting(want):
+            out.append((PASS, "product switch %s [%s]" % (key, st["id"]), label + ", already"))
+        elif key in pinned and norm_setting(pinned[key]) == norm_setting(want):
+            out.append((PASS, "product switch %s [%s]" % (key, st["id"]), label + ", pinned"))
+        elif probe_text and re.search(r"SetSetting\(\s*AtmospheresSettings\.Keys\.%s\b" % const, probe_text):
+            out.append((PASS, "product switch %s [%s]" % (key, st["id"]), label + ", set by %s" % probe_name))
+        else:
+            out.append((FAIL, "product switch %s [%s]" % (key, st["id"]), label + ", but neither pinned nor set by %s; the start would measure with it off" % (probe_name or "any probe")))
+    return out
+
+
+PICTURES_NEED_BYTES = 300 * 1024 * 1024
+
+
+def nearest_existing(path):
+    """The path itself or its closest parent that exists (the folder a missing one would be made in)."""
+    path = os.path.abspath(path)
+    while not os.path.exists(path) and os.path.dirname(path) != path:
+        path = os.path.dirname(path)
+    return path
+
+
+def writable_folder(folder):
+    """None where a file can be made in the folder (and is removed again), else the reason."""
+    try:
+        fd, tmp = tempfile.mkstemp(dir=folder, prefix="preflight-write-test-")
+        os.close(fd)
+        os.remove(tmp)
+        return None
+    except OSError as e:
+        return "%s: %s" % (type(e).__name__, e)
+
+
+def pf_pictures(repo, ksp, mainrepo, defn, free_bytes=None):
+    """The pictures a series saves (a collect entry from series-pictures, K-T2): the game's folder and the target folder must take files and
+    have room. Warnings only: a start without pictures still measures (the probe names the same fault as a warning). Writes and removes
+    one test file in the nearest existing folder; creates nothing."""
+    free_bytes = free_bytes or (lambda p: shutil.disk_usage(p).free)
+    items = [c for c in defn.get("collect", []) if "series-pictures" in c.get("from", "")]
+    if not items:
+        return [(PASS, "pictures folder", "the series saves no pictures")]
+    out = []
+    for item in items:
+        base = mainrepo if item["to"].startswith(".local/") else repo
+        for label, path in (("game", os.path.join(ksp, *item["from"].split("/"))), ("target", os.path.join(base, *item["to"].split("/")))):
+            where = nearest_existing(path)
+            problem = writable_folder(where) if os.path.isdir(where) else "%s is not a folder" % where
+            if problem:
+                out.append((WARN, "pictures folder (%s)" % label, "%s cannot take the pictures (%s); the start measures but takes none" % (path, problem)))
+                continue
+            try:
+                free = free_bytes(where)
+            except OSError as e:
+                out.append((WARN, "pictures folder (%s)" % label, "free space of %s unknown (%s)" % (where, e)))
+                continue
+            if free < PICTURES_NEED_BYTES:
+                out.append((WARN, "pictures folder (%s)" % label, "only %d MB free at %s, %d MB are needed per start" % (free // 1048576, where, PICTURES_NEED_BYTES // 1048576)))
+            else:
+                out.append((PASS, "pictures folder (%s)" % label, "%s takes files, %d MB free" % (path, free // 1048576)))
+    return out
+
+
 def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script_repo=None, dotnet=DEFAULT_DOTNET):
     """All checks of a series start, without starting or changing anything. Returns the list of (status, check, detail)."""
     h = hooks or {}
@@ -431,7 +565,9 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
     results += pf_modsets(ksp, starts, h.get("mod_folders"))
     results += pf_texture_cache(ksp)
     results += pf_profile_cache(profile_cache)
+    results += pf_pictures(repo, ksp, mainrepo, defn, h.get("free_bytes"))
     for st in starts:
+        results += pf_product_switches(repo, ksp, defn, st)
         results += pf_probe_files(ksp, st.get("probeArgs", []))
         results += pf_scene_guard(repo, st.get("probeArgs", []))
     return results
@@ -615,6 +751,48 @@ def selftest(check):
         check("preflight profile cache: a data file FAILs", status(pf_profile_cache(pcache)) == FAIL)
         shutil.rmtree(pcache)
 
+        # product switches
+        write(os.path.join(repo, "src", "Atmospheres", "Settings", "Defs.cs"),
+              'SettingDef.Bool("weatherEffects", false, G, "Weather Effects"),\nSettingDef.Bool("enabled", true, G, "A"),\n'
+              'SettingDef.Choice("cloudSource", typeof(CloudSourceKind), CloudSourceKind.Eve, CL, "Cloud Source"),\n')
+        write(os.path.join(repo, "src", "A", "SetsProbe.cs"), "SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);\nSetSetting(AtmospheresSettings.Keys.CloudSource, 3.0);")
+        write(os.path.join(repo, "src", "A", "LazyProbe.cs"), "// sets nothing")
+        sw_start = {"id": "s", "probeArgs": ["-atmoProbe", "SetsProbe"], "productSwitches": {"cloudSource": "Ours"}}
+        sw_defn = {"productSwitches": {"enabled": 1, "weatherEffects": 1}}
+        r = pf_product_switches(repo, ksp, sw_defn, sw_start)
+        check("preflight product switches: a switch that is off by default and set by the probe PASSes and shows current -> wanted",
+              all(x[0] == PASS for x in r) and any("weatherEffects: false (default) -> 1, set by SetsProbe" in x[2] for x in r) and any("enabled" in x[1] and "already" in x[2] for x in r), str(r))
+        r = pf_product_switches(repo, ksp, sw_defn, dict(sw_start, probeArgs=["-atmoProbe", "LazyProbe"]))
+        check("preflight product switches: weatherEffects off by default and set by nobody FAILs (start 41)",
+              status(r, "product switch weatherEffects") == FAIL and "neither pinned nor set by LazyProbe" in [x for x in r if "weatherEffects" in x[1]][0][2], str(r))
+        pin_defn = dict(sw_defn, settings=[{"file": ATMO_SETTINGS_FILE, "set": {"weatherEffects": True}}])
+        check("preflight product switches: a pin of the key PASSes without the probe",
+              status(pf_product_switches(repo, ksp, pin_defn, dict(sw_start, probeArgs=["-atmoProbe", "LazyProbe"])), "product switch weatherEffects") == PASS)
+        write(os.path.join(ksp, *ATMO_SETTINGS_FILE.split("/")), "weatherEffects = True\nenabled = False\n")
+        r = pf_product_switches(repo, ksp, sw_defn, dict(sw_start, probeArgs=["-atmoProbe", "LazyProbe"]))
+        check("preflight product switches: the install's file wins over the default (on: PASS, enabled off: FAIL)",
+              status(r, "product switch weatherEffects") == PASS and status(r, "product switch enabled") == FAIL, str(r))
+        os.remove(os.path.join(ksp, *ATMO_SETTINGS_FILE.split("/")))
+        check("preflight product switches: an unknown key FAILs", status(pf_product_switches(repo, ksp, {"productSwitches": {"nonsense": 1}}, sw_start)) == FAIL)
+
+        # pictures folder
+        plugin_data = os.path.join(ksp, "GameData", "ReDefinition", "Atmospheres", "PluginData")
+        os.makedirs(plugin_data, exist_ok=True)
+        main_x = os.path.join(root, "mainrepo")
+        os.makedirs(os.path.join(main_x, ".local", "work"), exist_ok=True)
+        pdef = {"collect": [{"from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures", "to": ".local/work/series-pictures/K-x", "optional": True}]}
+        check("preflight pictures: a series without pictures PASSes", status(pf_pictures(repo, ksp, main_x, {"collect": []})) == PASS)
+        r = pf_pictures(repo, ksp, main_x, pdef, lambda p: 10 ** 12)
+        check("preflight pictures: writable folders with room PASS (game and target)", len(r) == 2 and all(x[0] == PASS for x in r))
+        check("preflight pictures: no folder is created by the check", not os.path.exists(os.path.join(plugin_data, "series-pictures"))
+              and not os.path.exists(os.path.join(main_x, ".local", "work", "series-pictures")))
+        check("preflight pictures: little room WARNs", all(x[0] == WARN and "MB free" in x[2] for x in pf_pictures(repo, ksp, main_x, pdef, lambda p: 1024)))
+        write(os.path.join(plugin_data, "blocker"), "a file where the folder should stand")
+        bad = {"collect": [{"from": "GameData/ReDefinition/Atmospheres/PluginData/blocker/series-pictures", "to": ".local/work/series-pictures/K-x"}]}
+        r = pf_pictures(repo, ksp, main_x, bad, lambda p: 10 ** 12)
+        check("preflight pictures: a folder that cannot take files WARNs and says so", status(r, "pictures folder (game)") == WARN and "cannot take the pictures" in r[0][2])
+        os.remove(os.path.join(plugin_data, "blocker"))
+
         # probe files
         check("preflight probe files: missing save and craft WARN", status(pf_probe_files(ksp, []), "probe save") == WARN and status(pf_probe_files(ksp, []), "probe craft") == WARN)
         write(os.path.join(ksp, "saves", "ReDefinitionProbe", "persistent.sfs"))
@@ -629,6 +807,8 @@ def selftest(check):
         check("preflight scene guard: an unguarded probe FAILs", status(pf_scene_guard(repo, ["-atmoProbe", "BadProbe"])) == FAIL)
 
         # the whole preflight on a fake install and series
+        write(os.path.join(repo, "src", "Atmospheres", "Settings", "Defs2.cs"), 'SettingDef.Bool("genEnabled", true, S, "G"),\nSettingDef.Bool("ownClouds", false, CL, "O"),\n')
+        write(os.path.join(repo, "src", "A", "T09Probe.cs"), "".join("SetSetting(AtmospheresSettings.Keys.%s, 1.0);\n" % k for k in ("WeatherEffects", "CloudSource", "OwnClouds")))
         shutil.copytree(os.path.join(DEFAULT_REPO, "tests", "series"), os.path.join(repo, "tests", "series"))
         write(os.path.join(ksp, "GameData", "ReDefinition", "Main", "PluginData", "settings.cfg"),
               "raytracing = Light\nframeGeneration = True\nqualityAuto = True\nquality = Quality\n")
@@ -641,6 +821,7 @@ def selftest(check):
         whole = run_preflight(repo, "K-T2", "own1707", ksp, root, "me", hooks, script_repo=os.path.join(root, "other"))
         fails = [x for x in whole if x[0] == FAIL]
         check("preflight whole run: a clean fake install has no FAIL", not fails, "; ".join("%s: %s" % (x[1], x[2][:60]) for x in fails))
+        check("preflight whole run: K-T2's pictures folders are checked", sum(1 for x in whole if x[1].startswith("pictures folder (")) == 2)
         write(os.path.join(tc, "textureData.json"), index)
         whole = run_preflight(repo, "K-T2", "own1707", ksp, root, "me", hooks, script_repo=os.path.join(root, "other"))
         check("preflight whole run: the inconsistent texture cache is a FAIL", not preflight_ok(whole) and any(x[1] == "KSPCF texture cache" and x[0] == FAIL for x in whole))
