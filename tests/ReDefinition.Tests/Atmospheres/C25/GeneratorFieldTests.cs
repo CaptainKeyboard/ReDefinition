@@ -525,7 +525,9 @@ namespace ReDefinition.Tests.Atmospheres.C25
             Assert.IsTrue(sampleUs <= 3.0, "sample " + sampleUs);
             Assert.IsTrue(forecastMs <= 0.1, "forecast " + forecastMs);
             Assert.IsTrue(mapMs <= 300.0, "map " + mapMs);
-            Assert.IsTrue(windowMs <= 5.0, "window " + windowMs);
+            // The layered window (E43) is filled on a worker since K-W3b2 (WindowJobTests holds the main thread to ask + take): the fill itself is
+            // 2.0 ms plain and 7 to 9 ms layered in this process, 2.2 times that in the game's runtime.
+            Assert.IsTrue(windowMs <= 15.0, "window " + windowMs);
 #endif
         }
 

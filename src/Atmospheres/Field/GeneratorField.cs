@@ -30,7 +30,7 @@ namespace ReDefinition.Atmospheres
     // and can read as beads on a string; summer snow at 55 degrees N latitude on high terrain is 0.11 (limit 0.05). Rasters, and with them
     // states, exist only for bodies whose terrain sphere runs (GeneratorRaster): a body not visited yet answers Sample with false. Cloud
     // types are not in the field: the Type map holds the precipitation band (see GeneratorMaps).
-    internal sealed class GeneratorField : IWeatherField, ISurfaceForcing, IWeatherSystemSource
+    internal sealed class GeneratorField : IWeatherField, ISurfaceForcing, IWeatherSystemSource, IWindowJobField
     {
         // The step of the version, in seconds of game time: the version rises when the clock moves into a new step that was observed.
         internal const double VersionStepSeconds = 60.0;
@@ -263,7 +263,39 @@ namespace ReDefinition.Atmospheres
         public bool FillWindow(int bodyIndex, double centreLatDeg, double centreLonDeg, double radiusKm, double ut, WeatherWindow target)
         {
             GeneratorState s = StateOf(bodyIndex);
-            if (s == null || target == null || s.Broken) return false;
+            if (s == null) return false;
+            bool layered = LayerWindOptions.AnyOn && s.Parameters.HeightWind;
+            return FillWindowCore(s, bodyIndex, centreLatDeg, centreLonDeg, radiusKm, ut, target, layered, layered ? LayerWindOptions.Layers() : null);
+        }
+
+        private readonly WindowJob windowJob = new WindowJob();
+
+        public WindowJobState WindowState
+        {
+            get { return windowJob.State; }
+        }
+
+        // The window on a worker (IWindowJobField): the same fill as FillWindow with the settings of this call, into the back buffer.
+        public bool BeginWindow(int bodyIndex, double centreLatDeg, double centreLonDeg, double radiusKm, double ut)
+        {
+            GeneratorState s = StateOf(bodyIndex);
+            if (s == null || s.Broken) return false;
+            bool layered = LayerWindOptions.AnyOn && s.Parameters.HeightWind;
+            LayerOptions layers = layered ? LayerWindOptions.Layers() : null;
+            return windowJob.Begin(target => FillWindowCore(s, bodyIndex, centreLatDeg, centreLonDeg, radiusKm, ut, target, layered, layers));
+        }
+
+        public WindowJobState TakeWindow(ref WeatherWindow spare)
+        {
+            return windowJob.Take(ref spare);
+        }
+
+        // The fill of the window with the switches of the layered columns given: the settings are read by the caller, on its own thread, so that
+        // a fill on the worker (WindowJob) makes the window the call would have made at the time it was asked for.
+        private bool FillWindowCore(GeneratorState s, int bodyIndex, double centreLatDeg, double centreLonDeg, double radiusKm, double ut, WeatherWindow target,
+            bool layered, LayerOptions layers)
+        {
+            if (target == null || s.Broken) return false;
             if (!Finite(centreLatDeg) || !Finite(centreLonDeg) || !Finite(radiusKm) || !Finite(ut)) return false;
             if (!(radiusKm > 0.0)) return false;
             target.Resize(WindowNx, WindowNy, WindowNz);
@@ -287,7 +319,6 @@ namespace ReDefinition.Atmospheres
             double centreLon = centreLonDeg * (Math.PI / 180.0);
             double cosC = Math.Max(0.02, DMath.Cos(centreLat));
             double lapse = s.Parameters.LapseKPerM, tropopause = s.Parameters.TropopauseM;
-            bool layered = LayerWindOptions.AnyOn && s.Parameters.HeightWind;
             Weather w;
             for (int j = 0; j < WindowNy; j++)
             {
@@ -323,7 +354,7 @@ namespace ReDefinition.Atmospheres
             // (the deck carried by the wind of its height, towers growing and sinking, the tilt and the consistency rule), looked up in place of the plain ones.
             if (layered)
             {
-                WindowAdvection.Refill(target, 0, WindowNy, s.Generator, LayerWindOptions.Layers());
+                WindowAdvection.Refill(target, 0, WindowNy, s.Generator, layers);
                 if (!AllFinite(target.CloudWater, target.Count) || !AllFinite(target.Updraft, target.Count))
                 {
                     Trip(s, ut);

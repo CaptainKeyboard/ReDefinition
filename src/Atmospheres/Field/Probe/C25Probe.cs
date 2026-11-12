@@ -161,9 +161,68 @@ namespace ReDefinition.Atmospheres
                 filled &= field.FillWindow(index, FlightGlobals.ActiveVessel.latitude, FlightGlobals.ActiveVessel.longitude, 30.0, ut + 600.0 * r, window);
                 windowMs[r] = watch.Elapsed.TotalMilliseconds;
             }
-            Emit("C25.window_ms", Percentile(windowMs, 0.5));
-            Emit("C25.window_p99_ms", Percentile(windowMs, 0.99));
+            // The synchronous fill: what the worker spends (it was the main thread's cost before the fill went to a worker).
+            Emit("C25.window_fill_ms", Percentile(windowMs, 0.5));
+            Emit("C25.window_fill_p99_ms", Percentile(windowMs, 0.99));
             Emit("C25.window_filled", filled);
+
+            // The worker fill, as the volume pass uses it: the main thread asks and takes, the worker fills a double buffer. The window must
+            // be the one the synchronous fill makes at the same place and time (hash of every number), and the main thread's share must be small.
+            double lat = FlightGlobals.ActiveVessel.latitude, lon = FlightGlobals.ActiveVessel.longitude;
+            var taken = new WeatherWindow();
+            var reference = new WeatherWindow();
+            var mainMs = new double[25];
+            var readyMs = new double[25];
+            bool same = true, jobsOk = true;
+            for (int r = 0; r < mainMs.Length; r++)
+            {
+                double at = ut + 600.0 * r;
+                field.FillWindow(index, lat, lon, 30.0, at, reference);
+                Drain(field);
+                watch.Restart();
+                jobsOk &= field.BeginWindow(index, lat, lon, 30.0, at);
+                double ask = watch.Elapsed.TotalMilliseconds;
+                var wall = Stopwatch.StartNew();
+                while (field.WindowState == WindowJobState.Running && wall.ElapsedMilliseconds < 5000) Thread.Sleep(0);
+                readyMs[r] = ask + wall.Elapsed.TotalMilliseconds;
+                watch.Restart();
+                jobsOk &= field.TakeWindow(ref taken) == WindowJobState.Ready;
+                mainMs[r] = ask + watch.Elapsed.TotalMilliseconds;
+                same &= WindowHash(taken) == WindowHash(reference);
+            }
+            Emit("C25.window_job_ok", jobsOk);
+            Emit("C25.window_job_matches_sync", same);
+            Emit("C25.window_ms", Percentile(mainMs, 0.5));
+            Emit("C25.window_p99_ms", Percentile(mainMs, 0.99));
+            Emit("C25.window_job_ready_ms", Percentile(readyMs, 0.5));
+        }
+
+        // Waits for a fill the volume pass may have in the air and drops its result, so that the probe's own fill can start.
+        private static void Drain(GeneratorField field)
+        {
+            var wall = Stopwatch.StartNew();
+            while (field.WindowState == WindowJobState.Running && wall.ElapsedMilliseconds < 5000) Thread.Sleep(0);
+            var scrap = new WeatherWindow();
+            field.TakeWindow(ref scrap);
+        }
+
+        // A hash over the bits of every number of a window.
+        private static ulong WindowHash(WeatherWindow w)
+        {
+            ulong h = 0xCBF29CE484222325UL;
+            h = (h ^ (ulong)w.Nx) * 0x100000001B3UL;
+            h = (h ^ (ulong)w.Ny) * 0x100000001B3UL;
+            h = (h ^ (ulong)w.Nz) * 0x100000001B3UL;
+            h = (h ^ (ulong)BitConverter.DoubleToInt64Bits(w.CentreLatDeg)) * 0x100000001B3UL;
+            h = (h ^ (ulong)BitConverter.DoubleToInt64Bits(w.CentreLonDeg)) * 0x100000001B3UL;
+            h = (h ^ (ulong)BitConverter.DoubleToInt64Bits(w.Ut)) * 0x100000001B3UL;
+            for (int i = 0; i < w.Count; i++)
+            {
+                h = (h ^ (uint)BitConverter.ToInt32(BitConverter.GetBytes(w.CloudWater[i]), 0)) * 0x100000001B3UL;
+                h = (h ^ (uint)BitConverter.ToInt32(BitConverter.GetBytes(w.Updraft[i]), 0)) * 0x100000001B3UL;
+                h = (h ^ (uint)BitConverter.ToInt32(BitConverter.GetBytes(w.Temperature[i]), 0)) * 0x100000001B3UL;
+            }
+            return h;
         }
 
         // The value at the fraction p of the sorted values (nearest rank); the input is sorted in place.

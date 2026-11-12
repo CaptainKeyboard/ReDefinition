@@ -23,11 +23,19 @@ namespace ReDefinition.Atmospheres
         // Re-anchors the window when the camera has moved this far from its centre, m (a rebuild happens at least every tier.RebuildFrames).
         private const float ReanchorM = 8000f;
         private const double FallbackPlanetRadiusM = 600000.0;
+        // A window the worker made is used within this many frames of the ask (a fill takes one or two frames).
+        private const int MaxWindowAgeFrames = 120;
 
         private static VolumePass instance;
 
         private readonly VolumeFrame frame = new VolumeFrame();
-        private readonly WeatherWindow coarse = new WeatherWindow();
+        // The window the resampler builds from (or last built from) and the spare one a finished worker fill is taken into; the field's worker
+        // owns a third (WindowJob). The three change places by reference, so none is written while it is read.
+        private WeatherWindow coarse = new WeatherWindow();
+        private WeatherWindow spare = new WeatherWindow();
+        // What the worker fill in the air was asked for; it is used only where the body and the radius still fit when it comes back.
+        private int askedBody = -1, askedFrame;
+        private double askedLat, askedLon, askedUt, askedRadiusKm;
         private readonly CurtainPass curtain = new CurtainPass();
         private CurtainGate gate;
         private VolumeRenderer renderer;
@@ -224,10 +232,14 @@ namespace ReDefinition.Atmospheres
             framesSinceBegin++;
             if (!resampler.Building)
             {
-                Vector3 relative = cam.transform.position - anchorCentre;
-                float east = Vector3.Dot(relative, anchorEastAxis), north = Vector3.Dot(relative, anchorNorthAxis);
-                bool moved = east * east + north * north > ReanchorM * ReanchorM;
-                if (framesSinceBegin >= tier.RebuildFrames || moved || !resampler.HasData) Begin(cam, planet, ut, look);
+                // A window the worker finished is taken first; the rebuild it starts is this frame's.
+                if (!TakeWindow(planet, look))
+                {
+                    Vector3 relative = cam.transform.position - anchorCentre;
+                    float east = Vector3.Dot(relative, anchorEastAxis), north = Vector3.Dot(relative, anchorNorthAxis);
+                    bool moved = east * east + north * north > ReanchorM * ReanchorM;
+                    if (framesSinceBegin >= tier.RebuildFrames || moved || !resampler.HasData) Begin(cam, planet, ut, look);
+                }
             }
             if (resampler.Building) resampler.Step((tier.WindowXz + tier.SpreadFrames - 1) / tier.SpreadFrames);
         }
@@ -238,11 +250,53 @@ namespace ReDefinition.Atmospheres
             double lat = planet.GetLatitude(position), lon = planet.GetLongitude(position);
             IWeatherField field = WeatherHub.Field;
             double radiusKm = tier.HalfWidthM / 1000.0 * 1.25;
+            var jobs = field as IWindowJobField;
+            if (jobs != null)
+            {
+                // A field with a worker fills the window there (the layered window costs about 20 ms in the game); the frame only asks.
+                if (jobs.WindowState != WindowJobState.Idle) return;
+                if (jobs.BeginWindow(planet.flightGlobalsIndex, lat, lon, radiusKm, ut))
+                {
+                    askedFrame = Time.frameCount;
+                    askedBody = planet.flightGlobalsIndex;
+                    askedLat = lat;
+                    askedLon = lon;
+                    askedUt = ut;
+                    askedRadiusKm = radiusKm;
+                }
+                return;
+            }
             if (!field.FillWindow(planet.flightGlobalsIndex, lat, lon, radiusKm, ut, coarse)) return;
-            // The window moves to the camera: the new anchor, and the cut-out is centred on it.
+            StartResampling(field, lat, lon, ut, look);
+        }
+
+        // Takes the window the worker finished. True when a rebuild started from it. A window for another body or another radius (the body
+        // or the tier changed while it was made) is dropped.
+        private bool TakeWindow(CelestialBody planet, VolumeLook look)
+        {
+            var jobs = WeatherHub.Field as IWindowJobField;
+            if (jobs == null) return false;
+            WindowJobState taken = jobs.TakeWindow(ref spare);
+            if (taken != WindowJobState.Ready) return false;
+            double radiusKm = tier.HalfWidthM / 1000.0 * 1.25;
+            if (askedBody != planet.flightGlobalsIndex || Math.Abs(askedRadiusKm - radiusKm) > 1e-6) return false;
+            // One that waited while the pass did not run (a camera mode without slab clouds) is not the weather of now.
+            if (Time.frameCount - askedFrame > MaxWindowAgeFrames) return false;
+            // spare holds the finished window; the resampler is idle, so the window it built from is free for the worker.
+            WeatherWindow finished = spare;
+            if (finished.Nx < 1 || finished.CloudWater.Length < finished.Count) return false;
+            spare = coarse;
+            coarse = finished;
+            StartResampling(WeatherHub.Field, askedLat, askedLon, askedUt, look);
+            return resampler.Building;
+        }
+
+        // The window moves to the place it was made for: the new anchor, and the cut-out is centred on it.
+        private void StartResampling(IWeatherField field, double lat, double lon, double ut, VolumeLook look)
+        {
             anchorLat = lat;
             anchorLon = lon;
-            AnchorMath(cam);
+            AnchorMath(camera);
             snapshotUt = ut;
             ulong seed = unchecked((ulong)field.DefinitionId);
             float smoothing = resampler.HasData ? 0.5f : 1f;
