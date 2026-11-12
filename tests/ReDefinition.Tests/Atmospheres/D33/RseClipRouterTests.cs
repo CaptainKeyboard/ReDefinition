@@ -64,6 +64,30 @@ namespace ReDefinition.Tests.Atmospheres.D33
         }
 
         [TestMethod]
+        public void AClipOnlyOurPatchDeclaresGetsItsGroupWhileRsesTableDoesNotListIt()
+        {
+            RseClipRouter router = RseClipRouter.FromTypes(typeof(FakeSettings), typeof(FakeAudioUtility));
+            Assert.IsNull(router.GroupFor("steps_01"));
+            router.Declare("steps_01", "Exterior");
+            router.Declare("steps_bad", "NoSuchGroup");
+            router.Declare("steps_ignored", "Ignore");
+            Assert.AreEqual("group:Exterior", router.GroupFor("steps_01"));
+            Assert.IsNull(router.GroupFor("steps_bad"));
+            Assert.IsNull(router.GroupFor("steps_ignored"));
+            Assert.AreEqual(3, router.DeclaredCount);
+            Assert.AreEqual(0, router.TableCount);
+        }
+
+        [TestMethod]
+        public void ATableEntryWinsOverTheDeclaration()
+        {
+            FakeSettings.CustomAudioClips["steps_01"] = FakeGroup.Interior;
+            RseClipRouter router = RseClipRouter.FromTypes(typeof(FakeSettings), typeof(FakeAudioUtility));
+            router.Declare("steps_01", "Exterior");
+            Assert.AreEqual("group:Interior", router.GroupFor("steps_01"));
+        }
+
+        [TestMethod]
         public void WithRseEffectsOffNoGroupIsGiven()
         {
             FakeSettings.CustomAudioClips["x"] = FakeGroup.Exterior;

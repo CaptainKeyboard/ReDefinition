@@ -499,7 +499,16 @@ namespace ReDefinition.Atmospheres.Audio
                     {
                         if (!clips.HasValue(all[i])) { every = false; break; }
                     }
-                    if (every) { rseRoutes = true; break; }
+                    if (every)
+                    {
+                        rseRoutes = true;
+                        // RSE's own table is filled from its Settings.cfg on disk, not from this patched node: the router takes our clips from here.
+                        if (rseRouter != null)
+                        {
+                            for (int i = 0; i < all.Count; i++) rseRouter.Declare(all[i], clips.GetValue(all[i]));
+                        }
+                        break;
+                    }
                 }
             }
             catch (Exception e)

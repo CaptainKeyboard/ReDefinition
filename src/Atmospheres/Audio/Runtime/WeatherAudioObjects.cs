@@ -11,6 +11,7 @@ namespace ReDefinition.Atmospheres.Audio
     {
         internal const string ObjectName = "ReDefinition Weather Audio";
 
+        private bool routeLogged;
         private readonly SharedAudioState shared;
         private readonly Mixer mixer;
         private readonly WeatherAudioStream stream;
@@ -128,6 +129,12 @@ namespace ReDefinition.Atmospheres.Audio
                 // RSE routes only the sources it saw when it applied its settings; a clip set now is routed here.
                 var group = rse != null ? rse.GroupFor(crunch.name) as UnityEngine.Audio.AudioMixerGroup : null;
                 if (group != null) foot.outputAudioMixerGroup = group;
+                if (rse != null && !routeLogged)
+                {
+                    routeLogged = true;
+                    AtmospheresLog.Say("weather sound: first step clip '" + crunch.name + "' " + (group != null ? "routed to RSE mixer group " + group.name : "got no RSE mixer group")
+                        + " (RSE table " + rse.TableCount + " entries, declared by our patch " + rse.DeclaredCount + ")");
+                }
                 foot.pitch = voice.Pitch;
                 foot.volume = Mathf.Clamp01(voice.Gain * volume);
                 foot.Play();

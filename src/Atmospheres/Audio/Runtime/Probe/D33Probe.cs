@@ -459,7 +459,12 @@ namespace ReDefinition.Atmospheres.Audio
             yield return ProbeWait.Seconds(2.0);
             Emit("D33.meter_windows", meter.WindowCount);
 
-            // 1 Calm snow cover: the quiet ambience (fades in over seconds).
+            // 0 Calm over bare ground: nothing sounds (the quiet ambience needs snow cover, so digital silence is the right answer here).
+            foreach (ProbeWait w in Measure(1.0, 2.0)) yield return w;
+            Emit("D33.rms_bare_calm_db", last.RmsDb);
+
+            // 1 Calm over deep snow cover: the quiet ambience (fades in over seconds; its gain is the snow cover times the calm factor).
+            AudioOverrides.Inputs = Weather(0f, 0f, 1f);
             foreach (ProbeWait w in Measure(9.0, 3.0)) yield return w;
             double rmsCalm = last.RmsDb;
             Emit("D33.rms_calm_db", rmsCalm);
