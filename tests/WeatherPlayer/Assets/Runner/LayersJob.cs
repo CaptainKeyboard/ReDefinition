@@ -89,5 +89,11 @@ namespace ReDefinition.WeatherPlayer
         public LayersJobNoise noise;
         // The light of the pictures: sun colour, ambient above and below (rgb each).
         public float[] sunColour, ambientTop, ambientBottom;
+        // The backdrop of the colour pictures (the look sheet): sky colour at the horizon and at the zenith, the lit ground's albedo colour, the
+        // exposure of the tone map (0: the default 1.2) and space (1: rays that miss the planet are black with a thin blue limb glow). Missing: the
+        // fixed daylight backdrop.
+        public float[] skyHorizon, skyZenith, groundColour;
+        public float exposure;
+        public int space;
     }
 }

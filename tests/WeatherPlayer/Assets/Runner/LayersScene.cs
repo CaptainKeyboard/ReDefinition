@@ -196,8 +196,16 @@ namespace ReDefinition.WeatherPlayer
         {
             Vector3 up = origin.normalized;
             float s = Vector3.Dot(d, up);
-            Color horizon = new Color(0.62f, 0.68f, 0.76f), zenith = new Color(0.26f, 0.42f, 0.75f);
+            Color horizon = LayersSetup.Rgb(job.skyHorizon, new Color(0.62f, 0.68f, 0.76f)), zenith = LayersSetup.Rgb(job.skyZenith, new Color(0.26f, 0.42f, 0.75f));
             Color sky = s >= 0f ? Color.Lerp(horizon, zenith, Mathf.Pow(Mathf.Clamp01(s), 0.5f)) : horizon * 0.5f;
+            if (job.space != 0)
+            {
+                // From orbit: black sky, a thin blue glow over the limb by the ray's closest approach to the surface.
+                float closest = Vector3.Cross(origin, d).magnitude - job.planetRadius;
+                float glow = Mathf.Exp(-Mathf.Max(0f, closest) / 25000f) * 0.55f;
+                sky = new Color(0.30f, 0.50f, 1.0f) * glow * 0.6f;
+            }
+            Color groundAlbedo = LayersSetup.Rgb(job.groundColour, new Color(0.20f, 0.24f, 0.16f));
             if (job.hasSurface != 0)
             {
                 float b = Vector3.Dot(origin, d), c = origin.sqrMagnitude - job.planetRadius * job.planetRadius;
@@ -207,7 +215,8 @@ namespace ReDefinition.WeatherPlayer
                     Vector3 p = origin + d * (-b - Mathf.Sqrt(disc));
                     Vector3 n = p.normalized;
                     float lit = Mathf.Max(0f, Vector3.Dot(n, LayersSetup.V(job.sun)));
-                    return new Color(0.20f, 0.24f, 0.16f) * (0.25f + 0.9f * lit);
+                    float floor = job.space != 0 ? 0.02f : 0.25f;
+                    return groundAlbedo * (floor + 0.9f * lit);
                 }
             }
             return sky;
@@ -239,9 +248,9 @@ namespace ReDefinition.WeatherPlayer
                     if (OccluderHit(job, origin, d)) back = new Color(0.16f, 0.17f, 0.13f);
                     float alpha = natural[i + 3];
                     Color c = new Color(natural[i] + (1f - alpha) * back.r, natural[i + 1] + (1f - alpha) * back.g, natural[i + 2] + (1f - alpha) * back.b);
-                    picture.SetPixel(x, y, Tone(c));
+                    picture.SetPixel(x, y, Tone(c, job.exposure));
                     // The aid picture: optical depth on the left (false colour), layer colours on the right, both over the backdrop in grey.
-                    Color grey = Tone(back * 0.6f);
+                    Color grey = Tone(back * 0.6f, job.exposure);
                     float ha = heat[i + 3];
                     aid.SetPixel(x, y, ha > 0.002f ? new Color(heat[i], heat[i + 1], heat[i + 2]) : grey);
                     float la = layerColours[i + 3];
@@ -255,9 +264,9 @@ namespace ReDefinition.WeatherPlayer
             UnityEngine.Object.Destroy(aid);
         }
 
-        private static Color Tone(Color c)
+        private static Color Tone(Color c, float exposure = 0f)
         {
-            float k = 1.2f;
+            float k = exposure > 0f ? exposure : 1.2f;
             return new Color(Mathf.Pow(1f - Mathf.Exp(-c.r * k), 1f / 2.2f), Mathf.Pow(1f - Mathf.Exp(-c.g * k), 1f / 2.2f), Mathf.Pow(1f - Mathf.Exp(-c.b * k), 1f / 2.2f));
         }
     }
