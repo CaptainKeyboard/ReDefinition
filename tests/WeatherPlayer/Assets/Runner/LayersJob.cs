@@ -56,6 +56,10 @@ namespace ReDefinition.WeatherPlayer
         public int maxSteps = 256, sunSteps = 3;
         public float earlyOut, minStep = 1f, stepGrowth, jitter, sunMarch = 4000f, resolution = 1f;
         public int layerMask;
+        // The cost controls of the march (LayerFrame): coverage bound, leap, sun cut-off, cheap/fog step shares, lit steps per sun march; a
+        // negative value leaves the product's default. resolution < 1 marches into a smaller target and composites up (colour jobs).
+        public int costBound = -1, lightStride = -1;
+        public float costLeap = -1f, costCut = -1f, cheapShare = -1f, fogShare = -1f;
         // An occluder sphere (centre, radius) whose depth is the scene's; radius 0: none.
         public float[] occluder;
         public LayersJobLayer[] layers;

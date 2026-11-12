@@ -508,6 +508,150 @@ def stages():
 
 register_series("T01-layers", stages(), collect, exclusive=False, who="T01")
 
-# The cost of the pass at the view table's jobs, half and full size, 32 to 64 steps (a timing run: exclusive, with the proxy's GPU timestamps).
+# The cost of the pass at the view table's jobs: the variant table of the cost scene (a timing run: exclusive, with the proxy's GPU timestamps).
 register_series("T01-cost", [Stage("scene", ["-mode", "scene", "-scene", "layers-cost", "-in", INPUT], size=(1707, 960), proxy=True, timeout=1200)],
                 core.player_judged("scene"), exclusive=True, who="T01")
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# The look of the cost measures (package T01c): every cost variant on the view table's pictures against the unmodified march
+# --------------------------------------------------------------------------------------------------------------------------------
+INPUT_LOOK = os.path.join(BUILD, "T01-look-in")
+LOOK_SHEETS = os.path.join(BUILD, "T01-look-sheets")
+# name -> job overrides; "ref" is the march before the cost work (no bound, no leap, every lit step marches to the sun, full resolution)
+REF_COST = dict(costBound=0, costLeap=1.0, costCut=0.0, lightStride=1, cheapShare=1.0, fogShare=1.0, resolution=1.0)
+LOOK_VARIANTS = {
+    "ref": {},
+    "bound": dict(costBound=1),
+    "leap2": dict(costBound=1, costLeap=2.0),
+    "leap4": dict(costBound=1, costLeap=4.0),
+    "cut02": dict(costBound=1, costCut=0.02),
+    "cut10": dict(costBound=1, costCut=0.10),
+    "cut30": dict(costBound=1, costCut=0.30),
+    "stride2": dict(costBound=1, lightStride=2),
+    "stride3": dict(costBound=1, lightStride=3),
+    "stride4": dict(costBound=1, lightStride=4),
+    "kinds": dict(costBound=1, cheapShare=0.5, fogShare=0.25),
+    "r50": dict(costBound=1, resolution=0.5),
+    "r25": dict(costBound=1, resolution=0.25),
+    # explicit combinations
+    "c1": dict(costBound=1, costLeap=2.0, costCut=0.05, lightStride=2, cheapShare=0.5, fogShare=0.5),
+    "c2": dict(costBound=1, costLeap=2.0, costCut=0.10, lightStride=3, cheapShare=0.5, fogShare=0.5),
+    "c1-r50": dict(costBound=1, costLeap=2.0, costCut=0.05, lightStride=2, cheapShare=0.5, fogShare=0.5, resolution=0.5),
+    "c1-r25": dict(costBound=1, costLeap=2.0, costCut=0.05, lightStride=2, cheapShare=0.5, fogShare=0.5, resolution=0.25),
+    "ign-ref": dict(jitter=1.0),
+    "ign-c1": dict(costBound=1, costLeap=2.0, costCut=0.05, lightStride=2, cheapShare=0.5, fogShare=0.5, jitter=1.0),
+    "ign-c1-r25": dict(costBound=1, costLeap=2.0, costCut=0.05, lightStride=2, cheapShare=0.5, fogShare=0.5, jitter=1.0, resolution=0.25),
+}
+LOOK_VIEWS = ("ground", "inside", "above", "orbit-edge", "stack-below", "stack-above", "hill")
+LOOK_MEAN_LIMIT = 0.012    # [proposed, new] the mean absolute difference of the tone-mapped picture (0..1) a cost measure may cost: about 3 of 255 levels
+
+
+def look_jobs():
+    jobs = []
+    bases = picture_jobs()
+    # The hill: the inside view (2 km, in the deck) with a sphere 3 km ahead at the camera's height, radius 900 m, whose depth limits the
+    # march: cloud lies in front of it and behind it, and the depth-aware composite of a lower march resolution has an edge to keep.
+    inside = [b for b in bases if b["id"] == "V-inside"][0]
+    hill = json.loads(json.dumps(inside))
+    hill["id"] = "V-hill"
+    pos = np.array(inside["position"])
+    up = pos / np.linalg.norm(pos)
+    fwd = np.array(inside["forward"])
+    horiz = fwd - up * float(np.dot(fwd, up))
+    horiz /= np.linalg.norm(horiz)
+    centre = pos + horiz * 3000.0
+    hill["occluder"] = [float(centre[0]), float(centre[1]), float(centre[2]), 900.0]
+    bases.append(hill)
+    for base in bases:
+        view = base["id"][2:]
+        for name, over in LOOK_VARIANTS.items():
+            j = json.loads(json.dumps(base))
+            j["id"] = "L-%s@%s" % (view, name)
+            j["maxSteps"] = 48
+            j.update(REF_COST)
+            j.update(over)
+            jobs.append(j)
+    return jobs
+
+
+def write_look_inputs():
+    coverage_map_file()
+    smooth_map_file("view-coverage.r8", 21)
+    smooth_map_file("view-type.r8", 33)
+    os.makedirs(INPUT_LOOK, exist_ok=True)
+    # The maps are written next to the jobs of the parity series; the look series reads them from its own folder.
+    for f in ("view-coverage.r8", "view-type.r8"):
+        src = os.path.join(INPUT, f)
+        if os.path.isfile(src):
+            with open(src, "rb") as a, open(os.path.join(INPUT_LOOK, f), "wb") as b:
+                b.write(a.read())
+    with open(os.path.join(INPUT_LOOK, "jobs.json"), "w", encoding="utf-8") as f:
+        json.dump({"jobs": look_jobs()}, f)
+
+
+def collect_look(ctx):
+    from PIL import Image, ImageDraw
+    folder = ctx.folder("scene")
+    out = list(core.player_judged("scene")(ctx))
+    os.makedirs(LOOK_SHEETS, exist_ok=True)
+
+    def load(view, name):
+        path = os.path.join(folder, "L-%s@%s.png" % (view, name))
+        return np.asarray(Image.open(path).convert("RGB"), dtype=np.float32) / 255.0 if os.path.isfile(path) else None
+
+    for view in LOOK_VIEWS:
+        ref = load(view, "ref")
+        if ref is None:
+            out.append(Metric.flag("look.%s.ref" % view, False))
+            continue
+        tiles = []
+        for name in LOOK_VARIANTS:
+            img = load(view, name)
+            if img is None:
+                out.append(Metric.flag("look.%s.%s" % (view, name), False))
+                continue
+            # the dither pictures are judged against the dithered reference (ign-ref itself against the midpoint reference: the noise level)
+            ref_for = ref
+            if name.startswith("ign-") and name != "ign-ref":
+                ref_for = load(view, "ign-ref")
+                if ref_for is None:
+                    out.append(Metric.flag("look.%s.ign-ref" % view, False))
+                    continue
+            diff = np.abs(img - ref_for).mean(axis=2)
+            out.append(Metric.info("look.%s.%s.mean" % (view, name), float(diff.mean())))
+            out.append(Metric.info("look.%s.%s.p99" % (view, name), float(np.percentile(diff, 99))))
+            out.append(Metric.info("look.%s.%s.max" % (view, name), float(diff.max())))
+            tiles.append((name, img, diff))
+        for name in ("bound",):
+            m = [t for t in tiles if t[0] == name]
+            if m:
+                out.append(Metric.at_most("look.%s.bound.max" % view, float(m[0][2].max()), 0.004).based("new"))
+        # The sheet: each variant's picture with its name, and under it the difference amplified by 8.
+        h, w = ref.shape[:2]
+        cols = 6
+        rows = (len(tiles) + cols - 1) // cols
+        sheet = Image.new("RGB", (cols * w, rows * 2 * (h + 14)), (30, 30, 30))
+        draw = ImageDraw.Draw(sheet)
+        for i, (name, img, diff) in enumerate(tiles):
+            x, y = (i % cols) * w, (i // cols) * 2 * (h + 14)
+            sheet.paste(Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)), (x, y + 14))
+            d8 = np.clip(diff * 8.0, 0, 1)
+            sheet.paste(Image.fromarray((np.stack([d8, d8, d8], axis=2) * 255).astype(np.uint8)), (x, y + h + 28))
+            draw.text((x + 4, y + 1), "%s  mean %.4f" % (name, float(diff.mean())), fill=(255, 255, 255))
+            draw.text((x + 4, y + h + 15), "difference x8", fill=(200, 200, 120))
+        sheet.save(os.path.join(LOOK_SHEETS, "%s.png" % view))
+    out.append(Metric.info("look.sheets", float(len(LOOK_VIEWS))))
+    return out
+
+
+def look_stages():
+    jobs = os.path.join(INPUT_LOOK, "jobs.json")
+    if not os.path.isfile(jobs) or os.path.getmtime(jobs) < os.path.getmtime(os.path.abspath(__file__)):
+        if not os.path.isfile(os.path.join(INPUT, "view-coverage.r8")):
+            write_inputs()
+        write_look_inputs()
+    return [Stage("scene", ["-mode", "scene", "-scene", "layers", "-in", INPUT_LOOK], size=(1280, 720), proxy=False)]
+
+
+register_series("T01-look", look_stages(), collect_look, exclusive=False, who="T01")

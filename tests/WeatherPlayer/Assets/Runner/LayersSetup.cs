@@ -48,7 +48,7 @@ namespace ReDefinition.WeatherPlayer
                 }
                 renderer.Maps.Step(0f, MapSlew.DefaultRate, true);
             }
-            return new LayerFrame
+            var frame = new LayerFrame
             {
                 HasSurface = job.hasSurface != 0,
                 TowardsSun = V(job.sun),
@@ -66,6 +66,14 @@ namespace ReDefinition.WeatherPlayer
                 AmbientTop = Rgb(job.ambientTop, new Color(0.35f, 0.42f, 0.55f)),
                 AmbientBottom = Rgb(job.ambientBottom, new Color(0.14f, 0.15f, 0.16f))
             };
+            // The cost controls keep the product's default (the LayerFrame's) where the job does not name a value.
+            if (job.costBound >= 0) frame.CoverageBound = job.costBound != 0;
+            if (job.costLeap >= 0f) frame.EmptyLeap = job.costLeap;
+            if (job.costCut >= 0f) frame.LightCutoff = job.costCut;
+            if (job.lightStride >= 0) frame.LightStride = job.lightStride;
+            if (job.cheapShare >= 0f) frame.CheapShare = job.cheapShare;
+            if (job.fogShare >= 0f) frame.FogShare = job.fogShare;
+            return frame;
         }
 
         internal static byte[] Constant(LayersJob job, byte value)

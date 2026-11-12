@@ -74,8 +74,27 @@ namespace ReDefinition.WeatherPlayer
                 else
                 {
                     // The natural picture: the march, composited over the sky and the ground on the CPU; the aid pictures: optical depth, layer colours.
-                    Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassMarch);
-                    yield return new WaitForEndOfFrame();
+                    if (job.resolution < 0.999f)
+                    {
+                        // The resolution policy: the march at a smaller size, then the depth-aware composite up to the job's size.
+                        var small = new RenderTexture(Mathf.Max(8, Mathf.RoundToInt(job.width * job.resolution)), Mathf.Max(8, Mathf.RoundToInt(job.height * job.resolution)),
+                                                      0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear) { filterMode = FilterMode.Point };
+                        small.Create();
+                        Graphics.Blit(null, small, renderer.Material, LayerRenderer.PassMarch);
+                        renderer.Material.SetTexture("_MarchTex", small);
+                        renderer.SetMarchTexel(small);
+                        RenderTexture.active = target;
+                        GL.Clear(false, true, Color.clear);
+                        RenderTexture.active = null;
+                        Graphics.Blit(small, target, renderer.Material, LayerRenderer.PassComposite);
+                        yield return new WaitForEndOfFrame();
+                        small.Release();
+                    }
+                    else
+                    {
+                        Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassMarch);
+                        yield return new WaitForEndOfFrame();
+                    }
                     float[] natural = Read(target);
                     frame.AidMode = 1;
                     renderer.Apply(frame);
@@ -189,6 +208,14 @@ namespace ReDefinition.WeatherPlayer
             return sky;
         }
 
+        private static bool OccluderHit(LayersJob job, Vector3 origin, Vector3 d)
+        {
+            if (job.occluder == null || job.occluder.Length != 4 || job.occluder[3] <= 0f) return false;
+            Vector3 oc = origin - new Vector3(job.occluder[0], job.occluder[1], job.occluder[2]);
+            float b = Vector3.Dot(oc, d), c = oc.sqrMagnitude - job.occluder[3] * job.occluder[3];
+            return b * b - c > 0f && -b - Mathf.Sqrt(b * b - c) > 0f;
+        }
+
         private void WritePictures(LayersJob job, float[] natural, float[] heat, float[] layerColours)
         {
             int w = job.width, h = job.height;
@@ -203,6 +230,8 @@ namespace ReDefinition.WeatherPlayer
                     float u = ((x + 0.5f) / w * 2f - 1f) * tan * aspect, v = ((y + 0.5f) / h * 2f - 1f) * tan;
                     Vector3 d = (fwd + u * right + v * up).normalized;
                     Color back = Backdrop(job, origin, d);
+                    // The occluder of the job (a hill) is the backdrop where the ray hits it; the cloud march ended at its depth.
+                    if (OccluderHit(job, origin, d)) back = new Color(0.16f, 0.17f, 0.13f);
                     float alpha = natural[i + 3];
                     Color c = new Color(natural[i] + (1f - alpha) * back.r, natural[i + 1] + (1f - alpha) * back.g, natural[i + 2] + (1f - alpha) * back.b);
                     picture.SetPixel(x, y, Tone(c));

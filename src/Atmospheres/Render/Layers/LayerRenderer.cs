@@ -32,6 +32,18 @@ namespace ReDefinition.Atmospheres
         // layers drawn (bit i = layer i; 0 = all).
         public float RayLimitM;
         public int AidMode, LayerMask;
+        // The cost controls of the march (package T01c). CoverageBound: the noise is evaluated only where the map can reach the threshold
+        // (exact). EmptyLeap: the most grid steps one leap over empty samples takes (1: none). LightCutoff: a step whose weight in the
+        // ray's colour is below this reuses the sun transmittance of the span's last lit step (0: every step marches to the sun).
+        // CheapShare, FogShare: the share of the step budget that cheap and fog layers get. CostDebug: cost attribution only (bit 0 no sun
+        // march, bit 1 no coverage noise, bit 2 no erosion).
+        public bool CoverageBound = true;
+        // The product's values: the leap and the layer-kind shares are off (they gained nothing on the view table), the sun march is reused
+        // below a step weight of 0.05 and between every two lit steps.
+        public float EmptyLeap = 1f, LightCutoff = 0.05f, CheapShare = 1f, FogShare = 1f;
+        // LightStride: a lit step marches to the sun only every this many lit steps of a span; the steps between reuse the last result.
+        public int LightStride = 2;
+        public int CostDebug;
     }
 
     // The layer pass's drawing: the material, the type table textures, the maps and the command buffer that marches and composites. It
@@ -51,7 +63,8 @@ namespace ReDefinition.Atmospheres
             IdSun = Shader.PropertyToID("_Sun"), IdSunColor = Shader.PropertyToID("_SunColor"), IdAmbientTop = Shader.PropertyToID("_AmbientTop"),
             IdAmbientBottom = Shader.PropertyToID("_AmbientBottom"), IdMarchP = Shader.PropertyToID("_MarchP"), IdStepP = Shader.PropertyToID("_StepP"),
             IdLimitP = Shader.PropertyToID("_LimitP"), IdPhaseP = Shader.PropertyToID("_PhaseP"), IdSceneDepth = Shader.PropertyToID("_SceneDepth"),
-            IdMarchTex = Shader.PropertyToID("_MarchTex");
+            IdMarchTex = Shader.PropertyToID("_MarchTex"), IdSkipP = Shader.PropertyToID("_SkipP"), IdCostP = Shader.PropertyToID("_CostP"),
+            IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize");
 
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
@@ -212,6 +225,14 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdStepP, new Vector4(f.MinStepM, f.Jitter, f.FrameNumber, f.HasSurface ? 1f : 0f));
             m.SetVector(IdLimitP, new Vector4(f.RayLimitM, f.AidMode, f.LayerMask, f.UseSceneDepth ? 1f : 0f));
             m.SetVector(IdPhaseP, f.Phase);
+            m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
+            m.SetVector(IdCostP, new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), 0f));
+        }
+
+        // The composite reads the march target's texel size from the material (Unity does not fill it for a texture set globally).
+        internal void SetMarchTexel(RenderTexture march)
+        {
+            material.SetVector(IdMarchTexel, new Vector4(1f / march.width, 1f / march.height, march.width, march.height));
         }
 
         private void EnsureTarget(Camera camera, float resolution)
@@ -247,6 +268,7 @@ namespace ReDefinition.Atmospheres
             commands.SetGlobalTexture(IdSceneDepth, sceneDepth);
             commands.Blit(BuiltinRenderTextureType.None, target, material, PassMarch);
             if (markMarched != null) markMarched(commands);
+            SetMarchTexel(target);
             commands.SetGlobalTexture(IdMarchTex, target);
             commands.Blit(target, BuiltinRenderTextureType.CameraTarget, material, PassComposite);
             if (markEnd != null) markEnd(commands);

@@ -17,6 +17,9 @@
 // "The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015; Hillaire, "Physically Based Sky, Atmosphere and Cloud
 // Rendering in Frostbite", 2016); the energy-conserving integration of a step is Hillaire's (section 5.6.3).
 //
+// Cost (package T01c): the leap over empty samples with the step back to the grid point after the last empty one follows Schneider's
+// cheap-sample march (SIGGRAPH 2015, same reference); the coverage bound lets the noise run only where the map can reach the threshold.
+//
 // Passes: 0 march into a premultiplied (radiance, alpha) target, 1 depth-aware composite over the camera target, 2 aux output
 // (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures.
 Shader "ReDefinition/AtmospheresLayers"
@@ -54,6 +57,9 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _StepP;       // shortest step in m, jitter 0..1, frame number, has surface (1) or gas giant (0)
         float4 _LimitP;      // ray length limit in m (<= 0: none), aid mode (0 natural, 1 optical depth, 2 layer colours), layer mask, use scene depth
         float4 _PhaseP;      // g forward, g back, forward weight, albedo
+        // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
+        float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
+        float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), 0
         sampler2D_float _SceneDepth;
         sampler2D _MarchTex;
         float4 _MarchTex_TexelSize;
@@ -145,6 +151,12 @@ Shader "ReDefinition/AtmospheresLayers"
             return float2(u, v);
         }
 
+        // The largest amount the coverage noise moves the map value by (T02 replaces the noise and states its own bound here).
+        float CoverageNoiseBound(int li)
+        {
+            return 0.5 * _LayerD[li].x;
+        }
+
         // ---- the type table ----
         float TypeProfile(int li, int type, float h)
         {
@@ -199,18 +211,23 @@ Shader "ReDefinition/AtmospheresLayers"
             if (share < b || share > tp || tp <= b) return 0;
             erosion = lerp(ia.z, ib.z, f) * _LayerD[li].z;
             float coverage = _LayerB[li].y;
-            if (noiseAmount > 0)
+            float edge = max(_LayerB[li].z, 1e-4);
+            // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
+            // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
+            // The noise package states its own bound in CoverageNoiseBound.
+            if (_CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
+            if (noiseAmount > 0 && fmod(floor(_CostP.y * 0.5), 2.0) < 0.5)
             {
                 float n = Fbm3(pc * _LayerD[li].y);
                 cov += (n - 0.5) * noiseAmount;
             }
-            float edge = max(_LayerB[li].z, 1e-4);
             float s = saturate((cov + coverage - 1.0) / edge + 0.5);
             if (s <= 0) return 0;
             float h = (share - b) / (tp - b);
             float prof = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
             float dens = _LayerB[li].x * s * prof * fade;
-            if (erosion > 0 && noiseAmount > 0)
+            // (1 - s) is zero inside the cloud body: the erosion has no effect there and its noise is not evaluated.
+            if (erosion > 0 && noiseAmount > 0 && (s < 1.0 || _CostP.x < 0.5) && fmod(floor(_CostP.y * 0.25), 2.0) < 0.5)
             {
                 float n2 = Fbm3(pc * _LayerD[li].y * 5.3 + 7.0);
                 dens *= saturate(1.0 - erosion * (1.0 - s) * (1.5 - n2));
@@ -321,28 +338,60 @@ Shader "ReDefinition/AtmospheresLayers"
             float ph = Phase(mu);
             float jitter = lerp(0.5, Ign(pixel, _StepP.z), _StepP.y);
             int maxSteps = (int)_MarchP.x;
+            float leapMax = max(_SkipP.x, 1.0);
+            float lightCut = _SkipP.y;
+            bool noLight = fmod(floor(_CostP.y), 2.0) > 0.5;
             [loop] for (int k = 0; k < 8; k++)
             {
                 if (k >= n) break;
                 if (T < _MarchP.w) break;
                 int li = sl[k];
                 float len = s1[k] - s0[k];
-                float stepLen = max(_StepP.x * (1.0 + s0[k] * _MarchP.z), 1e-3);
-                int count = (int)clamp(ceil(len / stepLen), 1.0, (float)maxSteps);
-                float dt = len / count;
                 float kind = _LayerB[li].w;
-                [loop] for (int i = 0; i < 256; i++)
+                // Cheap and fog layers take a share of the step budget (they carry no detail the full count would resolve).
+                float share01 = kind > 1.5 && kind < 2.5 ? _SkipP.w : (kind > 0.5 && kind < 1.5 ? _SkipP.z : 1.0);
+                float stepLen = max(_StepP.x * (1.0 + s0[k] * _MarchP.z), 1e-3);
+                int count = (int)clamp(ceil(len / stepLen), 1.0, max(1.0, floor(maxSteps * share01 + 0.5)));
+                float dt = len / count;
+                // The samples lie on the grid s0 + dt * (i + jitter). An empty sample lets the next ones leap over 1, 2 .. leapMax grid
+                // points; a leap that lands on cloud goes back to the grid point after the last empty one, so a cloud is always entered
+                // at the grid's own resolution and only features narrower than the leap can be passed over.
+                float tEnd = s1[k];
+                float t = s0[k] + dt * jitter;
+                float tLast = t - dt;
+                float leap = 1.0, arrived = 1.0;
+                float3 sunT = 1.0;
+                bool haveSun = false;
+                float sinceLight = 0.0;
+                [loop] for (int i = 0; i < 512; i++)
                 {
-                    if (i >= count) break;
-                    float t = s0[k] + dt * (i + jitter);
+                    if (t >= tEnd) break;
                     float3 pc = o + d * t;
                     float alt = length(pc) - _PlanetR;
                     float share;
                     float dens = LayerDensity(li, pc, alt, t, share);
                     r.steps += 1;
-                    if (dens <= 0) continue;
-                    if (r.first < 0) r.first = t;
+                    if (dens <= 0)
+                    {
+                        tLast = t;
+                        arrived = leap;
+                        t += dt * leap;
+                        leap = min(leap + 1.0, leapMax);
+                        continue;
+                    }
+                    if (arrived > 1.5)
+                    {
+                        t = tLast + dt;
+                        leap = 1.0;
+                        arrived = 1.0;
+                        continue;
+                    }
+                    leap = 1.0;
+                    tLast = t;
+                    t += dt;
+                    if (r.first < 0) r.first = t - dt;
                     float dtau = dens * dt;
+                    float ext = 1.0 - exp(-dtau);
                     float3 src;
                     if (kind > 2.5)
                     {
@@ -352,12 +401,24 @@ Shader "ReDefinition/AtmospheresLayers"
                     {
                         float3 amb = lerp(_AmbientBottom.rgb, _AmbientTop.rgb, saturate(share));
                         float3 sun = 0;
-                        if (kind < 0.5) sun = _SunColor.rgb * exp(-SunTau(pc, li, t)) * ph;
+                        if (kind < 0.5)
+                        {
+                            // The sun march costs most: a step that weighs less than the cut-off, or that follows a march by fewer than
+                            // _CostP.z lit steps, reuses the last sun transmittance of this span.
+                            if (noLight) sunT = 1.0;
+                            else if (!haveSun || (T * ext >= lightCut && sinceLight + 1.0 >= _CostP.z))
+                            {
+                                sunT = exp(-SunTau(pc, li, t - dt));
+                                haveSun = true;
+                                sinceLight = 0.0;
+                            }
+                            else sinceLight += 1.0;
+                            sun = _SunColor.rgb * sunT * ph;
+                        }
                         else if (kind < 1.5) sun = _SunColor.rgb * exp(-dens * dt * 4.0) * ph;
                         else sun = _SunColor.rgb * 0.25 * ph;
                         src = _PhaseP.w * (sun + amb);
                     }
-                    float ext = 1.0 - exp(-dtau);
                     r.rgb += T * src * ext;
                     T *= 1.0 - ext;
                     r.tau += dtau;
