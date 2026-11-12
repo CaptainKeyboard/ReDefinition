@@ -35,11 +35,16 @@ namespace ReDefinition.Atmospheres
             list.Add(Item("scroll_background", ScrollBackgroundClear(scroll), scroll == null ? "no scroll list" : "alpha " + F(BackgroundAlpha(scroll))));
 
             int wrapping = 0, tooWide = 0, missing = 0, labels = 0;
+            string offenders = "";
             foreach (TMP_Text text in window.GetComponentsInChildren<TMP_Text>(false))
             {
                 if (!text.gameObject.activeInHierarchy || string.IsNullOrEmpty(text.text)) continue;
                 labels++;
-                if (Wraps(text)) wrapping++;
+                if (Wraps(text))
+                {
+                    wrapping++;
+                    if (offenders.Length < 160) offenders += (offenders.Length > 0 ? " | " : "") + text.text.Replace('\n', ' ') + " [" + F(text.preferredWidth) + "/" + F(text.rectTransform.rect.width) + "]";
+                }
                 if (LacksGlyphs(text)) missing++;
             }
             foreach (HorizontalLayoutGroup row in window.GetComponentsInChildren<HorizontalLayoutGroup>(false))
@@ -50,7 +55,7 @@ namespace ReDefinition.Atmospheres
                 if (rect == null || page == null) continue;
                 if (LayoutUtility.GetPreferredWidth(rect) > page.rect.width + WidthSlack) tooWide++;
             }
-            list.Add(Item("labels_single_line", wrapping == 0 && labels > 0, wrapping + " of " + labels + " labels wrap"));
+            list.Add(Item("labels_single_line", wrapping == 0 && labels > 0, wrapping + " of " + labels + " labels wrap" + (offenders.Length > 0 ? ": " + offenders : "")));
             list.Add(Item("row_widths", tooWide == 0, tooWide + " rows wider than the page"));
             list.Add(Item("font_glyphs", missing == 0 && labels > 0, missing + " labels with a character the font lacks"));
             list.Add(Item("toggles_idempotent", !model.Dirty && settingsUnchanged,
@@ -89,7 +94,7 @@ namespace ReDefinition.Atmospheres
         // The scroll prefab's own lighter background is gone.
         private static bool ScrollBackgroundClear(ScrollRect scroll)
         {
-            return scroll != null && BackgroundAlpha(scroll) < 0.01f;
+            return ScrollBackground.IsClear(scroll);
         }
 
         // A label whose text is wider than its box wraps, and a wrapped label with changing text gets no height.

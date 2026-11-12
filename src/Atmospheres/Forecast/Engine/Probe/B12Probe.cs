@@ -21,6 +21,14 @@ namespace ReDefinition.Atmospheres.Forecast
             get { return 6 * 60; }
         }
 
+        // The altitude above sea level that the vessel site must carry: the terrain under the vessel plus the height above it (a height the
+        // game has not measured, negative or NaN, counts as zero).
+        internal static double VesselAltitudeReference(double terrainAsl, double heightFromTerrain)
+        {
+            double h = heightFromTerrain < 0.0 || double.IsNaN(heightFromTerrain) ? 0.0 : heightFromTerrain;
+            return terrainAsl + h;
+        }
+
         protected override IEnumerator<ProbeWait> Scenario()
         {
             yield return ProbeWait.Until(() => HighLogic.LoadedScene == GameScenes.FLIGHT && FlightGlobals.ready && FlightGlobals.ActiveVessel != null,
@@ -56,7 +64,17 @@ namespace ReDefinition.Atmospheres.Forecast
             Emit("B12.vessel_site_present", haveVessel);
             if (haveVessel)
             {
-                Emit("B12.vessel_altitude_error_m", Math.Abs(site.AltAgl - vessel.mainBody.GetAltitude(vessel.GetWorldPos3D())));
+                // K-W3a: the error was 600075 m, the body's radius plus the altitude, with body.GetAltitude(vessel.GetWorldPos3D()) as the
+                // reference: that call returned minus the radius, so the position it was given was the body's centre (the vessel's CoMD is
+                // not a world position this early in the flight). The reference is now the terrain altitude under the vessel plus its height
+                // above the terrain, and the other readings are logged beside it.
+                double terrain = vessel.mainBody.TerrainAltitude(vessel.latitude, vessel.longitude, true);
+                Emit("B12.vessel_altitude_error_m", Math.Abs(site.AltAgl - VesselAltitudeReference(terrain, vessel.heightFromTerrain)));
+                Emit("B12.vessel_altitude_site_m", site.AltAgl);
+                Emit("B12.vessel_altitude_terrain_m", terrain);
+                Emit("B12.vessel_height_from_terrain_m", vessel.heightFromTerrain);
+                Emit("B12.vessel_get_altitude_comd_m", vessel.mainBody.GetAltitude(vessel.GetWorldPos3D()));
+                Emit("B12.vessel_get_altitude_transform_m", vessel.mainBody.GetAltitude(vessel.vesselTransform.position));
                 Emit("B12.vessel_site_body_ok", site.BodyIndex == vessel.mainBody.flightGlobalsIndex);
             }
         }

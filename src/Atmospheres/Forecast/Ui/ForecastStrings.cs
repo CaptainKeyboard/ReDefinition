@@ -38,7 +38,7 @@ namespace ReDefinition.Atmospheres.Forecast
         internal const string ColLevel = "Level";
         internal const string ColType = "Type";
         internal const string ColVisibility = "Visibility";
-        internal const string ColWind = "Wind";
+        internal const string ColWind = "Wind From";
         internal const string ColGust = "Gust";
         internal const string ColTemperature = "Field Temp";
 

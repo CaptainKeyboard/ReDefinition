@@ -56,7 +56,7 @@ namespace ReDefinition.Tests.Atmospheres.D30
             Assert.AreEqual("33.0 deg S latitude", ForecastFormat.Latitude(-33.04));
             Assert.AreEqual("80.5 deg W longitude", ForecastFormat.Longitude(-80.5));
             Assert.AreEqual("80.5 deg E longitude", ForecastFormat.Longitude(80.5));
-            Assert.AreEqual("9 m/s from NW", ForecastFormat.Wind(9f, 315f));
+            Assert.AreEqual("9 m/s NW",ForecastFormat.Wind(9f, 315f));
             Assert.AreEqual("0 m/s", ForecastFormat.Wind(0.2f, 90f));
         }
 

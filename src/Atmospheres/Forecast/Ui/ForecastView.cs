@@ -81,6 +81,11 @@ namespace ReDefinition.Atmospheres.Forecast
             ForecastStrings.ColGust, ForecastStrings.ColTemperature
         };
 
+        // The widths of the table columns in pixels, 508 of the 510 pixels of a row. The longest text of each column (the bold header or the
+        // longest cell, e.g. "freezing rain") is held to its width by ForecastColumnFitTests at an assumed width of a character; K-W3a
+        // measured 13 of 253 labels wrapping with the widths 56, 100, 62, 66, 96, 52 and 70, and the probe now names the labels that wrap.
+        internal static readonly float[] ColumnWidths = { 52f, 86f, 92f, 76f, 76f, 50f, 76f };
+
         private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
         internal ForecastState State;

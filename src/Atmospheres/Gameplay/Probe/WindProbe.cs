@@ -140,7 +140,14 @@ namespace ReDefinition.Atmospheres
             {
                 WindModule.ForeignOverride = cell.Stub ? stub : ForeignWinds.None;
                 SetSetting(AtmospheresSettings.Keys.WindSource, (double)(int)cell.Mode);
-                yield return ProbeWait.Seconds(3);
+                // The wind is asked for at every frame for 5 s: the vessel's step restarts its 3 s ramp after a gap of more than a second
+                // between two asks (K-W3a: one ask after a 3 s wait always met the ramp at zero), and the ramp has to be over before it is read.
+                double settleEnd = Time.realtimeSinceStartup + 5.0;
+                while (Time.realtimeSinceStartup < settleEnd)
+                {
+                    if (WindService.Plan.AppliesAnything) WindService.WindFor(v);
+                    yield return ProbeWait.Frames(1);
+                }
                 double applied = WindService.Plan.AppliesAnything ? WindService.WindFor(v).Length : 0.0;
                 if (cell.Name == "ours_absent")
                 {

@@ -24,7 +24,9 @@ namespace ReDefinition.Atmospheres.Forecast
     {
         internal const string SeriesId = "K-W3a";
         private const double StormFromHours = 8.0, StormToHours = 14.0, StormRadiusKm = 80.0;
-        private const float StormRateMmPerH = 60f;
+        // Above the top band of any body, so that the forced level is 1 whatever bands the body derives (K-W3a used 60 mm/h and the engine
+        // reported no storm; the rate against the body's bands was not logged).
+        private const float StormRateMmPerH = 400f;
 
         private int errors;
         private bool checklistDone;
@@ -147,6 +149,29 @@ namespace ReDefinition.Atmospheres.Forecast
             Emit("D30.window_" + tag + "_log_errors", errors - before);
         }
 
+        // What a repeat start needs to tell the product from the probe when the engine does not find the storm: whether the service runs, has
+        // an entry for the site and a report of the current generation, and what the field itself says at the storm's start and middle.
+        private static string StormDiagnosis(ForecastService service, ForecastSite site, ForecastResult detail, double now)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("service available ").Append(service.Available).Append(", entry ").Append(detail == null ? "none" : "present");
+            if (detail != null && detail.Report != null)
+            {
+                sb.Append(", report issued ").Append(((detail.Report.IssuedUt - now) / 3600.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(" h from the probe's start");
+                sb.Append(", available ").Append(detail.Report.Available).Append(", steps ").Append(detail.Report.Steps.Length);
+            }
+            IWeatherField field = WeatherHub.Field;
+            foreach (double hours in new[] { StormFromHours + 0.5, (StormFromHours + StormToHours) * 0.5 })
+            {
+                WeatherSample s;
+                bool ok = field.Sample(site.BodyIndex, site.LatDeg, site.LonDeg, site.AltAgl, now + hours * 3600.0, out s);
+                sb.Append("; field at +").Append(hours.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)).Append(" h: ")
+                    .Append(ok ? "level " + s.Level01.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) + ", type " + s.Type : "no sample");
+            }
+            sb.Append("; alert rules from ").Append(AtmospheresSettings.AlertMinLevel).Append(", lead ").Append(AtmospheresSettings.AlertLeadHours).Append(" h");
+            return sb.ToString();
+        }
+
         // A storm is forced at the site; the clock jumps across its ETA; exactly one message comes, and the same UT again brings none.
         private IEnumerable<ProbeWait> AlertPhase(SiteChoice choice, string tag)
         {
@@ -171,10 +196,19 @@ namespace ReDefinition.Atmospheres.Forecast
             WeatherHooks.BumpForecastGeneration();
             ForecastService service = ForecastModule.Service;
             double eta = double.NaN;
+            float nextDiagnosis = Time.realtimeSinceStartup + 10f;
             yield return ProbeWait.Until(() =>
             {
                 ForecastResult detail = service.DetailOf(site);
-                if (detail == null || double.IsNaN(detail.ThresholdEtaUt)) return false;
+                if (detail == null || double.IsNaN(detail.ThresholdEtaUt))
+                {
+                    if (Time.realtimeSinceStartup >= nextDiagnosis)
+                    {
+                        nextDiagnosis = Time.realtimeSinceStartup + 15f;
+                        AtmospheresLog.Say("D30 probe: no ETA at " + tag + " yet: " + StormDiagnosis(service, site, detail, now));
+                    }
+                    return false;
+                }
                 eta = detail.ThresholdEtaUt;
                 return true;
             }, 90, "the engine to find the forced storm at " + tag);

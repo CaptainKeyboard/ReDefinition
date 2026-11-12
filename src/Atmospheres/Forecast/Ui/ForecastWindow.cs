@@ -50,7 +50,7 @@ namespace ReDefinition.Atmospheres.Forecast
         private const float CellWidth = 20f;
         // Six buttons of 84 pixels and five gaps of 2: 514, within the page of 530.
         private const float SiteButtonWidth = 84f;
-        private static readonly float[] ColumnWidths = { 56f, 100f, 62f, 66f, 96f, 52f, 70f };
+        private static readonly float[] ColumnWidths = ForecastView.ColumnWidths;
 
         // The choice the window shows, shared with the overlay's hover label.
         internal static SiteChoice CurrentChoice = SiteChoice.Ksc;
@@ -151,6 +151,7 @@ namespace ReDefinition.Atmospheres.Forecast
             var dialog = new MultiOptionDialog("ReDefinitionForecast", "", ForecastStrings.WindowTitle, HighLogic.UISkin, Width, rows.ToArray());
             shown = DialogWindow.Show(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false));
             ScrollListSettle.Apply(list);
+            ScrollBackground.Clear(shown.gameObject);
             ScrollThrough.Apply(shown.gameObject);
             UiHygiene.MouseOnly(shown.gameObject);
             EscapeGuard.Own(shown);
@@ -479,7 +480,10 @@ namespace ReDefinition.Atmospheres.Forecast
 
         private void Tick()
         {
-            if (Time.unscaledTime >= nextRefresh) Refresh();
+            if (Time.unscaledTime < nextRefresh) return;
+            Refresh();
+            // A skin refresh may colour the list's background again.
+            if (shown != null) ScrollBackground.Clear(shown.gameObject);
         }
 
         // The dialog's object is gone (Escape, a scene change); the window forgets it and tells the launcher.

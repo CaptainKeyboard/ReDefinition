@@ -6,14 +6,15 @@ using UnityEngine;
 namespace ReDefinition.Atmospheres
 {
     // Flight 2 of the wind probe: a Mk1 pod under a parachute over the sea (the vessel of the reconnaissance premise P4, made as KSP makes
-    // a vessel), dropped from 4 km. The windows are fixed in game time: 15 s without wind (control), 30 s of 15 m/s through H1, 20 s
+    // a vessel), dropped from 8 km. The windows are fixed in game time: 15 s without wind (control), 30 s of 15 m/s through H1, 20 s
     // of calm, 30 s through H3, 20 s of a forced absurd wind (the clamp), then the rest of the descent at physics warp 3x with the wind on
     // (the soak). The pod and its canopy come from a synthetic proto vessel; the parts, the attach nodes and the offsets are those of the
     // reconnaissance probe (src/Atmospheres/Testing/Recon/AtmoRecon.Flight.cs, which is B09's and is not edited here).
     internal sealed partial class WindProbe
     {
         private const string PodName = "D31 Canopy";
-        private const double DropAltitude = 4000.0, WindMs = 15.0;
+        // 8 km: the soak row asks for 300 s of descent under the canopy, which at about 25 m/s takes more than the 4 km of K-W3a (182 s).
+        private const double DropAltitude = 8000.0, WindMs = 15.0;
 
         private double podLat, podLon, coastBearing;
 
@@ -212,10 +213,16 @@ namespace ReDefinition.Atmospheres
 
         private IEnumerable<ProbeWait> Soak(Vessel pod)
         {
+            // The index of the physics warp rate nearest to 3x, found in the game's own table (K-W3a: index 2 gave a rate of 8).
             TimeWarp.fetch.Mode = TimeWarp.Modes.LOW;
-            TimeWarp.SetRate(2, true, false);
+            int warpIndex = SoakWarp.IndexOfRate(TimeWarp.fetch.physicsWarpRates, SoakWarp.RequestedRate);
+            TimeWarp.SetRate(warpIndex, true, false);
             yield return ProbeWait.Frames(10);
+            Say("soak warp: physics rates " + SoakWarp.Describe(TimeWarp.fetch.physicsWarpRates) + ", index " + warpIndex + ", current index " + TimeWarp.CurrentRateIndex
+                + ", mode " + TimeWarp.WarpMode);
             Emit("D31.soak_warp_rate", TimeWarp.CurrentRate);
+            Emit("D31.soak_warp_table_rate", SoakWarp.RateAt(TimeWarp.fetch.physicsWarpRates, warpIndex));
+            Emit("D31.soak_warp_in_force", TimeWarp.WarpMode == TimeWarp.Modes.LOW && TimeWarp.CurrentRateIndex == warpIndex);
             int bad = 0, failures0 = WindService.FailureCount + WindHook.Failures;
             double maxSpeed = 0.0, started = Ut(), lastLog = started;
             double realEnd = Time.realtimeSinceStartup + 300.0;

@@ -103,12 +103,12 @@ namespace ReDefinition.Atmospheres.Forecast
             return Math.Round(kelvin - 273.15f).ToString("0", Inv) + " °C";
         }
 
-        // "9 m/s from NW".
+        // "9 m/s NW": the direction the wind blows from (the column is headed "Wind From").
         internal static string Wind(float windMs, float fromDeg)
         {
             if (float.IsNaN(windMs)) return "-";
             string speed = Math.Round(windMs).ToString("0", Inv) + " m/s";
-            return windMs < 0.5f ? speed : speed + " from " + Direction(fromDeg);
+            return windMs < 0.5f ? speed : speed + " " + Direction(fromDeg);
         }
 
         internal static string Gust(float gustMs)

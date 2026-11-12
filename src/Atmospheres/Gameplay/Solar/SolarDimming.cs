@@ -314,22 +314,29 @@ namespace ReDefinition.Atmospheres
     [AtmospheresModule(63)]
     internal sealed class SolarDimmingModule : IAtmospheresModule
     {
-        private bool hooked;
+        private LateSubscription events;
         private bool wasOn;
         private float checkTimer;
 
         public void Init()
         {
-            try
-            {
-                GameEvents.onGameStateSave.Add(OnSave);
-                GameEvents.onGameSceneLoadRequested.Add(OnScene);
-                hooked = true;
-            }
-            catch (Exception e)
-            {
-                AtmospheresLog.Failed("solar-events", "the solar dimming could not subscribe to the save events", e);
-            }
+            events = new LateSubscription("solar-events", "the solar dimming cannot subscribe to the save events", SubscribeEvents, UnsubscribeEvents);
+            events.Ensure();
+        }
+
+        // False while one of the game's event objects does not exist yet (nothing is added then); LateSubscription asks again next tick.
+        private static bool SubscribeEvents()
+        {
+            if (GameEvents.onGameStateSave == null || GameEvents.onGameSceneLoadRequested == null) return false;
+            GameEvents.onGameStateSave.Add(OnSave);
+            GameEvents.onGameSceneLoadRequested.Add(OnScene);
+            return true;
+        }
+
+        private static void UnsubscribeEvents()
+        {
+            GameEvents.onGameStateSave.Remove(OnSave);
+            GameEvents.onGameSceneLoadRequested.Remove(OnScene);
         }
 
         public void OnBodyChanged(CelestialBody oldBody, CelestialBody newBody)
@@ -338,6 +345,7 @@ namespace ReDefinition.Atmospheres
 
         public void Tick(float dt)
         {
+            if (events != null) events.Ensure();
             bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && AtmospheresSettings.SolarDimming;
             if (wasOn && !on) SolarDimming.RestoreAll();
             wasOn = on;
@@ -353,17 +361,7 @@ namespace ReDefinition.Atmospheres
         public void Shutdown()
         {
             SolarDimming.RestoreAll();
-            if (!hooked) return;
-            try
-            {
-                GameEvents.onGameStateSave.Remove(OnSave);
-                GameEvents.onGameSceneLoadRequested.Remove(OnScene);
-            }
-            catch (Exception)
-            {
-                // The events are gone with the game.
-            }
-            hooked = false;
+            if (events != null) events.Release();
         }
 
         private static void OnSave(ConfigNode node)

@@ -39,7 +39,7 @@ namespace ReDefinition.Atmospheres.Forecast
             list.Add(c);
 
             float alpha = scroll != null && scroll.GetComponent<Image>() != null ? scroll.GetComponent<Image>().color.a : 0f;
-            bool clear = scroll != null && alpha < 0.01f;
+            bool clear = ScrollBackground.IsClear(scroll);
             c = Item("scroll_background", clear, scroll == null ? "no scroll list" : "alpha " + F(alpha), scrollRect);
             c.Shot.Marks.Add(new ShotMark { R = scrollRect, Bad = !clear });
             list.Add(c);
@@ -47,6 +47,8 @@ namespace ReDefinition.Atmospheres.Forecast
             var labelMarks = new List<ShotMark>();
             var glyphMarks = new List<ShotMark>();
             int wrapping = 0, missing = 0, labels = 0;
+            // The first wrapping labels with preferred width / box width, so that a failing row names its cause.
+            string offenders = "";
             foreach (TMP_Text text in window.GetComponentsInChildren<TMP_Text>(false))
             {
                 if (!text.gameObject.activeInHierarchy || string.IsNullOrEmpty(text.text)) continue;
@@ -54,7 +56,11 @@ namespace ReDefinition.Atmospheres.Forecast
                 bool wraps = text.preferredWidth > text.rectTransform.rect.width + WidthSlack && text.rectTransform.rect.width > 0f && text.enableWordWrapping
                              && text.preferredHeight > text.fontSize * 1.6f;
                 bool lacks = LacksGlyphs(text);
-                if (wraps) wrapping++;
+                if (wraps)
+                {
+                    wrapping++;
+                    if (offenders.Length < 160) offenders += (offenders.Length > 0 ? " | " : "") + text.text.Replace('\n', ' ') + " [" + F(text.preferredWidth) + "/" + F(text.rectTransform.rect.width) + "]";
+                }
                 if (lacks) missing++;
                 Rect r = ProbeShots.ScreenRect(text.rectTransform);
                 labelMarks.Add(new ShotMark { R = r, Bad = wraps });
@@ -72,7 +78,7 @@ namespace ReDefinition.Atmospheres.Forecast
                 rowMarks.Add(new ShotMark { R = ProbeShots.ScreenRect(rect), Bad = wide });
             }
 
-            c = Item("labels_single_line", wrapping == 0 && labels > 0, wrapping + " of " + labels + " labels wrap", all);
+            c = Item("labels_single_line", wrapping == 0 && labels > 0, wrapping + " of " + labels + " labels wrap" + (offenders.Length > 0 ? ": " + offenders : ""), all);
             c.Shot.Marks.AddRange(labelMarks);
             list.Add(c);
             c = Item("row_widths", tooWide == 0, tooWide + " rows wider than the page", all);

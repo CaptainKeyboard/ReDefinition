@@ -144,7 +144,7 @@ namespace ReDefinition.Tests.Atmospheres.D30
             Assert.AreEqual("Light (2)", view.Rows[1][1]);
             Assert.AreEqual("snow", view.Rows[2][2]);
             Assert.AreEqual("-", view.Rows[0][2], "No type while nothing falls.");
-            Assert.AreEqual("7 m/s from NW", view.Rows[1][4]);
+            Assert.AreEqual("7 m/s NW", view.Rows[1][4]);
             Assert.AreEqual("-5 °C", view.Rows[2][6]);
             Assert.AreEqual("Field Temp", ForecastView.Columns[6]);
         }

@@ -150,6 +150,7 @@ namespace ReDefinition.Atmospheres
             shown = DialogWindow.Show(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false,
                 HighLogic.UISkin, true));
             ScrollListSettle.Apply(list);
+            ScrollBackground.Clear(shown.gameObject);
             ScrollThrough.Apply(shown.gameObject);
             UiHygiene.MouseOnly(shown.gameObject);
             EscapeGuard.Own(shown);
@@ -181,6 +182,8 @@ namespace ReDefinition.Atmospheres
         {
             if (Time.unscaledTime < nextTip) return;
             nextTip = Time.unscaledTime + TipSeconds;
+            // A skin refresh may colour the list's background again.
+            if (shown != null) ScrollBackground.Clear(shown.gameObject);
             foreach (KeyValuePair<DialogGUIBase, SettingDef> pair in tipped)
             {
                 if (pair.Key.uiItem == null || !pair.Key.uiItem.activeInHierarchy) continue;

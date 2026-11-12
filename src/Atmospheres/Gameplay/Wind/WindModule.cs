@@ -20,7 +20,7 @@ namespace ReDefinition.Atmospheres
         private readonly WindApiBridge windApi = new WindApiBridge();
         private bool windApiRegistered, sourceInHub, sourceInForecast;
         private bool announced;
-        private bool eventsHooked;
+        private LateSubscription events;
 
         // A stand-in for the scan of the loaded assemblies, set by the series probe to put a foreign wind mod in or out of the picture
         // (the row "numeric A/B per mode with a foreign mod stub"). Null in the game.
@@ -40,7 +40,8 @@ namespace ReDefinition.Atmospheres
 
         public void Init()
         {
-            HookEvents();
+            events = new LateSubscription("wind-events", "the wind cannot subscribe to the vessel events", SubscribeEvents, UnsubscribeEvents);
+            events.Ensure();
         }
 
         public void OnBodyChanged(CelestialBody oldBody, CelestialBody newBody)
@@ -49,6 +50,8 @@ namespace ReDefinition.Atmospheres
 
         public void Tick(float dt)
         {
+            // The events the game makes late are subscribed to as soon as they exist.
+            if (events != null) events.Ensure();
             bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects;
             if (!on)
             {
@@ -167,7 +170,7 @@ namespace ReDefinition.Atmospheres
             }
             SetPlan(new WindPlan { Route = WindRoute.Off });
             WindService.ForgetAll();
-            UnhookEvents();
+            if (events != null) events.Release();
         }
 
         private void Scan()
@@ -271,36 +274,21 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        private void HookEvents()
+        // False while one of the game's event objects does not exist yet (nothing is added then); LateSubscription asks again next tick.
+        private static bool SubscribeEvents()
         {
-            if (eventsHooked) return;
-            try
-            {
-                GameEvents.onVesselGoOffRails.Add(OnGoOffRails);
-                GameEvents.onVesselDestroy.Add(OnVesselDestroy);
-                GameEvents.onGameSceneLoadRequested.Add(OnSceneLoad);
-                eventsHooked = true;
-            }
-            catch (Exception e)
-            {
-                AtmospheresLog.Failed("wind-events", "the wind could not subscribe to the vessel events", e);
-            }
+            if (GameEvents.onVesselGoOffRails == null || GameEvents.onVesselDestroy == null || GameEvents.onGameSceneLoadRequested == null) return false;
+            GameEvents.onVesselGoOffRails.Add(OnGoOffRails);
+            GameEvents.onVesselDestroy.Add(OnVesselDestroy);
+            GameEvents.onGameSceneLoadRequested.Add(OnSceneLoad);
+            return true;
         }
 
-        private void UnhookEvents()
+        private static void UnsubscribeEvents()
         {
-            if (!eventsHooked) return;
-            try
-            {
-                GameEvents.onVesselGoOffRails.Remove(OnGoOffRails);
-                GameEvents.onVesselDestroy.Remove(OnVesselDestroy);
-                GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoad);
-            }
-            catch (Exception)
-            {
-                // The events are gone with the game.
-            }
-            eventsHooked = false;
+            GameEvents.onVesselGoOffRails.Remove(OnGoOffRails);
+            GameEvents.onVesselDestroy.Remove(OnVesselDestroy);
+            GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoad);
         }
 
         private static void OnGoOffRails(Vessel v)
