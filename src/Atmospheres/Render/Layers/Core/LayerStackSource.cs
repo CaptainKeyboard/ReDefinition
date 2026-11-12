@@ -7,8 +7,11 @@ namespace ReDefinition.Atmospheres
     // The layer stack of one body as the CPU consumers read it (ICloudLayerSource): the layers, each with the two byte maps the GPU
     // reads, so that a shadow or a light-in-medium sample sees the same field as the picture. Pure (no Unity), so the tests and the
     // weather player link it.
-    internal sealed class LayerStackSource : ICloudLayerSource
+    internal sealed class LayerStackSource : ICloudLayerSource, ICloudHeightSource
     {
+        // The height variation of the layers (package T13); a layer without an entry has the type table's heights.
+        internal LayerHeightField Heights { get; } = new LayerHeightField();
+
         private readonly List<CloudLayerDef> layers = new List<CloudLayerDef>();
         private readonly List<WeatherMap> coverage = new List<WeatherMap>();
         private readonly List<WeatherMap> types = new List<WeatherMap>();
@@ -63,6 +66,29 @@ namespace ReDefinition.Atmospheres
             coverage[index] = coverageMap;
             types[index] = typeMap;
             version++;
+        }
+
+        // Gives a layer its height variation (tuning and maps; either null clears it) and widens the layer's tight interval by the reach.
+        // The layer index is the stack's (sorted) index.
+        internal void SetHeights(int index, HeightTuning tuning, HeightMaps maps, uint raggedSeed)
+        {
+            if (tuning == null || !tuning.Any) Heights.Clear(index);
+            else Heights.Set(index, tuning, maps, raggedSeed);
+            float down, up;
+            Heights.Reach(index, out down, out up);
+            layers[index].HeightDownM = down;
+            layers[index].HeightUpM = up;
+            version++;
+        }
+
+        public HeightTuning HeightOf(int layerIndex)
+        {
+            return Heights.TuningOf(layerIndex);
+        }
+
+        public LocalHeights SampleHeights(int layerIndex, double latDeg, double lonDeg)
+        {
+            return Heights.Sample(layerIndex, latDeg, lonDeg - layers[layerIndex].MapShiftDeg);
         }
 
         public void SampleMaps(int layerIndex, double latDeg, double lonDeg, out float coverageValue, out float typeValue)

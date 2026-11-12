@@ -1,0 +1,20 @@
+{
+  "$schema": "../schema.json",
+  "package": "T13",
+  "rows": [
+    { "series": "player-T13", "section": "T13", "metric": "base.below.after.std_m", "min": 50, "unit": "m", "note": "height-check: the standard deviation of the first-hit altitude of the cloud base seen from below (rays 15 degrees or more above the horizon) with the height variation on: the real band of a cumulus field's base spread is 50 to 300 m [proposed band]" },
+    { "series": "player-T13", "section": "T13", "metric": "base.below.after.std_m_max", "max": 300, "unit": "m", "note": "height-check: the upper end of the same band" },
+    { "series": "player-T13", "section": "T13", "metric": "base.below.std_ratio_after_over_before", "min": 3, "unit": "ratio", "note": "height-check: the spread appears only with the switches on: after over before at the same camera and seed" },
+    { "series": "player-T13", "section": "T13", "metric": "top.down.corr_cores", "min": 0.7, "unit": "correlation", "note": "height-check: the rendered top altitude against the updraft map at the cell cores (updraft above its 80th percentile), seen straight down [proposed]" },
+    { "series": "player-T13", "section": "T13", "metric": "rough.side.ragged_over_smooth", "min": 2, "unit": "ratio", "note": "height-check: the high-pass energy of the lower boundary of the cloud mass in the side view, ragged over smooth base [proposed]" },
+    { "series": "player-T13", "section": "T13", "metric": "ab.alloff_equals_before.mean_abs", "max": 1e-6, "unit": "luma", "note": "height-check A/B: all four switches off is the picture without height maps" },
+    { "series": "player-T13", "section": "T13", "metric": "ab.below.after_differs_from_before", "min": 0.002, "unit": "luma", "note": "height-check A/B: the height variation changes the picture from below" },
+    { "series": "player-T13", "section": "T13", "metric": "ab.side.after_differs_from_before", "min": 0.002, "unit": "luma", "note": "height-check A/B: the height variation changes the side view" },
+    { "series": "player-T13", "section": "T13", "metric": "layers.sky3.hits_total", "min": 1000, "unit": "px", "note": "height-check: the three-layer sky has cloud in the view" },
+    { "series": "player-T13", "section": "T13", "metric": "layers.sky3.distinct_levels", "min": 2, "unit": "levels", "note": "height-check: first hits lie at different heights in the three-layer view" },
+    { "series": "player-T13", "section": "T13", "metric": "pop.max_luma_change_per_frame", "max": 0.03, "unit": "share", "note": "height-check: crossing the layer at 20 m/s (one frame of 1/60 s is 0.33 m) changes the picture's luminance by at most 3 % per frame" },
+
+    { "series": "K-T1", "section": "T13", "package": "T13", "start": "height", "metric": "T13.ragged_base_shimmer", "max": 0.0015, "required": false, "note": "K-T1 record (probe not written: the series definition K-T1 does not exist yet): the temporal shimmer of the ragged base through each upscaler at 0.0015 of the brief" },
+    { "series": "K-T1", "section": "T13", "package": "T13", "start": "height", "metric": "T13.height_cost_ms", "max": 0.1, "required": false, "note": "K-T1 record (probe not written): the height maps and the ragged boundary add at most 0.1 ms to the T05 budget (exclusive lock)" }
+  ]
+}

@@ -61,6 +61,11 @@ namespace ReDefinition.Atmospheres
             internal const string CloudFarMinSamples = "cloudFarMinSamples";
             internal const string CloudFarPolicy = "cloudFarPolicy";
             internal const string CloudFarMapFade = "cloudFarMapFade";
+            // Own clouds: the height variation of bases and tops (T13)
+            internal const string CloudBaseVariation = "cloudBaseVariation";
+            internal const string CloudBasePhysics = "cloudBasePhysics";
+            internal const string CloudTopFromUpdraft = "cloudTopFromUpdraft";
+            internal const string BaseRagged = "baseRagged";
         }
 
         // --- Own clouds ---
@@ -102,6 +107,10 @@ namespace ReDefinition.Atmospheres
         internal static int CloudFarMinSamples => I(Keys.CloudFarMinSamples);
         internal static bool CloudFarPolicy => B(Keys.CloudFarPolicy);
         internal static bool CloudFarMapFade => B(Keys.CloudFarMapFade);
+        internal static bool CloudBaseVariation => B(Keys.CloudBaseVariation);
+        internal static bool CloudBasePhysics => B(Keys.CloudBasePhysics);
+        internal static bool CloudTopFromUpdraft => B(Keys.CloudTopFromUpdraft);
+        internal static bool BaseRagged => B(Keys.BaseRagged);
     }
 
     // The rows of the own cloud system in the key table, in the order of the window (they follow the other Clouds rows). A default is the
@@ -169,7 +178,13 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("cloudFarShapeMean", false, CL, "Cloud Far Shape Mean", OWN),
                 SettingDef.Int("cloudFarMinSamples", 0, 0, 16, CL, "Cloud Far Minimum Samples", OWN),
                 SettingDef.Bool("cloudFarPolicy", false, CL, "Cloud Far March Policy", OWN),
-                SettingDef.Bool("cloudFarMapFade", false, CL, "Cloud Far Map Fade", OWN)
+                SettingDef.Bool("cloudFarMapFade", false, CL, "Cloud Far Map Fade", OWN),
+
+                // The height variation of bases and tops (T13): no quality cost, on once the check passed
+                SettingDef.Bool("cloudBaseVariation", true, CL, "Cloud Base Variation", OWN),
+                SettingDef.Bool("cloudBasePhysics", true, CL, "Cloud Base From Humidity", OWN),
+                SettingDef.Bool("cloudTopFromUpdraft", true, CL, "Cloud Top From Updraft", OWN),
+                SettingDef.Bool("baseRagged", true, CL, "Cloud Ragged Underside", OWN)
             };
         }
     }

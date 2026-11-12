@@ -81,6 +81,21 @@ namespace ReDefinition.Atmospheres
             return count;
         }
 
+        // The base and top of a type at a place, as shares of the layer's thickness, after the height variation (package T13): the type
+        // table's shares moved by the sampled offsets. The root offset (physics and size trend) acts on the rooted share of the type, the
+        // variation on all of it, the ragged boundary moves the base only (by the type's erosion), and the top follows the base plus the
+        // updraft term on the rooted share. The top never falls below the base plus the thinnest cloud. The shader's LocalBaseTop is this.
+        internal static void LocalBaseTop(double baseShare, double topShare, double erosion, double thicknessM, LocalHeights h, double raggedUnit,
+                                          double raggedM, double minThicknessM, out double localBase, out double localTop)
+        {
+            double root = HeightModel.RootWeight(baseShare);
+            double smooth = root * h.RootM + h.VariationM;
+            double baseOffset = smooth + raggedUnit * raggedM * (erosion / 0.5);
+            double topOffset = smooth + root * h.TopM;
+            localBase = baseShare + baseOffset / thicknessM;
+            localTop = Math.Max(topShare + topOffset / thicknessM, localBase + minThicknessM / thicknessM);
+        }
+
         // The height of a point above sea level.
         internal static double AltitudeOf(double x, double y, double z, double radius)
         {

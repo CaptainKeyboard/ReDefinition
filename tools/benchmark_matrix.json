@@ -370,7 +370,11 @@
         {"id": "weather-lightningTerrainLight", "name": "Lightning Ground Light false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningTerrainLight": "False"}},
         {"id": "weather-lightningCloudFlash", "name": "Lightning Cloud Flash false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningCloudFlash": "False"}},
         {"id": "weather-lightningThunder", "name": "Lightning Thunder false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningThunder": "False"}},
-        {"id": "weather-lightningRealisticDelay", "name": "Lightning Thunder Delay false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningRealisticDelay": "False"}}
+        {"id": "weather-lightningRealisticDelay", "name": "Lightning Thunder Delay false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.lightningRealisticDelay": "False"}},
+        {"id": "weather-cloudBaseVariation", "name": "Cloud Base Variation false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudBaseVariation": "False"}},
+        {"id": "weather-cloudBasePhysics", "name": "Cloud Base From Humidity false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudBasePhysics": "False"}},
+        {"id": "weather-cloudTopFromUpdraft", "name": "Cloud Top From Updraft false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudTopFromUpdraft": "False"}},
+        {"id": "weather-baseRagged", "name": "Cloud Ragged Underside false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.baseRagged": "False"}}
       ]
     },
     {

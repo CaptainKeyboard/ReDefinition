@@ -85,6 +85,10 @@ namespace ReDefinition.Atmospheres
                 { "lightningCloudFlash", "Lights the clouds from inside when a flash strikes." },
                 { "lightningThunder", "Plays thunder after a flash, from a synthesis, no sound file is used." },
                 { "lightningRealisticDelay", "Delays the thunder by the time sound needs for the distance, about 3 seconds per kilometre. Off, the thunder follows the flash at once." },
+                { "cloudBaseVariation", "Lets the cloud base lie at slightly different heights over the sky (a slow wave of a few hundred metres, and lower bases under larger cloud fields). Off, every cloud of a type starts at one level." },
+                { "cloudBasePhysics", "Sets the base of the low clouds from the air's temperature and humidity: moist air condenses lower, dry air higher (about 125 m per kelvin of dew-point spread)." },
+                { "cloudTopFromUpdraft", "Lets the tops of the clouds follow the strength of the updraft of their cell: strong cells build towering cloud, weak ones stay flat. Off, every type has its fixed top." },
+                { "baseRagged", "Roughens the underside of the clouds with fine detail, so that it is not a clean cut. Off, the base is smooth." },
 
                 // Wind
                 { "windSource", "Whose wind is used. Auto leaves the base wind to a wind mod where one is installed and adds our storm wind on top; Ours replaces it; Foreign and Off leave our wind off while the visuals still draw." },

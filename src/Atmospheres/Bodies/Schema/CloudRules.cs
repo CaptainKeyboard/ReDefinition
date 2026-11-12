@@ -122,7 +122,18 @@ namespace ReDefinition.Atmospheres
             }
             tightInnerM = InnerAltitudeM + lo * ThicknessM;
             tightOuterM = InnerAltitudeM + hi * ThicknessM;
+            // The height variation (package T13) moves bases down and tops up by at most these many m: the interval widens by them, and
+            // never reaches into the ground sphere of a layer that did not start there.
+            if (HeightDownM > 0f || HeightUpM > 0f)
+            {
+                tightInnerM = tightInnerM > 0f ? Math.Max(0.5f, tightInnerM - HeightDownM) : 0f;
+                tightOuterM += HeightUpM;
+            }
         }
+
+        // The most the height variation lowers a base and raises a top beyond the type table's, in m (package T13; 0: none).
+        internal float HeightDownM { get; set; }
+        internal float HeightUpM { get; set; }
     }
 
     // The read model of the layer stack of the body the camera is at. T04 (cloud shadows), T06 (far view), T09 (integration) and the

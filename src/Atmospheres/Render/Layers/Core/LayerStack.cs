@@ -77,10 +77,8 @@ namespace ReDefinition.Atmospheres
                     double x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
                     double lat, lon;
                     LayerGeometry.LatLon(x, y, z, out lat, out lon);
-                    float cov, typ;
-                    source.SampleMaps(layerIndex, lat, lon, out cov, out typ);
                     double altitude = LayerGeometry.AltitudeOf(x, y, z, source.BodyRadiusM);
-                    tau += LayerDensity.Extinction(layer, tables[layerIndex], altitude, cov, typ) * LayerDensity.DistanceFade(layer, t) * dt;
+                    tau += HeightDensity.Extinction(source, tables[layerIndex], layerIndex, altitude, lat, lon) * LayerDensity.DistanceFade(layer, t) * dt;
                 }
             }
             return tau;

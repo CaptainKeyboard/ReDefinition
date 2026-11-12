@@ -94,6 +94,10 @@ namespace ReDefinition.Atmospheres
             IdMarchTex = Shader.PropertyToID("_MarchTex"), IdSkipP = Shader.PropertyToID("_SkipP"), IdCostP = Shader.PropertyToID("_CostP"),
             IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize");
 
+        // The height variation (package T13): the maps, and per layer the ranges and the ragged boundary's numbers.
+        private static readonly int IdHeightMaps = Shader.PropertyToID("_HeightMaps"), IdLayerH = Shader.PropertyToID("_LayerH"),
+            IdLayerH2 = Shader.PropertyToID("_LayerH2");
+        private readonly Vector4[] layerH = new Vector4[CloudLayerDef.MaxLayers], layerH2 = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
         private Material material;
@@ -113,6 +117,8 @@ namespace ReDefinition.Atmospheres
         internal RenderTexture Target { get { return target; } }
         internal CommandBuffer Commands { get { return commands; } }
         internal LayerMapStore Maps { get; } = new LayerMapStore();
+        // The height maps of the layers (package T13); a neutral array until a layer has maps.
+        internal HeightMapStore Heights { get; } = new HeightMapStore();
         // The noise volumes and the shape model's numbers (package T02); the driver advances them once per frame (Noise.Advance).
         internal LayerNoise Noise { get; } = new LayerNoise();
 
@@ -144,6 +150,7 @@ namespace ReDefinition.Atmospheres
             material.SetTexture(IdTypeProfile, profileTexture);
             material.SetTexture(IdTypeInfo, infoTexture);
             commands = new CommandBuffer { name = "ReDefinition layer pass" };
+            Heights.Ensure(2, 2);
             Noise.StartGeneration();
             return true;
         }
@@ -170,6 +177,7 @@ namespace ReDefinition.Atmospheres
             if (commands != null) commands.Release();
             if (target != null) target.Release();
             Maps.Dispose();
+            Heights.Dispose();
             Noise.Dispose();
             UnityEngine.Object.Destroy(material);
             UnityEngine.Object.Destroy(profileTexture);
@@ -200,6 +208,13 @@ namespace ReDefinition.Atmospheres
                                         layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
                 layerD[l] = new Vector4(layer.NoiseAmount, layer.NoiseScaleM > 0f ? 1f / layer.NoiseScaleM : 0f, 1f, layer.MapShiftDeg);
                 layerE[l] = Vector4.zero;
+                HeightTuning height = source.Heights.TuningOf(l);
+                HeightMaps heightMaps = source.Heights.MapsOf(l);
+                layerH[l] = height == null ? Vector4.zero
+                    : new Vector4(heightMaps == null ? 0f : heightMaps.RootRangeM, heightMaps == null ? 0f : heightMaps.TopRangeM,
+                                  heightMaps == null ? 0f : heightMaps.VariationRangeM, height.BaseRagged ? height.RaggedM : 0f);
+                layerH2[l] = height == null ? Vector4.zero
+                    : new Vector4(1f / Mathf.Max(1f, height.RaggedScaleM), height.MinThicknessM, source.Heights.SeedOf(l) & 0xFFFFFF, heightMaps == null ? 0f : 1f);
                 Array.Copy(table.ProfileData, 0, profile, l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples, table.Count * LayerTypeTable.ProfileSamples);
                 for (int t = 0; t < table.Count; t++)
                 {
@@ -208,6 +223,8 @@ namespace ReDefinition.Atmospheres
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, e, 0f);
                 }
             }
+            for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++) layerH[l] = layerH2[l] = Vector4.zero;
+            Heights.Upload(source.Heights, layerCount);
             profileTexture.SetPixelData(profile, 0);
             profileTexture.Apply(false);
             infoTexture.SetPixels(info);
@@ -239,6 +256,9 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdLayerC, layerC);
             m.SetVectorArray(IdLayerD, layerD);
             m.SetVectorArray(IdLayerE, layerE);
+            m.SetVectorArray(IdLayerH, layerH);
+            m.SetVectorArray(IdLayerH2, layerH2);
+            if (Heights.Maps != null) m.SetTexture(IdHeightMaps, Heights.Maps);
             if (Maps.Coverage != null)
             {
                 m.SetTexture(IdCovMaps, Maps.Coverage);

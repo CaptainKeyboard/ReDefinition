@@ -76,6 +76,20 @@ namespace ReDefinition.Atmospheres
             Apply(s, Live);
         }
 
+        // T13: the four switches of the height variation; the numbers are the body's (HeightTuning.Parse) and stay as the caller set them.
+        internal static void Apply(HeightTuning t, Func<string, double> v)
+        {
+            t.BaseVariation = On(v, AtmospheresSettings.Keys.CloudBaseVariation);
+            t.BasePhysics = On(v, AtmospheresSettings.Keys.CloudBasePhysics);
+            t.TopFromUpdraft = On(v, AtmospheresSettings.Keys.CloudTopFromUpdraft);
+            t.BaseRagged = On(v, AtmospheresSettings.Keys.BaseRagged);
+        }
+
+        internal static void Apply(HeightTuning t)
+        {
+            Apply(t, Live);
+        }
+
         // T01, T01c, T05: the march of a frame.
         internal static void Apply(LayerFrame f, Func<string, double> v)
         {

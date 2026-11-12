@@ -1,0 +1,4 @@
+# Linked into the weather player for the height variation of the cloud layers (package T13): the tuning, the pure model, the map builder,
+# the field inputs, the CPU density and the GPU map store, and the shader's include (the layer shader itself is T01's manifest).
+src/Atmospheres/Render/Layers/Height/*.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresBaseHeight.cginc

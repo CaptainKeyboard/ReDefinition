@@ -8,6 +8,9 @@ namespace ReDefinition.WeatherPlayer
     // Builds the mod's layer stack, its maps and the frame numbers from one job of jobs.json (the layer scene and the cost scene share it).
     internal static class LayersSetup
     {
+        // A hook run on the finished stack before it is uploaded (package T13 gives the layers their height maps here from <input>/heights.json).
+        internal static System.Action<LayersJob, string, LayerStackSource> BeforeUpload;
+
         internal static LayerFrame Load(LayersJob job, string input, LayerRenderer renderer)
         {
             var source = new LayerStackSource(0, job.planetRadius, job.hasSurface != 0);
@@ -35,6 +38,7 @@ namespace ReDefinition.WeatherPlayer
                 if (hasMap) { def.CoverageMapHandle = 0; def.TypeMapHandle = 0; anyMap = true; }
                 source.Add(def, null, null);
             }
+            if (BeforeUpload != null) BeforeUpload(job, input, source);
             renderer.Upload(source);
             ApplyNoise(job, input, renderer);
             if (anyMap)

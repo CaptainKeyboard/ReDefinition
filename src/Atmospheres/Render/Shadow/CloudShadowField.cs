@@ -61,10 +61,8 @@ namespace ReDefinition.Atmospheres
                     double x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
                     double lat, lon;
                     LayerGeometry.LatLon(x, y, z, out lat, out lon);
-                    float cov, typ;
-                    source.SampleMaps(layerIndex, lat, lon, out cov, out typ);
                     double altitude = LayerGeometry.AltitudeOf(x, y, z, source.BodyRadiusM);
-                    tau += LayerDensity.Extinction(layer, table, altitude, cov, typ) * dt;
+                    tau += HeightDensity.Extinction(source, table, layerIndex, altitude, lat, lon) * dt;
                 }
             }
             return tau;

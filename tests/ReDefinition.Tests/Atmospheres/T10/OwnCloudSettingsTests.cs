@@ -21,7 +21,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             "ownClouds", "layerCap", "layerStepQuality", "layerStepGrowth", "cloudNoise", "cloudNoiseUntile", "cloudNoiseCurl", "cloudNoiseTier",
             "cloudNoiseDistanceLod", "cloudFineDetail", "cloudEntryRefinement", "cloudHashDither", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
             "cloudSunTint", "cloudMoonLights", "cloudAmbientTaps", "cloudAmbientReuse", "cloudLightCache", "cloudShadows", "cloudShadowQuality",
-            "cloudShadowFloor", "cloudReconMode", "cloudReconBlock"
+            "cloudShadowFloor", "cloudReconMode", "cloudReconBlock", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
         };
 
         private static Func<string, double> Defaults(params object[] pairs)

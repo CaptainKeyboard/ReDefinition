@@ -147,6 +147,8 @@ Shader "ReDefinition/AtmospheresLayers"
         #include "ReDefinitionAtmospheresNoise.cginc"
         // ---- far view (package T06: aerial perspective, the shape's mean over the noise at wide spacing) ----
         #include "ReDefinitionAtmospheresFarView.cginc"
+        // ---- height variation (package T13: base and top vary over the sky) ----
+        #include "ReDefinitionAtmospheresBaseHeight.cginc"
 
         // The largest amount the coverage noise moves the map value by: the shape value is 0 to 1, so the threshold moves by half the amount.
         float CoverageNoiseBound(int li)
@@ -174,7 +176,11 @@ Shader "ReDefinition/AtmospheresLayers"
             share = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
             share = (alt - inner) / (outer - inner);
-            if (share < 0 || share > 1) return 0;
+            // The height variation (T13) lets a base reach below the inner altitude and a top above the outer one, by the layer's reach.
+            bool heightOn = _LayerH2[li].y > 0;
+            float reachDown = heightOn ? HeightReachDown(li) / (outer - inner) : 0.0;
+            float reachUp = heightOn ? HeightReachUp(li) / (outer - inner) : 0.0;
+            if (share < -reachDown || share > 1 + reachUp) return 0;
             if (_CellA.w > 0) return li == 0 ? CellDensity(pc) : 0;   // the parity test cell (T03)
             float fade = 1.0;
             float fadeNear = _LayerC[li].x, fadeFar = _LayerC[li].y;
@@ -205,8 +211,16 @@ Shader "ReDefinition/AtmospheresLayers"
             float f = x2 - ta;
             float3 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
+            float erosionType = lerp(ia.z, ib.z, f);
+            if (heightOn)
+            {
+                float localBase, localTop;
+                HeightLocalBaseTop(li, pc, b, tp, erosionType, outer - inner, _LayerD[li].w, localBase, localTop);
+                b = localBase;
+                tp = localTop;
+            }
             if (share < b || share > tp || tp <= b) return 0;
-            erosion = lerp(ia.z, ib.z, f) * _LayerD[li].z;
+            erosion = erosionType * _LayerD[li].z;
             float coverage = _LayerB[li].y;
             float edge = max(_LayerB[li].z, 1e-4);
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
