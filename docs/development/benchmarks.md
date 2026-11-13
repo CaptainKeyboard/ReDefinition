@@ -100,6 +100,19 @@ over it. The numbers are for the RTX A4500 at the Medium profile.
 | `latency-brake` | the latency brake's target of 4, 2 and 1 ms with no, FSR and DLSS-G frame generation | 2 | 26 | 9 |
 | `blas` | how the acceleration structure build variants change the flight's first seconds | 9 | 18 | 21 |
 | `grass` | the radiance cache, the cut-out tests, the opacity micromaps and the raytracing modes over grass | 2 | 46 | 13 |
+| `weather-1` | what each settings switch of ReDefinition Atmospheres costs, first third | 4 | 68 | 21 |
+| `weather-2` | what each settings switch of ReDefinition Atmospheres costs, second third | 4 | 59 | 20 |
+| `weather-3` | what each settings switch of ReDefinition Atmospheres costs, last third | 4 | 65 | 21 |
+| `weather-4` | what the forecast overlay, the alert messages and the near-ground sea ice sheet cost | 1 | 17 | 5 |
+| `weather-5` | what the on/off and choice settings of the own cloud system cost | 2 | 59 | 16 |
+| `weather-6` | what the number settings and tuning keys of the own cloud system cost | 2 | 59 | 16 |
+| `weather-integration` | where the own cloud pass sits in the frame and what its Scatterer settings cost | 2 | 116 | 27 |
+| `weather-7` | what the cloud light fixes and the far view of the own clouds cost | 1 | 29 | 8 |
+| `weather-8` | what the wet overlay, the window droplets and the lightning cost in rain | 1 | 44 | 11 |
+| `weather-9` | what the cheap forms of the cloud entry refinement cost | 1 | 20 | 6 |
+| `weather-10` | what the cloud visibility culling and distance LOD save | 1 | 32 | 8 |
+| `weather-11` | what the raytracing pack of the own cloud layers costs | 1 | 11 | 4 |
+| `rt-weather` | what the weather's fog, reach cap and bounce reduction on the rays save | 1 | 14 | 5 |
 
 The table `cutout-oneoff` under [the comparison table](#the-comparison-table) is a one-off
 run from before the groups, with a matrix of its own. It has no group to run.
@@ -128,6 +141,52 @@ in the main matrix.
   of the frames that built 50 meshes or more. A variant that spreads the builds over more
   frames, like `rtBlasBudget`, shows fewer of them.
 * `grass` runs on two scenes, the launch pad and a field of grass.
+* `weather-1`, `weather-2` and `weather-3` split the settings switches of ReDefinition
+  Atmospheres into three groups of starts of at most 20 minutes. Each switch has one
+  rendering: an on/off setting flipped from its default, a choice set to its first other
+  value. They run with FSR 3 at raytracing Off and no frame generation, with the weather
+  effects on except in the phase that turns them off. The settings reach the game as
+  `atmo.<key>` live keys of the probe.
+* `weather-4` measures the switches added after those three: the forecast map overlay, the
+  alert screen messages and the sea ice at the pad. The sea ice rows are the near-ground
+  sheet on, the sheet switched off by the tuning key `ice.groundOverlay` and its reach cut
+  from 80 km to 20 km with `ice.farKm`.
+* `weather-5` measures the on/off and choice settings of the own cloud system: each is
+  flipped from a base that draws the own system (`cloudSource Ours`, `ownClouds` on). The
+  rows are the switch off, a quality choice at Low, the entry refinement, the ambient taps
+  and the light cache, the refinement at the contours only, and the reconstruction at
+  Block and at Low.
+* `weather-6` measures the number settings and the tuning keys of the same system, each moved
+  from the same base: the layer cap, the step growth, the scattering octaves, the powder
+  term, the moon lights, the ambient tap reuse, the shadow floor, the reconstruction
+  blocks, the coverage bound, the light stride, the sun march cutoff, the empty-space leap
+  and the entry refinement budget.
+* `weather-integration` measures the tuning keys of the module that draws the own cloud pass
+  in the game: the camera event it sits at, the sun's reddening with Scatterer loaded and
+  whether Scatterer's command buffers are re-added every frame.
+* `weather-7` measures the cloud light and far view switches: the 9 km sun march against the
+  4 km base, the white balance, the diffusion decay, the far haze, the shape mean, the
+  minimum samples, the march policy and the map fade.
+* `weather-8` runs in forced rain (level 0.9) and measures the wet overlay, the window
+  droplets and the lightning: each off, the lightning at one stroke per second and at
+  brightness 0.5, and each lightning part off in turn (bolts, ground light, cloud flash,
+  thunder, the realistic thunder delay).
+* `weather-9` measures the two cheap forms of the cloud entry refinement against the base
+  with the refinement off: 2, 3 and 4 bisection steps, 3 steps at `cloudResolution 4`, and
+  the refinement restricted to the edge mask with 0 and 3 steps elsewhere. The full
+  refinement is the comparison row of `weather-5`.
+* `weather-10` measures the visibility culling and the distance LOD of the own clouds: each
+  of the seven switches alone, all together, and the skip pair and the whole group at
+  `cloudResolution 4`. The distance cut rows run with `cloudFarHaze` on.
+* `weather-11` runs at raytracing Full and measures the ray-side pack of the own cloud
+  layers: the switch off, on, and on with the layer cap at 1 and 2. The cost is the bake on
+  the main thread and the upload, and the frame cost with raytracing on.
+* `rt-weather` runs at raytracing Full with the weather forced to level 0.9 (a blizzard)
+  and measures what the weather does to the rays: the fog on the rays
+  (`mod.rtWeatherFog`), then one rendering each without the fog, with the reach capped to
+  three times the visibility (`mod.rtWeatherReachCap`), with one bounce fewer
+  (`mod.rtWeatherFewerBounces`) and with both reductions. The result is the saving in the
+  raytracing segment of the frame.
 
 The grass scene is `-redefinitionProbeGrass` (`src/Probe/SceneProbe.cs`). The probe does
 not start the flight on the pad. It puts a command pod on the ground at the first place,
