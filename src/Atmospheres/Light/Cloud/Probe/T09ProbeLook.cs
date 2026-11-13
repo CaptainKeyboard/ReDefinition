@@ -25,7 +25,7 @@ namespace ReDefinition.Atmospheres
         // The shift of the second frame of a set (the plan: each set at shift 0 and -0.08).
         private const float LookShift = -0.08f;
         // The seconds the maps need to slew to a new type value (the slew limit is 0.08 a second, the type values move by at most 0.25).
-        private const double LookTypeSettleS = 6.0;
+        private const double LookTypeSettleS = 6.0, LookMapSettleS = 2.0;
         // The horizon pose of look B: 200 m up, 2 degrees above the horizontal.
         internal static readonly View HorizonView = new View { Name = "horizon", AglM = 200.0, PitchDeg = 2.0, HeadingDeg = 90.0, CameraDistM = 100.0 };
         // The distances (km) along the view at which the layer maps are read.
@@ -130,10 +130,10 @@ namespace ReDefinition.Atmospheres
         }
 
         // One frame under the forced keys: settle, expectation, read.
-        private IEnumerable<ProbeWait> LookFrame(View view, string cover, string head, string frame, T09Readout.Reading off, bool typeWait)
+        private IEnumerable<ProbeWait> LookFrame(View view, string cover, string head, string frame, T09Readout.Reading off, double extraWaitS)
         {
             yield return ProbeWait.Frames(DiagSettleFrames);
-            if (typeWait) yield return ProbeWait.Seconds(LookTypeSettleS);
+            if (extraWaitS > 0.0) yield return ProbeWait.Seconds(extraWaitS);
             EmitLookExpectation(head, frame, view, Game.ReadLookInput());
             foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
         }
@@ -157,11 +157,16 @@ namespace ReDefinition.Atmospheres
                 int sheet = SheetLayer(input);
                 if (sheet >= 0) EmitText(head + "sheet_layer", input.Layers[sheet].Name);
             }
+            // The maps and types of the pass move when the forced key set changes what they hold (the module snaps them in the frame after a look-knob change; the wait covers the
+            // round and the upload). A frame whose set leaves the types alone still waits where the set before it changed them.
+            bool typesChanged = false;
             foreach (LookSet set in LookSelected())
                 foreach (bool shifted in new[] { false, true })
                 {
                     ApplyLookKeys(set, shifted ? LookShift : 0f);
-                    foreach (ProbeWait w in LookFrame(view, cover, head, FrameTag(set, shifted), off, set.ChangesTypes)) yield return w;
+                    double wait = set.ChangesTypes ? LookTypeSettleS : typesChanged ? LookMapSettleS : 0.0;
+                    typesChanged = set.ChangesTypes;
+                    foreach (ProbeWait w in LookFrame(view, cover, head, FrameTag(set, shifted), off, wait)) yield return w;
                 }
             // The map of the sheet layer forced to its value at the vessel, everywhere: if the frame then shows the closed share the oracle expects, the map varied over the view; if
             // it still shows a sheet, the pass differs from the CPU.
@@ -173,7 +178,7 @@ namespace ReDefinition.Atmospheres
                     ClearForced();
                     ForceTuning(CloudLookTuning.TuneMapOverride + input.Layers[sheet].Name, (float)input.Cover[sheet]);
                     Emit(head + "kovr.forced_map", input.Cover[sheet]);
-                    foreach (ProbeWait w in LookFrame(view, cover, head, "kovr", off, false)) yield return w;
+                    foreach (ProbeWait w in LookFrame(view, cover, head, "kovr", off, LookMapSettleS)) yield return w;
                 }
             }
             ClearForced();
@@ -187,6 +192,7 @@ namespace ReDefinition.Atmospheres
                 Game.SetLayerMask(1 << k);
                 yield return ProbeWait.Frames(DiagSettleFrames);
                 if (win.ChangesTypes) yield return ProbeWait.Seconds(LookTypeSettleS);
+                else if (k == 0) yield return ProbeWait.Seconds(LookMapSettleS);
                 foreach (ProbeWait w in DiagTake(view, cover, "w" + win.Tag + "o" + k.ToString(CultureInfo.InvariantCulture), false, off)) yield return w;
             }
             Game.SetLayerMask(0);
@@ -195,7 +201,7 @@ namespace ReDefinition.Atmospheres
             {
                 ClearForced();
                 if (rain != 0f) ForceTuning(CloudCoverShift.TuneShiftRain, rain);
-                foreach (ProbeWait w in LookFrame(view, cover, head, rain == 0f ? "q50" : "q42", off, false)) yield return w;
+                foreach (ProbeWait w in LookFrame(view, cover, head, rain == 0f ? "q50" : "q42", off, LookMapSettleS)) yield return w;
             }
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);

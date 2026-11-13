@@ -543,7 +543,7 @@ namespace ReDefinition.Atmospheres
             long lookStamp = CloudLookTuning.Stamp;
             if (lookStamp != lookStampSeen)
             {
-                if (lookStampSeen >= 0) forceMaps = true;
+                if (lookStampSeen >= 0) { forceMaps = true; snapMaps = true; }
                 lookStampSeen = lookStamp;
             }
             if (fetchStep < 0 && OwnCloudPlan.Due(now, nextMaps, OwnCloudPlan.MapIntervalS, forceMaps))

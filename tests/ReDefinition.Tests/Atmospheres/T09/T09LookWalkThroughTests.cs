@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
@@ -78,6 +79,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // 3 pairs x (off + 6 set frames + forced map) + ground x 2 covers x (4 layers + 2 rain frames) + the rain deck from inside and above (2 x 2).
             Assert.AreEqual(3 * 8 + 2 * 6 + 4, r.World.Saved.Count, string.Join(",", r.World.Saved.Take(6).ToArray()));
             Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
+        }
+
+        [TestMethod]
+        public void LookAWaitsForTheMapsAfterEveryChangeOfTheForcedKeysThatTouchesMapsOrTypes()
+        {
+            Run r = StartLook("A", "C0,C1,C2");
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            List<double> since = r.World.LookReadSinceChangeS;
+            Assert.IsTrue(since.Count >= 8, "reads " + since.Count);
+            // Reads of the first pair: 0 the input, then kC0, kC0m8, kC1, kC1m8, kC2, kC2m8, kovr. The types move with C1 (the humilis type value) and back with C2's clear; the forced
+            // sheet map is a map change: each of these frames reads after the maps have snapped or slewed (the module snaps on a look-knob change; the wait covers its round).
+            foreach (int i in new[] { 3, 4, 5, 7 })
+                Assert.IsTrue(since[i] >= 2.0, "read " + i + " came " + since[i].ToString("0.00") + " s after the last change of the keys");
         }
 
         [TestMethod]

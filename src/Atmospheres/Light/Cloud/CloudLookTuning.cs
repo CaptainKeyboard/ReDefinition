@@ -37,8 +37,8 @@ namespace ReDefinition.Atmospheres
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeOverrideByName = new Dictionary<string, float>(StringComparer.Ordinal);
-        // The per-layer factors (cloud.layerSigmaScale.<name> and the three like it), multiplied with the general ones.
         private static readonly Dictionary<string, float> MapOverrideByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        // The per-layer factors (cloud.layerSigmaScale.<name> and the three like it), multiplied with the general ones.
         private static readonly Dictionary<string, float> SigmaByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> SoftnessByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> NoiseAmountByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -60,12 +60,13 @@ namespace ReDefinition.Atmospheres
         private static void Refresh()
         {
             long version = Tuning.Version;
-            if (version == seenVersion) return;
+            if (version == System.Threading.Volatile.Read(ref seenVersion)) return;
             lock (Gate)
             {
                 if (version == seenVersion) return;
-                seenVersion = version;
                 Load();
+                // Published after the load: a reader that sees the new version sees the loaded values.
+                System.Threading.Volatile.Write(ref seenVersion, version);
             }
         }
 

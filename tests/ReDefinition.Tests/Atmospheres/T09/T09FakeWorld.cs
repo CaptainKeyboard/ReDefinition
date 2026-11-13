@@ -237,6 +237,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // One frame of the game: time, the clock, the scene state the game itself keeps and the counters of the cloud module.
         internal void Advance(double dt)
         {
+            NoteTuningChange();
             RealS += dt;
             Frames++;
             Ut += dt * TimeScale;
@@ -246,6 +247,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
             if (RealisticHold && FlightReady) StepRealisticHold(dt);
             if (FlightReady) StepCamera(dt);
             Tuning.Instance.BeginFrame(Frames);
+        }
+
+        // The real seconds between the last change of the tuning table and each read of the look input (a stale map or type reaches the oracle's expectation without a wait).
+        internal readonly List<double> LookReadSinceChangeS = new List<double>();
+        private long lastTuningVersion = -1;
+        private double lastTuningChangeS;
+
+        private void NoteTuningChange()
+        {
+            long v = Tuning.Version;
+            if (v == lastTuningVersion) return;
+            lastTuningVersion = v;
+            lastTuningChangeS = RealS;
         }
 
         // The aim the commands lead to (degrees), with the mode's frame, and the lag towards it.
@@ -594,6 +608,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public T09LookInput ReadLookInput()
         {
             LookInputReads++;
+            NoteTuningChange();
+            LookReadSinceChangeS.Add(RealS - lastTuningChangeS);
             if (LookInputOff) return null;
             CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
             var input = new T09LookInput
