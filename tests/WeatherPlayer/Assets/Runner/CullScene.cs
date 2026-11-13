@@ -26,6 +26,9 @@ namespace ReDefinition.WeatherPlayer
         public bool Skip, Closed, Cut, Growth, Tap, Detail, Haze, Mean;
         public float CapKm;
         public int Tests = 7;
+        // The numbers of the switches (CullSettings' compiled values unless a sweep variant names others).
+        public float GrowthPerM = 4e-5f, TapStartM = 20000f, TapEndM = 120000f, TapFactor = 3f, FootScale = 1.5f;
+        public int CapKeep = 2;
         public ReconMode Mode = ReconMode.Full;
         public int Block = 4;
 
@@ -45,6 +48,12 @@ namespace ReDefinition.WeatherPlayer
             c.DetailLod = Detail;
             c.CapDistanceM = CapKm * 1000f;
             c.Tests = Tests;
+            c.StepGrowthPerM = GrowthPerM;
+            c.TapStartM = TapStartM;
+            c.TapEndM = TapEndM;
+            c.TapFactor = TapFactor;
+            c.FootScale = FootScale;
+            c.CapKeepSpans = CapKeep;
             f.Far.Haze = Haze || Cut;
             // A measurement lever: the Earth coefficients leave a layer at 60 km with a weight above 0.5, so the distance cut could never act; the haze rows use
             // eight times the optical depth (a dusty or thick atmosphere), the same for the baseline and the switch.
@@ -89,6 +98,12 @@ namespace ReDefinition.WeatherPlayer
                     v.CapKm = 100f;
                 }));
             }
+            // Sweep 1 of the constants (full mode only): stronger growth, nearer and stronger tap LOD, a coarser detail footprint, a nearer cap with one span kept.
+            list.Add(Make("growth2", "off", false, v => { v.Growth = true; v.GrowthPerM = 4e-4f; }));
+            list.Add(Make("growth3", "off", false, v => { v.Growth = true; v.GrowthPerM = 1.6e-3f; }));
+            list.Add(Make("tap2", "off", false, v => { v.Tap = true; v.TapStartM = 3000f; v.TapEndM = 15000f; v.TapFactor = 5f; }));
+            list.Add(Make("detail2", "mean", false, v => { v.Detail = true; v.FootScale = 6f; }));
+            list.Add(Make("cap2", "off", false, v => { v.CapKm = 20f; v.CapKeep = 1; }));
             return list;
         }
 
@@ -314,6 +329,14 @@ namespace ReDefinition.WeatherPlayer
                 rig.Pose(Cam, 0f, Vector3.zero);
                 int layerCount = job.layers.Length;
                 var full = new ReconSettings { Mode = ReconMode.Full };
+                // The noise volumes are made over the first frames: render until they are done before the reference is taken.
+                CullVariant.Named("off").Apply(rig.Frame);
+                for (int w = 0; w < 40; w++)
+                {
+                    rig.Recon.Reset();
+                    EdgeKit.Render(Cam, rig, full, 3000 + w);
+                    yield return null;
+                }
                 // The reference: the mean of four full marches without any switch (the baselines with their own haze or shape mean are references of their own).
                 var refs = new Dictionary<string, KeyValuePair<float[], float[]>>();
                 foreach (string baseName in new[] { "off", "haze", "mean", "hm" })
@@ -531,7 +554,9 @@ namespace ReDefinition.WeatherPlayer
                 new Path3 { Name = "sky3turn", Job = "V-sky3", Frames = 120, Yaw = i => i * 3f },
             };
             var variants = new List<CullVariant>();
-            foreach (CullVariant v in CullVariant.Table()) if (v.Mode == ReconMode.Full) variants.Add(v);
+            // The levers haze, mean and hm are baselines of other variants, not switches: they move the picture on purpose.
+            foreach (CullVariant v in CullVariant.Table())
+                if (v.Mode == ReconMode.Full && v.Name != "haze" && v.Name != "mean" && v.Name != "hm") variants.Add(v);
             var full = new ReconSettings { Mode = ReconMode.Full };
             var dOff = new float[pixels];
             var aOff = new float[pixels];
@@ -546,6 +571,16 @@ namespace ReDefinition.WeatherPlayer
                 rig.Load(job, input);
                 rig.Frame.UseProductCost();
                 Vector3 pos0 = LayersSetup.V(job.position);
+                // The noise volumes and the height maps are made over the first frames: render until they are done, or the baseline (rendered first) differs from
+                // the variants (rendered later) by the unfinished volumes and not by a switch.
+                for (int w = 0; w < 40; w++)
+                {
+                    Place(rig, job, path, pos0, 0);
+                    CullVariant.Named("off").Apply(rig.Frame);
+                    rig.Recon.Reset();
+                    EdgeKit.Render(Cam, rig, full, 3000 + w);
+                    yield return null;
+                }
                 // Per frame the baseline luminance, then for each variant its own and the largest added change.
                 var baselines = new Dictionary<string, float[][]>();
                 foreach (CullVariant v in variants)

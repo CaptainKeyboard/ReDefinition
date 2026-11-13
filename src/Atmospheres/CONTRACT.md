@@ -189,7 +189,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | `cloudStepGrowth` | off | on / off | Cloud Step Growth With Distance | needs-own-clouds | volume |
 | `cloudTapLod` | off | on / off | Cloud Light Taps By Distance | needs-own-clouds | volume |
 | `cloudDetailLod` | off | on / off | Cloud Detail By Distance | needs-own-clouds | volume |
-| `cloudLayerCapDistance` | 0 | 0 to 400 (km) | Cloud Layer Cap Distance (km) | needs-own-clouds | volume |
+| `cloudLayerCapDistance` | 0 | 0 to 400 (km) | Cloud Layer Cap Distance In Km | needs-own-clouds | volume |
 | `cloudHashDither` | on | on / off | Cloud White Dither | needs-own-clouds | - |
 | `cloudLightQuality` | High | Low / Medium / High | Cloud Light Quality | needs-own-clouds | volume |
 | `cloudLightOctaves` | 4 | 1 to 4 | Cloud Scattering Octaves | needs-own-clouds | - |

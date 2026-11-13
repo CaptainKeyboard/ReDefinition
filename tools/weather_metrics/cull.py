@@ -50,7 +50,9 @@ NAN = float("nan")
 VIEWS = ("ground", "inside", "above", "orbit-edge", "sky3", "horizon", "stack-below")
 # (switch, baseline): the first column of every comparison.
 PAIRS = (("skip", "off"), ("skipG", "off"), ("skipT", "off"), ("skipM", "off"), ("closed", "off"), ("cut", "haze"), ("growth", "off"), ("tap", "off"),
-         ("detail", "mean"), ("cap", "off"), ("all", "hm"))
+         ("detail", "mean"), ("cap", "off"), ("all", "hm"),
+         # Sweep 1 of the constants (full mode only): stronger growth, nearer and stronger tap LOD, a coarser detail footprint, a nearer cap with one span kept.
+         ("growth2", "off"), ("growth3", "off"), ("tap2", "off"), ("detail2", "mean"), ("cap2", "off"))
 EXACT = ("skip", "skipG", "skipT", "skipM", "closed")
 SIZE = "1707x960"
 LIMIT_ALL, LIMIT_USEFUL, USEFUL_VIEWS, ALL_VIEWS = 0.70, 0.90, 2, 3

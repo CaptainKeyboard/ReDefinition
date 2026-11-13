@@ -180,7 +180,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("cloudStepGrowth", false, CL, "Cloud Step Growth With Distance", OWN, RV),
                 SettingDef.Bool("cloudTapLod", false, CL, "Cloud Light Taps By Distance", OWN, RV),
                 SettingDef.Bool("cloudDetailLod", false, CL, "Cloud Detail By Distance", OWN, RV),
-                SettingDef.Int("cloudLayerCapDistance", 0, 0, 400, CL, "Cloud Layer Cap Distance (km)", OWN, RV),
+                SettingDef.Int("cloudLayerCapDistance", 0, 0, 400, CL, "Cloud Layer Cap Distance In Km", OWN, RV),
                 SettingDef.Bool("cloudHashDither", true, CL, "Cloud White Dither", OWN),
 
                 // The light (T03)

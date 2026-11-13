@@ -1,0 +1,18 @@
+{
+  "$schema": "../schema.json",
+  "package": "T16",
+  "rows": [
+    { "series": "player-T16", "section": "T16", "metric": "cull16.tile_ms.sky3.skip.1707x960", "max": 0.1, "unit": "ms", "note": "brief: the skip map itself costs 0.1 ms at most; measured 0.012 ms (tile pass, 16 x 16 pixels, 8 x 8 depth taps)" },
+    { "series": "player-T16", "section": "T16", "metric": "cull16.tile_ms.sky3.all.1707x960", "max": 0.1, "unit": "ms", "note": "the tile pass inside the all-on variant; measured 0.014 ms" },
+    { "series": "player-T16", "section": "T16", "metric": "cullq16.above.skip.ab_changed", "max": 0.002, "note": "cloudSkipEmpty claims to be exact: share of pixels that differ by more than 0.5 percent from the same frame without it; measured 0 on all seven views" },
+    { "series": "player-T16", "section": "T16", "metric": "cullq16.orbit-edge.skip.ab_changed", "max": 0.002, "note": "the view where 71 percent of the tiles are dropped (rays that miss the shells); measured 0" },
+    { "series": "player-T16", "section": "T16", "metric": "cullq16.orbit-edge.skip.cloud_lost", "max": 0.0005, "note": "share of pixels that lose more than 1 percent of alpha against the same frame without the skip; measured 0" },
+    { "series": "player-T16", "section": "T16", "metric": "cullq16.stack-below.closed.cloud_lost", "max": 0.0005, "note": "cloudSkipClosed claims to be exact; measured 0 (it never fires in these views)" },
+    { "series": "player-T16", "section": "T16", "metric": "cullsweep16.altitude.skip.pop", "max": 0.03, "note": "brief: at most 3 percent per frame added to the baseline's own change (largest 16 x 16 block); measured 0" },
+    { "series": "player-T16", "section": "T16", "metric": "cullsweep16.altitude.all.pop", "max": 0.03, "note": "all switches on (haze 8x); measured 0.027 (within the limit)" },
+    { "series": "player-T16", "section": "T16", "metric": "cullsweep16.altitude.growth2.pop", "max": 0.03, "note": "sweep 1 constant (growth 4e-4 per m): measured 0.07 to 0.19, FAILS, kept as the evidence that stronger step growth pops" },
+    { "series": "player-T16", "section": "T16", "metric": "cull16.ratio.ground.all.1707x960", "max": 0.7, "note": "C1: all switches vs the same view with the same haze and shape mean must cost at most 0.70 of it on at least 3 of 7 views; measured 0.88 (ground), 0.93 (above), 0.94 to 1.01 elsewhere: FAILS, kept as the acceptance row" },
+    { "series": "player-T16", "section": "T16", "metric": "cull16.ratio.stack-below.skip.1707x960", "max": 0.9, "note": "C1b: a switch counts as useful at 0.90 or less on 2 views; cloudSkipEmpty measured 1.00 (the rays it drops are the rays that were already nearly free)" },
+    { "series": "player-T16", "section": "T16", "metric": "lv16.ratio.V-ground.turn12.u4all.ghost_move", "max": 1.2, "note": "C5: ghosting of the 4 x 4 block mode with all switches vs without them (same haze and mean), brief: baseline + 20 percent; measured 1.01" }
+  ]
+}
