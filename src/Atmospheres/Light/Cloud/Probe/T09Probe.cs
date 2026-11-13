@@ -403,8 +403,19 @@ namespace ReDefinition.Atmospheres
                     foreach (View view in Views)
                     {
                         if (!Measured(variant, view)) continue;
+                        if (!IsDiag && view.Name == "orbit_edge" && orbitEdgeFailedIn != null)
+                        {
+                            // Its placement failed once (4 attempts of about a minute): the later variants do not spend the scenario's minutes on it again.
+                            LogLine("Probe: info orbit_edge skipped in " + variant + " (its placement failed in " + orbitEdgeFailedIn + ")");
+                            EmitText("T09.info.orbit_edge_skipped_" + variant, "placement failed in " + orbitEdgeFailedIn);
+                            continue;
+                        }
                         foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
-                        if (!placeOk) continue;
+                        if (!placeOk)
+                        {
+                            if (view.Name == "orbit_edge" && orbitEdgeFailedIn == null) orbitEdgeFailedIn = variant;
+                            continue;
+                        }
                         foreach (ProbeWait w in StableGate(view, variant)) yield return w;
                         foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
@@ -837,6 +848,8 @@ namespace ReDefinition.Atmospheres
         // --- Placement --------------------------------------------------------------------------------------------------------------------
 
         private bool placeOk;
+        // The variant in which the orbit_edge view could not be placed (the later variants leave it out), or null.
+        private string orbitEdgeFailedIn;
         private double wantedAltitude, wantedPitch;
 
         // Place, then check that the vessel is at the height asked for (within 2 percent, at least 5 m) and the camera looks where asked (within

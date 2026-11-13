@@ -550,6 +550,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
+        public void AnOrbitViewThatCannotBePlacedIsTriedInTheFirstVariantOnlyAndSkippedNamedInTheLaterOnes()
+        {
+            Run r = Start(new[] { "off", "plain", "recon4" }, x => x.World.PlaceResult = (call, wanted) => wanted > 100000.0 ? x.World.Altitude : wanted);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith("T09.pose_placed_orbit_edge_off")), r.Joined);
+            Assert.AreEqual(4, r.Log.Count(l => l.StartsWith("T09 view placed: orbit_edge attempt")), "four attempts, in the first variant only");
+            Assert.IsFalse(r.Probe.Failures.Any(f => f.StartsWith("T09.pose_placed_orbit_edge_plain") || f.StartsWith("T09.pose_placed_orbit_edge_recon4")), r.Joined);
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: info orbit_edge skipped in plain")) && r.Log.Any(l => l.StartsWith("Probe: info orbit_edge skipped in recon4")), Dump(r));
+            Assert.AreEqual(1, Values(r, "T09.info.orbit_edge_skipped_plain").Count);
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 view begin: ground recon4")), "the later variants still measure the other views");
+            AssertNoUnhandled(r);
+        }
+
+        [TestMethod]
         public void AVesselPlacedAtTheWrongHeightFailsNamedWithBothValues()
         {
             Run r = Start(new[] { "plain" }, x => x.World.PlaceResult = (call, wanted) => wanted + 500.0);
