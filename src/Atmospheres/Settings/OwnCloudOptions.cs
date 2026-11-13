@@ -225,7 +225,7 @@ namespace ReDefinition.Atmospheres
             return On(v, AtmospheresSettings.Keys.CloudFarMapFade);
         }
 
-        // T05, T14: the reconstruction. The slider cloudResolution is the level: 1 marches every pixel every frame (the default, ReconMode.Full), 2 to 4 march one
+        // T05, T14: the reconstruction. The slider cloudResolution is the level: 1 marches the half-size target of the plain pass (the default, ReconMode.Full; LayerFrame.Resolution), 2 to 4 march one
         // pixel of every 2 x 2, 3 x 3 or 4 x 4 block (ReconMode.Block). The mode setting's Low (prototype B, a smaller march target) overrides the slider.
         internal static void Apply(ReconSettings s, Func<string, double> v)
         {

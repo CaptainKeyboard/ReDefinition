@@ -57,6 +57,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // relative to the surface between two sets; and the game hitches (a frame of HitchS seconds every HitchEveryS seconds, the physics running its steps meanwhile,
         // no per-frame tick in between). Physics steps are PhysicsDt long, the hold's FixedTick runs before each.
         internal double ComOffsetM = 9.35, GravityMS2 = 9.8, ResidualEastMS = 175.0, HitchEveryS, HitchS = 0.7, PhysicsDt = 0.02;
+        internal int ReadFreezeAtFrame = -1, ReadFreezeFrames;
+        internal double ReadFreezeBiasM = 12.0;
+        private bool frozenRead;
+        private double frozenAlt, frozenEast;
         private T09Hold hold;
         private double comAlt = 70.0, comEastM, vAlt, physicsAccumulator, nextHitchAtS = double.NaN;
         // The sets the game has not applied yet: the physics step (frame) from which each counts, the transform altitude and east position it moves to.
@@ -84,6 +88,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 alt = h[0];
                 east = h[1];
             }
+            // K-T2 start 46 (above, plain): the hold's read stood within 2 m of the point for 470 frames while the command wandered to 278 m off the target, so the read did not
+            // follow the vessel. ReadFreezeAtFrame / ReadFreezeFrames: from that frame on the read stays where it was, ReadFreezeBiasM higher.
+            if (ReadFreezeAtFrame >= 0 && Frames >= ReadFreezeAtFrame && Frames < ReadFreezeAtFrame + ReadFreezeFrames)
+            {
+                if (!frozenRead) { frozenRead = true; frozenAlt = alt + ReadFreezeBiasM; frozenEast = east; }
+                alt = frozenAlt;
+                east = frozenEast;
+            }
+            else frozenRead = false;
             lon = SiteLon + east / MetresPerDegree;
         }
 

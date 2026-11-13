@@ -29,7 +29,7 @@ namespace ReDefinition.Atmospheres
             return r;
         }
 
-        // The levels of the resolution slider (T14): 1 is every pixel every frame, N in 2 to MaxLevel the N x N block. BlockOffset has a stride for these only
+        // The levels of the resolution slider (T14): 1 is the plain pass (its half-size march target, LayerFrame.Resolution), N in 2 to MaxLevel the N x N block of the full-size picture. BlockOffset has a stride for these only
         // (a stride coprime with N * N that sends neighbouring frames far apart); a larger block would walk in raster order and is not offered.
         internal const int MaxLevel = 4;
 

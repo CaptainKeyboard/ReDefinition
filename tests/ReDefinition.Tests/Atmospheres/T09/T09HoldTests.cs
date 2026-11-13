@@ -29,13 +29,18 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // the frames from the moment the hold reports itself stable.
         private static double PlaceAndRun(FakeWorld w, int frames, out int stableAt, out double finalM)
         {
+            return PlaceAndRun(w, frames, out stableAt, Frame, out finalM);
+        }
+
+        private static double PlaceAndRun(FakeWorld w, int frames, out int stableAt, double frameSeconds, out double finalM)
+        {
             w.PlaceVessel(w.SiteLat, w.SiteLon, Target);
             w.StartHold();
             double worst = 0.0;
             stableAt = -1;
             for (int i = 0; i < frames; i++)
             {
-                w.Advance(Frame);
+                w.Advance(frameSeconds);
                 if (stableAt < 0 && w.HoldStable) stableAt = i;
                 if (stableAt >= 0) worst = Math.Max(worst, w.TrueDistanceM(Target));
             }
@@ -96,6 +101,39 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsFalse(w.HoldReached, "not reached: " + w.HoldStatus);
             Assert.IsFalse(w.HoldStable);
             Assert.IsTrue(w.HoldStatus.Contains("not reached"), w.HoldStatus);
+        }
+
+        [TestMethod]
+        public void SlowFramesWithTwoPhysicsStepsEachKeepTheVesselOnTheTarget()
+        {
+            // K-T2 start 46: the windows with the own pass ran at 45 to 52 fps, a frame about as long as a physics step (20 ms) or two of them.
+            foreach (double frame in new[] { 0.0222, 0.03, 0.04 })
+            {
+                FakeWorld w = NewWorld(x => { x.ReadLagFrames = 1; x.PlaceDelayFrames = 1; });
+                int stableAt;
+                double finalM;
+                double worst = PlaceAndRun(w, 600, out stableAt, frame, out finalM);
+                Assert.IsTrue(stableAt >= 0, "frame " + frame + ": stable");
+                Assert.IsTrue(worst <= 6.0 && finalM <= 6.0, "frame " + frame + ": worst " + worst.ToString("0.0") + " m, final " + finalM.ToString("0.0") + " m");
+            }
+        }
+
+        [TestMethod]
+        public void AReadThatStopsFollowingTheVesselDoesNotWindTheCommandUpOffTheTarget()
+        {
+            // K-T2 start 46, above, plain: the read stood within 2 m of the point for 470 frames while corrections moved the command to 278 m off the target and the vessel
+            // went with it. The fake freezes the read 12 m off for 400 frames: the hold may try, then must not go on adding to the command beyond its limit (plus the centre of mass's 9 m).
+            FakeWorld w = NewWorld(x => { x.ReadLagFrames = 1; x.PlaceDelayFrames = 1; x.ReadFreezeAtFrame = 150; x.ReadFreezeFrames = 400; });
+            w.PlaceVessel(w.SiteLat, w.SiteLon, Target);
+            w.StartHold();
+            double worst = 0.0;
+            for (int i = 0; i < 700; i++)
+            {
+                w.Advance(0.0222);
+                if (i > 150) worst = Math.Max(worst, w.TrueDistanceM(Target));
+            }
+            Assert.IsTrue(worst <= T09Hold.CommandLimitM + 15.0, "the vessel left the target by " + worst.ToString("0.0") + " m while the read stood still; corrections " + w.HoldCorrections);
+            Assert.IsTrue(w.TrueDistanceM(Target) <= 6.0, "and is back on it after the read follows again: " + w.TrueDistanceM(Target).ToString("0.0") + " m");
         }
 
         [TestMethod]

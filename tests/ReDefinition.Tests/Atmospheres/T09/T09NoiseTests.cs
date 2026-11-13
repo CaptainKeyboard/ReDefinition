@@ -147,6 +147,66 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
+        public void AChangeOfTheWholePicturesBrightnessIsNotFlickerAndAFixedRegionIsUsedAsGiven()
+        {
+            const int w = 80, h = 60;
+            Color[] baseline = Fill(w, h, (x, y) => 0.6f);
+            Color[] baseline2 = Fill(w, h, (x, y) => 0.6f);
+            // K-T2 start 46, ground: a smooth deck whose brightness changed by 15 percent between the two frames (the weather writer's sun factor 0.85 to 1.0), grain 0.004.
+            Color[] a = Fill(w, h, (x, y) => 0.2f + ((x + y) % 2 == 0 ? 0.004f : -0.004f));
+            Color[] b = Fill(w, h, (x, y) => 1.15f * (0.2f + ((x + y) % 2 == 0 ? -0.004f : 0.004f)));
+            T09Readout.NoiseReading n = T09Readout.Noise(baseline, baseline2, a, b, w, h);
+            Assert.AreEqual(1.15, n.GainAB, 1e-3);
+            Assert.AreEqual(0.2 * 0.15, n.FlickerRaw, 0.004, "without the scaling the 15 percent change is read as flicker (" + n.FlickerRaw + ")");
+            Assert.AreEqual(0.008, n.Flicker, 5e-4, "scaled, only the grain's flip of 0.008 is left (" + n.Flicker + ")");
+
+            // The same frames over a region of its own choosing: the left half only. The reading is over exactly those pixels.
+            var half = new bool[w * h];
+            for (int y = 0; y < h; y++) for (int x = 0; x < w / 2; x++) half[y * w + x] = true;
+            T09Readout.NoiseReading fixedRead = T09Readout.Noise(baseline, baseline2, a, b, w, h, half);
+            Assert.IsTrue(fixedRead.Count > 0 && fixedRead.Count < n.Count, "a region of " + fixedRead.Count + " px against " + n.Count);
+            for (int i = 0; i < half.Length; i++) Assert.IsTrue(!fixedRead.Region[i] || half[i], "the fixed region is not widened at pixel " + i);
+            // A frame that equals the baseline still has pixels in a fixed region: the region is not derived from it.
+            T09Readout.NoiseReading same = T09Readout.Noise(baseline, baseline2, baseline, baseline, w, h, half);
+            Assert.IsTrue(same.Count > 0 && same.Flicker == 0.0);
+            try { T09Readout.Noise(baseline, baseline2, a, b, w, h, new bool[5]); Assert.Fail("a region of another size is refused"); }
+            catch (ArgumentException) { }
+        }
+
+        [TestMethod]
+        public void TheGainIsReadOffTheSunColourOverTheScenesSunSoTheWeatherWritersDimmingDoesNotCount()
+        {
+            // K-T2 start 46: the same gain 2 read 2.263 and 5.221 because the scene's sun was 0.85 of itself at the first read and 0.98 at the second.
+            var f = new LayerFrame();
+            f.OutputWhite = 1.0f * 0.85f;
+            f.SunColour = new Color(1f, 1f, 1f, 1f) * (3.14159f * 1f * 0.85f);
+            float baseRead = T09Probe.PassSunPerSceneSun(f);
+            f.OutputWhite = 0.98f;
+            f.SunColour = new Color(1f, 1f, 1f, 1f) * (3.14159f * 2f * 0.98f);
+            float doubled = T09Probe.PassSunPerSceneSun(f);
+            Assert.AreEqual(2.0, doubled / baseRead, 1e-3);
+        }
+
+        [TestMethod]
+        public void TheLevelsOfAViewAreReadOverTheRegionOfThePlainPass()
+        {
+            Run r = NoiseRun();
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            foreach (string view in new[] { "ground", "above" })
+            {
+                string p = "T09.noise." + view + ".";
+                Assert.AreEqual(0.0, Number(r, p + "region_fixed", "plain"), view + ": plain defines the region");
+                double fraction = Number(r, p + "region_fraction", "plain");
+                foreach (string v in new[] { "recon2", "recon3", "recon4" })
+                {
+                    Assert.AreEqual(1.0, Number(r, p + "region_fixed", v), view + " " + v + ": the plain pass's region");
+                    Assert.AreEqual(fraction, Number(r, p + "region_fraction", v), 1e-9, view + " " + v + ": the same pixels");
+                    Assert.IsTrue(Number(r, p + "flicker_raw", v) >= 0.0 && Number(r, p + "gain_ab", v) > 0.0);
+                }
+            }
+        }
+
+        [TestMethod]
         public void TheReadoutMeasuresFlickerFloorAndGrainOnKnownFrames()
         {
             const int w = 80, h = 60;

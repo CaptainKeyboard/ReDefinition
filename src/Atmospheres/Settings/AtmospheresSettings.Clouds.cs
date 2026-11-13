@@ -174,8 +174,10 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Choice("cloudShadowQuality", typeof(CloudDetailLevel), CloudDetailLevel.Medium, CL, "Cloud Shadow Quality", SHADOW, RV),
                 SettingDef.Float("cloudShadowFloor", 0.0, 0.0, 1.0, CL, "Cloud Shadow Floor", SHADOW),
 
-                // The temporal reconstruction (T05) and the resolution slider (T14): level 1 marches every pixel every frame, 2 to 4 march one pixel of every
-                // 2 x 2, 3 x 3 or 4 x 4 block per frame; 1 (full resolution) until the owner agrees to a lower level. The mode's Low is prototype B and
+                // The temporal reconstruction (T05) and the resolution slider (T14): level 1 marches the half-size target every frame (LayerFrame.Resolution 0.5: a
+                // quarter of the screen's pixels, stretched by the depth-aware composite), 2 to 4 march one pixel of every 2 x 2, 3 x 3 or 4 x 4 block of the full-size
+                // picture per frame, so level 2 marches as many pixels as level 1 (K-T2 start 46: recon2 costs 1.05 of plain) and 3 and 4 a ninth and a sixteenth;
+                // 1 until the owner agrees to a lower level. The mode's Low is prototype B and
                 // overrides the slider. The tier mapping is open for the owner (TierRows.NotSet).
                 SettingDef.Choice("cloudReconMode", typeof(ReconMode), ReconMode.Full, CL, "Cloud Reconstruction", OWN),
                 SettingDef.Int("cloudResolution", 1, 1, 4, CL, "Cloud Resolution", OWN, RV),

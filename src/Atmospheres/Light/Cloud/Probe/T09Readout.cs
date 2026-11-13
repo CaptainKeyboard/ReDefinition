@@ -128,8 +128,15 @@ namespace ReDefinition.Atmospheres
             // The mean luminance of frame a in the region (the scale the other numbers are read against).
             internal double MeanLuma;
             // Flicker: the mean absolute difference of luminance between a and b over the region (what shimmers from one frame to the next), and the same between the two
-            // baseline frames over the same region (the floor of everything that is not the pass: the camera's jitter, the sea, the sky).
-            internal double Flicker, FloorFlicker;
+            // baseline frames over the same region (the floor of everything that is not the pass: the camera's jitter, the sea, the sky). Both are read with frame b scaled by
+            // the ratio of the two frames' mean luminance over the region (GainAB, FloorGain): a change of the whole picture's brightness between two frames (the weather
+            // writer's sun factor, an exposure) is not shimmer, and in K-T2 start 46 it was most of what the plain and recon3 ground rows read (0.034 against a grain of 0.005).
+            // FlickerRaw and FloorFlickerRaw are the differences as they were before the scaling.
+            internal double Flicker, FloorFlicker, FlickerRaw, FloorFlickerRaw;
+            // Mean luminance of b over that of a in the region, and of the second baseline frame over the first.
+            internal double GainAB, FloorGain;
+            // The pixels the reading was taken over (the picture's size); a fixed mask handed in is returned as it was.
+            internal bool[] Region;
             // High-frequency energy: the root mean square of (luminance minus the mean of its four neighbours) over the region pixels whose four neighbours are in the region too
             // (the cloud's own edges are left out), averaged over a and b. White noise of deviation s reads 1.118 s.
             internal double Hf;
@@ -138,7 +145,9 @@ namespace ReDefinition.Atmospheres
 
         internal const int NoiseMinPixels = 500;
 
-        internal static NoiseReading Noise(Color[] baseline, Color[] baseline2, Color[] a, Color[] b, int width, int height)
+        // fixedRegion (may be null): the pixels to read over instead of the ones the frame a changed against its baseline, so that the levels of one view are all read over the
+        // same pixels (the plain pass's region): with a region of its own each level averages over a different mix of flat deck, cloud edges and rain streaks.
+        internal static NoiseReading Noise(Color[] baseline, Color[] baseline2, Color[] a, Color[] b, int width, int height, bool[] fixedRegion = null)
         {
             int n = width * height;
             if (baseline == null || baseline2 == null || a == null || b == null || baseline.Length != n || baseline2.Length != n || a.Length != n || b.Length != n || width < 4 || height < 4)
@@ -151,9 +160,10 @@ namespace ReDefinition.Atmospheres
                 l0[i] = Luminance(baseline[i]);
                 l1[i] = Luminance(baseline2[i]);
             }
+            if (fixedRegion != null && fixedRegion.Length != n) throw new ArgumentException("the fixed region does not match the size");
             var region = new bool[n];
-            var reading = new NoiseReading();
-            double lumaSum = 0.0, flickerSum = 0.0, floorSum = 0.0;
+            var reading = new NoiseReading { Region = region };
+            double lumaSum = 0.0, lumaSumB = 0.0, lumaSum0 = 0.0, lumaSum1 = 0.0, flickerSum = 0.0, floorSum = 0.0;
             for (int y = 0; y < height; y++)
             {
                 double v = (y + 0.5) / height;
@@ -164,10 +174,17 @@ namespace ReDefinition.Atmospheres
                     if (InVessel(u, v)) continue;
                     int i = y * width + x;
                     float o = l0[i];
-                    if (Math.Abs(la[i] - o) <= Math.Max(DeckMinChange, DeckRelativeChange * o)) continue;
+                    if (fixedRegion != null)
+                    {
+                        if (!fixedRegion[i]) continue;
+                    }
+                    else if (Math.Abs(la[i] - o) <= Math.Max(DeckMinChange, DeckRelativeChange * o)) continue;
                     region[i] = true;
                     reading.Count++;
                     lumaSum += la[i];
+                    lumaSumB += lb[i];
+                    lumaSum0 += l0[i];
+                    lumaSum1 += l1[i];
                     flickerSum += Math.Abs(lb[i] - la[i]);
                     floorSum += Math.Abs(l1[i] - l0[i]);
                 }
@@ -175,8 +192,21 @@ namespace ReDefinition.Atmospheres
             reading.RegionFraction = reading.Count / (double)n;
             if (reading.Count == 0) return reading;
             reading.MeanLuma = lumaSum / reading.Count;
-            reading.Flicker = flickerSum / reading.Count;
-            reading.FloorFlicker = floorSum / reading.Count;
+            reading.FlickerRaw = flickerSum / reading.Count;
+            reading.FloorFlickerRaw = floorSum / reading.Count;
+            reading.GainAB = lumaSum > 1e-9 ? lumaSumB / lumaSum : 1.0;
+            reading.FloorGain = lumaSum0 > 1e-9 ? lumaSum1 / lumaSum0 : 1.0;
+            // The scaled differences: b and the second baseline frame divided by their gain against a and the first baseline frame.
+            double scaledFlicker = 0.0, scaledFloor = 0.0;
+            double invB = reading.GainAB > 1e-6 ? 1.0 / reading.GainAB : 1.0, inv1 = reading.FloorGain > 1e-6 ? 1.0 / reading.FloorGain : 1.0;
+            for (int i = 0; i < n; i++)
+            {
+                if (!region[i]) continue;
+                scaledFlicker += Math.Abs(lb[i] * invB - la[i]);
+                scaledFloor += Math.Abs(l1[i] * inv1 - l0[i]);
+            }
+            reading.Flicker = scaledFlicker / reading.Count;
+            reading.FloorFlicker = scaledFloor / reading.Count;
             double hfSum = 0.0;
             for (int y = 1; y < height - 1; y++)
             {

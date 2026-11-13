@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
     //
     // Variants of one start (-atmoVariants, in this order): off (no clouds from us, cloudSource None; the own starts run with EVE removed, so nothing
     // else draws clouds), tvc (cloudSource Eve: EVE's raymarched layers draw the maps of our field; its own start, it needs EVE and Scatterer),
-    // plain (own pass, resolution level 1: every pixel every frame), recon2, recon3 and recon4 (the levels of the slider cloudResolution: one pixel of every 2 x 2, 3 x 3 or 4 x 4 block
+    // plain (own pass, resolution level 1: the half-size march target, a quarter of the pixels), recon2, recon3 and recon4 (the levels of the slider cloudResolution: one pixel of every 2 x 2, 3 x 3 or 4 x 4 block
     // per frame; recon2 and recon3 in the views ground, inside and above only, for the time); then the A/B variants that need one view only (the "inside" view): cache (the light cache
     // on: its saving = plain minus cache, fill included), cap2 (the layer cap at 2), entry (plain plus the entry refinement), and, when asked for with -atmoVariants but not in the
     // default list (time): edge (the edge-adaptive mode, T12) and heightoff (the four height switches off, T13: cost of the height variation = plain minus heightoff); and gain (no
@@ -1079,6 +1079,13 @@ namespace ReDefinition.Atmospheres
 
         // --- The gains --------------------------------------------------------------------------------------------------------------------
 
+        // The pass's sun colour over the scene's sun (LayerFrame.OutputWhite is the scene sun's luminance): sunUnit times the gain, whatever the weather writer did to the
+        // scene's sun intensity (the sun factor of rain and sleet changes it from frame to frame).
+        internal static float PassSunPerSceneSun(LayerFrame f)
+        {
+            return f.SunColour.grayscale / Math.Max(1e-4f, f.OutputWhite);
+        }
+
         // No dwell: the sun's gain (cloud.sunGain) and the moon's (cloud.moonGain) must reach the pass. Read off the frame the module fills: the sun
         // colour's luminance at gain 1 and at gain 2 (expected ratio 2); the moon's light colour likewise where a moon or planet lights the clouds at
         // this time (the provider answers, and the cloudMoonLights count lets a light through). The gains are tuning keys: the visual calibration of
@@ -1091,11 +1098,14 @@ namespace ReDefinition.Atmospheres
             if (own == null) Check("the own cloud module exists for the gain check", false, "OwnCloudModule.Current is null");
             if (!placeOk || own == null) yield break;
             yield return ProbeWait.Seconds(2);
-            float sunBase = own.Frame.SunColour.grayscale;
+            float sunBase = PassSunPerSceneSun(own.Frame), rawBase = own.Frame.SunColour.grayscale;
             ForceTuning(OwnCloudModule.TuneSunGain, 2f);
             yield return ProbeWait.Frames(15);
-            float sunDouble = own.Frame.SunColour.grayscale;
+            float sunDouble = PassSunPerSceneSun(own.Frame), rawDouble = own.Frame.SunColour.grayscale;
             Emit("T09.gain.sun_ratio", sunBase > 1e-6f ? sunDouble / sunBase : 0.0);
+            // The raw ratio of the two reads is the gain times the change of the scene's sun between them: start 46 read 2.307, the weather writer's sun factor having gone from 0.85
+            // to 0.98 (a level flapping around the 0.04 threshold) in the two seconds between the reads (0.98 / 0.85 = 1.153, 2 * 1.153 = 2.307).
+            Emit("T09.gain.sun_ratio_raw", rawBase > 1e-6f ? rawDouble / rawBase : 0.0);
             Check("cloud.sunGain 2 doubles the sun colour of the pass", sunBase > 1e-6f && Math.Abs(sunDouble / sunBase - 2f) < 0.1f, sunBase.ToString("0.000") + " -> " + sunDouble.ToString("0.000"));
             ClearForced();
 

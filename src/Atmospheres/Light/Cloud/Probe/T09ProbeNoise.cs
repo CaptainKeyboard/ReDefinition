@@ -11,8 +11,11 @@ namespace ReDefinition.Atmospheres
     // consecutive frames (the second read starts in the tick in which the first was taken, and the read is at the end of its frame: one frame apart; T09.noise.<view>.frames_apart
     // says so). The vessel and the camera are held, so the two frames of a pair show the same picture but for what changes from frame to frame: the pass's own sample pattern
     // (the reconstruction levels march one pixel of every N x N block per frame), the stochastic dither at the cloud's edges, the upscaler's jitter and the sea's glitter.
-    // The region is the deck: the pixels where the frame with the pass differs from the baseline of the pose (T09Readout.Noise). Rows, per variant:
-    //   T09.noise.<view>.flicker       mean absolute difference of luminance between the two frames in the region (the shimmer measure of T05)
+    // The region is the deck: the pixels where the frame with the pass differs from the baseline of the pose (T09Readout.Noise), taken from the plain pass of the view and used
+    // for every later variant of the start (region_fixed 1), so that the levels are read over the same pixels. hf (the spatial grain) is the measure that follows the level; the
+    // flicker is read with the second frame scaled to the first one's mean (a change of the whole picture's brightness is not shimmer). Rows, per variant:
+    //   T09.noise.<view>.flicker       mean absolute difference of luminance between the two frames in the region, gain matched (the shimmer measure of T05)
+    //   T09.noise.<view>.flicker_raw   the same without the scaling; gain_ab is the second frame's mean luminance over the first's
     //   T09.noise.<view>.flicker_rel   flicker over the region's mean luminance
     //   T09.noise.<view>.floor_flicker the same between the two baseline frames over the same region: what shimmers without the pass
     //   T09.noise.<view>.hf            root mean square of the 4-neighbour high-pass of luminance in the region (the spatial grain)
@@ -45,6 +48,8 @@ namespace ReDefinition.Atmospheres
 
         private T09Image noiseImage;
         private int noiseBeginFrame;
+        // The region of the plain pass per view, taken for every later variant of the start.
+        private readonly Dictionary<string, bool[]> noiseRegions = new Dictionary<string, bool[]>();
 
         // One raw read: begins, waits, takes. noiseImage is null where it failed (fault says why).
         private IEnumerable<ProbeWait> ReadRawFrame(string what)
@@ -125,13 +130,20 @@ namespace ReDefinition.Atmospheres
                 Warn("noise_size", what + ": the four frames differ in size");
                 yield break;
             }
+            // The levels of a view are read over the plain pass's region (the first variant that reads this view): each with a region of its own, the means are taken over a
+            // different mix of flat deck and cloud edges (K-T2 start 46: ground region 0.69 of the picture, above 0.29, and the rows of the levels not monotone).
+            bool[] fixedRegion;
+            noiseRegions.TryGetValue(view.Name, out fixedRegion);
+            if (fixedRegion != null && fixedRegion.Length != a.Width * a.Height) fixedRegion = null;
             T09Readout.NoiseReading n;
-            try { n = T09Readout.Noise(base1.Raw, base2.Raw, a.Raw, b.Raw, a.Width, a.Height); }
+            try { n = T09Readout.Noise(base1.Raw, base2.Raw, a.Raw, b.Raw, a.Width, a.Height, fixedRegion); }
             catch (Exception e)
             {
                 Warn("noise_readout", what + ": " + e.GetType().Name + " " + e.Message);
                 yield break;
             }
+            if (fixedRegion == null && n.Count >= T09Readout.NoiseMinPixels) noiseRegions[view.Name] = n.Region;
+            Emit(prefix + "region_fixed", fixedRegion != null);
             Emit(prefix + "frames_apart", beginB - beginA);
             Emit(prefix + "region_fraction", n.RegionFraction);
             if (n.Count < T09Readout.NoiseMinPixels)
@@ -143,12 +155,16 @@ namespace ReDefinition.Atmospheres
             Emit(prefix + "flicker", n.Flicker);
             Emit(prefix + "flicker_rel", n.Flicker / Math.Max(1e-6, n.MeanLuma));
             Emit(prefix + "floor_flicker", n.FloorFlicker);
+            Emit(prefix + "flicker_raw", n.FlickerRaw);
+            Emit(prefix + "floor_flicker_raw", n.FloorFlickerRaw);
+            Emit(prefix + "gain_ab", n.GainAB);
             if (n.HfCount > 0)
             {
                 Emit(prefix + "hf", n.Hf);
                 Emit(prefix + "hf_rel", n.Hf / Math.Max(1e-6, n.MeanLuma));
             }
-            AtmospheresLog.Say("T09 noise end: " + what + ": region " + n.Count + " px, luma " + n.MeanLuma.ToString("0.000") + ", flicker " + n.Flicker.ToString("0.00000") + " (floor "
+            AtmospheresLog.Say("T09 noise end: " + what + ": region " + n.Count + " px" + (fixedRegion != null ? " (the plain pass's)" : "") + ", luma " + n.MeanLuma.ToString("0.000")
+                               + ", flicker " + n.Flicker.ToString("0.00000") + " (raw " + n.FlickerRaw.ToString("0.00000") + ", frame gain " + n.GainAB.ToString("0.000") + ", floor "
                                + n.FloorFlicker.ToString("0.00000") + "), hf " + n.Hf.ToString("0.00000") + ", " + (beginB - beginA) + " frame(s) apart");
         }
     }

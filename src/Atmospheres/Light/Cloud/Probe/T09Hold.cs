@@ -27,6 +27,12 @@ namespace ReDefinition.Atmospheres
         // frames after which a vessel that has not arrived is reported unreached (the hold goes on correcting), the corrections that are logged, the trace every N frames.
         internal const int CommandEveryFrames = 10, StableNeededFrames = 30, GiveUpFrames = 150, LoggedCorrections = 3, TraceEveryFrames = 120, MaxTraceLines = 24;
 
+        // The command stays within CommandLimitM of the target (the centre of mass sits about 10 m from the transform, so a larger offset is not a learned offset but a read that does
+        // not follow the vessel: start 46 wound it up to 278 m). A command whose effect the read has not shown (it moved less than ResponseShare of the command's step) is not
+        // repeated before RetryFrames frames have passed.
+        internal const double CommandLimitM = 40.0, ResponseShare = 0.25;
+        internal const int RetryFrames = 60;
+
         private enum Phase { Idle, Placing, Holding }
 
         private readonly IHoldVessel vessel;
@@ -37,8 +43,13 @@ namespace ReDefinition.Atmospheres
         private bool haveLast;
         private int frames, sinceCommand, agreeing, stableFrames, traceLines;
         private bool unreached;
+        // The last command: how far it moved the vessel (the read's distance from the target when it was given) and the read at that moment.
+        private double lastStepM, commandReadLat, commandReadLon, commandReadAlt;
+        private bool unresponsiveLogged;
 
         internal int Corrections { get; private set; }
+        // Commands not given because the read had not followed the one before.
+        internal int Withheld { get; private set; }
         internal double WorstDriftM { get; private set; }
 
         internal T09Hold(IHoldVessel vessel, Action<string> log)
@@ -88,8 +99,18 @@ namespace ReDefinition.Atmospheres
             haveLast = false;
             unreached = false;
             Corrections = 0;
+            Withheld = 0;
+            lastStepM = 0.0;
+            unresponsiveLogged = false;
             WorstDriftM = 0.0;
             traceLines = 0;
+        }
+
+        // Whether the read has followed the last command: it moved at least ResponseShare of the step the command asked for. A command that asked for little is always answered.
+        private bool ReadFollowedLastCommand(double lat, double lon, double alt)
+        {
+            if (lastStepM <= SettleToleranceM) return true;
+            return vessel.Distance(lat, lon, alt, commandReadLat, commandReadLon, commandReadAlt) >= ResponseShare * lastStepM;
         }
 
         internal double DriftM()
@@ -139,9 +160,9 @@ namespace ReDefinition.Atmospheres
                     log("T09 hold anchor: the vessel is still " + away.ToString("0.0") + " m from the placed point after " + frames + " frames (read " + FormatPoint(lat, lon, alt)
                         + "); holding the placed point " + FormatPoint(targetLat, targetLon, targetAlt));
                 }
-                else if (settled && away > SettleToleranceM)
+                else if (settled && away > SettleToleranceM && MayCommand(lat, lon, alt))
                 {
-                    Command(lat, lon, alt);
+                    Command(lat, lon, alt, away);
                     log("T09 hold anchor: the vessel reads " + away.ToString("0.0") + " m from the placed point after " + frames + " frames; placing it again");
                 }
                 vessel.KeepVelocity();
@@ -151,9 +172,9 @@ namespace ReDefinition.Atmospheres
             WorstDriftM = Math.Max(WorstDriftM, away);
             if (away <= ToleranceM) stableFrames++;
             else stableFrames = 0;
-            if (settled && away > SettleToleranceM)
+            if (settled && away > SettleToleranceM && MayCommand(lat, lon, alt))
             {
-                Command(lat, lon, alt);
+                Command(lat, lon, alt, away);
                 Corrections++;
                 if (Corrections <= LoggedCorrections) log("T09 hold correction " + Corrections + ": drifted " + away.ToString("0.0") + " m from the point, command moved");
             }
@@ -171,12 +192,38 @@ namespace ReDefinition.Atmospheres
             vessel.KeepVelocity();
         }
 
-        // The command moves by what the settled read is away from the target, and is set at once.
-        private void Command(double lat, double lon, double alt)
+        // A new command only once the read has shown the effect of the last one, or after RetryFrames frames (a read that does not follow the vessel would otherwise be
+        // corrected again and again, the command growing by the same bias each time).
+        private bool MayCommand(double lat, double lon, double alt)
         {
+            if (sinceCommand >= RetryFrames || ReadFollowedLastCommand(lat, lon, alt)) return true;
+            Withheld++;
+            if (!unresponsiveLogged)
+            {
+                unresponsiveLogged = true;
+                log("T09 hold: the read moved less than " + (ResponseShare * 100.0).ToString("0") + " percent of the last command's " + lastStepM.ToString("0.0")
+                    + " m in " + sinceCommand + " frames; no new command before " + RetryFrames + " frames");
+            }
+            return false;
+        }
+
+        // The command moves by what the settled read is away from the target, and is set at once; its offset from the target stays within CommandLimitM.
+        private void Command(double lat, double lon, double alt, double stepM)
+        {
+            lastStepM = stepM;
+            commandReadLat = lat; commandReadLon = lon; commandReadAlt = alt;
             commandLat += targetLat - lat;
             commandLon += WrapLon(targetLon - lon);
             commandAlt += targetAlt - alt;
+            double offset = vessel.Distance(commandLat, commandLon, commandAlt, targetLat, targetLon, targetAlt);
+            if (offset > CommandLimitM)
+            {
+                double k = CommandLimitM / offset;
+                commandLat = targetLat + (commandLat - targetLat) * k;
+                commandLon = targetLon + WrapLon(commandLon - targetLon) * k;
+                commandAlt = targetAlt + (commandAlt - targetAlt) * k;
+                log("T09 hold: the command was " + offset.ToString("0.0") + " m off the target and is held at " + CommandLimitM.ToString("0") + " m");
+            }
             vessel.Set(commandLat, commandLon, commandAlt);
             sinceCommand = 0;
             agreeing = 0;

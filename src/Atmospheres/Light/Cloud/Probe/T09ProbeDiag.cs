@@ -336,10 +336,12 @@ namespace ReDefinition.Atmospheres
                 if (own != null)
                 {
                     float sun = own.Frame.SunColour.grayscale;
-                    if (gain == 1f) sunBase = sun;
+                    // The check reads the gain off the sun colour over the scene's sun (the frame's OutputWhite), since the weather writer scales the scene's sun between two reads.
+                    float gained = PassSunPerSceneSun(own.Frame);
+                    if (gain == 1f) sunBase = gained;
                     Emit(head + gainTag + ".sun_luma", sun);
-                    if (gain != 1f) Check("cloud.sunGain " + gain.ToString("0") + " reaches the pass in the " + view.Name + " view (" + tag + ")", sunBase > 1e-6f && Math.Abs(sun / sunBase - gain) < 0.05f * gain,
-                                          sunBase.ToString("0.000") + " -> " + sun.ToString("0.000"));
+                    if (gain != 1f) Check("cloud.sunGain " + gain.ToString("0") + " reaches the pass in the " + view.Name + " view (" + tag + ")", sunBase > 1e-6f && Math.Abs(gained / sunBase - gain) < 0.05f * gain,
+                                          sunBase.ToString("0.000") + " -> " + gained.ToString("0.000"));
                 }
                 foreach (ProbeWait w in DiagTake(view, tag, gainTag, false, off)) yield return w;
                 if (gain == 1f) one = diagReading;

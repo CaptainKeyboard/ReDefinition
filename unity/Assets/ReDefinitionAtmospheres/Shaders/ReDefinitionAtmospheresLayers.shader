@@ -696,6 +696,21 @@ Shader "ReDefinition/AtmospheresLayers"
                 int rows = (CACHE_NZ + tilesX - 1) / tilesX;
                 float2 pixel = floor(i.uv * float2(tilesX * CACHE_N, rows * CACHE_N));
                 float3 p = CacheVoxelCentre(pixel);
+                // The march reads a voxel only through the trilinear fetch at a sample inside a layer's shell (LayerSpans: _LayerA.z to .w above the surface), and such a
+                // sample lies within one voxel diagonal of every voxel centre the fetch reads. A voxel farther than that from every shell is never read: K-T2 start 46 filled
+                // all 131072 voxels of the 32 km box every frame, most of them in clear air or under the ground, and the cache saved nothing (1.03 of plain).
+                float alt = length(p) - _PlanetR;
+                float reach = length(_CacheB.xyz / float3(CACHE_N, CACHE_N, CACHE_NZ));
+                bool read = false;
+                [loop] for (int lj = 0; lj < MAXL; lj++)
+                {
+                    if (lj >= (int)_LayerCount) break;
+                    float inner = _LayerA[lj].z, outer = _LayerA[lj].w;
+                    // A shell with no inner radius reaches down to the surface (the ray ends on the sea-level sphere of a body with a surface, _StepP.w) or without bound.
+                    float lowest = inner > 0 ? inner - reach : (_StepP.w > 0.5 ? -reach : -1e30);
+                    if (alt <= outer + reach && alt >= lowest) read = true;
+                }
+                if (!read) return float4(0, 0, 0, 0);
                 int steps = max(1, (int)_LightT.z);
                 float tauSun = LightTau(p, _Sun.xyz, -1, steps, 0.0, 0.0, 0.0);
                 float tauUp = LightTau(p, normalize(p), -1, max(1, (int)_LightS.y), 0.0, 0.0, 0.0);
