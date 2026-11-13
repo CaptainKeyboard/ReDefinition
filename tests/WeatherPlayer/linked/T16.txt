@@ -8,3 +8,5 @@ unity/Assets/**/CloudCull.cginc
 src/Atmospheres/Light/Cloud/CloudCoverShift.cs
 # CloudLayerDef reads the look knobs (sigma, softness, noise, per-layer shift, fade, density remap) through CloudLookTuning (E40 Phase O); the player's tuning table is the stub.
 src/Atmospheres/Light/Cloud/CloudLookTuning.cs
+# CloudLayerDef carries the weather deck rule (E40: what may draw a deck); the rule's pure functions read HeightModel (T13) and PrecipScale (T01).
+src/Atmospheres/Light/Cloud/WeatherDeckRule.cs

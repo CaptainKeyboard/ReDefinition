@@ -90,6 +90,11 @@ namespace ReDefinition.Atmospheres
         private readonly StackMapMirror stackMaps = new StackMapMirror();
         // The look knobs of the maps (CloudLookTuning): per-layer type bytes and maps, and the held layer maps of a combined fetch.
         private byte[] typeScratch;
+        // The weather deck rule's inputs (FetchFogInputs) and its per-layer results (WeatherDeckRule.Apply).
+        private readonly WeatherMap humidityMap = new WeatherMap(), temperatureMap = new WeatherMap(), windMap = new WeatherMap();
+        private float[] spreadScratch, fogSpreadK, fogWind;
+        private readonly byte[][] deckCover = new byte[CloudLayerDef.MaxLayers][], deckType = new byte[CloudLayerDef.MaxLayers][];
+        private readonly WeatherMap[] deckCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private long lookStampSeen = -1;
         private readonly byte[][] forcedBytes = new byte[CloudLayerDef.MaxLayers][];
         private readonly WeatherMap[] forcedMaps = new WeatherMap[CloudLayerDef.MaxLayers];
@@ -684,7 +689,12 @@ namespace ReDefinition.Atmospheres
                 if (!(fetchHaveShared && fetchHaveType)) fetchStep = -1;
                 return;
             }
-            int l = step - 2;
+            if (step == 2)
+            {
+                FetchFogInputs(b, field, ut);
+                return;
+            }
+            int l = step - 3;
             GeneratorField gf = GeneratorModule.Current;
             byte[] cover = coverageMap.Bytes;
             WeatherMap coverSource = coverageMap;
@@ -712,9 +722,37 @@ namespace ReDefinition.Atmospheres
                 cover = filled;
                 coverSource = forcedMap;
             }
-            // The type at no precipitation: the tuning key where it is set, else the layer's own (cfg key fairType; -1: the precipitation level itself).
+            // The weather deck rule (WeatherDeckRule): the deck draws only where precipitation falls or the air is fog air; the coverage and the type bytes are the rule's, and
+            // the CPU copy of the maps (StackMapMirror, the sun dimming, the cloud shadow, the oracle) gets the same ones.
             float fairType = CloudLookTuning.FairType(CloudLookTuning.TypeFairOf(layerName), stack.LayerAt(l).FairType);
-            byte[] typeBytes = CloudLookTuning.TypeBytes(typeMap.Bytes, fairType, CloudLookTuning.TypeOverrideOf(layerName), ref typeScratch);
+            byte[] typeBytes;
+            WeatherDeckRule deck = CloudLookTuning.DeckRuleOf(layerName, stack.LayerAt(l).Deck);
+            if (deck != null)
+            {
+                int n = cover.Length;
+                byte[] ruleCover = deckCover[l] ?? (deckCover[l] = new byte[n]);
+                byte[] ruleType = deckType[l] ?? (deckType[l] = new byte[n]);
+                if (ruleCover.Length != n) deckCover[l] = ruleCover = new byte[n];
+                if (ruleType.Length != n) deckType[l] = ruleType = new byte[n];
+                deck.Apply(cover, typeMap.Values, fogSpreadK, fogWind, ruleCover, ruleType, CloudLookTuning.DeckPrecipOf(layerName), CloudLookTuning.DeckFogOf(layerName));
+                float typeOverride = CloudLookTuning.TypeOverrideOf(layerName);
+                if (typeOverride >= 0f)
+                {
+                    byte forced = (byte)Math.Min(255.0, Math.Round(typeOverride * 255.0, MidpointRounding.ToEven));
+                    for (int i = 0; i < n; i++) ruleType[i] = forced;
+                }
+                WeatherMap ruleCoverMap = deckCoverMaps[l] ?? (deckCoverMaps[l] = new WeatherMap());
+                ruleCoverMap.Resize(coverSource.Width, coverSource.Height);
+                for (int i = 0; i < n; i++) ruleCoverMap.Values[i] = ruleCover[i] / 255f;
+                cover = ruleCover;
+                coverSource = ruleCoverMap;
+                typeBytes = ruleType;
+            }
+            else
+            {
+                // The type at no precipitation: the tuning key where it is set, else the layer's own (cfg key fairType; -1: the precipitation level itself).
+                typeBytes = CloudLookTuning.TypeBytes(typeMap.Bytes, fairType, CloudLookTuning.TypeOverrideOf(layerName), ref typeScratch);
+            }
             WeatherMap typeForCpu = typeMap;
             if (!ReferenceEquals(typeBytes, typeMap.Bytes))
             {
@@ -748,6 +786,28 @@ namespace ReDefinition.Atmospheres
             fetchStep = -1;
             stepMaps = true;
             Stats.MapFetches++;
+        }
+
+        // The inputs of the weather deck rule (WeatherDeckRule) once per round, for every layer that has one: the dew-point spread of the surface air (from the humidity and
+        // temperature maps) and the wind. A map the field cannot give leaves its input null: no fog from the spread, a calm wind.
+        private void FetchFogInputs(CelestialBody b, IWeatherField field, double ut)
+        {
+            bool needed = false;
+            for (int k = 0; k < stack.LayerCount && !needed; k++) needed = CloudLookTuning.DeckRuleOf(stack.LayerAt(k).Name, stack.LayerAt(k).Deck) != null;
+            fogSpreadK = null;
+            fogWind = null;
+            if (!needed) return;
+            bool haveH = field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Humidity, ut, humidityMap) && humidityMap.Width == MapWidth && humidityMap.Height == MapHeight;
+            bool haveT = haveH && field.GetMap(b.flightGlobalsIndex, WeatherMapKind.SurfaceTemperature, ut, temperatureMap) && temperatureMap.Width == MapWidth && temperatureMap.Height == MapHeight;
+            if (haveT)
+            {
+                int n = humidityMap.Values.Length;
+                float[] spread = spreadScratch;
+                if (spread == null || spread.Length != n) spreadScratch = spread = new float[n];
+                for (int i = 0; i < n; i++) spread[i] = WeatherDeckRule.SpreadK(temperatureMap.Values[i], humidityMap.Values[i]);
+                fogSpreadK = spread;
+            }
+            if (field.GetMap(b.flightGlobalsIndex, WeatherMapKind.WindSpeed, ut, windMap) && windMap.Width == MapWidth && windMap.Height == MapHeight) fogWind = windMap.Values;
         }
 
         // The height maps of the layers (T13): at a slow rhythm, after a switch changed and after the stack was built. The build runs on a worker

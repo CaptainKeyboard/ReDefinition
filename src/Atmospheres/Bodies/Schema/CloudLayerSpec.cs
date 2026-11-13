@@ -104,6 +104,8 @@ namespace ReDefinition.Atmospheres
         // The type value of the layer where no precipitation falls (cfg key fairType, 0 to 1 over the type table; -1: the precipitation level itself, so the first type).
         // With it the type value is fairType + (1 - fairType) * precipitation (CloudLookTuning.TypeValue).
         internal float FairType { get; set; } = -1f;
+        // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
+        internal WeatherDeckRule Deck { get; set; }
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
 
         // The vertical optical depth through the layer's thickest type at full density and full coverage: sigma times the height of the type.
@@ -138,7 +140,8 @@ namespace ReDefinition.Atmospheres
                 ShadowStrength = ShadowStrength,
                 NoiseAmount = NoiseAmount,
                 NoiseScaleM = NoiseScaleM,
-                FairType = FairType
+                FairType = FairType,
+                Deck = Deck
             };
         }
     }

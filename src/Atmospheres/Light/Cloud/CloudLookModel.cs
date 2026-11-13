@@ -25,7 +25,9 @@ namespace ReDefinition.Atmospheres
             get
             {
                 foreach (KeyValuePair<string, float> k in Keys)
-                    if (k.Key.StartsWith(CloudLookTuning.TuneTypeFair, StringComparison.Ordinal) || k.Key.StartsWith(CloudLookTuning.TuneTypeOverride, StringComparison.Ordinal)) return true;
+                    if (k.Key.StartsWith(CloudLookTuning.TuneTypeFair, StringComparison.Ordinal) || k.Key.StartsWith(CloudLookTuning.TuneTypeOverride, StringComparison.Ordinal)
+                        || k.Key.StartsWith(CloudLookTuning.TuneDeckRule, StringComparison.Ordinal) || k.Key.StartsWith(CloudLookTuning.TuneDeckPrecip, StringComparison.Ordinal)
+                        || k.Key.StartsWith(CloudLookTuning.TuneDeckFog, StringComparison.Ordinal)) return true;
                 return false;
             }
         }

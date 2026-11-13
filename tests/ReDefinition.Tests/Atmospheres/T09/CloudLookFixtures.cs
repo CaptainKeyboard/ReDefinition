@@ -21,10 +21,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         internal static CloudLayerDef Rain()
         {
-            return Layer("Kerbin-weather-rain", CloudCoverShift.RainGroup, 0f, 2100f, 0.045f, 0.5f, 0.2f, 0.3f, 10000f, LayerKind.Weather,
+            CloudLayerDef rain = Layer("Kerbin-weather-rain", CloudCoverShift.RainGroup, 0f, 2100f, 0.045f, 0.5f, 0.2f, 0.3f, 10000f, LayerKind.Weather,
                 new CloudTypeDef("Fog", 0f, 0.1f, C(0f, 0.9f, 0.7f, 0.5f, 1f, 0f), 0.2f),
                 new CloudTypeDef("Stratus", 0.1f, 0.5f, C(0f, 0f, 0.12f, 0.8f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.15f),
                 new CloudTypeDef("Nimbostratus", 0.05f, 1f, C(0f, 0.1f, 0.08f, 0.9f, 0.6f, 1f, 0.9f, 0.6f, 1f, 0f), 0.2f));
+            rain.Deck = new WeatherDeckRule();
+            return rain;
         }
 
         internal static CloudLayerDef Cumulus()

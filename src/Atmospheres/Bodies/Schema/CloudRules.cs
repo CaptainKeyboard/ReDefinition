@@ -150,6 +150,8 @@ namespace ReDefinition.Atmospheres
         internal float NoiseScaleM { get; set; }
         // The type value where no precipitation falls (CloudLayerSpec.FairType; -1: the precipitation level itself). The tuning key cloud.typeFair.<name> goes before it.
         internal float FairType { get; set; } = -1f;
+        // What may draw the layer (WeatherDeckRule); null: the layer is drawn wherever its coverage map passes. The tuning key cloud.deckRule.<name> switches it off (0) or on (1).
+        internal WeatherDeckRule Deck { get; set; }
         // The longitude the layer's maps are turned by against the body's frame, degrees (the layer turns with its wind).
         internal float MapShiftDeg { get; set; }
 

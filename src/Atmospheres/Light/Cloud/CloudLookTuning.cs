@@ -17,6 +17,10 @@ namespace ReDefinition.Atmospheres
     //   cloud.layerCoverageShift.<name>   added to the coverage of the layer of that name, on top of cloud.coverageShift (0)
     //   cloud.typeFair.<name>             the type value of the layer at no precipitation, rising linearly to 1 at full precipitation (-1: the precipitation level itself)
     //   cloud.typeOverride.<name>         a constant type value for the layer (-1: none; wins over typeFair)
+    //   cloud.deckRule.<name>             1 forces the layer's weather deck rule on (the cfg's numbers, else WeatherDeckRule.Defaults), 0 gives the old rule back (the type is the
+    //                                     precipitation level and the deck draws wherever its map passes), -1 (default): the layer's cfg (deckRule = 1 on the weather decks)
+    //   cloud.deckPrecip.<name>           the probe's: a precipitation level the layer's deck rule sees everywhere, 0 to 1 (-1: the field's)
+    //   cloud.deckFog.<name>              the probe's: a fog share the layer's deck rule sees everywhere, 0 to 1 (-1: the field's dew-point spread and wind)
     //   layers.densityRemap               the share of the erosion that also thins the interior of a closed deck (0: erosion only in the soft edge)
     //   layers.profileShape               how far the type's height profile lifts the coverage threshold where the profile is below 1, in map units (0: the profile scales the
     //                                     density only and every cloud is an upright column with a flat top; above 0 a cloud narrows where its profile falls, so tops are domed).
@@ -33,7 +37,8 @@ namespace ReDefinition.Atmospheres
             TuneNoiseSize = "cloud.layerNoiseSizeScale", TuneLayerShift = "cloud.layerCoverageShift.", TuneTypeFair = "cloud.typeFair.", TuneTypeOverride = "cloud.typeOverride.",
             TuneDensityRemap = "layers.densityRemap", TuneCoverCombine = "cloud.coverCombine", TuneSunTint = "cloud.sunTint", TuneFadeFar = "cloud.fadeFarM",
             TuneFadeNearShare = "cloud.fadeNearShare", TuneFarHaze = "cloud.farHaze", TuneHazeStrength = "cloud.hazeStrength", TuneMapOverride = "cloud.mapOverride.",
-            TuneProfileShape = "layers.profileShape";
+            TuneProfileShape = "layers.profileShape", TuneDeckRule = "cloud.deckRule.",
+            TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.";
 
         private static long seenVersion = -1;
         private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, tint, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f, profileShape;
@@ -42,6 +47,9 @@ namespace ReDefinition.Atmospheres
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeOverrideByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> MapOverrideByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, float> DeckRuleByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, float> DeckPrecipByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, float> DeckFogByName = new Dictionary<string, float>(StringComparer.Ordinal);
         // The per-layer factors (cloud.layerSigmaScale.<name> and the three like it), multiplied with the general ones.
         private static readonly Dictionary<string, float> SigmaByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> SoftnessByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -102,6 +110,9 @@ namespace ReDefinition.Atmospheres
             changed |= Reread(TypeFairByName, TuneTypeFair, -1f, -1f, 1f);
             changed |= Reread(TypeOverrideByName, TuneTypeOverride, -1f, -1f, 1f);
             changed |= Reread(MapOverrideByName, TuneMapOverride, -1f, -1f, 1f);
+            changed |= Reread(DeckRuleByName, TuneDeckRule, -1f, -1f, 1f);
+            changed |= Reread(DeckPrecipByName, TuneDeckPrecip, -1f, -1f, 1f);
+            changed |= Reread(DeckFogByName, TuneDeckFog, -1f, -1f, 1f);
             changed |= Reread(SigmaByName, TuneSigma + ".", 1f, 0.01f, 100f);
             changed |= Reread(SoftnessByName, TuneSoftness + ".", 1f, 0.01f, 100f);
             changed |= Reread(NoiseAmountByName, TuneNoiseAmount + ".", 1f, 0.01f, 100f);
@@ -191,6 +202,26 @@ namespace ReDefinition.Atmospheres
         internal static float TypeOverrideOf(string layerName)
         {
             return Named(TypeOverrideByName, TuneTypeOverride, layerName, -1f, -1f, 1f);
+        }
+
+        // The deck rule of a layer (WeatherDeckRule): the tuning key where it is set (0 off, 1 on with the cfg's numbers or the defaults), else the layer's own (null: none).
+        internal static WeatherDeckRule DeckRuleOf(string layerName, WeatherDeckRule own)
+        {
+            float k = Named(DeckRuleByName, TuneDeckRule, layerName, -1f, -1f, 1f);
+            if (k < 0f) return own;
+            if (k < 0.5f) return null;
+            return own ?? WeatherDeckRule.Defaults;
+        }
+
+        // The probe's forced inputs of the deck rule: a precipitation level and a fog share, 0 to 1, the same everywhere (-1: the field's).
+        internal static float DeckPrecipOf(string layerName)
+        {
+            return Named(DeckPrecipByName, TuneDeckPrecip, layerName, -1f, -1f, 1f);
+        }
+
+        internal static float DeckFogOf(string layerName)
+        {
+            return Named(DeckFogByName, TuneDeckFog, layerName, -1f, -1f, 1f);
         }
 
         // A constant coverage-map value for the layer everywhere (-1: the field's map).

@@ -201,9 +201,27 @@ namespace ReDefinition.Atmospheres
                 layers.Add(new CloudLayerSpec(name, (float)inner, (float)outer, r.Float("sigmaPerM", 0.03f, 1.0e-6f, 10f), r.Enum("kind", LayerKind.Weather),
                     r.String("group", ""), r.Float("coverage", 1f, 0f, 1f), r.Float("edgeSoftness", 0.15f, 0f, 1f), r.Float("fadeNearM", 0f, 0f, 1.0e9f),
                     r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
-                    r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f) });
+                    r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r) });
             }
             return layers;
+        }
+
+        // The layer's deck rule (WeatherDeckRule): null without deckRule = 1, else the defaults with the keys of the layer's node.
+        private static WeatherDeckRule DeckRule(BodyNodeReader r)
+        {
+            if (r.Float("deckRule", 0f, 0f, 1f) < 0.5f) return null;
+            WeatherDeckRule d = WeatherDeckRule.Defaults;
+            return new WeatherDeckRule
+            {
+                FogSpreadK = r.Float("deckFogSpreadK", d.FogSpreadK, 0f, 50f),
+                FogSpreadBandK = r.Float("deckFogSpreadBandK", d.FogSpreadBandK, 0f, 50f),
+                FogWindMs = r.Float("deckFogWindMs", d.FogWindMs, 0f, 100f),
+                FogWindBandMs = r.Float("deckFogWindBandMs", d.FogWindBandMs, 0f, 100f),
+                PrecipFrom = r.Float("deckPrecipFrom", d.PrecipFrom, 0f, 1f),
+                PrecipFullAt = r.Float("deckPrecipFullAt", d.PrecipFullAt, 0f, 1f),
+                FogType = r.Float("deckFogType", d.FogType, 0f, 1f),
+                PrecipType = r.Float("deckPrecipType", d.PrecipType, 0f, 1f)
+            };
         }
 
         // TYPE { name, baseShare, topShare, erosion, PROFILE { key0 = x y, key1 = ... } }; null (with a warning) where the type is unusable.

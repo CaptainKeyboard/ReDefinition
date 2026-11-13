@@ -22,6 +22,18 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.NoiseScaleM, fixture.NoiseScaleM, 1e-3f, n + " noise scale");
             Assert.AreEqual(shipped.Group, fixture.Group, n + " group");
             Assert.AreEqual(shipped.Kind, fixture.Kind, n + " kind");
+            Assert.AreEqual(shipped.Deck == null, fixture.Deck == null, n + " deck rule present");
+            if (shipped.Deck != null)
+            {
+                Assert.AreEqual(shipped.Deck.FogSpreadK, fixture.Deck.FogSpreadK, 1e-6f, n + " deck fog spread");
+                Assert.AreEqual(shipped.Deck.FogSpreadBandK, fixture.Deck.FogSpreadBandK, 1e-6f, n + " deck fog spread band");
+                Assert.AreEqual(shipped.Deck.FogWindMs, fixture.Deck.FogWindMs, 1e-6f, n + " deck fog wind");
+                Assert.AreEqual(shipped.Deck.FogWindBandMs, fixture.Deck.FogWindBandMs, 1e-6f, n + " deck fog wind band");
+                Assert.AreEqual(shipped.Deck.PrecipFrom, fixture.Deck.PrecipFrom, 1e-6f, n + " deck precipitation from");
+                Assert.AreEqual(shipped.Deck.PrecipFullAt, fixture.Deck.PrecipFullAt, 1e-6f, n + " deck precipitation full");
+                Assert.AreEqual(shipped.Deck.PrecipType, fixture.Deck.PrecipType, 1e-6f, n + " deck precipitation type");
+                Assert.AreEqual(shipped.Deck.FogType, fixture.Deck.FogType, 1e-6f, n + " deck fog type");
+            }
             Assert.AreEqual(shipped.Types.Count, fixture.Types.Count, n + " type count");
             for (int i = 0; i < shipped.Types.Count; i++)
             {
@@ -52,6 +64,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsNotNull(spec, fixture.Name + " is not in the shipped file");
                 SameLayer(fixture, spec);
             }
+        }
+
+        [TestMethod]
+        public void TheCumulonimbusScaleStaysWhereTheNadirSeriesMeasuredItRight()
+        {
+            // e40-fn: the towers of the map 0.8 are 14 to 16 km wide at 8000 m (cells of 10 to 30 km); 3000 m gives 7 to 9 km. A change of these two numbers is a new measurement.
+            CloudLayerSpec cb = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == "Kerbin-cumulonimbus");
+            Assert.AreEqual(8000f, cb.NoiseScaleM, 0f);
+            Assert.AreEqual(0.4f, cb.NoiseAmount, 0f);
         }
 
         [TestMethod]
