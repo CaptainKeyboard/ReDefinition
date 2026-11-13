@@ -421,6 +421,31 @@
       ]
     },
     {
+      "id": "weather-10",
+      "name": "Culling and distance LOD of the own clouds",
+      "description": "The visibility culling and the distance LOD of the own clouds (package T16), one rendering for each value flipped from the group's base, FSR 3 at raytracing Off without frame generation. The base is the own system drawing (cloudSource Ours, ownClouds on) at full resolution with every switch of the group off; the distance cut rows run with cloudFarHaze on (the cut needs the haze). The rows: each of the seven switches alone, all of them together, and the skip pair and the whole group at cloudResolution 4 (the fair baseline of the reconstruction is the same view at the same level without the switches).",
+      "scenes": ["pad"],
+      "techniques": ["fsr3"],
+      "raytracing": ["Off"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1", "atmo.cloudSkipEmpty": "False", "atmo.cloudSkipClosed": "False", "atmo.cloudLayerDistanceCut": "False", "atmo.cloudStepGrowth": "False", "atmo.cloudTapLod": "False", "atmo.cloudDetailLod": "False", "atmo.cloudLayerCapDistance": "0"},
+      "tweaks": [
+        {"id": "weather-cloudSkipEmpty", "name": "Cloud Skip Empty Sky true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSkipEmpty": "True"}},
+        {"id": "weather-cloudSkipClosed", "name": "Cloud Skip Behind Closed Decks true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSkipClosed": "True"}},
+        {"id": "weather-cloudLayerDistanceCut", "name": "Cloud Layer Distance Cut true, Far Haze true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudLayerDistanceCut": "True", "atmo.cloudFarHaze": "True"}},
+        {"id": "weather-cloudStepGrowth", "name": "Cloud Step Growth With Distance true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudStepGrowth": "True"}},
+        {"id": "weather-cloudTapLod", "name": "Cloud Light Taps By Distance true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudTapLod": "True"}},
+        {"id": "weather-cloudDetailLod", "name": "Cloud Detail By Distance true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudDetailLod": "True"}},
+        {"id": "weather-cloudLayerCapDistance", "name": "Cloud Layer Cap Distance 100 km", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudLayerCapDistance": "100"}},
+        {"id": "weather-cullAll", "name": "All culling and distance LOD switches on", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSkipEmpty": "True", "atmo.cloudSkipClosed": "True", "atmo.cloudLayerDistanceCut": "True", "atmo.cloudFarHaze": "True", "atmo.cloudStepGrowth": "True", "atmo.cloudTapLod": "True", "atmo.cloudDetailLod": "True", "atmo.cloudLayerCapDistance": "100"}},
+        {"id": "weather-cloudSkipPairRes4", "name": "Cloud Skip Empty and Closed true, Cloud Resolution 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSkipEmpty": "True", "atmo.cloudSkipClosed": "True", "atmo.cloudReconMode": "Block", "atmo.cloudResolution": "4"}},
+        {"id": "weather-cullAllRes4", "name": "All culling and distance LOD switches on, Cloud Resolution 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSkipEmpty": "True", "atmo.cloudSkipClosed": "True", "atmo.cloudLayerDistanceCut": "True", "atmo.cloudFarHaze": "True", "atmo.cloudStepGrowth": "True", "atmo.cloudTapLod": "True", "atmo.cloudDetailLod": "True", "atmo.cloudLayerCapDistance": "100", "atmo.cloudReconMode": "Block", "atmo.cloudResolution": "4"}}
+      ]
+    },
+    {
       "id": "rt-weather",
       "name": "Raytracing in a blizzard",
       "description": "What the weather does to the rays (package C24b): FSR 3 at raytracing Full without frame generation, the weather forced to level 0.9 (a blizzard) in every phase. The plain rendering has the fog on the rays (mod.rtWeatherFog) and neither quality cost; then one rendering each without the fog, with the reach capped to three times the visibility (mod.rtWeatherReachCap), with one bounce fewer (mod.rtWeatherFewerBounces) and with both costs. The two costs are quality reductions and off by default until the owner agrees; this group measures what they save (the raytracing segment of the frame) so that the agreement can rest on numbers. The settings reach the game as mod.<key> and atmo.<key> live keys of the probe; the probe's routing of the atmo. prefix to AtmospheresSettings is not there yet.",

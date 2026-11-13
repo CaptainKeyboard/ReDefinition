@@ -76,6 +76,8 @@ namespace ReDefinition.Atmospheres
         // refinement is off, like RefineBisect.
         public float RefineStepBudget = 0f;
         public const int MaxRefineBisect = 6;
+        // Package T16, the visibility culling and the distance LOD (all switches off until the owner agrees).
+        public CullSettings Cull = new CullSettings();
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
         public bool FixedConeRotation;
         // The per-pixel dither of the step offset and of the light cone is an integer hash (white noise); false: the interleaved gradient noise,
@@ -94,7 +96,7 @@ namespace ReDefinition.Atmospheres
     internal sealed class LayerRenderer
     {
         internal const string ShaderName = "ReDefinition/AtmospheresLayers";
-        internal const int PassMarch = 0, PassComposite = 1, PassAux = 2, PassCompositeOut = 4;
+        internal const int PassMarch = 0, PassComposite = 1, PassAux = 2, PassCompositeOut = 4, PassCullTile = 5;
 
         private static readonly int IdPlanetR = Shader.PropertyToID("_PlanetR"), IdPlanetCenter = Shader.PropertyToID("_PlanetCenter"),
             IdWorldToMap = Shader.PropertyToID("_WorldToMap"), IdCamPos = Shader.PropertyToID("_CamPos"),
@@ -113,6 +115,11 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdHeightMaps = Shader.PropertyToID("_HeightMaps"), IdLayerH = Shader.PropertyToID("_LayerH"),
             IdLayerH2 = Shader.PropertyToID("_LayerH2");
         private readonly Vector4[] layerH = new Vector4[CloudLayerDef.MaxLayers], layerH2 = new Vector4[CloudLayerDef.MaxLayers];
+        // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the least vertical optical depth (x; closure test).
+        private static readonly int IdCullL = Shader.PropertyToID("_CullL");
+        private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
+        internal CullBounds Bounds { get; } = new CullBounds();
+        internal CullTiles Tiles { get; } = new CullTiles();
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
         private Material material;
@@ -213,6 +220,8 @@ namespace ReDefinition.Atmospheres
                 target = null;
             }
             Maps.Dispose();
+            Bounds.Dispose();
+            Tiles.Dispose();
             Heights.Dispose();
             Noise.Dispose();
             UnityEngine.Object.Destroy(material);
@@ -251,6 +260,11 @@ namespace ReDefinition.Atmospheres
                                   heightMaps == null ? 0f : heightMaps.VariationRangeM, height.BaseRagged ? height.RaggedM : 0f);
                 layerH2[l] = height == null ? Vector4.zero
                     : new Vector4(1f / Mathf.Max(1f, height.RaggedScaleM), height.MinThicknessM, source.Heights.SeedOf(l) & 0xFFFFFF, heightMaps == null ? 0f : 1f);
+                // T16: the least vertical optical depth a ray through the layer's whole height collects (the closure test); none where the heights vary.
+                cullL[l] = new Vector4(layerH2[l].y > 0f ? 0f : (float)CullMath.MinVerticalTau(layer.SigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
+                    t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
+                    t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; }),
+                    0f, 0f, 0f);
                 Array.Copy(table.ProfileData, 0, profile, l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples, table.Count * LayerTypeTable.ProfileSamples);
                 for (int t = 0; t < table.Count; t++)
                 {
@@ -259,7 +273,7 @@ namespace ReDefinition.Atmospheres
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, e, 0f);
                 }
             }
-            for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++) layerH[l] = layerH2[l] = Vector4.zero;
+            for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++) layerH[l] = layerH2[l] = cullL[l] = Vector4.zero;
             if (SpreadHeights) Heights.Queue(source.Heights, layerCount);
             else Heights.Upload(source.Heights, layerCount);
             profileTexture.SetPixelData(profile, 0);
@@ -324,7 +338,18 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Shader.PropertyToID("_RefineG"), new Vector4(Mathf.Max(0f, f.RefineGate), Mathf.Max(0f, f.RefineGateFirst), Mathf.Clamp(f.RefineBisect, 0, LayerFrame.MaxRefineBisect), Mathf.Max(0f, f.RefineStepBudget)));
             if (f.Light != null) f.Light.Upload(m);
             if (f.Far != null) f.Far.Upload(m);
+            if (f.Cull != null) f.Cull.Upload(m);
+            m.SetVectorArray(IdCullL, cullL);
             Noise.Bind(m, layerCount);
+        }
+
+        // Package T16: refreshes the bound maps and records the tile pass (nothing where no skip switch is on). Call after Apply and before the march
+        // blit, with the scene depth global set; fullW and fullH are the full target's size, the tile map covers it whatever size the march target has.
+        internal void RecordCull(CommandBuffer cb, LayerFrame f, int fullW, int fullH, Action<CommandBuffer> markStart, Action<CommandBuffer> markEnd)
+        {
+            if (!Ready || f.Cull == null || !f.Cull.TilesNeeded) return;
+            Bounds.Refresh(Maps, layerCount);
+            Tiles.Record(cb, this, Bounds, f.Cull, fullW, fullH, markStart, markEnd);
         }
 
         // The middle sphere of the first layer (package T05's reprojection places the cloud of a pixel on it).
@@ -372,10 +397,12 @@ namespace ReDefinition.Atmospheres
             Transform t = camera.transform;
             SetCamera(t.position, t.forward, t.right * tanX, t.up * tanY,
                       new Vector2(0f, 0f));
+            f.Cull.PixelAngleRad = 2f * tanY / target.height;
             Apply(f);
             commands.Clear();
             if (markStart != null) markStart(commands);
             commands.SetGlobalTexture(IdSceneDepth, sceneDepth);
+            RecordCull(commands, f, camera.pixelWidth, camera.pixelHeight, null, null);
             commands.Blit(BuiltinRenderTextureType.None, target, material, PassMarch);
             if (markMarched != null) markMarched(commands);
             SetMarchTexel(target);

@@ -106,6 +106,8 @@ namespace ReDefinition.Atmospheres
         internal RenderTexture MaskHorizontal { get { return dilated; } }
         internal int LastDilation { get; private set; }
         internal Action<CommandBuffer> MarkMask, MarkEdge;
+        // The timing marks around the culling's tile pass (package T16; the player sets them, the game leaves them null).
+        internal Action<CommandBuffer> MarkCull, MarkCullEnd;
 
         internal bool Init(Shader shader)
         {
@@ -226,6 +228,7 @@ namespace ReDefinition.Atmospheres
             }
             renderer.SetCamera(t.position, t.forward, t.right * tanX, t.up * tanY, jitterNdc);
             f.FrameNumber = frameNumber;
+            f.Cull.PixelAngleRad = 2f * tanY / (s.Mode == ReconMode.Low ? low.height : h);   // T16: the pixel the detail LOD resolves
             renderer.Apply(f);
             Material layers = renderer.Material;
             Vector2 offset = Vector2.zero;
@@ -257,6 +260,7 @@ namespace ReDefinition.Atmospheres
             }
 
             if (markStart != null) markStart(cb);
+            renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
             if (markMarched != null) markMarched(cb);
             if (s.Mode == ReconMode.Full)

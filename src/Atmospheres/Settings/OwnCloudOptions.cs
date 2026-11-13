@@ -104,6 +104,31 @@ namespace ReDefinition.Atmospheres
             Apply(t, Live);
         }
 
+        // The tuning keys of the culling and the distance LOD (T16); the compiled values are the fields of CullSettings.
+        internal const string TuneCutWeight = "cull.cutWeight", TuneStepGrowth = "cull.stepGrowth", TuneTapStart = "cull.tapStart", TuneTapEnd = "cull.tapEnd",
+            TuneTapFactor = "cull.tapFactor", TuneFootScale = "cull.footScale", TuneCapKeep = "cull.capKeep";
+
+        private static readonly CullSettings CompiledCull = new CullSettings();
+
+        // T16: the switches of the visibility culling and the distance LOD; the numbers are tuning keys with the compiled values of the struct.
+        internal static void Apply(CullSettings c, Func<string, double> v)
+        {
+            c.SkipEmpty = On(v, AtmospheresSettings.Keys.CloudSkipEmpty);
+            c.SkipClosed = On(v, AtmospheresSettings.Keys.CloudSkipClosed);
+            c.DistanceCut = On(v, AtmospheresSettings.Keys.CloudLayerDistanceCut);
+            c.StepGrowth = On(v, AtmospheresSettings.Keys.CloudStepGrowth);
+            c.TapLod = On(v, AtmospheresSettings.Keys.CloudTapLod);
+            c.DetailLod = On(v, AtmospheresSettings.Keys.CloudDetailLod);
+            c.CapDistanceM = Math.Max(0, Math.Min(400, (int)v(AtmospheresSettings.Keys.CloudLayerCapDistance))) * 1000f;
+            c.CutWeight = Mathf.Clamp(Tuning.Get(TuneCutWeight, CompiledCull.CutWeight), 0.001f, 0.5f);
+            c.StepGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneStepGrowth, CompiledCull.StepGrowthPerM));
+            c.TapStartM = Mathf.Max(0f, Tuning.Get(TuneTapStart, CompiledCull.TapStartM));
+            c.TapEndM = Mathf.Max(c.TapStartM + 1f, Tuning.Get(TuneTapEnd, CompiledCull.TapEndM));
+            c.TapFactor = Mathf.Clamp(Tuning.Get(TuneTapFactor, CompiledCull.TapFactor), 1f, 8f);
+            c.FootScale = Mathf.Clamp(Tuning.Get(TuneFootScale, CompiledCull.FootScale), 0f, 8f);
+            c.CapKeepSpans = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCapKeep, CompiledCull.CapKeepSpans)), 1, 8);
+        }
+
         // T01, T01c, T05: the march of a frame.
         internal static void Apply(LayerFrame f, Func<string, double> v)
         {
@@ -130,6 +155,7 @@ namespace ReDefinition.Atmospheres
             bool refineOn = On(v, AtmospheresSettings.Keys.CloudEntryRefinement) || maskOn;
             f.RefineBudget = refineOn ? Mathf.Max(0f, Tuning.Get(TuneRefineBudget, EntryRefineBudget)) : 0f;
             f.RefineBisect = Math.Max(0, Math.Min(LayerFrame.MaxRefineBisect, (int)v(AtmospheresSettings.Keys.CloudRefineBisect)));
+            Apply(f.Cull, v);
             f.RefineFraction = Mathf.Clamp(Tuning.Get(TuneRefineFraction, CompiledFrame.RefineFraction), 0.0625f, 1f);
             // T14: the contour gate of the refinement (the alpha step of the 2 x 2 quad above which a ray refines; the first-hit step is off).
             bool atContours = On(v, AtmospheresSettings.Keys.CloudRefineAtContours);
@@ -209,7 +235,8 @@ namespace ReDefinition.Atmospheres
         internal static void Apply(FarViewSettings s, Func<string, double> v)
         {
             s.Haze = On(v, AtmospheresSettings.Keys.CloudFarHaze);
-            s.ShapeMean = On(v, AtmospheresSettings.Keys.CloudFarShapeMean);
+            // T16: the detail LOD by distance takes the shape mean with it (the footprint only lifts the spacing the mean is chosen by).
+            s.ShapeMean = On(v, AtmospheresSettings.Keys.CloudFarShapeMean) || On(v, AtmospheresSettings.Keys.CloudDetailLod);
             s.MinSamples = Math.Max(0, Math.Min(16, (int)v(AtmospheresSettings.Keys.CloudFarMinSamples)));
             s.Policy = On(v, AtmospheresSettings.Keys.CloudFarPolicy);
         }

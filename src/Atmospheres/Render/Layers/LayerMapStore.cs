@@ -19,6 +19,19 @@ namespace ReDefinition.Atmospheres
         private readonly bool[] dirtyCoverage = new bool[CloudLayerDef.MaxLayers];
         private readonly bool[] dirtyType = new bool[CloudLayerDef.MaxLayers];
         private Color32[] scratch;
+        // Rises each time a layer's coverage is uploaded (package T16: the culling's bound maps are rebuilt from the bytes of that frame).
+        private readonly long[] coverageVersion = new long[CloudLayerDef.MaxLayers];
+
+        // The bytes of a layer's coverage map as uploaded last, and the number of uploads so far.
+        internal byte[] CoverageBytes(int layer)
+        {
+            return coverageNow[layer];
+        }
+
+        internal long CoverageVersion(int layer)
+        {
+            return coverageVersion[layer];
+        }
 
         internal Texture2DArray Coverage { get; private set; }
         internal Texture2DArray Types { get; private set; }
@@ -120,7 +133,7 @@ namespace ReDefinition.Atmospheres
             bool coverageDirty = false, typeDirty = false;
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
             {
-                if (dirtyCoverage[l]) { Upload(Coverage, l, coverageNow[l]); dirtyCoverage[l] = false; coverageDirty = true; }
+                if (dirtyCoverage[l]) { Upload(Coverage, l, coverageNow[l]); dirtyCoverage[l] = false; coverageDirty = true; coverageVersion[l]++; }
                 if (dirtyType[l]) { Upload(Types, l, typeNow[l]); dirtyType[l] = false; typeDirty = true; }
             }
             if (coverageDirty) Coverage.Apply(false);

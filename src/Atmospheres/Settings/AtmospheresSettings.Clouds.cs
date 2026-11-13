@@ -55,6 +55,14 @@ namespace ReDefinition.Atmospheres
             internal const string CloudRefineAtContours = "cloudRefineAtContours";
             internal const string CloudRefineBisect = "cloudRefineBisect";
             internal const string CloudRefineEdgeMask = "cloudRefineEdgeMask";
+            // Own clouds: the visibility culling and the distance LOD (T16)
+            internal const string CloudSkipEmpty = "cloudSkipEmpty";
+            internal const string CloudSkipClosed = "cloudSkipClosed";
+            internal const string CloudLayerDistanceCut = "cloudLayerDistanceCut";
+            internal const string CloudStepGrowth = "cloudStepGrowth";
+            internal const string CloudTapLod = "cloudTapLod";
+            internal const string CloudDetailLod = "cloudDetailLod";
+            internal const string CloudLayerCapDistance = "cloudLayerCapDistance";
             // Own clouds: the look fixes of T03v2 and the far view (T06), the switches of the review of wave 4
             internal const string CloudSunMarchLong = "cloudSunMarchLong";
             internal const string CloudSunWhiteBalance = "cloudSunWhiteBalance";
@@ -104,6 +112,13 @@ namespace ReDefinition.Atmospheres
         internal static bool CloudRefineAtContours => B(Keys.CloudRefineAtContours);
         internal static int CloudRefineBisect => I(Keys.CloudRefineBisect);
         internal static bool CloudRefineEdgeMask => B(Keys.CloudRefineEdgeMask);
+        internal static bool CloudSkipEmpty => B(Keys.CloudSkipEmpty);
+        internal static bool CloudSkipClosed => B(Keys.CloudSkipClosed);
+        internal static bool CloudLayerDistanceCut => B(Keys.CloudLayerDistanceCut);
+        internal static bool CloudStepGrowth => B(Keys.CloudStepGrowth);
+        internal static bool CloudTapLod => B(Keys.CloudTapLod);
+        internal static bool CloudDetailLod => B(Keys.CloudDetailLod);
+        internal static int CloudLayerCapDistance => I(Keys.CloudLayerCapDistance);
 
         internal static bool CloudSunMarchLong => B(Keys.CloudSunMarchLong);
         internal static bool CloudSunWhiteBalance => B(Keys.CloudSunWhiteBalance);
@@ -157,6 +172,15 @@ namespace ReDefinition.Atmospheres
                 // density reads at an entry, the second restricts the full refinement to the blocks of the edge mode that the edge mask flags).
                 SettingDef.Int("cloudRefineBisect", 0, 0, 4, CL, "Cloud Entry Bisection Steps", OWN, RV),
                 SettingDef.Bool("cloudRefineEdgeMask", false, CL, "Cloud Refine At Edge Mask", OWN, RV),
+                // Package T16: the visibility culling and the distance LOD, all off until the owner agrees (each lowers the cost at some error, measured in
+                // tools/weather_metrics/cull.py).
+                SettingDef.Bool("cloudSkipEmpty", false, CL, "Cloud Skip Empty Sky", OWN, RV),
+                SettingDef.Bool("cloudSkipClosed", false, CL, "Cloud Skip Behind Closed Decks", OWN, RV),
+                SettingDef.Bool("cloudLayerDistanceCut", false, CL, "Cloud Layer Distance Cut", OWN, RV),
+                SettingDef.Bool("cloudStepGrowth", false, CL, "Cloud Step Growth With Distance", OWN, RV),
+                SettingDef.Bool("cloudTapLod", false, CL, "Cloud Light Taps By Distance", OWN, RV),
+                SettingDef.Bool("cloudDetailLod", false, CL, "Cloud Detail By Distance", OWN, RV),
+                SettingDef.Int("cloudLayerCapDistance", 0, 0, 400, CL, "Cloud Layer Cap Distance (km)", OWN, RV),
                 SettingDef.Bool("cloudHashDither", true, CL, "Cloud White Dither", OWN),
 
                 // The light (T03)

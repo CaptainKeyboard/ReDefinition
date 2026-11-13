@@ -1,0 +1,8 @@
+# Linked into the weather player for the visibility culling and the distance LOD of the own clouds (package T16): the culling's settings, bound maps and
+# tile pass, and the include of the layer shader (the layer core comes from T01.txt, the reconstructor and the temporal rig from T05.txt, EdgeKit from
+# T12.txt). The scenes are in tests/WeatherPlayer/Assets/Runner/CullScene.cs.
+src/Atmospheres/Render/Layers/Cull/*.cs
+unity/Assets/**/CloudCull.cginc
+# The layer renderer reads the coverage threshold through CloudLayerDef.EffectiveCoverage, which asks CloudCoverShift (added with the K-T2d variant); its tuning
+# table is stubbed in the player (tests/WeatherPlayer/Assets/Runner/CullStubs.cs).
+src/Atmospheres/Light/Cloud/CloudCoverShift.cs

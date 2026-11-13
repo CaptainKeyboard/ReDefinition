@@ -158,6 +158,8 @@ Shader "ReDefinition/AtmospheresLayers"
         #include "ReDefinitionAtmospheresFarView.cginc"
         // ---- height variation (package T13: base and top vary over the sky) ----
         #include "ReDefinitionAtmospheresBaseHeight.cginc"
+        // ---- culling and distance LOD (package T16: the tile map the march reads, the fades and the LOD functions) ----
+        #include "CloudCull.cginc"
 
         // The largest amount the coverage noise moves the map value by: the shape value is 0 to 1, so the threshold moves by half the amount.
         float CoverageNoiseBound(int li)
@@ -306,6 +308,7 @@ Shader "ReDefinition/AtmospheresLayers"
             {
                 if (li >= (int)_LayerCount) break;
                 if (_LimitP.z > 0 && fmod(floor(_LimitP.z / pow(2.0, (float)li)), 2.0) < 0.5) continue;
+                if (!CullLayerOn(li)) continue;
                 float4 sp;
                 LayerSpans(li, o, d, tmax, sp);
                 CellClip(o, d, sp);
@@ -341,6 +344,13 @@ Shader "ReDefinition/AtmospheresLayers"
                 if (k >= n) break;
                 if (T < _MarchP.w) break;
                 int li = sl[k];
+                // T16: the distance cut and the layer cap thin a span by a smooth factor and drop it where the factor is zero.
+                float spanF = 1.0;
+                if (_CullB.x > 0.5 || _CullB.z > 0.0)
+                {
+                    spanF = CullDistanceFade(o, d, s0[k]) * CullCapFade(k, s0[k]);
+                    if (spanF <= 0.0) continue;
+                }
                 float len = s1[k] - s0[k];
                 float kind = _LayerB[li].w;
                 // Cheap and fog layers take a share of the step budget (they carry no detail the full count would resolve).
@@ -381,7 +391,10 @@ Shader "ReDefinition/AtmospheresLayers"
                     float3 pc = o + d * t;
                     float alt = length(pc) - _PlanetR;
                     float share;
-                    float dens = LayerDensity(li, pc, alt, t, share);
+                    // T16: the step grows along the span; the detail's footprint is the pixel's size at the distance.
+                    float dtv = _CullC.x > 0.0 ? dt * CullStepScale(t - s0[k]) : dt;
+                    if (_CullD.x > 0.5) gNoiseFoot = CullFoot(t, dtv);
+                    float dens = LayerDensity(li, pc, alt, t, share) * spanF;
                     r.steps += 1;
                     if (bis > 0)
                     {
@@ -405,13 +418,13 @@ Shader "ReDefinition/AtmospheresLayers"
                         }
                         tLast = t;
                         arrived = leap;
-                        t += dt * leap;
+                        t += dtv * leap;
                         leap = min(leap + 1.0, leapMax);
                         continue;
                     }
                     if (arrived > 1.5)
                     {
-                        t = tLast + dt;
+                        t = tLast + dtv;
                         leap = 1.0;
                         arrived = 1.0;
                         continue;
@@ -447,7 +460,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     tLast = t;
                     // COST (T05): inside a cloud the step grows with what the ray has already lost (_CostP.w): a ray that is nearly opaque
                     // needs no fine sampling of what lies behind. The sample stands for its whole step, so the optical depth uses it.
-                    float dts = min(dt * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dt));
+                    float dts = min(dtv * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dtv));
                     // The optical depth one step adds is bounded by a budget that grows with what the ray has already gathered: the entry is
                     // sampled finely, the inside coarsely (stream T).
                     if (refine) dts = min(dts, max(_RefineP.x * (1.0 + r.tau) / dens, fineStep));
@@ -467,8 +480,9 @@ Shader "ReDefinition/AtmospheresLayers"
                         // The light march costs most: a step that weighs less than the cut-off, or that follows a march by fewer than _CostP.z
                         // lit steps, reuses the optical depth towards the sun of the last march of this span (package T01c).
                         float reuse = -1.0;
+                        float tapK = CullTapFactor(t);
                         if (noLight) reuse = 0.0;
-                        else if (haveSun && !(T * ext >= lightCut && sinceLight + 1.0 >= _CostP.z)) { reuse = sunTau; sinceLight += 1.0; }
+                        else if (haveSun && !(T * ext >= lightCut * tapK && sinceLight + 1.0 >= _CostP.z * tapK)) { reuse = sunTau; sinceLight += 1.0; }
                         float taps, tauUsed, upUsed;
                         // Up mode 3 moves the reused optical depth straight up by what the ray has crossed since: the column above a point that is lower
                         // by h holds the density integral over h more, which along the ray is the optical depth since times the ray's vertical share.
@@ -551,6 +565,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 Pass0(v2f i)
         {
             i.uv = FullUv(i.uv);
+            CullReadTile(i.uv);   // T16: the layers this pixel's tile marches
             // Aid 3: the phase function over mu = 2 u - 1 (r: octave 0, g: octave 1), the parity check's normalisation probe.
             if (_LimitP.y > 2.5 && _LimitP.y < 3.5)
             {
@@ -595,7 +610,22 @@ Shader "ReDefinition/AtmospheresLayers"
             }
             // Aid 4: the direct light (r) against the ambient (b) and the step count's share of the budget (g); aid 5: the step map.
             if (_LimitP.y > 3.5 && _LimitP.y < 4.5) return float4(Luma(r.direct), r.lightTaps, Luma(r.ambient), r.alpha);
-            if (_LimitP.y > 4.5) return float4(Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * step(0.5, r.steps), 1.0);
+            if (_LimitP.y > 4.5 && _LimitP.y < 5.5) return float4(Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * step(0.5, r.steps), 1.0);
+            // Aid 6 (T16): the skipped-block map. Blue the maps, green the terrain, grey no shell, orange behind a closed deck, yellow some layers dropped,
+            // dark red scale the marched steps where the whole tile marches.
+            if (_LimitP.y > 5.5 && _LimitP.y < 6.5)
+            {
+                float full = exp2(_LayerCount) - 1.0;
+                float3 col = Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * 0.35 * step(0.5, r.steps);
+                bool a1 = fmod(gCullAid, 2.0) > 0.5, a2 = fmod(floor(gCullAid / 2.0), 2.0) > 0.5, a4 = fmod(floor(gCullAid / 4.0), 2.0) > 0.5, a8 = gCullAid > 7.5;
+                if (gCullBits < 0.5) col = a1 ? float3(0.1, 0.3, 0.95) : (a2 ? float3(0.1, 0.8, 0.2) : (a4 ? float3(0.45, 0.45, 0.6) : float3(0.8, 0.1, 0.1)));
+                else if (a8) col = float3(1.0, 0.55, 0.1);
+                else if (gCullBits < full - 0.5) col = float3(0.95, 0.85, 0.15);
+                return float4(col, 1.0);
+            }
+            // Aid 7 (T16): the LOD map at the ray's first dense sample: red the tap factor over 1, green the step scale over 1, blue the detail footprint share over 1.
+            if (_LimitP.y > 6.5)
+                return float4(saturate((CullTapFactor(r.first) - 1.0) * 0.5), saturate(_CullC.x * max(r.first, 0.0) * 0.5), saturate(CullFoot(r.first, 1.0) * 0.001), 1.0) * step(0.5, r.steps);
             if (_LimitP.y > 0.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
             return float4(r.rgb, r.alpha);
         }
@@ -650,6 +680,10 @@ Shader "ReDefinition/AtmospheresLayers"
             return c;
         }
         #include "MarchStep.cginc"
+        // The tile pass of the culling (T16; pass 5).
+        #define CLOUDCULL_TILE
+        #include "CloudCull.cginc"
+        #undef CLOUDCULL_TILE
         ENDCG
 
         Pass
@@ -728,6 +762,17 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             float4 frag(v2f i) : SV_Target { return OutputStage(PassComposite(i)); }
+            ENDCG
+        }
+
+        // Pass 5 (T16): the tile map of the culling, one texel per tile of the full target (the layers each tile marches).
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 3.5
+            float4 frag(v2f i) : SV_Target { return CullTilePass(i); }
             ENDCG
         }
     }
