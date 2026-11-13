@@ -130,7 +130,8 @@ A2_OPEN = 0.15               # and under this at -0.08 (the plan's 0.05 is at -0
 A4_DECK = 0.60               # the rain deck alone at the T2 pick
 A5_BR = (0.80, 0.92)         # deck b over r for the lit part at 45 degrees
 A5_PLATEAU = 0.05            # sky_over_off_sky and ground_over_off_ground within 1 +- this
-A7_STEP = 0.10               # the horizon band's change against the baseline
+ORDER_STEP_ON, ORDER_STEP_OFF = 0.08, 0.15     # E40 start 52: the colour step at the sea horizon's row over the baseline's, with cloud.afterScatterer 1 (at most) and 0 (at least)
+A7_STEP = 0.10              # the horizon band's change against the baseline
 
 
 def look_table(values, view, cover, get, add, notes):
@@ -170,7 +171,7 @@ def look_table(values, view, cover, get, add, notes):
     # The optical depth (aid frame 1) of a set's frame beside its colour-change closed share and the oracle's zenith expectation (E40 follow-up of start 51: closed by colour counts a thin
     # saturated veil as closed; the tau separates a veil from a thick sheet). The aid tau closed share counts tau >= 0.92 over the same region.
     for f in frames:
-        m = re.match(r"^aid1(k(C\d)|l0in|l0up)$", f)
+        m = re.match(r"^aid1(k(C\d)|w(C\d)o\d|l0in|l0mid|l0up)$", f)
         if not m:
             continue
         natural = f[4:]
@@ -221,11 +222,32 @@ def look_table(values, view, cover, get, add, notes):
                 add(pre + "%s.only%s.closed" % (m.group(1), m.group(2)), got)
                 if m.group(2) == "0" and cover == "high":
                     add(pre + "%s.a4_rain_deck" % m.group(1), 1 if got >= A4_DECK else -1)
-        if f in ("l0in", "l0up"):
+        if f in ("l0in", "l0mid", "l0up"):
             sky = get(f, "sky_closed_share")
             gr = get(f, "ground_closed_share")
             if sky is not None or gr is not None:
                 add(pre + "%s.closed" % f, max(x for x in (sky, gr) if x is not None))
+    # E40 start 52: the order pair (cloud.afterScatterer 1 / 0) and the colour next to the sea horizon's row. The step is the largest channel of |frame colour above the row - below it|;
+    # the baseline's own step is what sky and sea differ by. The rule written before the run: with the switch on the step is no more than 0.08 over the baseline's, with it off the
+    # step returns (0.15 over the baseline's or more, as start 51's above-low kC0: 0.28 against 0.06).
+    off_step = get("off", "line_step_colour")
+    for f in frames:
+        s = get(f, "line_step_colour")
+        if s is not None and off_step is not None:
+            add(pre + "%s.line_step_over_off" % f, s - off_step)
+    on, offf = get("ord1", "line_step_colour"), get("ord0", "line_step_colour")
+    if on is not None and offf is not None and off_step is not None:
+        add(pre + "order.step_on", on - off_step)
+        add(pre + "order.step_off", offf - off_step)
+        add(pre + "order.step_vanishes", 1 if (on - off_step <= ORDER_STEP_ON and offf - off_step >= ORDER_STEP_OFF) else -1)
+        moves1, moves0 = get("ord1", "order_moves"), get("ord0", "order_moves")
+        notes.append("%-12s order pair: step over the baseline's %.3f with afterScatterer 1, %.3f with 0 (moved frames %s / %s)" % (
+            head, on - off_step, offf - off_step, "-" if moves1 is None else "%d" % moves1, "-" if moves0 is None else "%d" % moves0))
+    for l in ("L0", "L1", "L2", "L3"):
+        root = values.get((view, cover, l, "root_m"))
+        if root is not None:
+            notes.append("%-12s %s height offsets at the vessel: root %.0f m, top %.0f m, variation %.0f m" % (
+                head, l, root, values.get((view, cover, l, "top_m"), float("nan")), values.get((view, cover, l, "variation_m"), float("nan"))))
     for f in ("q50", "q42"):
         got = get(f, "%s_closed_share" % region)
         if got is not None:
@@ -465,6 +487,11 @@ def selftest():
     got = {r["metric"]: r["value"] for r in analyse(parse([hz]), notes)}
     assert got["T09d.horizon.low.look.hz0h0.a7_step"] == -1 and got["T09d.horizon.low.look.hz40h1.a7_step"] == 1, got
     assert any("horizon band change against the baseline" in n and "hz0h0 0.40" in n for n in notes), notes
+    order = look_rows("above", "low", (("off.line_step_colour", 0.06), ("ord1.line_step_colour", 0.09), ("ord0.line_step_colour", 0.28), ("ord1.order_moves", 60), ("ord0.order_moves", 0)))
+    notes = []
+    got = {r["metric"]: r["value"] for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.05, 1.0) + order]), notes)}
+    assert got["T09d.above.low.look.order.step_vanishes"] == 1 and abs(got["T09d.above.low.look.order.step_off"] - 0.22) < 1e-9, got
+    assert any("order pair" in n and "moved frames 60 / 0" in n for n in notes), notes
     # Lines of another series and text values are ignored; an empty log gives nothing.
     assert parse(['ATMORESULT {"series":"K-T2","metric":"T09d.a.b.c.d","value":1.0}', 'ATMORESULT {"series":"K-T2d","metric":"T09d.env.sunLight","value":"x"}']) == {}
     assert analyse({}, []) == []

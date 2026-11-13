@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
 
         protected override double MaxSeconds
         {
-            get { return IsDiag ? DiagMaxSeconds : 19 * 60; }
+            get { return IsDiag ? (LookMode != null ? LookMaxSeconds : DiagMaxSeconds) : 19 * 60; }
         }
 
         protected override IList<string> DefaultVariants

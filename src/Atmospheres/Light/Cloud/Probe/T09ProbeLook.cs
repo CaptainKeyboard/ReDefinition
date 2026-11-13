@@ -27,6 +27,13 @@ namespace ReDefinition.Atmospheres
         // The seconds the maps need to slew to a new type value (the slew limit is 0.08 a second, the type values move by at most 0.25).
         private const double LookTypeSettleS = 6.0, LookMapSettleS = 2.0;
         // The horizon pose of look B: 200 m up, 2 degrees above the horizontal.
+        // Look A, start 52: the rain deck alone from 2.3 km above the ground (above the deck's top at the wet site, where the T13 base floor puts it at 0 to about 355 m), looking 8 degrees up like the 4.6 km view.
+        internal static readonly View DeckMidView = new View { Name = "deck", AglM = 2300.0, PitchDeg = 8.0, HeadingDeg = 90.0, CameraDistM = 150.0 };
+        // The probe's limit in a look start (the ordinary K-T2d start is 8 minutes): about 80 frames, the order pair's waits and the type waits.
+        internal const double LookMaxSeconds = 12 * 60;
+        // The seconds the order switch (cloud.afterScatterer) needs: the pass re-reads the camera's buffer order once a second in OnPreRender and moves its buffers in the same frame; the
+        // window after it counts the moves.
+        private const double OrderSettleS = 2.5, OrderCountS = 1.0, OrderGiveUpS = 8.0;
         internal static readonly View HorizonView = new View { Name = "horizon", AglM = 200.0, PitchDeg = 2.0, HeadingDeg = 90.0, CameraDistM = 100.0 };
         // The distances (km) along the view at which the layer maps are read.
         internal static readonly double[] LookMapKm = { 0.0, 5.0, 10.0, 20.0, 40.0, 80.0 };
@@ -99,11 +106,11 @@ namespace ReDefinition.Atmospheres
         }
 
         // The expectation rows of the frame about to be read (CloudLookModel.Expect with the knobs as they are now); written before DiagTake.
-        private void EmitLookExpectation(string head, string frame, View view, T09LookInput input)
+        private void EmitLookExpectation(string head, string frame, View view, T09LookInput input, int onlyLayer = -1)
         {
             if (input == null) return;
             LookExpectation e;
-            try { e = CloudLookModel.Expect(input, Game.ReadPose().CameraAsl, view.PitchDeg, Game.CameraFovDeg); }
+            try { e = CloudLookModel.Expect(input, Game.ReadPose().CameraAsl, view.PitchDeg, Game.CameraFovDeg, onlyLayer: onlyLayer); }
             catch (Exception ex)
             {
                 Warn("look_expectation_fault", head + frame + ": " + ex.GetType().Name + " " + ex.Message);
@@ -125,12 +132,21 @@ namespace ReDefinition.Atmospheres
             if (input == null || input.CoverAt == null) return;
             double lat0 = Game.VesselLatitude, lon0 = Game.VesselLongitude;
             for (int l = 0; l < input.Layers.Length; l++)
+            {
+                // The height maps' offsets at the vessel (the root offset is what lifts or sinks a layer at this place; K-T2d start 52 asked for the rain deck's).
+                if (input.RootM != null && input.RootM.Length == input.Layers.Length)
+                {
+                    Emit(head + "L" + l.ToString(CultureInfo.InvariantCulture) + ".root_m", input.RootM[l]);
+                    Emit(head + "L" + l.ToString(CultureInfo.InvariantCulture) + ".top_m", input.TopM[l]);
+                    Emit(head + "L" + l.ToString(CultureInfo.InvariantCulture) + ".variation_m", input.VariationM[l]);
+                }
                 foreach (double km in LookMapKm)
                 {
                     double lat, lon;
                     CloudLookModel.Walk(lat0, lon0, view.HeadingDeg, km * 1000.0, input.BodyRadiusM, out lat, out lon);
                     Emit(head + "L" + l.ToString(CultureInfo.InvariantCulture) + ".map_at_" + km.ToString("0", CultureInfo.InvariantCulture) + "_km", input.CoverAt(l, lat, lon));
                 }
+            }
         }
 
         // One frame under the forced keys: settle, expectation, read.
@@ -207,6 +223,9 @@ namespace ReDefinition.Atmospheres
                 }
             }
             ClearForced();
+            // Start 52: the order pair, at the low cover (the ground view and the view from above).
+            if (cover == "low")
+                foreach (ProbeWait w in LookOrderPair(view, cover, head, off)) yield return w;
             if (view.Name != "ground") yield break;
             // The layers one at a time under the winning set (P3 and the shape of each layer).
             LookSet win = LookWin();
@@ -218,7 +237,12 @@ namespace ReDefinition.Atmospheres
                 yield return ProbeWait.Frames(DiagSettleFrames);
                 if (win.ChangesTypes) yield return ProbeWait.Seconds(LookTypeSettleS);
                 else if (k == 0) yield return ProbeWait.Seconds(LookMapSettleS);
-                foreach (ProbeWait w in DiagTake(view, cover, "w" + win.Tag + "o" + k.ToString(CultureInfo.InvariantCulture), false, off)) yield return w;
+                string alone = "w" + win.Tag + "o" + k.ToString(CultureInfo.InvariantCulture);
+                // Start 52: the oracle's expectation for this layer alone (the zenith tau of L0 and of the sheet layer), and the aid frame of the rain deck and the sheet beside the natural one.
+                if (k <= 1) EmitLookExpectation(head, alone, view, Game.ReadLookInput(), k);
+                foreach (ProbeWait w in DiagTake(view, cover, alone, false, off)) yield return w;
+                if (k <= 1)
+                    foreach (ProbeWait w in LookAidTau(view, cover, alone, off)) yield return w;
             }
             Game.SetLayerMask(0);
             // Q21: the rain deck's coverage 0.5 (the file) against 0.42 on its own (cloud.coverageShiftRain).
@@ -232,7 +256,51 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(DiagSettleFrames);
         }
 
-        // Look A, high cover: the rain deck alone from inside (4.6 km) and from above (P3).
+        // Start 52, the order pair: one pose, the current numbers (set C0), the pass drawn after Scatterer's screen-space scattering (cloud.afterScatterer 1, the default) and before it (0).
+        // The pass re-reads the order of the camera's buffers once a second in OnPreRender, so each frame waits OrderSettleS, then counts the frames in which the pass moved its buffers
+        // over OrderCountS: with 1 the count is above 0 (Scatterer puts its buffers behind the pass again every frame), with 0 it is 0. The rows: <frame>.order_moves (the count),
+        // <frame>.order_flag, <frame>.render_order (the text of the order the pass read), and the horizon-line rows of the frame (EmitHorizonLine) that tell whether the cloud's colour steps
+        // at the sea horizon's row. The env lines of the log (T09d env renderOrder) are written after each wait.
+        private IEnumerable<ProbeWait> LookOrderPair(View view, string cover, string head, T09Readout.Reading off)
+        {
+            string previousOrder = null;
+            foreach (int flag in new[] { 1, 0 })
+            {
+                string frame = "ord" + flag.ToString(CultureInfo.InvariantCulture);
+                ApplyLookKeys(CloudLookModel.Sets[0], 0f);
+                ForceTuning(OwnCloudModule.TuneAfterScatterer, flag);
+                yield return ProbeWait.Frames(DiagSettleFrames);
+                yield return ProbeWait.Seconds(OrderSettleS);
+                OwnCloudModule own = OwnCloudModule.Current;
+                if (own == null || own.RenderOrder == null || own.RenderOrder.StartsWith("not read yet", StringComparison.Ordinal))
+                {
+                    Warn("no_order_state", head + frame + ": the own pass is not there or has not read the camera's buffer order; the order is not read");
+                }
+                else
+                {
+                    int before = own.Stats.OrderMoves;
+                    yield return ProbeWait.Seconds(OrderCountS);
+                    int moves = own.Stats.OrderMoves - before;
+                    Emit(head + frame + ".order_flag", flag);
+                    Emit(head + frame + ".order_moves", moves);
+                    Emit(head + frame + ".order_moving", own.MovesBehindScattering);
+                    string order = own.RenderOrder ?? "";
+                    EmitText(head + frame + ".render_order", order);
+                    LogEnvironment(true);
+                    Check("T09d.order_" + view.Name + "_" + cover + "_" + frame, flag == 1 ? moves > 0 : moves == 0,
+                          "cloud.afterScatterer " + flag + ": " + moves + " moved frames in " + OrderCountS.ToString("0.0") + " s; order " + order);
+                    if (previousOrder != null)
+                        Check("T09d.order_changed_" + view.Name + "_" + cover, !string.Equals(previousOrder, order, StringComparison.Ordinal),
+                              "the buffer order read with the switch on and off: " + previousOrder + " | " + order);
+                    previousOrder = order;
+                }
+                foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
+            }
+            ClearForced();
+            yield return ProbeWait.Frames(DiagSettleFrames);
+        }
+
+        // Look A, high cover: the rain deck alone from inside (4.6 km), from 2.3 km and from above (P3).
         private IEnumerable<ProbeWait> DiagLookL0(View view, string cover)
         {
             string head = "T09d." + view.Name + "." + cover + ".";
@@ -243,7 +311,8 @@ namespace ReDefinition.Atmospheres
             T09Readout.Reading off = diagReading;
             Game.SetLayerMask(1 << 0);
             yield return ProbeWait.Frames(DiagSettleFrames);
-            string l0Frame = view.Name == "inside" ? "l0in" : "l0up";
+            string l0Frame = view.Name == "inside" ? "l0in" : view.Name == "deck" ? "l0mid" : "l0up";
+            EmitLookExpectation(head, l0Frame, view, Game.ReadLookInput(), 0);
             foreach (ProbeWait w in DiagTake(view, cover, l0Frame, false, off)) yield return w;
             foreach (ProbeWait w in LookAidTau(view, cover, l0Frame, off)) yield return w;
             Game.SetLayerMask(0);

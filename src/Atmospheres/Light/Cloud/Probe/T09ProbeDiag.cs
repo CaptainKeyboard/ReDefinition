@@ -358,8 +358,8 @@ namespace ReDefinition.Atmospheres
             }
             if (look == "A" && tag == "high")
             {
-                // P3: the rain deck alone from inside (4.6 km) and from above, where K-T2d start 50 saw it draw nothing at map 0.86.
-                foreach (View view in new[] { Views[1], Views[2] })
+                // P3: the rain deck alone from inside (4.6 km) and from above, where K-T2d start 50 saw it draw nothing at map 0.86; start 52 adds 2.3 km, just above the deck's top.
+                foreach (View view in new[] { Views[1], Views[2], DeckMidView })
                 {
                     foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
                     Emit("T09d." + view.Name + "." + tag + ".placed_ok", placeOk);
@@ -658,10 +658,16 @@ namespace ReDefinition.Atmospheres
                 Check("T09d.readout_" + name, false, "the readout threw " + e.GetType().Name + " " + e.Message);
                 yield break;
             }
+            if (!aid)
+            {
+                try { reading.Line = T09Readout.MeasureHorizonLine(image.Raw, baseline != null ? baseline.Raw : null, image.Width, image.Height, horizon); }
+                catch (Exception e) { Warn("horizon_line_fault", name + ": " + e.GetType().Name + " " + e.Message); }
+            }
             string p = "T09d." + view.Name + "." + tag + "." + gainTag + ".";
             Emit(p + "pose_ok", poseOk);
             Emit(p + "pose_alt_m", after.VesselAsl);
-            if (aid && aidMode == 1) EmitAidTau(p, reading, image.Raw, baseline);
+            // The ground view looks up at a sky layer; the other views (inside, deck, above, sky3... ) look down on the deck, so their tau is read over the sea or ground region.
+            if (aid && aidMode == 1) EmitAidTau(p, reading, image.Raw, baseline, view.Name != "ground" && view.Name != "sky3");
             else if (aid) EmitAid(p, reading);
             else EmitReading(p, what, reading, baseline, gainTag == "off", poseOk);
             diagReading = reading;
@@ -695,6 +701,7 @@ namespace ReDefinition.Atmospheres
             Emit(p + "peak", r.Peak);
             EmitStat(p + "sky_", r.Sky);
             EmitStat(p + "ground_", r.Ground);
+            EmitHorizonLine(p, r.Line);
             if (isOff)
             {
                 EmitRatio(p + "ground_over_sky", T09Readout.Ratio(r.Ground.Median, r.Ground.Count, r.Sky.Median, r.Sky.Count));
@@ -721,10 +728,25 @@ namespace ReDefinition.Atmospheres
             EmitRatio(p + "deck_over_off_ground", T09Readout.Ratio(r.Deck.Median, r.Deck.Count, off.Ground.Median, off.Ground.Count));
         }
 
+        // The colour in the bands just above and just below the sea horizon's row (a few columns; T09Readout.MeasureHorizonLine): line_above_r/g/b and line_below_r/g/b are the frame's colours,
+        // line_dabove_* and line_dbelow_* the change against the baseline frame (the cloud's own contribution), line_step the largest channel of their difference.
+        private void EmitHorizonLine(string p, T09Readout.HorizonLine l)
+        {
+            if (l.Count == 0) return;
+            Emit(p + "line_n", l.Count);
+            Emit(p + "line_above_r", l.Above.r); Emit(p + "line_above_g", l.Above.g); Emit(p + "line_above_b", l.Above.b);
+            Emit(p + "line_below_r", l.Below.r); Emit(p + "line_below_g", l.Below.g); Emit(p + "line_below_b", l.Below.b);
+            Emit(p + "line_step_colour", l.StepColour);
+            if (!l.HasDelta) return;
+            Emit(p + "line_dabove_r", l.DeltaAbove.r); Emit(p + "line_dabove_g", l.DeltaAbove.g); Emit(p + "line_dabove_b", l.DeltaAbove.b);
+            Emit(p + "line_dbelow_r", l.DeltaBelow.r); Emit(p + "line_dbelow_g", l.DeltaBelow.g); Emit(p + "line_dbelow_b", l.DeltaBelow.b);
+            Emit(p + "line_step", l.Step);
+        }
+
         // The aid frame: the channels of the pass's direct light (r), light taps (g) and ambient (b) over the deck of the natural frame.
         // The rows of an aid-1 frame (the optical depth picture): the optical depth over the sky samples decoded against the baseline frame (T09Readout.MeasureAidTau), to be read
         // beside the colour-change closed share of the natural frame of the same set (K-T2d start 51 had no tau). Needs the baseline's raw picture; named otherwise.
-        private void EmitAidTau(string p, T09Readout.Reading r, Color[] raw, T09Readout.Reading baseline)
+        private void EmitAidTau(string p, T09Readout.Reading r, Color[] raw, T09Readout.Reading baseline, bool below)
         {
             if (baseline == null || baseline.Raw == null || raw == null || baseline.Raw.Length != raw.Length)
             {
@@ -732,7 +754,7 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             T09Readout.AidTauReading t;
-            try { t = T09Readout.MeasureAidTau(raw, baseline.Raw, r.Width, r.Height, r.HorizonV); }
+            try { t = T09Readout.MeasureAidTau(raw, baseline.Raw, r.Width, r.Height, r.HorizonV, 4, below); }
             catch (Exception e)
             {
                 Warn("aid_tau_fault", p.TrimEnd('.') + ": " + e.GetType().Name + " " + e.Message);

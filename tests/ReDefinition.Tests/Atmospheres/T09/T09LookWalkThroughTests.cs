@@ -78,7 +78,25 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-inside_high-off-")) && r.World.Saved.Any(n => n.Contains("-above_high-off-")));
             // 3 pairs x (off + 6 set frames + forced map) + ground x 2 covers x (4 layers + 2 rain frames) + the rain deck from inside and above (2 x 2)
             // + the aid frames of the optical depth: 3 pairs x 2 sets (the current one and the winning one at shift 0) + the two rain deck frames.
-            Assert.AreEqual(3 * 8 + 2 * 6 + 4 + 3 * 2 + 2, r.World.Saved.Count, string.Join(",", r.World.Saved.Take(6).ToArray()));
+            // + the order pair (start 52): 2 poses x 2 frames; the rain deck alone from 2.3 km (off, l0mid, aid); the aid frames of the layers alone (L0 and L1) at both covers of the ground view.
+            Assert.AreEqual(3 * 8 + 2 * 6 + 4 + 3 * 2 + 2 + 4 + 3 + 4, r.World.Saved.Count, string.Join(",", r.World.Saved.Take(6).ToArray()));
+            foreach (string pose in new[] { "ground.low", "above.low" })
+            {
+                string o = "T09d." + pose + ".";
+                foreach (string frame in new[] { "ord1", "ord0" })
+                    Assert.IsTrue(Row(r, o + frame + ".deck_median") > 0, o + frame + " has a deck row");
+                Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + pose.Replace('.', '_') + "-ord0-")) && r.World.Saved.Any(n => n.Contains("-" + pose.Replace('.', '_') + "-ord1-")), pose + " order pair pictures");
+            }
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-deck_high-l0mid-")) && r.World.Saved.Any(n => n.Contains("-deck_high-off-")), "the rain deck alone from 2.3 km");
+            Assert.IsTrue(Row(r, "T09d.deck.high.aid1l0mid.aidtau_n") > 0, "aid frame of the rain deck from 2.3 km");
+            Assert.IsTrue(Row(r, "T09d.deck.high.l0mid.expect_tau_zenith_mean") >= 0, "the oracle's zenith tau for the deck alone");
+            foreach (string cover in new[] { "low", "high" })
+                foreach (int k in new[] { 0, 1 })
+                {
+                    Assert.IsTrue(Row(r, "T09d.ground." + cover + ".aid1wC5o" + k + ".aidtau_n") > 0, "aid frame of layer " + k + " alone, " + cover);
+                    Assert.IsTrue(Row(r, "T09d.ground." + cover + ".wC5o" + k + ".expect_tau_zenith_mean") >= 0, "zenith expectation of layer " + k + " alone, " + cover);
+                }
+            Assert.IsTrue(r.Log.Any(l => l.Contains("no_order_state")), "without the pass the order pair names that it could not read the order");
             foreach (string view in new[] { "ground.low", "ground.high", "above.low" })
             {
                 string p = "T09d." + view + ".";
@@ -96,7 +114,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 }
             }
             Assert.IsTrue(Row(r, "T09d.inside.high.aid1l0in.aidtau_n") > 0 && Row(r, "T09d.above.high.aid1l0up.aidtau_n") > 0, "aid frames of the rain deck from inside and above");
-            Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
+            // The only warnings are the four frames of the order pair, which name that the fake has no pass that read the camera's buffer order.
+            Assert.AreEqual(4.0, Number(r, "T09.pictures.warnings"));
         }
 
         [TestMethod]

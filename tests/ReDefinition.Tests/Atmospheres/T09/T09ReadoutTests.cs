@@ -132,5 +132,40 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             catch (ArgumentException) { }
         }
+
+        [TestMethod]
+        public void TheAidTauOfAViewThatLooksDownIsReadOverTheSeaBelowTheHorizon()
+        {
+            const double horizon = 0.6;
+            Color sky = new Color(0.337f, 0.541f, 0.754f, 1f), sea = new Color(0.1f, 0.3f, 0.5f, 1f);
+            Color[] scene = Picture((u, v) => v > horizon ? sky : sea);
+            // A deck of tau 2.0 over the sea only.
+            Color[] aid = Picture((u, v) => v > horizon ? sky : T09Readout.AidPixel(2.0, sea));
+            T09Readout.AidTauReading seaRead = T09Readout.MeasureAidTau(aid, scene, W, H, horizon, 1, true);
+            T09Readout.AidTauReading skyRead = T09Readout.MeasureAidTau(aid, scene, W, H, horizon, 1, false);
+            Assert.IsTrue(seaRead.Count > 0 && skyRead.Count > 0);
+            Assert.AreEqual(1.0, seaRead.Median / 2.0, 0.12, "the sea region carries the deck");
+            Assert.AreEqual(0.0, skyRead.Median, 1e-9, "the sky region carries none");
+            Assert.IsTrue(seaRead.TopCount > 0, "the bottom rows are the 'top' rows of a view that looks down");
+        }
+
+        [TestMethod]
+        public void TheHorizonLineReadsTheColourAboveAndBelowTheRowAndTheStepOfTheCloudsOwnChange()
+        {
+            const double horizon = 0.3;
+            // Baseline: sky 0.7 above the horizon, sea 0.2 below. Frame: a cloud of +0.2 above the row, +0.05 below it.
+            Color[] baseline = Picture((u, v) => Grey(v > horizon ? 0.7f : 0.2f));
+            Color[] frame = Picture((u, v) => Grey(v > horizon ? 0.9f : 0.25f));
+            T09Readout.HorizonLine line = T09Readout.MeasureHorizonLine(frame, baseline, W, H, horizon);
+            Assert.IsTrue(line.Count > 0);
+            Assert.AreEqual(0.9f, line.Above.r, 1e-5f);
+            Assert.AreEqual(0.25f, line.Below.g, 1e-5f);
+            Assert.AreEqual(0.2f, line.DeltaAbove.b, 1e-5f);
+            Assert.AreEqual(0.05f, line.DeltaBelow.r, 1e-5f);
+            Assert.AreEqual(0.15f, line.Step, 1e-5f, "the step is the difference of the changes, not of the colours");
+            Assert.AreEqual(0.65f, line.StepColour, 1e-5f, "the frame's own colour steps by 0.9 - 0.25");
+            Assert.IsFalse(T09Readout.MeasureHorizonLine(baseline, null, W, H, horizon).HasDelta, "the baseline itself has no change");
+            Assert.AreEqual(0, T09Readout.MeasureHorizonLine(frame, baseline, W, H, 0.02).Count, "a horizon row at the picture's edge is not read");
+        }
     }
 }

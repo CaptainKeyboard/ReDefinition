@@ -563,10 +563,17 @@ namespace ReDefinition.Atmospheres
                 input.SizeLevel = noise.Switches.SizeLevel;
             }
             double lat = FlightGlobals.ActiveVessel.latitude, lon = FlightGlobals.ActiveVessel.longitude;
+            input.RootM = new float[n];
+            input.TopM = new float[n];
+            input.VariationM = new float[n];
             for (int l = 0; l < n; l++)
             {
                 CloudLayerDef def = stack.LayerAt(l);
                 input.Layers[l] = def;
+                LocalHeights hs = stack.SampleHeights(l, lat, lon);
+                input.RootM[l] = hs.RootM;
+                input.TopM[l] = hs.TopM;
+                input.VariationM[l] = hs.VariationM;
                 input.Tables[l] = stack.TableAt(l);
                 input.Noise[l] = noise != null ? noise.LayerParams(l, def.EffectiveNoiseScaleM, body.Radius) : NoiseLayerParams.Default(def.EffectiveNoiseScaleM);
                 float c, t;

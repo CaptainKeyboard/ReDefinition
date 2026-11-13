@@ -41,6 +41,8 @@ namespace ReDefinition.Atmospheres
         // The layer maps at the vessel (the CPU values) and a function that reads layer l's map and type at a place (degrees); null: the maps at the vessel everywhere.
         internal double[] Cover, Type;
         internal Func<int, double, double, double> CoverAt;
+        // The height maps' offsets at the vessel per layer (m): the root offset, the top term and the variation as the stack holds them; null where the stack could not be asked.
+        internal float[] RootM, TopM, VariationM;
         internal double BodyRadiusM = 600000.0;
         internal uint Seed = 1;
         internal int SizeLevel = 1;
@@ -129,7 +131,8 @@ namespace ReDefinition.Atmospheres
         // The expected closed share of a frame at the camera's height, pitch and field of view, for the stack's CPU maps at the vessel (constant over the view) with the knobs as
         // they are NOW (the Effective* getters): the ensemble over sites of the noise, 250 km apart, each a frame of w x h rays. This is what a constant map gives; a frame that
         // differs from it points at the maps along the view or at the pass.
-        internal static LookExpectation Expect(T09LookInput input, double heightM, double pitchDeg, double fovDeg, int sites = 8, int w = 32, int h = 18, March march = default(March))
+        // onlyLayer: the index of the one layer the frame draws (the layer-alone frames of the look starts); -1: all layers.
+        internal static LookExpectation Expect(T09LookInput input, double heightM, double pitchDeg, double fovDeg, int sites = 8, int w = 32, int h = 18, March march = default(March), int onlyLayer = -1)
         {
             if (march.MaxSteps == 0) march = March.Medium;
             NoiseVolumeSet set = Volumes(input.Seed, input.SizeLevel);
@@ -142,6 +145,7 @@ namespace ReDefinition.Atmospheres
                 CloudCoverOracle.Pixels first = null;
                 for (int l = 0; l < input.Layers.Length; l++)
                 {
+                    if (onlyLayer >= 0 && l != onlyLayer) continue;
                     CloudLayerDef layer = input.Layers[l];
                     NoiseLayerParams prm = input.Noise[l];
                     prm.OffsetX += s * 250000.0;

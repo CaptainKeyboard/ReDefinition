@@ -52,6 +52,8 @@ namespace ReDefinition.Atmospheres
             // change of a channel there. Zero where the frame has no baseline.
             internal int HorizonBandSamples;
             internal double HorizonBandClosed, HorizonBandChange;
+            // The colour next to the horizon row (MeasureHorizonLine); Count 0 where the row is too near the picture's edge.
+            internal HorizonLine Line;
         }
 
         // CLOSED, as far as a picture can say it (the target's alpha is not read): a region sample is closed where the largest change of a channel against the baseline pixel is
@@ -175,6 +177,89 @@ namespace ReDefinition.Atmospheres
             return reading;
         }
 
+        // --- The colour just above and just below the sea horizon's row (the order pair of K-T2d start 52) ---------------------------------------------------------
+
+        // The columns (fractions of the width) read for the horizon line, each LineColumnPixels wide; all outside the vessel's box. The rows: LineNear to LineFar of the picture's height
+        // above the horizon row (sky side) and below it (sea side). The horizon row is computed (HorizonV), not found.
+        internal static readonly double[] LineColumns = { 0.10, 0.20, 0.30, 0.70, 0.80, 0.90 };
+        internal const int LineColumnPixels = 3;
+        internal const double LineNear = 0.008, LineFar = 0.028;
+
+        internal struct HorizonLine
+        {
+            internal int Count;
+            // The median colour of the frame above and below the horizon row, and the median change against the baseline frame (zero where there is none).
+            internal Color Above, Below, DeltaAbove, DeltaBelow;
+            internal bool HasDelta;
+            // The largest channel of |DeltaAbove - DeltaBelow|: the step the cloud's own colour makes across the horizon row (0: none).
+            internal float Step;
+            // The largest channel of |Above - Below|: the step of the frame's own colour across the row. Where a cloud covers both sides it is near 0 (the baseline's own step is what sky
+            // and sea differ by); a cloud that takes the sea's haze below the row and none above it reads far above the baseline's.
+            internal float StepColour;
+        }
+
+        private static float MedianOf(List<float> v)
+        {
+            if (v.Count == 0) return 0f;
+            v.Sort();
+            return v[v.Count / 2];
+        }
+
+        // Reads the colour in the two bands next to the horizon row, over a few columns. baselineRaw: the baseline frame's raw picture of the same pose (null for the baseline itself).
+        internal static HorizonLine MeasureHorizonLine(Color[] raw, Color[] baselineRaw, int width, int height, double horizonV)
+        {
+            var line = new HorizonLine();
+            if (raw == null || raw.Length != width * height || width < 8 || height < 8) return line;
+            if (horizonV - LineFar < EdgeLow || horizonV + LineFar > EdgeHigh) return line;
+            bool delta = baselineRaw != null && baselineRaw.Length == raw.Length;
+            var aboveC = new List<float>[3]; var belowC = new List<float>[3]; var aboveD = new List<float>[3]; var belowD = new List<float>[3];
+            for (int c = 0; c < 3; c++)
+            {
+                aboveC[c] = new List<float>(); belowC[c] = new List<float>(); aboveD[c] = new List<float>(); belowD[c] = new List<float>();
+            }
+            int n = 0;
+            foreach (double u in LineColumns)
+            {
+                int x0 = (int)Math.Round(u * width) - LineColumnPixels / 2;
+                for (int dx = 0; dx < LineColumnPixels; dx++)
+                {
+                    int x = x0 + dx;
+                    if (x < 0 || x >= width) continue;
+                    for (int side = 0; side < 2; side++)
+                    {
+                        double lo = side == 0 ? horizonV + LineNear : horizonV - LineFar, hi = side == 0 ? horizonV + LineFar : horizonV - LineNear;
+                        int yLow = (int)Math.Ceiling(lo * height - 0.5), yHigh = (int)Math.Floor(hi * height - 0.5);
+                        for (int y = yLow; y <= yHigh; y++)
+                        {
+                            if (y < 0 || y >= height) continue;
+                            int i = y * width + x;
+                            Color p = raw[i];
+                            List<float>[] cs = side == 0 ? aboveC : belowC, ds = side == 0 ? aboveD : belowD;
+                            cs[0].Add(p.r); cs[1].Add(p.g); cs[2].Add(p.b);
+                            if (delta)
+                            {
+                                Color b = baselineRaw[i];
+                                ds[0].Add(p.r - b.r); ds[1].Add(p.g - b.g); ds[2].Add(p.b - b.b);
+                            }
+                            if (side == 0) n++;
+                        }
+                    }
+                }
+            }
+            line.Count = n;
+            line.Above = new Color(MedianOf(aboveC[0]), MedianOf(aboveC[1]), MedianOf(aboveC[2]), 1f);
+            line.Below = new Color(MedianOf(belowC[0]), MedianOf(belowC[1]), MedianOf(belowC[2]), 1f);
+            line.StepColour = Math.Max(Math.Abs(line.Above.r - line.Below.r), Math.Max(Math.Abs(line.Above.g - line.Below.g), Math.Abs(line.Above.b - line.Below.b)));
+            if (delta)
+            {
+                line.HasDelta = true;
+                line.DeltaAbove = new Color(MedianOf(aboveD[0]), MedianOf(aboveD[1]), MedianOf(aboveD[2]), 1f);
+                line.DeltaBelow = new Color(MedianOf(belowD[0]), MedianOf(belowD[1]), MedianOf(belowD[2]), 1f);
+                line.Step = Math.Max(Math.Abs(line.DeltaAbove.r - line.DeltaBelow.r), Math.Max(Math.Abs(line.DeltaAbove.g - line.DeltaBelow.g), Math.Abs(line.DeltaAbove.b - line.DeltaBelow.b)));
+            }
+            return line;
+        }
+
         // --- Optical depth from the aid picture (aid mode 1 of the layer shader) -------------------------------------------------------------------
 
         // The aid picture draws a pixel as Heat(x) with x = (log10(tau) + 3) / 4.5 (the shader's Pass0, aid 1) and composites it with Blend One OneMinusSrcAlpha over the scene, alpha = 1 - exp(-tau),
@@ -259,7 +344,9 @@ namespace ReDefinition.Atmospheres
 
         // The optical depth over the sky samples of an aid frame (the same region as Measure's sky: above the horizon line plus the margin, the vessel box and the edges left out), read
         // against the baseline frame's colours as the scene.
-        internal static AidTauReading MeasureAidTau(Color[] aid, Color[] scene, int width, int height, double horizonV, int stride = 4)
+        // below: read the sea or ground region (under the horizon line minus the margin) instead, for the views that look down on a deck (the 4.6 km, 2.3 km and above-the-deck frames);
+        // the "top" rows are then the bottom ones (v under 0.15).
+        internal static AidTauReading MeasureAidTau(Color[] aid, Color[] scene, int width, int height, double horizonV, int stride = 4, bool below = false)
         {
             if (aid == null || scene == null || aid.Length != width * height || scene.Length != aid.Length) throw new ArgumentException("the aid picture does not match the baseline");
             var all = new List<double>();
@@ -267,14 +354,15 @@ namespace ReDefinition.Atmospheres
             for (int y = 0; y < height; y += stride)
             {
                 double v = (y + 0.5) / height;
-                if (v < EdgeLow || v > EdgeHigh || v <= horizonV + HorizonMargin) continue;
+                if (v < EdgeLow || v > EdgeHigh) continue;
+                if (below ? v >= horizonV - HorizonMargin : v <= horizonV + HorizonMargin) continue;
                 for (int x = 0; x < width; x += stride)
                 {
                     double u = (x + 0.5) / width;
                     if (InVessel(u, v)) continue;
                     double tau = AidTauOf(aid[y * width + x], scene[y * width + x]);
                     all.Add(tau);
-                    if (v > 0.85) top.Add(tau);
+                    if (below ? v < 0.15 : v > 0.85) top.Add(tau);
                 }
             }
             var r = new AidTauReading { Count = all.Count, TopCount = top.Count };
