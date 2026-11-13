@@ -106,7 +106,7 @@ over it. The numbers are for the RTX A4500 at the Medium profile.
 | `weather-4` | what the forecast overlay, the alert messages and the near-ground sea ice sheet cost | 1 | 17 | 5 |
 | `weather-5` | what the on/off and choice settings of the own cloud system cost | 2 | 59 | 16 |
 | `weather-6` | what the number settings and tuning keys of the own cloud system cost | 2 | 59 | 16 |
-| `weather-integration` | where the own cloud pass sits in the frame and what its Scatterer settings cost | 2 | 116 | 27 |
+| `weather-integration` | where the own cloud pass sits in the frame and what its Scatterer settings cost | 2 | 128 | 29 |
 | `weather-7` | what the cloud light fixes and the far view of the own clouds cost | 1 | 29 | 8 |
 | `weather-8` | what the wet overlay, the window droplets and the lightning cost in rain | 1 | 44 | 11 |
 | `weather-9` | what the cheap forms of the cloud entry refinement cost | 1 | 20 | 6 |
