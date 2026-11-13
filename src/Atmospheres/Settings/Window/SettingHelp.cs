@@ -82,7 +82,7 @@ namespace ReDefinition.Atmospheres
                 { "cloudSunMarchLong","How far the sunlight is followed through a cloud: off 4 km, on 9 km. The long march darkens the base and the shaded flank of a deep storm cloud, with the same number of steps spread wider." },
                 { "cloudSunWhiteBalance", "Counts the colour of the sun at the zenith as the colour outside the air, so that only the air beyond the zenith reddens it. Off, the sun colour is used as given, which can tint the clouds beige." },
                 { "cloudDiffusionDecay", "How fast the soft glow inside a thick cloud fades with the thickness towards the light. 0 keeps the earlier saturating glow, higher darkens the deep parts of thick clouds." },
-                { "cloudFarHaze", "Lets the air between the camera and a far cloud tint it blue and lower its contrast, for clouds seen from high up or from far away." },
+                { "cloudFarHaze", "Lets the air between the camera and a far cloud tint it blue and lower its contrast, for clouds seen from high up or from far away. Already on by itself wherever the clouds are drawn behind Scatterer's scattering; this switch forces it in every order." },
                 { "cloudFarShapeMean", "Where the march steps are wider than the noise features, replaces the noise by its average, which removes the grain of far clouds." },
                 { "cloudFarMinSamples", "The fewest samples taken through a cloud layer seen from far away. 0 leaves the march's own count; a thin layer then flickers from step to step. More costs more." },
                 { "cloudFarPolicy", "Takes fewer, longer steps from orbit height, where the detail cannot be seen. Saves frame time and softens clouds seen from high up." },

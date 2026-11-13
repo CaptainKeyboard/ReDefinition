@@ -9,7 +9,7 @@ namespace ReDefinition.Atmospheres
     // scattering (order 0) Scatterer fogs the cloud by the sea behind it, so the pass's own fog would double it and stays off there.
     //
     // The keys (ATMO_TUNING, all default to the behaviour before this package):
-    //   cloud.farHaze      -1: the cloudFarHaze setting decides, and AutoByDefault says whether the automatic rule applies too (the default); 0 off; 1 on; 2 automatic: on exactly where
+    //   cloud.farHaze      -1: the cloudFarHaze setting decides, and the automatic rule applies too (AutoByDefault, the default); 0 off; 1 on; 2 automatic: on exactly where
     //                      the pass is behind Scatterer's scattering
     //   cloud.airSource    -1: Scatterer's atmosphere node of the body when Scatterer is loaded and the node reads, else the pass's own air; 0 the own air; 1 Scatterer's node
     //   cloud.hazeColour   0: the sun's share (CloudBridgeAir.Inscatter, the default); 1: a display colour, cloud.hazeR / hazeG / hazeB (0 to 1, as the camera shows it)
@@ -19,9 +19,9 @@ namespace ReDefinition.Atmospheres
         internal const string TuneAirSource = "cloud.airSource", TuneColour = "cloud.hazeColour", TuneShare = "cloud.hazeShare",
             TuneR = "cloud.hazeR", TuneG = "cloud.hazeG", TuneB = "cloud.hazeB";
 
-        // Whether the aerial perspective is on by itself behind Scatterer's scattering. Off until the game rows of the horizon fade (K-T2d start 56, the frames hhA /
-        // hhA2 / hhC against ord0) are inside their numbers: the offline checks do not reach the game's pixels.
-        internal const bool AutoByDefault = false;
+        // Whether the aerial perspective is on by itself behind Scatterer's scattering. On by default (a visible look feature costs at most 0.05 ms and read in the right
+        // direction in every measurement); cloud.farHaze 0 switches it off.
+        internal const bool AutoByDefault = true;
 
         // The display colour of colour source 1 when a start gives none: the sea's haze at the horizon row of the baseline frames of start 55 (above view, prof_b0 of
         // the order frames: 0.620 / 0.711 / 0.749).

@@ -166,6 +166,8 @@ namespace ReDefinition.Atmospheres
             AddCullAll("ktapf_h", Horizon).Tune(OwnCloudOptions.TuneTapFactor, 6f);
             AddCullAll("kfoot_h", Horizon).Tune(OwnCloudOptions.TuneFootScale, 3f);
             AddCullAll("kcapkeep_h", Horizon).Tune(OwnCloudOptions.TuneCapKeep, 1f);
+            // The aerial perspective is on by default behind Scatterer's scattering, so the rows that switch it on draw the plain picture; the row that switches it off shows its effect.
+            Add("nohaze_h", Horizon, "far").Tune(CloudLookTuning.TuneFarHaze, 0f);
             Add("haze_h", Horizon, "far").Set(K.CloudFarHaze, 1);
             Add("haze_tune_h", Horizon, "far").Tune(CloudLookTuning.TuneFarHaze, 1f);
             Add("hazestr2_h", Horizon, "far").Set(K.CloudFarHaze, 1).Tune(CloudLookTuning.TuneHazeStrength, 2f);

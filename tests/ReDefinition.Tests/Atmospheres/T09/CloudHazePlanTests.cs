@@ -139,13 +139,14 @@ Scatterer_atmosphere
         }
 
         [TestMethod]
-        public void TheDefaultIsOffEverywhereAndTheAutomaticRuleNeedsThePassBehindScatterer()
+        public void TheDefaultIsAutomaticAndNeedsThePassBehindScatterer()
         {
             bool haze, auto;
             CloudHazePlan.Resolve(-1f, false, out haze, out auto);
-            Assert.IsFalse(CloudHazePlan.AutoByDefault, "the default flips with the game rows of start 56, not before");
+            Assert.IsTrue(CloudHazePlan.AutoByDefault, "a visible look feature is on by default");
             Assert.IsFalse(haze);
-            Assert.IsFalse(CloudHazePlan.Active(haze, auto, true), "default: no aerial perspective, behind Scatterer or not");
+            Assert.IsTrue(CloudHazePlan.Active(haze, auto, true), "default: on behind Scatterer");
+            Assert.IsFalse(CloudHazePlan.Active(haze, auto, false), "default: off where Scatterer fogs the cloud itself");
             CloudHazePlan.Resolve(-1f, true, out haze, out auto);
             Assert.IsTrue(CloudHazePlan.Active(haze, auto, false), "the setting alone is on in every order");
             CloudHazePlan.Resolve(2f, false, out haze, out auto);
@@ -177,7 +178,11 @@ Scatterer_atmosphere
             Set(CloudLookTuning.TuneFarHaze, -1f);
             OwnCloudOptions.Apply(far, key => 0.0);
             Assert.IsFalse(far.Haze);
-            Assert.IsFalse(far.HazeAuto);
+            Assert.IsTrue(far.HazeAuto, "the default is automatic");
+            Set(CloudLookTuning.TuneFarHaze, 0f);
+            OwnCloudOptions.Apply(far, key => 0.0);
+            Assert.IsFalse(far.Haze);
+            Assert.IsFalse(far.HazeAuto, "cloud.farHaze 0 is the off switch");
         }
 
         private static int frameCounter = 5000000;

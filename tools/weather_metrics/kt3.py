@@ -118,8 +118,10 @@ def build_expect():
     add("cull_all_h", "cull", SAVES)
     for k in ("kcut", "kstepg", "ktapwin", "ktapf", "kfoot", "kcapkeep"):
         add(k + "_h", "cull", SAVES, ref="cull_all_h")
-    add("haze_h", "far", (-0.3, 1.5), "changes")
-    add("haze_tune_h", "far", (-0.3, 1.5), "changes")
+    # the aerial perspective is on by default behind Scatterer's scattering: switching it off shows its effect, switching it on draws the plain picture
+    add("nohaze_h", "far", (-0.5, 0.3), "changes")
+    add("haze_h", "far", FREE, "same")
+    add("haze_tune_h", "far", FREE, "same")
     add("hazestr2_h", "far", FREE, "changes", ref="haze_h")
     add("shapemean_h", "far", SAVES)
     add("minsamp_h", "far", ADDS)

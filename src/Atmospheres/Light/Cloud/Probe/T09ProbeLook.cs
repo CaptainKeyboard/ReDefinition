@@ -280,6 +280,8 @@ namespace ReDefinition.Atmospheres
                 string frame = "ord" + flag.ToString(CultureInfo.InvariantCulture) + (seen.Add(flag) ? "" : "b");
                 ApplyLookKeys(CloudLookModel.Sets[0], 0f);
                 ForceTuning(OwnCloudModule.TuneAfterScatterer, flag);
+                // The pair measures Scatterer's air on the cloud against none; the pass's aerial perspective (on by default behind the scattering) is held off so that it does not fill that gap.
+                ForceTuning(CloudLookTuning.TuneFarHaze, 0f);
                 yield return ProbeWait.Frames(DiagSettleFrames);
                 yield return ProbeWait.Seconds(OrderSettleS);
                 OwnCloudModule own = OwnCloudModule.Current;
