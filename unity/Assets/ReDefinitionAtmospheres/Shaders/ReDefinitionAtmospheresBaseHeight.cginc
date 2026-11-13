@@ -68,6 +68,10 @@ void HeightLocalBaseTop(int li, float3 pc, float b, float tp, float erosion, flo
     float topOffset = smoothOffset + root * hm.y * _LayerH[li].y;
     lb = b + baseOffset / thickness;
     lt = max(tp + topOffset / thickness, lb + _LayerH2[li].y / thickness);
+    // A type whose base the offsets lower below the sea level is lifted as a whole until its base rests on it (LayerGeometry.LocalBaseTop, floorShare).
+    float lift = max(-_LayerA[li].x / thickness - lb, 0.0);
+    lb += lift;
+    lt += lift;
 }
 
 #endif

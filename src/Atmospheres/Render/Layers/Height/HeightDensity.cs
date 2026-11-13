@@ -26,7 +26,8 @@ namespace ReDefinition.Atmospheres
             table.Info(c, out bc, out tc, out ec);
             double erosion = ea + (ec - ea) * f;
             double lb, lt;
-            LayerGeometry.LocalBaseTop(b, top, erosion, thickness, heights, raggedUnit, t.BaseRagged ? t.RaggedM : 0.0, t.MinThicknessM, out lb, out lt);
+            LayerGeometry.LocalBaseTop(b, top, erosion, thickness, heights, raggedUnit, t.BaseRagged ? t.RaggedM : 0.0, t.MinThicknessM, out lb, out lt,
+                                       -layer.InnerAltitudeM / thickness);
             if (share < lb || share > lt) return 0.0;
             double h = (share - lb) / (lt - lb);
             double profile = table.ProfileAt(a, h) * (1.0 - f) + table.ProfileAt(c, h) * f;

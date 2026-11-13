@@ -148,6 +148,14 @@ namespace ReDefinition.Atmospheres
             return px;
         }
 
+        // The optical depth of the layer straight up (pitch 90 degrees) from a camera at a height above the sea, one ray at the site's place of the noise: what the zenith of a frame holds
+        // in the aid picture of the pass (aid mode 1). The same march as Render (one pixel, so the rays of the frame do not matter).
+        internal static double ZenithTau(CloudLayerDef layer, LayerTypeTable table, NoiseVolumeSet set, NoiseLayerParams prm, double heightM, double bodyRadiusM, MapAt map, double coverage, March march)
+        {
+            var frame = new Frame { HeightM = heightM, PitchDeg = 90.0, FovVDeg = 1.0, YawDeg = 0.0, BodyRadiusM = bodyRadiusM, Width = 1, Height = 1 };
+            return Render(layer, table, set, prm, frame, map, coverage, march).Tau[0];
+        }
+
         // The percentiles (0 to 1 fractions) of the shape value as the pass reads it: the volume looked up at random places through the untiling warp, trilinear.
         internal static double[] ShapeValues(NoiseVolumeSet set, NoiseLayerParams prm, int count, int seed)
         {

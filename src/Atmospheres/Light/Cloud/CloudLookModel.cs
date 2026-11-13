@@ -51,6 +51,9 @@ namespace ReDefinition.Atmospheres
     {
         internal double Mean, P10, P90;
         internal int Sites;
+        // The optical depth straight up from the camera over the same sites, all layers added (K-T2d start 51 asked for a tau beside the colour-change measure): the mean and the
+        // spread over the sites, and the share of the sites whose zenith is closed (tau at least ClosedTau).
+        internal double ZenithTauMean, ZenithTauP10, ZenithTauP90, ZenithClosed;
     }
 
     internal static class CloudLookModel
@@ -131,9 +134,11 @@ namespace ReDefinition.Atmospheres
             if (march.MaxSteps == 0) march = March.Medium;
             NoiseVolumeSet set = Volumes(input.Seed, input.SizeLevel);
             var shares = new List<double>();
+            var zenith = new List<double>();
             for (int s = 0; s < sites; s++)
             {
                 double[] tau = null;
+                double zenithTau = 0.0;
                 CloudCoverOracle.Pixels first = null;
                 for (int l = 0; l < input.Layers.Length; l++)
                 {
@@ -150,6 +155,7 @@ namespace ReDefinition.Atmospheres
                         HeightM = heightM, PitchDeg = pitchDeg, FovVDeg = fovDeg, YawDeg = 0.0, BodyRadiusM = input.BodyRadiusM, Width = w, Height = h
                     };
                     CloudCoverOracle.Pixels px = CloudCoverOracle.Render(layer, input.Tables[l], set, prm, frame, CloudCoverOracle.Constant(input.Cover[l], typeValue), layer.EffectiveCoverage, march);
+                    zenithTau += CloudCoverOracle.ZenithTau(layer, input.Tables[l], set, prm, heightM, input.BodyRadiusM, CloudCoverOracle.Constant(input.Cover[l], typeValue), layer.EffectiveCoverage, march);
                     if (first == null)
                     {
                         first = px;
@@ -169,12 +175,25 @@ namespace ReDefinition.Atmospheres
                     if (tau[i] >= ClosedTau) hit++;
                 }
                 shares.Add(n == 0 ? 0.0 : hit / (double)n);
+                zenith.Add(zenithTau);
             }
             if (shares.Count == 0) return default(LookExpectation);
             shares.Sort();
-            double sum = 0.0;
+            zenith.Sort();
+            double sum = 0.0, zsum = 0.0;
+            int zclosed = 0;
             foreach (double v in shares) sum += v;
-            return new LookExpectation { Mean = sum / shares.Count, P10 = shares[(int)Math.Round(0.1 * (shares.Count - 1))], P90 = shares[(int)Math.Round(0.9 * (shares.Count - 1))], Sites = shares.Count };
+            foreach (double v in zenith)
+            {
+                zsum += v;
+                if (v >= ClosedTau) zclosed++;
+            }
+            return new LookExpectation
+            {
+                Mean = sum / shares.Count, P10 = shares[(int)Math.Round(0.1 * (shares.Count - 1))], P90 = shares[(int)Math.Round(0.9 * (shares.Count - 1))], Sites = shares.Count,
+                ZenithTauMean = zsum / zenith.Count, ZenithTauP10 = zenith[(int)Math.Round(0.1 * (zenith.Count - 1))], ZenithTauP90 = zenith[(int)Math.Round(0.9 * (zenith.Count - 1))],
+                ZenithClosed = zclosed / (double)zenith.Count
+            };
         }
 
         private static NoiseVolumeSet cached;

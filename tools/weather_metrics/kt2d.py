@@ -167,6 +167,32 @@ def look_table(values, view, cover, get, add, notes):
             if view == "ground" and cover == "high":
                 add(pre + "%s.a2_towers" % st, 1 if (A2_TOWERS[0] <= s0 <= A2_TOWERS[1] and s8 <= A2_OPEN) else -1)
         notes.append("%-12s set %s closed share of the %s: %s" % (head, st, region, ", ".join(parts)))
+    # The optical depth (aid frame 1) of a set's frame beside its colour-change closed share and the oracle's zenith expectation (E40 follow-up of start 51: closed by colour counts a thin
+    # saturated veil as closed; the tau separates a veil from a thick sheet). The aid tau closed share counts tau >= 0.92 over the same region.
+    for f in frames:
+        m = re.match(r"^aid1(k(C\d)|l0in|l0up)$", f)
+        if not m:
+            continue
+        natural = f[4:]
+        tag = m.group(2) or natural
+        tau_closed, tau_med, tau_deep = get(f, "aidtau_closed_share"), get(f, "aidtau_median"), get(f, "aidtau_deep_share")
+        by_colour = get(natural, "%s_closed_share" % region)
+        if tau_closed is None:
+            continue
+        add(pre + "%s.aidtau_closed" % tag, tau_closed)
+        if tau_med is not None:
+            add(pre + "%s.aidtau_median" % tag, tau_med)
+        if by_colour is not None:
+            add(pre + "%s.closed_colour_minus_tau" % tag, by_colour - tau_closed)
+        zen, zlo, zhi = get(natural, "expect_tau_zenith_mean"), get(natural, "expect_tau_zenith_p10"), get(natural, "expect_tau_zenith_p90")
+        top = get(f, "aidtau_top_median")
+        parts = ["tau closed %.2f" % tau_closed, "deep %s" % ("-" if tau_deep is None else "%.2f" % tau_deep), "median %s" % ("-" if tau_med is None else "%.2f" % tau_med),
+                 "by colour %s" % ("-" if by_colour is None else "%.2f" % by_colour)]
+        if top is not None:
+            parts.append("top rows median %.2f" % top)
+        if zen is not None:
+            parts.append("oracle zenith tau %.2f (%.2f to %.2f)" % (zen, zlo if zlo is not None else float("nan"), zhi if zhi is not None else float("nan")))
+        notes.append("%-12s aid tau %s: %s" % (head, natural, ", ".join(parts)))
     # The forced map: the pass at a constant map the oracle knows.
     ovr, expo = get("kovr", "%s_closed_share" % region), get("kovr", "expect_closed_mean")
     base = get("kC0", "%s_closed_share" % region)
@@ -417,6 +443,13 @@ def selftest():
     assert got[pre + "C0.a1_band"] == -1 and got[pre + "C4.a1_band"] == 1, got      # 0.99 is above 0.665 + 0.15; 0.70 is inside
     assert got[pre + "ovr.map_varies_over_view"] == 1, got                            # the forced map gives the oracle's share, the own map a sheet
     assert any("forced map: closed 0.72 against the oracle's 0.73" in n for n in notes), notes
+    # The aid frame's optical depth beside the colour-change measure: a sheet that is closed by colour (0.99) but thin by tau (0.30 closed) shows as a positive difference.
+    tau_low = look_rows("ground", "low", (("aid1kC0.aidtau_closed_share", 0.30), ("aid1kC0.aidtau_median", 0.4), ("aid1kC0.aidtau_deep_share", 0.05), ("aid1kC0.aidtau_top_median", 0.5),
+                                         ("kC0.expect_tau_zenith_mean", 12.5), ("kC0.expect_tau_zenith_p10", 1.0), ("kC0.expect_tau_zenith_p90", 30.0)))
+    notes = []
+    got = {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "low", 0.5, 0.7, 0.05, 1.0) + low + tau_low]), notes)}
+    assert abs(got[pre + "C0.closed_colour_minus_tau"] - 0.69) < 1e-9 and got[pre + "C0.aidtau_closed"] == 0.30, got
+    assert any("aid tau kC0" in n and "tau closed 0.30" in n and "oracle zenith tau 12.50 (1.00 to 30.00)" in n for n in notes), notes
     stays = low.replace('"value":0.72,', '"value":0.99,')
     assert {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "low", 0.5, 0.7, 0.05, 1.0) + stays]), [])}[pre + "ovr.map_varies_over_view"] == -1
     high = look_rows("ground", "high", (("kC4.sky_closed_share", 0.20), ("kC4m8.sky_closed_share", 0.05), ("wC4o0.sky_closed_share", 0.75)))

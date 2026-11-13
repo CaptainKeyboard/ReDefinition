@@ -85,8 +85,11 @@ namespace ReDefinition.Atmospheres
         // table's shares moved by the sampled offsets. The root offset (physics and size trend) acts on the rooted share of the type, the
         // variation on all of it, the ragged boundary moves the base only (by the type's erosion), and the top follows the base plus the
         // updraft term on the rooted share. The top never falls below the base plus the thinnest cloud. The shader's LocalBaseTop is this.
+        // floorShare (the sea level as a share of the layer's thickness, minus the layer's inner altitude over it; -infinity: none): a type whose base the offsets lower below the floor is moved
+        // up as a whole until its base rests on it, so that it keeps its thickness. Without it a humid place (root offset -500 m) moved the rain deck's Fog and Stratus (96 to 594 m) to
+        // -404 to 94 m, under the ground and under a camera at 264 m: the deck drew nothing from inside (K-T2d start 51, l0in and the ground view at the high pick).
         internal static void LocalBaseTop(double baseShare, double topShare, double erosion, double thicknessM, LocalHeights h, double raggedUnit,
-                                          double raggedM, double minThicknessM, out double localBase, out double localTop)
+                                          double raggedM, double minThicknessM, out double localBase, out double localTop, double floorShare = double.NegativeInfinity)
         {
             double root = HeightModel.RootWeight(baseShare);
             double smooth = root * h.RootM + h.VariationM;
@@ -94,6 +97,12 @@ namespace ReDefinition.Atmospheres
             double topOffset = smooth + root * h.TopM;
             localBase = baseShare + baseOffset / thicknessM;
             localTop = Math.Max(topShare + topOffset / thicknessM, localBase + minThicknessM / thicknessM);
+            if (localBase < floorShare)
+            {
+                double lift = floorShare - localBase;
+                localBase += lift;
+                localTop += lift;
+            }
         }
 
         // The height of a point above sea level.

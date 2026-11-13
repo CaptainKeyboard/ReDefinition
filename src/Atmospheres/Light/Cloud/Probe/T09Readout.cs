@@ -175,6 +175,132 @@ namespace ReDefinition.Atmospheres
             return reading;
         }
 
+        // --- Optical depth from the aid picture (aid mode 1 of the layer shader) -------------------------------------------------------------------
+
+        // The aid picture draws a pixel as Heat(x) with x = (log10(tau) + 3) / 4.5 (the shader's Pass0, aid 1) and composites it with Blend One OneMinusSrcAlpha over the scene, alpha = 1 - exp(-tau),
+        // so a pixel is Heat(x) + scene * exp(-tau). Where no cloud is (tau < 1e-4) the pixel is the scene. The decode takes the tau whose prediction is nearest the pixel; x = 1 stands for
+        // tau of 31.6 or more (the heat map saturates there).
+        internal const double AidTauMinimum = 1e-4, AidTauSaturated = 31.6227766;
+        private const int AidSteps = 90;
+
+        // The shader's Heat().
+        internal static Color AidHeat(double x)
+        {
+            double t = Math.Max(0.0, Math.Min(1.0, x));
+            if (t < 0.5)
+            {
+                float k = (float)(t * 2.0);
+                return new Color(0.05f + (0.20f - 0.05f) * k, 0.05f + (0.80f - 0.05f) * k, 0.30f + (0.50f - 0.30f) * k, 1f);
+            }
+            float m = (float)((t - 0.5) * 2.0);
+            return new Color(0.20f + (0.95f - 0.20f) * m, 0.80f + (0.20f - 0.80f) * m, 0.50f + (0.10f - 0.50f) * m, 1f);
+        }
+
+        // The pixel the aid picture shows for an optical depth over a scene colour.
+        internal static Color AidPixel(double tau, Color scene)
+        {
+            if (tau < AidTauMinimum) return scene;
+            double x = (Math.Log10(tau) + 3.0) / 4.5;
+            Color h = AidHeat(x);
+            float t = (float)Math.Exp(-tau);
+            return new Color(h.r + scene.r * t, h.g + scene.g * t, h.b + scene.b * t, 1f);
+        }
+
+        private static double[] aidTaus;
+        private static Color[] aidHeat;
+
+        private static void AidTable()
+        {
+            if (aidTaus != null) return;
+            var taus = new double[AidSteps + 1];
+            var heat = new Color[AidSteps + 1];
+            taus[0] = 0.0;
+            for (int i = 1; i <= AidSteps; i++)
+            {
+                double x = (i - 1) / (double)(AidSteps - 1);
+                taus[i] = Math.Pow(10.0, 4.5 * x - 3.0);
+                heat[i] = AidHeat(x);
+            }
+            aidHeat = heat;
+            aidTaus = taus;
+        }
+
+        // The optical depth an aid pixel shows over a scene colour (0 for no cloud, AidTauSaturated for the top of the scale).
+        internal static double AidTauOf(Color pixel, Color scene)
+        {
+            AidTable();
+            int best = 0;
+            double bestErr = double.MaxValue;
+            for (int i = 0; i <= AidSteps; i++)
+            {
+                double tau = aidTaus[i];
+                double t = i == 0 ? 0.0 : Math.Exp(-tau);
+                double r = i == 0 ? scene.r : aidHeat[i].r + scene.r * t, g = i == 0 ? scene.g : aidHeat[i].g + scene.g * t, b = i == 0 ? scene.b : aidHeat[i].b + scene.b * t;
+                double e = (r - pixel.r) * (r - pixel.r) + (g - pixel.g) * (g - pixel.g) + (b - pixel.b) * (b - pixel.b);
+                if (e < bestErr)
+                {
+                    bestErr = e;
+                    best = i;
+                }
+            }
+            return aidTaus[best];
+        }
+
+        internal struct AidTauReading
+        {
+            internal int Count;
+            // The percentiles of the optical depth over the sky samples, the share at or above CloudLookModel.ClosedTau (the closed measure of the oracle) and at or above 4.6, and the
+            // share at or above the heat map's top (tau 31.6).
+            internal double P10, Median, P90, ShareClosed, ShareDeep, ShareSaturated;
+            // The optical depth in the top rows of the picture (the sky nearest the zenith the view holds), median.
+            internal double TopMedian;
+            internal int TopCount;
+        }
+
+        // The optical depth over the sky samples of an aid frame (the same region as Measure's sky: above the horizon line plus the margin, the vessel box and the edges left out), read
+        // against the baseline frame's colours as the scene.
+        internal static AidTauReading MeasureAidTau(Color[] aid, Color[] scene, int width, int height, double horizonV, int stride = 4)
+        {
+            if (aid == null || scene == null || aid.Length != width * height || scene.Length != aid.Length) throw new ArgumentException("the aid picture does not match the baseline");
+            var all = new List<double>();
+            var top = new List<double>();
+            for (int y = 0; y < height; y += stride)
+            {
+                double v = (y + 0.5) / height;
+                if (v < EdgeLow || v > EdgeHigh || v <= horizonV + HorizonMargin) continue;
+                for (int x = 0; x < width; x += stride)
+                {
+                    double u = (x + 0.5) / width;
+                    if (InVessel(u, v)) continue;
+                    double tau = AidTauOf(aid[y * width + x], scene[y * width + x]);
+                    all.Add(tau);
+                    if (v > 0.85) top.Add(tau);
+                }
+            }
+            var r = new AidTauReading { Count = all.Count, TopCount = top.Count };
+            if (all.Count == 0) return r;
+            all.Sort();
+            r.P10 = all[(int)Math.Round(0.1 * (all.Count - 1))];
+            r.Median = all[(int)Math.Round(0.5 * (all.Count - 1))];
+            r.P90 = all[(int)Math.Round(0.9 * (all.Count - 1))];
+            int closed = 0, deep = 0, sat = 0;
+            foreach (double t in all)
+            {
+                if (t >= 0.92) closed++;
+                if (t >= 4.6) deep++;
+                if (t >= AidTauSaturated * 0.999) sat++;
+            }
+            r.ShareClosed = closed / (double)all.Count;
+            r.ShareDeep = deep / (double)all.Count;
+            r.ShareSaturated = sat / (double)all.Count;
+            if (top.Count > 0)
+            {
+                top.Sort();
+                r.TopMedian = top[top.Count / 2];
+            }
+            return r;
+        }
+
         // --- Noise: two frames of one pose a frame apart -------------------------------------------------------------------------------------
 
         // A pixel is in the noise region when the frame with the pass (a) differs from the baseline of the same pose by the deck's rule (DeckRelativeChange, DeckMinChange); the vessel

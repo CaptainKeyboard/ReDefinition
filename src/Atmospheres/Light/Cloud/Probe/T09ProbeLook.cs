@@ -113,6 +113,10 @@ namespace ReDefinition.Atmospheres
             Emit(head + frame + ".expect_closed_p10", e.P10);
             Emit(head + frame + ".expect_closed_p90", e.P90);
             Emit(head + frame + ".expect_sites", e.Sites);
+            Emit(head + frame + ".expect_tau_zenith_mean", e.ZenithTauMean);
+            Emit(head + frame + ".expect_tau_zenith_p10", e.ZenithTauP10);
+            Emit(head + frame + ".expect_tau_zenith_p90", e.ZenithTauP90);
+            Emit(head + frame + ".expect_zenith_closed", e.ZenithClosed);
         }
 
         // The layers' coverage maps along the view's heading (the CPU maps; the oracle assumes the one at the vessel for the whole sky).
@@ -136,6 +140,24 @@ namespace ReDefinition.Atmospheres
             if (extraWaitS > 0.0) yield return ProbeWait.Seconds(extraWaitS);
             EmitLookExpectation(head, frame, view, Game.ReadLookInput());
             foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
+        }
+
+        // The aid frame of the optical depth (aid mode 1) of the scene as it stands (the keys and the mask forced now): rows <frame>.aidtau_*, decoded against the baseline's colours.
+        // Written after the natural frame of the same set, so that the tau and the colour-change closed share of one pose sit side by side (K-T2d start 51 had no aid frame).
+        private IEnumerable<ProbeWait> LookAidTau(View view, string cover, string frame, T09Readout.Reading off)
+        {
+            bool on = false;
+            try { on = Game.AidOn(1); }
+            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": " + e.GetType().Name + " " + e.Message); }
+            if (!on)
+            {
+                Warn("no_aid_view", view.Name + " " + cover + " " + frame + ": the own pass has no aid view now");
+                yield break;
+            }
+            yield return ProbeWait.Frames(DiagAidFrames);
+            foreach (ProbeWait w in DiagTake(view, cover, "aid1" + frame, true, off, 1)) yield return w;
+            try { Game.AidOff(); }
+            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
         }
 
         // The look A view: the baseline, the sets at two shifts, the forced map, then the ground-only frames.
@@ -167,6 +189,9 @@ namespace ReDefinition.Atmospheres
                     double wait = set.ChangesTypes ? LookTypeSettleS : typesChanged ? LookMapSettleS : 0.0;
                     typesChanged = set.ChangesTypes;
                     foreach (ProbeWait w in LookFrame(view, cover, head, FrameTag(set, shifted), off, wait)) yield return w;
+                    // The optical depth of the set's own frame at shift 0, for the current set (C0) and the winning one.
+                    if (!shifted && (set == CloudLookModel.Sets[0] || set == LookWin()))
+                        foreach (ProbeWait w in LookAidTau(view, cover, FrameTag(set, false), off)) yield return w;
                 }
             // The map of the sheet layer forced to its value at the vessel, everywhere: if the frame then shows the closed share the oracle expects, the map varied over the view; if
             // it still shows a sheet, the pass differs from the CPU.
@@ -218,7 +243,9 @@ namespace ReDefinition.Atmospheres
             T09Readout.Reading off = diagReading;
             Game.SetLayerMask(1 << 0);
             yield return ProbeWait.Frames(DiagSettleFrames);
-            foreach (ProbeWait w in DiagTake(view, cover, view.Name == "inside" ? "l0in" : "l0up", false, off)) yield return w;
+            string l0Frame = view.Name == "inside" ? "l0in" : "l0up";
+            foreach (ProbeWait w in DiagTake(view, cover, l0Frame, false, off)) yield return w;
+            foreach (ProbeWait w in LookAidTau(view, cover, l0Frame, off)) yield return w;
             Game.SetLayerMask(0);
             yield return ProbeWait.Frames(DiagSettleFrames);
         }

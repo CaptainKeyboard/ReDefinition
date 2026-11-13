@@ -76,8 +76,26 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-above_high-kC0-")), "no set frames above the high cover");
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-inside_high-l0in-")) && r.World.Saved.Any(n => n.Contains("-above_high-l0up-")), "the rain deck alone from inside and from above");
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-inside_high-off-")) && r.World.Saved.Any(n => n.Contains("-above_high-off-")));
-            // 3 pairs x (off + 6 set frames + forced map) + ground x 2 covers x (4 layers + 2 rain frames) + the rain deck from inside and above (2 x 2).
-            Assert.AreEqual(3 * 8 + 2 * 6 + 4, r.World.Saved.Count, string.Join(",", r.World.Saved.Take(6).ToArray()));
+            // 3 pairs x (off + 6 set frames + forced map) + ground x 2 covers x (4 layers + 2 rain frames) + the rain deck from inside and above (2 x 2)
+            // + the aid frames of the optical depth: 3 pairs x 2 sets (the current one and the winning one at shift 0) + the two rain deck frames.
+            Assert.AreEqual(3 * 8 + 2 * 6 + 4 + 3 * 2 + 2, r.World.Saved.Count, string.Join(",", r.World.Saved.Take(6).ToArray()));
+            foreach (string view in new[] { "ground.low", "ground.high", "above.low" })
+            {
+                string p = "T09d." + view + ".";
+                // The zenith's optical depth the oracle expects is written with the other expectation rows, before the frame is read; the aid frame follows its natural frame.
+                foreach (string frame in new[] { "kC0", "kC5" })
+                {
+                    Assert.IsTrue(Row(r, p + frame + ".expect_tau_zenith_mean") >= 0, p + frame + " zenith tau expectation");
+                    Assert.IsTrue(Row(r, p + frame + ".expect_tau_zenith_p10") <= Row(r, p + frame + ".expect_tau_zenith_p90") + 1e-9, p + frame + " spread");
+                    double closed = Row(r, p + frame + ".expect_zenith_closed");
+                    Assert.IsTrue(closed >= 0 && closed <= 1, p + frame + " zenith closed share");
+                    Assert.IsTrue(Row(r, p + "aid1" + frame + ".aidtau_n") > 0, p + frame + " aid tau samples");
+                    int natural = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + frame + ".deck_median\""));
+                    int aidAt = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + "aid1" + frame + ".aidtau_n\""));
+                    Assert.IsTrue(natural >= 0 && aidAt > natural, p + frame + " the aid frame follows the natural frame");
+                }
+            }
+            Assert.IsTrue(Row(r, "T09d.inside.high.aid1l0in.aidtau_n") > 0 && Row(r, "T09d.above.high.aid1l0up.aidtau_n") > 0, "aid frames of the rain deck from inside and above");
             Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
         }
 

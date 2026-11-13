@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using ReDefinition.Core;
+using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
@@ -596,7 +597,7 @@ namespace ReDefinition.Atmospheres
 
         // Reads the flight camera's frame, checks the pose at both ends, saves the picture (half size) and measures it. diagReading is null where any of it failed. baseline: the
         // off reading (null for the off frame itself); for the aid frame it is the gain-1 reading whose deck mask the aid frame is measured over.
-        private IEnumerable<ProbeWait> DiagTake(View view, string tag, string gainTag, bool aid, T09Readout.Reading baseline)
+        private IEnumerable<ProbeWait> DiagTake(View view, string tag, string gainTag, bool aid, T09Readout.Reading baseline, int aidMode = 4)
         {
             diagReading = null;
             string what = view.Name + " " + tag + " " + gainTag;
@@ -660,7 +661,8 @@ namespace ReDefinition.Atmospheres
             string p = "T09d." + view.Name + "." + tag + "." + gainTag + ".";
             Emit(p + "pose_ok", poseOk);
             Emit(p + "pose_alt_m", after.VesselAsl);
-            if (aid) EmitAid(p, reading);
+            if (aid && aidMode == 1) EmitAidTau(p, reading, image.Raw, baseline);
+            else if (aid) EmitAid(p, reading);
             else EmitReading(p, what, reading, baseline, gainTag == "off", poseOk);
             diagReading = reading;
         }
@@ -720,6 +722,34 @@ namespace ReDefinition.Atmospheres
         }
 
         // The aid frame: the channels of the pass's direct light (r), light taps (g) and ambient (b) over the deck of the natural frame.
+        // The rows of an aid-1 frame (the optical depth picture): the optical depth over the sky samples decoded against the baseline frame (T09Readout.MeasureAidTau), to be read
+        // beside the colour-change closed share of the natural frame of the same set (K-T2d start 51 had no tau). Needs the baseline's raw picture; named otherwise.
+        private void EmitAidTau(string p, T09Readout.Reading r, Color[] raw, T09Readout.Reading baseline)
+        {
+            if (baseline == null || baseline.Raw == null || raw == null || baseline.Raw.Length != raw.Length)
+            {
+                Warn("aid_tau_no_baseline", p.TrimEnd('.') + ": the baseline's raw picture is not at hand, the optical depth is not decoded");
+                return;
+            }
+            T09Readout.AidTauReading t;
+            try { t = T09Readout.MeasureAidTau(raw, baseline.Raw, r.Width, r.Height, r.HorizonV); }
+            catch (Exception e)
+            {
+                Warn("aid_tau_fault", p.TrimEnd('.') + ": " + e.GetType().Name + " " + e.Message);
+                return;
+            }
+            Emit(p + "aidtau_n", t.Count);
+            if (t.Count == 0) return;
+            Emit(p + "aidtau_p10", t.P10);
+            Emit(p + "aidtau_median", t.Median);
+            Emit(p + "aidtau_p90", t.P90);
+            Emit(p + "aidtau_closed_share", t.ShareClosed);
+            Emit(p + "aidtau_deep_share", t.ShareDeep);
+            Emit(p + "aidtau_saturated_share", t.ShareSaturated);
+            Emit(p + "aidtau_top_n", t.TopCount);
+            if (t.TopCount > 0) Emit(p + "aidtau_top_median", t.TopMedian);
+        }
+
         private void EmitAid(string p, T09Readout.Reading r)
         {
             Emit(p + "deck_n", r.Deck.Count);
