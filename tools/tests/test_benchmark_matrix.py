@@ -872,7 +872,7 @@ class GroupTest(unittest.TestCase):
         ids = [g["id"] for g in bm.group_list(self.matrix)]
         self.assertEqual(ids, ["main", "rt-modes", "frame-steps", "dlssg-presets", "latency-brake", "blas", "grass",
                                "weather-1", "weather-2", "weather-3", "weather-4", "weather-5", "weather-6",
-                               "weather-integration", "weather-7", "weather-8", "rt-weather"])
+                               "weather-integration", "weather-7", "weather-8", "weather-9", "weather-10", "rt-weather"])
         self.assertEqual([g["id"] for g in bm.select_groups(self.matrix, ["all"])], ids)
         self.assertEqual([g["id"] for g in bm.select_groups(self.matrix, ["blas", "main"])], ["main", "blas"])
         with self.assertRaises(ValueError):
@@ -928,6 +928,24 @@ class GroupTest(unittest.TestCase):
             self.assertLess(bm.command_length(s), bm.MAX_COMMAND_CHARS, s["id"])
             self.assertEqual(bm.probe_arguments(s)[-1], bm.ini_sets_argument(s["phases"]))
             self.assertEqual(bm.probe_arguments(s)[:3], ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"])
+
+    # A start whose command line would pass the limit is split into parts that together hold every phase, in order.
+    def test_a_long_start_is_split_into_parts_that_hold_every_phase(self):
+        whole = bm.expand(dict(self.matrix, groups=[]), "NVIDIA", self.ALL, ["main"])[0][0]
+        one = whole["phases"][0]
+        long_start = dict(whole, id="x", probe_args=[], phases=[copy.deepcopy(one) for _ in range(400)])
+        for n, p in enumerate(long_start["phases"]):
+            p["keys"] = dict(p["keys"], marker=str(n))
+            p["rebuild"] = True
+        self.assertGreater(bm.command_length(long_start), bm.MAX_COMMAND_CHARS)
+        parts = bm._fit_command_line(long_start)
+        self.assertGreater(len(parts), 1)
+        self.assertEqual([s["id"] for s in parts], ["x-part{}".format(n) for n in range(1, len(parts) + 1)])
+        self.assertEqual([p["keys"]["marker"] for s in parts for p in s["phases"]], [str(n) for n in range(400)])
+        for s in parts:
+            self.assertLessEqual(bm.command_length(s), bm.MAX_COMMAND_CHARS)
+            self.assertFalse(s["phases"][0]["rebuild"])
+        self.assertEqual(bm._fit_command_line(whole), [whole])
 
     # rt-modes: FSR 3 and DLSS at every raytracing mode, DLSS with RR on and off, FG off and FSR's, no latency model.
     def test_raytracing_modes(self):

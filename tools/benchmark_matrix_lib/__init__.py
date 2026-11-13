@@ -30,7 +30,7 @@ from .scenarios import (
 )
 from .matrix import (
     expand, GROUP_EXTRA, group_list, GROUP_LISTS, GROUP_MERGED, GROUP_META, load_matrix, resolve_group, select_groups,
-    _allowed, _as_list, _entry, _expand_cell, _fill, _mod_values, _split_value, _start, _vendor_ok,
+    _allowed, _as_list, _entry, _expand_cell, _fill, _fit_command_line, _mod_values, _split_value, _start, _vendor_ok,
 )
 from .probe_plan import (
     command_length, estimate_seconds, ini_sets_argument, probe_arguments, start_seconds,
@@ -84,7 +84,7 @@ __all__ = [
     "set_package_ini_value", "SETTINGS_REL", "SHOT", "SNAP_EXT", "SNAP_SKIP", "START_OVERHEAD_SECONDS",
     "start_seconds", "STEP_TOLERANCE", "summary_table", "TABLE_END", "TABLE_START", "tables_of", "vendor_of",
     "write_results", "_align", "_allowed", "_as_list", "_baseline_key", "_BRAKE", "_entry", "_expand_cell",
-    "_fg_kind_ran", "_fill", "_fmt", "_in_window", "_KSP_TIME", "_last_before", "_LATENCY", "_machine_line",
+    "_fg_kind_ran", "_fill", "_fit_command_line", "_fmt", "_in_window", "_KSP_TIME", "_last_before", "_LATENCY", "_machine_line",
     "_matrix_shown", "_merge_repeats", "_mod_values", "_PCL", "_pct", "_PROXY_TIME", "_ratio_findings",
     "_reference_key", "_replace_between", "_REPORT", "_RT_BUILD", "_same_number", "_save_plan", "_SCENE_REASON",
     "_seconds", "_settling", "_split_value", "_STAGES", "_start", "_step_check", "_timed_lines", "_unfocused_at",

@@ -4,7 +4,8 @@ import copy
 import json
 import re
 
-from .constants import DEFAULT_SCENE, MAIN_GROUP
+from .constants import DEFAULT_SCENE, MAIN_GROUP, MAX_COMMAND_CHARS
+from .probe_plan import command_length
 
 
 def load_matrix(path):
@@ -135,9 +136,34 @@ def expand(matrix, vendor=None, resources=None, groups=None):
                         if len(scenes) > 1 or scene != DEFAULT_SCENE:
                             parts.append(scene)
                         start["id"] = "-".join(parts)
-                starts.extend(found)
+                starts.extend(part for start in found for part in _fit_command_line(start))
                 skipped.extend(why)
     return starts, _without_repeats(skipped)
+
+
+def _fit_command_line(start):
+    """The start, or consecutive parts of it when its command line would pass MAX_COMMAND_CHARS.
+
+    Every phase names all of its live keys, so none inherits one from the phase before; a part therefore
+    measures what the whole start would have. Each part is a KSP start of its own (id plus -part1, -part2 ...),
+    holds as many phases as fit, and begins like a start does (its first phase has no rebuild wait)."""
+    if command_length(start) <= MAX_COMMAND_CHARS:
+        return [start]
+    parts, current = [], []
+    for phase in start["phases"]:
+        if current and command_length(dict(start, phases=current + [phase])) > MAX_COMMAND_CHARS:
+            parts.append(current)
+            current = []
+        current.append(phase)
+    parts.append(current)
+    result = []
+    for n, phases in enumerate(parts, 1):
+        part = dict(start, id="{}-part{}".format(start["id"], n), phases=copy.deepcopy(phases))
+        part["phases"][0]["rebuild"] = False
+        result.append(part)
+        if command_length(part) > MAX_COMMAND_CHARS:
+            raise ValueError("a single phase of {} passes the command line limit of {} characters".format(start["id"], MAX_COMMAND_CHARS))
+    return result
 
 
 def _expand_cell(matrix, vendor=None, resources=None):
