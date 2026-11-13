@@ -97,7 +97,9 @@ namespace ReDefinition.Atmospheres
                 BodyRuleReaders.Ice(root.Child("ICE")), BodyRuleReaders.Generator(root.Child("GENERATOR")),
                 BodyRuleReaders.Clouds(root.Child("CLOUDS")), BodyRuleReaders.Look(root.Child("LOOK")), BodyRuleReaders.Sound(root.Child("SOUND")),
                 BodyRuleReaders.Wind(root.Child("WIND")), BodyRuleReaders.Gameplay(root.Child("GAMEPLAY")), BodyRuleReaders.Aurora(root.Child("AURORA")),
-                BodyRuleReaders.LightMedium(root.Child("LIGHT_MEDIUM")), BodyRuleReaders.Frost(root.Child("FROST")), BodyRuleReaders.Forecast(root.Child("FORECAST")));
+                BodyRuleReaders.LightMedium(root.Child("LIGHT_MEDIUM")), BodyRuleReaders.Frost(root.Child("FROST")), BodyRuleReaders.Forecast(root.Child("FORECAST")), player.Frequency);
+            // A key inside a known node that nothing asked for is a typo (or a key of another version): the default stays, and it is said.
+            root.CheckUnread("name");
             string yearNote = source + (capped ? ", capped" : "") + ", factor " + (nodeFactor * player.YearFactor).ToString("0.##", CultureInfo.InvariantCulture);
             return new BodyParseResult(climate, warnings, Summarise(climate, tiltNote, yearNote, warnings.Count));
         }

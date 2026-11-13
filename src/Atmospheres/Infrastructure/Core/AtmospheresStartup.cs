@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // Starts ReDefinition Atmospheres once, when the game starts: checks the shared Common DLL, reads the settings, adds the body watcher
+    // Starts ReDefinition Atmospheres once, when the game starts: checks the main mod (HostGate), checks the shared Common DLL, reads the settings, adds the body watcher
     // and the module runner (the modules of the other packages start from there), and writes one line into KSP.log.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class AtmospheresStartup : MonoBehaviour
@@ -12,6 +12,21 @@ namespace ReDefinition.Atmospheres
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
+            // The main mod is required: without it, or with an Api that is too old or incomplete, nothing of the atmospheres starts.
+            Begin(HostGate.Problem, message => Debug.LogError(message), StartParts);
+        }
+
+        // The gate in front of the start: where the host's check names a problem, one error line is written and the parts are not
+        // started. Returns whether they were.
+        internal static bool Begin(Func<string> hostProblem, Action<string> error, Action startParts)
+        {
+            if (!HostGate.Allows(hostProblem(), error)) return false;
+            startParts();
+            return true;
+        }
+
+        private void StartParts()
+        {
             try
             {
                 string problem = CommonVersionCheck.Problem("ReDefinition Atmospheres", typeof(AtmospheresStartup).Assembly);

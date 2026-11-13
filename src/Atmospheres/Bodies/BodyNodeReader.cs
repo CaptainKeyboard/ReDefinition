@@ -9,15 +9,99 @@ namespace ReDefinition.Atmospheres
     // exception): the value stays the default. A node that is null reads as an empty one. Numbers use the invariant culture.
     internal sealed class BodyNodeReader
     {
+        // The text of the warning for a key that no reader asked for (a typo in a known node): the key is ignored, the default stays.
+        internal const string UnknownKeyText = "the key is not known and is ignored";
+
+        // What the readers of one parse asked for: per node the keys that were read, and the readers in the order they were made. After the
+        // parse, CheckUnread warns for every key of a node that nothing read.
+        private sealed class ReadLog
+        {
+            internal readonly Dictionary<ConfigNode, HashSet<string>> Read = new Dictionary<ConfigNode, HashSet<string>>();
+            internal readonly List<BodyNodeReader> Readers = new List<BodyNodeReader>();
+        }
+
         private readonly ConfigNode node;
         private readonly string path;
         private readonly List<string> warnings;
+        private readonly ReadLog log;
 
-        internal BodyNodeReader(ConfigNode node, string path, List<string> warnings)
+        internal BodyNodeReader(ConfigNode node, string path, List<string> warnings) : this(node, path, warnings, new ReadLog())
+        {
+        }
+
+        private BodyNodeReader(ConfigNode node, string path, List<string> warnings, ReadLog log)
         {
             this.node = node;
             this.path = path;
             this.warnings = warnings;
+            this.log = log;
+            if (node != null)
+            {
+                if (!log.Read.ContainsKey(node)) log.Read[node] = new HashSet<string>(StringComparer.Ordinal);
+                log.Readers.Add(this);
+            }
+        }
+
+        private void MarkRead(string key)
+        {
+            HashSet<string> set;
+            if (node != null && log.Read.TryGetValue(node, out set)) set.Add(key);
+        }
+
+        // Warns for every key of the nodes read so far that no reader asked for, with the nearest key that was asked for when there is one
+        // ("did you mean"). The keys named in ignore are the loader's own (the node's name). Call it once the whole node was read.
+        internal void CheckUnread(params string[] ignore)
+        {
+            var skip = new HashSet<string>(ignore ?? new string[0], StringComparer.Ordinal);
+            foreach (BodyNodeReader reader in log.Readers)
+            {
+                if (reader.node == null) continue;
+                HashSet<string> read = log.Read[reader.node];
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (ConfigNode.Value value in reader.node.values)
+                {
+                    string key = value.name;
+                    if (read.Contains(key) || !seen.Add(key) || (ReferenceEquals(reader, this) && skip.Contains(key))) continue;
+                    string near = Nearest(key, read);
+                    reader.Warn(key, UnknownKeyText + (near == null ? "" : " (did you mean '" + near + "'?)"));
+                }
+            }
+        }
+
+        // The read key that is the same without case, or within two edits; null if none.
+        internal static string Nearest(string key, IEnumerable<string> candidates)
+        {
+            string best = null;
+            int bestDistance = 3;
+            foreach (string candidate in candidates)
+            {
+                int d = string.Equals(candidate, key, StringComparison.OrdinalIgnoreCase) ? 0 : Distance(key.ToLowerInvariant(), candidate.ToLowerInvariant());
+                if (d < bestDistance || (d == bestDistance && best != null && string.CompareOrdinal(candidate, best) < 0))
+                {
+                    best = candidate;
+                    bestDistance = d;
+                }
+            }
+            return best;
+        }
+
+        private static int Distance(string a, string b)
+        {
+            if (Math.Abs(a.Length - b.Length) > 2) return 99;
+            var row = new int[b.Length + 1];
+            for (int j = 0; j <= b.Length; j++) row[j] = j;
+            for (int i = 1; i <= a.Length; i++)
+            {
+                int diagonal = row[0];
+                row[0] = i;
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int above = row[j];
+                    row[j] = Math.Min(Math.Min(row[j] + 1, row[j - 1] + 1), diagonal + (a[i - 1] == b[j - 1] ? 0 : 1));
+                    diagonal = above;
+                }
+            }
+            return row[b.Length];
         }
 
         internal bool Present
@@ -27,6 +111,7 @@ namespace ReDefinition.Atmospheres
 
         internal bool Has(string key)
         {
+            MarkRead(key);
             return node != null && node.HasValue(key);
         }
 
@@ -40,12 +125,12 @@ namespace ReDefinition.Atmospheres
         {
             ConfigNode[] found = Nodes(name);
             if (found.Length > 1) Warn(name, "the node is there " + found.Length + " times; the first one counts");
-            return new BodyNodeReader(found.Length == 0 ? null : found[0], path + "." + name, warnings);
+            return new BodyNodeReader(found.Length == 0 ? null : found[0], path + "." + name, warnings, log);
         }
 
         internal BodyNodeReader Wrap(ConfigNode child, string name)
         {
-            return new BodyNodeReader(child, path + "." + name, warnings);
+            return new BodyNodeReader(child, path + "." + name, warnings, log);
         }
 
         // The names of the sub-nodes, in file order.
@@ -68,6 +153,7 @@ namespace ReDefinition.Atmospheres
 
         internal string Raw(string key)
         {
+            MarkRead(key);
             if (node == null) return null;
             string value = node.GetValue(key);
             return value == null ? null : value.Trim();

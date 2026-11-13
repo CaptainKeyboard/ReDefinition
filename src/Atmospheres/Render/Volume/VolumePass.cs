@@ -146,10 +146,19 @@ namespace ReDefinition.Atmospheres
             {
                 Rebuild(cam, planet, ut, look);
                 SetFrame(cam, planet, ut, look, view);
-                renderer.Upload(resampler);
-                renderer.Attach(cam, CameraEvent.BeforeForwardAlpha);
-                cam.depthTextureMode |= DepthTextureMode.Depth;
-                renderer.Prepare(cam, frame, look, null, null, null, false);
+                if (OwnCloudPlan.SlabDraws(slab, OwnCloudModule.Drawing))
+                {
+                    renderer.Upload(resampler);
+                    renderer.Attach(cam, CameraEvent.BeforeForwardAlpha);
+                    cam.depthTextureMode |= DepthTextureMode.Depth;
+                    renderer.Prepare(cam, frame, look, null, null, null, false);
+                }
+                else
+                {
+                    // The layer pass draws these clouds: the slab stays off the camera; its density stays current for DensityAt.
+                    renderer.Detach();
+                    renderer.Commands.Clear();
+                }
             }
             else
             {

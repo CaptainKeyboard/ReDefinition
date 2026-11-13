@@ -1,9 +1,10 @@
+using ReDefinition.Atmospheres.Forecast;
 using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres
 {
-    // What the bridge to the main mod relies on: ReDefinition.Api as the game has it. The entry is Verified where the hooks the
-    // atmospheres register are there; where the main mod is absent it is Absent, and the Scene-mode fallback draws.
+    // What the bridge to the main mod relies on: ReDefinition.Api as the game has it. The entry is Verified where the members the
+    // atmospheres call are there; where the main mod is absent it is Absent, and the atmospheres do not start (HostGate).
     [AtmospheresAssumptions]
     internal static class AssumptionsA02
     {
@@ -12,8 +13,15 @@ namespace ReDefinition.Atmospheres
                 .Type(ApiBridge.HooksTypeName)
                 .Calls(ApiBridge.HooksTypeName, "RegisterAfterUpscaling")
                 .Calls(ApiBridge.HooksTypeName, "UnregisterAfterUpscaling")
+                .Calls(ApiBridge.HooksTypeName, "RegisterAfterUpscalingWithDepth")
+                .Calls(ApiBridge.HooksTypeName, "UnregisterAfterUpscalingWithDepth")
                 .Calls(ApiBridge.HooksTypeName, "RegisterMotionVectors")
+                .Calls(ApiBridge.HooksTypeName, "UnregisterMotionVectors")
                 .Calls(ApiBridge.HooksTypeName, "RegisterOverlay")
-                .OnChange(WhenChanged.Keep, "effects that must be drawn after the upscaler draw in Scene mode");
+                .Calls(ApiBridge.HooksTypeName, "UnregisterOverlay")
+                .Calls(ApiBridge.FrameTypeName, "RequestHistoryReset")
+                .Calls(ForecastKey.KeysTypeName, "Pressed")
+                .Field(HostGate.ApiInfoTypeName, "Version", "System.Int32")
+                .OnChange(WhenChanged.Keep, "the atmospheres do not start (HostGate); the same members are what the gate checks");
     }
 }

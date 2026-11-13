@@ -60,8 +60,9 @@ namespace ReDefinition.Atmospheres
             SeasonRules seasons = null, TemperatureRules temperature = null, PrecipRules precip = null, System.Collections.Generic.IEnumerable<CoverRules> covers = null,
             IceRules ice = null, GeneratorRules generator = null, CloudRules clouds = null, LookRules look = null, SoundRules sound = null,
             WindRules wind = null, GameplayRules gameplay = null, AuroraRules aurora = null, LightMediumRules lightMedium = null, FrostRules frost = null,
-            ForecastRules forecast = null)
+            ForecastRules forecast = null, double playerFrequency = 1.0)
         {
+            PlayerFrequency = playerFrequency;
             Name = name ?? "";
             Index = index;
             Radius = radius;
@@ -96,6 +97,9 @@ namespace ReDefinition.Atmospheres
         internal BodyStatus Status { get; }
         // The seed of the body's weather: a hash of its name and the player's global seed (setting genSeed).
         internal int Seed { get; }
+        // The player's weather frequency for this body (bodies.cfg, the slider of the body in the settings window): it multiplies the
+        // light-weather knob of the generator for this body only. 1 is the body's own rate. Set by the parser.
+        internal double PlayerFrequency { get; }
 
         internal SeasonRules Seasons { get; }
         internal TemperatureRules Temperature { get; }

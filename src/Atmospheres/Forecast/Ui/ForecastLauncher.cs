@@ -18,6 +18,8 @@ namespace ReDefinition.Atmospheres.Forecast
 
         private void Awake()
         {
+            // Without the main mod (HostGate) the atmospheres do not start: no button.
+            if (!HostGate.Open) return;
             DontDestroyOnLoad(gameObject);
             GameEvents.onGUIApplicationLauncherReady.Add(OnLauncherReady);
             GameEvents.onGUIApplicationLauncherDestroyed.Add(OnLauncherDestroyed);
@@ -25,6 +27,7 @@ namespace ReDefinition.Atmospheres.Forecast
 
         private void OnDestroy()
         {
+            if (!HostGate.Open) return;
             GameEvents.onGUIApplicationLauncherReady.Remove(OnLauncherReady);
             GameEvents.onGUIApplicationLauncherDestroyed.Remove(OnLauncherDestroyed);
             Hide();

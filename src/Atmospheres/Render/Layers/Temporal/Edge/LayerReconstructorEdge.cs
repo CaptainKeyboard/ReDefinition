@@ -31,7 +31,7 @@ namespace ReDefinition.Atmospheres
             if (!Fits(mask, bw, bh))
             {
                 foreach (RenderTexture rt in new[] { stateLast, stateNew, dilated, mask })
-                    if (rt != null) { rt.Release(); UnityEngine.Object.Destroy(rt); }
+                    RenderTargets.Dispose(rt);
                 stateLast = MakeMask("edge state a", bw, bh);
                 stateNew = MakeMask("edge state b", bw, bh);
                 dilated = MakeMask("edge dilated", bw, bh);
@@ -40,7 +40,7 @@ namespace ReDefinition.Atmospheres
             }
             if (!Fits(edgeLow, ew, eh))
             {
-                if (edgeLow != null) { edgeLow.Release(); UnityEngine.Object.Destroy(edgeLow); }
+                RenderTargets.Dispose(edgeLow);
                 edgeLow = Make("layer march edge", ew, eh, FilterMode.Point);
             }
 

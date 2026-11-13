@@ -134,10 +134,11 @@ namespace ReDefinition.Atmospheres
         internal static Func<double, double, double, double, float> Reader { get { return reader; } }
 
         // latitude and longitude in degrees, altitude in metres above sea level, ut unused (the layers' maps are the current state).
+        // 0 is a clear sky; an unbound field cannot read the place and answers CloudDepthRule.Unreadable.
         internal static float Read(double latDeg, double lonDeg, double altitudeM, double ut)
         {
             CloudShadowField f = field;
-            if (f == null) return 0f;
+            if (f == null) return CloudDepthRule.Unreadable;
             double tau = f.VerticalOpticalDepth(latDeg, lonDeg, altitudeM);
             return tau > 0.0 ? (float)tau : 0f;
         }

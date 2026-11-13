@@ -31,7 +31,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
 
-    <!-- Set to false when a build should not go straight into the game. -->
+    <!-- Building this project deploys into the game's GameData (target DeployToGameData). Set to false when a build should not.
+         The test project pins false on its reference to this project, so a test run never deploys. -->
     <DeployToGameData Condition="'$(DeployToGameData)' == ''">true</DeployToGameData>
   </PropertyGroup>
 
@@ -268,7 +269,8 @@
       <_AtmospheresAvcLine Include="&quot;VERSION&quot;: &quot;$(AtmospheresVersion)&quot;," />
       <_AtmospheresAvcLine Include="&quot;KSP_VERSION&quot;: &quot;1.12.5&quot;," />
       <_AtmospheresAvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.0&quot;," />
-      <_AtmospheresAvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.99&quot;" />
+      <_AtmospheresAvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.99&quot;," />
+      <_AtmospheresAvcLine Include="&quot;DEPENDS&quot;: [&quot;$(ModName)&quot;, &quot;$(CommonName)&quot;]" />
       <_AtmospheresAvcLine Include="}" />
     </ItemGroup>
     <MakeDir Directories="$(OutputPath)GameData\$(ModName)\Atmospheres" />

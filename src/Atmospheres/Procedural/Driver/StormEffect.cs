@@ -81,6 +81,12 @@ namespace ReDefinition.Atmospheres
 
         private void Start()
         {
+            // Without the main mod (HostGate) the atmospheres do not start: the effect stays off.
+            if (!HostGate.Open)
+            {
+                enabled = false;
+                return;
+            }
             try
             {
                 volume = new StormVolume();
@@ -215,6 +221,7 @@ namespace ReDefinition.Atmospheres
 
         private void OnDestroy()
         {
+            if (!HostGate.Open) return;
             Teardown();
         }
 

@@ -9,7 +9,9 @@ namespace ReDefinition.Atmospheres
 {
     // The reflection bridge from the atmospheres to ReDefinition.Api (the main mod's interface for other mods). The atmospheres never
     // reference ReDefinition.dll: every member is found by name when the bridge is made, and a member that is absent or has another
-    // signature simply counts as not there, so the caller draws its Scene-mode fallback. Implements IPostUpscaleCompositor; the
+    // signature counts as not there. In the game that case does not arise: AtmospheresStartup does not start without the main mod and
+    // an Api that has every member (HostGate, MissingMembers). The Scene-mode fallback of the callers is left for the tests and the
+    // tools that build a bridge to types of their own. Implements IPostUpscaleCompositor; the
     // slot Services.PostUpscale receives it at the start of the module that uses it.
     //
     // Members looked for (ReDefinition.Api): Hooks.RegisterAfterUpscaling / UnregisterAfterUpscaling (Action<CommandBuffer, RenderTexture,
@@ -84,6 +86,18 @@ namespace ReDefinition.Atmospheres
         private static HookPair Pair(Type hooks, string register, string unregister, Type handler)
         {
             return new HookPair { Register = Find(hooks, register, handler), Unregister = Find(hooks, unregister, handler) };
+        }
+
+        // The members of ReDefinition.Api the atmospheres rely on that this host lacks (empty where all are there).
+        internal IList<string> MissingMembers()
+        {
+            var missing = new List<string>();
+            if (!afterUpscaling.Present) missing.Add("Hooks.RegisterAfterUpscaling/UnregisterAfterUpscaling");
+            if (!afterUpscalingDepth.Present) missing.Add("Hooks.RegisterAfterUpscalingWithDepth/UnregisterAfterUpscalingWithDepth");
+            if (!motionVectors.Present) missing.Add("Hooks.RegisterMotionVectors/UnregisterMotionVectors");
+            if (!overlay.Present) missing.Add("Hooks.RegisterOverlay/UnregisterOverlay");
+            if (historyReset == null) missing.Add("Frame.RequestHistoryReset");
+            return missing;
         }
 
         // Whether ReDefinition.Api answers (its after-upscaling hook is there).

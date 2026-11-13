@@ -27,6 +27,12 @@ namespace ReDefinition.Atmospheres
 
         private void Start()
         {
+            // Without the main mod (HostGate) the atmospheres do not start: the driver stays off.
+            if (!HostGate.Open)
+            {
+                enabled = false;
+                return;
+            }
             Light = light;
             AtmospheresLog.Say(StormLog.DriverReady());
         }
@@ -54,6 +60,7 @@ namespace ReDefinition.Atmospheres
 
         private void OnDestroy()
         {
+            if (!HostGate.Open) return;
             Teardown();
         }
 
@@ -121,9 +128,7 @@ namespace ReDefinition.Atmospheres
             input.BodyKind = PrecipTypeModel.BodyKind(climate.Precip);
             input.CloudMapsVersion = CloudMapsState.Version;
             input.CloudLayerName = CloudMapsState.LayerName;
-            Func<double, double, double, double, float> opticalDepth = WeatherHooks.CloudOpticalDepth;
-            float depth = opticalDepth != null ? opticalDepth(lat, lon, alt, ut) : 0f;
-            input.OpticalDepth = depth > 0f ? depth : sample.OpticalDepthVertical;
+            input.OpticalDepth = CloudDepthRule.Resolve(WeatherHooks.CloudOpticalDepth, lat, lon, alt, ut, sample.OpticalDepthVertical);
             input.FogColour = climate.Look.FogColour;
             input.VeilGroundColour = climate.Look.VeilGroundColour;
             input.VeilSkyColour = climate.Look.VeilSkyColour;

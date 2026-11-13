@@ -83,6 +83,12 @@ namespace ReDefinition.Atmospheres
 
             // The sea and the ice model.
             p.FreezeK0 = 273.15 + c.Temperature.WaterCelsius;
+
+            // The change from snow to rain: the body's rule, the one the frame driver draws the sky with (PrecipTypeModel).
+            float centreC, widthC;
+            PrecipTypeModel.Parameters(c.Precip, out centreC, out widthC);
+            p.PrecipCentreC = centreC;
+            p.PrecipWidthC = widthC;
             if (!double.IsNaN(g.SalinityPsu)) p.SalinityPsu = g.SalinityPsu;
             if (!double.IsNaN(g.FreezeShiftKPerPsu)) p.FreezeShiftKPerPsu = g.FreezeShiftKPerPsu;
             if (!double.IsNaN(g.MixedLayerDepthM)) p.MixedLayerDepthM = g.MixedLayerDepthM;

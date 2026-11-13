@@ -58,6 +58,14 @@ namespace ReDefinition.Atmospheres
             return enabled && flightScene && atmosphere && weatherRuns && ownActive && layerSpecs > 0 && !mapView;
         }
 
+        // Whether the storm slab (VolumePass) is drawn. The slab and the layer pass are two renderers of the same clouds under the source Ours:
+        // while the layer pass draws, the slab is not drawn (its density stays up to date for the readers of VolumePass.DensityAt, the lamp's
+        // medium among them). slabWanted: the slab's own gate (source Ours, the weather active); layerPassDrawing: OwnCloudModule.Drawing.
+        internal static bool SlabDraws(bool slabWanted, bool layerPassDrawing)
+        {
+            return slabWanted && !layerPassDrawing;
+        }
+
         // Whether the maps are due: the interval has passed, or the stack was just built.
         internal static bool Due(float now, float last, float interval, bool force)
         {

@@ -156,6 +156,7 @@ namespace ReDefinition.Atmospheres
                 field.MarkBroken(index, error);
                 return true;
             }
+            state.BodyFrequency = (float)c.PlayerFrequency;
             field.SetState(state);
             AtmospheresLog.Say("generator: " + c.Name + " ready (" + GeneratorBodies.Describe(parameters) + ", definition " + state.DefinitionId.ToString("X16") + ")");
             return true;

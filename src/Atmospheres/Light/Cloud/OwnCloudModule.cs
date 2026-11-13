@@ -68,6 +68,17 @@ namespace ReDefinition.Atmospheres
         }
 
         internal static OwnCloudModule Current { get; private set; }
+
+        // Whether the layer pass has its buffers on the camera this frame, i.e. draws the clouds. The storm slab (VolumePass) asks: two cloud
+        // renderers must not draw the same clouds (OwnCloudPlan.SlabDraws).
+        internal static bool Drawing
+        {
+            get
+            {
+                OwnCloudModule m = Current;
+                return m != null && m.buffersOn;
+            }
+        }
         internal readonly Statistics Stats = new Statistics();
 
         private readonly LayerFrame frame = new LayerFrame();

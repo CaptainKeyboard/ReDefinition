@@ -799,12 +799,14 @@ namespace AtmoSim.Core
             PrecipKind kind = PrecipKind.None;
             if (precip > 0.0)
             {
-                double twC = tAir - Body.SnowFreezeK - 1.2;
-                fs = 1.0 / (1.0 + DMath.Exp((twC - 1.0) / 0.9));
-                fRain = 1.0 - fs;
-                fl = 4.0 * fs * fRain;
-                kind = (fs >= fRain && fs >= fl) ? PrecipKind.Snow : (fl >= fRain ? PrecipKind.Sleet : PrecipKind.Rain);
-                if (fl > fs && fl > fRain) kind = PrecipKind.Sleet;
+                // the same definition the frame driver draws with (PrecipTypeMath)
+                if (Body.PrecipTypeLegacy) PrecipTypeMath.LegacyFractions(tAir, Body.SnowFreezeK, out fs, out fl, out fRain);
+                else
+                {
+                    double typeLevel = Body.PrecipLevelOf != null ? Body.PrecipLevelOf(precip) : PrecipTypeMath.ToolLevel;
+                    PrecipTypeMath.Fractions(tAir, typeLevel, Body.PrecipCentreC, Body.PrecipWidthC, out fs, out fl, out fRain);
+                }
+                kind = PrecipTypeMath.Dominant(fs, fl, fRain);
             }
             double dust = 0.0;
             if (Body.Dusty)

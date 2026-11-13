@@ -20,8 +20,13 @@ namespace ReDefinition.Atmospheres
         {
             get
             {
-                if (Sleet >= Snow && Sleet >= Rain) return Sleet > 0f ? PrecipType.Sleet : PrecipType.None;
-                return Snow > Rain ? PrecipType.Snow : PrecipType.Rain;
+                switch (AtmoSim.Core.PrecipTypeMath.Dominant(Snow, Sleet, Rain))
+                {
+                    case AtmoSim.Core.PrecipKind.Sleet: return PrecipType.Sleet;
+                    case AtmoSim.Core.PrecipKind.Snow: return PrecipType.Snow;
+                    case AtmoSim.Core.PrecipKind.Rain: return PrecipType.Rain;
+                    default: return PrecipType.None;
+                }
             }
         }
     }
@@ -34,8 +39,10 @@ namespace ReDefinition.Atmospheres
     //   rare flag in the transition zone, off by default. The other types of a body (dust, sand, ash, methane) come from its rule.
     internal static class PrecipTypeModel
     {
-        internal const float DefaultCentreC = 1.0f, DefaultWidthC = 0.9f;
-        internal const float WetBulbOffsetLightK = 0.7f, WetBulbOffsetHeavyK = 0.3f;
+        // The formulas and constants are AtmoSim.Core.PrecipTypeMath, which the weather generator calls with the same arguments: the
+        // forecast, the cover and the ground effects (the generator's fractions) and the sky (this) are one model.
+        internal const float DefaultCentreC = (float)AtmoSim.Core.PrecipTypeMath.DefaultCentreC, DefaultWidthC = (float)AtmoSim.Core.PrecipTypeMath.DefaultWidthC;
+        internal const float WetBulbOffsetLightK = (float)AtmoSim.Core.PrecipTypeMath.WetBulbOffsetLightK, WetBulbOffsetHeavyK = (float)AtmoSim.Core.PrecipTypeMath.WetBulbOffsetHeavyK;
         // The chance of freezing rain per ten minutes of game time inside the transition zone, when the flag is on.
         internal const float FreezingRainChance = 0.08f;
         // The most a fraction may change per second of game time: 0.1 per game minute.
@@ -44,27 +51,16 @@ namespace ReDefinition.Atmospheres
         // The wet-bulb offset in kelvin at a level.
         internal static float WetBulbOffsetK(float level01)
         {
-            float t = (level01 - 0.2f) / 0.4f;
-            t = t < 0f ? 0f : t > 1f ? 1f : t;
-            t = t * t * (3f - 2f * t);
-            return WetBulbOffsetLightK + (WetBulbOffsetHeavyK - WetBulbOffsetLightK) * t;
-        }
-
-        // The share of snow in the fall.
-        internal static float SnowShare(float temperatureK, float level01, float centreC, float widthC)
-        {
-            float twC = temperatureK - 273.15f - WetBulbOffsetK(level01);
-            double x = (twC - centreC) / Math.Max(widthC, 0.05f);
-            return (float)(1.0 / (1.0 + Math.Exp(x)));
+            return (float)AtmoSim.Core.PrecipTypeMath.WetBulbOffsetK(level01);
         }
 
         // The mix at a temperature (kelvin, from the field) and a level.
         internal static TypeMix Mix(float temperatureK, float level01, float centreC, float widthC)
         {
             if (float.IsNaN(temperatureK)) return new TypeMix();
-            float fs = SnowShare(temperatureK, level01, centreC, widthC);
-            float fr = 1f - fs;
-            return TypeMix.Of(fs, 4f * fs * fr, fr);
+            double snow, sleet, rain;
+            AtmoSim.Core.PrecipTypeMath.Fractions(temperatureK, level01, centreC, widthC, out snow, out sleet, out rain);
+            return TypeMix.Of((float)snow, (float)sleet, (float)rain);
         }
 
         // The centre and the width of the snow-to-rain change of a body: its snow rule if it has one, else its rain rule, else the

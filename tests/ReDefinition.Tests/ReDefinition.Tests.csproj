@@ -21,7 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ReDefinition.csproj" />
+    <!-- Building the tests builds the main mod, and the main mod's build copies into the game's GameData and empties folders there.
+         The reference pins DeployToGameData=false (it overrides a global property too), so no test run deploys, wrapper or not;
+         building src/ReDefinition.csproj itself still deploys. ArchitectureTests.TheTestProjectNeverDeploysIntoTheGame keeps this. -->
+    <ProjectReference Include="..\..\src\ReDefinition.csproj" AdditionalProperties="DeployToGameData=false" />
     <!-- The dashboard is a mod of its own that the main project does not reference; the tests do. -->
     <ProjectReference Include="..\..\src\Dashboard\ReDefinition.Dashboard.csproj" />
     <ProjectReference Include="..\..\src\Atmospheres\ReDefinition.Atmospheres.csproj" />

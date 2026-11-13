@@ -96,6 +96,12 @@ namespace AtmoSim.Core
         // L8 (f): the albedo of the melting ice follows the snow depth continuously (the signed step at 0.02 m made the ice jump when the snow crossed it).
         public bool SmoothSnowAlbedo = true;
         public double SnowFreezeK { get { return SnowUsesFreshFreezingPoint ? FreezeK0 : FreezePointK; } }
+        // The snow-to-rain change of the fall type (PrecipTypeMath): the centre and the width of the logistic share of snow, in degrees C of the wet-bulb temperature (absolute: a body whose water freezes elsewhere has it in its PRECIP rule).
+        public double PrecipCentreC = PrecipTypeMath.DefaultCentreC, PrecipWidthC = PrecipTypeMath.DefaultWidthC;
+        // The level of precipitation (0 to 1) of a rate in mm per hour, which sets the wet-bulb offset of the type; the game fills it from the body's band table, null (the offline tool) uses PrecipTypeMath.ToolLevel.
+        public Func<double, double> PrecipLevelOf;
+        // true = the fixed type model of the rounds before the unification (PrecipTypeMath.LegacyFractions); the historical profiles Round1 to Round3 and Signed set it so that their hashes reproduce.
+        public bool PrecipTypeLegacy = false;
 
         // ---- levers of tuning round 2 (RESULT.md, TUNING ROUND 2). The values below are the round-2 values; Round1() restores the round-1 generator, Signed() the signed one. ----
         // R2a: every system generation has its own tilt, curl (comma head), wavelength, widths, latitude, speed and a longitude-dependent amplitude (storm-track zones); false = the round-1 comb.
@@ -168,6 +174,7 @@ namespace AtmoSim.Core
         {
             var p = Clone();
             p.HeightWind = false;
+            p.PrecipTypeLegacy = true;
             return p;
         }
 
@@ -176,6 +183,7 @@ namespace AtmoSim.Core
         {
             var p = Clone();
             p.HeightWind = false;
+            p.PrecipTypeLegacy = true;
             p.Round3Systems = false; p.MatureStructure = false; p.Round3Itcz = false; p.SnowRadiativeHeatK = 0.0; p.IceSnowMemoryDays = 0.0;
             p.SystemSpeedSpread = 0.18; p.SystemLifeMinDays = 3.0; p.SystemLatScatter = 0.6; p.SystemAmpFraction = 0.025; p.SystemSpeedFactor = 1.0; p.WindowRise = 0.0; p.FrontCloudGain = 0.7; p.CellFrontTerm = 0.35; p.StratThreshold = 0.08;
             return p;

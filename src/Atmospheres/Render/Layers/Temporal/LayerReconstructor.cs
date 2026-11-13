@@ -135,11 +135,8 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            if (low != null) { low.Release(); UnityEngine.Object.Destroy(low); }
-            if (latest != null) { latest.Release(); UnityEngine.Object.Destroy(latest); }
-            if (spare != null) { spare.Release(); UnityEngine.Object.Destroy(spare); }
-            foreach (RenderTexture rt in new[] { edgeLow, stateLast, stateNew, dilated, mask })
-                if (rt != null) { rt.Release(); UnityEngine.Object.Destroy(rt); }
+            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask })
+                RenderTargets.Dispose(rt);
             if (material != null) UnityEngine.Object.Destroy(material);
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
             if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
@@ -198,8 +195,8 @@ namespace ReDefinition.Atmospheres
             int w = camera.pixelWidth, h = camera.pixelHeight;
             if (!Fits(latest, w, h))
             {
-                if (latest != null) latest.Release();
-                if (spare != null) spare.Release();
+                RenderTargets.Dispose(latest);
+                RenderTargets.Dispose(spare);
                 latest = Make("layer reconstruct a", w, h, FilterMode.Bilinear);
                 spare = Make("layer reconstruct b", w, h, FilterMode.Bilinear);
                 haveHistory = false;
@@ -213,7 +210,7 @@ namespace ReDefinition.Atmospheres
             int lh = s.Mode == ReconMode.Block ? (h + n - 1) / n : Mathf.RoundToInt(h * scale);
             if (!Fits(low, lw, lh))
             {
-                if (low != null) low.Release();
+                RenderTargets.Dispose(low);
                 low = Make("layer march", lw, lh, s.Mode == ReconMode.Block ? FilterMode.Bilinear : FilterMode.Point);
             }
 

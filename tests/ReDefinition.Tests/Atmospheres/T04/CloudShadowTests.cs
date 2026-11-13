@@ -362,7 +362,7 @@ namespace ReDefinition.Tests
                 WeatherHooks.CloudOpticalDepth = null;
                 Assert.IsTrue(OwnCloudHook.Attach());
                 Assert.AreSame(OwnCloudOpticalDepth.Reader, WeatherHooks.CloudOpticalDepth);
-                Assert.AreEqual(0f, WeatherHooks.CloudOpticalDepth(0, 0, 0, 0), 0f, "unbound: no cloud");
+                Assert.AreEqual(CloudDepthRule.Unreadable, WeatherHooks.CloudOpticalDepth(0, 0, 0, 0), 0f, "unbound: cannot read the place (not a clear sky)");
                 OwnCloudHook.Detach();
                 Assert.IsNull(WeatherHooks.CloudOpticalDepth);
                 Func<double, double, double, double, float> host = (a, b, c, d) => 7f;

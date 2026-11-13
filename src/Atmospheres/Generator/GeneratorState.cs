@@ -27,9 +27,12 @@ namespace ReDefinition.Atmospheres
             Name = name ?? "";
             Parameters = parameters;
             Seed = seed;
-            Generator = new WeatherGenerator(parameters, seed);
             this.baseBands = baseBands;
             bands = baseBands;
+            // The wet-bulb offset of the fall type depends on the level, as the frame driver draws it: the generator takes the level of the
+            // rate from this body's bands (PrecipTypeMath).
+            parameters.PrecipLevelOf = rate => PrecipScale.LevelFromRate((float)rate, Bands);
+            Generator = new WeatherGenerator(parameters, seed);
             DustType = dustType;
             DefinitionId = ComputeIdentity();
         }
@@ -67,11 +70,14 @@ namespace ReDefinition.Atmospheres
             return Interlocked.Exchange(ref broken, 1) == 0;
         }
 
+        // The player's weather frequency for this body (the body's slider in the settings window); it multiplies the light-weather knob here.
+        internal float BodyFrequency = 1f;
+
         // Applies the player's knobs to the bands.
         internal void ApplyKnobs(float lightWeatherFrequency, float heavyShare)
         {
             var shifted = new float[baseBands.Length];
-            PrecipRateToLevel.Shift(baseBands, lightWeatherFrequency, heavyShare, shifted);
+            PrecipRateToLevel.Shift(baseBands, lightWeatherFrequency * BodyFrequency, heavyShare, shifted);
             Volatile.Write(ref bands, shifted);
         }
 

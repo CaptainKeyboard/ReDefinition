@@ -16,6 +16,7 @@ namespace ReDefinition.Atmospheres
         // Where the lines go; tests replace them.
         internal Action<string> Say = AtmospheresLog.Say;
         internal Action<string, string> Warn = AtmospheresLog.Warn;
+        private readonly HashSet<string> loggedKeyWarnings = new HashSet<string>();
         private Dictionary<string, ConfigNode> nodes;
         private ConfigNode wildcard;
         private IEnumerable<string> fields;
@@ -85,7 +86,15 @@ namespace ReDefinition.Atmospheres
             string source = node == null ? "no node" : (wild ? "node *" : "node");
             Say(result.Summary + " [" + source + "]");
             foreach (string note in notes) Warn("body-config", facts.Name + ": " + note);
-            foreach (string warning in result.Warnings) Warn("body-config", warning);
+            foreach (string warning in result.Warnings)
+            {
+                // An unknown key is logged once, whatever the kind's count of other warnings (a node that has three typos says all three).
+                if (warning.Contains(BodyNodeReader.UnknownKeyText))
+                {
+                    if (loggedKeyWarnings.Add(warning)) Warn("body-config-key " + loggedKeyWarnings.Count, warning);
+                }
+                else Warn("body-config", warning);
+            }
             return result.Climate;
         }
 
