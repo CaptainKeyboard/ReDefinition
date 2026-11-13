@@ -77,6 +77,11 @@ Shader "ReDefinition/AtmospheresLayers"
         // advances by the golden ratio from frame to frame; 2: the same with the interleaved gradient noise as the per-pixel offset), w the frame's phase of
         // that sequence, frac(frame number x golden ratio), computed in double precision by the caller.
         float4 _GrainP;
+        // The surface march (E40 grain against TVC, package 2): x 1: the light is marched once per entry into a cloud (at the first sample after the entry) and
+        // carried to the later samples of that cloud analytically: the optical depth towards the sun falls by the optical depth the ray has crossed since times the
+        // cosine between the ray and the sun (a sample further along a ray that runs towards the sun has less cloud between it and the sun, one that runs away
+        // from it more). 0: the light march of the cost package (every _CostP.z lit steps, above the cut-off). y, z, w 0.
+        float4 _SurfP;
         // The gate's state while a ray marches: the refinement is on (1) or held back for the first march of a gated pixel (0); and a draw that must not gate
         // (the edge draw of package T12 returns early per pixel, so a quad's derivatives are not defined there) sets gGateOff.
         static float gRefineOn = 1.0, gGateOff = 0.0;
@@ -449,6 +454,8 @@ Shader "ReDefinition/AtmospheresLayers"
                     {
                         inside = false;
                         ramp = 0.0;
+                        // The surface march: the next cloud of the span gets a light march of its own.
+                        if (_SurfP.x > 0.5) haveSun = false;
                         if (fine)
                         {
                             tLast = t;
@@ -535,6 +542,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         float reuse = -1.0;
                         float tapK = CullTapFactor(t);
                         if (noLight) reuse = 0.0;
+                        else if (_SurfP.x > 0.5 && haveSun) reuse = max(sunTau - mu * tauSince, 0.0);
                         else if (haveSun && !(T * ext >= lightCut * tapK && sinceLight + 1.0 >= _CostP.z * tapK)) { reuse = sunTau; sinceLight += 1.0; }
                         float taps, tauUsed, upUsed;
                         // Up mode 3 moves the reused optical depth straight up by what the ray has crossed since: the column above a point that is lower

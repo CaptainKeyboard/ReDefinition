@@ -322,6 +322,10 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudRefineEdgeMask").Default, "off until the owner agrees");
             Assert.IsTrue(TierRows.NotSet.ContainsKey("cloudRefineBisect") && TierRows.NotSet.ContainsKey("cloudRefineEdgeMask"), "no tier sets them, and says why");
             var frame = new LayerFrame();
+            // The setting is read with the surface march off (the default march brings its own bisection steps, E40 grain against TVC package 2).
+            Tuning.ClearOverrides();
+            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceMarch, 0f);
+            NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(0, frame.RefineBisect);
             Assert.AreEqual(0f, frame.RefineBudget, "nothing on: no refinement");
@@ -340,6 +344,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var driver = new LayerReconstructDriver();
             Assert.IsTrue(driver.Configure((key, fallback) => fallback, recon), "the mask restriction runs the reconstruction");
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsOwnClouds, AtmospheresSettings.Definition("cloudRefineBisect").GreyReason);
+            Tuning.ClearOverrides();
+            NextFrame();
         }
 
         [TestMethod]
@@ -373,6 +379,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheGrainKeysMoveTheGridTheEntryAndTheHistory()
         {
             Tuning.ClearOverrides();
+            // The keys of this test act on the grid march; the surface march (the default since package 2 of E40 grain against TVC) sets the entry by itself.
+            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceMarch, 0f);
             NextFrame();
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Defaults());
@@ -462,6 +470,45 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
         }
 
+        // Package 2 of E40 grain against TVC: layers.surfaceMarch turns the entry search, the ramp, the optical-depth step and (by layers.surfaceLight) the light per
+        // entry on together; 0 leaves every one of them as the other keys set it.
+        [TestMethod]
+        public void TheSurfaceMarchKeySetsTheEntryTheStepAndTheLight()
+        {
+            Tuning.ClearOverrides();
+            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceMarch, 0f);
+            NextFrame();
+            var frame = new LayerFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.IsFalse(frame.LightPerEntry);
+            Assert.IsFalse(frame.EntryRamp);
+            Assert.AreEqual(0f, frame.RefineStepBudget);
+            Assert.AreEqual(0, frame.RefineBisect);
+            Assert.AreEqual(new LayerFrame().RefineFraction, frame.RefineFraction);
+
+            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceMarch, 3f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(3, frame.RefineBisect);
+            Assert.IsTrue(frame.EntryRamp);
+            Assert.AreEqual(OwnCloudOptions.SurfaceBudgetDefault, frame.RefineStepBudget);
+            Assert.AreEqual(0.125f, frame.RefineFraction);
+            Assert.AreEqual(OwnCloudOptions.SurfaceLightDefault, frame.LightPerEntry);
+
+            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceLight, 1f);
+            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceBudget, 1.5f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.IsTrue(frame.LightPerEntry);
+            Assert.AreEqual(1.5f, frame.RefineStepBudget);
+            // The setting's bisection steps are never lowered, and the finest step follows them.
+            OwnCloudOptions.Apply(frame, Defaults("cloudRefineBisect", 5));
+            Assert.AreEqual(5, frame.RefineBisect);
+            Assert.AreEqual(1f / 32f, frame.RefineFraction);
+            Tuning.ClearOverrides();
+            NextFrame();
+        }
+
         [TestMethod]
         public void ThePassDrawsOnlyWhereTheSwitchIsOnAndTheSourceIsOurs()
         {
@@ -533,7 +580,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             }
             foreach (string tuning in new[] { OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneRefineBudget,
                                               OwnCloudOptions.TuneEntryRamp, OwnCloudOptions.TuneGridFine, OwnCloudOptions.TuneCloudStep, OwnCloudOptions.TuneAccumulate,
-                                              OwnCloudOptions.TuneSpanTight, OwnCloudOptions.TuneDitherSequence })
+                                              OwnCloudOptions.TuneSpanTight, OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.TuneSurfaceMarch,
+                                              OwnCloudOptions.TuneSurfaceBudget, OwnCloudOptions.TuneSurfaceLight })
             {
                 if (json.IndexOf("\"atmo." + tuning + "\"", StringComparison.Ordinal) < 0) gaps.Add(tuning);
             }

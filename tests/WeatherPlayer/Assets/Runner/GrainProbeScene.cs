@@ -27,6 +27,10 @@ namespace ReDefinition.WeatherPlayer
             // (LayerFrame.DitherSequence).
             public bool Tight;
             public int Seq;
+            // Package 2, the surface march: the entry by Bisect halvings with the ramp, the step inside bounded by the optical depth Budget (0: off), the light
+            // marched once per entry (LayerFrame.LightPerEntry).
+            public float Budget;
+            public bool LightEntry;
         }
 
         internal sealed class Mode
@@ -67,7 +71,34 @@ namespace ReDefinition.WeatherPlayer
             new March { Name = "tleap2seq1", Tight = true, Seq = 1, MaxSteps = 96, Leap = 2f },
             new March { Name = "tramp2seq1", Tight = true, Seq = 1, Bisect = 2, Ramp = true },
             new March { Name = "leap4xseq1", Seq = 1, MaxSteps = 192, Leap = 4f },
+            // Package 2 (series e40-s2-temporal, e40-s2-cost): the surface march with 3 and 4 bisection steps, without the light per entry (what the light costs),
+            // with a budget of 1.5, on the cut span, with 32 grid points, and the cost attribution without the light and without the noise.
+            new March { Name = "surf3", Seq = 1, Bisect = 3, Ramp = true, Budget = 0.7f, LightEntry = true },
+            new March { Name = "surf4", Seq = 1, Bisect = 4, Ramp = true, Budget = 0.7f, LightEntry = true },
+            new March { Name = "surf3ls", Seq = 1, Bisect = 3, Ramp = true, Budget = 0.7f },
+            new March { Name = "surf3b15", Seq = 1, Bisect = 3, Ramp = true, Budget = 1.5f, LightEntry = true },
+            new March { Name = "surf3s32", Seq = 1, Bisect = 3, Ramp = true, Budget = 0.7f, LightEntry = true, MaxSteps = 32 },
+            new March { Name = "tsurf3", Seq = 1, Tight = true, Bisect = 3, Ramp = true, Budget = 0.7f, LightEntry = true },
+            new March { Name = "surf3nl", Seq = 1, Bisect = 3, Ramp = true, Budget = 0.7f, LightEntry = true, CostDebug = 1 },
+            new March { Name = "prodnn", CostDebug = 2 },
         };
+
+        // The cases of the series e40-s2-* (-cases s2).
+        internal static readonly string[][] S2Temporal =
+        {
+            new[] { "prod", "plain" }, new[] { "prod", "acc20" }, new[] { "surf3", "plain" }, new[] { "surf3", "acc20" }, new[] { "surf4", "plain" }, new[] { "surf4", "acc20" },
+            new[] { "surf3ls", "acc20" }, new[] { "surf3b15", "plain" }, new[] { "surf3b15", "acc20" }, new[] { "surf3s32", "acc20" }, new[] { "tsurf3", "plain" },
+            new[] { "tsurf3", "acc20" },
+        };
+
+        internal static readonly string[][] S2Cost =
+        {
+            new[] { "prod", "plain" }, new[] { "prod", "acc20" }, new[] { "surf3", "acc20" }, new[] { "surf4", "acc20" }, new[] { "surf3ls", "acc20" },
+            new[] { "surf3b15", "acc20" }, new[] { "surf3s32", "acc20" }, new[] { "tsurf3", "acc20" }, new[] { "surf3nl", "acc20" }, new[] { "prodnl", "acc20" },
+            new[] { "prodnn", "acc20" },
+        };
+
+        internal static bool S2 { get { return WeatherPass.Argument("-cases") == "s2"; } }
 
         // The cases of the series e40-gt-* (-cases gt): march variant and mode.
         internal static readonly string[][] GtTemporal =
@@ -127,6 +158,9 @@ namespace ReDefinition.WeatherPlayer
             f.CostDebug = m.CostDebug;
             f.SpanTight = m.Tight;
             f.DitherSequence = m.Seq;
+            f.RefineStepBudget = m.Budget;
+            f.LightPerEntry = m.LightEntry;
+            if (m.Budget > 0f) f.RefineFraction = Mathf.Pow(2f, -m.Bisect);
         }
 
         // The converged march of the references (e40gn.py CONVERGED).
@@ -134,6 +168,8 @@ namespace ReDefinition.WeatherPlayer
         {
             f.SpanTight = tight;
             f.DitherSequence = 0;
+            f.RefineStepBudget = 0f;
+            f.LightPerEntry = false;
             f.MaxSteps = 256;
             f.MinStepM = 4f;
             f.StepGrowth = 0f;
@@ -263,7 +299,7 @@ namespace ReDefinition.WeatherPlayer
                 {
                     // The converged reference of every pose that is written (a still camera has one); with -cases gt also the one over the span cut to the
                     // types present (reft: its light taps lie closer, so it is the reference of the marches with the cut span).
-                    foreach (bool tight in GrainTable.Gt ? new[] { false, true } : new[] { false })
+                    foreach (bool tight in GrainTable.Gt || GrainTable.S2 ? new[] { false, true } : new[] { false })
                     {
                         GrainTable.ApplyConverged(rig.Frame, tight);
                         foreach (int i in sc.Dump)
@@ -276,7 +312,7 @@ namespace ReDefinition.WeatherPlayer
                             yield return null;
                         }
                     }
-                    foreach (string[] c in GrainTable.Gt ? GrainTable.GtTemporal : Cases)
+                    foreach (string[] c in GrainTable.S2 ? GrainTable.S2Temporal : GrainTable.Gt ? GrainTable.GtTemporal : Cases)
                     {
                         GrainTable.Apply(rig.Frame, GrainTable.MarchByName(c[0]));
                         ReconSettings settings = GrainTable.ModeByName(c[1]).Settings();
@@ -351,7 +387,7 @@ namespace ReDefinition.WeatherPlayer
                     rig.Load(job, input);
                     rig.Frame.UseSceneDepth = true;
                     GrainTable.Pose(Cam, job, 0f, 0f);
-                    string[][] cases = GrainTable.Gt ? GrainTable.GtCost : Cases;
+                    string[][] cases = GrainTable.S2 ? GrainTable.S2Cost : GrainTable.Gt ? GrainTable.GtCost : Cases;
                     for (int k = 0; k < cases.Length; k++)
                     {
                         string[] c = cases[round == 0 ? k : cases.Length - 1 - k];

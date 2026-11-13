@@ -44,6 +44,7 @@ namespace ReDefinition.Atmospheres
         // (K-T2d start gt57), so the cut is not the default: it is the search interval of the per-ray march that follows this package. The sequence costs nothing
         // (player: 10 to 40 percent less temporal noise under the history; no measurable change in the game at rain, K-T2 start gt1707).
         internal const string TuneSpanTight = "layers.spanTight", TuneDitherSequence = "layers.ditherSequence";
+        // Under the surface march (layers.surfaceMarch) the cut is worth more (start gt58: 0.0086 / 0.0043 -> 0.0053 / 0.0029 at +1.1 / +0.2 ms).
         internal const bool SpanTightDefault = false;
         internal const float DitherSequenceDefault = 1f;
 
@@ -204,7 +205,31 @@ namespace ReDefinition.Atmospheres
             f.RefineGate = gate ? Mathf.Max(0.001f, Tuning.Get(TuneRefineGate, RefineGateAlpha)) : 0f;
             f.RefineGateFirst = gate ? Mathf.Max(0f, Tuning.Get(TuneRefineGateFirst, RefineGateFirstStep)) : 0f;
             f.EdgePower = Mathf.Max(1f, Tuning.Get(TuneEdgePower, CompiledFrame.EdgePower));
+            // Package 2, layers.surfaceMarch N (0: off; 1 to 6 bisection steps): the entry of a cloud is found by N halvings of the grid step, the steps inside start
+            // at that precision and are bounded by an optical depth (layers.surfaceBudget) and by a doubling from the entry, and the light is marched once per entry.
+            int surface = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneSurfaceMarch, SurfaceMarchDefault)), 0, LayerFrame.MaxRefineBisect);
+            // layers.surfaceLight 1: the light is marched once per entry and carried along the ray (0.4 ms cheaper per layer in the player, the lit rims come out
+            // darker: error against the converged picture 0.046 against 0.035); 0, the default: the light march of the cost package (every second lit step).
+            f.LightPerEntry = surface > 0 && Tuning.Flag(TuneSurfaceLight, SurfaceLightDefault);
+            f.RefineStepBudget = 0f;
+            if (surface > 0)
+            {
+                f.RefineBisect = Math.Max(f.RefineBisect, surface);
+                f.EntryRamp = true;
+                f.RefineStepBudget = Mathf.Clamp(Tuning.Get(TuneSurfaceBudget, SurfaceBudgetDefault), 0.05f, 8f);
+                f.RefineFraction = Mathf.Pow(2f, -f.RefineBisect);
+            }
         }
+
+        // Package 2 of E40 grain against TVC: the surface march (see Apply(LayerFrame)). The budget is the optical depth one step inside a cloud may add.
+        internal const string TuneSurfaceMarch = "layers.surfaceMarch", TuneSurfaceBudget = "layers.surfaceBudget", TuneSurfaceLight = "layers.surfaceLight";
+        // Off by default: the surface march does not meet the owner's rule (grain gone at a cost of at most TVC's). Measured in the game with three bisections
+        // (K-T2d start gt58, fair weather, the temporal noise of a cloud pixel ground / above): the grid march 0.0159 / 0.0064, the surface march on the whole
+        // interval 0.0086 / 0.0043, on the cut span (layers.spanTight 1) 0.0053 / 0.0029; the cloud bodies come out smooth, speckle is left at rims thinner than
+        // the search step. GPU cost of the pass (busy time minus the window without layers): 4.3 / 5.75 ms -> 7.2 / 7.9 ms (TVC: 2.59 / 5.30); the frame time stayed
+        // 19.4 ms at the ground (CPU bound) and rose 17.0 -> 17.9 ms from above.
+        internal const float SurfaceMarchDefault = 0f, SurfaceBudgetDefault = 0.7f;
+        internal const bool SurfaceLightDefault = false;
 
         internal static void Apply(LayerFrame f)
         {

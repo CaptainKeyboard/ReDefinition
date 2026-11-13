@@ -29,7 +29,8 @@ namespace ReDefinition.Atmospheres
         internal static readonly GtVariant[] GtVariants =
         {
             // The pass as it was before the package: the type table's whole interval, a new step offset per pixel and frame, 48 grid points, the history of the half-size march.
-            new GtVariant { Name = "before", Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneDitherSequence, 0f), Key(OwnCloudOptions.TuneGridFine, 1f) } },
+            new GtVariant { Name = "before", Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneDitherSequence, 0f), Key(OwnCloudOptions.TuneGridFine, 1f),
+                                                            Key(OwnCloudOptions.TuneSurfaceMarch, 0f) } },
             // The cut span and the sequence with the full count of grid points (what the count alone costs).
             new GtVariant { Name = "full", Keys = new[] { Key(OwnCloudOptions.TuneGridFine, 1f) } },
             // The cut span and the sequence with a third of the grid points.
@@ -45,20 +46,70 @@ namespace ReDefinition.Atmospheres
 
         private static readonly KeyValuePair<string, float>[] Gt57Before =
         {
-            Key(OwnCloudOptions.TuneAccumulate, 0.2f), Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneDitherSequence, 0f), Key(OwnCloudOptions.TuneGridFine, 1f)
+            Key(OwnCloudOptions.TuneAccumulate, 0.2f), Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneDitherSequence, 0f), Key(OwnCloudOptions.TuneGridFine, 1f),
+            Key(OwnCloudOptions.TuneSurfaceMarch, 0f)
         };
-        private static readonly KeyValuePair<string, float>[] Gt57Ramp = { Key(OwnCloudOptions.TuneEntryRamp, 2f) };
+        // Start 57 ran these with the defaults of its day (no surface march): the keys name them so that the variants keep their meaning.
+        private static readonly KeyValuePair<string, float>[] Gt57Ramp = { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 0f), Key(OwnCloudOptions.TuneEntryRamp, 2f) };
+        private static readonly KeyValuePair<string, float>[] Gt57New = { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 0f) };
 
         internal static readonly GrainVariant[] Gt57Variants =
         {
             new GrainVariant { Tag = "gbefore", Level = 1, HistoryFrames = 60, Keys = Gt57Before },
-            new GrainVariant { Tag = "gnew", Level = 1, HistoryFrames = 60, Keys = new KeyValuePair<string, float>[0] },
-            new GrainVariant { Tag = "gnew10", Level = 1, HistoryFrames = 90, Keys = new[] { Key(OwnCloudOptions.TuneAccumulate, 0.1f) } },
+            new GrainVariant { Tag = "gnew", Level = 1, HistoryFrames = 60, Keys = Gt57New },
+            new GrainVariant { Tag = "gnew10", Level = 1, HistoryFrames = 90, Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 0f),
+                                                                                            Key(OwnCloudOptions.TuneAccumulate, 0.1f) } },
             new GrainVariant { Tag = "gnewramp", Level = 1, HistoryFrames = 60, Keys = Gt57Ramp },
         };
 
+        // The start gt58 (the same scenario, -atmoLook H): package 2, the surface march (layers.surfaceMarch 3: the entry by three bisections, the step inside by
+        // optical depth, the light once per entry) on the cut span (gsurf), on the whole interval (gsurfw), with the light once per entry (gsurfe, layers.surfaceLight 1), against gbefore.
+        private static readonly KeyValuePair<string, float>[] Gt58Surf = { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 3f) };
+        private static readonly KeyValuePair<string, float>[] Gt58SurfWhole = { Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneSurfaceMarch, 3f) };
+        private static readonly KeyValuePair<string, float>[] Gt58SurfEntry =
+        {
+            Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 3f), Key(OwnCloudOptions.TuneSurfaceLight, 1f)
+        };
+
+        internal static readonly GrainVariant[] Gt58Variants =
+        {
+            new GrainVariant { Tag = "gbefore", Level = 1, HistoryFrames = 60, Keys = new[] { Key(OwnCloudOptions.TuneAccumulate, 0.2f), Key(OwnCloudOptions.TuneSpanTight, 0f),
+                                                                                             Key(OwnCloudOptions.TuneDitherSequence, 0f), Key(OwnCloudOptions.TuneGridFine, 1f),
+                                                                                             Key(OwnCloudOptions.TuneSurfaceMarch, 0f) } },
+            new GrainVariant { Tag = "gsurf", Level = 1, HistoryFrames = 60, Keys = Gt58Surf },
+            new GrainVariant { Tag = "gsurfw", Level = 1, HistoryFrames = 60, Keys = Gt58SurfWhole },
+            new GrainVariant { Tag = "gsurfe", Level = 1, HistoryFrames = 60, Keys = Gt58SurfEntry },
+        };
+
+        private IEnumerable<ProbeWait> Look58Cover(string cover, double lat, double lon)
+        {
+            if (cover != "low") yield break;
+            foreach (View view in new[] { Views[0], Views[2] })
+            {
+                foreach (ProbeWait w in PlaceChecked(lat, lon, view)) yield return w;
+                string head = "T09d." + view.Name + "." + cover + ".";
+                Emit(head + "placed_ok", placeOk);
+                foreach (ProbeWait w in DiagLookG(view, cover, null, "goff", Gt58Variants)) yield return w;
+                ClearForced();
+                Game.SetLayerMask(0);
+                foreach (ProbeWait w in Look55CostWindow(view, head, "off", NoLayersMask, null)) yield return w;
+                foreach (ProbeWait w in Look55CostWindow(view, head, "before", 0, Gt58Variants[0].Keys)) yield return w;
+                foreach (ProbeWait w in Look55CostWindow(view, head, "surf", 0, Gt58Surf)) yield return w;
+                foreach (ProbeWait w in Look55CostWindow(view, head, "surfw", 0, Gt58SurfWhole)) yield return w;
+                foreach (ProbeWait w in Look55CostWindow(view, head, "surfe", 0, Gt58SurfEntry)) yield return w;
+                ClearForced();
+                Game.SetLayerMask(0);
+                yield return ProbeWait.Frames(DiagSettleFrames);
+            }
+        }
+
         private IEnumerable<ProbeWait> Look57Cover(string cover, double lat, double lon)
         {
+            if (StartId == "gt58")
+            {
+                foreach (ProbeWait w in Look58Cover(cover, lat, lon)) yield return w;
+                yield break;
+            }
             if (cover != "low") yield break;
             foreach (View view in new[] { Views[0], Views[2] })
             {
@@ -70,7 +121,7 @@ namespace ReDefinition.Atmospheres
                 Game.SetLayerMask(0);
                 foreach (ProbeWait w in Look55CostWindow(view, head, "off", NoLayersMask, null)) yield return w;
                 foreach (ProbeWait w in Look55CostWindow(view, head, "before", 0, Gt57Before)) yield return w;
-                foreach (ProbeWait w in Look55CostWindow(view, head, "plain", 0, null)) yield return w;
+                foreach (ProbeWait w in Look55CostWindow(view, head, "plain", 0, Gt57New)) yield return w;
                 foreach (ProbeWait w in Look55CostWindow(view, head, "ramp", 0, Gt57Ramp)) yield return w;
                 ClearForced();
                 Game.SetLayerMask(0);

@@ -89,6 +89,10 @@ namespace ReDefinition.Atmospheres
         // per frame; 2: the same over the interleaved gradient noise). The compiled values are the pass as it was; the product's are OwnCloudOptions'.
         public bool SpanTight;
         public int DitherSequence;
+        // Package 2, the surface march: the light is marched once per entry into a cloud and carried along the ray analytically (shader _SurfP.x). Together with
+        // RefineBisect (the entry by bisection), EntryRamp (the step grows from the entry's precision) and RefineStepBudget (the optical depth of a step inside)
+        // it is the march OwnCloudOptions switches on with layers.surfaceMarch. False: the light march of the cost package.
+        public bool LightPerEntry;
         // Package T16, the visibility culling and the distance LOD (all switches off until the owner agrees).
         public CullSettings Cull = new CullSettings();
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
@@ -122,7 +126,7 @@ namespace ReDefinition.Atmospheres
             IdAmbientBottom = Shader.PropertyToID("_AmbientBottom"), IdMarchP = Shader.PropertyToID("_MarchP"), IdStepP = Shader.PropertyToID("_StepP"),
             IdLimitP = Shader.PropertyToID("_LimitP"), IdPhaseP = Shader.PropertyToID("_PhaseP"), IdSceneDepth = Shader.PropertyToID("_SceneDepth"),
             IdMarchTex = Shader.PropertyToID("_MarchTex"), IdSkipP = Shader.PropertyToID("_SkipP"), IdCostP = Shader.PropertyToID("_CostP"),
-            IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize"), IdGrainP = Shader.PropertyToID("_GrainP");
+            IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize"), IdGrainP = Shader.PropertyToID("_GrainP"), IdSurfP = Shader.PropertyToID("_SurfP");
 
         // The height variation (package T13): the maps, and per layer the ranges and the ragged boundary's numbers.
         private static readonly int IdHeightMaps = Shader.PropertyToID("_HeightMaps"), IdLayerH = Shader.PropertyToID("_LayerH"),
@@ -356,6 +360,7 @@ namespace ReDefinition.Atmospheres
             // The golden-ratio phase of the frame in double precision (a float product loses the fraction at the frame counts of a long session).
             double phase = f.FrameNumber * 0.6180339887498949;
             m.SetVector(IdGrainP, new Vector4(f.EntryRamp ? 1f : 0f, Mathf.Clamp(f.CloudStep, 1f, 8f), Mathf.Clamp(f.DitherSequence, 0, 2), (float)(phase - Math.Floor(phase))));
+            m.SetVector(IdSurfP, new Vector4(f.LightPerEntry ? 1f : 0f, 0f, 0f, 0f));
             if (f.Light != null) f.Light.Upload(m);
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);

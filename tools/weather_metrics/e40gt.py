@@ -56,7 +56,20 @@ def inner(mask):
     return m
 
 
+# Package 2 (the surface march; -cases s2): the entry by bisection, the step inside by optical depth, the light once per entry.
+S2_CASES = [("prod", "plain"), ("prod", "acc20"), ("surf3", "plain"), ("surf3", "acc20"), ("surf4", "plain"), ("surf4", "acc20"), ("surf3ls", "acc20"),
+            ("surf3b15", "plain"), ("surf3b15", "acc20"), ("surf3s32", "acc20"), ("tsurf3", "plain"), ("tsurf3", "acc20")]
+
+
 def collect_temporal(ctx):
+    return collect_cases(ctx, T_CASES, "e40-gt")
+
+
+def collect_s2(ctx):
+    return collect_cases(ctx, S2_CASES, "e40-s2")
+
+
+def collect_cases(ctx, T_CASES, prefix):
     folder = ctx.folder("temporal")
     out_dir = os.path.join(gn.main_repo(), ".local", "work", "series-pictures", "E40")
     os.makedirs(out_dir, exist_ok=True)
@@ -68,7 +81,7 @@ def collect_temporal(ctx):
         refs = {tag: gn.full_frame(folder, "gt-%s-static-%s-f%d" % (view, tag, gn.T_SCENARIOS["static"][0])) for tag in ("ref", "reft")}
         x, y, w, h = gn.pick_crop(np.clip(refs["ref"][..., 3], 0.0, 1.0), 360, 200)
         for tag, ref in refs.items():
-            gn.save_png(os.path.join(out_dir, "e40-gt-t-%s-converged-%s.png" % (view, tag)), gn.full_display(ref, view))
+            gn.save_png(os.path.join(out_dir, "%s-t-%s-converged-%s.png" % (prefix, view, tag)), gn.full_display(ref, view))
         for march, mode in T_CASES:
             name = "%s-%s" % (march, mode)
             tag = ref_tag(march)
@@ -111,9 +124,9 @@ def collect_temporal(ctx):
             strip = [gn.enlarge(gn.full_display(fr[k], view)[y:y + h, x:x + w], 2) for k in range(3)]
             noise = np.clip(tstd[y:y + h, x:x + w] * 8.0, 0.0, 1.0)
             strip.append(gn.enlarge(np.repeat(noise[..., None], 3, axis=-1), 2))
-            gn.save_png(os.path.join(out_dir, "e40-gt-t-%s-%s-seq.png" % (view, name)), np.concatenate(strip, axis=1))
-            gn.save_png(os.path.join(out_dir, "e40-gt-t-%s-%s.png" % (view, name)), gn.full_display(fr[0], view))
-    with open(os.path.join(gn.BUILD, "e40gt-temporal-results.json"), "w", encoding="utf-8") as f:
+            gn.save_png(os.path.join(out_dir, "%s-t-%s-%s-seq.png" % (prefix, view, name)), np.concatenate(strip, axis=1))
+            gn.save_png(os.path.join(out_dir, "%s-t-%s-%s.png" % (prefix, view, name)), gn.full_display(fr[0], view))
+    with open(os.path.join(gn.BUILD, prefix.replace("-", "") + "-temporal-results.json"), "w", encoding="utf-8") as f:
         json.dump(dict(results=results, lines=lines), f, indent=1)
     print("\n".join(lines))
     return metrics
@@ -135,6 +148,10 @@ def collect_cost(ctx):
 
 register_series("e40-gt-temporal", [Stage("temporal", ["-mode", "scene", "-scene", "grain-temporal", "-in", gn.INPUT, "-cases", "gt"], size=(1280, 720), proxy=False,
                                           timeout=3000)], collect_temporal, exclusive=False, who="e40-gt")
+register_series("e40-s2-temporal", [Stage("temporal", ["-mode", "scene", "-scene", "grain-temporal", "-in", gn.INPUT, "-cases", "s2"], size=(1280, 720), proxy=False,
+                                          timeout=3000)], collect_s2, exclusive=False, who="e40-gt")
+register_series("e40-s2-cost", [Stage("cost", ["-mode", "scene", "-scene", "grain-cost", "-in", gn.INPUT, "-cases", "s2"], size=(1707, 960), proxy=True, timeout=1500)],
+                collect_cost, exclusive=True, who="e40-gt")
 register_series("e40-gt-cost", [Stage("cost", ["-mode", "scene", "-scene", "grain-cost", "-in", gn.INPUT, "-cases", "gt"], size=(1707, 960), proxy=True, timeout=1500)],
                 collect_cost, exclusive=True, who="e40-gt")
 
