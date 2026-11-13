@@ -231,13 +231,13 @@ namespace ReDefinition.Atmospheres
 
         // --- Pure functions (the module and the tests call these) ------------------------------------------------------------------------
 
-        // The type value of a layer at a place from the precipitation level there (0 to 1): the override, else the fair-weather curve fair + (1 - fair) p, else p itself.
         // The fair type a layer's type bytes are made with: the tuning key's (cloud.typeFair.<name>) where it is set (0 to 1), else the layer's own (cfg key fairType, -1: none).
         internal static float FairType(float tuningFair, float layerFair)
         {
             return tuningFair >= 0f ? tuningFair : layerFair;
         }
 
+        // The type value of a layer at a place from the precipitation level there (0 to 1): the override, else the fair-weather curve fair + (1 - fair) p, else p itself.
         internal static float TypeValue(float precipitation, float fair, float overrideValue)
         {
             if (overrideValue >= 0f) return overrideValue;

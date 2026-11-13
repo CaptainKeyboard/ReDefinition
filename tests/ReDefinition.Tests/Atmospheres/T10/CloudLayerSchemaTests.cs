@@ -39,7 +39,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             return body;
         }
 
-        private static BodyParseResult ParseKerbin()
+        internal static BodyParseResult ParseKerbin()
         {
             int added;
             ConfigNode node = PatchedKerbin(out added);

@@ -63,10 +63,14 @@ namespace ReDefinition.Atmospheres
         // The optical depth of the picture proxy's opacity 0.6 (T09Readout.ClosedChange): the share of the sky at or above it is the "closed share" the rows report.
         internal const double ClosedTau = 0.92;
 
+        // The noise of the sets, relative to the cumulus layer's cfg (Clouds-Kerbin.cfg: amount 1, scale 500 m): the amount 0.7 (the reader's range is 0 to 1; the factor of the former
+        // base, 0.55 / 0.35, would give 1.57) and the cells 1.4 times larger, 700 m. CloudLookFixtureDriftTests holds the fixtures to the cfg's numbers; the factors are the sets'.
+        internal const float NoiseAmountFactor = 0.7f, NoiseSizeFactor = 1.4f;
+
         private static readonly KeyValuePair<string, float>[] NoiseKeys =
         {
-            new KeyValuePair<string, float>(CloudLookTuning.TuneNoiseAmount + ".Kerbin-cumulus", 0.55f / 0.35f),
-            new KeyValuePair<string, float>(CloudLookTuning.TuneNoiseSize + ".Kerbin-cumulus", 0.6f)
+            new KeyValuePair<string, float>(CloudLookTuning.TuneNoiseAmount + ".Kerbin-cumulus", NoiseAmountFactor),
+            new KeyValuePair<string, float>(CloudLookTuning.TuneNoiseSize + ".Kerbin-cumulus", NoiseSizeFactor)
         };
 
         private static KeyValuePair<string, float> K(string key, float value)
@@ -86,9 +90,9 @@ namespace ReDefinition.Atmospheres
         {
             new LookSet("C0", "current numbers"),
             new LookSet("C1", "fair weather shows Cumulus humilis", K(CloudLookTuning.TuneTypeFair + "Kerbin-cumulus", 0.25f)),
-            new LookSet("C2", "noise amount 0.35 to 0.55, scale 5000 to 3000", NoiseKeys),
+            new LookSet("C2", "noise amount 1 to 0.7, scale 500 to 700 m", NoiseKeys),
             new LookSet("C3", "the erosion also thins the interior (0.6)", K(CloudLookTuning.TuneDensityRemap, 0.6f)),
-            new LookSet("C4", "L1 coverage 0.25, softness 0.35, sigma 0.035, noise 0.55 / 3000", Cat(NoiseKeys, K(CloudLookTuning.TuneLayerShift + "Kerbin-cumulus", -0.10f),
+            new LookSet("C4", "L1 coverage 0.25, softness 0.35, sigma 0.035, noise 0.7 / 700 m", Cat(NoiseKeys, K(CloudLookTuning.TuneLayerShift + "Kerbin-cumulus", -0.10f),
                 K(CloudLookTuning.TuneSoftness + ".Kerbin-cumulus", 0.35f / 0.15f), K(CloudLookTuning.TuneSigma + ".Kerbin-cumulus", 0.035f / 0.05f))),
             new LookSet("C5", "C1 + C2 + C3", Cat(NoiseKeys, K(CloudLookTuning.TuneTypeFair + "Kerbin-cumulus", 0.25f), K(CloudLookTuning.TuneDensityRemap, 0.6f)))
         };

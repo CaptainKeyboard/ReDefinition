@@ -9,50 +9,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
     [TestClass]
     public class CloudLayerClosedTests
     {
-        private static Curve C(params float[] xy)
-        {
-            var x = new float[xy.Length / 2];
-            var y = new float[xy.Length / 2];
-            for (int i = 0; i < x.Length; i++) { x[i] = xy[2 * i]; y[i] = xy[2 * i + 1]; }
-            return new Curve(x, y);
-        }
-
-        private static CloudLayerDef Layer(string name, string group, float inner, float outer, float sigma, float coverage, float edge, float noise, params CloudTypeDef[] types)
-        {
-            return new CloudLayerDef(name, 1, inner, outer, types, sigma) { Group = group, Coverage = coverage, EdgeSoftness = edge, NoiseAmount = noise };
-        }
-
-        private static CloudLayerDef Rain()
-        {
-            return Layer("Kerbin-weather-rain", CloudCoverShift.RainGroup, 0f, 2100f, 0.045f, 0.5f, 0.2f, 0.3f,
-                new CloudTypeDef("Fog", 0f, 0.1f, C(0f, 0.9f, 0.7f, 0.5f, 1f, 0f), 0.2f),
-                new CloudTypeDef("Stratus", 0.1f, 0.5f, C(0f, 0f, 0.12f, 0.8f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.15f),
-                new CloudTypeDef("Nimbostratus", 0.05f, 1f, C(0f, 0.1f, 0.08f, 0.9f, 0.6f, 1f, 0.9f, 0.6f, 1f, 0f), 0.2f));
-        }
-
-        private static CloudLayerDef Cumulus()
-        {
-            return Layer("Kerbin-cumulus", "", 1700f, 7400f, 0.05f, 0.35f, 0.15f, 0.35f,
-                new CloudTypeDef("Stratocumulus", 0f, 0.11f, C(0f, 0f, 0.15f, 0.9f, 0.6f, 1f, 1f, 0f), 0.3f),
-                new CloudTypeDef("Cumulus humilis", 0f, 0.21f, C(0f, 0f, 0.08f, 0.9f, 0.55f, 1f, 0.9f, 0.5f, 1f, 0f), 0.45f),
-                new CloudTypeDef("Cumulus mediocris", 0f, 0.47f, C(0f, 0f, 0.06f, 0.9f, 0.5f, 1f, 0.85f, 0.6f, 1f, 0f), 0.5f),
-                new CloudTypeDef("Cumulus congestus", 0f, 1f, C(0f, 0f, 0.04f, 0.9f, 0.45f, 1f, 0.8f, 0.7f, 1f, 0f), 0.55f),
-                new CloudTypeDef("Altocumulus", 0.54f, 0.68f, C(0f, 0f, 0.2f, 0.9f, 0.7f, 0.8f, 1f, 0f), 0.4f));
-        }
-
-        private static CloudLayerDef Cumulonimbus()
-        {
-            return Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f,
-                new CloudTypeDef("Cumulonimbus calvus", 0f, 0.7f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
-                new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f));
-        }
-
-        private static CloudLayerDef Cirrus()
-        {
-            return Layer("Kerbin-cirrus", "", 9000f, 11000f, 0.0002f, 0.3f, 0.35f, 0.5f,
-                new CloudTypeDef("Cirrus", 0.1f, 0.9f, C(0f, 0f, 0.35f, 0.9f, 0.65f, 0.8f, 1f, 0f), 0.7f),
-                new CloudTypeDef("Cirrostratus", 0.2f, 0.8f, C(0f, 0f, 0.3f, 0.7f, 0.7f, 0.7f, 1f, 0f), 0.3f));
-        }
+        private static CloudLayerDef Rain() { return CloudLookFixtures.Rain(); }
+        private static CloudLayerDef Cumulus() { return CloudLookFixtures.Cumulus(); }
+        private static CloudLayerDef Cumulonimbus() { return CloudLookFixtures.Cumulonimbus(); }
+        private static CloudLayerDef Cirrus() { return CloudLookFixtures.Cirrus(); }
 
         private const double Slant = 3.24;
 
@@ -73,7 +33,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void AtTheLowCoverTheCumulusLayerIsTheNearestToASheetAndTheRainDeckIsHalfOpen()
+        public void AtTheLowCoverTheCumulusLayerIsTheMostClosedLayerAndTheRainDeckIsHalfOpen()
         {
             // K-T2d start 49, low pick: maps 0.406 / 0.665 / 0.110 / 0.501, type 0 everywhere. The model's closed share (tau above 4.6) of the sky at 18 degrees up.
             double[] map = { 0.406, 0.665, 0.110, 0.501 };
@@ -85,12 +45,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 c35[k] = Closed(layers[k], map[k], 0.0, -0.15f);
             }
             Assert.AreEqual(0.34, p1[0], 0.06, "rain deck (Fog at type 0) at shift 0");
-            Assert.AreEqual(0.73, p1[1], 0.06, "cumulus (Stratocumulus) at shift 0");
+            // The cumulus layer is the cell field of the shipped cfg (noise amount 1, 500 m): 0.58 at shift 0 and 0.43 at coverage 0.20; the sheet of the former cfg (amount 0.35)
+            // gave 0.73 and 0.30. The noise decides where the cloud stands, the map how much of the sky it fills.
+            Assert.AreEqual(0.58, p1[1], 0.04, "cumulus (Stratocumulus) at shift 0");
             Assert.AreEqual(0.0, p1[2], 0.01, "cumulonimbus at map 0.11");
             Assert.AreEqual(0.0, p1[3], 0.01, "cirrus is too thin to close");
             Assert.AreEqual(0.0, c35[0], 0.02, "the rain deck opens at coverage 0.35");
-            Assert.AreEqual(0.30, c35[1], 0.06, "the cumulus layer at coverage 0.20 is still a third closed");
-            Assert.IsTrue(p1[1] > p1[0] && c35[1] > c35[0], "the cumulus layer is the sheet of the low pick");
+            Assert.AreEqual(0.43, c35[1], 0.04, "the cumulus layer at coverage 0.20 is still closed over two fifths of the sky");
+            Assert.IsTrue(p1[1] > p1[0] && c35[1] > c35[0], "the cumulus layer is the most closed layer of the low pick");
+            Assert.IsTrue(p1[1] < 0.8, "and no longer a sheet");
         }
 
         [TestMethod]
@@ -101,7 +64,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudLayerDef[] layers = { Rain(), Cumulus(), Cumulonimbus(), Cirrus() };
             Assert.AreEqual(1.0, Closed(layers[0], map[0], 0.229, 0f), 0.01, "a rain deck at map 0.86 closes the sky whatever the shift");
             Assert.AreEqual(1.0, Closed(layers[0], map[0], 0.229, -0.15f), 0.01);
-            Assert.AreEqual(0.0, Closed(layers[1], map[1], 0.229, 0f), 0.01, "cumulus at map 0.21 is absent");
+            // At amount 1 the noise lifts the threshold by up to 0.5, so the cumulus layer at a map of 0.21 is a few cells (0.13), not absent as it was at amount 0.35.
+            Assert.AreEqual(0.13, Closed(layers[1], map[1], 0.229, 0f), 0.04, "cumulus at map 0.21 is a few cells");
             Assert.AreEqual(0.08, Closed(layers[2], map[2], 0.229, 0f), 0.05, "cumulonimbus at map 0.66 is a few towers");
             Assert.AreEqual(0.0, Closed(layers[2], map[2], 0.229, -0.15f), 0.01, "and gone at coverage 0 (the clamp)");
         }

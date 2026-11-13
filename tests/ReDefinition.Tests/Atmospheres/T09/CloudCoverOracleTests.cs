@@ -164,7 +164,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // gives; the result file draws the conclusion.
             Assert.IsTrue(m0 >= 0.60 && m0 <= 0.90, "mean at shift 0: " + m0);
             Assert.IsTrue(m15 < m08 && m08 < m0, "the mean follows the shift");
-            Assert.IsTrue(Pct(s0, 0.9) - Pct(s0, 0.1) > 0.4, "one frame is a wide draw");
+            // On the former cfg (0.35 / 5000) a frame saw one or two cells: p10 0.21, p90 0.985, a spread of 0.78. On the shipped 1.0 / 500 it sees many (p10 0.70, p90 0.92 at 40 sites,
+            // a spread of 0.22): still a draw, a narrow one.
+            double spread = Pct(s0, 0.9) - Pct(s0, 0.1);
+            Assert.IsTrue(spread > 0.10 && spread < 0.40, "one frame is a draw of many cells: " + spread);
         }
 
         [TestMethod]
@@ -176,7 +179,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             NoiseLayerParams prm = ParamsOf(l1, 1);
             double low = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.45, 0.0, 264.0, 18.0, 60.0, 6);
             double high = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.85, 0.0, 264.0, 18.0, 60.0, 6);
-            Assert.IsTrue(low < 0.25 && high > 0.9, low + " / " + high);
+            // The shipped cumulus layer (amount 1, 500 m): map 0.45 closes 0.60 of the frame and map 0.85 0.92 (the former cfg 0.35 / 5000: under 0.25 and over 0.9).
+            Assert.IsTrue(low > 0.45 && low < 0.75 && high > 0.85 && high - low > 0.2, low + " / " + high);
             double mid = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.65, 0.0, 264.0, 18.0, 60.0, 6);
             Set(CloudCoverShift.TuneShift, -0.15f);
             double shifted = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.65, 0.0, 264.0, 18.0, 60.0, 6);

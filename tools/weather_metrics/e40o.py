@@ -18,7 +18,7 @@ EXPECTED RESULTS, written before the first run (E40-phaseO-result.md has the tab
       the game's missing deck is not the shader's inside case.
   P3  Candidates (A1: closed share between map - 0.20 and map + 0.15 at maps 0.50 / 0.665 / 0.80 and shift 0, and a fall of at least 0.10 per -0.08 of shift): C0 fails A1 (it is too
       closed at 0.50 and 0.665 and falls too little); C1 alone (humilis) does not satisfy the fall; C3 (interior remap) leaves the closed share as it is (the remap acts on the
-      density in the interior, not on the coverage of the sky): it does not help A1; C4 (softness x2.33, sigma x0.7, coverage -0.10, noise x1.57 / size x0.6) satisfies the
+      density in the interior, not on the coverage of the sky): it does not help A1; C4 (softness x2.33, sigma x0.7, coverage -0.10, noise x1.57 / size x0.6 on the former cfg 0.35 / 5000; now noise x0.7 / size x1.4 on 1.0 / 500) satisfies the
       shift part; C5 (C1 + C2 + C3) satisfies A1 best. At most 3 sweeps per constant group: sweep 1 = the six sets, sweep 2 = three softness values on the best, sweep 3 reserved.
   P4  A3 (column cover): the union of the four layers at the low pick (maps 0.406 / 0.665 / 0.110 / 0.501) draws more than the field's cover 0.473 by at least 0.25 under C0, and
       with cloud.coverCombine = 1 (the layer maps scaled so that their random-overlap union is the field's cover) within 0.15 of it.
@@ -162,14 +162,15 @@ def tuning(pairs):
 # The six candidates of the plan (section 2, O4). 'keys' are the game's tuning keys (they go through CloudLayerDef.Effective*), 'type' the constant type value the
 # module's FetchStep would give the cumulus layer at no precipitation (cloud.typeFair.Kerbin-cumulus) or None.
 CUMULUS = "Kerbin-cumulus"
-NOISE_KEYS = [("cloud.layerNoiseAmountScale." + CUMULUS, 0.55 / 0.35), ("cloud.layerNoiseSizeScale." + CUMULUS, 0.6)]
+# Factors on the cumulus layer's cfg (Clouds-Kerbin.cfg: noiseAmount 1, noiseScaleM 500): amount 0.7, cells 700 m (CloudLookModel.NoiseAmountFactor / NoiseSizeFactor).
+NOISE_KEYS = [("cloud.layerNoiseAmountScale." + CUMULUS, 0.7), ("cloud.layerNoiseSizeScale." + CUMULUS, 1.4)]
 CANDIDATES = {
     "C0": dict(keys=[], type=None, note="current"),
     "C1": dict(keys=[], type=0.25, note="type: fair weather shows Cumulus humilis"),
-    "C2": dict(keys=NOISE_KEYS, type=None, note="shaping: noise amount 0.35 -> 0.55, scale 5000 -> 3000 (the renormalisation of the plan is moot: the volume is ranked)"),
+    "C2": dict(keys=NOISE_KEYS, type=None, note="shaping: noise amount 1 -> 0.7, scale 500 -> 700 m (the renormalisation of the plan is moot: the volume is ranked)"),
     "C3": dict(keys=[("layers.densityRemap", 0.6)], type=None, note="density: the erosion also thins the interior (densityRemap 0.6)"),
     "C4": dict(keys=[("cloud.layerCoverageShift." + CUMULUS, -0.10), ("cloud.layerSoftnessScale." + CUMULUS, 0.35 / 0.15), ("cloud.layerSigmaScale." + CUMULUS, 0.035 / 0.05)] + NOISE_KEYS, type=None,
-               note="cfg: L1 coverage 0.25, softness 0.35, sigma 0.035, noise 0.55 / 3000 (the proposals of the plan, section 3)"),
+               note="cfg: L1 coverage 0.25, softness 0.35, sigma 0.035, noise 0.7 / 700 m (the proposals of the plan, section 3)"),
     "C5": dict(keys=NOISE_KEYS + [("layers.densityRemap", 0.6)], type=0.25, note="combination: C1 + C2 + C3"),
 }
 MAPS = (0.50, 0.665, 0.80)

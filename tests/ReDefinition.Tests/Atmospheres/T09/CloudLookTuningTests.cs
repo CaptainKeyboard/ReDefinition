@@ -122,7 +122,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudLayerDef l1 = CloudLookFixtures.Cumulus();
             var table = new LayerTypeTable(l1);
             NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(0), 5u);
-            NoiseLayerParams prm = NoiseLayerParams.Default(5000.0);
+            NoiseLayerParams prm = NoiseLayerParams.Default(l1.NoiseScaleM);
             CloudCoverOracle.Frame frame = CloudCoverOracle.Frame.Ground(24, 14, 30.0);
             var first = CloudCoverOracle.Render(l1, table, set, prm, frame, CloudCoverOracle.Constant(0.665, 0.0), l1.EffectiveCoverage, CloudCoverOracle.March.Medium);
             // Setting a key and clearing it again returns the very same picture.
@@ -140,12 +140,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
             long stamp = CloudCoverShift.Stamp;
             Set(CloudLookTuning.TuneSigma, 0.7f);
             Set(CloudLookTuning.TuneSoftness, 2f);
-            Set(CloudLookTuning.TuneNoiseAmount, 1.5f);
+            Set(CloudLookTuning.TuneNoiseAmount, 0.7f);
             Set(CloudLookTuning.TuneNoiseSize, 0.5f);
             Assert.AreEqual(0.035f, l1.EffectiveSigmaPerM, 1e-6f);
             Assert.AreEqual(0.30f, l1.EffectiveEdgeSoftness, 1e-6f);
-            Assert.AreEqual(0.525f, l1.EffectiveNoiseAmount, 1e-6f);
-            Assert.AreEqual(2500f, l1.EffectiveNoiseScaleM, 1e-3f);
+            Assert.AreEqual(l1.NoiseAmount * 0.7f, l1.EffectiveNoiseAmount, 1e-6f);
+            Assert.AreEqual(l1.NoiseScaleM * 0.5f, l1.EffectiveNoiseScaleM, 1e-3f);
             Assert.AreEqual(l1.SigmaPerM, l1.SigmaPerM, 0f, "the configured number is untouched");
             Assert.IsTrue(CloudCoverShift.Stamp > stamp);
             long again = CloudCoverShift.Stamp;
@@ -166,12 +166,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudLayerDef[] stack = Stack();
             Set(CloudLookTuning.TuneSigma + ".Kerbin-cumulus", 0.7f);
             Set(CloudLookTuning.TuneSoftness + ".Kerbin-cumulus", 2f);
-            Set(CloudLookTuning.TuneNoiseAmount + ".Kerbin-cumulus", 1.5f);
+            Set(CloudLookTuning.TuneNoiseAmount + ".Kerbin-cumulus", 0.7f);
             Set(CloudLookTuning.TuneNoiseSize + ".Kerbin-cumulus", 0.5f);
             Assert.AreEqual(0.035f, stack[1].EffectiveSigmaPerM, 1e-6f);
             Assert.AreEqual(0.30f, stack[1].EffectiveEdgeSoftness, 1e-6f);
-            Assert.AreEqual(0.525f, stack[1].EffectiveNoiseAmount, 1e-6f);
-            Assert.AreEqual(2500f, stack[1].EffectiveNoiseScaleM, 1e-3f);
+            Assert.AreEqual(stack[1].NoiseAmount * 0.7f, stack[1].EffectiveNoiseAmount, 1e-6f);
+            Assert.AreEqual(stack[1].NoiseScaleM * 0.5f, stack[1].EffectiveNoiseScaleM, 1e-3f);
             Assert.AreEqual(stack[2].SigmaPerM, stack[2].EffectiveSigmaPerM, 0f, "another layer is untouched");
             Assert.AreEqual(stack[0].EdgeSoftness, stack[0].EffectiveEdgeSoftness, 0f);
             Set(CloudLookTuning.TuneSigma, 2f);
@@ -213,9 +213,24 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.25f, l1.EffectiveCoverage, 1e-6f);
             Assert.AreEqual(0.35f, l1.EffectiveEdgeSoftness, 1e-6f);
             Assert.AreEqual(0.035f, l1.EffectiveSigmaPerM, 1e-6f);
-            Assert.AreEqual(0.55f, l1.EffectiveNoiseAmount, 1e-5f);
-            Assert.AreEqual(3000f, l1.EffectiveNoiseScaleM, 1e-2f);
+            Assert.AreEqual(0.7f, l1.EffectiveNoiseAmount, 1e-5f);
+            Assert.AreEqual(700f, l1.EffectiveNoiseScaleM, 1e-2f);
             Assert.AreEqual(CloudLookFixtures.Cumulonimbus().SigmaPerM, CloudLookFixtures.Cumulonimbus().EffectiveSigmaPerM, 0f, "the other layers keep their numbers");
+        }
+
+        // The sets' noise factors on the cfg's base: no set leaves the reader's range of the amount (0 to 1) or the cell sizes the model is made for (about 300 m to 15 km).
+        [TestMethod]
+        public void EveryLookSetKeepsTheCumulusNoiseInsideTheModelsRange()
+        {
+            foreach (LookSet set in CloudLookModel.Sets)
+            {
+                Clear();
+                foreach (System.Collections.Generic.KeyValuePair<string, float> k in set.Keys) Tuning.SetOverride(k.Key, k.Value);
+                Tuning.Instance.BeginFrame(++frameCounter);
+                CloudLayerDef l1 = CloudLookFixtures.Cumulus();
+                Assert.IsTrue(l1.EffectiveNoiseAmount >= 0f && l1.EffectiveNoiseAmount <= 1f, set.Tag + " amount " + l1.EffectiveNoiseAmount);
+                Assert.IsTrue(l1.EffectiveNoiseScaleM >= 300f && l1.EffectiveNoiseScaleM <= 15000f, set.Tag + " scale " + l1.EffectiveNoiseScaleM);
+            }
         }
 
         [TestMethod]
@@ -246,7 +261,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 Layers = new[] { l1 },
                 Tables = new[] { new LayerTypeTable(l1) },
-                Noise = new[] { new NoiseLayerParams { ScaleM = 5000.0, Untile = true, Curl = true, OffsetX = bx, OffsetY = by, OffsetZ = bz, Seed = NoiseSeeds.LayerSeed(1u, 0), SphereScale = 1.0, ReferenceRadiusM = 600000.0 } },
+                Noise = new[] { new NoiseLayerParams { ScaleM = l1.NoiseScaleM, Untile = true, Curl = true, OffsetX = bx, OffsetY = by, OffsetZ = bz, Seed = NoiseSeeds.LayerSeed(1u, 0), SphereScale = 1.0, ReferenceRadiusM = 600000.0 } },
                 Cover = new[] { m },
                 Type = new[] { 0.0 }
             };
