@@ -207,6 +207,84 @@ def order_profile(frames, get, add, notes, pre, head):
             notes.append("%-12s order profile %s band %d: %s" % (head, name, k, "; ".join(line)))
 
 
+COLOUR55 = ("ca02t0", "ca02t5", "ca02t10", "caDt0", "caDt5", "caDt10", "cair", "ce14", "csky0", "csky1", "caDt0b")
+GRAIN55 = ("gacc", "gleapacc")
+FOG55 = ("wC5o0", "wC5o0f", "kC5", "kC5f")
+NOISE55 = re.compile(r"^f\d+s\d+$")
+
+
+def look55_table(frames, get, add, notes, pre, head, region):
+    """Start look55 (E40, T09ProbeLook55): the colour of the deck (b over r of the deck's median colour, per frame), the grain pair, the fog frames, the noise-scale frames and the
+    shadow pair, as rows and notes. The verdicts are the result file's; the rows only carry the numbers."""
+    for f in COLOUR55:
+        r, g, b = get(f, "deck_r"), get(f, "deck_g"), get(f, "deck_b")
+        if r and b is not None:
+            add(pre + "%s.deck_b_over_r" % f, b / r)
+            notes.append("%-12s colour %-8s deck r %.3f g %s b %.3f (b/r %.3f), deck median %s" % (
+                head, f, r, "-" if g is None else "%.3f" % g, b, b / r, "-" if get(f, "deck_median") is None else "%.3f" % get(f, "deck_median")))
+    for v in GRAIN55:
+        tstd, hfx = get(v, "grain_tstd"), get(v, "grain_hfx")
+        if tstd is not None:
+            notes.append("%-12s grain %-8s tstd %.4f hfx %s over %s pixels, history cuts %s" % (
+                head, v, tstd, "-" if hfx is None else "%+.4f" % hfx, "-" if get(v, "grain_n") is None else "%d" % get(v, "grain_n"), "-" if get(v, "grain_cuts") is None else "%d" % get(v, "grain_cuts")))
+    for f in FOG55:
+        sky, gr = get(f, "sky_closed_share"), get(f, "ground_closed_share")
+        if sky is not None or gr is not None:
+            notes.append("%-12s fog frame %-6s closed sky %s ground %s, deck median %s" % (
+                head, f, "-" if sky is None else "%.3f" % sky, "-" if gr is None else "%.3f" % gr, "-" if get(f, "deck_median") is None else "%.3f" % get(f, "deck_median")))
+    for f in frames:
+        if NOISE55.match(f):
+            got = get(f, "%s_closed_share" % region)
+            tau = get("aid1" + f, "aidtau_closed_share")
+            if got is not None:
+                add(pre + "%s.closed" % f, got)
+            notes.append("%-12s noise-scale frame %-7s closed %s, tau closed %s, deck median %s" % (
+                head, f, "-" if got is None else "%.3f" % got, "-" if tau is None else "%.3f" % tau, "-" if get(f, "deck_median") is None else "%.3f" % get(f, "deck_median")))
+    s1, s0 = get("sh1", "ground_median"), get("sh0", "ground_median")
+    if s1 is not None and s0 is not None:
+        add(pre + "shadow.ground_median_sh0_minus_sh1", s0 - s1)
+        notes.append("%-12s shadow shape noise: sea/ground median %.4f with 1, %.4f with 0 (difference %+.4f)" % (head, s1, s0, s0 - s1))
+
+
+def cost55_rows(texts, notes):
+    """Start look55's cost windows: the GPU profiler's reports between the probe's 'T09 view begin / end' lines (kt2.py's parser), per view the frame, the GPU-busy time and the labels
+    figure of off / plain / leap / shape0 and the differences against plain. Empty where the log holds no report."""
+    # The runner loads this script by its path, so a sibling is loaded by its path as well.
+    import importlib.util
+    import os
+    spec = importlib.util.spec_from_file_location("atmo_kt2", os.path.join(os.path.dirname(os.path.abspath(__file__)), "kt2.py"))
+    kt2 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(kt2)
+    lines = []
+    for t in texts:
+        lines.extend(t.splitlines())
+    out = []
+    try:
+        found = kt2.parse(lines)
+    except Exception as e:      # a log that kt2 cannot read gives no cost rows, not a failed script
+        notes.append("cost windows: kt2.parse failed: %s" % e)
+        return out
+    for (variant, view, res), v in sorted(found.items()):
+        if variant not in ("off", "plain", "leap", "shape0"):
+            continue
+        busy = kt2.busy_ms(v)
+        idle = kt2.idle_share(v)
+        base = found.get(("plain", view, res))
+        pbusy = kt2.busy_ms(base) if base else None
+        row = "T09d.%s.cost55.%s." % (view, variant)
+        for name, value in (("frame_ms", v["frame"]), ("busy_ms", busy), ("labels_ms", v["labels"]), ("idle_pct", None if idle is None else 100.0 * idle), ("reports", v["reports"])):
+            if value is not None:
+                out.append({"metric": row + name, "value": round(value, 4) if isinstance(value, float) else value, "variant": variant})
+        if base and variant != "plain":
+            for name, a, b in (("frame_ms", v["frame"], base["frame"]), ("busy_ms", busy, pbusy), ("labels_ms", v["labels"], base["labels"])):
+                if a is not None and b is not None:
+                    out.append({"metric": row + "d_" + name + "_vs_plain", "value": round(a - b, 4), "variant": variant})
+        notes.append("cost %s %s %s: frame %s ms, busy %s ms, labels %s ms, GPU idle %s percent, %d clean report(s)" % (
+            view, res, variant, "-" if v["frame"] is None else "%.3f" % v["frame"], "-" if busy is None else "%.3f" % busy,
+            "-" if v["labels"] is None else "%.3f" % v["labels"], "-" if idle is None else "%.0f" % (100.0 * idle), v["reports"]))
+    return out
+
+
 def look_table(values, view, cover, get, add, notes):
     """The look starts' frames (T09ProbeLook): per set the closed share at shift 0 and -0.08 beside the expectation the CPU oracle wrote before the frame, the forced-map frame,
     the layer-alone and rain-deck frames, the light variants and the horizon. Verdicts are 1 (inside), -1 (outside) against the plan's acceptance rows."""
@@ -339,6 +417,7 @@ def look_table(values, view, cover, get, add, notes):
         clip = get(f, "deck_clipped")
         if clip is not None:
             add(pre + "%s.a5_clipped" % f, 1 if clip < 0.001 else -1)
+    look55_table(frames, get, add, notes, pre, head, region)
     # The horizon: the band above the horizon the sky region leaves out.
     for f in frames:
         if re.match(r"^hz\d+h[01]$", f):
@@ -435,7 +514,7 @@ def analyse(values, notes):
 def series_results(texts):
     """What the runner calls: {start id: log text} -> extra result lines. NOTES is filled for the report."""
     del NOTES[:]
-    return analyse(parse(texts.values()), NOTES)
+    return analyse(parse(texts.values()), NOTES) + cost55_rows(list(texts.values()), NOTES)
 
 
 def _fake(view, cover, off_sky, off_sea, deck1, gain_exp, clip=1.0):
@@ -587,6 +666,26 @@ def selftest():
     assert abs(got["T09d.above.low.look.order.b2.gap_hh2"] - 0.155) < 1e-9, got
     assert any("hh2 - ord0 r +0.002 g +0.002 b +0.002" in n for n in notes), notes
     assert not any(k.startswith("T09d.above.low.look.order.") for k in {r["metric"]: 1 for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.05, 1.0)]), [])}), "no order frames, no order rows"
+    # Start look55: the colour and grain notes and rows, and the cost windows from the profiler's reports (kt2.py's parser) with the differences against plain.
+    colour = look_rows("ground", "low", (("caDt0.deck_r", 0.60), ("caDt0.deck_g", 0.55), ("caDt0.deck_b", 0.42), ("ca02t10.deck_r", 0.50), ("ca02t10.deck_b", 0.48),
+                                         ("gacc.grain_tstd", 0.0077), ("gacc.grain_hfx", -0.0018), ("gacc.grain_n", 1000), ("sh1.ground_median", 0.30), ("sh0.ground_median", 0.28)))
+    notes = []
+    got = {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "low", 0.5, 0.7, 0.05, 1.0) + colour]), notes)}
+    assert abs(got["T09d.ground.low.look.caDt0.deck_b_over_r"] - 0.7) < 1e-9 and abs(got["T09d.ground.low.look.ca02t10.deck_b_over_r"] - 0.96) < 1e-9, got
+    assert abs(got["T09d.ground.low.look.shadow.ground_median_sh0_minus_sh1"] + 0.02) < 1e-9, got
+    assert any("colour caDt0" in n and "b/r 0.700" in n for n in notes) and any("grain gacc" in n and "tstd 0.0077" in n for n in notes), notes
+
+    def report(frame, idle, own):
+        return ("Probe: GPU profiler: FLIGHT, 100 frames measured, GPU %.3f ms a frame from Present to Present (at most 20.000).\n  By camera or light:\n"
+                "    frame start, GPU idle included %.3f ms (5.0 %%)\n    ReDefinition clouds %.3f ms (10.0 %%)\n  Costliest segments:\n    1.000 ms, at most 2.000, 3: x\n" % (frame, idle, own))
+    def window(variant, frame, own):
+        return "T09 view begin: ground %s 1707x960\n" % variant + report(frame + 1, 0.5, own) + report(frame, 0.5, own) + report(frame, 0.5, own) + "T09 view end: ground %s 1707x960\n" % variant
+    log = window("off", 10.0, 0.0) + window("plain", 11.0, 1.0) + window("leap", 11.4, 1.4) + window("shape0", 10.7, 1.0)
+    notes = []
+    rows = {r["metric"]: r["value"] for r in cost55_rows([log], notes)}
+    assert abs(rows["T09d.ground.cost55.plain.busy_ms"] - 10.5) < 1e-9 and abs(rows["T09d.ground.cost55.leap.d_busy_ms_vs_plain"] - 0.4) < 1e-9, rows
+    assert abs(rows["T09d.ground.cost55.shape0.d_frame_ms_vs_plain"] + 0.3) < 1e-9 and abs(rows["T09d.ground.cost55.leap.d_labels_ms_vs_plain"] - 0.4) < 1e-9, rows
+    assert cost55_rows(["nothing"], []) == [] and any("cost ground 1707x960 leap" in n for n in notes), notes
     # Lines of another series and text values are ignored; an empty log gives nothing.
     assert parse(['ATMORESULT {"series":"K-T2","metric":"T09d.a.b.c.d","value":1.0}', 'ATMORESULT {"series":"K-T2d","metric":"T09d.env.sunLight","value":"x"}']) == {}
     assert analyse({}, []) == []
@@ -608,7 +707,7 @@ def main(argv):
         with open(path, encoding="utf-8", errors="replace") as f:
             texts.append(f.read())
     notes = []
-    for r in analyse(parse(texts), notes):
+    for r in analyse(parse(texts), notes) + cost55_rows(texts, notes):
         print("%-44s %s" % (r["metric"], r["value"]))
     for n in notes:
         print("note: " + n)

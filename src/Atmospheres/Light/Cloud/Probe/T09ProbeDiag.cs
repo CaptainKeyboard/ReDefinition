@@ -344,6 +344,12 @@ namespace ReDefinition.Atmospheres
             LogEnvironment(false);
             double siteLat = Game.VesselLatitude, siteLon = Game.VesselLongitude;
             string look = LookMode;
+            if (look == "C")
+            {
+                // Start look55: its own order of views per cover (T09ProbeLook55.cs).
+                foreach (ProbeWait w in Look55Cover(tag, siteLat, siteLon)) yield return w;
+                yield break;
+            }
             foreach (View view in new[] { Views[0], Views[2] })
             {
                 // The look starts (T09ProbeLook) read the ground view at both covers and the above view at the low cover.

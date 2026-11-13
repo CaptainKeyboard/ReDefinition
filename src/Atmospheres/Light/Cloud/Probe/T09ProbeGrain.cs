@@ -110,7 +110,8 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        private IEnumerable<ProbeWait> DiagLookG(View view, string cover)
+        // only: the tags of the variants to read (null: all); offTag: the name of the baseline frame (start look55 reads it beside its own "off").
+        private IEnumerable<ProbeWait> DiagLookG(View view, string cover, ICollection<string> only = null, string offTag = "off")
         {
             string head = "T09d." + view.Name + "." + cover + ".";
             diagPictureFactor = 1;
@@ -118,12 +119,13 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.CloudResolution, 1.0);
             Game.SetLayerMask(NoLayersMask);
             yield return ProbeWait.Frames(DiagSettleFrames);
-            foreach (ProbeWait w in DiagTake(view, cover, "off", false, null)) yield return w;
+            foreach (ProbeWait w in DiagTake(view, cover, offTag, false, null)) yield return w;
             T09Readout.Reading off = diagReading;
             Color[] offRaw = diagImage != null ? diagImage.Raw : null;
             Game.SetLayerMask(0);
             foreach (GrainVariant v in GrainVariants)
             {
+                if (only != null && !only.Contains(v.Tag)) continue;
                 ClearForced();
                 if (v.Keys != null)
                     foreach (KeyValuePair<string, float> k in v.Keys) ForceTuning(k.Key, k.Value);

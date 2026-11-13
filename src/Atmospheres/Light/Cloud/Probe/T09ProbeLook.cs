@@ -54,9 +54,9 @@ namespace ReDefinition.Atmospheres
                 {
                     lookRead = true;
                     string v = CommandLine.After(Args(), LookSwitch, true);
-                    // "G" is the grain start (T09ProbeGrain.cs).
+                    // "G" is the grain start (T09ProbeGrain.cs), "C" the start look55 (T09ProbeLook55.cs).
                     lookCache = string.Equals(v, "A", StringComparison.OrdinalIgnoreCase) ? "A" : string.Equals(v, "B", StringComparison.OrdinalIgnoreCase) ? "B"
-                        : string.Equals(v, "G", StringComparison.OrdinalIgnoreCase) ? "G" : null;
+                        : string.Equals(v, "G", StringComparison.OrdinalIgnoreCase) ? "G" : string.Equals(v, "C", StringComparison.OrdinalIgnoreCase) ? "C" : null;
                 }
                 return lookCache;
             }
@@ -157,11 +157,11 @@ namespace ReDefinition.Atmospheres
         }
 
         // One frame under the forced keys: settle, expectation, read.
-        private IEnumerable<ProbeWait> LookFrame(View view, string cover, string head, string frame, T09Readout.Reading off, double extraWaitS)
+        private IEnumerable<ProbeWait> LookFrame(View view, string cover, string head, string frame, T09Readout.Reading off, double extraWaitS, int onlyLayer = -1)
         {
             yield return ProbeWait.Frames(DiagSettleFrames);
             if (extraWaitS > 0.0) yield return ProbeWait.Seconds(extraWaitS);
-            EmitLookExpectation(head, frame, view, Game.ReadLookInput());
+            EmitLookExpectation(head, frame, view, Game.ReadLookInput(), onlyLayer);
             foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
         }
 
