@@ -154,14 +154,7 @@ namespace ReDefinition.Atmospheres
         // The smallest base and the largest top among the types, as altitudes: the interval the march needs (a tight interval).
         internal void TightAltitudes(out float tightInnerM, out float tightOuterM)
         {
-            float lo = 1f, hi = 0f;
-            for (int i = 0; i < Types.Count; i++)
-            {
-                if (Types[i].BaseShare < lo) lo = Types[i].BaseShare;
-                if (Types[i].TopShare > hi) hi = Types[i].TopShare;
-            }
-            tightInnerM = InnerAltitudeM + lo * ThicknessM;
-            tightOuterM = InnerAltitudeM + hi * ThicknessM;
+            TableAltitudes(out tightInnerM, out tightOuterM);
             // The height variation (package T13) moves bases down and tops up by at most these many m: the interval widens by them, and
             // never reaches into the ground sphere of a layer that did not start there.
             if (HeightDownM > 0f || HeightUpM > 0f)
@@ -169,6 +162,19 @@ namespace ReDefinition.Atmospheres
                 tightInnerM = tightInnerM > 0f ? Math.Max(0.5f, tightInnerM - HeightDownM) : 0f;
                 tightOuterM += HeightUpM;
             }
+        }
+
+        // The same interval without the height variation's reach: the smallest base and the largest top of the type table (the cloud's own extent).
+        internal void TableAltitudes(out float innerM, out float outerM)
+        {
+            float lo = 1f, hi = 0f;
+            for (int i = 0; i < Types.Count; i++)
+            {
+                if (Types[i].BaseShare < lo) lo = Types[i].BaseShare;
+                if (Types[i].TopShare > hi) hi = Types[i].TopShare;
+            }
+            innerM = InnerAltitudeM + lo * ThicknessM;
+            outerM = InnerAltitudeM + hi * ThicknessM;
         }
 
         // The most the height variation lowers a base and raises a top beyond the type table's, in m (package T13; 0: none).

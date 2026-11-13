@@ -24,9 +24,9 @@ namespace ReDefinition.Tests.Atmospheres.T18
         public long Version { get; set; } = 1;
         public CloudLayerDef LayerAt(int index) { return layers[index]; }
 
-        internal LatLonSource Add(string name, double baseM, double topM, double tau, Func<double, double, double> cover, double softness = 0.15)
+        internal LatLonSource Add(string name, double baseM, double topM, double tau, Func<double, double, double> cover, double softness = 0.15, CloudTypeDef type = null)
         {
-            var layer = new CloudLayerDef(name, 1, (float)baseM, (float)topM, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, (float)(tau / (topM - baseM)));
+            var layer = new CloudLayerDef(name, 1, (float)baseM, (float)topM, new[] { type ?? CloudTypeDef.Slab("s", 0f, 1f) }, (float)(tau / (topM - baseM)));
             layer.Coverage = 0.5f;
             layer.EdgeSoftness = (float)softness;
             layers.Add(layer);

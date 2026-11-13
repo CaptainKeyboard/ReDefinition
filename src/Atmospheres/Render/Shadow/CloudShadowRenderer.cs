@@ -19,6 +19,8 @@ namespace ReDefinition.Atmospheres
         // The midpoint steps in each span of a layer (1 to 24), the directions across the sun's disc (1 to 8), and the share of the direct
         // light that always remains (0: the pure Beer-Lambert shadow).
         public int StepsPerSpan = 8, DiscTaps = 4;
+        // How the steps scale with a layer's interval (CloudShadowStepPolicy; the tuning key shadow.stepPolicy).
+        public CloudShadowSteps StepPolicy = CloudShadowStepPolicy.Default;
         public float Floor;
         // The weight of the light a cloud scatters down (CloudShadowMath.FittedTransmission of the vertical optical depth) in the mask: 1 lifts
         // the mask under a thick cloud to the diffuse share of the open ground's sun, 0 leaves the pure direct beam (the analytic checks).
@@ -170,7 +172,11 @@ namespace ReDefinition.Atmospheres
             m.SetMatrix(IdWorldToMap, f.WorldToMap);
             m.SetFloat("_CsDebug", f.Debug);
             m.SetVector(IdSun, new Vector4(f.TowardsSun.x, f.TowardsSun.y, f.TowardsSun.z, f.MetresPerUnit));
-            m.SetVector(IdParams, new Vector4(Mathf.Clamp(f.StepsPerSpan, 1, 24), Mathf.Clamp(f.DiscTaps, 1, 8), Mathf.Clamp01(f.Floor), layerCount));
+            int steps = Mathf.Clamp(f.StepsPerSpan, 1, 24);
+            m.SetVector(IdParams, new Vector4(steps, Mathf.Clamp(f.DiscTaps, 1, 8), Mathf.Clamp01(f.Floor), layerCount));
+            // The steps of each layer's spans: the policy's count (the CPU twin CloudShadowField takes the same number), read from the layer as it stands.
+            for (int l = 0; l < layerCount; l++)
+                layerD[l].x = uploadedSource == null ? steps : CloudShadowStepPolicy.Count(f.StepPolicy, steps, uploadedSource.LayerAt(l));
             m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), 0f, 0f));
             m.SetVectorArray(IdLayerA, layerA);
             m.SetVectorArray(IdLayerB, layerB);

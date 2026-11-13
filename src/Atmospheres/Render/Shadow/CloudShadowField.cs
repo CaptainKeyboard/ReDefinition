@@ -8,7 +8,8 @@ namespace ReDefinition.Atmospheres
     // shader's noise and erosion (the noise package's detail is smaller than the penumbra), so the shadow and the picture agree on where
     // a cloud is and how thick. Pure (no Unity): the tests and the weather player link it.
     //
-    // The shadow shader walks the same spans with the same midpoint rule (steps per span in ShadowFrame.StepsPerSpan).
+    // The shadow shader walks the same spans with the same midpoint rule (steps per span in CloudShadowFrame.StepsPerSpan, scaled per layer by
+    // CloudShadowStepPolicy).
     internal sealed class CloudShadowField
     {
         private readonly ICloudLayerSource source;
@@ -17,6 +18,8 @@ namespace ReDefinition.Atmospheres
         // The steps of the midpoint rule in each span of a layer, and the samples across the sun's disc.
         internal int StepsPerSpan = 16;
         internal int DiscSamples = 1;
+        // How the count scales with the layer's interval (CloudShadowStepPolicy): the count above is the steps of the cloud's own thickness under Scaled.
+        internal CloudShadowSteps StepPolicy = CloudShadowStepPolicy.Default;
 
         internal CloudShadowField(ICloudLayerSource source, LayerTypeTable[] tables)
         {
@@ -51,11 +54,12 @@ namespace ReDefinition.Atmospheres
             int count = LayerGeometry.ShellSpans(ox, oy, oz, dx, dy, dz, source.BodyRadiusM, tightInner, tightOuter, tMax, out a, out b);
             double tau = 0.0;
             LayerTypeTable table = tables[layerIndex];
+            int steps = count > 0 ? CloudShadowStepPolicy.Count(StepPolicy, StepsPerSpan, layer) : StepsPerSpan;
             for (int s = 0; s < count; s++)
             {
                 LayerSpan span = s == 0 ? a : b;
-                double dt = span.Length / StepsPerSpan;
-                for (int k = 0; k < StepsPerSpan; k++)
+                double dt = span.Length / steps;
+                for (int k = 0; k < steps; k++)
                 {
                     double t = span.T0 + dt * (k + 0.5);
                     double x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;

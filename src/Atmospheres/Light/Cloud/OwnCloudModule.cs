@@ -506,7 +506,7 @@ namespace ReDefinition.Atmospheres
             heightJob.Cancel();
             renderer.Maps.Ensure(MapWidth, MapHeight);
             renderer.Noise.Switches.SphereScale = c.Clouds.SphereScale > 0f ? c.Clouds.SphereScale : 1f;
-            OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()));
+            OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()) { StepPolicy = OwnCloudOptions.ShadowStepPolicy });
             OwnCloudHook.Attach();
             airBody = -1;
             AtmospheresLog.Say("own clouds: stack on " + b.name + ": " + stack.LayerCount + " layers [" + key.TrimEnd('|').Replace("|", ", ") + "], "

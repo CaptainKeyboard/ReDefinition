@@ -25,17 +25,18 @@ Shader "ReDefinition/AtmospheresCloudShadow"
 
         static const int MAXL = 4;
         static const int MAXT = 8;
+        static const int MAXSTEPS = 64;   // CloudShadowStepPolicy.MaxScaledSteps
         static const int PROFILE_SAMPLES = 128;
 
         float4 _CsPlanet;        // planet centre (world or scaled space), sea-level radius in the same unit
         float4x4 _CsWorldToMap;  // rotation from that space into the map frame (x towards longitude 0, y towards 90 east, z north)
         float4 _CsSun;           // towards the sun (unit), w: metres per unit of the space (1 in the scene, 6000 in scaled space)
-        float4 _CsParams;        // steps per span, sun disc taps, floor (share of the direct light that always remains), layer count
+        float4 _CsParams;        // steps per span (the per-layer count is in _CsLayerD.x), sun disc taps, floor (share of the direct light that always remains), layer count
         float4 _CsParams2;       // x: weight of the diffuse floor in the mask (0: the pure direct beam), y: share of the lit colour that is the sun's direct light (forward path)
         float4 _CsLayerA[4];     // inner altitude, outer altitude, tight inner altitude, tight outer altitude (m)
         float4 _CsLayerB[4];     // sigma per m, coverage, edge softness, shadow strength
         float4 _CsLayerC[4];     // -, -, map slice (< 0: no map), type count
-        float4 _CsLayerD[4];     // -, -, -, map shift (degrees)
+        float4 _CsLayerD[4];     // steps per span of the layer, -, -, map shift (degrees)
         sampler2D _CsTypeProfile;
         sampler2D _CsTypeInfo;
         UNITY_DECLARE_TEX2DARRAY(_CsCovMaps);
@@ -157,13 +158,15 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float PathTau(float3 o, float3 d, float tmax, float radius)
         {
             float tau = 0;
-            int steps = (int)_CsParams.x;
             int layers = (int)_CsParams.w;
             [loop] for (int li = 0; li < MAXL; li++)
             {
                 if (li >= layers) break;
                 float strength = _CsLayerB[li].w;
                 if (strength <= 0) continue;
+                // The steps of a span of this layer (CloudShadowStepPolicy.Count on the CPU: the steps per span scaled by the widening of the layer's
+                // interval, up to MAXSTEPS), set per layer by the renderer.
+                int steps = max(1, (int)(_CsLayerD[li].x + 0.5));
                 float4 sp;
                 LayerSpans(li, o, d, tmax, radius, sp);
                 float layerTau = 0;
@@ -172,7 +175,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                     float a = k == 0 ? sp.x : sp.z, b = k == 0 ? sp.y : sp.w;
                     if (b <= a) continue;
                     float dt = (b - a) / steps;
-                    [loop] for (int i = 0; i < 24; i++)
+                    [loop] for (int i = 0; i < MAXSTEPS; i++)
                     {
                         if (i >= steps) break;
                         float3 q = o + d * (a + dt * (i + 0.5));
