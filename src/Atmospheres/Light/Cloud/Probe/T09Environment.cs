@@ -62,6 +62,11 @@ namespace ReDefinition.Atmospheres
                                : target.name + ": " + target.format + ", read-write " + (target.sRGB ? "sRGB" : "linear/none") + ", " + target.width + "x" + target.height + ", antiAliasing " + target.antiAliasing
                                  + ", useMipMap " + target.useMipMap));
                 lines.Add(Line("cameraBuffers", Buffers(cam)));
+                // The list above is read outside the camera's rendering and so misses the buffers a mod adds while the camera culls and removes after it
+                // rendered (Scatterer's ocean and screen-space scattering); this is the pass's event as the camera renders it, after the pass's own move.
+                if (own != null)
+                    lines.Add(Line("renderOrder", own.RenderOrder + "; cloud.afterScatterer " + Tuning.Flag(OwnCloudModule.TuneAfterScatterer, true) + ", moving behind the scattering "
+                                   + own.MovesBehindScattering + ", moved frames " + own.Stats.OrderMoves));
                 lines.Add(Line("cameraComponents", Components(cam)));
                 if (body != null)
                 {

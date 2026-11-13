@@ -25,7 +25,9 @@ namespace ReDefinition.Atmospheres
     //    (depth-aware); the clouds write no depth. [VERIFY] that _CameraDepthTexture is readable at the chosen event under the Deferred mod.
     //  - masks: no reactive mask for DLSS. HUD-less frame generation: the pass is part of the scene colour before the HUD. Raytracing: the
     //    rays see the layers through RtOwnClouds (a separate package of the raytracing pack); this module does not feed them.
-    //  - draw order: after the lit opaque scene and before the transparents (CameraEvent.BeforeForwardAlpha, tuning cloud.cameraEvent).
+    //  - draw order: after the lit opaque scene and before the transparents (CameraEvent.BeforeForwardAlpha, tuning cloud.cameraEvent). Where Scatterer's
+    //    screen-space scattering stands behind the pass at that event, the pass's buffers are moved behind it before the camera renders (OnPreRender,
+    //    cloud.afterScatterer, default on): the scattering writes the air of the path to the scene's depth and would give a cloud the haze of the sea behind it.
     //  - exposure: the pass is given pi times the scene's sun colour (it is radiometric, Unity's legacy lights have no 1/pi; cloud.sunUnit) and its radiance
     //    is encoded relative to the sun's display value at the final composite (CloudOutputStage: cloud.exposure, cloud.outputGamma 2.2), so the clouds
     //    sit in the display units of the Gamma-space target that holds the sky and the sea; TUFX and the auto exposure then tone-map all of it together.
@@ -34,7 +36,8 @@ namespace ReDefinition.Atmospheres
     {
         // The tuning keys of this module (ATMO_TUNING { key = value }, or a matrix row atmo.<key>).
         internal const string TuneCameraEvent = "cloud.cameraEvent", TuneSunGain = "cloud.sunGain", TuneSunAirWithScatterer = "cloud.sunAirWithScatterer",
-            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma", TuneStatsS = "cloud.statsS", TuneReaddEveryFrame = "cloud.readdEveryFrame";
+            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma", TuneStatsS = "cloud.statsS", TuneReaddEveryFrame = "cloud.readdEveryFrame",
+            TuneAfterScatterer = "cloud.afterScatterer";
         private const int MapWidth = GeneratorMaps.Width, MapHeight = GeneratorMaps.Height;
         private const float SunGainDefault = 1f;
         // The most layers of the field's coverage cache; the type value of a layer is the precipitation level, 0 (fair) to 1 (storm).
@@ -51,6 +54,8 @@ namespace ReDefinition.Atmospheres
             // and the forced rounds of a new stack left out. The rows above are the build's own time on the worker (height) and a fetch round's sum (maps).
             public double WorstHeightMainMs, WorstMapMainMs;
             public int BufferAttaches;
+            // The frames in which the buffers were moved behind Scatterer's screen-space scattering before the camera rendered (cloud.afterScatterer).
+            public int OrderMoves;
             // Whether the light cache is filled and read in the frame just recorded (cloudLightCache on).
             public bool LightCacheOn;
             // The size of the camera the pass draws into (its depth target): the render size, which the upscaler sets below the window size.
@@ -98,6 +103,12 @@ namespace ReDefinition.Atmospheres
         // The buffers stand on the camera (they are added when absent, not every frame); the next time they are looked for on the camera.
         private bool buffersOn;
         private float nextBufferCheck;
+        // The order at the pass's event as the camera renders it (read in the camera's pre-render, where the buffers other mods add per frame stand):
+        // looked at once a second; while a scattering buffer stands behind the pass the buffers are moved behind it every frame.
+        private bool preRenderSubscribed, moveBehindScattering;
+        private float nextOrderCheck;
+        private readonly List<string> orderNames = new List<string>();
+        private string renderOrder = "not read yet";
         // The inputs of the stack that stands, so that the once-a-second check allocates nothing when they have not changed.
         private IReadOnlyList<CloudLayerSpec> stackSpecs;
         private int stackCap = -1, stackPick = -1;
@@ -136,6 +147,10 @@ namespace ReDefinition.Atmospheres
         internal CameraEvent AttachedEvent { get { return attachedEvent; } }
         internal LayerReconstructDriver Driver { get { return driver; } }
         internal LayerFrame Frame { get { return frame; } }
+        // The buffers at the pass's event in the order the camera renders them, as last read in the pre-render (the K-T2d probe logs it), and
+        // whether the pass is being moved behind Scatterer's screen-space scattering.
+        internal string RenderOrder { get { return renderOrder; } }
+        internal bool MovesBehindScattering { get { return moveBehindScattering; } }
 
         public void Init()
         {
@@ -257,6 +272,47 @@ namespace ReDefinition.Atmospheres
                 // After this module's handler, so the rig's handler of the same cull reads the frame written just before it.
                 if (shadowRig != null) shadowRig.Start();
             }
+            if (!preRenderSubscribed)
+            {
+                Camera.onPreRender += OnPreRender;
+                preRenderSubscribed = true;
+            }
+        }
+
+        // After the camera's cull and before it renders: the buffers Scatterer adds while the camera culls stand on the camera now. Once a second the
+        // order at the pass's event is read (it allocates); while Scatterer's screen-space scattering stands behind the pass, the pass's two buffers
+        // are taken off and added again every frame, which puts them at the end of the event's list (the depth first, the pass after it).
+        private void OnPreRender(Camera cam)
+        {
+            if (broken || !buffersOn || renderer == null || depthCommands == null || !ReferenceEquals(cam, attachedCamera)) return;
+            try
+            {
+                float now = Time.realtimeSinceStartup;
+                bool look = now >= nextOrderCheck;
+                if (look)
+                {
+                    nextOrderCheck = now + 1f;
+                    ReadOrder(cam);
+                    moveBehindScattering = OwnCloudPlan.MoveBehindScattering(Tuning.Flag(TuneAfterScatterer, true), orderNames, renderer.Commands.name);
+                }
+                if (!moveBehindScattering) return;
+                cam.RemoveCommandBuffer(attachedEvent, depthCommands);
+                cam.AddCommandBuffer(attachedEvent, depthCommands);
+                renderer.Attach(cam, attachedEvent);
+                Stats.OrderMoves++;
+                if (look) ReadOrder(cam);
+            }
+            catch (Exception e)
+            {
+                Fail(e);
+            }
+        }
+
+        private void ReadOrder(Camera cam)
+        {
+            orderNames.Clear();
+            foreach (CommandBuffer cb in cam.GetCommandBuffers(attachedEvent)) orderNames.Add(cb.name);
+            renderOrder = attachedEvent + ": " + (orderNames.Count == 0 ? "none" : string.Join(", ", orderNames.ToArray()));
         }
 
         private void OnPreCull(Camera cam)
@@ -482,6 +538,11 @@ namespace ReDefinition.Atmospheres
             {
                 Camera.onPreCull -= OnPreCull;
                 preCullSubscribed = false;
+            }
+            if (preRenderSubscribed)
+            {
+                Camera.onPreRender -= OnPreRender;
+                preRenderSubscribed = false;
             }
             heightJob.Cancel();
             Hide();
@@ -957,7 +1018,7 @@ namespace ReDefinition.Atmospheres
                                + Stats.WorstMapMs.ToString("0.0") + " ms, main step worst " + Stats.WorstMapMainMs.ToString("0.0") + " ms), height builds " + Stats.HeightBuilds
                                + " (last " + Stats.LastHeightMs.ToString("0.0") + " ms on the worker, worst " + Stats.WorstHeightMs.ToString("0.0") + " ms, first "
                                + Stats.FirstHeightMs.ToString("0.0") + " ms, main thread worst " + Stats.WorstHeightMainMs.ToString("0.0") + " ms), height upload worst "
-                               + Stats.WorstUploadMs.ToString("0.0") + " ms, buffer attaches " + Stats.BufferAttaches + ", history cuts " + (driver != null ? driver.CutCount : 0)
+                               + Stats.WorstUploadMs.ToString("0.0") + " ms, buffer attaches " + Stats.BufferAttaches + ", moves behind Scatterer's scattering " + Stats.OrderMoves + ", history cuts " + (driver != null ? driver.CutCount : 0)
                                + (driver != null && driver.LastCutReason != null ? " (last: " + driver.LastCutReason + ")" : ""));
         }
     }

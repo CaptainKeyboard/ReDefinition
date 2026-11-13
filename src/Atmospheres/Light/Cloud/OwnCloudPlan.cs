@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ReDefinition.Atmospheres
 {
@@ -21,6 +22,33 @@ namespace ReDefinition.Atmospheres
         internal static int CameraEventIndex(float tuned)
         {
             return Math.Max(0, Math.Min(2, (int)Math.Round(tuned)));
+        }
+
+        // Scatterer's screen-space scattering sits at the same camera event as the pass (BeforeForwardAlpha) and is put on the camera anew every frame
+        // while the camera culls, so it runs after a buffer that stays on the camera. It copies the screen and writes every pixel that has a scene depth
+        // back with the air of the path to that depth: a cloud in front of the sea takes the haze of the sea behind it, a cloud in front of the sky none
+        // (K-T2d start 51, above views: the cloud's colour steps at the sea horizon's row). Both of its buffers carry this text in their name
+        // ("Scatterer screen-space scattering CommandBuffer", "Scatterer 1/4 res screen-space scattering CommandBuffer").
+        internal const string ScatteringBufferMark = "screen-space scattering";
+        // The GPU profiler's end marker of a camera event (GpuProfiler.LayOutCamera): a buffer moved behind it is outside the profiler's bracket,
+        // and the profiler records that re-adding buffers around its markers darkens the frame, so the pass stays where it is while a marker stands.
+        internal const string ProfilerMarkerMark = ": until the end of ";
+
+        // Whether the pass's buffers are moved to the end of the event's list before the camera renders: the switch is on (cloud.afterScatterer),
+        // a scattering buffer stands behind the pass and no profiler marker stands at the event. names: the event's buffers in their order.
+        internal static bool MoveBehindScattering(bool switchOn, IList<string> names, string passName)
+        {
+            if (!switchOn || names == null) return false;
+            int pass = -1;
+            bool behind = false;
+            for (int i = 0; i < names.Count; i++)
+            {
+                string name = names[i] ?? "";
+                if (name.IndexOf(ProfilerMarkerMark, StringComparison.Ordinal) >= 0) return false;
+                if (name == passName) { pass = i; behind = false; }
+                else if (pass >= 0 && name.IndexOf(ScatteringBufferMark, StringComparison.Ordinal) >= 0) behind = true;
+            }
+            return pass >= 0 && behind;
         }
 
         // Whether the pass draws for a body and a scene: the mod and the own clouds are on, the source in force is Ours, the scene is a flight
