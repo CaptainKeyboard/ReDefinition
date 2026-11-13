@@ -32,7 +32,8 @@ namespace ReDefinition.Atmospheres
         private const double MapSettleS = 20.0, EnvEveryS = 30.0;
         // The mask that draws no layer (the shader skips layer i when bit i is clear; the stack has at most 8).
         internal const int NoLayersMask = 1 << 20;
-        internal static readonly float[] DiagGains = { 1f, 4f, 16f, 64f };
+        // The ladder stops at 16 (the deck clips from there on; g64 of start 44 added nothing): the frames freed pay for the coverage variants.
+        internal static readonly float[] DiagGains = { 1f, 4f, 16f };
         private const string AidDirect = "aid-direct";
 
         // The variants of the output stage measured at gain 1 after the ladder: tag, sun unit, gamma, exposure. u1: the units alone; p1: the product's defaults (pi, 2.2, 1);
@@ -49,6 +50,50 @@ namespace ReDefinition.Atmospheres
             new StageVariant { Tag = "p1", SunUnit = CloudOutputStage.SunUnitDefault, Gamma = CloudOutputStage.GammaDefault, Exposure = CloudOutputStage.ExposureDefault },
             new StageVariant { Tag = "pe2", SunUnit = CloudOutputStage.SunUnitDefault, Gamma = CloudOutputStage.GammaDefault, Exposure = 2f }
         };
+
+        // The coverage variants after p1 (p1 is the shift 0 frame): tag, cloud.coverageShift, the rain deck's resulting coverage (the file's 0.5 plus the shift).
+        internal struct ShiftVariant
+        {
+            internal string Tag;
+            internal float Shift;
+        }
+
+        internal static readonly ShiftVariant[] ShiftVariants =
+        {
+            new ShiftVariant { Tag = "c42", Shift = -0.08f },
+            new ShiftVariant { Tag = "c35", Shift = -0.15f }
+        };
+
+        // The shifts the model rows cover: p1 is the unshifted frame.
+        private static readonly KeyValuePair<string, float>[] ModelShifts =
+        {
+            new KeyValuePair<string, float>("p1", 0f),
+            new KeyValuePair<string, float>("c42", -0.08f),
+            new KeyValuePair<string, float>("c35", -0.15f)
+        };
+
+        // The rows T09d.<view>.<cover>.<tag>.model_closed: CloudCoverModel's closed share of the rain deck's Stratus at the pass's map value for each shift, the slant of the view's
+        // ray (18 degrees up: 3.24; 25 degrees down: 2.37). Written before the frames are read. NaN map (no rain layer found): no rows.
+        private void EmitCoverModel(string head, View view, float mapCover)
+        {
+            if (float.IsNaN(mapCover)) return;
+            double slant = 1.0 / Math.Sin(Math.Abs(view.PitchDeg) * Math.PI / 180.0);
+            foreach (KeyValuePair<string, float> s in ModelShifts)
+                Emit(head + s.Key + ".model_closed", CloudCoverModel.RainStratusClosed(mapCover, s.Value, slant));
+        }
+
+        // The rain deck's coverage as the layer reports it after the shift was forced: it must be the file's plus the shift (the shift reached the layer the readers use).
+        private void EmitShiftReached(string head, ShiftVariant variant, int rainLayer, OwnCloudModule own)
+        {
+            Emit(head + variant.Tag + ".coverage_shift", variant.Shift);
+            if (own == null || own.Stack == null || rainLayer < 0 || rainLayer >= own.Stack.LayerCount) return;
+            CloudLayerDef layer = own.Stack.LayerAt(rainLayer);
+            float effective = layer.EffectiveCoverage;
+            Emit(head + variant.Tag + ".rain_coverage", effective);
+            Emit(head + variant.Tag + ".shift_reached", Math.Abs(effective - (layer.Coverage + variant.Shift)) < 1e-4f);
+            if (Math.Abs(effective - (layer.Coverage + variant.Shift)) >= 1e-4f)
+                Warn("coverage_shift_not_reached", head + variant.Tag + ": coverage " + layer.Coverage.ToString("0.000") + " -> " + effective.ToString("0.000") + " with shift " + variant.Shift.ToString("0.00"));
+        }
 
         // The pass as it was before the output stage: radiometric sun colour = the scene's, no encoding.
         private void ForceRawStage()
@@ -351,6 +396,27 @@ namespace ReDefinition.Atmospheres
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
 
+            // What the pass's maps hold at the site, per layer (the layer's own coverage map and the type value): the cover the series picked is the field's at 3 km, the
+            // rain deck reads its map at its own mid height, so the number the shape sees is this one. The model (CloudCoverModel) turns it into a closed share.
+            int rainLayer = -1;
+            float rainMapCover = float.NaN;
+            if (own != null && own.Stack != null)
+            {
+                for (int l = 0; l < own.Stack.LayerCount; l++)
+                {
+                    float layerCover, layerType;
+                    try { own.Stack.SampleMaps(l, Game.VesselLatitude, Game.VesselLongitude, out layerCover, out layerType); }
+                    catch (Exception e) { Warn("layer_maps_fault", e.GetType().Name + " " + e.Message); break; }
+                    Emit(head + "layer" + l + "_map_cover", layerCover);
+                    Emit(head + "layer" + l + "_map_type", layerType);
+                    if (rainLayer < 0 && string.Equals(own.Stack.LayerAt(l).Group, CloudCoverShift.RainGroup, StringComparison.Ordinal))
+                    {
+                        rainLayer = l;
+                        rainMapCover = layerCover;
+                    }
+                }
+            }
+
             // The output stage (CloudOutputStage), gain 1, in the same start: the units alone (sun unit pi, no gamma), the product's stage, and the product's stage at exposure 2.
             // Rows T09d.<view>.<cover>.<tag>.* like the ladder's; the expected numbers are in tests/series/K-T2d.json and kt2d.py.
             foreach (StageVariant variant in StageVariants)
@@ -373,19 +439,21 @@ namespace ReDefinition.Atmospheres
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
 
-            // What the pass's maps hold at the site, per layer (the layer's own coverage map and the type value): the cover the series picked is the field's at 3 km, the
-            // rain deck reads its map at its own mid height, so the number the shape sees is this one. The model (CloudCoverModel) turns it into a closed share.
-            if (own != null && own.Stack != null)
+            // The coverage threshold of the rain deck, measured as a switchable variant (the owner has not decided between the file's 0.5 and about 0.42): the product's stage at gain 1
+            // with cloud.coverageShift 0 (p1, above), -0.08 (coverage 0.42) and -0.15 (0.35). Readouts per frame: sky_closed_share / ground_closed_share (the proxy of
+            // T09Readout.ClosedShare), sky_deck_share / ground_deck_share, deck_fraction, the deck median and the picture; beside them the model's closed share at the pass's own map
+            // value (model_closed, CloudCoverModel.RainStratusClosed), written before the frame is read.
+            EmitCoverModel(head, view, rainMapCover);
+            foreach (ShiftVariant variant in ShiftVariants)
             {
-                for (int l = 0; l < own.Stack.LayerCount; l++)
-                {
-                    float layerCover, layerType;
-                    try { own.Stack.SampleMaps(l, Game.VesselLatitude, Game.VesselLongitude, out layerCover, out layerType); }
-                    catch (Exception e) { Warn("layer_maps_fault", e.GetType().Name + " " + e.Message); break; }
-                    Emit(head + "layer" + l + "_map_cover", layerCover);
-                    Emit(head + "layer" + l + "_map_type", layerType);
-                }
+                ClearForced();
+                if (variant.Shift != 0f) ForceTuning(CloudCoverShift.TuneShift, variant.Shift);
+                yield return ProbeWait.Frames(DiagSettleFrames);
+                EmitShiftReached(head, variant, rainLayer, own);
+                foreach (ProbeWait w in DiagTake(view, tag, variant.Tag, false, off)) yield return w;
             }
+            ClearForced();
+            yield return ProbeWait.Frames(DiagSettleFrames);
 
             // The aid picture of the direct light (r), the light taps (g) and the ambient (b) over the deck the natural frame showed.
             bool on = false;
@@ -511,6 +579,11 @@ namespace ReDefinition.Atmospheres
             Emit(p + "deck_fraction", r.DeckFraction);
             EmitStat(p + "deck_", r.Deck);
             if (off == null) return;
+            // The share of each region that the deck changed, and the share that counts as closed (a proxy from the picture: T09Readout.ClosedShare; no alpha is read).
+            Emit(p + "sky_deck_share", r.SkyDeckShare);
+            Emit(p + "ground_deck_share", r.GroundDeckShare);
+            Emit(p + "sky_closed_share", r.SkyClosedShare);
+            Emit(p + "ground_closed_share", r.GroundClosedShare);
             EmitRatio(p + "sky_over_off_sky", T09Readout.Ratio(r.Sky.Median, r.Sky.Count, off.Sky.Median, off.Sky.Count));
             EmitRatio(p + "ground_over_off_ground", T09Readout.Ratio(r.Ground.Median, r.Ground.Count, off.Ground.Median, off.Ground.Count));
             EmitRatio(p + "deck_over_off_sky", T09Readout.Ratio(r.Deck.Median, r.Deck.Count, off.Sky.Median, off.Sky.Count));

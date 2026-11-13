@@ -128,6 +128,7 @@ namespace ReDefinition.Atmospheres
             return new CloudLayerDef(Name, bodyIndex, InnerAltitudeM, OuterAltitudeM, types, SigmaPerM, Kind)
             {
                 Coverage = Coverage,
+                Group = Group,
                 EdgeSoftness = EdgeSoftness,
                 FadeNearM = FadeNearM,
                 FadeFarM = FadeFarM,

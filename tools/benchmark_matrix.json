@@ -341,7 +341,9 @@
         {"id": "weather-cloudEventAfterAlpha", "name": "Own clouds pass at AfterForwardAlpha", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.cameraEvent": "1"}},
         {"id": "weather-cloudEventImageEffects", "name": "Own clouds pass at BeforeImageEffects", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.cameraEvent": "2"}},
         {"id": "weather-cloudSunAirWithScatterer", "name": "Own clouds redden the sun again with Scatterer loaded", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.sunAirWithScatterer": "1"}},
-        {"id": "weather-cloudReaddEveryFrame", "name": "Own clouds buffers re-added every frame", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.readdEveryFrame": "1"}}
+        {"id": "weather-cloudReaddEveryFrame", "name": "Own clouds buffers re-added every frame", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.readdEveryFrame": "1"}},
+        {"id": "weather-cloudCoverageShift", "name": "Own clouds coverage threshold -0.08 (rain deck 0.42)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.coverageShift": "-0.08"}},
+        {"id": "weather-cloudCoverageShiftRain", "name": "Own clouds rain deck coverage threshold -0.08 only", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.coverageShiftRain": "-0.08"}}
       ]
     },
     {

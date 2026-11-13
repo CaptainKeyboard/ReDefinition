@@ -94,6 +94,10 @@ namespace ReDefinition.Atmospheres
         // The share of the map that clouds: a column is cloud where the coverage map is above 1 - Coverage (a ranked map gives the
         // share Coverage of the body), 0 to 1.
         internal float Coverage { get; set; }
+        // The group of the layer's spec (members of a group never show together), or empty; the layer-selective coverage shift acts on one group.
+        internal string Group { get; set; } = "";
+        // The threshold the readers use: Coverage with the runtime shift (CloudCoverShift; tuning cloud.coverageShift, default 0 = Coverage). Read this, never Coverage.
+        internal float EffectiveCoverage { get { return CloudCoverShift.Apply(Coverage, Group); } }
         // The width of the coverage threshold in map units: 0 is a hard edge, larger is softer (P12).
         internal float EdgeSoftness { get; set; }
         // The distance range over which the layer's density fades to zero, m (P64); Infinity: no fade.

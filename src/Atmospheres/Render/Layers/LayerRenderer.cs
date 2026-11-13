@@ -123,7 +123,7 @@ namespace ReDefinition.Atmospheres
         private CameraEvent attachedEvent;
         private int layerCount;
         private double radius;
-        private long uploadedVersion = -1;
+        private long uploadedVersion = -1, uploadedShift = -1;
         private LayerStackSource uploadedSource;
 
         internal string Problem { get; private set; }
@@ -227,7 +227,7 @@ namespace ReDefinition.Atmospheres
         internal void Upload(LayerStackSource source)
         {
             if (!Ready || source == null) return;
-            if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion) return;
+            if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             radius = source.BodyRadiusM;
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes];
@@ -239,7 +239,7 @@ namespace ReDefinition.Atmospheres
                 float tightInner, tightOuter;
                 layer.TightAltitudes(out tightInner, out tightOuter);
                 layerA[l] = new Vector4(layer.InnerAltitudeM, layer.OuterAltitudeM, tightInner, tightOuter);
-                layerB[l] = new Vector4(layer.SigmaPerM, layer.Coverage, layer.EdgeSoftness, (float)(int)layer.Kind);
+                layerB[l] = new Vector4(layer.SigmaPerM, layer.EffectiveCoverage, layer.EdgeSoftness, (float)(int)layer.Kind);
                 layerC[l] = new Vector4(layer.FadeNearM, float.IsPositiveInfinity(layer.FadeFarM) ? 0f : layer.FadeFarM,
                                         layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
                 layerD[l] = new Vector4(layer.NoiseAmount, layer.NoiseScaleM > 0f ? 1f / layer.NoiseScaleM : 0f, 1f, layer.MapShiftDeg);
@@ -268,6 +268,7 @@ namespace ReDefinition.Atmospheres
             infoTexture.Apply(false);
             uploadedSource = source;
             uploadedVersion = source.Version;
+            uploadedShift = CloudCoverShift.Stamp;
         }
 
         // The camera for a pass: its position and basis in world space; right and up are scaled by the tangent of the half field of

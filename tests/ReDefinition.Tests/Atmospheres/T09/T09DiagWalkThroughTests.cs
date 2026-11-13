@@ -8,7 +8,7 @@ using ReDefinition.Core;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The whole K-T2d scenario of T09Probe (the diagnosis of the black own clouds) against the fake world: the two cover times, the views ground and above, the off baseline,
-    // the gains 1, 4, 16 and 64, the aid frame, the numeric readouts, the environment lines, and the faults the readout must name (an empty region, a lost pose, no raw values,
+    // the gains 1, 4 and 16, the coverage variants, the aid frame, the numeric readouts, the environment lines, and the faults the readout must name (an empty region, a lost pose, no raw values,
     // a cover that does not differ, a field that does not answer). The fake draws a sky of 0.5, a sea of 0.7 and, when the pass draws all layers, a deck of 0.075 times the sun gain
     // clipped at 1: the readout has to find those numbers again.
     public partial class T09WalkThroughTests
@@ -77,8 +77,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.AreEqual(0.7 / 0.5, Row(r, p + "off.ground_over_sky"), 1e-3);
                     Assert.AreEqual(0, Values(r, p + "off.deck_median", "plain").Count, "the baseline has no deck");
                     // The gains: the deck rises linearly with the sun gain until it clips at 1.
-                    double[] expected = { 0.075, 0.3, 1.0, 1.0 };
-                    string[] tags = { "g1", "g4", "g16", "g64" };
+                    double[] expected = { 0.075, 0.3, 1.0 };
+                    string[] tags = { "g1", "g4", "g16" };
                     for (int i = 0; i < tags.Length; i++)
                     {
                         string q = p + tags[i] + ".";
@@ -88,8 +88,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         Assert.IsTrue(Row(r, q + "deck_fraction") > 0.5, q + "deck fraction");
                         Assert.IsTrue(Row(r, q + "deck_p10") <= Row(r, q + "deck_median") && Row(r, q + "deck_median") <= Row(r, q + "deck_p90"));
                         Assert.AreEqual(i >= 2 ? 1.0 : 0.0, Row(r, q + "deck_clipped"), 1e-6, q + "clipped share");
+                        Assert.AreEqual(1.0, Row(r, q + "sky_closed_share"), 0.02, q + "the fake's deck replaces the whole sky by one colour: all of it is at the plateau");
+                        Assert.AreEqual(1.0, Row(r, q + "sky_deck_share"), 0.02, q + "and every sky sample is a deck sample");
                         // The fake's sun colour is (0.8, 0.7, 0.6) times the gain; its grayscale is 0.7185 times the gain.
-                        Assert.AreEqual(new[] { 1.0, 4.0, 16.0, 64.0 }[i] * 0.7185, Row(r, q + "sun_luma"), 1e-2, q + "the sun colour the pass was given");
+                        Assert.AreEqual(new[] { 1.0, 4.0, 16.0 }[i] * 0.7185, Row(r, q + "sun_luma"), 1e-2, q + "the sun colour the pass was given");
                     }
                     Assert.AreEqual(4.0, Row(r, p + "g4.deck_vs_g1"), 1e-2);
                     Assert.AreEqual(0.0, Values(r, p + "g1.deck_vs_g1", "plain").Count);
@@ -102,9 +104,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
 
             // The poses are verified at every capture (the rows of the pictures).
-            Assert.IsTrue(r.Rows.Count(l => l.Contains("\"metric\":\"T09.pic.") && l.Contains(".alt_m\"")) >= 36, "a pose row for each of the 36 frames");
-            // 2 covers x 2 views x (off + 4 gains + 3 stage variants + aid) pictures, half size.
-            Assert.AreEqual(36, r.World.Saved.Count);
+            Assert.IsTrue(r.Rows.Count(l => l.Contains("\"metric\":\"T09.pic.") && l.Contains(".alt_m\"")) >= 40, "a pose row for each of the 40 frames");
+            // 2 covers x 2 views x (off + 3 gains + 3 stage variants + 2 coverage variants + aid) pictures, half size.
+            Assert.AreEqual(40, r.World.Saved.Count);
+            // The coverage variants: a frame each beside p1, with the shift they ran at (the fake world has no layer stack, so no model rows and no reach rows).
+            foreach (string tag in new[] { "c42", "c35" })
+            {
+                Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-above_low-" + tag + "-1707x960-natural-half")), "the coverage variant " + tag + " has its picture");
+                Assert.IsTrue(Row(r, "T09d.ground.high." + tag + ".deck_median") > 0 && Row(r, "T09d.ground.high." + tag + ".sky_closed_share") >= 0, "the coverage variant " + tag + " has rows");
+            }
+            Assert.AreEqual(-0.08, Row(r, "T09d.ground.high.c42.coverage_shift"), 1e-6);
+            Assert.AreEqual(-0.15, Row(r, "T09d.above.low.c35.coverage_shift"), 1e-6);
             foreach (string tag in new[] { "u1", "p1", "pe2" })
                 Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_high-" + tag + "-1707x960-natural-half")), "the stage variant " + tag + " has its picture");
             Assert.IsTrue(Row(r, "T09d.ground.high.p1.deck_median") > 0 && Row(r, "T09d.above.low.pe2.deck_vs_g1") > 0, "the stage variants have rows");
@@ -178,9 +188,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.low.off.pose_ok"), "the frame is flagged");
             Assert.AreEqual(0.5, Row(r, "T09d.ground.low.off.sky_median"), 1e-4, "and read");
-            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 36);
+            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 40);
             Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning pose_mismatch")));
-            Assert.AreEqual(36, r.World.Saved.Count, "the pictures are saved");
+            Assert.AreEqual(40, r.World.Saved.Count, "the pictures are saved");
         }
 
         [TestMethod]
@@ -189,7 +199,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run r = StartRealistic(x => x.World.PlaceResult = (call, wanted) => 85.35);
             Drive(r, 0.02);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.AreEqual(36.0, Row(r, "T09d.frames"));
+            Assert.AreEqual(40.0, Row(r, "T09d.frames"));
             Assert.AreEqual(0.0, Row(r, "T09d.frames_pose_ok"));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.high.placed_ok"));
             Assert.IsTrue(Row(r, "T09d.ground.high.g1.deck_median") > 0, "the readout is there");

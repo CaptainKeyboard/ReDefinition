@@ -110,7 +110,7 @@ namespace ReDefinition.Atmospheres
         {
             double share = (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM;
             if (share < 0.0 || share > 1.0) return 0.0;
-            double s = Shape(coverageMap, layer.Coverage, layer.EdgeSoftness);
+            double s = Shape(coverageMap, layer.EffectiveCoverage, layer.EdgeSoftness);
             if (s <= 0.0) return 0.0;
             return layer.SigmaPerM * s * table.Profile(typeMap, share);
         }

@@ -23,7 +23,7 @@ import re
 import sys
 
 LINE = re.compile(r'ATMORESULT\s*(\{.*\})')
-GAINS = (1, 4, 16, 64)
+GAINS = (1, 4, 16)
 NOTES = []
 CLIP = 0.98
 
@@ -111,6 +111,23 @@ def analyse(values, notes):
                 notes.append("%-12s stage: u1 %s p1 %s pe2 %s | p1 / sea %.2f -> %s" % (
                     head, "-" if u1 is None else "%.3f" % u1, "%.3f" % p1, "-" if pe2 is None else "%.3f" % pe2, p1 / sea,
                     "commensurable" if stage_ok else "outside the expected band"))
+            # The coverage variants (cloud.coverageShift 0 = p1, -0.08 = c42, -0.15 = c35): the picture's closed share of the region where the deck is seen (the sky of the ground view,
+            # the ground region of the above view) against CloudCoverModel's share at the pass's map value (model_closed, written by the probe before the frame is read).
+            region = "sky" if view == "ground" else "ground"
+            parts = []
+            for tag in ("p1", "c42", "c35"):
+                got, model = get(tag, "%s_closed_share" % region), get(tag, "model_closed")
+                if got is None:
+                    continue
+                parts.append("%s %.2f%s" % (tag, got, "" if model is None else " (model %.2f)" % model))
+                if model is not None:
+                    add("T09d.%s.%s.cover.%s_closed_minus_model" % (view, cover, tag), got - model)
+            p1c, c42c, c35c = (get(t, "%s_closed_share" % region) for t in ("p1", "c42", "c35"))
+            if p1c is not None and c42c is not None and c35c is not None:
+                # Lowering the threshold must lower the closed share (or leave it at 0 / 1 at the ends).
+                add("T09d.%s.%s.cover.monotone" % (view, cover), 1 if (p1c + 0.02 >= c42c >= c35c - 0.02) else -1)
+            if parts:
+                notes.append("%-12s closed share of the %s: %s" % (head, region, ", ".join(parts)))
             cells = " ".join("g%d %s" % (g, "-" if v is None else "%.3f" % v) for g, v in medians)
             notes.append("%-12s deck median: %s | off sky %s, off sea %s | slope %s verdict %s | reach gain %s" % (
                 head, cells,
@@ -180,6 +197,18 @@ def selftest():
     assert any("commensurable" in n for n in notes), notes
     black = _fake("ground", "high", 0.458, 0.443, 0.0145, 1.0) + '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.p1.deck_median","value":0.0145}'
     assert {r["metric"]: r["value"] for r in analyse(parse([black]), [])}["T09d.ground.high.stage.verdict"] == -1
+    # The coverage variants: the picture's closed share against the model's, and the order p1 >= c42 >= c35.
+    cover = "".join(
+        '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.%s","value":%r,"variant":"plain"}' % (m, v)
+        for m, v in (("p1.sky_closed_share", 0.70), ("p1.model_closed", 0.71), ("c42.sky_closed_share", 0.40), ("c42.model_closed", 0.44),
+                     ("c35.sky_closed_share", 0.25), ("c35.model_closed", 0.21)))
+    notes = []
+    got = {r["metric"]: r["value"] for r in analyse(parse([cover]), notes)}
+    assert abs(got["T09d.ground.high.cover.p1_closed_minus_model"] + 0.01) < 1e-9, got
+    assert abs(got["T09d.ground.high.cover.c42_closed_minus_model"] + 0.04) < 1e-9 and got["T09d.ground.high.cover.monotone"] == 1, got
+    assert any("closed share of the sky" in n and "c35 0.25 (model 0.21)" in n for n in notes), notes
+    wrong = cover + '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.c35.sky_closed_share","value":0.9}'
+    assert {r["metric"]: r["value"] for r in analyse(parse([wrong]), [])}["T09d.ground.high.cover.monotone"] == -1
     # Lines of another series and text values are ignored; an empty log gives nothing.
     assert parse(['ATMORESULT {"series":"K-T2","metric":"T09d.a.b.c.d","value":1.0}', 'ATMORESULT {"series":"K-T2d","metric":"T09d.env.sunLight","value":"x"}']) == {}
     assert analyse({}, []) == []

@@ -62,7 +62,7 @@ namespace ReDefinition.Atmospheres
         private Material material;
         private Texture2D profileTexture, infoTexture;
         private int layerCount;
-        private long uploadedVersion = -1;
+        private long uploadedVersion = -1, uploadedShift = -1;
         private LayerStackSource uploadedSource;
 
         // The half-size shadow target: 16 bits where the platform has them (the factor under a thick cloud, exp(-6) and less, is below the
@@ -131,7 +131,7 @@ namespace ReDefinition.Atmospheres
             {
                 material.SetVector(IdMapDim, new Vector4(2f, 2f, 0f, 0f));
             }
-            if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion) return;
+            if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes];
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers];
@@ -142,7 +142,7 @@ namespace ReDefinition.Atmospheres
                 float tightInner, tightOuter;
                 layer.TightAltitudes(out tightInner, out tightOuter);
                 layerA[l] = new Vector4(layer.InnerAltitudeM, layer.OuterAltitudeM, tightInner, tightOuter);
-                layerB[l] = new Vector4(layer.SigmaPerM, layer.Coverage, layer.EdgeSoftness, layer.ShadowStrength);
+                layerB[l] = new Vector4(layer.SigmaPerM, layer.EffectiveCoverage, layer.EdgeSoftness, layer.ShadowStrength);
                 layerC[l] = new Vector4(0f, 0f, layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
                 layerD[l] = new Vector4(0f, 0f, 0f, layer.MapShiftDeg);
                 Array.Copy(table.ProfileData, 0, profile, l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples, table.Count * LayerTypeTable.ProfileSamples);
@@ -159,6 +159,7 @@ namespace ReDefinition.Atmospheres
             infoTexture.Apply(false);
             uploadedSource = source;
             uploadedVersion = source.Version;
+            uploadedShift = CloudCoverShift.Stamp;
         }
 
         // Writes the frame's numbers into the material.

@@ -43,6 +43,21 @@ namespace ReDefinition.Atmospheres
             // Luminance per pixel (kept for the deck of the next reading), and the deck mask of this reading (null for the baseline).
             internal float[] Luma;
             internal bool[] DeckMask;
+            // The raw picture, kept for the baseline reading only (the closed share of the next readings is measured against its colours).
+            internal Color[] Raw;
+            // The share of the region's samples that belong to the deck, and the share that count as closed (ClosedShare). Zero where the frame has no baseline.
+            internal double SkyDeckShare, GroundDeckShare, SkyClosedShare, GroundClosedShare;
+        }
+
+        // CLOSED, as far as a picture can say it (the target's alpha is not read): the largest change of a channel against the baseline pixel, for the region's deck samples;
+        // a deck sample is closed where that change is at least ClosedPlateau times the 90th percentile of the changes in the region, i.e. the pixel no longer shows the
+        // baseline behind the cloud but the cloud's own colour (the change of a closed deck is a plateau; at the edge of the cloud it is a ramp below it). A proxy: the
+        // plateau is the region's own, so a region that is thin everywhere reads its thickest part as closed. Needs at least ClosedMinChange of change.
+        internal const double ClosedPlateau = 0.9, ClosedMinChange = 0.02;
+
+        internal static float ChannelChange(Color a, Color b)
+        {
+            return Math.Max(Math.Abs(a.r - b.r), Math.Max(Math.Abs(a.g - b.g), Math.Abs(a.b - b.b)));
         }
 
         // The row (0 bottom, 1 top) of the horizon in the picture, from the camera's elevation (degrees above the horizontal), its vertical field of view, its height above
@@ -76,6 +91,9 @@ namespace ReDefinition.Atmospheres
             if (compare && mask == null) reading.DeckMask = new bool[raw.Length];
             else if (mask != null && mask.Length == raw.Length) reading.DeckMask = mask;
             var sky = new Region(); var ground = new Region(); var deck = new Region();
+            if (baseline == null) reading.Raw = raw;
+            bool changes = compare && baseline.Raw != null && baseline.Raw.Length == raw.Length;
+            var skyChange = new List<float>(); var groundChange = new List<float>();
             int samples = 0, deckSamples = 0;
             for (int y = 0; y < height; y++)
             {
@@ -106,6 +124,11 @@ namespace ReDefinition.Atmospheres
                     {
                         deck.Add(c, l);
                         deckSamples++;
+                        if (changes)
+                        {
+                            if (v > horizonV + HorizonMargin) skyChange.Add(ChannelChange(c, baseline.Raw[i]));
+                            else if (v < horizonV - HorizonMargin) groundChange.Add(ChannelChange(c, baseline.Raw[i]));
+                        }
                     }
                 }
             }
@@ -113,7 +136,27 @@ namespace ReDefinition.Atmospheres
             reading.Ground = ground.Finish();
             reading.Deck = deck.Finish();
             reading.DeckFraction = samples == 0 ? 0.0 : deckSamples / (double)samples;
+            if (changes)
+            {
+                reading.SkyDeckShare = reading.Sky.Count == 0 ? 0.0 : skyChange.Count / (double)reading.Sky.Count;
+                reading.GroundDeckShare = reading.Ground.Count == 0 ? 0.0 : groundChange.Count / (double)reading.Ground.Count;
+                reading.SkyClosedShare = ClosedShare(skyChange, reading.Sky.Count);
+                reading.GroundClosedShare = ClosedShare(groundChange, reading.Ground.Count);
+            }
             return reading;
+        }
+
+        // The closed samples (see ClosedPlateau) over the region's sample count; changes holds the deck samples' changes. The list is sorted in place.
+        internal static double ClosedShare(List<float> changes, int regionSamples)
+        {
+            if (changes.Count == 0 || regionSamples == 0) return 0.0;
+            double threshold = Math.Max(ClosedMinChange, ClosedPlateau * Percentile(changes, 0.90));
+            int closed = 0;
+            for (int i = 0; i < changes.Count; i++)
+            {
+                if (changes[i] >= threshold) closed++;
+            }
+            return closed / (double)regionSamples;
         }
 
         // --- Noise: two frames of one pose a frame apart -------------------------------------------------------------------------------------
