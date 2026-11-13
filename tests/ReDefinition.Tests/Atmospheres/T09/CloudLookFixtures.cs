@@ -25,7 +25,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 new CloudTypeDef("Fog", 0f, 0.1f, C(0f, 0.9f, 0.7f, 0.5f, 1f, 0f), 0.2f),
                 new CloudTypeDef("Stratus", 0.1f, 0.5f, C(0f, 0f, 0.12f, 0.8f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.15f),
                 new CloudTypeDef("Nimbostratus", 0.05f, 1f, C(0f, 0.1f, 0.08f, 0.9f, 0.6f, 1f, 0.9f, 0.6f, 1f, 0f), 0.2f));
-            rain.Deck = new WeatherDeckRule();
+            rain.Deck = new WeatherDeckRule { RainFloor = 0.9f };
             return rain;
         }
 
@@ -41,9 +41,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         internal static CloudLayerDef Cumulonimbus()
         {
-            return Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f, 8000f, LayerKind.Weather,
+            CloudLayerDef cb = Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f, 8000f, LayerKind.Weather,
                 new CloudTypeDef("Cumulonimbus calvus", 0f, 0.7f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
                 new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f));
+            cb.Deck = new WeatherDeckRule { Fog = false, PrecipType = 0f };
+            return cb;
         }
 
         internal static CloudLayerDef Cirrus()

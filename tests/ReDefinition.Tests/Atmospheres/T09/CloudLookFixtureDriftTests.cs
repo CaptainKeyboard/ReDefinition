@@ -33,6 +33,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(shipped.Deck.PrecipFullAt, fixture.Deck.PrecipFullAt, 1e-6f, n + " deck precipitation full");
                 Assert.AreEqual(shipped.Deck.PrecipType, fixture.Deck.PrecipType, 1e-6f, n + " deck precipitation type");
                 Assert.AreEqual(shipped.Deck.FogType, fixture.Deck.FogType, 1e-6f, n + " deck fog type");
+                Assert.AreEqual(shipped.Deck.Fog, fixture.Deck.Fog, n + " deck fog");
+                Assert.AreEqual(shipped.Deck.RainFloor, fixture.Deck.RainFloor, 1e-6f, n + " deck rain floor");
             }
             Assert.AreEqual(shipped.Types.Count, fixture.Types.Count, n + " type count");
             for (int i = 0; i < shipped.Types.Count; i++)

@@ -109,9 +109,36 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(PrecipScale.FlurriesFrom, d.PrecipFrom, 0f, name + " the band None of the HUD");
                 Assert.AreEqual(PrecipScale.LightFrom, d.PrecipFullAt, 0f, name);
                 Assert.AreEqual(0.5f, d.PrecipType, 0f, name + " stratus");
+                Assert.IsTrue(d.Fog, name);
+                Assert.AreEqual(0.9f, d.RainFloor, 0f, name + " the rain itself guarantees a deck");
             }
-            foreach (string name in new[] { "Kerbin-cumulus", "Kerbin-cumulonimbus", "Kerbin-cirrus" })
+            WeatherDeckRule cb = layers.Single(l => l.Name == "Kerbin-cumulonimbus").Deck;
+            Assert.IsNotNull(cb, "the cumulonimbus layer is drawn only as far as it rains");
+            Assert.IsFalse(cb.Fog);
+            Assert.AreEqual(0f, cb.RainFloor, 0f);
+            foreach (string name in new[] { "Kerbin-cumulus", "Kerbin-cirrus" })
                 Assert.IsNull(layers.Single(l => l.Name == name).Deck, name);
+        }
+
+        [TestMethod]
+        public void TheRainFloorGuaranteesADeckUnderPrecipitationAndNoFogLayerHasNone()
+        {
+            var floor = new WeatherDeckRule { RainFloor = 0.9f };
+            Assert.AreEqual(0f, floor.FloorOf(0.03f), 0f, "below the band None");
+            Assert.AreEqual(0.9f, floor.FloorOf(0.08f), 1e-4f, "full from a quarter of the ramp");
+            Assert.AreEqual(0.9f, floor.FloorOf(0.6f), 0f);
+            Assert.AreEqual(0f, new WeatherDeckRule().FloorOf(0.6f), 0f, "no floor by default");
+            var cover = new byte[] { 10, 10, 250 };
+            var level = new float[] { 0.02f, 0.3f, 0.3f };
+            var oc = new byte[3];
+            var ot = new byte[3];
+            floor.Apply(cover, level, null, null, oc, ot);
+            Assert.AreEqual(0, oc[0], "fair: nothing");
+            Assert.AreEqual(229, oc[1], 1.0, "rain over a thin map: the floor (0.9 of 255)");
+            Assert.AreEqual(250, oc[2], "a thicker map is kept");
+            var noFog = new WeatherDeckRule { Fog = false };
+            noFog.Apply(new byte[] { 255 }, new float[] { 0f }, new float[] { 0f }, new float[] { 0f }, oc, ot);
+            Assert.AreEqual(0, oc[0], "no fog layer: saturated calm air draws nothing");
         }
 
         [TestMethod]

@@ -11,6 +11,8 @@ namespace ReDefinition.Atmospheres
     //   fog             only where the air is near saturation (the dew-point spread of the surface temperature and the humidity map, Magnus as HeightModel.DewPointK) and the
     //                   wind is light; its type is FogType (the first type)
     //   neither         no deck: the coverage of the layer is multiplied by 0 (the cumulus layer draws the sky of fair weather)
+    // Rain and its cloud agree both ways (E40 look-correct, RainCoherenceTests): the deck has a coverage floor under precipitation (RainFloor, so no rain falls from a clear sky), and the
+    // cumulonimbus layer carries the same rule without fog and without a floor (drawn only as far as it rains).
     // The deck's activity is max(precipitation share, fog share); the coverage map is multiplied by it, and the type is blended from FogType to the precipitation type by the
     // precipitation share. The module applies it to the maps the GPU and every CPU reader (sun dimming, cloud shadow, CloudCoverOracle, the ray pack) share, so there is
     // one source of truth. cloud.deckRule.<layer> 0 gives the old rule back, 1 forces it on with the defaults below.
@@ -28,6 +30,12 @@ namespace ReDefinition.Atmospheres
         internal float PrecipFrom = PrecipScale.FlurriesFrom, PrecipFullAt = PrecipScale.LightFrom;
         // The type values (0 to 1 over the layer's type table): the fog type, and the lightest precipitating type (Stratus on the weather decks).
         internal float FogType = 0f, PrecipType = 0.5f;
+        // Whether fog air draws the layer (the weather decks); a rain-bearing layer that is no fog (the cumulonimbus layer) has none.
+        internal bool Fog = true;
+        // The coverage that precipitation itself guarantees, 0 to 1 (cfg deckRainFloor; 0: none): wherever it rains the layer is at least this thick, so that no rain falls from a clear
+        // sky. It reaches its full value at a quarter of the way from PrecipFrom to PrecipFullAt (level 0.08 with the defaults) and is 0 below PrecipFrom. The weather decks have it;
+        // the cumulonimbus layer does not (it is drawn only as far as it rains, never forced).
+        internal float RainFloor = 0f;
 
         internal static readonly WeatherDeckRule Defaults = new WeatherDeckRule();
 
@@ -63,7 +71,14 @@ namespace ReDefinition.Atmospheres
         // The activity (the factor of the coverage map) and the type value of one texel.
         internal void Texel(float level, float spreadK, float windMs, out float activity, out float typeValue)
         {
-            Combine(level, FogShare(spreadK, windMs), out activity, out typeValue);
+            Combine(level, Fog ? FogShare(spreadK, windMs) : 0f, out activity, out typeValue);
+        }
+
+        // The coverage floor of a texel (0 to 1) that the precipitation level guarantees.
+        internal float FloorOf(float level)
+        {
+            if (!(RainFloor > 0f)) return 0f;
+            return RainFloor * Step(PrecipFrom, PrecipFrom + 0.25f * (PrecipFullAt - PrecipFrom), level);
         }
 
         // The same from the level and a fog share that is already known (the probe forces both, cloud.deckPrecip.<name> and cloud.deckFog.<name>).
@@ -83,9 +98,10 @@ namespace ReDefinition.Atmospheres
             {
                 float a, t;
                 float lv = forcePrecip >= 0f ? forcePrecip : level[i];
-                float fog = forceFog >= 0f ? forceFog : FogShare(spreadK != null ? spreadK[i] : 1000f, windMs != null ? windMs[i] : 0f);
+                float fog = forceFog >= 0f ? forceFog : Fog ? FogShare(spreadK != null ? spreadK[i] : 1000f, windMs != null ? windMs[i] : 0f) : 0f;
                 Combine(lv, fog, out a, out t);
-                outCover[i] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(cover[i] * a, MidpointRounding.ToEven)));
+                double c = Math.Max(cover[i] * a, FloorOf(lv) * 255.0);
+                outCover[i] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(c, MidpointRounding.ToEven)));
                 outType[i] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(t * 255.0, MidpointRounding.ToEven)));
             }
         }

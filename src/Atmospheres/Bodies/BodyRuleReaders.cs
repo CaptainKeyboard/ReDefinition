@@ -220,7 +220,9 @@ namespace ReDefinition.Atmospheres
                 PrecipFrom = r.Float("deckPrecipFrom", d.PrecipFrom, 0f, 1f),
                 PrecipFullAt = r.Float("deckPrecipFullAt", d.PrecipFullAt, 0f, 1f),
                 FogType = r.Float("deckFogType", d.FogType, 0f, 1f),
-                PrecipType = r.Float("deckPrecipType", d.PrecipType, 0f, 1f)
+                PrecipType = r.Float("deckPrecipType", d.PrecipType, 0f, 1f),
+                Fog = r.Float("deckFog", d.Fog ? 1f : 0f, 0f, 1f) >= 0.5f,
+                RainFloor = r.Float("deckRainFloor", d.RainFloor, 0f, 1f)
             };
         }
 
