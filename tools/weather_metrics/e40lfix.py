@@ -160,7 +160,7 @@ def collect(ctx):
         metrics.append(Metric.info("lfix.%s.zenith_min" % v, min(zen)))
         metrics.append(Metric.info("lfix.%s.zenith_mean" % v, float(np.mean(zen))))
     # Expectations of F2, F3 and F4 for this build.
-    if TAG == "post":
+    if TAG != "pre":
         metrics.append(Metric.at_least("lfix.F2.ctl_closed", float(np.mean(results["ctl"]["closed"])), 0.999))
         metrics.append(Metric.at_least("lfix.F2.ctl_zenith_min", min(results["ctl"]["zenith"]), 8.77))
         metrics.append(Metric.at_least("lfix.F4.wet_closed", float(np.mean(results["wet"]["closed"])), 0.95))

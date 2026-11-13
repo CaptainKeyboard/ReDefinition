@@ -26,7 +26,7 @@ namespace ReDefinition.WeatherPlayer
     // Captures (the 'ours' column of tools/weather_metrics/parity_run.py table, one folder per check id with meta.json) go to <out>/ours/, the
     // pictures (natural and aid: the factor in false colour) to <out>/.
     [WeatherScene("cloud-shadow")]
-    public sealed class CloudShadowScene : WeatherSceneBase
+    public sealed partial class CloudShadowScene : WeatherSceneBase
     {
         private const double R = 600000.0;
         // A map of 16384 by 2 texels: a texel is 230 m of longitude, so that the edge of the bilinear threshold is placed to under a metre
@@ -65,6 +65,12 @@ namespace ReDefinition.WeatherPlayer
             oursFolder = Path.Combine(Output, "ours");
             Directory.CreateDirectory(oursFolder);
             bool finite = true;
+            // -shadowsteps 1: the step-policy comparison of the shader with its CPU twin (CloudShadowStepsScene.cs) instead of the analytic checks.
+            if (WeatherPass.Argument("-shadowsteps") == "1")
+            {
+                yield return RunSteps();
+                yield break;
+            }
 
             // ---- does the buffer act at all: the diagnostic output 1 is a constant 0.5 ----
             SetCloud(1f, false);
@@ -292,13 +298,17 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // The slab of vertical optical depth tau, everywhere or west of longitude 0 only.
-        private void SetCloud(float tau, bool westOnly)
+        private void SetCloud(float tau, bool westOnly, float heightReachM = 0f)
         {
             var source = new LayerStackSource(0, R, true);
+            currentSource = source;
             var def = new CloudLayerDef("slab", 0, SlabBase, SlabTop, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, tau / (SlabTop - SlabBase))
             {
                 Coverage = 0.5f,
-                EdgeSoftness = 1e-4f
+                EdgeSoftness = 1e-4f,
+                // The height variation's reach widens the layer's tight interval (and with it the shadow's step count under the scaled policy).
+                HeightDownM = heightReachM,
+                HeightUpM = heightReachM
             };
             def.CoverageMapHandle = 0;
             def.TypeMapHandle = 0;
