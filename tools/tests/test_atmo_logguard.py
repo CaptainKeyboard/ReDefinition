@@ -7,8 +7,9 @@ import os
 import unittest
 
 from tools import atmo_logguard as lg
+from tools import gpu_lock
 
-KT2_LOGS = r"C:\Users\franz\IdeaProjects\ReDefinition\.claude\worktrees\kt2-run\build\atmo-series\K-T2-*-own1707.log"
+KT2_LOGS = os.path.join(gpu_lock.main_repo(), ".claude", "worktrees", "kt2-run", "build", "atmo-series", "K-T2-*-own1707.log")
 # start number -> log stamp
 STARTS = {35: "180416", 36: "183418", 37: "185638", 38: "192441"}
 

@@ -621,13 +621,13 @@
  "skipped": [],
  "settle_seconds": 2,
  "resources": {
-  "dlssg_package": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\dlssg_x",
-  "amd_dll_dir": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd",
-  "xess_dll_dir": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xess",
-  "xess_fg_dll_dir": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xessfg"
+  "dlssg_package": ".local\\dlssg_x",
+  "amd_dll_dir": ".local\\amd",
+  "xess_dll_dir": ".local\\xess",
+  "xess_fg_dll_dir": ".local\\xessfg"
  },
  "settings_template": "ReDefinition\n{\n\tenabled = True\n\tquality = Quality\n\tsharpness = 1.00\n\tautoExposure = True\n\tmipmapBias = True\n\tlodBias = True\n\tdisableMsaa = True\n\tpauseWhileOpen = False\n\tdebug = False\n\treplaceKspSettings = True\n\tforceAnisotropic = True\n\tjitter = True\n\tskinnedMotionVectors = True\n\ttufxAfterUpscaling = True\n\ttransparencyMask = False\n\treactiveMask = Off\n\tframeGeneration = True\n\ttechnique = Dlss\n\tdlssModel = High\n\tupscalerKey = None\n\tdiagnosticsKey = None\n\tcameraListKey = None\n\tsettingsWindowKey = None\n\tnavballOffset = 0\n\tnavballScreen = 2560x1440\n\tscaleModWindows = True\n\ttimeWarpToolbarButton = False\n\tflightStartsInManeuverMode = True\n\tautoAltimeter = True\n\tworldButtons = True\n\tflightPanelAuto = True\n\tmenuFireworks = True\n\tmenuKscZoom = True\n\tkscGrass = True\n\troundGauge = True\n\tnavballSpeeds = True\n\tnavballDockingMarker = True\n\tnavballDrag = True\n\tflightPanel = True\n\tstageDetailColumns = True\n\tstageTwrRange = True\n\tdeltaVTools = True\n\thudTooltips = True\n\tstagingResetAsks = True\n\tcrewSlotButtons = True\n\ttimeWarpPanelButton = True\n\traytracing = Full\n\traytracingBounces = 2\n\traytracingMoonlight = 90\n\tmoonGlow = True\n\traytracingMoonReflection = 100\n\tsunReflection = 300\n\traytracingNightAmbient = 25\n}\n",
- "raw": "C:/Users/franz/IdeaProjects/ReDefinition/.local/benchmarks\\2026-10-21-0942",
+ "raw": ".local/benchmarks\\2026-10-21-0942",
  "starts": [
   {
    "id": "frame-steps-fsr",

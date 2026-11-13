@@ -621,13 +621,13 @@
  "skipped": [],
  "settle_seconds": 2,
  "resources": {
-  "dlssg_package": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\dlssg_x",
-  "amd_dll_dir": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd",
-  "xess_dll_dir": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xess",
-  "xess_fg_dll_dir": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xessfg"
+  "dlssg_package": ".local\\dlssg_x",
+  "amd_dll_dir": ".local\\amd",
+  "xess_dll_dir": ".local\\xess",
+  "xess_fg_dll_dir": ".local\\xessfg"
  },
  "settings_template": "ReDefinition\n{\n\tenabled = True\n\tquality = Quality\n\tsharpness = 1.00\n\tautoExposure = True\n\tmipmapBias = True\n\tlodBias = True\n\tdisableMsaa = True\n\tpauseWhileOpen = False\n\tdebug = False\n\treplaceKspSettings = True\n\tforceAnisotropic = True\n\tjitter = True\n\tskinnedMotionVectors = True\n\ttufxAfterUpscaling = True\n\ttransparencyMask = False\n\treactiveMask = Off\n\tframeGeneration = True\n\ttechnique = Dlss\n\tdlssModel = High\n\tupscalerKey = None\n\tdiagnosticsKey = None\n\tcameraListKey = None\n\tsettingsWindowKey = None\n\tnavballOffset = 0\n\tnavballScreen = 2560x1440\n\tscaleModWindows = True\n\ttimeWarpToolbarButton = False\n\tflightStartsInManeuverMode = True\n\tautoAltimeter = True\n\tworldButtons = True\n\tflightPanelAuto = True\n\tmenuFireworks = True\n\tmenuKscZoom = True\n\tkscGrass = True\n\troundGauge = True\n\tnavballSpeeds = True\n\tnavballDockingMarker = True\n\tnavballDrag = True\n\tflightPanel = True\n\tstageDetailColumns = True\n\tstageTwrRange = True\n\tdeltaVTools = True\n\thudTooltips = True\n\tstagingResetAsks = True\n\tcrewSlotButtons = True\n\ttimeWarpPanelButton = True\n\traytracing = Full\n\traytracingBounces = 2\n\traytracingMoonlight = 90\n\tmoonGlow = True\n\traytracingMoonReflection = 100\n\tsunReflection = 300\n\traytracingNightAmbient = 25\n}\n",
- "raw": "C:/Users/franz/IdeaProjects/ReDefinition/.local/benchmarks\\2026-10-21-1012",
+ "raw": ".local/benchmarks\\2026-10-21-1012",
  "starts": [
   {
    "id": "dlssg-presets-fsr",
@@ -656,8 +656,8 @@
     "rtBlasRefineBudget": "65536",
     "rtTlasFastTrace": "0",
     "rtMegaGeometry": "0",
-    "amdUpscalerDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd",
-    "xessDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xess",
+    "amdUpscalerDirectory": ".local\\amd",
+    "xessDirectory": ".local\\xess",
     "frameGenerationTechnique": "fsr"
    },
    "dlssg_package": false,
@@ -753,7 +753,7 @@
     "DLSS: nvngx_dlss.dll 310.9.16.0 (C:\\Program Files (x86)\\Steam\\steamapps\\common\\Kerbal Space Program\\nvngx_dlss.dll), created for 1707x960 (range 1280x720 to 2560x1440) to 2560x1440, rendered at 1707x960, quality 2, preset 0, flags 0x0000004B"
    ],
    "amd_upscaler": [
-    "AMD upscaler: C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd\\amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740",
+    "AMD upscaler: .local\\amd\\amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740",
     "AMD upscaler: versions on this GPU: 3.1.5, 2.3.4",
     "AMD upscaler: FSR 3.1.5 runs, not FSR 4: amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740 offers this GPU 3.1.5, 2.3.4 -- FSR 4 needs an AMD Radeon RX 7000 (discrete) or RX 9000 or later",
     "AMD upscaler: FSR 3.1.5, 1707x960 to 2560x1440, HDR"
@@ -4950,7 +4950,7 @@
     "fgHalfRefreshLimit": "0",
     "fgAsyncWorkloads": "0",
     "dlssDirectory": "",
-    "amdUpscalerDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd",
+    "amdUpscalerDirectory": ".local\\amd",
     "streamlineDirectory": "",
     "fgPacingSafetyMarginMs": "0.1",
     "fgPacingVarianceFactor": "0.1",
@@ -5008,7 +5008,7 @@
     "rtBlasRefineBudget": "65536",
     "rtTlasFastTrace": "0",
     "rtMegaGeometry": "0",
-    "xessDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xess",
+    "xessDirectory": ".local\\xess",
     "xessFgDirectory": "",
     "xessFgUiMode": "auto",
     "xell": "1",
@@ -5049,8 +5049,8 @@
     "rtBlasRefineBudget": "65536",
     "rtTlasFastTrace": "0",
     "rtMegaGeometry": "0",
-    "amdUpscalerDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd",
-    "xessDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xess",
+    "amdUpscalerDirectory": ".local\\amd",
+    "xessDirectory": ".local\\xess",
     "frameGenerationTechnique": "dlss"
    },
    "dlssg_package": true,
@@ -5153,7 +5153,7 @@
     "DLSS: nvngx_dlss.dll 310.9.16.0 (C:\\Program Files (x86)\\Steam\\steamapps\\common\\Kerbal Space Program\\nvngx_dlss.dll), created for 1707x960 (range 1280x720 to 2560x1440) to 2560x1440, rendered at 1707x960, quality 2, preset 0, flags 0x0000004B"
    ],
    "amd_upscaler": [
-    "AMD upscaler: C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd\\amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740",
+    "AMD upscaler: .local\\amd\\amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740",
     "AMD upscaler: versions on this GPU: 3.1.5, 2.3.4",
     "AMD upscaler: FSR 3.1.5 runs, not FSR 4: amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740 offers this GPU 3.1.5, 2.3.4 -- FSR 4 needs an AMD Radeon RX 7000 (discrete) or RX 9000 or later",
     "AMD upscaler: FSR 3.1.5, 1707x960 to 2560x1440, HDR"
@@ -7615,7 +7615,7 @@
     "fgHalfRefreshLimit": "0",
     "fgAsyncWorkloads": "0",
     "dlssDirectory": "",
-    "amdUpscalerDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd",
+    "amdUpscalerDirectory": ".local\\amd",
     "streamlineDirectory": "",
     "fgPacingSafetyMarginMs": "0.1",
     "fgPacingVarianceFactor": "0.1",
@@ -7673,7 +7673,7 @@
     "rtBlasRefineBudget": "65536",
     "rtTlasFastTrace": "0",
     "rtMegaGeometry": "0",
-    "xessDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xess",
+    "xessDirectory": ".local\\xess",
     "xessFgDirectory": "",
     "xessFgUiMode": "auto",
     "xell": "1",
@@ -7714,8 +7714,8 @@
     "rtBlasRefineBudget": "65536",
     "rtTlasFastTrace": "0",
     "rtMegaGeometry": "0",
-    "amdUpscalerDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd",
-    "xessDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xess",
+    "amdUpscalerDirectory": ".local\\amd",
+    "xessDirectory": ".local\\xess",
     "frameGenerationTechnique": "dlss"
    },
    "dlssg_package": true,
@@ -7818,7 +7818,7 @@
     "DLSS: nvngx_dlss.dll 310.9.16.0 (C:\\Program Files (x86)\\Steam\\steamapps\\common\\Kerbal Space Program\\nvngx_dlss.dll), created for 1707x960 (range 1280x720 to 2560x1440) to 2560x1440, rendered at 1707x960, quality 2, preset 0, flags 0x0000004B"
    ],
    "amd_upscaler": [
-    "AMD upscaler: C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd\\amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740",
+    "AMD upscaler: .local\\amd\\amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740",
     "AMD upscaler: versions on this GPU: 3.1.5, 2.3.4",
     "AMD upscaler: FSR 3.1.5 runs, not FSR 4: amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740 offers this GPU 3.1.5, 2.3.4 -- FSR 4 needs an AMD Radeon RX 7000 (discrete) or RX 9000 or later",
     "AMD upscaler: FSR 3.1.5, 1707x960 to 2560x1440, HDR"
@@ -10280,7 +10280,7 @@
     "fgHalfRefreshLimit": "0",
     "fgAsyncWorkloads": "0",
     "dlssDirectory": "",
-    "amdUpscalerDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\amd",
+    "amdUpscalerDirectory": ".local\\amd",
     "streamlineDirectory": "",
     "fgPacingSafetyMarginMs": "0.1",
     "fgPacingVarianceFactor": "0.1",
@@ -10338,7 +10338,7 @@
     "rtBlasRefineBudget": "65536",
     "rtTlasFastTrace": "0",
     "rtMegaGeometry": "0",
-    "xessDirectory": "C:\\Users\\franz\\IdeaProjects\\ReDefinition\\.local\\xess",
+    "xessDirectory": ".local\\xess",
     "xessFgDirectory": "",
     "xessFgUiMode": "auto",
     "xell": "1",

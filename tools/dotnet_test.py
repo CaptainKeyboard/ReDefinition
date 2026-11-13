@@ -6,7 +6,7 @@
 It waits while an exclusive timing lock is held (tools/gpu_lock.py status shows who), refuses to build while KSP_x64 runs, and passes
   -p:DeployToGameData=false          (the main project deploys into the game by default, and the test project builds it)
   --filter "TestCategory!=Docs"      (the Docs category runs once per merge, by the orchestrator)
-unless the caller gives its own. --smoke runs only the category Smoke. The dotnet SDK is C:\\Users\\franz\\.dotnet\\dotnet.exe where it
+unless the caller gives its own. --smoke runs only the category Smoke. The dotnet SDK is .dotnet\\dotnet.exe in the user's profile where it
 exists. The test project is relative to this script's worktree.
 """
 import argparse
@@ -20,7 +20,7 @@ sys.path.insert(0, HERE)
 import gpu_lock  # noqa: E402
 
 DEFAULT_PROJECT = os.path.join(os.path.dirname(HERE), "tests", "ReDefinition.Tests", "ReDefinition.Tests.csproj")
-DEFAULT_DOTNET = r"C:\Users\franz\.dotnet\dotnet.exe"
+DEFAULT_DOTNET = os.path.join(os.path.expanduser("~"), ".dotnet", "dotnet.exe")
 NO_DEPLOY = "-p:DeployToGameData=false"
 DEFAULT_FILTER = "TestCategory!=Docs"
 

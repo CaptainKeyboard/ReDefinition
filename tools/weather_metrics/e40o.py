@@ -572,7 +572,7 @@ def main_repo():
     env = os.environ.get("ATMO_MAINREPO")
     if env:
         return env
-    return r"C:\Users\franz\IdeaProjects\ReDefinition"
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def stages():

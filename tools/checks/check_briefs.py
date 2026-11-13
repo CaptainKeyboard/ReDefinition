@@ -31,7 +31,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 THIS_REPO = os.path.dirname(os.path.dirname(HERE))
-FALLBACK_MAINREPO = r"C:\Users\franz\IdeaProjects\ReDefinition"
+FALLBACK_MAINREPO = THIS_REPO  # where git cannot say
 
 
 def main_repo():

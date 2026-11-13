@@ -24,7 +24,7 @@ CORE = os.path.join(HERE, "atmosphere-sim", "AtmoSim.Core")
 GOLDEN_DIR = os.path.join(ROOT, "tests", "data", "generator")
 RECORDER = os.path.join(HERE, "generator_golden", "GeneratorGolden.csproj")
 CSPROJ = os.path.join(ROOT, "src", "Atmospheres", "ReDefinition.Atmospheres.csproj")
-DOTNET = r"C:\Users\franz\.dotnet\dotnet.exe"
+DOTNET = os.path.join(os.path.expanduser("~"), ".dotnet", "dotnet.exe")
 FILES = ("golden.json", "proof-lat.bin")
 
 

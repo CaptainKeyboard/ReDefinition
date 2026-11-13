@@ -56,7 +56,7 @@ import gpu_lock  # noqa: E402
 
 DEFAULT_REPO = os.path.dirname(HERE)
 DEFAULT_KSP = r"C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program"
-DEFAULT_DOTNET = r"C:\Users\franz\.dotnet\dotnet.exe"
+DEFAULT_DOTNET = os.path.join(os.path.expanduser("~"), ".dotnet", "dotnet.exe")
 RUN_CAP = 20
 MAX_MINUTES = 20
 PROFILE_CACHE_REL = (".local", "work", "profile-cache")

@@ -28,7 +28,8 @@ MARGIN_SECONDS = 300
 GUARD_STALE_SECONDS = 30
 WAIT_REPORT_SECONDS = 30
 KINDS = ("gpu", "unity")
-FALLBACK_MAINREPO = r"C:\Users\franz\IdeaProjects\ReDefinition"
+# Where git cannot say: the repository this script belongs to.
+FALLBACK_MAINREPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def main_repo():
