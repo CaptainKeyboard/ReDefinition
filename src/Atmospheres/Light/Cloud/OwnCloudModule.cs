@@ -69,6 +69,7 @@ namespace ReDefinition.Atmospheres
         private readonly ReconSettings recon = new ReconSettings();
         private readonly HeightTuning heightTuning = new HeightTuning();
         private readonly WeatherMap coverageMap = new WeatherMap(), typeMap = new WeatherMap(), layerMap = new WeatherMap();
+        private readonly StackMapMirror stackMaps = new StackMapMirror();
         private LayerRenderer renderer;
         private LayerReconstructDriver driver;
         private LightCache lightCache;
@@ -581,13 +582,16 @@ namespace ReDefinition.Atmospheres
             int l = step - 2;
             GeneratorField gf = GeneratorModule.Current;
             byte[] cover = coverageMap.Bytes;
+            WeatherMap coverSource = coverageMap;
             if (gf != null && gf.GetLayerCoverage(b.flightGlobalsIndex, ut, CloudBridgeStack.MidHeightM(stack.LayerAt(l)), layerMap)
                 && layerMap.Width == MapWidth && layerMap.Height == MapHeight)
             {
                 layerMap.PackBytes(0f, 1f);
                 cover = layerMap.Bytes;
+                coverSource = layerMap;
             }
             renderer.Maps.SetTargetBytes(l, cover, typeMap.Bytes);
+            stackMaps.Set(stack, l, coverSource, typeMap);
             if (l + 1 < stack.LayerCount) return;
             fetchStep = -1;
             stepMaps = true;

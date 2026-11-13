@@ -49,11 +49,16 @@ namespace ReDefinition.Atmospheres
             internal double SkyDeckShare, GroundDeckShare, SkyClosedShare, GroundClosedShare;
         }
 
-        // CLOSED, as far as a picture can say it (the target's alpha is not read): the largest change of a channel against the baseline pixel, for the region's deck samples;
-        // a deck sample is closed where that change is at least ClosedPlateau times the 90th percentile of the changes in the region, i.e. the pixel no longer shows the
-        // baseline behind the cloud but the cloud's own colour (the change of a closed deck is a plateau; at the edge of the cloud it is a ramp below it). A proxy: the
-        // plateau is the region's own, so a region that is thin everywhere reads its thickest part as closed. Needs at least ClosedMinChange of change.
-        internal const double ClosedPlateau = 0.9, ClosedMinChange = 0.02;
+        // CLOSED, as far as a picture can say it (the target's alpha is not read): a region sample is closed where the largest change of a channel against the baseline pixel is
+        // at least ClosedChange (display units, the product's stage), over ALL the region's samples. A cloud of opacity a over a background it differs from by d in some channel
+        // changes the pixel by a * d; the sky, the sea and a deck's colour differ by 0.25 or more in the channel that matters (blue sky 0.7 against a beige or white deck 0.45 to 0.6),
+        // so 0.15 reads a >= 0.6, which is a closed deck within the model's own ramp (CloudCoverModel: the share at optical depth 0.92 and at 4.6 differ by 0.03 or less).
+        // The one threshold was set from the arithmetic above and then looked at over the saved pictures of K-T2d start 48 (2026-11-13, the p1/c42/c35 frames of the four
+        // view/cover pairs against their baselines): on the ground-view sheet and the cumulus towers the share moves by 0.02 or less for any threshold from 0.10 to 0.20 (the
+        // plateau of a closed deck is far from both), on the thin sheets seen from above by 0.14 (0.88 to 0.74 at the low cover). It was not fitted to them.
+        // The old measure (deck samples at 0.9 of the region's 90th percentile of change) took the spread of a sheet's own brightness for its edge and read 0.25 for a sheet
+        // that the pictures show closed; the luminance rule of the deck missed a beige sheet over a sky of the same luminance.
+        internal const double ClosedChange = 0.15;
 
         internal static float ChannelChange(Color a, Color b)
         {
@@ -94,7 +99,7 @@ namespace ReDefinition.Atmospheres
             if (baseline == null) reading.Raw = raw;
             bool changes = compare && baseline.Raw != null && baseline.Raw.Length == raw.Length;
             var skyChange = new List<float>(); var groundChange = new List<float>();
-            int samples = 0, deckSamples = 0;
+            int samples = 0, deckSamples = 0, skyClosed = 0, groundClosed = 0;
             for (int y = 0; y < height; y++)
             {
                 double v = (y + 0.5) / height;
@@ -120,6 +125,13 @@ namespace ReDefinition.Atmospheres
                         reading.DeckMask[i] = inDeck;
                     }
                     else inDeck = false;
+                    if (changes)
+                    {
+                        // Closed by the colour change, over every sample of the region (a deck whose luminance equals the sky's is still closed).
+                        bool closed = ChannelChange(c, baseline.Raw[i]) >= ClosedChange;
+                        if (closed && v > horizonV + HorizonMargin) skyClosed++;
+                        else if (closed && v < horizonV - HorizonMargin) groundClosed++;
+                    }
                     if (inDeck)
                     {
                         deck.Add(c, l);
@@ -140,23 +152,10 @@ namespace ReDefinition.Atmospheres
             {
                 reading.SkyDeckShare = reading.Sky.Count == 0 ? 0.0 : skyChange.Count / (double)reading.Sky.Count;
                 reading.GroundDeckShare = reading.Ground.Count == 0 ? 0.0 : groundChange.Count / (double)reading.Ground.Count;
-                reading.SkyClosedShare = ClosedShare(skyChange, reading.Sky.Count);
-                reading.GroundClosedShare = ClosedShare(groundChange, reading.Ground.Count);
+                reading.SkyClosedShare = reading.Sky.Count == 0 ? 0.0 : skyClosed / (double)reading.Sky.Count;
+                reading.GroundClosedShare = reading.Ground.Count == 0 ? 0.0 : groundClosed / (double)reading.Ground.Count;
             }
             return reading;
-        }
-
-        // The closed samples (see ClosedPlateau) over the region's sample count; changes holds the deck samples' changes. The list is sorted in place.
-        internal static double ClosedShare(List<float> changes, int regionSamples)
-        {
-            if (changes.Count == 0 || regionSamples == 0) return 0.0;
-            double threshold = Math.Max(ClosedMinChange, ClosedPlateau * Percentile(changes, 0.90));
-            int closed = 0;
-            for (int i = 0; i < changes.Count; i++)
-            {
-                if (changes[i] >= threshold) closed++;
-            }
-            return closed / (double)regionSamples;
         }
 
         // --- Noise: two frames of one pose a frame apart -------------------------------------------------------------------------------------

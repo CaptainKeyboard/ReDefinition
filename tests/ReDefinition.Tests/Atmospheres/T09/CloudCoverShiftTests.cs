@@ -137,29 +137,44 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheClosedShareOfAPictureIsTheDeckSamplesAtThePlateauOfTheChange()
+        public void TheClosedShareOfAPictureIsTheSamplesWhoseColourChangedByTheThreshold()
         {
             const int w = 80, h = 60;
             var baseline = new Color[w * h];
             for (int i = 0; i < baseline.Length; i++) baseline[i] = new Color(0.2f, 0.4f, 0.9f, 1f);
-            // The sky above the horizon at v 0.4: the left half a closed grey deck, a quarter of it a thin veil (change 0.05), the rest clear.
+            // The sky above the horizon at v 0.4: the left half a closed beige deck of the sky's own luminance whose brightness varies by 15 percent across it (K-T2d start 48's
+            // ground-low sheet), a quarter of it a thin veil (change 0.05), the rest clear.
             var picture = (Color[])baseline.Clone();
             for (int y = 0; y < h; y++)
             {
                 for (int x = 0; x < w; x++)
                 {
-                    if (x < w / 2) picture[y * w + x] = new Color(0.6f, 0.6f, 0.6f, 1f);
+                    if (x < w / 2)
+                    {
+                        float k = 0.85f + 0.3f * x / (w / 2);
+                        picture[y * w + x] = new Color(0.5f * k, 0.4f * k, 0.3f * k, 1f);
+                    }
                     else if (x < 3 * w / 4) picture[y * w + x] = new Color(0.25f, 0.42f, 0.9f, 1f);
                 }
             }
             T09Readout.Reading off = T09Readout.Measure(baseline, w, h, 0.4, null);
             T09Readout.Reading r = T09Readout.Measure(picture, w, h, 0.4, off);
             Assert.AreEqual(0.5, r.SkyClosedShare, 0.03, "half of the sky is the closed deck; the veil is changed but not closed");
-            Assert.AreEqual(0.5, r.SkyDeckShare, 0.03, "the veil changes by less than the deck rule's 15 percent of the luminance");
+            Assert.IsTrue(r.SkyDeckShare < 0.4, "the luminance rule of the deck misses part of a beige sheet over a sky of the same luminance: " + r.SkyDeckShare);
             Assert.AreEqual(0.5, r.GroundClosedShare, 0.03, "the picture is the same below the horizon");
             T09Readout.Reading clear = T09Readout.Measure(baseline, w, h, 0.4, off);
             Assert.AreEqual(0.0, clear.SkyClosedShare, 1e-9, "no change, nothing closed");
-            Assert.AreEqual(0.0, T09Readout.ClosedShare(new List<float>(), 100));
+            // Opacity: a grey cloud over the blue sky changes the pixel by a times its distance; 0.9 is closed, 0.3 is not.
+            Color cloud = new Color(0.6f, 0.6f, 0.6f, 1f), sky = new Color(0.2f, 0.4f, 0.9f, 1f);
+            var thick = new Color[w * h];
+            var thin = new Color[w * h];
+            for (int i = 0; i < thick.Length; i++)
+            {
+                thick[i] = Color.Lerp(sky, cloud, 0.9f);
+                thin[i] = Color.Lerp(sky, cloud, 0.3f);
+            }
+            Assert.AreEqual(1.0, T09Readout.Measure(thick, w, h, 0.4, off).SkyClosedShare, 1e-9);
+            Assert.AreEqual(0.0, T09Readout.Measure(thin, w, h, 0.4, off).SkyClosedShare, 1e-9);
         }
     }
 }

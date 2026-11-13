@@ -402,6 +402,7 @@ namespace ReDefinition.Atmospheres
             float rainMapCover = float.NaN;
             if (own != null && own.Stack != null)
             {
+                int fullPairs = 0;
                 for (int l = 0; l < own.Stack.LayerCount; l++)
                 {
                     float layerCover, layerType;
@@ -409,12 +410,15 @@ namespace ReDefinition.Atmospheres
                     catch (Exception e) { Warn("layer_maps_fault", e.GetType().Name + " " + e.Message); break; }
                     Emit(head + "layer" + l + "_map_cover", layerCover);
                     Emit(head + "layer" + l + "_map_type", layerType);
+                    // K-T2d start 48 read 1.0 and 0.0 in every layer because the stack held no maps: a layer at exactly that pair is a stack without maps, not a full sky.
+                    if (layerCover >= 0.99999f && layerType == 0f) fullPairs++;
                     if (rainLayer < 0 && string.Equals(own.Stack.LayerAt(l).Group, CloudCoverShift.RainGroup, StringComparison.Ordinal))
                     {
                         rainLayer = l;
                         rainMapCover = layerCover;
                     }
                 }
+                if (fullPairs > 0 && fullPairs == own.Stack.LayerCount) Warn("layer_maps_constant", head + "every layer reads cover 1.0 and type 0.0: the stack holds no maps (StackMapMirror)");
             }
 
             // The output stage (CloudOutputStage), gain 1, in the same start: the units alone (sun unit pi, no gamma), the product's stage, and the product's stage at exposure 2.
@@ -441,7 +445,7 @@ namespace ReDefinition.Atmospheres
 
             // The coverage threshold of the rain deck, measured as a switchable variant (the owner has not decided between the file's 0.5 and about 0.42): the product's stage at gain 1
             // with cloud.coverageShift 0 (p1, above), -0.08 (coverage 0.42) and -0.15 (0.35). Readouts per frame: sky_closed_share / ground_closed_share (the proxy of
-            // T09Readout.ClosedShare), sky_deck_share / ground_deck_share, deck_fraction, the deck median and the picture; beside them the model's closed share at the pass's own map
+            // the share of samples changed by T09Readout.ClosedChange), sky_deck_share / ground_deck_share, deck_fraction, the deck median and the picture; beside them the model's closed share at the pass's own map
             // value (model_closed, CloudCoverModel.RainStratusClosed), written before the frame is read.
             EmitCoverModel(head, view, rainMapCover);
             foreach (ShiftVariant variant in ShiftVariants)
@@ -579,7 +583,7 @@ namespace ReDefinition.Atmospheres
             Emit(p + "deck_fraction", r.DeckFraction);
             EmitStat(p + "deck_", r.Deck);
             if (off == null) return;
-            // The share of each region that the deck changed, and the share that counts as closed (a proxy from the picture: T09Readout.ClosedShare; no alpha is read).
+            // The share of each region that the deck changed, and the share that counts as closed (a proxy from the picture: the share of the region's samples whose colour changed by T09Readout.ClosedChange or more; no alpha is read).
             Emit(p + "sky_deck_share", r.SkyDeckShare);
             Emit(p + "ground_deck_share", r.GroundDeckShare);
             Emit(p + "sky_closed_share", r.SkyClosedShare);
