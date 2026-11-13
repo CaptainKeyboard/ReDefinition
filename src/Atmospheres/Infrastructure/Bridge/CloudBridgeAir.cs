@@ -6,9 +6,9 @@ namespace ReDefinition.Atmospheres
     // The air between the camera and the clouds of a body, from the body's own atmosphere data (package T09, aerial perspective, first
     // version "own extinction and in-scatter"): the extinction coefficients and scale heights the far view's haze (FarViewSettings) takes,
     // and the colour of the in-scattered light, which follows the sky: the sun's colour at the camera (reddened at sunset), the light the
-    // scene keeps at night, the moons' light. Scatterer's own cloud shader is never the renderer, and its sky data is not read (the
-    // second version, behind a ForeignAssumptions entry); where Scatterer draws the sky its sun colour already carries the air (see
-    // OwnCloudModule.SunColourIsReddened).
+    // scene keeps at night, the moons' light. Scatterer's own cloud shader is never the renderer; where Scatterer draws the sky its sun colour
+    // already carries the air (see OwnCloudModule.SunColourIsReddened) and its atmosphere node of the body supplies the coefficients (FromScatterer,
+    // read by ScattererAirReader), so that the pass's aerial perspective has the optical depth of the air Scatterer draws.
     //
     // The coefficients are the sea-level values of Earth's air (Hillaire, EGSR 2020, as FarViewSettings names them) scaled by the density of the
     // body's air against Earth's: Rayleigh and the aerosol share are both proportional to the number density of the gas, so a thinner or a
@@ -53,6 +53,30 @@ namespace ReDefinition.Atmospheres
             return a;
         }
 
+        // The air of a body from Scatterer's atmosphere node (E40 horizon fade): m_betaR is Rayleigh scattering per km (Rayleigh extinction equals it), BETA_MSca the
+        // Mie scattering per km and Scatterer divides it by 0.9 for the extinction (SkyNode: betaMEx = BETA_MSca / 0.9; Bruneton and Neyret's value), HR and HM the
+        // scale heights in km. The far view has one grey aerosol species, so the Mie extinction is the mean of the three channels. Ozone absorption (a thin layer
+        // at 20 km, a few percent of the optical depth of a slant path through the lower air) is not part of the model. Invalid for non-finite or non-positive values.
+        internal const float ScattererMieExtinctionDivisor = 0.9f;
+
+        internal static Air FromScatterer(Vector3 betaRPerKm, Vector3 betaMScaPerKm, float rayleighHeightKm, float mieHeightKm)
+        {
+            var a = new Air();
+            float mie = (betaMScaPerKm.x + betaMScaPerKm.y + betaMScaPerKm.z) / 3f;
+            if (!Positive(betaRPerKm.x) || !Positive(betaRPerKm.y) || !Positive(betaRPerKm.z) || !Positive(mie) || !Positive(rayleighHeightKm) || !Positive(mieHeightKm)) return a;
+            a.RayleighPerM = betaRPerKm / 1000f;
+            a.MiePerM = mie / ScattererMieExtinctionDivisor / 1000f;
+            a.RayleighHeightM = rayleighHeightKm * 1000f;
+            a.MieHeightM = mieHeightKm * 1000f;
+            a.Valid = true;
+            return a;
+        }
+
+        private static bool Positive(float v)
+        {
+            return v > 0f && !float.IsInfinity(v);
+        }
+
         // Writes the air into the far view's settings (the switches and the strength stay as the caller set them).
         internal static void Apply(FarViewSettings far, Air air)
         {
@@ -69,9 +93,15 @@ namespace ReDefinition.Atmospheres
         // night sky does not turn the haze black or let it keep the day's colour.
         internal static Color Inscatter(Color sun, Color moon, Color ambient, Vector3 rayleighPerM)
         {
+            return Inscatter(sun, moon, ambient, rayleighPerM, HorizonShare);
+        }
+
+        // The same with the horizon share as a number (cloud.hazeShare).
+        internal static Color Inscatter(Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share)
+        {
             float mean = (rayleighPerM.x + rayleighPerM.y + rayleighPerM.z) / 3f;
             float r = Tint(rayleighPerM.x, mean), g = Tint(rayleighPerM.y, mean), b = Tint(rayleighPerM.z, mean);
-            float lr = (sun.r + moon.r) * HorizonShare * r, lg = (sun.g + moon.g) * HorizonShare * g, lb = (sun.b + moon.b) * HorizonShare * b;
+            float lr = (sun.r + moon.r) * share * r, lg = (sun.g + moon.g) * share * g, lb = (sun.b + moon.b) * share * b;
             return new Color(Math.Max(lr, ambient.r), Math.Max(lg, ambient.g), Math.Max(lb, ambient.b), 1f);
         }
 

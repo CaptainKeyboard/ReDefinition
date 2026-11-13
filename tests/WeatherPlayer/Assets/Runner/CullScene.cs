@@ -227,9 +227,14 @@ namespace ReDefinition.WeatherPlayer
             rig.Recon.MarkCull = null;
             rig.Recon.MarkCullEnd = c => WeatherGpuTimer.Mark(c, tile);
             List<CullVariant> variants = CullVariant.Table();
+            // The optional restrictions of a short run (E40 horizon fade: the cost of the aerial perspective alone): -views, -variants and -sizes as comma lists (views by
+            // job id, variants by name, sizes by width); absent: everything.
+            string onlyViews = WeatherPass.Argument("-views"), onlyVariants = WeatherPass.Argument("-variants"), onlySizes = WeatherPass.Argument("-sizes");
+            if (onlyVariants != null) variants = variants.FindAll(v => Array.IndexOf(onlyVariants.Split(','), v.Name) >= 0);
             var sizes = new[] { new Vector2Int(1707, 960), new Vector2Int(2560, 1440) };
             foreach (Vector2Int size in sizes)
             {
+                if (onlySizes != null && Array.IndexOf(onlySizes.Split(','), size.x.ToString()) < 0) continue;
                 var rt = new RenderTexture(size.x, size.y, 24, RenderTextureFormat.DefaultHDR) { name = "T16 cost target" };
                 rt.Create();
                 Cam.targetTexture = rt;
@@ -237,6 +242,7 @@ namespace ReDefinition.WeatherPlayer
                 foreach (LayersJob job in file.jobs)
                 {
                     if (!CullKit.IsView(job.id)) continue;
+                    if (onlyViews != null && Array.IndexOf(onlyViews.Split(','), job.id) < 0) continue;
                     rig.Load(job, input);
                     LayerFrame frame = rig.Frame;
                     frame.UseSceneDepth = true;

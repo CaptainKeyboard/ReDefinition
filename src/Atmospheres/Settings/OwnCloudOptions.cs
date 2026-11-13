@@ -275,10 +275,11 @@ namespace ReDefinition.Atmospheres
         // (T09) supplies them from the body and the sky.
         internal static void Apply(FarViewSettings s, Func<string, double> v)
         {
-            s.Haze = On(v, AtmospheresSettings.Keys.CloudFarHaze);
-            // The look knobs (CloudLookTuning): cloud.farHaze forces the aerial perspective off / on (default -1: the setting decides), cloud.hazeStrength scales it (default 1).
-            float forceHaze = CloudLookTuning.FarHazeForce;
-            if (forceHaze >= 0f) s.Haze = forceHaze > 0f;
+            // The look knobs (CloudLookTuning): cloud.farHaze forces the aerial perspective off / on / automatic (default -1: the setting decides), cloud.hazeStrength scales it (default 1).
+            bool haze, auto;
+            CloudHazePlan.Resolve(CloudLookTuning.FarHazeForce, On(v, AtmospheresSettings.Keys.CloudFarHaze), out haze, out auto);
+            s.Haze = haze;
+            s.HazeAuto = auto;
             s.HazeStrength = CloudLookTuning.HazeStrengthScale;
             // T16: the detail LOD by distance takes the shape mean with it (the footprint only lifts the spacing the mean is chosen by).
             s.ShapeMean = On(v, AtmospheresSettings.Keys.CloudFarShapeMean) || On(v, AtmospheresSettings.Keys.CloudDetailLod);

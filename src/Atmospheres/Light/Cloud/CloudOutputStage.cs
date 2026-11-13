@@ -40,6 +40,14 @@ namespace ReDefinition.Atmospheres
             return w * (float)Math.Pow(u, 1.0 / gamma);
         }
 
+        // The radiance whose display value is p (the inverse of Encode): c = W / e (p / W) ^ gamma.
+        internal static float Decode(float p, float white, float exposure, float gamma)
+        {
+            if (gamma <= OffGamma) return p;
+            float w = Math.Max(white, 1e-4f);
+            return w / Math.Max(exposure, 1e-4f) * (float)Math.Pow(Math.Max(p, 0f) / w, gamma);
+        }
+
         // The same for a premultiplied colour channel with its alpha (the shader divides the coverage out and puts it back).
         internal static float EncodePremultiplied(float premultiplied, float alpha, float white, float exposure, float gamma)
         {

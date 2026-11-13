@@ -413,6 +413,194 @@ register_series("T06-far", stages(), collect, exclusive=False, who="T06")
 
 
 # --------------------------------------------------------------------------------------------------------------------------------
+# The aerial perspective with Scatterer's air (E40 horizon fade): the same shader and the same fog formula, with the coefficients of Scatterer's
+# Kerbin node (StockScattererConfigs/Planets/Kerbin/atmo.cfg: m_betaR 0.01534 / 0.03571 / 0.08755 per km, BETA_MSca 0.01214 per km and the
+# extinction BETA_MSca / 0.9, HR 3.84 km, HM 1 km) as a synthetic Scatterer-like extinction. The camera is the above view of K-T2d start 55
+# (8.3 km, the deck 100 to 400 m up, pitch 12 degrees down: the deck from its rim at the horizon, 9 degrees down and 90 km away, to the lower edge of the
+# picture), so the shader's mix is read at the distances where the game measured Scatterer's own air on the cloud (33 to 61 km).
+# --------------------------------------------------------------------------------------------------------------------------------
+INPUT_S = os.path.join(BUILD, "T06-scatterer-in")
+SC_RAYLEIGH = (0.0153407799e-3, 0.0357074998e-3, 0.0875488967e-3)
+SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
+SC_ALT, SC_PITCH, SC_SIZE = 8300.0, -12.0, (960, 540)
+
+
+def scatterer_far_block(haze):
+    return dict(haze=haze, shapeMean=0, inscatter=list(HORIZON), rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0)
+
+
+def scatterer_jobs(sites):
+    cam = camera_at(sites["above"], SC_ALT, SC_PITCH, LK.YAW_EAST, SC_SIZE[0], SC_SIZE[1], 60.0)
+    sun = L.sun_vector(cam.pos, 120.0, 45.0)
+    out = []
+    for jid, mode, haze in (("SC-warm", "lum", 0), ("SC-off", "lum", 0), ("SC-on", "lum", 1), ("SC-aux", "aux", 0), ("SC-off2", "lum", 0)):
+        layer = L.layer(100.0, 400.0, 0.02, [L.slab_type("slab", 0.0, 1.0, (1.0, 1.0), 0.0)], coverage=1.0, softness=0.3, name="fogdeck")
+        j = L.job(jid, mode, cam, [layer], SC_SIZE[0], SC_SIZE[1], sun=sun, **dict(PRODUCT, refineBudget=0.0))
+        j["maxSteps"] = 128
+        j["far"] = scatterer_far_block(haze)
+        out.append(j)
+    # The pictures (natural and aid, one name each: e40-fh-<variant>.png and e40-fh-<variant>-aid.png): the low deck seen from 8.3 km without the aerial perspective, with the
+    # pass's own air at the strength 1 (the setting before this package: Earth's coefficients) and with Scatterer's Kerbin air.
+    day = dict(LK.DAY)
+    day["skyHorizon"] = list(HORIZON)
+    day["skyZenith"] = [0.26, 0.42, 0.75]
+    pic_cam = camera_at(sites["above"], SC_ALT, SC_PITCH, LK.YAW_EAST, SIZE[0], SIZE[1], 60.0)
+    pic_sun = L.sun_vector(pic_cam.pos, 120.0, 45.0)
+    for name, block in (("off", dict(haze=0)), ("own", dict(haze=1)), ("sc", scatterer_far_block(1))):
+        j = L.job("e40-fh-%s" % name, "color", pic_cam, [LK.deck_layer("above.r8", 0.85, 100.0, 700.0)], SIZE[0], SIZE[1], sun=pic_sun, mapWidth=LK.MAP_W,
+                  mapHeight=LK.MAP_H, **PRODUCT)
+        j["maxSteps"] = 64
+        j.update(day)
+        j["far"] = dict(block, shapeMean=0, inscatter=list(HORIZON))
+        out.append(j)
+    return out
+
+
+def write_scatterer_inputs():
+    sites, cu, deck, above = LK.site_positions()
+    LK.INPUT = INPUT_S
+    os.makedirs(INPUT_S, exist_ok=True)
+    LK.write_maps(cu, deck, above)
+    with open(os.path.join(INPUT_S, "jobs.json"), "w", encoding="utf-8") as f:
+        json.dump({"jobs": scatterer_jobs(sites)}, f)
+
+
+def fine_tau(o, d, t, rayleigh, mie, hr, hm, steps=4000):
+    """The optical depth per channel along o + s d, s in [0, t], by a midpoint sum of `steps` pieces per ray: the reference of the shader's six pieces."""
+    tau = np.zeros((len(t), 3))
+    sr = np.zeros(len(t))
+    sm = np.zeros(len(t))
+    ds = t / steps
+    for k in range(steps):
+        s = (k + 0.5) * ds
+        h = np.maximum(np.linalg.norm(o[None, :] + d * s[:, None], axis=1) - R, 0.0)
+        sr += np.exp(-h / hr) * ds
+        sm += np.exp(-h / hm) * ds
+    return np.array(rayleigh)[None, :] * sr[:, None] + mie * sm[:, None]
+
+
+def collect_scatterer(ctx):
+    folder = ctx.folder("scene")
+    out = list(core.player_judged("scene")(ctx))
+    if not os.path.isfile(os.path.join(folder, "SC-aux-alpha.npy")):
+        out.append(Metric.flag("written", False))
+        return out
+    sites = LK.site_positions()[0]
+    cam = camera_at(sites["above"], SC_ALT, SC_PITCH, LK.YAW_EAST, SC_SIZE[0], SC_SIZE[1], 60.0)
+    d = cam.ray_directions()
+    first = plane(folder, "SC-aux", "first").reshape(-1)
+    alpha = plane(folder, "SC-aux", "alpha").reshape(-1)
+    off = [plane(folder, "SC-off", c).reshape(-1) for c in "rgba"]
+    on = [plane(folder, "SC-on", c).reshape(-1) for c in "rgba"]
+    mask = (alpha > 0.98) & (first > 0)
+    # the shader takes the weighted mean distance of the cloud on the ray: the first hit plus about half a step
+    t = first + 100.0
+    ray = np.array(SC_RAYLEIGH)
+
+    def six_tau():
+        top = R + 7.0 * max(SC_HR, SC_HM)
+        b = d @ cam.pos
+        c = (np.linalg.norm(cam.pos) - top) * (np.linalg.norm(cam.pos) + top)
+        disc = b * b - c
+        s = np.sqrt(np.where(disc > 0, disc, 0.0))
+        s0 = np.maximum(0.0, -b - s)
+        s1 = np.minimum(np.where(mask, t, 1.0), -b + s)
+        seg = np.where(s1 > s0, (s1 - s0) / 6.0, 0.0)
+        alt = lambda sv: np.linalg.norm(cam.pos[None, :] + d * sv[:, None], axis=1) - R
+        prev = alt(s0)
+        sum_r = np.zeros_like(t)
+        sum_m = np.zeros_like(t)
+        for k in range(6):
+            nxt = alt(s0 + seg * (k + 1))
+            sum_r += chord(prev, nxt, seg, SC_HR)
+            sum_m += chord(prev, nxt, seg, SC_HM)
+            prev = nxt
+        return ray[None, :] * sum_r[:, None] + SC_MIE * sum_m[:, None]
+
+    tau6 = six_tau()
+    idx = np.where(mask)[0]
+    fine = fine_tau(cam.pos, d[idx], t[idx], SC_RAYLEIGH, SC_MIE, SC_HR, SC_HM)
+    rel = np.abs(tau6[idx] - fine) / np.maximum(fine, 1e-9)
+    out.append(Metric.at_most("haze.scatterer.tau_piece_error", float(np.percentile(rel, 99)), 0.01).based("gate"))
+    trans = np.exp(-tau6)
+    errs = []
+    for c in range(3):
+        expected = off[c] * trans[:, c] + off[3] * np.array(HORIZON)[c] * (1.0 - trans[:, c])
+        errs.append(np.abs(on[c] - expected)[mask] / np.maximum(expected[mask], 1e-3))
+    err = np.concatenate(errs)
+    # The first render of a player run differs from the later ones in the deck's light (mean 0.04 brighter, 0.10 per pixel, all three channels: the first run of this series
+    # had its SC-off first and read 0.307 for the row above): SC-warm is rendered first and not read, and SC-off2 repeats SC-off as the floor of the comparison.
+    off2 = [plane(folder, "SC-off2", c).reshape(-1) for c in "rgb"]
+    out.append(Metric.at_most("haze.scatterer.repeat_diff", float(max(np.abs(off2[c] - off[c])[mask].max() for c in range(3))), 1e-3).based("new"))
+    out.append(Metric.at_most("haze.scatterer.model_error", float(np.percentile(err, 99)), 0.03).based("gate"))
+    out.append(Metric.info("haze.scatterer.model_error_mean", float(err.mean())))
+    out.append(Metric.at_most("haze.scatterer.alpha_change", float(np.abs(on[3] - off[3]).max()), 1e-5).based("gate"))
+    # the transmittance at the distances of the game's bands (33 to 61 km): the design note's computed values, read from the fine integral
+    for km in (33, 37, 42, 49, 61):
+        near = mask & (np.abs(t - km * 1000.0) < 1500.0)
+        if near.any():
+            out.append(Metric.info("haze.scatterer.transmittance_%dkm_r" % km, float(np.exp(-fine_tau(cam.pos, d[near][:1], t[near][:1], SC_RAYLEIGH, SC_MIE, SC_HR, SC_HM)[0, 0]))))
+            out.append(Metric.info("haze.scatterer.transmittance_%dkm_b" % km, float(np.exp(-fine_tau(cam.pos, d[near][:1], t[near][:1], SC_RAYLEIGH, SC_MIE, SC_HR, SC_HM)[0, 2]))))
+    out.append(Metric.info("haze.scatterer.distance_min_km", float(t[mask].min() / 1000.0)))
+    out.append(Metric.info("haze.scatterer.distance_max_km", float(t[mask].max() / 1000.0)))
+    out.append(Metric.flag("haze.scatterer.samples", int(mask.sum()) > 5000))
+    out.append(Metric.flag("haze.scatterer.pictures", all(os.path.isfile(os.path.join(folder, "e40-fh-%s%s.png" % (v, s))) for v in ("off", "own", "sc") for s in ("", "-aid"))))
+    return out
+
+
+def scatterer_stages():
+    jobs_file = os.path.join(INPUT_S, "jobs.json")
+    if not os.path.isfile(jobs_file) or os.path.getmtime(jobs_file) < os.path.getmtime(os.path.abspath(__file__)):
+        write_scatterer_inputs()
+    return [Stage("scene", ["-mode", "scene", "-scene", "layers", "-in", INPUT_S], size=(1280, 720), proxy=False, timeout=900)]
+
+
+register_series("T06-scatterer", scatterer_stages(), collect_scatterer, exclusive=False, who="T06")
+
+
+# The cost of the aerial perspective (the K-T2 method in the player: the pass's GPU milliseconds by the timestamp queries, median of 40 frames, the variant
+# 'haze' against 'off', both passes of the table): the scene 'cull-cost' of T16 restricted to the variants off and haze, the views of the above and the horizon
+# and the ground, at 1707 x 960. The shader evaluates the six-piece integral once per ray after the march, so the expected cost is a few hundredths of a ms.
+COST_VIEWS = ("V-ground", "V-above", "V-horizon")
+COST_LIMIT_MS = 0.15
+
+
+def collect_scatterer_cost(ctx):
+    out = list(core.player_judged("scene")(ctx))
+    values = {name: v[0] for name, v in ctx.player_metrics("scene").items()}
+    worst = None
+    for view in COST_VIEWS:
+        diffs = []
+        for tag in ("cullcost", "cullcostb"):
+            off = values.get("%s.total.%s.off.1707x960" % (tag, view))
+            on = values.get("%s.total.%s.haze.1707x960" % (tag, view))
+            if off is not None and on is not None:
+                diffs.append(on - off)
+                out.append(Metric.info("haze.cost.%s.%s.off_ms" % (view, tag), off))
+                out.append(Metric.info("haze.cost.%s.%s.haze_ms" % (view, tag), on))
+        if diffs:
+            mean = sum(diffs) / len(diffs)
+            out.append(Metric.info("haze.cost.%s.delta_ms" % view, mean))
+            worst = mean if worst is None else max(worst, mean)
+    out.append(Metric.flag("haze.cost.measured", worst is not None))
+    if worst is not None:
+        out.append(Metric.at_most("haze.cost.delta_ms_max", worst, COST_LIMIT_MS).based("new"))
+    return out
+
+
+def scatterer_cost_stages():
+    from weather_metrics import cull
+    jobs = os.path.join(cull.INPUT, "jobs.json")
+    if not os.path.isfile(jobs) or os.path.getmtime(jobs) < os.path.getmtime(os.path.abspath(cull.__file__)):
+        cull.write_inputs()
+    return [Stage("scene", ["-mode", "scene", "-scene", "cull-cost", "-in", cull.INPUT, "-views", ",".join(COST_VIEWS), "-variants", "off,haze", "-sizes", "1707"],
+                  size=(1707, 960), proxy=True, timeout=900)]
+
+
+register_series("T06-scatterer-cost", scatterer_cost_stages(), collect_scatterer_cost, exclusive=True, who="T06")
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
 # The stability of the history (DLSS and frame generation): the temporal reconstruction of package T05 on the far view
 # --------------------------------------------------------------------------------------------------------------------------------
 INPUT_T = os.path.join(BUILD, "T06-temporal-in")

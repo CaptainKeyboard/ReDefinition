@@ -30,6 +30,8 @@ namespace ReDefinition.Atmospheres
     //  - draw order: after the lit opaque scene and before the transparents (CameraEvent.BeforeForwardAlpha, tuning cloud.cameraEvent). Where Scatterer's
     //    screen-space scattering stands behind the pass at that event, the pass's buffers are moved behind it before the camera renders (OnPreRender,
     //    cloud.afterScatterer, default on): the scattering writes the air of the path to the scene's depth and would give a cloud the haze of the sea behind it.
+    //    Behind the scattering Scatterer's air no longer reaches the cloud; the pass's aerial perspective (T06, cloud.farHaze 2, CloudHazePlan) replaces it with the
+    //    coefficients of Scatterer's atmosphere node of the body (ScattererAirReader), the same optical depth along the cloud's mean distance.
     //  - exposure: the pass is given pi times the scene's sun colour (it is radiometric, Unity's legacy lights have no 1/pi; cloud.sunUnit) and its radiance
     //    is encoded relative to the sun's display value at the final composite (CloudOutputStage: cloud.exposure, cloud.outputGamma 2.2), so the clouds
     //    sit in the display units of the Gamma-space target that holds the sky and the sea; TUFX and the auto exposure then tone-map all of it together.
@@ -155,6 +157,7 @@ namespace ReDefinition.Atmospheres
         private double lastUt = double.NaN;
         private CloudBridgeAir.Air air;
         private int airBody = -1;
+        private bool airFromScatterer;
 
         // The layer stack that stands (null while the pass is off): the CPU consumers read it.
         internal ICloudLayerSource Stack { get { return stack; } }
@@ -925,16 +928,35 @@ namespace ReDefinition.Atmospheres
             else f.Light.BoltCount = 0;
 
             // The far view: the body's own air, the in-scatter that follows the sky, the march policy by altitude.
-            if (airBody != b.flightGlobalsIndex)
+            // The air is Scatterer's atmosphere node of the body where Scatterer is loaded and the node reads (cloud.airSource), the body's own data otherwise.
+            bool useScattererAir = CloudHazePlan.UseScattererAir(CloudHazePlan.SourceFrom(Tuning.Get(CloudHazePlan.TuneAirSource, -1f)), scattererLoaded);
+            if (airBody != b.flightGlobalsIndex || airFromScatterer != useScattererAir)
             {
                 airBody = b.flightGlobalsIndex;
-                double h1 = Math.Max(1000.0, b.atmosphereDepth * 0.1);
-                air = CloudBridgeAir.From(b.atmospherePressureSeaLevel * 1000.0, b.atmosphereTemperatureSeaLevel, b.atmosphereMolarMass, b.GetPressure(h1) * 1000.0, h1);
-                AtmospheresLog.Say("own clouds: air of " + b.name + ": " + (air.Valid ? "Rayleigh " + air.RayleighPerM.x.ToString("0.0e+0") + " / " + air.RayleighPerM.z.ToString("0.0e+0")
+                airFromScatterer = useScattererAir;
+                string origin = "";
+                air = new CloudBridgeAir.Air();
+                if (useScattererAir)
+                {
+                    string why;
+                    air = ScattererAirReader.Read(b.name, out why);
+                    origin = air.Valid ? " (Scatterer's node)" : " (Scatterer's node not used: " + why + ")";
+                }
+                if (!air.Valid)
+                {
+                    double h1 = Math.Max(1000.0, b.atmosphereDepth * 0.1);
+                    air = CloudBridgeAir.From(b.atmospherePressureSeaLevel * 1000.0, b.atmosphereTemperatureSeaLevel, b.atmosphereMolarMass, b.GetPressure(h1) * 1000.0, h1);
+                }
+                AtmospheresLog.Say("own clouds: air of " + b.name + origin + ": " + (air.Valid ? "Rayleigh " + air.RayleighPerM.x.ToString("0.0e+0") + " / " + air.RayleighPerM.z.ToString("0.0e+0")
                                    + " per m, scale height " + air.RayleighHeightM.ToString("0") + " m" : "no usable data, the defaults of Earth's air stay"));
             }
             CloudBridgeAir.Apply(f.Far, air);
-            f.Far.Inscatter = CloudBridgeAir.Inscatter(sunColour, moon, ambientTop, f.Far.RayleighPerM);
+            // The aerial perspective behind Scatterer's scattering (cloud.farHaze 2, or AutoByDefault): on while the pass's buffers stand behind it.
+            f.Far.Haze = CloudHazePlan.Active(f.Far.Haze, f.Far.HazeAuto, moveBehindScattering);
+            Color hazeDisplay = new Color(Tuning.Get(CloudHazePlan.TuneR, CloudHazePlan.DefaultDisplayColour.r), Tuning.Get(CloudHazePlan.TuneG, CloudHazePlan.DefaultDisplayColour.g),
+                                          Tuning.Get(CloudHazePlan.TuneB, CloudHazePlan.DefaultDisplayColour.b), 1f);
+            f.Far.Inscatter = CloudHazePlan.Inscatter((int)Tuning.Get(CloudHazePlan.TuneColour, 0f), sunColour, moon, ambientTop, f.Far.RayleighPerM,
+                                                      Tuning.Get(CloudHazePlan.TuneShare, CloudBridgeAir.HorizonShare), hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma);
             double altitude = ((Vector3d)camPos - b.position).magnitude - b.Radius;
             f.Far.ApplyTo(f, altitude, b.Radius);
 

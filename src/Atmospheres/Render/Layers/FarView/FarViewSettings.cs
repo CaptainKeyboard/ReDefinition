@@ -17,6 +17,8 @@ namespace ReDefinition.Atmospheres
         // Aerial perspective on or off, and a strength factor on the optical depth of the air (1: the model's coefficients).
         public bool Haze;
         public float HazeStrength = 1f;
+        // Asks for the aerial perspective where the cloud pass runs behind Scatterer's scattering (CloudHazePlan; the integration turns Haze on in that frame). Not uploaded.
+        public bool HazeAuto;
         // Rayleigh extinction per m at sea level (red, green, blue), aerosol extinction per m (grey), and the two scale heights in m.
         public Vector3 RayleighPerM = new Vector3(5.802e-6f, 13.558e-6f, 33.1e-6f);
         public float MiePerM = 4.44e-6f, RayleighHeightM = 8000f, MieHeightM = 1200f;

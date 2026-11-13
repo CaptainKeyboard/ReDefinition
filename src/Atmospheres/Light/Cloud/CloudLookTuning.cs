@@ -29,7 +29,7 @@ namespace ReDefinition.Atmospheres
     //   cloud.sunTint                     0 to 1: how far the sun colour of the pass is pulled to grey of the same luminance (0: the scene's colour)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
     //   cloud.fadeNearShare               share of cloud.fadeFarM where the fade starts (0.5)
-    //   cloud.farHaze                     -1: the cloudFarHaze setting decides, 0 / 1 forces the aerial perspective off / on
+    //   cloud.farHaze                     -1: the cloudFarHaze setting decides, 0 / 1 forces the aerial perspective off / on, 2 automatic (on where the pass is behind Scatterer's scattering; CloudHazePlan)
     //   cloud.hazeStrength                factor on the aerial perspective's strength (1)
     internal static class CloudLookTuning
     {
@@ -88,7 +88,7 @@ namespace ReDefinition.Atmospheres
             float r = Unit(Tuning.Get(TuneDensityRemap, 0f)), c = Unit(Tuning.Get(TuneCoverCombine, 0f)), t = Unit(Tuning.Get(TuneSunTint, 0f));
             float f = Clean(Tuning.Get(TuneFadeFar, 0f), 0f, 0f, 1e7f), n = Clean(Tuning.Get(TuneFadeNearShare, 0.5f), 0.5f, 0f, 1f);
             float h = Tuning.Get(TuneFarHaze, -1f);
-            h = float.IsNaN(h) || float.IsInfinity(h) ? -1f : h < 0f ? -1f : h > 0f ? 1f : 0f;
+            h = float.IsNaN(h) || float.IsInfinity(h) ? -1f : h < 0f ? -1f : h > 1.5f ? 2f : h > 0f ? 1f : 0f;
             float hs = Clean(Tuning.Get(TuneHazeStrength, 1f), 1f, 0f, 100f);
             bool changed = s != sigma || e != softness || a != noiseAmount || z != noiseSize || r != remap || c != combine || t != tint || f != fadeFar || n != fadeNearShare
                            || h != farHaze || hs != hazeStrength;
