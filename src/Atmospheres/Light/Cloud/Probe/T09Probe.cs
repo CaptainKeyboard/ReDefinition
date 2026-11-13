@@ -78,7 +78,7 @@ namespace ReDefinition.Atmospheres
 
         protected override string SeriesName
         {
-            get { return IsDiag ? DiagSeries : Series; }
+            get { return IsDiag ? DiagSeries : IsK3 ? K3Series : Series; }
         }
 
         protected override double MaxSeconds
@@ -88,14 +88,14 @@ namespace ReDefinition.Atmospheres
 
         protected override IList<string> DefaultVariants
         {
-            get { return IsDiag ? new[] { "plain" } : new[] { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "entry", "gain" }; }
+            get { return IsDiag ? new[] { "plain" } : IsK3 ? K3Variants.AllIds : new[] { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "entry", "gain" }; }
         }
 
         // --- Variants ---------------------------------------------------------------------------------------------------------------------
 
         private static bool IsOwn(string variant)
         {
-            return variant != "tvc" && variant != "off";
+            return variant != "tvc" && !IsOffVariant(variant);
         }
 
         // The variants that are measured in the "inside" view only.
@@ -154,6 +154,11 @@ namespace ReDefinition.Atmospheres
 
         protected override void ApplyVariant(string name)
         {
+            if (IsK3)
+            {
+                K3Apply(name);
+                return;
+            }
             switch (name)
             {
                 case "tvc":
@@ -221,7 +226,7 @@ namespace ReDefinition.Atmospheres
         {
             string described = CloudGates.Describe(AtmospheresSettings.Number);
             AtmospheresLog.Say("T09 gates (" + variant + "): " + described);
-            if (variant == "off") return;
+            if (IsOffVariant(variant)) return;
             if (variant == "tvc")
             {
                 Check("EVE's painter gate is open (tvc)", CloudGates.EvePainterOn(AtmospheresSettings.Number), described);
@@ -251,6 +256,7 @@ namespace ReDefinition.Atmospheres
         protected override void RevertVariant(string name)
         {
             ClearForced();
+            if (IsK3) K3Storm(false);
             try { Game.AidOff(); } catch (Exception) { /* the aid view is a picture aid; the game may be gone */ }
             // The noise read draws no layer for a few frames (T09ProbeNoise.cs); a scenario that ends inside it leaves the mask open.
             if (!IsDiag)
@@ -280,7 +286,7 @@ namespace ReDefinition.Atmospheres
 
         protected override IEnumerator<ProbeWait> Scenario()
         {
-            return IsDiag ? DiagScenario() : StandardScenario();
+            return IsDiag ? DiagScenario() : IsK3 ? K3Scenario() : StandardScenario();
         }
 
         // False after a Prelude that ended the scenario (no atmosphere, a window of another size): the scenario returns without more.
@@ -466,7 +472,7 @@ namespace ReDefinition.Atmospheres
         {
             OwnCloudModule own = OwnCloudModule.Current;
             int w, h;
-            if (own != null && variant != "off" && variant != "tvc" && own.Stats.RenderWidth > 0) { w = own.Stats.RenderWidth; h = own.Stats.RenderHeight; }
+            if (own != null && !IsOffVariant(variant) && variant != "tvc" && own.Stats.RenderWidth > 0) { w = own.Stats.RenderWidth; h = own.Stats.RenderHeight; }
             else
             {
                 if (!Game.CameraPixelSize(out w, out h)) { Check("the render size is known in the " + view.Name + " view (" + variant + ")", false, "no flight camera"); return; }
@@ -517,7 +523,7 @@ namespace ReDefinition.Atmospheres
             int drawn = own != null ? own.Stats.FramesDrawn - drawnBefore : 0;
             Emit(prefix + "frames_drawn", drawn);
             EmitText(prefix + "mode", own != null ? own.Stats.Mode : "none");
-            if (variant == "off")
+            if (IsOffVariant(variant))
             {
                 Check("the own pass stood off in the " + view.Name + " view (off)", drawn == 0, drawn + " frames drawn");
                 yield break;
@@ -529,9 +535,20 @@ namespace ReDefinition.Atmospheres
             Check("the own pass drew in the " + view.Name + " view (" + variant + ")", drawn >= 60 && ratio >= 0.95, drawn + " of " + frames + " frames, why: " + why);
             bool cacheOn = own != null && own.Stats.LightCacheOn;
             Emit(prefix + "light_cache_on", cacheOn);
-            Check("the light cache is " + (variant == "cache" ? "filled" : "off") + " in the " + view.Name + " view (" + variant + ")", cacheOn == (variant == "cache"), "cache on: " + cacheOn);
             string mode = own != null ? own.Stats.Mode : "none";
-            Check("the pass ran as " + ExpectedMode(variant) + " in the " + view.Name + " view (" + variant + ")", mode == ExpectedMode(variant), mode);
+            if (IsK3)
+            {
+                // K-T3 states what the pass did as numbers (the evaluator judges them); a mode other than the table's is a finding, not a failed start.
+                K3Variant k3;
+                K3Variants.TryGet(variant, out k3);
+                Emit(prefix + "k3_mode_ok", k3 != null && mode == k3.Mode);
+                Emit(prefix + "k3_cache_ok", k3 != null && cacheOn == k3.Cache);
+            }
+            else
+            {
+                Check("the light cache is " + (variant == "cache" ? "filled" : "off") + " in the " + view.Name + " view (" + variant + ")", cacheOn == (variant == "cache"), "cache on: " + cacheOn);
+                Check("the pass ran as " + ExpectedMode(variant) + " in the " + view.Name + " view (" + variant + ")", mode == ExpectedMode(variant), mode);
+            }
             double altitude = Math.Min(20000.0, view.AglM);
             WeatherSample s;
             if (WeatherHub.Sample(Game.BodyIndex, lat, lon, altitude, Game.UniversalTime, out s)) Emit(prefix + "cover_at_view_height", s.CloudCover01);
@@ -563,7 +580,7 @@ namespace ReDefinition.Atmospheres
             double distanceTolerance = Math.Max(DistanceToleranceMinM, DistanceToleranceFraction * view.CameraDistM);
             if (p.CameraToVesselM > 0.0 && Math.Abs(p.CameraToVesselM - view.CameraDistM) > distanceTolerance)
                 problems.Add("camera " + p.CameraToVesselM.ToString("0") + " m from the vessel against " + view.CameraDistM.ToString("0"));
-            if (p.DriftM > (IsDiag ? DiagDriftToleranceM : DriftToleranceM)) problems.Add("the vessel is " + p.DriftM.ToString("0") + " m from the point it is held at");
+            if (p.DriftM > (IsDiag || IsK3 ? DiagDriftToleranceM : DriftToleranceM)) problems.Add("the vessel is " + p.DriftM.ToString("0") + " m from the point it is held at");
             return problems.Count == 0 ? null : string.Join(", ", problems.ToArray());
         }
 
@@ -884,7 +901,7 @@ namespace ReDefinition.Atmospheres
             }
             if (placeOk) yield break;
             // K-T2 is a timing series: a view that cannot be placed fails it. K-T2d is a diagnosis: the frames are read where the vessel stands, flagged, and the start goes on.
-            if (IsDiag) Warn("pose_placed_" + view.Name, detail + " (the readouts of this view are flagged pose_ok 0 and taken anyway)");
+            if (IsDiag || IsK3) Warn("pose_placed_" + view.Name, detail + " (the readouts of this view are flagged pose_ok 0 and taken anyway)");
             else Check("T09.pose_placed_" + view.Name + "_" + CurrentVariant, false, detail);
         }
 

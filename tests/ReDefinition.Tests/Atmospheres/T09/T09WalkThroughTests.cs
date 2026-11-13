@@ -93,7 +93,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             r.World.Frames = frameBase;
             frameBase += 100000;
             // K-T2 picks the sun in the narrow band 30 to 55 degrees: this sky stands at 45 degrees at the hour of the day the cover tests expect (the default's 56 would be outside it).
-            if (series == "K-T2") r.World.Sun = ut => 52.0 * Math.Sin(2.0 * Math.PI * ut / 21600.0);
+            if (series == "K-T2" || series == "K-T3") r.World.Sun = ut => 52.0 * Math.Sin(2.0 * Math.PI * ut / 21600.0);
             r.Field = new FakeField { RealNow = () => r.World.RealS, Cover = CoverByHour };
             r.Field.ReadyAtS = 0;
             // The hub holds the NullField until the generator's gate (GeneratorModule.Tick: CloudGates.GeneratorInstalled) installs the field; Drive runs the gate.

@@ -640,9 +640,11 @@ namespace ReDefinition.Atmospheres
             {
                 try
                 {
-                    picturesBytes += Game.SavePicture(name, image, 2);
+                    long saved = Game.SavePicture(name, image, 2);
+                    picturesBytes += saved;
                     picturesSaved++;
                     pictureFaults = 0;
+                    LogLine("Probe: picture " + name + ".png (" + image.Width + "x" + image.Height + " read, half size written, " + saved + " bytes)");
                 }
                 catch (Exception e)
                 {
@@ -669,7 +671,7 @@ namespace ReDefinition.Atmospheres
             // The ground view looks up at a sky layer; the other views (inside, deck, above, sky3... ) look down on the deck, so their tau is read over the sea or ground region.
             if (aid && aidMode == 1) EmitAidTau(p, reading, image.Raw, baseline, view.Name != "ground" && view.Name != "sky3");
             else if (aid) EmitAid(p, reading);
-            else EmitReading(p, what, reading, baseline, gainTag == "off", poseOk);
+            else EmitReading(p, what, reading, baseline, IsOffVariant(gainTag), poseOk);
             diagReading = reading;
         }
 

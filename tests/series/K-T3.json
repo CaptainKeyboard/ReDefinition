@@ -1,0 +1,131 @@
+{
+  "$schema": "schema.json",
+  "name": "K-T3",
+  "owner": "T09",
+  "description": "The switch rows of everything built so far that no game start has measured (owner rule 'test everything you build', few starts, a table of numbers, each start 20 minutes at most, Medium, A4500). Five starts, 125 windows. Each variant is a set of settings and Tuning keys the probe puts on at runtime (src/Atmospheres/Light/Cloud/Probe/T09ProbeK3.Table.cs), so one start holds up to 26 of them; the probe puts the start's values back before each variant. Per variant: a K-T2 window of 22 s (the GPU profiler's reports inside it; cost = GPU-busy time minus the busy time of the view's 'off' window, labels = the pass's marker segments), then the numeric frame (rows T09d.<view>.k3.<id>.*, against the frame of the view's off window) and the aid frame (optical depth), both saved as pictures named t09-<start>-<view>_k3-<id>-<WxH>-natural-half and -aid-direct-half (sky3: the K-T2 pictures t09-<start>-sky3-<id>-<WxH>-natural / -aid-opticaldepth). The same pins as K-T2 (raytracing Off, frame generation off, quality NativeAA, window size, no frame cap, EVE and Trajectories removed, weatherEffects/genEnabled/enabled on, the log guard). One universal time per start, picked as K-T2 picks it (cover nearest 0.65, at least 0.5, sun 30 to 55 degrees up). Views: ground (200 m, 18 degrees up), above (8300 m, 25 degrees down), horizon (200 m, 2 degrees up), sky3 (200 m, 38 degrees up), r = the ground view in forced rain. Every block opens with its off window (cloudSource None). tools/weather_metrics/kt3.py reads the log: per id K3.<start>.<id>.cost_ms / labels_ms / delta_ms (variant minus reference, the reference is plain of the view unless EXPECT names another) / d_picture / d_ground, and per start windows, cost_missing, cost_misses, effect_misses, pictures_missing; the rows below judge the counts. EXPECTED RESULTS, written before the run, in kt3.py EXPECT (one line per id, with the band of delta_ms and the effect on the picture) and summarised in each start. Noise of the cost: the GPU-busy delta has about 0.5 ms (every K-T2 view is CPU-bound), the labels delta about 0.1 ms. A miss is a finding about the switch, not a fault of the script. Not in a start and why: .local/plans/atmospheres/K-T3-inventory.md.",
+  "profile": "Medium",
+  "configuration": "Release",
+  "exclusive": true,
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 5,
+  "bundle": true,
+  "settings": [
+    { "file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": { "raytracing": "Off", "frameGeneration": false, "qualityAuto": false, "quality": "NativeAA" } },
+    { "file": "settings.cfg", "set": { "SYNC_VBL": 0, "FRAMERATE_LIMIT": 1000 } }
+  ],
+  "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1 },
+  "metrics": [ { "script": "tools/weather_metrics/kt3.py" } ],
+  "sections": [ { "id": "T09", "package": "T09", "title": "Switch rows: cost and picture of every switch built so far" } ],
+  "collect": [ { "from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures", "to": ".local/work/series-pictures/K-T3", "optional": true } ],
+  "starts": [
+    {
+      "id": "k3near",
+      "productSwitches": { "ownClouds": 1, "cloudSource": "Ours" },
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } } ],
+      "description": "Near field at 1707x960: the shape noise (T02: noise, untiling, curl, fine detail, distance LOD, size tier low and high, white dither), the four T13 height switches (all four and each alone; the ground view sees the base, the above view the top) and the look constants of CloudLookTuning (densityRemap, coverCombine, sunTint, sigma, softness, noise amount, noise size) in the ground view; 25 windows, about 15 minutes. Noise reads (flicker, hf) at plain, noise_off, tier_low, tier_high, h_all_off and h_ragged_off. EXPECTED (written first; delta_ms against plain_g): noise_off saves 0.3 to 8 ms and changes the picture (d_picture >= 0.02); untile_off, curl_off, fine_off save at most 1.0 ms (delta in -1.0 to 0.3); dlod_off costs the same or more; the size tiers change the picture and the cost by at most 0.6 ms; T13: every one of the five costs at most 0.1 ms (delta in -0.5 to 0.1; the brief's limit 0.1, so K3.t13_cost_ms <= 0.15) and the ragged underside adds at most 0.0015 shimmer (K3.t13_shimmer_delta); h_all_off changes the picture from below and from above (d_picture >= 0.02); the look constants cost at most 0.6 ms (sigma 2 may save up to 1.5 ms by saturating earlier) and sigma, softness, noise amount, noise size and densityRemap change the picture, sunTint 1 raises the deck's blue over red by at least 0.5 percent; coverCombine is cost and pictures only. The noise flicker of tier_high is not above plain's (K3.noise_flicker_over_plain)."
+      ,
+      "variants": [
+        "off_g", "plain_g", "noise_off_g", "untile_off_g", "curl_off_g", "fine_off_g", "dlod_off_g", "tier_low_g", "tier_high_g", "hash_off_g",
+        "h_all_off_g", "h_bvar_off_g", "h_bphys_off_g", "h_ragged_off_g", "remap1_g", "combine1_g", "tint1_g", "sigma2_g", "soft2_g", "namt2_g", "nsize2_g",
+        "off_a", "plain_a", "h_top_off_a", "h_all_off_a"
+      ],
+      "disableMods": [ "EVE", "Trajectories" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe" ]
+    },
+    {
+      "id": "k3light",
+      "productSwitches": { "ownClouds": 1, "cloudSource": "Ours" },
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } } ],
+      "description": "Light, shadows and march steps at 1707x960, ground view: the light quality low and medium (default high), one scattering octave, powder 0, the sun colour through the air off, no moon lights, the ambient taps (with reuse 2), the sun white balance off, the 9 km sun march, the cloud shadows off and quality low and high, the step quality low and high, step growth 0, the shadow floor 0.5, the diffusion decay 0.1, and the light constants of OwnCloudOptions (msBrightness 4.4, msIsotropy 0, ambientGain 0, ambientFloor 0.15, diffusion 0, skyTint 0); 26 windows, about 15 minutes. EXPECTED (delta_ms against plain_g): lightq_low, lightq_med, oct1, shq_low, stepq_low, shadows_off and moon0 do not cost more than plain (delta <= 0.3; shadows_off, lightq_low, oct1 save a measurable amount); aotaps, aoreuse2, shq_high, stepq_high and growth0 do not cost less (delta >= -0.3); sun9 about 0 (T14 measured 1.00); the rest of the light constants cost at most 0.6 ms either way. Picture: lightq_low, oct1, powder0, msb_hi, amb0 and floor_hi change the deck (d_picture >= 0.02); moon0 does not at day (d_picture <= 0.05); shadows_off moves the median of the sunlit ground by 3 percent or more."
+      ,
+      "variants": [
+        "off_g", "plain_g", "lightq_low_g", "lightq_med_g", "oct1_g", "powder0_g", "suntint_off_g", "moon0_g", "aotaps_g", "aoreuse2_g", "wb_off_g", "sun9_g",
+        "shadows_off_g", "shq_low_g", "shq_high_g", "shfloor_g", "diffdecay_g", "stepq_low_g", "stepq_high_g", "growth0_g", "msb_hi_g", "iso0_g", "amb0_g", "floor_hi_g", "diff0_g", "skytint0_g"
+      ],
+      "disableMods": [ "EVE", "Trajectories" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe" ]
+    },
+    {
+      "id": "k3far",
+      "productSwitches": { "ownClouds": 1, "cloudSource": "Ours" },
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } } ],
+      "description": "Culling (T16) and the far view (T06) at 1707x960. Horizon view: the six T16 switches alone and all on (the distance cut with a cap distance of 100 km), the T16 keys one at a time on top of all six (cull.cutWeight 0.1, stepGrowth 4e-4, the tap window 5 to 30 km, tapFactor 6, footScale 3, capKeep 1), the aerial perspective by the setting and by the tuning key cloud.farHaze 1, hazeStrength 2, the far shape mean, 4 minimum far samples, the far march policy, the far map fade, and cloud.fadeFarM 40 km; sky3 view (under all layers): cloudSkipClosed alone and all six on; 26 windows, about 15 minutes. The orbit view is left out (its placement failed in start 46, see the inventory). The pass afterScatterer is measured by K-T2d start 52. EXPECTED (delta_ms against plain_h, the T16 keys against cull_all_h): every T16 switch alone costs no more than plain (delta <= 0.3) and all six together at most 0.95 of plain's pass (K3.cull_all_over_plain.horizon <= 0.95); skip_empty draws the same picture (d_picture <= 0.05; the brief says exact); each key on top of all six costs no more than all six alone (delta <= 0.3); the aerial perspective changes the picture and costs at most 1.5 ms (haze_h, haze_tune_h), and the tuning key draws the same picture as the setting (K3.haze_tune_equals_setting = 1); shapemean saves; minsamp does not cost less; fade40 changes the picture and does not cost more."
+      ,
+      "variants": [
+        "off_h", "plain_h", "skip_empty_h", "dcut_h", "stepg_h", "tap_h", "detail_h", "cull_all_h", "kcut_h", "kstepg_h", "ktapwin_h", "ktapf_h", "kfoot_h", "kcapkeep_h",
+        "haze_h", "haze_tune_h", "hazestr2_h", "shapemean_h", "minsamp_h", "farpolicy_h", "mapfade_h", "fade40_h",
+        "off_s", "plain_s", "skip_closed_s", "cull_all_s"
+      ],
+      "disableMods": [ "EVE", "Trajectories" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe" ]
+    },
+    {
+      "id": "k3fx",
+      "productSwitches": { "ownClouds": 1, "cloudSource": "Ours" },
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } } ],
+      "description": "The reconstruction options, lightning and rain at 1707x960; 25 windows, about 16 minutes. Ground view: the reconstruction mode Low, the edge mode (level 4 with layers.edgeAdaptive), the entry bisection (2 steps), the entry refinement at contours, the refinement at the edge mask. Horizon view with a forced storm 12 km east (the lightning module's ForcedSource, as T07Probe): lightning on, bolts off, ground light off, cloud flash off, brightness 0.5, 1 stroke per second; the flashes of each window are counted. Ground view in forced rain (forceLevel 0.8, forceType Rain; off_r is the rain without clouds): the rain with the plain pass, the wet surfaces (T08; 20 s soak first), the window droplets, both, wet.wetDiffuse 1.0 and 0.3, drop.refraction 0, drop.coverMax 0.6, precip.maxTotal 2000. Run the lightning block only with the lightning module present (T09 warning k3_no_lightning_module otherwise). EXPECTED (delta_ms against plain_g for the reconstruction options and rain_r, plain_h for ln_on_h, ln_on_h for the other storm variants, rain_r and the wet/droplet variants for the rain block, raw GPU-busy times for lightning and rain): rlow, edge and edgemask do not cost more than plain (delta <= 0.3) and change the picture (rlow, edge); bisect2 and contours do not cost less; lightning on adds -0.8 to 3.0 ms, bolts off saves up to 3 ms, the others change the cost by at most 1.5 ms; at least 1 flash in 22 s at level 1 (K3.flashes_on >= 1) and not more flashes at 1 stroke per second than at 3 (K3.flashes_max1_not_more = 1); rain_r changes the picture against the dry sky (d_picture >= 0.02), the wet overlay costs at most 1.0 ms (T08 brief 0.3 ms at 1080p) and darkens the sunlit ground by 3 percent or more (d_ground), wetDiffuse 1.0 and 0.3 move the ground in both directions against rain_wet_r, the droplets cost at most 1.0 ms (brief 0.25), precip.maxTotal 2000 does not cost more than rain_r."
+      ,
+      "variants": [
+        "off_g", "plain_g", "rlow_g", "edge_g", "bisect2_g", "contours_g", "edgemask_g",
+        "off_h", "plain_h", "ln_on_h", "ln_bolts_off_h", "ln_terrain_off_h", "ln_cloud_off_h", "ln_bright05_h", "ln_max1_h",
+        "off_r", "rain_r", "rain_wet_r", "rain_drops_r", "rain_both_r", "wetdiff1_r", "wetdiff03_r", "dropref0_r", "dropcover_r", "precip_lo_r"
+      ],
+      "disableMods": [ "EVE", "Trajectories" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe" ]
+    },
+    {
+      "id": "k3res",
+      "productSwitches": { "ownClouds": 1, "cloudSource": "Ours" },
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false } } ],
+      "description": "The resolution 2560x1440: the reconstruction levels 2, 3 and 4 against plain (ground and above), the entry refinement, the layer cap 2, the light cache, the noise tier high and the noise off, the light quality low, the shadow quality high, the step quality high and all four T13 switches off, and the look keys of the sheet layer (cloud.layerCoverageShift.<name> -0.1, cloud.typeFair.<name> 0.5, cloud.typeOverride.<name> 1); 23 windows, about 14 minutes. It is the K-T2 start own2560 for the levels; K-T2's own2560 can be left out of the plan. EXPECTED: plain at 2560x1440 costs 1.5 to 3.2 times plain at 1707x960 (pixels 2.25 times; K3.res_cost_ratio.plain_ground); recon4 costs at most plain's pass in both views (K3.recon4_over_plain.ground and .above <= 1.0), recon2 at most 1.2 times (K-T2 at 1707: 1.047), recon3 at most 1.0; entry does not cost less; cap2 does not cost more; cache about 0 (K-T2: nothing inside); the other deltas as in k3near and k3light; lshift and toverride change the picture."
+      ,
+      "variants": [
+        "off_g", "plain_g", "recon2_g", "recon3_g", "recon4_g", "entry_g", "cap2_g", "cache_g", "tier_high_g", "noise_off_g", "lightq_low_g", "shq_high_g", "stepq_high_g", "h_all_off_g",
+        "lshift_g", "tfair_g", "toverride_g",
+        "off_a", "plain_a", "recon2_a", "recon3_a", "recon4_a", "h_all_off_a"
+      ],
+      "disableMods": [ "EVE", "Trajectories" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe" ]
+    }
+  ],
+  "rows": [
+    { "metric": "K3.k3near.windows", "min": 25, "note": "every variant of the start has a window with a clean report" },
+    { "metric": "K3.k3near.cost_missing", "max": 0, "note": "no variant without a cost or a delta" },
+    { "metric": "K3.k3near.cost_misses", "max": 0, "note": "every delta_ms inside its band of kt3.EXPECT" },
+    { "metric": "K3.k3near.effect_misses", "max": 0, "note": "every switch that must change (or not change) the picture does" },
+    { "metric": "K3.k3near.pictures_missing", "max": 0, "note": "natural and aid picture of every window" },
+    { "metric": "K3.k3light.windows", "min": 26 },
+    { "metric": "K3.k3light.cost_missing", "max": 0 },
+    { "metric": "K3.k3light.cost_misses", "max": 0 },
+    { "metric": "K3.k3light.effect_misses", "max": 0 },
+    { "metric": "K3.k3light.pictures_missing", "max": 0 },
+    { "metric": "K3.k3far.windows", "min": 26 },
+    { "metric": "K3.k3far.cost_missing", "max": 0 },
+    { "metric": "K3.k3far.cost_misses", "max": 0 },
+    { "metric": "K3.k3far.effect_misses", "max": 0 },
+    { "metric": "K3.k3far.pictures_missing", "max": 0 },
+    { "metric": "K3.k3fx.windows", "min": 25 },
+    { "metric": "K3.k3fx.cost_missing", "max": 0 },
+    { "metric": "K3.k3fx.cost_misses", "max": 0 },
+    { "metric": "K3.k3fx.effect_misses", "max": 0 },
+    { "metric": "K3.k3fx.pictures_missing", "max": 0 },
+    { "metric": "K3.k3res.windows", "min": 23 },
+    { "metric": "K3.k3res.cost_missing", "max": 0 },
+    { "metric": "K3.k3res.cost_misses", "max": 0 },
+    { "metric": "K3.k3res.effect_misses", "max": 0 },
+    { "metric": "K3.k3res.pictures_missing", "max": 0 },
+    { "metric": "K3.t13_cost_ms", "max": 0.15, "unit": "ms", "note": "T13 brief: the four height switches add 0.1 ms at most (plain_g minus h_all_off_g by the labels); T13 default ON, decision B5" },
+    { "metric": "K3.t13_shimmer_delta", "max": 0.0015, "note": "T13 brief: the ragged underside adds at most 0.0015 flicker (plain_g minus h_ragged_off_g)" },
+    { "metric": "K3.cull_all_over_plain.horizon", "max": 0.95, "note": "T16: the six switches together cost at most 0.95 of the pass at the horizon" },
+    { "metric": "K3.haze_tune_equals_setting", "equals": 1, "note": "cloud.farHaze 1 draws what the setting cloudFarHaze draws" },
+    { "metric": "K3.flashes_on", "min": 1, "note": "needs the lightning module; at least one flash in 22 s at level 1" },
+    { "metric": "K3.flashes_max1_not_more", "equals": 1, "note": "1 stroke per second gives no more flashes than 3" },
+    { "metric": "K3.recon4_over_plain.ground", "max": 1.0, "note": "level 4 costs no more than plain at 2560x1440" },
+    { "metric": "K3.recon4_over_plain.above", "max": 1.0 },
+    { "metric": "K3.recon3_over_plain.ground", "max": 1.0 },
+    { "metric": "K3.recon2_over_plain.ground", "max": 1.2, "note": "K-T2 at 1707x960: 1.047, recon2 saves nothing" },
+    { "metric": "K3.res_cost_ratio.plain_ground", "min": 1.5, "max": 3.2, "note": "2560x1440 has 2.25 times the pixels of 1707x960" },
+    { "metric": "K3.noise_flicker_over_plain.tier_high_g", "max": 1.0, "note": "the larger noise tier does not shimmer more than plain" }
+  ]
+}
