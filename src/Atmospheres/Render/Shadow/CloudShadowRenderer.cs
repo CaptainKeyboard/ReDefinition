@@ -30,6 +30,8 @@ namespace ReDefinition.Atmospheres
         public float ForwardDirectShare = 1f;
         // A diagnostic output of the forward pass for the probe (0: the shadow); see the shader's pass 3.
         public int Debug;
+        // Whether the shader reads the shape noise of the layer pass (CloudShadowShapeNoise; the tuning key shadow.shapeNoise). Needs CloudShadowRenderer.Noise.
+        public bool ShapeNoise;
     }
 
     // The cloud shadow's drawing (package T04): the material, the type table and map textures it reads, and the command buffers that build the
@@ -57,10 +59,14 @@ namespace ReDefinition.Atmospheres
             IdTypeProfile = Shader.PropertyToID("_CsTypeProfile"), IdTypeInfo = Shader.PropertyToID("_CsTypeInfo"),
             IdCovMaps = Shader.PropertyToID("_CsCovMaps"), IdTypeMaps = Shader.PropertyToID("_CsTypeMaps"), IdMapDim = Shader.PropertyToID("_CsMapDim"),
             IdDepthSource = Shader.PropertyToID("_CsDepthSource"), IdDepthHalf = Shader.PropertyToID("_CsDepthHalf"),
-            IdShadowHalf = Shader.PropertyToID("_CsShadowHalf");
+            IdShadowHalf = Shader.PropertyToID("_CsShadowHalf"), IdNoiseD = Shader.PropertyToID("_CsNoiseD"), IdPlanetR = Shader.PropertyToID("_CsPlanetR");
 
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
-            layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers];
+            layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers],
+            noiseD = new Vector4[CloudLayerDef.MaxLayers], noiseOff = new Vector4[CloudLayerDef.MaxLayers];
+
+        // The layer pass's noise (volumes, offsets, drift): the shadow reads the shape share from the same volumes (CloudShadowFrame.ShapeNoise). null: no noise.
+        internal LayerNoise Noise;
         private Material material;
         private Texture2D profileTexture, infoTexture;
         private int layerCount;
@@ -147,6 +153,9 @@ namespace ReDefinition.Atmospheres
                 layerB[l] = new Vector4(layer.EffectiveSigmaPerM, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.ShadowStrength);
                 layerC[l] = new Vector4(0f, 0f, layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
                 layerD[l] = new Vector4(0f, 0f, 0f, layer.MapShiftDeg);
+                // The noise numbers as the layer pass has them (LayerRenderer: amount, 1 / scale, erosion, map shift), the erosion 0: the shape alone, as the pass's light march reads it.
+                noiseD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 0f, layer.MapShiftDeg);
+                noiseOff[l] = new Vector4(0f, 0f, 0f, layer.MapShiftDeg);
                 Array.Copy(table.ProfileData, 0, profile, l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples, table.Count * LayerTypeTable.ProfileSamples);
                 for (int t = 0; t < table.Count; t++)
                 {
@@ -182,6 +191,12 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdLayerB, layerB);
             m.SetVectorArray(IdLayerC, layerC);
             m.SetVectorArray(IdLayerD, layerD);
+            // The shape noise: the layer pass's volumes and offsets bound to this material, the amounts as the layers have them; the amounts 0 (switch off, or no noise object)
+            // leave the shader on the map's threshold, exactly the shadow before the noise.
+            bool noise = f.ShapeNoise && Noise != null;
+            if (noise) Noise.Bind(m, layerCount);
+            m.SetVectorArray(IdNoiseD, noise ? noiseD : noiseOff);
+            m.SetFloat(IdPlanetR, (float)(f.RadiusUnits * f.MetresPerUnit));
         }
 
         // The sun's buffer for a camera of that size (deferred rendering): the depth to half size, the shadow at half size, and the multiply into

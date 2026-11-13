@@ -348,7 +348,7 @@
         {"id": "weather-cloudCoverageShiftRain", "name": "Own clouds rain deck coverage threshold -0.08 only", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.coverageShiftRain": "-0.08"}},
         {"id": "weather-cloudLayerSigma", "name": "Own clouds sigma x0.7 on every layer", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerSigmaScale": "0.7"}},
         {"id": "weather-cloudLayerSoftness", "name": "Own clouds edge softness x2 on every layer", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerSoftnessScale": "2"}},
-        {"id": "weather-cloudLayerNoise", "name": "Own clouds noise amount x1.5 and size x0.6 on every layer", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerNoiseAmountScale": "1.5", "atmo.cloud.layerNoiseSizeScale": "0.6"}},
+        {"id": "weather-cloudLayerNoise", "name": "Own clouds noise amount x0.7 and size x1.4 on every layer", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerNoiseAmountScale": "0.7", "atmo.cloud.layerNoiseSizeScale": "1.4"}},
         {"id": "weather-cloudCumulusCoverage", "name": "Own clouds cumulus layer coverage -0.10", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerCoverageShift.Kerbin-cumulus": "-0.10"}},
         {"id": "weather-cloudTypeFair", "name": "Own clouds cumulus layer shows Cumulus humilis at no precipitation", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.typeFair.Kerbin-cumulus": "0.25"}},
         {"id": "weather-cloudMapOverride", "name": "Own clouds cumulus layer map forced to 0.665", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.mapOverride.Kerbin-cumulus": "0.665"}},
@@ -362,10 +362,11 @@
         {"id": "weather-cloudTypeOverride", "name": "Own clouds cumulus layer type forced to 0.25", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.typeOverride.Kerbin-cumulus": "0.25"}},
         {"id": "weather-cloudLayerSigmaOne", "name": "Own clouds cumulus layer sigma x0.7", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerSigmaScale.Kerbin-cumulus": "0.7"}},
         {"id": "weather-cloudLayerSoftnessOne", "name": "Own clouds cumulus layer edge softness x2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerSoftnessScale.Kerbin-cumulus": "2"}},
-        {"id": "weather-cloudLayerNoiseOne", "name": "Own clouds cumulus layer noise amount x1.5 and size x0.6", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerNoiseAmountScale.Kerbin-cumulus": "1.5", "atmo.cloud.layerNoiseSizeScale.Kerbin-cumulus": "0.6"}},
+        {"id": "weather-cloudLayerNoiseOne", "name": "Own clouds cumulus layer noise amount x0.7 and size x1.4 (0.7 / 700 m)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerNoiseAmountScale.Kerbin-cumulus": "0.7", "atmo.cloud.layerNoiseSizeScale.Kerbin-cumulus": "1.4"}},
         {"id": "weather-cloudFade", "name": "Own clouds distance fade at 20 km", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.fadeFarM": "20000"}},
         {"id": "weather-cloudFadeNear", "name": "Own clouds distance fade at 20 km starting at 25 percent", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.fadeFarM": "20000", "atmo.cloud.fadeNearShare": "0.25"}},
-        {"id": "weather-cloudHaze", "name": "Own clouds aerial perspective forced on at half strength", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.farHaze": "1", "atmo.cloud.hazeStrength": "0.5"}}
+        {"id": "weather-cloudHaze", "name": "Own clouds aerial perspective forced on at half strength", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.farHaze": "1", "atmo.cloud.hazeStrength": "0.5"}},
+        {"id": "weather-cloudShadowMapOnly", "name": "Cloud shadow reads the map's threshold only, no shape noise (the shadow before E40 FL-FIX)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.shadow.shapeNoise": "0"}}
       ]
     },
     {

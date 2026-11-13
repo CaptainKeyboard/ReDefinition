@@ -2,9 +2,14 @@
 // sun's shadow mask (deferred) or as a colour multiply (forward), at half resolution, plus the map view's disc and the ocean's texture.
 //
 // Per pixel: the world position comes from the (downscaled) depth; the sun ray from there goes up through every layer's shell (the spans of
-// LayerGeometry.ShellSpans); the optical depth is the midpoint sum of the density along it (the CPU mirror CloudShadowField, without the
-// picture shader's noise), averaged over a few directions across the sun's disc (the penumbra h x 9.31 mrad / sin^2(e)); the factor is
-// exp(-tau) (Beer-Lambert). Everything the sun lights takes the factor because the mask is the sun's own.
+// LayerGeometry.ShellSpans); the optical depth is the midpoint sum of the density along it (the CPU mirror CloudShadowField), averaged over a few
+// directions across the sun's disc (the penumbra h x 9.31 mrad / sin^2(e)); the factor is exp(-tau) (Beer-Lambert). Everything the sun lights takes
+// the factor because the mask is the sun's own.
+//
+// The coverage share of a sample is the map's threshold, or, where a layer's noise amount (_CsNoiseD.x) is above 0, the shape noise of the layer pass:
+// ReDefinitionAtmospheresNoise.cginc is included and its NoiseShareNear called with the erosion 0, which is how the pass's own light march reads the
+// shape (gNoiseLod). One definition, the same volumes, offsets and drift (LayerNoise.Bind on this material); the CPU twin is CloudShadowShapeNoise.
+// The switch shadow.shapeNoise puts the amounts at 0, which is the threshold alone.
 //
 // Credit: the passes, their order and the depth-aware upsample are adapted from the shaders of EnvironmentalVisualEnhancements (EVE Redux,
 // MIT): Assets/Shaders/DepthDownscaling/DownscaleDepth.shader, FindNearestDepth.cginc and BlendScreenSpaceShadows.shader (the downscale of the
@@ -102,7 +107,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             }
         }
 
-        // ---- the density (LayerDensity.Extinction without noise and without the distance fade) ----
+        // ---- the density (LayerDensity.Extinction with the shape noise, without the erosion and without the distance fade) ----
         float2 MapUv(float3 pc, float shiftDeg)
         {
             float3 q = mul((float3x3)_CsWorldToMap, pc);
@@ -111,6 +116,15 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float lon = atan2(n.y, n.x);
             return float2((lon * 57.29577951 - shiftDeg + 180.0) / 360.0, (90.0 - lat * 57.29577951) / 180.0);
         }
+
+        // ---- the shape noise of the layer pass (the noise file reads these names of the layer shader) ----
+        float4 _CsNoiseD[4];   // per layer: noise amount (0: the threshold alone), noise scale (1 / m), erosion (0 here: the shape alone), map shift (degrees)
+        float _CsPlanetR;      // the sea-level radius in metres
+        #define _LayerA _CsLayerA
+        #define _LayerD _CsNoiseD
+        #define _WorldToMap _CsWorldToMap
+        #define _PlanetR _CsPlanetR
+        #include "ReDefinitionAtmospheresNoise.cginc"
 
         float TypeProfile(int li, int type, float h)
         {
@@ -148,7 +162,8 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
             if (share < b || share > tp || tp <= b) return 0;
             float edge = max(_CsLayerB[li].z, 1e-4);
-            float s = saturate((cov + _CsLayerB[li].y - 1.0) / edge + 0.5);
+            // The coverage share: the map's threshold, or the layer pass's shape noise moving it (NoiseShareNear is the threshold itself where the amount is 0 or the volumes are not up).
+            float s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);
             if (s <= 0) return 0;
             float h = (share - b) / (tp - b);
             return _CsLayerB[li].x * s * lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);

@@ -33,6 +33,15 @@ namespace ReDefinition.WeatherPlayer
             bool ok = renderer.Init(shader);
             Sink.Flag("shadow_compiled", ok);
             if (!ok) yield break;
+            // -shadownoise 1 (E40 FL-FIX): every case twice, the shape noise off (N0) and on (N1, the cfg's cumulus numbers: amount 1, 500 m), ids with the suffix .N<0|1>.
+            bool noiseRun = WeatherPass.Argument("-shadownoise") == "1";
+            if (noiseRun)
+            {
+                var layerNoise = new LayerNoise();
+                layerNoise.EnsureReady();
+                renderer.Noise = layerNoise;
+                Sink.Flag("noise_volumes_ready", layerNoise.Ready);
+            }
             GameObject sea = GameObject.Find("Sea");
             if (sea != null) sea.transform.localScale = new Vector3(5000f, 1f, 5000f);
             var maps = new LayerMapStore();
@@ -79,9 +88,11 @@ namespace ReDefinition.WeatherPlayer
                     Pose(view.Pose);
                     foreach (int layers in new[] { 1, 3 })
                     {
-                        renderer.Upload(Stack(layers), maps);
+                        renderer.Upload(Stack(layers, noiseRun), maps);
                         foreach (int quality in new[] { 0, 1, 2 })
+                        foreach (int noiseOn in noiseRun ? new[] { 0, 1 } : new[] { 0 })
                         {
+                            frame.ShapeNoise = noiseOn == 1;
                             // CloudShadowSwitches.Quality (that file is not linked into the player): steps per span and sun disc taps.
                             frame.StepsPerSpan = quality == 0 ? 4 : quality == 1 ? 8 : 12;
                             frame.DiscTaps = quality == 0 ? 1 : quality == 1 ? 4 : 6;
@@ -107,7 +118,7 @@ namespace ReDefinition.WeatherPlayer
                             }
                             Cam.RemoveCommandBuffer(CameraEvent.AfterForwardOpaque, cb);
                             cb.Release();
-                            string id = view.Name + "." + size[0] + "x" + size[1] + ".L" + layers + ".Q" + quality;
+                            string id = view.Name + "." + size[0] + "x" + size[1] + ".L" + layers + ".Q" + quality + (noiseRun ? ".N" + noiseOn : "");
                             Sink.Info("cost." + id + ".build", Median(build));
                             Sink.Info("cost." + id + ".multiply", Median(multiply));
                             Sink.Info("cost." + id + ".samples", build.Count);
@@ -121,7 +132,7 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // A stack of one to three thick decks at 2, 5 and 9 km.
-        private static LayerStackSource Stack(int layers)
+        private static LayerStackSource Stack(int layers, bool noise = false)
         {
             var source = new LayerStackSource(0, R, true);
             float[] bases = { 2000f, 5000f, 9000f };
@@ -130,7 +141,9 @@ namespace ReDefinition.WeatherPlayer
                 var def = new CloudLayerDef("deck" + i, i, bases[i], bases[i] + 300f, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, 6f / 300f)
                 {
                     Coverage = 0.5f,
-                    EdgeSoftness = 0.2f
+                    EdgeSoftness = 0.2f,
+                    NoiseAmount = noise ? 1f : 0f,
+                    NoiseScaleM = 500f
                 };
                 def.CoverageMapHandle = i;
                 def.TypeMapHandle = i;

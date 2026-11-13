@@ -77,6 +77,8 @@ namespace ReDefinition.Atmospheres
         // The time the flow map has run, in seconds (the loop is FlowLoopSeconds); Advance adds to it, a measurement sets it.
         internal double FlowTimeSeconds { get { return flowTime; } set { flowTime = value; } }
         internal bool Ready { get; private set; }
+        // The shape volume (the other volumes are null) the GPU has, for the CPU readers of the shape noise; null until the first upload.
+        internal NoiseVolumeSet ShapeVolumes { get; private set; }
         // The milliseconds the generation took (the worker's time) and the bytes the volumes hold on the GPU, for the report.
         internal double GenerationMs { get; private set; }
         internal long VolumeBytes { get; private set; }
@@ -139,6 +141,9 @@ namespace ReDefinition.Atmospheres
             curlTexture = Make3D(set.CurlN, TextureFormat.RGBA32, set.Curl, "cloud noise curl");
             GenerationMs = set.GenerationMs;
             detailMean = set.DetailMean;
+            // The shape volume alone stays on the CPU for the readers of the shape noise (CloudShadowShapeNoise: the cloud shadow's CPU twin, the sun dimming); the detail and curl
+            // volumes are on the GPU only.
+            ShapeVolumes = new NoiseVolumeSet { ShapeN = set.ShapeN, Shape = set.Shape, DetailMean = set.DetailMean };
             VolumeBytes = (long)set.Shape.Length + set.Detail.Length + set.Curl.Length;
         }
 

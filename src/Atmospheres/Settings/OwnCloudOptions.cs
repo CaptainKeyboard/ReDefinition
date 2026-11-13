@@ -222,6 +222,12 @@ namespace ReDefinition.Atmospheres
             get { return CloudShadowStepPolicy.FromNumber(Tuning.Get(CloudShadowStepPolicy.TuneKey, (float)CloudShadowStepPolicy.Default)); }
         }
 
+        // E40 FL-FIX: whether the cloud shadow (shader and CPU twin) reads the layer pass's shape noise: the tuning key shadow.shapeNoise, else the compiled default.
+        internal static bool ShadowShapeNoise
+        {
+            get { return Tuning.Get(CloudShadowShapeNoise.TuneKey, CloudShadowShapeNoise.Default ? 1f : 0f) >= 0.5f; }
+        }
+
         // T04: the cloud shadow's numbers of a frame.
         internal static void Apply(CloudShadowFrame f, Func<string, double> v)
         {
@@ -229,6 +235,7 @@ namespace ReDefinition.Atmospheres
             CloudShadowSwitches.Quality((int)Level(v, AtmospheresSettings.Keys.CloudShadowQuality), out steps, out taps);
             f.StepsPerSpan = steps;
             f.StepPolicy = ShadowStepPolicy;
+            f.ShapeNoise = ShadowShapeNoise;
             f.DiscTaps = taps;
             f.Floor = Mathf.Clamp01((float)v(AtmospheresSettings.Keys.CloudShadowFloor));
         }

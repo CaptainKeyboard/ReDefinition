@@ -102,6 +102,9 @@ namespace ReDefinition.Atmospheres
         private const float CacheBoxM = 32000f;
         private CloudShadowRenderer shadowRenderer;
         private CloudShadowRig shadowRig;
+        // The pass's shape noise for the CPU readers of the stack (the hook's field: sun dimming, the weather driver): updated every frame in FillShadow.
+        private readonly CloudShadowShapeNoise shadowNoise = new CloudShadowShapeNoise();
+        private readonly float[] worldToMapRows = new float[9];
         private Material depthMaterial;
         private CommandBuffer depthCommands;
         private RenderTexture depthTarget;
@@ -440,6 +443,7 @@ namespace ReDefinition.Atmospheres
                 AtmospheresLog.Say("own clouds: the cloud shadow is not available (" + (error ?? s.Problem) + ")");
                 return;
             }
+            s.Noise = renderer.Noise;
             shadowRenderer = s;
             Stats.ShadowReady = true;
             shadowRig = new CloudShadowRig(s, ShadowRole, () => Sun.Instance != null ? Sun.Instance.sunLight : null);
@@ -455,6 +459,10 @@ namespace ReDefinition.Atmospheres
         // The shadow's frame from the pass's: the same planet, map frame and sun. On only where the switches say so (CloudShadowSwitches.Active).
         private void FillShadow(CelestialBody b, LayerFrame f)
         {
+            // The CPU readers of the stack (the hook's field) take the pass's shape noise whether or not the shadow is drawn; the rotation is the frame's.
+            for (int r = 0; r < 3; r++)
+                for (int k = 0; k < 3; k++) worldToMapRows[r * 3 + k] = f.WorldToMap[r, k];
+            shadowNoise.Update(renderer.Noise, stack, worldToMapRows, OwnCloudOptions.ShadowShapeNoise);
             if (shadowRig == null) return;
             bool on = OwnCloudOptions.ShadowActive(OwnCloudOptions.LiveSettings,CloudSourceKind.Ours, stack != null ? stack.LayerCount : 0);
             shadowRig.Enabled = on;
@@ -506,7 +514,7 @@ namespace ReDefinition.Atmospheres
             heightJob.Cancel();
             renderer.Maps.Ensure(MapWidth, MapHeight);
             renderer.Noise.Switches.SphereScale = c.Clouds.SphereScale > 0f ? c.Clouds.SphereScale : 1f;
-            OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()) { StepPolicy = OwnCloudOptions.ShadowStepPolicy });
+            OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()) { StepPolicy = OwnCloudOptions.ShadowStepPolicy, ShapeNoise = shadowNoise });
             OwnCloudHook.Attach();
             airBody = -1;
             AtmospheresLog.Say("own clouds: stack on " + b.name + ": " + stack.LayerCount + " layers [" + key.TrimEnd('|').Replace("|", ", ") + "], "

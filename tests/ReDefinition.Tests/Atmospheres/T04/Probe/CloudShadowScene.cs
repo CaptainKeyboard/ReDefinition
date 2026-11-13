@@ -65,6 +65,12 @@ namespace ReDefinition.WeatherPlayer
             oursFolder = Path.Combine(Output, "ours");
             Directory.CreateDirectory(oursFolder);
             bool finite = true;
+            // -shadownoise 1: the shape noise in the shadow, the shader against its CPU twin (CloudShadowNoiseScene.cs).
+            if (WeatherPass.Argument("-shadownoise") == "1")
+            {
+                yield return RunShapeNoise();
+                yield break;
+            }
             // -shadowsteps 1: the step-policy comparison of the shader with its CPU twin (CloudShadowStepsScene.cs) instead of the analytic checks.
             if (WeatherPass.Argument("-shadowsteps") == "1")
             {

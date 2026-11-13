@@ -115,6 +115,15 @@ namespace ReDefinition.Atmospheres
             return layer.EffectiveSigmaPerM * s * table.Profile(typeMap, share);
         }
 
+        // The same with the coverage share given (the shape noise's share, CloudShadowShapeNoise) instead of the plain threshold; a share below 0 is not given.
+        internal static double ExtinctionWithShare(CloudLayerDef layer, LayerTypeTable table, double altitudeM, double coverageMap, double typeMap, double coverageShare)
+        {
+            if (coverageShare < 0.0) return Extinction(layer, table, altitudeM, coverageMap, typeMap);
+            double share = (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM;
+            if (share < 0.0 || share > 1.0 || coverageShare <= 0.0) return 0.0;
+            return layer.EffectiveSigmaPerM * coverageShare * table.Profile(typeMap, share);
+        }
+
         // The weight of the layer's distance fade at a distance (P64): 1 up to FadeNear, 0 from FadeFar, smooth between.
         internal static double DistanceFade(CloudLayerDef layer, double distanceM)
         {

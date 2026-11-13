@@ -3,8 +3,10 @@
 src/Atmospheres/Render/Shadow/CloudShadowMath.cs
 src/Atmospheres/Render/Shadow/CloudShadowField.cs
 src/Atmospheres/Render/Shadow/CloudShadowSteps.cs
+src/Atmospheres/Render/Shadow/CloudShadowShapeNoise.cs
 src/Atmospheres/Procedural/Driver/CloudDepthRule.cs
 tests/ReDefinition.Tests/Atmospheres/T04/Probe/CloudShadowStepsScene.cs
+tests/ReDefinition.Tests/Atmospheres/T04/Probe/CloudShadowNoiseScene.cs
 src/Atmospheres/Render/Shadow/CloudShadowRenderer.cs
 src/Atmospheres/Render/Shadow/CloudShadowRig.cs
 tests/ReDefinition.Tests/Atmospheres/T04/Probe/CloudShadowScene.cs

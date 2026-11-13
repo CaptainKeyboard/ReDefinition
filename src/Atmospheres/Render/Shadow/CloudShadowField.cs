@@ -5,8 +5,10 @@ namespace ReDefinition.Atmospheres
     // The cloud shadow on the CPU (package T04): the optical depth of the own layers along any ray, the sun's transmission at a place
     // (the same number for the ground, a vessel and a kerbal, since everything lit by the sun takes the mask), and the vertical optical
     // depth over a place. It reads the field the layer shader draws, the maps and the type table of ICloudLayerSource, without the
-    // shader's noise and erosion (the noise package's detail is smaller than the penumbra), so the shadow and the picture agree on where
-    // a cloud is and how thick. Pure (no Unity): the tests and the weather player link it.
+    // shader's erosion (the noise package's detail is smaller than the penumbra), so the shadow and the picture agree on where
+    // a cloud is and how thick. The shape noise, which moves the coverage threshold by up to half the layer's noise amount (a cell field at
+    // amount 1), is read where ShapeNoise is set and active (CloudShadowShapeNoise); without it the field is the map's alone.
+    // Pure (no Unity): the tests and the weather player link it.
     //
     // The shadow shader walks the same spans with the same midpoint rule (steps per span in CloudShadowFrame.StepsPerSpan, scaled per layer by
     // CloudShadowStepPolicy).
@@ -20,6 +22,8 @@ namespace ReDefinition.Atmospheres
         internal int DiscSamples = 1;
         // How the count scales with the layer's interval (CloudShadowStepPolicy): the count above is the steps of the cloud's own thickness under Scaled.
         internal CloudShadowSteps StepPolicy = CloudShadowStepPolicy.Default;
+        // The shape noise of the layer pass (null or inactive: the map's threshold alone). The game updates it every frame; the object is shared with the hook's field.
+        internal CloudShadowShapeNoise ShapeNoise;
 
         internal CloudShadowField(ICloudLayerSource source, LayerTypeTable[] tables)
         {
@@ -66,7 +70,7 @@ namespace ReDefinition.Atmospheres
                     double lat, lon;
                     LayerGeometry.LatLon(x, y, z, out lat, out lon);
                     double altitude = LayerGeometry.AltitudeOf(x, y, z, source.BodyRadiusM);
-                    tau += HeightDensity.Extinction(source, table, layerIndex, altitude, lat, lon) * dt;
+                    tau += HeightDensity.Extinction(source, table, layerIndex, altitude, lat, lon, ShapeNoise, x, y, z) * dt;
                 }
             }
             return tau;
