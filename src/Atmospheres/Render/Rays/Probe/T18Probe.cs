@@ -44,7 +44,12 @@ namespace ReDefinition.Atmospheres
         protected override IEnumerator<ProbeWait> Scenario()
         {
             OwnCloudModule module = null;
-            yield return ProbeWait.Until(() => { module = OwnCloudModule.Current; return InFlightReady() && module != null && module.Stack != null && module.Stack.LayerCount > 0; },
+            // The switches the series declares for this start (productSwitches): the series pins none of them in the settings file.
+            SetSetting(AtmospheresSettings.Keys.Enabled, 1.0);
+            SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
+            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
+            SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
+            yield return ProbeWait.Until(() => { module = OwnCloudModule.Current; return HighLogic.LoadedScene == GameScenes.FLIGHT && InFlightReady() && module != null && module.Stack != null && module.Stack.LayerCount > 0; },
                                          300, "the flight scene and the own cloud stack");
             var stack = (LayerStackSource)module.Stack;
             Vessel vessel = FlightGlobals.ActiveVessel;

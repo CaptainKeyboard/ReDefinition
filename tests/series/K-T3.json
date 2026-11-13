@@ -2,13 +2,13 @@
   "$schema": "schema.json",
   "name": "K-T3",
   "owner": "T09",
-  "description": "The switch rows of everything built so far that no game start has measured (owner rule 'test everything you build', few starts, a table of numbers, each start 20 minutes at most, Medium, A4500). Five starts, 125 windows. Each variant is a set of settings and Tuning keys the probe puts on at runtime (src/Atmospheres/Light/Cloud/Probe/T09ProbeK3.Table.cs), so one start holds up to 26 of them; the probe puts the start's values back before each variant. Per variant: a K-T2 window of 22 s (the GPU profiler's reports inside it; cost = GPU-busy time minus the busy time of the view's 'off' window, labels = the pass's marker segments), then the numeric frame (rows T09d.<view>.k3.<id>.*, against the frame of the view's off window) and the aid frame (optical depth), both saved as pictures named t09-<start>-<view>_k3-<id>-<WxH>-natural-half and -aid-direct-half (sky3: the K-T2 pictures t09-<start>-sky3-<id>-<WxH>-natural / -aid-opticaldepth). The same pins as K-T2 (raytracing Off, frame generation off, quality NativeAA, window size, no frame cap, EVE and Trajectories removed, weatherEffects/genEnabled/enabled on, the log guard). One universal time per start, picked as K-T2 picks it (cover nearest 0.65, at least 0.5, sun 30 to 55 degrees up). Views: ground (200 m, 18 degrees up), above (8300 m, 25 degrees down), horizon (200 m, 2 degrees up), sky3 (200 m, 38 degrees up), r = the ground view in forced rain. Every block opens with its off window (cloudSource None). tools/weather_metrics/kt3.py reads the log: per id K3.<start>.<id>.cost_ms / labels_ms / delta_ms (variant minus reference, the reference is plain of the view unless EXPECT names another) / d_picture / d_ground, and per start windows, cost_missing, cost_misses, effect_misses, pictures_missing; the rows below judge the counts. EXPECTED RESULTS, written before the run, in kt3.py EXPECT (one line per id, with the band of delta_ms and the effect on the picture) and summarised in each start. Noise of the cost: the GPU-busy delta has about 0.5 ms (every K-T2 view is CPU-bound), the labels delta about 0.1 ms. A miss is a finding about the switch, not a fault of the script. Not in a start and why: .local/plans/atmospheres/K-T3-inventory.md.",
+  "description": "The switch rows of everything built so far that no game start has measured (owner rule 'test everything you build', few starts, a table of numbers, each start 20 minutes at most, Medium, A4500). Five switch starts with 125 windows and the T18 start (T18Probe, the rows of tests/series/rows/T18.json). Each variant is a set of settings and Tuning keys the probe puts on at runtime (src/Atmospheres/Light/Cloud/Probe/T09ProbeK3.Table.cs), so one start holds up to 26 of them; the probe puts the start's values back before each variant. Per variant: a K-T2 window of 22 s (the GPU profiler's reports inside it; cost = GPU-busy time minus the busy time of the view's 'off' window, labels = the pass's marker segments), then the numeric frame (rows T09d.<view>.k3.<id>.*, against the frame of the view's off window) and the aid frame (optical depth), both saved as pictures named t09-<start>-<view>_k3-<id>-<WxH>-natural-half and -aid-direct-half (sky3: the K-T2 pictures t09-<start>-sky3-<id>-<WxH>-natural / -aid-opticaldepth). The same pins as K-T2 (raytracing Off, frame generation off, quality NativeAA, window size, no frame cap, EVE and Trajectories removed, weatherEffects/genEnabled/enabled on, the log guard). One universal time per start, picked as K-T2 picks it (cover nearest 0.65, at least 0.5, sun 30 to 55 degrees up). Views: ground (200 m, 18 degrees up), above (8300 m, 25 degrees down), horizon (200 m, 2 degrees up), sky3 (200 m, 38 degrees up), r = the ground view in forced rain. Every block opens with its off window (cloudSource None). tools/weather_metrics/kt3.py reads the log: per id K3.<start>.<id>.cost_ms / labels_ms / delta_ms (variant minus reference, the reference is plain of the view unless EXPECT names another) / d_picture / d_ground, and per start windows, cost_missing, cost_misses, effect_misses, pictures_missing; the rows below judge the counts. EXPECTED RESULTS, written before the run, in kt3.py EXPECT (one line per id, with the band of delta_ms and the effect on the picture) and summarised in each start. Noise of the cost: the GPU-busy delta has about 0.5 ms (every K-T2 view is CPU-bound), the labels delta about 0.1 ms. A miss is a finding about the switch, not a fault of the script. Not in a start and why: .local/plans/atmospheres/K-T3-inventory.md.",
   "profile": "Medium",
   "configuration": "Release",
   "exclusive": true,
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 5,
+  "plannedStarts": 6,
   "bundle": true,
   "settings": [
     { "file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": { "raytracing": "Off", "frameGeneration": false, "qualityAuto": false, "quality": "NativeAA" } },
@@ -16,7 +16,8 @@
   ],
   "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1 },
   "metrics": [ { "script": "tools/weather_metrics/kt3.py" } ],
-  "sections": [ { "id": "T09", "package": "T09", "title": "Switch rows: cost and picture of every switch built so far" } ],
+  "sections": [ { "id": "T09", "package": "T09", "title": "Switch rows: cost and picture of every switch built so far" },
+                { "id": "T18", "package": "T18", "title": "RtOwnClouds: the ray-side pack of the own cloud layers" } ],
   "collect": [ { "from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures", "to": ".local/work/series-pictures/K-T3", "optional": true } ],
   "starts": [
     {
@@ -87,6 +88,14 @@
       ],
       "disableMods": [ "EVE", "Trajectories" ],
       "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-redefinitionGpuProfile", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "T09Probe" ]
+    },
+    {
+      "id": "t18",
+      "productSwitches": { "ownClouds": 1, "cloudSource": "Ours", "rtOwnClouds": 0 },
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } } ],
+      "description": "RtOwnClouds (T18Probe, module order 991): bake cost, upload, pack contents, agreement of the pack's ray law with the cloud shadow field at five places and a lattice, layer cap, switch off. The probe sets rtOwnClouds itself. A pad flight with a broken sky near the vessel (cover about 0.4 to 0.7, the K-T2d clock step); at most 10 minutes of scenario. Rows: tests/series/rows/T18.json; design: section 7 of .local/plans/atmospheres/T18-design.md.",
+      "disableMods": [ "EVE" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "T18Probe" ]
     }
   ],
   "rows": [

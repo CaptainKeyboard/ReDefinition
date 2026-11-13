@@ -1320,6 +1320,12 @@ def _selftest():
         for name in sorted(f[:-5] for f in os.listdir(os.path.join(DEFAULT_REPO, "tests", "series")) if re.match(r"K-.*\.json$", f)):
             _d, e = load_series(DEFAULT_REPO, name)
             check("repository series %s is valid" % name, not e, "; ".join(e[:2]))
+        kt3, _e = load_series(DEFAULT_REPO, "K-T3")
+        t18_rows = [r for r in kt3.get("rows", []) if r["metric"].startswith("T18.")]
+        t18_start = next((s for s in kt3["starts"] if s["id"] == "t18"), None)
+        check("K-T3 has a T18 section and its T18 rows are bound to a start that runs T18Probe",
+              bool(t18_rows) and any(s["id"] == "T18" for s in kt3.get("sections", [])) and t18_start is not None
+              and "T18Probe" in t18_start.get("probeArgs", []) and all(r.get("start") == "t18" and r.get("section") == "T18" for r in t18_rows))
 
         # 1. A full run: 20 sample lines parsed, the malformed one ignored with a warning, the foreign series ignored.
         fresh_ksp()
