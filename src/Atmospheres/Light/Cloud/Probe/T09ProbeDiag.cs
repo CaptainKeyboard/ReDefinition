@@ -368,6 +368,16 @@ namespace ReDefinition.Atmospheres
             }
             if (look == "B" && tag == "low")
                 foreach (ProbeWait w in DiagLookHorizon(tag)) yield return w;
+            if (look == "B" && tag == "high")
+            {
+                // The rain deck's own light from 8.3 km (above) and from 2.3 km: the dark patches of start 52's layer-alone frames, with the cloud shadow off and with every layer drawn.
+                foreach (View view in new[] { Views[2], DeckMidView })
+                {
+                    foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
+                    Emit("T09d." + view.Name + "." + tag + ".placed_ok", placeOk);
+                    foreach (ProbeWait w in DiagLookDeckLight(view, tag)) yield return w;
+                }
+            }
         }
 
         // One view: the baseline, the gains, the aid.
@@ -664,6 +674,11 @@ namespace ReDefinition.Atmospheres
             {
                 try { reading.Line = T09Readout.MeasureHorizonLine(image.Raw, baseline != null ? baseline.Raw : null, image.Width, image.Height, horizon); }
                 catch (Exception e) { Warn("horizon_line_fault", name + ": " + e.GetType().Name + " " + e.Message); }
+                if (ProfileWanted(view, gainTag))
+                {
+                    try { reading.Profile = T09Readout.MeasureRowProfile(image.Raw, baseline != null ? baseline.Raw : null, image.Width, image.Height, horizon); }
+                    catch (Exception e) { Warn("row_profile_fault", name + ": " + e.GetType().Name + " " + e.Message); }
+                }
             }
             string p = "T09d." + view.Name + "." + tag + "." + gainTag + ".";
             Emit(p + "pose_ok", poseOk);
@@ -704,6 +719,7 @@ namespace ReDefinition.Atmospheres
             EmitStat(p + "sky_", r.Sky);
             EmitStat(p + "ground_", r.Ground);
             EmitHorizonLine(p, r.Line);
+            EmitRowProfile(p, r.Profile);
             if (isOff)
             {
                 EmitRatio(p + "ground_over_sky", T09Readout.Ratio(r.Ground.Median, r.Ground.Count, r.Sky.Median, r.Sky.Count));
@@ -745,6 +761,35 @@ namespace ReDefinition.Atmospheres
             Emit(p + "line_step", l.Step);
         }
 
+        // The frames whose vertical row profile at the horizon is written (ten bands of nine rows each): in a look start the horizon pose, the order frames (ord*) and the baselines.
+        private bool ProfileWanted(View view, string frame)
+        {
+            return LookMode != null && (view.Name == "horizon" || frame == "off" || frame == "off2" || frame.StartsWith("ord", StringComparison.Ordinal) || frame.StartsWith("hh", StringComparison.Ordinal));
+        }
+
+        // The rows prof_b<k> (band k below the horizon row, 0 nearest) and prof_a<k> (above): n samples, changed (against the baseline by T09Readout.ClosedChange), rejected (mound rim and
+        // ridge samples dropped), and where a colour was read the frame's median colour r g b and the baseline's br bg bb over the same samples.
+        private void EmitRowProfile(string p, T09Readout.RowProfile profile)
+        {
+            if (profile.Below == null) return;
+            for (int side = 0; side < 2; side++)
+            {
+                T09Readout.ProfileBand[] bands = side == 0 ? profile.Below : profile.Above;
+                for (int k = 0; k < bands.Length; k++)
+                {
+                    T09Readout.ProfileBand b = bands[k];
+                    if (b.Count == 0) continue;
+                    string q = p + "prof_" + (side == 0 ? "b" : "a") + k.ToString(CultureInfo.InvariantCulture) + "_";
+                    Emit(q + "n", b.Count);
+                    Emit(q + "changed", b.Changed);
+                    Emit(q + "rejected", b.Rejected);
+                    if (!b.HasColour) continue;
+                    Emit(q + "r", b.Frame.r); Emit(q + "g", b.Frame.g); Emit(q + "b", b.Frame.b);
+                    if (b.Baseline.a > 0f) { Emit(q + "br", b.Baseline.r); Emit(q + "bg", b.Baseline.g); Emit(q + "bb", b.Baseline.b); }
+                }
+            }
+        }
+
         // The aid frame: the channels of the pass's direct light (r), light taps (g) and ambient (b) over the deck of the natural frame.
         // The rows of an aid-1 frame (the optical depth picture): the optical depth over the sky samples decoded against the baseline frame (T09Readout.MeasureAidTau), to be read
         // beside the colour-change closed share of the natural frame of the same set (K-T2d start 51 had no tau). Needs the baseline's raw picture; named otherwise.
@@ -782,6 +827,9 @@ namespace ReDefinition.Atmospheres
             Emit(p + "taps_median", r.Deck.G);
             Emit(p + "ambient_median", r.Deck.B);
             Emit(p + "direct_p90", r.Deck.P90);
+            // The direct light's own spread over the deck (the red channel of the aid picture): a patch of the deck that lies in the shadow of another layer reads far under the lit part.
+            Emit(p + "direct_r_p10", r.Deck.RP10);
+            Emit(p + "direct_r_p90", r.Deck.RP90);
         }
 
         // The light and the target, at the first drawn frame and every 30 s of the scenario.

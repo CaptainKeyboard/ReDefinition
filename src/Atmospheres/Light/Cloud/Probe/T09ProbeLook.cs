@@ -14,7 +14,10 @@ namespace ReDefinition.Atmospheres
     //                        inside (4.6 km) and from above (P3: it drew nothing at map 0.86).
     //   -atmoLook B          start 52, "look B": the light and the surface. The same three view/cover pairs with the sun tint 0 / 0.5 / 1 (cloud.sunTint), the exposure 1.4 and the sun's
     //                        path through the air with Scatterer loaded; the horizon pose (pitch +2 degrees, 200 m) at the low cover with the distance fade 0 / 20 / 40 / 80 km (cloud.fadeFarM)
-    //                        with and without the aerial perspective (cloud.farHaze); the aid frame of the direct light, the taps and the ambient.
+    //                        with and without the aerial perspective (cloud.farHaze); the aid frame of the direct light, the taps and the ambient. Follow-up of start 52: a second baseline frame
+    //                        (off2) and the repeats t0b / hz0h0b for the noise floor; the order pair at the horizon pose in the order 1, 0, 0, 1 (frames ord1, ord0, ord0b, ord1b) with the vertical
+    //                        row profile of the deck (rows prof_b<k> / prof_a<k>, T09Readout.MeasureRowProfile); at the high cover the rain deck alone from 8.3 km and 2.3 km with the
+    //                        cloud shadows off (l0up / l0mid + sh0), every layer drawn (+ all) and the aid frames of the optical depth and the light.
     // Rows, all T09d.<view>.<cover>.<frame>.*: the readout of the frame (EmitReading), written after the expectation rows (<frame>.expect_closed_mean / _p10 / _p90 / _sites: the CPU
     // oracle's closed share for the camera's geometry and the stack's CPU maps at the vessel with the knobs as they are, CloudLookModel.Expect, written BEFORE the frame is read) and
     // T09d.<view>.<cover>.L<k>.map_at_<d>_km, the layer's coverage map along the view's heading. Frames are named k<set>[m8] (shift 0 / -0.08), kovr (map forced), w<set>o<k> (layer k alone),
@@ -225,7 +228,7 @@ namespace ReDefinition.Atmospheres
             ClearForced();
             // Start 52: the order pair, at the low cover (the ground view and the view from above).
             if (cover == "low")
-                foreach (ProbeWait w in LookOrderPair(view, cover, head, off)) yield return w;
+                foreach (ProbeWait w in LookOrderPair(view, cover, head, off, new[] { 1, 0 })) yield return w;
             if (view.Name != "ground") yield break;
             // The layers one at a time under the winning set (P3 and the shape of each layer).
             LookSet win = LookWin();
@@ -261,12 +264,16 @@ namespace ReDefinition.Atmospheres
         // over OrderCountS: with 1 the count is above 0 (Scatterer puts its buffers behind the pass again every frame), with 0 it is 0. The rows: <frame>.order_moves (the count),
         // <frame>.order_flag, <frame>.render_order (the text of the order the pass read), and the horizon-line rows of the frame (EmitHorizonLine) that tell whether the cloud's colour steps
         // at the sea horizon's row. The env lines of the log (T09d env renderOrder) are written after each wait.
-        private IEnumerable<ProbeWait> LookOrderPair(View view, string cover, string head, T09Readout.Reading off)
+        // flags: the order of the switch values, one frame each (start 52: 1, 0; the follow-up of look B: 1, 0, 0, 1, so that a drift of the scene over the batch (the eye adaptation, the sun,
+        // the weather writer) falls on both orders alike and the repeat of each is the noise floor of the pair). The first frame of a value is named ord<flag>, the repeat ord<flag>b.
+        private IEnumerable<ProbeWait> LookOrderPair(View view, string cover, string head, T09Readout.Reading off, int[] flags)
         {
             string previousOrder = null;
-            foreach (int flag in new[] { 1, 0 })
+            int previousFlag = -1;
+            var seen = new HashSet<int>();
+            foreach (int flag in flags)
             {
-                string frame = "ord" + flag.ToString(CultureInfo.InvariantCulture);
+                string frame = "ord" + flag.ToString(CultureInfo.InvariantCulture) + (seen.Add(flag) ? "" : "b");
                 ApplyLookKeys(CloudLookModel.Sets[0], 0f);
                 ForceTuning(OwnCloudModule.TuneAfterScatterer, flag);
                 yield return ProbeWait.Frames(DiagSettleFrames);
@@ -289,10 +296,12 @@ namespace ReDefinition.Atmospheres
                     LogEnvironment(true);
                     Check("T09d.order_" + view.Name + "_" + cover + "_" + frame, flag == 1 ? moves > 0 : moves == 0,
                           "cloud.afterScatterer " + flag + ": " + moves + " moved frames in " + OrderCountS.ToString("0.0") + " s; order " + order);
-                    if (previousOrder != null)
-                        Check("T09d.order_changed_" + view.Name + "_" + cover, !string.Equals(previousOrder, order, StringComparison.Ordinal),
+                    if (previousOrder != null && flag != previousFlag)
+                        Check("T09d.order_changed_" + view.Name + "_" + cover + (flags.Length > 2 ? "_" + frame : ""),
+                              !string.Equals(previousOrder, order, StringComparison.Ordinal),
                               "the buffer order read with the switch on and off: " + previousOrder + " | " + order);
                     previousOrder = order;
+                    previousFlag = flag;
                 }
                 foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
             }
@@ -332,7 +341,11 @@ namespace ReDefinition.Atmospheres
             new LightVariant { Frame = "t5", Tint = 0.5f, Exposure = 1f, SunAir = 0f },
             new LightVariant { Frame = "t10", Tint = 1f, Exposure = 1f, SunAir = 0f },
             new LightVariant { Frame = "e14", Tint = 0f, Exposure = 1.4f, SunAir = 0f },
-            new LightVariant { Frame = "air1", Tint = 0f, Exposure = 1f, SunAir = 1f }
+            new LightVariant { Frame = "air1", Tint = 0f, Exposure = 1f, SunAir = 1f },
+            // The sun's path through the air with the full tint (the two together, beige against white), and the repeat of the first frame at the end of the batch: what differs between
+            // t0 and t0b is the drift of the scene and the noise of the pass, the floor under every difference between the variants.
+            new LightVariant { Frame = "air1t10", Tint = 1f, Exposure = 1f, SunAir = 1f },
+            new LightVariant { Frame = "t0b", Tint = 0f, Exposure = 1f, SunAir = 0f }
         };
 
         private IEnumerable<ProbeWait> DiagLookB(View view, string cover)
@@ -343,6 +356,9 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(DiagSettleFrames);
             foreach (ProbeWait w in DiagTake(view, cover, "off", false, null)) yield return w;
             T09Readout.Reading off = diagReading;
+            // The noise floor of everything read against the baseline: a second baseline frame of the same pose a few frames later (its rows are read beside the first's).
+            yield return ProbeWait.Frames(DiagSettleFrames);
+            foreach (ProbeWait w in DiagTake(view, cover, "off2", false, null)) yield return w;
             Game.SetLayerMask(0);
             yield return ProbeWait.Frames(DiagSettleFrames);
             T09Readout.Reading first = null;
@@ -365,6 +381,13 @@ namespace ReDefinition.Atmospheres
             }
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
+            // The view from above at the low cover: the deck lies over the sea there, at 20 to 60 km. The order pair in the order 1, 0, 0, 1 with the row profile, and the pass's own aerial
+            // perspective (cloud.farHaze 1) at the strength 1 and 2 with the order at its default (1: the pass behind Scatterer's air).
+            if (view.Name == "above" && cover == "low")
+            {
+                foreach (ProbeWait w in LookOrderPair(view, cover, head, off, new[] { 1, 0, 0, 1 })) yield return w;
+                foreach (ProbeWait w in LookHazeFrames(view, cover, head, off)) yield return w;
+            }
             bool on = false;
             try { on = Game.AidOn(4); }
             catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + ": " + e.GetType().Name + " " + e.Message); }
@@ -377,6 +400,24 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in DiagTake(view, cover, "aid4", true, first)) yield return w;
             try { Game.AidOff(); }
             catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
+        }
+
+        // The pass's aerial perspective (T06: the cloud's colour fogged towards the horizon sky by the air to its mean distance; cloud.farHaze, strength cloud.hazeStrength) at the strength 1 and 2:
+        // frames hh1 and hh2. The strength 2 is the ratio of Scatterer's Kerbin air to the pass's own coefficients (computed, E40-horizon-fade-design.md). Rows prof_* beside the order frames.
+        private IEnumerable<ProbeWait> LookHazeFrames(View view, string cover, string head, T09Readout.Reading off)
+        {
+            foreach (float strength in new[] { 1f, 2f })
+            {
+                ClearForced();
+                ForceTuning(CloudLookTuning.TuneFarHaze, 1f);
+                if (strength != 1f) ForceTuning(CloudLookTuning.TuneHazeStrength, strength);
+                string frame = "hh" + ((int)strength).ToString(CultureInfo.InvariantCulture);
+                yield return ProbeWait.Frames(DiagSettleFrames);
+                EmitLookExpectation(head, frame, view, Game.ReadLookInput());
+                foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
+            }
+            ClearForced();
+            yield return ProbeWait.Frames(DiagSettleFrames);
         }
 
         // The horizon pose at the low cover: the distance fade and the aerial perspective.
@@ -392,8 +433,12 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(DiagSettleFrames);
             foreach (ProbeWait w in DiagTake(view, cover, "off", false, null)) yield return w;
             T09Readout.Reading off = diagReading;
+            yield return ProbeWait.Frames(DiagSettleFrames);
+            foreach (ProbeWait w in DiagTake(view, cover, "off2", false, null)) yield return w;
             Game.SetLayerMask(0);
             yield return ProbeWait.Frames(DiagSettleFrames);
+            // The order pair at the horizon pose, where the sea below the row is clear (the sheet is overhead): 1, 0, 0, 1, each repeated, rows prof_* give the colour of the deck row by row.
+            foreach (ProbeWait w in LookOrderPair(view, cover, head, off, new[] { 1, 0, 0, 1 })) yield return w;
             foreach (float fade in HorizonFadesM)
                 foreach (int haze in new[] { 0, 1 })
                 {
@@ -405,8 +450,69 @@ namespace ReDefinition.Atmospheres
                     EmitLookExpectation(head, frame, view, Game.ReadLookInput());
                     foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
                 }
+            // The repeat of the first frame (no fade, no haze) at the end of the batch: the floor under the differences between the frames above.
+            ClearForced();
+            ForceTuning(CloudLookTuning.TuneFarHaze, 0f);
+            yield return ProbeWait.Frames(DiagSettleFrames);
+            EmitLookExpectation(head, "hz0h0b", view, Game.ReadLookInput());
+            foreach (ProbeWait w in DiagTake(view, cover, "hz0h0b", false, off)) yield return w;
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
+        }
+
+        // Look B at the high cover (the rain deck L0 alone, from 2.3 km and from above): the deck's own light. Frames: off (no layer), the deck (l0mid / l0up), the same with the cloud shadows
+        // off (<frame>sh0), the same with every layer drawn (<frame>all, the layers that the layer-alone frames hide and that the deck's light march still sees), and the aid frames: optical
+        // depth (aid1) and light (aid4: direct r, light taps g, ambient b; the pass has no separate shadow channel, the cloud's shadow on itself is in the direct term).
+        private IEnumerable<ProbeWait> DiagLookDeckLight(View view, string cover)
+        {
+            string head = "T09d." + view.Name + "." + cover + ".";
+            ClearForced();
+            Game.SetLayerMask(NoLayersMask);
+            yield return ProbeWait.Frames(DiagSettleFrames);
+            foreach (ProbeWait w in DiagTake(view, cover, "off", false, null)) yield return w;
+            T09Readout.Reading off = diagReading;
+            string frame = view.Name == "deck" ? "l0mid" : "l0up";
+            Game.SetLayerMask(1 << 0);
+            yield return ProbeWait.Frames(DiagSettleFrames);
+            EmitLookExpectation(head, frame, view, Game.ReadLookInput(), 0);
+            foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
+            T09Readout.Reading natural = diagReading;
+            foreach (ProbeWait w in LookAidTau(view, cover, frame, off)) yield return w;
+            foreach (ProbeWait w in LookAidLight(view, cover, frame, natural)) yield return w;
+            // The cloud shadow off: the pass does not read it (its buffers are the sun's mask and the opaque colour, both before the pass), so the deck does not change; the sea under an open
+            // deck would.
+            double shadowsBefore = AtmospheresSettings.CloudShadows ? 1.0 : 0.0;
+            if (SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0))
+            {
+                yield return ProbeWait.Frames(DiagSettleFrames);
+                foreach (ProbeWait w in DiagTake(view, cover, frame + "sh0", false, off)) yield return w;
+                SetSetting(AtmospheresSettings.Keys.CloudShadows, shadowsBefore);
+                yield return ProbeWait.Frames(DiagSettleFrames);
+            }
+            else Warn("shadow_switch_unreadable", head + "the setting cloudShadows could not be set; the frame " + frame + "sh0 is not taken");
+            // Every layer drawn: the layers above the deck are in the picture where they cast the deck's dark patches.
+            Game.SetLayerMask(0);
+            yield return ProbeWait.Frames(DiagSettleFrames);
+            foreach (ProbeWait w in DiagTake(view, cover, frame + "all", false, off)) yield return w;
+            Game.SetLayerMask(0);
+            yield return ProbeWait.Frames(DiagSettleFrames);
+        }
+
+        // The aid frame of the light (aid mode 4) of the scene as it stands, read over the deck of the natural frame next to it: rows <frame>aid4.direct_*, taps_*, ambient_* (EmitAid).
+        private IEnumerable<ProbeWait> LookAidLight(View view, string cover, string frame, T09Readout.Reading natural)
+        {
+            bool on = false;
+            try { on = Game.AidOn(4); }
+            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": " + e.GetType().Name + " " + e.Message); }
+            if (!on)
+            {
+                Warn("no_aid_view", view.Name + " " + cover + " " + frame + ": the own pass has no aid view now");
+                yield break;
+            }
+            yield return ProbeWait.Frames(DiagAidFrames);
+            foreach (ProbeWait w in DiagTake(view, cover, "aid4" + frame, true, natural)) yield return w;
+            try { Game.AidOff(); }
+            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
         }
     }
 }

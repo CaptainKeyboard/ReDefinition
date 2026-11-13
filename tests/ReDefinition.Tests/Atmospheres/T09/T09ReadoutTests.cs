@@ -22,6 +22,16 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return raw;
         }
 
+        private static Color[] PictureOf(int w, int h, Func<double, double, Color> pixel)
+        {
+            var raw = new Color[w * h];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++) raw[y * w + x] = pixel((x + 0.5) / w, (y + 0.5) / h);
+            }
+            return raw;
+        }
+
         private static Color Grey(float v) { return new Color(v, v, v, 1f); }
 
         [TestMethod]
@@ -166,6 +176,101 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.65f, line.StepColour, 1e-5f, "the frame's own colour steps by 0.9 - 0.25");
             Assert.IsFalse(T09Readout.MeasureHorizonLine(baseline, null, W, H, horizon).HasDelta, "the baseline itself has no change");
             Assert.AreEqual(0, T09Readout.MeasureHorizonLine(frame, baseline, W, H, 0.02).Count, "a horizon row at the picture's edge is not read");
+        }
+
+        // E40 start 52 follow-up. The horizon line reads six narrow columns in two thin bands. A cloud whose edge lies at the horizon row (deck on the sea side, clear sky above) gives a step that
+        // is the cloud against the sky, not a haze step: the metric cannot tell the two apart (the cross-check of start 52 named this). And a mound that fills most of the sampled columns in a
+        // band replaces the band's median.
+        [TestMethod]
+        public void TheHorizonLineStepCannotTellACloudEdgeAtTheRowFromAHazeStepAndAMoundInMostColumnsReplacesTheMedian()
+        {
+            const double horizon = 0.5;
+            Color[] baseline = Picture((u, v) => Grey(v > horizon ? 0.7f : 0.4f));
+            // The deck covers the sea side only: no cloud above the row, +0.25 below it.
+            Color[] edge = Picture((u, v) => Grey(v > horizon ? 0.7f : 0.65f));
+            T09Readout.HorizonLine line = T09Readout.MeasureHorizonLine(edge, baseline, W, H, horizon);
+            Assert.AreEqual(0f, line.DeltaAbove.r, 1e-5f);
+            Assert.AreEqual(0.25f, line.DeltaBelow.r, 1e-5f);
+            Assert.AreEqual(0.25f, line.Step, 1e-5f, "a deck that simply ends at the row reads as a step of the cloud's own change");
+            // The same deck on both sides, a mound (dark) in the columns left of 0.35 and right of 0.75 above the row, in the rows the band reads: five of the six columns are the mound's.
+            Color[] mound = Picture((u, v) =>
+            {
+                bool inMound = (u < 0.35 || u > 0.75) && v > horizon && v < horizon + 0.05;
+                return Grey(inMound ? 0.2f : (v > horizon ? 0.62f : 0.6f));
+            });
+            T09Readout.HorizonLine m = T09Readout.MeasureHorizonLine(mound, baseline, W, H, horizon);
+            Assert.AreEqual(0.2f, m.Above.g, 1e-5f, "the mound's colour is the band's median: the line reads the mound, not the deck");
+            Assert.AreEqual(0.6f, m.Below.g, 1e-5f);
+        }
+
+        [TestMethod]
+        public void TheRowProfileDropsMoundRimsFromTheDeckColourAndReadsTheBaselineBesideIt()
+        {
+            const double horizon = 0.5;
+            const int w = 200, h = 200;
+            Color[] baseline = PictureOf(w, h, (u, v) => Grey(v > horizon ? 0.7f : 0.4f));
+            // A deck of 0.62 below the row and 0.5 above it, a mound (0.2) in the first quarter of the columns above the row.
+            Color[] frame = PictureOf(w, h, (u, v) => Grey(v <= horizon ? 0.62f : (u < 0.25 && v < horizon + 0.12) ? 0.2f : 0.5f));
+            T09Readout.RowProfile profile = T09Readout.MeasureRowProfile(frame, baseline, w, h, horizon);
+            Assert.AreEqual(T09Readout.ProfileBands, profile.Below.Length);
+            for (int k = 0; k < T09Readout.ProfileBands; k++)
+            {
+                T09Readout.ProfileBand b = profile.Below[k], a = profile.Above[k];
+                Assert.IsTrue(b.HasColour, "below band " + k);
+                Assert.AreEqual(0.62f, b.Frame.r, 1e-5f, "below band " + k);
+                Assert.AreEqual(0.4f, b.Baseline.r, 1e-5f, "the baseline's own colour over the same samples, below band " + k);
+                Assert.AreEqual(0, b.Rejected, "no mound below the row");
+                Assert.IsTrue(a.HasColour, "above band " + k);
+                Assert.AreEqual(0.5f, a.Frame.r, 1e-5f, "the mound's samples are not in the colour, above band " + k);
+                Assert.AreEqual(0.7f, a.Baseline.r, 1e-5f);
+                Assert.IsTrue(a.Rejected > 0 && a.Rejected < a.Changed / 2, "mound samples rejected above band " + k + ": " + a.Rejected + " of " + a.Changed);
+            }
+            // The baseline itself: no change is known, every sample counts, the colour is the picture's and no baseline colour is written.
+            T09Readout.RowProfile own = T09Readout.MeasureRowProfile(baseline, null, w, h, horizon);
+            Assert.IsTrue(own.Below[0].HasColour && own.Below[0].Frame.r == 0.4f && own.Below[0].Baseline.a == 0f);
+        }
+
+        [TestMethod]
+        public void TheRowProfileSeesADeckFadeIntoTheHazeAsFewerChangedSamplesAndASmallerDistanceToTheBaseline()
+        {
+            const double horizon = 0.5;
+            const int w = 200, h = 200;
+            Color[] baseline = PictureOf(w, h, (u, v) => Grey(0.7f));
+            // The deck's colour falls from 0.7 at the row to 0.4 at 0.10 below it (a fade into the haze): the profile's distance to the baseline falls towards the row, and the bands near the row
+            // hold no changed sample at all (the change there is under T09Readout.ClosedChange).
+            Color[] frame = PictureOf(w, h, (u, v) => Grey(v >= horizon ? 0.7f : 0.7f - 0.3f * (float)Math.Min(1.0, (horizon - v) / 0.1)));
+            T09Readout.RowProfile profile = T09Readout.MeasureRowProfile(frame, baseline, w, h, horizon);
+            float previous = -1f;
+            for (int k = 2; k < T09Readout.ProfileBands; k++)
+            {
+                T09Readout.ProfileBand b = profile.Below[k];
+                Assert.IsTrue(b.HasColour, "band " + k);
+                float distance = Math.Abs(b.Baseline.r - b.Frame.r);
+                Assert.IsTrue(distance > previous, "the distance to the baseline grows away from the row: band " + k + " " + distance);
+                previous = distance;
+            }
+            Assert.AreEqual(0, profile.Below[0].Changed, "the band at the row has faded into the baseline");
+            Assert.IsFalse(profile.Below[0].HasColour);
+            // A row near the picture's edge gives empty bands.
+            Assert.AreEqual(0, T09Readout.MeasureRowProfile(frame, baseline, w, h, 0.02).Below[0].Count);
+        }
+
+        // The cross-check of start 52 read 'above.high.l0up.sky_closed_share = 9.86'; the log row is 9.8607E-05 (the exponent was lost in reading). The share is a count over the same samples
+        // as the region, so it cannot leave [0, 1] whatever the region's size.
+        [TestMethod]
+        public void TheClosedShareStaysBetweenZeroAndOneForATinySkyRegion()
+        {
+            const double horizon = 0.92;
+            const int w = 100, h = 100;
+            Color[] baseline = PictureOf(w, h, (u, v) => Grey(v > horizon ? 0.7f : 0.3f));
+            T09Readout.Reading off = T09Readout.Measure(baseline, w, h, horizon, null);
+            Color[] frame = PictureOf(w, h, (u, v) => Grey(0.1f));
+            T09Readout.Reading r = T09Readout.Measure(frame, w, h, horizon, off);
+            Assert.IsTrue(r.Sky.Count > 0 && r.Sky.Count < 100, "a sky region of a few samples: " + r.Sky.Count);
+            Assert.AreEqual(1.0, r.SkyClosedShare, 1e-9);
+            Assert.IsTrue(r.GroundClosedShare >= 0.0 && r.GroundClosedShare <= 1.0);
+            Color[] clear = PictureOf(w, h, (u, v) => Grey(v > horizon ? 0.7f : 0.3f));
+            Assert.AreEqual(0.0, T09Readout.Measure(clear, w, h, horizon, off).SkyClosedShare, 1e-9);
         }
     }
 }

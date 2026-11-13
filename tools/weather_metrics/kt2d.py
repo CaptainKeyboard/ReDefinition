@@ -134,6 +134,79 @@ ORDER_STEP_ON, ORDER_STEP_OFF = 0.08, 0.15     # E40 start 52: the colour step a
 A7_STEP = 0.10              # the horizon band's change against the baseline
 
 
+PROFILE_BANDS = 5
+PROFILE_FLOOR_MIN = 0.02       # a difference between the two orders counts as an effect when it exceeds this and twice the repeat's difference
+
+
+def _mean(vals):
+    vals = [v for v in vals if v is not None]
+    return sum(vals) / len(vals) if vals else None
+
+
+def order_profile(frames, get, add, notes, pre, head):
+    """Start 52 follow-up: the vertical row profile (rows prof_b<k> below the horizon row, prof_a<k> above it; k 0 nearest) of the order frames ord1, ord0 and their repeats ord0b, ord1b
+    (order 1, 0, 0, 1), the colour of the deck row by row with the mound rims left out. Per band and channel: the mean of the two ord0 frames minus the mean of the two ord1 frames
+    (order.<band>.d_r / d_g / d_b), the floor (the larger of the repeats' differences |ord1 - ord1b| and |ord0 - ord0b|, largest channel; order.<band>.floor), a verdict
+    order.<band>.moves (1 when the largest channel of d exceeds PROFILE_FLOOR_MIN and twice the floor, -1 when it does not), and the distance of each order's deck colour to the
+    baseline's over the same samples (order.<band>.gap_ord1 / gap_ord0: the deck's distance to the haze; a deck fading into it approaches 0 towards the row)."""
+    if not any(f.startswith("ord") for f in frames):
+        return
+    ons, offs = ("ord1", "ord1b"), ("ord0", "ord0b")
+    for side, name in (("b", "below"), ("a", "above")):
+        for k in range(PROFILE_BANDS):
+            band = "%s%d" % (side, k)
+
+            def p(frame, ch, band=band):
+                return get(frame, "prof_%s_%s" % (band, ch))
+            d, floor_parts, line = {}, [], []
+            for ch in ("r", "g", "b"):
+                on, off = _mean([p(f, ch) for f in ons]), _mean([p(f, ch) for f in offs])
+                if on is None or off is None:
+                    continue
+                d[ch] = off - on
+                add(pre + "order.%s.d_%s" % (band, ch), d[ch])
+                for pair in (ons, offs):
+                    a, b = p(pair[0], ch), p(pair[1], ch)
+                    if a is not None and b is not None:
+                        floor_parts.append(abs(a - b))
+            if not d:
+                continue
+            floor = max(floor_parts) if floor_parts else None
+            biggest = max(abs(v) for v in d.values())
+            if floor is not None:
+                add(pre + "order.%s.floor" % band, floor)
+            add(pre + "order.%s.moves" % band, 1 if biggest > max(PROFILE_FLOOR_MIN, 2.0 * (floor or 0.0)) else -1)
+            gaps = []
+            for tag, frames_of in (("ord1", ons), ("ord0", offs)):
+                best = None
+                for f in frames_of:
+                    vals = [(p(f, c), p(f, "b" + c)) for c in ("r", "g", "b")]
+                    if all(a is not None and b is not None for a, b in vals):
+                        dist = max(abs(a - b) for a, b in vals)
+                        best = dist if best is None else (best + dist) / 2.0
+                if best is not None:
+                    add(pre + "order.%s.gap_%s" % (band, tag), best)
+                    gaps.append("%s %.3f" % (tag, best))
+            # The pass's own aerial perspective at the strength 1 and 2 (frames hh1, hh2; the order at its default 1) against the order 0 frames: Scatterer's air is the reference.
+            for hh in ("hh1", "hh2"):
+                parts = []
+                for ch in ("r", "g", "b"):
+                    a, ref = p(hh, ch), _mean([p(f, ch) for f in offs])
+                    if a is not None and ref is not None:
+                        add(pre + "order.%s.%s_minus_ord0_%s" % (band, hh, ch), a - ref)
+                        parts.append("%s %+.3f" % (ch, a - ref))
+                vals = [(p(hh, c), p(hh, "b" + c)) for c in ("r", "g", "b")]
+                if all(a is not None and b is not None for a, b in vals):
+                    add(pre + "order.%s.gap_%s" % (band, hh), max(abs(a - b) for a, b in vals))
+                if parts:
+                    line.append("%s - ord0 %s" % (hh, " ".join(parts)))
+            line.append("ord0 - ord1 r %+.3f g %+.3f b %+.3f" % (d.get("r", float("nan")), d.get("g", float("nan")), d.get("b", float("nan"))))
+            line.append("floor %s" % ("-" if floor is None else "%.3f" % floor))
+            if gaps:
+                line.append("distance to the baseline: " + ", ".join(gaps))
+            notes.append("%-12s order profile %s band %d: %s" % (head, name, k, "; ".join(line)))
+
+
 def look_table(values, view, cover, get, add, notes):
     """The look starts' frames (T09ProbeLook): per set the closed share at shift 0 and -0.08 beside the expectation the CPU oracle wrote before the frame, the forced-map frame,
     the layer-alone and rain-deck frames, the light variants and the horizon. Verdicts are 1 (inside), -1 (outside) against the plan's acceptance rows."""
@@ -243,6 +316,7 @@ def look_table(values, view, cover, get, add, notes):
         moves1, moves0 = get("ord1", "order_moves"), get("ord0", "order_moves")
         notes.append("%-12s order pair: step over the baseline's %.3f with afterScatterer 1, %.3f with 0 (moved frames %s / %s)" % (
             head, on - off_step, offf - off_step, "-" if moves1 is None else "%d" % moves1, "-" if moves0 is None else "%d" % moves0))
+    order_profile(frames, get, add, notes, pre, head)
     for l in ("L0", "L1", "L2", "L3"):
         root = values.get((view, cover, l, "root_m"))
         if root is not None:
@@ -492,6 +566,27 @@ def selftest():
     got = {r["metric"]: r["value"] for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.05, 1.0) + order]), notes)}
     assert got["T09d.above.low.look.order.step_vanishes"] == 1 and abs(got["T09d.above.low.look.order.step_off"] - 0.22) < 1e-9, got
     assert any("order pair" in n and "moved frames 60 / 0" in n for n in notes), notes
+    # The order profile (order 1, 0, 0, 1): band b2 moves with the order (ord0 bluer by 0.06 against a repeat floor of 0.01), band b0 does not (the dark rim: both orders the same).
+    def prof(frame, band, r, g, b, base):
+        return [("%s.prof_%s_%s" % (frame, band, ch), v) for ch, v in (("r", r), ("g", g), ("b", b), ("br", base[0]), ("bg", base[1]), ("bb", base[2]))]
+    rows = []
+    for frame, b0, b2 in (("ord1", (0.40, 0.40, 0.40), (0.64, 0.63, 0.63)), ("ord1b", (0.40, 0.40, 0.40), (0.645, 0.635, 0.635)),
+                          ("ord0", (0.40, 0.40, 0.40), (0.655, 0.675, 0.70)), ("ord0b", (0.40, 0.40, 0.40), (0.65, 0.67, 0.695))):
+        rows += prof(frame, "b0", b0[0], b0[1], b0[2], (0.65, 0.73, 0.77)) + prof(frame, "b2", b2[0], b2[1], b2[2], (0.50, 0.66, 0.74))
+    prof_rows = look_rows("above", "low", rows)
+    notes = []
+    got = {r["metric"]: r["value"] for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.05, 1.0) + prof_rows]), notes)}
+    assert got["T09d.above.low.look.order.b2.moves"] == 1 and got["T09d.above.low.look.order.b0.moves"] == -1, got
+    assert abs(got["T09d.above.low.look.order.b2.d_b"] - 0.065) < 1e-9 and abs(got["T09d.above.low.look.order.b2.floor"] - 0.005) < 1e-9, got
+    assert abs(got["T09d.above.low.look.order.b0.gap_ord1"] - 0.37) < 1e-9, got
+    assert any("order profile below band 2" in n and "ord0 - ord1 r +0.010 g +0.040 b +0.065" in n for n in notes), notes
+    hh = look_rows("above", "low", prof("hh2", "b2", 0.655, 0.675, 0.70, (0.50, 0.66, 0.74)) + prof("hh1", "b2", 0.65, 0.65, 0.66, (0.50, 0.66, 0.74)))
+    notes = []
+    got = {r["metric"]: r["value"] for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.05, 1.0) + prof_rows + hh]), notes)}
+    assert abs(got["T09d.above.low.look.order.b2.hh2_minus_ord0_b"] - 0.0025) < 1e-9 and abs(got["T09d.above.low.look.order.b2.hh1_minus_ord0_b"] + 0.0375) < 1e-9, got
+    assert abs(got["T09d.above.low.look.order.b2.gap_hh2"] - 0.155) < 1e-9, got
+    assert any("hh2 - ord0 r +0.002 g +0.002 b +0.002" in n for n in notes), notes
+    assert not any(k.startswith("T09d.above.low.look.order.") for k in {r["metric"]: 1 for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.05, 1.0)]), [])}), "no order frames, no order rows"
     # Lines of another series and text values are ignored; an empty log gives nothing.
     assert parse(['ATMORESULT {"series":"K-T2","metric":"T09d.a.b.c.d","value":1.0}', 'ATMORESULT {"series":"K-T2d","metric":"T09d.env.sunLight","value":"x"}']) == {}
     assert analyse({}, []) == []

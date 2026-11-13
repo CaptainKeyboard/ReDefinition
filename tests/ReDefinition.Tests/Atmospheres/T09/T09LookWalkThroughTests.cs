@@ -164,28 +164,62 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void LookBReadsTheLightVariantsTheAidFrameAndTheHorizon()
         {
-            Run r = StartLook("B");
+            bool shadowsBefore = AtmospheresSettings.CloudShadows;
+            // A larger raw picture than the fake's default: a row profile band is 2 percent of the height, under one row of 36.
+            Run r = StartLook("B", null, null, x => { x.World.RawWidth = 160; x.World.RawHeight = 120; });
             Drive(r, 0.02);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             foreach (string view in new[] { "ground.low", "ground.high", "above.low" })
             {
                 string p = "T09d." + view + ".";
-                foreach (string frame in new[] { "t0", "t5", "t10", "e14", "air1" })
+                foreach (string frame in new[] { "t0", "t5", "t10", "e14", "air1", "air1t10", "t0b" })
                 {
                     Assert.IsTrue(Row(r, p + frame + ".deck_median") > 0, p + frame);
                     Assert.IsTrue(Row(r, p + frame + ".sun_r") > 0 && Row(r, p + frame + ".sun_g") > 0 && Row(r, p + frame + ".sun_b") > 0, p + frame + " sun colour");
                 }
                 Assert.AreEqual(0.3, Row(r, p + "aid4.direct_median"), 1e-4);
+                Assert.IsTrue(Row(r, p + "off2.sky_n") > 0 || Row(r, p + "off2.ground_n") > 0, p + "the second baseline frame (the noise floor) is read");
+                Assert.IsTrue(Row(r, p + "off.prof_b0_n") >= 0, p + "the baseline's row profile");
             }
-            // The horizon pose at the low cover: eight frames (fade 0 / 20 / 40 / 80 km, haze off and on) and the baseline.
-            foreach (string frame in new[] { "hz0h0", "hz0h1", "hz20h0", "hz20h1", "hz40h0", "hz40h1", "hz80h0", "hz80h1" })
+            // The horizon pose at the low cover: eight frames (fade 0 / 20 / 40 / 80 km, haze off and on), their repeat, the baseline and its repeat, the order frames 1, 0, 0, 1.
+            foreach (string frame in new[] { "hz0h0", "hz0h1", "hz20h0", "hz20h1", "hz40h0", "hz40h1", "hz80h0", "hz80h1", "hz0h0b" })
             {
                 Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".deck_median") >= 0, frame);
                 Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".expect_closed_mean") >= 0, frame + " expectation");
             }
+            foreach (string frame in new[] { "ord1", "ord0", "ord0b", "ord1b" })
+            {
+                Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".deck_median") >= 0, frame);
+                Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-horizon_low-" + frame + "-")), frame + " picture");
+                // The row profile of the deck: five bands below the horizon row and five above it, each with its sample count.
+                Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".prof_b0_n") > 0, frame + " row profile");
+            }
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-horizon_low-off2-")), "the baseline's repeat at the horizon pose");
+            // The view from above at the low cover: the order frames 1, 0, 0, 1 and the pass's own aerial perspective at the strength 1 and 2.
+            foreach (string frame in new[] { "ord1", "ord0", "ord0b", "ord1b", "hh1", "hh2" })
+            {
+                Assert.IsTrue(Row(r, "T09d.above.low." + frame + ".deck_median") >= 0, "above low " + frame);
+                Assert.IsTrue(Row(r, "T09d.above.low." + frame + ".prof_b0_n") > 0, "above low " + frame + " row profile");
+            }
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-ground_low-ord1-") || n.Contains("-ground_high-hh1-")), "the order and haze frames are read from above at the low cover and at the horizon only");
+            Assert.IsFalse(r.Rows.Any(l => l.Contains(".t0.prof_")), "the row profile is written for the horizon pose, the order frames and the baselines only");
             Assert.AreEqual(1.0, Row(r, "T09d.horizon.low.placed_ok"));
-            // 3 pairs x (off + 5 variants + aid) + the horizon (off + 8).
-            Assert.AreEqual(3 * 7 + 9, r.World.Saved.Count);
+            // The rain deck's own light at the high cover, from 8.3 km and 2.3 km: the deck, with the shadows off, with every layer, the aid frames of the tau and of the light.
+            foreach (string pose in new[] { "above.high.l0up", "deck.high.l0mid" })
+            {
+                string view = pose.Substring(0, pose.LastIndexOf('.')), frame = pose.Substring(pose.LastIndexOf('.') + 1);
+                string q = "T09d." + view + ".";
+                Assert.IsTrue(Row(r, q + frame + ".deck_median") >= 0 && Row(r, q + frame + "sh0.deck_median") >= 0 && Row(r, q + frame + "all.deck_median") >= 0, pose + " frames");
+                Assert.IsTrue(Row(r, q + "aid1" + frame + ".aidtau_n") > 0, pose + " aid tau");
+                Assert.IsTrue(Row(r, q + "aid4" + frame + ".direct_median") > 0, pose + " aid light");
+                Assert.IsTrue(Row(r, q + "aid4" + frame + ".direct_r_p10") <= Row(r, q + "aid4" + frame + ".direct_r_p90"), pose + " the direct light's spread over the deck");
+                Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view.Replace('.', '_') + "-" + frame + "sh0-")), pose + " shadows-off picture");
+            }
+            // The shadow setting is put back after the shadows-off frames.
+            Assert.AreEqual(shadowsBefore, AtmospheresSettings.CloudShadows, "cloudShadows is back as it was");
+            // 3 pairs x (off + off2 + 7 variants + aid) + the horizon (off, off2, 4 order frames, 8 fade frames, the repeat) + the high cover's ground view again (counted in the 3 pairs)
+            // + 2 deck-light views x (off, deck, aid tau, aid light, shadows off, all layers) + from above at the low cover the order frames (4) and the haze frames (2).
+            Assert.AreEqual(3 * 10 + 15 + 2 * 6 + 4 + 2, r.World.Saved.Count);
         }
 
         [TestMethod]

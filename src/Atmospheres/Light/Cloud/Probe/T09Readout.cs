@@ -27,6 +27,8 @@ namespace ReDefinition.Atmospheres
         {
             internal int Count;
             internal float P10, Median, P90, R, G, B;
+            // The 10th and 90th percentile of the red channel (the aid frame of the light carries the direct light in it).
+            internal float RP10, RP90;
             // The share of the region's samples with a channel at or above ClipValue.
             internal float Clipped;
         }
@@ -54,6 +56,8 @@ namespace ReDefinition.Atmospheres
             internal double HorizonBandClosed, HorizonBandChange;
             // The colour next to the horizon row (MeasureHorizonLine); Count 0 where the row is too near the picture's edge.
             internal HorizonLine Line;
+            // The vertical row profile at the horizon (MeasureRowProfile); null bands where it was not read.
+            internal RowProfile Profile;
         }
 
         // CLOSED, as far as a picture can say it (the target's alpha is not read): a region sample is closed where the largest change of a channel against the baseline pixel is
@@ -258,6 +262,100 @@ namespace ReDefinition.Atmospheres
                 line.Step = Math.Max(Math.Abs(line.DeltaAbove.r - line.DeltaBelow.r), Math.Max(Math.Abs(line.DeltaAbove.g - line.DeltaBelow.g), Math.Abs(line.DeltaAbove.b - line.DeltaBelow.b)));
             }
             return line;
+        }
+
+        // --- The vertical row profile at the horizon (E40 start 52 follow-up) --------------------------------------------------------------------------------
+        // MeasureHorizonLine reads six narrow columns in two thin bands, which hit the ridge and the mound rims of a deck and are as wide as the effect they look for (the noise floor
+        // of its step was about 0.03 against a haze effect of 0.055). The profile reads every column of a band instead and drops the samples that are not the deck's body: of the
+        // samples that changed against the baseline by ClosedChange or more, those whose luminance is more than MoundTolerance away from the band's median (a mound's lit side, a ridge's dark
+        // rim, a hole onto the sea) are counted as rejected and left out of the colour. The bands lie below the horizon row (index 0 nearest the row) and above it, each ProfileBandHeight of
+        // the picture's height, starting ProfileGap from the row. The colour of the baseline over the same samples is read beside it: a deck that fades into the haze approaches it
+        // towards the horizon.
+        internal const int ProfileBands = 5;
+        internal const double ProfileBandHeight = 0.02, ProfileGap = 0.004, MoundTolerance = 0.08;
+        internal const int ProfileMinSamples = 20;
+
+        internal struct ProfileBand
+        {
+            // The samples read in the band (the vessel's box and the picture's edges left out), those that changed by ClosedChange or more, and of those the rejected ones.
+            internal int Count, Changed, Rejected;
+            // The median colour of the kept samples in the frame and in the baseline (zero where fewer than ProfileMinSamples are kept).
+            internal Color Frame, Baseline;
+            internal bool HasColour;
+        }
+
+        // The profile of one frame: Below[k] is the band k ProfileBandHeight below the row (k 0 nearest), Above[k] the same above it. baselineRaw null: no change is known, every sample is
+        // taken as changed and the baseline colour stays zero.
+        internal struct RowProfile
+        {
+            internal ProfileBand[] Below, Above;
+        }
+
+        internal static RowProfile MeasureRowProfile(Color[] raw, Color[] baselineRaw, int width, int height, double horizonV)
+        {
+            var profile = new RowProfile { Below = new ProfileBand[ProfileBands], Above = new ProfileBand[ProfileBands] };
+            if (raw == null || raw.Length != width * height || width < 8 || height < 8) return profile;
+            bool delta = baselineRaw != null && baselineRaw.Length == raw.Length;
+            for (int side = 0; side < 2; side++)
+            {
+                for (int k = 0; k < ProfileBands; k++)
+                {
+                    double lo = side == 0 ? horizonV - ProfileGap - (k + 1) * ProfileBandHeight : horizonV + ProfileGap + k * ProfileBandHeight;
+                    double hi = lo + ProfileBandHeight;
+                    ProfileBand band = ReadBand(raw, delta ? baselineRaw : null, width, height, lo, hi);
+                    if (side == 0) profile.Below[k] = band; else profile.Above[k] = band;
+                }
+            }
+            return profile;
+        }
+
+        private static ProfileBand ReadBand(Color[] raw, Color[] baselineRaw, int width, int height, double lo, double hi)
+        {
+            var band = new ProfileBand();
+            if (lo < EdgeLow || hi > EdgeHigh) return band;
+            int yLow = (int)Math.Ceiling(lo * height - 0.5), yHigh = (int)Math.Floor(hi * height - 0.5);
+            var indexes = new List<int>();
+            var luma = new List<float>();
+            for (int y = yLow; y <= yHigh; y++)
+            {
+                if (y < 0 || y >= height) continue;
+                double v = (y + 0.5) / height;
+                for (int x = 0; x < width; x += Stride)
+                {
+                    if (InVessel((x + 0.5) / width, v)) continue;
+                    int i = y * width + x;
+                    band.Count++;
+                    if (baselineRaw != null && ChannelChange(raw[i], baselineRaw[i]) < ClosedChange) continue;
+                    indexes.Add(i);
+                    luma.Add(Luminance(raw[i]));
+                }
+            }
+            band.Changed = indexes.Count;
+            if (indexes.Count == 0) return band;
+            var sorted = new List<float>(luma);
+            float median = Percentile(sorted, 0.5);
+            var fr = new List<float>(); var fg = new List<float>(); var fb = new List<float>();
+            var br = new List<float>(); var bg = new List<float>(); var bb = new List<float>();
+            for (int n = 0; n < indexes.Count; n++)
+            {
+                if (Math.Abs(luma[n] - median) > MoundTolerance)
+                {
+                    band.Rejected++;
+                    continue;
+                }
+                Color c = raw[indexes[n]];
+                fr.Add(c.r); fg.Add(c.g); fb.Add(c.b);
+                if (baselineRaw != null)
+                {
+                    Color b = baselineRaw[indexes[n]];
+                    br.Add(b.r); bg.Add(b.g); bb.Add(b.b);
+                }
+            }
+            if (fr.Count < ProfileMinSamples) return band;
+            band.HasColour = true;
+            band.Frame = new Color(Percentile(fr, 0.5), Percentile(fg, 0.5), Percentile(fb, 0.5), 1f);
+            if (br.Count > 0) band.Baseline = new Color(Percentile(br, 0.5), Percentile(bg, 0.5), Percentile(bb, 0.5), 1f);
+            return band;
         }
 
         // --- Optical depth from the aid picture (aid mode 1 of the layer shader) -------------------------------------------------------------------
@@ -519,6 +617,8 @@ namespace ReDefinition.Atmospheres
                 s.P10 = Percentile(luma, 0.10);
                 s.Median = Percentile(luma, 0.50);
                 s.P90 = Percentile(luma, 0.90);
+                s.RP10 = Percentile(r, 0.10);
+                s.RP90 = Percentile(r, 0.90);
                 s.R = Percentile(r, 0.50);
                 s.G = Percentile(g, 0.50);
                 s.B = Percentile(b, 0.50);
