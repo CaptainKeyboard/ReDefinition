@@ -248,7 +248,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     else
                     {
                         Assert.IsTrue(Number(r, p + "frames_drawn", v) >= 60, "drawn");
-                        Assert.AreEqual(v.StartsWith("recon") ? "reconstruct" : "plain", Values(r, p + "mode", v)[0].Value);
+                        // Level 1 reads "reconstruct" under the default history (recon.accumulate 0.2) as the block levels do.
+                        Assert.AreEqual("reconstruct", Values(r, p + "mode", v)[0].Value);
                         Assert.IsTrue(Values(r, p + "cover_at_view_height", v).Count > 0, "cover at view height");
                     }
                 }

@@ -118,10 +118,10 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        // What the module reports as its mode for the variant while it draws.
+        // What the module reports as its mode for the variant while it draws. Level 1 reads "reconstruct" while recon.accumulate is above 0 (its default), "plain" at 0.
         private static string ExpectedMode(string variant)
         {
-            return IsReconLevel(variant) || variant == "edge" ? "reconstruct" : "plain";
+            return IsReconLevel(variant) || variant == "edge" || OwnCloudOptions.AccumulateDefault > 0f ? "reconstruct" : "plain";
         }
 
         // The cloud resolution levels (the slider cloudResolution): plain is level 1, recon2 to recon4 march one pixel of every 2 x 2, 3 x 3 or 4 x 4 block.

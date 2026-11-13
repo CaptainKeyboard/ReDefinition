@@ -29,10 +29,11 @@ namespace ReDefinition.Atmospheres
         // E40 grain: the weight of a new frame in the history of the half-size march (ReconSettings.Accumulate); 0: no history (the pass before the package).
         // Measured at 0.2: against no history the temporal noise of a pixel falls to 0.18 (ground) and 0.27 (above) of it in the game (K-T2d start 54, rows
         // grain_tstd of g0 and gacc) and to 0.22 in the player, the error against the converged picture falls under a still camera, a turn of 30 and 180 degrees a
-        // second and a fly-by of 300 and 2400 m/s (series e40-gn-temporal), and the pass costs 0.01 ms more at 1707 x 960 (series e40-gn-cost). The default stays 0:
-        // the reconstruction is off until the owner agrees (IntegrationBridgeTests, the K-T2 and K-T3 baselines read the pass as "plain").
+        // second and a fly-by of 300 and 2400 m/s (series e40-gn-temporal), and the pass costs 0.02 ms more at 1707 x 960 (series e40-gn-cost). It is the default
+        // (the owner delegated the choice): level 1 keeps the reprojected, clipped history and the pass reads "reconstruct"; recon.accumulate 0 is the former plain pass.
+        // The finer grid (layers.gridFine, layers.emptyLeap), the entry ramp and layers.cloudStep stay off until their cost with all layers is measured in the game.
         internal const string TuneAccumulate = "recon.accumulate";
-        internal const float AccumulateDefault = 0f;
+        internal const float AccumulateDefault = 0.2f;
 
         // The tuning keys of the light's look constants (T03); the compiled defaults are the fields of CloudLightSettings.
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
@@ -306,7 +307,7 @@ namespace ReDefinition.Atmospheres
             s.Block = Math.Max(2, level);
             // The mask restriction runs the edge mode, which marches the 4 x 4 coarse block; the mode Low overrides it.
             s.RefineAtMask = On(v, AtmospheresSettings.Keys.CloudRefineEdgeMask) && !low;
-            // E40 grain: recon.accumulate W (0 to 1; default 0, off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
+            // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));
             s.Accumulate = 0f;

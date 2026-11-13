@@ -21,7 +21,7 @@ namespace ReDefinition.Atmospheres
     // Rendering statement (owner rule: every visual feature states it):
     //  - motion vectors: none of its own. The pass draws into the camera target before the image effects; the upscaler sees the clouds as part
     //    of the colour. With the reconstruction (off by default) the cloud keeps its own history: the block levels of cloudResolution a full-size one, the
-    //    half-size march of level 1 one of its own size behind recon.accumulate (E40 grain; default 0); the upscaler's jitter is not applied to the rays.
+    //    half-size march of level 1 one of its own size behind recon.accumulate (E40 grain; default 0.2, 0 = none); the upscaler's jitter is not applied to the rays.
     //  - depth: the camera's depth texture, made linear by ReDefinitionAtmospheresLayerDepth.shader, limits the march and the composite
     //    (depth-aware); the clouds write no depth. [VERIFY] that _CameraDepthTexture is readable at the chosen event under the Deferred mod.
     //  - masks: no reactive mask for DLSS. HUD-less frame generation: the pass is part of the scene colour before the HUD. Raytracing: the

@@ -147,11 +147,11 @@ def _fit_command_line(start):
     Every phase names all of its live keys, so none inherits one from the phase before; a part therefore
     measures what the whole start would have. Each part is a KSP start of its own (id plus -part1, -part2 ...),
     holds as many phases as fit, and begins like a start does (its first phase has no rebuild wait)."""
-    if command_length(start) <= MAX_COMMAND_CHARS:
+    if command_length(start) < MAX_COMMAND_CHARS:
         return [start]
     parts, current = [], []
     for phase in start["phases"]:
-        if current and command_length(dict(start, phases=current + [phase])) > MAX_COMMAND_CHARS:
+        if current and command_length(dict(start, phases=current + [phase])) >= MAX_COMMAND_CHARS:
             parts.append(current)
             current = []
         current.append(phase)
@@ -161,7 +161,7 @@ def _fit_command_line(start):
         part = dict(start, id="{}-part{}".format(start["id"], n), phases=copy.deepcopy(phases))
         part["phases"][0]["rebuild"] = False
         result.append(part)
-        if command_length(part) > MAX_COMMAND_CHARS:
+        if command_length(part) >= MAX_COMMAND_CHARS:
             raise ValueError("a single phase of {} passes the command line limit of {} characters".format(start["id"], MAX_COMMAND_CHARS))
     return result
 

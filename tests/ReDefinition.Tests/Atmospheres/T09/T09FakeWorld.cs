@@ -307,8 +307,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 s.Why = "ownClouds is off";
                 return;
             }
-            bool recon = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudResolution) >= 2.0;
-            s.Mode = recon ? "reconstruct" : "plain";
+            // The module reports "reconstruct" where the reconstructor runs: the block levels, and level 1 under the history of recon.accumulate (its default 0.2).
+            var settings = new ReconSettings();
+            OwnCloudOptions.Apply(settings, AtmospheresSettings.Number);
+            s.Mode = settings.Mode != ReconMode.Full ? "reconstruct" : "plain";
             s.Why = "drawing";
             s.LightCacheOn = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudLightCache) > 0.5;
             s.RenderWidth = PassRenderWidth > 0 ? PassRenderWidth : RenderWidth;

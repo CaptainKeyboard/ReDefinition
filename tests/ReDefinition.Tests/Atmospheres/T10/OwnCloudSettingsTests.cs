@@ -241,6 +241,13 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(1.0, slider.Min);
             Assert.AreEqual((double)ReconPattern.MaxLevel, slider.Max, "the slider offers the levels the pattern has a stride for");
             var recon = new ReconSettings();
+            Tuning.ClearOverrides();
+            NextFrame();
+            // Level 1 runs the half-size march with the history of recon.accumulate (the default 0.2) through the mode Low; at 0 it is the plain pass (ReconMode.Full).
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(ReconMode.Low, recon.Mode);
+            Tuning.SetOverride(OwnCloudOptions.TuneAccumulate, 0f);
+            NextFrame();
             OwnCloudOptions.Apply(recon, Defaults());
             Assert.AreEqual(ReconMode.Full, recon.Mode);
             for (int level = 2; level <= ReconPattern.MaxLevel; level++)
@@ -374,8 +381,10 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0, frame.RefineBisect);
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Defaults());
-            Assert.AreEqual(OwnCloudOptions.AccumulateDefault > 0f ? ReconMode.Low : ReconMode.Full, recon.Mode);
-            Assert.AreEqual(OwnCloudOptions.AccumulateDefault, recon.Accumulate);
+            // The default is the history of weight 0.2 (the owner delegated the choice after the E40 grain measurement); the finer grid, the ramp and the cloud step stay off.
+            Assert.AreEqual(0.2f, OwnCloudOptions.AccumulateDefault);
+            Assert.AreEqual(ReconMode.Low, recon.Mode);
+            Assert.AreEqual(0.2f, recon.Accumulate);
 
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 4f);
             Tuning.SetOverride(OwnCloudOptions.TuneCloudStep, 4f);

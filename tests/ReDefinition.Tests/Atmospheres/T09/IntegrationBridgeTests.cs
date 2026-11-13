@@ -244,9 +244,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         // The defaults of this package's wiring leave every quality or cost switch where T10 and T12 left it.
         [TestMethod]
-        public void TheDefaultsKeepTheReconstructionAndTheEdgeModeOffAndTheLightningOff()
+        public void TheDefaultsKeepTheBlockReconstructionAndTheEdgeModeOffAndTheLightningOff()
         {
-            Assert.AreEqual(ReconMode.Full, OwnCloudOptions_ReconModeDefault());
+            // The block levels, the mode Low and the edge mode are off; level 1 runs the half-size march with the history of recon.accumulate (0.2, the owner delegated
+            // the choice after the E40 grain measurement), which goes through the reconstructor's mode Low.
+            Assert.AreEqual(0.2f, OwnCloudOptions.AccumulateDefault);
+            Assert.AreEqual(1.0, AtmospheresSettings.Definition("cloudResolution").Default);
+            Assert.AreEqual((double)(int)ReconMode.Full, AtmospheresSettings.Definition("cloudReconMode").Default);
+            Assert.AreEqual(ReconMode.Low, OwnCloudOptions_ReconModeDefault());
             Assert.IsFalse(EdgeSettings.AdaptiveDefault);
             Assert.IsFalse(EdgeSettings.ReconstructorDefault);
             Assert.IsFalse(EdgeSettings.StepBandDefault);

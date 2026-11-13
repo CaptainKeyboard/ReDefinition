@@ -19,7 +19,8 @@ namespace ReDefinition.Atmospheres
     // expectation of each id; its --selftest reads the ids from this file and fails when the two lists differ.
     internal sealed class K3Variant
     {
-        internal string Id, View, Group, Mode = "plain";
+        // Mode: what the pass reports while the variant draws; level 1 reads "reconstruct" under the default recon.accumulate (0.2), "plain" if the default were 0.
+        internal string Id, View, Group, Mode = OwnCloudOptions.AccumulateDefault > 0f ? "reconstruct" : "plain";
         // Off: the cloud source is None (the cost baseline of a view). Readout: the numeric frame (T09ProbeDiag.DiagTake) beside the pictures; sky3 has no horizon in the frame and takes the plain pictures.
         internal bool Off, Readout = true, Noise, Cache;
         // Seconds the variant waits after its keys are set, before the window (wetness and the maps need time).
