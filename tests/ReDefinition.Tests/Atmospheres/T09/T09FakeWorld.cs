@@ -29,6 +29,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 return false;
             }
             sample.CloudCover01 = Cover(ut);
+            sample.TemperatureK = 288f;
             return true;
         }
 
@@ -567,8 +568,27 @@ namespace ReDefinition.Tests.Atmospheres.T09
         internal readonly List<string> EnvironmentRequests = new List<string>();
         internal bool EnvironmentThrows;
 
+        // K-T2d start 50: the layers that draw a deck when named alone in the mask (mask 0 = every layer draws; a mask naming none of the stack's bits draws nothing), and the layer report.
+        internal Func<int, bool> LayerDraws = k => true;
+        internal T09LayerReport LayerReport;
+        internal readonly List<int> LayerMasks = new List<int>();
+
+        private bool MaskDrawsDeck()
+        {
+            if (LayerMaskNow == 0) return true;
+            for (int k = 0; k < 8; k++)
+                if ((LayerMaskNow & (1 << k)) != 0 && LayerDraws(k)) return true;
+            return false;
+        }
+
+        public T09LayerReport ReadLayers(double latDeg, double lonDeg, double slant, float[] shifts)
+        {
+            return LayerReport;
+        }
+
         public void SetLayerMask(int mask)
         {
+            LayerMasks.Add(mask);
             LayerMaskNow = mask;
             if (Module != null) Module.Frame.LayerMask = mask;
         }
@@ -606,7 +626,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double angleFromAxis = -dip - elevation * Math.PI / 180.0;
             double horizonV = 0.5 + Math.Tan(angleFromAxis) / (2.0 * Math.Tan(FovDeg * Math.PI / 360.0));
             float gain = Tuning.Get(OwnCloudModule.TuneSunGain, 1f);
-            bool deck = Module != null && Module.Stats.Mode != "off" && LayerMaskNow == 0 && !AidIsOn;
+            bool deck = Module != null && Module.Stats.Mode != "off" && MaskDrawsDeck() && !AidIsOn;
             bool aid = AidIsOn && !AidIgnored && AidModeNow == 4;
             var raw = new Color[w * h];
             for (int y = 0; y < h; y++)

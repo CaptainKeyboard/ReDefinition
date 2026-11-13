@@ -61,6 +61,66 @@ def slope(points):
     return sum((x - mx) * (y - my) for x, y in pts) / var
 
 
+GPU_TOLERANCE = 0.05
+
+
+def layers_table(values, view, cover, region, get, add, notes):
+    """K-T2d start 50: the per-layer table of the ground view. Frames only<k> (layer k alone, shift 0) and only<k>c35 (shift -0.15) beside the layer rows
+    L<k>.* (the CPU map, the GPU map, the pass's own sample, the model's closed share at the CPU map). Metrics T09d.<view>.<cover>.layers.*:
+      L<k>.closed_p1 / closed_c35      the picture's closed share of the region with only layer k drawn
+      L<k>.closed_minus_model_p1       the drawn closed share minus the model's at the CPU map value (a layer whose map the pass reads as the CPU does: near 0)
+      L<k>.gpu_minus_cpu               the pass's map value minus the CPU readers' (the uploaded bytes at the vessel's place)
+      sheet_layer                      the layer whose own closed share is the highest at shift 0 (-1: none measured)
+      gpu_matches_cpu                  1 when every layer's GPU and pass-sample map are within GPU_TOLERANCE of the CPU map, -1 when one is not, absent without GPU rows
+    """
+    def row(k, stat):
+        return values.get((view, cover, "L%d" % k, stat))
+
+    ks = sorted({int(t[1:]) for (v, c, t, s) in values if v == view and c == cover and re.match(r"^L\d+$", t)}
+                | {int(re.match(r"^only(\d+)", t).group(1)) for (v, c, t, s) in values if v == view and c == cover and re.match(r"^only\d+", t)})
+    if not ks:
+        return
+    best, best_k, mismatch, have_gpu = -1.0, -1, False, False
+    lines = []
+    for k in ks:
+        p1, c35 = get("only%d" % k, "%s_closed_share" % region), get("only%dc35" % k, "%s_closed_share" % region)
+        f1, f35 = get("only%d" % k, "deck_fraction"), get("only%dc35" % k, "deck_fraction")
+        m1, m35 = get("only%d" % k, "deck_median"), get("only%dc35" % k, "deck_median")
+        cpu, gpu, sh = row(k, "cpu_cover"), row(k, "gpu_cover"), row(k, "shader_cover")
+        mod1, mod35 = row(k, "model_closed_p1"), row(k, "model_closed_c35")
+        pre = "T09d.%s.%s.layers.L%d." % (view, cover, k)
+        if p1 is not None:
+            add(pre + "closed_p1", p1)
+            if p1 > best:
+                best, best_k = p1, k
+            if mod1 is not None:
+                add(pre + "closed_minus_model_p1", p1 - mod1)
+        if c35 is not None:
+            add(pre + "closed_c35", c35)
+            if mod35 is not None:
+                add(pre + "closed_minus_model_c35", c35 - mod35)
+        for name, val in (("gpu", gpu), ("shader", sh)):
+            if val is not None and cpu is not None:
+                have_gpu = True
+                add(pre + name + "_minus_cpu", val - cpu)
+                if abs(val - cpu) > GPU_TOLERANCE:
+                    mismatch = True
+
+        def f(v, fmt="%.3f"):
+            return "-" if v is None else fmt % v
+        lines.append("L%d cpu %s gpu %s pass %s (type %s) | drawn closed p1 %s c35 %s | model p1 %s c35 %s | deck_fraction %s / %s | deck median %s / %s" % (
+            k, f(cpu), f(gpu), f(sh), f(row(k, "cpu_type")), f(p1, "%.2f"), f(c35, "%.2f"), f(mod1, "%.2f"), f(mod35, "%.2f"), f(f1, "%.2f"), f(f35, "%.2f"), f(m1), f(m35)))
+    add("T09d.%s.%s.layers.sheet_layer" % (view, cover), best_k)
+    if have_gpu:
+        add("T09d.%s.%s.layers.gpu_matches_cpu" % (view, cover), -1 if mismatch else 1)
+    surface, cold = values.get((view, cover, "layers", "surface_temp_k")), values.get((view, cover, "layers", "stack_cold"))
+    head = "%s %s layers" % (view, cover)
+    notes.append("%-12s one layer at a time, closed share of the %s (sheet layer %s; surface %s K, cold members %s)" % (
+        head, region, "-" if best_k < 0 else "L%d" % best_k, "-" if surface is None else "%.1f" % surface, "-" if cold is None else "yes" if cold else "no"))
+    for line in lines:
+        notes.append("%-12s %s" % (head, line))
+
+
 def analyse(values, notes):
     out = []
 
@@ -128,6 +188,7 @@ def analyse(values, notes):
                 add("T09d.%s.%s.cover.monotone" % (view, cover), 1 if (p1c + 0.02 >= c42c >= c35c - 0.02) else -1)
             if parts:
                 notes.append("%-12s closed share of the %s: %s" % (head, region, ", ".join(parts)))
+            layers_table(values, view, cover, region, get, add, notes)
             cells = " ".join("g%d %s" % (g, "-" if v is None else "%.3f" % v) for g, v in medians)
             notes.append("%-12s deck median: %s | off sky %s, off sea %s | slope %s verdict %s | reach gain %s" % (
                 head, cells,
@@ -209,6 +270,23 @@ def selftest():
     assert any("closed share of the sky" in n and "c35 0.25 (model 0.21)" in n for n in notes), notes
     wrong = cover + '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.c35.sky_closed_share","value":0.9}'
     assert {r["metric"]: r["value"] for r in analyse(parse([wrong]), [])}["T09d.ground.high.cover.monotone"] == -1
+    # The per-layer table: layer 1 alone draws the sheet (closed 0.99 at shift 0, 0.97 at -0.15) while the model says 0.73 / 0.30; its pass map reads 0.90 where the CPU readers see 0.665.
+    layers = "".join(
+        '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.low.%s","value":%r,"variant":"plain"}' % (m, v)
+        for m, v in (("L0.cpu_cover", 0.406), ("L0.gpu_cover", 0.406), ("L0.shader_cover", 0.406), ("L0.model_closed_p1", 0.34), ("L0.model_closed_c35", 0.0),
+                     ("L1.cpu_cover", 0.665), ("L1.gpu_cover", 0.90), ("L1.shader_cover", 0.90), ("L1.model_closed_p1", 0.73), ("L1.model_closed_c35", 0.30),
+                     ("only0.sky_closed_share", 0.05), ("only0c35.sky_closed_share", 0.0), ("only1.sky_closed_share", 0.99), ("only1c35.sky_closed_share", 0.97),
+                     ("only1.deck_fraction", 0.6), ("only1.deck_median", 0.4), ("layers.surface_temp_k", 288.0), ("layers.stack_cold", 0)))
+    notes = []
+    got = {r["metric"]: r["value"] for r in analyse(parse([layers]), notes)}
+    assert got["T09d.ground.low.layers.sheet_layer"] == 1, got
+    assert abs(got["T09d.ground.low.layers.L1.closed_minus_model_p1"] - 0.26) < 1e-9 and abs(got["T09d.ground.low.layers.L1.closed_c35"] - 0.97) < 1e-9, got
+    assert abs(got["T09d.ground.low.layers.L1.gpu_minus_cpu"] - 0.235) < 1e-9 and got["T09d.ground.low.layers.gpu_matches_cpu"] == -1, got
+    assert abs(got["T09d.ground.low.layers.L0.gpu_minus_cpu"]) < 1e-9, got
+    assert any("sheet layer L1" in n and "cold members no" in n for n in notes) and any("L1 cpu 0.665 gpu 0.900" in n for n in notes), notes
+    same = layers.replace('"value":0.9,', '"value":0.665,')
+    assert {r["metric"]: r["value"] for r in analyse(parse([same]), [])}["T09d.ground.low.layers.gpu_matches_cpu"] == 1
+    assert not any(".layers." in r["metric"] for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.12, 1.0)]), [])), "no layer rows, no layer table"
     # Lines of another series and text values are ignored; an empty log gives nothing.
     assert parse(['ATMORESULT {"series":"K-T2","metric":"T09d.a.b.c.d","value":1.0}', 'ATMORESULT {"series":"K-T2d","metric":"T09d.env.sunLight","value":"x"}']) == {}
     assert analyse({}, []) == []

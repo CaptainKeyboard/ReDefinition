@@ -96,6 +96,8 @@ namespace ReDefinition.Atmospheres
         double CameraFovDeg { get; }
         // Which layers the pass draws (bit i = layer i; 0 = all): a mask that names no layer gives the baseline frame with the pass still running.
         void SetLayerMask(int mask);
+        // K-T2d: the pass's layers at a place (CPU map, GPU map, the layer's numbers, the model's closed share at the view's slant for each shift); null where there is no stack.
+        T09LayerReport ReadLayers(double latDeg, double lonDeg, double slant, float[] shifts);
         bool KeepRaw { get; set; }
         System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> EnvironmentLines();
         // Writes the picture as a PNG named name, scaled down by the whole factor; returns the size of the file, throws where it cannot write.
@@ -118,6 +120,31 @@ namespace ReDefinition.Atmospheres
         internal Color[] Pixels;
         // The values as the camera target held them (no gamma step), where the read asked for them (IT09World.KeepRaw); else null.
         internal Color[] Raw;
+    }
+
+    // K-T2d start 50: one layer of the pass's stack at the site, for the per-layer diagnosis. The CPU values are the stack's maps (the mirror every CPU reader sees), the GPU values the
+    // bytes the module holds for the pass (the slewed copy that is uploaded, and the target it moves toward); NaN where they cannot be read.
+    internal sealed class T09LayerInfo
+    {
+        internal int Index;
+        internal string Name = "", Group = "", TypeName = "";
+        internal float Coverage, Softness, NoiseAmount, SigmaPerM, ThicknessM, MapShiftDeg;
+        internal float CpuCover = float.NaN, CpuType = float.NaN;
+        internal float GpuCover = float.NaN, GpuType = float.NaN, GpuGoalCover = float.NaN, GpuGoalType = float.NaN;
+        // The GPU bytes read where the pass's own sample lands (the map frame applied to the camera's position from the planet's centre, as the shader's MapUv does).
+        internal float ShaderCover = float.NaN, ShaderType = float.NaN;
+        internal double EquivalentThicknessM;
+        // CloudCoverModel.LayerClosed at the CPU map value for each requested coverage shift.
+        internal double[] ModelClosed = new double[0];
+    }
+
+    internal sealed class T09LayerReport
+    {
+        internal string StackKey = "";
+        internal bool Cold;
+        // Where the pass's sample of the camera's sub-point lands in the maps (degrees; NaN where it was not computed) against where the CPU readers look (the vessel's place).
+        internal double ShaderLatDeg = double.NaN, ShaderLonDeg = double.NaN, CpuLatDeg = double.NaN, CpuLonDeg = double.NaN;
+        internal readonly System.Collections.Generic.List<T09LayerInfo> Layers = new System.Collections.Generic.List<T09LayerInfo>();
     }
 
     // The game's own world: the calls T09Probe made directly before the seam.
@@ -468,6 +495,51 @@ namespace ReDefinition.Atmospheres
         {
             OwnCloudModule m = OwnCloudModule.Current;
             if (m != null) m.Frame.LayerMask = mask;
+        }
+
+        public T09LayerReport ReadLayers(double latDeg, double lonDeg, double slant, float[] shifts)
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            LayerStackSource stack = m == null ? null : m.Stack as LayerStackSource;
+            if (stack == null) return null;
+            var report = new T09LayerReport { StackKey = m.StackKeyNow, Cold = m.GroupsCold };
+            LayerMapStore gpu = m.GpuMaps;
+            report.CpuLatDeg = latDeg;
+            report.CpuLonDeg = lonDeg;
+            try
+            {
+                // The shader's MapUv: the map frame (rows towards longitude 0, 90 east, north) applied to the position from the planet's centre; lon = atan2(y, x), lat = asin(z).
+                CelestialBody body = FlightGlobals.ActiveVessel.mainBody;
+                Vector3 pc = (Vector3)(FlightCamera.fetch.mainCamera.transform.position - body.position);
+                Vector3 n = OwnCloudModule.MapFrame(body).MultiplyVector(pc).normalized;
+                report.ShaderLatDeg = Math.Asin(Math.Max(-1.0, Math.Min(1.0, n.z))) * 180.0 / Math.PI;
+                report.ShaderLonDeg = Math.Atan2(n.y, n.x) * 180.0 / Math.PI;
+            }
+            catch (Exception) { /* the sample stays NaN; the rows name it */ }
+            for (int l = 0; l < stack.LayerCount; l++)
+            {
+                CloudLayerDef def = stack.LayerAt(l);
+                var info = new T09LayerInfo
+                {
+                    Index = l, Name = def.Name, Group = def.Group, Coverage = def.Coverage, Softness = def.EdgeSoftness, NoiseAmount = def.NoiseAmount,
+                    SigmaPerM = def.SigmaPerM, ThicknessM = def.ThicknessM, MapShiftDeg = def.MapShiftDeg
+                };
+                stack.SampleMaps(l, latDeg, lonDeg, out info.CpuCover, out info.CpuType);
+                int nearest = (int)Math.Round(Math.Max(0f, Math.Min(1f, info.CpuType)) * (def.Types.Count - 1));
+                info.TypeName = def.Types[Math.Max(0, Math.Min(def.Types.Count - 1, nearest))].Name;
+                float c, t;
+                double lon = lonDeg - def.MapShiftDeg;
+                if (gpu != null && gpu.SampleBytes(l, latDeg, lon, false, out c, out t)) { info.GpuCover = c; info.GpuType = t; }
+                if (gpu != null && gpu.SampleBytes(l, latDeg, lon, true, out c, out t)) { info.GpuGoalCover = c; info.GpuGoalType = t; }
+                if (gpu != null && !double.IsNaN(report.ShaderLatDeg) && gpu.SampleBytes(l, report.ShaderLatDeg, report.ShaderLonDeg - def.MapShiftDeg, false, out c, out t)) { info.ShaderCover = c; info.ShaderType = t; }
+                LayerTypeTable table = stack.TableAt(l);
+                info.EquivalentThicknessM = CloudCoverModel.EquivalentThicknessM(def, table, info.CpuType);
+                info.ModelClosed = new double[shifts.Length];
+                for (int s = 0; s < shifts.Length; s++)
+                    info.ModelClosed[s] = CloudCoverModel.LayerClosed(def, table, info.CpuCover, info.CpuType, CloudCoverShift.Apply(def.Coverage, def.Group, shifts[s], 0f), slant);
+                report.Layers.Add(info);
+            }
+            return report;
         }
 
         public double CameraFovDeg { get { return FlightCamera.fetch.mainCamera.fieldOfView; } }

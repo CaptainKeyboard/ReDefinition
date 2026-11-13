@@ -33,6 +33,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run r = Start(variants ?? new[] { "plain" }, x =>
             {
                 x.Field.Cover = DiagCover;
+                x.World.LayerReport = FourLayers(false);
                 if (tweak != null) tweak(x);
             }, "1707", "diag1707", "K-T2d");
             return r;
@@ -104,9 +105,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
 
             // The poses are verified at every capture (the rows of the pictures).
-            Assert.IsTrue(r.Rows.Count(l => l.Contains("\"metric\":\"T09.pic.") && l.Contains(".alt_m\"")) >= 40, "a pose row for each of the 40 frames");
-            // 2 covers x 2 views x (off + 3 gains + 3 stage variants + 2 coverage variants + aid) pictures, half size.
-            Assert.AreEqual(40, r.World.Saved.Count);
+            Assert.IsTrue(r.Rows.Count(l => l.Contains("\"metric\":\"T09.pic.") && l.Contains(".alt_m\"")) >= 56, "a pose row for each of the 56 frames");
+            // 2 covers x 2 views x (off + 3 gains + 3 stage variants + 2 coverage variants + aid) pictures, half size, plus 2 covers x ground x 4 layers x 2 shifts (layer alone).
+            Assert.AreEqual(56, r.World.Saved.Count);
             // The coverage variants: a frame each beside p1, with the shift they ran at (the fake world has no layer stack, so no model rows and no reach rows).
             foreach (string tag in new[] { "c42", "c35" })
             {
@@ -130,6 +131,74 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual("active Gamma", Values(r, "T09d.env.colourSpace", "plain")[0].Value);
             int firstFrame = r.Log.FindIndex(l => l.StartsWith("Probe: variant plain on"));
             Assert.IsTrue(envFirst > firstFrame);
+        }
+
+        private static T09LayerReport FourLayers(bool pass1ReadsHigher)
+        {
+            var report = new T09LayerReport { StackKey = "Kerbin-weather-rain|Kerbin-cumulus|Kerbin-cumulonimbus|Kerbin-cirrus|", Cold = false, CpuLatDeg = -0.1, CpuLonDeg = -74.5, ShaderLatDeg = -0.1, ShaderLonDeg = -74.5 };
+            string[] names = { "Kerbin-weather-rain", "Kerbin-cumulus", "Kerbin-cumulonimbus", "Kerbin-cirrus" };
+            float[] cpu = { 0.406f, 0.665f, 0.110f, 0.501f };
+            for (int k = 0; k < 4; k++)
+            {
+                var l = new T09LayerInfo
+                {
+                    Index = k, Name = names[k], Group = k == 0 ? "weather" : "", TypeName = "Fog", Coverage = 0.5f, Softness = 0.2f, NoiseAmount = 0.3f, SigmaPerM = 0.045f, ThicknessM = 2100f,
+                    CpuCover = cpu[k], CpuType = 0f, GpuCover = cpu[k], GpuType = 0f, GpuGoalCover = cpu[k], GpuGoalType = 0f, ShaderCover = cpu[k], ShaderType = 0f,
+                    EquivalentThicknessM = 119.0, ModelClosed = new[] { 0.34, 0.07, 0.0 }
+                };
+                // The pass reads layer 1 higher than the CPU readers do.
+                if (k == 1 && pass1ReadsHigher) { l.GpuCover = 0.9f; l.ShaderCover = 0.9f; }
+                report.Layers.Add(l);
+            }
+            return report;
+        }
+
+        [TestMethod]
+        public void EachLayerIsDrawnAloneAtShiftZeroAndMinus015AtTheGroundViewAndItsRowsAreWritten()
+        {
+            Run r = StartDiag(x =>
+            {
+                x.World.LayerDraws = k => k == 1;
+                x.World.LayerReport = FourLayers(true);
+            });
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            foreach (string cover in new[] { "low", "high" })
+            {
+                for (int k = 0; k < 4; k++)
+                {
+                    foreach (string tag in new[] { "only" + k, "only" + k + "c35" })
+                    {
+                        Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_" + cover + "-" + tag + "-1707x960-natural-half")), "the picture of " + tag + " at the " + cover + " cover");
+                        string q = "T09d.ground." + cover + "." + tag + ".";
+                        // The fake draws a deck only where layer 1 is named: the layer alone is the sheet, the others leave the sky as the baseline has it.
+                        Assert.AreEqual(k == 1 ? 1.0 : 0.0, Row(r, q + "sky_closed_share"), 0.02, q + "closed share");
+                        Assert.AreEqual(k == 1, Row(r, q + "deck_fraction") > 0.5, q + "deck fraction");
+                    }
+                    string p = "T09d.ground." + cover + ".L" + k + ".";
+                    Assert.AreEqual(new[] { 0.406, 0.665, 0.110, 0.501 }[k], Row(r, p + "cpu_cover"), 1e-5, p + "CPU map");
+                    Assert.AreEqual(k == 1 ? 0.9 : new[] { 0.406, 0.665, 0.110, 0.501 }[k], Row(r, p + "gpu_cover"), 1e-5, p + "GPU map");
+                    Assert.AreEqual(0.34, Row(r, p + "model_closed_p1"), 1e-9);
+                    Assert.AreEqual(0.0, Row(r, p + "model_closed_c35"), 1e-9);
+                    Assert.AreEqual(k == 1 ? 0.235 : 0.0, Row(r, p + "gpu_minus_cpu_cover"), 1e-5);
+                    Assert.IsTrue(r.Rows.Any(l => l.Contains("\"metric\":\"" + p + "info\"") && l.Contains("name Kerbin-")), p + "info text");
+                }
+                Assert.AreEqual(0.0, Row(r, "T09d.ground." + cover + ".layers.stack_cold"));
+                Assert.IsTrue(Row(r, "T09d.ground." + cover + ".layers.surface_temp_k") > 100);
+            }
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-above_") && n.Contains("-only")), "the above view has no layer frames");
+            Assert.IsTrue(new[] { 1, 2, 4, 8 }.All(m => r.World.LayerMasks.Contains(m)), "each layer alone was named in the mask");
+            Assert.AreEqual(0, r.World.LayerMasks.Last(), "the mask ends at all layers");
+            Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning gpu_map_differs") && l.Contains(".L1.")), "layer 1's GPU map differs and is named");
+            Assert.IsFalse(r.Log.Any(l => l.Contains("Probe: warning gpu_map_differs") && l.Contains(".L0.")));
+            Assert.AreEqual(56.0, Row(r, "T09d.frames"));
+        }
+
+        [TestMethod]
+        public void TheLayerFramesNameTheirShiftInTheTag()
+        {
+            Assert.AreEqual("only0", T09Probe.OnlyTag(0, false));
+            Assert.AreEqual("only3c35", T09Probe.OnlyTag(3, true));
         }
 
         // Start 43: the game applies a placement a few frames late and the read of the centre of mass lags it; the vessel stands at 85.35 m before the placement.
@@ -188,9 +257,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.low.off.pose_ok"), "the frame is flagged");
             Assert.AreEqual(0.5, Row(r, "T09d.ground.low.off.sky_median"), 1e-4, "and read");
-            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 40);
+            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 56);
             Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning pose_mismatch")));
-            Assert.AreEqual(40, r.World.Saved.Count, "the pictures are saved");
+            Assert.AreEqual(56, r.World.Saved.Count, "the pictures are saved");
         }
 
         [TestMethod]
@@ -199,7 +268,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run r = StartRealistic(x => x.World.PlaceResult = (call, wanted) => 85.35);
             Drive(r, 0.02);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.AreEqual(40.0, Row(r, "T09d.frames"));
+            Assert.AreEqual(56.0, Row(r, "T09d.frames"));
             Assert.AreEqual(0.0, Row(r, "T09d.frames_pose_ok"));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.high.placed_ok"));
             Assert.IsTrue(Row(r, "T09d.ground.high.g1.deck_median") > 0, "the readout is there");

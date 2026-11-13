@@ -65,6 +65,23 @@ namespace ReDefinition.Atmospheres
             return ClosedShareShifted(map, noise, RainNoiseAmount, RainCoverage, CloudCoverShift.RainGroup, (float)shift, 0f, RainEdge, StratusSigma, StratusThicknessM, slant);
         }
 
+        // K-T2d start 49: the same for any layer of a stack, from its own numbers (sigma, edge, noise amount, type table) at a map value and a type value. The equivalent
+        // thickness is the layer's height integral of the interpolated type's profile (LayerTypeTable.Profile), in m.
+        internal static double EquivalentThicknessM(CloudLayerDef layer, LayerTypeTable table, double typeValue, int steps = 200)
+        {
+            double sum = 0.0;
+            for (int i = 0; i < steps; i++) sum += table.Profile(typeValue, (i + 0.5) / steps);
+            return sum / steps * layer.ThicknessM;
+        }
+
+        // The closed share of the sky under one layer at a map value and a type value, for a coverage threshold (the caller applies any shift), uniform shape noise.
+        internal static double LayerClosed(CloudLayerDef layer, LayerTypeTable table, double map, double typeValue, double coverage, double slant, int samples = 401)
+        {
+            var noise = new double[samples];
+            for (int i = 0; i < samples; i++) noise[i] = (i + 0.5) / samples;
+            return ClosedShare(map, noise, layer.NoiseAmount, coverage, layer.EdgeSoftness, layer.SigmaPerM, EquivalentThicknessM(layer, table, typeValue), slant);
+        }
+
         // The coverage threshold at which a map value m closes the share m of the sky (a cover value read as an area share): bisection on the closed share, which
         // rises with the threshold. Returns NaN where even a threshold of 0 and 1 cannot reach it.
         internal static double CentredCoverage(double map, double[] noiseSamples, double noiseAmount, double edge, double sigmaPerM, double equivalentThicknessM, double slant)

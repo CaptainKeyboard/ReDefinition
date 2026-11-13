@@ -74,6 +74,32 @@ namespace ReDefinition.Atmospheres
             if (typeBytes != null) Array.Copy(typeBytes, typeGoal[layer], typeGoal[layer].Length);
         }
 
+        // Diagnosis (K-T2d): the value of a layer's map at a place as the store holds it, bilinear like WeatherMap.Sample and like the pass's sample of the uploaded array
+        // (equirectangular, row 0 north, column 0 at -180). goal false: the bytes the GPU array holds now (the slewed copy that is uploaded); true: the target the slew moves
+        // toward (what SetTargetBytes was given). False where the store has no arrays or the layer is out of range.
+        internal bool SampleBytes(int layer, double latDeg, double lonDeg, bool goal, out float coverage, out float type)
+        {
+            coverage = type = float.NaN;
+            if (layer < 0 || layer >= CloudLayerDef.MaxLayers || Width < 2 || coverageNow[layer] == null) return false;
+            coverage = Bilinear(goal ? coverageGoal[layer] : coverageNow[layer], latDeg, lonDeg);
+            type = Bilinear(goal ? typeGoal[layer] : typeNow[layer], latDeg, lonDeg);
+            return true;
+        }
+
+        private float Bilinear(byte[] bytes, double latDeg, double lonDeg)
+        {
+            double x = (lonDeg + 180.0) / 360.0 * Width - 0.5;
+            double y = (90.0 - latDeg) / 180.0 * Height - 0.5;
+            y = Math.Max(0.0, Math.Min(Height - 1, y));
+            double x0 = Math.Floor(x), fx = x - x0;
+            int ix0 = ((int)x0 % Width + Width) % Width, ix1 = (ix0 + 1) % Width;
+            int iy0 = (int)Math.Floor(y), iy1 = Math.Min(iy0 + 1, Height - 1);
+            double fy = y - iy0;
+            double top = bytes[iy0 * Width + ix0] * (1 - fx) + bytes[iy0 * Width + ix1] * fx;
+            double bottom = bytes[iy1 * Width + ix0] * (1 - fx) + bytes[iy1 * Width + ix1] * fx;
+            return (float)((top * (1 - fy) + bottom * fy) / 255.0);
+        }
+
         private void Copy(WeatherMap map, byte[] target)
         {
             if (map.Width != Width || map.Height != Height) throw new ArgumentException("The map is " + map.Width + "x" + map.Height + ", the store " + Width + "x" + Height + ".");

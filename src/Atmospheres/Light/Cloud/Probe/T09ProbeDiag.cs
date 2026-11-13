@@ -459,6 +459,11 @@ namespace ReDefinition.Atmospheres
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
 
+            // K-T2d start 49: the ground view's closed sheet at the low cover did not follow the shift. One layer at a time (Frame.LayerMask names only layer k), at shift 0 and -0.15, beside
+            // the per-layer numbers (CPU map, GPU map, the layer's group, type, threshold and softness, the model's closed share).
+            if (view.Name == "ground")
+                foreach (ProbeWait w in DiagLayers(view, tag, head, off)) yield return w;
+
             // The aid picture of the direct light (r), the light taps (g) and the ambient (b) over the deck the natural frame showed.
             bool on = false;
             try { on = Game.AidOn(4); }
@@ -472,6 +477,103 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in DiagTake(view, tag, "aid4", true, one)) yield return w;
             try { Game.AidOff(); }
             catch (Exception e) { Warn("aid_view_fault", view.Name + " " + tag + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
+        }
+
+        // The shift of the c35 frames of the layer-only series (the same as the ShiftVariants' c35).
+        private const float LayerShift = -0.15f;
+        // The frame tag of layer k alone: only<k> at shift 0, only<k>c35 at the shift -0.15.
+        internal static string OnlyTag(int layer, bool shifted)
+        {
+            return "only" + layer.ToString(CultureInfo.InvariantCulture) + (shifted ? "c35" : "");
+        }
+
+        private IEnumerable<ProbeWait> DiagLayers(View view, string tag, string head, T09Readout.Reading off)
+        {
+            double slant = 1.0 / Math.Sin(Math.Abs(view.PitchDeg) * Math.PI / 180.0);
+            var shifts = new float[ModelShifts.Length];
+            for (int i = 0; i < shifts.Length; i++) shifts[i] = ModelShifts[i].Value;
+            T09LayerReport report = null;
+            try { report = Game.ReadLayers(Game.VesselLatitude, Game.VesselLongitude, slant, shifts); }
+            catch (Exception e) { Warn("layer_report_fault", head + e.GetType().Name + " " + e.Message); }
+            int count = CloudLayerDef.MaxLayers;
+            WeatherSample surface;
+            if (WeatherHub.Sample(Game.BodyIndex, Game.VesselLatitude, Game.VesselLongitude, 0.0, Game.UniversalTime, out surface)) Emit(head + "layers.surface_temp_k",surface.TemperatureK);
+            if (report == null) Warn("no_layer_report", head + "the pass has no layer stack to read");
+            else
+            {
+                count = report.Layers.Count;
+                EmitLayerReport(head, report);
+            }
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int k = 0; k < count; k++)
+                {
+                    ClearForced();
+                    if (pass == 1) ForceTuning(CloudCoverShift.TuneShift, LayerShift);
+                    Game.SetLayerMask(1 << k);
+                    yield return ProbeWait.Frames(DiagSettleFrames);
+                    foreach (ProbeWait w in DiagTake(view, tag, OnlyTag(k, pass == 1), false, off)) yield return w;
+                }
+            }
+            Game.SetLayerMask(0);
+            ClearForced();
+            yield return ProbeWait.Frames(DiagSettleFrames);
+        }
+
+        // Rows T09d.<view>.<cover>.L<k>.* and the text rows stack_key / L<k>.info.
+        private void EmitLayerReport(string head, T09LayerReport report)
+        {
+            EmitText(head + "layers.stack_key", report.StackKey);
+            Emit(head + "layers.stack_cold", report.Cold);
+            EmitFinite(head + "layers.cpu_lat_deg", report.CpuLatDeg);
+            EmitFinite(head + "layers.cpu_lon_deg", report.CpuLonDeg);
+            EmitFinite(head + "layers.shader_lat_deg", report.ShaderLatDeg);
+            EmitFinite(head + "layers.shader_lon_deg", report.ShaderLonDeg);
+            if (!double.IsNaN(report.ShaderLonDeg) && !double.IsNaN(report.CpuLonDeg))
+            {
+                double dLon = ((report.ShaderLonDeg - report.CpuLonDeg + 540.0) % 360.0) - 180.0;
+                Emit(head + "layers.shader_lon_minus_cpu_deg", dLon);
+                Emit(head + "layers.shader_lat_minus_cpu_deg",report.ShaderLatDeg - report.CpuLatDeg);
+                if (Math.Abs(dLon) > 0.5 || Math.Abs(report.ShaderLatDeg - report.CpuLatDeg) > 0.5)
+                    Warn("shader_place_differs", head + "the pass samples the maps at " + report.ShaderLatDeg.ToString("0.00", CultureInfo.InvariantCulture) + "/" + report.ShaderLonDeg.ToString("0.00", CultureInfo.InvariantCulture)
+                                                 + " where the CPU readers look (" + report.CpuLatDeg.ToString("0.00", CultureInfo.InvariantCulture) + "/" + report.CpuLonDeg.ToString("0.00", CultureInfo.InvariantCulture) + ")");
+            }
+            foreach (T09LayerInfo l in report.Layers)
+            {
+                string p = head + "L" + l.Index.ToString(CultureInfo.InvariantCulture) + ".";
+                EmitText(p + "info", "name " + l.Name + ", group " + (l.Group.Length == 0 ? "none" : l.Group) + ", type " + l.TypeName + ", coverage " + l.Coverage.ToString("0.###", CultureInfo.InvariantCulture)
+                                     + ", softness " + l.Softness.ToString("0.###", CultureInfo.InvariantCulture) + ", noise " + l.NoiseAmount.ToString("0.###", CultureInfo.InvariantCulture)
+                                     + ", sigma " + l.SigmaPerM.ToString("0.####", CultureInfo.InvariantCulture) + ", thickness " + l.ThicknessM.ToString("0", CultureInfo.InvariantCulture) + " m");
+                Emit(p + "coverage", l.Coverage);
+                Emit(p + "softness", l.Softness);
+                Emit(p + "eq_thickness_m", l.EquivalentThicknessM);
+                EmitFinite(p + "cpu_cover", l.CpuCover);
+                EmitFinite(p + "cpu_type", l.CpuType);
+                EmitFinite(p + "gpu_cover", l.GpuCover);
+                EmitFinite(p + "gpu_type", l.GpuType);
+                EmitFinite(p + "gpu_goal_cover", l.GpuGoalCover);
+                EmitFinite(p + "gpu_goal_type", l.GpuGoalType);
+                EmitFinite(p + "shader_cover", l.ShaderCover);
+                EmitFinite(p + "shader_type", l.ShaderType);
+                if (!float.IsNaN(l.GpuCover) && !float.IsNaN(l.CpuCover))
+                {
+                    Emit(p + "gpu_minus_cpu_cover", l.GpuCover - l.CpuCover);
+                    if (Math.Abs(l.GpuCover - l.CpuCover) > 0.05f)
+                        Warn("gpu_map_differs", p + "the pass's map reads " + l.GpuCover.ToString("0.000", CultureInfo.InvariantCulture) + " where the CPU readers see " + l.CpuCover.ToString("0.000", CultureInfo.InvariantCulture));
+                }
+                if (!float.IsNaN(l.ShaderCover) && !float.IsNaN(l.CpuCover))
+                {
+                    Emit(p + "shader_minus_cpu_cover", l.ShaderCover - l.CpuCover);
+                    if (Math.Abs(l.ShaderCover - l.CpuCover) > 0.05f)
+                        Warn("shader_map_differs", p + "the pass's sample reads " + l.ShaderCover.ToString("0.000", CultureInfo.InvariantCulture) + " where the CPU readers see " + l.CpuCover.ToString("0.000", CultureInfo.InvariantCulture));
+                }
+                for (int s = 0; s < l.ModelClosed.Length && s < ModelShifts.Length; s++) Emit(p + "model_closed_" + ModelShifts[s].Key, l.ModelClosed[s]);
+            }
+        }
+
+        private void EmitFinite(string metric, double value)
+        {
+            if (!double.IsNaN(value) && !double.IsInfinity(value)) Emit(metric, value);
         }
 
         private T09Readout.Reading diagReading;

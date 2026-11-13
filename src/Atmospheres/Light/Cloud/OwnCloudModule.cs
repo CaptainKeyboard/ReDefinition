@@ -118,6 +118,10 @@ namespace ReDefinition.Atmospheres
 
         // The layer stack that stands (null while the pass is off): the CPU consumers read it.
         internal ICloudLayerSource Stack { get { return stack; } }
+        // Diagnosis (K-T2d): the names of the layers the stack was built from ("a|b|"), and whether the group members were picked by the cold branch (the snow deck).
+        internal string StackKeyNow { get { return stackKey; } }
+        internal bool GroupsCold { get { return cold; } }
+        internal LayerMapStore GpuMaps { get { return renderer == null ? null : renderer.Maps; } }
         internal LayerRenderer Renderer { get { return renderer; } }
         // The camera and the event the pass's buffers stand on (the K-T2d probe logs them; null / BeforeForwardAlpha before the first frame).
         internal Camera AttachedCamera { get { return attachedCamera; } }
@@ -734,7 +738,7 @@ namespace ReDefinition.Atmospheres
 
         // The rotation from world space into the map frame (x towards longitude 0, y towards 90 east, z north), measured from the body's surface
         // points so that its rotation and KSP's handedness are in it.
-        private static Matrix4x4 MapFrame(CelestialBody b)
+        internal static Matrix4x4 MapFrame(CelestialBody b)
         {
             Vector3 centre = (Vector3)b.position;
             Vector3 x = ((Vector3)b.GetWorldSurfacePosition(0.0, 0.0, 0.0) - centre).normalized;
