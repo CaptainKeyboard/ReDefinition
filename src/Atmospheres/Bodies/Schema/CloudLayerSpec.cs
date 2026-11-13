@@ -101,6 +101,9 @@ namespace ReDefinition.Atmospheres
         internal float ShadowStrength { get; }
         internal float NoiseAmount { get; }
         internal float NoiseScaleM { get; }
+        // The type value of the layer where no precipitation falls (cfg key fairType, 0 to 1 over the type table; -1: the precipitation level itself, so the first type).
+        // With it the type value is fairType + (1 - fairType) * precipitation (CloudLookTuning.TypeValue).
+        internal float FairType { get; set; } = -1f;
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
 
         // The vertical optical depth through the layer's thickest type at full density and full coverage: sigma times the height of the type.
@@ -134,7 +137,8 @@ namespace ReDefinition.Atmospheres
                 FadeFarM = FadeFarM,
                 ShadowStrength = ShadowStrength,
                 NoiseAmount = NoiseAmount,
-                NoiseScaleM = NoiseScaleM
+                NoiseScaleM = NoiseScaleM,
+                FairType = FairType
             };
         }
     }

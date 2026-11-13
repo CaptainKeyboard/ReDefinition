@@ -21,7 +21,7 @@ namespace ReDefinition.Atmospheres
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
             TuneMsBrightness = "light.msBrightness", TuneDiffusion = "light.diffusion", TuneDiffusionTau = "light.diffusionTau",
             TuneMsIsotropy = "light.msIsotropy", TuneAmbientOcclusion = "light.ambientOcclusion", TuneAmbientGain = "light.ambientGain",
-            TuneSkyTint = "light.skyTint", TuneAmbientFloor = "light.ambientFloor";
+            TuneSkyTint = "light.skyTint", TuneAmbientFloor = "light.ambientFloor", TuneAmbientColumnTop = "light.ambientColumnTop";
 
         // The optical depth one step may add where a ray enters a cloud when cloudEntryRefinement is on (the product budget of the look sheets).
         internal const float EntryRefineBudget = 0.5f;
@@ -198,6 +198,8 @@ namespace ReDefinition.Atmospheres
             s.SkyTint = Tuning.Get(TuneSkyTint, Compiled.SkyTint);
             // The floor is read through EffectiveFloor, which never lets it fall below the parity gate's 3 percent.
             s.AmbientFloor = Tuning.Get(TuneAmbientFloor, Compiled.AmbientFloor);
+            // light.ambientColumnTop (default 1): the analytic occlusion's column ends at the cloud type's top; 0: at the layer's outer altitude (the earlier behaviour).
+            s.AmbientColumnToTypeTop = Tuning.Flag(TuneAmbientColumnTop, Compiled.AmbientColumnToTypeTop);
             LimitMoonLights(s, v);
         }
 

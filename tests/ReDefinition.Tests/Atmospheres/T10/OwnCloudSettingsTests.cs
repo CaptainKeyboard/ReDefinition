@@ -195,6 +195,32 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(3, light.Octaves);
         }
 
+        // E40 lead investigation: the ambient's analytic occlusion measures the column to the cloud type's top by default; the tuning key light.ambientColumnTop 0
+        // gives the earlier column to the layer's outer altitude (the comparison row).
+        [TestMethod]
+        public void TheAmbientColumnEndsAtTheTypeTopUnlessTheTuningKeySaysOtherwise()
+        {
+            Tuning.ClearOverrides();
+            Tuning.Instance.BeginFrame(5100001);
+            var light = new CloudLightSettings { AmbientColumnToTypeTop = false };
+            OwnCloudOptions.Apply(light, Defaults());
+            Assert.IsTrue(light.AmbientColumnToTypeTop, "the default");
+            try
+            {
+                Tuning.SetOverride(OwnCloudOptions.TuneAmbientColumnTop, 0f);
+                Tuning.Instance.BeginFrame(5100002);
+                OwnCloudOptions.Apply(light, Defaults());
+                Assert.IsFalse(light.AmbientColumnToTypeTop);
+            }
+            finally
+            {
+                Tuning.ClearOverrides();
+                Tuning.Instance.BeginFrame(5100003);
+            }
+            OwnCloudOptions.Apply(light, Defaults());
+            Assert.IsTrue(light.AmbientColumnToTypeTop);
+        }
+
         [TestMethod]
         public void TheMoonLightsAboveTheCountAreSwitchedOff()
         {

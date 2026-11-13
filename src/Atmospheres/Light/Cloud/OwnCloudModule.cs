@@ -703,7 +703,9 @@ namespace ReDefinition.Atmospheres
                 cover = filled;
                 coverSource = forcedMap;
             }
-            byte[] typeBytes = CloudLookTuning.TypeBytes(typeMap.Bytes, CloudLookTuning.TypeFairOf(layerName), CloudLookTuning.TypeOverrideOf(layerName), ref typeScratch);
+            // The type at no precipitation: the tuning key where it is set, else the layer's own (cfg key fairType; -1: the precipitation level itself).
+            float fairType = CloudLookTuning.FairType(CloudLookTuning.TypeFairOf(layerName), stack.LayerAt(l).FairType);
+            byte[] typeBytes = CloudLookTuning.TypeBytes(typeMap.Bytes, fairType, CloudLookTuning.TypeOverrideOf(layerName), ref typeScratch);
             WeatherMap typeForCpu = typeMap;
             if (!ReferenceEquals(typeBytes, typeMap.Bytes))
             {

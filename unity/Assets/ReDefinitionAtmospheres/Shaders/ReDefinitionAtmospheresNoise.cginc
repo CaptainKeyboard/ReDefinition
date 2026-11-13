@@ -31,7 +31,8 @@ float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y
 float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's finest cell (noise scales), y/z the march spacing in cells up to which the detail is
                          // read in full / from which it is dropped (z = 0: LOD off), w the detail volume's mean (what the erosion reads once dropped)
 
-float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read, z layers.densityRemap (0: the erosion acts only in the soft edge)
+float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read, z layers.densityRemap (0: the erosion acts only in the soft edge),
+                         // w layers.profileShape (0: off): the lift of the coverage threshold where the type's height profile is below 1 (read by LayerDensity of the layer shader)
 
 // 1 on the light path: no erosion there (the light march reads the shape only).
 static int gNoiseLod = 0;

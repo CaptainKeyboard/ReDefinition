@@ -77,6 +77,8 @@ namespace ReDefinition.WeatherPlayer
             };
             // The cost controls keep the product's default (the LayerFrame's) where the job does not name a value.
             frame.CostDebug = job.costDebug;
+            if (job.ambientLayerColumn != 0) frame.Light.AmbientColumnToTypeTop = false;
+            if (job.ambientGain > 0f) frame.Light.AmbientGain = job.ambientGain;
             if (job.productCost != 0) frame.UseProductCost();
             frame.FixedConeRotation = job.fixedCone != 0;
             frame.HashDither = job.ignDither == 0;
@@ -85,6 +87,9 @@ namespace ReDefinition.WeatherPlayer
             if (job.refineBudget != 0f) frame.RefineBudget = Mathf.Max(0f, job.refineBudget);   // negative: off
             if (job.refineFraction > 0f) frame.RefineFraction = job.refineFraction;
             if (job.edgePower > 0f) frame.EdgePower = job.edgePower;
+            if (job.refineBisect > 0) frame.RefineBisect = job.refineBisect;
+            if (job.refineStepBudget > 0f) frame.RefineStepBudget = job.refineStepBudget;
+            frame.FrameNumber = job.frameNumber;
             if (job.costBound >= 0) frame.CoverageBound = job.costBound != 0;
             if (job.costLeap >= 0f) frame.EmptyLeap = job.costLeap;
             if (job.costCut >= 0f) frame.LightCutoff = job.costCut;

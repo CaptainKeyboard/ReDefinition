@@ -51,6 +51,9 @@ namespace ReDefinition.Atmospheres
         // How the occlusion reads what lies above: false (default) from the local density and the layer's remaining height, with no taps; true: UpSteps taps
         // straight up (the earlier path, kept as a switch for the cost table; 0.9 to 2.4 ms more at 1707 x 960).
         public bool AmbientOcclusionTaps;
+        // Where the analytic occlusion's column ends: true (default) at the top of the cloud type at the sample, false at the layer's outer altitude (the earlier
+        // behaviour: in a layer taller than its low types no sky light reached a low cloud at all; tuning key cloud.ambientColumnTop, 0 for the comparison).
+        public bool AmbientColumnToTypeTop = true;
         // The sun's colour through the air (FX-T03): extinction per channel along the zenith path at sea level (Rayleigh scattering of the red, green and
         // blue band plus a grey aerosol share) and the scale height in m; a zero height uses the frame's sun colour unchanged (the caller that already
         // supplies a reddened colour, e.g. from Scatterer, sets it to zero).
@@ -131,7 +134,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.LightT, new Vector4(Mathf.Clamp(BoltCount, 0, MaxBolts), Mathf.Clamp(SunStepsOverride, 0, 64), Mathf.Clamp(CacheFillSteps, 1, 64), upMode));
             m.SetVector(Ids.SunAir, new Vector4(SunAirTau.x, SunAirTau.y, SunAirTau.z, Mathf.Max(SunAirHeightM, 0f)));
             m.SetVector(Ids.LightU, new Vector4(Mathf.Max(Diffusion, 0f), Mathf.Max(DiffusionTau, 0.01f), Mathf.Clamp01(MsIsotropy), SunAirWhiteBalance ? 1f : 0f));
-            m.SetVector(Ids.LightV, new Vector4(Mathf.Max(DiffusionDecay, 0f), 0f, 0f, 0f));
+            m.SetVector(Ids.LightV, new Vector4(Mathf.Max(DiffusionDecay, 0f), AmbientColumnToTypeTop ? 1f : 0f, 0f, 0f));
             for (int i = 0; i < layerL.Length; i++)
             {
                 Vector3 s = i < LayerScale.Length ? LayerScale[i] : Vector3.one;

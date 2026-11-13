@@ -35,6 +35,26 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return new[] { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
         }
 
+        // layers.profileShape (E40 lead investigation): off by default, clamped to 0..2, and no part of the layers' uploaded numbers (the stamp stays).
+        [TestMethod]
+        public void TheProfileShapeIsOffByDefaultClampedAndLeavesTheStampAlone()
+        {
+            Clear();
+            Assert.AreEqual(0f, CloudLookTuning.ProfileShape);
+            long stamp = CloudLookTuning.Stamp;
+            Set(CloudLookTuning.TuneProfileShape, 0.8f);
+            Assert.AreEqual(0.8f, CloudLookTuning.ProfileShape);
+            Assert.AreEqual(stamp, CloudLookTuning.Stamp, "the shader reads it every frame; the layers are not uploaded again");
+            Set(CloudLookTuning.TuneProfileShape, 9f);
+            Assert.AreEqual(2f, CloudLookTuning.ProfileShape);
+            Set(CloudLookTuning.TuneProfileShape, -1f);
+            Assert.AreEqual(0f, CloudLookTuning.ProfileShape);
+            Set(CloudLookTuning.TuneProfileShape, float.NaN);
+            Assert.AreEqual(0f, CloudLookTuning.ProfileShape);
+            Clear();
+            Assert.AreEqual(0f, CloudLookTuning.ProfileShape);
+        }
+
         [TestMethod]
         public void EveryDefaultGivesTheConfiguredNumbers()
         {

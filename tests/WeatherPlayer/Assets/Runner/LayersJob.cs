@@ -111,6 +111,10 @@ namespace ReDefinition.WeatherPlayer
         // The product's transmittance growth of the step (1) and the entry refinement and edge exponent (stream T; 0 / 1 leave the frame's defaults).
         public int productCost, fixedCone, ignDither;
         public float refineBudget, refineFraction, edgePower;
+        // The cheap forms of the entry refinement (package T15; they act where refineBudget is off): the bisection steps at an entry and the optical depth one
+        // step may add inside a cloud. frameNumber: the frame number of an aux or lum job (it moves the per-pixel step offset; the colour jobs count their own).
+        public int refineBisect, frameNumber;
+        public float refineStepBudget;
         public float costLeap = -1f, costCut = -1f, cheapShare = -1f, fogShare = -1f;
         // An occluder sphere (centre, radius) whose depth is the scene's; radius 0: none.
         public float[] occluder;
@@ -121,6 +125,10 @@ namespace ReDefinition.WeatherPlayer
         public LayersJobNoise noise;
         // The light of the pictures: sun colour, ambient above and below (rgb each).
         public float[] sunColour, ambientTop, ambientBottom;
+        // The ambient's analytic occlusion: 1 ends its column at the layer's outer altitude (the behaviour before light.ambientColumnTop; 0: the product's default,
+        // the cloud type's top); ambientGain above 0 replaces the gain of the sky radiance (CloudLightSettings.AmbientGain).
+        public int ambientLayerColumn;
+        public float ambientGain;
         // The backdrop of the colour pictures (the look sheet): sky colour at the horizon and at the zenith, the lit ground's albedo colour, the
         // exposure of the tone map (0: the default 1.2) and space (1: rays that miss the planet are black with a thin blue limb glow). Missing: the
         // fixed daylight backdrop.

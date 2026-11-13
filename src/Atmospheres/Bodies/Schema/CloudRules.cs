@@ -148,6 +148,8 @@ namespace ReDefinition.Atmospheres
         // The layer's noise: the share of the coverage threshold the noise moves, its scale in m, and the erosion at the cloud's edge.
         internal float NoiseAmount { get; set; }
         internal float NoiseScaleM { get; set; }
+        // The type value where no precipitation falls (CloudLayerSpec.FairType; -1: the precipitation level itself). The tuning key cloud.typeFair.<name> goes before it.
+        internal float FairType { get; set; } = -1f;
         // The longitude the layer's maps are turned by against the body's frame, degrees (the layer turns with its wind).
         internal float MapShiftDeg { get; set; }
 

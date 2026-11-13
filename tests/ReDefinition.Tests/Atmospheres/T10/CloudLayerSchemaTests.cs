@@ -271,5 +271,28 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.05f, def.SigmaPerM);
             Assert.AreEqual(LayerKind.Fog, def.Kind);
         }
+
+        // E40 (lead investigation): the type at no precipitation is a key of the layer. Without it the type value is the precipitation level (the first type in fair
+        // weather, as before); the tuning key cloud.typeFair.<name> goes before the layer's value, and 0 there gives the precipitation level again.
+        [TestMethod]
+        public void TheFairTypeIsReadBuiltAndYieldsToTheTuningKey()
+        {
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 0;outerAltitudeM = 2100;fairType = 0.5;" + GoodType + "}"
+                + "LAYER{name = B;innerAltitudeM = 3000;outerAltitudeM = 4000;" + GoodType + "}"
+                + "LAYER{name = C;innerAltitudeM = 5000;outerAltitudeM = 6000;fairType = 3;" + GoodType + "}");
+            Assert.AreEqual(0.5f, r.Climate.Clouds.Layers[0].FairType);
+            Assert.AreEqual(-1f, r.Climate.Clouds.Layers[1].FairType, "no key: the precipitation level itself");
+            Assert.AreEqual(1f, r.Climate.Clouds.Layers[2].FairType, "brought into the range");
+            Assert.IsTrue(r.Warnings.Any(w => w.Contains("fairType")));
+            Assert.AreEqual(0.5f, r.Climate.Clouds.Layers[0].Build(1).FairType);
+            Assert.AreEqual(-1f, r.Climate.Clouds.Layers[1].Build(1).FairType);
+            Assert.AreEqual(0.5f, CloudLookTuning.FairType(-1f, 0.5f), "no tuning key: the layer's");
+            Assert.AreEqual(0.25f, CloudLookTuning.FairType(0.25f, 0.5f), "the tuning key goes first");
+            Assert.AreEqual(0f, CloudLookTuning.FairType(0f, 0.5f), "the tuning key 0 is the precipitation level again");
+            Assert.AreEqual(-1f, CloudLookTuning.FairType(-1f, -1f));
+            Assert.AreEqual(0.5f, CloudLookTuning.TypeValue(0f, CloudLookTuning.FairType(-1f, 0.5f), -1f), 1e-6f, "no precipitation: the fair type");
+            Assert.AreEqual(1f, CloudLookTuning.TypeValue(1f, CloudLookTuning.FairType(-1f, 0.5f), -1f), 1e-6f, "full precipitation: the last type");
+            Assert.AreEqual(0.3f, CloudLookTuning.TypeValue(0.3f, CloudLookTuning.FairType(0f, 0.5f), -1f), 1e-6f, "switched off by the tuning key");
+        }
     }
 }

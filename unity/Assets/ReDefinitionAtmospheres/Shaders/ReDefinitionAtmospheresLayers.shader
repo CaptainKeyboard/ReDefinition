@@ -182,10 +182,15 @@ Shader "ReDefinition/AtmospheresLayers"
 
         // The density of layer li at a point (pc relative to the planet's centre, alt its altitude), distance t along the ray from the camera.
         // share: the height share of the layer; erosionOut: the interpolated type's erosion.
+        // The altitude of the top of the cloud type at the last point LayerDensity was asked for (the layer's outer altitude where no type was reached, and for the
+        // parity cell). The march copies it right after its own density read; the ambient's analytic occlusion measures the cloud above a sample to this top.
+        static float gTopAlt = 0;
+
         float LayerDensity(int li, float3 pc, float alt, float t, out float share)
         {
             share = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
+            gTopAlt = outer;
             share = (alt - inner) / (outer - inner);
             // The height variation (T13) lets a base reach below the inner altitude and a top above the outer one, by the layer's reach.
             bool heightOn = _LayerH2[li].y > 0;
@@ -231,9 +236,18 @@ Shader "ReDefinition/AtmospheresLayers"
                 tp = localTop;
             }
             if (share < b || share > tp || tp <= b) return 0;
+            gTopAlt = inner + tp * (outer - inner);
             erosion = erosionType * _LayerD[li].z;
             float coverage = _LayerB[li].y;
             float edge = max(_LayerB[li].z, 1e-4);
+            // layers.profileShape (_NoiseT.w, default 0: off): the type's height profile lifts the coverage threshold where it is below 1, so a cloud narrows towards
+            // its top (and its base) instead of standing as a column of the map's outline with a flat top; the lift is in map units. The technique is the height
+            // gradient of Schneider's cloudscapes (SIGGRAPH 2015: the coverage is reduced by the height signal of the cloud type); the code is the project's own.
+            [branch] if (_NoiseT.w > 0)
+            {
+                float hs = (share - b) / (tp - b);
+                cov -= _NoiseT.w * (1.0 - saturate(lerp(TypeProfile(li, ta, hs), TypeProfile(li, tb, hs), f)));
+            }
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
             if (_CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
@@ -395,6 +409,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     float dtv = _CullC.x > 0.0 ? dt * CullStepScale(t - s0[k]) : dt;
                     if (_CullD.x > 0.5) gNoiseFoot = CullFoot(t, dtv);
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
+                    float topAlt = gTopAlt;   // before the light march asks LayerDensity for other points
                     r.steps += 1;
                     if (bis > 0)
                     {
@@ -493,7 +508,7 @@ Shader "ReDefinition/AtmospheresLayers"
                             if (_LightT.w > 2.5) upReuse = max(upTau - dot(d, normalize(pc)) * tauSince, 0.0);
                         }
                         // The cone's rotation advances by the golden angle from one lit sample to the next, so that the per-pixel pattern averages out along the ray (FX-T03).
-                        src = LightSource(pc, d, dens, share, li, t - dts, rot + r.steps * 2.3999632, reuse, upReuse, dirPart, ambPart, taps, tauUsed, upUsed);
+                        src = LightSource(pc, d, dens, share, li, t - dts, rot + r.steps * 2.3999632, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
                         if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                         r.lightTaps += taps;
                     }

@@ -18,6 +18,9 @@ namespace ReDefinition.Atmospheres
     //   cloud.typeFair.<name>             the type value of the layer at no precipitation, rising linearly to 1 at full precipitation (-1: the precipitation level itself)
     //   cloud.typeOverride.<name>         a constant type value for the layer (-1: none; wins over typeFair)
     //   layers.densityRemap               the share of the erosion that also thins the interior of a closed deck (0: erosion only in the soft edge)
+    //   layers.profileShape               how far the type's height profile lifts the coverage threshold where the profile is below 1, in map units (0: the profile scales the
+    //                                     density only and every cloud is an upright column with a flat top; above 0 a cloud narrows where its profile falls, so tops are domed).
+    //                                     Shader only (_NoiseT.w): the CPU readers and the cloud shadow keep the column shape.
     //   cloud.coverCombine                0 to 1: how far the layer maps are scaled so that their random-overlap union equals the field's cover (0: maps as they are)
     //   cloud.sunTint                     0 to 1: how far the sun colour of the pass is pulled to grey of the same luminance (0: the scene's colour)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
@@ -29,10 +32,11 @@ namespace ReDefinition.Atmospheres
         internal const string TuneSigma = "cloud.layerSigmaScale", TuneSoftness = "cloud.layerSoftnessScale", TuneNoiseAmount = "cloud.layerNoiseAmountScale",
             TuneNoiseSize = "cloud.layerNoiseSizeScale", TuneLayerShift = "cloud.layerCoverageShift.", TuneTypeFair = "cloud.typeFair.", TuneTypeOverride = "cloud.typeOverride.",
             TuneDensityRemap = "layers.densityRemap", TuneCoverCombine = "cloud.coverCombine", TuneSunTint = "cloud.sunTint", TuneFadeFar = "cloud.fadeFarM",
-            TuneFadeNearShare = "cloud.fadeNearShare", TuneFarHaze = "cloud.farHaze", TuneHazeStrength = "cloud.hazeStrength", TuneMapOverride = "cloud.mapOverride.";
+            TuneFadeNearShare = "cloud.fadeNearShare", TuneFarHaze = "cloud.farHaze", TuneHazeStrength = "cloud.hazeStrength", TuneMapOverride = "cloud.mapOverride.",
+            TuneProfileShape = "layers.profileShape";
 
         private static long seenVersion = -1;
-        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, tint, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
+        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, tint, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f, profileShape;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -91,6 +95,8 @@ namespace ReDefinition.Atmospheres
             fadeNearShare = n;
             farHaze = h;
             hazeStrength = hs;
+            // Read by the noise binding every frame; it does not change the layers' uploaded numbers, so it does not raise the stamp.
+            profileShape = Clean(Tuning.Get(TuneProfileShape, 0f), 0f, 0f, 2f);
             // The per-layer keys of the names asked for so far are read again in place; a value that moved counts as a change.
             changed |= Reread(LayerShift, TuneLayerShift, 0f, -1f, 1f);
             changed |= Reread(TypeFairByName, TuneTypeFair, -1f, -1f, 1f);
@@ -166,6 +172,8 @@ namespace ReDefinition.Atmospheres
         internal static float SunTint { get { Refresh(); return tint; } }
         internal static float FarHazeForce { get { Refresh(); return farHaze; } }
         internal static float HazeStrengthScale { get { Refresh(); return hazeStrength; } }
+        // layers.profileShape (0: off): the lift of the coverage threshold where the type's profile is below 1 (the layer shader's _NoiseT.w).
+        internal static float ProfileShape { get { Refresh(); return profileShape; } }
 
         // The extra coverage shift of the layer of that name (0: none).
         internal static float ShiftOf(string layerName)
@@ -224,6 +232,12 @@ namespace ReDefinition.Atmospheres
         // --- Pure functions (the module and the tests call these) ------------------------------------------------------------------------
 
         // The type value of a layer at a place from the precipitation level there (0 to 1): the override, else the fair-weather curve fair + (1 - fair) p, else p itself.
+        // The fair type a layer's type bytes are made with: the tuning key's (cloud.typeFair.<name>) where it is set (0 to 1), else the layer's own (cfg key fairType, -1: none).
+        internal static float FairType(float tuningFair, float layerFair)
+        {
+            return tuningFair >= 0f ? tuningFair : layerFair;
+        }
+
         internal static float TypeValue(float precipitation, float fair, float overrideValue)
         {
             if (overrideValue >= 0f) return overrideValue;
