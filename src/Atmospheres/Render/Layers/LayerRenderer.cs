@@ -83,6 +83,12 @@ namespace ReDefinition.Atmospheres
         // E40 grain: the factor of the step inside a cloud over the grid step (1: the grid step). With MaxSteps and EmptyLeap raised by the same factor the grid
         // searches the clouds that many times finer while the samples inside them stay as far apart as before.
         public float CloudStep = 1f;
+        // E40 grain against TVC. SpanTight: the march searches each layer only over the altitudes of the cloud types the camera can see this frame and leaves out a
+        // layer whose coverage map cannot reach the threshold there (LayerSpanBound); false: the type table's whole interval (the pass as it was).
+        // DitherSequence: the step offset in time (0: a new value per pixel and frame, the pass as it was; 1: a white offset per pixel advanced by the golden ratio
+        // per frame; 2: the same over the interleaved gradient noise). The compiled values are the pass as it was; the product's are OwnCloudOptions'.
+        public bool SpanTight;
+        public int DitherSequence;
         // Package T16, the visibility culling and the distance LOD (all switches off until the owner agrees).
         public CullSettings Cull = new CullSettings();
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
@@ -255,6 +261,8 @@ namespace ReDefinition.Atmospheres
                 float tightInner, tightOuter;
                 layer.TightAltitudes(out tightInner, out tightOuter);
                 layerA[l] = new Vector4(layer.InnerAltitudeM, layer.OuterAltitudeM, tightInner, tightOuter);
+                tightTable[l] = new Vector2(tightInner, tightOuter);
+                spanValid[l] = false;
                 layerB[l] = new Vector4(layer.EffectiveSigmaPerM, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, (float)(int)layer.Kind);
                 layerC[l] = new Vector4(layer.EffectiveFadeNearM, float.IsPositiveInfinity(layer.EffectiveFadeFarM) ? 0f : layer.EffectiveFadeFarM,
                                         layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
@@ -296,6 +304,7 @@ namespace ReDefinition.Atmospheres
         // view, and jitter is the upscaler's jitter in render pixels (it moves the rays, not the picture).
         internal void SetCamera(Vector3 position, Vector3 forward, Vector3 right, Vector3 up, Vector2 jitterNdc)
         {
+            cameraPosition = position;
             material.SetVector(IdCamPos, position);
             material.SetVector(IdCamForward, forward);
             material.SetVector(IdCamRight, new Vector4(right.x, right.y, right.z, jitterNdc.x));
@@ -310,6 +319,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdPlanetCenter, f.PlanetCenter);
             m.SetMatrix(IdWorldToMap, f.WorldToMap);
             m.SetFloat(IdLayerCount, layerCount);
+            TightenSpans(f);
             m.SetVectorArray(IdLayerA, layerA);
             m.SetVectorArray(IdLayerB, layerB);
             m.SetVectorArray(IdLayerC, layerC);
@@ -343,13 +353,109 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             m.SetVector(Shader.PropertyToID("_RefineP"), new Vector4(Mathf.Max(0f, f.RefineBudget), Mathf.Clamp(f.RefineFraction, 0.01f, 1f), Mathf.Max(0.1f, f.EdgePower), f.HashDither ? 2f : (f.FixedConeRotation ? 1f : 0f)));
             m.SetVector(Shader.PropertyToID("_RefineG"), new Vector4(Mathf.Max(0f, f.RefineGate), Mathf.Max(0f, f.RefineGateFirst), Mathf.Clamp(f.RefineBisect, 0, LayerFrame.MaxRefineBisect), Mathf.Max(0f, f.RefineStepBudget)));
-            m.SetVector(IdGrainP, new Vector4(f.EntryRamp ? 1f : 0f, Mathf.Clamp(f.CloudStep, 1f, 8f), 0f, 0f));
+            // The golden-ratio phase of the frame in double precision (a float product loses the fraction at the frame counts of a long session).
+            double phase = f.FrameNumber * 0.6180339887498949;
+            m.SetVector(IdGrainP, new Vector4(f.EntryRamp ? 1f : 0f, Mathf.Clamp(f.CloudStep, 1f, 8f), Mathf.Clamp(f.DitherSequence, 0, 2), (float)(phase - Math.Floor(phase))));
             if (f.Light != null) f.Light.Upload(m);
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);
             m.SetVectorArray(IdCullL, cullL);
             Noise.Bind(m, layerCount);
         }
+
+        // E40 grain against TVC (LayerFrame.SpanTight): writes each layer's tight interval of this frame into layerA (z, w) from the maps' bytes around the camera
+        // (LayerSpanBound); a layer without a visible cloud gets the outer altitude -1, which the shader's LayerSpans reads as "no span". Off, or where no bound can be
+        // taken (no maps, a gas giant, a camera so high that half the map is in view), the table's interval of Upload stays. The scan is repeated only when a map was
+        // uploaded, the stack changed or the camera reached another texel.
+        private void TightenSpans(LayerFrame f)
+        {
+            for (int l = 0; l < layerCount; l++)
+            {
+                Vector2 table = tightTable[l];
+                float inner = table.x, outer = table.y;
+                bool scanned = false;
+                if (f.SpanTight && f.HasSurface && Maps.Coverage != null && layerC[l].z >= 0f && uploadedSource != null)
+                {
+                    Vector3 q = f.WorldToMap.MultiplyVector(cameraPosition - f.PlanetCenter);
+                    double len = Math.Sqrt((double)q.x * q.x + (double)q.y * q.y + (double)q.z * q.z);
+                    if (len > 1.0)
+                    {
+                        double lat = Math.Asin(Math.Max(-1.0, Math.Min(1.0, q.z / len))) * (180.0 / Math.PI);
+                        double lon = Math.Atan2(q.y, q.x) * (180.0 / Math.PI) - layerD[l].w;
+                        lon -= 360.0 * Math.Floor((lon + 180.0) / 360.0);
+                        double region = LayerSpanBound.RegionDeg(radius, len - radius, table.y, f.SunMarchM);
+                        long key = Maps.CoverageVersion(l) * 1000003L + Maps.TypeVersion(l) * 7919L + uploadedVersion * 31L + uploadedShift
+                                   + (long)Math.Floor(lat / 180.0 * Maps.Height) * 104729L + (long)Math.Floor(lon / 360.0 * Maps.Width) * 1299709L
+                                   + (long)Math.Round(region * 4.0) * 15485863L;
+                        // The height maps the frame may sample: the ones the GPU array holds and the ones a queued upload brings.
+                        HeightMaps held = Heights.AppliedMaps(l), coming = Heights.QueuedMaps(l);
+                        key += (held == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(held)) * 86028121L
+                               + (coming == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(coming)) * 49979687L;
+                        if (key != spanKey[l] || !spanValid[l])
+                        {
+                            // What the height variation really reaches around the camera (the layer's worst case is the sum of its ranges: 1.3 km down and 2.6 km up
+                            // for Kerbin's layers, more than the thickness of the clouds themselves).
+                            float down = -1f, up = -1f;
+                            if (layerH2[l].y > 0f)
+                            {
+                                LayerSpanBound.HeightExtremes e = LayerSpanBound.HeightExtremes.Neutral;
+                                if (layerH2[l].w > 0.5f)
+                                {
+                                    // The slice is neutral where the GPU holds no maps of the layer yet.
+                                    if (held != null) e = LayerSpanBound.Widen(e, held.Bytes, held.Width, held.Height, lat, lon, region + 0.25);
+                                    if (coming != null && !ReferenceEquals(coming, held)) e = LayerSpanBound.Widen(e, coming.Bytes, coming.Width, coming.Height, lat, lon, region + 0.25);
+                                }
+                                LayerSpanBound.Reach(e, layerH[l].x, layerH[l].y, layerH[l].z, layerH[l].w, layerH2[l].y, out down, out up);
+                                // A metre of slack for the rounding of the shader's sums.
+                                down += 1f;
+                                up += 1f;
+                            }
+                            spanResult[l] = LayerSpanBound.Bound(Maps.CoverageBytes(l), Maps.TypeBytes(l), Maps.Width, Maps.Height, lat, lon, region + 0.25,
+                                                                 uploadedSource.TableAt(l), uploadedSource.LayerAt(l), layerB[l].y, layerD[l].x, layerB[l].z, table.x, table.y,
+                                                                 down, up);
+                            spanKey[l] = key;
+                            spanValid[l] = true;
+                        }
+                        LayerSpanBound.Result r = spanResult[l];
+                        if (r.Tightened)
+                        {
+                            scanned = true;
+                            if (r.Empty) { inner = 0f; outer = -1f; }
+                            else { inner = r.InnerM; outer = r.OuterM; }
+                        }
+                    }
+                }
+                layerA[l].z = inner;
+                layerA[l].w = outer;
+                spanScanned[l] = scanned;
+            }
+        }
+
+        // The intervals of the last Apply as text (the probe's row and the log): per layer "none", "table <inner>-<outer>" or "<inner>-<outer>" in m.
+        internal string SpanStats
+        {
+            get
+            {
+                var text = new System.Text.StringBuilder();
+                for (int l = 0; l < layerCount; l++)
+                {
+                    if (l > 0) text.Append(' ');
+                    text.Append('L').Append(l).Append(' ');
+                    if (layerA[l].w < 0f) text.Append("none");
+                    else text.Append(spanScanned[l] ? "" : "table ").Append(layerA[l].z.ToString("0", System.Globalization.CultureInfo.InvariantCulture)).Append('-')
+                             .Append(layerA[l].w.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
+                }
+                return text.ToString();
+            }
+        }
+
+        private readonly bool[] spanScanned = new bool[CloudLayerDef.MaxLayers];
+
+        private Vector3 cameraPosition;
+        private readonly Vector2[] tightTable = new Vector2[CloudLayerDef.MaxLayers];
+        private readonly long[] spanKey = new long[CloudLayerDef.MaxLayers];
+        private readonly bool[] spanValid = new bool[CloudLayerDef.MaxLayers];
+        private readonly LayerSpanBound.Result[] spanResult = new LayerSpanBound.Result[CloudLayerDef.MaxLayers];
 
         // Package T16: refreshes the bound maps and records the tile pass (nothing where no skip switch is on). Call after Apply and before the march
         // blit, with the scene depth global set; fullW and fullH are the full target's size, the tile map covers it whatever size the march target has.

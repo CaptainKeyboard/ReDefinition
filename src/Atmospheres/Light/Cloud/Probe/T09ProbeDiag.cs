@@ -350,6 +350,12 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in Look55Cover(tag, siteLat, siteLon)) yield return w;
                 yield break;
             }
+            if (look == "H")
+            {
+                // Start gt57: the grain variants and cost windows of E40 grain against TVC at the low cover (T09ProbeGt.cs).
+                foreach (ProbeWait w in Look57Cover(tag, siteLat, siteLon)) yield return w;
+                yield break;
+            }
             foreach (View view in new[] { Views[0], Views[2] })
             {
                 // The look starts (T09ProbeLook) read the ground view at both covers and the above view at the low cover.

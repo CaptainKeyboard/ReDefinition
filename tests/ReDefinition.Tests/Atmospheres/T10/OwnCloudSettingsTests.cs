@@ -90,7 +90,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var expected = new LayerFrame();
             expected.UseProductCost();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(expected.MaxSteps, frame.MaxSteps);
+            // The product marches the span cut to the types present with the grid multiplier of OwnCloudOptions (E40 grain against TVC); the struct keeps the full count.
+            Assert.AreEqual(Math.Round(expected.MaxSteps * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             Assert.AreEqual(expected.SunSteps, frame.SunSteps);
             Assert.AreEqual(expected.MinStepM, frame.MinStepM);
             Assert.AreEqual(expected.TransmittanceGrowth, frame.TransmittanceGrowth, "the product's step growth");
@@ -157,7 +158,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
 
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, v);
-            Assert.AreEqual(32, frame.MaxSteps);
+            Assert.AreEqual(Math.Round(32 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             Assert.AreEqual(2, frame.SunSteps);
             Assert.AreEqual(40f, frame.MinStepM);
             Assert.AreEqual(0.5f, frame.TransmittanceGrowth);
@@ -375,7 +376,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(48, frame.MaxSteps);
+            Assert.AreEqual(Math.Round(48 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             Assert.IsFalse(frame.EntryRamp);
             Assert.AreEqual(1f, frame.CloudStep);
             Assert.AreEqual(0, frame.RefineBisect);
@@ -419,6 +420,44 @@ namespace ReDefinition.Tests.Atmospheres.T10
             OwnCloudOptions.Apply(recon, Defaults());
             Assert.AreEqual(ReconMode.Full, recon.Mode);
             Assert.AreEqual(0f, recon.Accumulate);
+            Tuning.ClearOverrides();
+            NextFrame();
+        }
+
+        // E40 grain against TVC: the span cut and the step offset's sequence are the product's defaults, each back to the pass as it was by its key; the grid
+        // multiplier reaches below 1.
+        [TestMethod]
+        public void TheSpanCutAndTheDitherSequenceAreDefaultsWithAKeyBack()
+        {
+            Tuning.ClearOverrides();
+            NextFrame();
+            var frame = new LayerFrame();
+            Assert.IsFalse(frame.SpanTight);
+            Assert.AreEqual(0, frame.DitherSequence);
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(OwnCloudOptions.SpanTightDefault, frame.SpanTight);
+            Assert.AreEqual((int)OwnCloudOptions.DitherSequenceDefault, frame.DitherSequence);
+            Assert.AreEqual(Math.Round(48 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
+
+            Tuning.SetOverride(OwnCloudOptions.TuneSpanTight, 0f);
+            Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 0f);
+            Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 1f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.IsFalse(frame.SpanTight);
+            Assert.AreEqual(0, frame.DitherSequence);
+            Assert.AreEqual(48, frame.MaxSteps);
+
+            Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 2f);
+            Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 0.5f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(2, frame.DitherSequence);
+            Assert.AreEqual(24, frame.MaxSteps);
+            Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 0.01f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(12, frame.MaxSteps);
             Tuning.ClearOverrides();
             NextFrame();
         }
@@ -493,7 +532,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 if (json.IndexOf("\"atmo." + key + "\": \"", StringComparison.Ordinal) < 0) gaps.Add(key + " (key)");
             }
             foreach (string tuning in new[] { OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneRefineBudget,
-                                              OwnCloudOptions.TuneEntryRamp, OwnCloudOptions.TuneGridFine, OwnCloudOptions.TuneCloudStep, OwnCloudOptions.TuneAccumulate })
+                                              OwnCloudOptions.TuneEntryRamp, OwnCloudOptions.TuneGridFine, OwnCloudOptions.TuneCloudStep, OwnCloudOptions.TuneAccumulate,
+                                              OwnCloudOptions.TuneSpanTight, OwnCloudOptions.TuneDitherSequence })
             {
                 if (json.IndexOf("\"atmo." + tuning + "\"", StringComparison.Ordinal) < 0) gaps.Add(tuning);
             }

@@ -49,17 +49,27 @@ float HeightReachUp(int li) { return _LayerH[li].x + _LayerH[li].z + _LayerH[li]
 
 // The base and top shares of a type at a point (LayerGeometry.LocalBaseTop): the type table's shares b and tp, the type's erosion, the
 // layer's thickness in m, the point relative to the planet's centre.
-void HeightLocalBaseTop(int li, float3 pc, float b, float tp, float erosion, float thickness, float shiftDeg, out float lb, out float lt)
+// uv: the map's uv of the point (MapUv(pc, shiftDeg), unclamped), which the caller has already (one asin and one atan2 less per sample).
+// share: the height share of the point in the layer. The function returns false, with lb and lt unset, where the point lies outside the cloud whatever the ragged
+// boundary's noise is (COST, E40 grain against TVC: the noise is 16 integer hashes, and most samples of a march lie above the tops or below the bases; the test
+// uses the noise's bounds -1 and 1, so a point that passes gets exactly the base and top of before).
+bool HeightLocalBaseTop(int li, float3 pc, float2 uv, float b, float tp, float erosion, float thickness, float share, out float lb, out float lt)
 {
+    lb = 0;
+    lt = 0;
     float3 hm = 0;
     if (_LayerH2[li].w > 0.5)
-    {
-        float2 uv = MapUv(pc, shiftDeg);
         hm = (UNITY_SAMPLE_TEX2DARRAY_LOD(_HeightMaps, float3(uv, li), 0).rgb - 128.0 / 255.0) * (255.0 / 127.0);
-    }
     float root = HeightRootWeight(b);
     float smoothOffset = root * hm.x * _LayerH[li].x + hm.z * _LayerH[li].z;
     float baseOffset = smoothOffset;
+    float topOffsetEarly = smoothOffset + root * hm.y * _LayerH[li].y;
+    float raggedMost = _LayerH[li].w > 0 ? _LayerH[li].w * abs(erosion / 0.5) : 0.0;
+    float lbLeast = b + (smoothOffset - raggedMost) / thickness;
+    float liftMost = max(-_LayerA[li].x / thickness - lbLeast, 0.0);
+    float ltMost = max(tp + topOffsetEarly / thickness, b + (smoothOffset + raggedMost) / thickness + _LayerH2[li].y / thickness) + liftMost;
+    // 1e-4 of the layer's thickness of slack for the rounding of the two ways the same sums are formed.
+    if (share < lbLeast - 1e-4 || share > ltMost + 1e-4) return false;
     if (_LayerH[li].w > 0)
     {
         float k = (_PlanetR + _LayerA[li].x) / max(length(pc), 1.0) * _LayerH2[li].x;
@@ -72,6 +82,7 @@ void HeightLocalBaseTop(int li, float3 pc, float b, float tp, float erosion, flo
     float lift = max(-_LayerA[li].x / thickness - lb, 0.0);
     lb += lift;
     lt += lift;
+    return true;
 }
 
 #endif

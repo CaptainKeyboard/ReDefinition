@@ -33,11 +33,29 @@ namespace ReDefinition.Atmospheres
             neutral = new byte[width * height * 4];
             for (int i = 0; i < neutral.Length; i++) neutral[i] = (i & 3) == 3 ? (byte)255 : (byte)128;
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) Maps.SetPixelData(neutral, 0, l, 0);
+            Array.Clear(applied, 0, applied.Length);
+            Array.Clear(staged, 0, staged.Length);
             Maps.Apply(false);
         }
 
         private LayerHeightField queued;
         private int queuedCount, nextSlice;
+        // The maps the GPU array holds per slice (null: the neutral slice), and the ones written into the array but not applied yet (LayerSpanBound reads the
+        // offsets a layer really has around the camera from both, so that its bound holds whichever the frame samples).
+        private readonly HeightMaps[] applied = new HeightMaps[CloudLayerDef.MaxLayers], staged = new HeightMaps[CloudLayerDef.MaxLayers];
+
+        internal HeightMaps AppliedMaps(int layer)
+        {
+            return applied[layer];
+        }
+
+        // The maps of a layer that a queued upload will bring (null: none waits, or the layer has none).
+        internal HeightMaps QueuedMaps(int layer)
+        {
+            if (queued == null || layer >= queuedCount) return null;
+            HeightMaps m = queued.MapsOf(layer);
+            return m != null && (m.Width != Width || m.Height != Height) ? null : m;
+        }
 
         // Whether slices of a queued upload are still waiting (Step writes them).
         internal bool Pending
@@ -85,9 +103,11 @@ namespace ReDefinition.Atmospheres
                 HeightMaps m = l < queuedCount ? queued.MapsOf(l) : null;
                 if (m != null && (m.Width != Width || m.Height != Height)) m = null;
                 Maps.SetPixelData(m == null ? neutral : m.MakeRgba(), 0, l, 0);
+                staged[l] = m;
             }
             if (nextSlice < CloudLayerDef.MaxLayers) return;
             Maps.Apply(false);
+            Array.Copy(staged, applied, applied.Length);
             queued = null;
         }
 

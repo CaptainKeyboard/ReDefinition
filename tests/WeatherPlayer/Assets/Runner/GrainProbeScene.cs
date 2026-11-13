@@ -23,6 +23,10 @@ namespace ReDefinition.WeatherPlayer
             public int Bisect, MaxSteps = 48, CostDebug;
             public bool Ramp;
             public float Leap = 1f, CloudStep = 1f;
+            // E40 grain against TVC: the march searches the altitudes of the types present only (LayerFrame.SpanTight); the step offset's sequence in time
+            // (LayerFrame.DitherSequence).
+            public bool Tight;
+            public int Seq;
         }
 
         internal sealed class Mode
@@ -49,7 +53,39 @@ namespace ReDefinition.WeatherPlayer
             new March { Name = "prodnl", CostDebug = 1 },
             new March { Name = "leap4xnl", MaxSteps = 192, Leap = 4f, CostDebug = 1 },
             new March { Name = "ramp4nl", Bisect = 4, Ramp = true, CostDebug = 1 },
+            // E40 grain against TVC (series e40-gt-temporal, e40-gt-cost): the golden-ratio sequence of the step offset over a white and a gradient-noise offset per
+            // pixel, the span cut to the types present, both, fewer grid points on the cut span, the leap and a short entry ramp on it.
+            new March { Name = "seq1", Seq = 1 },
+            new March { Name = "seq2", Seq = 2 },
+            new March { Name = "tight", Tight = true },
+            new March { Name = "tseq1", Tight = true, Seq = 1 },
+            new March { Name = "tseq2", Tight = true, Seq = 2 },
+            new March { Name = "t32seq1", Tight = true, Seq = 1, MaxSteps = 32 },
+            new March { Name = "t24seq1", Tight = true, Seq = 1, MaxSteps = 24 },
+            new March { Name = "t16seq1", Tight = true, Seq = 1, MaxSteps = 16 },
+            new March { Name = "t12seq1", Tight = true, Seq = 1, MaxSteps = 12 },
+            new March { Name = "tleap2seq1", Tight = true, Seq = 1, MaxSteps = 96, Leap = 2f },
+            new March { Name = "tramp2seq1", Tight = true, Seq = 1, Bisect = 2, Ramp = true },
+            new March { Name = "leap4xseq1", Seq = 1, MaxSteps = 192, Leap = 4f },
         };
+
+        // The cases of the series e40-gt-* (-cases gt): march variant and mode.
+        internal static readonly string[][] GtTemporal =
+        {
+            new[] { "prod", "plain" }, new[] { "prod", "acc20" }, new[] { "seq1", "acc20" }, new[] { "seq2", "acc20" }, new[] { "seq1", "acc10" },
+            new[] { "tight", "plain" }, new[] { "tight", "acc20" }, new[] { "tseq1", "acc20" }, new[] { "tseq2", "acc20" }, new[] { "tseq1", "acc10" },
+            new[] { "t32seq1", "acc20" }, new[] { "t24seq1", "acc20" }, new[] { "tleap2seq1", "acc20" }, new[] { "tramp2seq1", "acc20" },
+            new[] { "leap4x", "acc20" }, new[] { "leap4xseq1", "acc20" }, new[] { "t16seq1", "acc20" }, new[] { "t12seq1", "acc20" },
+        };
+
+        internal static readonly string[][] GtCost =
+        {
+            new[] { "prod", "plain" }, new[] { "prod", "acc20" }, new[] { "seq1", "acc20" }, new[] { "tight", "acc20" }, new[] { "tseq1", "acc20" },
+            new[] { "t32seq1", "acc20" }, new[] { "t24seq1", "acc20" }, new[] { "tleap2seq1", "acc20" }, new[] { "tramp2seq1", "acc20" },
+            new[] { "leap4x", "acc20" }, new[] { "t16seq1", "acc20" }, new[] { "t12seq1", "acc20" },
+        };
+
+        internal static bool Gt { get { return WeatherPass.Argument("-cases") == "gt"; } }
 
         // plain is the game's default (level 1: the half-size march, laid up); acc is the same with a history of the half-size target; b2 is level 2.
         internal static readonly Mode[] Modes =
@@ -89,11 +125,15 @@ namespace ReDefinition.WeatherPlayer
             f.EmptyLeap = m.Leap;
             f.CloudStep = m.CloudStep;
             f.CostDebug = m.CostDebug;
+            f.SpanTight = m.Tight;
+            f.DitherSequence = m.Seq;
         }
 
         // The converged march of the references (e40gn.py CONVERGED).
-        internal static void ApplyConverged(LayerFrame f)
+        internal static void ApplyConverged(LayerFrame f, bool tight = false)
         {
+            f.SpanTight = tight;
+            f.DitherSequence = 0;
             f.MaxSteps = 256;
             f.MinStepM = 4f;
             f.StepGrowth = 0f;
@@ -221,18 +261,22 @@ namespace ReDefinition.WeatherPlayer
                 rig.Load(job, input);
                 foreach (Scenario sc in Scenarios)
                 {
-                    // The converged reference of every pose that is written (a still camera has one).
-                    GrainTable.ApplyConverged(rig.Frame);
-                    foreach (int i in sc.Dump)
+                    // The converged reference of every pose that is written (a still camera has one); with -cases gt also the one over the span cut to the
+                    // types present (reft: its light taps lie closer, so it is the reference of the marches with the cut span).
+                    foreach (bool tight in GrainTable.Gt ? new[] { false, true } : new[] { false })
                     {
-                        if ((sc.Name == "static" || sc.Name == "cut") && i != sc.Dump[0]) continue;
-                        GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));
-                        refRecon.Reset();
-                        Render(rig, refRecon, full, 0);
-                        Dump(refRecon.Output, "gt-" + view + "-" + sc.Name + "-ref-f" + i);
-                        yield return null;
+                        GrainTable.ApplyConverged(rig.Frame, tight);
+                        foreach (int i in sc.Dump)
+                        {
+                            if ((sc.Name == "static" || sc.Name == "cut") && i != sc.Dump[0]) continue;
+                            GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));
+                            refRecon.Reset();
+                            Render(rig, refRecon, full, 0);
+                            Dump(refRecon.Output, "gt-" + view + "-" + sc.Name + (tight ? "-reft-f" : "-ref-f") + i);
+                            yield return null;
+                        }
                     }
-                    foreach (string[] c in Cases)
+                    foreach (string[] c in GrainTable.Gt ? GrainTable.GtTemporal : Cases)
                     {
                         GrainTable.Apply(rig.Frame, GrainTable.MarchByName(c[0]));
                         ReconSettings settings = GrainTable.ModeByName(c[1]).Settings();
@@ -307,9 +351,10 @@ namespace ReDefinition.WeatherPlayer
                     rig.Load(job, input);
                     rig.Frame.UseSceneDepth = true;
                     GrainTable.Pose(Cam, job, 0f, 0f);
-                    for (int k = 0; k < Cases.Length; k++)
+                    string[][] cases = GrainTable.Gt ? GrainTable.GtCost : Cases;
+                    for (int k = 0; k < cases.Length; k++)
                     {
-                        string[] c = Cases[round == 0 ? k : Cases.Length - 1 - k];
+                        string[] c = cases[round == 0 ? k : cases.Length - 1 - k];
                         if (clock.Elapsed.TotalMinutes > 16.0) { Sink.Flag("grain_cost_completed", false); yield break; }
                         GrainTable.Apply(rig.Frame, GrainTable.MarchByName(c[0]));
                         ReconSettings settings = GrainTable.ModeByName(c[1]).Settings();

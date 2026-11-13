@@ -111,7 +111,8 @@ namespace ReDefinition.Atmospheres
         }
 
         // only: the tags of the variants to read (null: all); offTag: the name of the baseline frame (start look55 reads it beside its own "off").
-        private IEnumerable<ProbeWait> DiagLookG(View view, string cover, ICollection<string> only = null, string offTag = "off")
+        // variants: the set to read (null: GrainVariants).
+        private IEnumerable<ProbeWait> DiagLookG(View view, string cover, ICollection<string> only = null, string offTag = "off", GrainVariant[] variants = null)
         {
             string head = "T09d." + view.Name + "." + cover + ".";
             diagPictureFactor = 1;
@@ -123,7 +124,7 @@ namespace ReDefinition.Atmospheres
             T09Readout.Reading off = diagReading;
             Color[] offRaw = diagImage != null ? diagImage.Raw : null;
             Game.SetLayerMask(0);
-            foreach (GrainVariant v in GrainVariants)
+            foreach (GrainVariant v in variants ?? GrainVariants)
             {
                 if (only != null && !only.Contains(v.Tag)) continue;
                 ClearForced();
@@ -133,6 +134,12 @@ namespace ReDefinition.Atmospheres
                 yield return ProbeWait.Frames(DiagSettleFrames + v.HistoryFrames);
                 OwnCloudModule own = OwnCloudModule.Current;
                 if (own != null) EmitText(head + v.Tag + ".mode", own.Stats.Mode ?? "");
+                // The altitude intervals the pass searches, its grid points and the step offset's sequence (E40 grain against TVC; LayerRenderer.SpanStats).
+                if (own != null && own.Renderer != null)
+                {
+                    EmitText(head + v.Tag + ".spans", own.Renderer.SpanStats);
+                    AtmospheresLog.Say("T09d grain spans " + view.Name + " " + v.Tag + ": " + own.Renderer.SpanStats + ", grid points " + own.Frame.MaxSteps + ", sequence " + own.Frame.DitherSequence);
+                }
                 int drawnFrom = own != null ? own.Stats.FramesDrawn : 0;
                 // The cuts of the history during the reads: a history that is dropped every frame removes nothing, whatever the mode row says.
                 int cutsFrom = own != null ? own.Stats.Cuts : 0;

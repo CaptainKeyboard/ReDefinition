@@ -33,6 +33,19 @@ namespace ReDefinition.Atmospheres
             return coverageVersion[layer];
         }
 
+        // The bytes of a layer's type map as uploaded last, and the number of uploads so far (LayerSpanBound reads both maps of the frame).
+        internal byte[] TypeBytes(int layer)
+        {
+            return typeNow[layer];
+        }
+
+        internal long TypeVersion(int layer)
+        {
+            return typeVersion[layer];
+        }
+
+        private readonly long[] typeVersion = new long[CloudLayerDef.MaxLayers];
+
         internal Texture2DArray Coverage { get; private set; }
         internal Texture2DArray Types { get; private set; }
         internal int Width { get; private set; }
@@ -134,7 +147,7 @@ namespace ReDefinition.Atmospheres
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
             {
                 if (dirtyCoverage[l]) { Upload(Coverage, l, coverageNow[l]); dirtyCoverage[l] = false; coverageDirty = true; coverageVersion[l]++; }
-                if (dirtyType[l]) { Upload(Types, l, typeNow[l]); dirtyType[l] = false; typeDirty = true; }
+                if (dirtyType[l]) { Upload(Types, l, typeNow[l]); dirtyType[l] = false; typeDirty = true; typeVersion[l]++; }
             }
             if (coverageDirty) Coverage.Apply(false);
             if (typeDirty) Types.Apply(false);

@@ -72,7 +72,10 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _RefineG;
         // The grain controls (E40 grain): x the entry ramp (1: after an entry found by the bisection the ray's step starts at the bisection's precision and doubles
         // from sample to sample up to the grid step, so the first optical depths of a cloud are integrated at the same depths below its surface in every pixel and
-        // frame instead of at one sample a random share of a grid step deep; 0: off), y the factor of the step inside a cloud (1: the grid step), z and w 0.
+        // frame instead of at one sample a random share of a grid step deep; 0: off), y the factor of the step inside a cloud (1: the grid step),
+        // z the step offset's sequence in time (E40 grain against TVC; 0: a new hash per pixel and frame, the march as it was; 1: a white offset per pixel that
+        // advances by the golden ratio from frame to frame; 2: the same with the interleaved gradient noise as the per-pixel offset), w the frame's phase of
+        // that sequence, frac(frame number x golden ratio), computed in double precision by the caller.
         float4 _GrainP;
         // The gate's state while a ray marches: the refinement is on (1) or held back for the first march of a gated pixel (0); and a draw that must not gate
         // (the edge draw of package T12 returns early per pixel, so a quad's derivatives are not defined there) sets gGateOff.
@@ -124,6 +127,8 @@ Shader "ReDefinition/AtmospheresLayers"
         {
             sp = 0;
             float inner = _LayerA[li].z, outer = _LayerA[li].w;
+            // A tight outer altitude below zero: the layer holds no cloud the camera can see this frame (LayerSpanBound, layers.spanTight).
+            if (outer < 0) return;
             float o0, o1;
             if (!HitSphere(o, d, _PlanetR + outer, o0, o1)) return;
             float lo = max(o0, 0), hi = min(o1, tmax);
@@ -212,13 +217,20 @@ Shader "ReDefinition/AtmospheresLayers"
             }
             float slice = _LayerC[li].z;
             float cov = 1.0, typeValue = 0.0;
-            float2 uv = 0;
-            if (slice >= 0)
+            float2 uv = 0, uvRaw = 0;
+            if (slice >= 0 || heightOn)
             {
                 uv = MapUv(pc, _LayerD[li].w);
+                uvRaw = uv;
+            }
+            if (slice >= 0)
+            {
                 float vMin = 0.5 / _MapDim.y;
                 uv.y = clamp(uv.y, vMin, 1.0 - vMin);
                 cov = UNITY_SAMPLE_TEX2DARRAY_LOD(_CovMaps, float3(uv, slice), 0).r;
+                // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. layers.profileShape only
+                // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
+                if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0) return 0;
                 typeValue = UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).r;
             }
             float erosion = 0;
@@ -235,7 +247,7 @@ Shader "ReDefinition/AtmospheresLayers"
             if (heightOn)
             {
                 float localBase, localTop;
-                HeightLocalBaseTop(li, pc, b, tp, erosionType, outer - inner, _LayerD[li].w, localBase, localTop);
+                if (!HeightLocalBaseTop(li, pc, uvRaw, b, tp, erosionType, outer - inner, share, localBase, localTop)) return 0;
                 b = localBase;
                 tp = localTop;
             }
@@ -348,11 +360,17 @@ Shader "ReDefinition/AtmospheresLayers"
             float T = 1.0;
             float mu = dot(_Sun.xyz, d);
             float ph = Phase(mu);
-            float jitter = lerp(0.5, Dither(pixel, _StepP.z), _StepP.y);
+            // The step offset. _GrainP.z 0: a new white value per pixel and frame, so the mean of n frames has the variance of one frame over n. 1 and 2: the pixel
+            // keeps one offset and every frame adds the golden ratio to it (Roberts 2018, the R1 sequence): any run of frames spreads its offsets evenly over the
+            // grid step, so the history of the pass integrates the step by strata instead of by chance (the cloud's entry, its light at the sample's depth and the
+            // hit or miss of a thin rim all depend on that offset).
+            float jitterValue = _GrainP.z < 0.5 ? Dither(pixel, _StepP.z)
+                : frac((_GrainP.z < 1.5 ? Dither(pixel, 0.0) : Ign(pixel, 0.0)) + _GrainP.w);
+            float jitter = lerp(0.5, jitterValue, _StepP.y);
             // The cone's rotation of the light taps (_RefineP.w 1: a fixed rotation, a probe): a blue-noise pattern in space (the interleaved gradient noise,
             // whose error is high-frequency and so is removed by the reconstruction's filter) advanced in time by the golden ratio, which spreads the
             // frames' rotations evenly (Roberts 2018, the R1 sequence), independent of the step dither's white hash (T03v2).
-            float rot = frac(Ign(pixel + 17.0, 0.0) + 0.61803398875 * _StepP.z) * 6.2831853 * (_RefineP.w > 0.5 && _RefineP.w < 1.5 ? 0.0 : 1.0);
+            float rot = frac(Ign(pixel + 17.0, 0.0) + (_GrainP.z > 0.5 ? _GrainP.w : 0.61803398875 * _StepP.z)) * 6.2831853 * (_RefineP.w > 0.5 && _RefineP.w < 1.5 ? 0.0 : 1.0);
             int maxSteps = (int)_MarchP.x;
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;

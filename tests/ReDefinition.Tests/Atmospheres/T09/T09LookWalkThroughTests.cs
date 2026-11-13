@@ -32,6 +32,27 @@ namespace ReDefinition.Tests.Atmospheres.T09
             });
         }
 
+        // Start gt57 (-atmoLook H, T09ProbeGt.cs): both views of the low cover, three frames of each grain variant, then the four cost windows of each view.
+        [TestMethod]
+        public void LookHReadsTheGrainVariantsAndTheCostWindowsOfBothViews()
+        {
+            Run r = StartLook("H");
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            foreach (string view in new[] { "ground", "above" })
+            {
+                foreach (string tag in new[] { "gbefore", "gnew", "gnew10", "gnewramp" })
+                    foreach (string letter in new[] { "a", "b", "c" })
+                        Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view + "_low-" + tag + letter + "-")), view + " " + tag + letter + " was written");
+                foreach (string variant in new[] { "off", "before", "plain", "ramp" })
+                {
+                    Assert.AreEqual(1, r.Log.Count(l => l.StartsWith("T09 view begin: " + view + " " + variant + " ")), view + " " + variant + " has a cost window");
+                    Assert.AreEqual(1, r.Log.Count(l => l.StartsWith("T09 view end: " + view + " " + variant + " ")), view + " " + variant + " ends its cost window");
+                }
+            }
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("_high-")), "the high cover is not read");
+        }
+
         [TestMethod]
         public void LookAReadsTheSetsAtTwoShiftsTheForcedMapAndTheLayersAlone()
         {

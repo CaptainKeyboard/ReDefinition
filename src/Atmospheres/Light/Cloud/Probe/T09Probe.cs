@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
 
         protected override double MaxSeconds
         {
-            get { return IsDiag ? (LookMode == "G" ? GrainMaxSeconds : LookMode == "C" ? Look55MaxSeconds : LookMode != null ? LookMaxSeconds : DiagMaxSeconds) : 19 * 60; }
+            get { return IsDiag ? (LookMode == "G" ? GrainMaxSeconds : LookMode == "C" ? Look55MaxSeconds : LookMode == "H" ? Look57MaxSeconds : LookMode != null ? LookMaxSeconds : DiagMaxSeconds) : 19 * 60; }
         }
 
         protected override IList<string> DefaultVariants
@@ -114,6 +114,8 @@ namespace ReDefinition.Atmospheres
         private static bool Measured(string variant, View view)
         {
             if (InsideOnly(variant)) return view.Name == "inside";
+            // The two grid-point variants of the start gt1707 are read where the player series has their quality (T09ProbeGt.cs).
+            if (variant == "full" || variant == "low") return view.Name == "ground" || view.Name == "above";
             if (ThreeViewsOnly(variant)) return view.Name == "ground" || view.Name == "inside" || view.Name == "above";
             return true;
         }
@@ -200,7 +202,8 @@ namespace ReDefinition.Atmospheres
                     SetSetting(AtmospheresSettings.Keys.CloudLightCache, 1.0);
                     break;
                 default:
-                    UseOwn();
+                    // A named set of tuning keys of the starts gt1707 (T09ProbeGt.cs), else the own pass at its defaults (plain, gain).
+                    if (!GtApply(name)) UseOwn();
                     break;
             }
         }
@@ -409,6 +412,7 @@ namespace ReDefinition.Atmospheres
                     foreach (View view in Views)
                     {
                         if (!Measured(variant, view)) continue;
+                        if (GtStart && view.Name == "orbit_edge") continue;
                         if (!IsDiag && view.Name == "orbit_edge" && orbitEdgeFailedIn != null)
                         {
                             // Its placement failed once (4 attempts of about a minute): the later variants do not spend the scenario's minutes on it again.
@@ -425,7 +429,11 @@ namespace ReDefinition.Atmospheres
                         foreach (ProbeWait w in StableGate(view, variant)) yield return w;
                         foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
-                        if (NoiseVariant(variant) && NoiseView(view))
+                        if (GtStart)
+                        {
+                            foreach (ProbeWait w in GtGrainRead(view, variant)) yield return w;
+                        }
+                        else if (NoiseVariant(variant) && NoiseView(view))
                         {
                             foreach (ProbeWait w in Noise(view, variant)) yield return w;
                         }

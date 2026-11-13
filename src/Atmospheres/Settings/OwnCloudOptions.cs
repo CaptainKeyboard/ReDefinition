@@ -35,6 +35,18 @@ namespace ReDefinition.Atmospheres
         internal const string TuneAccumulate = "recon.accumulate";
         internal const float AccumulateDefault = 0.2f;
 
+        // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
+        // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach) and layers.ditherSequence
+        // (LayerFrame.DitherSequence; 0: a new step offset per pixel and frame, the march as it was; 1, the default: a per-pixel offset advanced by the golden ratio).
+        // Measured: in the player (one layer, the lowest type alone) the cut lowers the temporal noise of a cloud pixel from 0.0031 / 0.0101 (closed / rim) to
+        // 0.0006 / 0.0014 and the error against the converged picture from 0.050 to 0.018 (series e40-gt-temporal). In the game the map around the camera holds most
+        // types, the interval stays wide (cumulus layer 608 to 8042 m of 430 to 9990) and the noise falls by 13 percent (ground) and 2 percent (above) at +0.7 / 0.0 ms
+        // (K-T2d start gt57), so the cut is not the default: it is the search interval of the per-ray march that follows this package. The sequence costs nothing
+        // (player: 10 to 40 percent less temporal noise under the history; no measurable change in the game at rain, K-T2 start gt1707).
+        internal const string TuneSpanTight = "layers.spanTight", TuneDitherSequence = "layers.ditherSequence";
+        internal const bool SpanTightDefault = false;
+        internal const float DitherSequenceDefault = 1f;
+
         // The tuning keys of the light's look constants (T03); the compiled defaults are the fields of CloudLightSettings.
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
             TuneMsBrightness = "light.msBrightness", TuneDiffusion = "light.diffusion", TuneDiffusionTau = "light.diffusionTau",
@@ -155,7 +167,9 @@ namespace ReDefinition.Atmospheres
             LayerSwitches.StepQuality((int)Level(v, AtmospheresSettings.Keys.LayerStepQuality), out maxSteps, out sunSteps, out minStep);
             // E40 grain: layers.gridFine N (1 to 8; default 1) multiplies the most grid points of a span (up to the shader's 256); with layers.emptyLeap N the leap over
             // empty samples is as long as the product's grid step at most, so the search is N times finer where the clouds are at about the density reads of before.
-            f.MaxSteps = Math.Min(256, Mathf.RoundToInt(maxSteps * Mathf.Clamp(Tuning.Get(TuneGridFine, GridFineDefault), 1f, 8f)));
+            // E40 grain against TVC: the multiplier may be below 1 (down to 0.25): on a span cut to the types present (layers.spanTight) fewer grid points still lie closer
+            // than the full count did over the type table's whole interval.
+            f.MaxSteps = Math.Max(4, Math.Min(256, Mathf.RoundToInt(maxSteps * Mathf.Clamp(Tuning.Get(TuneGridFine, GridFineDefault), 0.25f, 8f))));
             f.SunSteps = sunSteps;
             f.MinStepM = minStep;
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
@@ -180,6 +194,8 @@ namespace ReDefinition.Atmospheres
             f.CloudStep = Mathf.Clamp(Tuning.Get(TuneCloudStep, CloudStepDefault), 1f, 8f);
             f.EntryRamp = ramp > 0;
             if (ramp > 0) f.RefineBisect = Math.Max(f.RefineBisect, ramp);
+            f.SpanTight = Tuning.Flag(TuneSpanTight, SpanTightDefault);
+            f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 0, 2);
             Apply(f.Cull, v);
             f.RefineFraction = Mathf.Clamp(Tuning.Get(TuneRefineFraction, CompiledFrame.RefineFraction), 0.0625f, 1f);
             // T14: the contour gate of the refinement (the alpha step of the 2 x 2 quad above which a ray refines; the first-hit step is off).

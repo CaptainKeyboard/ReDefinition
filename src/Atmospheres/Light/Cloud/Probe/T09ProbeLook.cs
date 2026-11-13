@@ -54,9 +54,10 @@ namespace ReDefinition.Atmospheres
                 {
                     lookRead = true;
                     string v = CommandLine.After(Args(), LookSwitch, true);
-                    // "G" is the grain start (T09ProbeGrain.cs), "C" the start look55 (T09ProbeLook55.cs).
+                    // "G" is the grain start (T09ProbeGrain.cs), "C" the start look55 (T09ProbeLook55.cs), "H" the start gt57 (T09ProbeGt.cs).
                     lookCache = string.Equals(v, "A", StringComparison.OrdinalIgnoreCase) ? "A" : string.Equals(v, "B", StringComparison.OrdinalIgnoreCase) ? "B"
-                        : string.Equals(v, "G", StringComparison.OrdinalIgnoreCase) ? "G" : string.Equals(v, "C", StringComparison.OrdinalIgnoreCase) ? "C" : null;
+                        : string.Equals(v, "G", StringComparison.OrdinalIgnoreCase) ? "G" : string.Equals(v, "C", StringComparison.OrdinalIgnoreCase) ? "C"
+                        : string.Equals(v, "H", StringComparison.OrdinalIgnoreCase) ? "H" : null;
                 }
                 return lookCache;
             }
