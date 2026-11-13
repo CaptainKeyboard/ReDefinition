@@ -24,7 +24,8 @@ namespace ReDefinition.Atmospheres
     //  - depth: the camera's depth texture, made linear by ReDefinitionAtmospheresLayerDepth.shader, limits the march and the composite
     //    (depth-aware); the clouds write no depth. [VERIFY] that _CameraDepthTexture is readable at the chosen event under the Deferred mod.
     //  - masks: no reactive mask for DLSS. HUD-less frame generation: the pass is part of the scene colour before the HUD. Raytracing: the
-    //    rays see the layers through RtOwnClouds (a separate package of the raytracing pack); this module does not feed them.
+    //    rays see the layers through RtOwnClouds (T18): behind rtOwnClouds (default off) this module ticks the ray-side pack of its stack; the main mod's
+    //    raytracing reads it once the seam of the T18 design note lands (nothing reads it today).
     //  - draw order: after the lit opaque scene and before the transparents (CameraEvent.BeforeForwardAlpha, tuning cloud.cameraEvent). Where Scatterer's
     //    screen-space scattering stands behind the pass at that event, the pass's buffers are moved behind it before the camera renders (OnPreRender,
     //    cloud.afterScatterer, default on): the scattering writes the air of the path to the scene's depth and would give a cloud the haze of the sea behind it.
@@ -250,6 +251,9 @@ namespace ReDefinition.Atmospheres
             double uploadMs = (Stopwatch.GetTimestamp() - uploadStart) * 1000.0 / Stopwatch.Frequency;
             if (uploadSeen) Stats.WorstUploadMs = Math.Max(Stats.WorstUploadMs, uploadMs);
             uploadSeen = true;
+            // The ray-side pack of the layers (T18, behind rtOwnClouds, default off): baked a few texels a frame, never in the pass's own time.
+            RtOwnClouds.Tick(stack, RtOwnCloudsPlan.Wanted(HostGate.Open, AtmospheresSettings.RtOwnClouds, CloudShadowSwitches.WhoCasts(source, false), mapsPrimed,
+                                                           stack.LayerCount));
             // The noise volumes are made on a worker (a change of the size level makes them again); until they are up nothing is drawn.
             OwnCloudOptions.Apply(renderer.Noise.Switches);
             // A generation that failed is not started again every frame (Problem stays until the size level or the seed changes it).
@@ -540,6 +544,7 @@ namespace ReDefinition.Atmospheres
             pendingCamera = null;
             SetShell(false);
             Detach();
+            if (dropStack) RtOwnClouds.Release();
             if (dropStack && stack != null) DropStack("the pass is off: " + Stats.Why);
         }
 

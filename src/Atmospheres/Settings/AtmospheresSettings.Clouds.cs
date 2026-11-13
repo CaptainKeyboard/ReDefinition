@@ -63,6 +63,9 @@ namespace ReDefinition.Atmospheres
             internal const string CloudTapLod = "cloudTapLod";
             internal const string CloudDetailLod = "cloudDetailLod";
             internal const string CloudLayerCapDistance = "cloudLayerCapDistance";
+            // Own clouds: the ray-side pack for the traced rays (T18, RtOwnClouds)
+            internal const string RtOwnClouds = "rtOwnClouds";
+            internal const string RtOwnCloudsLayerCap = "rtOwnCloudsLayerCap";
             // Own clouds: the look fixes of T03v2 and the far view (T06), the switches of the review of wave 4
             internal const string CloudSunMarchLong = "cloudSunMarchLong";
             internal const string CloudSunWhiteBalance = "cloudSunWhiteBalance";
@@ -119,6 +122,8 @@ namespace ReDefinition.Atmospheres
         internal static bool CloudTapLod => B(Keys.CloudTapLod);
         internal static bool CloudDetailLod => B(Keys.CloudDetailLod);
         internal static int CloudLayerCapDistance => I(Keys.CloudLayerCapDistance);
+        internal static bool RtOwnClouds => B(Keys.RtOwnClouds);
+        internal static int RtOwnCloudsLayerCap => I(Keys.RtOwnCloudsLayerCap);
 
         internal static bool CloudSunMarchLong => B(Keys.CloudSunMarchLong);
         internal static bool CloudSunWhiteBalance => B(Keys.CloudSunWhiteBalance);
@@ -181,6 +186,9 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("cloudTapLod", false, CL, "Cloud Light Taps By Distance", OWN, RV),
                 SettingDef.Bool("cloudDetailLod", false, CL, "Cloud Detail By Distance", OWN, RV),
                 SettingDef.Int("cloudLayerCapDistance", 0, 0, 400, CL, "Cloud Layer Cap Distance In Km", OWN, RV),
+                // Package T18: the traced rays see the own layers. Off until measured; the layer cap of the ray side is a quality reduction (0 is every layer).
+                SettingDef.Bool("rtOwnClouds", false, CL, "Own Clouds In Ray Tracing", OWN),
+                SettingDef.Int("rtOwnCloudsLayerCap", 0, 0, CloudLayerDef.MaxLayers, CL, "Ray Tracing Cloud Layer Cap", OWN),
                 SettingDef.Bool("cloudHashDither", true, CL, "Cloud White Dither", OWN),
 
                 // The light (T03)

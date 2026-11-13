@@ -190,6 +190,8 @@ The table of `SettingsTable.All`, in the order of the window.
 | `cloudTapLod` | off | on / off | Cloud Light Taps By Distance | needs-own-clouds | volume |
 | `cloudDetailLod` | off | on / off | Cloud Detail By Distance | needs-own-clouds | volume |
 | `cloudLayerCapDistance` | 0 | 0 to 400 (km) | Cloud Layer Cap Distance In Km | needs-own-clouds | volume |
+| `rtOwnClouds` | off | on / off | Own Clouds In Ray Tracing | needs-own-clouds | - |
+| `rtOwnCloudsLayerCap` | 0 | 0 to 4 | Ray Tracing Cloud Layer Cap | needs-own-clouds | - |
 | `cloudHashDither` | on | on / off | Cloud White Dither | needs-own-clouds | - |
 | `cloudLightQuality` | High | Low / Medium / High | Cloud Light Quality | needs-own-clouds | volume |
 | `cloudLightOctaves` | 4 | 1 to 4 | Cloud Scattering Octaves | needs-own-clouds | - |

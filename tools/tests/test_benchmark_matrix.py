@@ -872,7 +872,7 @@ class GroupTest(unittest.TestCase):
         ids = [g["id"] for g in bm.group_list(self.matrix)]
         self.assertEqual(ids, ["main", "rt-modes", "frame-steps", "dlssg-presets", "latency-brake", "blas", "grass",
                                "weather-1", "weather-2", "weather-3", "weather-4", "weather-5", "weather-6",
-                               "weather-integration", "weather-7", "weather-8", "weather-9", "weather-10", "rt-weather"])
+                               "weather-integration", "weather-7", "weather-8", "weather-9", "weather-10", "weather-11", "rt-weather"])
         self.assertEqual([g["id"] for g in bm.select_groups(self.matrix, ["all"])], ids)
         self.assertEqual([g["id"] for g in bm.select_groups(self.matrix, ["blas", "main"])], ["main", "blas"])
         with self.assertRaises(ValueError):

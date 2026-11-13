@@ -463,6 +463,24 @@
       ]
     },
     {
+      "id": "weather-11",
+      "name": "Own clouds in the traced rays",
+      "description": "The ray-side pack of the own cloud layers (package T18, RtOwnClouds), FSR 3 at raytracing Full without frame generation. The base is the own system drawing (cloudSource Ours, ownClouds on) with the switch off, which is the rays seeing no own layer. The rows: the switch on (the pack is built and kept on the graphics card; the cost is the bake on the main thread and the upload, read from the T18 probe's lines, and the frame cost with raytracing on), and the switch on with the layer cap 1 and 2 (the quality reduction of the ray side: the upper layers leave the pack). The cloud shadow and the reflection of a cloud follow the pack only once the main mod's raytracing reads it (seam proposal in the T18 design note).",
+      "scenes": ["pad"],
+      "techniques": ["fsr3"],
+      "raytracing": ["Full"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.rtOwnClouds": "False", "atmo.rtOwnCloudsLayerCap": "0"},
+      "tweaks": [
+        {"id": "weather-rtOwnClouds", "name": "Own Clouds In Ray Tracing true", "technique": "fsr3", "raytracing": ["Full"], "latencies": ["none"], "keys": {"atmo.rtOwnClouds": "True"}},
+        {"id": "weather-rtOwnCloudsCap1", "name": "Own Clouds In Ray Tracing true, Ray Tracing Cloud Layer Cap 1", "technique": "fsr3", "raytracing": ["Full"], "latencies": ["none"], "keys": {"atmo.rtOwnClouds": "True", "atmo.rtOwnCloudsLayerCap": "1"}},
+        {"id": "weather-rtOwnCloudsCap2", "name": "Own Clouds In Ray Tracing true, Ray Tracing Cloud Layer Cap 2", "technique": "fsr3", "raytracing": ["Full"], "latencies": ["none"], "keys": {"atmo.rtOwnClouds": "True", "atmo.rtOwnCloudsLayerCap": "2"}}
+      ]
+    },
+    {
       "id": "rt-weather",
       "name": "Raytracing in a blizzard",
       "description": "What the weather does to the rays (package C24b): FSR 3 at raytracing Full without frame generation, the weather forced to level 0.9 (a blizzard) in every phase. The plain rendering has the fog on the rays (mod.rtWeatherFog) and neither quality cost; then one rendering each without the fog, with the reach capped to three times the visibility (mod.rtWeatherReachCap), with one bounce fewer (mod.rtWeatherFewerBounces) and with both costs. The two costs are quality reductions and off by default until the owner agrees; this group measures what they save (the raytracing segment of the frame) so that the agreement can rest on numbers. The settings reach the game as mod.<key> and atmo.<key> live keys of the probe; the probe's routing of the atmo. prefix to AtmospheresSettings is not there yet.",
