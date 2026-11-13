@@ -13,6 +13,10 @@ namespace ReDefinition.WeatherPlayer
 
         internal static LayerFrame Load(LayersJob job, string input, LayerRenderer renderer)
         {
+            // The job's tuning keys (E40 Phase O): the look knobs and the coverage shift go through the game's code (CloudLayerDef.Effective*, CloudLookTuning).
+            Tuning.ClearOverrides();
+            if (job.tuning != null)
+                foreach (LayersJobKey k in job.tuning) Tuning.SetOverride(k.key, k.value);
             var source = new LayerStackSource(0, job.planetRadius, job.hasSurface != 0);
             bool anyMap = false;
             foreach (LayersJobLayer jl in job.layers)

@@ -93,7 +93,15 @@ namespace ReDefinition.Atmospheres
         // its mean over the uniform u is the difference of an antiderivative. (A step of the closed form: u at or above 1 is a full cloud, not
         // the end of the ramp, which is the shader's early return.)
         internal static double ShapeMean(double cov, double coverage, double edge, double amount, double erosion, double detailMean,
-                                         double hardBase, double hardGain)
+                                         double hardBase, double hardGain, double densityRemap = 0.0)
+        {
+            double mean = ShapeMeanPlain(cov, coverage, edge, amount, erosion, detailMean, hardBase, hardGain);
+            // layers.densityRemap thins every share by the same factor once the detail is its mean (CloudShapeModel.InteriorThinning).
+            return densityRemap > 0.0 && erosion > 0.0 ? mean * CloudShapeModel.InteriorThinning(densityRemap, erosion, detailMean) : mean;
+        }
+
+        private static double ShapeMeanPlain(double cov, double coverage, double edge, double amount, double erosion, double detailMean,
+                                             double hardBase, double hardGain)
         {
             double x0 = (cov + coverage - 1.0) / edge + 0.5;
             double a = amount / edge;

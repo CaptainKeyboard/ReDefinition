@@ -47,6 +47,11 @@ namespace ReDefinition.Atmospheres
             internal Color[] Raw;
             // The share of the region's samples that belong to the deck, and the share that count as closed (ClosedShare). Zero where the frame has no baseline.
             internal double SkyDeckShare, GroundDeckShare, SkyClosedShare, GroundClosedShare;
+            // E40 look B (the horizon): the band just above the horizon (HorizonMargin of the picture's height) that SkyClosedShare leaves out. The samples in it, the share that
+            // changed by ClosedChange or more against the baseline (a hard edge of the deck at the horizon reads near 1, a deck that has faded into the sky near 0), and the median
+            // change of a channel there. Zero where the frame has no baseline.
+            internal int HorizonBandSamples;
+            internal double HorizonBandClosed, HorizonBandChange;
         }
 
         // CLOSED, as far as a picture can say it (the target's alpha is not read): a region sample is closed where the largest change of a channel against the baseline pixel is
@@ -98,8 +103,8 @@ namespace ReDefinition.Atmospheres
             var sky = new Region(); var ground = new Region(); var deck = new Region();
             if (baseline == null) reading.Raw = raw;
             bool changes = compare && baseline.Raw != null && baseline.Raw.Length == raw.Length;
-            var skyChange = new List<float>(); var groundChange = new List<float>();
-            int samples = 0, deckSamples = 0, skyClosed = 0, groundClosed = 0;
+            var skyChange = new List<float>(); var groundChange = new List<float>(); var bandChange = new List<float>();
+            int samples = 0, deckSamples = 0, skyClosed = 0, groundClosed = 0, bandClosed = 0;
             for (int y = 0; y < height; y++)
             {
                 double v = (y + 0.5) / height;
@@ -131,6 +136,11 @@ namespace ReDefinition.Atmospheres
                         bool closed = ChannelChange(c, baseline.Raw[i]) >= ClosedChange;
                         if (closed && v > horizonV + HorizonMargin) skyClosed++;
                         else if (closed && v < horizonV - HorizonMargin) groundClosed++;
+                        if (v > horizonV && v <= horizonV + HorizonMargin)
+                        {
+                            bandChange.Add(ChannelChange(c, baseline.Raw[i]));
+                            if (closed) bandClosed++;
+                        }
                     }
                     if (inDeck)
                     {
@@ -154,6 +164,13 @@ namespace ReDefinition.Atmospheres
                 reading.GroundDeckShare = reading.Ground.Count == 0 ? 0.0 : groundChange.Count / (double)reading.Ground.Count;
                 reading.SkyClosedShare = reading.Sky.Count == 0 ? 0.0 : skyClosed / (double)reading.Sky.Count;
                 reading.GroundClosedShare = reading.Ground.Count == 0 ? 0.0 : groundClosed / (double)reading.Ground.Count;
+                reading.HorizonBandSamples = bandChange.Count;
+                if (bandChange.Count > 0)
+                {
+                    reading.HorizonBandClosed = bandClosed / (double)bandChange.Count;
+                    bandChange.Sort();
+                    reading.HorizonBandChange = bandChange[bandChange.Count / 2];
+                }
             }
             return reading;
         }

@@ -1,0 +1,199 @@
+using System;
+using System.Collections.Generic;
+using March = ReDefinition.Atmospheres.CloudCoverOracle.March;
+
+namespace ReDefinition.Atmospheres
+{
+    // What the cloud-look series of the game (K-T2d starts 51 and 52, T09ProbeLook) need besides the pass: the sets of look knobs the sweeps compare, the expectation of the
+    // closed share the CPU oracle gives for a frame (written to the log before the frame is read), and the great-circle walk that reads the layer maps along the view.
+    // The sets are the six candidates of the E40 plan (tools/weather_metrics/e40o.py has the same numbers for the player's sweeps).
+    internal sealed class LookSet
+    {
+        internal readonly string Tag, Note;
+        internal readonly KeyValuePair<string, float>[] Keys;
+
+        internal LookSet(string tag, string note, params KeyValuePair<string, float>[] keys)
+        {
+            Tag = tag;
+            Note = note;
+            Keys = keys;
+        }
+
+        // Whether the set changes the type values (they reach the pass through the maps, which slew toward the new bytes, so the frame waits for them).
+        internal bool ChangesTypes
+        {
+            get
+            {
+                foreach (KeyValuePair<string, float> k in Keys)
+                    if (k.Key.StartsWith(CloudLookTuning.TuneTypeFair, StringComparison.Ordinal) || k.Key.StartsWith(CloudLookTuning.TuneTypeOverride, StringComparison.Ordinal)) return true;
+                return false;
+            }
+        }
+    }
+
+    // The CPU's view of the stack at the vessel: the layers, their tables, the noise parameters the pass has (offset, seed), and the maps. T09 reads it from the module;
+    // a test makes it from fixtures.
+    internal sealed class T09LookInput
+    {
+        internal CloudLayerDef[] Layers;
+        internal LayerTypeTable[] Tables;
+        internal NoiseLayerParams[] Noise;
+        // The layer maps at the vessel (the CPU values) and a function that reads layer l's map and type at a place (degrees); null: the maps at the vessel everywhere.
+        internal double[] Cover, Type;
+        internal Func<int, double, double, double> CoverAt;
+        internal double BodyRadiusM = 600000.0;
+        internal uint Seed = 1;
+        internal int SizeLevel = 1;
+    }
+
+    // The expectation for one frame: the mean and the spread over the sites of the share of the sky above the horizon whose stack optical depth is at least CloudCoverOracle's CLOSED tau.
+    internal struct LookExpectation
+    {
+        internal double Mean, P10, P90;
+        internal int Sites;
+    }
+
+    internal static class CloudLookModel
+    {
+        // The optical depth of the picture proxy's opacity 0.6 (T09Readout.ClosedChange): the share of the sky at or above it is the "closed share" the rows report.
+        internal const double ClosedTau = 0.92;
+
+        private static readonly KeyValuePair<string, float>[] NoiseKeys =
+        {
+            new KeyValuePair<string, float>(CloudLookTuning.TuneNoiseAmount + ".Kerbin-cumulus", 0.55f / 0.35f),
+            new KeyValuePair<string, float>(CloudLookTuning.TuneNoiseSize + ".Kerbin-cumulus", 0.6f)
+        };
+
+        private static KeyValuePair<string, float> K(string key, float value)
+        {
+            return new KeyValuePair<string, float>(key, value);
+        }
+
+        private static KeyValuePair<string, float>[] Cat(KeyValuePair<string, float>[] a, params KeyValuePair<string, float>[] b)
+        {
+            var all = new List<KeyValuePair<string, float>>(a);
+            all.AddRange(b);
+            return all.ToArray();
+        }
+
+        // The six candidates. The layer names are Kerbin's (Clouds-Kerbin.cfg); another body's file would give its own sets.
+        internal static readonly LookSet[] Sets =
+        {
+            new LookSet("C0", "current numbers"),
+            new LookSet("C1", "fair weather shows Cumulus humilis", K(CloudLookTuning.TuneTypeFair + "Kerbin-cumulus", 0.25f)),
+            new LookSet("C2", "noise amount 0.35 to 0.55, scale 5000 to 3000", NoiseKeys),
+            new LookSet("C3", "the erosion also thins the interior (0.6)", K(CloudLookTuning.TuneDensityRemap, 0.6f)),
+            new LookSet("C4", "L1 coverage 0.25, softness 0.35, sigma 0.035, noise 0.55 / 3000", Cat(NoiseKeys, K(CloudLookTuning.TuneLayerShift + "Kerbin-cumulus", -0.10f),
+                K(CloudLookTuning.TuneSoftness + ".Kerbin-cumulus", 0.35f / 0.15f), K(CloudLookTuning.TuneSigma + ".Kerbin-cumulus", 0.035f / 0.05f))),
+            new LookSet("C5", "C1 + C2 + C3", Cat(NoiseKeys, K(CloudLookTuning.TuneTypeFair + "Kerbin-cumulus", 0.25f), K(CloudLookTuning.TuneDensityRemap, 0.6f)))
+        };
+
+        internal static LookSet SetByTag(string tag)
+        {
+            foreach (LookSet s in Sets)
+                if (string.Equals(s.Tag, tag, StringComparison.OrdinalIgnoreCase)) return s;
+            return null;
+        }
+
+        // The sets named in a comma-separated list ("C0,C4,C5"); null or empty: all of them. An unknown tag is skipped.
+        internal static List<LookSet> Selected(string list)
+        {
+            var found = new List<LookSet>();
+            if (string.IsNullOrEmpty(list))
+            {
+                found.AddRange(Sets);
+                return found;
+            }
+            foreach (string part in list.Split(','))
+            {
+                LookSet s = SetByTag(part.Trim());
+                if (s != null && !found.Contains(s)) found.Add(s);
+            }
+            return found;
+        }
+
+        // The point at a great-circle distance and bearing (degrees from north towards east) from a place; degrees.
+        internal static void Walk(double latDeg, double lonDeg, double bearingDeg, double distanceM, double radiusM, out double lat2Deg, out double lon2Deg)
+        {
+            double lat = latDeg * Math.PI / 180.0, lon = lonDeg * Math.PI / 180.0, th = bearingDeg * Math.PI / 180.0, d = distanceM / radiusM;
+            double s = Math.Sin(lat) * Math.Cos(d) + Math.Cos(lat) * Math.Sin(d) * Math.Cos(th);
+            double lat2 = Math.Asin(Math.Max(-1.0, Math.Min(1.0, s)));
+            double lon2 = lon + Math.Atan2(Math.Sin(th) * Math.Sin(d) * Math.Cos(lat), Math.Cos(d) - Math.Sin(lat) * Math.Sin(lat2));
+            lat2Deg = lat2 * 180.0 / Math.PI;
+            lon2Deg = ((lon2 * 180.0 / Math.PI + 540.0) % 360.0) - 180.0;
+        }
+
+        // The expected closed share of a frame at the camera's height, pitch and field of view, for the stack's CPU maps at the vessel (constant over the view) with the knobs as
+        // they are NOW (the Effective* getters): the ensemble over sites of the noise, 250 km apart, each a frame of w x h rays. This is what a constant map gives; a frame that
+        // differs from it points at the maps along the view or at the pass.
+        internal static LookExpectation Expect(T09LookInput input, double heightM, double pitchDeg, double fovDeg, int sites = 8, int w = 32, int h = 18, March march = default(March))
+        {
+            if (march.MaxSteps == 0) march = March.Medium;
+            NoiseVolumeSet set = Volumes(input.Seed, input.SizeLevel);
+            var shares = new List<double>();
+            for (int s = 0; s < sites; s++)
+            {
+                double[] tau = null;
+                CloudCoverOracle.Pixels first = null;
+                for (int l = 0; l < input.Layers.Length; l++)
+                {
+                    CloudLayerDef layer = input.Layers[l];
+                    NoiseLayerParams prm = input.Noise[l];
+                    prm.OffsetX += s * 250000.0;
+                    prm.OffsetY += s * 130000.0;
+                    prm.DensityRemap = CloudLookTuning.DensityRemap;
+                    prm.ScaleM = layer.EffectiveNoiseScaleM;
+                    // input.Type is what the stack's CPU map holds, i.e. already the layer's own type value (the module's fetch applies the type knobs before the mirror is filled).
+                    double typeValue = input.Type[l];
+                    CloudCoverOracle.Frame frame = new CloudCoverOracle.Frame
+                    {
+                        HeightM = heightM, PitchDeg = pitchDeg, FovVDeg = fovDeg, YawDeg = 0.0, BodyRadiusM = input.BodyRadiusM, Width = w, Height = h
+                    };
+                    CloudCoverOracle.Pixels px = CloudCoverOracle.Render(layer, input.Tables[l], set, prm, frame, CloudCoverOracle.Constant(input.Cover[l], typeValue), layer.EffectiveCoverage, march);
+                    if (first == null)
+                    {
+                        first = px;
+                        tau = (double[])px.Tau.Clone();
+                    }
+                    else
+                    {
+                        for (int i = 0; i < tau.Length; i++) tau[i] += px.Tau[i];
+                    }
+                }
+                if (first == null) continue;
+                int n = 0, hit = 0;
+                for (int i = 0; i < tau.Length; i++)
+                {
+                    if (!first.AboveHorizon[i]) continue;
+                    n++;
+                    if (tau[i] >= ClosedTau) hit++;
+                }
+                shares.Add(n == 0 ? 0.0 : hit / (double)n);
+            }
+            if (shares.Count == 0) return default(LookExpectation);
+            shares.Sort();
+            double sum = 0.0;
+            foreach (double v in shares) sum += v;
+            return new LookExpectation { Mean = sum / shares.Count, P10 = shares[(int)Math.Round(0.1 * (shares.Count - 1))], P90 = shares[(int)Math.Round(0.9 * (shares.Count - 1))], Sites = shares.Count };
+        }
+
+        private static NoiseVolumeSet cached;
+        private static uint cachedSeed;
+        private static int cachedLevel = -1;
+        private static readonly object CacheGate = new object();
+
+        internal static NoiseVolumeSet Volumes(uint seed, int level)
+        {
+            lock (CacheGate)
+            {
+                if (cached == null || cachedSeed != seed || cachedLevel != level)
+                {
+                    cached = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(level), seed);
+                    cachedSeed = seed;
+                    cachedLevel = level;
+                }
+                return cached;
+            }
+        }
+    }
+}

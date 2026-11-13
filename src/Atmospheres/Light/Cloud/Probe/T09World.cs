@@ -98,6 +98,9 @@ namespace ReDefinition.Atmospheres
         void SetLayerMask(int mask);
         // K-T2d: the pass's layers at a place (CPU map, GPU map, the layer's numbers, the model's closed share at the view's slant for each shift); null where there is no stack.
         T09LayerReport ReadLayers(double latDeg, double lonDeg, double slant, float[] shifts);
+        // E40 look starts: the stack's layers, tables, the pass's noise parameters and the CPU maps at the vessel and anywhere (for the oracle's expectation and the map profile along
+        // the view); null where there is no stack.
+        T09LookInput ReadLookInput();
         bool KeepRaw { get; set; }
         System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> EnvironmentLines();
         // Writes the picture as a PNG named name, scaled down by the whole factor; returns the size of the file, throws where it cannot write.
@@ -540,6 +543,44 @@ namespace ReDefinition.Atmospheres
                 report.Layers.Add(info);
             }
             return report;
+        }
+
+        public T09LookInput ReadLookInput()
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            LayerStackSource stack = m == null ? null : m.Stack as LayerStackSource;
+            if (stack == null || stack.LayerCount == 0) return null;
+            CelestialBody body = FlightGlobals.ActiveVessel.mainBody;
+            int n = stack.LayerCount;
+            var input = new T09LookInput
+            {
+                Layers = new CloudLayerDef[n], Tables = new LayerTypeTable[n], Noise = new NoiseLayerParams[n], Cover = new double[n], Type = new double[n], BodyRadiusM = body.Radius
+            };
+            LayerNoise noise = m.Renderer != null ? m.Renderer.Noise : null;
+            if (noise != null)
+            {
+                input.Seed = noise.Switches.Seed;
+                input.SizeLevel = noise.Switches.SizeLevel;
+            }
+            double lat = FlightGlobals.ActiveVessel.latitude, lon = FlightGlobals.ActiveVessel.longitude;
+            for (int l = 0; l < n; l++)
+            {
+                CloudLayerDef def = stack.LayerAt(l);
+                input.Layers[l] = def;
+                input.Tables[l] = stack.TableAt(l);
+                input.Noise[l] = noise != null ? noise.LayerParams(l, def.EffectiveNoiseScaleM, body.Radius) : NoiseLayerParams.Default(def.EffectiveNoiseScaleM);
+                float c, t;
+                stack.SampleMaps(l, lat, lon, out c, out t);
+                input.Cover[l] = c;
+                input.Type[l] = t;
+            }
+            input.CoverAt = (l, la, lo) =>
+            {
+                float c, t;
+                stack.SampleMaps(l, la, lo, out c, out t);
+                return c;
+            };
+            return input;
         }
 
         public double CameraFovDeg { get { return FlightCamera.fetch.mainCamera.fieldOfView; } }

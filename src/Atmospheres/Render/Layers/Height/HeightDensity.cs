@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
             if (t == null || !t.Any) return LayerDensity.Extinction(layer, table, altitudeM, coverageMap, typeMap);
             double thickness = layer.ThicknessM;
             double share = (altitudeM - layer.InnerAltitudeM) / thickness;
-            double s = LayerDensity.Shape(coverageMap, layer.EffectiveCoverage, layer.EdgeSoftness);
+            double s = LayerDensity.Shape(coverageMap, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
             if (s <= 0.0) return 0.0;
             int a, c;
             double f, b, top;
@@ -30,7 +30,7 @@ namespace ReDefinition.Atmospheres
             if (share < lb || share > lt) return 0.0;
             double h = (share - lb) / (lt - lb);
             double profile = table.ProfileAt(a, h) * (1.0 - f) + table.ProfileAt(c, h) * f;
-            return layer.SigmaPerM * s * profile;
+            return layer.EffectiveSigmaPerM * s * profile;
         }
 
         // The extinction with everything read from a source: the maps, the height maps (if the source has them) at a place.

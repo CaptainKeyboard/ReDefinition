@@ -11,8 +11,31 @@ namespace ReDefinition.Atmospheres
     // The sky is "closed" where that exceeds ClosedTau. A cover value is a share of the sky, so the closed share should follow it (m = 0.5 closing half of the
     // sky); the closed share depends on the layer's coverage threshold, the edge, the noise amount and the extinction: that is a calibration of the layer set,
     // not of the pass.
+    //
+    // E40 Phase O (2026-11-13): the single-column model below is exact for ONE column, and the uniform noise it assumes is the real histogram (NoiseVolumes.Shape ranks the
+    // volume, so the shape value at a point is uniform; measured by the lookups of the pass: p5 / p25 / p50 / p75 / p95 = 0.046 / 0.232 / 0.473 / 0.723 / 0.936). What it lacks is
+    // the geometry of the frame: the pass integrates RAYS, a long way through the shell at a low elevation and at several noise cells at once, and the sky a frame sees is one or two
+    // cells, so one frame is a wide draw (p10 to p90 of the closed share at map 0.665 and shift 0: 0.21 to 0.99). CloudCoverOracle is the model of that (ray march, the shape
+    // volume, the warp, the erosion, the product's step count); FrameClosed below is its closed share as a number for one layer. Test oracles of a frame use it, not ClosedShare.
     internal static class CloudCoverModel
     {
+        // The share of the sky above the horizon of a camera frame that one layer closes (optical depth at least ClosedTau or, with tau, the given one), the mean over `sites` places of
+        // the noise: CloudCoverOracle.Render per site, the layer's effective numbers (the look knobs included). The map and the type are constants over the view.
+        internal static double FrameClosed(CloudLayerDef layer, LayerTypeTable table, NoiseVolumeSet set, NoiseLayerParams prm, double map, double type, double heightM, double pitchDeg,
+                                           double fovDeg, int sites = 8, double tau = 0.92)
+        {
+            double sum = 0.0;
+            for (int s = 0; s < sites; s++)
+            {
+                NoiseLayerParams p = prm;
+                p.OffsetX += s * 250000.0;
+                p.OffsetY += s * 130000.0;
+                var frame = new CloudCoverOracle.Frame { HeightM = heightM, PitchDeg = pitchDeg, FovVDeg = fovDeg, YawDeg = 0.0, BodyRadiusM = 600000.0, Width = 48, Height = 27 };
+                sum += CloudCoverOracle.Render(layer, table, set, p, frame, CloudCoverOracle.Constant(map, type), layer.EffectiveCoverage, CloudCoverOracle.March.Medium).ShareAtLeast(tau);
+            }
+            return sum / sites;
+        }
+
         // The optical depth at which the pass writes alpha 1 (transmittance 0.01).
         internal const double ClosedTau = 4.605;
 

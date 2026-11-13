@@ -6,3 +6,5 @@ unity/Assets/**/CloudCull.cginc
 # The layer renderer reads the coverage threshold through CloudLayerDef.EffectiveCoverage, which asks CloudCoverShift (added with the K-T2d variant); its tuning
 # table is stubbed in the player (tests/WeatherPlayer/Assets/Runner/CullStubs.cs).
 src/Atmospheres/Light/Cloud/CloudCoverShift.cs
+# CloudLayerDef reads the look knobs (sigma, softness, noise, per-layer shift, fade, density remap) through CloudLookTuning (E40 Phase O); the player's tuning table is the stub.
+src/Atmospheres/Light/Cloud/CloudLookTuning.cs

@@ -70,6 +70,14 @@ namespace ReDefinition.Atmospheres
         private readonly HeightTuning heightTuning = new HeightTuning();
         private readonly WeatherMap coverageMap = new WeatherMap(), typeMap = new WeatherMap(), layerMap = new WeatherMap();
         private readonly StackMapMirror stackMaps = new StackMapMirror();
+        // The look knobs of the maps (CloudLookTuning): per-layer type bytes and maps, and the held layer maps of a combined fetch.
+        private byte[] typeScratch;
+        private long lookStampSeen = -1;
+        private readonly byte[][] forcedBytes = new byte[CloudLayerDef.MaxLayers][];
+        private readonly WeatherMap[] forcedMaps = new WeatherMap[CloudLayerDef.MaxLayers];
+        private readonly WeatherMap[] layerTypeMaps = new WeatherMap[CloudLayerDef.MaxLayers], combinedMaps = new WeatherMap[CloudLayerDef.MaxLayers],
+            pendingTypeMap = new WeatherMap[CloudLayerDef.MaxLayers];
+        private readonly byte[][] pendingCover = new byte[CloudLayerDef.MaxLayers][], pendingType = new byte[CloudLayerDef.MaxLayers][];
         private LayerRenderer renderer;
         private LayerReconstructDriver driver;
         private LightCache lightCache;
@@ -531,6 +539,13 @@ namespace ReDefinition.Atmospheres
         {
             // A round (the shared coverage, the type, then each layer's coverage) takes one step a frame, each a copy of 0.5 MB and a packing to
             // bytes, so that no frame pays for all of them; a round for a new stack, which snaps the maps, runs in the frame it starts.
+            // A change of a look knob that acts on the maps (type per layer, cover combination) starts a round of its own, snapping the maps.
+            long lookStamp = CloudLookTuning.Stamp;
+            if (lookStamp != lookStampSeen)
+            {
+                if (lookStampSeen >= 0) forceMaps = true;
+                lookStampSeen = lookStamp;
+            }
             if (fetchStep < 0 && OwnCloudPlan.Due(now, nextMaps, OwnCloudPlan.MapIntervalS, forceMaps))
             {
                 nextMaps = now + OwnCloudPlan.MapIntervalS;
@@ -594,8 +609,53 @@ namespace ReDefinition.Atmospheres
                 cover = layerMap.Bytes;
                 coverSource = layerMap;
             }
-            renderer.Maps.SetTargetBytes(l, cover, typeMap.Bytes);
-            stackMaps.Set(stack, l, coverSource, typeMap);
+            // The look knobs (CloudLookTuning): a layer's own type value from the precipitation (cloud.typeFair.<name>, cloud.typeOverride.<name>), and the layer maps scaled so
+            // that their union meets the field's cover (cloud.coverCombine). All at their defaults: the shared type bytes and the maps as fetched, as before.
+            string layerName = stack.LayerAt(l).Name;
+            // cloud.mapOverride.<name> (default -1: the field's map): a constant map value everywhere, the probe's way of telling a map that varies over the view from the pass.
+            float forcedCover = CloudLookTuning.MapOverrideOf(layerName);
+            if (forcedCover >= 0f)
+            {
+                byte forcedByte = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(forcedCover * 255.0, MidpointRounding.ToEven)));
+                byte[] filled = forcedBytes[l] ?? (forcedBytes[l] = new byte[cover.Length]);
+                if (filled.Length != cover.Length) forcedBytes[l] = filled = new byte[cover.Length];
+                for (int i = 0; i < filled.Length; i++) filled[i] = forcedByte;
+                WeatherMap forcedMap = forcedMaps[l] ?? (forcedMaps[l] = new WeatherMap());
+                forcedMap.Resize(coverSource.Width, coverSource.Height);
+                for (int i = 0; i < forcedMap.Values.Length; i++) forcedMap.Values[i] = forcedByte / 255f;
+                cover = filled;
+                coverSource = forcedMap;
+            }
+            byte[] typeBytes = CloudLookTuning.TypeBytes(typeMap.Bytes, CloudLookTuning.TypeFairOf(layerName), CloudLookTuning.TypeOverrideOf(layerName), ref typeScratch);
+            WeatherMap typeForCpu = typeMap;
+            if (!ReferenceEquals(typeBytes, typeMap.Bytes))
+            {
+                typeForCpu = layerTypeMaps[l] ?? (layerTypeMaps[l] = new WeatherMap());
+                typeForCpu.Resize(typeMap.Width, typeMap.Height);
+                for (int i = 0; i < typeBytes.Length; i++) typeForCpu.Values[i] = typeBytes[i] / 255f;
+            }
+            if (CloudLookTuning.CoverCombine > 0f && fetchHaveShared)
+            {
+                // Held until every layer has been fetched: the union needs all of them.
+                pendingCover[l] = (byte[])cover.Clone();
+                pendingType[l] = (byte[])typeBytes.Clone();
+                pendingTypeMap[l] = typeForCpu;
+                if (l + 1 < stack.LayerCount) return;
+                CloudLookTuning.CombineCover(pendingCover, stack.LayerCount, coverageMap.Bytes, CloudLookTuning.CoverCombine);
+                for (int k = 0; k < stack.LayerCount; k++)
+                {
+                    WeatherMap combined = combinedMaps[k] ?? (combinedMaps[k] = new WeatherMap());
+                    combined.Resize(coverageMap.Width, coverageMap.Height);
+                    for (int i = 0; i < pendingCover[k].Length; i++) combined.Values[i] = pendingCover[k][i] / 255f;
+                    renderer.Maps.SetTargetBytes(k, pendingCover[k], pendingType[k]);
+                    stackMaps.Set(stack, k, combined, pendingTypeMap[k]);
+                }
+            }
+            else
+            {
+                renderer.Maps.SetTargetBytes(l, cover, typeBytes);
+                stackMaps.Set(stack, l, coverSource, typeForCpu);
+            }
             if (l + 1 < stack.LayerCount) return;
             fetchStep = -1;
             stepMaps = true;
@@ -678,7 +738,8 @@ namespace ReDefinition.Atmospheres
             // The scene's sun colour is the display value of a white card facing the sun (the output stage's white); the pass is radiometric and gets pi times it.
             Color sceneSun = sun != null ? sun.color * sun.intensity : Color.white;
             float sunUnit = Tuning.Get(TuneSunUnit, CloudOutputStage.SunUnitDefault);
-            Color sunColour = sceneSun * (sunUnit * gain);
+            // cloud.sunTint (default 0): pulls the colour toward grey of the same luminance, so the white card of the output stage (OutputWhite) is unchanged.
+            Color sunColour = CloudLookTuning.TintSun(sceneSun, CloudLookTuning.SunTint) * (sunUnit * gain);
             f.SunColour = sunColour;
             f.OutputExposure = Tuning.Get(TuneExposure, CloudOutputStage.ExposureDefault);
             f.OutputGamma = Tuning.Get(TuneOutputGamma, CloudOutputStage.GammaDefault);

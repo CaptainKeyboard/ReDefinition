@@ -343,7 +343,18 @@
         {"id": "weather-cloudSunAirWithScatterer", "name": "Own clouds redden the sun again with Scatterer loaded", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.sunAirWithScatterer": "1"}},
         {"id": "weather-cloudReaddEveryFrame", "name": "Own clouds buffers re-added every frame", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.readdEveryFrame": "1"}},
         {"id": "weather-cloudCoverageShift", "name": "Own clouds coverage threshold -0.08 (rain deck 0.42)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.coverageShift": "-0.08"}},
-        {"id": "weather-cloudCoverageShiftRain", "name": "Own clouds rain deck coverage threshold -0.08 only", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.coverageShiftRain": "-0.08"}}
+        {"id": "weather-cloudCoverageShiftRain", "name": "Own clouds rain deck coverage threshold -0.08 only", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.coverageShiftRain": "-0.08"}},
+        {"id": "weather-cloudLayerSigma", "name": "Own clouds sigma x0.7 on every layer", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerSigmaScale": "0.7"}},
+        {"id": "weather-cloudLayerSoftness", "name": "Own clouds edge softness x2 on every layer", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerSoftnessScale": "2"}},
+        {"id": "weather-cloudLayerNoise", "name": "Own clouds noise amount x1.5 and size x0.6 on every layer", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerNoiseAmountScale": "1.5", "atmo.cloud.layerNoiseSizeScale": "0.6"}},
+        {"id": "weather-cloudCumulusCoverage", "name": "Own clouds cumulus layer coverage -0.10", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.layerCoverageShift.Kerbin-cumulus": "-0.10"}},
+        {"id": "weather-cloudTypeFair", "name": "Own clouds cumulus layer shows Cumulus humilis at no precipitation", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.typeFair.Kerbin-cumulus": "0.25"}},
+        {"id": "weather-cloudMapOverride", "name": "Own clouds cumulus layer map forced to 0.665", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.mapOverride.Kerbin-cumulus": "0.665"}},
+        {"id": "weather-cloudDensityRemap", "name": "Own clouds interior erosion (density remap 0.6)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.densityRemap": "0.6"}},
+        {"id": "weather-cloudCoverCombine", "name": "Own clouds layer maps combined to the field's cover", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.coverCombine": "1"}},
+        {"id": "weather-cloudSunTint", "name": "Own clouds sun colour pulled to grey", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.sunTint": "1"}},
+        {"id": "weather-cloudFade", "name": "Own clouds distance fade at 80 km", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.fadeFarM": "80000"}},
+        {"id": "weather-cloudHaze", "name": "Own clouds aerial perspective forced on at half strength", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.farHaze": "1", "atmo.cloud.hazeStrength": "0.5"}}
       ]
     },
     {

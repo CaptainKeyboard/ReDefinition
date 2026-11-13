@@ -1,0 +1,150 @@
+using System;
+using System.Linq;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Atmospheres;
+
+namespace ReDefinition.Tests.Atmospheres.T09
+{
+    // The look starts of K-T2d (T09ProbeLook: -atmoLook A for start 51, B for start 52) against the fake world: the frames each one takes, the expectation rows that come before a frame,
+    // the map profile along the view, the set selection by the command line, and the failures it must name. The fake draws a deck for every frame whose mask includes a layer.
+    public partial class T09WalkThroughTests
+    {
+        private Run StartLook(string mode, string sets = null, string win = null, Action<Run> tweak = null)
+        {
+            return StartDiag(x =>
+            {
+                var args = x.Probe.CommandLineOverride.ToList();
+                args.Add("-atmoLook");
+                args.Add(mode);
+                if (sets != null)
+                {
+                    args.Add("-atmoLookSets");
+                    args.Add(sets);
+                }
+                if (win != null)
+                {
+                    args.Add("-atmoLookWin");
+                    args.Add(win);
+                }
+                x.Probe.CommandLineOverride = args.ToArray();
+                if (tweak != null) tweak(x);
+            });
+        }
+
+        [TestMethod]
+        public void LookAReadsTheSetsAtTwoShiftsTheForcedMapAndTheLayersAlone()
+        {
+            Run r = StartLook("A", "C0,C4,C5");
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(1, r.Quits);
+            Assert.AreEqual(Number(r, "T09d.frames"), Number(r, "T09d.frames_pose_ok"), "every frame had the view's pose");
+            foreach (string view in new[] { "ground.low", "ground.high", "above.low" })
+            {
+                string p = "T09d." + view + ".";
+                Assert.AreEqual(0.5, Row(r, p + "off.sky_median"), 1e-4, p + "baseline");
+                foreach (string frame in new[] { "kC0", "kC0m8", "kC4", "kC4m8", "kC5", "kC5m8", "kovr" })
+                {
+                    string q = p + frame + ".";
+                    Assert.IsTrue(Row(r, q + "deck_median") > 0, q + "has a deck row");
+                    double mean = Row(r, q + "expect_closed_mean");
+                    Assert.IsTrue(mean >= 0 && mean <= 1, q + "expectation " + mean);
+                    Assert.IsTrue(Row(r, q + "expect_closed_p10") <= mean + 1e-9 && mean <= Row(r, q + "expect_closed_p90") + 1e-9, q + "the spread brackets the mean");
+                    Assert.AreEqual(8.0, Row(r, q + "expect_sites"));
+                }
+                // The expectation row is written before the frame's own rows: its line comes before the readout of the same frame in the log of rows.
+                int expectAt = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + "kC4.expect_closed_mean\""));
+                int readAt = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + "kC4.deck_median\""));
+                Assert.IsTrue(expectAt >= 0 && readAt > expectAt, p + "the expectation is written first");
+                // The map profile along the view: the layers' maps at 0, 5, 10, 20, 40 and 80 km.
+                foreach (int l in new[] { 0, 1, 2, 3 })
+                    foreach (string km in new[] { "0", "5", "10", "20", "40", "80" })
+                        Assert.IsTrue(Row(r, p + "L" + l + ".map_at_" + km + "_km") >= 0, p + "map profile L" + l + " " + km);
+                Assert.AreEqual("Kerbin-cumulus", Values(r, p + "sheet_layer", "plain")[0].Value, "the sheet layer is the highest map outside the rain group");
+                Assert.AreEqual(0.665, Row(r, p + "kovr.forced_map"), 1e-6);
+            }
+            // The forced map reaches the tuning table (the key of the sheet layer) while its frame is taken, and the keys of a set while its frames are.
+            Assert.IsTrue(r.Log.Count > 0);
+            // The ground view: the layers alone under the winning set (the last selected: C5), and the rain deck's two coverages.
+            foreach (string cover in new[] { "low", "high" })
+            {
+                for (int k = 0; k < 4; k++) Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_" + cover + "-wC5o" + k + "-1707x960-natural-half")), "layer " + k + " alone, " + cover);
+                foreach (string q in new[] { "q50", "q42" }) Assert.IsTrue(Row(r, "T09d.ground." + cover + "." + q + ".deck_median") >= 0, q + " rows, " + cover);
+            }
+            // The above view at the high cover is not read by look A, except the rain deck alone (P3), like the inside view.
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-above_high-kC0-")), "no set frames above the high cover");
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-inside_high-l0in-")) && r.World.Saved.Any(n => n.Contains("-above_high-l0up-")), "the rain deck alone from inside and from above");
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-inside_high-off-")) && r.World.Saved.Any(n => n.Contains("-above_high-off-")));
+            // 3 pairs x (off + 6 set frames + forced map) + ground x 2 covers x (4 layers + 2 rain frames) + the rain deck from inside and above (2 x 2).
+            Assert.AreEqual(3 * 8 + 2 * 6 + 4, r.World.Saved.Count, string.Join(",", r.World.Saved.Take(6).ToArray()));
+            Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
+        }
+
+        [TestMethod]
+        public void LookATakesEverySetByDefaultAndOnlyTheNamedOnesWhenAsked()
+        {
+            Run all = StartLook("A");
+            Drive(all, 0.02);
+            Assert.IsTrue(all.Probe.Passed, Dump(all));
+            foreach (string t in new[] { "kC0", "kC1m8", "kC2", "kC3m8", "kC4", "kC5m8" })
+                Assert.IsTrue(all.World.Saved.Any(n => n.Contains("-ground_low-" + t + "-")), "set frame " + t);
+            // The winning set defaults to the last selected one: C5.
+            Assert.IsTrue(all.World.Saved.Any(n => n.Contains("-ground_low-wC5o2-")));
+            Run one = StartLook("A", "C4", "C0");
+            Drive(one, 0.02);
+            Assert.IsTrue(one.Probe.Passed, Dump(one));
+            Assert.IsTrue(one.World.Saved.Any(n => n.Contains("-ground_low-kC4m8-")));
+            Assert.IsFalse(one.World.Saved.Any(n => n.Contains("-ground_low-kC5-")), "an unnamed set is not read");
+            Assert.IsTrue(one.World.Saved.Any(n => n.Contains("-ground_low-wC0o1-")), "-atmoLookWin names the set of the layer-alone frames");
+        }
+
+        [TestMethod]
+        public void LookAWithoutAStackWarnsAndStillReadsTheFrames()
+        {
+            Run r = StartLook("A", "C0", null, x => x.World.LookInputOff = true);
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: warning no_look_input")), "the missing stack is named");
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_low-kC0-")), "the frames are still taken");
+            Assert.AreEqual(0, r.Rows.Count(l => l.Contains(".expect_closed_mean")), "no expectation without a stack");
+        }
+
+        [TestMethod]
+        public void LookBReadsTheLightVariantsTheAidFrameAndTheHorizon()
+        {
+            Run r = StartLook("B");
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            foreach (string view in new[] { "ground.low", "ground.high", "above.low" })
+            {
+                string p = "T09d." + view + ".";
+                foreach (string frame in new[] { "t0", "t5", "t10", "e14", "air1" })
+                {
+                    Assert.IsTrue(Row(r, p + frame + ".deck_median") > 0, p + frame);
+                    Assert.IsTrue(Row(r, p + frame + ".sun_r") > 0 && Row(r, p + frame + ".sun_g") > 0 && Row(r, p + frame + ".sun_b") > 0, p + frame + " sun colour");
+                }
+                Assert.AreEqual(0.3, Row(r, p + "aid4.direct_median"), 1e-4);
+            }
+            // The horizon pose at the low cover: eight frames (fade 0 / 20 / 40 / 80 km, haze off and on) and the baseline.
+            foreach (string frame in new[] { "hz0h0", "hz0h1", "hz20h0", "hz20h1", "hz40h0", "hz40h1", "hz80h0", "hz80h1" })
+            {
+                Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".deck_median") >= 0, frame);
+                Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".expect_closed_mean") >= 0, frame + " expectation");
+            }
+            Assert.AreEqual(1.0, Row(r, "T09d.horizon.low.placed_ok"));
+            // 3 pairs x (off + 5 variants + aid) + the horizon (off + 8).
+            Assert.AreEqual(3 * 7 + 9, r.World.Saved.Count);
+        }
+
+        [TestMethod]
+        public void WithoutALookSwitchTheOrdinaryScenarioRuns()
+        {
+            Run r = StartDiag();
+            Drive(r, 0.02);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(56, r.World.Saved.Count);
+            Assert.AreEqual(0, r.Rows.Count(l => l.Contains(".expect_closed_mean")), "no look rows");
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-kC0-")));
+        }
+    }
+}

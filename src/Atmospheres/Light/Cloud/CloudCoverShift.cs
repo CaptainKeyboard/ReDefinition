@@ -19,13 +19,14 @@ namespace ReDefinition.Atmospheres
         private static float all, rain;
         private static long stamp;
 
-        // Rises each time the shift of any layer changed: an uploaded copy of the frame values is stale when it differs.
+        // Rises each time the shift of any layer changed, or any other look knob (CloudLookTuning: sigma, softness, noise, per-layer shift, fade): an uploaded copy of the
+        // frame values is stale when it differs.
         internal static long Stamp
         {
             get
             {
                 Refresh();
-                return stamp;
+                return stamp + CloudLookTuning.Stamp;
             }
         }
 

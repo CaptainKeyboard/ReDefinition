@@ -71,6 +71,8 @@ namespace ReDefinition.Atmospheres
         internal bool NoDistanceLod;
         // True: no fine octave of the erosion detail.
         internal bool NoFineDetail;
+        // layers.densityRemap (CloudLookTuning): the share of the erosion that also thins a closed deck's interior; 0: the erosion acts only in the soft edge.
+        internal double DensityRemap;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
@@ -247,7 +249,9 @@ namespace ReDefinition.Atmospheres
             double n = ShapeAt(set, ref prm, qx, qy, qz);
             double x = (cov + (n - 0.5) * noiseAmount + coverage - 1.0) / edge + 0.5;
             double s = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
-            if (s <= 0.0 || s >= 1.0 || erosion <= 0.0 || !fine) return s;
+            if (s <= 0.0 || erosion <= 0.0 || !fine) return s;
+            // DensityRemap 0 (the default): the erosion is read only in the soft edge, a closed deck (s = 1) keeps the share 1.
+            if (s >= 1.0 && !(prm.DensityRemap > 0.0)) return s;
             double lod = DetailLod(ref prm, footM);
             double d = set.DetailMean;
             double r = Math.Sqrt(px * px + py * py + pz * pz);
@@ -267,7 +271,17 @@ namespace ReDefinition.Atmospheres
                 }
                 d += (d2 - d) * NoiseModel.FineDetailWeight;
             }
-            return Erode(s, d, erosion);
+            double eroded = Erode(s, d, erosion);
+            // layers.densityRemap: the erosion also thins the interior of a closed deck, by the share of the detail's gap (the structure a flat slab lacks).
+            if (prm.DensityRemap > 0.0) eroded *= InteriorThinning(prm.DensityRemap, erosion, d);
+            return eroded;
+        }
+
+        // The factor the interior erosion multiplies the share by: 1 - remap * erosion * (1 - detail), 0 to 1.
+        internal static double InteriorThinning(double remap, double erosion, double detail)
+        {
+            double f = 1.0 - remap * erosion * (1.0 - detail);
+            return f < 0.0 ? 0.0 : f > 1.0 ? 1.0 : f;
         }
     }
 }

@@ -342,15 +342,31 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Seconds(MapSettleS);
             LogEnvironment(false);
             double siteLat = Game.VesselLatitude, siteLon = Game.VesselLongitude;
+            string look = LookMode;
             foreach (View view in new[] { Views[0], Views[2] })
             {
+                // The look starts (T09ProbeLook) read the ground view at both covers and the above view at the low cover.
+                if (look != null && !LookWants(view, tag)) continue;
                 foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
                 // A view that was not reached is read where the vessel stands, with the pose flagged in every row (PlaceChecked named it in a warning).
                 Emit("T09d." + view.Name + "." + tag + ".placed_ok", placeOk);
                 WeatherSample s;
                 if (WeatherHub.Sample(Game.BodyIndex, siteLat, siteLon, Math.Min(20000.0, view.AglM), Game.UniversalTime, out s)) Emit("T09d." + view.Name + "." + tag + ".cover_at_view_height", s.CloudCover01);
-                foreach (ProbeWait w in DiagView(view, tag)) yield return w;
+                IEnumerable<ProbeWait> body = look == "A" ? DiagLookA(view, tag) : look == "B" ? DiagLookB(view, tag) : DiagView(view, tag);
+                foreach (ProbeWait w in body) yield return w;
             }
+            if (look == "A" && tag == "high")
+            {
+                // P3: the rain deck alone from inside (4.6 km) and from above, where K-T2d start 50 saw it draw nothing at map 0.86.
+                foreach (View view in new[] { Views[1], Views[2] })
+                {
+                    foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
+                    Emit("T09d." + view.Name + "." + tag + ".placed_ok", placeOk);
+                    foreach (ProbeWait w in DiagLookL0(view, tag)) yield return w;
+                }
+            }
+            if (look == "B" && tag == "low")
+                foreach (ProbeWait w in DiagLookHorizon(tag)) yield return w;
         }
 
         // One view: the baseline, the gains, the aid.
@@ -690,6 +706,13 @@ namespace ReDefinition.Atmospheres
             Emit(p + "ground_deck_share", r.GroundDeckShare);
             Emit(p + "sky_closed_share", r.SkyClosedShare);
             Emit(p + "ground_closed_share", r.GroundClosedShare);
+            if (r.HorizonBandSamples > 0)
+            {
+                // Look B (E40): the band just above the horizon the sky region leaves out.
+                Emit(p + "horizon_band_n", r.HorizonBandSamples);
+                Emit(p + "horizon_band_closed", r.HorizonBandClosed);
+                Emit(p + "horizon_band_change", r.HorizonBandChange);
+            }
             EmitRatio(p + "sky_over_off_sky", T09Readout.Ratio(r.Sky.Median, r.Sky.Count, off.Sky.Median, off.Sky.Count));
             EmitRatio(p + "ground_over_off_ground", T09Readout.Ratio(r.Ground.Median, r.Ground.Count, off.Ground.Median, off.Ground.Count));
             EmitRatio(p + "deck_over_off_sky", T09Readout.Ratio(r.Deck.Median, r.Deck.Count, off.Sky.Median, off.Sky.Count));

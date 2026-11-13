@@ -586,6 +586,34 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return LayerReport;
         }
 
+        // E40 look starts: Kerbin's four layers at the maps K-T2d start 50 read at the low pick (the fake has no stack); null when LookInputOff.
+        internal bool LookInputOff;
+        internal int LookInputReads;
+        internal Func<int, double, double, double> LookCoverAt = (l, lat, lon) => new[] { 0.406, 0.665, 0.110, 0.501 }[l] + 0.002 * (lon + 74.5);
+
+        public T09LookInput ReadLookInput()
+        {
+            LookInputReads++;
+            if (LookInputOff) return null;
+            CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
+            var input = new T09LookInput
+            {
+                Layers = layers,
+                Tables = Array.ConvertAll(layers, l => new LayerTypeTable(l)),
+                Noise = new NoiseLayerParams[4],
+                Cover = new[] { 0.406, 0.665, 0.110, 0.501 },
+                Type = new double[4],
+                CoverAt = LookCoverAt
+            };
+            for (int l = 0; l < 4; l++)
+            {
+                double bx, by, bz;
+                NoiseSeeds.BaseOffset(1u, l, out bx, out by, out bz);
+                input.Noise[l] = new NoiseLayerParams { ScaleM = layers[l].NoiseScaleM, Untile = true, Curl = true, OffsetX = bx, OffsetY = by, OffsetZ = bz, Seed = NoiseSeeds.LayerSeed(1u, l), SphereScale = 1.0, ReferenceRadiusM = 600000.0 };
+            }
+            return input;
+        }
+
         public void SetLayerMask(int mask)
         {
             LayerMasks.Add(mask);

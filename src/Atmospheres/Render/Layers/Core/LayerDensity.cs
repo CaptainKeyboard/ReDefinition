@@ -110,16 +110,17 @@ namespace ReDefinition.Atmospheres
         {
             double share = (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM;
             if (share < 0.0 || share > 1.0) return 0.0;
-            double s = Shape(coverageMap, layer.EffectiveCoverage, layer.EdgeSoftness);
+            double s = Shape(coverageMap, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
             if (s <= 0.0) return 0.0;
-            return layer.SigmaPerM * s * table.Profile(typeMap, share);
+            return layer.EffectiveSigmaPerM * s * table.Profile(typeMap, share);
         }
 
         // The weight of the layer's distance fade at a distance (P64): 1 up to FadeNear, 0 from FadeFar, smooth between.
         internal static double DistanceFade(CloudLayerDef layer, double distanceM)
         {
-            if (double.IsPositiveInfinity(layer.FadeFarM) || !(layer.FadeFarM > layer.FadeNearM)) return 1.0;
-            double x = (layer.FadeFarM - distanceM) / (layer.FadeFarM - layer.FadeNearM);
+            float fadeNear = layer.EffectiveFadeNearM, fadeFar = layer.EffectiveFadeFarM;
+            if (double.IsPositiveInfinity(fadeFar) || !(fadeFar > fadeNear)) return 1.0;
+            double x = (fadeFar - distanceM) / (fadeFar - fadeNear);
             x = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
             return x * x * (3.0 - 2.0 * x);
         }

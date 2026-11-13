@@ -97,7 +97,43 @@ namespace ReDefinition.Atmospheres
         // The group of the layer's spec (members of a group never show together), or empty; the layer-selective coverage shift acts on one group.
         internal string Group { get; set; } = "";
         // The threshold the readers use: Coverage with the runtime shift (CloudCoverShift; tuning cloud.coverageShift, default 0 = Coverage). Read this, never Coverage.
-        internal float EffectiveCoverage { get { return CloudCoverShift.Apply(Coverage, Group); } }
+        // Also the layer's own shift (CloudLookTuning, cloud.layerCoverageShift.<name>), default 0.
+        internal float EffectiveCoverage
+        {
+            get
+            {
+                Look();
+                float c = CloudCoverShift.Apply(Coverage, Group);
+                return lookShift == 0f ? c : Math.Max(0f, Math.Min(1f, c + lookShift));
+            }
+        }
+        // The numbers of the layer with the look knobs applied (CloudLookTuning; every default is a factor of 1 or no change): the readers use these, never the configured ones.
+        internal float EffectiveSigmaPerM { get { Look(); return lookSigma == 1f ? SigmaPerM : SigmaPerM * lookSigma; } }
+        internal float EffectiveEdgeSoftness { get { Look(); return lookSoftness == 1f ? EdgeSoftness : EdgeSoftness * lookSoftness; } }
+        internal float EffectiveNoiseAmount { get { Look(); return lookNoiseAmount == 1f ? NoiseAmount : NoiseAmount * lookNoiseAmount; } }
+        internal float EffectiveNoiseScaleM { get { Look(); return lookNoiseSize == 1f ? NoiseScaleM : NoiseScaleM * lookNoiseSize; } }
+        // The distance fade: the layer's own where it has one, else the global one of cloud.fadeFarM (none by default).
+        internal float EffectiveFadeNearM { get { Look(); return float.IsPositiveInfinity(FadeFarM) && lookFade ? lookFadeNear : FadeNearM; } }
+        internal float EffectiveFadeFarM { get { Look(); return float.IsPositiveInfinity(FadeFarM) && lookFade ? lookFadeFar : FadeFarM; } }
+
+        // The look knobs of this layer (CloudLookTuning), read again when the tuning table changed (CloudCoverShift.Stamp rises with it): the CPU readers ask these getters for every
+        // sample, so the by-name lookups are done once per change, not once per call. The configured numbers are multiplied at the call, so a test that sets them still sees them.
+        private long lookStamp = -1;
+        private float lookShift, lookSigma = 1f, lookSoftness = 1f, lookNoiseAmount = 1f, lookNoiseSize = 1f, lookFadeNear, lookFadeFar;
+        private bool lookFade;
+
+        private void Look()
+        {
+            long stamp = CloudCoverShift.Stamp;
+            if (stamp == System.Threading.Volatile.Read(ref lookStamp)) return;
+            lookShift = CloudLookTuning.ShiftOf(Name);
+            lookSigma = CloudLookTuning.SigmaScaleOf(Name);
+            lookSoftness = CloudLookTuning.SoftnessScaleOf(Name);
+            lookNoiseAmount = CloudLookTuning.NoiseAmountScaleOf(Name);
+            lookNoiseSize = CloudLookTuning.NoiseSizeScaleOf(Name);
+            lookFade = CloudLookTuning.FadeFor(out lookFadeNear, out lookFadeFar);
+            System.Threading.Volatile.Write(ref lookStamp, stamp);
+        }
         // The width of the coverage threshold in map units: 0 is a hard edge, larger is softer (P12).
         internal float EdgeSoftness { get; set; }
         // The distance range over which the layer's density fades to zero, m (P64); Infinity: no fade.

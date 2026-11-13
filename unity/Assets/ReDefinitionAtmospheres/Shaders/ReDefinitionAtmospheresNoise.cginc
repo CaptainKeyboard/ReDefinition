@@ -31,7 +31,7 @@ float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y
 float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's finest cell (noise scales), y/z the march spacing in cells up to which the detail is
                          // read in full / from which it is dropped (z = 0: LOD off), w the detail volume's mean (what the erosion reads once dropped)
 
-float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read
+float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read, z layers.densityRemap (0: the erosion acts only in the soft edge)
 
 // 1 on the light path: no erosion there (the light march reads the shape only).
 static int gNoiseLod = 0;
@@ -119,7 +119,9 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     float3 q = NoiseLookup(li, pc, scale, flow);
     float n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.z * scale), 0)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
-    if (s <= 0 || s >= 1.0 || erosion <= 0 || gNoiseLod != 0) return s;
+    // _NoiseT.z (layers.densityRemap, default 0): the erosion also thins the interior of a closed deck; 0 leaves the interior at the share 1.
+    if (s <= 0 || erosion <= 0 || gNoiseLod != 0) return s;
+    if (s >= 1.0 && _NoiseT.z <= 0) return s;
     // The distance LOD: the sample spacing against the detail's finest cell; once the spacing exceeds the cell the detail is dropped (the volume's mean).
     float lod = 0;
     if (_NoiseS.z > 0 && gNoiseFoot > 0)
@@ -153,7 +155,9 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     }
     float er = erosion * (1.0 - d);
     float c = saturate((s - er) / max(1.0 - er, 1e-3));
-    return saturate(c * (_NoiseR.x + _NoiseR.y * erosion));
+    float eroded = saturate(c * (_NoiseR.x + _NoiseR.y * erosion));
+    if (_NoiseT.z > 0) eroded *= saturate(1.0 - _NoiseT.z * er);
+    return eroded;
 }
 
 // The flow map's direction at a point in world space (east and north of the map frame, from the map's red and green, 0.5 = still).

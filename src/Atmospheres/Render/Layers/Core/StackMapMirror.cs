@@ -12,6 +12,7 @@ namespace ReDefinition.Atmospheres
     {
         private readonly WeatherMap[] cover = new WeatherMap[CloudLayerDef.MaxLayers];
         private readonly bool[] attached = new bool[CloudLayerDef.MaxLayers];
+        private readonly WeatherMap[] typeAttached = new WeatherMap[CloudLayerDef.MaxLayers];
         private LayerStackSource owner;
 
         // Copies the coverage map of a layer into the stack and gives the stack the type map (shared by reference; the caller refills it in place).
@@ -22,14 +23,17 @@ namespace ReDefinition.Atmospheres
             {
                 owner = stack;
                 Array.Clear(attached, 0, attached.Length);
+                Array.Clear(typeAttached, 0, typeAttached.Length);
             }
             WeatherMap copy = cover[layer];
             if (copy == null) cover[layer] = copy = new WeatherMap();
             copy.Resize(coverageSource.Width, coverageSource.Height);
             Array.Copy(coverageSource.Values, copy.Values, copy.Values.Length);
-            if (attached[layer]) return;
+            // The type map is attached once; a layer whose type map changed to another instance (the look knobs cloud.typeFair / cloud.typeOverride, CloudLookTuning) is attached again.
+            if (attached[layer] && ReferenceEquals(typeAttached[layer], typeMap)) return;
             stack.SetMaps(layer, copy, typeMap);
             attached[layer] = true;
+            typeAttached[layer] = typeMap;
         }
     }
 }

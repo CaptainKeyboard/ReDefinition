@@ -248,10 +248,10 @@ namespace ReDefinition.Atmospheres
                 float tightInner, tightOuter;
                 layer.TightAltitudes(out tightInner, out tightOuter);
                 layerA[l] = new Vector4(layer.InnerAltitudeM, layer.OuterAltitudeM, tightInner, tightOuter);
-                layerB[l] = new Vector4(layer.SigmaPerM, layer.EffectiveCoverage, layer.EdgeSoftness, (float)(int)layer.Kind);
-                layerC[l] = new Vector4(layer.FadeNearM, float.IsPositiveInfinity(layer.FadeFarM) ? 0f : layer.FadeFarM,
+                layerB[l] = new Vector4(layer.EffectiveSigmaPerM, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, (float)(int)layer.Kind);
+                layerC[l] = new Vector4(layer.EffectiveFadeNearM, float.IsPositiveInfinity(layer.EffectiveFadeFarM) ? 0f : layer.EffectiveFadeFarM,
                                         layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
-                layerD[l] = new Vector4(layer.NoiseAmount, layer.NoiseScaleM > 0f ? 1f / layer.NoiseScaleM : 0f, 1f, layer.MapShiftDeg);
+                layerD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 1f, layer.MapShiftDeg);
                 layerE[l] = Vector4.zero;
                 HeightTuning height = source.Heights.TuningOf(l);
                 HeightMaps heightMaps = source.Heights.MapsOf(l);
@@ -261,7 +261,7 @@ namespace ReDefinition.Atmospheres
                 layerH2[l] = height == null ? Vector4.zero
                     : new Vector4(1f / Mathf.Max(1f, height.RaggedScaleM), height.MinThicknessM, source.Heights.SeedOf(l) & 0xFFFFFF, heightMaps == null ? 0f : 1f);
                 // T16: the least vertical optical depth a ray through the layer's whole height collects (the closure test); none where the heights vary.
-                cullL[l] = new Vector4(layerH2[l].y > 0f ? 0f : (float)CullMath.MinVerticalTau(layer.SigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
+                cullL[l] = new Vector4(layerH2[l].y > 0f ? 0f : (float)CullMath.MinVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; }),
                     0f, 0f, 0f);

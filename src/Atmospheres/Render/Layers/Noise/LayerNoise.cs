@@ -215,6 +215,7 @@ namespace ReDefinition.Atmospheres
                 SphereScale = Switches.SphereScale,
                 NoDistanceLod = !Switches.DistanceLod,
                 NoFineDetail = !Switches.FineDetail,
+                DensityRemap = CloudLookTuning.DensityRemap,
                 ReferenceRadiusM = referenceRadiusM,
                 UpDistanceM = rise[layer]
             };
@@ -234,7 +235,7 @@ namespace ReDefinition.Atmospheres
                                                 (float)NoiseModel.DetailPeriodScales));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
-            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? (float)NoiseModel.FineDetailWeight : 0f, (float)NoiseModel.FineDetailFrequency, 0f, 0f));
+            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? (float)NoiseModel.FineDetailWeight : 0f, (float)NoiseModel.FineDetailFrequency, CloudLookTuning.DensityRemap, 0f));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);
