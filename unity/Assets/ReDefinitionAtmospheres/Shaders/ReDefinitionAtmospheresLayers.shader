@@ -70,6 +70,10 @@ Shader "ReDefinition/AtmospheresLayers"
         // surface refinement (package T15: with the entry refinement off, the first dense sample after an empty one is moved to the entry by this many
         // halvings of the interval between the two samples; 0: off), w 0.
         float4 _RefineG;
+        // The grain controls (E40 grain): x the entry ramp (1: after an entry found by the bisection the ray's step starts at the bisection's precision and doubles
+        // from sample to sample up to the grid step, so the first optical depths of a cloud are integrated at the same depths below its surface in every pixel and
+        // frame instead of at one sample a random share of a grid step deep; 0: off), y the factor of the step inside a cloud (1: the grid step), z and w 0.
+        float4 _GrainP;
         // The gate's state while a ray marches: the refinement is on (1) or held back for the first march of a gated pixel (0); and a draw that must not gate
         // (the edge draw of package T12 returns early per pixel, so a quad's derivatives are not defined there) sets gGateOff.
         static float gRefineOn = 1.0, gGateOff = 0.0;
@@ -399,6 +403,8 @@ Shader "ReDefinition/AtmospheresLayers"
                 float tFineEnd = 0.0;
                 int bis = 0;
                 float bLo = 0.0, bHi = 0.0;
+                // The entry ramp (_GrainP.x): the next in-cloud step is at most this long (0: no ramp runs); rampStart is the bisection's precision of the entry.
+                float ramp = 0.0, rampStart = 0.0;
                 [loop] for (int i = 0; i < 512; i++)
                 {
                     if (t >= tEnd) break;
@@ -418,11 +424,13 @@ Shader "ReDefinition/AtmospheresLayers"
                         if (dens > 0) bHi = t; else bLo = t;
                         bis -= 1;
                         t = bis > 0 ? 0.5 * (bLo + bHi) : bHi;
+                        if (bis == 0 && _GrainP.x > 0.5) ramp = rampStart;
                         continue;
                     }
                     if (dens <= 0)
                     {
                         inside = false;
+                        ramp = 0.0;
                         if (fine)
                         {
                             tLast = t;
@@ -457,13 +465,16 @@ Shader "ReDefinition/AtmospheresLayers"
                         }
                     }
                     // Only after an empty sample of this span (tLast before the span start means the span began inside a cloud: nothing to find).
-                    if (bisectSteps > 0 && !inside && tLast >= s0[k])
+                    // With the entry ramp a span whose first sample is dense is searched too, from the span's start: a cloud base that lies on the layer's inner
+                    // sphere (the type's profile starts at zero there) is an entry like any other, and a camera inside a cloud gets its first steps fine.
+                    if (bisectSteps > 0 && !inside && (tLast >= s0[k] || _GrainP.x > 0.5))
                     {
                         // The bisection walks through the loop's own density read (a second call site of LayerDensity inlines the noise twice and the
                         // shader compiler does not survive it): the next samples are the midpoints, then the loop goes on from the dense end.
                         bis = bisectSteps;
-                        bLo = tLast;
+                        bLo = max(tLast, s0[k]);
                         bHi = t;
+                        rampStart = (bHi - bLo) * exp2(-(float)bisectSteps);
                         inside = true;
                         leap = 1.0;
                         t = 0.5 * (bLo + bHi);
@@ -475,12 +486,21 @@ Shader "ReDefinition/AtmospheresLayers"
                     tLast = t;
                     // COST (T05): inside a cloud the step grows with what the ray has already lost (_CostP.w): a ray that is nearly opaque
                     // needs no fine sampling of what lies behind. The sample stands for its whole step, so the optical depth uses it.
-                    float dts = min(dtv * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dtv));
+                    // _GrainP.y (1: off) lengthens the step inside a cloud by a factor: with a grid that is that many times finer and leaps over empty samples, the
+                    // search for the cloud is fine and the samples inside it stay as far apart as on the coarse grid.
+                    float dts = min(dtv * max(_GrainP.y, 1.0) * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dtv));
                     // The optical depth one step adds is bounded by a budget that grows with what the ray has already gathered: the entry is
                     // sampled finely, the inside coarsely (stream T).
                     if (refine) dts = min(dts, max(_RefineP.x * (1.0 + r.tau) / dens, fineStep));
                     // Package T15, sweep 2: the same optical depth budget without the entry walk (_RefineG.w; 0: off).
                     else if (_RefineG.w > 0.0) dts = min(dts, max(_RefineG.w * (1.0 + r.tau) / dens, fineStep));
+                    // The entry ramp: the steps after a bisected entry are the bisection's precision, twice that, four times .. until the grid step is reached.
+                    if (ramp > 0.0)
+                    {
+                        dts = min(dts, ramp);
+                        ramp *= 2.0;
+                        if (ramp >= dtv) ramp = 0.0;
+                    }
                     t += dts;
                     if (r.first < 0) r.first = t - dts;
                     float dtau = dens * dts;

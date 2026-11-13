@@ -54,7 +54,9 @@ namespace ReDefinition.Atmospheres
                 {
                     lookRead = true;
                     string v = CommandLine.After(Args(), LookSwitch, true);
-                    lookCache = string.Equals(v, "A", StringComparison.OrdinalIgnoreCase) ? "A" : string.Equals(v, "B", StringComparison.OrdinalIgnoreCase) ? "B" : null;
+                    // "G" is the grain start (T09ProbeGrain.cs).
+                    lookCache = string.Equals(v, "A", StringComparison.OrdinalIgnoreCase) ? "A" : string.Equals(v, "B", StringComparison.OrdinalIgnoreCase) ? "B"
+                        : string.Equals(v, "G", StringComparison.OrdinalIgnoreCase) ? "G" : null;
                 }
                 return lookCache;
             }
@@ -75,8 +77,10 @@ namespace ReDefinition.Atmospheres
         }
 
         // Which view/cover pairs a look start reads: the ground view at both covers and the above view at the low cover.
-        private static bool LookWants(View view, string cover)
+        private bool LookWants(View view, string cover)
         {
+            // The grain start reads the low cover only (both views).
+            if (LookMode == "G") return cover == "low";
             return view.Name == "ground" || cover == "low";
         }
 

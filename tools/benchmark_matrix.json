@@ -366,7 +366,12 @@
         {"id": "weather-cloudFade", "name": "Own clouds distance fade at 20 km", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.fadeFarM": "20000"}},
         {"id": "weather-cloudFadeNear", "name": "Own clouds distance fade at 20 km starting at 25 percent", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.fadeFarM": "20000", "atmo.cloud.fadeNearShare": "0.25"}},
         {"id": "weather-cloudHaze", "name": "Own clouds aerial perspective forced on at half strength", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.farHaze": "1", "atmo.cloud.hazeStrength": "0.5"}},
-        {"id": "weather-cloudShadowMapOnly", "name": "Cloud shadow reads the map's threshold only, no shape noise (the shadow before E40 FL-FIX)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.shadow.shapeNoise": "0"}}
+        {"id": "weather-cloudShadowMapOnly", "name": "Cloud shadow reads the map's threshold only, no shape noise (the shadow before E40 FL-FIX)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.shadow.shapeNoise": "0"}},
+        {"id": "weather-cloudAccumulate", "name": "Own clouds half-size march with a history (new frame weight 0.2)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.recon.accumulate": "0.2"}},
+        {"id": "weather-cloudGridLeap", "name": "Own clouds grid four times finer with a leap of four over empty samples", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4"}},
+        {"id": "weather-cloudGridLeapAccumulate", "name": "Own clouds finer grid with the leap and the history", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4", "atmo.recon.accumulate": "0.2"}},
+        {"id": "weather-cloudGridLeapCoarse", "name": "Own clouds finer grid with the leap, the step inside a cloud as on the coarse grid", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4", "atmo.layers.cloudStep": "4"}},
+        {"id": "weather-cloudEntryRamp", "name": "Own clouds entry found by four bisection steps, the step doubling from it, on the finer grid", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.entryRamp": "4", "atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4"}}
       ]
     },
     {

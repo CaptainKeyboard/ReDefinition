@@ -24,6 +24,10 @@ namespace ReDefinition.Atmospheres
         // Low: the march target's size over the full one, and whether its rays carry the sub-pixel Halton jitter the upscaler would give them.
         public float Resolution = 0.5f;
         public bool Jitter;
+        // Low (E40 grain): above 0 the reduced march target is blended into a history of its own size before it is laid up (the weight of the new frame; the
+        // history is reprojected and clipped like the block mode's, ReDefinitionAtmospheresReconstruct.shader with a block of 1). 0: no history, every frame is
+        // the march alone (the mode as it was).
+        public float Accumulate;
         // Block: the weight of the new sample in a pixel that has one this frame, in a pixel that has none (its value is then the bilinear
         // upsample of the new samples), and the width of the clip box in standard deviations of the 3 x 3 new samples.
         // The weights are the sweep's pick (T05, tools/weather_metrics/temporal.py T05-temporal): 0.05 for the pixels without a new sample
@@ -81,9 +85,11 @@ namespace ReDefinition.Atmospheres
         private int edgeIndex;
         // The march target and the two full targets: the last finished one is the history, the other receives the frame.
         private RenderTexture low, latest, spare, output;
+        // The history of the reduced target and its spare (ReconSettings.Accumulate; null until the mode Low accumulates).
+        private RenderTexture lowLatest, lowSpare;
         private Vector3 previousPosition, previousForward, previousRight, previousUp;
         private float previousTanX = 1f, previousTanY = 1f;
-        private bool haveHistory;
+        private bool haveHistory, haveLowHistory;
         private int blockIndex;
 
         internal bool Ready { get { return material != null; } }
@@ -128,6 +134,7 @@ namespace ReDefinition.Atmospheres
         internal void Reset()
         {
             haveHistory = false;
+            haveLowHistory = false;
             haveEdgeState = false;
             blockIndex = 0;
             edgeIndex = 0;
@@ -135,8 +142,9 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask })
+            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare })
                 RenderTargets.Dispose(rt);
+            lowLatest = lowSpare = null;
             if (material != null) UnityEngine.Object.Destroy(material);
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
             if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
@@ -266,11 +274,52 @@ namespace ReDefinition.Atmospheres
             }
             else if (s.Mode == ReconMode.Low)
             {
-                cb.SetGlobalVector(IdMarchTexel, new Vector4(1f / low.width, 1f / low.height, low.width, low.height));
-                cb.SetGlobalTexture(IdMarchTex, low);
+                RenderTexture source = low;
+                if (s.Accumulate > 0f)
+                {
+                    // The history of the reduced target (E40 grain): the reconstruction pass with a block of 1, every pixel fresh, at the march target's size.
+                    if (!Fits(lowLatest, low.width, low.height))
+                    {
+                        RenderTargets.Dispose(lowLatest);
+                        RenderTargets.Dispose(lowSpare);
+                        lowLatest = Make("layer accumulate a", low.width, low.height, FilterMode.Bilinear);
+                        lowSpare = Make("layer accumulate b", low.width, low.height, FilterMode.Bilinear);
+                        haveLowHistory = false;
+                    }
+                    CloudLayerFrameInfo shell = renderer.FirstLayerShell();
+                    shell.FallbackDistance = 50000f;
+                    Material a = material;
+                    a.SetTexture(IdCurTex, low);
+                    a.SetVector(IdCurTexel, new Vector4(1f / low.width, 1f / low.height, low.width, low.height));
+                    a.SetTexture(IdHistTex, lowLatest);
+                    a.SetVector(IdReconP, new Vector4(1f, 0f, 0f, s.Debug));
+                    a.SetVector(IdReconD, new Vector4(low.width, low.height, 0f, 0f));
+                    a.SetVector(IdReconK, new Vector4(Mathf.Clamp01(s.Accumulate), Mathf.Clamp01(s.Accumulate), s.ClipSigma, 0f));
+                    a.SetVector(IdCamPos, t.position - f.PlanetCenter);
+                    a.SetVector(IdCamForward, t.forward);
+                    a.SetVector(IdCamRight, t.right * tanX);
+                    a.SetVector(IdCamUp, t.up * tanY);
+                    a.SetVector(IdPrevPos, previousPosition);
+                    a.SetVector(IdPrevF, previousForward);
+                    a.SetVector(IdPrevR, previousRight / previousTanX);
+                    a.SetVector(IdPrevU, previousUp / previousTanY);
+                    a.SetVector(IdShellR, new Vector4(shell.MiddleRadius, shell.FallbackDistance, 0f, 0f));
+                    a.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveLowHistory ? 1f : 0f));
+                    cb.Blit(BuiltinRenderTextureType.None, lowSpare, a, 0);
+                    source = lowSpare;
+                    lowSpare = lowLatest;
+                    lowLatest = source;
+                    haveLowHistory = true;
+                }
+                else
+                {
+                    haveLowHistory = false;
+                }
+                cb.SetGlobalVector(IdMarchTexel, new Vector4(1f / source.width, 1f / source.height, source.width, source.height));
+                cb.SetGlobalTexture(IdMarchTex, source);
                 cb.SetRenderTarget(output);
                 cb.ClearRenderTarget(false, true, Color.clear);
-                cb.Blit(low, output, layers, LayerRenderer.PassComposite);
+                cb.Blit(source, output, layers, LayerRenderer.PassComposite);
             }
             else if (edgeOn)
             {

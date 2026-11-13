@@ -360,6 +360,60 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(new LayerFrame().LightStride, frame.LightStride);
         }
 
+        // E40 grain: the keys of the grain package reach the frame and the reconstruction; without them both are as they were.
+        [TestMethod]
+        public void TheGrainKeysMoveTheGridTheEntryAndTheHistory()
+        {
+            Tuning.ClearOverrides();
+            NextFrame();
+            var frame = new LayerFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(48, frame.MaxSteps);
+            Assert.IsFalse(frame.EntryRamp);
+            Assert.AreEqual(1f, frame.CloudStep);
+            Assert.AreEqual(0, frame.RefineBisect);
+            var recon = new ReconSettings();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(OwnCloudOptions.AccumulateDefault > 0f ? ReconMode.Low : ReconMode.Full, recon.Mode);
+            Assert.AreEqual(OwnCloudOptions.AccumulateDefault, recon.Accumulate);
+
+            Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 4f);
+            Tuning.SetOverride(OwnCloudOptions.TuneCloudStep, 4f);
+            Tuning.SetOverride(OwnCloudOptions.TuneEntryRamp, 3f);
+            Tuning.SetOverride(OwnCloudOptions.TuneAccumulate, 0.2f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(192, frame.MaxSteps);
+            Assert.AreEqual(4f, frame.CloudStep);
+            Assert.IsTrue(frame.EntryRamp);
+            Assert.AreEqual(3, frame.RefineBisect);
+            // The ramp never lowers the bisection steps the setting asks for.
+            OwnCloudOptions.Apply(frame, Defaults("cloudRefineBisect", 4));
+            Assert.AreEqual(4, frame.RefineBisect);
+            // The history belongs to level 1: it runs the half-size march through the mode Low; the block levels keep their own.
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(ReconMode.Low, recon.Mode);
+            Assert.AreEqual(0.2f, recon.Accumulate);
+            Assert.AreEqual(new LayerFrame().Resolution, recon.Resolution);
+            Assert.IsFalse(recon.Jitter);
+            OwnCloudOptions.Apply(recon, Defaults("cloudResolution", 2));
+            Assert.AreEqual(ReconMode.Block, recon.Mode);
+            Assert.AreEqual(0f, recon.Accumulate);
+            // The grid's multiplier stops at the shader's 256 grid points.
+            Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 8f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(256, frame.MaxSteps);
+            // The history off by its key, whatever the default is.
+            Tuning.SetOverride(OwnCloudOptions.TuneAccumulate, 0f);
+            NextFrame();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(ReconMode.Full, recon.Mode);
+            Assert.AreEqual(0f, recon.Accumulate);
+            Tuning.ClearOverrides();
+            NextFrame();
+        }
+
         [TestMethod]
         public void ThePassDrawsOnlyWhereTheSwitchIsOnAndTheSourceIsOurs()
         {
@@ -429,7 +483,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 if (json.IndexOf("\"id\": \"weather-" + key + "\"", StringComparison.Ordinal) < 0 && !Regex.IsMatch(json, "\"id\": \"weather-" + key + @"\w*""")) gaps.Add(key + " (id)");
                 if (json.IndexOf("\"atmo." + key + "\": \"", StringComparison.Ordinal) < 0) gaps.Add(key + " (key)");
             }
-            foreach (string tuning in new[] { OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneRefineBudget })
+            foreach (string tuning in new[] { OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneRefineBudget,
+                                              OwnCloudOptions.TuneEntryRamp, OwnCloudOptions.TuneGridFine, OwnCloudOptions.TuneCloudStep, OwnCloudOptions.TuneAccumulate })
             {
                 if (json.IndexOf("\"atmo." + tuning + "\"", StringComparison.Ordinal) < 0) gaps.Add(tuning);
             }

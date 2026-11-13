@@ -76,6 +76,13 @@ namespace ReDefinition.Atmospheres
         // refinement is off, like RefineBisect.
         public float RefineStepBudget = 0f;
         public const int MaxRefineBisect = 6;
+        // E40 grain, the entry ramp: after an entry found by the bisection (RefineBisect above 0) the in-cloud step starts at the bisection's precision and doubles
+        // from sample to sample up to the grid step. Without it the first dense sample lies a random share of a grid step below the cloud's surface and, at the
+        // layers' extinction (a free path of 20 m against grid steps of 25 m to over 1 km), decides the pixel's colour alone: the per-pixel grain. Off: the march as it was.
+        public bool EntryRamp;
+        // E40 grain: the factor of the step inside a cloud over the grid step (1: the grid step). With MaxSteps and EmptyLeap raised by the same factor the grid
+        // searches the clouds that many times finer while the samples inside them stay as far apart as before.
+        public float CloudStep = 1f;
         // Package T16, the visibility culling and the distance LOD (all switches off until the owner agrees).
         public CullSettings Cull = new CullSettings();
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
@@ -109,7 +116,7 @@ namespace ReDefinition.Atmospheres
             IdAmbientBottom = Shader.PropertyToID("_AmbientBottom"), IdMarchP = Shader.PropertyToID("_MarchP"), IdStepP = Shader.PropertyToID("_StepP"),
             IdLimitP = Shader.PropertyToID("_LimitP"), IdPhaseP = Shader.PropertyToID("_PhaseP"), IdSceneDepth = Shader.PropertyToID("_SceneDepth"),
             IdMarchTex = Shader.PropertyToID("_MarchTex"), IdSkipP = Shader.PropertyToID("_SkipP"), IdCostP = Shader.PropertyToID("_CostP"),
-            IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize");
+            IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize"), IdGrainP = Shader.PropertyToID("_GrainP");
 
         // The height variation (package T13): the maps, and per layer the ranges and the ragged boundary's numbers.
         private static readonly int IdHeightMaps = Shader.PropertyToID("_HeightMaps"), IdLayerH = Shader.PropertyToID("_LayerH"),
@@ -336,6 +343,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             m.SetVector(Shader.PropertyToID("_RefineP"), new Vector4(Mathf.Max(0f, f.RefineBudget), Mathf.Clamp(f.RefineFraction, 0.01f, 1f), Mathf.Max(0.1f, f.EdgePower), f.HashDither ? 2f : (f.FixedConeRotation ? 1f : 0f)));
             m.SetVector(Shader.PropertyToID("_RefineG"), new Vector4(Mathf.Max(0f, f.RefineGate), Mathf.Max(0f, f.RefineGateFirst), Mathf.Clamp(f.RefineBisect, 0, LayerFrame.MaxRefineBisect), Mathf.Max(0f, f.RefineStepBudget)));
+            m.SetVector(IdGrainP, new Vector4(f.EntryRamp ? 1f : 0f, Mathf.Clamp(f.CloudStep, 1f, 8f), 0f, 0f));
             if (f.Light != null) f.Light.Upload(m);
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);

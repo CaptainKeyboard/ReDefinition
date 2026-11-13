@@ -115,6 +115,10 @@ namespace ReDefinition.WeatherPlayer
         // step may add inside a cloud. frameNumber: the frame number of an aux or lum job (it moves the per-pixel step offset; the colour jobs count their own).
         public int refineBisect, frameNumber;
         public float refineStepBudget;
+        // E40 grain: 1 switches the entry ramp on (LayerFrame.EntryRamp; it acts with refineBisect above 0).
+        public int entryRamp;
+        // E40 grain: the factor of the step inside a cloud (LayerFrame.CloudStep; 0 or 1: the grid step).
+        public float cloudStep;
         public float costLeap = -1f, costCut = -1f, cheapShare = -1f, fogShare = -1f;
         // An occluder sphere (centre, radius) whose depth is the scene's; radius 0: none.
         public float[] occluder;

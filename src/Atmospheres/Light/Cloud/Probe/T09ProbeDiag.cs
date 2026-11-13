@@ -353,7 +353,7 @@ namespace ReDefinition.Atmospheres
                 Emit("T09d." + view.Name + "." + tag + ".placed_ok", placeOk);
                 WeatherSample s;
                 if (WeatherHub.Sample(Game.BodyIndex, siteLat, siteLon, Math.Min(20000.0, view.AglM), Game.UniversalTime, out s)) Emit("T09d." + view.Name + "." + tag + ".cover_at_view_height", s.CloudCover01);
-                IEnumerable<ProbeWait> body = look == "A" ? DiagLookA(view, tag) : look == "B" ? DiagLookB(view, tag) : DiagView(view, tag);
+                IEnumerable<ProbeWait> body = look == "A" ? DiagLookA(view, tag) : look == "B" ? DiagLookB(view, tag) : look == "G" ? DiagLookG(view, tag) : DiagView(view, tag);
                 foreach (ProbeWait w in body) yield return w;
             }
             if (look == "A" && tag == "high")
@@ -604,14 +604,18 @@ namespace ReDefinition.Atmospheres
         }
 
         private T09Readout.Reading diagReading;
+        // The picture of the last DiagTake (null where it failed) and the whole factor its file is scaled down by (2: half size; the grain start writes 1).
+        private T09Image diagImage;
+        private int diagPictureFactor = 2;
 
         // Reads the flight camera's frame, checks the pose at both ends, saves the picture (half size) and measures it. diagReading is null where any of it failed. baseline: the
         // off reading (null for the off frame itself); for the aid frame it is the gain-1 reading whose deck mask the aid frame is measured over.
         private IEnumerable<ProbeWait> DiagTake(View view, string tag, string gainTag, bool aid, T09Readout.Reading baseline, int aidMode = 4)
         {
             diagReading = null;
+            diagImage = null;
             string what = view.Name + " " + tag + " " + gainTag;
-            string name = T09Pictures.Name(StartId, view.Name + "_" + tag, gainTag, Game.ScreenWidth, Game.ScreenHeight, aid ? AidDirect : T09Pictures.Natural, true);
+            string name = T09Pictures.Name(StartId, view.Name + "_" + tag, gainTag, Game.ScreenWidth, Game.ScreenHeight, aid ? AidDirect : T09Pictures.Natural, diagPictureFactor > 1);
             T09Pose before = Game.ReadPose();
             T09Image image = null;
             string fault = null;
@@ -650,11 +654,11 @@ namespace ReDefinition.Atmospheres
             {
                 try
                 {
-                    long saved = Game.SavePicture(name, image, 2);
+                    long saved = Game.SavePicture(name, image, diagPictureFactor);
                     picturesBytes += saved;
                     picturesSaved++;
                     pictureFaults = 0;
-                    LogLine("Probe: picture " + name + ".png (" + image.Width + "x" + image.Height + " read, half size written, " + saved + " bytes)");
+                    LogLine("Probe: picture " + name + ".png (" + image.Width + "x" + image.Height + " read, " + (diagPictureFactor > 1 ? "half" : "full") + " size written, " + saved + " bytes)");
                 }
                 catch (Exception e)
                 {
@@ -688,6 +692,7 @@ namespace ReDefinition.Atmospheres
             else if (aid) EmitAid(p, reading);
             else EmitReading(p, what, reading, baseline, IsOffVariant(gainTag), poseOk);
             diagReading = reading;
+            diagImage = image;
         }
 
         private void EmitStat(string prefix, T09Readout.Stat s)

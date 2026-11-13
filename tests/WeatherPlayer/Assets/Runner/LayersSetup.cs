@@ -89,6 +89,8 @@ namespace ReDefinition.WeatherPlayer
             if (job.edgePower > 0f) frame.EdgePower = job.edgePower;
             if (job.refineBisect > 0) frame.RefineBisect = job.refineBisect;
             if (job.refineStepBudget > 0f) frame.RefineStepBudget = job.refineStepBudget;
+            frame.EntryRamp = job.entryRamp != 0;
+            if (job.cloudStep > 1f) frame.CloudStep = job.cloudStep;
             frame.FrameNumber = job.frameNumber;
             if (job.costBound >= 0) frame.CoverageBound = job.costBound != 0;
             if (job.costLeap >= 0f) frame.EmptyLeap = job.costLeap;
