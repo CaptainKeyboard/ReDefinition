@@ -56,7 +56,7 @@ MAP_VALUE = 0.665
 
 # The march of the product (LayerFrame defaults, Medium step quality, OwnCloudOptions) and a converged one.
 PRODUCT = dict(maxSteps=48, minStep=25.0, jitter=1.0, earlyOut=0.01, sunSteps=3, productCost=1, stepGrowth=0.0002)
-CONVERGED = dict(maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3, productCost=0, stepGrowth=0.0, refineBudget=0.1, refineFraction=0.0625)
+CONVERGED = dict(maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3, productCost=0, stepGrowth=0.0)
 
 
 def prod(**kw):
@@ -72,10 +72,7 @@ def variants():
         "prod": (prod(), [], 8),
         "j0": (prod(jitter=0.0), [], 1),
         "nolight": (prod(costDebug=1), [], 4),
-        "ign": (prod(ignDither=1), [], 8),
         "steps4x": (prod(maxSteps=192, minStep=6.0), [], 4),
-        "bis6": (prod(refineBisect=6, refineStepBudget=0.5, refineFraction=0.0625), [], 4),
-        "refine": (prod(refineBudget=0.5, refineFraction=0.0625), [], 4),
         "sigma01": (prod(), [("cloud.layerSigmaScale." + CUMULUS, 0.1)], 4),
         "sigma01conv": (dict(CONVERGED), [("cloud.layerSigmaScale." + CUMULUS, 0.1)], 1),
     }
@@ -85,26 +82,10 @@ def variants():
 
 # The candidates of this package (filled as the switches are built; each is the product's march plus the named tuning keys).
 CANDIDATES = {
-    # The entry ramp (LayerFrame.EntryRamp) with 3, 4 and 6 bisection steps; with the midpoint rule instead of the dither; on a grid of twice the steps that leaps
-    # over empty samples (the same density reads in clear air, a finer search where the clouds are).
-    "ramp3": (prod(refineBisect=3, entryRamp=1), [], 4),
-    "ramp4": (prod(refineBisect=4, entryRamp=1), [], 8),
-    "ramp6": (prod(refineBisect=6, entryRamp=1), [], 8),
-    "ramp6j0": (prod(refineBisect=6, entryRamp=1, jitter=0.0), [], 1),
-    "ramp4bud": (prod(refineBisect=4, entryRamp=1, refineStepBudget=0.5), [], 4),
-    # The bisection alone (no ramp), for the split of the two.
-    "bis4": (prod(refineBisect=4), [], 4),
-    # A finer grid that leaps over empty samples: 2 x and 4 x the grid points, the leap as long as the product's grid step at most.
+    # A finer grid that leaps over empty samples: 2 x and 4 x the grid points, the leap as long as the product's grid step at most. (The candidates with the entry
+    # ramp, the bisection and the step inside a cloud went with their keys, E40 step (c).)
     "leap2x": (prod(maxSteps=96, costLeap=2.0), [], 4),
     "leap4x": (prod(maxSteps=192, costLeap=4.0), [], 8),
-    "ramp4leap2x": (prod(refineBisect=4, entryRamp=1, maxSteps=96, costLeap=2.0), [], 4),
-    "ramp4leap4x": (prod(refineBisect=4, entryRamp=1, maxSteps=192, costLeap=4.0), [], 8),
-    "ramp3leap4x": (prod(refineBisect=3, entryRamp=1, maxSteps=192, costLeap=4.0), [], 4),
-    "ramp4leap8x": (prod(refineBisect=4, entryRamp=1, maxSteps=256, costLeap=6.0), [], 4),
-    # The finer grid with the leap and the step inside a cloud as long as on the coarse grid (LayerFrame.CloudStep).
-    "leap4xc": (prod(maxSteps=192, costLeap=4.0, cloudStep=4.0), [], 8),
-    "leap5xc": (prod(maxSteps=256, costLeap=5.0, cloudStep=5.33), [], 4),
-    "ramp3leap4xc": (prod(refineBisect=3, entryRamp=1, maxSteps=192, costLeap=4.0, cloudStep=4.0), [], 4),
 }
 
 # The converged picture a variant is judged against (default: 'conv').
@@ -148,8 +129,6 @@ def build_jobs():
                 jobs.append(lay.job(jid_of(view, name, frame), "lum", cam, layer, SIZE[0], SIZE[1], planet=R, mapWidth=MAP_W, mapHeight=MAP_H, tuning=keys(tuning),
                                     frameNumber=frame, **args))
             aux = dict(args)
-            if "refineBudget" not in aux:
-                aux["refineBudget"] = -1.0
             jobs.append(lay.job(jid_of(view, name) + "-x", "aux", cam, layer, SIZE[0], SIZE[1], planet=R, mapWidth=MAP_W, mapHeight=MAP_H, tuning=keys(tuning), **aux))
     return jobs
 
@@ -371,8 +350,7 @@ register_series("e40-gn", stages(), collect, exclusive=False, who="e40-gn")
 # The pass as the game runs it (scene grain-temporal) and its GPU cost (scene grain-cost)
 # --------------------------------------------------------------------------------------------------------------------------------
 FULL = (1708, 960)
-T_CASES = [("prod", "plain"), ("prod", "acc10"), ("prod", "acc20"), ("prod", "acc30"), ("prod", "b2"), ("leap4xc", "plain"), ("leap4xc", "acc20"), ("leap4x", "plain"),
-           ("leap4x", "acc20"), ("ramp4leap4x", "plain"), ("ramp4leap4x", "acc20")]
+T_CASES = [("prod", "plain"), ("prod", "acc10"), ("prod", "acc20"), ("prod", "acc30"), ("prod", "b2"), ("leap4x", "plain"), ("leap4x", "acc20")]
 T_SCENARIOS = {"static": [36, 37, 38, 39], "turn": [37, 38], "fly": [37, 38], "turnfast": [37, 38], "flyfast": [37, 38], "cut": [0, 2, 5, 10]}
 T_MOTION = ("turn", "fly", "turnfast", "flyfast")
 

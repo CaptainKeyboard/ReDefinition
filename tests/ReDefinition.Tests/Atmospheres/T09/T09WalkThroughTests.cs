@@ -21,7 +21,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     [TestClass]
     public partial class T09WalkThroughTests
     {
-        private static readonly string[] AllOwn = { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "entry", "gain" };
+        private static readonly string[] AllOwn = { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "gain" };
         // The frame time of the long scenarios: 40 frames a second, the low end of what the CPU-bound views of start 42 ran at (41 to 94); 0.1 s a frame would add the waits
         // counted in frames to the scenario's length and push it to the limit.
         private const double RealDt = 0.025;
@@ -193,7 +193,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual("own1707", r.Probe.StartId);
 
             // The order of the log: begin, the variants one after another, the verdict.
-            int at = r.Log.FindIndex(l => l.StartsWith("Probe: series K-T2 start own1707 begins with variants off,plain,recon2,recon3,recon4,cache,cap2,entry,gain"));
+            int at = r.Log.FindIndex(l => l.StartsWith("Probe: series K-T2 start own1707 begins with variants off,plain,recon2,recon3,recon4,cache,cap2,gain"));
             Assert.IsTrue(at >= 0, "the begin line");
             int last = at;
             foreach (string v in AllOwn)
@@ -220,10 +220,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.0, Number(r, "T09.vsync_count"));
             Assert.AreEqual(-1.0, Number(r, "T09.target_frame_rate"));
 
-            // Views: off, plain and recon4 in 5 views, recon2 and recon3 in 3, cache, cap2 and entry in the inside view, each with its begin and end line and its rows.
+            // Views: off, plain and recon4 in 5 views, recon2 and recon3 in 3, cache and cap2 in the inside view, each with its begin and end line and its rows.
             int begins = r.Log.Count(l => l.StartsWith("T09 view begin: ")), ends = r.Log.Count(l => l.StartsWith("T09 view end: "));
-            Assert.AreEqual(24, begins);
-            Assert.AreEqual(24, ends);
+            Assert.AreEqual(23, begins);
+            Assert.AreEqual(23, ends);
             foreach (string v in new[] { "off", "plain", "recon2", "recon3", "recon4" })
             {
                 foreach (T09Probe.View view in T09Probe.Views)
@@ -254,7 +254,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     }
                 }
             }
-            foreach (string v in new[] { "cap2", "cache", "entry" })
+            foreach (string v in new[] { "cap2", "cache" })
             {
                 Assert.IsTrue(r.Log.Contains("T09 view begin: inside " + v + " 1707x960"), v);
                 Assert.IsFalse(r.Log.Any(l => l.StartsWith("T09 view begin: ground " + v)), v + " is an inside-only variant");
@@ -264,7 +264,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.0, Number(r, "T09.view.inside.light_cache_on", "plain"));
 
             // The module's totals after every own variant, and the gains.
-            foreach (string v in new[] { "plain", "recon2", "recon3", "recon4", "entry", "cap2", "cache", "gain" })
+            foreach (string v in new[] { "plain", "recon2", "recon3", "recon4", "cap2", "cache", "gain" })
             {
                 Assert.IsTrue(Number(r, "T09.height_build_worst_ms", v) > 0 && Number(r, "T09.height_build_worst_ms", v) <= 1500, v);
                 Assert.IsTrue(Number(r, "T09.height_build_main_ms", v) <= 2, v);
@@ -273,7 +273,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(Number(r, "T09.map_fetch_main_ms", v) <= 2, v);
                 Assert.IsTrue(Number(r, "T09.buffer_attaches", v) <= 6, v);
             }
-            foreach (string v in new[] { "plain", "recon2", "recon3", "recon4", "entry", "cap2", "cache" })
+            foreach (string v in new[] { "plain", "recon2", "recon3", "recon4", "cap2", "cache" })
             {
                 Assert.IsTrue(Number(r, "T09.view.frames_drawn", v) >= 60, v);
                 Assert.IsTrue(Number(r, "T09.view.frames_ratio", v) >= 0.95, v);
@@ -639,7 +639,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // --- The pictures ---------------------------------------------------------------------------------------------------------------
 
         private static readonly string[] OwnWithAid = { "plain", "recon4" };
-        private static readonly string[] InsideOnlyVariants = { "entry", "cap2", "cache" };
+        private static readonly string[] InsideOnlyVariants = { "cap2", "cache" };
 
         // The [begin, end] frames of every measured window, from the probe's own lines.
         private static List<int[]> Windows(Run r)
@@ -667,10 +667,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Drive(r, RealDt);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
 
-            // 24 windows natural (off, plain, recon4 x 5 views, recon2 and recon3 x 3, cache, cap2 and entry x 1), 19 of them with the aid picture (all but off).
-            Assert.AreEqual(24 + 19, r.World.Saved.Count, string.Join("\n", r.World.Saved.ToArray()));
+            // 23 windows natural (off, plain, recon4 x 5 views, recon2 and recon3 x 3, cache and cap2 x 1), 18 of them with the aid picture (all but off).
+            Assert.AreEqual(23 + 18, r.World.Saved.Count, string.Join("\n", r.World.Saved.ToArray()));
             Assert.AreEqual(r.World.Saved.Count, r.World.Saved.Distinct().Count(), "names are unique");
-            Assert.AreEqual(43.0, Number(r, "T09.pictures.saved"));
+            Assert.AreEqual(41.0, Number(r, "T09.pictures.saved"));
             Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
             Assert.IsTrue(Number(r, "T09.pictures.bytes") > 0);
             Assert.IsFalse(r.World.AidIsOn, "the aid view is off at the end");
@@ -698,7 +698,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
             // Outside the measured windows: no picture event lies inside a window.
             List<int[]> windows = Windows(r);
-            Assert.AreEqual(24, windows.Count);
+            Assert.AreEqual(23, windows.Count);
             for (int i = 0; i < r.World.Stamps.Count; i++)
             {
                 int s = r.World.Stamps[i];
@@ -706,7 +706,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             // The log: begin, end, capture begin, capture end, for every view of every variant, each pair naming the same view and variant.
             var kinds = r.Log.Where(l => l.StartsWith("T09 view begin: ") || l.StartsWith("T09 view end: ") || l.StartsWith("T09 capture begin: ") || l.StartsWith("T09 capture end: ")).ToList();
-            Assert.AreEqual(24 * 4, kinds.Count);
+            Assert.AreEqual(23 * 4, kinds.Count);
             for (int i = 0; i < kinds.Count; i += 4)
             {
                 string tag = kinds[i].Substring("T09 view begin: ".Length);
@@ -816,15 +816,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void AScenarioThatRunsLateStopsThePicturesBeforeTheLimitAndStillPasses()
         {
-            // The flight comes 220 s late (the longest wait that is no timeout is 330 s): the pictures of the last views would push the scenario over its 19 minute limit.
+            // The flight comes 270 s late (the longest wait that is no timeout is 330 s): the pictures of the last views would push the scenario over its 19 minute limit.
             // A quick camera keeps the scenario's length the one of the real game.
-            Run r = Start(null, x => { x.World.FlightReadyAtS = 275.0; x.World.LagS = 0.03; });
+            Run r = Start(null, x => { x.World.FlightReadyAtS = 320.0; x.World.LagS = 0.03; });
             Drive(r, RealDt);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             AssertNoUnhandled(r);
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: warning pictures_time: ")), "scenario time " + r.Probe.Elapsed.ToString("0") + " s\n" + Dump(r));
-            Assert.IsTrue(r.World.Saved.Count > 0 && r.World.Saved.Count < 43, "some pictures were taken, not all: " + r.World.Saved.Count);
-            Assert.AreEqual(24, r.Log.Count(l => l.StartsWith("T09 view end: ")), "every view was measured");
+            Assert.IsTrue(r.World.Saved.Count > 0 && r.World.Saved.Count < 41, "some pictures were taken, not all: " + r.World.Saved.Count);
+            Assert.AreEqual(23, r.Log.Count(l => l.StartsWith("T09 view end: ")), "every view was measured");
         }
 
         [TestMethod]
@@ -832,9 +832,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             Run r = Start(null, x => x.World.AidAvailable = false);
             Drive(r, RealDt);
-            AssertPicturesFailedButSeriesWentOn(r, "no_aid_view", 24);
-            Assert.AreEqual(24, r.World.Saved.Count, "natural pictures only");
-            Assert.AreEqual(19, r.Log.Count(l => l.StartsWith("Probe: warning no_aid_view: ")));
+            AssertPicturesFailedButSeriesWentOn(r, "no_aid_view", 23);
+            Assert.AreEqual(23, r.World.Saved.Count, "natural pictures only");
+            Assert.AreEqual(18, r.Log.Count(l => l.StartsWith("Probe: warning no_aid_view: ")));
             Assert.IsFalse(r.World.Saved.Any(n => n.Contains("aid")));
         }
 
@@ -851,7 +851,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheAidViewIsOffAfterAnAidReadFailsAndEveryOnHasItsOff()
         {
-            Run r = Start(new[] { "plain", "entry" }, x => x.World.ReadFault = n => n % 2 == 1 ? "takethrows" : null);
+            Run r = Start(new[] { "plain", "cap2" }, x => x.World.ReadFault = n => n % 2 == 1 ? "takethrows" : null);
             Drive(r);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.IsFalse(r.World.AidIsOn);

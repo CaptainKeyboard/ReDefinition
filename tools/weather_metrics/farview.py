@@ -41,13 +41,13 @@ VARIANTS = ["base", "haze", "mean", "far"]
 AIR_RAYLEIGH = (5.802e-6, 13.558e-6, 33.1e-6)
 AIR_MIE, AIR_HR, AIR_HM = 4.44e-6, 8000.0, 1200.0
 HORIZON = (0.62, 0.68, 0.76)
-PRODUCT = dict(maxSteps=48, minStep=25.0, stepGrowth=0.0002, jitter=1.0, earlyOut=0.01, sunSteps=3, refineBudget=0.5, refineFraction=0.125)
-# The fewest samples in a span of a layer in the far view. The attribution at 230 km of the second sweep (entry refinement on): 4 samples gave a
-# luminance 9.5 percent below the dense march and 16 samples 6.7 percent; without the refinement 4 samples gave 6.6 percent. The third sweep takes 8,
+PRODUCT = dict(maxSteps=48, minStep=25.0, stepGrowth=0.0002, jitter=1.0, earlyOut=0.01, sunSteps=3)
+# The fewest samples in a span of a layer in the far view. The attribution at 230 km of the second sweep (with the entry refinement, since removed): 4 samples
+# gave a luminance 9.5 percent below the dense march and 16 samples 6.7 percent; without the refinement 4 samples gave 6.6 percent. The third sweep takes 8,
 # with the refinement off (the product's default).
 FAR_MIN_SAMPLES = 8
-# The measurement jobs (the sweep and the attribution) march as the product does by default: the entry refinement is a look option and is off.
-MEASURE = dict(PRODUCT, refineBudget=-1.0)
+# The measurement jobs (the sweep and the attribution) march as the product does.
+MEASURE = dict(PRODUCT)
 SWEEP_TILE = 128
 SWEEP_FOOTPRINT_M = 12000.0   # the half width of the picture on the sea-level sphere: the view is a 24 km square straight down
 SWEEP_ALTS = ([10, 20, 40, 60, 100, 150, 190] + list(range(200, 261)) + [270, 300, 350, 400])
@@ -159,7 +159,7 @@ def jobs(sites):
     sun = L.sun_vector(sites_cam.pos, 120.0, 45.0)
     for jid, mode, haze in (("FH-off", "lum", 0), ("FH-on", "lum", 1), ("FH-aux", "aux", 0)):
         layer = L.layer(1000.0, 2400.0, 0.02, [L.slab_type("slab", 0.0, 1.0, (1.0, 1.0), 0.0)], coverage=1.0, softness=0.3, name="opaque")
-        j = L.job(jid, mode, sites_cam, [layer], 960, 540, sun=sun, **dict(PRODUCT, refineBudget=0.0))
+        j = L.job(jid, mode, sites_cam, [layer], 960, 540, sun=sun, **PRODUCT)
         j["maxSteps"] = 128
         j["far"] = dict(haze=haze, shapeMean=0, inscatter=list(HORIZON))
         out.append(j)
@@ -203,7 +203,6 @@ DIAGNOSIS = [
     ("ms16", dict(minSamples=16), {}),
     ("ms8-mean", dict(minSamples=8, shapeMean=1), {}),
     ("ms8-policy", dict(minSamples=8, policy=1), {}),
-    ("ms8-look", dict(minSamples=8), dict(refineBudget=0.5, refineFraction=0.125)),
     ("far", dict(minSamples=FAR_MIN_SAMPLES, shapeMean=1, policy=1), {}),
 ]
 
@@ -435,7 +434,7 @@ def scatterer_jobs(sites):
     out = []
     for jid, mode, haze in (("SC-warm", "lum", 0), ("SC-off", "lum", 0), ("SC-on", "lum", 1), ("SC-aux", "aux", 0), ("SC-off2", "lum", 0)):
         layer = L.layer(100.0, 400.0, 0.02, [L.slab_type("slab", 0.0, 1.0, (1.0, 1.0), 0.0)], coverage=1.0, softness=0.3, name="fogdeck")
-        j = L.job(jid, mode, cam, [layer], SC_SIZE[0], SC_SIZE[1], sun=sun, **dict(PRODUCT, refineBudget=0.0))
+        j = L.job(jid, mode, cam, [layer], SC_SIZE[0], SC_SIZE[1], sun=sun, **PRODUCT)
         j["maxSteps"] = 128
         j["far"] = scatterer_far_block(haze)
         out.append(j)

@@ -41,10 +41,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             foreach (string view in new[] { "ground", "above" })
             {
-                foreach (string tag in new[] { "gbefore", "gnew", "gnew10", "gnewramp" })
+                foreach (string tag in new[] { "gbefore", "gnew", "gnew10" })
                     foreach (string letter in new[] { "a", "b", "c" })
                         Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view + "_low-" + tag + letter + "-")), view + " " + tag + letter + " was written");
-                foreach (string variant in new[] { "off", "before", "plain", "ramp" })
+                foreach (string variant in new[] { "off", "before", "plain" })
                 {
                     Assert.AreEqual(1, r.Log.Count(l => l.StartsWith("T09 view begin: " + view + " " + variant + " ")), view + " " + variant + " has a cost window");
                     Assert.AreEqual(1, r.Log.Count(l => l.StartsWith("T09 view end: " + view + " " + variant + " ")), view + " " + variant + " ends its cost window");

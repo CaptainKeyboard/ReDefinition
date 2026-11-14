@@ -1,27 +1,15 @@
-"""The series of package T14 (cloud resolution slider, contour gate of the entry refinement, light cache, sun march), run through
-tools/build_weather_player.py --series <name>:
+"""The series of package T14 (cloud resolution slider, light cache, sun march), run through
+tools/build_weather_player.py --series <name>. The series T14-refine-cost and T14-refine-quality (the contour gate of the entry refinement) went with the
+entry refinement (E40 step (c), the soft water content has no surface to refine):
 
-  T14-refine-cost     timing run (exclusive), scene 'refine-cost': ms of the layer pass at 1707x960 per view for the entry refinement off, on every ray and
-                      gated at the contours (alpha step of the 2 x 2 quad), in the full mode and in the 4 x 4 block mode; each variant twice.
-  T14-refine-quality  scene 'refine-quality': per view the error of each variant against the reference (the mean of four full marches with the refinement
-                      on every ray) in the band around the contour, in the thick interior and in the empty sky, plus pictures
-                      t14-<view>-before/after/reference/aid-error/aid-refined.png in the player's output folder.
-  T14-light-cost      timing run (exclusive), scene 'light-cost': ms of the pass per view for the sun march 4000 m and 9000 m, the ambient taps with reuse 0, 1, 2,
+  T14-light-cost     timing run (exclusive), scene 'light-cost': ms of the pass per view for the sun march 4000 m and 9000 m, the ambient taps with reuse 0, 1, 2,
                       and the light cache.
   T14-light-look      scene 'light': a deep cell seen from the side, against the sun and with the sun behind: the dark base (base / top ratio and the regions)
                       for the same variants, against the T11 reference renderer, and the pictures
                       t14-<view>-before/after/grid/aid-direct/aid-ambient.png (natural plus aid).
 
-THRESHOLDS and their sources (fixed before the first run; sweeps change the gate's number only, at most 3 sweeps):
-  refine cost ratio      total(gated) / total(refinement on every ray) <= 0.85      the gate must save at least the 15 percent of the refinement's cost that
-                                                                                   the two-march scheme pays back on the contour quads [proposed]
-  refine band recovery   band_rms(gated) <= 0.5 x band_rms(refinement off)          the gate must keep at least half of what the refinement gains at the edge
-  refine band vs full    band_rms(gated) <= 1.15 x band_rms(refinement on every ray) T12 brief: within 15 percent of full resolution
-  refine interior        interior_err(gated) <= 0.02                                T12 brief: luminance error where alpha is above 0.95 within 2 percent
-  refine empty sky       empty_leak(gated) <= 0.0001                                T12 brief: empty sky exact
 Light variants carry no pass/fail limit: their numbers (ms, base / top, region ratios to the reference) are for the owner's decision.
 
-    python tools/weather_metrics/t14.py refine-cost <log or stage folder>
     python tools/weather_metrics/t14.py light-cost <log or stage folder>
 """
 import json
@@ -34,13 +22,9 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 REPO = os.path.dirname(os.path.dirname(HERE))
 BUILD = os.path.join(REPO, "build", "weather-series")
-SWEEP = os.environ.get("T14_SWEEP", "1")
-PICK = os.environ.get("T14_PICK", "g12")
 
 LINE = re.compile(r"\{([^,{}]+),([^,{}]*),([^,{}]*),([^,{}]*)\}")
 NAN = float("nan")
-
-REFINE_VIEWS = ("ground", "inside", "above", "orbit-edge", "stack-below")
 
 # Light variants: name, light job overrides, sun march of the layer job. The deep-cell looks and the cost use the same table.
 LIGHT_VARIANTS = (
@@ -98,29 +82,6 @@ def median(values):
     return v[len(v) // 2] if v else NAN
 
 
-def refine_cost_table(values, show=True):
-    """total ms per (view, variant): the median of the two passes over the table; the ratios to 'full' (refinement on every ray) and to 'none'."""
-    rows = {}
-    for k, v in values.items():
-        m = re.match(r"refcostb?\.total\.(V-[a-z-]+)\.([a-z0-9]+)\.1707x960$", k)
-        if m:
-            rows.setdefault((m.group(1), m.group(2)), []).append(v)
-    views = sorted({k[0] for k in rows})
-    variants = []
-    for (view, var) in rows:
-        if var not in variants:
-            variants.append(var)
-    table = {key: (sum(v) / len(v), max(v) - min(v)) for key, v in rows.items()}
-    if show:
-        print("%-12s" % "ms (mean of 2, spread)" + "".join("%18s" % v[2:] for v in views))
-        for var in variants:
-            print("%-12s" % var + "".join("%11.3f (%4.2f)" % table.get((view, var), (NAN, NAN)) for view in views))
-        print("\nratio to full (refinement on every ray)")
-        for var in variants:
-            print("%-12s" % var + "".join("%18.3f" % (table.get((view, var), (NAN, 0))[0] / table.get((view, "full"), (NAN, 0))[0]) for view in views))
-    return table, views, variants
-
-
 def light_cost_table(values, show=True):
     rows = {}
     for k, v in values.items():
@@ -147,7 +108,7 @@ if __name__ == "__main__":
         print(__doc__)
         sys.exit(2)
     data = read_lines(sys.argv[2])
-    {"refine-cost": refine_cost_table, "light-cost": light_cost_table}[sys.argv[1]](data)
+    {"light-cost": light_cost_table}[sys.argv[1]](data)
     sys.exit(0)
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------
@@ -162,54 +123,6 @@ from weather_metrics import light as Lt  # noqa: E402
 from weather_metrics import light_holdout as H  # noqa: E402
 from weather_metrics import parity_ref as pr  # noqa: E402
 from weather_metrics import parity_run as run  # noqa: E402
-
-
-def refine_cost_collect(ctx):
-    out = list(core.player_judged("scene")(ctx))
-    values = {name: v[0] for name, v in ctx.player_metrics("scene").items()}
-    table, views, variants = refine_cost_table(values, show=False)
-    for view in views:
-        full = table.get((view, "full"), (NAN, NAN))[0]
-        for var in variants:
-            t = table.get((view, var))
-            if t is None:
-                continue
-            out.append(Metric.info("refine.cost_ms.%s.%s" % (view, var), t[0]))
-            out.append(Metric.info("refine.cost_spread.%s.%s" % (view, var), t[1]))
-            if var not in ("full", "none", "u4full", "u4none"):
-                ratio = t[0] / table.get((view, "u4full" if var.startswith("u4") else "full"), (NAN, NAN))[0]
-                out.append(Metric.info("refine.cost_ratio.%s.%s" % (view, var), ratio))
-                if var == PICK:
-                    out.append(Metric.at_most("refine.cost_ratio.%s" % view, ratio, 0.85).based("new"))
-    return out
-
-
-def refine_quality_collect(ctx):
-    out = list(core.player_judged("scene")(ctx))
-    values = {name: v[0] for name, v in ctx.player_metrics("scene").items()}
-    for view in REFINE_VIEWS:
-        def q(var, field):
-            return values.get("refq.%s.%s.%s" % (view, var, field), NAN)
-        for var in {k.split(".")[2] for k in values if k.startswith("refq.%s." % view) and k.split(".")[2] != "ref"}:
-            if var in ("full", "none", "u4full", "u4none"):
-                continue
-            pre = "u4" if var.startswith("u4") else ""
-            recovery = q(var, "band_rms") / q(pre + "none", "band_rms")
-            vs_full = q(var, "band_rms") / q(pre + "full", "band_rms")
-            out.append(Metric.info("refine.band_recovery.%s.%s" % (view, var), recovery))
-            out.append(Metric.info("refine.band_vs_full.%s.%s" % (view, var), vs_full))
-            if var == PICK:
-                out.append(Metric.at_most("refine.band_recovery.%s" % view, recovery, 0.5).based("new"))
-                out.append(Metric.at_most("refine.band_vs_full.%s" % view, vs_full, 1.15).based("gate"))
-                out.append(Metric.at_most("refine.interior_err.%s" % view, q(var, "interior_err"), 0.02).based("gate"))
-                out.append(Metric.at_most("refine.empty_leak.%s" % view, q(var, "empty_leak"), 0.0001).based("gate"))
-    return out
-
-
-register_series("T14-refine-cost", [Stage("scene", ["-mode", "scene", "-scene", "refine-cost", "-sweep", SWEEP, "-in", L.INPUT], size=(1707, 960), proxy=True,
-                                           timeout=1500)], refine_cost_collect, exclusive=True, who="T14")
-register_series("T14-refine-quality", [Stage("scene", ["-mode", "scene", "-scene", "refine-quality", "-sweep", SWEEP, "-in", L.INPUT], size=(1280, 720),
-                                             proxy=False, timeout=1500)], refine_quality_collect, exclusive=False, who="T14")
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------

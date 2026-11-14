@@ -74,44 +74,13 @@ def warp(a, c):
     return lambda j: noise_of(j, warpAmplitude=a, warpCell=c)
 
 
-SETS["round1"] = [
-    ("base", lambda j: None),
-    ("ref.5", lambda j: j.update(refineBudget=0.5)),
-    ("ref.25", lambda j: j.update(refineBudget=0.25)),
-    ("ref.5 acc16", lambda j: j.update(refineBudget=0.5, accumulate=16)),
-    ("warp 3/14", warp(3.0, 14.0)),
-    ("warp 2/8", warp(2.0, 8.0)),
-    ("ref.5 edge1.5", lambda j: j.update(refineBudget=0.5, edgePower=1.5)),
-    ("ref.5 edge2", lambda j: j.update(refineBudget=0.5, edgePower=2.0)),
-    ("ref.5 soft x2", lambda j: (j.update(refineBudget=0.5), per_layer(j, softness=lambda a: a * 2.0))),
-    ("ref.5 amount x.7", lambda j: (j.update(refineBudget=0.5), per_layer(j, noiseAmount=lambda a: a * 0.7))),
-]
-
-
-def ref(**kw):
-    def f(j):
-        j.update(refineBudget=0.5)
-        j.update(kw)
-    return f
-
-
-SETS["round2"] = [
-    ("ref.5", ref()),
-    ("ref.5 fixedcone", ref(fixedCone=1)),
-    ("ref.5 nojit", ref(jitter=0.0)),
-    ("ref.5 nojit fixedcone", ref(jitter=0.0, fixedCone=1)),
-    ("ref.5 warp 1/14", lambda j: (ref()(j), noise_of(j, warpAmplitude=1.0, warpCell=14.0))),
-    ("ref.5 warp 1.5/20", lambda j: (ref()(j), noise_of(j, warpAmplitude=1.5, warpCell=20.0))),
-    ("ref.5 warp 3/20", lambda j: (ref()(j), noise_of(j, warpAmplitude=3.0, warpCell=20.0))),
-    ("ref.5 nountile", lambda j: (ref()(j), noise_of(j, noUntile=1))),
-    ("cand soft x1.5 amt x.7", lambda j: (ref()(j), per_layer(j, softness=lambda a: a * 1.5, noiseAmount=lambda a: a * 0.7))),
-]
+# The sets round1, round2 and refcost (the entry refinement's budget and fraction, the edge exponent) and the dither's white / gradient-noise choice went with
+# those keys (E40 step (c)).
 
 
 def old_state(j):
-    """The sheet as it was before stream T: the grid step's entry, no fine detail octave, the warp 8 / 7, the softness and noise amount of the
+    """The sheet as it was before stream T: no fine detail octave, the warp 8 / 7, the softness and noise amount of the
     old scene table (the scene table now carries x1.5 and x0.7 of them)."""
-    j.update(refineBudget=-1.0, ignDither=1)
     noise_of(j, noFine=1, noLod=1, warpAmplitude=8.0, warpCell=7.0)
     for ly in j["layers"]:
         if ly.get("name") != "cirrus":   # the cirrus layer did not change
@@ -124,7 +93,6 @@ SETS["final"] = [
     ("new", lambda j: None),
     ("new acc16", lambda j: j.update(accumulate=16)),
     ("new nofine", lambda j: noise_of(j, noFine=1)),
-    ("new norefine", lambda j: j.update(refineBudget=-1.0)),
     ("new nojit", lambda j: j.update(jitter=0.0)),
     ("new nountile", lambda j: noise_of(j, noUntile=1)),
     ("new noero", lambda j: j.update(costDebug=4)),
@@ -133,18 +101,8 @@ SETS["final"] = [
 ]
 
 
-SETS["refcost"] = [
-    ("r.5 f.125", lambda j: j.update(refineBudget=0.5, refineFraction=0.125)),
-    ("r1 f.25", lambda j: j.update(refineBudget=1.0, refineFraction=0.25)),
-    ("r1.5 f.25", lambda j: j.update(refineBudget=1.5, refineFraction=0.25)),
-    ("r1 f.5", lambda j: j.update(refineBudget=1.0, refineFraction=0.5)),
-    ("r2 f.5", lambda j: j.update(refineBudget=2.0, refineFraction=0.5)),
-    ("norefine", lambda j: j.update(refineBudget=-1.0)),
-]
-
 SETS["dither"] = [
     ("new", lambda j: None),
-    ("new ign", lambda j: j.update(ignDither=1)),
     ("new acc16", lambda j: j.update(accumulate=16)),
     ("new nojit", lambda j: j.update(jitter=0.0)),
 ]

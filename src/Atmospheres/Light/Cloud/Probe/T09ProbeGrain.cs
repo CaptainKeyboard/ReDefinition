@@ -33,8 +33,8 @@ namespace ReDefinition.Atmospheres
 
         // Every variant names the history weight (recon.accumulate), so that the table does not move with the default. g0 is the pass without anything of this package
         // (the product before it). The others add, one at a time and together: the history of the half-size march, the finer grid with the leap (layers.gridFine,
-        // layers.emptyLeap), the entry ramp (layers.entryRamp) and level 2 of the resolution slider.
-        private static KeyValuePair<string, float>[] GrainKeys(float accumulate, bool leap, bool ramp)
+        // layers.emptyLeap) and level 2 of the resolution slider. The variants gramp and grampacc (the entry ramp, layers.entryRamp) went with the key (E40 step (c)).
+        private static KeyValuePair<string, float>[] GrainKeys(float accumulate, bool leap)
         {
             var keys = new List<KeyValuePair<string, float>> { Key(OwnCloudOptions.TuneAccumulate, accumulate) };
             if (leap)
@@ -42,19 +42,16 @@ namespace ReDefinition.Atmospheres
                 keys.Add(Key(OwnCloudOptions.TuneGridFine, 4f));
                 keys.Add(Key(OwnCloudOptions.TuneEmptyLeap, 4f));
             }
-            if (ramp) keys.Add(Key(OwnCloudOptions.TuneEntryRamp, 4f));
             return keys.ToArray();
         }
 
         internal static readonly GrainVariant[] GrainVariants =
         {
-            new GrainVariant { Tag = "g0", Level = 1, Keys = GrainKeys(0f, false, false) },
-            new GrainVariant { Tag = "gacc", Level = 1, HistoryFrames = 60, Keys = GrainKeys(0.2f, false, false) },
-            new GrainVariant { Tag = "gleap", Level = 1, Keys = GrainKeys(0f, true, false) },
-            new GrainVariant { Tag = "gleapacc", Level = 1, HistoryFrames = 60, Keys = GrainKeys(0.2f, true, false) },
-            new GrainVariant { Tag = "gramp", Level = 1, Keys = GrainKeys(0f, true, true) },
-            new GrainVariant { Tag = "grampacc", Level = 1, HistoryFrames = 60, Keys = GrainKeys(0.2f, true, true) },
-            new GrainVariant { Tag = "gb2", Level = 2, HistoryFrames = 60, Keys = GrainKeys(0f, false, false) },
+            new GrainVariant { Tag = "g0", Level = 1, Keys = GrainKeys(0f, false) },
+            new GrainVariant { Tag = "gacc", Level = 1, HistoryFrames = 60, Keys = GrainKeys(0.2f, false) },
+            new GrainVariant { Tag = "gleap", Level = 1, Keys = GrainKeys(0f, true) },
+            new GrainVariant { Tag = "gleapacc", Level = 1, HistoryFrames = 60, Keys = GrainKeys(0.2f, true) },
+            new GrainVariant { Tag = "gb2", Level = 2, HistoryFrames = 60, Keys = GrainKeys(0f, false) },
         };
 
         // The probe's limit in the grain start: 44 full-size reads, and the variants with the finer grid draw slower.
@@ -138,7 +135,7 @@ namespace ReDefinition.Atmospheres
                 if (own != null && own.Renderer != null)
                 {
                     EmitText(head + v.Tag + ".spans", own.Renderer.SpanStats);
-                    AtmospheresLog.Say("T09d grain spans " + view.Name + " " + v.Tag + ": " + own.Renderer.SpanStats + ", grid points " + own.Frame.MaxSteps + ", sequence " + own.Frame.DitherSequence);
+                    AtmospheresLog.Say("T09d grain spans " + view.Name + " " + v.Tag + ": " + own.Renderer.SpanStats + ", grid points " + own.Frame.MaxSteps);
                 }
                 int drawnFrom = own != null ? own.Stats.FramesDrawn : 0;
                 // The cuts of the history during the reads: a history that is dropped every frame removes nothing, whatever the mode row says.

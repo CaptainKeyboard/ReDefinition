@@ -166,11 +166,6 @@ namespace ReDefinition.Tests
             }
             Assert.IsTrue(worstSteps <= 2, "steps per km " + worstSteps);
             Assert.IsTrue(worstMin <= 0.12, "min step per km " + worstMin);
-            // The entry's finest step is geometric in the far weight: the near share at 0, the far share at 1, the geometric mean between.
-            Assert.AreEqual(0.125, FarViewMath.GeometricShare(0.125, 0.02, 0.0), 1e-12);
-            Assert.AreEqual(0.02, FarViewMath.GeometricShare(0.125, 0.02, 1.0), 1e-12);
-            Assert.AreEqual(Math.Sqrt(0.125 * 0.02), FarViewMath.GeometricShare(0.125, 0.02, 0.5), 1e-12);
-            Assert.AreEqual(0.125, FarViewMath.GeometricShare(0.125, 0.0, 0.7), 0.0);
         }
 
         [TestMethod]

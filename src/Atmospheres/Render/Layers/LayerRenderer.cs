@@ -61,48 +61,16 @@ namespace ReDefinition.Atmospheres
         public int CostDebug;
         // Package T05: inside a cloud the step grows by this share of the transmittance the ray has already lost (0: a fixed step).
         public float TransmittanceGrowth;
-        // The cloud's entry and edge (stream T, the noisy look): RefineBudget is the optical depth one step may add where the ray enters a cloud
-        // (it grows with the ray's optical depth so far; 0: off, the step is the grid step), RefineFraction the finest step as a share of the
-        // grid step, EdgePower the exponent of the coverage share in the density (1: linear; above 1 the density's tail towards the edge is thinner).
-        // The product's budget is 0.5: the entry of a cloud is found to 1/8 of the grid step (the look sheet's A/B: the grain of a single frame
-        // falls by 25 to 78 percent, the dither is left to the temporal reconstruction).
-        public float RefineBudget = 0f, RefineFraction = 0.25f, EdgePower = 1f;
-        // Package T14, the contour gate of the entry refinement (0: off, every ray refines; above 0 the alpha step to a neighbouring pixel of its 2 x 2 quad,
-        // or to a neighbouring march sample in the reconstruction's block mode, above which a ray is re-marched with the refinement on; the other rays keep
-        // the grid step). RefineGateFirst is the same for the relative step of the first hit's distance (0: not used).
-        public float RefineGate = 0f, RefineGateFirst = 0f;
-        // Package T15, the surface refinement by bisection: the halvings of the interval between the last empty and the first dense sample that move the
-        // sample to the cloud's entry (0: off). It acts only where the entry refinement above is off: on the whole picture, or in the blocks of the edge
-        // mode that the edge mask does not flag when the refinement is restricted to the mask (ReconSettings.RefineAtMask).
-        public int RefineBisect = 0;
-        // The optical depth one step may add inside a cloud without the entry walk (the refinement's step budget alone; 0: off). Acts only where the full
-        // refinement is off, like RefineBisect.
-        public float RefineStepBudget = 0f;
-        public const int MaxRefineBisect = 6;
-        // E40 grain, the entry ramp: after an entry found by the bisection (RefineBisect above 0) the in-cloud step starts at the bisection's precision and doubles
-        // from sample to sample up to the grid step. Without it the first dense sample lies a random share of a grid step below the cloud's surface and, at the
-        // layers' extinction (a free path of 20 m against grid steps of 25 m to over 1 km), decides the pixel's colour alone: the per-pixel grain. Off: the march as it was.
-        public bool EntryRamp;
-        // E40 grain: the factor of the step inside a cloud over the grid step (1: the grid step). With MaxSteps and EmptyLeap raised by the same factor the grid
-        // searches the clouds that many times finer while the samples inside them stay as far apart as before.
-        public float CloudStep = 1f;
         // E40 grain against TVC. SpanTight: the march searches each layer only over the altitudes of the cloud types the camera can see this frame and leaves out a
         // layer whose coverage map cannot reach the threshold there (LayerSpanBound); false: the type table's whole interval (the pass as it was).
-        // DitherSequence: the step offset in time (0: a new value per pixel and frame, the pass as it was; 1: a white offset per pixel advanced by the golden ratio
-        // per frame; 2: the same over the interleaved gradient noise). The compiled values are the pass as it was; the product's are OwnCloudOptions'.
+        // DitherSequence: the per-pixel step offset, advanced by the golden ratio per frame: 1 an integer hash (white; what the default drew before E40 step (c)), 2 the
+        // interleaved gradient noise (lower temporal noise, a regular pattern). The owner's look decision between the two is pending.
         public bool SpanTight;
-        public int DitherSequence;
-        // Package 2, the surface march: the light is marched once per entry into a cloud and carried along the ray analytically (shader _SurfP.x). Together with
-        // RefineBisect (the entry by bisection), EntryRamp (the step grows from the entry's precision) and RefineStepBudget (the optical depth of a step inside)
-        // it is the march OwnCloudOptions switches on with layers.surfaceMarch. False: the light march of the cost package.
-        public bool LightPerEntry;
+        public int DitherSequence = 2;
         // Package T16, the visibility culling and the distance LOD (all switches off until the owner agrees).
         public CullSettings Cull = new CullSettings();
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
         public bool FixedConeRotation;
-        // The per-pixel dither of the step offset and of the light cone is an integer hash (white noise); false: the interleaved gradient noise,
-        // whose power spectrum has discrete peaks that show as a regular pattern in a single frame (the look sheet's peak ratio 10 to 13 against 5 to 9).
-        public bool HashDither = true;
 
         // The cost measure of package T05 on top of T01c's: the growth of the step with the lost transmittance (2). The parity jobs leave it off.
         internal void UseProductCost()
@@ -129,7 +97,7 @@ namespace ReDefinition.Atmospheres
             IdAmbientBottom = Shader.PropertyToID("_AmbientBottom"), IdMarchP = Shader.PropertyToID("_MarchP"), IdStepP = Shader.PropertyToID("_StepP"),
             IdLimitP = Shader.PropertyToID("_LimitP"), IdPhaseP = Shader.PropertyToID("_PhaseP"), IdSceneDepth = Shader.PropertyToID("_SceneDepth"),
             IdMarchTex = Shader.PropertyToID("_MarchTex"), IdSkipP = Shader.PropertyToID("_SkipP"), IdCostP = Shader.PropertyToID("_CostP"),
-            IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize"), IdGrainP = Shader.PropertyToID("_GrainP"), IdSurfP = Shader.PropertyToID("_SurfP");
+            IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize"), IdDitherP = Shader.PropertyToID("_DitherP");
 
         // The height variation (package T13): the maps, and per layer the ranges and the ragged boundary's numbers.
         private static readonly int IdHeightMaps = Shader.PropertyToID("_HeightMaps"), IdLayerH = Shader.PropertyToID("_LayerH"),
@@ -372,12 +340,9 @@ namespace ReDefinition.Atmospheres
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
-            m.SetVector(Shader.PropertyToID("_RefineP"), new Vector4(Mathf.Max(0f, f.RefineBudget), Mathf.Clamp(f.RefineFraction, 0.01f, 1f), Mathf.Max(0.1f, f.EdgePower), f.HashDither ? 2f : (f.FixedConeRotation ? 1f : 0f)));
-            m.SetVector(Shader.PropertyToID("_RefineG"), new Vector4(Mathf.Max(0f, f.RefineGate), Mathf.Max(0f, f.RefineGateFirst), Mathf.Clamp(f.RefineBisect, 0, LayerFrame.MaxRefineBisect), Mathf.Max(0f, f.RefineStepBudget)));
             // The golden-ratio phase of the frame in double precision (a float product loses the fraction at the frame counts of a long session).
             double phase = f.FrameNumber * 0.6180339887498949;
-            m.SetVector(IdGrainP, new Vector4(f.EntryRamp ? 1f : 0f, Mathf.Clamp(f.CloudStep, 1f, 8f), Mathf.Clamp(f.DitherSequence, 0, 2), (float)(phase - Math.Floor(phase))));
-            m.SetVector(IdSurfP, new Vector4(f.LightPerEntry ? 1f : 0f, 0f, 0f, 0f));
+            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : 0f, Mathf.Clamp(f.DitherSequence, 1, 2), 0f));
             if (f.Light != null)
             {
                 for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;

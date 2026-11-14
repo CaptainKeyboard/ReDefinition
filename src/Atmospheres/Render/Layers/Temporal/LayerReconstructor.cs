@@ -39,9 +39,6 @@ namespace ReDefinition.Atmospheres
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
         public EdgeSettings Edge;
-        // Package T15 (cloudRefineEdgeMask): the entry refinement runs only in the blocks the edge mask flags, so the driver switches the edge mode and its
-        // step band on; the other blocks take the frame's bisection steps (LayerFrame.RefineBisect).
-        public bool RefineAtMask;
 
         internal ReconSettings Clone()
         {
@@ -71,7 +68,7 @@ namespace ReDefinition.Atmospheres
             IdPrevF = Shader.PropertyToID("_PrevF"), IdPrevR = Shader.PropertyToID("_PrevR"), IdPrevU = Shader.PropertyToID("_PrevU"),
             IdShellR = Shader.PropertyToID("_ShellR"), IdDrift = Shader.PropertyToID("_Drift"), IdMarchTex = Shader.PropertyToID("_MarchTex"),
             IdSceneDepth = Shader.PropertyToID("_SceneDepth"), IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize"),
-            IdRefineP = Shader.PropertyToID("_RefineP"), IdEdgeP = Shader.PropertyToID("_EdgeP"), IdEdgeMask = Shader.PropertyToID("_EdgeMask"),
+            IdEdgeP =Shader.PropertyToID("_EdgeP"), IdEdgeMask = Shader.PropertyToID("_EdgeMask"),
             IdEdgeTex = Shader.PropertyToID("_EdgeTex"), IdEdgeTexel = Shader.PropertyToID("_EdgeTex_TexelSize"), IdEdgeK = Shader.PropertyToID("_EdgeK"),
             IdEdgeD = Shader.PropertyToID("_EdgeD"), IdReconE = Shader.PropertyToID("_ReconE");
         internal const string EdgeShaderName = "ReDefinition/AtmospheresEdge";
@@ -253,15 +250,9 @@ namespace ReDefinition.Atmospheres
             layers.SetVector(IdEdgeP, new Vector4(0f, EdgeSettings.CoarseBlock, 0f, 0f));
             if (edgeOn)
             {
-                // The edge draw is the layer material's copy with the edge pattern's numbers; the coarse draw runs without the entry refinement
-                // when the step band is on (the refinement is paid in the flagged blocks only).
+                // The edge draw is the layer material's copy with the edge pattern's numbers.
                 if (edgeLayers == null || edgeLayers.shader != layers.shader) edgeLayers = new Material(layers.shader) { hideFlags = HideFlags.HideAndDontSave };
                 edgeLayers.CopyPropertiesFromMaterial(layers);
-                if (s.Edge.StepBand)
-                {
-                    Vector4 refine = layers.GetVector(IdRefineP);
-                    layers.SetVector(IdRefineP, new Vector4(0f, refine.y, refine.z, refine.w));
-                }
             }
 
             if (markStart != null) markStart(cb);

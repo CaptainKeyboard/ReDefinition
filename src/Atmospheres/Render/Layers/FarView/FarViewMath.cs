@@ -164,13 +164,6 @@ namespace ReDefinition.Atmospheres
             minStepM = nearMinStepM * (1.0 + (FarMinStepFactor - 1.0) * far);
         }
 
-        // A share between its near and its far value, geometric in the far weight (a step size scales, it does not add): near for 0, far for 1.
-        internal static double GeometricShare(double near, double far, double farWeight)
-        {
-            if (!(near > 0.0) || !(far > 0.0)) return near;
-            return near * Math.Pow(far / near, farWeight);
-        }
-
         // The coverage of the hand-over: the two renderers draw the same layer, so the picture is the cross-fade w a_near + (1 - w) a_far (a
         // premultiplied sum): equal inputs give the same coverage at every weight.
         internal static double CrossFade(double near, double far, double nearWeight)

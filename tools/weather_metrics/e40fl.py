@@ -11,7 +11,7 @@ plain backdrop (a sky gradient and a sea colour read from the game's cloud-free 
 
 Groups (job id prefix):
   sh    the shape: the cumulus layer at map 0.665 with the noise scale 5000 (cfg) / 2000 / 1000 / 700 / 500 m and the noise amount 0.35 (cfg) / 0.7 / 1.0
-  cv    the march against a converged march: the product's steps, the entry refinement, the bisection, the step budget, a lower extinction
+  cv    the march against a converged march: the product's steps, 96 steps, a lower extinction (the entry refinement, the bisection and the step budget of the first run went with their keys)
   mk    the layer mask and the light: rain deck and cumulonimbus, the deck alone by the mask, the deck alone as a stack
   fg    the rain deck at no precipitation (type value 0: Fog) at the low pick, seen from 264 m; and at the type value of Stratus
 
@@ -81,7 +81,7 @@ CLOSED = 0.92
 
 # The march of the product (LayerFrame defaults, Medium step quality) and a converged one.
 PRODUCT = dict(maxSteps=48, minStep=25.0, jitter=1.0, earlyOut=0.01, sunSteps=3, productCost=1, stepGrowth=0.0002)
-CONVERGED = dict(maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3, productCost=0, stepGrowth=0.0, refineBudget=0.1, refineFraction=0.0625)
+CONVERGED = dict(maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3, productCost=0, stepGrowth=0.0)
 
 
 def const_map(value):
@@ -115,8 +115,6 @@ def pair(jid, view, layer_list, march, tuning=None, site=0, **kw):
         args = dict(march)
         args.update(light(cam))
         args.update(kw)
-        if mode == "aux" and "refineBudget" not in args:
-            args["refineBudget"] = -1.0
         out.append(lay.job(jid + suffix, mode, cam, layer_list, SIZE[0], SIZE[1], planet=R, mapWidth=MAP_W, mapHeight=MAP_H, tuning=keys(tuning or []), **args))
     return out
 
@@ -154,10 +152,6 @@ def march_variants():
     return {
         "conv": (dict(CONVERGED), []),
         "prod": (prod(), []),
-        "refine": (prod(refineBudget=0.5), []),
-        "bisect3": (prod(refineBisect=3), []),
-        "budget": (prod(refineStepBudget=0.5), []),
-        "bisect3budget": (prod(refineBisect=3, refineStepBudget=0.5), []),
         "steps96": (prod(maxSteps=96), []),
         "sigma04": (prod(), [("cloud.layerSigmaScale." + CUMULUS, 0.4)]),
         "sigma04conv": (dict(CONVERGED), [("cloud.layerSigmaScale." + CUMULUS, 0.4)]),
@@ -515,9 +509,6 @@ def collect(ctx):
     p = conv["cv-above-cfg-prod"]
     metrics.append(Metric.info("e40fl.X2.prod_radiance_ratio_above_cfg", p[0]))
     metrics.append(Metric.info("e40fl.X2.prod_grain_over_converged_above_cfg", p[2]))
-    r = conv["cv-above-cfg-refine"]
-    metrics.append(Metric.info("e40fl.X2.refine_radiance_ratio_above_cfg", r[0]))
-    metrics.append(Metric.info("e40fl.X2.refine_grain_over_converged_above_cfg", r[2]))
     results["march"] = conv
 
     # ---- the mask and the light ----
@@ -619,7 +610,7 @@ def selftest():
     jobs = build_jobs()
     ids = [j["id"] for j in jobs]
     assert len(ids) == len(set(ids)), "job ids repeat"
-    assert "sh-above-n0700-a100" in ids and "cv-ground-cand-bisect3-x" in ids and "mk-masked-s5" in ids and "fg-fog-s7-x" in ids and "ps-above-hum-p08-s3" in ids
+    assert "sh-above-n0700-a100" in ids and "cv-ground-cand-steps96-x" in ids and "mk-masked-s5" in ids and "fg-fog-s7-x" in ids and "ps-above-hum-p08-s3" in ids
     masked = [j for j in jobs if j["id"] == "mk-masked-s2"][0]
     assert masked["layerMask"] == 1 and len(masked["layers"]) == 2
     shaped = dict((d["key"], d["value"]) for d in [j for j in jobs if j["id"] == "ps-ground-sc-p04-s0"][0]["tuning"])

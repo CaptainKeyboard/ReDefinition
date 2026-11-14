@@ -61,8 +61,6 @@ namespace ReDefinition.WeatherPlayer
                 rig.Load(job, input);
                 LayerFrame f = rig.Frame;
                 GrainTable.ApplyConverged(f);
-                // The product's soft density takes the layer's own exponent: the frame's stays 1 (SoftTable.Apply).
-                f.EdgePower = 1f;
                 // The sun as the product gives it (E40 sun colour): the white sun outside the air, Kerbin's air above each sample in the shader.
                 f.Light.SunAirWhiteBalance = false;
                 f.Light.UseAir(new Vector3(0.01534f, 0.03571f, 0.08755f) / 1000f, 3840f, 0.01214f / 0.9f / 1000f, 1000f);

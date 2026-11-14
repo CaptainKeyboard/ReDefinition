@@ -85,15 +85,6 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void StepBandRefinesOnlyInTheBandWhenOn()
-        {
-            Assert.AreEqual(0.5f, EdgeMath.RefineBudget(0.5f, true, true));
-            Assert.AreEqual(0f, EdgeMath.RefineBudget(0.5f, false, true), "outside the band the step is the grid step");
-            Assert.AreEqual(0.5f, EdgeMath.RefineBudget(0.5f, false, false), "without the band every block refines");
-            Assert.AreEqual(0f, EdgeMath.RefineBudget(0f, true, true), "refinement off stays off");
-        }
-
-        [TestMethod]
         public void TheBandMeetsTheSixPixelRequirement()
         {
             Assert.AreEqual(2, EdgeMath.DilationForBand(6), "N = 6 pixels of the edge study need two dilation blocks in the worst frame");
@@ -113,11 +104,10 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void SwitchesAndTheBandAreOffByDefault()
+        public void TheSwitchesAreOffByDefault()
         {
             EdgeSettings d = EdgeSettings.From((key, def) => def);
             Assert.IsFalse(d.Enabled);
-            Assert.IsFalse(d.StepBand);
             Assert.IsFalse(EdgeSettings.ReconstructorOn((key, def) => def));
             EdgeSettings on = EdgeSettings.From((key, def) => key == EdgeSettings.TuneEdgeAdaptive ? 1f : (key == EdgeSettings.TuneDilation ? 99f : def));
             Assert.IsTrue(on.Enabled);

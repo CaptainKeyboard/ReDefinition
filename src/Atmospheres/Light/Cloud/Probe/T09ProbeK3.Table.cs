@@ -112,7 +112,6 @@ namespace ReDefinition.Atmospheres
             Add("dlod_off_g", Ground, "noise").Set(K.CloudNoiseDistanceLod, 0);
             Add("tier_low_g", Ground, "noise").Set(K.CloudNoiseTier, 0).Noise = true;
             Add("tier_high_g", Ground, "noise").Set(K.CloudNoiseTier, 2).Noise = true;
-            Add("hash_off_g", Ground, "noise").Set(K.CloudHashDither, 0);
             AddHeightOff("h_all_off_g", Ground).Noise = true;
             Add("h_bvar_off_g", Ground, "t13").Set(K.CloudBaseVariation, 0);
             Add("h_bphys_off_g", Ground, "t13").Set(K.CloudBasePhysics, 0);
@@ -181,9 +180,6 @@ namespace ReDefinition.Atmospheres
             // --- Start k3fx: the reconstruction options (ground), lightning (horizon, storm 12 km east), rain with the wet surfaces and the droplets (ground) ---
             Add("rlow_g", Ground, "recon").Set(K.CloudReconMode, 2).Mode = "reconstruct";
             Add("edge_g", Ground, "recon").Set(K.CloudResolution, 4).Tune(EdgeSettings.TuneEdgeAdaptive, 1f).Mode = "reconstruct";
-            Add("bisect2_g", Ground, "recon").Set(K.CloudEntryRefinement, 1).Set(K.CloudRefineBisect, 2);
-            Add("contours_g", Ground, "recon").Set(K.CloudEntryRefinement, 1).Set(K.CloudRefineAtContours, 1);
-            Add("edgemask_g", Ground, "recon").Set(K.CloudRefineEdgeMask, 1).Mode = "reconstruct";
             Storm("ln_on_h");
             Storm("ln_bolts_off_h").Set(K.LightningBolts, 0);
             Storm("ln_terrain_off_h").Set(K.LightningTerrainLight, 0);
@@ -209,7 +205,6 @@ namespace ReDefinition.Atmospheres
             Add("recon2_a", Above, "recon").Set(K.CloudResolution, 2).Mode = "reconstruct";
             Add("recon3_a", Above, "recon").Set(K.CloudResolution, 3).Mode = "reconstruct";
             Add("recon4_a", Above, "recon").Set(K.CloudResolution, 4).Mode = "reconstruct";
-            Add("entry_g", Ground, "recon").Set(K.CloudEntryRefinement, 1);
             Add("cap2_g", Ground, "step").Set(K.LayerCap, 2);
             Add("cache_g", Ground, "light").Set(K.CloudLightCache, 1).Cache = true;
             Add("lshift_g", Ground, Cloud).Special = K3Special.SheetShift;

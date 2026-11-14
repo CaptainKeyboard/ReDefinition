@@ -113,17 +113,9 @@ namespace ReDefinition.WeatherPlayer
         // costDebug: the march's cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion); the jitter mode (0: the product's
         // dither, 1: none) is the job's jitter value.
         public int accumulate = 1, costDebug;
-        // The product's transmittance growth of the step (1) and the entry refinement and edge exponent (stream T; 0 / 1 leave the frame's defaults).
-        public int productCost, fixedCone, ignDither;
-        public float refineBudget, refineFraction, edgePower;
-        // The cheap forms of the entry refinement (package T15; they act where refineBudget is off): the bisection steps at an entry and the optical depth one
-        // step may add inside a cloud. frameNumber: the frame number of an aux or lum job (it moves the per-pixel step offset; the colour jobs count their own).
-        public int refineBisect, frameNumber;
-        public float refineStepBudget;
-        // E40 grain: 1 switches the entry ramp on (LayerFrame.EntryRamp; it acts with refineBisect above 0).
-        public int entryRamp;
-        // E40 grain: the factor of the step inside a cloud (LayerFrame.CloudStep; 0 or 1: the grid step).
-        public float cloudStep;
+        // The product's transmittance growth of the step (1); fixedCone: the light cone's rotation is the same for every pixel (a probe).
+        // frameNumber: the frame number of an aux or lum job (it moves the per-pixel step offset; the colour jobs count their own).
+        public int productCost, fixedCone, frameNumber;
         public float costLeap = -1f, costCut = -1f, cheapShare = -1f, fogShare = -1f;
         // An occluder sphere (centre, radius) whose depth is the scene's; radius 0: none.
         public float[] occluder;

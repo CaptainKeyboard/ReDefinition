@@ -104,12 +104,12 @@ over it. The numbers are for the RTX A4500 at the Medium profile.
 | `weather-2` | what each settings switch of ReDefinition Atmospheres costs, second third | 4 | 59 | 20 |
 | `weather-3` | what each settings switch of ReDefinition Atmospheres costs, last third | 4 | 65 | 21 |
 | `weather-4` | what the forecast overlay, the alert messages and the near-ground sea ice sheet cost | 1 | 17 | 5 |
-| `weather-5` | what the on/off and choice settings of the own cloud system cost | 2 | 59 | 16 |
-| `weather-6` | what the number settings and tuning keys of the own cloud system cost | 2 | 59 | 16 |
-| `weather-integration` | where the own cloud pass sits in the frame and what its Scatterer settings cost | 2 | 125 | 29 |
-| `weather-7` | what the cloud light fixes and the far view of the own clouds cost | 1 | 29 | 8 |
+| `weather-5` | what the on/off and choice settings of the own cloud system cost | 2 | 50 | 14 |
+| `weather-6` | what the number settings and tuning keys of the own cloud system cost | 2 | 53 | 14 |
+| `weather-integration` | where the own cloud pass sits in the frame and what its Scatterer settings cost | 2 | 101 | 24 |
+| `weather-7` | what the cloud light fixes and the far view of the own clouds cost | 1 | 26 | 7 |
 | `weather-8` | what the wet overlay, the window droplets and the lightning cost in rain | 1 | 44 | 11 |
-| `weather-9` | what the cheap forms of the cloud entry refinement cost | 1 | 23 | 7 |
+| `weather-9` | what the cloud samples choice of the soft cloud density costs | 1 | 5 | 3 |
 | `weather-10` | what the cloud visibility culling and distance LOD save | 1 | 32 | 8 |
 | `weather-11` | what the raytracing pack of the own cloud layers costs | 1 | 11 | 4 |
 | `rt-weather` | what the weather's fog, reach cap and bounce reduction on the rays save | 1 | 14 | 5 |

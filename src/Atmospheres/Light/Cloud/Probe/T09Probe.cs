@@ -17,7 +17,7 @@ namespace ReDefinition.Atmospheres
     // else draws clouds), tvc (cloudSource Eve: EVE's raymarched layers draw the maps of our field; its own start, it needs EVE and Scatterer),
     // plain (own pass, resolution level 1: the half-size march target, a quarter of the pixels), recon2, recon3 and recon4 (the levels of the slider cloudResolution: one pixel of every 2 x 2, 3 x 3 or 4 x 4 block
     // per frame; recon2 and recon3 in the views ground, inside and above only, for the time); then the A/B variants that need one view only (the "inside" view): cache (the light cache
-    // on: its saving = plain minus cache, fill included), cap2 (the layer cap at 2), entry (plain plus the entry refinement), and, when asked for with -atmoVariants but not in the
+    // on: its saving = plain minus cache, fill included), cap2 (the layer cap at 2), and, when asked for with -atmoVariants but not in the
     // default list (time): edge (the edge-adaptive mode, T12) and heightoff (the four height switches off, T13: cost of the height variation = plain minus heightoff); and gain (no
     // dwell: the sun and moon gains reach the pass).
     // The views: ground (200 m above the pad, looking up), inside (inside the lowest cumulus layer), above (between the cumulus tops and the cirrus,
@@ -88,7 +88,7 @@ namespace ReDefinition.Atmospheres
 
         protected override IList<string> DefaultVariants
         {
-            get { return IsDiag ? new[] { "plain" } : IsK3 ? K3Variants.AllIds : new[] { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "entry", "gain" }; }
+            get { return IsDiag ? new[] { "plain" } : IsK3 ? K3Variants.AllIds : new[] { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "gain" }; }
         }
 
         // --- Variants ---------------------------------------------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ namespace ReDefinition.Atmospheres
         // The variants that are measured in the "inside" view only.
         private static bool InsideOnly(string variant)
         {
-            return variant == "edge" || variant == "heightoff" || variant == "cap2" || variant == "cache" || variant == "entry";
+            return variant == "edge" || variant == "heightoff" || variant == "cap2" || variant == "cache";
         }
 
         // recon2 and recon3 are measured in the three views that carry the clouds against a surface (ground, inside, above), recon4 and the baselines in all five: the time budget
@@ -177,10 +177,6 @@ namespace ReDefinition.Atmospheres
                     UseOwn();
                     SetSetting(AtmospheresSettings.Keys.CloudResolution, (double)ReconLevel(name));
                     break;
-                case "entry":
-                    UseOwn();
-                    SetSetting(AtmospheresSettings.Keys.CloudEntryRefinement, 1.0);
-                    break;
                 case "edge":
                     UseOwn();
                     SetSetting(AtmospheresSettings.Keys.CloudResolution, 4.0);
@@ -246,8 +242,6 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
             SetSetting(AtmospheresSettings.Keys.CloudReconMode, (double)(int)ReconMode.Full);
             SetSetting(AtmospheresSettings.Keys.CloudResolution, 1.0);
-            SetSetting(AtmospheresSettings.Keys.CloudEntryRefinement, 0.0);
-            SetSetting(AtmospheresSettings.Keys.CloudRefineAtContours, 0.0);
             SetSetting(AtmospheresSettings.Keys.CloudLightCache, 0.0);
             SetSetting(AtmospheresSettings.Keys.LayerCap, (double)CloudLayerDef.MaxLayers);
             SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 1.0);

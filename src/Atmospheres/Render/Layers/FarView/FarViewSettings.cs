@@ -39,14 +39,8 @@ namespace ReDefinition.Atmospheres
         // FarViewMath.MarchQuality (a quality reduction from orbit: off until the owner agrees; the caller applies it with Quality).
         public bool Policy;
 
-        // The finest step of the cloud's entry as a share of the grid step above the band (the frame's own share below it, geometric between); 0: the
-        // frame's own share all the way. A finer entry (0.02 against 0.125) changed the far view at 230 km by 0.9 points of coverage (further below
-        // the dense march) and 0.8 points of luminance (closer to it), the second sweep: not worth the longer entry walk, so the default leaves the
-        // frame's own share.
-        public float RefineFraction;
-
-        // Writes the policy's numbers into the frame for a camera altitude over a body of that radius, from the frame's near numbers: the step budget,
-        // the shortest step and (where the frame refines the entry) the finest step of the entry. Nothing where the policy is off.
+        // Writes the policy's numbers into the frame for a camera altitude over a body of that radius, from the frame's near numbers: the step budget and
+        // the shortest step. Nothing where the policy is off.
         internal void ApplyTo(LayerFrame frame, double altitudeM, double radiusM)
         {
             if (!Policy) return;
@@ -55,8 +49,6 @@ namespace ReDefinition.Atmospheres
             FarViewMath.MarchQuality(altitudeM, bandStart, bandEnd, frame.MaxSteps, frame.MinStepM, out steps, out minStep);
             frame.MaxSteps = steps;
             frame.MinStepM = (float)minStep;
-            if (frame.RefineBudget > 0f)
-                frame.RefineFraction = (float)FarViewMath.GeometricShare(frame.RefineFraction, RefineFraction, 1.0 - FarViewMath.NearWeight(altitudeM, bandStart, bandEnd));
         }
 
         // The property ids live in a nested class: it is initialised on the first Upload, so that a settings object can be made (and read by the unit

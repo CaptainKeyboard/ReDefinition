@@ -6,11 +6,11 @@
 The scenes, the views, the masks and the measures are e40gn.py's (the pass as the game runs it: the half-size march laid up to 1708 x 960, with a history); the cases are
 GrainTable.GtTemporal / GtCost of tests/WeatherPlayer/Assets/Runner/GrainProbeScene.cs (-cases gt):
 
-  seq1 / seq2   the step offset keeps a per-pixel value (white / interleaved gradient noise) and advances by the golden ratio per frame (layers.ditherSequence)
+  seq1          the product's march: the step offset keeps a per-pixel value (the interleaved gradient noise) and advances by the golden ratio per frame (the one
+                sequence of the shader since E40 step (c); seq2, tseq2, tramp2 and the whole series e40-s2 of the surface march went with their keys)
   tight         the march searches only the altitudes of the cloud types present around the camera (layers.spanTight)
   t32 / t24     the cut span with 32 / 24 grid points at most
   tleap2        the cut span with twice the grid points and the leap over empty samples
-  tramp2        the cut span with the entry found by two bisection steps and the step ramp
 
 A march over the cut span is judged against the converged march over the cut span (reft): its light taps lie closer than over the whole shell, so the two converged
 pictures differ in the light, not in the shape. Additional measures beside e40gn's: blob = rms of (luma - 5 x 5 box mean) of one frame minus the converged picture's over
@@ -28,9 +28,8 @@ sys.path.insert(0, os.path.dirname(HERE))
 from weather_metrics import Metric, Stage, register_series  # noqa: E402
 from weather_metrics import e40gn as gn  # noqa: E402
 
-T_CASES = [("prod", "plain"), ("prod", "acc20"), ("seq1", "acc20"), ("seq2", "acc20"), ("seq1", "acc10"), ("tight", "plain"), ("tight", "acc20"), ("tseq1", "acc20"),
-           ("tseq2", "acc20"), ("tseq1", "acc10"), ("t32seq1", "acc20"), ("t24seq1", "acc20"), ("tleap2seq1", "acc20"), ("tramp2seq1", "acc20"), ("leap4x", "acc20"),
-           ("leap4xseq1", "acc20"), ("t16seq1", "acc20"), ("t12seq1", "acc20")]
+T_CASES = [("prod", "plain"), ("prod", "acc20"), ("seq1", "acc10"), ("tight", "plain"), ("tight", "acc20"), ("tseq1", "acc10"), ("t32seq1", "acc20"),
+           ("t24seq1", "acc20"), ("tleap2seq1", "acc20"), ("leap4x", "acc20"), ("leap4xseq1", "acc20"), ("t16seq1", "acc20"), ("t12seq1", "acc20")]
 
 
 def ref_tag(march):
@@ -56,17 +55,8 @@ def inner(mask):
     return m
 
 
-# Package 2 (the surface march; -cases s2): the entry by bisection, the step inside by optical depth, the light once per entry.
-S2_CASES = [("prod", "plain"), ("prod", "acc20"), ("surf3", "plain"), ("surf3", "acc20"), ("surf4", "plain"), ("surf4", "acc20"), ("surf3ls", "acc20"),
-            ("surf3b15", "plain"), ("surf3b15", "acc20"), ("surf3s32", "acc20"), ("tsurf3", "plain"), ("tsurf3", "acc20")]
-
-
 def collect_temporal(ctx):
     return collect_cases(ctx, T_CASES, "e40-gt")
-
-
-def collect_s2(ctx):
-    return collect_cases(ctx, S2_CASES, "e40-s2")
 
 
 def collect_cases(ctx, T_CASES, prefix):
@@ -148,10 +138,6 @@ def collect_cost(ctx):
 
 register_series("e40-gt-temporal", [Stage("temporal", ["-mode", "scene", "-scene", "grain-temporal", "-in", gn.INPUT, "-cases", "gt"], size=(1280, 720), proxy=False,
                                           timeout=3000)], collect_temporal, exclusive=False, who="e40-gt")
-register_series("e40-s2-temporal", [Stage("temporal", ["-mode", "scene", "-scene", "grain-temporal", "-in", gn.INPUT, "-cases", "s2"], size=(1280, 720), proxy=False,
-                                          timeout=3000)], collect_s2, exclusive=False, who="e40-gt")
-register_series("e40-s2-cost", [Stage("cost", ["-mode", "scene", "-scene", "grain-cost", "-in", gn.INPUT, "-cases", "s2"], size=(1707, 960), proxy=True, timeout=1500)],
-                collect_cost, exclusive=True, who="e40-gt")
 register_series("e40-gt-cost", [Stage("cost", ["-mode", "scene", "-scene", "grain-cost", "-in", gn.INPUT, "-cases", "gt"], size=(1707, 960), proxy=True, timeout=1500)],
                 collect_cost, exclusive=True, who="e40-gt")
 

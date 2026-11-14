@@ -233,9 +233,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             string[] keys =
             {
                 "ownClouds", "layerCap", "layerStepQuality", "layerStepGrowth", "cloudNoise", "cloudNoiseUntile", "cloudNoiseCurl", "cloudNoiseTier",
-                "cloudNoiseDistanceLod", "cloudFineDetail", "cloudEntryRefinement", "cloudHashDither", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
+                "cloudNoiseDistanceLod", "cloudFineDetail", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
                 "cloudSunTint", "cloudMoonLights", "cloudAmbientTaps", "cloudAmbientReuse", "cloudShadows", "cloudShadowQuality",
-                "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudRefineAtContours", "cloudRefineBisect", "cloudRefineEdgeMask", "cloudSkipEmpty", "cloudSkipClosed", "cloudLayerDistanceCut", "cloudStepGrowth", "cloudTapLod", "cloudDetailLod", "cloudLayerCapDistance", "cloudSunMarchLong", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudFarHaze",
+                "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudSkipEmpty", "cloudSkipClosed", "cloudLayerDistanceCut", "cloudStepGrowth", "cloudTapLod", "cloudDetailLod", "cloudLayerCapDistance", "cloudSunMarchLong", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudFarHaze",
                 "cloudFarShapeMean", "cloudFarMinSamples", "cloudFarPolicy", "cloudFarMapFade", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft",
                 "baseRagged"
             };
@@ -254,7 +254,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(ReconMode.Low, OwnCloudOptions_ReconModeDefault());
             Assert.IsFalse(EdgeSettings.AdaptiveDefault);
             Assert.IsFalse(EdgeSettings.ReconstructorDefault);
-            Assert.IsFalse(EdgeSettings.StepBandDefault);
             Assert.IsFalse(LightningSwitches.EnabledDefault);
             Assert.IsFalse(LayerSwitches.OwnCloudsDefault);
             Assert.IsFalse(new FarViewSettings().Haze);

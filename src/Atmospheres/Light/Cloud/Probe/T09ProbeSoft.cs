@@ -60,7 +60,9 @@ namespace ReDefinition.Atmospheres
             Soft("soft", "ga", "gias"),
             Soft("hard", "ga", "ga", "t:" + CloudSoftDensity.TuneOn + "=0"),
             Soft("soft100s24", "ga", "gias", "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0"),
-            SoftSlot("slot1"), SoftSlot("slot2"), SoftSlot("slot3"), SoftSlot("slot4")
+            // The owner's look decision between the two step offsets (E40 step (c)): the white hash the default drew before, frames only, no cost window.
+            Soft("softhash", "", "", "t:" + OwnCloudOptions.TuneDitherSequence + "=1"),
+            SoftSlot("slot2"), SoftSlot("slot3"), SoftSlot("slot4")
         };
 
         // The scenario's own limit (the runner's is 20 minutes for the whole start: the game needs about 90 s to come up). A guard only: the scenario ends when its last view is done.

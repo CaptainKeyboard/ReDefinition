@@ -1,42 +1,18 @@
-"""The series of package T15 (cheap forms of the entry refinement, the direct / scatter split of the deep storm cell, the cost of the cloud
-resolution levels), run through tools/build_weather_player.py --series <name>:
+"""The series of package T15 (the resolution levels, the direct / scatter split of the deep storm cell, the combinations of the sun march),
+run through tools/build_weather_player.py --series <name>. The series T15-bisect-cost and T15-bisect-quality (the cheap forms of the entry refinement) went with the
+entry refinement (E40 step (c)):
 
-  T15-bisect-cost     timing run (exclusive), scene 'bisect-cost': ms of the cloud pass at 1707x960 per view for the refinement off, on every ray, 2 to 4 bisection
-                      steps, in the full mode (plain), the 4 x 4 block mode (recon4: cloudResolution 4) and the edge mode (edge: the refinement only in the flagged
-                      blocks, the bisection steps elsewhere), and for the resolution levels 2 and 3; every variant twice.
-  T15-bisect-quality  scene 'bisect-quality': per view the error of each variant against the reference (the mean of four full marches with the refinement on every
-                      ray) in the band around the contour, in the thick interior and in the empty sky, the seam of the edge mode, and the pictures
-                      t15-<view>-<variant>.png, t15-<view>-aid-error-<group>.png in the player's output folder (refine15).
-  T15-bisect-levels   scene 'bisect-levels': the resolution levels 1 to 4 (and level 4 with the bisection and with the refinement) through two turns:
-                      ghosting, trail and shimmer.
+  T15-levels          scene 'recon-levels' (it was 'bisect-levels'): the resolution levels 1 to 4 through two turns: ghosting, trail and shimmer.
   T15-split           scene 'light': the deep storm cell (radius 4000 m, 8 km wide, as in the T14 storm cells) as direct light only (single scattering), multiple
                       scattering, ambient and total, against the T11 reference renderer's order 1 (direct) and the rest of its total; pictures t15-<cell>-*.png;
                       and the combinations of the sun march 9000 m with more ambient taps and the light cache against the reference base radiance.
 
-THRESHOLDS and their sources (fixed BEFORE the first run; a sweep changes the number of steps only, at most 3 sweeps):
-  group           the three variants that bound a group: full (the refinement on every ray), none (no refinement), and the cheap candidates of the group
-                  plain   full, none; candidates b2, b3, b4  (2, 3, 4 bisection steps, everywhere)
-                  recon4  u4full, u4none; candidates u4b2, u4b3, u4b4  (the same at cloudResolution 4)
-                  edge    eN (the edge mode, refinement in every block), eNone (the edge mode, no refinement); candidates eB0, eB2, eB3, eB4 (refinement only in
-                          the blocks the edge mask flags; elsewhere 0, 2, 3, 4 bisection steps)
-  interior        interior_err(candidate) <= 1.15 x interior_err(full of the group)     owner order of the package: within 15 percent of the full refinement
-                                                                                        (the T12 brief's "within 15 percent of full resolution")
-  band            band_rms(candidate) <= 1.15 x band_rms(full of the group)             the same
-  added cost      (ms(candidate) - ms(none)) <= 0.40 x (ms(full) - ms(none))             owner order of the package: at most 40 percent of the refinement's added cost
-                                                                                        (ms: the median of two passes of 50 frames at 1707 x 960, exclusive)
-  empty sky       empty_leak(candidate) <= max(0.0001, 1.15 x empty_leak(full))          T12 brief: the empty sky exact (0.0001), never worse than the full refinement
-  seam (edge)     seam(candidate) <= 0.01                                                T12 row (the border between a flagged and an unflagged block)
-  A candidate GOES when interior, band, added cost and empty sky hold on the views where the refinement has anything to gain (the views where
-  interior_err(none) > 1.15 x interior_err(full) or band_rms(none) > 1.15 x band_rms(full)); the table prints the verdict per view and per candidate.
-  Resolution levels, the direct / scatter split and the combinations carry no pass/fail limit: their numbers are for the owner's decision.
+Resolution levels, the direct / scatter split and the combinations carry no pass/fail limit: their numbers are for the owner's decision.
 
-    python tools/weather_metrics/t15.py summary         # the verdict table from the latest T15-bisect-cost and T15-bisect-quality runs
     python tools/weather_metrics/t15.py refs            # the reference renders of the storm cells (total, direct) into build/parity-ref-holdout
 """
-import glob
 import json
 import os
-import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -44,98 +20,8 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 REPO = os.path.dirname(os.path.dirname(HERE))
 BUILD = os.path.join(REPO, "build", "weather-series")
-# Sweep 1: 2, 3, 4 bisection steps. Sweep 2 (cumulative: the table of sweep 1 plus the bisection with the step budget, c0, c3, u4c0, u4c3, eC3).
-SWEEP = os.environ.get("T15_SWEEP", "2")
 NAN = float("nan")
 
-VIEWS = ("ground", "inside", "above", "orbit-edge", "stack-below")
-GROUPS = {
-    "plain": dict(full="full", none="none", cands=("b2", "b3", "b4", "c0", "c3")),
-    "recon4": dict(full="u4full", none="u4none", cands=("u4b2", "u4b3", "u4b4", "u4c0", "u4c3")),
-    "edge": dict(full="eN", none="eNone", cands=("eB0", "eB2", "eB3", "eB4", "eC3")),
-}
-LIMIT_BAND = LIMIT_INTERIOR = 1.15
-LIMIT_COST = 0.40
-LIMIT_LEAK = 0.0001
-LIMIT_SEAM = 0.01
-# Below this much added cost of the full refinement a view has nothing to save and the ratio of added costs is noise.
-MIN_ADDED_MS = 0.05
-
-
-def metrics_of(path):
-    """{name: value} of a series json written by the runner."""
-    with open(path, encoding="utf-8") as f:
-        return {m["metric"]: m["value"] for m in json.load(f)}
-
-
-def latest(series):
-    files = sorted(glob.glob(os.path.join(BUILD, series + "-2*.json")))
-    return files[-1] if files else None
-
-
-def cost_table(values):
-    """{(view, variant): (mean ms, spread)} from the two passes of the cost scene (tags bisectcost and bisectcostb)."""
-    rows = {}
-    for k, v in values.items():
-        m = re.match(r"bisectcostb?\.total\.(V-[a-z-]+)\.([A-Za-z0-9]+)\.1707x960$", k)
-        if m:
-            rows.setdefault((m.group(1)[2:], m.group(2)), []).append(v)
-    return {key: (sum(v) / len(v), max(v) - min(v)) for key, v in rows.items()}
-
-
-def added_cost_ratio(table, view, group, var):
-    g = GROUPS[group]
-    full, none, cand = (table.get((view, name), (NAN, NAN))[0] for name in (g["full"], g["none"], var))
-    denominator = full - none
-    if denominator != denominator or denominator < MIN_ADDED_MS:
-        return NAN
-    return (cand - none) / denominator
-
-
-# ------------------------------------------------------------------------------------------------------------------------------------------------
-# Running as a script: the verdict table
-# ------------------------------------------------------------------------------------------------------------------------------------------------
-def verdict_table():
-    cost_path, quality_path = latest("T15-bisect-cost"), latest("T15-bisect-quality")
-    if not cost_path or not quality_path:
-        print("no T15-bisect-cost / T15-bisect-quality result in", BUILD)
-        return 2
-    table = cost_table(metrics_of(cost_path))
-    q = metrics_of(quality_path)
-
-    def qv(view, var, field):
-        return q.get("refq15.%s.%s.%s" % (view, var, field), q.get("bisq.%s.%s.%s" % (view, var, field), NAN))
-
-    print("cost: %s\nquality: %s\n" % (os.path.basename(cost_path), os.path.basename(quality_path)))
-    print("%-7s %-11s %-6s %9s %9s %9s %9s %9s %9s %7s  %s" % ("group", "view", "var", "int/full", "band/full", "added", "leak", "seam", "gain?", "recov", "verdict"))
-    goes = {}
-    for group, g in GROUPS.items():
-        for view in VIEWS:
-            fi, fb, fl = qv(view, g["full"], "interior_err"), qv(view, g["full"], "band_rms"), qv(view, g["full"], "empty_leak")
-            ni, nb = qv(view, g["none"], "interior_err"), qv(view, g["none"], "band_rms")
-            gain = (ni > LIMIT_INTERIOR * fi) or (nb > LIMIT_BAND * fb)
-            for var in g["cands"]:
-                ci, cb = qv(view, var, "interior_err"), qv(view, var, "band_rms")
-                if ci != ci:
-                    continue
-                cl, seam = qv(view, var, "empty_leak"), qv(view, var, "seam")
-                ri, rb = ci / fi if fi else NAN, cb / fb if fb else NAN
-                added = added_cost_ratio(table, view, group, var)
-                recov = ((ni - ci) / (ni - fi)) if ni != fi else NAN
-                ok = (ri <= LIMIT_INTERIOR and rb <= LIMIT_BAND and (added == added and added <= LIMIT_COST)
-                      and cl <= max(LIMIT_LEAK, LIMIT_BAND * fl) and (group != "edge" or seam != seam or seam <= LIMIT_SEAM))
-                if gain:
-                    goes.setdefault((group, var), []).append(ok)
-                print("%-7s %-11s %-6s %9.2f %9.2f %9.2f %9.5f %9.4f %9s %7.2f  %s" % (group, view, var, ri, rb, added, cl, seam if seam == seam else 0.0,
-                                                                                         "gain" if gain else "none", recov, "ok" if ok else "FAIL"))
-    print("\nper candidate on the views with a gain:")
-    for (group, var), flags in sorted(goes.items()):
-        print("  %-7s %-6s  %d of %d views  %s" % (group, var, sum(flags), len(flags), "GO" if all(flags) else "NO GO"))
-    return 0
-
-
-if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "summary":
-    sys.exit(verdict_table())
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------
 # The series (importing this module registers them)
@@ -156,67 +42,6 @@ def values_of(ctx, label="scene"):
     return {name: v[0] for name, v in ctx.player_metrics(label).items()}
 
 
-def cost_collect(ctx):
-    out = list(core.player_judged("scene")(ctx))
-    values = values_of(ctx)
-    table = cost_table(values)
-    views = sorted({k[0] for k in table})
-    for (view, var), (ms, spread) in sorted(table.items()):
-        out.append(Metric.info("refine15.cost_ms.%s.%s" % (view, var), ms))
-        out.append(Metric.info("refine15.cost_spread.%s.%s" % (view, var), spread))
-    for group in GROUPS:
-        for view in views:
-            for var in GROUPS[group]["cands"]:
-                if (view, var) not in table:
-                    continue
-                ratio = added_cost_ratio(table, view, group, var)
-                if ratio == ratio:
-                    out.append(Metric.at_most("refine15.added_cost.%s.%s" % (view, var), ratio, LIMIT_COST).based("owner"))
-                else:
-                    out.append(Metric.info("refine15.added_cost.%s.%s" % (view, var), ratio))
-    # The resolution levels: lv1 is 'none', lv2 and lv3 the block modes, lv4 'u4none'; the ratio to level 1.
-    for view in views:
-        base = table.get((view, "none"), (NAN, NAN))[0]
-        for level, var in ((2, "lv2"), (3, "lv3"), (4, "u4none")):
-            if (view, var) in table:
-                out.append(Metric.info("levels.cost_ms.%s.L%d" % (view, level), table[(view, var)][0]))
-                out.append(Metric.info("levels.cost_ratio.%s.L%d" % (view, level), table[(view, var)][0] / base))
-        out.append(Metric.info("levels.cost_ms.%s.L1" % view, base))
-    return out
-
-
-def quality_collect(ctx):
-    out = list(core.player_judged("scene")(ctx))
-    values = values_of(ctx)
-
-    def qv(view, var, field):
-        return values.get("bisq.%s.%s.%s" % (view, var, field), NAN)
-
-    for view in VIEWS:
-        for name in {k.split(".")[2] for k in values if k.startswith("bisq.%s." % view) and k.split(".")[2] != "ref"}:
-            for field in ("band_rms", "interior_err", "empty_leak", "band_flicker", "seam", "mask_share"):
-                v = qv(view, name, field)
-                if v == v:
-                    out.append(Metric.info("refq15.%s.%s.%s" % (view, name, field), v))
-        for group, g in GROUPS.items():
-            fi, fb, fl = qv(view, g["full"], "interior_err"), qv(view, g["full"], "band_rms"), qv(view, g["full"], "empty_leak")
-            ni, nb = qv(view, g["none"], "interior_err"), qv(view, g["none"], "band_rms")
-            gain = (ni > LIMIT_INTERIOR * fi) or (nb > LIMIT_BAND * fb)
-            out.append(Metric.info("refine15.gain_view.%s.%s" % (view, group), 1.0 if gain else 0.0))
-            for var in g["cands"]:
-                ci, cb, cl, seam = qv(view, var, "interior_err"), qv(view, var, "band_rms"), qv(view, var, "empty_leak"), qv(view, var, "seam")
-                if ci != ci:
-                    continue
-                recov = (ni - ci) / (ni - fi) if ni != fi else NAN
-                out.append(Metric.info("refine15.interior_recovery.%s.%s" % (view, var), recov))
-                out.append(Metric.at_most("refine15.interior_vs_full.%s.%s" % (view, var), ci / fi, LIMIT_INTERIOR).based("owner"))
-                out.append(Metric.at_most("refine15.band_vs_full.%s.%s" % (view, var), cb / fb, LIMIT_BAND).based("owner"))
-                out.append(Metric.at_most("refine15.empty_leak.%s.%s" % (view, var), cl, max(LIMIT_LEAK, LIMIT_BAND * fl)).based("gate"))
-                if group == "edge" and seam == seam:
-                    out.append(Metric.at_most("refine15.seam.%s.%s" % (view, var), seam, LIMIT_SEAM).based("gate"))
-    return out
-
-
 def levels_collect(ctx):
     out = list(core.player_judged("scene")(ctx))
     for name, v in sorted(values_of(ctx).items()):
@@ -225,12 +50,8 @@ def levels_collect(ctx):
     return out
 
 
-register_series("T15-bisect-cost", [Stage("scene", ["-mode", "scene", "-scene", "bisect-cost", "-sweep", SWEEP, "-in", L.INPUT], size=(1707, 960), proxy=True,
-                                          timeout=1500)], cost_collect, exclusive=True, who="T15")
-register_series("T15-bisect-quality", [Stage("scene", ["-mode", "scene", "-scene", "bisect-quality", "-sweep", SWEEP, "-in", L.INPUT], size=(1280, 720),
-                                             proxy=False, timeout=1500)], quality_collect, exclusive=False, who="T15")
-register_series("T15-bisect-levels", [Stage("scene", ["-mode", "scene", "-scene", "bisect-levels", "-in", L.INPUT], size=(1280, 720), proxy=False,
-                                            timeout=1500)], levels_collect, exclusive=False, who="T15")
+register_series("T15-levels", [Stage("scene", ["-mode", "scene", "-scene", "recon-levels", "-in", L.INPUT], size=(1280, 720), proxy=False,
+                                      timeout=1500)], levels_collect, exclusive=False, who="T15")
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------

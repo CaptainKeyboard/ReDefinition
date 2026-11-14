@@ -2,11 +2,8 @@
 //
 // ReDefinitionAtmospheresLayers.shader includes this file once, at the end of its shared CGINCLUDE (after Pass0 is defined), and nothing
 // else of that shader changes. The file wraps Pass0: a draw that is the EDGE pass (_EdgeP.x = 1, the 2 x 2 pattern of rays) marches only the
-// pixels whose 4 x 4 block the edge mask flags and returns zero for the rest, so the rays, the sun marches and the entry refinement are paid in
-// the narrow band around the cloud contours; the coarse pass (_EdgeP.x = 0, the default of a material that never set it) is Pass0 unchanged.
-// The step band is the draw's own _RefineP (the caller sets the entry refinement on the edge draw and, with edgeStepBand, off on the coarse
-// one), so the fine steps near the surface are found only inside the band, and the interior steps stay the grid and the transmittance growth
-// of package T05.
+// pixels whose 4 x 4 block the edge mask flags and returns zero for the rest, so the rays and the sun marches are paid in the narrow band around
+// the cloud contours; the coarse pass (_EdgeP.x = 0, the default of a material that never set it) is Pass0 unchanged.
 //
 // The mask is built by ReDefinitionAtmospheresEdge.shader from the coarse samples' alpha gradient and the last picture (see there).
 //
@@ -28,8 +25,6 @@ bool EdgeBlockFlagged(float2 fullUv)
 float4 EdgePass0(v2f i)
 {
     if (_EdgeP.x > 0.5 && !EdgeBlockFlagged(FullUv(i.uv))) return float4(0, 0, 0, 0);
-    // The contour gate of package T14 takes quad derivatives, which the edge draw's per-pixel early return leaves undefined: that draw refines as asked.
-    gGateOff = _EdgeP.x > 0.5 ? 1.0 : 0.0;
     return Pass0(i);
 }
 

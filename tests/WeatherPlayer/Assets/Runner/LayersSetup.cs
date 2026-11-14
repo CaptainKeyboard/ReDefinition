@@ -103,16 +103,6 @@ namespace ReDefinition.WeatherPlayer
             if (job.ambientGain > 0f) frame.Light.AmbientGain = job.ambientGain;
             if (job.productCost != 0) frame.UseProductCost();
             frame.FixedConeRotation = job.fixedCone != 0;
-            frame.HashDither = job.ignDither == 0;
-            // The measurement jobs (aux, lum) integrate on the grid step as their CPU references do; the pictures take the product's refinement.
-            if (job.mode != "color" && job.refineBudget == 0f) frame.RefineBudget = 0f;
-            if (job.refineBudget != 0f) frame.RefineBudget = Mathf.Max(0f, job.refineBudget);   // negative: off
-            if (job.refineFraction > 0f) frame.RefineFraction = job.refineFraction;
-            if (job.edgePower > 0f) frame.EdgePower = job.edgePower;
-            if (job.refineBisect > 0) frame.RefineBisect = job.refineBisect;
-            if (job.refineStepBudget > 0f) frame.RefineStepBudget = job.refineStepBudget;
-            frame.EntryRamp = job.entryRamp != 0;
-            if (job.cloudStep > 1f) frame.CloudStep = job.cloudStep;
             frame.FrameNumber = job.frameNumber;
             if (job.costBound >= 0) frame.CoverageBound = job.costBound != 0;
             if (job.costLeap >= 0f) frame.EmptyLeap = job.costLeap;
@@ -133,8 +123,7 @@ namespace ReDefinition.WeatherPlayer
                 far.Inscatter = Rgb(job.far.inscatter, far.Inscatter);
                 far.Policy = job.far.policy != 0;
                 far.MinSamples = job.far.minSamples;
-                if (job.far.refine > 0f) far.RefineFraction = job.far.refine;
-                // The march policy of the far view: the step budget, the shortest step and the entry's finest step by the camera's altitude.
+                // The march policy of the far view: the step budget and the shortest step by the camera's altitude.
                 far.ApplyTo(frame, V(job.position).magnitude - job.planetRadius, job.planetRadius);
             }
             if (job.cheapShare >= 0f) frame.CheapShare = job.cheapShare;

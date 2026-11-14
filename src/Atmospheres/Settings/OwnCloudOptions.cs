@@ -13,25 +13,17 @@ namespace ReDefinition.Atmospheres
         // The tuning keys (ATMO_TUNING { key = value }, or a matrix row atmo.<key>) of the cost controls of the march (T01c). The values
         // are the compiled defaults of LayerFrame.
         internal const string TuneCoverageBound = "layers.coverageBound", TuneLightStride = "layers.lightStride", TuneLightCutoff = "layers.lightCutoff",
-            TuneEmptyLeap = "layers.emptyLeap", TuneCheapShare = "layers.cheapShare", TuneFogShare = "layers.fogShare",
-            TuneRefineBudget = "layers.refineBudget", TuneRefineFraction = "layers.refineFraction", TuneEdgePower = "layers.edgePower",
-            TuneRefineGate = "layers.refineGate", TuneRefineGateFirst = "layers.refineGateFirst";
+            TuneEmptyLeap = "layers.emptyLeap", TuneCheapShare = "layers.cheapShare", TuneFogShare = "layers.fogShare";
 
-        // E40 grain: the entry ramp (LayerFrame.EntryRamp) as the bisection steps it searches an entry with; 0: off.
-        internal const string TuneEntryRamp = "layers.entryRamp";
-        internal const float EntryRampDefault = 0f;
         // E40 grain: the multiplier of the most grid points of a span (LayerFrame.MaxSteps); 1: the step quality's count.
         internal const string TuneGridFine = "layers.gridFine";
         internal const float GridFineDefault = 1f;
-        // E40 grain: the factor of the step inside a cloud over the grid step (LayerFrame.CloudStep); 1: the grid step.
-        internal const string TuneCloudStep = "layers.cloudStep";
-        internal const float CloudStepDefault = 1f;
         // E40 grain: the weight of a new frame in the history of the half-size march (ReconSettings.Accumulate); 0: no history (the pass before the package).
         // Measured at 0.2: against no history the temporal noise of a pixel falls to 0.18 (ground) and 0.27 (above) of it in the game (K-T2d start 54, rows
         // grain_tstd of g0 and gacc) and to 0.22 in the player, the error against the converged picture falls under a still camera, a turn of 30 and 180 degrees a
         // second and a fly-by of 300 and 2400 m/s (series e40-gn-temporal), and the pass costs 0.02 ms more at 1707 x 960 (series e40-gn-cost). It is the default
         // (the owner delegated the choice): level 1 keeps the reprojected, clipped history and the pass reads "reconstruct"; recon.accumulate 0 is the former plain pass.
-        // The finer grid (layers.gridFine, layers.emptyLeap), the entry ramp and layers.cloudStep stay off until their cost with all layers is measured in the game.
+        // The finer grid (layers.gridFine, layers.emptyLeap) stays off until its cost with all layers is measured in the game.
         internal const string TuneAccumulate = "recon.accumulate";
         internal const float AccumulateDefault = 0.2f;
 
@@ -43,30 +35,25 @@ namespace ReDefinition.Atmospheres
         internal const bool ReconJitterDefault = false;
 
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
-        // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach) and layers.ditherSequence
-        // (LayerFrame.DitherSequence; 0: a new step offset per pixel and frame, the march as it was; 1, the default: a per-pixel offset advanced by the golden ratio).
+        // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
         // Measured: in the player (one layer, the lowest type alone) the cut lowers the temporal noise of a cloud pixel from 0.0031 / 0.0101 (closed / rim) to
         // 0.0006 / 0.0014 and the error against the converged picture from 0.050 to 0.018 (series e40-gt-temporal). In the game the map around the camera holds most
         // types, the interval stays wide (cumulus layer 608 to 8042 m of 430 to 9990) and the noise falls by 13 percent (ground) and 2 percent (above) at +0.7 / 0.0 ms
-        // (K-T2d start gt57), so the cut is not the default: it is the search interval of the per-ray march that follows this package. The sequence costs nothing
-        // (player: 10 to 40 percent less temporal noise under the history; no measurable change in the game at rain, K-T2 start gt1707).
-        internal const string TuneSpanTight = "layers.spanTight", TuneDitherSequence = "layers.ditherSequence";
-        // Under the surface march (layers.surfaceMarch) the cut is worth more (start gt58: 0.0086 / 0.0043 -> 0.0053 / 0.0029 at +1.1 / +0.2 ms).
+        // (K-T2d start gt57), so the cut is not the default: it is the search interval of the per-ray march that follows this package.
+        // The step offset is one fixed sequence (the interleaved gradient noise per pixel, advanced by the golden ratio per frame; the shader's _DitherP).
+        internal const string TuneSpanTight = "layers.spanTight";
         internal const bool SpanTightDefault = false;
-        internal const float DitherSequenceDefault = 1f;
+        // layers.ditherSequence (LayerFrame.DitherSequence): 1 a per-pixel white hash offset, 2 (the default) the interleaved gradient noise, both advanced by the golden ratio per
+        // frame. 2 has the lower temporal noise (rim 0.0023 against 0.0032 at the soft 0.5, player series e40-gs3) but a regular screen-fixed pattern; kept as a key until the
+        // owner has seen both in the game (E40 step (c)).
+        internal const string TuneDitherSequence = "layers.ditherSequence";
+        internal const int DitherSequenceDefault = 2;
 
         // The tuning keys of the light's look constants (T03); the compiled defaults are the fields of CloudLightSettings.
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
             TuneMsBrightness = "light.msBrightness", TuneDiffusion = "light.diffusion", TuneDiffusionTau = "light.diffusionTau",
             TuneMsIsotropy = "light.msIsotropy", TuneAmbientOcclusion = "light.ambientOcclusion", TuneAmbientGain = "light.ambientGain",
             TuneSkyTint = "light.skyTint", TuneAmbientFloor = "light.ambientFloor", TuneAmbientColumnTop = "light.ambientColumnTop";
-
-        // The optical depth one step may add where a ray enters a cloud when cloudEntryRefinement is on (the product budget of the look sheets).
-        internal const float EntryRefineBudget = 0.5f;
-
-        // The contour gate of the refinement (T14, cloudRefineAtContours): the alpha step to a neighbouring pixel above which a ray refines, and the relative
-        // first-hit step (0: not used). The values are the sweep's pick of tools/weather_metrics/refine.py.
-        internal const float RefineGateAlpha = 0.12f, RefineGateFirstStep = 0f;
 
         private static readonly CloudLightSettings Compiled = new CloudLightSettings();
         private static readonly LayerFrame CompiledFrame = new LayerFrame();
@@ -193,62 +180,18 @@ namespace ReDefinition.Atmospheres
             f.SunSteps = sunSteps;
             f.MinStepM = minStep;
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
-            f.HashDither = On(v, AtmospheresSettings.Keys.CloudHashDither);
             f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
-            // The cost controls and the entry's refinement: tuning keys with the compiled values of the frame.
+            // The cost controls: tuning keys with the compiled values of the frame.
             f.CoverageBound = Tuning.Flag(TuneCoverageBound, CompiledFrame.CoverageBound);
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
-            // T15: the edge mask restriction needs the refinement in the flagged blocks, so it switches the budget on by itself; the bisection steps
-            // act where no full refinement runs (the whole picture, or the blocks the mask does not flag).
-            bool maskOn = On(v, AtmospheresSettings.Keys.CloudRefineEdgeMask)
-                          && (ReconMode)Math.Max(0, Math.Min(2, (int)v(AtmospheresSettings.Keys.CloudReconMode))) != ReconMode.Low;
-            bool refineOn = On(v, AtmospheresSettings.Keys.CloudEntryRefinement) || maskOn;
-            f.RefineBudget = refineOn ? Mathf.Max(0f, Tuning.Get(TuneRefineBudget, EntryRefineBudget)) : 0f;
-            f.RefineBisect = Math.Max(0, Math.Min(LayerFrame.MaxRefineBisect, (int)v(AtmospheresSettings.Keys.CloudRefineBisect)));
-            // E40 grain: layers.entryRamp N (1 to 6; default 0, off) searches every entry with at least N bisection steps and ramps the step up from the entry.
-            int ramp = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneEntryRamp, EntryRampDefault)), 0, LayerFrame.MaxRefineBisect);
-            f.CloudStep = Mathf.Clamp(Tuning.Get(TuneCloudStep, CloudStepDefault), 1f, 8f);
-            f.EntryRamp = ramp > 0;
-            if (ramp > 0) f.RefineBisect = Math.Max(f.RefineBisect, ramp);
             f.SpanTight = Tuning.Flag(TuneSpanTight, SpanTightDefault);
-            f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 0, 2);
+            f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 2);
             Apply(f.Cull, v);
-            f.RefineFraction = Mathf.Clamp(Tuning.Get(TuneRefineFraction, CompiledFrame.RefineFraction), 0.0625f, 1f);
-            // T14: the contour gate of the refinement (the alpha step of the 2 x 2 quad above which a ray refines; the first-hit step is off).
-            bool atContours = On(v, AtmospheresSettings.Keys.CloudRefineAtContours);
-            bool gate = f.RefineBudget > 0f && atContours;
-            f.RefineGate = gate ? Mathf.Max(0.001f, Tuning.Get(TuneRefineGate, RefineGateAlpha)) : 0f;
-            f.RefineGateFirst = gate ? Mathf.Max(0f, Tuning.Get(TuneRefineGateFirst, RefineGateFirstStep)) : 0f;
-            f.EdgePower = Mathf.Max(1f, Tuning.Get(TuneEdgePower, CompiledFrame.EdgePower));
-            // Package 2, layers.surfaceMarch N (0: off; 1 to 6 bisection steps): the entry of a cloud is found by N halvings of the grid step, the steps inside start
-            // at that precision and are bounded by an optical depth (layers.surfaceBudget) and by a doubling from the entry, and the light is marched once per entry.
-            int surface = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneSurfaceMarch, SurfaceMarchDefault)), 0, LayerFrame.MaxRefineBisect);
-            // layers.surfaceLight 1: the light is marched once per entry and carried along the ray (0.4 ms cheaper per layer in the player, the lit rims come out
-            // darker: error against the converged picture 0.046 against 0.035); 0, the default: the light march of the cost package (every second lit step).
-            f.LightPerEntry = surface > 0 && Tuning.Flag(TuneSurfaceLight, SurfaceLightDefault);
-            f.RefineStepBudget = 0f;
-            if (surface > 0)
-            {
-                f.RefineBisect = Math.Max(f.RefineBisect, surface);
-                f.EntryRamp = true;
-                f.RefineStepBudget = Mathf.Clamp(Tuning.Get(TuneSurfaceBudget, SurfaceBudgetDefault), 0.05f, 8f);
-                f.RefineFraction = Mathf.Pow(2f, -f.RefineBisect);
-            }
         }
-
-        // Package 2 of E40 grain against TVC: the surface march (see Apply(LayerFrame)). The budget is the optical depth one step inside a cloud may add.
-        internal const string TuneSurfaceMarch = "layers.surfaceMarch", TuneSurfaceBudget = "layers.surfaceBudget", TuneSurfaceLight = "layers.surfaceLight";
-        // Off by default: the surface march does not meet the owner's rule (grain gone at a cost of at most TVC's). Measured in the game with three bisections
-        // (K-T2d start gt58, fair weather, the temporal noise of a cloud pixel ground / above): the grid march 0.0159 / 0.0064, the surface march on the whole
-        // interval 0.0086 / 0.0043, on the cut span (layers.spanTight 1) 0.0053 / 0.0029; the cloud bodies come out smooth, speckle is left at rims thinner than
-        // the search step. GPU cost of the pass (busy time minus the window without layers): 4.3 / 5.75 ms -> 7.2 / 7.9 ms (TVC: 2.59 / 5.30); the frame time stayed
-        // 19.4 ms at the ground (CPU bound) and rose 17.0 -> 17.9 ms from above.
-        internal const float SurfaceMarchDefault = 0f, SurfaceBudgetDefault = 0.7f;
-        internal const bool SurfaceLightDefault = false;
 
         internal static void Apply(LayerFrame f)
         {
@@ -366,13 +309,11 @@ namespace ReDefinition.Atmospheres
             bool low = (ReconMode)Math.Max(0, Math.Min(2, (int)v(AtmospheresSettings.Keys.CloudReconMode))) == ReconMode.Low;
             s.Mode = low ? ReconMode.Low : (level > 1 ? ReconMode.Block : ReconMode.Full);
             s.Block = Math.Max(2, level);
-            // The mask restriction runs the edge mode, which marches the 4 x 4 coarse block; the mode Low overrides it.
-            s.RefineAtMask = On(v, AtmospheresSettings.Keys.CloudRefineEdgeMask) && !low;
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));
             s.Accumulate = 0f;
-            if (accumulate > 0f && s.Mode == ReconMode.Full && !s.RefineAtMask)
+            if (accumulate > 0f && s.Mode == ReconMode.Full)
             {
                 s.Mode = ReconMode.Low;
                 s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, CompiledFrame.Resolution), 0.1f, 1f);

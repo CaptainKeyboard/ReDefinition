@@ -68,7 +68,7 @@ namespace ReDefinition.Atmospheres
             cb.SetGlobalTexture(IdEdgeMask, mask);
             if (MarkMask != null) MarkMask(cb);
 
-            // The edge draw: the 2 x 2 pattern, only in the flagged blocks; it keeps the entry refinement the frame asks for.
+            // The edge draw: the 2 x 2 pattern, only in the flagged blocks.
             int ox, oy;
             ReconPattern.BlockOffset(EdgeSettings.EdgeBlock, edgeIndex++, out ox, out oy);
             edgeLayers.SetVector(IdReconP, new Vector4(EdgeSettings.EdgeBlock, ox, oy, 0f));

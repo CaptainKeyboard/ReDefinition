@@ -12,7 +12,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // both scenes, every view, every variant's three frames and its cost windows, the sun colour line, the failures it must name, and the arguments the runner passes.
     public partial class T09WalkThroughTests
     {
-        private static readonly string[] SoftRemoved = { "cloudEntryRefinement", "refine", "surface", "layers.cloudStep", "layers.entryRamp", "layers.ditherSequence", "cloudHashDither", "layers.edgePower" };
+        private static readonly string[] SoftRemoved = { "cloudEntryRefinement", "refine", "surface", "layers.cloudStep", "layers.entryRamp", "cloudHashDither", "layers.edgePower" };
 
         private Run StartSoft(Action<Run> tweak = null)
         {
@@ -47,9 +47,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheSoftTableNamesTheFavouritesAndFourEmptySlotsAndUsesNoRemovedKey()
         {
             var names = T09Probe.SoftVariants.Select(v => v.Name).ToList();
-            CollectionAssert.AreEqual(new[] { "soft", "hard", "soft100s24", "slot1", "slot2", "slot3", "slot4" }, names);
+            CollectionAssert.AreEqual(new[] { "soft", "hard", "soft100s24", "softhash", "slot2", "slot3", "slot4" }, names);
             Assert.AreEqual(names.Count, names.Distinct().Count(), "the names are unique");
-            Assert.AreEqual(4, T09Probe.SoftVariants.Count(v => !v.Active), "four empty slots");
+            Assert.AreEqual(3, T09Probe.SoftVariants.Count(v => !v.Active), "three empty slots");
+            Assert.AreEqual(1, T09Probe.SoftVariants.First(v => v.Name == "softhash").Pairs.Length);
+            Assert.AreEqual("", T09Probe.SoftVariants.First(v => v.Name == "softhash").FairCost + T09Probe.SoftVariants.First(v => v.Name == "softhash").ClockCost, "softhash has frames and no cost window");
             foreach (T09Probe.SoftVariant v in T09Probe.SoftVariants.Where(x => x.Active))
             {
                 foreach (string pair in v.Pairs)
@@ -102,7 +104,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(estimate >= 600.0, "the estimate counts the windows: " + estimate.ToString("0"));
             // A cost candidate with one window in each of the ground views and the above views: the price the lead pays for a slot.
             var table = T09Probe.SoftVariants.Select(v => v).ToList();
-            table[3] = new T09Probe.SoftVariant { Name = "slot1", Pairs = new[] { "t:layers.lightStride=2" }, FairCost = "g", ClockCost = "g" };
+            table[4] = new T09Probe.SoftVariant { Name = "slot2",Pairs = new[] { "t:layers.lightStride=2" }, FairCost = "g", ClockCost = "g" };
             double withSlot = T09Probe.SoftEstimateS(table);
             Console.WriteLine("with one candidate (cost at the ground in both scenes) " + withSlot.ToString("0") + " s");
             Assert.IsTrue(withSlot > estimate + 90.0, "a slot costs its frames and windows: " + (withSlot - estimate).ToString("0") + " s");
@@ -272,11 +274,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void ATableThatTheTimeCannotHoldLeavesTheLastViewsOutAndSaysSo()
         {
-            // Four slots with cost windows in every view: more than the scenario's time.
+            // Three slots with cost windows in every view: more than the scenario's time.
             var saved = T09Probe.SoftVariants.Select(v => new { v.Name, v.Pairs, v.FairCost, v.ClockCost }).ToArray();
             try
             {
-                for (int i = 3; i < 7; i++)
+                for (int i = 4; i < 7; i++)
                 {
                     T09Probe.SoftVariants[i].Pairs = new[] { "t:layers.lightStride=" + (i - 2) };
                     T09Probe.SoftVariants[i].FairCost = "ga";
@@ -292,7 +294,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             finally
             {
-                for (int i = 3; i < 7; i++)
+                for (int i = 4; i < 7; i++)
                 {
                     T09Probe.SoftVariants[i].Pairs = null;
                     T09Probe.SoftVariants[i].FairCost = saved[i].FairCost;

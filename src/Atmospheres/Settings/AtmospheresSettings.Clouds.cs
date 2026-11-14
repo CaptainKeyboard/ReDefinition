@@ -34,8 +34,6 @@ namespace ReDefinition.Atmospheres
             internal const string CloudNoiseTier = "cloudNoiseTier";
             internal const string CloudNoiseDistanceLod = "cloudNoiseDistanceLod";
             internal const string CloudFineDetail = "cloudFineDetail";
-            internal const string CloudEntryRefinement = "cloudEntryRefinement";
-            internal const string CloudHashDither = "cloudHashDither";
             // Own clouds: the soft water content (E40 soft density): the width of the rim and the most grid points of the march.
             internal const string CloudSoftness = "cloudSoftness";
             internal const string CloudSamples = "cloudSamples";
@@ -55,9 +53,6 @@ namespace ReDefinition.Atmospheres
             // Own clouds: the temporal reconstruction (T05)
             internal const string CloudReconMode = "cloudReconMode";
             internal const string CloudResolution = "cloudResolution";
-            internal const string CloudRefineAtContours = "cloudRefineAtContours";
-            internal const string CloudRefineBisect = "cloudRefineBisect";
-            internal const string CloudRefineEdgeMask = "cloudRefineEdgeMask";
             // Own clouds: the visibility culling and the distance LOD (T16)
             internal const string CloudSkipEmpty = "cloudSkipEmpty";
             internal const string CloudSkipClosed = "cloudSkipClosed";
@@ -97,8 +92,6 @@ namespace ReDefinition.Atmospheres
         internal static CloudDetailLevel CloudNoiseTier => E<CloudDetailLevel>(Keys.CloudNoiseTier);
         internal static bool CloudNoiseDistanceLod => B(Keys.CloudNoiseDistanceLod);
         internal static bool CloudFineDetail => B(Keys.CloudFineDetail);
-        internal static bool CloudEntryRefinement => B(Keys.CloudEntryRefinement);
-        internal static bool CloudHashDither => B(Keys.CloudHashDither);
         internal static float CloudSoftness => F(Keys.CloudSoftness);
         // Low 24, Medium 32, High 48 grid points at most (relative to the Medium step quality's 48).
         internal static CloudDetailLevel CloudSamples => E<CloudDetailLevel>(Keys.CloudSamples);
@@ -118,9 +111,6 @@ namespace ReDefinition.Atmospheres
 
         internal static ReconMode CloudReconMode => E<ReconMode>(Keys.CloudReconMode);
         internal static int CloudResolution => I(Keys.CloudResolution);
-        internal static bool CloudRefineAtContours => B(Keys.CloudRefineAtContours);
-        internal static int CloudRefineBisect => I(Keys.CloudRefineBisect);
-        internal static bool CloudRefineEdgeMask => B(Keys.CloudRefineEdgeMask);
         internal static bool CloudSkipEmpty => B(Keys.CloudSkipEmpty);
         internal static bool CloudSkipClosed => B(Keys.CloudSkipClosed);
         internal static bool CloudLayerDistanceCut => B(Keys.CloudLayerDistanceCut);
@@ -148,7 +138,7 @@ namespace ReDefinition.Atmospheres
     // The rows of the own cloud system in the key table, in the order of the window (they follow the other Clouds rows). A default is the
     // compiled default of the option struct it feeds, with these exceptions: the step growth is the product's value (LayerFrame.UseProductCost),
     // the light quality is High (the compiled sun steps and octaves lie between its levels Medium and High), the reconstruction block is the
-    // 4 x 4 block that package T05 measured, and the quality-reducing choices (reconstruction, entry refinement) are off until the owner agrees.
+    // 4 x 4 block that package T05 measured, and the quality-reducing choices (reconstruction) are off until the owner agrees.
     internal static class CloudSettingRows
     {
         internal static IEnumerable<SettingDef> Rows()
@@ -159,7 +149,6 @@ namespace ReDefinition.Atmospheres
             const string NOISE = AtmospheresSettings.GreyReasons.NeedsCloudNoise;
             const string SHADOW = AtmospheresSettings.GreyReasons.NeedsCloudShadows;
             const string TAPS = AtmospheresSettings.GreyReasons.NeedsAmbientTaps;
-            const string REFINE = AtmospheresSettings.GreyReasons.NeedsEntryRefinement;
             const string RV = AtmospheresSettings.ProfileRows.Volume;
 
             return new[]
@@ -177,12 +166,6 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Choice("cloudNoiseTier", typeof(CloudDetailLevel), CloudDetailLevel.Medium, CL, "Cloud Noise Size", NOISE, RV),
                 SettingDef.Bool("cloudNoiseDistanceLod", true, CL, "Cloud Noise Distance Detail", NOISE),
                 SettingDef.Bool("cloudFineDetail", true, CL, "Cloud Fine Detail Octave", NOISE),
-                SettingDef.Bool("cloudEntryRefinement", false, CL, "Cloud Entry Refinement", OWN),
-                SettingDef.Bool("cloudRefineAtContours", false, CL, "Cloud Refine Only At Contours", REFINE),
-                // Package T15: two cheap forms of the entry refinement, both off until the owner agrees (the first replaces the second march by a few
-                // density reads at an entry, the second restricts the full refinement to the blocks of the edge mode that the edge mask flags).
-                SettingDef.Int("cloudRefineBisect", 0, 0, 4, CL, "Cloud Entry Bisection Steps", OWN, RV),
-                SettingDef.Bool("cloudRefineEdgeMask", false, CL, "Cloud Refine At Edge Mask", OWN, RV),
                 // Package T16: the visibility culling and the distance LOD, all off until the owner agrees (each lowers the cost at some error, measured in
                 // tools/weather_metrics/cull.py).
                 SettingDef.Bool("cloudSkipEmpty", false, CL, "Cloud Skip Empty Sky", OWN, RV),
@@ -195,7 +178,6 @@ namespace ReDefinition.Atmospheres
                 // Package T18: the traced rays see the own layers. Off until measured; the layer cap of the ray side is a quality reduction (0 is every layer).
                 SettingDef.Bool("rtOwnClouds", false, CL, "Own Clouds In Ray Tracing", OWN),
                 SettingDef.Int("rtOwnCloudsLayerCap", 0, 0, CloudLayerDef.MaxLayers, CL, "Ray Tracing Cloud Layer Cap", OWN),
-                SettingDef.Bool("cloudHashDither", true, CL, "Cloud White Dither", OWN),
                 // E40 soft density: how wide the soft rim of a cloud is (noise rank, 0.3 to 1.0) and how many grid points the march takes at most (Low 24, Medium 32, High 48).
                 SettingDef.Float("cloudSoftness", 0.5, 0.3, 1.0, CL, "Cloud Softness", OWN),
                 SettingDef.Choice("cloudSamples", typeof(CloudDetailLevel), CloudDetailLevel.High, CL, "Cloud Samples", OWN, RV),

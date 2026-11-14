@@ -19,37 +19,23 @@ namespace ReDefinition.WeatherPlayer
         internal sealed class Medium
         {
             public string Name;
-            // 0: the density as it is (the share of the soft edge); Softness above 0 and EdgePower replace the layer's edge softness and the exponent of the share
-            // (the numbers that exist). 1 / 2: the water content (LayerFrame.SoftMode) with its width in noise rank, its exponent, the gain at the base and the rise.
-            public int Mode;
-            public float Softness, EdgePower = 1f, Width = 0.5f, Power = 2f, BaseGain = 1f, Rise, SigmaScale = 1f;
-            public bool SunAtCloud;
+            public float Width = 0.5f, SigmaScale = 1f;
             // True: the PRODUCT's own density (E40 soft density, package B1): the job's layer numbers stay as the file gave them, CloudLayerDef's effective numbers, the type table's
             // rise by height, the exponent and the clear-sky rule make the water content (Width is the owner's softness setting). Every other medium runs the old density
-            // (layers.softDensity 0) and rewrites the job's numbers itself.
+            // (layers.softDensity 0).
             public bool Product;
         }
 
+        // The media e50p2, e100p3, s30k2 .. s100k2, c50k2 .. c100k2w of step (a) set the exponent of the share through the frame (layers.edgePower), which the product
+        // does not have any more (E40 step (c)); the product's own density (pr50, pr100) is what they were built to match.
         internal static readonly Medium[] Media =
         {
             new Medium { Name = "hard" },
             new Medium { Name = "sig01", SigmaScale = 0.1f },
-            new Medium { Name = "e50p2", Softness = 0.5f, EdgePower = 2f },
-            new Medium { Name = "e100p3", Softness = 1f, EdgePower = 3f },
-            new Medium { Name = "s30k2", Mode = 1, Width = 0.3f, Power = 2f, BaseGain = 0.3f, Rise = 0.5f },
-            new Medium { Name = "s50k2", Mode = 1, Width = 0.5f, Power = 2f, BaseGain = 0.3f, Rise = 0.5f },
-            new Medium { Name = "s50k3", Mode = 1, Width = 0.5f, Power = 3f, BaseGain = 0.3f, Rise = 0.5f },
-            new Medium { Name = "s100k2", Mode = 1, Width = 1f, Power = 2f, BaseGain = 0.3f, Rise = 0.5f },
-            new Medium { Name = "s50k2f", Mode = 1, Width = 0.5f, Power = 2f },
-            new Medium { Name = "c50k2", Mode = 2, Width = 0.5f, Power = 2f, BaseGain = 0.3f, Rise = 0.5f },
-            new Medium { Name = "c100k2", Mode = 2, Width = 1f, Power = 2f, BaseGain = 0.3f, Rise = 0.5f },
-            // The same lit by the sun as filtered by the air above a cloud at 2 km (E40-sun-colour-design.md: 0.945 / 0.882 / 0.738 of the white sun 2.35 at the
-            // scene's sun elevation) instead of the air above the camera at the ground: a preview of the sun-colour patch on the soft medium.
-            new Medium { Name = "c100k2w", Mode = 2, Width = 1f, Power = 2f, BaseGain = 0.3f, Rise = 0.5f, SunAtCloud = true },
             // The product's density with the owner's softness 0.5 and 1.0 (the cfg's per-layer numbers of the job's layer: no softnessScale, the exponent 2, the type's gain 0.3 and
-            // rise 0.5, the same as s50k2 / s100k2 above, which they have to reproduce within noise).
-            new Medium { Name = "pr50", Mode = 3, Product = true, Width = 0.5f },
-            new Medium { Name = "pr100", Mode = 3, Product = true, Width = 1f },
+            // rise 0.5).
+            new Medium { Name = "pr50", Product = true, Width = 0.5f },
+            new Medium { Name = "pr100", Product = true, Width = 1f },
         };
 
         // The marches every medium is drawn with (GrainTable's: the product's grid march with the golden-ratio offset; 32 and 24 grid points at most).
@@ -74,26 +60,6 @@ namespace ReDefinition.WeatherPlayer
             return list;
         }
 
-        internal static CloudWaterNumbers Numbers(Medium m)
-        {
-            return new CloudWaterNumbers { Width = m.Width, Power = m.Power, BaseGain = m.BaseGain, RiseShare = m.Rise };
-        }
-
-        // The water content at the outline (CloudWater.Closed) of the job's first cloud type.
-        internal static float Closed(LayersJob job, Medium m, double detailMean)
-        {
-            LayersJobLayer jl = job.layers[0];
-            LayersJobType jt = jl.types[0];
-            CloudWaterNumbers k = Numbers(m);
-            double mean = CloudWater.ColumnMean(h =>
-            {
-                double x = h * (jt.profile.Length - 1);
-                int a = Math.Min((int)x, jt.profile.Length - 2);
-                return jt.profile[a] + (jt.profile[a + 1] - jt.profile[a]) * (x - a);
-            }, k);
-            return (float)CloudWater.Closed(jl.sigma * (jt.topShare - jt.baseShare) * (jl.outer - jl.inner) * mean, jt.erosion, detailMean, k);
-        }
-
         // The layer's numbers as the job file gave them (the rig is loaded with a medium's numbers in their place).
         internal struct Original
         {
@@ -115,46 +81,26 @@ namespace ReDefinition.WeatherPlayer
             }
         }
 
-        // Loads the rig with the medium's layer numbers and returns the water content at the outline (0 for a medium of the old density). The water content
-        // reaches the unchanged shader through the layer's own numbers: the edge softness is its width, the noise amount 1, the coverage constant
-        // CloudWater.Coverage, the type's profile times the rise by height, the edge hardness off (NoiseSwitches.SoftEdge) and the exponent layers.edgePower.
-        internal static float Load(TemporalRig rig, LayersJob job, string input, Medium m, Original o, double detailMean)
+        // Loads the rig with the medium's layer numbers. The product's medium rewrites nothing of the job's layer: the owner's softness and the detail mean reach the
+        // layer through CloudSoftDensity (the game: OwnCloudOptions and the noise binding), the edge hardness off through the switch OwnCloudOptions.Apply(NoiseSwitches)
+        // sets. The other media run the old density (the tuning key layers.softDensity 0; the player's tuning table is cleared by each Load, so the key goes into the job).
+        internal static void Load(TemporalRig rig, LayersJob job, string input, Medium m, Original o, double detailMean)
         {
             LayersJobLayer jl = job.layers[0];
             o.Restore(jl);
             jl.sigma = o.Sigma * m.SigmaScale;
-            float closed = 0f;
-            // The tuning key of the old density: every medium but the product's runs on it (the player's tuning table is cleared by each Load, so the key goes into the job).
             LayersJobKey[] savedTuning = job.tuning;
             var keys = new System.Collections.Generic.List<LayersJobKey>(savedTuning ?? new LayersJobKey[0]);
             if (!m.Product) keys.Add(new LayersJobKey { key = CloudSoftDensity.TuneOn, value = 0f });
             job.tuning = keys.ToArray();
             if (m.Product)
             {
-                // The product path: nothing of the job's layer is rewritten. The owner's softness and the detail mean reach the layer through CloudSoftDensity (the game: OwnCloudOptions and
-                // the noise binding), the edge hardness off through the switch OwnCloudOptions.Apply(NoiseSwitches) sets.
                 CloudSoftDensity.Softness = m.Width;
                 CloudSoftDensity.DetailMean = detailMean;
-                rig.Renderer.Noise.Switches.SoftEdge = true;
-                rig.Load(job, input);
-                job.tuning = savedTuning;
-                return 0f;
             }
-            if (m.Mode > 0)
-            {
-                CloudWaterNumbers k = Numbers(m);
-                closed = Closed(job, m, detailMean);
-                jl.softness = m.Width;
-                jl.noiseAmount = 1f;
-                jl.coverage = (float)CloudWater.Coverage(m.Mode == 2, o.Coverage, o.Softness, closed, k);
-                float[] p = jl.types[0].profile;
-                for (int i = 0; i < p.Length; i++) p[i] *= (float)CloudWater.Rise(i / (double)(p.Length - 1), k);
-            }
-            else if (m.Softness > 0f) jl.softness = m.Softness;
-            rig.Renderer.Noise.Switches.SoftEdge = m.Mode > 0;
+            rig.Renderer.Noise.Switches.SoftEdge = m.Product;
             rig.Load(job, input);
             job.tuning = savedTuning;
-            return closed;
         }
 
         internal static double DetailMean(TemporalRig rig)
@@ -163,33 +109,17 @@ namespace ReDefinition.WeatherPlayer
             return set != null ? set.DetailMean : 0.5;
         }
 
-        internal static void Apply(LayerFrame f, Medium m)
-        {
-            // The product's exponent is the layer's own (the shader multiplies the frame's by it): the frame's stays 1.
-            f.EdgePower = m.Product ? 1f : m.Mode > 0 ? m.Power : m.EdgePower;
-            // The frame is the rig's fresh one of this medium's Load, so the job's sun colour is there unless it is replaced here.
-            if (m.SunAtCloud) f.SunColour = new Color(2.221f, 2.073f, 1.734f);
-        }
-
-        // The march of a name on the frame. Beside GrainTable's: "refine" is the product's entry refinement (cloudEntryRefinement: the budget 0.5, the finest step
-        // an eighth of the grid step) on the seq1 march, "ign" the seq1 march with the interleaved gradient noise instead of the hash (cloudHashDither off).
+        // The march of a name on the frame (GrainTable's, or seq1m<N> / tseq1m<N>).
         internal static void ApplyMarch(LayerFrame f, string name)
         {
-            bool refine = name == "refine", ign = name == "ign";
-            GrainTable.Apply(f, March(refine || ign ? "seq1" : name));
-            f.HashDither = !ign;
-            if (refine)
-            {
-                f.RefineBudget = 0.5f;
-                f.RefineFraction = 0.125f;
-            }
+            GrainTable.Apply(f, March(name));
         }
 
         internal static GrainTable.March March(string name)
         {
             bool tight = name.StartsWith("tseq1m");
             if (tight || name.StartsWith("seq1m"))
-                return new GrainTable.March { Name = name, Seq = 1, Tight = tight, MaxSteps = int.Parse(name.Substring(tight ? 6 : 5)) };
+                return new GrainTable.March { Name = name, Tight = tight, MaxSteps = int.Parse(name.Substring(tight ? 6 : 5)) };
             return GrainTable.MarchByName(name);
         }
 
@@ -376,15 +306,13 @@ namespace ReDefinition.WeatherPlayer
                 double detailMean = SoftTable.DetailMean(rig);
                 foreach (SoftTable.Medium medium in SoftTable.Selected())
                 {
-                    float closed = SoftTable.Load(rig, job, input, medium, original, detailMean);
-                    Sink.Info("soft.closed." + view + "." + medium.Name, closed);
+                    SoftTable.Load(rig, job, input, medium, original, detailMean);
                     foreach (Scenario sc in Scenarios)
                     {
                         // The converged reference of every pose that is written, of THIS medium.
                         // A case of an earlier scenario may have left taps, a cull or a cost mask on the frame: the references run on the frame's own defaults.
                         SoftTable.ApplyCase(rig.Frame, SoftTable.Parse("seq1"));
                         GrainTable.ApplyConverged(rig.Frame);
-                        SoftTable.Apply(rig.Frame, medium);
                         foreach (int i in sc.Dump)
                         {
                             if ((sc.Name == "static" || sc.Name == "cut") && i != sc.Dump[0]) continue;
@@ -401,7 +329,6 @@ namespace ReDefinition.WeatherPlayer
                                 if (march != "seq1" && (mode == "plain" || (sc.Name != "static" && !SoftTable.MotionForAll))) continue;
                                 SoftTable.Case marchCase = SoftTable.Parse(march);
                                 SoftTable.ApplyCase(rig.Frame, marchCase);
-                                SoftTable.Apply(rig.Frame, medium);
                                 ReconSettings settings = SoftTable.Settings(marchCase, mode);
                                 rig.Recon.Reset();
                                 for (int i = 0; i < Frames; i++)
@@ -484,7 +411,6 @@ namespace ReDefinition.WeatherPlayer
                             if (clock.Elapsed.TotalMinutes > 18.0) { Sink.Flag("soft_cost_completed", false); yield break; }
                             SoftTable.Case marchCase = SoftTable.Parse(march);
                             SoftTable.ApplyCase(rig.Frame, marchCase);
-                            SoftTable.Apply(rig.Frame, medium);
                             ReconSettings settings = SoftTable.Settings(marchCase, "acc20");
                             rig.Recon.Reset();
                             string label = view + "." + medium.Name + "." + march;

@@ -263,9 +263,6 @@ def jobs():
         j = L.job("LS-%s" % s["id"], "color", cam, s["layers"], SIZE[0], SIZE[1], sun=L.sun_vector(cam.pos, s["sun"][0], s["sun"][1]),
                   maxSteps=48, minStep=25.0, stepGrowth=0.0002, jitter=1.0, earlyOut=0.01, sunSteps=3, mapWidth=MAP_W, mapHeight=MAP_H)
         j.update(s["light"])
-        # The entry refinement (stream T): the sheet shows the cloud surface found to a 1/8 of the grid step; the product's default is off until its
-        # cost (+40 to 60 percent of the march at 1 / 0.25) is agreed.
-        j.update(refineBudget=0.5, refineFraction=0.125)
         # The sun march reaches 9 km instead of the product's 4 km: the base of a deep cell lies under more than 4 km of cloud along the sun's ray (T03v2 look
         # experiment; the product's 4 km is unchanged and the parity jobs keep it).
         j["sunMarch"] = SUN_MARCH_M

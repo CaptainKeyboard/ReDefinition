@@ -19,9 +19,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
         private static readonly string[] OwnKeys =
         {
             "ownClouds", "layerCap", "layerStepQuality", "layerStepGrowth", "cloudNoise", "cloudNoiseUntile", "cloudNoiseCurl", "cloudNoiseTier",
-            "cloudNoiseDistanceLod", "cloudFineDetail", "cloudEntryRefinement", "cloudHashDither", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
+            "cloudNoiseDistanceLod", "cloudFineDetail", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
             "cloudSunTint", "cloudMoonLights", "cloudAmbientTaps", "cloudAmbientReuse", "cloudLightCache", "cloudShadows", "cloudShadowQuality",
-            "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudRefineAtContours", "cloudRefineBisect", "cloudRefineEdgeMask", "cloudSkipEmpty", "cloudSkipClosed", "cloudLayerDistanceCut", "cloudStepGrowth", "cloudTapLod", "cloudDetailLod", "cloudLayerCapDistance", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
+            "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudSkipEmpty", "cloudSkipClosed", "cloudLayerDistanceCut", "cloudStepGrowth", "cloudTapLod", "cloudDetailLod", "cloudLayerCapDistance", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
         };
 
         private static Func<string, double> Defaults(params object[] pairs)
@@ -95,14 +95,12 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(expected.SunSteps, frame.SunSteps);
             Assert.AreEqual(expected.MinStepM, frame.MinStepM);
             Assert.AreEqual(expected.TransmittanceGrowth, frame.TransmittanceGrowth, "the product's step growth");
-            Assert.AreEqual(expected.HashDither, frame.HashDither);
             Assert.AreEqual(expected.CoverageBound, frame.CoverageBound);
             Assert.AreEqual(expected.LightStride, frame.LightStride);
             Assert.AreEqual(expected.LightCutoff, frame.LightCutoff);
             Assert.AreEqual(expected.EmptyLeap, frame.EmptyLeap);
             Assert.AreEqual(expected.CheapShare, frame.CheapShare);
             Assert.AreEqual(expected.FogShare, frame.FogShare);
-            Assert.AreEqual(0f, frame.RefineBudget, "the entry refinement is off until the owner agrees");
 
             var light = new CloudLightSettings();
             var lightExpected = new CloudLightSettings();
@@ -139,7 +137,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(frame.SunSteps, sunSteps);
             Assert.AreEqual(frame.MinStepM, minStep);
             Assert.AreEqual((double)(int)ReconMode.Full, AtmospheresSettings.Definition("cloudReconMode").Default, "no reconstruction by default");
-            Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudEntryRefinement").Default, "no entry refinement by default");
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("ownClouds").Default, "the system is off until T09 accepts it");
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudLightCache").Default, "the light cache is a cost experiment");
         }
@@ -148,7 +145,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheSwitchesReachTheStructs()
         {
             var v = Defaults("cloudNoise", 0, "cloudNoiseUntile", 0, "cloudNoiseCurl", 0, "cloudNoiseTier", 0, "cloudNoiseDistanceLod", 0, "cloudFineDetail", 0,
-                "layerStepQuality", 0, "layerStepGrowth", 0.5, "cloudHashDither", 0, "cloudEntryRefinement", 1, "cloudLightQuality", 0, "cloudLightOctaves", 1,
+                "layerStepQuality", 0, "layerStepGrowth", 0.5, "cloudLightQuality", 0, "cloudLightOctaves", 1,
                 "cloudPowder", 0.25, "cloudSunTint", 0, "cloudAmbientTaps", 1, "cloudAmbientReuse", 2, "cloudShadowQuality", 0, "cloudShadowFloor", 0.4,
                 "cloudReconMode", (int)ReconMode.Full, "cloudResolution", 3);
             var noise = new NoiseSwitches();
@@ -162,8 +159,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(2, frame.SunSteps);
             Assert.AreEqual(40f, frame.MinStepM);
             Assert.AreEqual(0.5f, frame.TransmittanceGrowth);
-            Assert.IsFalse(frame.HashDither);
-            Assert.AreEqual(OwnCloudOptions.EntryRefineBudget, frame.RefineBudget);
 
             var light = new CloudLightSettings();
             OwnCloudOptions.Apply(light, v);
@@ -296,54 +291,17 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
-        public void TheContourGateNeedsTheRefinementAndFollowsItsTuningKeys()
+        public void TheReconstructionRunsOnTheModeAndTheLevelAlone()
         {
-            Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudRefineAtContours").Default, "off until the owner agrees");
-            var frame = new LayerFrame();
-            OwnCloudOptions.Apply(frame, Defaults("cloudRefineAtContours", 1));
-            Assert.AreEqual(0f, frame.RefineGate, "no refinement, nothing to gate");
-            OwnCloudOptions.Apply(frame, Defaults("cloudEntryRefinement", 1, "cloudRefineAtContours", 1));
-            Assert.AreEqual(OwnCloudOptions.RefineGateAlpha, frame.RefineGate);
-            Assert.AreEqual(OwnCloudOptions.RefineGateFirstStep, frame.RefineGateFirst);
-            OwnCloudOptions.Apply(frame, Defaults("cloudEntryRefinement", 1));
-            Assert.AreEqual(0f, frame.RefineGate, "the switch off: every ray refines");
-            Tuning.SetOverride(OwnCloudOptions.TuneRefineGate, 0.3f);
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults("cloudEntryRefinement", 1, "cloudRefineAtContours", 1));
-            Assert.AreEqual(0.3f, frame.RefineGate, 1e-6f);
-            Tuning.ClearOverrides();
-            NextFrame();
-        }
-
-        [TestMethod]
-        public void TheCheapRefinementsAreOffByDefaultAndReachTheFrameAndTheReconstruction()
-        {
-            Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudRefineBisect").Default, "off until the owner agrees");
-            Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudRefineEdgeMask").Default, "off until the owner agrees");
-            Assert.IsTrue(TierRows.NotSet.ContainsKey("cloudRefineBisect") && TierRows.NotSet.ContainsKey("cloudRefineEdgeMask"), "no tier sets them, and says why");
-            var frame = new LayerFrame();
-            // The setting is read with the surface march off (the default march brings its own bisection steps, E40 grain against TVC package 2).
-            Tuning.ClearOverrides();
-            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceMarch, 0f);
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(0, frame.RefineBisect);
-            Assert.AreEqual(0f, frame.RefineBudget, "nothing on: no refinement");
-            OwnCloudOptions.Apply(frame, Defaults("cloudRefineBisect", 3));
-            Assert.AreEqual(3, frame.RefineBisect);
-            Assert.AreEqual(0f, frame.RefineBudget, "the bisection replaces the refinement, it does not switch it on");
-            OwnCloudOptions.Apply(frame, Defaults("cloudRefineBisect", 99));
-            Assert.AreEqual(LayerFrame.MaxRefineBisect, frame.RefineBisect);
-            OwnCloudOptions.Apply(frame, Defaults("cloudRefineEdgeMask", 1));
-            Assert.AreEqual(OwnCloudOptions.EntryRefineBudget, frame.RefineBudget, "the mask restriction refines in the flagged blocks");
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Defaults());
-            Assert.IsFalse(recon.RefineAtMask);
-            OwnCloudOptions.Apply(recon, Defaults("cloudRefineEdgeMask", 1));
-            Assert.IsTrue(recon.RefineAtMask);
             var driver = new LayerReconstructDriver();
-            Assert.IsTrue(driver.Configure((key, fallback) => fallback, recon), "the mask restriction runs the reconstruction");
-            Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsOwnClouds, AtmospheresSettings.Definition("cloudRefineBisect").GreyReason);
+            Assert.IsTrue(driver.Configure((key, fallback) => fallback, recon), "the history (recon.accumulate) runs the reconstruction");
+            Tuning.ClearOverrides();
+            Tuning.SetOverride(OwnCloudOptions.TuneAccumulate, 0f);
+            NextFrame();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.IsFalse(driver.Configure((key, fallback) => fallback, recon), "no history, level 1: the pass draws as it did");
             Tuning.ClearOverrides();
             NextFrame();
         }
@@ -356,15 +314,13 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Tuning.SetOverride(OwnCloudOptions.TuneLightCutoff, 0f);
             Tuning.SetOverride(OwnCloudOptions.TuneEmptyLeap, 4f);
             Tuning.SetOverride(OwnCloudOptions.TuneMsBrightness, 2f);
-            Tuning.SetOverride(OwnCloudOptions.TuneRefineBudget, 1f);
             NextFrame();
             var frame = new LayerFrame();
-            OwnCloudOptions.Apply(frame, Defaults("cloudEntryRefinement", 1));
+            OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(1, frame.LightStride);
             Assert.IsFalse(frame.CoverageBound);
             Assert.AreEqual(0f, frame.LightCutoff);
             Assert.AreEqual(4f, frame.EmptyLeap);
-            Assert.AreEqual(1f, frame.RefineBudget);
             var light = new CloudLightSettings();
             OwnCloudOptions.Apply(light, Defaults());
             Assert.AreEqual(2f, light.MsBrightness);
@@ -419,38 +375,25 @@ namespace ReDefinition.Tests.Atmospheres.T10
 
         // E40 grain: the keys of the grain package reach the frame and the reconstruction; without them both are as they were.
         [TestMethod]
-        public void TheGrainKeysMoveTheGridTheEntryAndTheHistory()
+        public void TheGrainKeysMoveTheGridAndTheHistory()
         {
             Tuning.ClearOverrides();
-            // The keys of this test act on the grid march; the surface march (the default since package 2 of E40 grain against TVC) sets the entry by itself.
-            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceMarch, 0f);
             NextFrame();
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(Math.Round(48 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
-            Assert.IsFalse(frame.EntryRamp);
-            Assert.AreEqual(1f, frame.CloudStep);
-            Assert.AreEqual(0, frame.RefineBisect);
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Defaults());
-            // The default is the history of weight 0.2 (the owner delegated the choice after the E40 grain measurement); the finer grid, the ramp and the cloud step stay off.
+            // The default is the history of weight 0.2 (the owner delegated the choice after the E40 grain measurement); the finer grid stays off.
             Assert.AreEqual(0.2f, OwnCloudOptions.AccumulateDefault);
             Assert.AreEqual(ReconMode.Low, recon.Mode);
             Assert.AreEqual(0.2f, recon.Accumulate);
 
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 4f);
-            Tuning.SetOverride(OwnCloudOptions.TuneCloudStep, 4f);
-            Tuning.SetOverride(OwnCloudOptions.TuneEntryRamp, 3f);
             Tuning.SetOverride(OwnCloudOptions.TuneAccumulate, 0.2f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(192, frame.MaxSteps);
-            Assert.AreEqual(4f, frame.CloudStep);
-            Assert.IsTrue(frame.EntryRamp);
-            Assert.AreEqual(3, frame.RefineBisect);
-            // The ramp never lowers the bisection steps the setting asks for.
-            OwnCloudOptions.Apply(frame, Defaults("cloudRefineBisect", 4));
-            Assert.AreEqual(4, frame.RefineBisect);
             // The history belongs to level 1: it runs the half-size march through the mode Low; the block levels keep their own.
             OwnCloudOptions.Apply(recon, Defaults());
             Assert.AreEqual(ReconMode.Low, recon.Mode);
@@ -475,79 +418,55 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
         }
 
-        // E40 grain against TVC: the span cut and the step offset's sequence are the product's defaults, each back to the pass as it was by its key; the grid
-        // multiplier reaches below 1.
+        // E40 grain against TVC: the span cut is off by default and its key switches it on; the grid multiplier reaches below 1.
+        // E40 step (c): the step offset is the gradient noise by default (2); the key layers.ditherSequence 1 gives the white hash back; values outside 1 to 2 are clamped.
         [TestMethod]
-        public void TheSpanCutAndTheDitherSequenceAreDefaultsWithAKeyBack()
+        public void TheDitherSequenceIsTheGradientNoiseByDefaultWithAKeyForTheHash()
+        {
+            Tuning.ClearOverrides();
+            NextFrame();
+            var frame = new LayerFrame();
+            Assert.AreEqual(2, frame.DitherSequence);
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(OwnCloudOptions.DitherSequenceDefault, frame.DitherSequence);
+            Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 1f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(1, frame.DitherSequence);
+            Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 0f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(1, frame.DitherSequence, "0 (a new offset per frame) is gone: clamped to 1");
+            Tuning.ClearOverrides();
+            NextFrame();
+        }
+
+        [TestMethod]
+        public void TheSpanCutIsOffByDefaultWithAKeyOn()
         {
             Tuning.ClearOverrides();
             NextFrame();
             var frame = new LayerFrame();
             Assert.IsFalse(frame.SpanTight);
-            Assert.AreEqual(0, frame.DitherSequence);
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(OwnCloudOptions.SpanTightDefault, frame.SpanTight);
-            Assert.AreEqual((int)OwnCloudOptions.DitherSequenceDefault, frame.DitherSequence);
             Assert.AreEqual(Math.Round(48 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
 
-            Tuning.SetOverride(OwnCloudOptions.TuneSpanTight, 0f);
-            Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 0f);
+            Tuning.SetOverride(OwnCloudOptions.TuneSpanTight, 1f);
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 1f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsFalse(frame.SpanTight);
-            Assert.AreEqual(0, frame.DitherSequence);
+            Assert.IsTrue(frame.SpanTight);
             Assert.AreEqual(48, frame.MaxSteps);
 
-            Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 2f);
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 0.5f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(2, frame.DitherSequence);
             Assert.AreEqual(24, frame.MaxSteps);
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 0.01f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(12, frame.MaxSteps);
-            Tuning.ClearOverrides();
-            NextFrame();
-        }
-
-        // Package 2 of E40 grain against TVC: layers.surfaceMarch turns the entry search, the ramp, the optical-depth step and (by layers.surfaceLight) the light per
-        // entry on together; 0 leaves every one of them as the other keys set it.
-        [TestMethod]
-        public void TheSurfaceMarchKeySetsTheEntryTheStepAndTheLight()
-        {
-            Tuning.ClearOverrides();
-            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceMarch, 0f);
-            NextFrame();
-            var frame = new LayerFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsFalse(frame.LightPerEntry);
-            Assert.IsFalse(frame.EntryRamp);
-            Assert.AreEqual(0f, frame.RefineStepBudget);
-            Assert.AreEqual(0, frame.RefineBisect);
-            Assert.AreEqual(new LayerFrame().RefineFraction, frame.RefineFraction);
-
-            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceMarch, 3f);
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(3, frame.RefineBisect);
-            Assert.IsTrue(frame.EntryRamp);
-            Assert.AreEqual(OwnCloudOptions.SurfaceBudgetDefault, frame.RefineStepBudget);
-            Assert.AreEqual(0.125f, frame.RefineFraction);
-            Assert.AreEqual(OwnCloudOptions.SurfaceLightDefault, frame.LightPerEntry);
-
-            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceLight, 1f);
-            Tuning.SetOverride(OwnCloudOptions.TuneSurfaceBudget, 1.5f);
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsTrue(frame.LightPerEntry);
-            Assert.AreEqual(1.5f, frame.RefineStepBudget);
-            // The setting's bisection steps are never lowered, and the finest step follows them.
-            OwnCloudOptions.Apply(frame, Defaults("cloudRefineBisect", 5));
-            Assert.AreEqual(5, frame.RefineBisect);
-            Assert.AreEqual(1f / 32f, frame.RefineFraction);
             Tuning.ClearOverrides();
             NextFrame();
         }
@@ -595,8 +514,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsAmbientTaps, Reason("cloudAmbientReuse", own, eve));
             Assert.IsNull(Reason("cloudAmbientReuse", Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1, "cloudAmbientTaps", 1), eve));
             Assert.IsNull(Reason("cloudResolution", own, eve));
-            Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsEntryRefinement, Reason("cloudRefineAtContours", own, eve));
-            Assert.IsNull(Reason("cloudRefineAtContours", Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1, "cloudEntryRefinement", 1), eve));
             // The master switch is the root of all of them.
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsMaster, Reason("cloudNoise", Defaults(), eve));
         }
@@ -621,10 +538,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 if (json.IndexOf("\"id\": \"weather-" + key + "\"", StringComparison.Ordinal) < 0 && !Regex.IsMatch(json, "\"id\": \"weather-" + key + @"\w*""")) gaps.Add(key + " (id)");
                 if (json.IndexOf("\"atmo." + key + "\": \"", StringComparison.Ordinal) < 0) gaps.Add(key + " (key)");
             }
-            foreach (string tuning in new[] { OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneRefineBudget,
-                                              OwnCloudOptions.TuneEntryRamp, OwnCloudOptions.TuneGridFine, OwnCloudOptions.TuneCloudStep, OwnCloudOptions.TuneAccumulate,
-                                              OwnCloudOptions.TuneSpanTight, OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.TuneSurfaceMarch,
-                                              OwnCloudOptions.TuneSurfaceBudget, OwnCloudOptions.TuneSurfaceLight })
+            foreach (string tuning in new[] { OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap,
+                                              OwnCloudOptions.TuneGridFine, OwnCloudOptions.TuneAccumulate, OwnCloudOptions.TuneSpanTight, OwnCloudOptions.TuneDitherSequence })
             {
                 if (json.IndexOf("\"atmo." + tuning + "\"", StringComparison.Ordinal) < 0) gaps.Add(tuning);
             }

@@ -69,7 +69,6 @@ def build_expect():
     add("dlod_off_g", "noise", ADDS, note="the distance detail LOD saves when on, so off costs the same or more")
     add("tier_low_g", "noise", FREE, "changes")
     add("tier_high_g", "noise", FREE, "changes")
-    add("hash_off_g", "noise", FREE)
     add("h_all_off_g", "t13", T13, "changes", note="T13 brief: the four switches cost 0.1 ms at most")
     add("h_bvar_off_g", "t13", T13)
     add("h_bphys_off_g", "t13", T13)
@@ -131,9 +130,6 @@ def build_expect():
     # reconstruction options
     add("rlow_g", "recon", SAVES, "changes")
     add("edge_g", "recon", SAVES, "changes")
-    add("bisect2_g", "recon", ADDS)
-    add("contours_g", "recon", ADDS)
-    add("edgemask_g", "recon", SAVES)
     # lightning (storm 12 km east): cost outside the pass's labels
     add("ln_on_h", "lightning", (-0.8, 3.0), busy=True, ref="plain_h")
     add("ln_bolts_off_h", "lightning", (-3.0, 0.8), busy=True, ref="ln_on_h")
@@ -154,7 +150,6 @@ def build_expect():
     for lvl in ("recon2", "recon3", "recon4"):
         add(lvl + "_g", "recon", SAVES, "changes")
         add(lvl + "_a", "recon", SAVES, "changes")
-    add("entry_g", "recon", ADDS)
     add("cap2_g", "step", SAVES)
     add("cache_g", "light", (-1.5, 0.8), note="K-T2: the cache saves nothing inside")
     add("lshift_g", "look", FREE, "changes")

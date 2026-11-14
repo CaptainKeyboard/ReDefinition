@@ -19,13 +19,11 @@ namespace ReDefinition.WeatherPlayer
         public string Name;
         public ReconMode Mode = ReconMode.Block;
         public int Block = 4;
-        // The entry refinement the variant's rays march with (the frame's RefineBudget).
-        public float Refine;
         public EdgeSettings Edge;
 
-        internal static EdgeSettings Edged(float threshold, int dilation, int persist, bool band)
+        internal static EdgeSettings Edged(float threshold, int dilation, int persist)
         {
-            return new EdgeSettings { Enabled = true, Threshold = threshold, Dilation = dilation, Persist = persist, StepBand = band };
+            return new EdgeSettings { Enabled = true, Threshold = threshold, Dilation = dilation, Persist = persist };
         }
 
         internal ReconSettings Settings()
@@ -33,30 +31,27 @@ namespace ReDefinition.WeatherPlayer
             return new ReconSettings { Mode = Mode, Block = Block, Edge = Edge };
         }
 
-        // The modes of the tables. full: every pixel every frame with the refinement (the reference's own pass); u4, u2: the uniform block modes of T05 as
-        // they run today (no refinement); u4r, u2r: the same with the entry refinement on every ray; e: the edge-adaptive mode (the 4 x 4 coarse pattern,
-        // the 2 x 2 pattern with the refinement in the flagged blocks); eN: the same without the band (the refinement in every block).
+        // The modes of the tables. full: every pixel every frame (the reference's own pass); u4, u2: the uniform block modes of T05; e: the edge-adaptive mode
+        // (the 4 x 4 coarse pattern, the 2 x 2 pattern in the flagged blocks). The variants u4r, u2r and eN of the tables before E40 step (c) (the entry
+        // refinement on every ray, the edge mode without the step band) went with the entry refinement.
         internal static List<EdgeVariant> Table(bool sweep)
         {
             var list = new List<EdgeVariant>
             {
-                new EdgeVariant { Name = "full", Mode = ReconMode.Full, Refine = 0.5f },
-                new EdgeVariant { Name = "u4", Refine = 0f },
-                new EdgeVariant { Name = "u4r", Refine = 0.5f },
-                new EdgeVariant { Name = "u2", Block = 2, Refine = 0f },
-                new EdgeVariant { Name = "u2r", Block = 2, Refine = 0.5f },
-                new EdgeVariant { Name = "e", Refine = 0.5f, Edge = Edged(EdgeSettings.ThresholdDefault, EdgeSettings.DilationDefault, EdgeSettings.PersistDefault, true) },
-                new EdgeVariant { Name = "eN", Refine = 0.5f, Edge = Edged(EdgeSettings.ThresholdDefault, EdgeSettings.DilationDefault, EdgeSettings.PersistDefault, false) },
+                new EdgeVariant { Name = "full", Mode = ReconMode.Full },
+                new EdgeVariant { Name = "u4" },
+                new EdgeVariant { Name = "u2", Block = 2 },
+                new EdgeVariant { Name = "e", Edge = Edged(EdgeSettings.ThresholdDefault, EdgeSettings.DilationDefault, EdgeSettings.PersistDefault) },
             };
             if (sweep)
             {
                 // One sweep of the three tuned numbers, one at a time around the default (threshold, dilation, persistence).
-                list.Add(new EdgeVariant { Name = "eT03", Refine = 0.5f, Edge = Edged(0.03f, EdgeSettings.DilationDefault, EdgeSettings.PersistDefault, true) });
-                list.Add(new EdgeVariant { Name = "eT12", Refine = 0.5f, Edge = Edged(0.12f, EdgeSettings.DilationDefault, EdgeSettings.PersistDefault, true) });
-                list.Add(new EdgeVariant { Name = "eD0", Refine = 0.5f, Edge = Edged(EdgeSettings.ThresholdDefault, 0, EdgeSettings.PersistDefault, true) });
-                list.Add(new EdgeVariant { Name = "eD2", Refine = 0.5f, Edge = Edged(EdgeSettings.ThresholdDefault, 2, EdgeSettings.PersistDefault, true) });
-                list.Add(new EdgeVariant { Name = "eP1", Refine = 0.5f, Edge = Edged(EdgeSettings.ThresholdDefault, EdgeSettings.DilationDefault, 1, true) });
-                list.Add(new EdgeVariant { Name = "eP8", Refine = 0.5f, Edge = Edged(EdgeSettings.ThresholdDefault, EdgeSettings.DilationDefault, 8, true) });
+                list.Add(new EdgeVariant { Name = "eT03", Edge = Edged(0.03f, EdgeSettings.DilationDefault, EdgeSettings.PersistDefault) });
+                list.Add(new EdgeVariant { Name = "eT12", Edge = Edged(0.12f, EdgeSettings.DilationDefault, EdgeSettings.PersistDefault) });
+                list.Add(new EdgeVariant { Name = "eD0", Edge = Edged(EdgeSettings.ThresholdDefault, 0, EdgeSettings.PersistDefault) });
+                list.Add(new EdgeVariant { Name = "eD2", Edge = Edged(EdgeSettings.ThresholdDefault, 2, EdgeSettings.PersistDefault) });
+                list.Add(new EdgeVariant { Name = "eP1", Edge = Edged(EdgeSettings.ThresholdDefault, EdgeSettings.DilationDefault, 1) });
+                list.Add(new EdgeVariant { Name = "eP8", Edge = Edged(EdgeSettings.ThresholdDefault, EdgeSettings.DilationDefault, 8) });
             }
             return list;
         }
@@ -245,7 +240,6 @@ namespace ReDefinition.WeatherPlayer
                     foreach (EdgeVariant v in variants)
                     {
                         if (clock.Elapsed.TotalMinutes > 17.0) { Sink.Flag("cost_run_completed", false); yield break; }
-                        frame.RefineBudget = v.Refine;
                         ReconSettings settings = v.Settings();
                         rig.Recon.Reset();
                         var cCoarse = new List<double>();
@@ -330,8 +324,7 @@ namespace ReDefinition.WeatherPlayer
                 rig.Load(job, input);
                 rig.Frame.UseProductCost();
                 rig.Pose(Cam, 0f, Vector3.zero);
-                // The reference: the mean of four full marches with the entry refinement (the full-resolution render of the same density field).
-                rig.Frame.RefineBudget = 0.5f;
+                // The reference: the mean of four full marches (the full-resolution render of the same density field).
                 var full = new ReconSettings { Mode = ReconMode.Full };
                 Array.Clear(refDisplay, 0, pixels);
                 Array.Clear(refAlpha, 0, pixels);
@@ -351,7 +344,6 @@ namespace ReDefinition.WeatherPlayer
                 float[] naturalBefore = null;
                 foreach (EdgeVariant v in EdgeVariant.Table(sweep))
                 {
-                    rig.Frame.RefineBudget = v.Refine;
                     ReconSettings s = v.Settings();
                     rig.Recon.Reset();
                     var d = new float[pixels];
@@ -449,9 +441,8 @@ namespace ReDefinition.WeatherPlayer
                     }
                     yield return null;
                 }
-                // The step-count heat map of the full pass (the layer shader's aid 5), the aid of the step band.
+                // The step-count heat map of the full pass (the layer shader's aid 5).
                 rig.Frame.AidMode = 5;
-                rig.Frame.RefineBudget = 0.5f;
                 rig.Recon.Reset();
                 EdgeKit.Render(Cam, rig,full, 5);
                 rig.Frame.AidMode = 0;
@@ -516,7 +507,7 @@ namespace ReDefinition.WeatherPlayer
                 new Scenario { Name = "cut", Frames = 36 },
             };
             var variants = new List<EdgeVariant>();
-            foreach (EdgeVariant v in EdgeVariant.Table(false)) if (v.Name == "full" || v.Name == "u4r" || v.Name == "u2r" || v.Name == "e") variants.Add(v);
+            foreach (EdgeVariant v in EdgeVariant.Table(false)) if (v.Name == "full" || v.Name == "u4" || v.Name == "u2" || v.Name == "e") variants.Add(v);
             var clock = System.Diagnostics.Stopwatch.StartNew();
             foreach (string jobId in new[] { "V-ground", "V-stack-below" })
             {
@@ -528,7 +519,6 @@ namespace ReDefinition.WeatherPlayer
                 var full = new ReconSettings { Mode = ReconMode.Full };
                 foreach (Scenario sc in scenarios)
                 {
-                    rig.Frame.RefineBudget = 0.5f;
                     var refDisplay = new float[sc.Frames][];
                     var refAlpha = new float[sc.Frames][];
                     for (int i = 0; i < sc.Frames; i++)
@@ -550,7 +540,6 @@ namespace ReDefinition.WeatherPlayer
                     foreach (EdgeVariant v in variants)
                     {
                         if (clock.Elapsed.TotalMinutes > 16.0) { Sink.Flag("temporal_completed", false); yield break; }
-                        rig.Frame.RefineBudget = v.Refine;
                         ReconSettings s = v.Settings();
                         rig.Recon.Reset();
                         var moving = new List<double>();

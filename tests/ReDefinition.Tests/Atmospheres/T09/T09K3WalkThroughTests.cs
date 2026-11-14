@@ -197,7 +197,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(r.World.Saved.Count, r.World.Saved.Distinct().Count(), s.Key + ": unique picture names");
                 windows += s.Value.Length;
             }
-            Assert.AreEqual(124, windows);
+            Assert.AreEqual(119, windows);
         }
 
         [TestMethod]

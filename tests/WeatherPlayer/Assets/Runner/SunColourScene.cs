@@ -63,7 +63,7 @@ namespace ReDefinition.WeatherPlayer
             var full = new ReconSettings { Mode = ReconMode.Full };
             // The medium of the product's default look: the soft water content, width 0.5 (the owner's favourite).
             SoftTable.Medium medium = null;
-            foreach (SoftTable.Medium m in SoftTable.Media) if (m.Name == "s50k2") medium = m;
+            foreach (SoftTable.Medium m in SoftTable.Media) if (m.Name == "pr50") medium = m;
             int done = 0;
             foreach (string view in new[] { "ground", "above" })
             {
@@ -80,7 +80,6 @@ namespace ReDefinition.WeatherPlayer
                 {
                     LayerFrame f = rig.Frame;
                     GrainTable.ApplyConverged(f);
-                    SoftTable.Apply(f, medium);
                     f.Light.SunAirWhiteBalance = false;
                     // Scatterer's colour at the camera: the white sun through the air above the camera (the model, which reproduces the measured 0.69 and 0.96 blue over red).
                     var scatterer = new CloudLightSettings { SunAirWhiteBalance = false };

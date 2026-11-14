@@ -3,8 +3,8 @@ using System;
 namespace ReDefinition.Atmospheres
 {
     // The soft water content of a cloud (E40 soft density): ONE mapping from the layer's map value, the shape noise's rank, the softness and the height in the cloud
-    // to the density. The layer shader needs no code for it: its share saturate((map + (n - 0.5) amount + coverage - 1) / edge + 0.5), eroded, to the power
-    // layers.edgePower, times the type's profile IS this mapping once the layer's numbers are the ones of Coverage below (noise amount 1, edge = Width), the edge
+    // to the density. The layer shader needs no code for it: its share saturate((map + (n - 0.5) amount + coverage - 1) / edge + 0.5), eroded, to the layer's
+    // water power, times the type's profile IS this mapping once the layer's numbers are the ones of Coverage below (noise amount 1, edge = Width), the edge
     // hardness is off (NoiseSwitches.SoftEdge) and the type's profile carries the rise. Today only the weather player's experiment (SoftDensityScene) and the tests
     // call it; the product's density is still the share of the soft edge (CloudShapeModel.Share).
     //

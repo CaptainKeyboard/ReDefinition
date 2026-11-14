@@ -212,7 +212,7 @@ def jobs_and_specs():
             j = L.job(jid, "color", cam, v["layers"], SIZE[0], SIZE[1], sun=sun, maxSteps=96, minStep=25.0, stepGrowth=0.0002, jitter=1.0,
                       earlyOut=0.01, sunSteps=3, mapWidth=MAP_W, mapHeight=MAP_H)
             j.update(DAY)
-            j.update(refineBudget=0.5, refineFraction=0.125, sunMarch=9000.0)
+            j.update(sunMarch=9000.0)
             jobs.append(j)
             if name not in ("before", "before2"):
                 specs.append(spec(jid, VARIANTS[name]))

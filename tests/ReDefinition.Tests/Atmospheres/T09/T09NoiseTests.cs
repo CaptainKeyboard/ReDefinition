@@ -83,7 +83,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void NoNoiseRowsForTheBaselineTvcOtherViewsOrOtherVariants()
         {
-            Run r = Start(new[] { "off", "cap2", "entry" });
+            Run r = Start(new[] { "off", "cap2", "cache" });
             Drive(r, RealDt);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual(0, r.World.RawBeginFrames.Count);

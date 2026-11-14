@@ -270,7 +270,7 @@
       "opacity_micromaps": null,
       "frame_generation": ["fsr"],
       "latency": ["none"],
-      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.layerStepQuality": "Medium", "atmo.cloudNoise": "True", "atmo.cloudNoiseUntile": "True", "atmo.cloudNoiseCurl": "True", "atmo.cloudNoiseTier": "Medium", "atmo.cloudNoiseDistanceLod": "True", "atmo.cloudFineDetail": "True", "atmo.cloudEntryRefinement": "False", "atmo.cloudHashDither": "True", "atmo.cloudLightQuality": "High", "atmo.cloudSunTint": "True", "atmo.cloudAmbientTaps": "False", "atmo.cloudLightCache": "False", "atmo.cloudShadows": "True", "atmo.cloudShadowQuality": "Medium", "atmo.cloudReconMode": "Full"},
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.layerStepQuality": "Medium", "atmo.cloudNoise": "True", "atmo.cloudNoiseUntile": "True", "atmo.cloudNoiseCurl": "True", "atmo.cloudNoiseTier": "Medium", "atmo.cloudNoiseDistanceLod": "True", "atmo.cloudFineDetail": "True", "atmo.cloudLightQuality": "High", "atmo.cloudSunTint": "True", "atmo.cloudAmbientTaps": "False", "atmo.cloudLightCache": "False", "atmo.cloudShadows": "True", "atmo.cloudShadowQuality": "Medium", "atmo.cloudReconMode": "Full"},
       "tweaks": [
         {"id": "weather-ownClouds", "name": "Own Volumetric Clouds false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.ownClouds": "False"}},
         {"id": "weather-layerStepQuality", "name": "Own Cloud Step Quality Low", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layerStepQuality": "Low"}},
@@ -280,9 +280,6 @@
         {"id": "weather-cloudNoiseTier", "name": "Cloud Noise Size Low", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudNoiseTier": "Low"}},
         {"id": "weather-cloudNoiseDistanceLod", "name": "Cloud Noise Distance Detail false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudNoiseDistanceLod": "False"}},
         {"id": "weather-cloudFineDetail", "name": "Cloud Fine Detail Octave false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudFineDetail": "False"}},
-        {"id": "weather-cloudEntryRefinement", "name": "Cloud Entry Refinement true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True"}},
-        {"id": "weather-cloudRefineAtContours", "name": "Cloud Refine Only At Contours true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True", "atmo.cloudRefineAtContours": "True"}},
-        {"id": "weather-cloudHashDither", "name": "Cloud White Dither false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudHashDither": "False"}},
         {"id": "weather-cloudLightQuality", "name": "Cloud Light Quality Low", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudLightQuality": "Low"}},
         {"id": "weather-cloudSunTint", "name": "Cloud Sun Colour Through Air false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunTint": "False"}},
         {"id": "weather-cloudAmbientTaps", "name": "Cloud Ambient Taps true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudAmbientTaps": "True"}},
@@ -304,7 +301,7 @@
       "opacity_micromaps": null,
       "frame_generation": ["fsr"],
       "latency": ["none"],
-      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.layerCap": "4", "atmo.layerStepGrowth": "2", "atmo.cloudLightOctaves": "4", "atmo.cloudPowder": "0.8075", "atmo.cloudMoonLights": "2", "atmo.cloudAmbientTaps": "False", "atmo.cloudAmbientReuse": "0", "atmo.cloudShadowFloor": "0", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1", "atmo.cloudEntryRefinement": "False", "atmo.cloudRefineAtContours": "False", "atmo.layers.coverageBound": "1", "atmo.layers.lightStride": "2", "atmo.layers.lightCutoff": "0.05", "atmo.layers.emptyLeap": "1", "atmo.layers.refineBudget": "0.5"},
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.layerCap": "4", "atmo.layerStepGrowth": "2", "atmo.cloudLightOctaves": "4", "atmo.cloudPowder": "0.8075", "atmo.cloudMoonLights": "2", "atmo.cloudAmbientTaps": "False", "atmo.cloudAmbientReuse": "0", "atmo.cloudShadowFloor": "0", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1", "atmo.layers.coverageBound": "1", "atmo.layers.lightStride": "2", "atmo.layers.lightCutoff": "0.05", "atmo.layers.emptyLeap": "1"},
       "tweaks": [
         {"id": "weather-layerCap", "name": "Own Cloud Layer Cap 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layerCap": "2"}},
         {"id": "weather-layerStepGrowth", "name": "Own Cloud Step Growth 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layerStepGrowth": "0"}},
@@ -318,11 +315,9 @@
         {"id": "weather-layersLightStride", "name": "Own clouds light stride 1", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.lightStride": "1"}},
         {"id": "weather-layersLightCutoff", "name": "Own clouds sun march cutoff 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.lightCutoff": "0"}},
         {"id": "weather-layersEmptyLeap", "name": "Own clouds empty leap 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.emptyLeap": "4"}},
-        {"id": "weather-layersRefineBudget", "name": "Own clouds entry refinement budget 1", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True", "atmo.layers.refineBudget": "1"}},
         {"id": "weather-layersReconstructor", "name": "Own clouds reconstructor on (4 x 4 block)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1"}},
-        {"id": "weather-layersEdgeAdaptive", "name": "Own clouds edge-adaptive resolution", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.cloudEntryRefinement": "True"}},
+        {"id": "weather-layersEdgeAdaptive", "name": "Own clouds edge-adaptive resolution", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1"}},
         {"id": "weather-layersEdgeMaskDilation", "name": "Own clouds edge mask dilation 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.layers.edgeMaskDilation": "2"}},
-        {"id": "weather-layersEdgeStepBand", "name": "Own clouds edge step band on", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.reconstructorEnabled": "1", "atmo.layers.edgeAdaptive": "1", "atmo.cloudEntryRefinement": "True", "atmo.layers.edgeStepBand": "1"}},
         {"id": "weather-shadowStepPolicy", "name": "Cloud shadow fixed step count (policy 0)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.shadow.stepPolicy": "0"}}
       ]
     },
@@ -366,20 +361,12 @@
         {"id": "weather-cloudFadeNear", "name": "Own clouds distance fade at 20 km starting at 25 percent", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.fadeFarM": "20000", "atmo.cloud.fadeNearShare": "0.25"}},
         {"id": "weather-cloudHaze", "name": "Own clouds aerial perspective forced on at half strength", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloud.farHaze": "1", "atmo.cloud.hazeStrength": "0.5"}},
         {"id": "weather-cloudShadowMapOnly", "name": "Cloud shadow reads the map's threshold only, no shape noise (the shadow before E40 FL-FIX)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.shadow.shapeNoise": "0"}},
-        {"id": "weather-cloudAccumulateOff", "name": "Own clouds half-size march without a history (recon.accumulate 0, the pass before E40 grain; the default is 0.2)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.recon.accumulate": "0"}},
+        {"id": "weather-cloudDitherHash", "name": "Own clouds step offset: golden-ratio sequence over a white per-pixel hash (layers.ditherSequence 1; the default 2 is the interleaved gradient noise)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.ditherSequence": "1"}},
+        {"id": "weather-cloudAccumulateOff","name": "Own clouds half-size march without a history (recon.accumulate 0, the pass before E40 grain; the default is 0.2)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.recon.accumulate": "0"}},
         {"id": "weather-cloudSpanTight", "name": "Own clouds marched over the altitudes of the cloud types around the camera only, with the height variation's reach as the maps hold it (layers.spanTight 1; the default 0 marches the type table's whole interval with the worst-case reach)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.spanTight": "1"}},
-        {"id": "weather-cloudGridMarch", "name": "Own clouds grid march of before E40 grain against TVC (no surface march, whole interval, white step offset per frame)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.surfaceMarch": "0", "atmo.layers.spanTight": "0", "atmo.layers.ditherSequence": "0"}},
-        {"id": "weather-cloudSurfaceMarch", "name": "Own clouds surface march: the entry by three bisections, the step inside by an optical depth of 0.7, on the cut span (K-T2d start gt58: temporal noise 0.0159 / 0.0064 to 0.0053 / 0.0029 at 4.3 / 5.75 to 7.2 / 7.9 ms; off by default)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.surfaceMarch": "3", "atmo.layers.spanTight": "1"}},
-        {"id": "weather-cloudSurfaceMarchWhole","name": "Own clouds surface march on the type table's whole interval (K-T2d start gt58: 0.0086 / 0.0043 at 6.2 / 7.7 ms)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.surfaceMarch": "3", "atmo.layers.spanTight": "0"}},
-        {"id": "weather-cloudSurfaceMarchLight", "name": "Own clouds surface march with the light once per entry and a budget of 1.5", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.surfaceMarch": "3", "atmo.layers.surfaceLight": "1", "atmo.layers.surfaceBudget": "1.5"}},
-        {"id": "weather-cloudSpanTightRamp","name": "Own clouds on the cut span with the entry found by two bisection steps and the step ramp, no surface march (K-T2d start gt57: temporal noise 0.0110 to 0.0044 at +1.4 to +2.1 ms)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.spanTight": "1", "atmo.layers.entryRamp": "2", "atmo.layers.surfaceMarch": "0"}},
-        {"id": "weather-cloudDitherWhite", "name": "Own clouds with a new step offset per pixel and frame (layers.ditherSequence 0, the pass before E40 grain against TVC; the default advances a per-pixel offset by the golden ratio)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.ditherSequence": "0"}},
-        {"id": "weather-cloudDitherGradient", "name": "Own clouds step offset: golden-ratio sequence over the interleaved gradient noise (layers.ditherSequence 2)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.ditherSequence": "2"}},
         {"id": "weather-cloudAccumulate10","name": "Own clouds with a history weight of 0.1 (K-T2d start gt57: temporal noise 0.0096 / 0.0093 to 0.0042 / 0.0044 at no cost; the default stays 0.2 for the fast fly-by)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.recon.accumulate": "0.1"}},
         {"id": "weather-cloudGridLeap", "name": "Own clouds grid four times finer with a leap of four over empty samples, no history", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4", "atmo.recon.accumulate": "0"}},
-        {"id": "weather-cloudGridLeapAccumulate", "name": "Own clouds finer grid with the leap and the default history (0.2)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4", "atmo.recon.accumulate": "0.2"}},
-        {"id": "weather-cloudGridLeapCoarse", "name": "Own clouds finer grid with the leap, the step inside a cloud as on the coarse grid", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4", "atmo.layers.cloudStep": "4"}},
-        {"id": "weather-cloudEntryRamp", "name": "Own clouds entry found by four bisection steps, the step doubling from it, on the finer grid", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.entryRamp": "4", "atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4"}}
+        {"id": "weather-cloudGridLeapAccumulate", "name": "Own clouds finer grid with the leap and the default history (0.2)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layers.gridFine": "4", "atmo.layers.emptyLeap": "4", "atmo.recon.accumulate": "0.2"}}
       ]
     },
     {
@@ -395,7 +382,6 @@
       "latency": ["none"],
       "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudSunMarchLong": "False", "atmo.cloudSunWhiteBalance": "False","atmo.cloudDiffusionDecay": "0.02", "atmo.cloudFarHaze": "False", "atmo.cloudFarShapeMean": "False", "atmo.cloudFarMinSamples": "0", "atmo.cloudFarPolicy": "False", "atmo.cloudFarMapFade": "False"},
       "tweaks": [
-        {"id": "weather-layersRefineGate", "name": "Own clouds refinement gate 0.25", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudEntryRefinement": "True", "atmo.cloudRefineAtContours": "True", "atmo.layers.refineGate": "0.25"}},
         {"id": "weather-cloudSunMarchLong", "name": "Cloud Long Sun March true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunMarchLong": "True"}},
         {"id": "weather-cloudSunWhiteBalance", "name": "Cloud Sun White Balance true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunWhiteBalance": "True"}},
         {"id": "weather-cloudDiffusionDecay", "name": "Cloud Diffusion Decay 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudDiffusionDecay": "0"}},
@@ -437,8 +423,8 @@
     },
     {
       "id": "weather-9",
-      "name": "Cheap entry refinement of the own clouds",
-      "description": "The two cheap forms of the cloud entry refinement (package T15), one rendering for each value flipped from the group's base, FSR 3 at raytracing Off without frame generation. The base is the own system drawing (cloudSource Ours, ownClouds on) with the refinement off at full resolution. The rows: 2, 3 and 4 bisection steps, 3 bisection steps at cloudResolution 4, and the refinement restricted to the edge mask with 0 and with 3 bisection steps elsewhere (this switches the edge-adaptive picture on). The full refinement (weather-cloudEntryRefinement) is the comparison row of weather-5.",
+      "name": "Soft cloud samples of the own clouds",
+      "description": "The cheapest choice of the soft cloud density (E40 soft density): one rendering, FSR 3 at raytracing Off without frame generation. The base is the own system drawing (cloudSource Ours, ownClouds on) at full resolution with the default softness and samples. The row: Cloud Samples Low (24 grid points) with Cloud Softness 1.0.",
       "scenes": ["pad"],
       "techniques": ["fsr3"],
       "raytracing": ["Off"],
@@ -446,15 +432,9 @@
       "opacity_micromaps": null,
       "frame_generation": ["fsr"],
       "latency": ["none"],
-      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1", "atmo.cloudEntryRefinement": "False", "atmo.cloudRefineAtContours": "False", "atmo.cloudRefineBisect": "0", "atmo.cloudRefineEdgeMask": "False"},
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1"},
       "tweaks": [
-        {"id": "weather-cloudRefineBisect2", "name": "Cloud Entry Bisection Steps 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "2"}},
-        {"id": "weather-cloudRefineBisect3", "name": "Cloud Entry Bisection Steps 3", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "3"}},
-        {"id": "weather-cloudRefineBisect4", "name": "Cloud Entry Bisection Steps 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "4"}},
-        {"id": "weather-cloudRefineBisect3Res4", "name": "Cloud Entry Bisection Steps 3, Cloud Resolution 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "3", "atmo.cloudReconMode": "Block", "atmo.cloudResolution": "4"}},
-        {"id": "weather-cloudRefineEdgeMask", "name": "Cloud Refine At Edge Mask true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineEdgeMask": "True"}},
-        {"id": "weather-cloudSamples", "name": "Cloud Samples Low with Cloud Softness 1.0 (24 grid points)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSamples": "Low", "atmo.cloudSoftness": "1"}},
-        {"id": "weather-cloudRefineEdgeMaskBisect3", "name": "Cloud Refine At Edge Mask true, Cloud Entry Bisection Steps 3", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineEdgeMask": "True", "atmo.cloudRefineBisect": "3"}}
+        {"id": "weather-cloudSamples", "name": "Cloud Samples Low with Cloud Softness 1.0 (24 grid points)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSamples": "Low", "atmo.cloudSoftness": "1"}}
       ]
     },
     {

@@ -3,28 +3,27 @@ tools/build_weather_player.py --series T12-cost (timing run, exclusive), T12-qua
 
   T12-cost      scene 'edge-cost': ms per view of the coarse march, the mask passes, the edge march and the reconstruction + composite, for the
                 modes of the table at 1707x960 and 2560x1440.
-  T12-quality   scene 'edge-quality': per view the error against the reference (the mean of four full marches with the entry refinement) in
+  T12-quality   scene 'edge-quality': per view the error against the reference (the mean of four full marches) in
                 the band of N = 6 pixels around the contour, in the thick interior and in the empty sky, the seams at the block borders, the mask
                 and the pictures t12-<view>-before/after/reference/aid-mask/aid-rays/aid-error/aid-steps.png.
   T12-temporal  scene 'edge-temporal': turns of 2 and 12 degrees a frame, a 100 m/s fly-by and a camera cut: ghost_move, trail_px, shimmer,
                 the frames to converge after the cut, the mask's cover of the contour.
 
-Modes of the tables (scene EdgeVariant.Table): full = every pixel every frame with the entry refinement; u4 / u2 = the uniform 4 x 4 / 2 x 2 block
-modes of T05 as they run today; u4r / u2r = the same with the entry refinement on every ray; e = edge-adaptive (4 x 4 coarse pattern, 2 x 2 pattern
-with the refinement in the flagged blocks); eN = e without the step band (the refinement in every block); eT03 .. eP8 = the sweep of the three tuned
-numbers (threshold, dilation, persistence), one at a time around e.
+Modes of the tables (scene EdgeVariant.Table): full = every pixel every frame; u4 / u2 = the uniform 4 x 4 / 2 x 2 block modes of T05; e = edge-adaptive
+(4 x 4 coarse pattern, 2 x 2 pattern in the flagged blocks); eT03 .. eP8 = the sweep of the three tuned numbers (threshold, dilation, persistence), one at a
+time around e. The modes u4r, u2r (the entry refinement on every ray) and eN (e without the step band) went with the entry refinement (E40 step (c)).
 
 THRESHOLDS and their sources (fixed before the first run):
   band_rms.e        <= band_rms.u2                    brief: error in the band no worse than the uniform 2 x 2 mode of T05
-  band_rms.e        <= 1.15 x band_rms.full           brief: within 15 percent [proposed] of full resolution (one full march with the refinement)
+  band_rms.e        <= 1.15 x band_rms.full           brief: within 15 percent [proposed] of full resolution (one full march)
   interior_err.e    <= 0.02                           brief: luminance error where the transmittance is below 0.05 within 2 percent [proposed]
   empty_leak.e      <= 0.0001                         brief: empty sky exact (alpha 0)
   seam.e            <= 0.01                           brief: luminance step at block borders <= 1 percent [proposed]
   total.e           <= 0.8 (stack-below 1.2) ms at 1707x960, x 2.2 at 2560x1440     T05 cost budget (.local/plans/atmospheres/T05-cost-budget.md)
   mask.e            <= 0.1 ms                         brief
-  total.e           <= 0.75 x total.u2r               brief: at least 25 percent [proposed] cheaper than uniform full-ray refinement at equal edge quality
+  total.e vs total.u2 (info)                         the brief's 25 percent claim was against uniform full-ray refinement, which is gone; the ratio is reported only
   ghost_move.e      <= 0.012, trail_px.e <= 0.14      C21 thresholds N14, as the T05 rows use them (no upscaler in the scene)
-  shimmer.e         <= shimmer.u4r                    brief: sparkling-edge measure no worse than the uniform T05 mode with the same refinement
+  shimmer.e         <= shimmer.u4                     brief: sparkling-edge measure no worse than the uniform T05 mode
   converge_frames.e <= 20                             brief: the T05 value, reconstruction cycle (16) + 4 frames
   cover (frame 2 after the cut) >= 0.9                brief: a new edge is drawn at edge resolution within 2 frames [proposed]
 
@@ -92,8 +91,8 @@ def cost_rows(values):
         rows.append(("cost.%s.%s.e.total_ms" % (view, size), v, budget(view, size), "max", "T05 budget"))
         mask = values.get("edgecost.mask.%s.e.%s" % (view, size), NAN)
         rows.append(("cost.%s.%s.e.mask_ms" % (view, size), mask, 0.1, "max", "brief"))
-        ref = values.get("edgecost.total.%s.u2r.%s" % (view, size), NAN)
-        rows.append(("cost.%s.%s.e_vs_u2r" % (view, size), v / ref if ref == ref and ref > 0 else NAN, 0.75, "max", "brief: 25 percent cheaper"))
+        ref = values.get("edgecost.total.%s.u2.%s" % (view, size), NAN)
+        rows.append(("cost.%s.%s.e_vs_u2" % (view, size), v / ref if ref == ref and ref > 0 else NAN, 0.0, "info", "the 25 percent claim of the brief was against uniform refinement, which is gone"))
     return rows
 
 
@@ -121,8 +120,8 @@ def temporal_rows(values, mode="e"):
         for scn in ("turn2", "turn12", "fly100"):
             rows.append(("temporal.%s.%s.ghost_move" % (job, scn), g(scn, "ghost_move"), 0.012, "max", "C21 N14"))
             rows.append(("temporal.%s.%s.trail_px" % (job, scn), g(scn, "trail_px"), 0.14, "max", "C21 N14"))
-            ref = g(scn, "shimmer", "u4r")
-            rows.append(("temporal.%s.%s.shimmer_e_over_u4r" % (job, scn), g(scn, "shimmer") / ref if ref > 0 else NAN, 1.0, "max", "brief: no worse than uniform 4 x 4"))
+            ref = g(scn, "shimmer", "u4")
+            rows.append(("temporal.%s.%s.shimmer_e_over_u4" % (job, scn), g(scn, "shimmer") / ref if ref > 0 else NAN, 1.0, "max", "brief: no worse than uniform 4 x 4"))
             rows.append(("temporal.%s.%s.cover_min" % (job, scn), g(scn, "cover_min"), 0.0, "info", "mask cover of the contour while moving"))
         rows.append(("temporal.%s.cut.converge_frames" % job, g("cut", "converge_frames"), 20, "max", "T05: 16 + 4"))
         rows.append(("temporal.%s.cut.cover_f2" % job, g("cut", "cover_f2"), 0.9, "min", "brief: edge resolution within 2 frames"))

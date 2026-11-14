@@ -98,7 +98,6 @@ namespace ReDefinition.Atmospheres
                 case AtmospheresSettings.GreyReasons.NeedsCloudNoise:
                 case AtmospheresSettings.GreyReasons.NeedsCloudShadows:
                 case AtmospheresSettings.GreyReasons.NeedsAmbientTaps:
-                case AtmospheresSettings.GreyReasons.NeedsEntryRefinement:
                     return OwnCloudReason(def, value, env);
                 default:
                     return null;
@@ -122,8 +121,6 @@ namespace ReDefinition.Atmospheres
                     return value(AtmospheresSettings.Keys.CloudShadows) != 0.0 ? null : def.GreyReason;
                 case AtmospheresSettings.GreyReasons.NeedsAmbientTaps:
                     return value(AtmospheresSettings.Keys.CloudAmbientTaps) != 0.0 ? null : def.GreyReason;
-                case AtmospheresSettings.GreyReasons.NeedsEntryRefinement:
-                    return value(AtmospheresSettings.Keys.CloudEntryRefinement) != 0.0 ? null : def.GreyReason;
                 default:
                     return null;
             }

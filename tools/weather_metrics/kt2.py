@@ -31,7 +31,7 @@ The own pass has both numbers; markers_agree is their largest relative gap. A vi
 
 Output metrics: T09.perf.<view>.<W>x<H>.ms / .labels_ms / .frame_ms / .idle_pct per variant, T09.perf.own_over_tvc.mean and
 T09.perf.recon4_over_plain.mean (ratios of the sums of the costs over the views, not means of ratios),
-T09.perf.markers_agree, T09.profiler.cloud_segment_present, and the A/B variants at the "inside" view (edge, heightoff, cap2, cache, entry):
+T09.perf.markers_agree, T09.profiler.cloud_segment_present, and the A/B variants at the "inside" view (edge, heightoff, cap2, cache):
 T09.ab.edge_over_plain.<res>, T09.ab.t13_cost_ms.<res>, T09.ab.cap2_over_plain.<res>. The cloud resolution levels recon2, recon3 and recon4
 (recon2 and recon3 are measured in ground, inside and above only) over plain: T09.perf.<level>_over_plain.3views[.<res>] (ratio of sums over the
 three common views) and T09.perf.<view>.<res>.<level>_over_plain. The noise rows of the probe (T09.noise.<view>.flicker / hf per variant) come
@@ -59,8 +59,8 @@ IDLE_GROUP = "frame start, GPU idle included"
 TVC_TIERS = (r"EVE|EnvironmentalVisualEnhancements|[Rr]aymarch|[Vv]olumetric|TVC|StockVolumetricClouds", r"[Cc]loud")
 TOP_LABELS = 15
 SENSIBLE_NEGATIVE_MS = 0.1   # a GPU-busy delta below minus this is not a cost (the two windows differ by more than the clouds)
-OWN_VARIANTS = ("plain", "recon2", "recon3", "recon4", "entry", "edge", "heightoff", "cap2", "cache")
-AB = {"edge": "edge_over_plain", "cap2": "cap2_over_plain", "cache": "cache_over_plain", "entry": "entry_over_plain"}
+OWN_VARIANTS = ("plain", "recon2", "recon3", "recon4", "edge", "heightoff", "cap2", "cache")
+AB = {"edge": "edge_over_plain", "cap2": "cap2_over_plain", "cache": "cache_over_plain"}
 # The cloud resolution levels (the slider cloudResolution); recon2 and recon3 are measured in three views only, so every level's ratio to plain is also given over those.
 LEVELS = ("recon2", "recon3", "recon4")
 COMMON_VIEWS = ("ground", "inside", "above")

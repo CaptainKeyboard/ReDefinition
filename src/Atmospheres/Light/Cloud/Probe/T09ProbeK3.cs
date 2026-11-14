@@ -86,7 +86,7 @@ namespace ReDefinition.Atmospheres
         private static readonly HashSet<string> K3UseOwnKeys = new HashSet<string>(StringComparer.Ordinal)
         {
             AtmospheresSettings.Keys.CloudSource, AtmospheresSettings.Keys.OwnClouds, AtmospheresSettings.Keys.CloudReconMode, AtmospheresSettings.Keys.CloudResolution,
-            AtmospheresSettings.Keys.CloudEntryRefinement, AtmospheresSettings.Keys.CloudRefineAtContours, AtmospheresSettings.Keys.CloudLightCache, AtmospheresSettings.Keys.LayerCap,
+            AtmospheresSettings.Keys.CloudLightCache,AtmospheresSettings.Keys.LayerCap,
             AtmospheresSettings.Keys.CloudBaseVariation, AtmospheresSettings.Keys.CloudBasePhysics, AtmospheresSettings.Keys.CloudTopFromUpdraft, AtmospheresSettings.Keys.BaseRagged
         };
 

@@ -28,88 +28,37 @@ namespace ReDefinition.Atmospheres
 
         internal static readonly GtVariant[] GtVariants =
         {
-            // The pass as it was before the package: the type table's whole interval, a new step offset per pixel and frame, 48 grid points, the history of the half-size march.
-            new GtVariant { Name = "before", Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneDitherSequence, 0f), Key(OwnCloudOptions.TuneGridFine, 1f),
-                                                            Key(OwnCloudOptions.TuneSurfaceMarch, 0f) } },
+            // The pass without the span cut: the type table's whole interval, 48 grid points, the history of the half-size march. (The "before" of the package also had a
+            // new step offset per pixel and frame, which went with layers.ditherSequence.)
+            new GtVariant { Name = "before", Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneGridFine, 1f) } },
             // The cut span and the sequence with the full count of grid points (what the count alone costs).
             new GtVariant { Name = "full", Keys = new[] { Key(OwnCloudOptions.TuneGridFine, 1f) } },
             // The cut span and the sequence with a third of the grid points.
             new GtVariant { Name = "low", Keys = new[] { Key(OwnCloudOptions.TuneGridFine, 0.33f) } },
-            // The sequence alone on the whole interval.
-            new GtVariant { Name = "seq", Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneGridFine, 1f) } },
         };
 
         // Series K-T2d, the start gt57 (-atmoLook H): the same package in the fair-weather scene of the owner's complaint (the low cover of the look starts, where the
         // cumulus layer draws separate cloud bodies). Ground view and view from above: three frames each of the grain variants below (T09ProbeGrain.DiagLookG: rows
-        // grain_tstd / grain_hfx over the pixels the clouds changed, spans), then 35 s cost windows of off / before / plain / ramp between "T09 view begin / end" lines.
+        // grain_tstd / grain_hfx over the pixels the clouds changed, spans), then 35 s cost windows of off / before / plain between "T09 view begin / end" lines.
         internal const double Look57MaxSeconds = 16 * 60;
 
+        // The variants gnewramp (layers.entryRamp 2) of start 57 and the whole start gt58 (the surface march, layers.surfaceMarch) went with their keys (E40 step (c));
+        // the start gt58 is out of K-T2d. The "before" of gt57 had also a new step offset per pixel and frame (layers.ditherSequence 0), which is gone.
         private static readonly KeyValuePair<string, float>[] Gt57Before =
         {
-            Key(OwnCloudOptions.TuneAccumulate, 0.2f), Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneDitherSequence, 0f), Key(OwnCloudOptions.TuneGridFine, 1f),
-            Key(OwnCloudOptions.TuneSurfaceMarch, 0f)
+            Key(OwnCloudOptions.TuneAccumulate, 0.2f), Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneGridFine, 1f)
         };
-        // Start 57 ran these with the defaults of its day (no surface march): the keys name them so that the variants keep their meaning.
-        private static readonly KeyValuePair<string, float>[] Gt57Ramp = { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 0f), Key(OwnCloudOptions.TuneEntryRamp, 2f) };
-        private static readonly KeyValuePair<string, float>[] Gt57New = { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 0f) };
+        private static readonly KeyValuePair<string, float>[] Gt57New = { Key(OwnCloudOptions.TuneSpanTight, 1f) };
 
         internal static readonly GrainVariant[] Gt57Variants =
         {
             new GrainVariant { Tag = "gbefore", Level = 1, HistoryFrames = 60, Keys = Gt57Before },
             new GrainVariant { Tag = "gnew", Level = 1, HistoryFrames = 60, Keys = Gt57New },
-            new GrainVariant { Tag = "gnew10", Level = 1, HistoryFrames = 90, Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 0f),
-                                                                                            Key(OwnCloudOptions.TuneAccumulate, 0.1f) } },
-            new GrainVariant { Tag = "gnewramp", Level = 1, HistoryFrames = 60, Keys = Gt57Ramp },
+            new GrainVariant { Tag = "gnew10", Level = 1, HistoryFrames = 90, Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneAccumulate, 0.1f) } },
         };
-
-        // The start gt58 (the same scenario, -atmoLook H): package 2, the surface march (layers.surfaceMarch 3: the entry by three bisections, the step inside by
-        // optical depth, the light once per entry) on the cut span (gsurf), on the whole interval (gsurfw), with the light once per entry (gsurfe, layers.surfaceLight 1), against gbefore.
-        private static readonly KeyValuePair<string, float>[] Gt58Surf = { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 3f) };
-        private static readonly KeyValuePair<string, float>[] Gt58SurfWhole = { Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneSurfaceMarch, 3f) };
-        private static readonly KeyValuePair<string, float>[] Gt58SurfEntry =
-        {
-            Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneSurfaceMarch, 3f), Key(OwnCloudOptions.TuneSurfaceLight, 1f)
-        };
-
-        internal static readonly GrainVariant[] Gt58Variants =
-        {
-            new GrainVariant { Tag = "gbefore", Level = 1, HistoryFrames = 60, Keys = new[] { Key(OwnCloudOptions.TuneAccumulate, 0.2f), Key(OwnCloudOptions.TuneSpanTight, 0f),
-                                                                                             Key(OwnCloudOptions.TuneDitherSequence, 0f), Key(OwnCloudOptions.TuneGridFine, 1f),
-                                                                                             Key(OwnCloudOptions.TuneSurfaceMarch, 0f) } },
-            new GrainVariant { Tag = "gsurf", Level = 1, HistoryFrames = 60, Keys = Gt58Surf },
-            new GrainVariant { Tag = "gsurfw", Level = 1, HistoryFrames = 60, Keys = Gt58SurfWhole },
-            new GrainVariant { Tag = "gsurfe", Level = 1, HistoryFrames = 60, Keys = Gt58SurfEntry },
-        };
-
-        private IEnumerable<ProbeWait> Look58Cover(string cover, double lat, double lon)
-        {
-            if (cover != "low") yield break;
-            foreach (View view in new[] { Views[0], Views[2] })
-            {
-                foreach (ProbeWait w in PlaceChecked(lat, lon, view)) yield return w;
-                string head = "T09d." + view.Name + "." + cover + ".";
-                Emit(head + "placed_ok", placeOk);
-                foreach (ProbeWait w in DiagLookG(view, cover, null, "goff", Gt58Variants)) yield return w;
-                ClearForced();
-                Game.SetLayerMask(0);
-                foreach (ProbeWait w in Look55CostWindow(view, head, "off", NoLayersMask, null)) yield return w;
-                foreach (ProbeWait w in Look55CostWindow(view, head, "before", 0, Gt58Variants[0].Keys)) yield return w;
-                foreach (ProbeWait w in Look55CostWindow(view, head, "surf", 0, Gt58Surf)) yield return w;
-                foreach (ProbeWait w in Look55CostWindow(view, head, "surfw", 0, Gt58SurfWhole)) yield return w;
-                foreach (ProbeWait w in Look55CostWindow(view, head, "surfe", 0, Gt58SurfEntry)) yield return w;
-                ClearForced();
-                Game.SetLayerMask(0);
-                yield return ProbeWait.Frames(DiagSettleFrames);
-            }
-        }
 
         private IEnumerable<ProbeWait> Look57Cover(string cover, double lat, double lon)
         {
-            if (StartId == "gt58")
-            {
-                foreach (ProbeWait w in Look58Cover(cover, lat, lon)) yield return w;
-                yield break;
-            }
             if (cover != "low") yield break;
             foreach (View view in new[] { Views[0], Views[2] })
             {
@@ -122,7 +71,6 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in Look55CostWindow(view, head, "off", NoLayersMask, null)) yield return w;
                 foreach (ProbeWait w in Look55CostWindow(view, head, "before", 0, Gt57Before)) yield return w;
                 foreach (ProbeWait w in Look55CostWindow(view, head, "plain", 0, Gt57New)) yield return w;
-                foreach (ProbeWait w in Look55CostWindow(view, head, "ramp", 0, Gt57Ramp)) yield return w;
                 ClearForced();
                 Game.SetLayerMask(0);
                 yield return ProbeWait.Frames(DiagSettleFrames);
@@ -265,7 +213,7 @@ namespace ReDefinition.Atmospheres
             {
                 string spans = own.Renderer.SpanStats;
                 EmitText(prefix + "spans", spans);
-                AtmospheresLog.Say("T09 grain spans: " + view.Name + " " + variant + ": " + spans + ", grid points " + own.Frame.MaxSteps + ", sequence " + own.Frame.DitherSequence);
+                AtmospheresLog.Say("T09 grain spans: " + view.Name + " " + variant + ": " + spans + ", grid points " + own.Frame.MaxSteps);
             }
             AtmospheresLog.Say("T09 grain: " + view.Name + " " + variant + ": tstd " + g.Tstd.ToString("0.00000", CultureInfo.InvariantCulture) + ", blob "
                                + g.Blob.ToString("0.00000", CultureInfo.InvariantCulture) + ", lap " + g.Lap.ToString("0.00000", CultureInfo.InvariantCulture) + ", luma "

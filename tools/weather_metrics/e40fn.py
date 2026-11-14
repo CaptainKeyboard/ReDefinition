@@ -110,8 +110,6 @@ def nadir_pair(jid, layer, tuning, site):
     for mode, suffix in (("lum", ""), ("aux", "-x")):
         args = dict(fl.PRODUCT)
         args.update(fl.light(cam))
-        if mode == "aux":
-            args["refineBudget"] = -1.0
         out.append(lay.job(jid + suffix, mode, cam, [layer], SIZE[0], SIZE[1], planet=fl.R, mapWidth=MAP_W, mapHeight=MAP_H, tuning=fl.keys(tuning), **args))
     return out
 

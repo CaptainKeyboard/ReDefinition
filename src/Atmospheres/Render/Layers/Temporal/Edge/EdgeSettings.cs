@@ -4,17 +4,15 @@ namespace ReDefinition.Atmospheres
 {
     // The numbers of the edge-adaptive resolution of the cloud pass (package T12, the plan's T05b), without any engine type so that the
     // tests can run them. The coarse march keeps one ray per 4 x 4 block; blocks that hold a cloud contour (a gradient of the alpha between
-    // neighbouring samples, or in the last picture) march a 2 x 2 pattern of rays with the entry refinement on, the rest of the picture does not.
+    // neighbouring samples, or in the last picture) march a 2 x 2 pattern of rays as well.
     internal sealed class EdgeSettings
     {
         // Tuning keys (ATMO_TUNING { key = value }, or a matrix row atmo.<key>); all default off or at the sweep's pick.
-        internal const string TuneEdgeAdaptive = "layers.edgeAdaptive", TuneDilation = "layers.edgeMaskDilation", TuneStepBand = "layers.edgeStepBand",
+        internal const string TuneEdgeAdaptive = "layers.edgeAdaptive", TuneDilation = "layers.edgeMaskDilation",
             TuneReconstructor = "layers.reconstructorEnabled", TuneThreshold = "layers.edgeThreshold", TunePersist = "layers.edgePersist";
 
         // The compiled defaults. The reconstruction and the edge mode are off until the owner agrees (they reduce quality against the full pass).
-        // The step band is off too: with it the coarse draw has no entry refinement and thick or grazing interiors (orbit edge, interior error
-        // 0.35, seam 0.16) get a visible dark patch with a hard border; it stays a switch for the views where it passes (review T12/T13, B2).
-        internal const bool AdaptiveDefault = false, ReconstructorDefault = false, StepBandDefault = false;
+        internal const bool AdaptiveDefault = false, ReconstructorDefault = false;
         // The mask's numbers as the sweep of the verification picked them (see tools/weather_metrics/edge.py, the three sweeps).
         internal const float ThresholdDefault = 0.06f;
         internal const int DilationDefault = 1, PersistDefault = 4;
@@ -28,8 +26,6 @@ namespace ReDefinition.Atmospheres
         public float Threshold = ThresholdDefault;
         // The blocks the edge mask is widened by on every side, besides the widening of the picture's motion.
         public int Dilation = DilationDefault;
-        // The entry refinement runs in the edge blocks only (true), or in every block (false; only meaningful with the refinement on).
-        public bool StepBand = StepBandDefault;
         // Frames a block stays an edge after its last detection (the mask's hysteresis: a block that flips between the two patterns shimmers).
         public int Persist = PersistDefault;
 
@@ -41,7 +37,6 @@ namespace ReDefinition.Atmospheres
                 Enabled = get(TuneEdgeAdaptive, AdaptiveDefault ? 1f : 0f) > 0.5f,
                 Threshold = Math.Max(0.001f, get(TuneThreshold, ThresholdDefault)),
                 Dilation = Math.Max(0, Math.Min(MaxDilation, (int)get(TuneDilation, DilationDefault))),
-                StepBand = get(TuneStepBand, StepBandDefault ? 1f : 0f) > 0.5f,
                 Persist = Math.Max(1, Math.Min(32, (int)get(TunePersist, PersistDefault)))
             };
         }
@@ -145,12 +140,6 @@ namespace ReDefinition.Atmospheres
         {
             double coarse = 1.0 / (EdgeSettings.CoarseBlock * EdgeSettings.CoarseBlock), fine = 1.0 / (EdgeSettings.EdgeBlock * EdgeSettings.EdgeBlock);
             return (1.0 - edgeShare) * coarse + edgeShare * (coarse + fine);
-        }
-
-        // The step band: the refinement budget of a march in a block. Only an edge block refines when the band is on; without the band every block does.
-        internal static float RefineBudget(float budget, bool edgeBlock, bool stepBand)
-        {
-            return !stepBand || edgeBlock ? budget : 0f;
         }
     }
 
