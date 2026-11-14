@@ -95,11 +95,11 @@ namespace ReDefinition.Tests
                     foreach (double amount in new[] { 0.28, 0.35, 0.6 })
                         foreach (double erosion in new[] { 0.0, 0.3, 0.7 })
                         {
-                            const double edge = 0.3, detailMean = 0.45, hb = 0.55, hg = 0.4;
-                            double mean = FarViewMath.ShapeMean(cov, coverage, edge, amount, erosion, detailMean, hb, hg);
+                            const double edge = 0.3, detailMean = 0.45;
+                            double mean = FarViewMath.ShapeMean(cov, coverage, edge, amount, erosion, detailMean);
                             int n = 40000;
                             double sum = 0.0;
-                            for (int i = 0; i < n; i++) sum += FarViewMath.ShapeSample(cov, coverage, edge, amount, erosion, detailMean, hb, hg, (i + 0.5) / n);
+                            for (int i = 0; i < n; i++) sum += FarViewMath.ShapeSample(cov, coverage, edge, amount, erosion, detailMean, (i + 0.5) / n);
                             worst = Math.Max(worst, Math.Abs(mean - sum / n));
                         }
             Assert.IsTrue(worst < 2e-3, "worst difference " + worst);
@@ -108,8 +108,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheShapeMeanKeepsTheCoverageOfAFullAndAnEmptyColumn()
         {
-            Assert.AreEqual(1.0, FarViewMath.ShapeMean(1.0, 0.9, 0.3, 0.3, 0.5, 0.45, 0.55, 0.4), 1e-9);
-            Assert.AreEqual(0.0, FarViewMath.ShapeMean(0.0, 0.2, 0.3, 0.3, 0.5, 0.45, 0.55, 0.4), 1e-9);
+            Assert.AreEqual(1.0, FarViewMath.ShapeMean(1.0, 0.9, 0.3, 0.3, 0.5, 0.45), 1e-9);
+            Assert.AreEqual(0.0, FarViewMath.ShapeMean(0.0, 0.2, 0.3, 0.3, 0.5, 0.45), 1e-9);
         }
 
         [TestMethod]

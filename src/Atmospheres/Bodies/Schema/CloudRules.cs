@@ -142,7 +142,7 @@ namespace ReDefinition.Atmospheres
         internal string Group { get; set; } = "";
         // The threshold the readers use: Coverage with the runtime shift (CloudCoverShift; tuning cloud.coverageShift, default 0 = Coverage). Read this, never Coverage.
         // Also the layer's own shift (CloudLookTuning, cloud.layerCoverageShift.<name>), default 0.
-        // With the soft density on (CloudSoftDensity, the default) and a noise amount above 0 this is the coverage constant of the soft water content (see Soft below).
+        // With a noise amount above 0 this is the coverage constant of the soft water content (see Soft below).
         internal float EffectiveCoverage
         {
             get
@@ -150,11 +150,11 @@ namespace ReDefinition.Atmospheres
                 if (!Soft) return ThresholdCoverage;
                 double w = SoftWidth, a = SoftAmount;
                 double c = CloudSoftDensity.CoverMeaning ? 0.5 + (ThresholdCoverage - Coverage) + (SoftClosed - 0.5) * w
-                                                          : ThresholdCoverage + 0.5 * OldEdge + (SoftClosed - 0.5) * a * w;
+                                                          : ThresholdCoverage + 0.5 * LookedEdgeSoftness + (SoftClosed - 0.5) * a * w;
                 return (float)c;
             }
         }
-        // The old threshold: Coverage with the runtime shift, the share of the soft edge's centre (the outline of the old density).
+        // The threshold: Coverage with the runtime shift, the centre of the plain soft edge (where the outline of the soft water content lies, up to its own offset).
         internal float ThresholdCoverage
         {
             get
@@ -166,19 +166,21 @@ namespace ReDefinition.Atmospheres
         }
         // The numbers of the layer with the look knobs applied (CloudLookTuning; every default is a factor of 1 or no change): the readers use these, never the configured ones.
         internal float EffectiveSigmaPerM { get { Look(); return lookSigma == 1f ? SigmaPerM : SigmaPerM * lookSigma; } }
-        internal float EffectiveEdgeSoftness { get { return Soft ? (float)(SoftAmount * SoftWidth) : OldEdge; } }
+        internal float EffectiveEdgeSoftness { get { return Soft ? (float)(SoftAmount * SoftWidth) : LookedEdgeSoftness; } }
         internal float EffectiveNoiseAmount { get { return Soft ? (float)SoftAmount : ConfiguredNoiseAmount; } }
-        private float OldEdge { get { Look(); return lookSoftness == 1f ? EdgeSoftness : EdgeSoftness * lookSoftness; } }
+        // The cfg's edge softness with the look knob (cloud.layerSoftnessScale): the width of the plain soft edge. It centres the soft water content's outline (0.5 of it is in
+        // EffectiveCoverage) and is the edge of a layer without noise.
+        internal float LookedEdgeSoftness { get { Look(); return lookSoftness == 1f ? EdgeSoftness : EdgeSoftness * lookSoftness; } }
         private float ConfiguredNoiseAmount { get { Look(); return lookNoiseAmount == 1f ? NoiseAmount : NoiseAmount * lookNoiseAmount; } }
 
         // ---- The soft water content (E40 soft density, package B1): ONE place that turns the layer's cfg numbers into the numbers every reader uses. ----
         // The layer shader, the cloud shadow and every CPU twin evaluate the share saturate((map + (n - 0.5) A + cov - 1) / edge + 0.5), eroded, to a power. With
         //   A = the layer's noise amount, w = the owner's softness x SoftnessScale, edge = A w, cov = C + 0.5 e + (closed - 0.5) A w
-        // (C the threshold coverage, e the old edge softness, closed the water content at which a column of the layer's types is just closed), the edge hardness off and the exponent
+        // (C the threshold coverage, e the cfg's edge softness, closed the water content at which a column of the layer's types is just closed), no edge hardness and the exponent
         // WaterPower this IS CloudWater's water content whose outline is where the old share began (CloudWaterTests). The thin water below the outline must not appear where the old
         // cloud did not exist: the map value is moved before the share, map' = min(map, 2 map - K) (ClearSkyMap), K = m0 + closed A w with m0 = 1 - C - 0.5 e - 0.5 A.
-        // Where the layer has no noise (A = 0) it keeps the old density.
-        internal bool Soft { get { return CloudSoftDensity.Enabled && ConfiguredNoiseAmount > 0f; } }
+        // Where the layer has no noise (A = 0) it keeps the plain soft edge of its cfg numbers.
+        internal bool Soft { get { return ConfiguredNoiseAmount > 0f; } }
         // The factor on the owner's softness: the layer's cfg key softnessScale (a weather deck softer, a cirrus sheet softest).
         internal float SoftnessScale { get; set; } = 1f;
         // The exponent of the water content in the density: the layer's cfg key waterPower (2: the density grows with the square of the water; 1: thin sheets have no core).
@@ -232,7 +234,7 @@ namespace ReDefinition.Atmospheres
         // The width of the water content's rise in noise rank.
         private double SoftWidth { get { return Math.Max(0.02, CloudSoftDensity.Softness * SoftnessScale); } }
 
-        // The exponent a reader applies to the eroded share (1 where the layer keeps the old density).
+        // The exponent a reader applies to the eroded share (1 where the layer keeps the plain soft edge).
         internal float EffectiveWaterPower { get { return Soft ? WaterPower : 1f; } }
 
         // The water content at the outline: the mean over the layer's types of CloudWater.Closed (the types of one layer differ by under 0.02: MEASURED, E40 step (a)).
@@ -274,7 +276,7 @@ namespace ReDefinition.Atmospheres
                 if (!Soft) return 0f;
                 double w = SoftWidth, a = SoftAmount, k;
                 if (CloudSoftDensity.CoverMeaning) k = SoftClosed * w - (ThresholdCoverage - Coverage);
-                else k = (1.0 - ThresholdCoverage - 0.5 * OldEdge - 0.5 * a) + SoftClosed * a * w;
+                else k = (1.0 - ThresholdCoverage - 0.5 * LookedEdgeSoftness - 0.5 * a) + SoftClosed * a * w;
                 return (float)Math.Max(0.0, k);
             }
         }

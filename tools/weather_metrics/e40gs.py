@@ -6,11 +6,9 @@
 The scene, the views, the masks and the measures are e40gn.py's and e40gt.py's (the pass as the game runs it: the half-size march laid up to 1708 x 960); what
 changes is the MEDIUM (SoftTable.Media of tests/WeatherPlayer/Assets/Runner/SoftDensityScene.cs), and every medium is judged against its OWN converged picture:
 
-  hard      the density as it is (extinction x share of the soft edge 0.15 x profile)
-  sig01     a tenth of the extinction
   pr50      the product's own water content with the owner's softness 0.5; pr100 with 1.0
-The media of step (a) that built the water content out of the old density (e50p2, e100p3, s30k2 .. s100k2, s50k2f, c50k2 .. c100k2w) set its exponent through
-layers.edgePower, which went with E40 step (c); pr50 and pr100 are what they reproduced.
+The media of step (a) that built the water content out of the old density (hard, sig01, e50p2, e100p3, s30k2 .. s100k2, s50k2f, c50k2 .. c100k2w) went with the old
+density (layers.softDensity) and layers.edgePower in E40 step (c); pr50 and pr100 are what they reproduced. The numbers they gave are in E40-soft-density-result.md.
 
 Marches: seq1 (the product's grid march, 48 grid points at most), seq1m32, seq1m24 (32 and 24 grid points; still camera, history only).
 """
@@ -27,12 +25,12 @@ from weather_metrics import Metric, Stage, register_series  # noqa: E402
 from weather_metrics import e40gn as gn  # noqa: E402
 from weather_metrics import e40gt as gt  # noqa: E402
 
-MEDIA = ["hard", "sig01", "pr50", "pr100"]
+MEDIA = ["pr50", "pr100"]
 MARCHES = ["seq1", "seq1m32", "seq1m24", "seq1m16", "tseq1m48", "tseq1m24", "tseq1m16"]
 CASES = [("seq1", "plain")] + [(m, "acc20") for m in MARCHES]
 # The second round (e40-gs2-*): the product's water content with the widths 0.5 and 1, fewer grid points, the span cut to the types present. (Its media s100k2,
 # c50k2, c100k2 and c100k2w, the outline of the cover meaning and the sun colour at the cloud, went with layers.edgePower, E40 step (c).)
-MEDIA2 = ["hard", "pr50", "pr100"]
+MEDIA2 = ["pr50", "pr100"]
 SCENARIOS = {"static": [36, 37, 38, 39], "fly": [37, 38], "turnfast": [37, 38], "flyfast": [37, 38], "cut": [0, 2, 5, 10]}
 MOTION = ("fly", "turnfast", "flyfast")
 PREFIX = "e40-gs"
@@ -140,7 +138,7 @@ def collect_cost(ctx):
 # (cloudEntryRefinement), ramp3 (3 bisections and the entry ramp: cloudRefineBisect, layers.entryRamp), leap4xc (layers.cloudStep) and surf3 (the surface march) went
 # with their keys (E40 step (c)); what is left of the round is the finer grid with the leap (layers.gridFine, layers.emptyLeap): leap4x.
 MARCHES3 = ["seq1", "leap4x"]
-ROUND3 = ["-media", "hard,pr50", "-marches", ",".join(MARCHES3)]
+ROUND3 = ["-media", "pr50", "-marches", ",".join(MARCHES3)]
 CASES += [(m, "acc20") for m in MARCHES3 if m != "seq1"]
 register_series("e40-gs3-temporal", [Stage("temporal", ["-mode", "scene", "-scene", "soft-temporal", "-in", gn.INPUT] + ROUND3, size=(1280, 720), proxy=False,
                                            timeout=3000)], lambda ctx: collect_temporal(ctx), exclusive=False, who="e40-gs")
@@ -152,9 +150,9 @@ register_series("e40-gs2-temporal", [Stage("temporal", ["-mode", "scene", "-scen
 register_series("e40-gs2-cost", [Stage("cost", ["-mode", "scene", "-scene", "soft-cost", "-in", gn.INPUT] + ROUND2, size=(1707, 960), proxy=True, timeout=1500)],
                 collect_cost, exclusive=True, who="e40-gs")
 # The product path (E40 soft density, package B1; series e40-gb-*, pictures e40-gb-*): pr50 and pr100 are the product's own density (CloudLayerDef's effective numbers with the
-# owner's softness 0.5 and 1.0, no rewrite of the job's layer numbers), hard is today (layers.softDensity 0). The owner's favourites: pr50 on the grid march seq1 (48 points), pr100 on
-# seq1m24 (24 points). (The rows s50k2 and s100k2 of step (a) that the product path reproduced went with layers.edgePower, E40 step (c).)
-ROUND_GB = ["-media", "hard,pr50,pr100", "-marches", "seq1,seq1m24"]
+# owner's softness 0.5 and 1.0, no rewrite of the job's layer numbers). The owner's favourites: pr50 on the grid march seq1 (48 points), pr100 on seq1m24 (24 points).
+# (The old density, layers.softDensity 0, and the rows s50k2 and s100k2 of step (a) that the product path reproduced went with layers.edgePower, E40 step (c).)
+ROUND_GB = ["-media", "pr50,pr100", "-marches", "seq1,seq1m24"]
 
 
 def collect_gb(ctx):

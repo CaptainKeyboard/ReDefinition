@@ -21,7 +21,7 @@ namespace ReDefinition.Atmospheres
             return Values.TryGetValue(key, out v) ? v : compiledDefault;
         }
 
-        // A switch: a value other than 0 is true (CloudSoftDensity reads layers.softDensity so).
+        // A switch: a value other than 0 is true (CloudSoftDensity reads cloud.coverMeaning so).
         internal static bool Flag(string key, bool compiledDefault)
         {
             return Get(key, compiledDefault ? 1f : 0f) != 0f;

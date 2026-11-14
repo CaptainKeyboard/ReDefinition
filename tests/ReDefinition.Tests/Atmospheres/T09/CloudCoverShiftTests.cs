@@ -18,7 +18,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 Coverage = coverage,
                 EdgeSoftness = 0.2f,
-                NoiseAmount = 0.3f,
+                NoiseAmount = 0f,   // a layer without noise keeps the plain soft edge of its own numbers: the knobs' arithmetic is read on those
                 Group = group
             };
         }
@@ -29,12 +29,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Tuning.Instance.BeginFrame(++frame);
         }
 
-        // These tests are about the knobs' arithmetic on the layer's own numbers, which is the old density's (E40 soft density: with the soft water content the uploaded constants
-        // are derived from them; CloudSoftDensityTests and CloudCoverOracleTests pin that); the baseline here is layers.softDensity 0.
+        // These tests are about the knobs' arithmetic on the layer's own numbers, which a layer without noise uploads as they are (with noise the uploaded constants are derived
+        // from them: CloudSoftDensityTests and CloudCoverOracleTests pin that).
         private static void Clear()
         {
             Tuning.ClearOverrides();
-            Tuning.SetOverride(CloudSoftDensity.TuneOn, 0f);
             Tuning.Instance.BeginFrame(++frame);
         }
 

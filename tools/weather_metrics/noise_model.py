@@ -217,11 +217,11 @@ class Params(object):
     """The constants of the model. Everything that is a length is a multiple of the layer's scale."""
 
     def __init__(self, scale=375.0, untile=True, warp_amp=6.5, warp_cell=14.0, curl=True, curl_amp=0.6, seed=1, offset=(0.0, 0.0, 0.0),
-                 erosion=0.5, hard_base=1.0, hard_gain=4.0, stretch=1.0, axis=(0.0, 0.0, 1.0)):
+                 erosion=0.5, stretch=1.0, axis=(0.0, 0.0, 1.0)):
         # stretch: how much longer the features are along the unit `axis` than across it (the layer's fibreStretch, E40 L2 D1; 1: isotropic).
         self.stretch, self.axis = stretch, np.asarray(axis, dtype=np.float64)
         self.scale, self.untile, self.warp_amp, self.warp_cell, self.curl, self.curl_amp = scale, untile, warp_amp, warp_cell, curl, curl_amp
-        self.seed, self.offset, self.erosion, self.hard_base, self.hard_gain = seed, np.asarray(offset, dtype=np.float64), erosion, hard_base, hard_gain
+        self.seed, self.offset, self.erosion = seed, np.asarray(offset, dtype=np.float64), erosion
 
     @property
     def shape_period(self):
@@ -301,18 +301,16 @@ def detail_value(vols, p, prm, foot=None):
 
 
 def erode(s, d, erosion, prm):
-    """The eroded coverage share c from the soft share s (0..1), the detail d (0..1) and the type's erosion; with the edge hardness."""
+    """The eroded coverage share c from the soft share s (0..1), the detail d (0..1) and the type's erosion (nothing hardens the edge)."""
     e = erosion
     er = e * (1.0 - d)
-    c = np.clip((s - er) / np.maximum(1.0 - er, 1e-3), 0.0, 1.0)
-    h = prm.hard_base + prm.hard_gain * e
-    return np.clip(c * h, 0.0, 1.0)
+    return np.clip((s - er) / np.maximum(1.0 - er, 1e-3), 0.0, 1.0)
 
 
 def soft_layer_numbers(coverage, old_edge, amount, closed, softness, softness_scale=1.0):
     """The soft water content's numbers of a layer (E40 soft density; CloudLayerDef.EffectiveCoverage / EffectiveEdgeSoftness / ClearSkyK in C#): returns
     (coverage', edge', clear_k) for the old coverage C, edge e, noise amount A, the water content at the outline `closed` and the owner's softness x the layer's scale.
-    With these, the share saturate(((n - 0.5) A + map' + coverage' - 1) / edge' + 0.5), eroded without hardness (prm.hard_gain = 0) and taken to the layer's water
+    With these, the share saturate(((n - 0.5) A + map' + coverage' - 1) / edge' + 0.5), eroded (nothing hardens the edge) and taken to the layer's water
     power, is the soft water content whose outline is where the old share began; map' = min(map, 2 map - clear_k) is the clear-sky rule."""
     w = max(0.02, softness * softness_scale)
     cov = coverage + 0.5 * old_edge + (closed - 0.5) * amount * w

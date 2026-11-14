@@ -1,5 +1,5 @@
 // The shape and erosion model of the own cloud system's layer core (package T02): the base shape from a tileable Perlin-Worley volume, the
-// erosion from a Worley detail volume, the curl distortion, the untiling displacement, the edge hardness by type, the flow map, the
+// erosion from a Worley detail volume, the curl distortion, the untiling displacement, the flow map, the
 // upward drift and the colour map. Included by ReDefinitionAtmospheresLayers.shader after MapUv (it uses MapUv, _LayerA, _LayerD, _PlanetR
 // and _WorldToMap of that file). The CPU twin in double precision is src/Atmospheres/Render/Layers/Noise/CloudShapeModel.cs and the
 // NumPy twin tools/weather_metrics/noise_model.py; the integer hash and the lookups are the same in the three.
@@ -24,7 +24,7 @@ sampler2D _NoiseFlow;
 sampler2D _NoiseColour;
 float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w: vertical scale of the spherical lattice (1: the planet-centred lattice)
 float4 _NoiseQ;          // warp amplitude, warp cell, curl amplitude (in noise scales), flow phase 0..1
-float4 _NoiseR;          // hardness base, hardness gain, shape period, detail period (in noise scales)
+float4 _NoiseR;          // shape period, detail period (in noise scales)
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
 float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y flow looped (1) or one phase (0), z colour map strength, w rise of the detail in m
 
@@ -112,9 +112,9 @@ float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
 float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 {
     if (_NoiseP.z > 0.5)
-        q += (tex3Dlod(_NoiseCurl, float4(q / (_NoiseR.z * scale), 0)).rgb * 2.0 - 1.0) * (_NoiseQ.z * scale);
+        q += (tex3Dlod(_NoiseCurl, float4(q / (_NoiseR.x * scale), 0)).rgb * 2.0 - 1.0) * (_NoiseQ.z * scale);
     q -= up * _NoiseLayer[li].w;
-    float dp = _NoiseR.w * scale;
+    float dp = _NoiseR.y * scale;
     if (freq != 1.0) q = q * freq + float3(0.31, 0.57, 0.83) * dp;
     return tex3Dlod(_NoiseDetail, float4(q / dp, 0)).r;
 }
@@ -123,7 +123,7 @@ float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float coverage, float edge, float amount, float erosion)
 {
     float3 q = NoiseLookup(li, pc, scale, flow);
-    float n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.z * scale), 0)).r;
+    float n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), 0)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
     // _NoiseT.z (layers.densityRemap, default 0): the erosion also thins the interior of a closed deck; 0 leaves the interior at the share 1.
     if (s <= 0 || erosion <= 0 || gNoiseLod != 0) return s;
@@ -161,7 +161,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     }
     float er = erosion * (1.0 - d);
     float c = saturate((s - er) / max(1.0 - er, 1e-3));
-    float eroded = saturate(c * (_NoiseR.x + _NoiseR.y * erosion));
+    float eroded = c;
     if (_NoiseT.z > 0) eroded *= saturate(1.0 - _NoiseT.z * er);
     return eroded;
 }

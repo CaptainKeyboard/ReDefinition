@@ -171,7 +171,7 @@ def effective_rows(rows):
             for variant in variants_of(rows, scene, view):
                 p = "T09s.%s.%s.%s." % (scene, view, variant)
                 if p + "effective_ok" in rows:
-                    out.append((scene, view, variant, num(rows.get(p + "grid_points")), num(rows.get(p + "softness")), rows.get(p + "soft_density"), rows.get(p + "effective_ok"),
+                    out.append((scene, view, variant, num(rows.get(p + "grid_points")), num(rows.get(p + "softness")), rows.get(p + "effective_ok"),
                                 num(rows.get(p + "march_w")), num(rows.get(p + "march_h")), num(rows.get(p + "layers_none")), num(rows.get(p + "layers_total")),
                                 rows.get(p + "span_tight"), rows.get(p + "skip_empty")))
     return out
@@ -217,14 +217,14 @@ def tables(texts):
             if value is not None:
                 metrics.append({"metric": base + name, "value": round(value, 6), "variant": None})
     eff = effective_rows(rows)
-    out_lines.append("WHAT THE PASS RAN WITH (grid points, soft rim width, soft density, march target, layers left out of the march; ok = the table's numbers)")
-    for scene, view, variant, points, softness, soft, ok, mw, mh, none, total, tight, skip in eff:
+    out_lines.append("WHAT THE PASS RAN WITH (grid points, soft rim width, march target, layers left out of the march; ok = the table's numbers)")
+    for scene, view, variant, points, softness, ok, mw, mh, none, total, tight, skip in eff:
         target = "-" if mw is None or mh is None else "%dx%d" % (mw, mh)
         left_out = "-" if none is None or total is None else "%d of %d" % (none, total)
-        out_lines.append("  %-6s %-7s %-12s %4s points  softness %s  soft density %s  target %-9s left out %-7s tight %s skip %s  ok %s"
-                         % (scene, view, variant, fmt(points, 0), fmt(softness, 2), soft, target, left_out, tight, skip, ok))
+        out_lines.append("  %-6s %-7s %-12s %4s points  softness %s  target %-9s left out %-7s tight %s skip %s  ok %s"
+                         % (scene, view, variant, fmt(points, 0), fmt(softness, 2), target, left_out, tight, skip, ok))
         if ok is False:
-            NOTES.append("the pass did not run with the table's numbers: %s %s %s (%s points, softness %s, soft density %s)" % (scene, view, variant, fmt(points, 0), fmt(softness, 2), soft))
+            NOTES.append("the pass did not run with the table's numbers: %s %s %s (%s points, softness %s)" % (scene, view, variant, fmt(points, 0), fmt(softness, 2)))
     suns = sun_lines(texts)
     out_lines.append("SUN COLOUR")
     out_lines.extend("  " + s for s in suns)
@@ -484,7 +484,7 @@ def selftest():
                                       ("fair", "ground", "soft", 0.004), ("fair", "ground", "hard", 0.016), ("fair", "ground", "softr33", 0.005)):
         p = "T09s.%s.%s.%s." % (scene, view, variant)
         log += [_row(p + "tstd", tstd), _row(p + "hfx", -0.01), _row(p + "box_tstd", tstd * 2), _row(p + "box_blob", 0.01), _row(p + "cloud_share", 0.4),
-                _row(p + "grid_points", 48), _row(p + "softness", 0.5), _row(p + "soft_density", variant != "hard"), _row(p + "effective_ok", True),
+                _row(p + "grid_points", 48), _row(p + "softness", 0.5), _row(p + "effective_ok", True),
                 _row(p + "march_w", 563 if variant == "softr33" else 854), _row(p + "march_h", 317 if variant == "softr33" else 480),
                 _row(p + "layers_none", 2), _row(p + "layers_total", 4), _row(p + "span_tight", False),
                 _row(p + "skip_empty", variant == "softr33")]

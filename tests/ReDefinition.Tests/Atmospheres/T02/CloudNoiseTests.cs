@@ -12,12 +12,6 @@ namespace ReDefinition.Tests
     [TestClass]
     public class CloudNoiseTests
     {
-        [TestCleanup]
-        public void BackToTheDefaultDensity()
-        {
-            ReDefinition.Tests.Atmospheres.T09.OldDensity.End();
-        }
-
         private static NoiseVolumeSet medium;
 
         private static NoiseVolumeSet Medium
@@ -179,39 +173,9 @@ namespace ReDefinition.Tests
             Assert.IsTrue(above <= 1, "seeds above 0.15: " + above);
         }
 
-        [TestMethod]
-        public void TheSpectrumSlopesOfTheAlphaStripesAreInTheHarnessBandOverRealisations()
-        {
-            // The band is the reference renderer's for the hardened edge of the old density (E40 soft density: the soft water content has no such reference).
-            ReDefinition.Tests.Atmospheres.T09.OldDensity.Begin();
-            // parity_checks.py noise_spectrum: 12 stripes of 40 km at 50 m, the slope of the mean power in three octave bands from 2.4 km to 300 m
-            // (band 1.3 to 2.6). One realisation scatters (the reference renderer's own 24 realisations: standard deviation 0.4 / 0.3 / 0.2), so
-            // the model is judged on 8 realisations (2 volume seeds x 4 layer seeds): the mean of each band inside the band and most realisations inside.
-            double[] edges = { 1.0 / 2400.0, 1.0 / 1200.0, 1.0 / 600.0, 1.0 / 300.0 };
-            var sum = new double[3];
-            int inside = 0, total = 0;
-            foreach (uint volumeSeed in new uint[] { 31u, 32u })
-            {
-                NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), volumeSeed);
-                foreach (uint layerSeed in new uint[] { 41u, 42u, 43u, 44u })
-                {
-                    NoiseLayerParams prm = Params(layerSeed, true);
-                    double[][] stripes = AlphaStripes(set, prm);
-                    bool all = true;
-                    for (int band = 0; band < 3; band++)
-                    {
-                        double slope = SpectrumSlope(stripes, 50.0, edges[band], edges[band + 1]);
-                        sum[band] += slope;
-                        all &= slope >= 1.3 && slope <= 2.6;
-                    }
-                    if (all) inside++;
-                    total++;
-                }
-            }
-            for (int band = 0; band < 3; band++)
-                Assert.IsTrue(sum[band] / total >= 1.3 && sum[band] / total <= 2.6, "band " + (band + 1) + " mean slope " + sum[band] / total);
-            Assert.IsTrue(inside * 2 >= total, "realisations with all bands inside: " + inside + " of " + total);
-        }
+        // The test of the spectrum slopes of the alpha stripes against the harness band (parity_checks.py noise_spectrum: the reference renderer's band 1.3 to 2.6 of the old hardened
+        // edge) went with the hardness in E40 step (c): without it three of eight realisations lie inside the band, the third band's mean slope is 2.63 (MEASURED), and the
+        // soft water content has no such reference.
 
         [TestMethod]
         public void TheShareIsTheThresholdWhereThereIsNoNoise()
@@ -284,20 +248,16 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void ARaggedTypeHasAHarderEdgeThanASmoothOne()
+        public void TheErodedShareStaysBetweenZeroAndOneAndNothingHardensTheEdge()
         {
-            // The hardened edge is the old density's (E40 soft density: nothing hardens the soft water content, CloudSoftDensityTests).
-            ReDefinition.Tests.Atmospheres.T09.OldDensity.Begin();
-            // P12: along a ramp of the soft share the eroded share goes from 0 to 1 over a narrower stretch for erosion 0.5 than for 0.05.
-            Assert.IsTrue(CloudShapeModel.Hardness(0.5) > CloudShapeModel.Hardness(0.05));
-            double narrow = RampWidth(0.5), wide = RampWidth(0.05);
-            Assert.IsTrue(narrow < 0.75 * wide, "ramp width at erosion 0.5: " + narrow + ", at 0.05: " + wide);
+            // The edge hardness by type of package T02 (P12) went with layers.softDensity (E40 step (c)): the eroded share is the plain eroded share.
             // The erosion never makes the share larger than the soft share would, and the share stays within 0 and 1.
             for (double s = 0.0; s <= 1.0; s += 0.05)
                 for (double d = 0.0; d <= 1.0; d += 0.25)
                 {
                     double c = CloudShapeModel.Erode(s, d, 0.5);
                     Assert.IsTrue(c >= 0.0 && c <= 1.0);
+                    Assert.IsTrue(c <= s + 1e-12 || s >= 1.0 - 1e-12, "the erosion does not add water: " + c + " > " + s);
                 }
             Assert.AreEqual(1.0, CloudShapeModel.Erode(1.0, 0.0, 0.5), 1e-12);
             Assert.AreEqual(0.0, CloudShapeModel.Erode(0.0, 1.0, 0.5), 1e-12);
@@ -459,17 +419,6 @@ namespace ReDefinition.Tests
             return map;
         }
 
-        private static double[][] AlphaStripes(NoiseVolumeSet set, NoiseLayerParams prm)
-        {
-            var stripes = new double[12][];
-            for (int r = 0; r < 12; r++)
-            {
-                stripes[r] = new double[800];
-                for (int i = 0; i < 800; i++) stripes[r][i] = 1.0 - Math.Exp(-ColumnTau(set, prm, i * 50.0, r * 1000.0, 1.0));
-            }
-            return stripes;
-        }
-
         // The normalised autocorrelation of a map along its second axis at a lag in samples (the harness's autocorr).
         private static double Autocorr(double[,] f, int lag)
         {
@@ -495,59 +444,6 @@ namespace ReDefinition.Tests
                     bb += b * b;
                 }
             return ab / Math.Sqrt(aa * bb);
-        }
-
-        // The negative slope of the mean power spectrum of the stripes (direct DFT) in the band [lo, hi) of frequencies in cycles per metre.
-        private static double SpectrumSlope(double[][] stripes, double dx, double lo, double hi)
-        {
-            int n = stripes[0].Length;
-            var logK = new System.Collections.Generic.List<double>();
-            var logP = new System.Collections.Generic.List<double>();
-            for (int bin = 1; bin <= n / 2; bin++)
-            {
-                double k = bin / (n * dx);
-                if (k < lo || k >= hi) continue;
-                double power = 0.0;
-                foreach (double[] row in stripes)
-                {
-                    double mean = 0;
-                    foreach (double v in row) mean += v;
-                    mean /= n;
-                    double re = 0, im = 0;
-                    for (int i = 0; i < n; i++)
-                    {
-                        double ang = -2.0 * Math.PI * bin * i / n;
-                        re += (row[i] - mean) * Math.Cos(ang);
-                        im += (row[i] - mean) * Math.Sin(ang);
-                    }
-                    power += re * re + im * im;
-                }
-                logK.Add(Math.Log(k));
-                logP.Add(Math.Log(power / stripes.Length));
-            }
-            int m = logK.Count;
-            double sx = 0, sy = 0, sxx = 0, sxy = 0;
-            for (int i = 0; i < m; i++)
-            {
-                sx += logK[i];
-                sy += logP[i];
-                sxx += logK[i] * logK[i];
-                sxy += logK[i] * logP[i];
-            }
-            return -(m * sxy - sx * sy) / (m * sxx - sx * sx);
-        }
-
-        // The width of the stretch of a soft share ramp (0 to 1) over which the eroded share (detail 0.5) goes from 0.02 to 0.98.
-        private static double RampWidth(double erosion)
-        {
-            double lo = double.NaN, hi = double.NaN;
-            for (double s = 0.0; s <= 1.0; s += 0.001)
-            {
-                double c = CloudShapeModel.Erode(s, 0.5, erosion);
-                if (double.IsNaN(lo) && c > 0.02) lo = s;
-                if (double.IsNaN(hi) && c > 0.98) hi = s;
-            }
-            return hi - lo;
         }
     }
 }

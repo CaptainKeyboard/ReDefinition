@@ -19,23 +19,18 @@ namespace ReDefinition.WeatherPlayer
         internal sealed class Medium
         {
             public string Name;
-            public float Width = 0.5f, SigmaScale = 1f;
-            // True: the PRODUCT's own density (E40 soft density, package B1): the job's layer numbers stay as the file gave them, CloudLayerDef's effective numbers, the type table's
-            // rise by height, the exponent and the clear-sky rule make the water content (Width is the owner's softness setting). Every other medium runs the old density
-            // (layers.softDensity 0).
-            public bool Product;
+            // The PRODUCT's own density (E40 soft density, package B1): the job's layer numbers stay as the file gave them, CloudLayerDef's effective numbers, the type table's
+            // rise by height, the exponent and the clear-sky rule make the water content (Width is the owner's softness setting).
+            public float Width = 0.5f;
         }
 
-        // The media e50p2, e100p3, s30k2 .. s100k2, c50k2 .. c100k2w of step (a) set the exponent of the share through the frame (layers.edgePower), which the product
-        // does not have any more (E40 step (c)); the product's own density (pr50, pr100) is what they were built to match.
+        // The media of step (a) that built the water content out of the old density (hard, sig01, e50p2, e100p3, s30k2 .. s100k2, c50k2 .. c100k2w) went with the old density and
+        // layers.edgePower (E40 step (c)); the product's own density at the owner's two softness values is what they were built to match.
         internal static readonly Medium[] Media =
         {
-            new Medium { Name = "hard" },
-            new Medium { Name = "sig01", SigmaScale = 0.1f },
-            // The product's density with the owner's softness 0.5 and 1.0 (the cfg's per-layer numbers of the job's layer: no softnessScale, the exponent 2, the type's gain 0.3 and
-            // rise 0.5).
-            new Medium { Name = "pr50", Product = true, Width = 0.5f },
-            new Medium { Name = "pr100", Product = true, Width = 1f },
+            // The cfg's per-layer numbers of the job's layer: no softnessScale, the exponent 2, the type's gain 0.3 and rise 0.5.
+            new Medium { Name = "pr50", Width = 0.5f },
+            new Medium { Name = "pr100", Width = 1f },
         };
 
         // The marches every medium is drawn with (GrainTable's: the product's grid march with the golden-ratio offset; 32 and 24 grid points at most).
@@ -82,25 +77,14 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // Loads the rig with the medium's layer numbers. The product's medium rewrites nothing of the job's layer: the owner's softness and the detail mean reach the
-        // layer through CloudSoftDensity (the game: OwnCloudOptions and the noise binding), the edge hardness off through the switch OwnCloudOptions.Apply(NoiseSwitches)
-        // sets. The other media run the old density (the tuning key layers.softDensity 0; the player's tuning table is cleared by each Load, so the key goes into the job).
+        // layer through CloudSoftDensity (the game: OwnCloudOptions and the noise binding).
         internal static void Load(TemporalRig rig, LayersJob job, string input, Medium m, Original o, double detailMean)
         {
             LayersJobLayer jl = job.layers[0];
             o.Restore(jl);
-            jl.sigma = o.Sigma * m.SigmaScale;
-            LayersJobKey[] savedTuning = job.tuning;
-            var keys = new System.Collections.Generic.List<LayersJobKey>(savedTuning ?? new LayersJobKey[0]);
-            if (!m.Product) keys.Add(new LayersJobKey { key = CloudSoftDensity.TuneOn, value = 0f });
-            job.tuning = keys.ToArray();
-            if (m.Product)
-            {
-                CloudSoftDensity.Softness = m.Width;
-                CloudSoftDensity.DetailMean = detailMean;
-            }
-            rig.Renderer.Noise.Switches.SoftEdge = m.Product;
+            CloudSoftDensity.Softness = m.Width;
+            CloudSoftDensity.DetailMean = detailMean;
             rig.Load(job, input);
-            job.tuning = savedTuning;
         }
 
         internal static double DetailMean(TemporalRig rig)

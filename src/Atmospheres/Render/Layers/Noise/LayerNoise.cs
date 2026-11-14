@@ -30,9 +30,6 @@ namespace ReDefinition.Atmospheres
         public float WarpAmplitude, WarpCell;
         // The fine octave of the erosion detail (stream T): the detail volume read again at 2.37 times the frequency.
         public bool FineDetail = true;
-        // E40 soft density (an experiment of the weather player): the eroded share is not hardened (the hardness gain 0), so the share stays the water content
-        // the layer's numbers describe (CloudWater). False: the edge hardness by type of package T02.
-        public bool SoftEdge;
     }
 
     // The motion and the maps of one layer's noise: the drift of the whole noise with the local wind, the rise of the detail (P18), the
@@ -252,8 +249,7 @@ namespace ReDefinition.Atmospheres
             material.SetVector(IdQ, new Vector4(Switches.WarpAmplitude > 0f ? Switches.WarpAmplitude : (float)NoiseModel.WarpAmplitudeScales,
                                                 Switches.WarpCell > 0f ? Switches.WarpCell : (float)NoiseModel.WarpCellScales, (float)NoiseModel.CurlAmplitudeScales,
                                                 (float)((flowTime / FlowLoopSeconds) % 1.0)));
-            material.SetVector(IdR, new Vector4((float)NoiseModel.HardnessBase, Switches.SoftEdge ? 0f : (float)NoiseModel.HardnessGain, (float)NoiseModel.ShapePeriodScales,
-                                                (float)NoiseModel.DetailPeriodScales));
+            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, 0f, 0f));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
             material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? (float)NoiseModel.FineDetailWeight : 0f, (float)NoiseModel.FineDetailFrequency, CloudLookTuning.DensityRemap, 0f));

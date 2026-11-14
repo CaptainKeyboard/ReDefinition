@@ -69,24 +69,21 @@ namespace ReDefinition.Atmospheres
 
         // The share of a column that is cloud at a sample of the shape noise value n (0 to 1, uniform over the volume: the volume is rank
         // normalised): the coverage threshold moves by (n - 0.5) * amount, the soft edge turns it into a share, the erosion eats into the edge
-        // band with the detail's mean (detailMean) once the detail is dropped, and the edge hardness (hardBase + hardGain * erosion) stiffens it.
+        // band with the detail's mean (detailMean) once the detail is dropped.
         // This is the shader's NoiseShareAt at its coarsest distance LOD.
-        internal static double ShapeSample(double cov, double coverage, double edge, double amount, double erosion, double detailMean,
-                                           double hardBase, double hardGain, double n)
+        internal static double ShapeSample(double cov, double coverage, double edge, double amount, double erosion, double detailMean, double n)
         {
             double u = (cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5;
-            return EdgeValue(u, erosion, detailMean, hardBase, hardGain);
+            return EdgeValue(u, erosion, detailMean);
         }
 
-        private static double EdgeValue(double u, double erosion, double detailMean, double hardBase, double hardGain)
+        private static double EdgeValue(double u, double erosion, double detailMean)
         {
             double s = u <= 0.0 ? 0.0 : u >= 1.0 ? 1.0 : u;
             if (s <= 0.0 || s >= 1.0 || erosion <= 0.0) return s;
             double er = erosion * (1.0 - detailMean);
             double c = (s - er) / Math.Max(1.0 - er, 1e-3);
-            c = c <= 0.0 ? 0.0 : c >= 1.0 ? 1.0 : c;
-            double v = c * (hardBase + hardGain * erosion);
-            return v <= 0.0 ? 0.0 : v >= 1.0 ? 1.0 : v;
+            return c <= 0.0 ? 0.0 : c >= 1.0 ? 1.0 : c;
         }
 
         // The mean of ShapeSample over n uniform in [0, 1], in closed form: the value is a piecewise linear function of u = x0 + a (n - 0.5), so
@@ -95,23 +92,21 @@ namespace ReDefinition.Atmospheres
         // power: the layer's exponent of the share (CloudWater.Pow); the mean is that of the share to the power (the closed form below), not the power of the mean.
         // The shader's FarShareMean returns the mean of the share and the exponent is applied to it afterwards (E40 B1: the residual, MEASURED in FarViewTests).
         internal static double ShapeMean(double cov, double coverage, double edge, double amount, double erosion, double detailMean,
-                                         double hardBase, double hardGain, double densityRemap = 0.0, double power = 1.0)
+                                         double densityRemap = 0.0, double power = 1.0)
         {
-            double mean = ShapeMeanPlain(cov, coverage, edge, amount, erosion, detailMean, hardBase, hardGain, power);
+            double mean = ShapeMeanPlain(cov, coverage, edge, amount, erosion, detailMean, power);
             // layers.densityRemap thins every share by the same factor once the detail is its mean (CloudShapeModel.InteriorThinning).
             return densityRemap > 0.0 && erosion > 0.0 ? mean * CloudShapeModel.InteriorThinning(densityRemap, erosion, detailMean) : mean;
         }
 
-        private static double ShapeMeanPlain(double cov, double coverage, double edge, double amount, double erosion, double detailMean,
-                                             double hardBase, double hardGain, double power)
+        private static double ShapeMeanPlain(double cov, double coverage, double edge, double amount, double erosion, double detailMean, double power)
         {
             double x0 = (cov + coverage - 1.0) / edge + 0.5;
             double a = amount / edge;
-            if (a < 1e-3) return CloudWater.Pow(EdgeValue(x0, erosion, detailMean, hardBase, hardGain), power);
+            if (a < 1e-3) return CloudWater.Pow(EdgeValue(x0, erosion, detailMean), power);
             double lo = x0 - 0.5 * a, hi = x0 + 0.5 * a;
             double er = erosion > 0.0 ? erosion * (1.0 - detailMean) : 0.0;
-            double k = erosion > 0.0 ? hardBase + hardGain * erosion : 1.0;
-            double m = Math.Max(k, 1e-6) / Math.Max(1.0 - er, 1e-3);   // the slope of the ramp above u = er
+            double m = 1.0 / Math.Max(1.0 - er, 1e-3);   // the slope of the ramp above u = er
             double u1 = er + 1.0 / m;                                    // where the ramp reaches 1
             double b = Math.Min(hi, 1.0);
             double integral = b > lo ? Antiderivative(b, er, m, u1, power) - Antiderivative(lo, er, m, u1, power) : 0.0;

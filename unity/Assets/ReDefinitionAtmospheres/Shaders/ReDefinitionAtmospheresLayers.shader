@@ -268,7 +268,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // The cost debug bits switch the shape noise (2) and the erosion (4) off.
             float noiseAmount = fmod(floor(_CostP.y * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
             if (fmod(floor(_CostP.y * 0.25), 2.0) >= 0.5) erosion = 0;
-            // The coverage share: the map moved by the shape noise, the soft edge, the erosion (read only in the edge band) and the edge hardness (T02).
+            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band).
             float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion);
             if (s <= 0) return 0;
             float pw = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)

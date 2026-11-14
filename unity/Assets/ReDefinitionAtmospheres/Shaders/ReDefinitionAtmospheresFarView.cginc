@@ -71,7 +71,7 @@ float FarEdgeValue(float u, float erosion)
     if (s <= 0.0 || s >= 1.0 || erosion <= 0.0) return s;
     float er = erosion * (1.0 - _NoiseS.w);
     float c = saturate((s - er) / max(1.0 - er, 1e-3));
-    return saturate(c * (_NoiseR.x + _NoiseR.y * erosion));
+    return c;
 }
 
 // The mean of the shape over the uniform noise value, in closed form (FarViewMath.ShapeMean).
@@ -82,8 +82,7 @@ float FarShareMean(float cov, float coverage, float edge, float amount, float er
     if (a < 1e-3) return FarEdgeValue(x0, erosion);
     float lo = x0 - 0.5 * a, hi = x0 + 0.5 * a;
     float er = erosion > 0.0 ? erosion * (1.0 - _NoiseS.w) : 0.0;
-    float k = erosion > 0.0 ? _NoiseR.x + _NoiseR.y * erosion : 1.0;
-    float m = max(k, 1e-6) / max(1.0 - er, 1e-3);
+    float m = 1.0 / max(1.0 - er, 1e-3);
     float u1 = er + 1.0 / m;
     float b = min(hi, 1.0);
     float integral = b > lo ? FarAnti(b, er, m, u1) - FarAnti(lo, er, m, u1) : 0.0;

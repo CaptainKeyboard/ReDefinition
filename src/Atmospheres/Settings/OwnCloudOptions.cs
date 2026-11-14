@@ -107,8 +107,6 @@ namespace ReDefinition.Atmospheres
             s.DistanceLod = On(v, AtmospheresSettings.Keys.CloudNoiseDistanceLod);
             s.FineDetail = On(v, AtmospheresSettings.Keys.CloudFineDetail);
             s.SizeLevel = (int)Level(v, AtmospheresSettings.Keys.CloudNoiseTier);
-            // E40 soft density: nothing hardens the edge of the soft water content (the tuning key layers.softDensity 0 gives the old edge back).
-            s.SoftEdge = CloudSoftDensity.Enabled;
         }
 
         internal static void Apply(NoiseSwitches s)

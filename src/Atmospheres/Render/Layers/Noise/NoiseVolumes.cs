@@ -44,9 +44,6 @@ namespace ReDefinition.Atmospheres
         // texel is then 37 m, so the finer octave is not magnified. The distance LOD drops it once the march spacing exceeds its own cell.
         internal const double FineDetailWeight = 0.4;
         internal const double FineDetailFrequency = 2.37;
-        // The edge hardness of a type: 1 + HardnessGain * erosion (the share of the soft edge that is cut away).
-        internal const double HardnessBase = 1.0;
-        internal const double HardnessGain = 4.0;
     }
 
     // The sizes of the volumes by quality tier.

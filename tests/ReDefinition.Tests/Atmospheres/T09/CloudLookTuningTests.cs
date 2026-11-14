@@ -19,12 +19,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Tuning.Instance.BeginFrame(++frameCounter);
         }
 
-        // These tests are about the knobs' arithmetic on the layer's own numbers, which is the old density's (E40 soft density: with the soft water content the uploaded numbers are
-        // derived from them; CloudSoftDensityTests pins that); the baseline here is layers.softDensity 0.
+        // These tests are about the knobs' arithmetic on the layer's own numbers (the threshold coverage, the looked-at edge softness, the noise amount): with the soft water
+        // content the uploaded constants are derived from them (CloudSoftDensityTests pins that).
         private static void Clear()
         {
             Tuning.ClearOverrides();
-            Tuning.SetOverride(CloudSoftDensity.TuneOn, 0f);
             Tuning.Instance.BeginFrame(++frameCounter);
         }
 
@@ -53,10 +52,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (CloudLayerDef l in Stack())
             {
                 Assert.AreEqual(l.SigmaPerM, l.EffectiveSigmaPerM, 0f, l.Name);
-                Assert.AreEqual(l.EdgeSoftness, l.EffectiveEdgeSoftness, 0f);
+                Assert.AreEqual(l.EdgeSoftness, l.LookedEdgeSoftness, 0f);
                 Assert.AreEqual(l.NoiseAmount, l.EffectiveNoiseAmount, 0f);
                 Assert.AreEqual(l.NoiseScaleM, l.EffectiveNoiseScaleM, 0f);
-                Assert.AreEqual(l.Coverage, l.EffectiveCoverage, 0f);
+                Assert.AreEqual(l.Coverage, l.ThresholdCoverage, 0f);
                 Assert.AreEqual(l.FadeNearM, l.EffectiveFadeNearM, 0f);
                 Assert.IsTrue(float.IsPositiveInfinity(l.EffectiveFadeFarM), "no fade by default");
                 Assert.AreEqual(-1f, CloudLookTuning.TypeFairOf(l.Name));
@@ -81,6 +80,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             Clear();
             CloudLayerDef l1 = CloudLookFixtures.Cumulus();
+            l1.NoiseAmount = 0f;   // the plain soft edge of the layer's own numbers is what the knobs scale
             var table = new LayerTypeTable(l1);
             double sum0 = 0.0;
             for (double alt = 1800.0; alt < 2300.0; alt += 25.0)
@@ -133,20 +133,22 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Set(CloudLookTuning.TuneNoiseAmount, 0.7f);
             Set(CloudLookTuning.TuneNoiseSize, 0.5f);
             Assert.AreEqual(0.035f, l1.EffectiveSigmaPerM, 1e-6f);
-            Assert.AreEqual(0.30f, l1.EffectiveEdgeSoftness, 1e-6f);
+            Assert.AreEqual(0.30f, l1.LookedEdgeSoftness, 1e-6f);
             Assert.AreEqual(l1.NoiseAmount * 0.7f, l1.EffectiveNoiseAmount, 1e-6f);
             Assert.AreEqual(l1.NoiseScaleM * 0.5f, l1.EffectiveNoiseScaleM, 1e-3f);
             Assert.AreEqual(l1.SigmaPerM, l1.SigmaPerM, 0f, "the configured number is untouched");
             Assert.IsTrue(CloudCoverShift.Stamp > stamp);
             long again = CloudCoverShift.Stamp;
             Assert.AreEqual(again, CloudCoverShift.Stamp, "no change, no new stamp");
-            // The CPU density follows.
-            var table = new LayerTypeTable(l1);
+            // The CPU density follows (on a layer without noise: with noise the water content at the outline depends on the extinction, so the density is not linear in it).
+            CloudLayerDef l2 = CloudLookFixtures.Cumulus();
+            l2.NoiseAmount = 0f;
+            var table = new LayerTypeTable(l2);
             Set(CloudLookTuning.TuneSigma, 1f);
             Set(CloudLookTuning.TuneSoftness, 1f);
-            double plain = LayerDensity.Extinction(l1, table, 1800.0, 0.665, 0.0);
+            double plain = LayerDensity.Extinction(l2, table, 1800.0, 0.665, 0.0);
             Set(CloudLookTuning.TuneSigma, 0.5f);
-            Assert.AreEqual(plain * 0.5, LayerDensity.Extinction(l1, table, 1800.0, 0.665, 0.0), plain * 1e-6);
+            Assert.AreEqual(plain * 0.5, LayerDensity.Extinction(l2, table, 1800.0, 0.665, 0.0), plain * 1e-6);
         }
 
         [TestMethod]
@@ -159,11 +161,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Set(CloudLookTuning.TuneNoiseAmount + ".Kerbin-cumulus", 0.7f);
             Set(CloudLookTuning.TuneNoiseSize + ".Kerbin-cumulus", 0.5f);
             Assert.AreEqual(0.035f, stack[1].EffectiveSigmaPerM, 1e-6f);
-            Assert.AreEqual(0.30f, stack[1].EffectiveEdgeSoftness, 1e-6f);
+            Assert.AreEqual(0.30f, stack[1].LookedEdgeSoftness, 1e-6f);
             Assert.AreEqual(stack[1].NoiseAmount * 0.7f, stack[1].EffectiveNoiseAmount, 1e-6f);
             Assert.AreEqual(stack[1].NoiseScaleM * 0.5f, stack[1].EffectiveNoiseScaleM, 1e-3f);
             Assert.AreEqual(stack[2].SigmaPerM, stack[2].EffectiveSigmaPerM, 0f, "another layer is untouched");
-            Assert.AreEqual(stack[0].EdgeSoftness, stack[0].EffectiveEdgeSoftness, 0f);
+            Assert.AreEqual(stack[0].EdgeSoftness, stack[0].LookedEdgeSoftness, 0f);
             Set(CloudLookTuning.TuneSigma, 2f);
             Assert.AreEqual(0.07f, stack[1].EffectiveSigmaPerM, 1e-6f, "the general key multiplies on top");
             Assert.AreEqual(stack[2].SigmaPerM * 2f, stack[2].EffectiveSigmaPerM, 1e-6f);
@@ -200,8 +202,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (System.Collections.Generic.KeyValuePair<string, float> k in CloudLookModel.SetByTag("C4").Keys) Tuning.SetOverride(k.Key, k.Value);
             Tuning.Instance.BeginFrame(++frameCounter);
             CloudLayerDef l1 = CloudLookFixtures.Cumulus();
-            Assert.AreEqual(0.25f, l1.EffectiveCoverage, 1e-6f);
-            Assert.AreEqual(0.35f, l1.EffectiveEdgeSoftness, 1e-6f);
+            Assert.AreEqual(0.25f, l1.ThresholdCoverage, 1e-6f);
+            Assert.AreEqual(0.35f, l1.LookedEdgeSoftness, 1e-6f);
             Assert.AreEqual(0.035f, l1.EffectiveSigmaPerM, 1e-6f);
             Assert.AreEqual(0.7f, l1.EffectiveNoiseAmount, 1e-5f);
             Assert.AreEqual(700f, l1.EffectiveNoiseScaleM, 1e-2f);
@@ -272,14 +274,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Clear();
             CloudLayerDef[] stack = Stack();
             Set(CloudLookTuning.TuneLayerShift + "Kerbin-cumulus", -0.10f);
-            Assert.AreEqual(0.25f, stack[1].EffectiveCoverage, 1e-6f);
-            Assert.AreEqual(0.50f, stack[0].EffectiveCoverage, 1e-6f);
-            Assert.AreEqual(0.30f, stack[3].EffectiveCoverage, 1e-6f);
+            Assert.AreEqual(0.25f, stack[1].ThresholdCoverage, 1e-6f);
+            Assert.AreEqual(0.50f, stack[0].ThresholdCoverage, 1e-6f);
+            Assert.AreEqual(0.30f, stack[3].ThresholdCoverage, 1e-6f);
             Set(CloudCoverShift.TuneShift, -0.05f);
-            Assert.AreEqual(0.20f, stack[1].EffectiveCoverage, 1e-6f);
-            Assert.AreEqual(0.45f, stack[0].EffectiveCoverage, 1e-6f);
+            Assert.AreEqual(0.20f, stack[1].ThresholdCoverage, 1e-6f);
+            Assert.AreEqual(0.45f, stack[0].ThresholdCoverage, 1e-6f);
             Set(CloudLookTuning.TuneLayerShift + "Kerbin-cumulus", -0.9f);
-            Assert.AreEqual(0f, stack[1].EffectiveCoverage, "clamped at 0");
+            Assert.AreEqual(0f, stack[1].ThresholdCoverage, "clamped at 0");
         }
 
         [TestMethod]
@@ -421,9 +423,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(400, equalOutside);
             Assert.AreEqual(1.0 - 0.6 * 0.5 * (1.0 - 0.4), CloudShapeModel.InteriorThinning(0.6, 0.5, 0.4), 1e-12);
             // The far view's mean follows: the same factor.
-            double m0 = FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45, 1.0, 4.0), m1 = FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45, 1.0, 4.0, 0.6);
+            double m0 = FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45), m1 = FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45, 0.6);
             Assert.AreEqual(m0 * CloudShapeModel.InteriorThinning(0.6, 0.5, 0.45), m1, 1e-12);
-            Assert.AreEqual(m0, FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45, 1.0, 4.0, 0.0), 0.0, "default 0: unchanged");
+            Assert.AreEqual(m0, FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45, 0.0), 0.0, "default 0: unchanged");
         }
 
         [TestMethod]

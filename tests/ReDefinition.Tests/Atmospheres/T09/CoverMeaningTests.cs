@@ -16,12 +16,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
     [TestClass]
     public class CoverMeaningTests
     {
-        [TestCleanup]
-        public void BackToTheDefaultDensity()
-        {
-            OldDensity.End();
-        }
-
         private static NoiseVolumeSet[] volumes = new NoiseVolumeSet[4];
 
         private static NoiseVolumeSet Volumes(uint seed)
@@ -62,44 +56,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         private static readonly double[] Cs = { 0.1, 0.3, 0.5, 0.7, 0.9 };
 
-        [TestMethod]
-        public void TheProposedMappingGivesAClosedShareOfAboutTheMapValue()
-        {
-            // The model's mapping is built from the layer's own numbers (CoverNumbers.Of reads the Effective* getters), which are the old density's.
-            OldDensity.Begin();
-            CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus() };
-            double[] types = { 0.5, 0.0, 0.229 };
-            uint[] seeds = { 1u, 2u, 3u };
-            for (int li = 0; li < layers.Length; li++)
-            {
-                double err = 0.0, max = 0.0, previous = -1.0, worstDraw = 0.0;
-                string seen = "";
-                foreach (double c in Cs)
-                {
-                    double mean = 0.0;
-                    string draws = "";
-                    foreach (uint seed in seeds)
-                    {
-                        double v = Closed(CoverMapping.AmountShare, layers[li], li, seed, c, types[li], 60);
-                        mean += v / seeds.Length;
-                        draws += v.ToString("0.00") + " ";
-                        worstDraw = Math.Max(worstDraw, Math.Abs(v - c));
-                    }
-                    seen += c.ToString("0.0") + "->" + mean.ToString("0.000") + " (" + draws.Trim() + ")  ";
-                    err += Math.Abs(mean - c);
-                    max = Math.Max(max, Math.Abs(mean - c));
-                    Assert.IsTrue(mean >= previous - 0.02, layers[li].Name + ": the closed share does not rise with c at " + c + " (" + mean + " after " + previous + ")");
-                    previous = mean;
-                }
-                Console.WriteLine(layers[li].Name + " " + seen);
-                string report = Environment.GetEnvironmentVariable("COVER_REPORT");
-                if (!string.IsNullOrEmpty(report)) System.IO.File.AppendAllText(report, "LINEARITY " + layers[li].Name + ": mean |err| " + (err / Cs.Length).ToString("0.000") + ", max " + max.ToString("0.000") + ", worst single draw " + worstDraw.ToString("0.000") + "  " + seen + Environment.NewLine);
-                Assert.IsTrue(err / Cs.Length <= 0.05, layers[li].Name + ": mean |closed - c| over three noise draws " + err / Cs.Length + " in " + seen);
-                Assert.IsTrue(max <= 0.08, layers[li].Name + ": largest |closed - c| " + max + " in " + seen);
-                // A single noise draw is a sample of a few dozen cells for the layers with large cells: within 0.15.
-                Assert.IsTrue(worstDraw <= 0.15, layers[li].Name + ": a single draw is off by " + worstDraw + " in " + seen);
-            }
-        }
+        // The test TheProposedMappingGivesAClosedShareOfAboutTheMapValue went in E40 step (c): the proposal's mapping was built on the numbers of the old density (CoverNumbers.Of
+        // reads the Effective* getters, which are the soft water content's now); the product's own closed share per map value is measured in E40-soft-density-result.md section 2
+        // (SoftDensityExplore, CloudWaterTests).
 
         [TestMethod]
         public void ALowerMapOpensTheSkyByTheShift()

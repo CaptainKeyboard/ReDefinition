@@ -9,14 +9,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class CloudShadowShapeNoiseTests
     {
-        // The slab's numbers (coverage 0.35, softness 0.15, amount 1) are the old density's; with the soft water content the shadow reads the layer's effective numbers
-        // (CloudSoftDensityTests pins that), so these tests run on the old density.
-        [TestCleanup]
-        public void BackToTheDefaultDensity()
-        {
-            ReDefinition.Tests.Atmospheres.T09.OldDensity.End();
-        }
-
+        // The slab's numbers (coverage 0.35, softness 0.15, amount 1) are the cfg's; the shadow reads the layer's effective numbers of the soft water content
+        // (CloudSoftDensityTests pins that), so the tests below compute the share the same way.
         private static readonly NoiseVolumeSet Volumes = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(0), 5u);
 
         // A slab of vertical optical depth 1 at a constant map value, the layer's coverage 0.35 and softness 0.15 (the shipped cumulus layer's), noise amount 1 at 500 m.
@@ -85,20 +79,20 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheShadowOfACellFieldHasCellsAndTheMeanFollowsTheShare()
         {
-            ReDefinition.Tests.Atmospheres.T09.OldDensity.Begin();
             PatchSource s = Source(1f);
             CloudShadowField noisy = ShadowScenes.Field(s, 1, 12);
             noisy.ShapeNoise = Noise(Volumes);
             double[] f = Factors(noisy);
             double mean, spread;
             MeanAndSpread(f, out mean, out spread);
-            // The plain threshold at the map 0.665: s = (0.665 + 0.35 - 1) / 0.15 + 0.5 = 0.6 everywhere, tau 0.6, factor 0.549. With the noise at amount 1 the share is 0 or 1
-            // in most cells (the threshold moves by up to half the amount), so the ground is lit in some and dark in others.
+            // With the noise at amount 1 the share is 0 or 1 in most cells (the threshold moves by up to half the amount), so the ground is lit in some and dark in others.
             Assert.IsTrue(spread > 0.15, "the shadow has cells: spread " + spread);
             double lit = 0.0, dark = 0.0;
             foreach (double x in f) { if (x > 0.9) lit++; if (x < 0.5) dark++; }
-            Assert.IsTrue(lit / f.Length > 0.15 && dark / f.Length > 0.15, "lit " + lit / f.Length + " dark " + dark / f.Length);
-            // The mean optical depth equals the mean share (the noise is uniform): about the plain 0.6 within the sample's scatter of a few cells.
+            // (The soft water content at the cfg's numbers is mostly closed where the old share was half: MEASURED lit 0.069, dark 0.69.)
+            Assert.IsTrue(lit / f.Length > 0.03 && dark / f.Length > 0.15, "lit " + lit / f.Length + " dark " + dark / f.Length);
+            // The mean optical depth equals the mean share (the noise is uniform) within the sample's scatter of a few cells.
+            CloudLayerDef layer = s.LayerAt(0);
             double meanShare = 0.0;
             NoiseLayerParams prm = NoiseLayerParams.Default(500.0);
             prm.OffsetX = 12345.0;
@@ -106,8 +100,12 @@ namespace ReDefinition.Tests
             prm.OffsetZ = 4321.0;
             for (int i = 0; i < 60; i++)
                 for (int j = 0; j < 60; j++)
-                    meanShare += CloudShapeModel.Share(Volumes, ref prm, ShadowScenes.Flat + 2010.0, i * 400.0, j * 400.0, 0.665, 0.35, 0.15, 1.0, 0.0, false);
+                    meanShare += CloudWater.Pow(CloudShapeModel.Share(Volumes, ref prm, ShadowScenes.Flat + 2010.0, i * 400.0, j * 400.0, layer.ClearSkyMap(0.665),
+                                                                      layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.EffectiveNoiseAmount, 0.0, false), layer.EffectiveWaterPower);
             meanShare /= 3600.0;
+            // The slab's density rises with the height in the cloud (the type's gain at the base): its optical depth is the share times the column mean of the rise.
+            CloudTypeDef type = layer.Types[0];
+            meanShare *= CloudWater.ColumnMean(h => 1.0, new CloudWaterNumbers { BaseGain = type.BaseGain, RiseShare = type.RiseShare });
             double meanTau = 0.0;
             foreach (double x in f) meanTau += -Math.Log(Math.Max(x, 1e-12));
             meanTau /= f.Length;
@@ -117,7 +115,6 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheSharePassedToTheFieldIsTheShapeModelsAtTheRotatedPoint()
         {
-            ReDefinition.Tests.Atmospheres.T09.OldDensity.Begin();
             NoiseLayerParams prm = NoiseLayerParams.Default(500.0);
             prm.OffsetX = 12345.0;
             prm.OffsetY = 6789.0;
@@ -129,7 +126,8 @@ namespace ReDefinition.Tests
             CloudLayerDef layer = s.LayerAt(0);
             // The map point (x up, y east, z north) is the world point (east, up, north) = (y, x, z).
             double got = n.Share(0, layer, 2.0e9 + 2010.0, 321.0, 123.0, 0.665);
-            double want = CloudShapeModel.Share(Volumes, ref prm, 321.0, 2.0e9 + 2010.0, 123.0, 0.665, 0.35, 0.15, 1.0, 0.0, false);
+            double want = CloudWater.Pow(CloudShapeModel.Share(Volumes, ref prm, 321.0, 2.0e9 + 2010.0, 123.0, layer.ClearSkyMap(0.665), layer.EffectiveCoverage,
+                                                               layer.EffectiveEdgeSoftness, layer.EffectiveNoiseAmount, 0.0, false), layer.EffectiveWaterPower);
             Assert.AreEqual(want, got, 1e-12);
             Assert.AreEqual(-1.0, new CloudShadowShapeNoise().Share(0, layer, 0, 0, 0, 0.5), "not set: not given");
         }

@@ -85,7 +85,7 @@ namespace ReDefinition.Atmospheres
 
     // The shape and erosion model on the CPU (package T02): the function the shader evaluates, in double precision, for the tests, for
     // the parity checks and for the consumers that read the layers on the CPU. P02 base shape, P04 erosion, P05 curl, P11 untiled lookup,
-    // P12 edge hardness, P03 spherical lattice, P18 upward speed.
+    // P03 spherical lattice, P18 upward speed (P12, the edge hardness by type, went with layers.softDensity).
     internal static class CloudShapeModel
     {
         // Smooth vector value noise of the integer hash at a point in lattice units, each component -1 to 1; it has no period.
@@ -203,20 +203,12 @@ namespace ReDefinition.Atmospheres
             return Trilinear(set.Detail, set.DetailN, 1, 0, qx / dp, qy / dp, qz / dp);
         }
 
-        // The edge hardness of a type from its erosion (P12): the soft edge's share is multiplied by it and clamped, so that a ragged type
-        // (cumulus, erosion about 0.5) has a hard edge and a smooth one (stratus, cirrus: erosion near 0) a soft one.
-        internal static double Hardness(double erosion)
-        {
-            // E40 soft density: nothing hardens the edge of the soft water content (the shader's hardness gain is 0 with NoiseSwitches.SoftEdge, which the settings set with it).
-            return NoiseModel.HardnessBase + (CloudSoftDensity.Enabled ? 0.0 : NoiseModel.HardnessGain) * erosion;
-        }
-
-        // The soft coverage share s (0 to 1) eaten into by the detail and hardened: the share of the column that is cloud at the point (P04, P12).
+        // The soft coverage share s (0 to 1) eaten into by the detail: the share of the column that is cloud at the point (P04). Nothing hardens the edge of the soft
+        // water content (the edge hardness by type of package T02 went with layers.softDensity, E40 step (c)).
         internal static double Erode(double s, double detail, double erosion)
         {
             double er = erosion * (1.0 - detail);
-            double c = Math.Min(1.0, Math.Max(0.0, (s - er) / Math.Max(1.0 - er, 1e-3)));
-            return Math.Min(1.0, c * Hardness(erosion));
+            return Math.Min(1.0, Math.Max(0.0, (s - er) / Math.Max(1.0 - er, 1e-3)));
         }
 
         // The distance LOD of the erosion detail (0: full detail, 1: dropped): the march's sample spacing (footM, m) against the detail's finest

@@ -17,13 +17,12 @@ namespace ReDefinition.WeatherPlayer
             Tuning.ClearOverrides();
             if (job.tuning != null)
                 foreach (LayersJobKey k in job.tuning) Tuning.SetOverride(k.key, k.value);
-            // The product's soft water content (the job's soft > 0): the owner's softness, the detail volume's mean once the volumes are there, the edge hardness off.
+            // The product's soft water content (the job's soft > 0): the owner's softness, the detail volume's mean once the volumes are there.
             if (job.soft > 0f)
             {
                 CloudSoftDensity.Softness = job.soft;
                 NoiseVolumeSet volumes = renderer.Noise.ShapeVolumes;
                 CloudSoftDensity.DetailMean = volumes != null ? volumes.DetailMean : 0.493;
-                renderer.Noise.Switches.SoftEdge = true;
             }
             var source = new LayerStackSource(0, job.planetRadius, job.hasSurface != 0);
             bool anyMap = false;

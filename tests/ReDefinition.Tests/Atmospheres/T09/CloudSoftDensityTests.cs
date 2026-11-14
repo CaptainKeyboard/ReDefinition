@@ -7,26 +7,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // E40 soft density, package B1: the product's density is the soft water content of CloudWater, through CloudLayerDef's Effective* numbers, the type table's profile and one
     // helper for the exponent. Expected results, written before the first run: with the default numbers the share the layer pass and every CPU twin form from the layer's
     // effective numbers equals CloudWater's water content (outline where the old share began) at a few hundred places of each of Kerbin's four layers; a map value of 0 is a clear
-    // sky; the type table carries the rise by height and the density scale; layers.softDensity 0 gives every old number back; the settings reach the march.
-    // The baseline of the tests whose subject is the old density (the hardened edge of package T02, the knobs' arithmetic on the layer's own numbers, the cover-meaning model
-    // of its own mapping): layers.softDensity 0 for the length of the test.
-    internal static class OldDensity
-    {
-        private static int frame = 6000000;
-
-        internal static void Begin()
-        {
-            Tuning.ClearOverrides();
-            Tuning.SetOverride(CloudSoftDensity.TuneOn, 0f);
-            Tuning.Instance.BeginFrame(++frame);
-        }
-
-        internal static void End()
-        {
-            Tuning.ClearOverrides();
-            Tuning.Instance.BeginFrame(++frame);
-        }
-    }
+    // sky; the type table carries the rise by height and the density scale; the settings reach the march. (The switch layers.softDensity and the old density with it went in
+    // E40 step (c): the tests of the knobs' arithmetic read the layer's own numbers through ThresholdCoverage and LookedEdgeSoftness.)
 
     [TestClass]
     public class CloudSoftDensityTests
@@ -47,7 +29,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestCleanup]
         public void Clean()
         {
-            OldDensity.End();
+            Tuning.ClearOverrides();
+            Tuning.Instance.BeginFrame(++frame);
             CloudSoftDensity.Softness = CloudSoftDensity.DefaultSoftness;
             CloudSoftDensity.DetailMean = CloudSoftDensity.NominalDetailMean;
         }
@@ -121,38 +104,21 @@ namespace ReDefinition.Tests.Atmospheres.T09
             var scaled = new LayerTypeTable(layer);
             Assert.AreEqual(0.5 * plain * rise, scaled.ProfileAt(0, h), 2e-3);
             Assert.IsTrue(layer.SoftClosed > closedBefore, "a thinner column needs more water to be closed");
-            // The old density: no rise, the density scale stays (it is data).
-            Set(CloudSoftDensity.TuneOn, 0f);
-            Assert.AreEqual(0.5 * plain, scaled.ProfileAt(0, h), 2e-3);
         }
 
         [TestMethod]
-        public void TheTuningKeyGivesEveryOldNumberBack()
-        {
-            Set(CloudSoftDensity.TuneOn, 0f);
-            foreach (CloudLayerDef layer in Layers())
-            {
-                Assert.IsFalse(layer.Soft);
-                Assert.AreEqual(layer.ThresholdCoverage, layer.EffectiveCoverage, 0f);
-                Assert.AreEqual(layer.EdgeSoftness, layer.EffectiveEdgeSoftness, 1e-6f);
-                Assert.AreEqual(layer.NoiseAmount, layer.EffectiveNoiseAmount, 1e-6f);
-                Assert.AreEqual(0f, layer.ClearSkyK);
-                Assert.AreEqual(1f, layer.EffectiveWaterPower);
-                Assert.AreEqual(0.7f, layer.ClearSkyMap(0.7f));
-            }
-            Assert.AreEqual(NoiseModel.HardnessBase + NoiseModel.HardnessGain * 0.5, CloudShapeModel.Hardness(0.5), 1e-12);
-            OldDensity.End();
-            Assert.AreEqual(NoiseModel.HardnessBase, CloudShapeModel.Hardness(0.5), 1e-12, "nothing hardens the soft edge");
-        }
-
-        [TestMethod]
-        public void ALayerWithoutNoiseKeepsTheOldDensity()
+        public void ALayerWithoutNoiseKeepsThePlainSoftEdgeOfItsOwnNumbers()
         {
             CloudLayerDef layer = CloudLookFixtures.Cumulus();
             layer.NoiseAmount = 0f;
             Assert.IsFalse(layer.Soft);
+            Assert.AreEqual(layer.ThresholdCoverage, layer.EffectiveCoverage, 0f);
             Assert.AreEqual(layer.EdgeSoftness, layer.EffectiveEdgeSoftness, 1e-6f);
+            Assert.AreEqual(0f, layer.ClearSkyK);
+            Assert.AreEqual(0.7f, layer.ClearSkyMap(0.7f));
             Assert.AreEqual(1f, layer.EffectiveWaterPower);
+            // Nothing hardens the edge: the eroded share is the plain eroded share.
+            Assert.AreEqual(0.2, CloudShapeModel.Erode(0.6, 0.0, 0.5), 1e-12);
         }
 
         [TestMethod]
@@ -195,12 +161,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             OwnCloudOptions.Apply(frame, low);
             Assert.AreEqual(24, frame.MaxSteps, "softness 1.0 with 24 points");
             Assert.AreEqual(1.0, CloudSoftDensity.Softness, 1e-9);
-            var noise = new NoiseSwitches();
-            OwnCloudOptions.Apply(noise, v);
-            Assert.IsTrue(noise.SoftEdge);
-            Set(CloudSoftDensity.TuneOn, 0f);
-            OwnCloudOptions.Apply(noise, v);
-            Assert.IsFalse(noise.SoftEdge);
         }
 
         [TestMethod]
@@ -212,8 +172,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 double sum = 0.0;
                 const int n = 40000;
                 for (int i = 0; i < n; i++)
-                    sum += CloudWater.Pow(FarViewMath.ShapeSample(cov, coverage, edge, amount, erosion, detailMean, 1.0, 0.0, (i + 0.5) / n), power);
-                Assert.AreEqual(sum / n, FarViewMath.ShapeMean(cov, coverage, edge, amount, erosion, detailMean, 1.0, 0.0, 0.0, power), 2e-4, "power " + power);
+                    sum += CloudWater.Pow(FarViewMath.ShapeSample(cov, coverage, edge, amount, erosion, detailMean, (i + 0.5) / n), power);
+                Assert.AreEqual(sum / n, FarViewMath.ShapeMean(cov, coverage, edge, amount, erosion, detailMean, 0.0, power), 2e-4, "power " + power);
             }
         }
 

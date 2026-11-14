@@ -6,7 +6,7 @@ using UnityEngine;
 namespace ReDefinition.Atmospheres
 {
     // Series K-T2, the start soft59 (E40 soft density, the one game start of the second lead; the review is .local/work/e40-soft-start59-review.md): the soft density as the product
-    // draws it against the density before it (layers.softDensity 0), the owner's two favourite settings, and up to four cost candidates, in two scenes of ONE start:
+    // draws it (the density before it, layers.softDensity 0, is gone since E40 step (c) part 2), the owner's two favourite settings, and the cost candidates, in two scenes of ONE start:
     //   scene "fair"   the fair-weather scene of the owner's complaint: the K-T2d low cover (ChooseCoverTimes), views ground and above
     //   scene "clock"  the K-T2 clock (ChooseUt, the one of the TVC start tvc1707: 2.59 / 4.77 / 5.30 / 2.58 ms busy-delta), views ground, above, inside, sky3
     // In each view: the baseline (the pass running, no layer drawn), then for every variant of SoftVariants three frames read one after the other (a, b, c; written at full size) and,
@@ -21,7 +21,7 @@ namespace ReDefinition.Atmospheres
     // Rows (series K-T2, metric T09s.<scene>.<view>.<variant>.<row>):
     //   tstd, hfx, mask_n, mask_hf, mask_hf_off, cloud_share   the grain of the pixels the clouds changed against the baseline (T09ProbeGrain.MeasureGrain; the same measure as the grain start)
     //   box_tstd, box_blob, box_lap, box_luma                  the same over the fixed boxes of the view (T09ProbeGt.MeasureGtGrain; the measure of start 56)
-    //   grid_points, softness, soft_density, effective_ok      what the pass really ran with: the grid points of the march, the width of the soft rim, the soft density's switch
+    //   grid_points, softness, effective_ok                    what the pass really ran with: the grid points of the march, the width of the soft rim
     //   march_w, march_h, span_tight, skip_empty, dither_sequence, layers_none, layers_total, spans   the march target's size, the cost candidates' switches, the layers left out of the march
     //   cost_frames, cost_fps, cost_frames_drawn               the cost window; the GPU time is read from the profiler's reports by kt2.py
     //   T09s.sun.<scene>.*                                     the sun colour of the clouds (SoftSunColour)
@@ -87,7 +87,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // soft: the defaults of origin/main (the soft density on, cloudSoftness 0.5, cloudSamples High = 48 grid points: the Medium tier does not set cloudSamples, so the "Medium: 32" of the
-        // brief is not what the game runs; the owner's favourite "soft48" IS this variant and has no row of its own). hard: layers.softDensity 0, the density before the soft water content.
+        // brief is not what the game runs; the owner's favourite "soft48" IS this variant and has no row of its own). (The variant hard, layers.softDensity 0, went with the old density, E40 step (c) part 2.)
         // soft100s24: cloudSoftness 1.0 with cloudSamples Low (24), the owner's other favourite; no grid points are left of the old sampling keys, the count is cloudSamples alone.
         // The table of 2026-11-14 evening (E40 L2 package B2): the cost candidates of .local/plans/atmospheres/E40-ground-cost-result.md against TVC, sized to the time plan
         // (SoftEstimateS at most 1020 s of SoftMaxSeconds). In: the views a variant runs in (frames and windows), "" every view of the scene, "-" none.
@@ -100,7 +100,6 @@ namespace ReDefinition.Atmospheres
         internal static readonly SoftVariant[] SoftVariants =
         {
             Soft("soft", "ga", "gias"),
-            Soft("hard", "g", "g", "t:" + CloudSoftDensity.TuneOn + "=0"),
             Soft("soft100s24", "g", "", "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0"),
             Soft("softhash", "", "", "t:" + OwnCloudOptions.TuneDitherSequence + "=1").In("", "-"),
             Soft("softr33", "ga", "gias", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33", "s:" + AtmospheresSettings.Keys.CloudSkipEmpty + "=1"),
@@ -147,12 +146,11 @@ namespace ReDefinition.Atmospheres
             return float.TryParse(pair.Substring(eq + 1), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
-        // What a variant makes of the numbers the pass reads: the width of the soft rim, the cloudSamples choice, the soft density's switch, the grid points of the march.
+        // What a variant makes of the numbers the pass reads: the width of the soft rim, the cloudSamples choice, the grid points of the march.
         internal struct SoftExpectation
         {
             internal double Softness;
             internal int Samples, GridPoints;
-            internal bool SoftDensity;
             // E40 L2 B2: the march target's side over the full target's (recon.resolution; the history path of recon.accumulate runs at it), the cut span, the step offset's
             // sequence and the tile test of empty sky (the setting cloudSkipEmpty).
             internal float Resolution;
@@ -174,7 +172,6 @@ namespace ReDefinition.Atmospheres
         {
             double softness = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSoftness).Default;
             double level = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default;
-            bool soft = true;
             float gridFine = OwnCloudOptions.GridFineDefault;
             float resolution = SoftCompiledResolution;
             bool spanTight = OwnCloudOptions.SpanTightDefault;
@@ -190,7 +187,6 @@ namespace ReDefinition.Atmospheres
                     if (!SoftSplit(pair, out setting, out key, out value)) continue;
                     if (setting && key == AtmospheresSettings.Keys.CloudSoftness) softness = value;
                     else if (setting && key == AtmospheresSettings.Keys.CloudSamples) level = value;
-                    else if (!setting && key == CloudSoftDensity.TuneOn) soft = value != 0f;
                     else if (!setting && key == OwnCloudOptions.TuneGridFine) gridFine = value;
                     else if (setting && key == AtmospheresSettings.Keys.CloudSkipEmpty) skipEmpty = value != 0f;
                     else if (!setting && key == OwnCloudOptions.TuneReconResolution) resolution = value;
@@ -207,7 +203,7 @@ namespace ReDefinition.Atmospheres
             points = Math.Max(4, Math.Min(256, Mathf.RoundToInt(points * Mathf.Clamp(gridFine, 0.25f, 8f))));
             return new SoftExpectation
             {
-                Softness = softness, Samples = samples, SoftDensity = soft, GridPoints = points, Resolution = Mathf.Clamp(resolution, 0.1f, 1f), SpanTight = spanTight,
+                Softness = softness, Samples = samples, GridPoints = points, Resolution = Mathf.Clamp(resolution, 0.1f, 1f), SpanTight = spanTight,
                 SkipEmpty = skipEmpty, DitherSequence = dither
             };
         }
@@ -328,11 +324,9 @@ namespace ReDefinition.Atmospheres
             SoftExpectation e = SoftExpect(v);
             int points = own.Frame.MaxSteps;
             double softness = CloudSoftDensity.Softness;
-            bool on = CloudSoftDensity.Enabled;
             Emit(head + "grid_points", points);
             Emit(head + "softness", softness);
-            Emit(head + "soft_density", on);
-            bool ok = points == e.GridPoints && Math.Abs(softness - e.Softness) < 1e-6 && on == e.SoftDensity;
+            bool ok = points == e.GridPoints && Math.Abs(softness - e.Softness) < 1e-6;
             string more = "";
             bool spanTight = own.Frame.SpanTight, skip = own.Frame.Cull != null && own.Frame.Cull.SkipEmpty;
             int dither = own.Frame.DitherSequence;
@@ -368,10 +362,10 @@ namespace ReDefinition.Atmospheres
             }
             Emit(head + "effective_ok", ok);
             AtmospheresLog.Say("T09 soft variant " + v.Name + " (" + head + "): grid points " + points + " (expected " + e.GridPoints + "), softness " + softness.ToString("0.###", CultureInfo.InvariantCulture)
-                               + " (expected " + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + "), soft density " + on + " (expected " + e.SoftDensity + ")" + more);
+                               + " (expected " + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + ")" + more);
             if (ChecksEffectiveNumbers)
                 Check("T09s.effective_" + head.Replace('.', '_') + v.Name, ok, "grid points " + points + " against " + e.GridPoints + ", softness " + softness.ToString("0.###", CultureInfo.InvariantCulture) + " against "
-                      + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + ", soft density " + on + " against " + e.SoftDensity + more);
+                      + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + more);
         }
 
         private IEnumerator<ProbeWait> SoftScenario()
@@ -441,8 +435,7 @@ namespace ReDefinition.Atmospheres
                 sb.Append(v.Name);
                 if (!v.Active) { sb.Append(" (empty slot)"); continue; }
                 SoftExpectation e = SoftExpect(v);
-                sb.Append(" [softness ").Append(e.Softness.ToString("0.###", CultureInfo.InvariantCulture)).Append(", ").Append(e.GridPoints).Append(" grid points, soft density ")
-                  .Append(e.SoftDensity ? "on" : "off").Append(", march target ").Append(e.Resolution.ToString("0.##", CultureInfo.InvariantCulture)).Append(", in fair '").Append(v.FairViews)
+                sb.Append(" [softness ").Append(e.Softness.ToString("0.###", CultureInfo.InvariantCulture)).Append(", ").Append(e.GridPoints).Append(" grid points, march target ").Append(e.Resolution.ToString("0.##", CultureInfo.InvariantCulture)).Append(", in fair '").Append(v.FairViews)
                   .Append("' clock '").Append(v.ClockViews).Append("', cost fair '").Append(v.FairCost).Append("' clock '").Append(v.ClockCost).Append("']");
                 string problem = v.TableProblem();
                 if (problem != null) Check("T09s.table_" + v.Name, false, problem);

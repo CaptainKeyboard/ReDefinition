@@ -47,7 +47,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheSoftTableIsTheTableOfTheEveningAndUsesNoRemovedKey()
         {
             var names = T09Probe.SoftVariants.Select(v => v.Name).ToList();
-            CollectionAssert.AreEqual(new[] { "soft", "hard", "soft100s24", "softhash", "softr33", "softcut16" }, names);
+            CollectionAssert.AreEqual(new[] { "soft", "soft100s24", "softhash", "softr33", "softcut16" }, names);
             Assert.AreEqual(names.Count, names.Distinct().Count(), "the names are unique");
             Assert.AreEqual(0, T09Probe.SoftVariants.Count(v => !v.Active), "no empty slot is left");
             T09Probe.SoftVariant hash = T09Probe.SoftVariants.First(v => v.Name == "softhash");
@@ -58,7 +58,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The table as built: { fair cost, clock cost, fair views run, clock views run } (the lead's table less the cut for the time, soft100s24's clock window, and less softnodrop, gone with layers.dropEmpty).
             var expected = new Dictionary<string, string[]>
             {
-                { "soft", new[] { "ga", "gias", "ga", "gias" } }, { "hard", new[] { "g", "g", "ga", "gias" } }, { "soft100s24", new[] { "g", "", "ga", "gias" } },
+                { "soft", new[] { "ga", "gias", "ga", "gias" } }, { "soft100s24", new[] { "g", "", "ga", "gias" } },
                 { "softhash", new[] { "", "", "ga", "" } }, { "softr33", new[] { "ga", "gias", "ga", "gias" } },
                 { "softcut16", new[] { "g", "g", "g", "g" } }
             };
@@ -97,16 +97,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             T09Probe.SoftExpectation soft = T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == "soft"));
             Assert.AreEqual(0.5, soft.Softness, 1e-9, "soft is the default softness");
-            Assert.IsTrue(soft.SoftDensity, "soft has the soft density on");
             // The owner's soft48 is the default: cloudSamples High is 48 grid points at the Medium step quality (the Medium tier does not set cloudSamples).
             Assert.AreEqual(48, soft.Samples);
             Assert.AreEqual(48, soft.GridPoints);
             Assert.AreEqual(AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSoftness).Default, soft.Softness, 1e-9, "soft stands on the settings' defaults");
 
-            T09Probe.SoftExpectation hard = T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == "hard"));
-            Assert.IsFalse(hard.SoftDensity, "hard is the density before");
-            Assert.AreEqual(soft.GridPoints, hard.GridPoints, "hard differs by the density alone");
-            Assert.AreEqual(soft.Softness, hard.Softness, 1e-9);
+            T09Probe.SoftExpectation hash = T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == "softhash"));
+            Assert.AreEqual(soft.GridPoints, hash.GridPoints, "softhash differs by the step offset alone");
+            Assert.AreEqual(soft.Softness, hash.Softness, 1e-9);
 
             // The example of the table's comment: cloudSamples Medium is 32 grid points.
             T09Probe.SoftExpectation s32 = T09Probe.SoftExpect(new T09Probe.SoftVariant { Name = "soft32", Pairs = new[] { "s:" + AtmospheresSettings.Keys.CloudSamples + "=1" } });
@@ -116,7 +114,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             T09Probe.SoftExpectation s100 = T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == "soft100s24"));
             Assert.AreEqual(24, s100.GridPoints);
             Assert.AreEqual(1.0, s100.Softness, 1e-9);
-            Assert.IsTrue(s100.SoftDensity);
 
             // The cost candidates: each differs from soft by its own switches alone.
             Func<string, T09Probe.SoftExpectation> of = n => T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == n));
@@ -128,7 +125,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.33f, r33.Resolution, 1e-6f);
             Assert.IsTrue(r33.SkipEmpty);
             Assert.AreEqual(48, r33.GridPoints);
-            Assert.IsTrue(!r33.SpanTight && r33.SoftDensity);
+            Assert.IsFalse(r33.SpanTight);
             T09Probe.SoftExpectation cut = of("softcut16");
             Assert.AreEqual(16, cut.GridPoints, "48 points at gridFine 0.3333");
             Assert.IsTrue(cut.SpanTight);
@@ -157,7 +154,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(estimate <= T09Probe.SoftMaxSeconds - 60.0, "the default table needs " + estimate.ToString("0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0"));
             Assert.AreEqual(1020.0, T09Probe.SoftMaxSeconds - 60.0, "the pin: 1020 s");
             Assert.IsTrue(estimate >= 600.0, "the estimate counts the windows: " + estimate.ToString("0"));
-            Assert.AreEqual(974.0, estimate, 1e-6, "the table as built: 974 s (1005 s with softnodrop, 1058 s with that and soft100s24's clock window)");
+            Assert.AreEqual(876.0, estimate, 1e-6, "the table as built: 876 s (974 s with the variant hard, 1005 s with that and softnodrop, 1058 s with soft100s24's clock window too)");
             Assert.IsTrue(T09Probe.SoftPlaceS >= 7.0, "a placement was measured at 3.5 s: the estimate keeps at least twice that");
             // A cost candidate with one window in each of the ground views: the price of one more variant.
             var table = T09Probe.SoftVariants.Select(v => v).ToList();
@@ -244,7 +241,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         T09Probe.SoftExpectation e = T09Probe.SoftExpect(v);
                         Assert.AreEqual(e.GridPoints, Number(r, row + "grid_points"), row + "grid points");
                         Assert.AreEqual(e.Softness, Number(r, row + "softness"), 1e-6, row + "softness");
-                        Assert.AreEqual(e.SoftDensity ? 1.0 : 0.0, Number(r, row + "soft_density"), row + "soft density");
                         Assert.AreEqual(1.0, Number(r, row + "effective_ok"), row + "the numbers are the table's");
                         // The cost candidates' switches and the march target as the table says (the fake reconstructor sizes it from recon.resolution).
                         Assert.AreEqual(e.SpanTight ? 1.0 : 0.0, Number(r, row + "span_tight"), row + "span tight");
