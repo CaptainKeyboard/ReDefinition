@@ -109,7 +109,7 @@ over it. The numbers are for the RTX A4500 at the Medium profile.
 | `weather-integration` | where the own cloud pass sits in the frame and what its Scatterer settings cost | 2 | 125 | 29 |
 | `weather-7` | what the cloud light fixes and the far view of the own clouds cost | 1 | 29 | 8 |
 | `weather-8` | what the wet overlay, the window droplets and the lightning cost in rain | 1 | 44 | 11 |
-| `weather-9` | what the cheap forms of the cloud entry refinement cost | 1 | 20 | 6 |
+| `weather-9` | what the cheap forms of the cloud entry refinement cost | 1 | 23 | 7 |
 | `weather-10` | what the cloud visibility culling and distance LOD save | 1 | 32 | 8 |
 | `weather-11` | what the raytracing pack of the own cloud layers costs | 1 | 11 | 4 |
 | `rt-weather` | what the weather's fog, reach cap and bounce reduction on the rays save | 1 | 14 | 5 |
