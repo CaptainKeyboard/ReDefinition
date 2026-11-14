@@ -95,8 +95,11 @@ NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE
 # The layer wind of a type's job in m/s as (east, north) (E40 L5 shape): the cirrus fibres lie along it. The sheet's cirrus is blown from the south-west, 25 m/s.
 WIND_EN = {"cirrus": (17.7, 17.7), "cirrostratus": (17.7, 17.7)}
 
-LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau")
-TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient")
+LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing", "fibreMinWindMs",
+               "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs")
+# E40TY_NOSMOOTH=1: the same pictures without the shape smoothing and the top-from-updraft numbers of the layers (the "before" of E40 L6 shape on the same player), under the tag given.
+NOSMOOTH = os.environ.get("E40TY_NOSMOOTH") == "1"
+TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing")
 
 
 def lift_samples(type_node):
@@ -161,19 +164,94 @@ def job_layer(spec, extras, layers_by_name):
     layer = layers_by_name[layer_name]
     lk, tk = extras[layer_name]
     jl = e40o.job_layer(layer, const_map(map_value), const_map(type_value(layer, type_name)))
-    jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("fibreStretch", "verticalScale"))})
+    jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("fibreStretch", "verticalScale"))
+               and not (NOSMOOTH and k in ("shapeSmoothing", "topReach"))})
     if spec[1] in WIND_EN and not NOWIND:
         # the layer's wind in world space: east and north at the site (the map frame: x towards longitude 0, y towards 90 east, z north)
         lon = math.radians(SITE_LON_DEG)
         east, north = WIND_EN[spec[1]]
         jl["wind"] = [-math.sin(lon) * east, math.cos(lon) * east, north]
     for t in jl["types"]:
-        t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")})
+        t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")
+                  and not (NOSMOOTH and k == "shapeSmoothing")})
     return jl
 
 
 def jid(key, view, aux=False):
     return ("tx-%s-%s" if aux else "ty-%s-%s") % (key, view)
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# The cumulonimbus tower (E40 L6 shape): one strong cell in a clear sky, seen from 20 to 40 km, with the height maps the game feeds (the tops follow the updraft of the cell)
+# --------------------------------------------------------------------------------------------------------------------------------
+CB_LAYER = "Kerbin-cumulonimbus"
+# (key, the type of the whole cell, or None: the type follows the cell's strength as the precipitation level does in the game, calvus at its edge, incus at its core)
+CB_TOWERS = (("calvus-tower", "Cumulonimbus calvus"), ("incus-tower", "Cumulonimbus incus"), ("cell-tower", None))
+CB_VIEWS = ("side", "top", "flat")                       # flat: the side view without the updraft's top term (the type table's own top)
+CB_MAP = (512, 256)                                      # the equirectangular map of the cell: about 7.4 km per texel at the equator
+CB_CELL_KM = 12.0                                      # the e-folding radius of the cell's strength
+CB_CORE_GAIN = 1.4                                     # the coverage map reaches its top value where the Gaussian is above 1 / this (a flat core: the texels of the map are 7 km)
+CB_COVER_RANGE = (0.3, 1.0)                              # the coverage map outside and at the centre of the cell
+CB_UPDRAFT_MS = 7.0                                      # the updraft at the cell's centre (the generator's full-strength cell is 6 m/s; a growing tower more)
+# view: (distance from the cell's centre in km to the south, camera height in m, pitch in degrees)
+CB_CAMERAS = {"side": (30.0, 400.0, 14.0), "top": (25.0, 16000.0, -33.0), "flat": (30.0, 400.0, 14.0)}
+CB_SUN_AZIMUTH = 160.0
+
+
+def cb_cell_files():
+    """Writes the cell's coverage map (a Gaussian of the great-circle distance to the cell, from CB_COVER_RANGE[0] outside to [1] at the centre) and the updraft map (R8, 0 to 12 m/s)."""
+    w, h = CB_MAP
+    units = lay.texel_unit_vectors(w, h)
+    lon = math.radians(SITE_LON_DEG)
+    centre = np.array([math.cos(lon), math.sin(lon), 0.0])
+    dist_km = np.arccos(np.clip(units @ centre, -1.0, 1.0)) * R / 1000.0
+    bump = np.exp(-(dist_km / CB_CELL_KM) ** 2)
+    lo, hi = CB_COVER_RANGE
+    cover = np.rint(np.clip(lo + (hi - lo) * np.minimum(1.0, CB_CORE_GAIN * bump), 0.0, 1.0) * 255.0).astype(np.uint8)
+    updraft = np.rint(np.clip(CB_UPDRAFT_MS * bump / 12.0, 0.0, 1.0) * 255.0).astype(np.uint8)
+    os.makedirs(INPUT, exist_ok=True)
+    cover.tofile(os.path.join(INPUT, "cbcell-cov.r8"))
+    updraft.tofile(os.path.join(INPUT, "cbcell-up.r8"))
+    np.rint(np.clip(np.minimum(1.0, CB_CORE_GAIN * bump), 0.0, 1.0) * 255.0).astype(np.uint8).tofile(os.path.join(INPUT, "cbcell-typ.r8"))
+    return "cbcell-cov.r8", "cbcell-up.r8"
+
+
+def cb_const_map(value):
+    """A constant R8 map of the cell's size (the type map of a tower row); returns its name."""
+    v = int(round(min(max(value, 0.0), 1.0) * 255.0))
+    name = "cbk%03d.r8" % v
+    np.full(CB_MAP[0] * CB_MAP[1], v, dtype=np.uint8).tofile(os.path.join(INPUT, name))
+    return name
+
+
+def cb_camera(view, size):
+    km, height, pitch = CB_CAMERAS[view]
+    lon, lat = math.radians(SITE_LON_DEG), -km * 1000.0 / R
+    pos = np.array([math.cos(lat) * math.cos(lon), math.cos(lat) * math.sin(lon), math.sin(lat)]) * (R + height)
+    return pr.Camera(pos, 0.0, pitch, size[0], size[1], FOV)
+
+
+def cb_jobs(layers_by_name, extras):
+    """The lum jobs of the cumulonimbus tower rows and the entries of heights.json that give the side and top views their height maps."""
+    cov_name, up_name = cb_cell_files()
+    layer, (lk, tk) = layers_by_name[CB_LAYER], extras[CB_LAYER]
+    jobs, heights = [], []
+    for key, type_name in CB_TOWERS:
+        for view in CB_VIEWS:
+            jl = e40o.job_layer(layer, cov_name, "cbcell-typ.r8" if type_name is None else cb_const_map(type_value(layer, type_name)))
+            jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("fibreStretch", "verticalScale"))
+                       and not (NOSMOOTH and k in ("shapeSmoothing", "topReach"))})
+            for t in jl["types"]:
+                t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")
+                          and not (NOSMOOTH and k == "shapeSmoothing")})
+            cam = cb_camera(view, SIZE)
+            jobs.append(lay.job(jid(key, view), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=CB_MAP[0], mapHeight=CB_MAP[1],
+                                sun=lay.sun_vector(cam.pos, CB_SUN_AZIMUTH, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
+                                soft=SOFTNESS, maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3,
+                                **(dict(noise=dict(sphere=SPHERE)) if SPHERE is not None else {})))
+            if view != "flat":
+                heights.append(dict(id=jid(key, view), variation=0, physics=0, topUpdraft=1, ragged=0, updraftMap=up_name, width=CB_MAP[0], height=CB_MAP[1], seed=1))
+    return jobs, heights
 
 
 def build_jobs():
@@ -190,7 +268,14 @@ def build_jobs():
                                       sun=lay.sun_vector(cam.pos, 0.0, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
                                       soft=SOFTNESS, maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3,
                                       **(dict(noise=dict(sphere=SPHERE)) if SPHERE is not None else {})))
+    cb, heights = cb_jobs(layers_by_name, extras)
+    lum.extend(cb)
+    CB_HEIGHTS[:] = heights
     return lum, aux
+
+
+# The heights.json entries of the cumulonimbus tower jobs (filled by build_jobs).
+CB_HEIGHTS = []
 
 
 def write_inputs():
@@ -199,6 +284,8 @@ def write_inputs():
         os.makedirs(folder, exist_ok=True)
         with open(os.path.join(folder, "jobs.json"), "w", encoding="utf-8") as f:
             json.dump({"jobs": jobs}, f)
+    with open(os.path.join(INPUT, "heights.json"), "w", encoding="utf-8") as f:
+        json.dump({"specs": CB_HEIGHTS}, f)
     return lum, aux
 
 
@@ -411,6 +498,34 @@ def collect(ctx):
             rows.append(np.concatenate([tvc, pad], axis=1))
         if rows:
             gn.save_png(os.path.join(out_dir, "%s-%s-sheet.png" % (NAME, family)), np.concatenate(rows, axis=0))
+    # The cumulonimbus tower sheet: a row per type, the side view from 30 km, the view from above from 25 km, and the side view without the updraft's top term.
+    cb_layer = layers_by_name[CB_LAYER]
+    cb_tint = white_tint(cb_layer["inner"] + 0.25 * (cb_layer["outer"] - cb_layer["inner"]))
+    cb_rows = []
+    for key, type_name in CB_TOWERS:
+        cols = []
+        for view, text in (("side", "side view, 30 km, tops follow the updraft"), ("top", "from above, 25 km"), ("flat", "side view, the type table's own top")):
+            path = os.path.join(sheet, jid(key, view) + ".npy")
+            if not os.path.isfile(path):
+                lines.append("   %-14s %-6s: no picture" % (key, view))
+                cols.append(np.zeros((TILE[1] * 2, TILE[0] * 2, 3)))
+                continue
+            m = load_lum(sheet, jid(key, view))
+            img = picture(m, cb_camera(view, SIZE), cb_tint, with_sun=False)
+            gn.save_png(os.path.join(out_dir, "%s-cbtower-%s-%s.png" % (NAME, key, view)), img)
+            cols.append(label(box(img, (TILE[0] * 2, TILE[1] * 2)), "%s: %s" % (key, text)))
+            words = alpha_words(m[..., 3])
+            # the highest row of the picture the cloud reaches, as an elevation angle above the camera's horizon for the side views
+            rows_hit = np.where((m[..., 3] > 0.5).any(axis=1))[0]
+            top_deg = None
+            if view != "top" and len(rows_hit):
+                cam = cb_camera(view, SIZE)
+                top_deg = CB_CAMERAS[view][2] + (0.5 - (rows_hit[0] + 0.5) / SIZE[1]) * FOV
+            results.setdefault(key, {})["tower_" + view] = dict(alpha=words, top_elevation_deg=top_deg)
+            lines.append("   %-14s %-6s: cloud covers %.2f of the picture%s" % (key, view, words["cover"], "" if top_deg is None else ", the highest opaque row at %.1f degrees above the horizontal" % top_deg))
+        cb_rows.append(np.concatenate(cols, axis=1))
+    if cb_rows:
+        gn.save_png(os.path.join(out_dir, "%s-cbtower-sheet.png" % NAME), np.concatenate(cb_rows, axis=0))
     with open(RESULTS, "w", encoding="utf-8") as f:
         json.dump(dict(results=results, lines=lines), f, indent=1)
     print("\n".join(lines))
@@ -431,7 +546,18 @@ def selftest():
     lum, aux = build_jobs()
     ids = [j["id"] for j in lum + aux]
     assert len(ids) == len(set(ids)), "job ids are unique"
-    assert len(lum) == len(TYPES) * len(VIEWS) and len(aux) == len(TYPES) * 2
+    assert len(lum) == len(TYPES) * len(VIEWS) + len(CB_TOWERS) * len(CB_VIEWS) and len(aux) == len(TYPES) * 2
+    assert len(CB_HEIGHTS) == len(CB_TOWERS) * (len(CB_VIEWS) - 1) and all(h["id"] in ids and not h["id"].endswith("-flat") for h in CB_HEIGHTS), "the flat control has no height maps"
+    # the cell's maps: the strongest texel at the cell's place, the coverage falling to the outside value, the updraft at its centre value
+    cov = np.fromfile(os.path.join(INPUT, "cbcell-cov.r8"), dtype=np.uint8).reshape(CB_MAP[1], CB_MAP[0])
+    up = np.fromfile(os.path.join(INPUT, "cbcell-up.r8"), dtype=np.uint8).reshape(CB_MAP[1], CB_MAP[0])
+    row, col = np.unravel_index(np.argmax(cov), cov.shape)
+    assert abs(((col + 0.5) / CB_MAP[0] * 360.0 - 180.0) - SITE_LON_DEG) < 360.0 / CB_MAP[0] and abs(row + 0.5 - CB_MAP[1] / 2.0) <= 1.0, (row, col)
+    assert cov.min() == int(round(CB_COVER_RANGE[0] * 255.0)) and 0.75 * CB_UPDRAFT_MS < float(up.max()) * 12.0 / 255.0 <= CB_UPDRAFT_MS + 0.05, (cov.min(), up.max())
+    # the cameras: the side view is level with the ground 30 km south of the cell and looks at it (the cell is north of the camera)
+    cam = cb_camera("side", SIZE)
+    toward = np.array([math.cos(math.radians(SITE_LON_DEG)), math.sin(math.radians(SITE_LON_DEG)), 0.0]) * R - cam.pos
+    assert np.dot(cam.forward, toward / np.linalg.norm(toward)) > 0.9, "the side camera looks at the cell"
     layers = {s["name"]: s for s in e40o.kerbin_layers(CFG_PATH)}
     for spec in TYPES:
         names = [t["name"] for t in layers[spec[2]]["types"]]

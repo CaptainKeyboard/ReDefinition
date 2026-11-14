@@ -311,6 +311,21 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0f, b.ShapeSmoothing);
         }
 
+        // E40 L6 shape: the top-from-updraft numbers of a layer (cfg keys topReach, topRefMs, topFullMs); no reach means the body's own numbers in m.
+        [TestMethod]
+        public void TheTopReachNumbersReadFromTheLayerNodeAndDefaultToTheBodysOwn()
+        {
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;topReach = 0.1;topRefMs = 2;topFullMs = 9;" + GoodType + "}"
+                + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
+            CloudLayerDef built = a.Build(1);
+            Assert.AreEqual(0.1f, built.TopReach, 1e-6f);
+            Assert.AreEqual(2f, built.TopRefMs, 1e-6f);
+            Assert.AreEqual(9f, built.TopFullMs, 1e-6f);
+            Assert.AreEqual(0f, b.TopReach, "no reach: the body's own numbers in m");
+        }
+
         // E40 L6 shape: a type's shapeSmoothing overrides the layer's, a type without one takes the layer's, and the table hands the GPU the interpolated width.
         [TestMethod]
         public void ATypesShapeSmoothingOverridesTheLayersAndATypeWithoutOneTakesIt()

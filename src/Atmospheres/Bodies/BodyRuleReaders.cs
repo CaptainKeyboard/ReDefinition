@@ -210,6 +210,9 @@ namespace ReDefinition.Atmospheres
                     ShapeSmoothing = r.Float("shapeSmoothing", 0f, 0f, 8f),
                     FibreMinWindMs = r.Float("fibreMinWindMs", FibreAxis.DefaultMinWindMs, 0f, 100f),
                     FibreTurnSeconds = r.Float("fibreTurnSeconds", FibreAxis.DefaultTurnSeconds, 0f, 3600f),
+                    TopReach = r.Float("topReach", 0f, 0f, 1f),
+                    TopRefMs = r.Float("topRefMs", 1.2f, -50f, 100f),
+                    TopFullMs = r.Float("topFullMs", 6f, 0.1f, 200f),
                     AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f),
                     Meso = Meso(r.Child("MESO")), TypePatchKm = r.Float("typePatchKm", 0f, 0f, 2000f),
                     TypePatchDepths = r.Float("typePatchDepths", CloudMesoSpec.DefaultTypePatchDepths, 0.2f, 100f), TypePatchBlend = r.Float("typePatchBlend", 0.06f, 0.005f, 0.5f) });

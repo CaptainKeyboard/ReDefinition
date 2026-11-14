@@ -89,6 +89,33 @@ namespace ReDefinition.Tests
             Assert.IsTrue(t.ForLayer(LayerKind.Cheap).VariationAmplitudeM > t.VariationAmplitudeM);
             Assert.IsFalse(t.ForLayer(LayerKind.Cheap).BasePhysics);
         }
+
+        // E40 L6 shape: where a layer names its top-from-updraft numbers (topReach above 0) they are relative to the layer's thickness; without them the body's numbers in m stay.
+        [TestMethod]
+        public void ALayersTopNumbersAreRelativeToItsThicknessAndWithoutThemTheBodysStay()
+        {
+            var body = new HeightTuning();
+            var plain = new CloudLayerDef("plain", 1, 1000f, 7000f, new List<CloudTypeDef> { new CloudTypeDef("t", 0f, 1f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f }), 0.5f) }, 0.05f, LayerKind.Weather);
+            HeightTuning keepsBody = body.ForLayer(plain);
+            Assert.AreEqual(body.TopGainMPerMs, keepsBody.TopGainMPerMs);
+            Assert.AreEqual(body.TopMaxM, keepsBody.TopMaxM);
+            Assert.AreEqual(body.ReferenceUpdraftMs, keepsBody.ReferenceUpdraftMs);
+            CloudLayerDef tall = new CloudLayerDef("tall", 1, 1000f, 11000f, new List<CloudTypeDef> { new CloudTypeDef("t", 0f, 1f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f }), 0.5f) }, 0.05f, LayerKind.Weather)
+            { TopReach = 0.09f, TopRefMs = 2f, TopFullMs = 6f };
+            HeightTuning t = body.ForLayer(tall);
+            Assert.AreEqual(900.0, t.TopMaxM, 1e-3, "0.09 of 10 km");
+            Assert.AreEqual(2f, t.ReferenceUpdraftMs);
+            Assert.AreEqual(0.0, HeightModel.TopTermM(t, 2.0), 1e-9, "at the reference the top is the type table's");
+            Assert.AreEqual(900.0, HeightModel.TopTermM(t, 6.0), 1e-3, "at the full updraft the top has moved by the whole reach");
+            Assert.AreEqual(900.0, HeightModel.TopTermM(t, 60.0), 1e-3, "and no further");
+            Assert.AreEqual(450.0, HeightModel.TopTermM(t, 4.0), 1e-3, "linear between");
+            Assert.AreEqual(-900.0, HeightModel.TopTermM(t, -60.0), 1e-3);
+            // The legacy numbers as a layer's: 1200 m of a 5.7 km layer at 11.2 m/s is the gain of 120 m per m/s over 1.2 m/s.
+            var cumulus = new CloudLayerDef("cu", 1, 1700f, 7400f, new List<CloudTypeDef> { new CloudTypeDef("t", 0f, 1f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f }), 0.5f) }, 0.05f, LayerKind.Weather)
+            { TopReach = 0.2105f, TopRefMs = 1.2f, TopFullMs = 11.2f };
+            Assert.AreEqual(body.TopGainMPerMs, body.ForLayer(cumulus).TopGainMPerMs, 0.5);
+            Assert.AreEqual(body.TopMaxM, body.ForLayer(cumulus).TopMaxM, 1.0);
+        }
     }
 
     [TestClass]

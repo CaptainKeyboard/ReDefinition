@@ -29,7 +29,7 @@ namespace ReDefinition.Atmospheres
             for (int l = 0; l < n; l++)
             {
                 CloudLayerDef layer = source.LayerAt(l);
-                HeightTuning t = body.ForLayer(layer.Kind);
+                HeightTuning t = body.ForLayer(layer);
                 if (!t.Any) continue;
                 // 24 bits: the seed travels to the shader as a float, which holds no more exactly.
                 uint seed = (bodySeed * 0x9E3779B1u + (uint)(l + 1) * 0x85EBCA6Bu) & 0xFFFFFFu;

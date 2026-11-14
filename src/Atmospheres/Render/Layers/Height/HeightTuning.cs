@@ -77,6 +77,19 @@ namespace ReDefinition.Atmospheres
             return t;
         }
 
+        // The same for a layer of the stack: where the layer's cfg names its top-from-updraft numbers (topReach above 0, E40 L6 shape), they replace the body's. They are relative to the layer, so
+        // that they follow the body's troposphere through the altitudes the layer is authored at: the most a top moves is TopReach of the layer's thickness, it moves by the whole reach at the
+        // updraft TopFullMs and stands at the type table's top at TopRefMs (a Kerbin-fitted gain in m per m/s fits one layer of one body).
+        public HeightTuning ForLayer(CloudLayerDef layer)
+        {
+            HeightTuning t = ForLayer(layer.Kind);
+            if (!(layer.TopReach > 0f)) return t;
+            t.TopMaxM = layer.TopReach * layer.ThicknessM;
+            t.ReferenceUpdraftMs = layer.TopRefMs;
+            t.TopGainMPerMs = t.TopMaxM / Math.Max(layer.TopFullMs - layer.TopRefMs, 1e-3f);
+            return t;
+        }
+
         // The keys of a body's CLOUDS node (heightLclMPerK, heightReferenceSpreadK, heightPhysicsMaxM, heightVariationM, heightWavelengthM,
         // heightSizeTrendM, heightSizeRadiusM, heightRaggedM, heightRaggedScaleM, heightTopGainMPerMs, heightReferenceUpdraftMs,
         // heightTopMaxM, heightTopJitterM, heightMinThicknessM); a missing key keeps the compiled value.

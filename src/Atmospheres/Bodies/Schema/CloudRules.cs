@@ -229,6 +229,12 @@ namespace ReDefinition.Atmospheres
         // new wind (FibreAxis).
         internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
         internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
+        // The tops of the layer's convective types follow the updraft of their cell (cfg keys topReach, topRefMs and topFullMs; HeightPlan.TuningFor): TopReach is the most a top is moved up
+        // or down as a share of the layer's thickness, TopRefMs the updraft at which a top stands where the type table puts it, TopFullMs the updraft at which it has moved by the whole
+        // reach. 0 (TopReach): the body's own numbers in m (HeightTuning), the behaviour before E40 L6.
+        internal float TopReach { get; set; }
+        internal float TopRefMs { get; set; } = 1.2f;
+        internal float TopFullMs { get; set; } = 6f;
         // The mid-level sheet's rule (E40 L2 D1; cfg keys altoType, altoFrom, altoFullAt): AltoType is the type value of the table's mid-level sheet (an altocumulus), -1: none. Where the
         // generator makes more cloud at that type's height than at the fair-weather type's height (the difference of the two layer maps, from AltoFrom to AltoFullAt), the type map
         // shows the sheet instead of the precipitation's type (CloudLookTuning.ApplyAlto).

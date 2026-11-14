@@ -46,6 +46,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
             rain.Types[1].DensityScale = 0.22f;
+            // The tops follow the updraft (E40 L6 shape): 1200 m of the deck's 2.1 km at 11.2 m/s.
+            rain.TopReach = 0.5714f;
+            rain.TopRefMs = 1.2f;
+            rain.TopFullMs = 11.2f;
             return rain;
         }
 
@@ -75,6 +79,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[1].ShapeSmoothing = 1.5f;
             cumulus.Types[2].ShapeSmoothing = 1.5f;
             cumulus.Types[3].ShapeSmoothing = 1.5f;
+            cumulus.TopReach = 0.2105f;
+            cumulus.TopRefMs = 1.2f;
+            cumulus.TopFullMs = 11.2f;
             // The type at no precipitation is humilis (the second of five), at full precipitation congestus (the fourth); the mid-level sheet's rule picks the altocumulus (the last).
             cumulus.FairType = 0.25f;
             cumulus.RainType = 0.75f;
@@ -94,7 +101,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         internal static CloudLayerDef Cumulonimbus()
         {
             CloudLayerDef cb = Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f, 5000f, LayerKind.Weather,
-                new CloudTypeDef("Cumulonimbus calvus", 0f, 0.7f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
+                new CloudTypeDef("Cumulonimbus calvus", 0f, 0.85f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
                 new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f));
             cb.Deck = new WeatherDeckRule { Fog = false, PrecipType = 0f };
             foreach (CloudTypeDef t in cb.Types) t.RiseShare = 0.3f;
@@ -102,10 +109,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Light(cb.Types[0], 1f, 1.2f, 0.7f, 1f);
             Light(cb.Types[1], 1f, 1.15f, 0.7f, 1.05f);
             cb.VerticalScale = 0.6f;
-            cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.12f, 1f, 0.28f);
-            cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.18f, 0.7f, 0.18f, 0.9f, 0f, 1f, 0f);
+            cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.09f, 1f, 0.2f);
+            cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.07f, 0.7f, 0.07f, 0.9f, 0f, 1f, 0f);
             cb.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f, Scatter = 1f, ScatterDepths = 3f };
             cb.ShapeSmoothing = 0.3f;
+            cb.TopReach = 0.09f;
+            cb.TopRefMs = 1.2f;
+            cb.TopFullMs = 6f;
             return cb;
         }
 

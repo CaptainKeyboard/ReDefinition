@@ -152,6 +152,10 @@ namespace ReDefinition.Atmospheres
         // The layer's fibre axis numbers (cfg keys fibreMinWindMs, fibreTurnSeconds): see CloudLayerDef.
         internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
         internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
+        // The numbers of the tops that follow the updraft (cfg keys topReach, topRefMs, topFullMs): see CloudLayerDef.
+        internal float TopReach { get; set; }
+        internal float TopRefMs { get; set; } = 1.2f;
+        internal float TopFullMs { get; set; } = 6f;
         // The mid-level sheet's rule (cfg keys altoType, altoFrom, altoFullAt; altoType -1: none): see CloudLayerDef.AltoType.
         internal float AltoType { get; set; } = -1f;
         internal float AltoFrom { get; set; } = 0.05f;
@@ -212,6 +216,9 @@ namespace ReDefinition.Atmospheres
                 ShapeSmoothing = ShapeSmoothing,
                 FibreMinWindMs = FibreMinWindMs,
                 FibreTurnSeconds = FibreTurnSeconds,
+                TopReach = TopReach,
+                TopRefMs = TopRefMs,
+                TopFullMs = TopFullMs,
                 AltoType = AltoType,
                 AltoFrom = AltoFrom,
                 AltoFull = AltoFull,

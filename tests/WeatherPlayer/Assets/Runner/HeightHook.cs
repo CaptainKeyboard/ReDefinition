@@ -84,11 +84,11 @@ namespace ReDefinition.WeatherPlayer
             for (int l = 0; l < source.LayerCount; l++)
             {
                 // The maps of a layer depend on the switches and the layer only: the 700-odd jobs of the pop sweep share them.
-                string key = spec.variation + "" + spec.physics + spec.topUpdraft + spec.ragged + "|" + source.LayerAt(l).Name + "|" + spec.seed + "|" + job.planetRadius;
+                string key = spec.variation + "" + spec.physics + spec.topUpdraft + spec.ragged + "|" + source.LayerAt(l).Name + "|" + spec.seed + "|" + job.planetRadius + "|" + spec.updraftMap + "|" + source.LayerAt(l).TopReach;
                 HeightMaps cachedMaps;
                 if (MapCache.TryGetValue(key, out cachedMaps))
                 {
-                    HeightTuning ct = body.ForLayer(source.LayerAt(l).Kind);
+                    HeightTuning ct = body.ForLayer(source.LayerAt(l));
                     uint cs = (spec.seed * 0x9E3779B1u + (uint)(l + 1) * 0x85EBCA6Bu) & 0xFFFFFFu;
                     ct.Seed = cs;
                     source.SetHeights(l, ct, cachedMaps, cs);
@@ -109,7 +109,7 @@ namespace ReDefinition.WeatherPlayer
                 // The coverage map holds ranks; the share of the sky the layer clouds is where the rank is above 1 - Coverage.
                 if (inputs.Coverage != null)
                     for (int i = 0; i < inputs.Coverage.Length; i++) inputs.Coverage[i] = inputs.Coverage[i] > 1f - layer.Coverage ? 1f : 0f;
-                HeightTuning t = body.ForLayer(layer.Kind);
+                HeightTuning t = body.ForLayer(layer);
                 uint seed = (spec.seed * 0x9E3779B1u + (uint)(l + 1) * 0x85EBCA6Bu) & 0xFFFFFFu;
                 t.Seed = seed;
                 HeightMaps built = HeightMapBuilder.Build(inputs, t, job.planetRadius, seed);
