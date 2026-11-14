@@ -7,7 +7,7 @@ namespace ReDefinition.Atmospheres
     // Series K-T2d, the start look55 (-atmoLook C; E40 start 55, the questions a to f of .local/plans/atmospheres/E40-start55-result.md), built from the code of look A / B (T09ProbeLook.cs)
     // and the grain start (T09ProbeGrain.cs). Everything at the Medium profile, the own pass at its defaults (recon.accumulate 0.2) unless a frame forces a key.
     //   low cover, ground view   off, off2, then
-    //     (a) colour    the frames ca02t0 / ca02t5 / ca02t10 (light.ambientOcclusion 0.02 with cloud.sunTint 0 / 0.5 / 1), caDt0 / caDt5 / caDt10 (the default 1.2765), cair (the sun's
+    //     (a) colour    the frames ca02t0 (light.ambientOcclusion 0.02), caDt0 (the default 1.2765), cair (the sun's
     //                   path through Scatterer's air), ce14 (exposure 1.4), csky0 / csky1 (light.skyTint 0 / 1 against 0.7), caDt0b (the repeat of caDt0: the floor)
     //     (d) fog rule  set C5 with layer 0 alone (wC5o0) and all layers (kC5), each with cloud.typeFair.<rain deck> 0.5 forced (...f), the optical depth of the layer-alone pair
     //     (c) grain     the variants gacc (the default) and gleapacc (layers.gridFine 4 + layers.emptyLeap 4), three frames each (T09ProbeGrain.DiagLookG, rows grain_*)
@@ -41,15 +41,11 @@ namespace ReDefinition.Atmospheres
             return new Look55Frame { Tag = tag, Keys = keys };
         }
 
-        // (a) the colour frames. light.ambientOcclusion 0.02 against the default 1.2765; cloud.sunTint 0 (default), 0.5, 1; the sun's path through Scatterer's air; exposure 1.4; the sky tint of the ambient.
+        // (a) the colour frames. light.ambientOcclusion 0.02 against the default 1.2765; the sun's path through Scatterer's air; exposure 1.4; the sky tint of the ambient.
         private static readonly Look55Frame[] Look55Colours =
         {
             F55("ca02t0", Key(OwnCloudOptions.TuneAmbientOcclusion, 0.02f)),
-            F55("ca02t5", Key(OwnCloudOptions.TuneAmbientOcclusion, 0.02f), Key(CloudLookTuning.TuneSunTint, 0.5f)),
-            F55("ca02t10", Key(OwnCloudOptions.TuneAmbientOcclusion, 0.02f), Key(CloudLookTuning.TuneSunTint, 1f)),
             F55("caDt0"),
-            F55("caDt5", Key(CloudLookTuning.TuneSunTint, 0.5f)),
-            F55("caDt10", Key(CloudLookTuning.TuneSunTint, 1f)),
             F55("cair", Key(OwnCloudModule.TuneSunAirWithScatterer, 1f)),
             F55("ce14", Key(OwnCloudModule.TuneExposure, 1.4f)),
             F55("csky0", Key(OwnCloudOptions.TuneSkyTint, 0f)),

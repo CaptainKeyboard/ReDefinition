@@ -41,9 +41,8 @@ PICTURE = re.compile(r"Probe: picture (\S+?)\.png")
 SAVES, ADDS, FREE = (-8.0, 0.3), (-0.3, 8.0), (-0.6, 0.6)
 T13 = (-0.5, 0.1)
 VIEW_LETTER = {"g": "ground", "a": "above", "h": "horizon", "s": "sky3", "r": "ground"}
-# effect: "changes" (the picture moves: d_picture >= 0.02), "same" (d_picture <= 0.05), "ground" (the ground's median moves by 3 percent or more), "tint" (the deck's blue over
-# red rises by half a percent), "any" (cost and pictures only).
-CHANGES_MIN, SAME_MAX, GROUND_MIN, TINT_MIN = 0.02, 0.05, 0.03, 1.005
+# effect: "changes" (the picture moves: d_picture >= 0.02), "same" (d_picture <= 0.05), "ground" (the ground's median moves by 3 percent or more), "any" (cost and pictures only).
+CHANGES_MIN, SAME_MAX, GROUND_MIN = 0.02, 0.05, 0.03
 HEIGHT = 0.0
 
 
@@ -79,7 +78,6 @@ def build_expect():
     add("h_all_off_a", "t13", T13, "changes")
     add("remap1_g", "look", FREE, "changes")
     add("combine1_g", "look", FREE)
-    add("tint1_g", "look", FREE, "tint")
     add("sigma2_g", "look", (-1.5, 0.6), "changes")
     add("soft2_g", "look", FREE, "changes")
     add("namt2_g", "look", FREE, "changes")
@@ -253,11 +251,6 @@ def ground_change(rows, view, vid, ref):
     return abs(a / b - 1.0)
 
 
-def deck_br(rows, view, vid):
-    r, b = picture_value(rows, view, vid, "deck_r"), picture_value(rows, view, vid, "deck_b")
-    return None if r is None or b is None or r <= 1e-4 else b / r
-
-
 def rnd(x):
     return None if x is None else round(x, 4)
 
@@ -339,10 +332,6 @@ def start_results(sid, variants, text, found, rows, res, pictures, notes):
             ok = d is not None and d <= SAME_MAX
         elif ex.effect == "ground":
             ok = dg is not None and dg >= GROUND_MIN
-        elif ex.effect == "tint":
-            a, b = deck_br(rows, view, vid), deck_br(rows, view, ref)
-            ok = a is not None and b is not None and a / b >= TINT_MIN
-            add("%s.deck_br_ratio" % vid, a / b if a and b else None)
         else:
             ok = True
         info["effect_ok"] = ok
@@ -470,16 +459,16 @@ def selftest():
         return [row(vid, p + "deck_fraction", frac), row(vid, p + "deck_median", med), row(vid, p + "sky_closed_share", closed), row(vid, p + "ground_median", ground),
                 row(vid, p + "deck_r", r), row(vid, p + "deck_b", b)]
 
-    ids = ["off_g", "plain_g", "noise_off_g", "h_all_off_g", "tint1_g", "moon0_g", "shadows_off_g"]
-    def make(t13_labels=4.15, tint_b=0.27, noise_labels=3.0, ids_made=None, pictures=True):
+    ids = ["off_g", "plain_g", "noise_off_g", "h_all_off_g", "remap1_g", "moon0_g", "shadows_off_g"]
+    def make(t13_labels=4.15, remap_med=0.36, noise_labels=3.0, ids_made=None, pictures=True):
         made = ids_made or ids
         text = ["Probe: series K-T3 start k3near begins with variants " + ",".join(ids)]
-        labels = {"plain_g": 4.2, "noise_off_g": noise_labels, "h_all_off_g": t13_labels, "tint1_g": 4.2, "moon0_g": 4.0, "shadows_off_g": 4.0}
-        frames = {"off_g": 10.0, "plain_g": 12.0, "noise_off_g": 11.0, "h_all_off_g": 12.0, "tint1_g": 12.0, "moon0_g": 12.0, "shadows_off_g": 11.8}
+        labels = {"plain_g": 4.2, "noise_off_g": noise_labels, "h_all_off_g": t13_labels, "remap1_g": 4.2, "moon0_g": 4.0, "shadows_off_g": 4.0}
+        frames = {"off_g": 10.0, "plain_g": 12.0, "noise_off_g": 11.0, "h_all_off_g": 12.0, "remap1_g": 12.0, "moon0_g": 12.0, "shadows_off_g": 11.8}
         for vid in made:
             text += window("ground", vid, frames[vid], 3.0, labels=labels.get(vid))
         for vid, frac, med, closed, ground, r, b in (("plain_g", 0.40, 0.30, 0.20, 0.70, 0.30, 0.24), ("noise_off_g", 0.46, 0.36, 0.26, 0.70, 0.3, 0.24),
-                                                     ("h_all_off_g", 0.43, 0.30, 0.20, 0.70, 0.3, 0.24), ("tint1_g", 0.40, 0.30, 0.20, 0.70, 0.30, tint_b),
+                                                     ("h_all_off_g", 0.43, 0.30, 0.20, 0.70, 0.3, 0.24), ("remap1_g", 0.40, remap_med, 0.20, 0.70, 0.30, 0.24),
                                                      ("moon0_g", 0.40, 0.30, 0.20, 0.70, 0.3, 0.24), ("shadows_off_g", 0.40, 0.30, 0.20, 0.78, 0.3, 0.24)):
             text += frame_rows("ground", vid, frac, med, closed, ground, r, b)
         text += [row("plain_g", "T09.noise.ground.flicker", 0.0100), row("h_ragged_off_g", "T09.noise.ground.flicker", 0.0098)]
@@ -499,13 +488,13 @@ def selftest():
     assert by["K3.k3near.cost_misses"] == 0, (by, NOTES)
     assert by["K3.k3near.pictures_missing"] == 0, (by, NOTES)
     assert abs(by["K3.k3near.noise_off_g.d_picture"] - 0.2) < 1e-6, by                 # the median moved by 20 percent
-    assert by["K3.k3near.effect_misses"] == 0, (by, NOTES)                              # noise_off changes, tint rises, moon0 same, shadows_off moves the ground
+    assert by["K3.k3near.effect_misses"] == 0, (by, NOTES)                              # noise_off changes, remap1 changes, moon0 same, shadows_off moves the ground
     assert abs(by["K3.t13_shimmer_delta"] - 0.0002) < 1e-9, by
-    # a miss is counted and named: the tint does not rise, the moon changes the picture, the T13 switches cost 0.8 ms
-    out = series_results({"k3near": make(tint_b=0.24)})
+    # a miss is counted and named: the remap does not change the picture, the moon changes the picture, the T13 switches cost 0.8 ms
+    out = series_results({"k3near": make(remap_med=0.30)})
     by = {r["metric"]: r["value"] for r in out}
     assert by["K3.k3near.effect_misses"] == 1 and by["K3.k3near.cost_misses"] == 0, (by, NOTES)
-    assert any("tint1_g" in n and "effect" in n for n in NOTES), NOTES
+    assert any("remap1_g" in n and "effect" in n for n in NOTES), NOTES
     # the T13 switches cost 0.8 ms: a cost miss, named; noise_off that costs more than the plain pass: a second one
     out = series_results({"k3near": make(t13_labels=3.4, noise_labels=5.5)})
     by = {r["metric"]: r["value"] for r in out}

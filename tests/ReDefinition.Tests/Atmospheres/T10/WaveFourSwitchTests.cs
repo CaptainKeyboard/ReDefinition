@@ -73,7 +73,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 Assert.AreEqual(0.0, AtmospheresSettings.Definition(key).Default, key + " waits for the owner's agreement");
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudFarMinSamples").Default);
             // The fitted look stays at its fitted values.
-            Assert.AreEqual(1.0, AtmospheresSettings.Definition("cloudSunWhiteBalance").Default);
+            Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudSunWhiteBalance").Default, "the sun colour is the sun at the cloud's altitude (E40): no white-balance compensation");
             Assert.AreEqual(new CloudLightSettings().DiffusionDecay, (float)AtmospheresSettings.Definition("cloudDiffusionDecay").Default, 1e-6f);
         }
 
@@ -92,11 +92,11 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheLightSwitchesReachTheStruct()
         {
             var s = new CloudLightSettings();
-            OwnCloudOptions.Apply(s, Defaults("cloudSunWhiteBalance", 0, "cloudDiffusionDecay", 0));
-            Assert.IsFalse(s.SunAirWhiteBalance);
+            OwnCloudOptions.Apply(s, Defaults("cloudSunWhiteBalance", 1, "cloudDiffusionDecay", 0));
+            Assert.IsTrue(s.SunAirWhiteBalance);
             Assert.AreEqual(0f, s.DiffusionDecay);
             OwnCloudOptions.Apply(s, Defaults());
-            Assert.IsTrue(s.SunAirWhiteBalance);
+            Assert.IsFalse(s.SunAirWhiteBalance, "off by default: the cloud gets the sun through the whole air above it");
             Assert.AreEqual(0.02f, s.DiffusionDecay, 1e-6f);
         }
 

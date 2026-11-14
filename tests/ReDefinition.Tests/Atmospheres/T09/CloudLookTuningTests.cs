@@ -79,7 +79,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             Assert.AreEqual(0f, CloudLookTuning.DensityRemap);
             Assert.AreEqual(0f, CloudLookTuning.CoverCombine);
-            Assert.AreEqual(0f, CloudLookTuning.SunTint);
             Assert.AreEqual(-1f, CloudLookTuning.FarHazeForce);
             Assert.AreEqual(1f, CloudLookTuning.HazeStrengthScale);
             float nearM, farM;
@@ -336,20 +335,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             byte[][] thin = { new byte[] { 20 }, new byte[] { 10 } };
             CloudLookTuning.CombineCover(thin, 2, new byte[] { 200 }, 1f);
             CollectionAssert.AreEqual(new byte[] { 20 }, thin[0]);
-        }
-
-        [TestMethod]
-        public void TheSunTintPullsTheColourToGreyOfTheSameLuminance()
-        {
-            var sun = new Color(1.2f, 1.0f, 0.7f);
-            Assert.AreEqual(sun, CloudLookTuning.TintSun(sun, 0f), "default: the colour itself");
-            Color grey = CloudLookTuning.TintSun(sun, 1f);
-            Assert.AreEqual(sun.grayscale, grey.r, 1e-5f);
-            Assert.AreEqual(grey.r, grey.g, 1e-6f);
-            Assert.AreEqual(grey.g, grey.b, 1e-6f);
-            Color half = CloudLookTuning.TintSun(sun, 0.5f);
-            Assert.AreEqual(sun.grayscale, half.grayscale, 1e-5f, "the luminance is kept");
-            Assert.IsTrue(half.b / half.r > sun.b / sun.r, "bluer than the sun: less beige");
         }
 
         [TestMethod]

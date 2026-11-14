@@ -31,6 +31,9 @@ namespace ReDefinition.Atmospheres
             public Vector3 RayleighPerM;
             public float MiePerM, RayleighHeightM, MieHeightM;
             public bool Valid;
+            // True where the numbers are Scatterer's own (its atmosphere node), false for the Earth-scaled air of the body's data. The sun colour that Scatterer filters can only be
+            // divided by the air that made it (CloudSunAir).
+            public bool FromScatterer;
         }
 
         // The air of a body: the sea-level pressure in Pa, temperature in K and molar mass in kg/mol, and the pressure at a second height
@@ -69,6 +72,7 @@ namespace ReDefinition.Atmospheres
             a.RayleighHeightM = rayleighHeightKm * 1000f;
             a.MieHeightM = mieHeightKm * 1000f;
             a.Valid = true;
+            a.FromScatterer = true;
             return a;
         }
 

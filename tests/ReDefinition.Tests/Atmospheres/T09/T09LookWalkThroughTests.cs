@@ -193,7 +193,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (string view in new[] { "ground.low", "ground.high", "above.low" })
             {
                 string p = "T09d." + view + ".";
-                foreach (string frame in new[] { "t0", "t5", "t10", "e14", "air1", "air1t10", "t0b" })
+                foreach (string frame in new[] { "t0", "e14", "air1", "t0b" })
                 {
                     Assert.IsTrue(Row(r, p + frame + ".deck_median") > 0, p + frame);
                     Assert.IsTrue(Row(r, p + frame + ".sun_r") > 0 && Row(r, p + frame + ".sun_g") > 0 && Row(r, p + frame + ".sun_b") > 0, p + frame + " sun colour");
@@ -238,9 +238,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             // The shadow setting is put back after the shadows-off frames.
             Assert.AreEqual(shadowsBefore, AtmospheresSettings.CloudShadows, "cloudShadows is back as it was");
-            // 3 pairs x (off + off2 + 7 variants + aid) + the horizon (off, off2, 4 order frames, 8 fade frames, the repeat) + the high cover's ground view again (counted in the 3 pairs)
+            // 3 pairs x (off + off2 + 4 variants + aid) + the horizon (off, off2, 4 order frames, 8 fade frames, the repeat) + the high cover's ground view again (counted in the 3 pairs)
             // + 2 deck-light views x (off, deck, aid tau, aid light, shadows off, all layers) + from above at the low cover the order frames (4) and the haze frames (2).
-            Assert.AreEqual(3 * 10 + 15 + 2 * 6 + 4 + 2, r.World.Saved.Count);
+            Assert.AreEqual(3 * 7 + 15 + 2 * 6 + 4 + 2, r.World.Saved.Count);
         }
 
         [TestMethod]

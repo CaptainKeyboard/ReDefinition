@@ -12,7 +12,7 @@ namespace ReDefinition.Atmospheres
     //                        vessel (cloud.mapOverride, the frame that tells a map that varies over the view from the pass); at the ground view the layers one at a time for the set named
     //                        by -atmoLookWin; the rain deck's coverage 0.5 against 0.42 (cloud.coverageShiftRain, Q21) at the ground view; at the high cover the rain deck alone from the
     //                        inside (4.6 km) and from above (P3: it drew nothing at map 0.86).
-    //   -atmoLook B          start 52, "look B": the light and the surface. The same three view/cover pairs with the sun tint 0 / 0.5 / 1 (cloud.sunTint), the exposure 1.4 and the sun's
+    //   -atmoLook B          start 52, "look B": the light and the surface. The same three view/cover pairs with the exposure 1.4 and the sun's
     //                        path through the air with Scatterer loaded; the horizon pose (pitch +2 degrees, 200 m) at the low cover with the distance fade 0 / 20 / 40 / 80 km (cloud.fadeFarM)
     //                        with and without the aerial perspective (cloud.farHaze); the aid frame of the direct light, the taps and the ambient. Follow-up of start 52: a second baseline frame
     //                        (off2) and the repeats t0b / hz0h0b for the noise floor; the order pair at the horizon pose in the order 1, 0, 0, 1 (frames ord1, ord0, ord0b, ord1b) with the vertical
@@ -335,24 +335,22 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(DiagSettleFrames);
         }
 
-        // The tint and exposure variants of look B (the frames the deck's colour is read from: deck r, g, b are rows of every frame).
+        // The exposure and sun-air variants of look B (the frames the deck's colour is read from: deck r, g, b are rows of every frame).
         internal struct LightVariant
         {
             internal string Frame;
-            internal float Tint, Exposure, SunAir;
+            internal float Exposure, SunAir;
         }
 
         internal static readonly LightVariant[] LightVariants =
         {
-            new LightVariant { Frame = "t0", Tint = 0f, Exposure = 1f, SunAir = 0f },
-            new LightVariant { Frame = "t5", Tint = 0.5f, Exposure = 1f, SunAir = 0f },
-            new LightVariant { Frame = "t10", Tint = 1f, Exposure = 1f, SunAir = 0f },
-            new LightVariant { Frame = "e14", Tint = 0f, Exposure = 1.4f, SunAir = 0f },
-            new LightVariant { Frame = "air1", Tint = 0f, Exposure = 1f, SunAir = 1f },
-            // The sun's path through the air with the full tint (the two together, beige against white), and the repeat of the first frame at the end of the batch: what differs between
-            // t0 and t0b is the drift of the scene and the noise of the pass, the floor under every difference between the variants.
-            new LightVariant { Frame = "air1t10", Tint = 1f, Exposure = 1f, SunAir = 1f },
-            new LightVariant { Frame = "t0b", Tint = 0f, Exposure = 1f, SunAir = 0f }
+            new LightVariant { Frame = "t0", Exposure = 1f, SunAir = 0f },
+            new LightVariant { Frame = "e14", Exposure = 1.4f, SunAir = 0f },
+            // cloud.sunAirWithScatterer 1: the camera's air is not divided out and the shader's air is put on top of Scatterer's colour.
+            new LightVariant { Frame = "air1", Exposure = 1f, SunAir = 1f },
+            // The repeat of the first frame at the end of the batch: what differs between t0 and t0b is the drift of the scene and the noise of the pass,
+            // the floor under every difference between the variants.
+            new LightVariant { Frame = "t0b", Exposure = 1f, SunAir = 0f }
         };
 
         private IEnumerable<ProbeWait> DiagLookB(View view, string cover)
@@ -372,7 +370,6 @@ namespace ReDefinition.Atmospheres
             foreach (LightVariant v in LightVariants)
             {
                 ClearForced();
-                if (v.Tint != 0f) ForceTuning(CloudLookTuning.TuneSunTint, v.Tint);
                 if (v.Exposure != 1f) ForceTuning(OwnCloudModule.TuneExposure, v.Exposure);
                 if (v.SunAir != 0f) ForceTuning(OwnCloudModule.TuneSunAirWithScatterer, v.SunAir);
                 yield return ProbeWait.Frames(DiagSettleFrames);

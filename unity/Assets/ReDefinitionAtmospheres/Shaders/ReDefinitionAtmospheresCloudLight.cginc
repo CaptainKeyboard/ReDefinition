@@ -24,9 +24,9 @@ float4 _LightQ;   // powder strength, powder length (m), ambient floor (share of
 float4 _LightR;   // cone spread (tan of the half angle, 0: straight), tap step ratio, sky tint multiplier (0 grey .. 1 sky hue), multiple scattering brightness
 float4 _LightS;   // moon taps, up taps, ambient gain, light cache (1 on)
 float4 _LightT;   // bolt count, sun tap count override (0: the march's own), light cache fill taps, ambient occlusion mode (0 analytic from the local density, 1 taps straight up at every lit sample, 2 taps reused with the sun march, 3 reused and moved by the ray's progress)
-float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is)
+float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is); the aerosol component is _LightV.zw
 float4 _LightU;   // diffusion share (light that has diffused into the deep core, isotropic, as a share of the sun's isotropic light), its optical depth scale, isotropic share of the octaves above the first
-float4 _LightV;   // diffusion decay with the optical depth towards the light (0: the saturating term), the analytic occlusion's column ends at the cloud type's top (1) or at the layer's outer altitude (0), unused, unused
+float4 _LightV;   // diffusion decay with the optical depth towards the light (0: the saturating term), the analytic occlusion's column ends at the cloud type's top (1) or at the layer's outer altitude (0), the sun air's second component (grey extinction along the zenith path at sea level, scale height in m)
 float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, unused
 float4 _MoonDir[2], _MoonCol[2];   // towards the light; colour times intensity (rgb, 0: off)
 float4 _BoltPos[4], _BoltCol[4];   // planet frame position and range (w); colour times intensity
@@ -112,7 +112,8 @@ float3 SunAir(float3 pc, float3 sunDir)
     float s = clamp(dot(up, sunDir), -1.0, 1.0);
     float elev = asin(s) * 57.29577951;
     float m = 1.0 / (max(s, 0.0) + 0.50572 * pow(max(elev + 6.07995, 0.05), -1.6364));
-    float3 tau = _SunAir.xyz * exp(-max(length(pc) - _PlanetR, 0.0) / _SunAir.w);
+    float h = max(length(pc) - _PlanetR, 0.0);
+    float3 tau = _SunAir.xyz * exp(-h / _SunAir.w) + _LightV.z * exp(-h / _LightV.w);   // Rayleigh and aerosol, each with its own scale height (E40)
     // White balance (T03v2, _LightU.w): the frame's sun colour is the sun at the zenith above the point; only the air path beyond it reddens.
     if (_LightU.w > 0.5) m = max(m - 1.0, 0.0);
     return exp(-tau * m) * smoothstep(-0.02, 0.0, s);

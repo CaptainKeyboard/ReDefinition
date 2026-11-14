@@ -229,7 +229,7 @@ def profile_jobs():
 
 
 # The colour group (third run): the light the pass is given. 'game' is K-T2d start 52's (the sun colour through Scatterer's air, KSP's flat grey ambient); 'grey' the sun pulled
-# to grey of the same luminance (cloud.sunTint 1); 'sky' the game's sun with the ambient set to the sky's and the sea's display colour read from the cloud-free frames of start 52
+# to grey of the same luminance; 'sky' the game's sun with the ambient set to the sky's and the sea's display colour read from the cloud-free frames of start 52
 # (e40-52-ground_low-off: the sky at 46 / 24 / 4 degrees is 0.23 0.40 0.62 / 0.32 0.52 0.72 / 0.62 0.76 0.82, the sea 0.31 0.47 0.585); 'greysky' both.
 SKY_AMBIENT = [0.33, 0.52, 0.72]
 SEA_AMBIENT = [0.31, 0.47, 0.585]

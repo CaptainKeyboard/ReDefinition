@@ -156,6 +156,10 @@ namespace ReDefinition.Atmospheres
         private double fetchRoundMs;
         private double lastUt = double.NaN;
         private CloudBridgeAir.Air air;
+        // The sun's light as Unity has it outside the render, before Scatterer's modulation (read in the tick: Scatterer applies its colour in the far camera's pre-render and
+        // restores it after the near camera); the sun colour of the pass never exceeds it.
+        private Color sunUnmodulated;
+        private bool haveSunUnmodulated;
         private int airBody = -1;
         private bool airFromScatterer;
 
@@ -284,6 +288,9 @@ namespace ReDefinition.Atmospheres
                 Hide(false);
                 return;
             }
+            Light sunLight = Sun.Instance != null ? Sun.Instance.sunLight : null;
+            haveSunUnmodulated = sunLight != null;
+            if (haveSunUnmodulated) sunUnmodulated = sunLight.color * sunLight.intensity;
             // The camera's pose and the floating origin move after the modules tick (FlightCamera's LateUpdate): the numbers that hold the pose are
             // written and the buffer recorded in the camera's pre-cull, with the state of this tick.
             pendingCamera = cam;
@@ -889,8 +896,25 @@ namespace ReDefinition.Atmospheres
             // The scene's sun colour is the display value of a white card facing the sun (the output stage's white); the pass is radiometric and gets pi times it.
             Color sceneSun = sun != null ? sun.color * sun.intensity : Color.white;
             float sunUnit = Tuning.Get(TuneSunUnit, CloudOutputStage.SunUnitDefault);
-            // cloud.sunTint (default 0): pulls the colour toward grey of the same luminance, so the white card of the output stage (OutputWhite) is unchanged.
-            Color sunColour = CloudLookTuning.TintSun(sceneSun, CloudLookTuning.SunTint) * (sunUnit * gain);
+            // E40 sun colour: where Scatterer filters the sun (it multiplies the light by the air between the active vessel and the sun), the pass takes the viewer's air out of the
+            // colour and the shader puts the air above each sample back, so a cloud gets the sun through the air above the cloud, not above the camera. With Scatterer's own air
+            // only (ResolveAir); otherwise the colour stays as given and the shader's air is off, as before. OutputWhite below stays the viewer's value (the exposure's reference).
+            ResolveAir(b);
+            Color passSun = sceneSun;
+            if (scattererLoaded && !Tuning.Flag(TuneSunAirWithScatterer, false))
+            {
+                if (air.Valid && air.FromScatterer && f.Light.SunAirHeightM > 0f)
+                {
+                    f.Light.UseAir(air.RayleighPerM, air.RayleighHeightM, air.MiePerM, air.MieHeightM);
+                    Vector3 viewer = GameGlobals.ActiveVessel != null ? GameGlobals.ActiveVessel.transform.position : camPos;
+                    Vector3 fromCentre = viewer - f.PlanetCenter;
+                    double distance = fromCentre.magnitude;
+                    double sinElevation = distance > 1.0 ? Vector3.Dot(fromCentre / (float)distance, f.TowardsSun) : 1.0;
+                    passSun = CloudSunAir.OutsideAir(sceneSun, haveSunUnmodulated ? sunUnmodulated : (Color?)null, sinElevation, distance - b.Radius, f.Light);
+                }
+                else f.Light.SunAirHeightM = 0f;
+            }
+            Color sunColour = passSun * (sunUnit * gain);
             f.SunColour = sunColour;
             f.OutputExposure = Tuning.Get(TuneExposure, CloudOutputStage.ExposureDefault);
             f.OutputGamma = Tuning.Get(TuneOutputGamma, CloudOutputStage.GammaDefault);
@@ -908,8 +932,6 @@ namespace ReDefinition.Atmospheres
             }
             f.AmbientTop = ambientTop;
             f.AmbientBottom = ambientBottom;
-            // Where Scatterer draws the air its sunlight colour already carries the air path: the cloud light does not redden it a second time.
-            if (scattererLoaded && !Tuning.Flag(TuneSunAirWithScatterer, false)) f.Light.SunAirHeightM = 0f;
 
             Color moon = Color.black;
             float sunLuminance = Math.Max(0.01f, sunColour.grayscale);
@@ -927,29 +949,7 @@ namespace ReDefinition.Atmospheres
             if (lightning != null) lightning.FillBolts(f.Light, b, OwnCloudPlan.FlashPeakScale(sunLuminance));
             else f.Light.BoltCount = 0;
 
-            // The far view: the body's own air, the in-scatter that follows the sky, the march policy by altitude.
-            // The air is Scatterer's atmosphere node of the body where Scatterer is loaded and the node reads (cloud.airSource), the body's own data otherwise.
-            bool useScattererAir = CloudHazePlan.UseScattererAir(CloudHazePlan.SourceFrom(Tuning.Get(CloudHazePlan.TuneAirSource, -1f)), scattererLoaded);
-            if (airBody != b.flightGlobalsIndex || airFromScatterer != useScattererAir)
-            {
-                airBody = b.flightGlobalsIndex;
-                airFromScatterer = useScattererAir;
-                string origin = "";
-                air = new CloudBridgeAir.Air();
-                if (useScattererAir)
-                {
-                    string why;
-                    air = ScattererAirReader.Read(b.name, out why);
-                    origin = air.Valid ? " (Scatterer's node)" : " (Scatterer's node not used: " + why + ")";
-                }
-                if (!air.Valid)
-                {
-                    double h1 = Math.Max(1000.0, b.atmosphereDepth * 0.1);
-                    air = CloudBridgeAir.From(b.atmospherePressureSeaLevel * 1000.0, b.atmosphereTemperatureSeaLevel, b.atmosphereMolarMass, b.GetPressure(h1) * 1000.0, h1);
-                }
-                AtmospheresLog.Say("own clouds: air of " + b.name + origin + ": " + (air.Valid ? "Rayleigh " + air.RayleighPerM.x.ToString("0.0e+0") + " / " + air.RayleighPerM.z.ToString("0.0e+0")
-                                   + " per m, scale height " + air.RayleighHeightM.ToString("0") + " m" : "no usable data, the defaults of Earth's air stay"));
-            }
+            // The far view: the body's own air (ResolveAir, read before the sun colour), the in-scatter that follows the sky, the march policy by altitude.
             CloudBridgeAir.Apply(f.Far, air);
             // The aerial perspective behind Scatterer's scattering (cloud.farHaze 2, or AutoByDefault): on while the pass's buffers stand behind it.
             f.Far.Haze = CloudHazePlan.Active(f.Far.Haze, f.Far.HazeAuto, moveBehindScattering);
@@ -965,6 +965,32 @@ namespace ReDefinition.Atmospheres
                 nextWind = now + 1f;
                 UpdateMotion(cam, b, ut);
             }
+        }
+
+        // The air of the body: Scatterer's atmosphere node where Scatterer is loaded and the node reads (cloud.airSource), the body's own data otherwise. It is read before the
+        // sun colour (FillFrame): the colour Scatterer hands over is divided by this air, which is only right where it is the air that made the colour.
+        private void ResolveAir(CelestialBody b)
+        {
+            bool useScattererAir = CloudHazePlan.UseScattererAir(CloudHazePlan.SourceFrom(Tuning.Get(CloudHazePlan.TuneAirSource, -1f)), scattererLoaded);
+            if (airBody == b.flightGlobalsIndex && airFromScatterer == useScattererAir) return;
+            airBody = b.flightGlobalsIndex;
+            airFromScatterer = useScattererAir;
+            string origin = "";
+            air = new CloudBridgeAir.Air();
+            if (useScattererAir)
+            {
+                string why;
+                air = ScattererAirReader.Read(b.name, out why);
+                origin = air.Valid ? " (Scatterer's node)" : " (Scatterer's node not used: " + why + ")";
+            }
+            if (!air.Valid)
+            {
+                double h1 = Math.Max(1000.0, b.atmosphereDepth * 0.1);
+                air = CloudBridgeAir.From(b.atmospherePressureSeaLevel * 1000.0, b.atmosphereTemperatureSeaLevel, b.atmosphereMolarMass, b.GetPressure(h1) * 1000.0, h1);
+            }
+            AtmospheresLog.Say("own clouds: air of " + b.name + origin + ": " + (air.Valid ? "Rayleigh " + air.RayleighPerM.x.ToString("0.0e+0") + " / " + air.RayleighPerM.z.ToString("0.0e+0")
+                               + " per m, scale height " + air.RayleighHeightM.ToString("0") + " m" : "no usable data, the defaults of Earth's air stay"));
+            AtmospheresLog.Say("own clouds: sun colour " + (scattererLoaded ? (air.FromScatterer ? "has the camera's air divided out with Scatterer's air" : "is Scatterer's colour as given (its node of " + b.name + " is not read)") : "is the scene's colour, the cloud's own air reddens it"));
         }
 
         // The rotation from world space into the map frame (x towards longitude 0, y towards 90 east, z north), measured from the body's surface

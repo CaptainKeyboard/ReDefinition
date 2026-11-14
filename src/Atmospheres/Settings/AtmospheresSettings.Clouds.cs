@@ -217,7 +217,7 @@ namespace ReDefinition.Atmospheres
                 // The sun march and the look fixes of T03v2: the short march (4 km) is what the parity rows measured; the white balance and the decay are the
                 // fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)
                 SettingDef.Bool("cloudSunMarchLong", false, CL, "Cloud Long Sun March", OWN),
-                SettingDef.Bool("cloudSunWhiteBalance", true, CL, "Cloud Sun White Balance", OWN),
+                SettingDef.Bool("cloudSunWhiteBalance", false, CL, "Cloud Sun White Balance", OWN),
                 SettingDef.Float("cloudDiffusionDecay", 0.02, 0.0, 0.2, CL, "Cloud Diffusion Decay", OWN),
 
                 // The far view (T06): all off until the owner agrees; the quality reducing march policy and the map fade included

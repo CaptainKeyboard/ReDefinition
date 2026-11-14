@@ -107,14 +107,33 @@ namespace ReDefinition.Atmospheres
         // have removed that cast again.
         internal static double SunAir(double sinElevation, double tauZenith, double altitudeM, double scaleHeightM, bool whiteBalance = false)
         {
+            return SunAir(sinElevation, tauZenith, scaleHeightM, 0.0, 1.0, altitudeM, whiteBalance);
+        }
+
+        // The same with the air in two components (E40; the shader's SunAir): the Rayleigh share tauZenith with its scale height and the aerosol share tauMieZenith with
+        // its own, each the vertical optical depth above sea level of one channel. The aerosol component is grey in Scatterer's air (one scalar for the three channels).
+        internal static double SunAir(double sinElevation, double tauZenith, double scaleHeightM, double tauMieZenith, double mieHeightM, double altitudeM, bool whiteBalance = false)
+        {
             if (scaleHeightM <= 0.0) return 1.0;
             double s = Math.Max(-1.0, Math.Min(1.0, sinElevation));
             double elevation = Math.Asin(s) * 180.0 / Math.PI;
             double airmass = 1.0 / (Math.Max(s, 0.0) + 0.50572 * Math.Pow(Math.Max(elevation + 6.07995, 0.05), -1.6364));
             if (whiteBalance) airmass = Math.Max(airmass - 1.0, 0.0);
-            double tau = tauZenith * Math.Exp(-Math.Max(altitudeM, 0.0) / scaleHeightM);
+            double h = Math.Max(altitudeM, 0.0);
+            double tau = tauZenith * Math.Exp(-h / scaleHeightM) + Math.Max(tauMieZenith, 0.0) * Math.Exp(-h / Math.Max(mieHeightM, 1.0));
             double t = Math.Max(0.0, Math.Min(1.0, (s + 0.02) / 0.02));
             return Math.Exp(-tau * airmass) * t * t * (3.0 - 2.0 * t);
+        }
+
+        // The floor of the camera's air share (E40): below it the division that takes the camera's air out of Scatterer's sun colour would blow the colour up
+        // (a camera in the shadow of the horizon, where the share goes to zero).
+        internal const double CameraAirFloor = 0.05;
+
+        // The factor that takes the air above the viewer out of a sun colour that Scatterer filtered through it (E40): the colour of the pass is the colour the sun
+        // has outside the air, the shader puts the air above each sample back. One channel; the colour is capped at the unextinguished sun by the caller.
+        internal static double CameraAirFactor(double sinElevation, double tauZenith, double scaleHeightM, double tauMieZenith, double mieHeightM, double altitudeM, bool whiteBalance = false)
+        {
+            return 1.0 / Math.Max(SunAir(sinElevation, tauZenith, scaleHeightM, tauMieZenith, mieHeightM, altitudeM, whiteBalance), CameraAirFloor);
         }
 
         // The deep-core diffusion term's share at optical depth tau towards the light (mirrors the shader): it builds up with the depth and then falls

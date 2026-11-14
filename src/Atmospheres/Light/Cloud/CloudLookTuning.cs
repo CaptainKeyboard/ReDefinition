@@ -26,7 +26,6 @@ namespace ReDefinition.Atmospheres
     //                                     density only and every cloud is an upright column with a flat top; above 0 a cloud narrows where its profile falls, so tops are domed).
     //                                     Shader only (_NoiseT.w): the CPU readers and the cloud shadow keep the column shape.
     //   cloud.coverCombine                0 to 1: how far the layer maps are scaled so that their random-overlap union equals the field's cover (0: maps as they are)
-    //   cloud.sunTint                     0 to 1: how far the sun colour of the pass is pulled to grey of the same luminance (0: the scene's colour)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
     //   cloud.fadeNearShare               share of cloud.fadeFarM where the fade starts (0.5)
     //   cloud.farHaze                     -1: the cloudFarHaze setting decides, 0 / 1 forces the aerial perspective off / on, 2 automatic (on where the pass is behind Scatterer's scattering; CloudHazePlan)
@@ -35,13 +34,13 @@ namespace ReDefinition.Atmospheres
     {
         internal const string TuneSigma = "cloud.layerSigmaScale", TuneSoftness = "cloud.layerSoftnessScale", TuneNoiseAmount = "cloud.layerNoiseAmountScale",
             TuneNoiseSize = "cloud.layerNoiseSizeScale", TuneLayerShift = "cloud.layerCoverageShift.", TuneTypeFair = "cloud.typeFair.", TuneTypeOverride = "cloud.typeOverride.",
-            TuneDensityRemap = "layers.densityRemap", TuneCoverCombine = "cloud.coverCombine", TuneSunTint = "cloud.sunTint", TuneFadeFar = "cloud.fadeFarM",
+            TuneDensityRemap = "layers.densityRemap", TuneCoverCombine = "cloud.coverCombine", TuneFadeFar = "cloud.fadeFarM",
             TuneFadeNearShare = "cloud.fadeNearShare", TuneFarHaze = "cloud.farHaze", TuneHazeStrength = "cloud.hazeStrength", TuneMapOverride = "cloud.mapOverride.",
             TuneProfileShape = "layers.profileShape", TuneDeckRule = "cloud.deckRule.",
             TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.";
 
         private static long seenVersion = -1;
-        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, tint, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f, profileShape;
+        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f, profileShape;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -85,12 +84,12 @@ namespace ReDefinition.Atmospheres
         private static void Load()
         {
             float s = Scale(Tuning.Get(TuneSigma, 1f)), e = Scale(Tuning.Get(TuneSoftness, 1f)), a = Scale(Tuning.Get(TuneNoiseAmount, 1f)), z = Scale(Tuning.Get(TuneNoiseSize, 1f));
-            float r = Unit(Tuning.Get(TuneDensityRemap, 0f)), c = Unit(Tuning.Get(TuneCoverCombine, 0f)), t = Unit(Tuning.Get(TuneSunTint, 0f));
+            float r = Unit(Tuning.Get(TuneDensityRemap, 0f)), c = Unit(Tuning.Get(TuneCoverCombine, 0f));
             float f = Clean(Tuning.Get(TuneFadeFar, 0f), 0f, 0f, 1e7f), n = Clean(Tuning.Get(TuneFadeNearShare, 0.5f), 0.5f, 0f, 1f);
             float h = Tuning.Get(TuneFarHaze, -1f);
             h = float.IsNaN(h) || float.IsInfinity(h) ? -1f : h < 0f ? -1f : h > 1.5f ? 2f : h > 0f ? 1f : 0f;
             float hs = Clean(Tuning.Get(TuneHazeStrength, 1f), 1f, 0f, 100f);
-            bool changed = s != sigma || e != softness || a != noiseAmount || z != noiseSize || r != remap || c != combine || t != tint || f != fadeFar || n != fadeNearShare
+            bool changed = s != sigma || e != softness || a != noiseAmount || z != noiseSize || r != remap || c != combine || f != fadeFar || n != fadeNearShare
                            || h != farHaze || hs != hazeStrength;
             sigma = s;
             softness = e;
@@ -98,7 +97,6 @@ namespace ReDefinition.Atmospheres
             noiseSize = z;
             remap = r;
             combine = c;
-            tint = t;
             fadeFar = f;
             fadeNearShare = n;
             farHaze = h;
@@ -180,7 +178,6 @@ namespace ReDefinition.Atmospheres
         internal static float NoiseSizeScale { get { Refresh(); return noiseSize; } }
         internal static float DensityRemap { get { Refresh(); return remap; } }
         internal static float CoverCombine { get { Refresh(); return combine; } }
-        internal static float SunTint { get { Refresh(); return tint; } }
         internal static float FarHazeForce { get { Refresh(); return farHaze; } }
         internal static float HazeStrengthScale { get { Refresh(); return hazeStrength; } }
         // layers.profileShape (0: off): the lift of the coverage threshold where the type's profile is below 1 (the layer shader's _NoiseT.w).
@@ -334,14 +331,6 @@ namespace ReDefinition.Atmospheres
                 for (int l = 0; l < count; l++)
                     layers[l][t] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(m[l] * scale * 255.0, MidpointRounding.ToEven)));
             }
-        }
-
-        // The sun colour of the pass pulled toward grey of the same luminance by the tint (0: the colour itself).
-        internal static Color TintSun(Color sun, float tintAmount)
-        {
-            if (tintAmount <= 0f) return sun;
-            float g = sun.grayscale;
-            return new Color(sun.r + (g - sun.r) * tintAmount, sun.g + (g - sun.g) * tintAmount, sun.b + (g - sun.b) * tintAmount, sun.a);
         }
     }
 }

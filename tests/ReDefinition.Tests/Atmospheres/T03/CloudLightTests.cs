@@ -105,11 +105,11 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheAmbientGainIsTheIsotropicShareOfTheHemisphereAndWhiteBalanceIsOn()
+        public void TheAmbientGainIsTheIsotropicShareOfTheHemisphereAndTheStructsWhiteBalanceStaysForTheFixtures()
         {
             var d = new CloudLightSettings();
             Assert.AreEqual(0.25f, d.AmbientGain, 1e-6f);
-            Assert.IsTrue(d.SunAirWhiteBalance);
+            Assert.IsTrue(d.SunAirWhiteBalance, "the struct's own default; the game's comes from the setting, which is off");
         }
 
         [TestMethod]

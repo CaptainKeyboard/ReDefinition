@@ -207,7 +207,7 @@ def order_profile(frames, get, add, notes, pre, head):
             notes.append("%-12s order profile %s band %d: %s" % (head, name, k, "; ".join(line)))
 
 
-COLOUR55 = ("ca02t0", "ca02t5", "ca02t10", "caDt0", "caDt5", "caDt10", "cair", "ce14", "csky0", "csky1", "caDt0b")
+COLOUR55 = ("ca02t0", "caDt0", "cair", "ce14", "csky0", "csky1", "caDt0b")
 GRAIN55 = ("gacc", "gleapacc")
 FOG55 = ("wC5o0", "wC5o0f", "kC5", "kC5f")
 NOISE55 = re.compile(r"^f\d+s\d+$")
@@ -405,7 +405,7 @@ def look_table(values, view, cover, get, add, notes):
         if got is not None:
             add(pre + "%s.closed" % f, got)
     # Look B: the colour of the deck and the plateau rows.
-    for f in ("t0", "t5", "t10", "e14", "air1"):
+    for f in ("t0", "e14", "air1"):
         r, b = get(f, "deck_r"), get(f, "deck_b")
         if r and b is not None:
             add(pre + "%s.deck_b_over_r" % f, b / r)
@@ -630,10 +630,10 @@ def selftest():
     high = look_rows("ground", "high", (("kC4.sky_closed_share", 0.20), ("kC4m8.sky_closed_share", 0.05), ("wC4o0.sky_closed_share", 0.75)))
     got = {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "high", 0.5, 0.7, 0.05, 1.0) + high]), [])}
     assert got["T09d.ground.high.look.C4.a2_towers"] == 1 and got["T09d.ground.high.look.C4.a4_rain_deck"] == 1, got
-    light = look_rows("ground", "high", (("t0.deck_r", 0.5), ("t0.deck_b", 0.35), ("t10.deck_r", 0.4), ("t10.deck_b", 0.36), ("t0.sky_over_off_sky", 1.0), ("t0.ground_over_off_ground", 1.2),
+    light = look_rows("ground", "high", (("t0.deck_r", 0.5), ("t0.deck_b", 0.35), ("e14.deck_r", 0.4), ("e14.deck_b", 0.36), ("t0.sky_over_off_sky", 1.0), ("t0.ground_over_off_ground", 1.2),
                                         ("t0.deck_clipped", 0.0)))
     got = {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "high", 0.5, 0.7, 0.05, 1.0) + light]), [])}
-    assert got["T09d.ground.high.look.t0.a5_colour"] == -1 and got["T09d.ground.high.look.t10.a5_colour"] == 1, got       # 0.70 is beige, 0.90 is inside the band
+    assert got["T09d.ground.high.look.t0.a5_colour"] == -1 and got["T09d.ground.high.look.e14.a5_colour"] == 1, got       # 0.70 is beige, 0.90 is inside the band
     assert got["T09d.ground.high.look.t0.sky_over_off_sky_ok"] == 1 and got["T09d.ground.high.look.t0.ground_over_off_ground_ok"] == -1 and got["T09d.ground.high.look.t0.a5_clipped"] == 1, got
     hz = look_rows("horizon", "low", (("hz0h0.horizon_band_closed", 0.95), ("hz0h0.horizon_band_change", 0.40), ("hz40h1.horizon_band_closed", 0.1), ("hz40h1.horizon_band_change", 0.04)))
     notes = []
@@ -667,11 +667,11 @@ def selftest():
     assert any("hh2 - ord0 r +0.002 g +0.002 b +0.002" in n for n in notes), notes
     assert not any(k.startswith("T09d.above.low.look.order.") for k in {r["metric"]: 1 for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.05, 1.0)]), [])}), "no order frames, no order rows"
     # Start look55: the colour and grain notes and rows, and the cost windows from the profiler's reports (kt2.py's parser) with the differences against plain.
-    colour = look_rows("ground", "low", (("caDt0.deck_r", 0.60), ("caDt0.deck_g", 0.55), ("caDt0.deck_b", 0.42), ("ca02t10.deck_r", 0.50), ("ca02t10.deck_b", 0.48),
+    colour = look_rows("ground", "low", (("caDt0.deck_r", 0.60), ("caDt0.deck_g", 0.55), ("caDt0.deck_b", 0.42), ("ca02t0.deck_r", 0.50), ("ca02t0.deck_b", 0.48),
                                          ("gacc.grain_tstd", 0.0077), ("gacc.grain_hfx", -0.0018), ("gacc.grain_n", 1000), ("sh1.ground_median", 0.30), ("sh0.ground_median", 0.28)))
     notes = []
     got = {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "low", 0.5, 0.7, 0.05, 1.0) + colour]), notes)}
-    assert abs(got["T09d.ground.low.look.caDt0.deck_b_over_r"] - 0.7) < 1e-9 and abs(got["T09d.ground.low.look.ca02t10.deck_b_over_r"] - 0.96) < 1e-9, got
+    assert abs(got["T09d.ground.low.look.caDt0.deck_b_over_r"] - 0.7) < 1e-9 and abs(got["T09d.ground.low.look.ca02t0.deck_b_over_r"] - 0.96) < 1e-9, got
     assert abs(got["T09d.ground.low.look.shadow.ground_median_sh0_minus_sh1"] + 0.02) < 1e-9, got
     assert any("colour caDt0" in n and "b/r 0.700" in n for n in notes) and any("grain gacc" in n and "tstd 0.0077" in n for n in notes), notes
 

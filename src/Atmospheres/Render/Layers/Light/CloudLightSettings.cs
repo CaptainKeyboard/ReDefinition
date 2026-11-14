@@ -59,8 +59,22 @@ namespace ReDefinition.Atmospheres
         // supplies a reddened colour, e.g. from Scatterer, sets it to zero).
         public Vector3 SunAirTau = new Vector3(0.0764f, 0.138f, 0.295f);
         public float SunAirHeightM = 8000f;
+        // The second component of the sun's air (E40): the grey aerosol's extinction along the zenith path at sea level and its scale height in m (_LightV.zw).
+        // Zero: the air is the first component alone (the lumped SunAirTau of the no-Scatterer default).
+        public float SunAirMieTau;
+        public float SunAirMieHeightM = 1000f;
+
+        // The two components from a body's air: tau = extinction per m times the scale height (the vertical optical depth above sea level).
+        internal void UseAir(Vector3 rayleighPerM, float rayleighHeightM, float miePerM, float mieHeightM)
+        {
+            SunAirTau = rayleighPerM * rayleighHeightM;
+            SunAirHeightM = rayleighHeightM;
+            SunAirMieTau = miePerM * mieHeightM;
+            SunAirMieHeightM = mieHeightM;
+        }
         // The frame's sun colour is the sun's colour at the zenith above the point; only the air path beyond the zenith reddens it (see CloudLightMath.SunAir).
-        // False: the frame's colour counts as outside the air (the earlier behaviour, kept for the comparison table).
+        // False: the cloud gets the sun through the whole air above it, which is what the game runs since E40 (the setting cloudSunWhiteBalance is off by default and
+        // OwnCloudOptions.Apply writes it); this struct's own default stays true for the player's fixtures (the jobs of the harness are fitted with it).
         public bool SunAirWhiteBalance = true;
         // The decay of the diffusion term with the optical depth towards the light; 0: the saturating term of FX-T03 (kept as a switch). Fitted over five
         // cells of three optical depths, the harness's deck and its cirrus (0.02; the two-stream slab value 0.75 (1 - g) = 0.15 put the thick deck at 0.37
@@ -134,7 +148,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.LightT, new Vector4(Mathf.Clamp(BoltCount, 0, MaxBolts), Mathf.Clamp(SunStepsOverride, 0, 64), Mathf.Clamp(CacheFillSteps, 1, 64), upMode));
             m.SetVector(Ids.SunAir, new Vector4(SunAirTau.x, SunAirTau.y, SunAirTau.z, Mathf.Max(SunAirHeightM, 0f)));
             m.SetVector(Ids.LightU, new Vector4(Mathf.Max(Diffusion, 0f), Mathf.Max(DiffusionTau, 0.01f), Mathf.Clamp01(MsIsotropy), SunAirWhiteBalance ? 1f : 0f));
-            m.SetVector(Ids.LightV, new Vector4(Mathf.Max(DiffusionDecay, 0f), AmbientColumnToTypeTop ? 1f : 0f, 0f, 0f));
+            m.SetVector(Ids.LightV, new Vector4(Mathf.Max(DiffusionDecay, 0f), AmbientColumnToTypeTop ? 1f : 0f, Mathf.Max(SunAirMieTau, 0f), Mathf.Max(SunAirMieHeightM, 1f)));
             for (int i = 0; i < layerL.Length; i++)
             {
                 Vector3 s = i < LayerScale.Length ? LayerScale[i] : Vector3.one;
