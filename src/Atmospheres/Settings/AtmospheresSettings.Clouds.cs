@@ -209,7 +209,7 @@ namespace ReDefinition.Atmospheres
                 // fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)
                 SettingDef.Bool("cloudSunMarchLong", false, CL, "Cloud Long Sun March", OWN),
                 SettingDef.Bool("cloudSunWhiteBalance", false, CL, "Cloud Sun White Balance", OWN),
-                SettingDef.Float("cloudDiffusionDecay", 0.02, 0.0, 0.2, CL, "Cloud Diffusion Decay", OWN),
+                SettingDef.Float("cloudDiffusionDecay", 0.08,0.0, 0.2, CL, "Cloud Diffusion Decay", OWN),
 
                 // The far view (T06): all off until the owner agrees; the quality reducing march policy and the map fade included
                 SettingDef.Bool("cloudFarHaze", false, CL, "Cloud Far Haze", OWN),

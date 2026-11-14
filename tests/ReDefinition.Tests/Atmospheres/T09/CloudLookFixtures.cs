@@ -61,9 +61,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[2].DensityScale = 0.7f;
             cumulus.Types[4].DensityScale = 0.45f;
             Light(cumulus.Types[0], 1f, 1f, 0.9f, 1f);
-            Light(cumulus.Types[1], 0.9f, 1.15f, 0.9f, 1f);
-            Light(cumulus.Types[2], 0.7f, 1.15f, 0.85f, 1f);
-            Light(cumulus.Types[3], 0.65f, 1.25f, 0.8f, 1f);
+            Light(cumulus.Types[1], 1f, 1f, 0.9f, 1f);
+            Light(cumulus.Types[2], 1f, 1f, 0.85f, 1f);
+            Light(cumulus.Types[3], 1f, 1.25f, 0.8f, 1f);
             // The types' height-shaped threshold (cfg node LIFT, E40 L2 D1).
             cumulus.Types[0].Lift = C(0f, 0f, 0.5f, 0f, 1f, 0.1f);
             cumulus.Types[1].Lift = C(0f, 0f, 0.3f, 0f, 0.7f, 0.08f, 1f, 0.2f);
@@ -94,8 +94,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cb.Deck = new WeatherDeckRule { Fog = false, PrecipType = 0f };
             foreach (CloudTypeDef t in cb.Types) t.RiseShare = 0.3f;
             cb.LightAmbient = 0.8f;
-            Light(cb.Types[0], 0.55f, 1.2f, 0.7f, 1f);
-            Light(cb.Types[1], 0.55f, 1.15f, 0.7f, 1.05f);
+            Light(cb.Types[0], 1f, 1.2f, 0.7f, 1f);
+            Light(cb.Types[1], 1f, 1.15f, 0.7f, 1.05f);
             cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.25f, 1f, 0.45f);
             cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.35f, 0.7f, 0.35f, 0.9f, 0f, 1f, 0f);
             cb.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f };

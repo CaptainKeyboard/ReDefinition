@@ -205,7 +205,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | `cloudResolution` | 1 | 1 to 4 | Cloud Resolution | needs-own-clouds | volume |
 | `cloudSunMarchLong` | off | on / off | Cloud Long Sun March | needs-own-clouds | - |
 | `cloudSunWhiteBalance` | off | on / off | Cloud Sun White Balance | needs-own-clouds | - |
-| `cloudDiffusionDecay` | 0.02 | 0 to 0.2 | Cloud Diffusion Decay | needs-own-clouds | - |
+| `cloudDiffusionDecay` | 0.08 | 0 to 0.2 | Cloud Diffusion Decay | needs-own-clouds | - |
 | `cloudFarHaze` | off | on / off | Cloud Far Haze | needs-own-clouds | - |
 | `cloudFarShapeMean` | off | on / off | Cloud Far Shape Mean | needs-own-clouds | - |
 | `cloudFarMinSamples` | 0 | 0 to 16 | Cloud Far Minimum Samples | needs-own-clouds | - |

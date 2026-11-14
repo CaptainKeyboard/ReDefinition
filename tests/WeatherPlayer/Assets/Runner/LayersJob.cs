@@ -44,8 +44,8 @@ namespace ReDefinition.WeatherPlayer
         public float flowAmplitude, colourStrength, rise;
         public int flowLooped;
         public float[] drift;
-        // The soft water content's per-layer numbers and the layer's light response (E40; the cfg keys softnessScale, waterPower, lightMs, lightPowder, lightAmbient).
-        public float softnessScale = 1f, waterPower = 2f, lightMs = 1f, lightPowder = 1f, lightAmbient = 1f, lightIsotropy;
+        // The soft water content's per-layer numbers and the layer's light response (E40; the cfg keys softnessScale, waterPower, lightAmbient).
+        public float softnessScale = 1f, waterPower = 2f, lightAmbient = 1f, lightIsotropy;
         // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
         public float fibreStretch = 1f;
     }

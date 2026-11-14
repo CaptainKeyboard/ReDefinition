@@ -183,10 +183,8 @@ namespace ReDefinition.Atmospheres
         internal float SoftnessScale { get; set; } = 1f;
         // The exponent of the water content in the density: the layer's cfg key waterPower (2: the density grows with the square of the water; 1: thin sheets have no core).
         internal float WaterPower { get; set; } = 2f;
-        // The layer's light response (cfg keys lightMs, lightPowder, lightAmbient; 1 = the global fit): factors on the multiple-scattering brightness, the powder term and the sky's
-        // fill. CloudLightSettings.LayerScale carries them to the shader's _LightL.
-        internal float LightMs { get; set; } = 1f;
-        internal float LightPowder { get; set; } = 1f;
+        // The layer's light response (cfg key lightAmbient; 1 = the global fit): a factor on the sky's fill. CloudLightSettings.LayerScale carries it to the shader's _LightL
+        // (whose x and y, the factors on the multiple-scattering brightness and on the powder term, are 1: the keys lightMs and lightPowder are gone).
         internal float LightAmbient { get; set; } = 1f;
         // The share of the sun's single scattering that a Cheap or Fog layer sends equally in all directions (cfg key lightIsotropy, 0 to 1, 0 = the water-drop phase of the
         // global fit). Ice crystals scatter far more to the sides and back than a water drop does, which is why a thin cirrus sheet is bright seen from above; the shader's

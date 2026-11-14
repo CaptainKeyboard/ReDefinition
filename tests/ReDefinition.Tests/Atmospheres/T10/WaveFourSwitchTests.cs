@@ -97,7 +97,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0f, s.DiffusionDecay);
             OwnCloudOptions.Apply(s, Defaults());
             Assert.IsFalse(s.SunAirWhiteBalance, "off by default: the cloud gets the sun through the whole air above it");
-            Assert.AreEqual(0.02f, s.DiffusionDecay, 1e-6f);
+            Assert.AreEqual(0.08f, s.DiffusionDecay, 1e-6f);
         }
 
         [TestMethod]

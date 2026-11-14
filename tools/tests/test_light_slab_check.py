@@ -26,11 +26,20 @@ class TwoStreamAnchors(unittest.TestCase):
         # The base's radiance over the sun's irradiance is the slab's transmission.
         self.assertAlmostEqual(r["flux_base"], S.transmission(25.0), delta=0.04)
 
-    def test_a_thick_slab_is_not_too_dark_at_its_base_and_a_little_dim_at_its_top(self):
+    def test_the_base_of_a_uniform_slab_follows_the_two_stream_law_and_the_thick_top_is_a_little_dim(self):
+        # E40 L4 clean: the diffusion term (2.0, scale 25, decay 0.08) is refitted to the slab law; with the earlier 1.3 / 35.8 / 0.02 the base was 1.5 (tau 60) to 2 (tau 200)
+        # times the anchor. At tau 200 the ambient floor takes over (the base is grey, not black).
+        for r in S.uniform_table(taus=(10, 25, 60, 100), height=1200.0):
+            self.assertAlmostEqual(r["base"] / r["anchor_base"], 1.0, delta=0.06, msg="tau %d" % r["tau"])
+        r200 = S.uniform_table(taus=(200,), height=1200.0)[0]
+        self.assertLess(r200["base"] / r200["anchor_base"], 1.2)
         r = S.uniform_table(taus=(100,), height=1200.0)[0]
-        self.assertGreater(r["base"], r["anchor_base"], "the thick base is brighter than the anchor, not darker")
         self.assertLess(r["top"], r["anchor_top"], "the thick top is dimmer than the anchor")
         self.assertGreater(r["top"] / r["anchor_top"], 0.75)
+
+    def test_no_shipped_type_carries_a_base_light_factor(self):
+        for layer, name, tau, h, sigma, profile, base_light, head_light in S.shipped_types():
+            self.assertEqual(base_light, 1.0, name)
 
     def test_the_shipped_rain_deck_types_carry_no_light_factor(self):
         for layer, name, tau, h, sigma, profile, base_light, head_light in S.shipped_types():

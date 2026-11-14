@@ -21,8 +21,8 @@ SUN_E = math.pi
 class Params(object):
     """The light's numbers; the names are the jobs' (light.py MODEL)."""
     DEFAULTS = dict(forwardG=0.85, backG=-0.3, forwardWeight=0.92, albedo=0.999, octaves=4, octaveA=0.3081, octaveB=0.5482, octaveC=0.898,
-                    msBrightness=2.9358, diffusion=1.3, diffusionTau=35.807, powder=0.8075, powderLength=400.0, ambientFloor=0.05,
-                    ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.25, sunSteps=4, tapRatio=2.0, msIsotropy=0.7552, diffusionDecay=0.02)
+                    msBrightness=2.9358, diffusion=2.0, diffusionTau=25.0, powder=0.8075, powderLength=400.0, ambientFloor=0.05,
+                    ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.25, sunSteps=4, tapRatio=2.0, msIsotropy=0.7552, diffusionDecay=0.08)
 
     def __init__(self, **kw):
         self.__dict__.update(self.DEFAULTS)

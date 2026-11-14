@@ -81,7 +81,7 @@ NOSHAPE = SHAPE_SCALE == 0.0
 SPHERE = float(os.environ["E40TY_SPHERE"]) if os.environ.get("E40TY_SPHERE") else None
 NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE_SCALE is not None else "e40-ty") + ("-sphere%g" % SPHERE if SPHERE is not None else "")
 
-LAYER_EXTRA = ("softnessScale", "waterPower", "lightMs", "lightPowder", "lightAmbient", "fibreStretch", "lightIsotropy")
+LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy")
 TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient")
 
 

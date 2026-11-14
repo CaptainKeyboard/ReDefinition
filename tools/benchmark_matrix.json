@@ -380,7 +380,7 @@
       "opacity_micromaps": null,
       "frame_generation": ["fsr"],
       "latency": ["none"],
-      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudSunMarchLong": "False", "atmo.cloudSunWhiteBalance": "False","atmo.cloudDiffusionDecay": "0.02", "atmo.cloudFarHaze": "False", "atmo.cloudFarShapeMean": "False", "atmo.cloudFarMinSamples": "0", "atmo.cloudFarPolicy": "False", "atmo.cloudFarMapFade": "False"},
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "Ours", "atmo.ownClouds": "True", "atmo.cloudSunMarchLong": "False", "atmo.cloudSunWhiteBalance": "False","atmo.cloudDiffusionDecay": "0.08", "atmo.cloudFarHaze": "False", "atmo.cloudFarShapeMean": "False", "atmo.cloudFarMinSamples": "0", "atmo.cloudFarPolicy": "False", "atmo.cloudFarMapFade": "False"},
       "tweaks": [
         {"id": "weather-cloudSunMarchLong", "name": "Cloud Long Sun March true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunMarchLong": "True"}},
         {"id": "weather-cloudSunWhiteBalance", "name": "Cloud Sun White Balance true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSunWhiteBalance": "True"}},

@@ -55,8 +55,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(shipped.Meso.Stretch, fixture.Meso.Stretch, 1e-6f, n + " meso stretch");
                 Assert.AreEqual(shipped.Meso.RainKeep, fixture.Meso.RainKeep, 1e-6f, n + " meso rain keep");
             }
-            Assert.AreEqual(shipped.LightMs, fixture.LightMs, 1e-6f, n + " light ms");
-            Assert.AreEqual(shipped.LightPowder, fixture.LightPowder, 1e-6f, n + " light powder");
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
             Assert.AreEqual(shipped.FibreStretch, fixture.FibreStretch, 1e-6f, n + " fibre stretch");
             Assert.AreEqual(shipped.LightIsotropy, fixture.LightIsotropy, 1e-6f, n + " light isotropy");

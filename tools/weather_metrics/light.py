@@ -57,7 +57,7 @@ ENV = pr.Environment(0.30, 0.55, 0.12)
 CELL_CENTRE = [0.0, 0.0, R + 2000.0]
 
 # The light's numbers as the parity run fixed them (CloudLightSettings holds the same values).
-MODEL = dict(forwardG=0.85, backG=-0.3, forwardWeight=0.92, albedo=0.999, octaves=4, octaveA=0.3081, octaveB=0.5482, octaveC=0.898, msBrightness=2.9358, diffusion=1.3, diffusionTau=35.807, diffusionDecay=0.02,
+MODEL = dict(forwardG=0.85, backG=-0.3, forwardWeight=0.92, albedo=0.999, octaves=4, octaveA=0.3081, octaveB=0.5482, octaveC=0.898, msBrightness=2.9358, diffusion=2.0, diffusionTau=25.0, diffusionDecay=0.08,
              powder=0.8075, powderLength=400.0, ambientFloor=0.05, ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.25, sunSteps=4, moonSteps=2,
              upSteps=2, coneSpread=0.0, tapRatio=2.0, cacheFillSteps=12, msIsotropy=0.7552)
 # The harness environment as the shader's ambient: the sky's mean over the sphere at the cell's top, the ground's share lower down.

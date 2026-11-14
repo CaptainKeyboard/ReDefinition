@@ -120,7 +120,7 @@ namespace ReDefinition.Atmospheres
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
         private Material material;
         private Texture2D profileTexture, infoTexture;
-        // Each layer's light response (CloudLayerDef.LightMs, LightPowder, LightAmbient), handed to the light settings of the frame (E40 B3).
+        // Each layer's light response (CloudLayerDef.LightAmbient; the shader's _LightL.x and .y stay 1), handed to the light settings of the frame (E40 B3).
         private readonly Vector3[] layerLight = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
         private readonly float[] layerIsotropy = new float[CloudLayerDef.MaxLayers];
         private RenderTexture target;
@@ -256,7 +256,7 @@ namespace ReDefinition.Atmospheres
                                         layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
                 layerD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 1f, layer.MapShiftDeg);
                 layerE[l] = Vector4.zero;
-                layerLight[l] = new Vector3(layer.LightMs, layer.LightPowder, layer.LightAmbient);
+                layerLight[l] = new Vector3(1f, 1f, layer.LightAmbient);
                 layerIsotropy[l] = layer.LightIsotropy;
                 HeightTuning height = source.Heights.TuningOf(l);
                 HeightMaps heightMaps = source.Heights.MapsOf(l);

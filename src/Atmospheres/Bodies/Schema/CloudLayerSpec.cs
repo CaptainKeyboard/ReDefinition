@@ -127,10 +127,8 @@ namespace ReDefinition.Atmospheres
         // exponent of the water content in the density. The starting values are [UNKNOWN]: they are judged on pictures.
         internal float SoftnessScale { get; set; } = 1f;
         internal float WaterPower { get; set; } = 2f;
-        // The layer's light response (E40 B3; cfg keys lightMs, lightPowder, lightAmbient): factors on the multiple-scattering brightness, on the powder term (the darkening of thin
-        // edges) and on the sky's fill of the layer; 1 is the global fit. They reach the shader through _LightL (CloudLightSettings.LayerScale).
-        internal float LightMs { get; set; } = 1f;
-        internal float LightPowder { get; set; } = 1f;
+        // The layer's light response (cfg key lightAmbient): a factor on the sky's fill of the layer; 1 is the global fit. It reaches the shader through _LightL
+        // (CloudLightSettings.LayerScale).
         internal float LightAmbient { get; set; } = 1f;
         // The isotropic share of a Cheap or Fog layer's single scattering (cfg key lightIsotropy; CloudLayerDef.LightIsotropy).
         internal float LightIsotropy { get; set; }
@@ -188,8 +186,6 @@ namespace ReDefinition.Atmospheres
                 Deck = Deck,
                 SoftnessScale = SoftnessScale,
                 WaterPower = WaterPower,
-                LightMs = LightMs,
-                LightPowder = LightPowder,
                 LightAmbient = LightAmbient,
                 LightIsotropy = LightIsotropy,
                 RainType = RainType,

@@ -57,8 +57,6 @@ namespace ReDefinition.WeatherPlayer
                     MapShiftDeg = jl.shift,
                     SoftnessScale = jl.softnessScale,
                     WaterPower = jl.waterPower,
-                    LightMs = jl.lightMs,
-                    LightPowder = jl.lightPowder,
                     LightAmbient = jl.lightAmbient,
                     FibreStretch = jl.fibreStretch,
                     LightIsotropy = jl.lightIsotropy

@@ -34,8 +34,9 @@ namespace ReDefinition.Atmospheres
         public int Octaves = 4;
         public float OctaveA = 0.3081f, OctaveB = 0.5482f, OctaveC = 0.898f, MsBrightness = 2.9358f;
         // The diffusion term: the isotropic light of the deep core as a share of the sun's isotropic light, and the optical depth over which it builds up.
-        // (T03v2, fitted on five cells of three optical depths and checked on six others, tools/weather_metrics/light_holdout.py: the strength 1.3, 0.87 before.)
-        public float Diffusion = 1.3f, DiffusionTau = 35.807f;
+        // (E40 L4 clean: refitted with the decay below to the two-stream anchors of a cloud slab, tools/weather_metrics/light_slab_check.py; the cells of the T03 fit change by
+        // at most 5 %: the strength 2.0 and the scale 25 instead of 1.3 and 35.8.)
+        public float Diffusion = 2.0f, DiffusionTau = 25f;
         // The isotropic share of the phase of the octaves above the first (0..1; light that scattered several times has lost its direction).
         public float MsIsotropy = 0.7552f;
         // Powder: strength 0..1 and the length in m over which the density is judged.
@@ -76,10 +77,11 @@ namespace ReDefinition.Atmospheres
         // False: the cloud gets the sun through the whole air above it, which is what the game runs since E40 (the setting cloudSunWhiteBalance is off by default and
         // OwnCloudOptions.Apply writes it); this struct's own default stays true for the player's fixtures (the jobs of the harness are fitted with it).
         public bool SunAirWhiteBalance = true;
-        // The decay of the diffusion term with the optical depth towards the light; 0: the saturating term of FX-T03 (kept as a switch). Fitted over five
-        // cells of three optical depths, the harness's deck and its cirrus (0.02; the two-stream slab value 0.75 (1 - g) = 0.15 put the thick deck at 0.37
-        // of the reference radiance, 0 left the cell interiors and the deck 32 % too bright: tools/weather_metrics/light_holdout.py, round 5).
-        public float DiffusionDecay = 0.02f;
+        // The decay of the diffusion term with the optical depth towards the light; 0: the saturating term of FX-T03 (kept as a switch). 0.08 since E40 L4 clean: fitted
+        // together with Diffusion and DiffusionTau to the two-stream slab (transmission 1 / (1 + 0.75 (1 - g) tau), 0.11 for g 0.85) over the optical depths 10 to 200: the
+        // base of a thick uniform slab lies within 3 % of the anchor to tau 100 (it lay 1.5 to 2 times above it with 0.02), the top 0.81 to 0.93 of it. The earlier 0.02
+        // was fitted to single ellipsoid cells, which lose light through their sides; a deck does not.
+        public float DiffusionDecay = 0.08f;
         // The light march: taps towards the sun (0: the frame's SunSteps), the spread of the taps over a cone (tangent of the half angle),
         // the growth of the step from tap to tap, taps for each extra light and for the ambient's tap straight up.
         public int SunStepsOverride;

@@ -55,10 +55,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.AreEqual(wa, a, 2e-3, cumulus.Types[type].Name + " ambient at " + h);
                 }
             double dBase, aBase, dTop, aTop;
-            // Type 1 is Cumulus humilis (the altocumulus sheet is the last type, E40 L3).
-            table.LightAt(1, 0.0, out dBase, out aBase);
-            table.LightAt(1, 1.0, out dTop, out aTop);
-            Assert.IsTrue(dBase < 1.0 && dTop > 1.0, "a cumulus has a shaded base and a bright head: " + dBase + " / " + dTop);
+            // Type 3 is Cumulus congestus (the altocumulus sheet is the last type, E40 L3): no factor on the base's direct light (the model's own), a bright head, a shaded base sky.
+            table.LightAt(3, 0.0, out dBase, out aBase);
+            table.LightAt(3, 1.0, out dTop, out aTop);
+            Assert.IsTrue(Math.Abs(dBase - 1.0) < 1e-3 && dTop > 1.0 && aBase < 1.0, "a congestus has a bright head over an unfactored base: " + dBase + " / " + dTop + " / " + aBase);
         }
 
         [TestMethod]
@@ -83,17 +83,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheShippedKerbinTypesShadeTheBaseAndLightTheHeadWhereTheLookWantsIt()
+        public void TheShippedKerbinTypesCarryNoBaseFactorAndTheThickHeadsOnlyTheFactorOfTheirTopDeficit()
         {
             var layers = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers;
-            foreach (string name in new[] { "Cumulus mediocris", "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
+            // E40 L4 clean: the diffusion term refitted to the two-stream slab puts every base on the anchor, so no type shades its base by a factor; the thick types' tops stay
+            // 0.8 of their anchor (the octaves), which the head factor takes back.
+            foreach (string name in new[] { "Cumulus humilis", "Cumulus mediocris", "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
             {
                 CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
-                Assert.IsTrue(t.BaseLight < 0.8f, name + " has a shaded base");
-                Assert.IsTrue(t.HeadLight > 1.1f, name + " has a bright head");
+                Assert.AreEqual(1f, t.BaseLight, name + " base light");
             }
-            CloudTypeSpec humilis = layers.SelectMany(l => l.Types).Single(x => x.Name == "Cumulus humilis");
-            Assert.IsTrue(humilis.BaseLight < 1f && humilis.HeadLight > 1.1f, "humilis: a shaded base under a bright head, the milder pair the model's own light needs");
+            foreach (string name in new[] { "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
+                Assert.IsTrue(layers.SelectMany(l => l.Types).Single(x => x.Name == name).HeadLight > 1.1f, name + " has a bright head");
+            foreach (string name in new[] { "Cumulus humilis", "Cumulus mediocris" })
+                Assert.AreEqual(1f, layers.SelectMany(l => l.Types).Single(x => x.Name == name).HeadLight, name + " head light");
             CloudTypeSpec stratocumulus = layers.SelectMany(l => l.Types).Single(x => x.Name == "Stratocumulus");
             Assert.AreEqual(1f, stratocumulus.BaseLight, "stratocumulus needs no factor on the direct light");
             Assert.AreEqual(1f, stratocumulus.HeadLight, "stratocumulus needs no factor on the direct light");
@@ -108,7 +111,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             foreach (CloudLayerSpec deck in layers.Where(l => l.Name.StartsWith("Kerbin-weather")))
             {
-                Assert.AreEqual(1f, deck.LightMs, deck.Name + " light ms");
                 Assert.AreEqual(1f, deck.LightAmbient, deck.Name + " light ambient");
             }
         }
