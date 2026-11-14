@@ -178,6 +178,20 @@ namespace ReDefinition.Atmospheres
         internal CameraEvent AttachedEvent { get { return attachedEvent; } }
         internal LayerReconstructDriver Driver { get { return driver; } }
         internal LayerFrame Frame { get { return frame; } }
+
+        // The sun colour of the last frame the pass filled, as the probe logs it (E40 soft density start 59, T09ProbeSoft.cs): the colour read in the render (Scatterer's, modulated), the
+        // one read in the tick (restored, the cap), the one the pass took, and what the air division used. FrameNumber 0: no frame filled yet.
+        internal struct SunColourRead
+        {
+            internal int FrameNumber;
+            internal Color Scene, Unmodulated, Pass;
+            internal bool HaveUnmodulated, ScattererLoaded, AirFromScatterer, Divided;
+            internal float SunAirHeightM;
+            internal double SinElevation, ViewerAltitudeM;
+        }
+
+        internal SunColourRead SunRead { get { return sunRead; } }
+        private SunColourRead sunRead;
         // The buffers at the pass's event in the order the camera renders them, as last read in the pre-render (the K-T2d probe logs it), and
         // whether the pass is being moved behind Scatterer's screen-space scattering.
         internal string RenderOrder { get { return renderOrder; } }
@@ -904,6 +918,8 @@ namespace ReDefinition.Atmospheres
             // only (ResolveAir); otherwise the colour stays as given and the shader's air is off, as before. OutputWhite below stays the viewer's value (the exposure's reference).
             ResolveAir(b);
             Color passSun = sceneSun;
+            bool divided = false;
+            double readSin = double.NaN, readAltitude = double.NaN;
             if (scattererLoaded && !Tuning.Flag(TuneSunAirWithScatterer, false))
             {
                 if (air.Valid && air.FromScatterer && f.Light.SunAirHeightM > 0f)
@@ -914,9 +930,17 @@ namespace ReDefinition.Atmospheres
                     double distance = fromCentre.magnitude;
                     double sinElevation = distance > 1.0 ? Vector3.Dot(fromCentre / (float)distance, f.TowardsSun) : 1.0;
                     passSun = CloudSunAir.OutsideAir(sceneSun, haveSunUnmodulated ? sunUnmodulated : (Color?)null, sinElevation, distance - b.Radius, f.Light);
+                    divided = true;
+                    readSin = sinElevation;
+                    readAltitude = distance - b.Radius;
                 }
                 else f.Light.SunAirHeightM = 0f;
             }
+            sunRead = new SunColourRead
+            {
+                FrameNumber = Time.frameCount, Scene = sceneSun, Unmodulated = sunUnmodulated, Pass = passSun, HaveUnmodulated = haveSunUnmodulated, ScattererLoaded = scattererLoaded,
+                AirFromScatterer = air.FromScatterer, Divided = divided, SunAirHeightM = f.Light.SunAirHeightM, SinElevation = readSin, ViewerAltitudeM = readAltitude
+            };
             Color sunColour = passSun * (sunUnit * gain);
             f.SunColour = sunColour;
             f.OutputExposure = Tuning.Get(TuneExposure, CloudOutputStage.ExposureDefault);

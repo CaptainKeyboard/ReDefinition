@@ -138,6 +138,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Drive(r, 0.1, 3600.0, rr =>
             {
                 EvaluateGates(rr, closed, weatherRuns, layers);
+                // What the module does every frame (the soft start's variants check the numbers the pass ran with).
+                if (rr.World.Module != null) OwnCloudOptions.Apply(rr.World.Module.Frame);
                 // The declared product switches of the start hold while its main variant runs.
                 string main = s.Variants.Contains("plain") ? "plain" : s.Variants.Contains("tvc") ? "tvc" : null;
                 if (main != null && rr.Probe.CurrentVariant == main)
@@ -162,7 +164,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void K_T2_GateAudit_EveryGateOfTheChainIsOpenForEveryStartWithTheStartStateOfTheSettings()
         {
             List<StartDef> starts = KT2Starts();
-            Assert.AreEqual(6, starts.Count, "the starts of K-T2.json were read");
+            Assert.AreEqual(7, starts.Count, "the starts of K-T2.json were read");
             foreach (StartDef s in starts)
             {
                 Assert.IsTrue(s.Switches.ContainsKey("weatherEffects") && s.Switches.ContainsKey("genEnabled") && s.Switches.ContainsKey("enabled") && s.Switches.ContainsKey("cloudSource"),

@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
 
         protected override double MaxSeconds
         {
-            get { return IsDiag ? (LookMode == "G" ? GrainMaxSeconds : LookMode == "C" ? Look55MaxSeconds : LookMode == "H" ? Look57MaxSeconds : LookMode != null ? LookMaxSeconds : DiagMaxSeconds) : 19 * 60; }
+            get { return IsDiag ? (LookMode == "G" ? GrainMaxSeconds : LookMode == "C" ? Look55MaxSeconds : LookMode == "H" ? Look57MaxSeconds : LookMode != null ? LookMaxSeconds : DiagMaxSeconds) : SoftStart ? SoftMaxSeconds : 19 * 60; }
         }
 
         protected override IList<string> DefaultVariants
@@ -289,7 +289,7 @@ namespace ReDefinition.Atmospheres
 
         protected override IEnumerator<ProbeWait> Scenario()
         {
-            return IsDiag ? DiagScenario() : IsK3 ? K3Scenario() : StandardScenario();
+            return IsDiag ? DiagScenario() : IsK3 ? K3Scenario() : SoftStart ? SoftScenario() : StandardScenario();
         }
 
         // False after a Prelude that ended the scenario (no atmosphere, a window of another size): the scenario returns without more.
