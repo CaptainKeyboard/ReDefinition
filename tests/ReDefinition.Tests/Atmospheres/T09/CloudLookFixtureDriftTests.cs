@@ -54,6 +54,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(shipped.Meso.Cells, fixture.Meso.Cells, n + " meso cells");
                 Assert.AreEqual(shipped.Meso.Stretch, fixture.Meso.Stretch, 1e-6f, n + " meso stretch");
                 Assert.AreEqual(shipped.Meso.RainKeep, fixture.Meso.RainKeep, 1e-6f, n + " meso rain keep");
+                Assert.AreEqual(shipped.Meso.RainKeepFrom, fixture.Meso.RainKeepFrom, 1e-6f, n + " meso rain keep from");
+                Assert.AreEqual(shipped.Meso.RainKeepFullAt, fixture.Meso.RainKeepFullAt, 1e-6f, n + " meso rain keep full at");
+                Assert.AreEqual(shipped.Meso.ScaleSystems, fixture.Meso.ScaleSystems, 1e-6f, n + " meso scale systems");
+                Assert.AreEqual(shipped.Meso.Scatter, fixture.Meso.Scatter, 1e-6f, n + " meso scatter");
+                Assert.AreEqual(shipped.Meso.ScatterDepths, fixture.Meso.ScatterDepths, 1e-6f, n + " meso scatter depths");
+                Assert.AreEqual(shipped.Meso.ScatterSoft, fixture.Meso.ScatterSoft, 1e-6f, n + " meso scatter soft");
             }
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
             Assert.AreEqual(shipped.FibreStretch, fixture.FibreStretch, 1e-6f, n + " fibre stretch");
@@ -74,6 +80,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(shipped.Deck.FogType, fixture.Deck.FogType, 1e-6f, n + " deck fog type");
                 Assert.AreEqual(shipped.Deck.Fog, fixture.Deck.Fog, n + " deck fog");
                 Assert.AreEqual(shipped.Deck.RainFloor, fixture.Deck.RainFloor, 1e-6f, n + " deck rain floor");
+                Assert.AreEqual(shipped.Deck.RainFloorFullAt, fixture.Deck.RainFloorFullAt, 1e-6f, n + " deck rain floor full at");
             }
             Assert.AreEqual(shipped.Types.Count, fixture.Types.Count, n + " type count");
             for (int i = 0; i < shipped.Types.Count; i++)

@@ -19,12 +19,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
         private const int Nx = 256, Ny = 128, Times = 8;
         // The coverage byte above which a layer draws a cloud for certain (its threshold 0.5).
         private const int Drawn = 128;
+        // The level from which rain is heavy (the HUD band): there the deck is always drawn. Under the light and moderate rain of a weather system's halo the deck is broken (its floor rises with the
+        // intensity, deckRainFloorFullAt; E40 L5 maps), because the generator rains over about half of the planet in one connected area and a deck under all of it is one sheet of 1800 km.
+        private const float HeavyFrom = 0.5f;
 
         private sealed class Table
         {
             // rows: precipitation band 0 none (< 0.04), 1 flurries (< 0.08), 2 light (< 0.2), 3 moderate (< 0.5), 4 heavy; columns: nothing | deck only | Cb only | both
             internal readonly long[,] Joint = new long[5, 4];
-            internal long RainNoCloud, CbNoRain, CbTexels, DeckNoRainNoFog, Rain;
+            internal long RainNoCloud, HeavyNoCloud, CbNoRain, CbTexels, DeckNoRainNoFog, Rain;
         }
 
         private static int Band(float level)
@@ -88,6 +91,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     {
                         t.Rain++;
                         if (!deck && !cb) t.RainNoCloud++;
+                        if (!deck && !cb && p >= HeavyFrom) t.HeavyNoCloud++;
                     }
                     // a rain-bearing cloud with any real thickness over dry air
                     if (p < PrecipScale.FlurriesFrom && cc[k] > 0) t.CbNoRain++;
@@ -115,7 +119,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Table now = Measure(true);
             Print("shipped", now);
             Assert.IsTrue(before.RainNoCloud > 0 && before.CbNoRain > 0, "the field has both mismatches without the rules");
-            Assert.AreEqual(0L, now.RainNoCloud, "no precipitation (level 0.08 and up) without a drawn rain-bearing cloud over it");
+            // the light and moderate rain of a halo may have a broken deck; the share is in the printed table (rain ... of which under no rain-bearing cloud)
+            Assert.AreEqual(0L, now.HeavyNoCloud, "no heavy precipitation (level 0.5 and up) without a drawn rain-bearing cloud over it");
             Assert.AreEqual(0L, now.CbNoRain, "no cumulonimbus coverage over air without precipitation");
             Assert.AreEqual(0L, now.DeckNoRainNoFog, "the weather deck over dry air only where it is fog air");
         }

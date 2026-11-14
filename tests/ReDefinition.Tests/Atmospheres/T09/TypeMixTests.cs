@@ -167,9 +167,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudMesoStage.Apply(cb, Inputs(Flat(0), Flat(200), Flat(128)), cover, Flat(64), ref coverOut, ref typeOut);
             Assert.IsTrue(coverOut.Min() < 30, "without rain the pattern has gaps");
             CloudLayerDef rain = TypeMixFixture.ShippedLayers()[0];
+            rain.Meso = null;
             byte[] c2 = null, t2 = null, ci = Flat(100), ti = Flat(77);
             CloudMesoStage.Apply(rain, Inputs(Flat(0), null, null), ci, ti, ref c2, ref t2);
-            Assert.AreSame(ci, c2, "the rain deck has no pattern: the cover is the very same array");
+            Assert.AreSame(ci, c2, "a layer without the node (the rain deck with it taken away) has no pattern: the cover is the very same array");
             Assert.AreSame(ti, t2, "and no climate: the type is the very same array");
         }
 
@@ -336,10 +337,18 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             }
                             Assert.IsTrue(TypeMixMetrics.MixOf(cirrusCover, cirrusType, 2, 0.2).TypesIn300kmWindow >= 1.5, "cirrus types in a window of 28.6 d" + tag);
 
-                            // the rain deck: the generator's own systems (no stage); its pattern is smaller than half the shortest wavelength of the body's weather systems
+                            // the rain deck follows its systems (E40 L5 maps): its pattern is smaller than half the shortest wavelength of the body's weather systems, and the overcast sheets are about as wide as
+                            // the longest system's wavelength, not as wide as the body: measured over the same 4 maps of the home planet, field diameter (m >= 0.5, area-weighted median) 650-1190 km against
+                            // 1690-1770 km before (the floor made every halo of rain one sheet), largest field 0.46-0.81 against 0.94-0.99; the longest wavelength is 3 r 1.5 (BodyDerived).
                             byte[] deckCover, deckType;
                             TypeMixFixture.Layer(field, body, shared, deck, true, out deckCover, out deckType);
                             TypeMixMetrics.Sizes ds = TypeMixMetrics.Of(deckCover, 0.5);
+                            double lambdaMaxKm = field.SystemWavelengthMaxKm(body);
+                            if (Mean(deckCover, 0, H) < 0.4)
+                            {
+                                Assert.IsTrue(ds.FieldDiameterKm < 1.6 * lambdaMaxKm, "rain deck field diameter " + ds.FieldDiameterKm + " km against the systems' longest wavelength " + lambdaMaxKm + tag);
+                                Assert.IsTrue(ds.LargestFieldShare <= 0.9, "rain deck largest field " + ds.LargestFieldShare + " of the field area" + tag);
+                            }
                             Assert.IsTrue(ds.CorrZonalKm < 0.5 * lambdaMinKm && ds.CorrMeridionalKm < 0.5 * lambdaMinKm, "rain deck corr length " + ds.CorrZonalKm + " / " + ds.CorrMeridionalKm + " km against the systems' shortest wavelength " + lambdaMinKm + tag);
                         }
                     }
@@ -349,6 +358,22 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 LayerWindOptions.SteeringOverride = null;
             }
+        }
+
+        // A frontal deck's pattern is sized by the body's weather systems (E40 L5 maps), not by its troposphere: the same cfg on a body with smaller systems gives a smaller pattern.
+        [TestMethod]
+        public void ThePatternOfAFrontalDeckFollowsTheSystemsOfTheBody()
+        {
+            var meso = new CloudMesoSpec { ScaleSystems = 0.6f, ScaleDepths = 5f, Amount = 1f };
+            var inp = new CloudMesoInputs { Width = W, Height = H, RadiusKm = 600.0, DepthKm = 10.5, SystemKm = 400.0 };
+            Assert.AreEqual(0.6 * 400.0, CloudMesoStage.PatternKm(meso, inp), 1e-3);
+            inp.SystemKm = 250.0;
+            Assert.AreEqual(0.6 * 250.0, CloudMesoStage.PatternKm(meso, inp), 1e-3, "smaller systems, smaller pattern");
+            inp.SystemKm = 0.0;
+            Assert.AreEqual(5.0 * 10.5, CloudMesoStage.PatternKm(meso, inp), 1e-3, "no system size: the depths");
+            meso.ScaleKm = 70f;
+            inp.SystemKm = 400.0;
+            Assert.AreEqual(70.0, CloudMesoStage.PatternKm(meso, inp), 1e-3, "an explicit size in km wins");
         }
 
         [TestMethod, TestCategory("TypeMix")]

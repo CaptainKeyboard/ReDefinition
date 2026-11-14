@@ -36,6 +36,9 @@ namespace ReDefinition.Atmospheres
         // sky. It reaches its full value at a quarter of the way from PrecipFrom to PrecipFullAt (level 0.08 with the defaults) and is 0 below PrecipFrom. The weather decks have it;
         // the cumulonimbus layer does not (it is drawn only as far as it rains, never forced).
         internal float RainFloor = 0f;
+        // The precipitation level at which the floor is complete (cfg deckRainFloorFullAt); 0: a quarter of the way from PrecipFrom to PrecipFullAt. A floor that rises over the rain's own
+        // intensity makes the deck closed where it rains hard and broken where the rain is light and ragged: the deck follows the rain's systems instead of closing the whole of their halos.
+        internal float RainFloorFullAt = 0f;
 
         internal static readonly WeatherDeckRule Defaults = new WeatherDeckRule();
 
@@ -78,7 +81,8 @@ namespace ReDefinition.Atmospheres
         internal float FloorOf(float level)
         {
             if (!(RainFloor > 0f)) return 0f;
-            return RainFloor * Step(PrecipFrom, PrecipFrom + 0.25f * (PrecipFullAt - PrecipFrom), level);
+            float full = RainFloorFullAt > PrecipFrom ? RainFloorFullAt : PrecipFrom + 0.25f * (PrecipFullAt - PrecipFrom);
+            return RainFloor * Step(PrecipFrom, full, level);
         }
 
         // The same from the level and a fog share that is already known (the probe forces both, cloud.deckPrecip.<name> and cloud.deckFog.<name>).

@@ -111,6 +111,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(0.5f, d.PrecipType, 0f, name + " stratus");
                 Assert.IsTrue(d.Fog, name);
                 Assert.AreEqual(0.9f, d.RainFloor, 0f, name + " the rain itself guarantees a deck");
+                Assert.AreEqual(0.7f, d.RainFloorFullAt, 0f, name + " the floor rises with the rain's intensity, so the light rain of a system's halo has a broken deck");
             }
             WeatherDeckRule cb = layers.Single(l => l.Name == "Kerbin-cumulonimbus").Deck;
             Assert.IsNotNull(cb, "the cumulonimbus layer is drawn only as far as it rains");
@@ -128,6 +129,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.9f, floor.FloorOf(0.08f), 1e-4f, "full from a quarter of the ramp");
             Assert.AreEqual(0.9f, floor.FloorOf(0.6f), 0f);
             Assert.AreEqual(0f, new WeatherDeckRule().FloorOf(0.6f), 0f, "no floor by default");
+            // a floor that is complete only at a higher level rises with the intensity of the rain
+            var graded = new WeatherDeckRule { RainFloor = 0.9f, RainFloorFullAt = 0.7f };
+            Assert.AreEqual(0f, graded.FloorOf(0.03f), 0f);
+            Assert.IsTrue(graded.FloorOf(0.08f) < 0.05f, "light rain has little floor: " + graded.FloorOf(0.08f));
+            Assert.IsTrue(graded.FloorOf(0.35f) > 0.3f && graded.FloorOf(0.35f) < 0.7f, "moderate rain half: " + graded.FloorOf(0.35f));
+            Assert.AreEqual(0.9f, graded.FloorOf(0.7f), 1e-4f);
+            Assert.AreEqual(0.9f, graded.FloorOf(0.9f), 0f);
             var cover = new byte[] { 10, 10, 250 };
             var level = new float[] { 0.02f, 0.3f, 0.3f };
             var oc = new byte[3];

@@ -823,6 +823,7 @@ namespace ReDefinition.Atmospheres
                     mi.RadiusKm = b.Radius * 0.001;
                     mi.DepthKm = CloudMesoInputs.DefaultTropopauseShare * b.atmosphereDepth * 0.001;
                     mi.Edge1Rad = mi.Edge2Rad = double.NaN;
+                    mi.SystemKm = 0.0;
                 }
                 byte[] mc = mesoCover[l], mt = mesoType[l];
                 CloudMesoStage.Apply(mesoDef, mi, cover, typeBytes, ref mc, ref mt);

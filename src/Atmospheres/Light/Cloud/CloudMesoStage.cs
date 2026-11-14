@@ -19,7 +19,9 @@ namespace ReDefinition.Atmospheres
         internal ulong Seed;
         // The body's scales (GeneratorField.CloudScalesOf): the radius, the depth of the troposphere (the unit of the patterns' sizes) and the latitudes (rad) of the edges of the first two
         // circulation cells (the unit of the climate's latitude bands; NaN: plain latitude). A caller sets them from its body; without a radius and a depth (0) the stage changes nothing.
-        internal double RadiusKm, DepthKm;        internal double Edge1Rad = double.NaN, Edge2Rad = double.NaN;
+        internal double RadiusKm, DepthKm;
+        // The shortest wavelength (km) of the body's weather systems (GeneratorField.SystemWavelengthMinKm): the unit of a frontal deck's pattern (CloudMesoSpec.ScaleSystems); 0: not known.
+        internal double SystemKm;        internal double Edge1Rad = double.NaN, Edge2Rad = double.NaN;
         // The tropopause's share of the atmosphere's depth where a body does not state its tropopause (GeneratorRules.TropopauseDepthShare's default).
         internal const double DefaultTropopauseShare = 0.15;
     }
@@ -64,11 +66,12 @@ namespace ReDefinition.Atmospheres
         {
             int w = inp.Width, h = inp.Height;
             if (output == null || output.Length != cover.Length || ReferenceEquals(output, cover)) output = new byte[cover.Length];
-            float[] u = Pattern(inp.Seed, 11, SizeKm(meso.ScaleKm, meso.ScaleDepths, inp), meso.Octaves, meso.Stretch, w, h, inp.RadiusKm);
+            float[] u = Pattern(inp.Seed, 11, PatternKm(meso, inp), meso.Octaves, meso.Stretch, w, h, inp.RadiusKm);
             float amount = meso.Amount, edge = meso.Edge, keep = meso.RainKeep, gamma = meso.Shoulder;
             double shift = ColumnShift(inp, w);
             // The edge of a field thins out into small cells (CloudMesoSpec.Scatter): a second, finer noise; null where the layer has none.
             float scatter = meso.Scatter, soft = meso.ScatterSoft;
+            float keepFrom = meso.RainKeepFrom, keepFull = meso.RainKeepFullAt;
             float[] us = scatter > 0f ? Pattern(inp.Seed, 17, SizeKm(0f, meso.ScatterDepths, inp), 2, 1f, w, h, inp.RadiusKm) : null;
             // The pattern of a cover m is a ramp over the noise rank u, from 0 at t to 1 at t + edge, raised to the power `gamma`: a field has a core of 1 and a shoulder that falls off to the gap, and
             // t is set so that the mean over u is m (the integral of the ramp is edge / (gamma + 1)); a power above 1 puts less of the area above one half than m, so that a region of m = 0.6 does not
@@ -104,7 +107,7 @@ namespace ReDefinition.Atmospheres
                     bin = Math.Min(1f, Math.Max(0f, bin));
                     if (us != null) bin += scatter * (Thin(bin, Lookup(us, w, h, i, j, shift), soft) - bin);
                     float v = m + amount * (bin - m);
-                    if (keep > 0f && inp.Precip != null) v = Math.Max(v, m * keep * Smooth(0.02f, 0.25f, inp.Precip[k] / 255f));
+                    if (keep > 0f && inp.Precip != null) v = Math.Max(v, m * keep * Smooth(keepFrom, keepFull, inp.Precip[k] / 255f));
                     output[k] = ToByte(v);
                 }
             }
@@ -244,6 +247,14 @@ namespace ReDefinition.Atmospheres
             double circumference = 2.0 * Math.PI * inp.RadiusKm;
             double texel = circumference / inp.Width;
             return (float)Math.Max(2.0 * texel, Math.Min(circumference / 6.0, km));
+        }
+
+        // The coarsest cell of a layer's cover pattern in km: an explicit km first, then the multiple of the body's shortest weather-system wavelength (a frontal deck follows its systems; ScaleSystems),
+        // else the multiple of the troposphere's depth; kept between two texels and a sixth of the circumference (SizeKm).
+        internal static float PatternKm(CloudMesoSpec meso, CloudMesoInputs inp)
+        {
+            if (!(meso.ScaleKm > 0f) && meso.ScaleSystems > 0f && inp.SystemKm > 0.0) return SizeKm((float)(meso.ScaleSystems * inp.SystemKm), 0f, inp);
+            return SizeKm(meso.ScaleKm, meso.ScaleDepths, inp);
         }
 
         // The weight curve of a map as a table over the byte (null curve: 1).

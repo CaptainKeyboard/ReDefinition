@@ -40,7 +40,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 new CloudTypeDef("Fog", 0f, 0.1f, C(0f, 0.9f, 0.7f, 0.5f, 1f, 0f), 0.2f),
                 new CloudTypeDef("Stratus", 0.1f, 0.5f, C(0f, 0f, 0.12f, 0.8f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.15f),
                 new CloudTypeDef("Nimbostratus", 0.05f, 1f, C(0f, 0.1f, 0.08f, 0.9f, 0.6f, 1f, 0.9f, 0.6f, 1f, 0f), 0.2f));
-            rain.Deck = new WeatherDeckRule { RainFloor = 0.9f };
+            rain.Deck = new WeatherDeckRule { RainFloor = 0.9f, RainFloorFullAt = 0.7f };
+            rain.Meso = new CloudMesoSpec { ScaleSystems = 0.6f, Octaves = 2, Amount = 1f, Edge = 0.5f, Shoulder = 3f, Cells = true, Stretch = 1f, RainKeep = 0.8f, RainKeepFrom = 0.4f, RainKeepFullAt = 0.8f, Scatter = 1f, ScatterDepths = 3f };
             // The soft water content's numbers of the cfg (E40 soft density): a softer, flatter deck.
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
@@ -83,7 +84,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[4].Climate = Climate(C(0f, 0.6f, 0.5f, 1f, 1f, 0.7f), null, null, null);
             cumulus.TypePatchDepths = 6.7f;
             cumulus.TypePatchBlend = 0.06f;
-            cumulus.Meso = new CloudMesoSpec { ScaleDepths = 5.25f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0f };
+            cumulus.Meso = new CloudMesoSpec { ScaleDepths = 5.25f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0f, Scatter = 1f, ScatterDepths = 3f };
             return cumulus;
         }
 
@@ -100,7 +101,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cb.VerticalScale = 0.6f;
             cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.12f, 1f, 0.28f);
             cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.18f, 0.7f, 0.18f, 0.9f, 0f, 1f, 0f);
-            cb.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f };
+            cb.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f, Scatter = 1f, ScatterDepths = 3f };
             return cb;
         }
 
@@ -121,7 +122,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cirrus.Types[0].Climate = Climate(null, null, null, C(0f, 1f, 0.3f, 0.45f, 1f, 0.15f));
             cirrus.Types[1].Climate = Climate(C(0f, 0.3f, 0.5f, 1f, 1f, 0.8f), null, C(0f, 0.2f, 0.6f, 1f, 1f, 1f), C(0f, 0.25f, 0.3f, 1f, 1f, 1f));
             cirrus.TypePatchDepths = 10.5f;
-            cirrus.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.35f, Shoulder = 1f, Cells = true, Stretch = 2.5f, RainKeep = 0f };
+            cirrus.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.35f, Shoulder = 1f, Cells = true, Stretch = 2.5f, RainKeep = 0f, Scatter = 1f, ScatterDepths = 3f };
             return cirrus;
         }
     }

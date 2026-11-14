@@ -278,6 +278,7 @@ namespace ReDefinition.Atmospheres
             target.DepthKm = s.Parameters.TropopauseM * 0.001;
             target.Edge1Rad = d.Edge1;
             target.Edge2Rad = d.Edge2;
+            target.SystemKm = SystemWavelengthMinKm(bodyIndex);
             return true;
         }
 
@@ -287,6 +288,14 @@ namespace ReDefinition.Atmospheres
             GeneratorState s = StateOf(bodyIndex);
             if (s == null || s.Broken) return 0.0;
             return 3.0 * s.Generator.D.SystemRadiusM * s.Parameters.SystemLambdaMin * 0.001;
+        }
+
+        // The longest wavelength (km) of the body's frontal systems (the same law with the largest wavelength factor); 0: no state.
+        internal double SystemWavelengthMaxKm(int bodyIndex)
+        {
+            GeneratorState s = StateOf(bodyIndex);
+            if (s == null || s.Broken) return 0.0;
+            return 3.0 * s.Generator.D.SystemRadiusM * s.Parameters.SystemLambdaMax * 0.001;
         }
 
         // The angular rate (rad/s, eastward) at which a pattern fixed to the clouds of a layer at a height moves over the ground (E40 L3, the meso pattern of CloudMesoStage): the rate of the

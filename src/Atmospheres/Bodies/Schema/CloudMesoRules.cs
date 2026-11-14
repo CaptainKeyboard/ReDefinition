@@ -15,6 +15,9 @@ namespace ReDefinition.Atmospheres
         // (the mesoscale organisation of convection scales with the depth it fills: cells and fields of a few to ten depths); cfg key scaleKm, where set (above 0), is the size in km instead.
         internal float ScaleDepths { get; set; } = 4.3f;
         internal float ScaleKm { get; set; }
+        // The same in multiples of the shortest wavelength of the body's weather systems (cfg key scaleSystems; 0: not used; scaleKm wins where both are set): the pattern of a frontal deck follows the
+        // size of the systems that carry it, which is the body's own (Rossby radius), not the troposphere's depth.
+        internal float ScaleSystems { get; set; }
         // The type patches' default size in depths of the troposphere (CloudLayerSpec.TypePatchDepths).
         internal const float DefaultTypePatchDepths = 6.7f;
         internal int Octaves { get; set; } = 2;
@@ -31,6 +34,10 @@ namespace ReDefinition.Atmospheres
         internal float Stretch { get; set; } = 1f;
         // The share of the generator's cover that stays where precipitation falls (1: the pattern never opens a gap in rain; 0: it may).
         internal float RainKeep { get; set; } = 1f;
+        // The precipitation levels (the PrecipScale level, 0 to 1) between which rainKeep takes hold, smoothly: none below RainKeepFrom, the whole of it from RainKeepFullAt (cfg keys
+        // rainKeepFrom, rainKeepFullAt; the defaults are the stage's old fixed 0.02 and 0.25).
+        internal float RainKeepFrom { get; set; } = 0.02f;
+        internal float RainKeepFullAt { get; set; } = 0.25f;
         // How far the field's edge is a thinning-out of small cells instead of a smooth ramp, 0 to 1 (cfg key scatter; 0, the default: the plain ramp). A real field of cumulus thins out
         // towards its edge into scattered small cells and fragments; the ramp's value r (0 in the gap, 1 in the core) becomes the DENSITY of cells: a texel is cloud where a second, finer
         // noise lies below r (with a soft step of ScatterSoft), so the mean over the edge is the ramp's mean exactly and a region keeps its cover.
