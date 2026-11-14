@@ -25,6 +25,11 @@ namespace AtmoSim.Core
         public double TropopauseM = 11000.0;
         // Day-night surface temperature swing of dry land under a clear sky at the equator.
         public double DiurnalLandAmpK = 6.0;
+        // P1 (planet independence): the lengths, heights and speeds of the weather's smaller structures follow the body's own scales (BodyDerived.DepthM, JetSpeed0, the deformation radius) instead of
+        // fixed metres. false = the fixed numbers of the rounds before (the historical profiles Round1 to Round3 and Signed set it so that their hashes reproduce).
+        public bool BodyScaledLengths = true;
+        // The system radius as a share of the deformation radius (Rossby), and the bounds of the system radius as shares of the body radius.
+        public double SystemRadiusFactor = 0.75, SystemRadiusMinShare = 0.12, SystemRadiusMaxShare = 0.45;
         // Measured sea-level zonal-mean temperature at |latitude| 0, 15, ..., 90 degrees (the B09 dump of KSP's temperature curves); null uses the insolation model.
         public double[] ProfileK;
         // Seasonal lag of the sea surface behind the sun, in days of the body's year fraction (0.07 = 7 % of the year).
@@ -173,6 +178,7 @@ namespace AtmoSim.Core
         public BodyParams Round3()
         {
             var p = Clone();
+            p.BodyScaledLengths = false;
             p.HeightWind = false;
             p.PrecipTypeLegacy = true;
             return p;
@@ -182,6 +188,7 @@ namespace AtmoSim.Core
         public BodyParams Round2()
         {
             var p = Clone();
+            p.BodyScaledLengths = false;
             p.HeightWind = false;
             p.PrecipTypeLegacy = true;
             p.Round3Systems = false; p.MatureStructure = false; p.Round3Itcz = false; p.SnowRadiativeHeatK = 0.0; p.IceSnowMemoryDays = 0.0;

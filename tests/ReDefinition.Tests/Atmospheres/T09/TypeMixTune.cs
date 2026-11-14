@@ -25,7 +25,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Directory.CreateDirectory(output);
             CloudLayerDef layer = TypeMixFixture.ShippedLayers()[1];
             var meso = layer.Meso;
-            meso.ScaleKm = Env("TUNE_SCALE", meso.ScaleKm);
+            meso.ScaleDepths = Env("TUNE_SCALE", meso.ScaleDepths);
             meso.Octaves = (int)Env("TUNE_OCT", meso.Octaves);
             meso.Amount = Env("TUNE_AMOUNT", meso.Amount);
             meso.Edge = Env("TUNE_EDGE", meso.Edge);
@@ -38,7 +38,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 {
                     var cover = new byte[512 * 256];
                     for (int i = 0; i < cover.Length; i++) cover[i] = (byte)level;
-                    var inp = new CloudMesoInputs { Width = 512, Height = 256, Precip = null, Ut = 3.0e6, Seed = seed, RadiusKm = 600.0 };
+                    var inp = TypeMixFixture.HomeScales(new CloudMesoInputs { Width = 512, Height = 256, Precip = null, Ut = 3.0e6, Seed = seed });
                     byte[] coverOut = null, typeOut = null;
                     CloudMesoStage.Apply(layer, inp, cover, new byte[cover.Length], ref coverOut, ref typeOut);
                     for (int j = 40; j < 216; j++) for (int i = 0; i < 512; i++) { sum += coverOut[j * 512 + i] / 255.0; rows++; }
@@ -57,7 +57,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             int index = (int)Env("TUNE_LAYER", 1);
             CloudLayerDef layer = TypeMixFixture.ShippedLayers()[index];
             var meso = layer.Meso ?? new CloudMesoSpec();
-            meso.ScaleKm = Env("TUNE_SCALE", meso.ScaleKm);
+            meso.ScaleDepths = Env("TUNE_SCALE", meso.ScaleDepths);
             meso.Octaves = (int)Env("TUNE_OCT", meso.Octaves);
             meso.Amount = Env("TUNE_AMOUNT", meso.Amount);
             meso.Edge = Env("TUNE_EDGE", meso.Edge);
@@ -72,7 +72,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     string tag = "s" + seed + "_t" + k + "_";
                     byte[] precip = File.ReadAllBytes(Path.Combine(input, tag + "precip.u8"));
                     byte[] cover = File.ReadAllBytes(Path.Combine(input, tag + layer.Name + "_cover.u8"));
-                    var inp = new CloudMesoInputs { Width = 512, Height = 256, Precip = precip, Ut = 3.0e6 + k * TypeMixFixture.Day / 8, DriftRadS = 0.0, Seed = (ulong)seed, RadiusKm = 600.0 };
+                    var inp = TypeMixFixture.HomeScales(new CloudMesoInputs { Width = 512, Height = 256, Precip = precip, Ut = 3.0e6 + k * TypeMixFixture.Day / 8, DriftRadS = 0.0, Seed = (ulong)seed });
                     byte[] coverOut = null, typeOut = null;
                     CloudMesoStage.Apply(layer, inp, cover, new byte[cover.Length], ref coverOut, ref typeOut);
                     File.WriteAllBytes(Path.Combine(output, tag + layer.Name + "_cover.u8"), coverOut);

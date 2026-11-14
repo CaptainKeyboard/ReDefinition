@@ -14,15 +14,21 @@ namespace ReDefinition.Atmospheres
         // The layer maps at the mid-level sheet's height and at the fair-weather type's height (CloudLookTuning.ApplyAlto); null: no sheet.
         internal byte[] AltoMid, AltoLow;
         internal double Ut;
-        // The rate (rad/s, eastward) the patterns turn at (GeneratorField.CloudDriftRadS) and the body's seed and radius.
+        // The rate (rad/s, eastward) the patterns turn at (GeneratorField.CloudDriftRadS) and the body's seed.
         internal double DriftRadS;
         internal ulong Seed;
-        internal double RadiusKm = 600.0;
+        // The body's scales (GeneratorField.CloudScalesOf): the radius, the depth of the troposphere (the unit of the patterns' sizes) and the latitudes (rad) of the edges of the first two
+        // circulation cells (the unit of the climate's latitude bands; NaN: plain latitude). A caller sets them from its body; without a radius and a depth (0) the stage changes nothing.
+        internal double RadiusKm, DepthKm;
+        internal double Edge1Rad = double.NaN, Edge2Rad = double.NaN;
+        // The tropopause's share of the atmosphere's depth where a body does not state its tropopause (GeneratorRules.TropopauseDepthShare's default).
+        internal const double DefaultTropopauseShare = 0.15;
     }
 
-    // E40 L3: the stage between the generator's maps and the layer pass that gives a layer's cover and type the sizes of a planet of Kerbin's radius (see CloudMesoRules.cs).
+    // E40 L3: the stage between the generator's maps and the layer pass that gives a layer's cover and type the mesoscale sizes of the body: patterns of a few to ten depths of its troposphere,
+    // its climate bands following its circulation cells (see CloudMesoRules.cs; P1: no size or latitude is Kerbin's).
     //
-    // The global maps are 512 x 256 (7.4 km a texel on Kerbin), made of frontal systems and ITCZ clusters of 300 km and more; the layer pass multiplies them with noise of a few km. This
+    // The global maps are 512 x 256 (7.4 km a texel on Kerbin), made of frontal systems and ITCZ clusters of the body's system size; the layer pass multiplies them with noise of a few km. This
     // stage fills the band between, with two patterns of noise on the sphere that turn with the layer's wind:
     //  - cover: the map m of a texel is replaced by (1 - a) m + a x B, B the pattern of cloud and gap whose share is m (the noise rank against 1 - m, with a soft edge), so a region keeps
     //    its mean cover and gets fields and clear gaps of the pattern's size; where the field rains the cover stays (RainKeep);
@@ -41,6 +47,12 @@ namespace ReDefinition.Atmospheres
         internal static void Apply(CloudLayerDef layer, CloudMesoInputs inp, byte[] coverIn, byte[] typeIn, ref byte[] coverOut, ref byte[] typeOut)
         {
             CloudMesoSpec meso = layer.Meso;
+            if (!(inp.RadiusKm > 0.0) || !(inp.DepthKm > 0.0))
+            {
+                coverOut = coverIn;
+                typeOut = typeIn;
+                return;
+            }
             if (meso != null && meso.On) ApplyCover(layer, meso, inp, coverIn, ref coverOut);
             else coverOut = coverIn;
             if (layer.HasClimate && layer.Deck == null) ApplyType(layer, inp, typeIn, ref typeOut);
@@ -53,7 +65,7 @@ namespace ReDefinition.Atmospheres
         {
             int w = inp.Width, h = inp.Height;
             if (output == null || output.Length != cover.Length || ReferenceEquals(output, cover)) output = new byte[cover.Length];
-            float[] u = Pattern(inp.Seed, 11, meso.ScaleKm, meso.Octaves, meso.Stretch, w, h, inp.RadiusKm);
+            float[] u = Pattern(inp.Seed, 11, SizeKm(meso.ScaleKm, meso.ScaleDepths, inp), meso.Octaves, meso.Stretch, w, h, inp.RadiusKm);
             float amount = meso.Amount, edge = meso.Edge, keep = meso.RainKeep, gamma = meso.Shoulder;
             double shift = ColumnShift(inp, w);
             // The pattern of a cover m is a ramp over the noise rank u, from 0 at t to 1 at t + edge, raised to the power `gamma`: a field has a core of 1 and a shoulder that falls off to the gap, and
@@ -116,7 +128,7 @@ namespace ReDefinition.Atmospheres
                 CloudClimateSpec c = layer.Types[slots[s]].Climate;
                 baseWeight[s] = c == null ? 1f : c.Weight;
                 lat[s] = new float[h];
-                for (int j = 0; j < h; j++) lat[s][j] = CloudClimateSpec.Eval(c == null ? null : c.Latitude, Math.Abs(90f - (j + 0.5f) * 180f / h) / 90f);
+                for (int j = 0; j < h; j++) lat[s][j] = CloudClimateSpec.Eval(c == null ? null : c.Latitude, LatitudeCoordinate(inp, j, h));
                 hum[s] = Table(c == null ? null : c.Humidity);
                 prec[s] = Table(c == null ? null : c.Precipitation);
                 surf[s] = Table(c == null ? null : c.Surface);
@@ -128,12 +140,12 @@ namespace ReDefinition.Atmospheres
                 CloudClimateSpec c = layer.Types[alto].Climate;
                 altoBase = c == null ? 1f : c.Weight;
                 altoLat = new float[h];
-                for (int j = 0; j < h; j++) altoLat[j] = CloudClimateSpec.Eval(c == null ? null : c.Latitude, Math.Abs(90f - (j + 0.5f) * 180f / h) / 90f);
+                for (int j = 0; j < h; j++) altoLat[j] = CloudClimateSpec.Eval(c == null ? null : c.Latitude, LatitudeCoordinate(inp, j, h));
                 altoHum = Table(c == null ? null : c.Humidity);
                 altoPrec = Table(c == null ? null : c.Precipitation);
                 altoSurf = Table(c == null ? null : c.Surface);
             }
-            float[] u = Pattern(inp.Seed, 29, layer.TypePatchKm, 2, 1f, w, h, inp.RadiusKm);
+            float[] u = Pattern(inp.Seed, 29, SizeKm(layer.TypePatchKm, layer.TypePatchDepths, inp), 2, 1f, w, h, inp.RadiusKm);
             double shift = ColumnShift(inp, w);
             float blend = layer.TypePatchBlend;
             float fair = layer.FairType >= 0f ? layer.FairType : 0f;
@@ -185,6 +197,31 @@ namespace ReDefinition.Atmospheres
                     output[k] = ToByte(value);
                 }
             }
+        }
+
+        // The latitude coordinate (0 at the equator, 1 at the pole) the climate's LATITUDE curves are written in: a third of the way is the edge of the first circulation cell (the tropics), two thirds
+        // the edge of the second (the mid-latitudes), so a band of the curve follows the body's own circulation. A body with three cells per hemisphere at 30 and 60 degrees has the plain
+        // latitude / 90 degrees; two cells (the second edge at the pole) put the middle of the range at the first edge; one cell (the edge at the pole) has the plain latitude. NaN edges: plain.
+        internal static float LatitudeCoordinate(CloudMesoInputs inp, int row, int rows)
+        {
+            double lat = Math.Abs(90.0 - (row + 0.5) * 180.0 / rows) * (Math.PI / 180.0);
+            double e1 = inp.Edge1Rad, e2 = inp.Edge2Rad, pole = 0.5 * Math.PI;
+            double x = lat / pole;
+            if (double.IsNaN(e1) || e1 < 0.05 || e1 >= pole - 1e-3) return (float)x;
+            if (double.IsNaN(e2) || e2 >= pole - 1e-3 || e2 <= e1 + 0.05)
+                return (float)(lat <= e1 ? lat / e1 / 3.0 : 1.0 / 3.0 + (lat - e1) / (pole - e1) * (2.0 / 3.0));
+            if (lat <= e1) return (float)(lat / e1 / 3.0);
+            if (lat <= e2) return (float)(1.0 / 3.0 + (lat - e1) / (e2 - e1) / 3.0);
+            return (float)(2.0 / 3.0 + (lat - e2) / (pole - e2) / 3.0);
+        }
+
+        // The size of a pattern in km: the explicit km of the cfg where it has one, else the cfg's multiple of the body's troposphere depth; kept between two texels and a sixth of the circumference.
+        internal static float SizeKm(float explicitKm, float depths, CloudMesoInputs inp)
+        {
+            double km = explicitKm > 0f ? explicitKm : depths * inp.DepthKm;
+            double circumference = 2.0 * Math.PI * inp.RadiusKm;
+            double texel = circumference / inp.Width;
+            return (float)Math.Max(2.0 * texel, Math.Min(circumference / 6.0, km));
         }
 
         // The weight curve of a map as a table over the byte (null curve: 1).

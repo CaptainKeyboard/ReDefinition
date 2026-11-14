@@ -267,6 +267,28 @@ namespace ReDefinition.Atmospheres
             return s == null ? 0UL : s.Seed;
         }
 
+        // P1 (planet independence): the scales of a body that the cloud stage sizes its patterns by: the body's radius and the depth of its troposphere (the unit of the mesoscale patterns), and the
+        // latitudes of the edges of its circulation cells (the unit of the climate's latitude bands). A body without a generator gets the fallbacks of the stage (no scale: the stage keeps its inputs).
+        internal bool CloudScalesOf(int bodyIndex, CloudMesoInputs target)
+        {
+            GeneratorState s = StateOf(bodyIndex);
+            if (s == null || s.Broken || target == null) return false;
+            BodyDerived d = s.Generator.D;
+            target.RadiusKm = s.Parameters.RadiusM * 0.001;
+            target.DepthKm = s.Parameters.TropopauseM * 0.001;
+            target.Edge1Rad = d.Edge1;
+            target.Edge2Rad = d.Edge2;
+            return true;
+        }
+
+        // The shortest wavelength (km) of the body's frontal systems: 3 r times the shortest wavelength factor, r the system radius of the Rossby law (BodyDerived.SystemRadiusM); 0: no state.
+        internal double SystemWavelengthMinKm(int bodyIndex)
+        {
+            GeneratorState s = StateOf(bodyIndex);
+            if (s == null || s.Broken) return 0.0;
+            return 3.0 * s.Generator.D.SystemRadiusM * s.Parameters.SystemLambdaMin * 0.001;
+        }
+
         // The angular rate (rad/s, eastward) at which a pattern fixed to the clouds of a layer at a height moves over the ground (E40 L3, the meso pattern of CloudMesoStage): the rate of the
         // generator's own systems at the storm-track latitude plus the layer's rate against them (HeightWind.LayerRate, the same function the layer maps use; windShear off: none).
         // One rate, so the pattern turns rigidly and does not shear into stripes.
@@ -397,19 +419,27 @@ namespace ReDefinition.Atmospheres
         // The density factor of a convective tower of the plain window at an altitude (0 to the cell strength).
         private static double TowerShare(ref Weather w, double alt)
         {
-            return w.CellStrength * DMath.SmoothStep(300.0, 1500.0, alt) * (1.0 - DMath.SmoothStep(w.CellTopM - 1500.0, w.CellTopM, alt));
+            double hs = HeightScaleOf(ref w);
+            return w.CellStrength * DMath.SmoothStep(300.0 * hs, 1500.0 * hs, alt) * (1.0 - DMath.SmoothStep(w.CellTopM - 1500.0 * hs, w.CellTopM, alt));
+        }
+
+        // The factor on the fixed heights of the column (BodyDerived.HeightScale, carried by the sample); 1 where the sample has none.
+        private static double HeightScaleOf(ref Weather w)
+        {
+            return w.HeightScale > 0.0 ? w.HeightScale : 1.0;
         }
 
         // The vertical wind of a point in m/s (WeatherSample.WindWorld.z): with verticalMotion on and a wind-by-height generator the signed rise of the
         // tower at its life phase (LayerCoupling) plus the broad lift of the column, as the layered window has it; else the plain window's updraft.
         internal static double VerticalWindMs(ref Weather w, double altM, bool layered)
         {
-            double lift = 0.3 * w.Uplift * DMath.SmoothStep(0.0, 1500.0, altM);
+            double hs = HeightScaleOf(ref w);
+            double lift = 0.3 * w.Uplift * DMath.SmoothStep(0.0, 1500.0 * hs, altM);
             if (!layered) return TowerShare(ref w, altM) * WindowCellUpdraftMs + lift;
             if (!(w.CellStrength > 0.0)) return lift;
             double top = LayerCoupling.TopNow(ref w, VerticalOptions);
             double rise = LayerCoupling.TopRiseMs(ref w, VerticalOptions);
-            return rise * DMath.SmoothStep(0.0, 0.04, w.CellStrength) * DMath.SmoothStep(300.0, 1500.0, altM) * (1.0 - DMath.SmoothStep(top - 300.0, top + 300.0, altM)) + lift;
+            return rise * DMath.SmoothStep(0.0, 0.04, w.CellStrength) * DMath.SmoothStep(300.0 * hs, 1500.0 * hs, altM) * (1.0 - DMath.SmoothStep(top - 300.0 * hs, top + 300.0 * hs, altM)) + lift;
         }
 
         private static readonly LayerOptions VerticalOptions = new LayerOptions();

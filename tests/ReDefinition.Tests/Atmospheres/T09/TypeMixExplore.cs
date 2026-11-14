@@ -27,14 +27,24 @@ namespace ReDefinition.Tests.Atmospheres.T09
             bool stage = Environment.GetEnvironmentVariable("TYPEMIX_STAGE") != "0";
             Directory.CreateDirectory(folder);
             int[] seeds = { 1, 2, 3 };
-            int times = 8;
+            int times = 8, firstTime = 0, lastTime = 7;
+            // TYPEMIX_ONLY=<seed>:<time>: that one map of the eight times of the seed (the e40-body series needs one)
+            string only = Environment.GetEnvironmentVariable("TYPEMIX_ONLY");
+            if (!string.IsNullOrEmpty(only))
+            {
+                string[] part = only.Split(':');
+                seeds = new[] { int.Parse(part[0]) };
+                firstTime = lastTime = int.Parse(part[1]);
+            }
             double t0 = 3.0e6;
-            CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
+            // TYPEMIX_BODY=second: the second body of the P1 tests (FieldFixture.SecondFacts) with Kerbin's layer set scaled to its troposphere (TypeMixFixture.ShippedLayersScaled).
+            bool second = Environment.GetEnvironmentVariable("TYPEMIX_BODY") == "second";
+            CloudLayerDef[] layers = second ? TypeMixFixture.ShippedLayersScaled(7.5 / 10.5) : TypeMixFixture.ShippedLayers();
             LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
             try
             {
                 var meta = new StringBuilder();
-                meta.AppendLine("width " + GeneratorMaps.Width + " height " + GeneratorMaps.Height + " radiusM 600000 day " + TypeMixFixture.Day + " t0 " + t0 + " stage " + (stage ? 1 : 0));
+                meta.AppendLine("width " + GeneratorMaps.Width + " height " + GeneratorMaps.Height + " radiusM " + (second ? 500000 : 600000) + " day " + (second ? FieldFixture.SecondFacts().DaySeconds : TypeMixFixture.Day) + " t0 " + t0 + " stage " + (stage ? 1 : 0));
                 foreach (CloudLayerDef l in layers)
                 {
                     meta.Append("layer " + l.Name + " mid " + CloudBridgeStack.MidHeightM(l) + " types");
@@ -44,17 +54,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 File.WriteAllText(Path.Combine(folder, "meta.txt"), meta.ToString());
                 int w, h;
                 bool ocean;
-                float[] heights = DumpReader.Heights("Kerbin", out w, out h, out ocean);
+                float[] heights = DumpReader.Heights(second ? "Laythe" : "Kerbin", out w, out h, out ocean);
                 var hb = new byte[heights.Length * 4];
                 Buffer.BlockCopy(heights, 0, hb, 0, hb.Length);
                 File.WriteAllBytes(Path.Combine(folder, "heights_" + w + "x" + h + ".f32"), hb);
                 foreach (int seed in seeds)
                 {
-                    GeneratorField field = FieldFixture.Field(seed);
+                    GeneratorField field = second ? FieldFixture.SecondField(seed) : FieldFixture.Field(seed);
                     int body = FieldFixture.BodyIndex;
-                    for (int k = 0; k < times; k++)
+                    for (int k = firstTime; k <= lastTime; k++)
                     {
-                        double ut = t0 + k * TypeMixFixture.Day / times;
+                        double ut = t0 + k * (second ? FieldFixture.SecondFacts().DaySeconds : TypeMixFixture.Day) / times;
                         string tag = "s" + seed + "_t" + k + "_";
                         TypeMixFixture.Shared shared = TypeMixFixture.Maps(field, body, ut);
                         Dump(folder, tag + "sharedCover", shared.Cover.Bytes);

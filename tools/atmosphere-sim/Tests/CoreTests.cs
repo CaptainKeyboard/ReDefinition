@@ -736,7 +736,9 @@ namespace AtmoSim.Tests
             Assert.AreEqual(h, Timing.HashQueries(new WeatherGenerator(BodyParams.KerbinLike(), 1), q, order, 0));
         }
 
-        public const ulong GoldenRound4Hash = 0x7CAF7C7A93CDAAB6UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 4 (E43)
+        // Re-recorded by P1 (planet independence): the convective lengths, drifts and column heights follow the body's troposphere and jet speed (BodyDerived.CellLatticeM ...; the Kerbin-like set has a
+        // troposphere of 11000 m against the calibration 10500 m: HeightScale 1.048). Before: 0x7CAF7C7A93CDAAB6. Rounds 1 to 3 and Signed() keep their hashes (BodyScaledLengths false).
+        public const ulong GoldenRound4Hash = 0x2D072A29599D4050UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 4 (E43)
         public const ulong GoldenRound2Hash = 0xD01F43163C7A1646UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, levers of tuning round 2 (Round2())
         public const ulong GoldenRound3Hash = 0xA3F0491D2808765FUL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 3
 

@@ -26,6 +26,14 @@ namespace AtmoSim.Tests
 
         private static WeatherGenerator Kerbin() { return new WeatherGenerator(BodyParams.KerbinLike(), 1); }
 
+        // The body the column heights were fitted for (a troposphere of BodyDerived.CalibrationTropopauseM: HeightScale 1): the game's home planet (0.15 of its 70 km atmosphere).
+        private static WeatherGenerator KerbinCalibrated()
+        {
+            BodyParams p = BodyParams.KerbinLike();
+            p.TropopauseM = BodyDerived.CalibrationTropopauseM;
+            return new WeatherGenerator(p, 1);
+        }
+
         private static double Speed(double e, double n) { return Math.Sqrt(e * e + n * n); }
 
         // ---- L0: the profile ----------------------------------------------------------------------------------------------
@@ -555,7 +563,7 @@ namespace AtmoSim.Tests
         [TestMethod]
         public void ATowerIsOneConnectedBodyWithItsAnvilFromTheSameCell()
         {
-            var g = Kerbin();
+            var g = KerbinCalibrated();
             int controlGaps = TowerGaps(g, new LayerOptions { Deck = false, Couple = true, TiltReach = 4.0 }, 0, out int controlColumns, out double controlWorst);
             // the control: a lean ten times the reach tears the tower apart, so the row below is able to fail
             Row("E43.tower_gaps_control_unbounded_lean", controlGaps, "> 0", controlColumns + " columns with the reach of the lean lifted to 4 lattice spacings, worst gap " + controlWorst.ToString("0") + " m");
@@ -564,6 +572,27 @@ namespace AtmoSim.Tests
             Assert.IsTrue(columns >= 40, "columns " + columns);
             Row("E43.tower_columns_with_gap", gaps, "= 0", columns + " tower columns, worst gap " + worstGapM.ToString("0") + " m, density threshold 5 % of the column maximum, 200 m steps");
             Assert.AreEqual(0, gaps, "worst gap " + worstGapM);
+        }
+
+        // P1: the column heights scale with the troposphere (BodyDerived.HeightScale), so a tower is as connected on a body of another depth. Measured over the four depths: 1 column of 1350 has a gap
+        // (600 m, at 11000 m: the half-way lookup of the lean finds a weak cell, a rare tear the calibrated body does not show in its 351 columns); the bound is 0.5 % of the columns and 800 m.
+        [TestMethod]
+        public void ATowerIsConnectedOnBodiesOfAnotherTroposphereToo()
+        {
+            int columns = 0, gaps = 0;
+            double worst = 0.0;
+            foreach (double troposphereM in new[] { 7500.0, 9000.0, 11000.0, 14000.0 })
+            {
+                BodyParams p = BodyParams.KerbinLike();
+                p.TropopauseM = troposphereM;
+                var g = new WeatherGenerator(p, 1);
+                gaps += TowerGaps(g, new LayerOptions { Deck = false, Couple = true }, 0, out int c, out double w);
+                columns += c;
+                worst = Math.Max(worst, w);
+            }
+            Row("P1.tower_columns_with_gap_over_depths", gaps, "<= 0.5 %", columns + " tower columns on four troposphere depths, worst gap " + worst.ToString("0") + " m");
+            Assert.IsTrue(columns >= 1000, "columns " + columns);
+            Assert.IsTrue(gaps <= 0.005 * columns && worst <= 800.0, gaps + " of " + columns + " columns with a gap, worst " + worst);
         }
 
         private static int TowerGaps(WeatherGenerator g, LayerOptions o, int unused, out int columns, out double worstGapM)

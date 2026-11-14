@@ -39,6 +39,22 @@ namespace AtmoSim.Core
         public readonly double PressureAmpPa, FrontAmpK, FrontSharpness, FrontRefKPer100Km;
         // Lattice of convective cells
         public readonly double CellLatticeM;
+        // P1 (planet independence): the smaller structures follow the body's own scales.
+        //  - Lengths of convective and boundary-layer structures (the cell lattice, the patches of trade-wind cumulus, the rain cells inside a rain area, the gust cells) are multiples of the
+        //    depth of the troposphere (BodyParams.TropopauseM): convection fills the troposphere, and its cells and mesoscale organisation have an aspect ratio of order one to ten to it.
+        //  - The fixed heights of the cloud columns (tower base, tower shape, thinning, anvil: LayerCoupling, Weather.DensityAt) were fitted for a troposphere of CalibrationTropopauseM and
+        //    scale in proportion to the body's (HeightScale).
+        //  - The speeds at which the smaller patterns drift are fractions of the body's own jet speed.
+        //  - The systems' length is the deformation radius already (SystemRadiusM, the Rossby law), not a fraction of the body radius.
+        // BodyParams.BodyScaledLengths false restores the fixed numbers.
+        public const double CalibrationTropopauseM = 10500.0;
+        public const double CellLatticeDepths = 1.46, TradePatchDepths1 = 5.0, TradePatchDepths2 = 8.5, RainCellDepths = 2.0, GustCellDepths = 2.3;
+        public const double CellLatticeMinShare = 0.02, CellLatticeMaxShare = 0.06;
+        public const double TradeDriftJetShare = 0.23, RainDriftJetShare = 0.70, ItczWaveJetShare = 0.34;
+        public readonly double HeightScale;
+        // The trade-wind cumulus patches (two lattices), the rain cells and the gust cells in radians of arc; the drift speeds (m/s) of the trade-wind pattern, the rain cells and the ITCZ waves.
+        public readonly double TradePatchRad1, TradePatchRad2, RainCellRad, GustCellRad;
+        public readonly double TradeDriftMs, RainDriftMs, ItczWaveMs;
         // Absolute precipitation bands, mm/h of water equivalent: flurries start, light, moderate, heavy, blizzard threshold
         public readonly double[] BandsMmH;
         // Steering wind of convective cells by |latitude|, every 0.5 degree from 0 to 90
@@ -53,7 +69,7 @@ namespace AtmoSim.Core
             Brunt = DMath.Sqrt(n2);
             double fSafe = DMath.Max(F45, 1e-9);
             DeformationRadiusM = Brunt * b.TropopauseM / fSafe;
-            SystemRadiusM = DMath.Clamp(0.75 * DeformationRadiusM, 0.12 * A, 0.45 * A);
+            SystemRadiusM = DMath.Clamp(b.SystemRadiusFactor * DeformationRadiusM, b.SystemRadiusMinShare * A, b.SystemRadiusMaxShare * A);
 
             JetCount = 0.5 * DMath.Sqrt(2.0 * Omega * A / UReferenceMs);
             Cells = JetCount >= RhinesCells3 ? 3 : (JetCount >= RhinesCells2 ? 2 : 1);
@@ -90,7 +106,22 @@ namespace AtmoSim.Core
             FrontSharpness = 1.6;
             FrontRefKPer100Km = 5.0 * (b.SurfaceMeanK / 288.0);
 
-            CellLatticeM = DMath.Clamp(50e3 * DMath.Sqrt(A / 6.371e6), 12e3, 32e3);
+            double depth = b.TropopauseM;
+            bool scaled = b.BodyScaledLengths && depth > 0.0;
+            HeightScale = scaled ? depth / CalibrationTropopauseM : 1.0;
+            if (scaled)
+            {
+                CellLatticeM = DMath.Clamp(CellLatticeDepths * depth, CellLatticeMinShare * A, CellLatticeMaxShare * A);
+                TradePatchRad1 = TradePatchDepths1 * depth / A; TradePatchRad2 = TradePatchDepths2 * depth / A;
+                RainCellRad = RainCellDepths * depth / A; GustCellRad = GustCellDepths * depth / A;
+                TradeDriftMs = TradeDriftJetShare * JetSpeed0; RainDriftMs = RainDriftJetShare * JetSpeed0; ItczWaveMs = ItczWaveJetShare * JetSpeed0;
+            }
+            else
+            {
+                CellLatticeM = DMath.Clamp(50e3 * DMath.Sqrt(A / 6.371e6), 12e3, 32e3);
+                TradePatchRad1 = 0.09; TradePatchRad2 = 0.15; RainCellRad = 0.035; GustCellRad = 0.04;
+                TradeDriftMs = 4.0; RainDriftMs = 12.0; ItczWaveMs = WeatherGenerator.ItczWaveSpeedMs;
+            }
 
             double k = b.PrecipBodyFactor;
             BandsMmH = new[] { 0.05 * k, 0.25 * k, 1.0 * k, 3.0 * k, 8.0 * k };

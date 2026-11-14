@@ -205,9 +205,11 @@ namespace ReDefinition.Atmospheres
         internal float AltoFrom { get; set; } = 0.05f;
         internal float AltoFull { get; set; } = 0.3f;
         // The meso-scale cover pattern of the layer (E40 L3; cfg node MESO, null: none) and the type patches: the types are picked from their CLIMATE weights (any type with a CLIMATE
-        // node turns this on) by a noise whose cells are TypePatchKm wide (cfg key typePatchKm), the transition between two types takes TypePatchBlend of the noise's rank range.
+        // node turns this on) by a noise whose cells are TypePatchDepths troposphere depths of the body wide (cfg key typePatchDepths; typePatchKm, where set, is the size in km instead),
+        // the transition between two types takes TypePatchBlend of the noise's rank range.
         internal CloudMesoSpec Meso { get; set; }
-        internal float TypePatchKm { get; set; } = 70f;
+        internal float TypePatchKm { get; set; }
+        internal float TypePatchDepths { get; set; } = CloudMesoSpec.DefaultTypePatchDepths;
         internal float TypePatchBlend { get; set; } = 0.06f;
 
         // Whether the types of the layer are picked from their climate (CloudMesoStage) and not from the precipitation level alone.

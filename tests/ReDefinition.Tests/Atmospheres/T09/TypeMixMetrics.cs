@@ -3,15 +3,34 @@ using System.Collections.Generic;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // The sizes and the type mix of a map pair (cover and type bytes of 512 x 256, row 0 north, Kerbin's radius), as tools/e40_type_mix.py measures them, below 60 degrees latitude.
+    // The sizes and the type mix of a map pair (cover and type bytes of 512 x 256, row 0 north), as tools/e40_type_mix.py measures them, below 60 degrees latitude. The body is Kerbin (radius 600 km,
+    // troposphere 10.5 km deep) unless a test names another with Use: the lengths of the measure (the 100 km and 300 km of the variance shares, the window of 300 km) then scale with the body's
+    // troposphere depth, the unit its patterns are sized in (P1).
     internal static class TypeMixMetrics
     {
         internal const int W = 512, H = 256;
-        internal const double R = 600.0;
+        // Kerbin's radius (km) and the length scale of the measure: the body's troposphere depth against Kerbin's.
+        internal static double R = 600.0, Scale = 1.0;
+
+        // Measures the maps of the following calls on a body of this radius (km) and troposphere depth (km) until the result is disposed.
+        internal static IDisposable Use(double radiusKm, double depthKm)
+        {
+            double r = R, s = Scale;
+            R = radiusKm;
+            Scale = depthKm / 10.5;
+            return new Restore(r, s);
+        }
+
+        private sealed class Restore : IDisposable
+        {
+            private readonly double r, s;
+            internal Restore(double r, double s) { this.r = r; this.s = s; }
+            public void Dispose() { R = r; Scale = s; }
+        }
 
         private static double LatDeg(int j) { return 90.0 - (j + 0.5) * 180.0 / H; }
         private static double DxKm(int j) { return 2 * Math.PI * R / W * Math.Cos(LatDeg(j) * Math.PI / 180.0); }
-        private static readonly double DyKm = Math.PI * R / H;
+        private static double DyKm { get { return Math.PI * R / H; } }
         private static bool InBand(int j) { return Math.Abs(LatDeg(j)) < 60.0; }
         private static double Area(int j) { return DxKm(j) * DyKm; }
 
@@ -57,8 +76,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     double p = re * re + im * im;
                     double wl = W * DxKm(j) / hmc;
                     totalV += p;
-                    if (wl < 100.0) shortV += p;
-                    else if (wl >= 300.0) longV += p;
+                    if (wl < 100.0 * Scale) shortV += p;
+                    else if (wl >= 300.0 * Scale) longV += p;
                 }
             }
             dxMean /= rows.Count;
@@ -193,16 +212,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double big = 0.0;
             foreach (double a in Components(mask)) big = Math.Max(big, a);
             m.LargestTypeComponentShare = big / cloudArea;
-            // distinct types in windows of 40 x 41 texels (about 300 km) that hold cloud
+            // distinct types in windows that hold cloud: 300 km on Kerbin (40 x 41 texels), the same number of troposphere depths on another body
             double sum = 0.0;
             int windows = 0;
-            for (int r = 10; r < H - 10; r += 20)
+            int winH = Math.Max(8, (int)Math.Round(40 * Scale * 600.0 / R)), winW = Math.Max(8, (int)Math.Round(41 * Scale * 600.0 / R));
+            for (int r = 10; r < H - 10; r += winH / 2)
             {
-                for (int q = 0; q < W; q += 41)
+                for (int q = 0; q < W; q += winW)
                 {
                     var set = new HashSet<int>();
-                    for (int dj = 0; dj < 40 && r + dj < H; dj++)
-                        for (int di = 0; di < 41 && q + di < W; di++)
+                    for (int dj = 0; dj < winH && r + dj < H; dj++)
+                        for (int di = 0; di < winW && q + di < W; di++)
                         {
                             int p = (r + dj) * W + q + di;
                             if (pres[p]) set.Add(idx[p]);

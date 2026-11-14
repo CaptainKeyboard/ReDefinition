@@ -18,13 +18,16 @@ namespace AtmoSim.Core
         public double LayerBaseM, LayerThicknessM, LayerAmount, CellTopM;
         // Round 4 (E43): the life phase (0 birth, 1 death) and the life span in seconds of the strongest cell at the point (0, 0 where there is none).
         public double CellPhase, CellLifeS;
+        // P1: the factor on the fixed heights of the column (BodyDerived.HeightScale; 0 in a Weather that was not made by Sample reads as 1).
+        public double HeightScale;
         public double WindSpeedMs { get { return WindSpeed; } }
 
         // Cloud density (0..1.5) at an altitude of this column: a stratiform layer with a sin^2 profile plus towering cells.
         public double DensityAt(double altM)
         {
             double strat = StratDensityAt(altM);
-            double cellD = CellStrength * DMath.SmoothStep(300.0, 1500.0, altM) * (1.0 - DMath.SmoothStep(CellTopM - 1500.0, CellTopM, altM));
+            double s = HeightScale > 0.0 ? HeightScale : 1.0;
+            double cellD = CellStrength * DMath.SmoothStep(300.0 * s, 1500.0 * s, altM) * (1.0 - DMath.SmoothStep(CellTopM - 1500.0 * s, CellTopM, altM));
             double d = strat + 0.9 * cellD;
             return d > 1.5 ? 1.5 : d;
         }
@@ -133,9 +136,9 @@ namespace AtmoSim.Core
             double rate = Body.Omega - DMath.TwoPi / y;
             f.SunLon = DMath.WrapPi(-rate * ut);
             f.ItczLat = 0.55 * f.DLag;
-            // the waves of the ITCZ: wavenumbers 2 (belt centre), 3 and 5 (lift), travelling west at ItczWaveSpeedMs, phases from the seed
+            // the waves of the ITCZ: wavenumbers 2 (belt centre), 3 and 5 (lift), travelling west at D.ItczWaveMs (a share of the jet speed; ItczWaveSpeedMs of the historical profiles), phases from the seed
             ulong hw = Hash.Of(Seed, 0, 0, 21);
-            double drift = ItczWaveSpeedMs * ut / a;
+            double drift = D.ItczWaveMs * ut / a;
             f.PhW = DMath.TwoPi * Hash.Draw(hw, 0) + 2.0 * drift;
             f.Ph3 = DMath.TwoPi * Hash.Draw(hw, 1) + 3.0 * drift;
             f.Ph5 = DMath.TwoPi * Hash.Draw(hw, 2) + 5.0 * drift;
@@ -690,8 +693,8 @@ namespace AtmoSim.Core
                 if (amp > 0.01 && cw < 0.25)
                 {
                     // the pattern turns rigidly (one angular speed for all latitudes: the speed of the trades at 25 degrees); a drift that follows 1 / cos(latitude) would shear it into stripes
-                    double lonD = DMath.WrapPi(lonRad + 4.0 * ut / (a * 0.9));
-                    double nz = 0.5 * (LatticeNoise(latRad, lonD, 0.09, Seed ^ 0xFA17C0DEUL) + LatticeNoise(latRad + 0.031, DMath.WrapPi(lonD + 0.7), 0.15, Seed ^ 0x51DE0A11UL));
+                    double lonD = DMath.WrapPi(lonRad + D.TradeDriftMs * ut / (a * 0.9));
+                    double nz = 0.5 * (LatticeNoise(latRad, lonD, D.TradePatchRad1, Seed ^ 0xFA17C0DEUL) + LatticeNoise(latRad + 0.031, DMath.WrapPi(lonD + 0.7), D.TradePatchRad2, Seed ^ 0x51DE0A11UL));
                     double cu = amp * DMath.SmoothStep(0.25, 0.80, nz);
                     cw += cu * (1.0 - DMath.Min(1.0, cw / 0.25));
                 }
@@ -707,7 +710,7 @@ namespace AtmoSim.Core
                 if (pStrat > 0.001 && Body.RainCellAmp > 0.0)
                 {
                     // rigid eastward drift with the storm track (jet speed at 45 degrees latitude), see the trade-wind cumulus above
-                    double nr = LatticeNoise(latRad, DMath.WrapPi(lonRad - 12.0 * ut / (a * 0.7)), 0.035, Seed ^ 0x2A1C0E11UL);
+                    double nr = LatticeNoise(latRad, DMath.WrapPi(lonRad - D.RainDriftMs * ut / (a * 0.7)), D.RainCellRad, Seed ^ 0x2A1C0E11UL);
                     pStrat *= 1.0 + Body.RainCellAmp * (2.0 * nr - 1.0);
                 }
             }
@@ -780,7 +783,7 @@ namespace AtmoSim.Core
                 // the mean wind is not touched), growing with the wind so a calm point has no gusts
                 double gt = ut / 1800.0;
                 double gi = DMath.Floor(gt), gu = gt - gi;
-                long gl = (long)DMath.Floor(latRad / 0.04), gn = (long)DMath.Floor(lonRad * cosLat / 0.04);
+                long gl = (long)DMath.Floor(latRad / D.GustCellRad), gn = (long)DMath.Floor(lonRad * cosLat / D.GustCellRad);
                 double g0 = Hash.Unit(Hash.Of(Seed ^ 0x6057600DUL, gl, gn, (long)gi)), g1 = Hash.Unit(Hash.Of(Seed ^ 0x6057600DUL, gl, gn, (long)gi + 1));
                 double gs = gu * gu * (3.0 - 2.0 * gu);
                 gust += Body.GustNoise * (g0 + (g1 - g0) * gs) * DMath.Min(1.0, wind / 8.0);
@@ -817,8 +820,8 @@ namespace AtmoSim.Core
             }
 
             // vertical profile for the 3D window
-            double zb = 600.0 + 1200.0 * (1.0 - humidity);
-            double th2 = 1200.0 + 3500.0 * DMath.Min(1.2, uplift);
+            double zb = D.HeightScale * (600.0 + 1200.0 * (1.0 - humidity));
+            double th2 = D.HeightScale * (1200.0 + 3500.0 * DMath.Min(1.2, uplift));
             double top = 0.35 * htrop + 0.65 * htrop * tower;
 
             w.TempK = tAir; w.TempMeanK = tSurf - DMath.Min(Body.LapseKPerM * (alt < htrop ? alt : htrop), 0.4 * tSurf); w.SurfaceTempK = tSurfFinal; w.PressureAnomPa = p; w.Humidity = humidity; w.Uplift = uplift;
@@ -828,7 +831,7 @@ namespace AtmoSim.Core
             w.LayerBaseM = zb; w.LayerThicknessM = th2; w.LayerAmount = bg + xdyn; w.CellTopM = top;
             w.Density3D = 0.0;
             w.WindEast = windE; w.WindNorth = windN; w.WindSpeed = wind; w.GustFactor = gust;
-            w.CellPhase = cs > 0.0 ? cellPhase : 0.0; w.CellLifeS = cs > 0.0 ? cellLife : 0.0;
+            w.CellPhase = cs > 0.0 ? cellPhase : 0.0; w.CellLifeS = cs > 0.0 ? cellLife : 0.0; w.HeightScale = D.HeightScale;
             w.CellStrength = cs; w.Dust = dust; w.SnowFrac = fs; w.SleetFrac = fl; w.RainFrac = fRain; w.OceanFraction = oc;
             w.Type = kind;
             w.Density3D = w.DensityAt(alt);
@@ -907,8 +910,8 @@ namespace AtmoSim.Core
 
         public double DebugFairNoise(double latRad, double lonRad, double ut)
         {
-            double lonD = DMath.WrapPi(lonRad + 4.0 * ut / (a * 0.9));
-            return 0.5 * (LatticeNoise(latRad, lonD, 0.09, Seed ^ 0xFA17C0DEUL) + LatticeNoise(latRad + 0.031, DMath.WrapPi(lonD + 0.7), 0.15, Seed ^ 0x51DE0A11UL));
+            double lonD = DMath.WrapPi(lonRad + D.TradeDriftMs * ut / (a * 0.9));
+            return 0.5 * (LatticeNoise(latRad, lonD, D.TradePatchRad1, Seed ^ 0xFA17C0DEUL) + LatticeNoise(latRad + 0.031, DMath.WrapPi(lonD + 0.7), D.TradePatchRad2, Seed ^ 0x51DE0A11UL));
         }
 
         private static double RowNoise(long j, double lonRad, double cellRad, ulong key)

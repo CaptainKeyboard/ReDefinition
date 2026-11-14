@@ -1,4 +1,5 @@
 using System;
+using AtmoSim.Core;
 using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres
@@ -128,6 +129,8 @@ namespace ReDefinition.Atmospheres
             WeatherWindow w = coarse;
             float cellE = w.SpacingHorizontalM, cellN = w.SpacingHorizontalM;
             if (!(cellE > 1f)) return;
+            // The window's height is the body's troposphere (GeneratorField.FillWindowCore): the core radii scale with it.
+            double lengthScale = w.SpacingVerticalM * w.Nz / BodyDerived.CalibrationTropopauseM;
             for (int iy = 0; iy < w.Ny; iy++)
             {
                 for (int ix = 0; ix < w.Nx; ix++)
@@ -149,7 +152,7 @@ namespace ReDefinition.Atmospheres
                     if (topAlt < baseAlt) continue;
                     float depth = topAlt - baseAlt + w.SpacingVerticalM;
                     long cellIndex = (long)iy * w.Nx + ix;
-                    int n = VolumeSubGrid.Cores(cellIndex, ut, seed, maxUp, depth, cellE / 1000.0, cellN / 1000.0, scratch);
+                    int n = VolumeSubGrid.Cores(cellIndex, ut, seed, maxUp, depth, cellE / 1000.0, cellN / 1000.0, scratch, lengthScale);
                     float cx = (ix + 0.5f - 0.5f * w.Nx) * cellE, cz = (iy + 0.5f - 0.5f * w.Ny) * cellN;
                     for (int k = 0; k < n && coreCount < MaxCoreCount; k++)
                     {

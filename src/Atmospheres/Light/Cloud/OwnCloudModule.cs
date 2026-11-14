@@ -817,7 +817,13 @@ namespace ReDefinition.Atmospheres
                 mi.Ut = ut;
                 mi.DriftRadS = gf.CloudDriftRadS(b.flightGlobalsIndex, CloudBridgeStack.MidHeightM(mesoDef));
                 mi.Seed = gf.SeedOf(b.flightGlobalsIndex);
-                mi.RadiusKm = b.Radius * 0.001;
+                // The body's own scales (radius, troposphere depth, circulation-cell edges); without a generator state the radius and the default share of the atmosphere's depth.
+                if (!gf.CloudScalesOf(b.flightGlobalsIndex, mi))
+                {
+                    mi.RadiusKm = b.Radius * 0.001;
+                    mi.DepthKm = CloudMesoInputs.DefaultTropopauseShare * b.atmosphereDepth * 0.001;
+                    mi.Edge1Rad = mi.Edge2Rad = double.NaN;
+                }
                 byte[] mc = mesoCover[l], mt = mesoType[l];
                 CloudMesoStage.Apply(mesoDef, mi, cover, typeBytes, ref mc, ref mt);
                 mesoCover[l] = mc;

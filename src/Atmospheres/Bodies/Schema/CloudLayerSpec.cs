@@ -145,7 +145,8 @@ namespace ReDefinition.Atmospheres
         internal float AltoFull { get; set; } = 0.3f;
         // The meso-scale cover pattern (cfg node MESO, null: none) and the size of the type patches (cfg keys typePatchKm and typePatchBlend): see CloudMesoSpec and CloudLayerDef.
         internal CloudMesoSpec Meso { get; set; }
-        internal float TypePatchKm { get; set; } = 70f;
+        internal float TypePatchKm { get; set; }
+        internal float TypePatchDepths { get; set; } = CloudMesoSpec.DefaultTypePatchDepths;
         internal float TypePatchBlend { get; set; } = 0.06f;
         // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
         internal WeatherDeckRule Deck { get; set; }
@@ -198,6 +199,7 @@ namespace ReDefinition.Atmospheres
                 AltoFull = AltoFull,
                 Meso = Meso,
                 TypePatchKm = TypePatchKm,
+                TypePatchDepths = TypePatchDepths,
                 TypePatchBlend = TypePatchBlend
             };
         }

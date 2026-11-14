@@ -22,19 +22,21 @@ namespace ReDefinition.Atmospheres
         internal const int MaxCores = 4;
 
         // Fills cores (length at least MaxCores) and returns the count for one cell. cellKmEast and cellKmNorth are the cell's size.
+        // lengthScale is the body's HeightScale (its troposphere's depth against the calibration depth the radii of 5 to 25 km were fitted for; 1: that depth).
         internal static int Cores(long cellIndex, double ut, ulong seed, double updraftMs, double cloudDepthM, double cellKmEast,
-                                  double cellKmNorth, VolumeCore[] cores)
+                                  double cellKmNorth, VolumeCore[] cores, double lengthScale = 1.0)
         {
             if (!(updraftMs >= MinUpdraftMs) || !(cloudDepthM > 0.0) || !(cellKmEast > 0.0) || !(cellKmNorth > 0.0)) return 0;
+            double minRadiusKm = MinRadiusKm * lengthScale, maxRadiusKm = MaxRadiusKm * lengthScale;
             int n = (int)(updraftMs / 6.0) + 1;
             if (n > MaxCores) n = MaxCores;
             double depthKm = cloudDepthM / 1000.0;
-            double radius = Clamp(0.8 * depthKm, MinRadiusKm, MaxRadiusKm);
+            double radius = Clamp(0.8 * depthKm, minRadiusKm, maxRadiusKm);
             double cell = cellKmEast * cellKmNorth;
             // Keep the cores inside a share of the cell: shrink the count first, then the radius down to the minimum.
             while (n > 1 && n * Math.PI * radius * radius > MaxAreaFraction * cell) n--;
             if (n * Math.PI * radius * radius > MaxAreaFraction * cell)
-                radius = Math.Max(MinRadiusKm, Math.Sqrt(MaxAreaFraction * cell / (Math.PI * n)));
+                radius = Math.Max(minRadiusKm, Math.Sqrt(MaxAreaFraction * cell / (Math.PI * n)));
             for (int k = 0; k < n; k++)
             {
                 // Staggered buckets so that the cores of one cell do not all change at once.
@@ -46,7 +48,7 @@ namespace ReDefinition.Atmospheres
                 if (ey < 0) ey = 0;
                 cores[k].OffsetEastKm = (Uniform(ref state) * 2.0 - 1.0) * ex;
                 cores[k].OffsetNorthKm = (Uniform(ref state) * 2.0 - 1.0) * ey;
-                cores[k].RadiusKm = Clamp(radius * (0.85 + 0.3 * Uniform(ref state)), MinRadiusKm, MaxRadiusKm);
+                cores[k].RadiusKm = Clamp(radius * (0.85 + 0.3 * Uniform(ref state)), minRadiusKm, maxRadiusKm);
                 cores[k].UpdraftMs = updraftMs * (0.7 + 0.6 * Uniform(ref state));
             }
             return n;

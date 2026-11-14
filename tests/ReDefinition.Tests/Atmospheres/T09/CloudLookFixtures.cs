@@ -80,9 +80,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[2].Climate = Climate(C(0f, 1f, 0.6f, 0.8f, 1f, 0.15f), C(0f, 0.55f, 0.5f, 1f, 1f, 1f), C(0f, 0.1f, 0.35f, 0.6f, 0.7f, 1f, 1f, 1f), C(0f, 0.45f, 0.2f, 1f, 0.65f, 1f, 1f, 0.5f));
             cumulus.Types[3].Climate = Climate(C(0f, 1f, 0.4f, 0.8f, 0.7f, 0.15f, 1f, 0f), C(0f, 0.45f, 0.5f, 1f, 1f, 1f), C(0f, 0f, 0.4f, 0.15f, 0.75f, 1f, 1f, 1f), C(0f, 0.05f, 0.2f, 0.5f, 0.5f, 1f, 1f, 1f));
             cumulus.Types[4].Climate = Climate(C(0f, 0.6f, 0.5f, 1f, 1f, 0.7f), null, null, null);
-            cumulus.TypePatchKm = 70f;
+            cumulus.TypePatchDepths = 6.7f;
             cumulus.TypePatchBlend = 0.06f;
-            cumulus.Meso = new CloudMesoSpec { ScaleKm = 55f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0f };
+            cumulus.Meso = new CloudMesoSpec { ScaleDepths = 5.25f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0f };
             return cumulus;
         }
 
@@ -98,7 +98,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Light(cb.Types[1], 0.55f, 1.15f, 0.7f, 1.05f);
             cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.25f, 1f, 0.45f);
             cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.35f, 0.7f, 0.35f, 0.9f, 0f, 1f, 0f);
-            cb.Meso = new CloudMesoSpec { ScaleKm = 60f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f };
+            cb.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f };
             return cb;
         }
 
@@ -118,8 +118,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cirrus.FibreStretch = 6f;
             cirrus.Types[0].Climate = Climate(null, null, null, C(0f, 1f, 0.3f, 0.45f, 1f, 0.15f));
             cirrus.Types[1].Climate = Climate(C(0f, 0.3f, 0.5f, 1f, 1f, 0.8f), null, C(0f, 0.2f, 0.6f, 1f, 1f, 1f), C(0f, 0.25f, 0.3f, 1f, 1f, 1f));
-            cirrus.TypePatchKm = 110f;
-            cirrus.Meso = new CloudMesoSpec { ScaleKm = 60f, Octaves = 2, Amount = 1f, Edge = 0.35f, Shoulder = 1f, Cells = true, Stretch = 2.5f, RainKeep = 0f };
+            cirrus.TypePatchDepths = 10.5f;
+            cirrus.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.35f, Shoulder = 1f, Cells = true, Stretch = 2.5f, RainKeep = 0f };
             return cirrus;
         }
     }

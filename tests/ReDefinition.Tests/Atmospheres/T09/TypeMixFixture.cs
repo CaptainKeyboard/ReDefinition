@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
 using ReDefinition.Core;
@@ -11,6 +12,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
     internal static class TypeMixFixture
     {
         internal const double Day = 21549.425;
+
+        // The scales of the stock home planet's body (FieldFixture.HomeFacts: radius 600 km, a troposphere of 10.5 km (0.15 of the 70 km atmosphere), three circulation cells whose edges lie
+        // at 30 and 60 degrees) for the tests of the stage that run it without a generator.
+        internal static CloudMesoInputs HomeScales(CloudMesoInputs inp)
+        {
+            inp.RadiusKm = 600.0;
+            inp.DepthKm = 10.5;
+            inp.Edge1Rad = Math.PI / 6.0;
+            inp.Edge2Rad = Math.PI / 3.0;
+            return inp;
+        }
 
         internal sealed class Shared
         {
@@ -72,8 +84,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             var inp = new CloudMesoInputs
             {
                 Width = GeneratorMaps.Width, Height = GeneratorMaps.Height, Precip = s.Precip.Bytes, Humidity = s.Humidity.Bytes, Surface = s.Surface.Bytes,
-                AltoMid = altoMid, AltoLow = altoLow, Ut = s.Ut, DriftRadS = field.CloudDriftRadS(body, CloudBridgeStack.MidHeightM(l)), Seed = field.SeedOf(body), RadiusKm = 600.0
+                AltoMid = altoMid, AltoLow = altoLow, Ut = s.Ut, DriftRadS = field.CloudDriftRadS(body, CloudBridgeStack.MidHeightM(l)), Seed = field.SeedOf(body)
             };
+            Assert.IsTrue(field.CloudScalesOf(body, inp), "the field's body has its scales");
             byte[] coverOut = null, typeOut = null;
             CloudMesoStage.Apply(l, inp, cover, type, ref coverOut, ref typeOut);
             cover = coverOut;
@@ -83,7 +96,31 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // Kerbin's layers as the shipped cfg has them, built the way the game builds them (not the hand-made fixtures).
         internal static CloudLayerDef[] ShippedLayers()
         {
-            var specs = ReDefinition.Tests.Atmospheres.T10.CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers;
+            return Build(ReDefinition.Tests.Atmospheres.T10.CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers);
+        }
+
+        // The same layer set for a body whose troposphere is `ratio` times Kerbin's: the heights, the shader noise's size and the fades scaled by it, as a cfg for that body would have them
+        // (the cfg is per body; this is the template of the law that heights follow the depth of the troposphere). The stage's own sizes are in depths and need no change.
+        internal static CloudLayerDef[] ShippedLayersScaled(double ratio)
+        {
+            int added;
+            ConfigNode body = ReDefinition.Tests.Atmospheres.T10.CloudLayerSchemaTests.PatchedKerbin(out added);
+            foreach (ConfigNode layer in body.GetNode("CLOUDS").GetNodes("LAYER"))
+            {
+                foreach (string key in new[] { "innerAltitudeM", "outerAltitudeM", "noiseScaleM", "fadeNearM", "fadeFarM" })
+                {
+                    string v = layer.GetValue(key);
+                    float f;
+                    if (v != null && float.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f))
+                        layer.SetValue(key, (f * ratio).ToString("R", System.Globalization.CultureInfo.InvariantCulture), false);
+                }
+            }
+            BodyParseResult r = BodyConfigParser.Parse(ReDefinition.Tests.Atmospheres.E41.E41Support.StockBodies().Single(s => s.Facts.Name == "Kerbin").Facts, body, null, 7);
+            return Build(r.Climate.Clouds.Layers);
+        }
+
+        private static CloudLayerDef[] Build(System.Collections.Generic.IReadOnlyList<CloudLayerSpec> specs)
+        {
             var result = new CloudLayerDef[4];
             string[] names = { "Kerbin-weather-rain", "Kerbin-cumulus", "Kerbin-cumulonimbus", "Kerbin-cirrus" };
             for (int i = 0; i < names.Length; i++)

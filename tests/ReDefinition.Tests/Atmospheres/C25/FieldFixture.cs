@@ -52,6 +52,37 @@ namespace ReDefinition.Tests.Atmospheres.C25
             return s;
         }
 
+        // A second body of another size and atmosphere (P1, planet independence): the facts of the stock ocean moon of the gas giant (radius 500 km, atmosphere 50 km deep, 60.8 kPa, g 7.85,
+        // a day of 52981 s) with its recorded heights and temperature fit (dump body "Laythe"). Its troposphere is 7.5 km deep against the home planet's 10.5 km.
+        internal static BodyFacts SecondFacts()
+        {
+            BodyFacts f = BodyTestSupport.Planet("Secondworld", HomeYear);
+            f.Index = BodyIndex;
+            f.RadiusM = 500000.0;
+            f.DaySeconds = 52980.88;
+            f.AtmosphereDepthM = 50000.0;
+            f.SeaLevelPressureKPa = 60.795;
+            f.SeaLevelTemperatureK = 290.0;
+            f.HasOcean = true;
+            f.SurfaceGravityMs2 = 7.85;
+            f.SolarFluxWm2 = 53.0;
+            f.GasConstant = 287.0;
+            f.Cp = 1004.0;
+            return f;
+        }
+
+        // A field with the second body (SecondFacts, dump heights and temperatures of "Laythe"), ready, maps rendered inline.
+        internal static GeneratorField SecondField(int seed = 1)
+        {
+            BodyFacts facts = SecondFacts();
+            var climate = new BodyClimate("Secondworld", BodyIndex, facts.RadiusM, HomeYear, facts.DaySeconds, BodyStatus.Full, seed);
+            var field = new GeneratorField();
+            field.Say = s => { };
+            field.Maps.Synchronous = true;
+            field.SetState(State(climate, Params(climate, facts, "Laythe")));
+            return field;
+        }
+
         // A field with one body, ready, maps rendered inline.
         internal static GeneratorField Field(int seed = 1, string dumpBody = "Kerbin")
         {

@@ -40,11 +40,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.AltoFrom, fixture.AltoFrom, 1e-6f, n + " alto from");
             Assert.AreEqual(shipped.AltoFull, fixture.AltoFull, 1e-6f, n + " alto full");
             Assert.AreEqual(shipped.TypePatchKm, fixture.TypePatchKm, 1e-6f, n + " type patch km");
+            Assert.AreEqual(shipped.TypePatchDepths, fixture.TypePatchDepths, 1e-6f, n + " type patch depths");
             Assert.AreEqual(shipped.TypePatchBlend, fixture.TypePatchBlend, 1e-6f, n + " type patch blend");
             Assert.AreEqual(shipped.Meso == null, fixture.Meso == null, n + " has a meso pattern");
             if (shipped.Meso != null)
             {
-                Assert.AreEqual(shipped.Meso.ScaleKm, fixture.Meso.ScaleKm, 1e-6f, n + " meso scale");
+                Assert.AreEqual(shipped.Meso.ScaleKm, fixture.Meso.ScaleKm, 1e-6f, n + " meso scale km");
+                Assert.AreEqual(shipped.Meso.ScaleDepths, fixture.Meso.ScaleDepths, 1e-6f, n + " meso scale depths");
                 Assert.AreEqual(shipped.Meso.Octaves, fixture.Meso.Octaves, n + " meso octaves");
                 Assert.AreEqual(shipped.Meso.Amount, fixture.Meso.Amount, 1e-6f, n + " meso amount");
                 Assert.AreEqual(shipped.Meso.Edge, fixture.Meso.Edge, 1e-6f, n + " meso edge");

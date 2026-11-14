@@ -19,7 +19,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         private static CloudMesoInputs Inputs(byte[] precip, byte[] humidity, byte[] surface, double ut = 3.0e6, double drift = 0.0, ulong seed = 1UL)
         {
-            return new CloudMesoInputs { Width = W, Height = H, Precip = precip, Humidity = humidity, Surface = surface, Ut = ut, DriftRadS = drift, Seed = seed, RadiusKm = 600.0 };
+            return TypeMixFixture.HomeScales(new CloudMesoInputs { Width = W, Height = H, Precip = precip, Humidity = humidity, Surface = surface, Ut = ut, DriftRadS = drift, Seed = seed });
         }
 
         private static byte[] Flat(byte v)
@@ -206,43 +206,92 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         // ---- the measured maps of the generator ----
 
-        [TestMethod, TestCategory("TypeMix")]
-        public void TheCloudMapsOfAGameDayHaveTheSizesAndTheMixOfAPlanetOfKerbinsRadius()
+        // The cloud maps of a game day on the home planet (radius 600 km, troposphere 10.5 km) and on a second body of another size and atmosphere (radius 500 km, troposphere 7.5 km, a day twice
+        // as long): the sizes of the features of each layer and the mix of its types are bounded in the units of the body, the troposphere's depth d (and, for the rain deck, the length of the
+        // body's own weather systems), so one set of bounds holds for both. Measured over 2 seeds x 2 times (d = 10.5 / 7.5 km):
+        //   layer          corr length zonal / meridional (d)   variance under 9.5 d   field (d)   largest field   types in 28.6 d   dominant   largest type component
+        //   cumulus home   3.9-5.1 / 3.3-4.5                    0.28-0.32              16-36       0.19-0.29       4.0-4.1           0.39-0.40  0.03-0.05
+        //   cumulus second 2.5-3.2 / 2.2-2.8                    0.37-0.40              (cover .54: one sheet)                         4.0        0.39-0.41  0.06-0.09
+        //   cb home        12-20 / 9-11                         0.18-0.20              16-48       0.26-0.31       1.7-1.8           0.73-0.80  0.27-0.33
+        //   cb second      9-13 / 7-10                          0.22-0.26              (cover .45)                                    1.8        0.64-0.75  0.54-0.74
+        //   cirrus home    8-10 / 4-6                           0.06-0.07              26-37       0.25-0.30       1.8-1.9           0.67-0.73  0.09-0.20
+        //   cirrus second  6.5-7.9 / 3.0-4.1                    0.10-0.11              (cover .52)                                    1.9-2.0    0.51-0.56  0.12-0.19
+        //   rain deck home 14-17 / 11-16                       (the zonal belt: 0.75-0.80 of the variance over 28.6 d; one connected sheet of 160-170 d)
+        //   rain deck second 12.5-15.6 / 9.6-13.1
+        // The bounds are these with the spread of single maps. Field diameters and the largest field are bounded only where the layer's mean cover stays under 0.4: a sky of more cover is one
+        // connected sheet whatever the pattern.
+        private static void CheckTheMapsOfABody(Func<int, GeneratorField> makeField, CloudLayerDef[] layers, double radiusKm, double depthKm, double dayS, string name)
         {
             LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
             try
             {
-                CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
-                CloudLayerDef cumulus = layers[1], cirrus = layers[3];
+                CloudLayerDef deck = layers[0], cumulus = layers[1], cb = layers[2], cirrus = layers[3];
                 foreach (int seed in new[] { 1, 2 })
                 {
-                    GeneratorField field = FieldFixture.Field(seed);
+                    GeneratorField field = makeField(seed);
                     int body = FieldFixture.BodyIndex;
-                    foreach (double ut in new[] { 3.0e6, 3.0e6 + 0.5 * TypeMixFixture.Day })
+                    // the shortest wavelength of this body's weather systems: 3 r 0.7, r the system radius (BodyDerived), in km
+                    double lambdaMinKm = field.SystemWavelengthMinKm(body);
+                    foreach (double ut in new[] { 3.0e6, 3.0e6 + 0.5 * dayS })
                     {
                         TypeMixFixture.Shared shared = TypeMixFixture.Maps(field, body, ut);
-                        byte[] offCover, offType, onCover, onType;
-                        TypeMixFixture.Layer(field, body, shared, cumulus, false, out offCover, out offType);
-                        TypeMixFixture.Layer(field, body, shared, cumulus, true, out onCover, out onType);
-                        string tag = " (seed " + seed + ", ut " + ut + ")";
-                        TypeMixMetrics.Sizes on = TypeMixMetrics.Of(onCover, 0.5), off = TypeMixMetrics.Of(offCover, 0.5);
-                        Assert.AreEqual(Mean(offCover, 0, H), Mean(onCover, 0, H), 0.03, "the mean cover of the layer stays" + tag);
-                        // Measured over 3 seeds x 8 times by tools/e40_type_mix.py: corr length 45 / 41 km, 31 % of the variance under 100 km, fields 267 km, largest 26 %; before 330 / 198, 2 %, 1318, 73 %.
-                        // TVC's base maps on the same grid: 74 / 48 km, 32 %, 238 km, 14 %. The bounds are the targets of the audit with the spread of single maps.
-                        Assert.IsTrue(on.CorrZonalKm < 100 && on.CorrMeridionalKm < 90, "cumulus corr length " + on.CorrZonalKm + " / " + on.CorrMeridionalKm + " km (before " + off.CorrZonalKm + " / " + off.CorrMeridionalKm + ")" + tag);
-                        Assert.IsTrue(on.VarianceUnder100 >= 0.2, "variance under 100 km " + on.VarianceUnder100 + " (before " + off.VarianceUnder100 + ")" + tag);
-                        Assert.IsTrue(on.FieldDiameterKm < 450, "field diameter " + on.FieldDiameterKm + " km (before " + off.FieldDiameterKm + ")" + tag);
-                        Assert.IsTrue(on.LargestFieldShare <= 0.4, "largest field " + on.LargestFieldShare + " of the field area (before " + off.LargestFieldShare + ")" + tag);
-                        TypeMixMetrics.Mix mix = TypeMixMetrics.MixOf(onCover, onType, cumulus.Types.Count, 0.2);
-                        Assert.IsTrue(mix.TypesIn300kmWindow >= 3.2, "types in a 300 km window " + mix.TypesIn300kmWindow + tag);
-                        Assert.IsTrue(mix.DominantShare <= 0.55, "dominant type " + mix.DominantShare + tag);
-                        Assert.IsTrue(mix.LargestTypeComponentShare <= 0.15, "largest single-type component " + mix.LargestTypeComponentShare + tag);
-                        Assert.IsTrue(mix.TypeCorrZonalKm < 130 && mix.TypeCorrMeridionalKm < 120, "type map corr length " + mix.TypeCorrZonalKm + " / " + mix.TypeCorrMeridionalKm + tag);
-                        Assert.IsTrue(mix.ShareOfType[0] > 0.0 && mix.ShareOfType[3] > 0.0, "stratocumulus " + mix.ShareOfType[0] + " and congestus " + mix.ShareOfType[3] + " are reachable" + tag);
-                        byte[] cirrusCover, cirrusType;
-                        TypeMixFixture.Layer(field, body, shared, cirrus, true, out cirrusCover, out cirrusType);
-                        TypeMixMetrics.Mix cmix = TypeMixMetrics.MixOf(cirrusCover, cirrusType, 2, 0.2);
-                        Assert.IsTrue(cmix.TypesIn300kmWindow >= 1.5, "cirrus types in a 300 km window " + cmix.TypesIn300kmWindow + tag);
+                        string tag = " (" + name + ", seed " + seed + ", ut " + ut + ")";
+                        using (TypeMixMetrics.Use(radiusKm, depthKm))
+                        {
+                            byte[] offCover, offType, onCover, onType;
+                            TypeMixFixture.Layer(field, body, shared, cumulus, false, out offCover, out offType);
+                            TypeMixFixture.Layer(field, body, shared, cumulus, true, out onCover, out onType);
+                            TypeMixMetrics.Sizes on = TypeMixMetrics.Of(onCover, 0.5), off = TypeMixMetrics.Of(offCover, 0.5);
+                            Assert.AreEqual(Mean(offCover, 0, H), Mean(onCover, 0, H), 0.03, "the mean cover of the layer stays" + tag);
+                            // Measured over 3 seeds x 8 times by tools/e40_type_mix.py on the home planet: corr length 45 / 41 km, 31 % of the variance under 100 km, fields 267 km, largest 26 %;
+                            // before 330 / 198, 2 %, 1318, 73 %. TVC's base maps on the same grid: 74 / 48 km, 32 %, 238 km, 14 %. 100 km is 9.5 d, 450 km 43 d.
+                            Assert.IsTrue(on.CorrZonalKm < 9.5 * depthKm && on.CorrMeridionalKm < 8.6 * depthKm, "cumulus corr length " + on.CorrZonalKm + " / " + on.CorrMeridionalKm + " km (before " + off.CorrZonalKm + " / " + off.CorrMeridionalKm + ")" + tag);
+                            Assert.IsTrue(on.VarianceUnder100 >= 0.2, "variance under 9.5 d " + on.VarianceUnder100 + " (before " + off.VarianceUnder100 + ")" + tag);
+                            Assert.IsTrue(on.CorrZonalKm < 0.8 * off.CorrZonalKm, "the stage makes the cumulus pattern finer: " + on.CorrZonalKm + " against " + off.CorrZonalKm + " km" + tag);
+                            if (Mean(onCover, 0, H) < 0.4)
+                            {
+                                Assert.IsTrue(on.FieldDiameterKm < 43.0 * depthKm, "field diameter " + on.FieldDiameterKm + " km (before " + off.FieldDiameterKm + ")" + tag);
+                                Assert.IsTrue(on.LargestFieldShare <= 0.4, "largest field " + on.LargestFieldShare + " of the field area (before " + off.LargestFieldShare + ")" + tag);
+                            }
+                            TypeMixMetrics.Mix mix = TypeMixMetrics.MixOf(onCover, onType, cumulus.Types.Count, 0.2);
+                            Assert.IsTrue(mix.TypesIn300kmWindow >= 3.2, "types in a window of 28.6 d " + mix.TypesIn300kmWindow + tag);
+                            Assert.IsTrue(mix.DominantShare <= 0.55, "dominant type " + mix.DominantShare + tag);
+                            Assert.IsTrue(mix.LargestTypeComponentShare <= 0.15, "largest single-type component " + mix.LargestTypeComponentShare + tag);
+                            Assert.IsTrue(mix.TypeCorrZonalKm < 12.4 * depthKm && mix.TypeCorrMeridionalKm < 11.4 * depthKm, "type map corr length " + mix.TypeCorrZonalKm + " / " + mix.TypeCorrMeridionalKm + tag);
+                            Assert.IsTrue(mix.ShareOfType[0] > 0.0 && mix.ShareOfType[3] > 0.0, "stratocumulus " + mix.ShareOfType[0] + " and congestus " + mix.ShareOfType[3] + " are reachable" + tag);
+
+                            // cumulonimbus: storm cells and the systems that carry them
+                            byte[] cbCover, cbType;
+                            TypeMixFixture.Layer(field, body, shared, cb, true, out cbCover, out cbType);
+                            TypeMixMetrics.Sizes cbs = TypeMixMetrics.Of(cbCover, 0.5);
+                            Assert.IsTrue(cbs.CorrZonalKm < 26.0 * depthKm && cbs.CorrMeridionalKm < 20.0 * depthKm, "cumulonimbus corr length " + cbs.CorrZonalKm + " / " + cbs.CorrMeridionalKm + " km" + tag);
+                            Assert.IsTrue(cbs.VarianceUnder100 >= 0.12, "cumulonimbus variance under 9.5 d " + cbs.VarianceUnder100 + tag);
+                            if (Mean(cbCover, 0, H) < 0.3)
+                            {
+                                Assert.IsTrue(cbs.FieldDiameterKm < 60.0 * depthKm, "cumulonimbus field diameter " + cbs.FieldDiameterKm + " km" + tag);
+                                Assert.IsTrue(cbs.LargestFieldShare <= 0.4, "cumulonimbus largest field " + cbs.LargestFieldShare + tag);
+                            }
+                            Assert.IsTrue(TypeMixMetrics.MixOf(cbCover, cbType, cb.Types.Count, 0.2).TypesIn300kmWindow >= 1.5, "cumulonimbus types in a window of 28.6 d" + tag);
+
+                            // cirrus: fibres and veils
+                            byte[] cirrusCover, cirrusType;
+                            TypeMixFixture.Layer(field, body, shared, cirrus, true, out cirrusCover, out cirrusType);
+                            TypeMixMetrics.Sizes cs = TypeMixMetrics.Of(cirrusCover, 0.5);
+                            Assert.IsTrue(cs.CorrZonalKm < 13.0 * depthKm && cs.CorrMeridionalKm < 9.0 * depthKm, "cirrus corr length " + cs.CorrZonalKm + " / " + cs.CorrMeridionalKm + " km" + tag);
+                            Assert.IsTrue(cs.CorrZonalKm > cs.CorrMeridionalKm, "cirrus fibres are longer along the parallel than across it" + tag);
+                            if (Mean(cirrusCover, 0, H) < 0.4)
+                            {
+                                Assert.IsTrue(cs.FieldDiameterKm < 50.0 * depthKm, "cirrus field diameter " + cs.FieldDiameterKm + " km" + tag);
+                                Assert.IsTrue(cs.LargestFieldShare <= 0.4, "cirrus largest field " + cs.LargestFieldShare + tag);
+                            }
+                            Assert.IsTrue(TypeMixMetrics.MixOf(cirrusCover, cirrusType, 2, 0.2).TypesIn300kmWindow >= 1.5, "cirrus types in a window of 28.6 d" + tag);
+
+                            // the rain deck: the generator's own systems (no stage); its pattern is smaller than half the shortest wavelength of the body's weather systems
+                            byte[] deckCover, deckType;
+                            TypeMixFixture.Layer(field, body, shared, deck, true, out deckCover, out deckType);
+                            TypeMixMetrics.Sizes ds = TypeMixMetrics.Of(deckCover, 0.5);
+                            Assert.IsTrue(ds.CorrZonalKm < 0.5 * lambdaMinKm && ds.CorrMeridionalKm < 0.5 * lambdaMinKm, "rain deck corr length " + ds.CorrZonalKm + " / " + ds.CorrMeridionalKm + " km against the systems' shortest wavelength " + lambdaMinKm + tag);
+                        }
                     }
                 }
             }
@@ -250,6 +299,42 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 LayerWindOptions.SteeringOverride = null;
             }
+        }
+
+        [TestMethod, TestCategory("TypeMix")]
+        public void TheCloudMapsOfAGameDayHaveTheSizesAndTheMixOfAPlanetOfKerbinsRadius()
+        {
+            CheckTheMapsOfABody(seed => FieldFixture.Field(seed), TypeMixFixture.ShippedLayers(), 600.0, 10.5, TypeMixFixture.Day, "home planet");
+        }
+
+        [TestMethod, TestCategory("TypeMix")]
+        public void TheCloudMapsOfASecondBodyOfAnotherSizeHaveTheSameSizesInItsOwnUnits()
+        {
+            BodyFacts f = FieldFixture.SecondFacts();
+            CheckTheMapsOfABody(seed => FieldFixture.SecondField(seed), TypeMixFixture.ShippedLayersScaled(7.5 / 10.5), f.RadiusM / 1000.0, 7.5, f.DaySeconds, "second body");
+        }
+
+        [TestMethod, TestCategory("TypeMix")]
+        public void ThePatternsOfTheStageAreFinerOnABodyWithAShallowerTroposphere()
+        {
+            // the same cover through the same layer on two bodies: the pattern's correlation length in km follows the troposphere depth (10.5 / 7.5 km), within the spread of one noise
+            CloudLayerDef cumulus = Cumulus();
+            double[] lengthKm = new double[2];
+            for (int b = 0; b < 2; b++)
+            {
+                double radius = b == 0 ? 600.0 : 500.0, depth = b == 0 ? 10.5 : 7.5;
+                var inp = new CloudMesoInputs { Width = W, Height = H, Precip = Flat(0), Humidity = Flat(128), Surface = Flat(128), Ut = 3.0e6, Seed = 5UL, RadiusKm = radius, DepthKm = depth, Edge1Rad = Math.PI / 6.0, Edge2Rad = Math.PI / 3.0 };
+                byte[] coverOut = null, typeOut = null;
+                CloudMesoStage.Apply(cumulus, inp, Flat(128), Flat(64), ref coverOut, ref typeOut);
+                using (TypeMixMetrics.Use(radius, depth))
+                {
+                    TypeMixMetrics.Sizes s = TypeMixMetrics.Of(coverOut, 0.5);
+                    lengthKm[b] = 0.5 * (s.CorrZonalKm + s.CorrMeridionalKm);
+                    Assert.IsTrue(lengthKm[b] > 0.0);
+                }
+            }
+            // the second body's patterns are 7.5 / 10.5 = 0.71 of the home planet's, not the radii's 0.83 and not the same 1.0
+            Assert.AreEqual(7.5 / 10.5, lengthKm[1] / lengthKm[0], 0.12, "pattern size in km: " + lengthKm[0] + " on the home planet, " + lengthKm[1] + " on the second body");
         }
     }
 }

@@ -207,7 +207,8 @@ namespace ReDefinition.Atmospheres
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f),
                     RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f),
                     AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f),
-                    Meso = Meso(r.Child("MESO")), TypePatchKm = r.Float("typePatchKm", 70f, 5f, 2000f), TypePatchBlend = r.Float("typePatchBlend", 0.06f, 0.005f, 0.5f) });
+                    Meso = Meso(r.Child("MESO")), TypePatchKm = r.Float("typePatchKm", 0f, 0f, 2000f),
+                    TypePatchDepths = r.Float("typePatchDepths", CloudMesoSpec.DefaultTypePatchDepths, 0.2f, 100f), TypePatchBlend = r.Float("typePatchBlend", 0.06f, 0.005f, 0.5f) });
             }
             return layers;
         }
@@ -268,7 +269,8 @@ namespace ReDefinition.Atmospheres
             if (!r.Present) return null;
             return new CloudMesoSpec
             {
-                ScaleKm = r.Float("scaleKm", 45f, 5f, 2000f),
+                ScaleKm = r.Float("scaleKm", 0f, 0f, 2000f),
+                ScaleDepths = r.Float("scaleDepths", 4.3f, 0.2f, 100f),
                 Octaves = r.Int("octaves", 2, 1, 4),
                 Amount = r.Float("amount", 0f, 0f, 1f),
                 Edge = r.Float("edge", 0.25f, 0.02f, 1f),

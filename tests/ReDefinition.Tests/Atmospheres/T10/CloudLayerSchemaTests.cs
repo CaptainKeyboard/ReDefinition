@@ -22,7 +22,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
 
         // The body node of Kerbin with the patch of Clouds-Kerbin.cfg applied the way ModuleManager applies it: the LAYER nodes of the patch's
         // @CLOUDS are added to the CLOUDS node.
-        private static ConfigNode PatchedKerbin(out int added)
+        internal static ConfigNode PatchedKerbin(out int added)
         {
             ConfigNode body = E41Support.BodyNode("Kerbin");
             ConfigNode patch = ConfigNode.Load(KerbinCloudsFile()).nodes[0];
@@ -363,7 +363,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheMesoPatternAndTheTypeClimateAreReadBuiltAndDefaultToNone()
         {
             string climate = "CLIMATE{weight = 0.8;LATITUDE{key0 = 0 1;key1 = 1 0.2}SURFACE{key0 = 0 0.5;key1 = 1 1}HUMIDITY{key0 = 0 0;key1 = 1 1}PRECIPITATION{key0 = 0 1;key1 = 1 0}}";
-            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;typePatchKm = 33;typePatchBlend = 0.1;MESO{scaleKm = 60;octaves = 3;amount = 0.5;edge = 0.2;shoulder = 2;cells = 1;stretch = 4;rainKeep = 0.5}"
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;typePatchKm = 33;typePatchDepths = 9;typePatchBlend = 0.1;MESO{scaleKm = 60;scaleDepths = 6;octaves = 3;amount = 0.5;edge = 0.2;shoulder = 2;cells = 1;stretch = 4;rainKeep = 0.5}"
                 + "TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 1}" + climate + "}}"
                 + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}"
                 + "LAYER{name = C;innerAltitudeM = 100;outerAltitudeM = 900;MESO{amount = 7;octaves = 9;scaleKm = 1}" + GoodType + "}");
@@ -371,6 +371,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(33f, a.TypePatchKm);
             Assert.AreEqual(0.1f, a.TypePatchBlend, 1e-6f);
             Assert.AreEqual(60f, a.Meso.ScaleKm);
+            Assert.AreEqual(6f, a.Meso.ScaleDepths);
+            Assert.AreEqual(9f, a.TypePatchDepths);
             Assert.AreEqual(3, a.Meso.Octaves);
             Assert.AreEqual(0.5f, a.Meso.Amount);
             Assert.AreEqual(0.2f, a.Meso.Edge, 1e-6f);
@@ -391,14 +393,15 @@ namespace ReDefinition.Tests.Atmospheres.T10
             // Nothing there: no pattern, no climate, the defaults of the patches.
             Assert.IsNull(b.Meso);
             Assert.IsNull(b.Types[0].Climate);
-            Assert.AreEqual(70f, b.TypePatchKm);
+            Assert.AreEqual(0f, b.TypePatchKm, "no explicit size in km: the size is in depths of the body's troposphere");
+            Assert.AreEqual(6.7f, b.TypePatchDepths, 1e-6f);
             Assert.AreEqual(0.06f, b.TypePatchBlend, 1e-6f);
             Assert.IsFalse(b.Build(1).HasClimate);
             // Numbers outside the range are brought into it with a warning; a MESO without amount is off.
             Assert.AreEqual(1f, c.Meso.Amount);
             Assert.AreEqual(4, c.Meso.Octaves);
-            Assert.AreEqual(5f, c.Meso.ScaleKm);
-            Assert.IsFalse(c.Meso.Cells, "no cells key: blobs");
+            Assert.AreEqual(1f, c.Meso.ScaleKm);
+            Assert.AreEqual(4.3f, c.Meso.ScaleDepths, 1e-6f, "no scaleDepths key: the default size in depths");            Assert.IsFalse(c.Meso.Cells, "no cells key: blobs");
             Assert.AreEqual(1f, c.Meso.Shoulder, "no shoulder key: a linear ramp");
             Assert.IsTrue(r.Warnings.Any(w => w.Contains("amount")), string.Join("; ", r.Warnings));
             Assert.IsFalse(new CloudMesoSpec().On);

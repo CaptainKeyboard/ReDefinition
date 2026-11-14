@@ -86,9 +86,13 @@ namespace ReDefinition.Atmospheres
             internal float[] SurfaceMap;
         }
 
-        // The Surface map (WeatherMapKind.Surface) of a body from its height grid: 0 over sea, 0.5 on lowland, 1 where the terrain stands 3000 m or more above the sea; the coast is the
+        // The terrain height that counts as high ground, for a troposphere of the calibration depth (BodyDerived.CalibrationTropopauseM); it scales with the body's (HeightScale): a mountain
+        // matters to the weather by how much of the troposphere it fills.
+        internal const double HighGroundReferenceM = 3000.0;
+
+        // The Surface map (WeatherMapKind.Surface) of a body from its height grid: 0 over sea, 0.5 on lowland, 1 where the terrain stands highGroundM or more above the sea; the coast is the
         // ocean fraction's blend. The grid does not change over time, so the map is made once.
-        internal static float[] BuildSurfaceMap(HeightGrid grid)
+        internal static float[] BuildSurfaceMap(HeightGrid grid, double highGroundM = HighGroundReferenceM)
         {
             var map = new float[Width * Height];
             if (grid == null)
@@ -103,7 +107,7 @@ namespace ReDefinition.Atmospheres
                 {
                     double lon = (-180.0 + (i + 0.5) * 360.0 / Width) * (Math.PI / 180.0);
                     double land = 1.0 - grid.OceanAt(lat, lon);
-                    double relief = Math.Min(1.0, Math.Max(0.0, grid.TerrainAt(lat, lon) / 3000.0));
+                    double relief = Math.Min(1.0, Math.Max(0.0, grid.TerrainAt(lat, lon) / highGroundM));
                     map[j * Width + i] = (float)(land * (0.5 + 0.5 * relief));
                 }
             }
@@ -141,7 +145,7 @@ namespace ReDefinition.Atmospheres
             {
                 lock (b.Lock)
                 {
-                    if (b.SurfaceMap == null) b.SurfaceMap = BuildSurfaceMap(state.Generator.Grid);
+                    if (b.SurfaceMap == null) b.SurfaceMap = BuildSurfaceMap(state.Generator.Grid, HighGroundReferenceM * state.Generator.D.HeightScale);
                     Hand(target, kind, bodyIndex, ut, 0, Width, Height, b.SurfaceMap);
                     return true;
                 }
