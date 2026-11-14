@@ -59,6 +59,8 @@ namespace ReDefinition.WeatherPlayer
                     LightAmbient = jl.lightAmbient,
                     FibreStretch = jl.fibreStretch,
                     VerticalScale = jl.verticalScale,
+                    FibreMinWindMs = jl.fibreMinWindMs,
+                    FibreTurnSeconds = jl.fibreTurnSeconds,
                     LightIsotropy = jl.lightIsotropy,
                     LightPlateau = jl.lightPlateau,
                     AmbientMs = jl.ambientMs >= 0f ? jl.ambientMs : CloudLayerDef.DefaultAmbientMs,

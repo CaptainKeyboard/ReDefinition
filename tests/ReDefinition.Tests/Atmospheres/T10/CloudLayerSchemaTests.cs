@@ -282,6 +282,22 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.75f * (1f - 0.85f), CloudLayerDef.DefaultAmbientDecay, 0.005f);
         }
 
+        // E40 L6 shape: the fibre axis numbers of a layer (cfg keys fibreMinWindMs and fibreTurnSeconds), and the defaults of a layer without them.
+        [TestMethod]
+        public void TheFibreAxisNumbersReadFromTheLayerNodeAndDefault()
+        {
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;fibreMinWindMs = 2;fibreTurnSeconds = 45;" + GoodType + "}"
+                + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
+            Assert.AreEqual(2f, a.FibreMinWindMs, 1e-6f);
+            Assert.AreEqual(45f, a.FibreTurnSeconds, 1e-6f);
+            Assert.AreEqual(2f, a.Build(1).FibreMinWindMs, 1e-6f);
+            Assert.AreEqual(45f, a.Build(1).FibreTurnSeconds, 1e-6f);
+            Assert.AreEqual(FibreAxis.DefaultMinWindMs, b.FibreMinWindMs);
+            Assert.AreEqual(FibreAxis.DefaultTurnSeconds, b.FibreTurnSeconds);
+        }
+
         // E40 L2 D1: the type's height-shaped threshold (LIFT, a curve like PROFILE) and the layer's fibre stretch.
         [TestMethod]
         public void TheShapeKeysReadFromTheTypeAndLayerNodesAndDefaultToNone()

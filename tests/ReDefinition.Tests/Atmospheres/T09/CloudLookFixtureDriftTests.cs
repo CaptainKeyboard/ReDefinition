@@ -67,6 +67,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
             Assert.AreEqual(shipped.FibreStretch, fixture.FibreStretch, 1e-6f, n + " fibre stretch");
             Assert.AreEqual(shipped.VerticalScale, fixture.VerticalScale, 1e-6f, n + " vertical scale");
+            Assert.AreEqual(shipped.FibreMinWindMs, fixture.FibreMinWindMs, 1e-6f, n + " fibre minimum wind");
+            Assert.AreEqual(shipped.FibreTurnSeconds, fixture.FibreTurnSeconds, 1e-6f, n + " fibre turn time");
             Assert.AreEqual(shipped.LightIsotropy, fixture.LightIsotropy, 1e-6f, n + " light isotropy");
             Assert.AreEqual(shipped.LightPlateau, fixture.LightPlateau, 1e-6f, n + " light plateau");
             Assert.AreEqual(shipped.AmbientMs, fixture.AmbientMs, 1e-6f, n + " sky diffusion amplitude");

@@ -54,6 +54,8 @@ namespace ReDefinition.WeatherPlayer
         public float fibreStretch = 1f;
         // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).
         public float verticalScale;
+        // The smoothing of the shape noise in noise scales (E40 L6 shape; the cfg key shapeSmoothing; 0: none), the fibre axis numbers (the cfg keys fibreMinWindMs and fibreTurnSeconds)
+        public float fibreMinWindMs = 0.5f, fibreTurnSeconds = 20f;
         // The layer's wind in world space (m/s; E40 L5 shape): the fibres lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
         public float[] wind;
     }

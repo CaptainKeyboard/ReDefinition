@@ -216,6 +216,10 @@ namespace ReDefinition.Atmospheres
         // rises in a cell is the same over the depth of the cloud, so the noise that decides where it stands must not change over that depth, or the bodies float at different heights and
         // the tops are slivers (E40 L5 shape). A deck (stratus, fog) keeps 1.
         internal float VerticalScale { get; set; }
+        // The fibre axis of the layer (cfg keys fibreMinWindMs and fibreTurnSeconds): the wind below which the fibres keep to the body's pole, and the time the axis takes to turn to a
+        // new wind (FibreAxis).
+        internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
+        internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
         // The mid-level sheet's rule (E40 L2 D1; cfg keys altoType, altoFrom, altoFullAt): AltoType is the type value of the table's mid-level sheet (an altocumulus), -1: none. Where the
         // generator makes more cloud at that type's height than at the fair-weather type's height (the difference of the two layer maps, from AltoFrom to AltoFullAt), the type map
         // shows the sheet instead of the precipitation's type (CloudLookTuning.ApplyAlto).

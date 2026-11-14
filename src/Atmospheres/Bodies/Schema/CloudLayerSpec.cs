@@ -144,6 +144,9 @@ namespace ReDefinition.Atmospheres
         internal float FibreStretch { get; set; } = 1f;
         // The vertical scale of the layer's noise lattice (cfg key verticalScale; 0: the body's sphereScale): see CloudLayerDef.VerticalScale.
         internal float VerticalScale { get; set; }
+        // The layer's fibre axis numbers (cfg keys fibreMinWindMs, fibreTurnSeconds): see CloudLayerDef.
+        internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
+        internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
         // The mid-level sheet's rule (cfg keys altoType, altoFrom, altoFullAt; altoType -1: none): see CloudLayerDef.AltoType.
         internal float AltoType { get; set; } = -1f;
         internal float AltoFrom { get; set; } = 0.05f;
@@ -201,6 +204,8 @@ namespace ReDefinition.Atmospheres
                 RainType = RainType,
                 FibreStretch = FibreStretch,
                 VerticalScale = VerticalScale,
+                FibreMinWindMs = FibreMinWindMs,
+                FibreTurnSeconds = FibreTurnSeconds,
                 AltoType = AltoType,
                 AltoFrom = AltoFrom,
                 AltoFull = AltoFull,

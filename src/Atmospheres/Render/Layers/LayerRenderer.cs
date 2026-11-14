@@ -276,6 +276,7 @@ namespace ReDefinition.Atmospheres
                 }
                 Noise.SetStretch(l, layer.FibreStretch);
                 Noise.SetVertical(l, layer.VerticalScale);
+                Noise.SetFibre(l, layer.FibreMinWindMs, layer.FibreTurnSeconds);
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;
