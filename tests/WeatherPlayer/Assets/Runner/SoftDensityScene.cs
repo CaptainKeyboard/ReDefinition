@@ -192,6 +192,101 @@ namespace ReDefinition.WeatherPlayer
                 return new GrainTable.March { Name = name, Seq = 1, Tight = tight, MaxSteps = int.Parse(name.Substring(tight ? 6 : 5)) };
             return GrainTable.MarchByName(name);
         }
+
+        // E40 ground cost (series e40-gc-*): a case is a march name and modifiers joined by '+', every modifier the player's twin of a tuning key or setting:
+        //   r<NN>     the march target's side over the full target's, NN / 100 (recon.resolution: r40 is 0.4)      jit    the per-frame sub-pixel jitter (recon.jitter 1)
+        //   acc<NN>   the history weight, NN / 100 (recon.accumulate)                                              blk<N> the block level N of cloudResolution (no march history of its own)
+        //   ls<N>     layers.lightStride                lc<NNN>  layers.lightCutoff NNN / 1000                    ds<N> layers.ditherSequence
+        //   lq<N>     cloudLightQuality 0 Low, 1 Medium, 2 High (taps and octaves; without it the frame's own: 3 sun taps, 4 octaves)   sun<N> the frame's sun steps
+        //   skip      cloudSkipEmpty (the tile pass)    skipc    cloudSkipClosed                                  leap<N> layers.emptyLeap
+        //   lm<N>     the layers that are marched, bit i = layer i (0: all; a measurement of what dropping the empty layers before the march would save)
+        //   dbg<N>    the cost debug mask (1 no light, 2 no shape noise, 4 no erosion; not a picture of the product)
+        // The base is seq1 (the product's grid march with the 48 points of the High setting), seq1m<N> and tseq1m<N> (N grid points, the second on the cut span) or a GrainTable name.
+        internal sealed class Case
+        {
+            public string Name, Base = "seq1";
+            public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f;
+            public bool Jitter, Skip, SkipClosed;
+            public int Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
+        }
+
+        private static int Number(string token, int prefix)
+        {
+            return int.Parse(token.Substring(prefix));
+        }
+
+        internal static Case Parse(string name)
+        {
+            string[] parts = name.Split('+');
+            var c = new Case { Name = name, Base = parts[0] };
+            for (int i = 1; i < parts.Length; i++)
+            {
+                string t = parts[i];
+                if (t == "jit") c.Jitter = true;
+                else if (t == "skip") c.Skip = true;
+                else if (t == "skipc") c.SkipClosed = true;
+                else if (t.StartsWith("blk")) c.Block = Number(t, 3);
+                else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
+                else if (t.StartsWith("lc")) c.Cutoff = Number(t, 2) / 1000f;
+                else if (t.StartsWith("lq")) c.Quality = Number(t, 2);
+                else if (t.StartsWith("ls")) c.Stride = Number(t, 2);
+                else if (t.StartsWith("ds")) c.Dither = Number(t, 2);
+                else if (t.StartsWith("sun")) c.Sun = Number(t, 3);
+                else if (t.StartsWith("leap")) c.Leap = Number(t, 4);
+                else if (t.StartsWith("lm")) c.Mask = Number(t, 2);
+                else if (t.StartsWith("dbg")) c.Debug = Number(t, 3);
+                else if (t.StartsWith("r") && t.Length > 1) c.Resolution = Number(t, 1) / 100f;
+                else throw new ArgumentException("unknown modifier '" + t + "' in the case " + name);
+            }
+            return c;
+        }
+
+        private static readonly LayerFrame FrameDefaults = new LayerFrame();
+        private static readonly CloudLightSettings LightDefaults = new CloudLightSettings();
+
+        // Every field a case can name is set on every call, so that a case never keeps what the one before it set on the same frame.
+        internal static void ApplyCase(LayerFrame f, Case c)
+        {
+            ApplyMarch(f, c.Base);
+            f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
+            f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
+            if (c.Dither >= 0) f.DitherSequence = c.Dither;
+            if (c.Debug >= 0) f.CostDebug = c.Debug;
+            if (c.Leap > 0) f.EmptyLeap = c.Leap;
+            f.SunSteps = c.Sun > 0 ? c.Sun : 3;
+            f.LayerMask = c.Mask;
+            f.Cull.SkipEmpty = c.Skip;
+            f.Cull.SkipClosed = c.SkipClosed;
+            CloudLightSettings q = c.Quality >= 0 ? CloudLightSettings.ForQuality(c.Quality) : LightDefaults;
+            f.Light.SunStepsOverride = q.SunStepsOverride;
+            f.Light.MoonSteps = q.MoonSteps;
+            f.Light.UpSteps = q.UpSteps;
+            f.Light.Octaves = q.Octaves;
+        }
+
+        // The reconstruction of a case in a mode of GrainTable (plain: the half-size march alone; acc20: with the history). A block level has its own history and ignores the mode.
+        internal static ReconSettings Settings(Case c, string mode)
+        {
+            if (c.Block > 0) return new ReconSettings { Mode = ReconMode.Block, Block = c.Block };
+            ReconSettings s = GrainTable.ModeByName(mode).Settings();
+            s.Resolution = c.Resolution;
+            s.Jitter = c.Jitter;
+            if (s.Accumulate > 0f) s.Accumulate = c.Accumulate;
+            return s;
+        }
+
+        // The views of a run: -views a,b (the job id of a view is gn-<view>-prod-f0); default the two of the grain series.
+        internal static string[] Views
+        {
+            get
+            {
+                string arg = WeatherPass.Argument("-views");
+                return string.IsNullOrEmpty(arg) ? new[] { "ground", "above" } : arg.Split(',');
+            }
+        }
+
+        // -motion all runs the moving scenarios and the cut for every case, not only for the first march of the list.
+        internal static bool MotionForAll { get { return WeatherPass.Argument("-motion") == "all"; } }
     }
 
     [WeatherScene("soft-temporal")]
@@ -272,7 +367,7 @@ namespace ReDefinition.WeatherPlayer
             refRecon.Init(Shader.Find(LayerReconstructor.ShaderName));
             var full = new ReconSettings { Mode = ReconMode.Full };
             int dumped = 0;
-            foreach (string view in new[] { "ground", "above" })
+            foreach (string view in SoftTable.Views)
             {
                 LayersJob job = GrainTable.Find(file, "gn-" + view + "-prod-f0");
                 if (job == null) { Sink.Flag("soft_temporal_job_" + view, false); continue; }
@@ -286,6 +381,8 @@ namespace ReDefinition.WeatherPlayer
                     foreach (Scenario sc in Scenarios)
                     {
                         // The converged reference of every pose that is written, of THIS medium.
+                        // A case of an earlier scenario may have left taps, a cull or a cost mask on the frame: the references run on the frame's own defaults.
+                        SoftTable.ApplyCase(rig.Frame, SoftTable.Parse("seq1"));
                         GrainTable.ApplyConverged(rig.Frame);
                         SoftTable.Apply(rig.Frame, medium);
                         foreach (int i in sc.Dump)
@@ -301,10 +398,11 @@ namespace ReDefinition.WeatherPlayer
                             foreach (string mode in SoftTable.Modes)
                             {
                                 // The fewer grid points are measured with the history and a still camera only.
-                                if (march != "seq1" && (mode == "plain" || sc.Name != "static")) continue;
-                                SoftTable.ApplyMarch(rig.Frame, march);
+                                if (march != "seq1" && (mode == "plain" || (sc.Name != "static" && !SoftTable.MotionForAll))) continue;
+                                SoftTable.Case marchCase = SoftTable.Parse(march);
+                                SoftTable.ApplyCase(rig.Frame, marchCase);
                                 SoftTable.Apply(rig.Frame, medium);
-                                ReconSettings settings = GrainTable.ModeByName(mode).Settings();
+                                ReconSettings settings = SoftTable.Settings(marchCase, mode);
                                 rig.Recon.Reset();
                                 for (int i = 0; i < Frames; i++)
                                 {
@@ -359,14 +457,15 @@ namespace ReDefinition.WeatherPlayer
             var rt = new RenderTexture(1707, 960, 24, RenderTextureFormat.DefaultHDR) { name = "soft cost target" };
             rt.Create();
             Cam.targetTexture = rt;
-            ReconSettings settings = GrainTable.ModeByName("acc20").Settings();
             List<SoftTable.Medium> media = SoftTable.Selected();
             // Two rounds in opposite order, so that a drift of the machine over the run falls on every case alike; the row is the median of both.
             var samples = new Dictionary<string, List<double>[]>();
             for (int round = 0; round < 2; round++)
             {
-                foreach (string view in new[] { "ground", "above" })
+                string[] views = SoftTable.Views;
+                for (int vi = 0; vi < views.Length; vi++)
                 {
+                    string view = views[round == 0 ? vi : views.Length - 1 - vi];
                     LayersJob job = GrainTable.Find(file, "gn-" + view + "-prod-f0");
                     if (job == null) { Sink.Flag("soft_cost_job_" + view, false); continue; }
                     SoftTable.Original original = SoftTable.Original.Of(job.layers[0]);
@@ -378,11 +477,15 @@ namespace ReDefinition.WeatherPlayer
                         SoftTable.Load(rig, job, input, medium, original, detailMean);
                         rig.Frame.UseSceneDepth = true;
                         GrainTable.Pose(Cam, job, 0f, 0f);
-                        foreach (string march in SoftTable.Marches)
+                        string[] marches = SoftTable.Marches;
+                        for (int mi = 0; mi < marches.Length; mi++)
                         {
+                            string march = marches[round == 0 ? mi : marches.Length - 1 - mi];
                             if (clock.Elapsed.TotalMinutes > 18.0) { Sink.Flag("soft_cost_completed", false); yield break; }
-                            SoftTable.ApplyMarch(rig.Frame, march);
+                            SoftTable.Case marchCase = SoftTable.Parse(march);
+                            SoftTable.ApplyCase(rig.Frame, marchCase);
                             SoftTable.Apply(rig.Frame, medium);
+                            ReconSettings settings = SoftTable.Settings(marchCase, "acc20");
                             rig.Recon.Reset();
                             string label = view + "." + medium.Name + "." + march;
                             if (!samples.ContainsKey(label)) samples[label] = new[] { new List<double>(), new List<double>(), new List<double>() };
@@ -403,6 +506,14 @@ namespace ReDefinition.WeatherPlayer
                                     e = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
                                 if (m >= 0f && r >= 0f && e >= 0f) { s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++; }
                             }
+                            if (marchCase.Skip && round == 0)
+                            {
+                                // What the tile pass dropped: the share of the 16 x 16 tiles that march no layer at all, and of the (tile, layer) pairs that are not marched.
+                                double emptyTiles, droppedPairs, byMaps, byTerrain, byShell, byClosed;
+                                CullKit.TileStats(rig.Renderer, job.layers.Length, out emptyTiles, out droppedPairs, out byMaps, out byTerrain, out byShell, out byClosed);
+                                Sink.Info("softcost.tilesempty." + label, emptyTiles);
+                                Sink.Info("softcost.tilesdropped." + label, droppedPairs);
+                            }
                         }
                     }
                     original.Restore(job.layers[0]);
@@ -412,7 +523,10 @@ namespace ReDefinition.WeatherPlayer
             {
                 double tm = Median(kv.Value[0]), tr = Median(kv.Value[1]), tc = Median(kv.Value[2]);
                 Sink.Info("softcost.march." + kv.Key, tm);
+                Sink.Info("softcost.resolve." + kv.Key, tr);
+                Sink.Info("softcost.composite." + kv.Key, tc);
                 Sink.Info("softcost.total." + kv.Key, tm + tr + tc);
+                Sink.Info("softcost.n." + kv.Key, kv.Value[0].Count);
             }
             Cam.targetTexture = Target;
             rt.Release();

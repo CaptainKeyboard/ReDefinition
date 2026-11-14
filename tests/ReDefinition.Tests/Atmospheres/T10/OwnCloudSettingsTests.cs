@@ -374,6 +374,49 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(new LayerFrame().LightStride, frame.LightStride);
         }
 
+        // E40 ground cost: the size of the history path's march target and its sub-pixel jitter are tuning keys with the compiled values as defaults.
+        [TestMethod]
+        public void TheReconKeysSetTheMarchTargetsSizeAndJitterWithoutChangingTheDefault()
+        {
+            Tuning.ClearOverrides();
+            NextFrame();
+            var recon = new ReconSettings();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(ReconMode.Low, recon.Mode);
+            Assert.AreEqual(new LayerFrame().Resolution, recon.Resolution);
+            Assert.AreEqual(0.5f, recon.Resolution);
+            Assert.IsFalse(recon.Jitter);
+            Tuning.SetOverride(OwnCloudOptions.TuneReconResolution, 0.4f);
+            Tuning.SetOverride(OwnCloudOptions.TuneReconJitter, 1f);
+            NextFrame();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(ReconMode.Low, recon.Mode);
+            Assert.AreEqual(0.4f, recon.Resolution);
+            Assert.IsTrue(recon.Jitter);
+            Assert.AreEqual(0.2f, recon.Accumulate);
+            // The mode setting Low reads the same keys; the numbers stay inside 0.1 to 1.
+            OwnCloudOptions.Apply(recon, Defaults("cloudReconMode", (int)ReconMode.Low));
+            Assert.AreEqual(0.4f, recon.Resolution);
+            Assert.IsTrue(recon.Jitter);
+            Tuning.SetOverride(OwnCloudOptions.TuneReconResolution, 0.01f);
+            NextFrame();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(0.1f, recon.Resolution);
+            Tuning.SetOverride(OwnCloudOptions.TuneReconResolution, 7f);
+            NextFrame();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(1f, recon.Resolution);
+            // The block levels have their own pattern and ignore both keys.
+            OwnCloudOptions.Apply(recon, Defaults("cloudResolution", 2));
+            Assert.AreEqual(ReconMode.Block, recon.Mode);
+            Assert.AreEqual(0f, recon.Accumulate);
+            Tuning.ClearOverrides();
+            NextFrame();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(0.5f, recon.Resolution);
+            Assert.IsFalse(recon.Jitter);
+        }
+
         // E40 grain: the keys of the grain package reach the frame and the reconstruction; without them both are as they were.
         [TestMethod]
         public void TheGrainKeysMoveTheGridTheEntryAndTheHistory()

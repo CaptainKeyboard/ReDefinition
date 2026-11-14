@@ -35,6 +35,13 @@ namespace ReDefinition.Atmospheres
         internal const string TuneAccumulate = "recon.accumulate";
         internal const float AccumulateDefault = 0.2f;
 
+        // E40 ground cost (package L2COST): the size of the history path's march target and its per-frame sub-pixel jitter, so that a march below half size laid up over
+        // several frames is a variant of the game start and not only of the player. recon.resolution is the march target's side over the full target's (0.1 to 1; default
+        // 0.5, the compiled LayerFrame.Resolution); recon.jitter 1 gives the march rays the 16-phase Halton offset (ReconSettings.Jitter; default 0). Both act wherever the
+        // reconstructor runs in its mode Low: the history path of level 1 (recon.accumulate above 0) and the mode setting Low.
+        internal const string TuneReconResolution = "recon.resolution", TuneReconJitter = "recon.jitter";
+        internal const bool ReconJitterDefault = false;
+
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
         // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach) and layers.ditherSequence
         // (LayerFrame.DitherSequence; 0: a new step offset per pixel and frame, the march as it was; 1, the default: a per-pixel offset advanced by the golden ratio).
@@ -368,12 +375,14 @@ namespace ReDefinition.Atmospheres
             if (accumulate > 0f && s.Mode == ReconMode.Full && !s.RefineAtMask)
             {
                 s.Mode = ReconMode.Low;
-                s.Resolution = CompiledFrame.Resolution;
-                s.Jitter = false;
+                s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, CompiledFrame.Resolution), 0.1f, 1f);
+                s.Jitter = Tuning.Flag(TuneReconJitter, ReconJitterDefault);
                 s.Accumulate = accumulate;
             }
             else if (low)
             {
+                s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, CompiledFrame.Resolution), 0.1f, 1f);
+                s.Jitter = Tuning.Flag(TuneReconJitter, ReconJitterDefault);
                 s.Accumulate = accumulate;
             }
         }
