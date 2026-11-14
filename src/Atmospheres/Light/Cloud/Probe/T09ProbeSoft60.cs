@@ -7,12 +7,14 @@ namespace ReDefinition.Atmospheres
 {
     // Series K-T2, the start soft60 (E40, the clouds' work after start 59; plan and review: .local/work/e40-start60-plan-review.md and e40-start60-review.md). The scenario is soft59's
     // (T09ProbeSoft.cs: both scenes, the baseline and the variants of a table per view) with another table and three additions:
-    //   1. the weave diagnosis: in the fair ground view the variants soft, softr33 and the history / dither candidates read EIGHT consecutive frames (full size) and ref256 (a march of 256
-    //      steps) the converged picture they are measured against (tools/weather_metrics/e40s60.py: the static-pattern measure of E1 on game frames);
+    //   1. the weave diagnosis: in the fair ground view the variants soft, softr33 and the history / dither candidates read EIGHT consecutive frames (full size), each right after four frames
+    //      of its own reference ref<name> (a march of 256 steps, read a few seconds before, so that the clouds have not moved between them), the converged picture it is measured against
+    //      (tools/weather_metrics/e40s60.py: the static-pattern measure of E1 on game frames);
     //   2. the extra looks: horizon (far view, haze), fog (fair weather, inside the fog deck) and rain (under the deck, the clock scene): one frame set each, with a baseline frame;
     //   3. the views placed by the type map: the probe reads the own layers' map and type at a ring of places around the site (Game.ReadLayers) and moves the vessel so that the
     //      nearest cell of cumulus humilis, cumulus congestus, cumulonimbus and cirrus is at the centre of the view, from the ground and from above, three frames each. A type that
-    //      is absent within 300 km is logged and counted (T09s.types_absent), never a failure.
+    //      is absent within 300 km is logged and counted (T09s.types_absent), never a failure. They run LAST, in the clock scene after every cost window: a far placement that fails
+    //      costs no cost column, and the clock is chosen (ChooseUt reads the sun at the vessel) while the vessel still stands over the site.
     // Every view also writes the light rows of the variant soft (SoftLightRows): the sunlit side and the base of the cloud pixels, and the deck against the sky of the baseline.
     internal sealed partial class T09Probe
     {
@@ -36,20 +38,43 @@ namespace ReDefinition.Atmospheres
         //   softcut16   the cut span, 16 points, target 0.33: cost at the fair and the clock ground
         //   soft100s24  cloudSoftness 1.0, cloudSamples Low (24 points): the owner's second favourite, cost at the fair ground
         //   softhash    layers.ditherSequence 1 (the white hash): the weave check, eight frames, no cost
-        //   softacc10   recon.accumulate 0.1 (a history of about 10 frames), softacc05 0.05 (about 20): the history's share in the static pattern; the history needs frames to settle
-        //   ref256      layers.gridFine 5.3333 = 256 grid points: the converged picture of the pose, the reference of the static-pattern measure (the 48-step bias leaves with the high-pass)
-        // (There is no key for the history's clip: ReconSettings.ClipSigma is no tuning key; the player series e40-wv-temporal measured clip1000 and found no case separated from the default.)
+        //   softacc05   recon.accumulate 0.05 (a history of about 20 frames): the history's share in the static pattern; the history needs frames to settle
+        //   ref<name>   layers.gridFine 5.3333 = 256 grid points, four frames, read RIGHT BEFORE the weave variant <name> (a few seconds earlier): the converged picture of the pose at that moment, the reference
+        //               of the static-pattern measure (the 48-step bias leaves with the high-pass). One reference for all variants taken minutes apart would measure the clouds' drift (MEASURED in start 59's
+        //               pictures: 0.003 luma between two frames of one moment, 0.04 to 0.06 about 100 s apart), not the pattern.
+        // (softacc10, recon.accumulate 0.1, was cut for the time of the four references: its direction is that of softacc05. There is no key for the history's clip: ReconSettings.ClipSigma is no
+        // tuning key; the player series e40-wv-temporal measured clip1000 and found no case separated from the default.)
         internal static readonly SoftVariant[] Soft60Variants =
         {
+            Soft60Reference("soft"),
             Soft60("soft", "ga", "gias", 3).Weave(8),
+            Soft60Reference("softr33"),
             Soft60("softr33", "ga", "gias", 1, "t:" + OwnCloudOptions.TuneReconResolution + "=0.33", "s:" + AtmospheresSettings.Keys.CloudSkipEmpty + "=1").Weave(8),
             Soft60("softcut16", "g", "g", 1, "t:" + OwnCloudOptions.TuneSpanTight + "=1", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "g"),
             Soft60("soft100s24", "g", "", 1, "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0").In("g", "-"),
+            Soft60Reference("softhash"),
             Soft60("softhash", "", "", 1, "t:" + OwnCloudOptions.TuneDitherSequence + "=1").Weave(8).In("g", "-"),
-            Soft60("softacc10", "", "", 1, "t:" + OwnCloudOptions.TuneAccumulate + "=0.1").Weave(8).Settle(60).Extra(1.5).In("g", "-"),
-            Soft60("softacc05", "", "", 1, "t:" + OwnCloudOptions.TuneAccumulate + "=0.05").Weave(8).Settle(120).Extra(3.0).In("g", "-"),
-            Soft60("ref256", "", "", 1, "t:" + OwnCloudOptions.TuneGridFine + "=5.3333").Weave(8).Extra(4.0).In("g", "-")
+            Soft60Reference("softacc05"),
+            Soft60("softacc05", "", "", 1, "t:" + OwnCloudOptions.TuneAccumulate + "=0.05").Weave(8).Settle(120).Extra(3.0).In("g", "-")
         };
+
+        // The universal time of start 47 (TVC) and start 59's clock scene; a test host's fake world has another clock and sets this.
+        internal double Soft60ExpectedUt = 1686000.0;
+
+        // The variant soft of the table (the defaults).
+        internal static SoftVariant Soft60Default
+        {
+            get { return Array.Find(Soft60Variants, v => v.Name == "soft"); }
+        }
+
+        // The reference before a weave variant: 256 grid points, four frames, the fair ground view only. Name "ref" + the variant's.
+        internal const int Soft60ReferenceFrames = 4;
+
+        private static SoftVariant Soft60Reference(string of)
+        {
+            SoftVariant v = Soft60("ref" + of, "", "", Soft60ReferenceFrames, "t:" + OwnCloudOptions.TuneGridFine + "=5.3333").Extra(2.0).In("g", "-");
+            return v;
+        }
 
         // The extra looks have the variant soft alone and no cost window.
         internal static readonly SoftVariant[] Soft60ExtraTable = { Soft60("soft", "", "", 3) };
@@ -86,7 +111,8 @@ namespace ReDefinition.Atmospheres
             foreach (char c in SoftClockViews) s += SoftEstimateViewS(false, c, table);
             s += Soft60Estimate(Soft60FairExtras.Length, true) + Soft60Estimate(Soft60ClockExtras.Length, false);
             foreach (Soft60Target t in Soft60Targets) s += 2.0 * Soft60TypeViewS(t);
-            return s + 2.0 * Soft60ScanS;
+            // The type views run last, in the clock scene: one scan.
+            return s + Soft60ScanS;
         }
 
         private static double Soft60Estimate(int views, bool fair)
@@ -117,10 +143,18 @@ namespace ReDefinition.Atmospheres
 
         // --- The light rows ----------------------------------------------------------------------------------------------------------------
 
-        // Linear luminance (Rec. 709) of a value the camera target held.
+        // The sRGB value of a channel as linear light: T09Image.Raw is the target as the game held it BEFORE the gamma step (ReconHost converts afterwards), so a ratio of two raw values is a ratio of
+        // display values; the model's numbers (base 0.27, top 0.56 of a white card; "P10 above 0.03 of the sun share") are linear.
+        internal static float SoftLinear(float v)
+        {
+            v = Mathf.Max(0f, v);
+            return v <= 0.04045f ? v / 12.92f : Mathf.Pow((v + 0.055f) / 1.055f, 2.4f);
+        }
+
+        // Linear luminance (Rec. 709 weights) of a raw value of the camera target.
         internal static float SoftLuma(Color c)
         {
-            return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+            return 0.2126f * SoftLinear(c.r) + 0.7152f * SoftLinear(c.g) + 0.0722f * SoftLinear(c.b);
         }
 
         internal const float SoftLightCloudChange = 0.05f, SoftLightBodyChange = 0.15f;
@@ -399,7 +433,7 @@ namespace ReDefinition.Atmospheres
                 {
                     if (soft60Done[t]) continue;
                     soft60TypesAbsent++;
-                    AtmospheresLog.Say("T09 types: " + Soft60Targets[t].Name + " was absent within " + Soft60RingsKm[Soft60RingsKm.Length - 1].ToString("0", CultureInfo.InvariantCulture) + " km in both scenes: no view of it (logged, not a failure)");
+                    AtmospheresLog.Say("T09 types: " + Soft60Targets[t].Name + " was absent within " + Soft60RingsKm[Soft60RingsKm.Length - 1].ToString("0", CultureInfo.InvariantCulture) + " km in the map of the clock scene: no view of it (logged, not a failure)");
                 }
             }
         }
@@ -420,8 +454,6 @@ namespace ReDefinition.Atmospheres
                 Check("T09s.section_" + scene + "_" + view.Name, false, "the scenario is at " + Elapsed.ToString("0") + " s of " + MaxSeconds.ToString("0") + " s and the view needs about " + estimate.ToString("0") + " s: left out");
                 yield break;
             }
-            softSections++;
-            soft60TypeViews++;
             AtmospheresLog.Say("T09 type view " + view.Name + " (" + scene + "): " + target.Name + " at " + cell.DistKm.ToString("0.0", CultureInfo.InvariantCulture) + " km from the site, cover " + cell.Cover.ToString("0.00", CultureInfo.InvariantCulture)
                                + " [" + cell.TypeName + "], the vessel " + pose.MovedKm.ToString("0.0", CultureInfo.InvariantCulture) + " km from the site, the view's reach " + pose.ReachKm.ToString("0.0", CultureInfo.InvariantCulture)
                                + " km, heading " + view.HeadingDeg.ToString("0", CultureInfo.InvariantCulture));
@@ -430,10 +462,17 @@ namespace ReDefinition.Atmospheres
             Emit(head + "reach_km", pose.ReachKm);
             foreach (ProbeWait w in PlaceChecked(pose.VesselLatDeg, pose.VesselLonDeg, view)) yield return w;
             Emit(head + "placed_ok", placeOk);
+            // A view that was not placed is not counted as taken (the counts say what was read).
             if (!placeOk) yield break;
+            softSections++;
+            soft60TypeViews++;
             foreach (ProbeWait w in StableGate(view, "soft")) yield return w;
+            // The sun at this place: 245 to 300 km from the site it differs by up to 28 degrees of elevation, and the light rows are read against a model that has one sun.
+            double sunDeg = Game.SunElevationDeg();
+            Emit(head + "sun_elev_deg", sunDeg);
+            AtmospheresLog.Say("T09 type view " + view.Name + ": the sun stands " + sunDeg.ToString("0.0", CultureInfo.InvariantCulture) + " degrees over this place's horizon");
             string pictureView = view.Name + (fair ? "_fair" : "");
-            SoftVariant soft = Soft60Variants[0];
+            SoftVariant soft = Soft60Default;
             softOffRaw = null;
             if (target.Light)
             {

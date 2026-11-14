@@ -11,9 +11,12 @@ by this script alone, after the run, from the KSP log and the picture folder (.l
 Tables (the cost, grain, numbers-the-pass-ran-with and sun-colour tables are e40sf.py's, run on this start's rows):
   PLAN     the probe's estimate, the sections run and left out, the type views and the types that were absent
   LIGHT    per view the variant soft's light rows: the sunlit side (P90 of the luminance of the pixels the clouds changed by 0.15 or more), the base (P10), their ratio, the median and the
-           baseline's sky at the same pixels (a cumulus body wants a top over base of 2 to 6; a deck is held against the sky behind it)
+           baseline's sky at the same pixels (a cumulus body passes at a top over base of 1.6 to 6; a deck is held against the sky behind it)
   TYPES    per scene and target (humilis, congestus, cumulonimbus, cirrus): where the map holds it (km from the site, cover, whether the cell is weak) and, per view, the types under the view's centre
-  WEAVE    from the frames (not from the log): the static pattern of the fair ground view per variant. Eight consecutive frames each; ref256 (a march of 256 steps) is the converged picture.
+  MISSES   what the probe does not fail on but the start's questions need: a cost window or frame set with no layer drawn, a lost raw read or a mask without cloud (the warnings), a variant
+           with fewer frames than the table says, a view that was not placed, a light row that could not be made. They are counted (T09s.collector_misses); the run is not aborted by them.
+  WEAVE    from the frames (not from the log): the static pattern of the fair ground view per variant. Eight consecutive frames each; the variant's own reference ref<name> (a march of 256
+           steps, four frames read right before it, so that the clouds have not moved) is the converged picture of that moment.
            With L the display luma of a frame, hp(x) = x - gaussian(x, 3 px), the mask the pixels the clouds changed against the baseline frame, and the crop 512 x 256 where about half the
            pixels are cloud (so a rim is in it):   rms1 = rms of hp(L(frame a) - L(ref)) over the mask;  rms8 = the same for the mean of the eight frames;  stat = rms8 / rms1 (1: the same in
            every frame, about 0.35: noise that changes every frame);  peak = the largest power of the crop's 2D spectrum of hp(mean8 - ref) (periods under 32 px, each ring divided by its median)
@@ -39,8 +42,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 START = "soft60"
 RES = "1707x960"
 FRAME_LETTERS = "abcdefgh"
-WEAVE_ORDER = ("soft", "softhash", "softacc10", "softacc05", "softr33", "ref256")
-WEAVE_REFERENCE = "ref256"
+WEAVE_ORDER = ("soft", "softhash", "softacc05", "softr33")
+REFERENCE_PREFIX = "ref"
+# Light pass ranges (linear luminance), the ones the model supports and the review states: a cumulus body's top over base 1.6 to 6 (the two-stream model alone gives 2.1; the game's sky light lifts
+# the base and can lower it to about 1.6; the checklist's 2 to 6 has its lower edge here), a deck's median over the baseline's sky behind it 0.15 to 0.8, a base above 0.03.
+LIGHT_RATIO, LIGHT_DECK, LIGHT_BASE_MIN = (1.6, 6.0), (0.15, 0.8), 0.03
 SHEET_ORDER = ("soft", "softr33", "softcut16", "soft100s24")
 TYPE_ORDER = ("humilis", "congestus", "cumulonimbus", "cirrus")
 EXTRAS = (("horizon", "fair"), ("fog", "fair"), ("rain", "clock"))
@@ -83,14 +89,21 @@ def light_views(rows):
 
 
 def light_table(rows, num, fmt):
-    lines = ["LIGHT (the variant soft; luma of the pixels the clouds changed by 0.15 or more; top = P90, base = P10; a cumulus body wants top over base 2 to 6)",
-             "  %-6s %-22s %7s %7s %7s %8s %7s %7s %9s  %s" % ("scene", "view", "cloud %", "top", "base", "top/base", "median", "sky", "deck/sky", "cumulus 2 to 6")]
+    lines = ["LIGHT (the variant soft; LINEAR luminance of the pixels the clouds changed by 0.15 or more; top = P90, base = P10). Pass: a cumulus body top/base %.1f to %.1f and base above %.2f; a deck "
+             "(clock ground, rain) median over the sky behind it %.2f to %.1f" % (LIGHT_RATIO + (LIGHT_BASE_MIN,) + LIGHT_DECK),
+             "  %-6s %-22s %7s %7s %7s %8s %7s %7s %9s  %s" % ("scene", "view", "cloud %", "top", "base", "top/base", "median", "sky", "deck/sky", "pass")]
     metrics = []
     for scene, view in light_views(rows):
         r = scene_rows(rows, scene, view)
         top, base, ratio = num(r.get("light_top")), num(r.get("light_base")), num(r.get("light_top_over_base"))
+        deck = num(r.get("light_deck_over_sky"))
         cumulus = view.startswith("ty_humilis") or view.startswith("ty_congestus") or (scene == "fair" and view in ("ground", "above"))
-        verdict = "-" if not cumulus or ratio is None else ("yes" if 2.0 <= ratio <= 6.0 else "no (%.2f)" % ratio)
+        is_deck = scene == "clock" and view in ("ground", "rain")
+        verdict = "-"
+        if cumulus and ratio is not None:
+            verdict = "yes" if LIGHT_RATIO[0] <= ratio <= LIGHT_RATIO[1] and (base or 0.0) >= LIGHT_BASE_MIN else "no (top/base %.2f, base %.3f)" % (ratio, base or 0.0)
+        elif is_deck and deck is not None:
+            verdict = "yes" if LIGHT_DECK[0] <= deck <= LIGHT_DECK[1] else "no (deck/sky %.2f)" % deck
         share = num(r.get("light_cloud_share"))
         lines.append("  %-6s %-22s %7s %7s %7s %8s %7s %7s %9s  %s" % (scene, view, fmt(None if share is None else 100.0 * share, 1), fmt(top, 3), fmt(base, 3), fmt(ratio, 2),
                                                                     fmt(num(r.get("light_median")), 3), fmt(num(r.get("light_sky")), 3), fmt(num(r.get("light_deck_over_sky")), 2), verdict))
@@ -121,10 +134,58 @@ def types_table(rows, num, fmt):
                 p = "T09s.%s.%s." % (scene, view)
                 if p + "placed_ok" not in rows:
                     continue
-                lines.append("    %-6s %-18s placed %-5s moved %6s km  cell %5s km  centre %s  %s" % (scene, view, rows.get(p + "placed_ok"), fmt(num(rows.get(p + "vessel_moved_km")), 1),
-                                                                                                fmt(num(rows.get(p + "cell_dist_km")), 0), "match" if rows.get(p + "centre_match") else "NOT the target",
-                                                                                                rows.get(p + "centre_types", "")))
+                lines.append("    %-6s %-18s placed %-5s moved %6s km  cell %5s km  sun %5s deg  centre %s  %s" % (scene, view, rows.get(p + "placed_ok"), fmt(num(rows.get(p + "vessel_moved_km")), 1),
+                                                                                                                  fmt(num(rows.get(p + "cell_dist_km")), 0), fmt(num(rows.get(p + "sun_elev_deg")), 1),
+                                                                                                                  "match" if rows.get(p + "centre_match") else "NOT the target", rows.get(p + "centre_types", "")))
     return lines
+
+
+def misses(rows, num, texts):
+    """[text] of what the start's questions need and the probe does not fail on (module docstring). Counted, never raised."""
+    out = []
+    for metric, value in rows.items():
+        parts = metric.split(".")
+        if parts[0] == "T09s" and len(parts) == 4 and parts[3] == "placed_ok" and value is False:
+            out.append("%s %s: the view was not placed" % (parts[1], parts[2]))
+        if parts[0] != "T09s" or len(parts) != 5:
+            continue
+        scene, view, variant, name = parts[1], parts[2], parts[3], parts[4]
+        if name == "cost_frames_drawn" and num(value) == 0.0:
+            out.append("%s %s %s: the cost window drew no frame of the pass (cost_frames_drawn 0)" % (scene, view, variant))
+        if name == "effective_ok" and value is False:
+            out.append("%s %s %s: the pass did not run with the table's numbers" % (scene, view, variant))
+        if name == "pose_ok" and value is False:
+            out.append("%s %s %s: the pose left the view during the frames" % (scene, view, variant))
+    # The warnings of the probe: a lost raw read, a mask with no cloud in it, a picture that was not saved.
+    for metric in rows:
+        if metric.startswith("T09.warning."):
+            out.append("probe warning %s: %s" % (metric[len("T09.warning."):], rows[metric]))
+    # The frames the table says against the frames read.
+    expected = {}
+    for metric, value in rows.items():
+        parts = metric.split(".")
+        if len(parts) == 5 and parts[0] == "T09s" and parts[4] == "frames":
+            expected[tuple(parts[1:4])] = num(value)
+    total = sum(v for v in expected.values() if v is not None)
+    read = num(rows.get("T09s.frames_read"))
+    if read is not None and total and abs(read - total) > 0.5:
+        out.append("frames read %d against %d frames of the variants' rows" % (read, total))
+    # A view with a baseline whose light rows are missing (no pixel of the cloud differed from the baseline by 0.15, or no baseline).
+    have_light = set(light_views(rows))
+    for metric in rows:
+        parts = metric.split(".")
+        if len(parts) == 5 and parts[0] == "T09s" and parts[3] == "soft" and parts[4] == "frames" and (parts[1], parts[2]) not in have_light:
+            out.append("%s %s: no light rows (no pixel changed by 0.15 against the baseline, or no baseline frame)" % (parts[1], parts[2]))
+    # The weave variants: eight frames and their reference.
+    for scene_view in (("fair", "ground"),):
+        for name in WEAVE_ORDER:
+            got = expected.get((scene_view[0], scene_view[1], name))
+            if got is not None and got < 8:
+                out.append("%s %s %s: %d weave frames of 8" % (scene_view + (name, got)))
+            ref = expected.get((scene_view[0], scene_view[1], REFERENCE_PREFIX + name))
+            if got is not None and (ref is None or ref < 2):
+                out.append("%s %s %s: no reference frames (%s%s)" % (scene_view + (name, REFERENCE_PREFIX, name)))
+    return out
 
 
 def plan_table(rows, num, fmt):
@@ -141,7 +202,11 @@ def tables(texts):
     out = plan_table(rows, sf.num, sf.fmt) + lines
     light, light_metrics = light_table(rows, sf.num, sf.fmt)
     out += light + types_table(rows, sf.num, sf.fmt)
-    return out, metrics + light_metrics
+    found = misses(rows, sf.num, texts)
+    out.append("MISSES (%d; counted, the run is not aborted by them)" % len(found))
+    out.extend("  " + m for m in found)
+    metrics = metrics + light_metrics + [{"metric": "T09s.collector_misses", "value": len(found), "variant": None}]
+    return out, metrics
 
 
 def series_results(texts):
@@ -267,9 +332,9 @@ def body_crop(soft, off, size=CROP, body=(0.3, 0.85)):
     return x, y, cw, ch
 
 
-def weave_stats(frames, ref, changed, crop, default_mean=None):
-    """frames: the variant's eight luma images, ref the converged luma, changed the cloud mask (bool), crop (x, y, w, h), default_mean the mean of the default variant's eight frames
-    (d_soft: the rms of hp(mean8 - default_mean), the pairwise difference of E1, which does not contain the march's own bias that every variant shares). Returns the dict of the module docstring."""
+def weave_stats(frames, ref, changed, crop):
+    """frames: the variant's eight luma images, ref the converged luma of the same moment (its own reference), changed the cloud mask (bool), crop (x, y, w, h). Returns the dict of the module
+    docstring. (No pairwise difference between variants: they are read tens of seconds apart and the clouds drift in that time; each is held against the reference read right before it.)"""
     import numpy as np
     x, y, w, h = crop
     m = 2 * int(math.ceil(3.0 * SIGMA_HP))
@@ -280,16 +345,12 @@ def weave_stats(frames, ref, changed, crop, default_mean=None):
     r8 = hp((mean - ref)[y0:y1, x0:x1])[inner]
     mask = changed[y:y + h, x:x + w]
     if mask.sum() < 100:
-        return dict(rms1=float("nan"), rms8=float("nan"), stat=float("nan"), peak=float("nan"), peak_period=float("nan"), peak_angle=float("nan"), tstd=float("nan"), d_soft=float("nan"), mask_share=0.0)
+        return dict(rms1=float("nan"), rms8=float("nan"), stat=float("nan"), peak=float("nan"), peak_period=float("nan"), peak_angle=float("nan"), tstd=float("nan"), mask_share=0.0)
     rms1 = float(np.sqrt((r1[mask] ** 2).mean()))
     rms8 = float(np.sqrt((r8[mask] ** 2).mean()))
     peak, period, angle = spectrum_peak(r8)
     tstd = float(np.std(np.stack([f[y:y + h, x:x + w] for f in frames]), axis=0)[mask].mean())
-    d_soft = float("nan")
-    if default_mean is not None:
-        d = hp((mean - default_mean)[y0:y1, x0:x1])[inner]
-        d_soft = float(np.sqrt((d[mask] ** 2).mean()))
-    return dict(rms1=rms1, rms8=rms8, stat=rms8 / rms1 if rms1 > 0 else float("nan"), peak=peak, peak_period=period, peak_angle=angle, tstd=tstd, d_soft=d_soft, mask_share=float(mask.mean()))
+    return dict(rms1=rms1, rms8=rms8, stat=rms8 / rms1 if rms1 > 0 else float("nan"), peak=peak, peak_period=period, peak_angle=angle, tstd=tstd, mask_share=float(mask.mean()))
 
 
 def is_weave(s):
@@ -299,33 +360,32 @@ def is_weave(s):
 def weave_table(index):
     """(lines, metrics, data) from the fair ground frames; data is what the weave sheet draws, or None where the frames are missing."""
     variants = index.get(("fair", "ground"))
-    if not variants or "off" not in variants or "soft" not in variants or WEAVE_REFERENCE not in variants:
-        return ["WEAVE (no frames: the fair ground view needs the baseline, soft and %s)" % WEAVE_REFERENCE], [], None
+    if not variants or "off" not in variants or "soft" not in variants:
+        return ["WEAVE (no frames: the fair ground view needs the baseline and soft)"], [], None
     import numpy as np
-    for name in (WEAVE_REFERENCE,):
-        if not all(l in variants[name] for l in FRAME_LETTERS):
-            return ["WEAVE (%s has fewer than eight frames)" % name], [], None
     soft_rgb, off_rgb = load_rgb(variants["soft"]["a"]), load_rgb(variants["off"]["a"])
     crop = body_crop(soft_rgb, off_rgb)
     changed = np.abs(soft_rgb - off_rgb).max(axis=2) >= 0.05
-    ref = np.mean(np.stack([luma(load_rgb(variants[WEAVE_REFERENCE][l])) for l in FRAME_LETTERS]), axis=0)
-    lines = ["WEAVE (fair ground view; crop %d,%d %dx%d; reference = the mean of the eight frames of %s; a weave: peak >= %.0f and stat >= %.1f; d_soft = rms of hp(mean8 - the default's mean8))"
-             % (crop + (WEAVE_REFERENCE, WEAVE_PEAK, WEAVE_STAT)),
-             "  %-11s %8s %8s %6s %7s %8s %6s %8s %8s  %s" % ("variant", "rms1", "rms8", "stat", "peak", "period", "angle", "tstd", "d_soft", "weave")]
-    metrics, data = [], {"crop": crop, "ref": ref, "changed": changed, "variants": {}}
-    default_mean = None
-    if all(l in variants["soft"] for l in FRAME_LETTERS):
-        default_mean = np.mean(np.stack([luma(load_rgb(variants["soft"][l])) for l in FRAME_LETTERS]), axis=0)
+    lines = ["WEAVE (fair ground view; crop %d,%d %dx%d; each variant against the mean of the frames of its own reference ref<name> (256 steps) read right before it; a weave: peak >= %.0f and stat >= %.1f)"
+             % (crop + (WEAVE_PEAK, WEAVE_STAT)),
+             "  %-11s %8s %8s %6s %7s %8s %6s %8s  %s" % ("variant", "rms1", "rms8", "stat", "peak", "period", "angle", "tstd", "weave")]
+    metrics, data = [], {"crop": crop, "changed": changed, "variants": {}}
     for name in WEAVE_ORDER:
         v = variants.get(name)
-        if name == WEAVE_REFERENCE or not v or not all(l in v for l in FRAME_LETTERS):
+        refs = variants.get(REFERENCE_PREFIX + name)
+        if not v or not all(l in v for l in FRAME_LETTERS):
             continue
+        ref_letters = [l for l in FRAME_LETTERS if refs and l in refs]
+        if len(ref_letters) < 2:
+            lines.append("  %-11s no reference frames (%s%s): not measured" % (name, REFERENCE_PREFIX, name))
+            continue
+        ref = np.mean(np.stack([luma(load_rgb(refs[l])) for l in ref_letters]), axis=0)
         frames = [luma(load_rgb(v[l])) for l in FRAME_LETTERS]
-        s = weave_stats(frames, ref, changed, crop, default_mean)
-        data["variants"][name] = (frames, s)
-        lines.append("  %-11s %8.4f %8.4f %6.2f %7.1f %8.1f %6.0f %8.4f %8.4f  %s" % (name, s["rms1"], s["rms8"], s["stat"], s["peak"], s["peak_period"], s["peak_angle"], s["tstd"], s["d_soft"],
-                                                                                   "WEAVE" if is_weave(s) else "no"))
-        for key in ("rms1", "rms8", "stat", "peak", "peak_period", "peak_angle", "tstd", "d_soft"):
+        s = weave_stats(frames, ref, changed, crop)
+        data["variants"][name] = (frames, s, ref)
+        lines.append("  %-11s %8.4f %8.4f %6.2f %7.1f %8.1f %6.0f %8.4f  %s" % (name, s["rms1"], s["rms8"], s["stat"], s["peak"], s["peak_period"], s["peak_angle"], s["tstd"],
+                                                                              "WEAVE" if is_weave(s) else "no"))
+        for key in ("rms1", "rms8", "stat", "peak", "peak_period", "peak_angle", "tstd"):
             if s[key] == s[key]:
                 metrics.append({"metric": "T09s.weave.%s.%s" % (name, key), "value": round(s[key], 5), "variant": None})
     if len(data["variants"]) == 0:
@@ -365,9 +425,9 @@ def make_weave_sheet(data, out_dir, Image, ImageDraw, font):
     x += (w - cw) // 2
     y += (h - ch) // 2
     cols = []
-    for name, (frames, s) in data["variants"].items():
+    for name, (frames, s, ref) in data["variants"].items():
         mean = np.mean(np.stack(frames), axis=0)
-        residual = hp(mean - data["ref"])
+        residual = hp(mean - ref)
         tiles = []
         for caption, plane in (("%s   frame a" % name, frames[0]), ("mean of 8   stat %.2f  peak %.0f%s" % (s["stat"], s["peak"], "  WEAVE" if is_weave(s) else ""), mean),
                                ("static residual x 10   (rms8 %.4f)" % s["rms8"], np.clip(0.5 + 10.0 * residual, 0.0, 1.0))):
@@ -519,26 +579,47 @@ def selftest():
     # --- the log tables
     log = []
     p = "T09s.fair.ground.soft."
-    for name, value in (("light_cloud_share", 0.6), ("light_top", 0.8), ("light_base", 0.2), ("light_median", 0.5), ("light_sky", 0.4), ("light_top_over_base", 4.0), ("light_deck_over_sky", 1.25)):
+    for name, value in (("light_cloud_share", 0.6), ("light_top", 0.8), ("light_base", 0.2), ("light_median", 0.5), ("light_sky", 0.4), ("light_top_over_base", 4.0), ("light_deck_over_sky", 1.25), ("frames", 8)):
         log.append(_row(p + name, value))
-    p = "T09s.fair.ty_humilis_g.soft."
-    for name, value in (("light_cloud_share", 0.5), ("light_top", 0.9), ("light_base", 0.05), ("light_median", 0.4), ("light_sky", 0.4), ("light_top_over_base", 18.0), ("light_deck_over_sky", 1.0)):
+    log.append(_row("T09s.fair.ground.refsoft.frames", 4))
+    p = "T09s.clock.ty_humilis_g.soft."
+    for name, value in (("light_cloud_share", 0.5), ("light_top", 0.9), ("light_base", 0.02), ("light_median", 0.4), ("light_sky", 0.4), ("light_top_over_base", 18.0), ("light_deck_over_sky", 1.0), ("frames", 3)):
         log.append(_row(p + name, value))
-    log += [_row("T09s.types.fair.humilis.found", True), _row("T09s.types.fair.humilis.dist_km", 32.0), _row("T09s.types.fair.humilis.cover", 0.8), _row("T09s.types.fair.humilis.weak", False),
-            _row("T09s.types.fair.humilis.type", "Cumulus humilis"), _row("T09s.types.fair.cirrus.found", False),
-            _row("T09s.fair.ty_humilis_g.placed_ok", True), _row("T09s.fair.ty_humilis_g.vessel_moved_km", 26.2), _row("T09s.fair.ty_humilis_g.cell_dist_km", 32.0),
-            _row("T09s.fair.ty_humilis_g.centre_match", True), _row("T09s.fair.ty_humilis_g.centre_types", "Kerbin-cumulus Cumulus humilis cover 0.80"),
-            _row("T09s.plan_estimate_s", 1003.0), _row("T09s.sections", 14), _row("T09s.sections_skipped", 0), _row("T09s.type_views", 8), _row("T09s.types_absent", 0)]
+    # A deck inside the pass range, one under it.
+    for view, deck in (("ground", 0.4), ("rain", 0.05)):
+        p = "T09s.clock.%s.soft." % view
+        for name, value in (("light_cloud_share", 1.0), ("light_top", 0.1), ("light_base", 0.05), ("light_median", 0.08), ("light_sky", 0.2), ("light_top_over_base", 2.0), ("light_deck_over_sky", deck), ("frames", 3)):
+            log.append(_row(p + name, value))
+    log += [_row("T09s.types.clock.humilis.found", True), _row("T09s.types.clock.humilis.dist_km", 32.0), _row("T09s.types.clock.humilis.cover", 0.8), _row("T09s.types.clock.humilis.weak", False),
+            _row("T09s.types.clock.humilis.type", "Cumulus humilis"), _row("T09s.types.clock.cirrus.found", False),
+            _row("T09s.clock.ty_humilis_g.placed_ok", True), _row("T09s.clock.ty_humilis_g.vessel_moved_km", 26.2), _row("T09s.clock.ty_humilis_g.cell_dist_km", 32.0), _row("T09s.clock.ty_humilis_g.sun_elev_deg", 41.5),
+            _row("T09s.clock.ty_humilis_g.centre_match", True), _row("T09s.clock.ty_humilis_g.centre_types", "Kerbin-cumulus Cumulus humilis cover 0.80"),
+            _row("T09s.plan_estimate_s", 1017.5), _row("T09s.sections", 14), _row("T09s.sections_skipped", 0), _row("T09s.type_views", 8), _row("T09s.types_absent", 0), _row("T09s.frames_read", 21)]
     text = "\n".join(log)
     out_lines, metrics = tables([text])
     joined = "\n".join(out_lines)
     got = {m["metric"]: m["value"] for m in metrics}
     assert got["T09s.light.fair.ground.top_over_base"] == 4.0, got
     assert "yes" in [l for l in out_lines if " ground " in l and "0.800" in l][0], joined
-    assert "no (18.00)" in joined, joined
-    assert "humilis" in joined and "cirrus" in joined and "NOT" not in joined and "match" in joined, joined
-    assert "estimate 1003 s" in joined and "type views 8" in joined, joined
+    assert any("ty_humilis_g" in l and "no (top/base 18.00, base 0.020)" in l for l in out_lines), joined
+    assert any(" ground " in l and " clock " in l and l.rstrip().endswith("yes") and "0.40" in l for l in out_lines), joined      # the deck inside 0.15 to 0.8
+    assert any(" rain " in l and "no (deck/sky 0.05)" in l for l in out_lines), joined
+    assert "humilis" in joined and "cirrus" in joined and "NOT" not in joined and "match" in joined and "sun  41.5 deg" in joined, joined
+    assert "estimate 1018 s" in joined or "estimate 1017 s" in joined, joined
+    assert "type views 8" in joined, joined
+    assert "MISSES (0" in joined and got["T09s.collector_misses"] == 0, joined
     assert series_results({"soft60": text}) and series_results({"soft59": text}) == [], "only the logs of this start"
+    # The misses: no layer drawn in a window, a lost raw read (the warning), frames missing, a view not placed, a weave variant without frames.
+    bad = "\n".join([_row("T09s.fair.ground.soft.cost_frames_drawn", 0), _row("T09.warning.noise_read_failed", "ground soft grain c: the read did not finish"), _row("T09s.clock.ty_cirrus_a.placed_ok", False),
+                     _row("T09s.fair.ground.soft.frames", 8), _row("T09s.fair.ground.refsoft.frames", 4), _row("T09s.fair.ground.softhash.frames", 8), _row("T09s.fair.ground.soft.light_top", 0.5),
+                     _row("T09s.fair.ground.softr33.frames", 5), _row("T09s.frames_read", 21), _row("T09s.fair.above.soft.frames", 3)])
+    found = misses(load_sf().parse_rows([bad]), load_sf().num, [bad])
+    text_found = "\n".join(found)
+    assert "drew no frame" in text_found and "noise_read_failed" in text_found and "ty_cirrus_a: the view was not placed" in text_found, text_found
+    assert "frames read 21 against 28" in text_found, text_found
+    assert "softr33: 5 weave frames of 8" in text_found and "softhash: no reference frames" in text_found, text_found
+    assert "fair above: no light rows" in text_found, text_found
+    assert "soft: no reference" not in text_found, text_found
     # --- the weave measure: a static diagonal pattern against noise, from synthetic eight-frame sets
     rng = np.random.RandomState(3)
     h, w = 960, 1707
@@ -558,19 +639,24 @@ def selftest():
             Image.fromarray((rgb(plane) * 255).astype(np.uint8)).save(os.path.join(pics, "t09-%s-%s-%s_%s-1707x960-natural.png" % (START, view, variant, letter)))
 
         save("ground_fair", "off", "a", off)
-        for letter in FRAME_LETTERS:
-            save("ground_fair", "ref256", letter, base + rng.normal(0, 0.002, base.shape))
-            save("ground_fair", "soft", letter, base + weave + rng.normal(0, 0.012, base.shape))
-            save("ground_fair", "softhash", letter, base + rng.normal(0, 0.012, base.shape))
+        # The clouds drift between the variants (a shift of the whole picture by 0.04 luma and 15 px a variant, as MEASURED between start 59's variants 100 s apart): a reference read once for all
+        # would measure the drift; each variant has its own reference taken right before it, the same moment, and the measure sees the weave only.
+        for k, name in enumerate(("soft", "softhash")):
+            drifted = 0.04 * k + 0.1 * np.sin((xx + 15 * k) / 90.0)
+            for letter in FRAME_LETTERS:
+                if letter in "abcd":
+                    save("ground_fair", "ref" + name, letter, base + drifted + rng.normal(0, 0.002, base.shape))
+                save("ground_fair", name, letter, base + drifted + (weave if name == "soft" else 0.0) + rng.normal(0, 0.012, base.shape))
         index = index_pictures(pics)
-        assert ("fair", "ground") in index and set(index[("fair", "ground")]) == {"off", "ref256", "soft", "softhash"}, index
+        assert ("fair", "ground") in index and set(index[("fair", "ground")]) == {"off", "refsoft", "refsofthash", "soft", "softhash"}, index
         lines, wm, data = weave_table(index)
         stats = {n: v[1] for n, v in data["variants"].items()}
         assert is_weave(stats["soft"]) and not is_weave(stats["softhash"]), (stats, "\n".join(lines))
         assert stats["soft"]["stat"] > stats["softhash"]["stat"] and stats["soft"]["peak"] > 2.0 * stats["softhash"]["peak"], stats
         assert abs(stats["soft"]["peak_period"] - 1.0 / math.hypot(0.11, 0.07)) < 1.5, stats["soft"]
-        assert stats["soft"]["d_soft"] < 1e-9 and stats["softhash"]["d_soft"] > 0.01, "d_soft is the difference of the means: nothing for the default itself, the weave for the hash"
+        assert stats["softhash"]["rms8"] < 0.01 and stats["soft"]["rms8"] < 0.03, "each variant is held against its own reference: the drift between variants is not in the numbers: " + str(stats)
         assert "WEAVE" in "\n".join(lines) and any(m["metric"] == "T09s.weave.soft.peak" for m in wm), lines
+        assert not any("d_soft" in l for l in lines), lines
         # The crop sits on cloud: the changed share in the band, not the corner that would be sea.
         soft_rgb, off_rgb = rgb(base), rgb(off)
         x, y, cw, ch = body_crop(soft_rgb, off_rgb)
@@ -588,7 +674,7 @@ def selftest():
         save("ground", "off", "a", off)
         for target in TYPE_ORDER[:2]:
             for up in ("g", "a"):
-                save("ty_%s_%s_fair" % (target, up), "soft", "a", base)
+                save("ty_%s_%s" % (target, up), "soft", "a", base)
         save("horizon_fair", "off", "a", off)
         save("horizon_fair", "soft", "a", base)
         Image.fromarray((rgb(base) * 255).astype(np.uint8)).save(os.path.join(pics, "t09-tvc1707-ground-tvc-1707x960-natural.png"))

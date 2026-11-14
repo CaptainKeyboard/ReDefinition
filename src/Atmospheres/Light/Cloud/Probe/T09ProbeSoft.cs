@@ -438,7 +438,6 @@ namespace ReDefinition.Atmospheres
                 {
                     foreach (View extra in Soft60FairExtras)
                         foreach (ProbeWait w in SoftSection(true, extra, lat, lon, Soft60ExtraTable, false)) yield return w;
-                    foreach (ProbeWait w in Soft60Types(true, lat, lon)) yield return w;
                 }
             }
 
@@ -456,6 +455,10 @@ namespace ReDefinition.Atmospheres
             Emit("T09.sun_elev_deg", sunChosen);
             Check("the sky is covered at the chosen time", coverChosen >= MinCover, coverChosen.ToString("0.00"));
             Check("the sun stands in the band at the chosen time", sunChosen >= SunMinDeg && sunChosen <= SunMaxDeg, sunChosen.ToString("0.0") + " degrees");
+            // Start 60: the TVC tiles are start 47's frames at ONE universal time; at another the clock sheets compare two skies. The check fails the probe, the run goes on (the rows are still read).
+            if (soft60)
+                Check("T09s.clock_ut_is_start_47s", Math.Abs(utChosen - Soft60ExpectedUt) < 1.0, "the chosen universal time is " + utChosen.ToString("0") + ", start 47's " + Soft60ExpectedUt.ToString("0")
+                      + ": the TVC tiles and figures are of another sky (the cover field changed since start 59?)");
             foreach (ProbeWait w in SoftSceneBegin(false, utChosen)) yield return w;
             foreach (char c in SoftClockViews)
                 foreach (ProbeWait w in SoftSection(false, ViewOf(c), lat, lon, table)) yield return w;

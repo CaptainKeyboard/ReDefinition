@@ -13,11 +13,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
     {
         private const double Soft60SiteLat = -0.0972, Soft60SiteLon = -74.5577, Soft60Radius = 600000.0;
 
-        private Run StartSoft60(Action<Run> tweak = null)
+        // expectedUt: the probe's check of the clock scene against start 47's universal time; the fake world's clock scene is at Soft60FakeClockUt (null: the probe's own 1686000).
+        private Run StartSoft60(Action<Run> tweak = null, bool fakeClock = true)
         {
             return Start(new[] { "plain" }, x =>
             {
                 x.World.LayerReport = FourLayers(false);
+                if (fakeClock) x.Probe.Soft60ExpectedUt = Soft60FakeClockUt;
                 if (tweak != null) tweak(x);
             }, "1707", "soft60", "K-T2");
         }
@@ -52,6 +54,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             };
         }
 
+        // The fake world's clock scene is at 1000800 + 5 hours, not at start 47's universal time: the check of the probe is told the fake's.
+        private const double Soft60FakeClockUt = 1000800.0 + 5 * 3600.0;
+
         private static void Soft60Drive(Run r, Action<Run> also = null)
         {
             Drive(r, 0.04, 3600.0, x =>
@@ -65,16 +70,21 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheSoft60TableHoldsTheWeaveCandidatesAndTheCostVariantsAndUsesNoRemovedKey()
         {
             var names = T09Probe.Soft60Variants.Select(v => v.Name).ToList();
-            CollectionAssert.AreEqual(new[] { "soft", "softr33", "softcut16", "soft100s24", "softhash", "softacc10", "softacc05", "ref256" }, names);
+            // Each weave variant has its own reference right before it (the clouds drift: a reference minutes away measures the drift).
+            CollectionAssert.AreEqual(new[] { "refsoft", "soft", "refsoftr33", "softr33", "softcut16", "soft100s24", "refsofthash", "softhash", "refsoftacc05", "softacc05" }, names);
             Assert.AreEqual(names.Count, names.Distinct().Count());
             // { fair cost, clock cost, fair views run, clock views run, frames, weave frames (the fair ground view) }
             var expected = new Dictionary<string, string[]>
             {
                 { "soft", new[] { "ga", "gias", "ga", "gias", "3", "8" } }, { "softr33", new[] { "ga", "gias", "ga", "gias", "1", "8" } },
                 { "softcut16", new[] { "g", "g", "g", "g", "1", "0" } }, { "soft100s24", new[] { "g", "", "g", "", "1", "0" } },
-                { "softhash", new[] { "", "", "g", "", "1", "8" } }, { "softacc10", new[] { "", "", "g", "", "1", "8" } },
-                { "softacc05", new[] { "", "", "g", "", "1", "8" } }, { "ref256", new[] { "", "", "g", "", "1", "8" } }
+                { "softhash", new[] { "", "", "g", "", "1", "8" } }, { "softacc05", new[] { "", "", "g", "", "1", "8" } },
+                { "refsoft", new[] { "", "", "g", "", "4", "0" } }, { "refsoftr33", new[] { "", "", "g", "", "4", "0" } },
+                { "refsofthash", new[] { "", "", "g", "", "4", "0" } }, { "refsoftacc05", new[] { "", "", "g", "", "4", "0" } }
             };
+            // The reference comes right before its variant in the table.
+            foreach (string weave in new[] { "soft", "softr33", "softhash", "softacc05" })
+                Assert.AreEqual(names.IndexOf("ref" + weave) + 1, names.IndexOf(weave), weave + " follows its reference");
             foreach (T09Probe.SoftVariant v in T09Probe.Soft60Variants)
             {
                 string[] row = expected[v.Name];
@@ -99,16 +109,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 }
             }
             // Every cost view the lead asked for: soft and softr33 in all views, softcut16 at the two grounds, soft100s24 at the fair ground.
-            Assert.AreEqual("gias", T09Probe.Soft60Variants[0].ClockCost);
-            Assert.AreEqual("gias", T09Probe.Soft60Variants[1].ClockCost);
-            // The weave variants are the fair ground view only; the reference is the 256-step march.
-            T09Probe.SoftExpectation soft = T09Probe.SoftExpect(T09Probe.Soft60Variants[0]);
+            Assert.AreEqual("gias", T09Probe.Soft60Default.ClockCost);
+            Assert.AreEqual("gias", T09Probe.Soft60Variants.First(v => v.Name == "softr33").ClockCost);
+            // The weave variants are the fair ground view only; the references are the 256-step march.
+            T09Probe.SoftExpectation soft = T09Probe.SoftExpect(T09Probe.Soft60Default);
             Func<string, T09Probe.SoftExpectation> of = n => T09Probe.SoftExpect(T09Probe.Soft60Variants.First(v => v.Name == n));
             Assert.AreEqual(0.2f, soft.Accumulate, 1e-6f, "the default history weight");
-            Assert.AreEqual(0.1f, of("softacc10").Accumulate, 1e-6f);
             Assert.AreEqual(0.05f, of("softacc05").Accumulate, 1e-6f);
             Assert.AreEqual(1, of("softhash").DitherSequence);
-            Assert.AreEqual(256, of("ref256").GridPoints, "the converged reference marches 256 grid points");
+            foreach (string r in new[] { "refsoft", "refsoftr33", "refsofthash", "refsoftacc05" })
+            {
+                Assert.AreEqual(256, of(r).GridPoints, r + " marches 256 grid points");
+                Assert.AreEqual(0.5f, of(r).Resolution, 1e-6f, r + " is the converged picture at the half-size target");
+            }
             Assert.AreEqual(48, soft.GridPoints);
             Assert.AreEqual(0.33f, of("softr33").Resolution, 1e-6f);
             Assert.AreEqual(0.5f, of("softacc05").Resolution, 1e-6f, "the history variants keep the half-size target");
@@ -121,7 +134,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double estimate = T09Probe.Soft60EstimateS(T09Probe.Soft60Variants);
             Console.WriteLine("soft60 estimate " + estimate.ToString("0.0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0") + " s");
             Assert.IsTrue(estimate <= T09Probe.SoftMaxSeconds - 60.0, "the plan needs " + estimate.ToString("0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0") + " (the pin is 1020)");
-            Assert.AreEqual(1007.5, estimate, 1e-6, "the plan as built: 1007.5 s (1003 s before the slow history variants' extra settle seconds: 1.5 and 3)");
+            Assert.AreEqual(1017.5, estimate, 1e-6, "the plan as built: 1017.5 s (1007.5 s of the first build: one reference of 8 frames, softacc10, two scans; now four references of 4 frames before their variants, no softacc10, one scan)");
             // The evidence for the constants: a placement was measured at 3.6 s and a frame with its picture at 0.7 s in start 59.
             Assert.IsTrue(T09Probe.SoftPlaceS >= 1.9 * 3.6 && T09Probe.SoftFrameReadS >= 1.35 * 0.7);
             // A type view is priced with its placement, switch and frames; the cumulus bodies add the baseline frame.
@@ -228,17 +241,21 @@ namespace ReDefinition.Tests.Atmospheres.T09
             for (int i = 0; i < n; i++)
             {
                 off[i] = new Color(0.30f, 0.40f, 0.60f, 1f);
-                // The left half is clear sky; the right half a body: the upper rows lit (0.80), the lower rows its base (0.20).
+                // The left half is clear sky; the right half a body: the upper rows lit (raw 0.80), the lower rows its base (raw 0.50). The raw values are the target before the gamma step: the rows
+                // measure LINEAR luminance (0.80 is 0.604, 0.50 is 0.214: a ratio of 2.8, not the 1.6 of the raw values).
                 int x = i % 100, y = i / 100;
-                raw[i] = x < 50 ? off[i] : (y >= 50 ? new Color(0.80f, 0.80f, 0.80f, 1f) : new Color(0.20f, 0.20f, 0.20f, 1f));
+                raw[i] = x < 50 ? off[i] : (y >= 50 ? new Color(0.80f, 0.80f, 0.80f, 1f) : new Color(0.50f, 0.50f, 0.50f, 1f));
             }
             T09Probe.SoftLightStats s;
             Assert.IsTrue(T09Probe.SoftLightOf(raw, off, out s));
             Assert.AreEqual(0.5, s.CloudShare, 1e-9);
             Assert.AreEqual(0.5, s.BodyShare, 1e-9);
-            Assert.AreEqual(0.80, s.TopLuma, 0.002, "the 90th percentile of the body is the lit side");
-            Assert.AreEqual(0.20, s.BaseLuma, 0.002, "the 10th is the base");
-            Assert.AreEqual(4.0, s.TopOverBase, 0.05);
+            Assert.AreEqual(0.6038, T09Probe.SoftLuma(new Color(0.8f, 0.8f, 0.8f)), 0.001, "the sRGB curve: raw 0.80 is 0.604 of linear light");
+            Assert.AreEqual(0.2140, T09Probe.SoftLuma(new Color(0.5f, 0.5f, 0.5f)), 0.001);
+            Assert.AreEqual(0.0, T09Probe.SoftLuma(new Color(0f, 0f, 0f)), 1e-9);
+            Assert.AreEqual(0.6038, s.TopLuma, 0.002, "the 90th percentile of the body is the lit side, in linear light");
+            Assert.AreEqual(0.2140, s.BaseLuma, 0.002, "the 10th is the base");
+            Assert.AreEqual(0.6038 / 0.2140, s.TopOverBase, 0.05);
             Assert.AreEqual(T09Probe.SoftLuma(off[0]), s.SkyLuma, 0.002, "the sky behind the body is the baseline's");
             Assert.AreEqual(s.MedianLuma / s.SkyLuma, s.DeckOverSky, 1e-9);
             // No pixel changed by the body threshold, or pictures of two sizes: no stats.
@@ -268,10 +285,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheSoft60StartReadsTheWeaveFramesTheExtraLooksAndTheTypeViews()
         {
-            bool cbHere = false;
             Run r = StartSoft60(x =>
             {
-                x.World.LayerReportAt = Soft60Map(() => cbHere);
+                x.World.LayerReportAt = Soft60Map(() => true);
                 x.Probe.MarchSizeReader = own =>
                 {
                     int mw, mh;
@@ -279,40 +295,46 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     return new[] { mw, mh };
                 };
             });
-            // The map of the clock scene holds a cumulonimbus; the fair scene's does not (the flag turns on when the log says the clock scene began).
-            int seen = 0;
-            Soft60Drive(r, x =>
-            {
-                for (; seen < x.Log.Count; seen++)
-                    if (x.Log[seen].StartsWith("T09 soft scene clock")) cbHere = true;
-            });
+            Soft60Drive(r);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual(1, r.Quits);
             Assert.AreEqual("Probe: PASSED", r.Log[r.Log.Count - 1]);
             Assert.IsTrue(r.World.RealS < T09Probe.SoftMaxSeconds, "the scenario ended on its own at " + r.World.RealS.ToString("0") + " s");
             Assert.IsFalse(r.Log.Any(l => l.StartsWith("Probe: check") && l.Contains("FAILED")), "no failed check");
             Assert.AreEqual(T09Probe.Soft60EstimateS(T09Probe.Soft60Variants), Number(r, "T09s.plan_estimate_s"), 1e-6);
-            Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 soft plan (soft60): ") && l.Contains("ref256 [") && l.Contains("history 0.05")), "the plan line names the variants and their history weights");
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 soft plan (soft60): ") && l.Contains("refsoft [") && l.Contains("history 0.05")), "the plan line names the variants and their history weights");
 
-            // The weave diagnosis: eight consecutive frames in the fair ground view for six variants, the converged reference among them.
+            // The weave diagnosis: eight consecutive frames in the fair ground view for four variants, each with four frames of its own reference right before it.
             string pv = "ground_fair";
-            foreach (string name in new[] { "soft", "softr33", "softhash", "softacc10", "softacc05", "ref256" })
+            foreach (string name in new[] { "soft", "softr33", "softhash", "softacc05" })
             {
                 foreach (char letter in "abcdefgh")
                     Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + pv + "-" + name + "_" + letter + "-")), name + " frame " + letter + " in the fair ground view");
                 Assert.AreEqual(8.0, Number(r, "T09s.fair.ground." + name + ".frames"), name + " frames");
                 Assert.AreEqual(1.0, Number(r, "T09s.fair.ground." + name + ".effective_ok"), name + " numbers");
+                string reference = "ref" + name;
+                foreach (char letter in "abcd")
+                    Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + pv + "-" + reference + "_" + letter + "-")), reference + " frame " + letter);
+                Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-" + pv + "-" + reference + "_e-")), reference + " has four frames");
+                Assert.AreEqual(4.0, Number(r, "T09s.fair.ground." + reference + ".frames"));
+                Assert.AreEqual(256.0, Number(r, "T09s.fair.ground." + reference + ".grid_points"), reference + " marches 256 points");
+                // The reference was read before its variant: the frames of the reference come first in the order the pictures were written.
+                int lastRef = r.World.Saved.FindLastIndex(f => f.Contains("-" + pv + "-" + reference + "_d-"));
+                int firstVariant = r.World.Saved.FindIndex(f => f.Contains("-" + pv + "-" + name + "_a-"));
+                Assert.IsTrue(lastRef >= 0 && firstVariant > lastRef, reference + " is read right before " + name);
+                Assert.AreEqual(lastRef + 1, firstVariant, "nothing is read between the reference and " + name);
             }
+            Assert.IsFalse(r.World.Saved.Any(f => f.Contains("softacc10") || f.Contains("-ref256_")), "the cut variants are gone");
+            Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-above_fair-ref") || f.Contains("-ground-ref")), "the references are in the fair ground view only");
             foreach (string name in new[] { "softcut16", "soft100s24" })
             {
                 Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + pv + "-" + name + "_a-")) && !r.World.Saved.Any(f => f.Contains("-" + pv + "-" + name + "_b-")), name + " has one frame");
                 Assert.AreEqual(1.0, Number(r, "T09s.fair.ground." + name + ".frames"));
             }
-            Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-ground-softhash_") || f.Contains("-ground-ref256_")), "the weave variants are not in the clock scene");
-            Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-above_fair-softhash_") || f.Contains("-above_fair-ref256_")), "nor in the fair above view");
+            Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-ground-softhash_")), "the weave variants are not in the clock scene");
+            Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-above_fair-softhash_")), "nor in the fair above view");
             Assert.AreEqual(3.0, Number(r, "T09s.fair.above.soft.frames"));
             Assert.AreEqual(1.0, Number(r, "T09s.fair.above.softr33.frames"));
-            Assert.AreEqual(256.0, Number(r, "T09s.fair.ground.ref256.grid_points"));
             Assert.AreEqual(0.05, Number(r, "T09s.fair.ground.softacc05.accumulate"), 1e-6);
             Assert.AreEqual(0.2, Number(r, "T09s.fair.ground.soft.accumulate"), 1e-6, "the history weight is back at its default after the variants that changed it");
             Assert.AreEqual(1.0, Number(r, "T09s.fair.ground.softhash.dither_sequence"));
@@ -327,7 +349,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(1, begins("k_softcut16"));
             Assert.AreEqual(1, begins("fw_soft100s24"));
             Assert.AreEqual(0, begins("k_soft100s24"));
-            foreach (string none in new[] { "softhash", "softacc10", "softacc05", "ref256" })
+            foreach (string none in new[] { "softhash", "softacc05", "refsoft", "refsoftr33", "refsofthash", "refsoftacc05" })
                 Assert.AreEqual(0, begins("fw_" + none) + begins("k_" + none), none + " has no cost window");
             Assert.AreEqual(6 + 6 + 6 + 2 + 1, (int)Number(r, "T09s.cost_windows"), "six baselines, soft and softr33 in six views, softcut16 at two, soft100s24 at one");
 
@@ -350,41 +372,76 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 light T09s.fair.ground.soft.: ")), "the measurement line");
 
-            // The type views: humilis, congestus and cirrus stand in the fair scene's map, the cumulonimbus only in the clock scene's. Each from the ground and from above.
+            // The type views run LAST, in the clock scene's map: each target from the ground and from above, three frames, the sun at the place logged.
             Assert.AreEqual(8.0, Number(r, "T09s.type_views"));
             Assert.AreEqual(0.0, Number(r, "T09s.types_absent"));
-            foreach (string t in new[] { "humilis", "congestus", "cirrus" })
+            foreach (string t in new[] { "humilis", "congestus", "cumulonimbus", "cirrus" })
                 foreach (string v in new[] { "g", "a" })
                 {
                     string view = "ty_" + t + "_" + v;
-                    Assert.AreEqual(1.0, Number(r, "T09s.fair." + view + ".placed_ok"), view);
-                    foreach (char letter in "abc") Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + view + "_fair-soft_" + letter + "-")), view + " frame " + letter);
-                    Assert.AreEqual(1.0, Number(r, "T09s.fair." + view + ".centre_match"), view + " the target's type is under the view's centre");
-                    Assert.AreEqual(t == "cirrus" ? 0 : 1, r.World.Saved.Count(f => f.Contains("-" + view + "_fair-off_a-")), view + " baseline frame only for the cumulus bodies");
+                    Assert.AreEqual(1.0, Number(r, "T09s.clock." + view + ".placed_ok"), view);
+                    foreach (char letter in "abc") Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + view + "-soft_" + letter + "-")), view + " frame " + letter);
+                    Assert.AreEqual(1.0, Number(r, "T09s.clock." + view + ".centre_match"), view + " the target's type is under the view's centre");
+                    Assert.AreEqual(t == "cirrus" || t == "cumulonimbus" ? 0 : 1, r.World.Saved.Count(f => f.Contains("-" + view + "-off_a-")), view + " baseline frame only for the cumulus bodies");
+                    Assert.IsTrue(Number(r, "T09s.clock." + view + ".sun_elev_deg") > 0.0, view + " the sun at its place is a row");
+                    Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 type view " + view + ": the sun stands ")), view + " the sun at its place is logged");
                 }
-            foreach (string v in new[] { "g", "a" })
-            {
-                string view = "ty_cumulonimbus_" + v;
-                Assert.AreEqual(1.0, Number(r, "T09s.clock." + view + ".placed_ok"), view);
-                Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + view + "-soft_a-")), view + " in the clock scene (no _fair)");
-                Assert.AreEqual(1.0, Number(r, "T09s.clock." + view + ".centre_match"));
-            }
-            Assert.IsFalse(r.World.Saved.Any(f => f.Contains("ty_cumulonimbus_g_fair") || f.Contains("ty_humilis_g-")), "a type is shown once, in the scene that has it first");
-            Assert.AreEqual(0.0, Number(r, "T09s.types.fair.cumulonimbus.found"));
+            Assert.IsFalse(r.World.Saved.Any(f => f.Contains("ty_") && f.Contains("_fair")), "no type view in the fair scene");
             Assert.AreEqual(1.0, Number(r, "T09s.types.clock.cumulonimbus.found"));
-            Assert.AreEqual(1.0, Number(r, "T09s.types.fair.humilis.found"));
-            Assert.AreEqual(32.0, Number(r, "T09s.types.fair.humilis.dist_km"), "the nearest ring that holds humilis: 32 km east");
-            Assert.AreEqual(100.0, Number(r, "T09s.types.fair.congestus.dist_km"));
-            Assert.AreEqual(245.0, Number(r, "T09s.types.fair.cirrus.dist_km"));
-            Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 types (fair): ") && l.Contains("humilis 32 km at ") && l.Contains("cover 0.80 [Cumulus humilis]") && l.Contains("cumulonimbus absent within 300 km")), "the scan line says what stands where and what is absent");
-            // The vessel was moved to the cells: the type views were placed at places away from the site, the others at the site.
-            var away = r.World.PlacedAt.Where(p => T09Probe.Soft60DistanceKm(Soft60SiteLat, Soft60SiteLon, p[0], p[1], Soft60Radius) > 3.0).ToList();
-            Assert.AreEqual(8, away.Count, "the eight type views were placed away from the site, the others at it");
-            Assert.AreEqual(8, r.World.PlacedAt.Count(p => T09Probe.Soft60DistanceKm(Soft60SiteLat, Soft60SiteLon, p[0], p[1], Soft60Radius) > 3.0));
-            Assert.IsTrue(away.Count(p => T09Probe.Soft60DistanceKm(Soft60SiteLat, Soft60SiteLon, p[0], p[1], Soft60Radius) > 90.0) >= 3, "the congestus view from the ground and the two cirrus views stand 90 km or more from the site");
-            // The maps were read at the rings: 265 places a scene.
-            Assert.IsTrue(r.World.LayersReadAt.Count >= 2 * 265, "the scan read " + r.World.LayersReadAt.Count + " places");
-            Assert.AreEqual(265.0, Number(r, "T09s.types.fair.cells"));
+            Assert.AreEqual(32.0, Number(r, "T09s.types.clock.humilis.dist_km"), "the nearest ring that holds humilis: 32 km east");
+            Assert.AreEqual(100.0, Number(r, "T09s.types.clock.congestus.dist_km"));
+            Assert.AreEqual(245.0, Number(r, "T09s.types.clock.cirrus.dist_km"));
+            Assert.AreEqual(0.0, Values(r, "T09s.types.fair.humilis.found").Count, "the fair scene is not scanned");
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 types (clock): ") && l.Contains("humilis 32 km at ") && l.Contains("cover 0.80 [Cumulus humilis]")), "the scan line says what stands where");
+            // The vessel stands over the site until the clock scene is done and is moved to the cells only for the type views, the last eight placements.
+            var places = r.World.PlacedAt;
+            Assert.IsTrue(places.Count > 8);
+            for (int i = 0; i < places.Count; i++)
+            {
+                double km = T09Probe.Soft60DistanceKm(Soft60SiteLat, Soft60SiteLon, places[i][0], places[i][1], Soft60Radius);
+                if (i < places.Count - 8) Assert.IsTrue(km < 1.0, "placement " + i + " is over the site: " + km.ToString("0.0") + " km");
+                else Assert.IsTrue(km > 3.0, "placement " + i + " (a type view) is away from the site");
+            }
+            Assert.IsTrue(places.Skip(places.Count - 8).Count(p => T09Probe.Soft60DistanceKm(Soft60SiteLat, Soft60SiteLon, p[0], p[1], Soft60Radius) > 90.0) >= 3, "the congestus view from the ground and the two cirrus views stand 90 km or more from the site");
+            // The clock scene was chosen with the vessel over the site: its time is the one the probe's check holds against start 47's.
+            Assert.AreEqual(Soft60FakeClockUt, Number(r, "T09.ut"), 1e-6);
+            int lastWindow = r.Log.FindLastIndex(l => l.StartsWith("T09 view end: "));
+            int firstType = r.Log.FindIndex(l => l.StartsWith("T09 type view "));
+            Assert.IsTrue(firstType > lastWindow, "the type views come after the last cost window");
+            // The maps were read at the rings, once (265 places), and under the centre of each of the eight views.
+            Assert.AreEqual(265 + 8, r.World.LayersReadAt.Count);
+            Assert.AreEqual(265.0, Number(r, "T09s.types.clock.cells"));
+            Assert.AreEqual(17.0, Number(r, "T09s.sections"), "fair 2, clock 4, extras 3, type views 8");
+        }
+
+        [TestMethod]
+        public void AClockSceneThatIsNotStart47sFailsTheProbeByNameAndTheRunGoesOn()
+        {
+            Run r = StartSoft60(x => x.World.LayerReportAt = Soft60Map(() => true), false);
+            Soft60Drive(r);
+            Assert.IsFalse(r.Probe.Passed, "the clock is not start 47's");
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("T09s.clock_ut_is_start_47s")), r.Joined);
+            AssertNoUnhandled(r);
+            Assert.AreEqual(8.0, Number(r, "T09s.type_views"), "the rest of the start ran");
+            Assert.AreEqual(21.0, Number(r, "T09s.cost_windows"));
+        }
+
+        [TestMethod]
+        public void AViewThatWasNotPlacedIsNotCountedAsATypeView()
+        {
+            // The cumulonimbus (a view at 14 km above the terrain) is not reached: its placements fail, the others hold.
+            Run r = StartSoft60(x =>
+            {
+                x.World.LayerReportAt = Soft60Map(() => true);
+                x.World.PlaceResult = (call, wanted) => wanted > 13000.0 ? wanted - 600.0 : wanted;
+            });
+            Soft60Drive(r);
+            Assert.IsFalse(r.Probe.Passed);
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("pose_placed_ty_cumulonimbus_a")), r.Joined);
+            AssertNoUnhandled(r);
+            Assert.AreEqual(0.0, Number(r, "T09s.clock.ty_cumulonimbus_a.placed_ok"));
+            Assert.AreEqual(7.0, Number(r, "T09s.type_views"), "the view that was not placed is not counted as taken");
+            Assert.AreEqual(16.0, Number(r, "T09s.sections"));
         }
 
         [TestMethod]
@@ -395,9 +452,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual(0.0, Number(r, "T09s.type_views"));
             Assert.AreEqual(4.0, Number(r, "T09s.types_absent"));
-            Assert.AreEqual(4, r.Log.Count(l => l.StartsWith("T09 types: ") && l.Contains("was absent within 300 km in both scenes")), "one line per absent type");
+            Assert.AreEqual(4, r.Log.Count(l => l.StartsWith("T09 types: ") && l.Contains("was absent within 300 km in the map of the clock scene")), "one line per absent type");
             Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-ty_")), "no type picture");
-            Assert.AreEqual(0.0, Number(r, "T09s.types.fair.humilis.found"));
             Assert.AreEqual(0.0, Number(r, "T09s.types.clock.humilis.found"));
             // The rest of the start ran: the cost windows and the extra looks.
             Assert.AreEqual(21.0, Number(r, "T09s.cost_windows"));
@@ -416,10 +472,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             });
             Soft60Drive(r);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.AreEqual(1.0, Number(r, "T09s.types.fair.humilis.found"));
-            Assert.AreEqual(1.0, Number(r, "T09s.types.fair.humilis.weak"));
-            Assert.AreEqual(12.0, Number(r, "T09s.types.fair.humilis.dist_km"));
-            Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 types (fair): ") && l.Contains("humilis 12 km") && l.Contains("weak")), "the line names the weak cell");
+            Assert.AreEqual(1.0, Number(r, "T09s.types.clock.humilis.found"));
+            Assert.AreEqual(1.0, Number(r, "T09s.types.clock.humilis.weak"));
+            Assert.AreEqual(12.0, Number(r, "T09s.types.clock.humilis.dist_km"));
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 types (clock): ") && l.Contains("humilis 12 km") && l.Contains("weak")), "the line names the weak cell");
             Assert.AreEqual(2.0, Number(r, "T09s.type_views"), "humilis from the ground and from above");
         }
 

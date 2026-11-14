@@ -134,7 +134,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Tuning.ClearOverrides();
             var closed = new HashSet<string>();
             var declared = new List<string>();
-            Run r = Start(s.Variants, x => x.Probe.SetsProductSwitches = probeSetsSwitches, "1707", s.Id);
+            // The fake world's clock scene is at 1000800 + 5 hours; start 60's probe checks the clock against start 47's.
+            Run r = Start(s.Variants, x =>
+            {
+                x.Probe.SetsProductSwitches = probeSetsSwitches;
+                x.Probe.Soft60ExpectedUt = 1000800.0 + 5 * 3600.0;
+            }, "1707", s.Id);
             Drive(r, 0.1, 3600.0, rr =>
             {
                 EvaluateGates(rr, closed, weatherRuns, layers);
