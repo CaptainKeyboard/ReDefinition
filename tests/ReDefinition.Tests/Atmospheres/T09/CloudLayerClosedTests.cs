@@ -34,10 +34,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             OldDensity.Begin();
             CloudLayerDef rain = Rain();
             var table = new LayerTypeTable(rain);
-            // Fog at type 0: 0.1 of 2100 m times the mean of its profile (0.9 to 0.5 over 0.7, then 0.5 to 0 over 0.3: 0.7 * 0.7 + 0.3 * 0.25 = 0.565).
-            Assert.AreEqual(210.0 * 0.565, CloudCoverModel.EquivalentThicknessM(rain, table, 0.0), 2.0);
-            // Stratus at type 0.5: 0.4 of 2100 m times 0.74 (CloudCoverModel.StratusThicknessM is 0.4 * 2100 * 0.74).
-            Assert.AreEqual(CloudCoverModel.StratusThicknessM, CloudCoverModel.EquivalentThicknessM(rain, table, 0.5), 15.0);
+            // Fog at type 0: 0.1 of 2100 m times the mean of its profile (0.9 to 0.5 over 0.7, then 0.5 to 0 over 0.3: 0.7 * 0.7 + 0.3 * 0.25 = 0.565), times its density scale (1).
+            Assert.AreEqual(210.0 * 0.565 * rain.Types[0].DensityScale, CloudCoverModel.EquivalentThicknessM(rain, table, 0.0), 2.0);
+            // Stratus at type 0.5: 0.4 of 2100 m times 0.74 (CloudCoverModel.StratusThicknessM is 0.4 * 2100 * 0.74), times the type's density scale (E40 B3: the table carries it).
+            Assert.AreEqual(CloudCoverModel.StratusThicknessM * rain.Types[1].DensityScale, CloudCoverModel.EquivalentThicknessM(rain, table, 0.5), 15.0);
         }
 
         [TestMethod]

@@ -159,7 +159,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 {
                     double typeValue = layer.Types.Count == 1 ? 0.0 : t / (double)(layer.Types.Count - 1);
                     double thick = (layer.Types[t].TopShare - layer.Types[t].BaseShare) * layer.ThicknessM;
-                    var line = new StringBuilder("  " + layer.Types[t].Name.PadRight(20) + " full-column tau " + (layer.EffectiveSigmaPerM * thick * 0.6).ToString("0.0") + " :");
+                    // The centre of the full cloud: the type's whole column at full water content, through the table (profile x rise x density scale).
+                    double meanProfile = 0.0;
+                    for (int q = 0; q < 64; q++) meanProfile += table.Profile(typeValue, layer.Types[t].BaseShare + (layer.Types[t].TopShare - layer.Types[t].BaseShare) * (q + 0.5) / 64.0) / 64.0;
+                    var line = new StringBuilder("  " + layer.Types[t].Name.PadRight(20) + " full-column tau " + (layer.EffectiveSigmaPerM * thick * meanProfile).ToString("0.0") + " :");
                     foreach (double map in maps)
                     {
                         var taus = new System.Collections.Generic.List<double>();

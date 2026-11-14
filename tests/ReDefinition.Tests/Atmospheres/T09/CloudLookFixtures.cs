@@ -29,17 +29,23 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The soft water content's numbers of the cfg (E40 soft density): a softer, flatter deck.
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
+            rain.Types[1].DensityScale = 0.22f;
             return rain;
         }
 
         internal static CloudLayerDef Cumulus()
         {
-            return Layer("Kerbin-cumulus", "", 1700f, 7400f, 0.05f, 0.35f, 0.15f, 1f, 500f, LayerKind.Weather,
+            CloudLayerDef cumulus = Layer("Kerbin-cumulus", "", 1700f, 7400f, 0.05f, 0.35f, 0.15f, 1f, 500f, LayerKind.Weather,
                 new CloudTypeDef("Stratocumulus", 0f, 0.11f, C(0f, 0f, 0.15f, 0.9f, 0.6f, 1f, 1f, 0f), 0.3f),
                 new CloudTypeDef("Cumulus humilis", 0f, 0.21f, C(0f, 0f, 0.08f, 0.9f, 0.55f, 1f, 0.9f, 0.5f, 1f, 0f), 0.45f),
                 new CloudTypeDef("Cumulus mediocris", 0f, 0.47f, C(0f, 0f, 0.06f, 0.9f, 0.5f, 1f, 0.85f, 0.6f, 1f, 0f), 0.5f),
                 new CloudTypeDef("Cumulus congestus", 0f, 1f, C(0f, 0f, 0.04f, 0.9f, 0.45f, 1f, 0.8f, 0.7f, 1f, 0f), 0.55f),
                 new CloudTypeDef("Altocumulus", 0.54f, 0.68f, C(0f, 0f, 0.2f, 0.9f, 0.7f, 0.8f, 1f, 0f), 0.4f));
+            cumulus.Types[0].DensityScale = 0.7f;
+            cumulus.Types[1].DensityScale = 0.7f;
+            cumulus.Types[2].DensityScale = 0.7f;
+            cumulus.Types[4].DensityScale = 0.45f;
+            return cumulus;
         }
 
         internal static CloudLayerDef Cumulonimbus()
@@ -58,6 +64,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 new CloudTypeDef("Cirrus", 0.1f, 0.9f, C(0f, 0f, 0.35f, 0.9f, 0.65f, 0.8f, 1f, 0f), 0.7f),
                 new CloudTypeDef("Cirrostratus", 0.2f, 0.8f, C(0f, 0f, 0.3f, 0.7f, 0.7f, 0.7f, 1f, 0f), 0.3f));
             // Thin sheets have no core: a softer rim and the water content enters the density linearly (the cfg's numbers).
+            cirrus.Types[0].DensityScale = 2.5f;
+            cirrus.Types[1].DensityScale = 4f;
             cirrus.SoftnessScale = 2f;
             cirrus.WaterPower = 1f;
             return cirrus;

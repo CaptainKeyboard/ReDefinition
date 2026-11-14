@@ -111,7 +111,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double h = 0.25;
             double plain = type.Profile.Evaluate((float)h);
             double rise = CloudWater.Rise(h, new CloudWaterNumbers { BaseGain = type.BaseGain, RiseShare = type.RiseShare });
-            Assert.AreEqual(plain * rise, table.ProfileAt(0, h), 2e-3);
+            double shipped = type.DensityScale;   // the fitted opacity of the type (E40 B3)
+            Assert.AreEqual(plain * rise * shipped, table.ProfileAt(0, h), 2e-3);
             // The base of the type is cut to the gain, the top reads the profile alone.
             Assert.AreEqual(type.Profile.Evaluate(1f), table.ProfileAt(0, 1.0), 1e-6);
             // A density scale is a factor on the whole profile and enters the water content at the outline.

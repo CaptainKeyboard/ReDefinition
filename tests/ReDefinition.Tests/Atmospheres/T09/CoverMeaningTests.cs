@@ -118,6 +118,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheNoiseAmountDoesNotMoveTheCover()
         {
             CloudLayerDef rain = CloudLookFixtures.Rain();
+            // The property of the mapping for a column of a given thickness: the fitted opacity of the stratus (B3, density scale 0.22: a column of optical depth 5) is the data, not the subject.
+            foreach (CloudTypeDef t in rain.Types) t.DensityScale = 1f;
             double a = Closed(CoverMapping.AmountShare, rain, 0, 1u, 0.5, 0.5, 40, 0.3);
             double b = Closed(CoverMapping.AmountShare, rain, 0, 1u, 0.5, 0.5, 40, 0.6);
             double c = Closed(CoverMapping.AmountShare, rain, 0, 1u, 0.5, 0.5, 40, 1.0);
