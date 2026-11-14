@@ -19,6 +19,9 @@ namespace ReDefinition.WeatherPlayer
         public float baseShare, topShare, erosion;
         // The density over the type's height (0 at its base, 1 at its top), sampled evenly, at least two values.
         public float[] profile;
+        // The soft water content's numbers of the type and its light response by height (E40; the cfg keys of the same names): the defaults are the type's own.
+        public float baseGain = 0.3f, riseShare = 0.5f, densityScale = 1f;
+        public float baseLight = 1f, headLight = 1f, baseAmbient = 1f, headAmbient = 1f;
     }
 
     [Serializable]
@@ -39,6 +42,8 @@ namespace ReDefinition.WeatherPlayer
         public float flowAmplitude, colourStrength, rise;
         public int flowLooped;
         public float[] drift;
+        // The soft water content's per-layer numbers and the layer's light response (E40; the cfg keys softnessScale, waterPower, lightMs, lightPowder, lightAmbient).
+        public float softnessScale = 1f, waterPower = 2f, lightMs = 1f, lightPowder = 1f, lightAmbient = 1f;
     }
 
     [Serializable]
@@ -142,5 +147,7 @@ namespace ReDefinition.WeatherPlayer
         // The sun or moon disc of the backdrop (radiance as a multiple of the sun colour through the air; 0: none), the share of its aureole and the
         // stars' brightness (0: none) (T03v2).
         public float discGain, aureole, stars;
+        // The product's soft water content (E40 soft density) with this softness (the owner's setting, 0.3 to 1; 0: the job runs as the generic layer scene has).
+        public float soft;
     }
 }

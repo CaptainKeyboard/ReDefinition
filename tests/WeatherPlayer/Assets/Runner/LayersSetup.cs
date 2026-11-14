@@ -17,6 +17,14 @@ namespace ReDefinition.WeatherPlayer
             Tuning.ClearOverrides();
             if (job.tuning != null)
                 foreach (LayersJobKey k in job.tuning) Tuning.SetOverride(k.key, k.value);
+            // The product's soft water content (the job's soft > 0): the owner's softness, the detail volume's mean once the volumes are there, the edge hardness off.
+            if (job.soft > 0f)
+            {
+                CloudSoftDensity.Softness = job.soft;
+                NoiseVolumeSet volumes = renderer.Noise.ShapeVolumes;
+                CloudSoftDensity.DetailMean = volumes != null ? volumes.DetailMean : 0.493;
+                renderer.Noise.Switches.SoftEdge = true;
+            }
             var source = new LayerStackSource(0, job.planetRadius, job.hasSurface != 0);
             bool anyMap = false;
             foreach (LayersJobLayer jl in job.layers)
@@ -26,7 +34,16 @@ namespace ReDefinition.WeatherPlayer
                 {
                     var xs = new float[jt.profile.Length];
                     for (int i = 0; i < xs.Length; i++) xs[i] = i / (float)(xs.Length - 1);
-                    types.Add(new CloudTypeDef(jt.name, jt.baseShare, jt.topShare, new Curve(xs, jt.profile), jt.erosion));
+                    types.Add(new CloudTypeDef(jt.name, jt.baseShare, jt.topShare, new Curve(xs, jt.profile), jt.erosion)
+                    {
+                        BaseGain = jt.baseGain,
+                        RiseShare = jt.riseShare,
+                        DensityScale = jt.densityScale,
+                        BaseLight = jt.baseLight,
+                        HeadLight = jt.headLight,
+                        BaseAmbient = jt.baseAmbient,
+                        HeadAmbient = jt.headAmbient
+                    });
                 }
                 var def = new CloudLayerDef(jl.name, 0, jl.inner, jl.outer, types, jl.sigma, (LayerKind)jl.kind)
                 {
@@ -36,7 +53,12 @@ namespace ReDefinition.WeatherPlayer
                     FadeFarM = jl.fadeFar > 0f ? jl.fadeFar : float.PositiveInfinity,
                     NoiseAmount = jl.noiseAmount,
                     NoiseScaleM = jl.noiseScale,
-                    MapShiftDeg = jl.shift
+                    MapShiftDeg = jl.shift,
+                    SoftnessScale = jl.softnessScale,
+                    WaterPower = jl.waterPower,
+                    LightMs = jl.lightMs,
+                    LightPowder = jl.lightPowder,
+                    LightAmbient = jl.lightAmbient
                 };
                 bool hasMap = !string.IsNullOrEmpty(jl.coverageMap) || !string.IsNullOrEmpty(jl.typeMap);
                 if (hasMap) { def.CoverageMapHandle = 0; def.TypeMapHandle = 0; anyMap = true; }
