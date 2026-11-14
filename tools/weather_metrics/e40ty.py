@@ -60,8 +60,11 @@ TYPES = [
     ("stratus", "nimbostratus", "Kerbin-weather-rain", "Nimbostratus", 0.8, (GROUND, ABOVE_LAYER), (25.0, -25.0)),
     ("fog", "fog", "Kerbin-weather-rain", "Fog", 0.8, (20.0, ABOVE_LAYER), (4.0, -25.0)),
     # The cumulonimbus layer's clear-sky rule (K 0.687) lets a map value of 0.85 close the whole sky into one wall; 0.78 leaves gaps between the towers.
-    ("cumulonimbus", "calvus", "Kerbin-cumulonimbus", "Cumulonimbus calvus", 0.78, (GROUND, 13500.0), (25.0, -30.0)),
-    ("cumulonimbus", "incus", "Kerbin-cumulonimbus", "Cumulonimbus incus", 0.78, (GROUND, 13500.0), (25.0, -30.0)),
+    ("cumulonimbus", "calvus", "Kerbin-cumulonimbus", "Cumulonimbus calvus", 0.78, (GROUND, 13500.0), (6.0, -30.0)),
+    ("cumulonimbus", "incus", "Kerbin-cumulonimbus", "Cumulonimbus incus", 0.78, (GROUND, 13500.0), (6.0, -30.0)),
+    # The same types where the map stands high, a strong cell: the height-shaped threshold (LIFT) is in map units, so the stronger the cell the higher the tower stands (E40 L5 shape).
+    ("cumulonimbus", "calvus-strong", "Kerbin-cumulonimbus", "Cumulonimbus calvus", 0.9, (GROUND, 13500.0), (6.0, -30.0)),
+    ("cumulonimbus", "incus-strong", "Kerbin-cumulonimbus", "Cumulonimbus incus", 0.9, (GROUND, 13500.0), (6.0, -30.0)),
     ("cirrus", "cirrus", "Kerbin-cirrus", "Cirrus", 0.65, (GROUND, 12500.0), (35.0, -35.0)),
     ("cirrus", "cirrostratus", "Kerbin-cirrus", "Cirrostratus", 0.8, (GROUND, 12500.0), (35.0, -35.0)),
 ]
@@ -79,9 +82,17 @@ SHAPE_SCALE = float(os.environ["E40TY_SHAPE"]) if os.environ.get("E40TY_SHAPE") 
 NOSHAPE = SHAPE_SCALE == 0.0
 # E40TY_SPHERE=<scale>: the noise lattice's vertical scale (the body key sphereScale; 1: as today, below 1 the features are longer in the vertical), under the names e40-ty-sphere<scale>-*.
 SPHERE = float(os.environ["E40TY_SPHERE"]) if os.environ.get("E40TY_SPHERE") else None
-NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE_SCALE is not None else "e40-ty") + ("-sphere%g" % SPHERE if SPHERE is not None else "")
+# E40TY_CFG=<path>: the layers and types are read from that cfg instead of the shipped one (the "before" of a cfg change: a copy of the cfg of the commit before), E40TY_WIND=0: no layer wind
+# (the fibres lie along the pole, as before E40 L5), E40TY_TAG=<text>: a part of the picture names (e40-ty-<text>-...).
+CFG_PATH = os.environ.get("E40TY_CFG") or e40o.CFG
+NOWIND = os.environ.get("E40TY_WIND") == "0"
+TAG = os.environ.get("E40TY_TAG")
+NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE_SCALE is not None else "e40-ty") + ("-sphere%g" % SPHERE if SPHERE is not None else "") + ("-" + TAG if TAG else "")
 
-LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy")
+# The layer wind of a type's job in m/s as (east, north) (E40 L5 shape): the cirrus fibres lie along it. The sheet's cirrus is blown from the south-west, 25 m/s.
+WIND_EN = {"cirrus": (17.7, 17.7), "cirrostratus": (17.7, 17.7)}
+
+LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale")
 TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient")
 
 
@@ -96,7 +107,7 @@ def lift_samples(type_node):
 
 def cfg_extras():
     """{layer: ({key: float}, {type name: {key: float, 'lift': [128 floats]}})} of the soft, light and shape keys of the shipped Clouds-Kerbin.cfg."""
-    with open(e40o.CFG, encoding="utf-8") as f:
+    with open(CFG_PATH, encoding="utf-8") as f:
         root = e40o.parse_nodes(f.read())
     clouds = e40o.find(root, "CLOUDS")
     out = {}
@@ -147,7 +158,12 @@ def job_layer(spec, extras, layers_by_name):
     layer = layers_by_name[layer_name]
     lk, tk = extras[layer_name]
     jl = e40o.job_layer(layer, const_map(map_value), const_map(type_value(layer, type_name)))
-    jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k == "fibreStretch")})
+    jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("fibreStretch", "verticalScale"))})
+    if spec[1] in WIND_EN and not NOWIND:
+        # the layer's wind in world space: east and north at the site (the map frame: x towards longitude 0, y towards 90 east, z north)
+        lon = math.radians(SITE_LON_DEG)
+        east, north = WIND_EN[spec[1]]
+        jl["wind"] = [-math.sin(lon) * east, math.cos(lon) * east, north]
     for t in jl["types"]:
         t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")})
     return jl
@@ -158,7 +174,7 @@ def jid(key, view, aux=False):
 
 
 def build_jobs():
-    layers_by_name = {s["name"]: s for s in e40o.kerbin_layers()}
+    layers_by_name = {s["name"]: s for s in e40o.kerbin_layers(CFG_PATH)}
     extras = cfg_extras()
     lum, aux = [], []
     for spec in TYPES:
@@ -287,7 +303,7 @@ def collect(ctx):
     aux = ctx.folder("aux")
     out_dir = os.path.join(e40o.main_repo(), ".local", "work", "series-pictures", "E40")
     os.makedirs(out_dir, exist_ok=True)
-    layers_by_name = {s["name"]: s for s in e40o.kerbin_layers()}
+    layers_by_name = {s["name"]: s for s in e40o.kerbin_layers(CFG_PATH)}
     metrics, lines, results = [], ["E40-TY: every type of the shipped cfg, one layer at a time, converged, soft %.1f; the white tint is that of the sun at the lower quarter of the layer"
                                    % SOFTNESS], {}
     tiles = {}
@@ -366,7 +382,7 @@ def selftest():
     ids = [j["id"] for j in lum + aux]
     assert len(ids) == len(set(ids)), "job ids are unique"
     assert len(lum) == len(TYPES) * len(VIEWS) and len(aux) == len(TYPES) * 2
-    layers = {s["name"]: s for s in e40o.kerbin_layers()}
+    layers = {s["name"]: s for s in e40o.kerbin_layers(CFG_PATH)}
     for spec in TYPES:
         names = [t["name"] for t in layers[spec[2]]["types"]]
         assert spec[3] in names, spec[3]

@@ -48,6 +48,10 @@ namespace ReDefinition.WeatherPlayer
         public float softnessScale = 1f, waterPower = 2f, lightAmbient = 1f, lightIsotropy;
         // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
         public float fibreStretch = 1f;
+        // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).
+        public float verticalScale;
+        // The layer's wind in world space (m/s; E40 L5 shape): the fibres lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
+        public float[] wind;
     }
 
     [Serializable]

@@ -22,13 +22,14 @@ sampler3D _NoiseDetail;
 sampler3D _NoiseCurl;
 sampler2D _NoiseFlow;
 sampler2D _NoiseColour;
-float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w: vertical scale of the spherical lattice (1: the planet-centred lattice)
+float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w unused (the vertical scale of the lattice is per layer, _NoiseStretch.y)
 float4 _NoiseQ;          // warp amplitude, warp cell, curl amplitude (in noise scales), flow phase 0..1
 float4 _NoiseR;          // shape period, detail period (in noise scales)
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
 float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y flow looped (1) or one phase (0), z colour map strength, w rise of the detail in m
 
-float4 _NoiseStretch[4]; // per layer: x 1 - 1 / k of the layer's fibre stretch k (0: isotropic), yzw free
+float4 _NoiseStretch[4]; // per layer: x 1 - 1 / k of the layer's fibre stretch k (0: isotropic), y the vertical scale of the layer's lattice (1: isotropic; E40 L5 shape), zw free
+float4 _NoiseAxis[4];    // per layer: xyz the unit axis of the fibre stretch in world space (the layer's wind, the pole where there is none)
 
 float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's finest cell (noise scales), y/z the march spacing in cells up to which the detail is
                          // read in full / from which it is dropped (z = 0: LOD off), w the detail volume's mean (what the erosion reads once dropped)
@@ -93,15 +94,15 @@ float3 NoiseValueVec(float3 p, uint seed)
 float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
 {
     float3 p = pc;
-    if (_NoiseP.w != 1.0)
+    if (_NoiseStretch[li].y != 1.0)
     {
         float r = length(pc);
         float rref = _PlanetR + 0.5 * (_LayerA[li].x + _LayerA[li].y);
-        p = pc * ((rref + (r - rref) * _NoiseP.w) / max(r, 1.0));
+        p = pc * ((rref + (r - rref) * _NoiseStretch[li].y) / max(r, 1.0));
     }
     float3 q = p + _NoiseOffset[li].xyz - flow;
-    // E40 L2 D1 (cfg fibreStretch): the lookup is compressed along the body's pole (the third row of the world-to-map matrix) by 1 - _NoiseStretch[li].x, so the features are longer along it (cirrus fibres).
-    float3 ax = float3(_WorldToMap._m20, _WorldToMap._m21, _WorldToMap._m22);
+    // E40 L2 D1 (cfg fibreStretch): the lookup is compressed along the layer's axis (E40 L5 shape: its wind; the body's pole, the third row of the world-to-map matrix, where there is none) by 1 - _NoiseStretch[li].x, so the features are longer along it (cirrus fibres).
+    float3 ax = _NoiseAxis[li].xyz;
     q -= ax * (dot(q, ax) * _NoiseStretch[li].x);
     if (_NoiseP.y > 0.5)
         q += (_NoiseQ.x * scale) * NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
@@ -136,7 +137,10 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
         lod = saturate((gNoiseFoot - _NoiseS.y * cell) / max((_NoiseS.z - _NoiseS.y) * cell, 1e-3));
     }
     float d = _NoiseS.w;
-    float3 upv = pc / max(length(pc), 1.0);
+    float rl = max(length(pc), 1.0);
+    float3 upv = pc / rl;
+    // E40 L5 shape: the detail reads the lattice at its true vertical scale (the layer's vertical scale lengthens the shape's features only): the compression of NoiseLookup is taken back.
+    q += upv * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
     [branch] if (lod < 1.0)
     {
         d = NoiseDetailAt(li, q, upv, scale, 1.0);

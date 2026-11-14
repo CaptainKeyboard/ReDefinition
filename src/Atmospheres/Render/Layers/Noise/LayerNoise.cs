@@ -59,11 +59,18 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdShape = Shader.PropertyToID("_NoiseShape"), IdDetail = Shader.PropertyToID("_NoiseDetail"),
             IdCurl = Shader.PropertyToID("_NoiseCurl"), IdFlow = Shader.PropertyToID("_NoiseFlow"), IdColour = Shader.PropertyToID("_NoiseColour"),
             IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"), IdS = Shader.PropertyToID("_NoiseS"),
-            IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer"), IdStretch = Shader.PropertyToID("_NoiseStretch");
+            IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer"), IdStretch = Shader.PropertyToID("_NoiseStretch"), IdAxis = Shader.PropertyToID("_NoiseAxis");
 
         private readonly Vector4[] offsets = new Vector4[CloudLayerDef.MaxLayers], layerData = new Vector4[CloudLayerDef.MaxLayers], stretchData = new Vector4[CloudLayerDef.MaxLayers];
         // The factor each layer's noise features are longer along the body's axis than across (CloudLayerDef.FibreStretch; 1: isotropic).
         private readonly double[] stretch = { 1.0, 1.0, 1.0, 1.0 };
+        // The vertical scale of each layer's lattice (CloudLayerDef.VerticalScale; 0: the switch SphereScale, the body's key).
+        private readonly double[] vertical = new double[CloudLayerDef.MaxLayers];
+        // The unit axis of each layer's fibre stretch: the layer's wind (the horizontal direction of the drift), smoothed in time, or the body's pole where there is no wind.
+        private readonly Vector3[] axis = { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward };
+        private Vector3 pole = Vector3.forward;
+        private bool poleKnown;
+        private readonly Vector4[] axisData = new Vector4[CloudLayerDef.MaxLayers];
         private readonly double[] driftX = new double[CloudLayerDef.MaxLayers], driftY = new double[CloudLayerDef.MaxLayers],
             driftZ = new double[CloudLayerDef.MaxLayers], rise = new double[CloudLayerDef.MaxLayers];
         private readonly LayerNoiseMotion[] motion = new LayerNoiseMotion[CloudLayerDef.MaxLayers];
@@ -190,6 +197,35 @@ namespace ReDefinition.Atmospheres
             if (layer >= 0 && layer < stretch.Length) stretch[layer] = k < 1.0 || double.IsNaN(k) ? 1.0 : k;
         }
 
+        // The vertical scale of a layer's lattice (0 or less: the switch SphereScale; the cfg key verticalScale).
+        internal void SetVertical(int layer, double scale)
+        {
+            if (layer >= 0 && layer < vertical.Length) vertical[layer] = scale > 0.0 && !double.IsNaN(scale) ? scale : 0.0;
+        }
+
+        // The body's pole in world space (the third row of the world-to-map matrix): the axis of a layer's fibres where there is no wind. The first time it is known every axis takes it
+        // (a layer's axis then turns from it to the wind in Advance).
+        internal void SetPole(Vector3 value)
+        {
+            if (value.sqrMagnitude < 1e-12f) return;
+            pole = value.normalized;
+            if (poleKnown) return;
+            poleKnown = true;
+            for (int l = 0; l < axis.Length; l++) axis[l] = FibreAxis.Target(motion[l].DriftMs, pole);
+        }
+
+        // Puts a layer's axis at the direction of its wind at once (a reading, the player; the game turns it over FibreAxis.TurnSeconds in Advance).
+        internal void SnapAxis(int layer)
+        {
+            if (layer >= 0 && layer < axis.Length) axis[layer] = FibreAxis.Target(motion[layer].DriftMs, pole);
+        }
+
+        // The axis of a layer as the shader gets it.
+        internal Vector3 AxisOf(int layer)
+        {
+            return layer >= 0 && layer < axis.Length ? axis[layer] : pole;
+        }
+
         // Sets the distance the pattern has drifted (m, world space) and the detail has risen (m) of a layer directly (a measurement, a restore).
         internal void SetState(int layer, Vector3 driftDistanceM, float riseDistanceM)
         {
@@ -211,6 +247,8 @@ namespace ReDefinition.Atmospheres
                 driftY[l] += motion[l].DriftMs.y * dt;
                 driftZ[l] += motion[l].DriftMs.z * dt;
                 rise[l] += motion[l].RiseMs * dt;
+                // The fibres turn to the layer's wind, slowly (a camera that moves over the planet turns the wind's world direction too).
+                axis[l] = FibreAxis.Turn(axis[l], FibreAxis.Target(motion[l].DriftMs, pole), dt);
             }
         }
 
@@ -228,14 +266,16 @@ namespace ReDefinition.Atmospheres
                 OffsetY = by - driftY[layer],
                 OffsetZ = bz - driftZ[layer],
                 Seed = NoiseSeeds.LayerSeed(Switches.Seed, layer),
-                SphereScale = Switches.SphereScale,
+                SphereScale = vertical[layer] > 0.0 ? vertical[layer] : Switches.SphereScale,
                 NoDistanceLod = !Switches.DistanceLod,
                 NoFineDetail = !Switches.FineDetail,
                 DensityRemap = CloudLookTuning.DensityRemap,
                 ReferenceRadiusM = referenceRadiusM,
                 UpDistanceM = rise[layer],
                 Stretch = 1.0 - 1.0 / stretch[layer],
-                AxisZ = 1.0
+                AxisX = axis[layer].x,
+                AxisY = axis[layer].y,
+                AxisZ = axis[layer].z
             };
         }
 
@@ -245,7 +285,7 @@ namespace ReDefinition.Atmospheres
             Poll();
             EnsureDefaults();
             bool on = Switches.Enabled && Ready;
-            material.SetVector(IdP, new Vector4(on ? 1f : 0f, Switches.Untile ? 1f : 0f, Switches.Curl ? 1f : 0f, Switches.SphereScale));
+            material.SetVector(IdP, new Vector4(on ? 1f : 0f, Switches.Untile ? 1f : 0f, Switches.Curl ? 1f : 0f, 0f));
             material.SetVector(IdQ, new Vector4(Switches.WarpAmplitude > 0f ? Switches.WarpAmplitude : (float)NoiseModel.WarpAmplitudeScales,
                                                 Switches.WarpCell > 0f ? Switches.WarpCell : (float)NoiseModel.WarpCellScales, (float)NoiseModel.CurlAmplitudeScales,
                                                 (float)((flowTime / FlowLoopSeconds) % 1.0)));
@@ -266,8 +306,10 @@ namespace ReDefinition.Atmospheres
                 offsets[l] = new Vector4((float)(bx - driftX[l]), (float)(by - driftY[l]), (float)(bz - driftZ[l]), NoiseSeeds.LayerSeed(Switches.Seed, l));
                 LayerNoiseMotion m = motion[l];
                 layerData[l] = new Vector4(flowTexture != null ? m.FlowAmplitudeM : 0f, m.FlowLooped ? 1f : 0f, colourTexture != null ? m.ColourStrength : 0f, (float)rise[l]);
-                stretchData[l] = new Vector4((float)(1.0 - 1.0 / stretch[l]), 0f, 0f, 0f);
+                stretchData[l] = new Vector4((float)(1.0 - 1.0 / stretch[l]), vertical[l] > 0.0 ? (float)vertical[l] : Switches.SphereScale, 0f, 0f);
+                axisData[l] = new Vector4(axis[l].x, axis[l].y, axis[l].z, 0f);
             }
+            material.SetVectorArray(IdAxis, axisData);
             material.SetVectorArray(IdOffset, offsets);
             material.SetVectorArray(IdLayer, layerData);
             material.SetVectorArray(IdStretch, stretchData);

@@ -265,11 +265,14 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheShapeKeysReadFromTheTypeAndLayerNodesAndDefaultToNone()
         {
             string lifted = "TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}LIFT{key0 = 0 0;key1 = 0.4 0;key2 = 1 0.3}}";
-            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;fibreStretch = 6;" + lifted + "}"
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;fibreStretch = 6;verticalScale = 0.4;" + lifted + "}"
                 + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
             CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
             Assert.AreEqual(6f, a.FibreStretch);
+            Assert.AreEqual(0.4f, a.VerticalScale, 1e-6f);
+            Assert.AreEqual(0f, b.VerticalScale, "no vertical scale: the body's sphereScale");
+            Assert.AreEqual(0.4f, a.Build(1).VerticalScale, 1e-6f);
             Assert.AreEqual(3, a.Types[0].Lift.Count);
             Assert.AreEqual(1f, b.FibreStretch);
             Assert.IsNull(b.Types[0].Lift);

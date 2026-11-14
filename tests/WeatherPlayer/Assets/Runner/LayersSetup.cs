@@ -58,6 +58,7 @@ namespace ReDefinition.WeatherPlayer
                     WaterPower = jl.waterPower,
                     LightAmbient = jl.lightAmbient,
                     FibreStretch = jl.fibreStretch,
+                    VerticalScale = jl.verticalScale,
                     LightIsotropy = jl.lightIsotropy
                 };
                 bool hasMap = !string.IsNullOrEmpty(jl.coverageMap) || !string.IsNullOrEmpty(jl.typeMap);
@@ -158,7 +159,9 @@ namespace ReDefinition.WeatherPlayer
             for (int l = 0; l < job.layers.Length; l++)
             {
                 LayersJobLayer jl = job.layers[l];
-                noise.SetMotion(l, new LayerNoiseMotion { FlowAmplitudeM = jl.flowAmplitude, FlowLooped = jl.flowLooped != 0, ColourStrength = jl.colourStrength });
+                noise.SetMotion(l, new LayerNoiseMotion { FlowAmplitudeM = jl.flowAmplitude, FlowLooped = jl.flowLooped != 0, ColourStrength = jl.colourStrength,
+                                                          DriftMs = jl.wind != null && jl.wind.Length >= 3 ? V(jl.wind) : Vector3.zero });
+                noise.SnapAxis(l);
                 Vector3 drift = jl.drift != null && jl.drift.Length >= 3 ? V(jl.drift) : Vector3.zero;
                 noise.SetState(l, drift, jl.rise);
             }

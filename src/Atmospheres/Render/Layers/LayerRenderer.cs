@@ -273,6 +273,7 @@ namespace ReDefinition.Atmospheres
                     profile[texel + 3] = liftData[i];
                 }
                 Noise.SetStretch(l, layer.FibreStretch);
+                Noise.SetVertical(l, layer.VerticalScale);
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;
@@ -357,6 +358,7 @@ namespace ReDefinition.Atmospheres
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);
             m.SetVectorArray(IdCullL, cullL);
+            Noise.SetPole(f.WorldToMap.GetRow(2));
             Noise.Bind(m, layerCount);
         }
 

@@ -314,6 +314,55 @@ namespace ReDefinition.Tests
             Assert.IsTrue(Math.Abs(isoAlong - isoAcross) < 0.25 * isoAcross, "isotropic: along " + isoAlong / n + " across " + isoAcross / n);
         }
 
+        // E40 L5 shape: the fibres lie along the layer's wind, and the pole is the axis of calm air.
+        [TestMethod]
+        public void TheFibreAxisFollowsTheWindAndKeepsToThePoleInCalmAir()
+        {
+            var pole = new UnityEngine.Vector3(0f, 0f, 1f);
+            UnityEngine.Vector3 wind = FibreAxis.Target(new UnityEngine.Vector3(3f, 4f, 0f), pole);
+            Assert.AreEqual(0.6f, wind.x, 1e-6f);
+            Assert.AreEqual(0.8f, wind.y, 1e-6f);
+            Assert.AreEqual(pole, FibreAxis.Target(new UnityEngine.Vector3(0.1f, 0.2f, 0f), pole), "calm air");
+            // It turns over FibreAxis.TurnSeconds: after one time constant 63 percent of the way, always a unit vector; a long time later it has arrived.
+            UnityEngine.Vector3 a = FibreAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), FibreAxis.TurnSeconds);
+            Assert.AreEqual(1.0f, a.magnitude, 1e-5f);
+            Assert.AreEqual(0.864f, a.x, 0.01f, "the blend 0.632 of the way, normalised: " + a);
+            Assert.AreEqual(0.503f, a.z, 0.01f, a.ToString());
+            UnityEngine.Vector3 b = FibreAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), 50.0 * FibreAxis.TurnSeconds);
+            Assert.IsTrue(UnityEngine.Vector3.Dot(b, new UnityEngine.Vector3(1f, 0f, 0f)) > 0.9999f, b.ToString());
+            // A fibre has an axis, not a direction: a wind opposite to the axis does not send it through zero, and a wind along the axis leaves it as it is.
+            UnityEngine.Vector3 c = FibreAxis.Turn(new UnityEngine.Vector3(1f, 0f, 0f), new UnityEngine.Vector3(-1f, 0f, 0f), 5.0);
+            Assert.AreEqual(1.0f, c.magnitude, 1e-5f);
+            Assert.IsTrue(c.x > 0.99f, c.ToString());
+            Assert.AreEqual(pole, FibreAxis.Turn(pole, pole, 5.0));
+        }
+
+        // E40 L5 shape: the layer's vertical scale (cfg key verticalScale) is the sphere scale of the lookup, per layer: the features are longer in the vertical by its inverse and
+        // horizontally untouched.
+        [TestMethod]
+        public void TheVerticalScaleLengthensTheFeaturesInTheVertical()
+        {
+            NoiseLayerParams iso = NoiseLayerParams.Default(500.0);
+            iso.Untile = false;
+            iso.ReferenceRadiusM = 603000.0;
+            NoiseLayerParams tall = iso;
+            tall.SphereScale = 0.35;
+            double lag = 3.0 * 500.0, upTall = 0.0, upIso = 0.0, acrossTall = 0.0, acrossIso = 0.0;
+            for (int i = 0; i < 40; i++)
+                for (int j = 0; j < 10; j++)
+                {
+                    // points over the north pole of the lookup (x, y small, z the radius), so up is z; across is x
+                    double x = i * 811.0, y = j * 1307.0, z = 603000.0 + (i + j) * 97.0;
+                    double a = Shape(ref tall, x, y, z), b = Shape(ref iso, x, y, z);
+                    upTall += Math.Abs(a - Shape(ref tall, x, y, z + lag));
+                    upIso += Math.Abs(b - Shape(ref iso, x, y, z + lag));
+                    acrossTall += Math.Abs(a - Shape(ref tall, x + lag, y, z));
+                    acrossIso += Math.Abs(b - Shape(ref iso, x + lag, y, z));
+                }
+            Assert.IsTrue(upTall < 0.6 * upIso, "up: tall " + upTall + " isotropic " + upIso);
+            Assert.AreEqual(acrossIso, acrossTall, 0.3 * acrossIso, "across: tall " + acrossTall + " isotropic " + acrossIso);
+        }
+
         private static double Shape(ref NoiseLayerParams prm, double x, double y, double z)
         {
             double qx, qy, qz;

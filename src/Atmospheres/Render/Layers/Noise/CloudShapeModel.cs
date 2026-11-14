@@ -258,6 +258,15 @@ namespace ReDefinition.Atmospheres
             double lod = DetailLod(ref prm, footM);
             double d = set.DetailMean;
             double r = Math.Sqrt(px * px + py * py + pz * pz);
+            // The erosion detail reads the lattice at its true vertical scale: a layer's vertical scale (E40 L5 shape) lengthens the SHAPE's features in the vertical, the detail's
+            // cauliflower must stay as tall as it is wide, or the surface streaks vertically. The shape's sphere scale moved the point by -(1 - w)(r - reference) along the up; here it is moved back.
+            if (prm.SphereScale != 1.0 && prm.SphereScale > 0.0 && r > 0.0)
+            {
+                double back = (1.0 - prm.SphereScale) * (r - prm.ReferenceRadiusM) / r;
+                qx += px * back;
+                qy += py * back;
+                qz += pz * back;
+            }
             if (lod < 1.0)
             {
                 d = DetailAt(set, ref prm, qx, qy, qz, px / r, py / r, pz / r);

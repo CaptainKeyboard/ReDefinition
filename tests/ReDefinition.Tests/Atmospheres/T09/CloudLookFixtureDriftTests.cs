@@ -57,6 +57,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
             Assert.AreEqual(shipped.FibreStretch, fixture.FibreStretch, 1e-6f, n + " fibre stretch");
+            Assert.AreEqual(shipped.VerticalScale, fixture.VerticalScale, 1e-6f, n + " vertical scale");
             Assert.AreEqual(shipped.LightIsotropy, fixture.LightIsotropy, 1e-6f, n + " light isotropy");
             Assert.AreEqual(shipped.Group, fixture.Group, n + " group");
             Assert.AreEqual(shipped.Kind, fixture.Kind, n + " kind");

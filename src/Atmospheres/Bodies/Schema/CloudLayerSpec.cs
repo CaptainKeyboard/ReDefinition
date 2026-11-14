@@ -137,6 +137,8 @@ namespace ReDefinition.Atmospheres
         internal float RainType { get; set; } = 1f;
         // How much longer the noise features are along the body's axis than across it (cfg key fibreStretch; 1: isotropic): see CloudLayerDef.FibreStretch.
         internal float FibreStretch { get; set; } = 1f;
+        // The vertical scale of the layer's noise lattice (cfg key verticalScale; 0: the body's sphereScale): see CloudLayerDef.VerticalScale.
+        internal float VerticalScale { get; set; }
         // The mid-level sheet's rule (cfg keys altoType, altoFrom, altoFullAt; altoType -1: none): see CloudLayerDef.AltoType.
         internal float AltoType { get; set; } = -1f;
         internal float AltoFrom { get; set; } = 0.05f;
@@ -190,6 +192,7 @@ namespace ReDefinition.Atmospheres
                 LightIsotropy = LightIsotropy,
                 RainType = RainType,
                 FibreStretch = FibreStretch,
+                VerticalScale = VerticalScale,
                 AltoType = AltoType,
                 AltoFrom = AltoFrom,
                 AltoFull = AltoFull,

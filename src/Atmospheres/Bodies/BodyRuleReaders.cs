@@ -205,7 +205,7 @@ namespace ReDefinition.Atmospheres
                     SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
                     LightAmbient =r.Float("lightAmbient", 1f, 0f, 4f),
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f),
-                    RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f),
+                    RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
                     AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f),
                     Meso = Meso(r.Child("MESO")), TypePatchKm = r.Float("typePatchKm", 0f, 0f, 2000f),
                     TypePatchDepths = r.Float("typePatchDepths", CloudMesoSpec.DefaultTypePatchDepths, 0.2f, 100f), TypePatchBlend = r.Float("typePatchBlend", 0.06f, 0.005f, 0.5f) });

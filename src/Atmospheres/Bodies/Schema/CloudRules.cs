@@ -198,6 +198,11 @@ namespace ReDefinition.Atmospheres
         // axis by 1 / FibreStretch (E40 L2 D1; Noise.cginc NoiseLookup). Cirrus fibres; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
         // towards the poles (where the stretch then lies in the vertical and does not show in a thin layer).
         internal float FibreStretch { get; set; } = 1f;
+        // The vertical scale of the layer's noise lattice (cfg key verticalScale, 0: the body's sphereScale key, 1: the lattice is isotropic): the radial distance from the layer's middle is
+        // multiplied by it before the volumes are read, so below 1 the features are 1 / VerticalScale times longer in the vertical than across. A convective cloud is a column: the air that
+        // rises in a cell is the same over the depth of the cloud, so the noise that decides where it stands must not change over that depth, or the bodies float at different heights and
+        // the tops are slivers (E40 L5 shape). A deck (stratus, fog) keeps 1.
+        internal float VerticalScale { get; set; }
         // The mid-level sheet's rule (E40 L2 D1; cfg keys altoType, altoFrom, altoFullAt): AltoType is the type value of the table's mid-level sheet (an altocumulus), -1: none. Where the
         // generator makes more cloud at that type's height than at the fair-weather type's height (the difference of the two layer maps, from AltoFrom to AltoFullAt), the type map
         // shows the sheet instead of the precipitation's type (CloudLookTuning.ApplyAlto).
