@@ -22,6 +22,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.NoiseScaleM, fixture.NoiseScaleM, 1e-3f, n + " noise scale");
             Assert.AreEqual(shipped.SoftnessScale, fixture.SoftnessScale, 1e-6f, n + " softness scale");
             Assert.AreEqual(shipped.WaterPower, fixture.WaterPower, 1e-6f, n + " water power");
+            Assert.AreEqual(shipped.FairType, fixture.FairType, 1e-6f, n + " fair type");
+            Assert.AreEqual(shipped.RainType, fixture.RainType, 1e-6f, n + " rain type");
             Assert.AreEqual(shipped.LightMs, fixture.LightMs, 1e-6f, n + " light ms");
             Assert.AreEqual(shipped.LightPowder, fixture.LightPowder, 1e-6f, n + " light powder");
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");

@@ -203,7 +203,8 @@ namespace ReDefinition.Atmospheres
                     r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
                     r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
                     SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
-                    LightMs = r.Float("lightMs", 1f, 0f, 4f), LightPowder = r.Float("lightPowder", 1f, 0f, 4f), LightAmbient = r.Float("lightAmbient", 1f, 0f, 4f) });
+                    LightMs = r.Float("lightMs", 1f, 0f, 4f), LightPowder = r.Float("lightPowder", 1f, 0f, 4f), LightAmbient = r.Float("lightAmbient", 1f, 0f, 4f),
+                    RainType = r.Float("rainType", 1f, 0f, 1f) });
             }
             return layers;
         }

@@ -62,6 +62,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Light(cumulus.Types[1], 0.75f, 1.25f, 0.9f, 1f);
             Light(cumulus.Types[2], 0.7f, 1.25f, 0.85f, 1f);
             Light(cumulus.Types[3], 0.65f, 1.25f, 0.8f, 1f);
+            cumulus.FairType = 0.25f;
+            cumulus.RainType = 0.75f;
             return cumulus;
         }
 

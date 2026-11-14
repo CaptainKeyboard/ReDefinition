@@ -175,6 +175,8 @@ namespace ReDefinition.Atmospheres
         internal float LightMs { get; set; } = 1f;
         internal float LightPowder { get; set; } = 1f;
         internal float LightAmbient { get; set; } = 1f;
+        // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
+        internal float RainType { get; set; } = 1f;
         private double SoftAmount { get { return CloudSoftDensity.CoverMeaning ? 1.0 : ConfiguredNoiseAmount; } }
         // The width of the water content's rise in noise rank.
         private double SoftWidth { get { return Math.Max(0.02, CloudSoftDensity.Softness * SoftnessScale); } }

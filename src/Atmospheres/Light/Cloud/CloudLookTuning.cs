@@ -266,21 +266,23 @@ namespace ReDefinition.Atmospheres
         }
 
         // The type value of a layer at a place from the precipitation level there (0 to 1): the override, else the fair-weather curve fair + (1 - fair) p, else p itself.
-        internal static float TypeValue(float precipitation, float fair, float overrideValue)
+        // With rain below 1 (E40 B3, the layer's cfg key rainType) the curve ends at that type value at full precipitation instead of the last type: fair + (rain - fair) p, and p itself
+        // times rain where there is no fair value.
+        internal static float TypeValue(float precipitation, float fair, float overrideValue, float rain = 1f)
         {
             if (overrideValue >= 0f) return overrideValue;
-            if (fair >= 0f) return fair + (1f - fair) * precipitation;
-            return precipitation;
+            if (fair >= 0f) return fair + (rain - fair) * precipitation;
+            return precipitation * rain;
         }
 
-        // The type bytes of a layer from the precipitation bytes. With no override and no fair value the source array itself is returned (no copy, no change).
-        internal static byte[] TypeBytes(byte[] precipitation, float fair, float overrideValue, ref byte[] scratch)
+        // The type bytes of a layer from the precipitation bytes. With no override, no fair value and no rain type the source array itself is returned (no copy, no change).
+        internal static byte[] TypeBytes(byte[] precipitation, float fair, float overrideValue, ref byte[] scratch, float rain = 1f)
         {
-            if (fair < 0f && overrideValue < 0f) return precipitation;
+            if (fair < 0f && overrideValue < 0f && rain >= 1f) return precipitation;
             if (scratch == null || scratch.Length != precipitation.Length) scratch = new byte[precipitation.Length];
             for (int i = 0; i < precipitation.Length; i++)
             {
-                float v = TypeValue(precipitation[i] / 255f, fair, overrideValue);
+                float v = TypeValue(precipitation[i] / 255f, fair, overrideValue, rain);
                 scratch[i] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(v * 255.0, MidpointRounding.ToEven)));
             }
             return scratch;

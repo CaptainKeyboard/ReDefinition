@@ -128,6 +128,9 @@ namespace ReDefinition.Atmospheres
         internal float LightMs { get; set; } = 1f;
         internal float LightPowder { get; set; } = 1f;
         internal float LightAmbient { get; set; } = 1f;
+        // The type value of the layer at full precipitation (cfg key rainType; 1: the last type of the table). With fairType the type value runs from fairType at no precipitation to
+        // rainType at full precipitation, so a table whose last type is not a rain cloud (altocumulus after congestus) can end its precipitation axis at the type that is.
+        internal float RainType { get; set; } = 1f;
         // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
         internal WeatherDeckRule Deck { get; set; }
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
@@ -170,7 +173,8 @@ namespace ReDefinition.Atmospheres
                 WaterPower = WaterPower,
                 LightMs = LightMs,
                 LightPowder = LightPowder,
-                LightAmbient = LightAmbient
+                LightAmbient = LightAmbient,
+                RainType = RainType
             };
         }
     }

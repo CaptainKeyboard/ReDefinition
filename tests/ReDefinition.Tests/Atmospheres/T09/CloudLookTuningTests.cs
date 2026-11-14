@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
 using UnityEngine;
@@ -319,6 +320,34 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.25f, CloudLookTuning.TypeFairOf("Kerbin-cumulus"));
             Assert.AreEqual(-1f, CloudLookTuning.TypeFairOf("Kerbin-cirrus"));
             Assert.AreEqual(0.5f, CloudLookTuning.TypeOverrideOf("Kerbin-cumulonimbus"));
+        }
+
+        [TestMethod]
+        public void TheRainTypeEndsThePrecipitationAxisAtTheTypeOfFullPrecipitation()
+        {
+            // E40 B3: fair weather shows the fair type, full precipitation the rain type, a straight line between; rainType 1 is the old curve.
+            Assert.AreEqual(0.25f, CloudLookTuning.TypeValue(0f, 0.25f, -1f, 0.75f), 1e-6f);
+            Assert.AreEqual(0.75f, CloudLookTuning.TypeValue(1f, 0.25f, -1f, 0.75f), 1e-6f);
+            Assert.AreEqual(0.5f, CloudLookTuning.TypeValue(0.5f, 0.25f, -1f, 0.75f), 1e-6f);
+            Assert.AreEqual(CloudLookTuning.TypeValue(0.3f, 0.25f, -1f), CloudLookTuning.TypeValue(0.3f, 0.25f, -1f, 1f), 0f, "the default rain type is the old curve");
+            Assert.AreEqual(0.3f, CloudLookTuning.TypeValue(0.6f, -1f, -1f, 0.5f), 1e-6f, "without a fair type the precipitation times the rain type");
+            Assert.AreEqual(0.6f, CloudLookTuning.TypeValue(0.9f, 0.25f, 0.6f, 0.75f), "the override still wins");
+            byte[] precip = { 0, 255 }, scratch = null;
+            byte[] bytes = CloudLookTuning.TypeBytes(precip, 0.25f, -1f, ref scratch, 0.75f);
+            CollectionAssert.AreEqual(new byte[] { 64, 191 }, bytes);
+            Assert.AreSame(precip, CloudLookTuning.TypeBytes(precip, -1f, -1f, ref scratch, 1f), "no fair type, no override, rain type 1: the precipitation bytes themselves");
+        }
+
+        [TestMethod]
+        public void TheShippedCumulusLayerShowsHumilisInFairWeatherAndCongestusInHeavyRain()
+        {
+            CloudLayerSpec cumulus = ReDefinition.Tests.Atmospheres.T10.CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == "Kerbin-cumulus");
+            int last = cumulus.Types.Count - 1;
+            Func<float, string> at = precipitation => cumulus.Types[(int)Math.Round(CloudLookTuning.TypeValue(precipitation, cumulus.FairType, -1f, cumulus.RainType) * last)].Name;
+            Assert.AreEqual("Cumulus humilis", at(0f), "fair weather");
+            Assert.AreEqual("Cumulus mediocris", at(0.5f), "moderate rain");
+            Assert.AreEqual("Cumulus congestus", at(1f), "the heaviest rain: a tower, not the middle-level sheet that ends the table");
+            Assert.AreEqual("Altocumulus", cumulus.Types[last].Name, "the table still ends with the altocumulus sheet (drawn where a rule picks it, not by precipitation)");
         }
 
         [TestMethod]

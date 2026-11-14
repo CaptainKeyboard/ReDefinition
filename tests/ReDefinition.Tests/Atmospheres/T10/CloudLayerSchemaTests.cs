@@ -316,6 +316,19 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(LayerKind.Fog, def.Kind);
         }
 
+        [TestMethod]
+        public void TheRainTypeIsReadBuiltAndDefaultsToTheLastType()
+        {
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 0;outerAltitudeM = 2100;fairType = 0.25;rainType = 0.75;" + GoodType + "}"
+                + "LAYER{name = B;innerAltitudeM = 3000;outerAltitudeM = 4000;" + GoodType + "}"
+                + "LAYER{name = C;innerAltitudeM = 5000;outerAltitudeM = 6000;rainType = 3;" + GoodType + "}");
+            Assert.AreEqual(0.75f, r.Climate.Clouds.Layers[0].RainType);
+            Assert.AreEqual(1f, r.Climate.Clouds.Layers[1].RainType, "no key: the last type");
+            Assert.AreEqual(1f, r.Climate.Clouds.Layers[2].RainType, "brought into the range");
+            Assert.IsTrue(r.Warnings.Any(w => w.Contains("rainType")));
+            Assert.AreEqual(0.75f, r.Climate.Clouds.Layers[0].Build(1).RainType);
+        }
+
         // E40 (lead investigation): the type at no precipitation is a key of the layer. Without it the type value is the precipitation level (the first type in fair
         // weather, as before); the tuning key cloud.typeFair.<name> goes before the layer's value, and 0 there gives the precipitation level again.
         [TestMethod]

@@ -193,6 +193,85 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
         }
 
+        // The structure of a cloud field seen from above (E40 B3): the columns of a patch of the layer on a grid, closed where the vertical optical depth is 0.92 or more (the product's
+        // density). Per map value the closed share and how it is connected: the share of the closed area that is one piece (the largest 4-connected component) and the number of pieces
+        // per 100 closed columns. A field of separate cells has a small largest piece and many pieces; a plate with holes is one large piece. Runs only with SOFT_REPORT.
+        [TestMethod, TestCategory("Explore")]
+        public void CellStructureFromAbove()
+        {
+            string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
+            if (string.IsNullOrEmpty(path)) return;
+            CloudSoftDensity.DetailMean = Volumes.DetailMean;
+            const int N = 56;
+            double[] maps = { 0.2, 0.3, 0.4, 0.5, 0.6 };
+            File.AppendAllText(path, "CELL STRUCTURE FROM ABOVE, product mapping (softness " + CloudSoftDensity.Softness.ToString("0.0") + "), " + N + " x " + N + " columns at half a noise scale, 6 sites; "
+                                     + "per map value: closed share | largest piece of the closed area | pieces per 100 closed columns" + Environment.NewLine);
+            foreach (double typeValue in new[] { 0.0, 0.25 })
+                foreach (double scale in new[] { 500.0, 800.0, 1200.0 })
+                {
+                    CloudLayerDef layer = CloudLookFixtures.Cumulus();
+                    layer.NoiseScaleM = (float)scale;
+                    var table = new LayerTypeTable(layer);
+                    var line = new StringBuilder("  " + (typeValue == 0.0 ? "Stratocumulus" : "Cumulus humilis").PadRight(16) + " noise scale " + scale.ToString("0").PadLeft(5) + " m :");
+                    foreach (double map in maps)
+                    {
+                        double share = 0.0, largest = 0.0, pieces = 0.0;
+                        int sites = 6;
+                        for (int s = 0; s < sites; s++)
+                        {
+                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, 1);
+                            CoverMeaningModel.Place(ref prm, s);
+                            var closed = new bool[N * N];
+                            int count = 0;
+                            for (int j = 0; j < N; j++)
+                                for (int i = 0; i < N; i++)
+                                {
+                                    double tau = ProductColumnTau(layer, table, Volumes, prm, (i - N / 2) * scale * 0.5, (j - N / 2) * scale * 0.5, map, typeValue, 32);
+                                    if (tau >= CloudWater.ClosedTau) { closed[j * N + i] = true; count++; }
+                                }
+                            int biggest, components;
+                            Components(closed, N, out biggest, out components);
+                            share += count / (double)(N * N) / sites;
+                            if (count > 0)
+                            {
+                                largest += biggest / (double)count / sites;
+                                pieces += 100.0 * components / count / sites;
+                            }
+                        }
+                        line.Append("  map " + map.ToString("0.0") + ": " + share.ToString("0.00") + " | " + largest.ToString("0.00") + " | " + pieces.ToString("0.0"));
+                    }
+                    File.AppendAllText(path, line + Environment.NewLine);
+                }
+        }
+
+        // The largest 4-connected piece (in cells) and the number of pieces of a boolean grid.
+        private static void Components(bool[] grid, int n, out int biggest, out int components)
+        {
+            var seen = new bool[grid.Length];
+            var stack = new System.Collections.Generic.Stack<int>();
+            biggest = 0;
+            components = 0;
+            for (int start = 0; start < grid.Length; start++)
+            {
+                if (!grid[start] || seen[start]) continue;
+                components++;
+                int size = 0;
+                stack.Push(start);
+                seen[start] = true;
+                while (stack.Count > 0)
+                {
+                    int k = stack.Pop();
+                    size++;
+                    int x = k % n, y = k / n;
+                    if (x > 0 && grid[k - 1] && !seen[k - 1]) { seen[k - 1] = true; stack.Push(k - 1); }
+                    if (x < n - 1 && grid[k + 1] && !seen[k + 1]) { seen[k + 1] = true; stack.Push(k + 1); }
+                    if (y > 0 && grid[k - n] && !seen[k - n]) { seen[k - n] = true; stack.Push(k - n); }
+                    if (y < n - 1 && grid[k + n] && !seen[k + n]) { seen[k + n] = true; stack.Push(k + n); }
+                }
+                if (size > biggest) biggest = size;
+            }
+        }
+
         [TestMethod, TestCategory("Explore")]
         public void ClosedSharePerMapValue()
         {

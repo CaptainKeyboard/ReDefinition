@@ -764,7 +764,7 @@ namespace ReDefinition.Atmospheres
             else
             {
                 // The type at no precipitation: the tuning key where it is set, else the layer's own (cfg key fairType; -1: the precipitation level itself).
-                typeBytes = CloudLookTuning.TypeBytes(typeMap.Bytes, fairType, CloudLookTuning.TypeOverrideOf(layerName), ref typeScratch);
+                typeBytes = CloudLookTuning.TypeBytes(typeMap.Bytes, fairType, CloudLookTuning.TypeOverrideOf(layerName), ref typeScratch, stack.LayerAt(l).RainType);
             }
             WeatherMap typeForCpu = typeMap;
             if (!ReferenceEquals(typeBytes, typeMap.Bytes))
