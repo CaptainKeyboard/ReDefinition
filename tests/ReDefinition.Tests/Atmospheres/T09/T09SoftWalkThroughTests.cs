@@ -12,7 +12,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // both scenes, every view, every variant's three frames and its cost windows, the sun colour line, the failures it must name, and the arguments the runner passes.
     public partial class T09WalkThroughTests
     {
-        private static readonly string[] SoftRemoved = { "cloudEntryRefinement", "refine", "surface", "layers.cloudStep", "layers.entryRamp", "cloudHashDither", "layers.edgePower", "layers.dropEmpty", "layers.ditherPhase", "layers.ditherShift", "recon.jitter", "layers.profileShape" };
+        private static readonly string[] SoftRemoved = { "cloudEntryRefinement", "refine", "surface", "layers.cloudStep", "layers.entryRamp", "cloudHashDither", "layers.edgePower", "layers.dropEmpty", "layers.ditherPhase", "layers.ditherShift", "recon.jitter", "layers.profileShape", "layers.softDensity" };
 
         private Run StartSoft(Action<Run> tweak = null)
         {
@@ -154,14 +154,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(estimate <= T09Probe.SoftMaxSeconds - 60.0, "the default table needs " + estimate.ToString("0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0"));
             Assert.AreEqual(1020.0, T09Probe.SoftMaxSeconds - 60.0, "the pin: 1020 s");
             Assert.IsTrue(estimate >= 600.0, "the estimate counts the windows: " + estimate.ToString("0"));
-            Assert.AreEqual(876.0, estimate, 1e-6, "the table as built: 876 s (974 s with the variant hard, 1005 s with that and softnodrop, 1058 s with soft100s24's clock window too)");
-            Assert.IsTrue(T09Probe.SoftPlaceS >= 7.0, "a placement was measured at 3.5 s: the estimate keeps at least twice that");
+            Assert.AreEqual(831.0, estimate, 1e-6, "the table as built: 831 s at the constants of start 60 (place 7, frame 1.0; 876 s at 8 and 1.5; 974 s with the variant hard, 1005 s with that and softnodrop, 1058 s with soft100s24's clock window too)");
+            Assert.IsTrue(T09Probe.SoftPlaceS >= 1.9 * 3.6, "a placement was measured at 3.6 s: the estimate keeps nearly twice that");
             // A cost candidate with one window in each of the ground views: the price of one more variant.
             var table = T09Probe.SoftVariants.Select(v => v).ToList();
             table.Add(new T09Probe.SoftVariant { Name = "extra", Pairs = new[] { "t:layers.lightStride=2" }, FairCost = "g", ClockCost = "g" });
             double withExtra = T09Probe.SoftEstimateS(table);
             Console.WriteLine("with one candidate (cost at the ground in both scenes) " + withExtra.ToString("0") + " s");
-            Assert.IsTrue(withExtra > estimate + 90.0, "a variant costs its frames and windows: " + (withExtra - estimate).ToString("0") + " s");
+            Assert.IsTrue(withExtra > estimate + 55.0,"a variant costs its frames and windows: " + (withExtra - estimate).ToString("0") + " s");
             // A variant that does not run in a view costs nothing there.
             var hashOnly = new List<T09Probe.SoftVariant> { T09Probe.SoftVariants.First(v => v.Name == "softhash") };
             Assert.AreEqual(T09Probe.SoftEstimateViewS(true, 'g', new List<T09Probe.SoftVariant>()) + T09Probe.SoftSwitchS + 3 * T09Probe.SoftFrameReadS, T09Probe.SoftEstimateViewS(true, 'g', hashOnly), 1e-9);

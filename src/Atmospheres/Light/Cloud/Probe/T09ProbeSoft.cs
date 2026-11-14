@@ -37,7 +37,18 @@ namespace ReDefinition.Atmospheres
             // The views the variant runs in at all (frames and windows) per scene: "" every view of the scene, "-" none, else the letters (g ground, i inside, a above, s sky3).
             // A cost window outside these views is a table error (TableProblem).
             internal string FairViews = "", ClockViews = "";
+            // E40 start 60: consecutive frames read per view (3: the grain trio), and in the fair ground view (the weave diagnosis) WeaveFrames when it is above 0; SettleExtraFrames
+            // is added to the frames the history gets after the switch (a small history weight converges slowly), ExtraS the seconds the plan adds (frames that cost more than a
+            // normal one: a march of 256 steps).
+            internal int Frames = 3, WeaveFrames, SettleExtraFrames;
+            internal double ExtraS;
             internal bool Active { get { return Pairs != null; } }
+
+            // The frames read of this variant in a view: the weave count in the fair ground view where one is set.
+            internal int FramesIn(bool fair, char view)
+            {
+                return fair && view == 'g' && WeaveFrames > 0 ? WeaveFrames : Frames;
+            }
 
             internal bool Costs(bool fair, char view)
             {
@@ -55,6 +66,24 @@ namespace ReDefinition.Atmospheres
             {
                 FairViews = fairViews;
                 ClockViews = clockViews;
+                return this;
+            }
+
+            internal SoftVariant Weave(int frames)
+            {
+                WeaveFrames = frames;
+                return this;
+            }
+
+            internal SoftVariant Settle(int extraFrames)
+            {
+                SettleExtraFrames = extraFrames;
+                return this;
+            }
+
+            internal SoftVariant Extra(double seconds)
+            {
+                ExtraS = seconds;
                 return this;
             }
 
@@ -120,8 +149,11 @@ namespace ReDefinition.Atmospheres
         // SoftPlaceS: MEASURED in the log of start 56 (series K-T2, start gt1707, .local/work/GT/build/atmo-series/K-T2-20261113-181107-gt1707.log): a placement took about 3.5 s, and the
         // whole gap from the end of one view's last window to the begin of the next view's first window (placement, the stable gate, the variant's switch, the first frames) was at
         // most 9.0 s (18:26:46 -> 18:26:55, 18:29:07 -> 18:29:16, 18:30:20 -> 18:30:29). 8 s is more than twice the measured placement and the gap it stands in has room for the
-        // switch and frames that are counted apart. (The first plan assumed 25 s.) The grain read of a trio took 1.3 to 2 s there: SoftFrameReadS 1.5 per frame stays, a margin of 2 to 3.
-        internal const double SoftPlaceS = 8.0, SoftSwitchS = 4.5, SoftFrameReadS = 1.5, SoftPickClockS = 60.0, SoftPickCoverS = 90.0, SoftReserveS = 20.0;
+        // switch and frames that are counted apart. (The first plan assumed 25 s.) The grain read of a trio took 1.3 to 2 s there.
+        // Start 59 itself (log build/atmo-series/K-T2-20261114-111654-soft59.log, scenario 11:29:17 to 11:41:44 = 747 s against a plan of 1005 s): a variant's switch with its three frames
+        // and their full-size pictures took 5.9 to 6.1 s from one window's end to the next one's begin (the switch 90 frames + 2 s = about 3.9 s, so 0.7 s a frame with its picture),
+        // a placement 3.6 s. SoftPlaceS 7 is 1.9 times that, SoftFrameReadS 1.0 is 1.4 times (it was 8 and 1.5 for the plan of start 59, which came out a quarter too long).
+        internal const double SoftPlaceS = 7.0, SoftSwitchS = 4.5, SoftFrameReadS = 1.0, SoftPickClockS = 60.0, SoftPickCoverS = 90.0, SoftReserveS = 20.0;
 
         private bool SoftStart
         {
@@ -156,6 +188,8 @@ namespace ReDefinition.Atmospheres
             internal float Resolution;
             internal bool SpanTight, SkipEmpty;
             internal int DitherSequence;
+            // E40 start 60: the weight of a new frame in the march target's history (recon.accumulate).
+            internal float Accumulate;
         }
 
         private static readonly float SoftCompiledResolution = new LayerFrame().Resolution;
@@ -177,6 +211,7 @@ namespace ReDefinition.Atmospheres
             bool spanTight = OwnCloudOptions.SpanTightDefault;
             bool skipEmpty = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSkipEmpty).Default != 0.0;
             int dither = OwnCloudOptions.DitherSequenceDefault;
+            float accumulate = OwnCloudOptions.AccumulateDefault;
             if (v.Pairs != null)
             {
                 foreach (string pair in v.Pairs)
@@ -192,6 +227,7 @@ namespace ReDefinition.Atmospheres
                     else if (!setting && key == OwnCloudOptions.TuneReconResolution) resolution = value;
                     else if (!setting && key == OwnCloudOptions.TuneSpanTight) spanTight = value != 0f;
                     else if (!setting && key == OwnCloudOptions.TuneDitherSequence) dither = Math.Max(1, Math.Min(2, Mathf.RoundToInt(value)));
+                    else if (!setting && key == OwnCloudOptions.TuneAccumulate) accumulate = Mathf.Clamp01(value);
                 }
             }
             softness = Math.Max(CloudSoftDensity.MinSoftness, Math.Min(CloudSoftDensity.MaxSoftness, softness));
@@ -204,18 +240,19 @@ namespace ReDefinition.Atmospheres
             return new SoftExpectation
             {
                 Softness = softness, Samples = samples, GridPoints = points, Resolution = Mathf.Clamp(resolution, 0.1f, 1f), SpanTight = spanTight,
-                SkipEmpty = skipEmpty, DitherSequence = dither
+                SkipEmpty = skipEmpty, DitherSequence = dither, Accumulate = accumulate
             };
         }
 
         // The seconds one view takes with the variants of the table: the placement, the baseline (settle, one frame, a window), then per variant the switch, three frames and its window.
-        internal static double SoftEstimateViewS(bool fair, char view, IList<SoftVariant> table)
+        // baselineWindow false: a view that has its baseline frame and no cost window (the extra looks of start 60).
+        internal static double SoftEstimateViewS(bool fair, char view, IList<SoftVariant> table, bool baselineWindow = true)
         {
-            double s = SoftPlaceS + SoftFrameReadS * 2.0 + SoftWindowS;
+            double s = SoftPlaceS + SoftFrameReadS * 2.0 + (baselineWindow ? SoftWindowS : 0.0);
             foreach (SoftVariant v in table)
             {
                 if (!v.Active || !v.Runs(fair, view)) continue;
-                s += SoftSwitchS + 3.0 * SoftFrameReadS + (v.Costs(fair, view) ? SoftWindowS : 0.0);
+                s += SoftSwitchS + v.ExtraS + v.FramesIn(fair, view) * SoftFrameReadS + (v.Costs(fair, view) ? SoftWindowS : 0.0);
             }
             return s;
         }
@@ -250,6 +287,8 @@ namespace ReDefinition.Atmospheres
         private bool softSunLoggedFair, softSunLoggedClock;
         private int softFramesRead, softWindows, softSections, softSectionsSkipped;
         private Color[] softOffRaw;
+        // Start 60: the light rows (SoftLightRows) after the frames of the variant soft.
+        private bool softLight;
 
         // The state every variant starts from: the own pass with the product's defaults, the soft rim and the grid points at their defaults.
         private void SoftBase()
@@ -282,9 +321,9 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        private IEnumerable<ProbeWait> SoftSettle()
+        private IEnumerable<ProbeWait> SoftSettle(SoftVariant v = null)
         {
-            yield return ProbeWait.Frames(SoftSettleFrames);
+            yield return ProbeWait.Frames(SoftSettleFrames + (v != null ? v.SettleExtraFrames : 0));
             yield return ProbeWait.Seconds(SoftSettleS);
         }
 
@@ -333,9 +372,13 @@ namespace ReDefinition.Atmospheres
             Emit(head + "span_tight", spanTight);
             Emit(head + "skip_empty", skip);
             Emit(head + "dither_sequence", dither);
-            bool framesOk = spanTight == e.SpanTight && skip == e.SkipEmpty && dither == e.DitherSequence;
+            // The history weight is read where the module reads it (OwnCloudOptions.Apply(ReconSettings): Tuning.Get(recon.accumulate)); the module's mode says whether the history path runs.
+            float accumulate = Mathf.Clamp01(Tuning.Get(OwnCloudOptions.TuneAccumulate, OwnCloudOptions.AccumulateDefault));
+            Emit(head + "accumulate", accumulate);
+            bool framesOk = spanTight == e.SpanTight && skip == e.SkipEmpty && dither == e.DitherSequence && Math.Abs(accumulate - e.Accumulate) < 1e-5f;
             ok = ok && framesOk;
-            more += ", span tight " + spanTight + "/" + e.SpanTight + ", skip empty " + skip + "/" + e.SkipEmpty + ", dither " + dither + "/" + e.DitherSequence;
+            more += ", span tight " + spanTight + "/" + e.SpanTight + ", skip empty " + skip + "/" + e.SkipEmpty + ", dither " + dither + "/" + e.DitherSequence + ", history weight "
+                    + accumulate.ToString("0.###", CultureInfo.InvariantCulture) + "/" + e.Accumulate.ToString("0.###", CultureInfo.InvariantCulture);
             if (MarchSizeReader != null)
             {
                 int[] size = MarchSizeReader(own);
@@ -368,13 +411,16 @@ namespace ReDefinition.Atmospheres
                       + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + more);
         }
 
-        private IEnumerator<ProbeWait> SoftScenario()
+        // soft60: the start 60 of E40 (T09ProbeSoft60.cs): its own table, the extra looks and the type-placed views; the steps of both scenes are the same as soft59's.
+        private IEnumerator<ProbeWait> SoftScenario(bool soft60 = false)
         {
             foreach (ProbeWait w in Prelude()) yield return w;
             if (!preludeOk) yield break;
             softUtAtStart = Game.UniversalTime;
             double lat = Game.VesselLatitude, lon = Game.VesselLongitude;
-            LogSoftPlan();
+            IList<SoftVariant> table = soft60 ? (IList<SoftVariant>)Soft60Variants : SoftVariants;
+            softLight = soft60;
+            if (soft60) LogSoft60Plan(); else LogSoftPlan();
             CheckPicturesFolder();
 
             // Scene fair: the K-T2d low cover. A start whose field has no such cover goes on with the clock scene.
@@ -387,7 +433,13 @@ namespace ReDefinition.Atmospheres
                 Emit("T09s.fair.sun_elev_deg", lowSun);
                 foreach (ProbeWait w in SoftSceneBegin(true, lowUt)) yield return w;
                 foreach (char c in SoftFairViews)
-                    foreach (ProbeWait w in SoftSection(true, ViewOf(c), lat, lon)) yield return w;
+                    foreach (ProbeWait w in SoftSection(true, ViewOf(c), lat, lon, table)) yield return w;
+                if (soft60)
+                {
+                    foreach (View extra in Soft60FairExtras)
+                        foreach (ProbeWait w in SoftSection(true, extra, lat, lon, Soft60ExtraTable, false)) yield return w;
+                    foreach (ProbeWait w in Soft60Types(true, lat, lon)) yield return w;
+                }
             }
 
             // Scene clock: the clock of the K-T2 starts, from the universal time this start began at (the candidate hours count from it, as in the starts that TVC was measured in).
@@ -406,7 +458,15 @@ namespace ReDefinition.Atmospheres
             Check("the sun stands in the band at the chosen time", sunChosen >= SunMinDeg && sunChosen <= SunMaxDeg, sunChosen.ToString("0.0") + " degrees");
             foreach (ProbeWait w in SoftSceneBegin(false, utChosen)) yield return w;
             foreach (char c in SoftClockViews)
-                foreach (ProbeWait w in SoftSection(false, ViewOf(c), lat, lon)) yield return w;
+                foreach (ProbeWait w in SoftSection(false, ViewOf(c), lat, lon, table)) yield return w;
+            if (soft60)
+            {
+                foreach (View extra in Soft60ClockExtras)
+                    foreach (ProbeWait w in SoftSection(false, extra, lat, lon, Soft60ExtraTable, false)) yield return w;
+                foreach (ProbeWait w in Soft60Types(false, lat, lon)) yield return w;
+                Emit("T09s.type_views", soft60TypeViews);
+                Emit("T09s.types_absent", soft60TypesAbsent);
+            }
 
             Game.StopHold();
             Emit("T09s.frames_read", softFramesRead);
@@ -469,10 +529,11 @@ namespace ReDefinition.Atmospheres
         }
 
         // One view: placed, the baseline, then every variant of the table.
-        private IEnumerable<ProbeWait> SoftSection(bool fair, View view, double lat, double lon)
+        private IEnumerable<ProbeWait> SoftSection(bool fair, View view, double lat, double lon, IList<SoftVariant> table = null, bool baselineWindow = true)
         {
+            if (table == null) table = SoftVariants;
             char letter = SoftLetter(view);
-            double estimate = SoftEstimateViewS(fair, letter, SoftVariants);
+            double estimate = SoftEstimateViewS(fair, letter, table, baselineWindow);
             string scene = fair ? "fair" : "clock";
             string head = "T09s." + scene + "." + view.Name + ".";
             if (Elapsed + estimate > MaxSeconds - SoftReserveS)
@@ -502,16 +563,17 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in ReadRawFrame(view.Name + " " + scene + " baseline")) yield return w;
             softOffRaw = noiseImage != null ? noiseImage.Raw : null;
             if (noiseImage != null) SoftSave(pictureView, "off_a", noiseImage);
-            foreach (ProbeWait w in SoftCostWindow(view, head + "off.", tagPrefix + "off")) yield return w;
+            if (baselineWindow)
+                foreach (ProbeWait w in SoftCostWindow(view, head + "off.", tagPrefix + "off")) yield return w;
             Game.SetLayerMask(0);
 
-            foreach (SoftVariant v in SoftVariants)
+            foreach (SoftVariant v in table)
             {
                 if (!v.Active || !v.Runs(fair, letter)) continue;
                 SoftApply(v);
-                foreach (ProbeWait w in SoftSettle()) yield return w;
+                foreach (ProbeWait w in SoftSettle(v)) yield return w;
                 SoftVerify(head, v);
-                foreach (ProbeWait w in SoftGrainRead(view, head + v.Name + ".", pictureView, v.Name)) yield return w;
+                foreach (ProbeWait w in SoftGrainRead(view, head + v.Name + ".", pictureView, v.Name, v.FramesIn(fair, letter))) yield return w;
                 if (v.Costs(fair, letter))
                     foreach (ProbeWait w in SoftCostWindow(view, head + v.Name + ".", tagPrefix + v.Name)) yield return w;
             }
@@ -536,18 +598,23 @@ namespace ReDefinition.Atmospheres
         }
 
         // Three frames of the held pose read one after the other, written at full size, measured two ways (see the header).
-        private IEnumerable<ProbeWait> SoftGrainRead(View view, string head, string pictureView, string variant)
+        // The letters of the frames of one read, in order (the weave diagnosis of start 60 reads eight).
+        internal const string SoftFrameLetters = "abcdefgh";
+
+        // count consecutive frames (3: the grain trio; 8: the weave diagnosis), the first one with the baseline's mask unless measureGrain is false (a view with no baseline frame).
+        private IEnumerable<ProbeWait> SoftGrainRead(View view, string head, string pictureView, string variant, int count = 3, bool measureGrain = true)
         {
             if (picturesStopped) yield break;
+            count = Math.Max(1, Math.Min(SoftFrameLetters.Length, count));
             string what = view.Name + " " + variant + " grain";
             for (int i = 0; i < 12 && Game.HoldReached && !Game.HoldStable; i++) yield return ProbeWait.Frames(5);
             T09Pose before = Game.ReadPose();
             var raws = new List<Color[]>();
             var images = new List<T09Image>();
             int firstFrame = 0, lastFrame = 0;
-            foreach (string letter in new[] { "a", "b", "c" })
+            for (int k = 0; k < count; k++)
             {
-                foreach (ProbeWait w in ReadRawFrame(what + " " + letter)) yield return w;
+                foreach (ProbeWait w in ReadRawFrame(what + " " + SoftFrameLetters[k])) yield return w;
                 if (noiseImage == null) yield break;
                 if (raws.Count == 0) firstFrame = noiseBeginFrame;
                 lastFrame = noiseBeginFrame;
@@ -558,13 +625,20 @@ namespace ReDefinition.Atmospheres
             T09Pose after = Game.ReadPose();
             string poseProblem = PoseProblem(view, before) ?? PoseProblem(view, after);
             Emit(head + "pose_ok", poseProblem == null);
-            string[] letters = { "a", "b", "c" };
-            for (int k = 0; k < images.Count; k++) SoftSave(pictureView, variant + "_" + letters[k], images[k]);
+            Emit(head + "frames", images.Count);
+            for (int k = 0; k < images.Count; k++)
+            {
+                SoftSave(pictureView, variant + "_" + SoftFrameLetters[k], images[k]);
+                // The picture is written: the display copy is not needed again (the raw copy is), and eight full-size frames of both would be 400 MB.
+                if (count > 3) images[k].Pixels = null;
+            }
             if (poseProblem != null)
             {
                 Warn("grain_pose", what + ": " + poseProblem + "; no grain rows");
                 yield break;
             }
+            // One frame (the cost variants of start 60: the picture for the sheets): no temporal measure.
+            if (images.Count < 2) yield break;
             Emit(head + "frames_apart", lastFrame - firstFrame);
             int w0 = images[0].Width, h0 = images[0].Height;
             float y0, y1;
@@ -578,9 +652,11 @@ namespace ReDefinition.Atmospheres
                 Emit(head + "box_luma", g.Luma);
             }
             else Warn("grain_measure", what + ": the three frames could not be measured over the box");
+            if (measureGrain && softLight && variant == "soft") SoftLightRows(head, softOffRaw, raws[0], w0, h0);
             int n;
             double tstd, hf, hfOff;
-            if (softOffRaw != null && softOffRaw.Length == w0 * h0 && MeasureGrain(softOffRaw, raws, w0, h0, out n, out tstd, out hf, out hfOff))
+            if (!measureGrain) { /* no baseline frame in this view: no mask rows */ }
+            else if (softOffRaw != null && softOffRaw.Length == w0 * h0 && MeasureGrain(softOffRaw, raws, w0, h0, out n, out tstd, out hf, out hfOff))
             {
                 Emit(head + "mask_n", n);
                 Emit(head + "cloud_share", (double)n / (w0 * h0));

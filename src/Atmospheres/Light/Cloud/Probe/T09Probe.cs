@@ -283,7 +283,7 @@ namespace ReDefinition.Atmospheres
 
         protected override IEnumerator<ProbeWait> Scenario()
         {
-            return IsDiag ? DiagScenario() : IsK3 ? K3Scenario() : SoftStart ? SoftScenario() : StandardScenario();
+            return IsDiag ? DiagScenario() : IsK3 ? K3Scenario() : SoftStart ? SoftScenario(Soft60Start) : StandardScenario();
         }
 
         // False after a Prelude that ended the scenario (no atmosphere, a window of another size): the scenario returns without more.

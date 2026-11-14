@@ -396,6 +396,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             RequireFlight();
             int call = PlaceCalls++;
+            PlacedAt.Add(new[] { lat, lon, altitude });
             placeTarget = PlaceResult(call, altitude);
             placeAtS = RealS + PlaceLagS(call);
             placedCallS = RealS;
@@ -597,10 +598,18 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return false;
         }
 
+        // E40 start 60: the layers' maps at a place (null: the same report everywhere), and the places the probe read them at.
+        internal Func<double, double, T09LayerReport> LayerReportAt;
+        internal readonly List<double[]> LayersReadAt = new List<double[]>();
+
         public T09LayerReport ReadLayers(double latDeg, double lonDeg, double slant, float[] shifts)
         {
-            return LayerReport;
+            LayersReadAt.Add(new[] { latDeg, lonDeg });
+            return LayerReportAt != null ? LayerReportAt(latDeg, lonDeg) : LayerReport;
         }
+
+        // The places the vessel was put at (lat, lon, altitude), in order.
+        internal readonly List<double[]> PlacedAt = new List<double[]>();
 
         // E40 look starts: Kerbin's four layers at the maps K-T2d start 50 read at the low pick (the fake has no stack); null when LookInputOff.
         internal bool LookInputOff;

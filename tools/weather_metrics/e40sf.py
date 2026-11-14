@@ -236,6 +236,10 @@ def tables(texts):
 def series_results(texts):
     """What the runner calls: {start id: log text} -> the result lines. Never raises: a log that cannot be read gives a note."""
     del NOTES[:]
+    # The start soft60 has its own collector (e40s60.py, which runs this script's tables on its rows): its log is not read twice.
+    texts = {k: v for k, v in texts.items() if not str(k).startswith("soft60")}
+    if not texts:
+        return []
     try:
         out_lines, metrics = tables(list(texts.values()))
     except Exception as e:  # a script that raises fails the run: the numbers are a report, not a verdict
