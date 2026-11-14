@@ -3,7 +3,7 @@
 
   set TYPEMIX_OUT=<dir>; python tools/dotnet_test.py --filter FullyQualifiedName~TypeMixExplore
   python tools/e40_type_mix.py stats <dir>            the numbers (text, to stdout)
-  python tools/e40_type_mix.py pictures <dir> <out>   e40-mix-globe / -region / -compare PNGs into <out>
+  python tools/e40_type_mix.py pictures <dir> <out> [prefix]   <prefix>globe / region / compare PNGs into <out> (prefix default e40-mix-)
   python tools/e40_type_mix.py check <dir>            exits 1 where a bound of the mix is not met (the pin of the fix, see E40-type-mix-audit.md)
 
 The maps are 512 x 256 equirectangular, row 0 north, Kerbin's radius 600 km. TVC's maps are read from the installed StockVolumetricClouds (base/coverage.dds, base/type.dds).
@@ -383,7 +383,7 @@ def rgb_types(t, n, cmap):
     return cm.get_cmap(cmap)(np.clip(np.rint(t * (n - 1)) / max(n - 1, 1), 0, 1))[..., :3]
 
 
-def pictures(folder, out):
+def pictures(folder, out, prefix="e40-mix-"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -434,7 +434,7 @@ def pictures(folder, out):
     fig.suptitle("Kerbin, whole globe, equirectangular, equal km scale", fontsize=9)
     legend(fig, pal, ct, palt)
     fig.tight_layout(rect=[0, 0.04, 1, 1])
-    fig.savefig(os.path.join(out, "e40-mix-globe.png"), dpi=100)
+    fig.savefig(os.path.join(out, prefix + "globe.png"), dpi=100)
     plt.close(fig)
 
     # region: 300 x 300 km, ours (bilinear, like the shader's map sample) and TVC
@@ -476,7 +476,7 @@ def pictures(folder, out):
     fig.suptitle("300 x 300 km windows at the same scale: our maps (texel 7.4 km) above, TVC's base maps below", fontsize=9)
     legend(fig, pal, ct, palt)
     fig.tight_layout(rect=[0, 0.04, 1, 1])
-    fig.savefig(os.path.join(out, "e40-mix-region.png"), dpi=100)
+    fig.savefig(os.path.join(out, prefix + "region.png"), dpi=100)
     plt.close(fig)
 
     # compare: where the variance of the cover map lies by wavelength, ours (per layer, 3 seeds, 8 times) against TVC's base map on our grid
@@ -505,7 +505,7 @@ def pictures(folder, out):
     ax.set_title("At which size the cover maps vary (|lat| < 60 deg, Kerbin km; both on a 7.4 km grid)", fontsize=9)
     ax.legend(fontsize=8, loc="upper right")
     fig.tight_layout()
-    fig.savefig(os.path.join(out, "e40-mix-compare.png"), dpi=100)
+    fig.savefig(os.path.join(out, prefix + "compare.png"), dpi=100)
     plt.close(fig)
 
 
@@ -533,7 +533,8 @@ def check(folder):
         cnt = np.array([float(((t == i) & pres).__mul__(wts).sum()) for i in range(n)])
         types = int((cnt / cnt.sum() > 0.05).sum())
         print("seed %d: corr length %.0f / %.0f km, largest field %.0f%% of field area, types >5%% of the cloudy area: %d" % (s, z, m, 100 * big, types))
-        if z > 250 or big > 0.5 or types < 3:
+        # after E40 L3: 45 / 41 km, 26 %, 5 types (3 seeds x 8 times); before 330 / 198, 73 %, 3 (TVC's base on our grid 74 / 48, 14 %)
+        if z > 100 or m > 90 or big > 0.4 or types < 3:
             bad.append(s)
     if bad:
         print("MISSED for seeds", bad)
@@ -550,7 +551,7 @@ def main():
         print()
         print(stats_tvc())
     elif cmd == "pictures":
-        pictures(folder, sys.argv[3])
+        pictures(folder, sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "e40-mix-")
     elif cmd == "check":
         check(folder)
 
