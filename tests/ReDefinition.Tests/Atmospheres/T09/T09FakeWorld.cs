@@ -205,6 +205,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // horizontal distance from the anchor in metres per second; the camera's distance from the vessel as a multiple of the one asked for (a vessel that is a dot).
         internal Func<double, double> AltitudeDrift = s => 0.0;
         internal double HorizontalDriftMPerS;
+        // The vessel stands this many metres from the held point as soon as it is placed at (lat, lon) and stays there (start 60: 120 to 370 m after every far placement, altitude and aim right).
+        internal Func<double, double, double> PlacedOffsetM = (lat, lon) => 0.0;
+        private double placedOffsetM;
         internal Func<double, double> CameraDistanceFactor = s => 1.0;
         // The pose moves when a read starts or ends (the placement is reordered behind the probe's back).
         internal double AltitudeJumpOnCaptureBegin, AltitudeJumpOnCaptureTake;
@@ -378,7 +381,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 CameraToVesselM = distance,
                 AzimuthDeg = az,
                 ElevationDeg = el,
-                DriftM = RealisticHold ? (hold != null ? hold.DriftM() : 0.0) : (Held ? Math.Sqrt(vertical * vertical + horizontal * horizontal) : 0.0)
+                DriftM = RealisticHold ? (hold != null ? hold.DriftM() : 0.0) : (Held ? Math.Sqrt(vertical * vertical + horizontal * horizontal + placedOffsetM * placedOffsetM) : 0.0)
             };
         }
 
@@ -400,6 +403,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             placeTarget = PlaceResult(call, altitude);
             placeAtS = RealS + PlaceLagS(call);
             placedCallS = RealS;
+            placedOffsetM = PlacedOffsetM(lat, lon);
             jump = 0.0;
             if (RealisticHold)
             {

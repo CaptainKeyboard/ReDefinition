@@ -133,14 +133,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             double estimate = T09Probe.Soft60EstimateS(T09Probe.Soft60Variants);
             Console.WriteLine("soft60 estimate " + estimate.ToString("0.0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0") + " s");
-            Assert.IsTrue(estimate <= T09Probe.SoftMaxSeconds - 60.0, "the plan needs " + estimate.ToString("0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0") + " (the pin is 1020)");
-            Assert.AreEqual(1017.5, estimate, 1e-6, "the plan as built: 1017.5 s (1007.5 s of the first build: one reference of 8 frames, softacc10, two scans; now four references of 4 frames before their variants, no softacc10, one scan)");
+            // The guard of the type views (Soft60TypeView) leaves a view out that the time no longer holds, with SoftReserveS to spare: the plan must fit that much of the limit. Start 60's
+            // part before the type views took 717 s against a plan of 892 s, so the plan has room that it does not use.
+            Assert.IsTrue(estimate <= T09Probe.SoftMaxSeconds - T09Probe.SoftReserveS, "the plan needs " + estimate.ToString("0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0") + " (the pin is 1060)");
+            Assert.AreEqual(1037.5, estimate, 1e-6, "the plan as built: 1037.5 s (1017.5 s before the far placements were priced: the four views from the air take 12 s to place, not 7; 1007.5 s of the first build: one reference of 8 frames, softacc10, two scans; now four references of 4 frames before their variants, no softacc10, one scan)");
             // The evidence for the constants: a placement was measured at 3.6 s and a frame with its picture at 0.7 s in start 59.
             Assert.IsTrue(T09Probe.SoftPlaceS >= 1.9 * 3.6 && T09Probe.SoftFrameReadS >= 1.35 * 0.7);
             // A type view is priced with its placement, switch and frames; the cumulus bodies add the baseline frame.
             T09Probe.Soft60Target humilis = T09Probe.Soft60Targets[0], cirrus = T09Probe.Soft60Targets[3];
             Assert.IsTrue(humilis.Light && !cirrus.Light);
-            Assert.AreEqual(T09Probe.Soft60TypeViewS(cirrus) + T09Probe.SoftFrameReadS + T09Probe.Soft60BaselineS, T09Probe.Soft60TypeViewS(humilis), 1e-9);
+            Assert.AreEqual(T09Probe.Soft60TypeViewS(cirrus, false) + T09Probe.SoftFrameReadS + T09Probe.Soft60BaselineS, T09Probe.Soft60TypeViewS(humilis, false), 1e-9);
+            // A far placement from the air was measured at 17.2 s with the old 150-frame wait for the anchor (5.4 s of it); the estimate keeps the 12 s that is left, and the ground views the 7 s.
+            Assert.IsTrue(T09Probe.Soft60FarAirPlaceS >= 17.2 - 5.4);
+            Assert.AreEqual(T09Probe.Soft60FarAirPlaceS - T09Probe.SoftPlaceS, T09Probe.Soft60TypeViewS(humilis, true) - T09Probe.Soft60TypeViewS(humilis, false), 1e-9);
             // A table without the weave frames is shorter by the frames it does not read.
             var plain = T09Probe.Soft60Variants.Select(v => new { v.Name, v.WeaveFrames }).ToArray();
             try
@@ -442,6 +447,101 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.0, Number(r, "T09s.clock.ty_cumulonimbus_a.placed_ok"));
             Assert.AreEqual(7.0, Number(r, "T09s.type_views"), "the view that was not placed is not counted as taken");
             Assert.AreEqual(16.0, Number(r, "T09s.sections"));
+        }
+
+        // Start 60: the vessel stood 120 to 370 m from the held point after a far placement (FLYING, altitude and aim right).
+        private static double Soft60FarOffsetM(double lat, double lon, double metres)
+        {
+            return T09Probe.Soft60DistanceKm(Soft60SiteLat, Soft60SiteLon, lat, lon, Soft60Radius) > 3.0 ? metres : 0.0;
+        }
+
+        [TestMethod]
+        public void ATypeViewAcceptsADistanceFromItsHeldPointThatItsReachAllowsAndTheOtherViewsKeepTheirs()
+        {
+            var cell = new T09Probe.Soft60Cell { LatDeg = Soft60SiteLat, LonDeg = Soft60SiteLon + 0.4, DistKm = 40.0, BearingDeg = 90.0, Cover = 0.8f, LayerName = "Kerbin-cumulus", TypeName = "Cumulus humilis" };
+            foreach (T09Probe.Soft60Target t in T09Probe.Soft60Targets)
+                foreach (bool up in new[] { false, true })
+                {
+                    T09Probe.Soft60Pose p = T09Probe.Soft60PoseFor(t, up, cell, Soft60SiteLat, Soft60SiteLon, Soft60Radius, 0.0);
+                    string name = p.View.Name;
+                    double camera = (up ? t.AboveAglM : 200.0), pitch = up ? t.AbovePitchDeg : t.GroundPitchDeg, mid = up ? t.AboveMidM : t.GroundMidM;
+                    double slant = Math.Abs(mid - camera) / Math.Sin(pitch * Math.PI / 180.0) / 1000.0;
+                    Assert.AreEqual(T09Probe.Soft60SlantKm(camera, mid, pitch), slant, 1e-9, name);
+                    Assert.AreEqual(T09Probe.Soft60HeldToleranceM(slant), p.View.HeldToleranceM, 1e-9, name);
+                    // Start 60's drifts (0.2 to 370 m, by height) are inside what every type view accepts, and no view accepts more than a tenth of a map texel.
+                    Assert.IsTrue(p.View.HeldToleranceM >= 500.0 && p.View.HeldToleranceM <= 750.0, name + " tolerance " + p.View.HeldToleranceM + " at a slant of " + slant + " km");
+                    Assert.AreEqual(2, p.View.PlaceAttempts, name + ": a failed view costs two placements");
+                }
+            Assert.AreEqual(100.0, T09Probe.Soft60HeldToleranceM(0.5), "a near cloud keeps the dwell's 100 m");
+            Assert.AreEqual(500.0, T09Probe.Soft60HeldToleranceM(5.0), 1e-9, "a tenth of 5 km");
+            Assert.AreEqual(750.0, T09Probe.Soft60HeldToleranceM(40.0), "and at most 750 m");
+            // The cost and weave views (a View without the fields) have no tolerance of their own.
+            var plain = new T09Probe.View { Name = "ground", AglM = 200.0 };
+            Assert.AreEqual(0.0, plain.HeldToleranceM);
+            Assert.AreEqual(0, plain.PlaceAttempts);
+        }
+
+        [TestMethod]
+        public void AVesselThatStandsOffItsPointAfterAFarPlacementStillGivesTheTypeViewsInOnePlacementEach()
+        {
+            Run r = StartSoft60(x =>
+            {
+                x.World.LayerReportAt = Soft60Map(() => true);
+                x.World.PlacedOffsetM = (la, lo) => Soft60FarOffsetM(la, lo, 370.0);
+            });
+            Soft60Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            AssertNoUnhandled(r);
+            Assert.AreEqual(8.0, Number(r, "T09s.type_views"));
+            foreach (string t in new[] { "humilis", "congestus", "cumulonimbus", "cirrus" })
+                foreach (string v in new[] { "g", "a" })
+                {
+                    string view = "ty_" + t + "_" + v;
+                    Assert.AreEqual(1.0, Number(r, "T09s.clock." + view + ".placed_ok"), view);
+                    Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 view placed: " + view + " attempt 1 of 2: ") && l.EndsWith("(ok)")), view + " is placed at the first attempt");
+                    Assert.IsFalse(r.Log.Any(l => l.StartsWith("T09 view placed: " + view + " attempt 2 of 2: ")), view + " needs no second attempt");
+                    Assert.AreEqual(1.0, Number(r, "T09s.clock." + view + ".soft.pose_ok"), view + " the grain read is not flagged");
+                }
+            Assert.IsTrue(r.World.RealS < T09Probe.SoftMaxSeconds);
+        }
+
+        [TestMethod]
+        public void AVesselThatStandsOffByMoreThanAViewAllowsFailsTheTypeViewsAfterTwoPlacementsEachAndTheRunEndsInTime()
+        {
+            Run r = StartSoft60(x =>
+            {
+                x.World.LayerReportAt = Soft60Map(() => true);
+                x.World.PlacedOffsetM = (la, lo) => Soft60FarOffsetM(la, lo, 5000.0);
+            });
+            Soft60Drive(r);
+            Assert.IsFalse(r.Probe.Passed);
+            AssertNoUnhandled(r);
+            Assert.AreEqual(0.0, Number(r, "T09s.type_views"));
+            foreach (string t in new[] { "humilis", "congestus", "cumulonimbus", "cirrus" })
+                foreach (string v in new[] { "g", "a" })
+                {
+                    string view = "ty_" + t + "_" + v;
+                    Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("pose_placed_" + view)), view + " fails by name");
+                    Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 view placed: " + view + " attempt 2 of 2: ")), view + " was placed twice");
+                    Assert.IsFalse(r.Log.Any(l => l.StartsWith("T09 view placed: " + view + " attempt 3 of")), view + " was not placed a third time");
+                }
+            Assert.AreEqual(16, r.Log.Count(l => l.StartsWith("T09 view placed: ty_") && l.EndsWith("(not yet)")), "two failed placements for each of the eight views");
+            Assert.IsTrue(r.World.RealS < T09Probe.SoftMaxSeconds, "the scenario ended on its own at " + r.World.RealS.ToString("0") + " s");
+        }
+
+        [TestMethod]
+        public void AnOffsetOfSixtyMetresFailsTheCostViewsAtTheSiteAndNotTheTypeViews()
+        {
+            Run r = StartSoft60(x =>
+            {
+                x.World.LayerReportAt = Soft60Map(() => true);
+                x.World.PlacedOffsetM = (la, lo) => 60.0;
+            });
+            Soft60Drive(r);
+            Assert.IsFalse(r.Probe.Passed);
+            AssertNoUnhandled(r);
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("pose_placed_ground")), "the strict 20 m of the cost views is kept: " + r.Joined);
+            Assert.IsFalse(r.Probe.Failures.Any(f => f.Contains("pose_placed_ty_")), "60 m is inside the tolerance of every type view");
         }
 
         [TestMethod]

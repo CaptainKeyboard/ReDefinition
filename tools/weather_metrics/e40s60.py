@@ -594,7 +594,7 @@ def selftest():
             _row("T09s.types.clock.humilis.type", "Cumulus humilis"), _row("T09s.types.clock.cirrus.found", False),
             _row("T09s.clock.ty_humilis_g.placed_ok", True), _row("T09s.clock.ty_humilis_g.vessel_moved_km", 26.2), _row("T09s.clock.ty_humilis_g.cell_dist_km", 32.0), _row("T09s.clock.ty_humilis_g.sun_elev_deg", 41.5),
             _row("T09s.clock.ty_humilis_g.centre_match", True), _row("T09s.clock.ty_humilis_g.centre_types", "Kerbin-cumulus Cumulus humilis cover 0.80"),
-            _row("T09s.plan_estimate_s", 1017.5), _row("T09s.sections", 14), _row("T09s.sections_skipped", 0), _row("T09s.type_views", 8), _row("T09s.types_absent", 0), _row("T09s.frames_read", 21)]
+            _row("T09s.plan_estimate_s", 1037.5), _row("T09s.sections", 14), _row("T09s.sections_skipped", 0), _row("T09s.type_views", 8), _row("T09s.types_absent", 0), _row("T09s.frames_read", 21)]
     text = "\n".join(log)
     out_lines, metrics = tables([text])
     joined = "\n".join(out_lines)
@@ -605,7 +605,7 @@ def selftest():
     assert any(" ground " in l and " clock " in l and l.rstrip().endswith("yes") and "0.40" in l for l in out_lines), joined      # the deck inside 0.15 to 0.8
     assert any(" rain " in l and "no (deck/sky 0.05)" in l for l in out_lines), joined
     assert "humilis" in joined and "cirrus" in joined and "NOT" not in joined and "match" in joined and "sun  41.5 deg" in joined, joined
-    assert "estimate 1018 s" in joined or "estimate 1017 s" in joined, joined
+    assert "estimate 1038 s" in joined or "estimate 1037 s" in joined, joined
     assert "type views 8" in joined, joined
     assert "MISSES (0" in joined and got["T09s.collector_misses"] == 0, joined
     assert series_results({"soft60": text}) and series_results({"soft59": text}) == [], "only the logs of this start"

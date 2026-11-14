@@ -54,6 +54,11 @@ namespace ReDefinition.Atmospheres
             internal string Name;
             // Metres above the terrain at the site, pitch in degrees above the horizon, heading in degrees, the camera's distance from the vessel.
             internal double AglM, PitchDeg, HeadingDeg, CameraDistM;
+            // A view that looks at something kilometres away does not need the vessel within 20 m (the placement) or 100 m (the dwell) of its point: HeldToleranceM above 0 is the
+            // distance from the held point the view accepts, in both checks (the type views of start 60: the vessel stood 120 to 370 m off after a far placement while altitude, heading
+            // and elevation were right). PlaceAttempts above 0 bounds the placements of the view (a failed view must cost little). Both 0: the series' own values.
+            internal double HeldToleranceM;
+            internal int PlaceAttempts;
         }
 
         // The views of the series. The orbit view's pitch is the horizon's dip at that height, computed when it is placed. The two ground views are
@@ -582,7 +587,7 @@ namespace ReDefinition.Atmospheres
             double distanceTolerance = Math.Max(DistanceToleranceMinM, DistanceToleranceFraction * view.CameraDistM);
             if (p.CameraToVesselM > 0.0 && Math.Abs(p.CameraToVesselM - view.CameraDistM) > distanceTolerance)
                 problems.Add("camera " + p.CameraToVesselM.ToString("0") + " m from the vessel against " + view.CameraDistM.ToString("0"));
-            if (p.DriftM > (IsDiag || IsK3 ? DiagDriftToleranceM : DriftToleranceM)) problems.Add("the vessel is " + p.DriftM.ToString("0") + " m from the point it is held at");
+            if (p.DriftM > (view.HeldToleranceM > 0.0 ? view.HeldToleranceM : IsDiag || IsK3 ? DiagDriftToleranceM : DriftToleranceM)) problems.Add("the vessel is " + p.DriftM.ToString("0") + " m from the point it is held at");
             return problems.Count == 0 ? null : string.Join(", ", problems.ToArray());
         }
 
@@ -878,7 +883,9 @@ namespace ReDefinition.Atmospheres
         {
             placeOk = false;
             string detail = "";
-            for (int attempt = 0; attempt < PlaceAttempts && !placeOk; attempt++)
+            int attempts = view.PlaceAttempts > 0 ? view.PlaceAttempts : PlaceAttempts;
+            double driftToleranceM = view.HeldToleranceM > 0.0 ? view.HeldToleranceM : PlacedDriftToleranceM;
+            for (int attempt = 0; attempt < attempts && !placeOk; attempt++)
             {
                 if (attempt > 0) yield return ProbeWait.Seconds(PlaceRetryWaitS);
                 foreach (ProbeWait w in Place(lat, lon, view)) yield return w;
@@ -889,12 +896,12 @@ namespace ReDefinition.Atmospheres
                 double altitudeError = Math.Abs(vesselAltitude - wantedAltitude), tolerance = Math.Max(AltitudeToleranceM, 0.02 * wantedAltitude);
                 double aimError = Math.Abs(el - wantedPitch), headingError = Math.Abs(WrapDeg(az - view.HeadingDeg));
                 // The altitude is the centre of mass's, which the hold now brings to the target within 5 m: a drift of more than 20 m is a placement that has to be repeated.
-                bool altitudeOk = altitudeError <= tolerance && placed.DriftM <= PlacedDriftToleranceM, aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
+                bool altitudeOk = altitudeError <= tolerance && placed.DriftM <= driftToleranceM, aimOk = aimError <= AimToleranceDeg && (Math.Abs(el) > 80.0 || headingError <= 5.0 * AimToleranceDeg);
                 detail = "altitude " + vesselAltitude.ToString("0") + " m against " + wantedAltitude.ToString("0") + ", camera elevation " + el.ToString("0.0") + " against "
                          + wantedPitch.ToString("0.0") + ", heading " + az.ToString("0") + " against " + view.HeadingDeg.ToString("0") + ", " + Game.VesselState
                          + ", " + placed.VesselAgl.ToString("0") + " m over the terrain, camera " + placed.CameraAsl.ToString("0") + " m (" + placed.CameraAgl.ToString("0") + " over the terrain) "
                          + placed.CameraToVesselM.ToString("0") + " m from the vessel, " + placed.DriftM.ToString("0.0") + " m from the held point, mode " + Game.CameraModeText + (aimNote != null && !(altitudeOk && aimOk) ? ", aim: " + aimNote : "");
-                AtmospheresLog.Say("T09 view placed: " + view.Name + " attempt " + (attempt + 1) + " of " + PlaceAttempts + ": " + detail + (altitudeOk && aimOk ? " (ok)" : " (not yet)"));
+                AtmospheresLog.Say("T09 view placed: " + view.Name + " attempt " + (attempt + 1) + " of " + attempts + ": " + detail + (altitudeOk && aimOk ? " (ok)" : " (not yet)"));
                 string prefix = "T09.view." + view.Name + ".";
                 Emit(prefix + "altitude_m", vesselAltitude);
                 Emit(prefix + "elevation_deg", el);
@@ -918,7 +925,9 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(20);
             // The game applies the placement and refreshes the vessel's centre of mass a physics step later: the hold anchors only once the vessel stands at the placed point
             // (start 43 anchored the old position, 85 m). At most 150 more frames; the pose check that follows names a vessel that did not arrive.
-            for (int i = 0; i < 30 && !Game.HoldReached; i++) yield return ProbeWait.Frames(5);
+            // A far view (HeldToleranceM above 0) that has not anchored after 60 frames does not anchor later: start 60's far placements stood 100 to 370 m off for all 150 frames, and
+            // the wait took 5 to 9 s of the 17 s an attempt cost; the pose check judges the distance against the view's tolerance.
+            for (int i = 0; i < (view.HeldToleranceM > 0.0 ? 12 : 30) && !Game.HoldReached; i++) yield return ProbeWait.Frames(5);
             // And stands there for a stretch of frames (start 44: the vessel left the hold by 200 to 500 m within a second of a view's placement check).
             for (int i = 0; i < 12 && Game.HoldReached && !Game.HoldStable; i++) yield return ProbeWait.Frames(5);
             AtmospheresLog.Say("T09 hold: " + Game.HoldStatus + " for the " + view.Name + " view (wanted " + wantedAltitude.ToString("0") + " m)");

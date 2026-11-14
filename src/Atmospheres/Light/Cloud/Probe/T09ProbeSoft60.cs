@@ -98,10 +98,15 @@ namespace ReDefinition.Atmospheres
         // After the frames of the baseline of a type view (the mask settles a few frames).
         internal const double Soft60BaselineS = 1.0;
 
+        // A far placement from the air, MEASURED in start 60 (the log named at Soft60HeldShare): the first attempt of a view that did not anchor took 17.2 s (humilis above), the later
+        // ones 9 to 12 s; 5.4 s of that was the 150-frame wait for the anchor, now 60 frames (Place), so about 12 s. The ground views took 4.0 s (anchored) to 9.8 s (not), about 5 s
+        // after the shorter wait: they keep SoftPlaceS (7 s).
+        internal const double Soft60FarAirPlaceS = 12.0;
+
         // The seconds one type-placed view takes: the placement, the switch of the variant soft, its three frames and, for the cumulus bodies, the baseline frame.
-        internal static double Soft60TypeViewS(Soft60Target t)
+        internal static double Soft60TypeViewS(Soft60Target t, bool above)
         {
-            return SoftPlaceS + SoftSwitchS + 3.0 * SoftFrameReadS + (t.Light ? SoftFrameReadS + Soft60BaselineS : 0.0);
+            return (above ? Soft60FarAirPlaceS : SoftPlaceS) + SoftSwitchS + 3.0 * SoftFrameReadS + (t.Light ? SoftFrameReadS + Soft60BaselineS : 0.0);
         }
 
         internal static double Soft60EstimateS(IList<SoftVariant> table)
@@ -110,7 +115,7 @@ namespace ReDefinition.Atmospheres
             foreach (char c in SoftFairViews) s += SoftEstimateViewS(true, c, table);
             foreach (char c in SoftClockViews) s += SoftEstimateViewS(false, c, table);
             s += Soft60Estimate(Soft60FairExtras.Length, true) + Soft60Estimate(Soft60ClockExtras.Length, false);
-            foreach (Soft60Target t in Soft60Targets) s += 2.0 * Soft60TypeViewS(t);
+            foreach (Soft60Target t in Soft60Targets) s += Soft60TypeViewS(t, false) + Soft60TypeViewS(t, true);
             // The type views run last, in the clock scene: one scan.
             return s + Soft60ScanS;
         }
@@ -271,6 +276,28 @@ namespace ReDefinition.Atmospheres
         internal const int Soft60Bearings = 24, Soft60ScanPerFrame = 24;
         internal const double Soft60MaxViewKm = 40.0, Soft60MinViewKm = 1.0;
 
+        // The type views stand where the map says, far from where the vessel was, and may be unable to hold their point to the metre: in start 60 (log build/atmo-series/K-T2-20261114-230800-soft60.log)
+        // the vessel flew (FLYING, packed False, FREE camera) 100 to 370 m from the held point after every far placement but the first, with altitude, heading and elevation within a degree or a
+        // few metres, and the hold never took its anchor (reads moved about a metre a frame, so none counted as settled). The drift grew with the height (about 0.1 m at 200 m over the sea, 100 to
+        // 120 m on the other ground views, 190 to 230 m at 8.3 km, 260 to 275 m at 10.5 km, 300 to 370 m at 14.2 km). What the picture needs is the angle: the cloud under the view's centre stands
+        // Soft60SlantKm away (the height difference over the sine of the pitch), and a vessel a tenth of that off its point turns the view by under 6 degrees and moves its centre by that
+        // tenth, against the 7.4 km of one texel of the type map; so the vessel may stand off by a tenth of the slant distance, at least the 100 m the dwell of K-T2 allows and at most 750 m (a tenth of a
+        // texel). The cost and weave views have no tolerance of their own and keep their 20 m / 100 m.
+        internal const double Soft60HeldShare = 0.1, Soft60HeldMaxM = 750.0;
+        // A failed type view costs two placements at most (four took 40 to 60 s a view in start 60 and the scenario ran out of time at the fifth view).
+        internal const int Soft60PlaceAttempts = 2;
+
+        // The distance from the camera to the cloud at the view's centre (the height difference over the sine of the pitch, at least 5 degrees as the reach).
+        internal static double Soft60SlantKm(double cameraM, double midM, double pitchDeg)
+        {
+            return Math.Abs(midM - cameraM) / Math.Sin(Soft60Rad(Math.Max(5.0, pitchDeg))) / 1000.0;
+        }
+
+        internal static double Soft60HeldToleranceM(double slantKm)
+        {
+            return Math.Min(Soft60HeldMaxM, Math.Max(DriftToleranceM, Soft60HeldShare * slantKm * 1000.0));
+        }
+
         // A place of the scan where a target's type stands: its distance and bearing from the site, the cover of the layer there, and the names the map gave.
         internal sealed class Soft60Cell
         {
@@ -328,7 +355,11 @@ namespace ReDefinition.Atmospheres
             double vlat, vlon;
             Soft60Destination(cell.LatDeg, cell.LonDeg, back, reachKm, radiusM, out vlat, out vlon);
             double heading = Soft60Bearing(vlat, vlon, cell.LatDeg, cell.LonDeg);
-            var view = new View { Name = "ty_" + t.Name + (above ? "_a" : "_g"), AglM = agl, PitchDeg = above ? -pitch : pitch, HeadingDeg = heading, CameraDistM = above ? 150.0 : 100.0 };
+            var view = new View
+            {
+                Name = "ty_" + t.Name + (above ? "_a" : "_g"), AglM = agl, PitchDeg = above ? -pitch : pitch, HeadingDeg = heading, CameraDistM = above ? 150.0 : 100.0,
+                HeldToleranceM = Soft60HeldToleranceM(Soft60SlantKm(camera, mid, pitch)), PlaceAttempts = Soft60PlaceAttempts
+            };
             return new Soft60Pose
             {
                 View = view, VesselLatDeg = vlat, VesselLonDeg = vlon, CentreLatDeg = cell.LatDeg, CentreLonDeg = cell.LonDeg, ReachKm = reachKm, MovedKm = Soft60DistanceKm(siteLat, siteLon, vlat, vlon, radiusM)
@@ -447,7 +478,7 @@ namespace ReDefinition.Atmospheres
             Soft60Pose pose = Soft60PoseFor(target, above, cell, siteLat, siteLon, Game.BodyRadius, terrain);
             View view = pose.View;
             string head = "T09s." + scene + "." + view.Name + ".";
-            double estimate = Soft60TypeViewS(target);
+            double estimate = Soft60TypeViewS(target, above);
             if (Elapsed + estimate > MaxSeconds - SoftReserveS)
             {
                 softSectionsSkipped++;
