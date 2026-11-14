@@ -64,6 +64,8 @@ namespace ReDefinition.Atmospheres
         // a flat base), a cumulonimbus lifts its middle and lets the top stand wide (the anvil). Never negative: the lift only lowers the map value, so the coverage bounds of the march
         // and of the layer drop (LayerSpanBound.CoverageEmpty) stay exact. Baked into the type's tabulated profile texture (channel a, LayerTypeTable.LiftData).
         internal Curve Lift { get; set; }
+        // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
+        internal CloudClimateSpec Climate { get; set; }
 
         internal double LiftAt(double h)
         {
@@ -202,6 +204,21 @@ namespace ReDefinition.Atmospheres
         internal float AltoType { get; set; } = -1f;
         internal float AltoFrom { get; set; } = 0.05f;
         internal float AltoFull { get; set; } = 0.3f;
+        // The meso-scale cover pattern of the layer (E40 L3; cfg node MESO, null: none) and the type patches: the types are picked from their CLIMATE weights (any type with a CLIMATE
+        // node turns this on) by a noise whose cells are TypePatchKm wide (cfg key typePatchKm), the transition between two types takes TypePatchBlend of the noise's rank range.
+        internal CloudMesoSpec Meso { get; set; }
+        internal float TypePatchKm { get; set; } = 70f;
+        internal float TypePatchBlend { get; set; } = 0.06f;
+
+        // Whether the types of the layer are picked from their climate (CloudMesoStage) and not from the precipitation level alone.
+        internal bool HasClimate
+        {
+            get
+            {
+                for (int i = 0; i < Types.Count; i++) if (Types[i].Climate != null) return true;
+                return false;
+            }
+        }
 
         // The height above sea level of the middle of the type at a type value (the type at the nearest index of the table), m.
         internal double TypeMidHeightM(float typeValue)

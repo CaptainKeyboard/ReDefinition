@@ -35,7 +35,9 @@ namespace ReDefinition.Core
         // The thickness of the sea ice in metres.
         IceThickness = 7,
         // The wind speed near the surface in m/s.
-        WindSpeed = 8
+        WindSpeed = 8,
+        // What the ground is under the sky (E40 L3): 0 over open sea, 0.5 over lowland, up to 1 over high ground (terrain 3000 m and more above the sea). Static per body.
+        Surface = 9
     }
 
     // A provider of weather at a place, besides the field: another mod's weather or a test source. Providers are asked in the

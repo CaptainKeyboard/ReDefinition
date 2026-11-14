@@ -2,6 +2,7 @@
 # the stack, the map store and the renderer, as they are in the mod, with the field types the maps use, the slew limit and the shader.
 src/Atmospheres/Bodies/Schema/CloudRules.cs
 src/Atmospheres/Bodies/Schema/Curve.cs
+src/Atmospheres/Bodies/Schema/CloudMesoRules.cs
 src/Atmospheres/Render/Layers/Core/LayerGeometry.cs
 src/Atmospheres/Render/Layers/Core/LayerDensity.cs
 src/Atmospheres/Render/Layers/Core/LayerStack.cs

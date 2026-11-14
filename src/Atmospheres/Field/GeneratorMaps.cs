@@ -83,6 +83,31 @@ namespace ReDefinition.Atmospheres
             internal long LastAskedMs, LastWeatherMs = long.MinValue / 2, LastCoverMs = long.MinValue / 2;
             internal SurfaceSite[] Sites;
             internal bool[] SiteSea;
+            internal float[] SurfaceMap;
+        }
+
+        // The Surface map (WeatherMapKind.Surface) of a body from its height grid: 0 over sea, 0.5 on lowland, 1 where the terrain stands 3000 m or more above the sea; the coast is the
+        // ocean fraction's blend. The grid does not change over time, so the map is made once.
+        internal static float[] BuildSurfaceMap(HeightGrid grid)
+        {
+            var map = new float[Width * Height];
+            if (grid == null)
+            {
+                for (int k = 0; k < map.Length; k++) map[k] = 0.5f;
+                return map;
+            }
+            for (int j = 0; j < Height; j++)
+            {
+                double lat = (90.0 - (j + 0.5) * 180.0 / Height) * (Math.PI / 180.0);
+                for (int i = 0; i < Width; i++)
+                {
+                    double lon = (-180.0 + (i + 0.5) * 360.0 / Width) * (Math.PI / 180.0);
+                    double land = 1.0 - grid.OceanAt(lat, lon);
+                    double relief = Math.Min(1.0, Math.Max(0.0, grid.TerrainAt(lat, lon) / 3000.0));
+                    map[j * Width + i] = (float)(land * (0.5 + 0.5 * relief));
+                }
+            }
+            return map;
         }
 
         private readonly GeneratorField field;
@@ -112,6 +137,15 @@ namespace ReDefinition.Atmospheres
             if (state == null || state.Broken || double.IsNaN(ut) || double.IsInfinity(ut)) return false;
             bool surfaceMap = kind == WeatherMapKind.SnowCover || kind == WeatherMapKind.IceFraction || kind == WeatherMapKind.IceThickness;
             Body b = BodyOf(bodyIndex);
+            if (kind == WeatherMapKind.Surface)
+            {
+                lock (b.Lock)
+                {
+                    if (b.SurfaceMap == null) b.SurfaceMap = BuildSurfaceMap(state.Generator.Grid);
+                    Hand(target, kind, bodyIndex, ut, 0, Width, Height, b.SurfaceMap);
+                    return true;
+                }
+            }
             lock (b.Lock)
             {
                 b.WantedUt = ut;

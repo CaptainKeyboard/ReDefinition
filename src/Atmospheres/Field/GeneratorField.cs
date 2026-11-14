@@ -260,6 +260,27 @@ namespace ReDefinition.Atmospheres
             return maps.GetLayer(bodyIndex, ut, heightM, target);
         }
 
+        // The seed of the body's generator (0: no state), so that patterns made for a body differ from seed to seed.
+        internal ulong SeedOf(int bodyIndex)
+        {
+            GeneratorState s = StateOf(bodyIndex);
+            return s == null ? 0UL : s.Seed;
+        }
+
+        // The angular rate (rad/s, eastward) at which a pattern fixed to the clouds of a layer at a height moves over the ground (E40 L3, the meso pattern of CloudMesoStage): the rate of the
+        // generator's own systems at the storm-track latitude plus the layer's rate against them (HeightWind.LayerRate, the same function the layer maps use; windShear off: none).
+        // One rate, so the pattern turns rigidly and does not shear into stripes.
+        internal double CloudDriftRadS(int bodyIndex, double heightM)
+        {
+            GeneratorState s = StateOf(bodyIndex);
+            if (s == null || s.Broken) return 0.0;
+            WeatherGenerator g = s.Generator;
+            double la = g.D.JetLat0;
+            double r = g.Body.RadiusM * Math.Cos(la);
+            double pattern = r > 1.0 ? HeightWind.PatternDriftMs(g.D, g.Body, la) / r : 0.0;
+            return pattern + (LayerWindOptions.WindShear ? HeightWind.LayerRate(g.D, g.Body, heightM) : 0.0);
+        }
+
         public bool FillWindow(int bodyIndex, double centreLatDeg, double centreLonDeg, double radiusKm, double ut, WeatherWindow target)
         {
             GeneratorState s = StateOf(bodyIndex);

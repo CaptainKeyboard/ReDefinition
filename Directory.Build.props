@@ -16,7 +16,7 @@
     <PlannerVersion>0.1.3</PlannerVersion>
     <DashboardVersion>0.1.0</DashboardVersion>
     <AtmospheresVersion>0.1.0</AtmospheresVersion>
-    <CommonVersion>0.1.19</CommonVersion>
+    <CommonVersion>0.1.20</CommonVersion>
   </PropertyGroup>
 
 </Project>

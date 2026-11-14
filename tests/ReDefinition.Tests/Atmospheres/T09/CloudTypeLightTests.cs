@@ -55,9 +55,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.AreEqual(wa, a, 2e-3, cumulus.Types[type].Name + " ambient at " + h);
                 }
             double dBase, aBase, dTop, aTop;
-            // Type 2 is Cumulus humilis (the altocumulus sheet is type 1, E40 L2 D1).
-            table.LightAt(2, 0.0, out dBase, out aBase);
-            table.LightAt(2, 1.0, out dTop, out aTop);
+            // Type 1 is Cumulus humilis (the altocumulus sheet is the last type, E40 L3).
+            table.LightAt(1, 0.0, out dBase, out aBase);
+            table.LightAt(1, 1.0, out dTop, out aTop);
             Assert.IsTrue(dBase < 1.0 && dTop > 1.0, "a cumulus has a shaded base and a bright head: " + dBase + " / " + dTop);
         }
 

@@ -206,7 +206,8 @@ namespace ReDefinition.Atmospheres
                     LightMs = r.Float("lightMs", 1f, 0f, 4f), LightPowder = r.Float("lightPowder", 1f, 0f, 4f), LightAmbient = r.Float("lightAmbient", 1f, 0f, 4f),
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f),
                     RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f),
-                    AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f) });
+                    AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f),
+                    Meso = Meso(r.Child("MESO")), TypePatchKm = r.Float("typePatchKm", 70f, 5f, 2000f), TypePatchBlend = r.Float("typePatchBlend", 0.06f, 0.005f, 0.5f) });
             }
             return layers;
         }
@@ -256,7 +257,39 @@ namespace ReDefinition.Atmospheres
                 HeadLight = r.Float("headLight", 1f, 0f, 4f),
                 BaseAmbient = r.Float("baseAmbient", 1f, 0f, 4f),
                 HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f),
-                Lift = ProfileCurve(r.Child("LIFT"), "lift")
+                Lift = ProfileCurve(r.Child("LIFT"), "lift"),
+                Climate = Climate(r.Child("CLIMATE"))
+            };
+        }
+
+        // MESO { scaleKm, octaves, amount, edge, shoulder, stretch, rainKeep } (E40 L3, CloudMesoSpec); null without the node.
+        private static CloudMesoSpec Meso(BodyNodeReader r)
+        {
+            if (!r.Present) return null;
+            return new CloudMesoSpec
+            {
+                ScaleKm = r.Float("scaleKm", 45f, 5f, 2000f),
+                Octaves = r.Int("octaves", 2, 1, 4),
+                Amount = r.Float("amount", 0f, 0f, 1f),
+                Edge = r.Float("edge", 0.25f, 0.02f, 1f),
+                Shoulder = r.Float("shoulder", 1f, 1f, 6f),
+                Cells = r.Float("cells", 0f, 0f, 1f) >= 0.5f,
+                Stretch = r.Float("stretch", 1f, 1f, 20f),
+                RainKeep = r.Float("rainKeep", 1f, 0f, 1f)
+            };
+        }
+
+        // CLIMATE { weight, LATITUDE { key0 = x weight, ... }, SURFACE {...}, HUMIDITY {...}, PRECIPITATION {...} } (E40 L3, CloudClimateSpec); null without the node.
+        private static CloudClimateSpec Climate(BodyNodeReader r)
+        {
+            if (!r.Present) return null;
+            return new CloudClimateSpec
+            {
+                Weight = r.Float("weight", 1f, 0f, 1f),
+                Latitude = ProfileCurve(r.Child("LATITUDE"), "weight"),
+                Surface = ProfileCurve(r.Child("SURFACE"), "weight"),
+                Humidity = ProfileCurve(r.Child("HUMIDITY"), "weight"),
+                Precipitation = ProfileCurve(r.Child("PRECIPITATION"), "weight")
             };
         }
 

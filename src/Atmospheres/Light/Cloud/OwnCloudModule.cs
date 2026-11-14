@@ -100,6 +100,12 @@ namespace ReDefinition.Atmospheres
         // The weather deck rule's inputs (FetchFogInputs) and its per-layer results (WeatherDeckRule.Apply).
         private readonly WeatherMap humidityMap = new WeatherMap(), temperatureMap = new WeatherMap(), windMap = new WeatherMap();
         private float[] spreadScratch, fogSpreadK, fogWind;
+        // E40 L3 (CloudMesoStage): the inputs of the types picked from their climate, and the stage's per-layer results.
+        private byte[] climateHumidity, climateSurface;
+        private readonly WeatherMap surfaceMap = new WeatherMap();
+        private readonly CloudMesoInputs mesoInputs = new CloudMesoInputs();
+        private readonly byte[][] mesoCover = new byte[CloudLayerDef.MaxLayers][], mesoType = new byte[CloudLayerDef.MaxLayers][];
+        private readonly WeatherMap[] mesoCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private readonly byte[][] deckCover = new byte[CloudLayerDef.MaxLayers][], deckType = new byte[CloudLayerDef.MaxLayers][];
         private readonly WeatherMap[] deckCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private long lookStampSeen = -1;
@@ -755,7 +761,8 @@ namespace ReDefinition.Atmospheres
             // the CPU copy of the maps (StackMapMirror, the sun dimming, the cloud shadow, the oracle) gets the same ones.
             float fairType = CloudLookTuning.FairType(CloudLookTuning.TypeFairOf(layerName), stack.LayerAt(l).FairType);
             byte[] typeBytes;
-            WeatherDeckRule deck = CloudLookTuning.DeckRuleOf(layerName, stack.LayerAt(l).Deck);
+            bool haveAltoMaps = false;
+            WeatherDeckRule deck =CloudLookTuning.DeckRuleOf(layerName, stack.LayerAt(l).Deck);
             if (deck != null)
             {
                 int n = cover.Length;
@@ -790,8 +797,40 @@ namespace ReDefinition.Atmospheres
                 {
                     altoMidMap.PackBytes(0f, 1f);
                     altoLowMap.PackBytes(0f, 1f);
-                    typeBytes = CloudLookTuning.ApplyAlto(typeBytes, typeMap.Bytes, altoMidMap.Bytes, altoLowMap.Bytes, layerDef.AltoType, layerDef.AltoFrom, layerDef.AltoFull, ref altoScratch);
+                    haveAltoMaps = true;
+                    // A layer that picks its types from their climate takes the sheet as a share of its own (CloudMesoStage); the others blend the type value towards it.
+                    if (!layerDef.HasClimate) typeBytes = CloudLookTuning.ApplyAlto(typeBytes, typeMap.Bytes, altoMidMap.Bytes, altoLowMap.Bytes, layerDef.AltoType, layerDef.AltoFrom, layerDef.AltoFull, ref altoScratch);
                 }
+            }
+            // E40 L3: the meso-scale cover pattern and the types from their climate, from the layer's own cfg data (not under the probe's overrides of the maps and types).
+            CloudLayerDef mesoDef = stack.LayerAt(l);
+            if (forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && deck == null)) && gf != null)
+            {
+                CloudMesoInputs mi = mesoInputs;
+                mi.Width = MapWidth;
+                mi.Height = MapHeight;
+                mi.Precip = typeMap.Bytes;
+                mi.Humidity = climateHumidity;
+                mi.Surface = climateSurface;
+                mi.AltoMid = haveAltoMaps ? altoMidMap.Bytes : null;
+                mi.AltoLow = haveAltoMaps ? altoLowMap.Bytes : null;
+                mi.Ut = ut;
+                mi.DriftRadS = gf.CloudDriftRadS(b.flightGlobalsIndex, CloudBridgeStack.MidHeightM(mesoDef));
+                mi.Seed = gf.SeedOf(b.flightGlobalsIndex);
+                mi.RadiusKm = b.Radius * 0.001;
+                byte[] mc = mesoCover[l], mt = mesoType[l];
+                CloudMesoStage.Apply(mesoDef, mi, cover, typeBytes, ref mc, ref mt);
+                mesoCover[l] = mc;
+                mesoType[l] = mt;
+                if (!ReferenceEquals(mc, cover))
+                {
+                    WeatherMap mm = mesoCoverMaps[l] ?? (mesoCoverMaps[l] = new WeatherMap());
+                    mm.Resize(coverSource.Width, coverSource.Height);
+                    for (int i = 0; i < mc.Length; i++) mm.Values[i] = mc[i] / 255f;
+                    cover = mc;
+                    coverSource = mm;
+                }
+                typeBytes = mt;
             }
             WeatherMap typeForCpu = typeMap;
             if (!ReferenceEquals(typeBytes, typeMap.Bytes))
@@ -836,6 +875,23 @@ namespace ReDefinition.Atmospheres
             for (int k = 0; k < stack.LayerCount && !needed; k++) needed = CloudLookTuning.DeckRuleOf(stack.LayerAt(k).Name, stack.LayerAt(k).Deck) != null;
             fogSpreadK = null;
             fogWind = null;
+            // E40 L3: the humidity and the surface as bytes for the types picked from their climate (CloudMesoStage); a map the field cannot give leaves the input null (neutral).
+            climateHumidity = climateSurface = null;
+            bool climate = false;
+            for (int k = 0; k < stack.LayerCount && !climate; k++) climate = stack.LayerAt(k).HasClimate;
+            if (climate)
+            {
+                if (field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Humidity, ut, humidityMap) && humidityMap.Width == MapWidth && humidityMap.Height == MapHeight)
+                {
+                    humidityMap.PackBytes(0f, 1f);
+                    climateHumidity = humidityMap.Bytes;
+                }
+                if (field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Surface, ut, surfaceMap) && surfaceMap.Width == MapWidth && surfaceMap.Height == MapHeight)
+                {
+                    surfaceMap.PackBytes(0f, 1f);
+                    climateSurface = surfaceMap.Bytes;
+                }
+            }
             if (!needed) return;
             bool haveH = field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Humidity, ut, humidityMap) && humidityMap.Width == MapWidth && humidityMap.Height == MapHeight;
             bool haveT = haveH && field.GetMap(b.flightGlobalsIndex, WeatherMapKind.SurfaceTemperature, ut, temperatureMap) && temperatureMap.Width == MapWidth && temperatureMap.Height == MapHeight;

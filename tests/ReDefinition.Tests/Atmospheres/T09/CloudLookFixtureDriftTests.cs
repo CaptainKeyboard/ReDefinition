@@ -10,6 +10,18 @@ namespace ReDefinition.Tests.Atmospheres.T09
     [TestClass]
     public class CloudLookFixtureDriftTests
     {
+        private static void SameCurve(Curve shipped, Curve fixture, string what)
+        {
+            Assert.AreEqual(shipped == null, fixture == null, what + " present");
+            if (shipped == null) return;
+            Assert.AreEqual(shipped.Count, fixture.Count, what + " keys");
+            for (int k = 0; k < shipped.Count; k++)
+            {
+                Assert.AreEqual(shipped.KeyAt(k), fixture.KeyAt(k), 1e-6f, what + " key " + k);
+                Assert.AreEqual(shipped.ValueAt(k), fixture.ValueAt(k), 1e-6f, what + " value " + k);
+            }
+        }
+
         private static void SameLayer(CloudLayerDef fixture, CloudLayerSpec shipped)
         {
             string n = fixture.Name;
@@ -27,6 +39,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.AltoType, fixture.AltoType, 1e-6f, n + " alto type");
             Assert.AreEqual(shipped.AltoFrom, fixture.AltoFrom, 1e-6f, n + " alto from");
             Assert.AreEqual(shipped.AltoFull, fixture.AltoFull, 1e-6f, n + " alto full");
+            Assert.AreEqual(shipped.TypePatchKm, fixture.TypePatchKm, 1e-6f, n + " type patch km");
+            Assert.AreEqual(shipped.TypePatchBlend, fixture.TypePatchBlend, 1e-6f, n + " type patch blend");
+            Assert.AreEqual(shipped.Meso == null, fixture.Meso == null, n + " has a meso pattern");
+            if (shipped.Meso != null)
+            {
+                Assert.AreEqual(shipped.Meso.ScaleKm, fixture.Meso.ScaleKm, 1e-6f, n + " meso scale");
+                Assert.AreEqual(shipped.Meso.Octaves, fixture.Meso.Octaves, n + " meso octaves");
+                Assert.AreEqual(shipped.Meso.Amount, fixture.Meso.Amount, 1e-6f, n + " meso amount");
+                Assert.AreEqual(shipped.Meso.Edge, fixture.Meso.Edge, 1e-6f, n + " meso edge");
+                Assert.AreEqual(shipped.Meso.Shoulder, fixture.Meso.Shoulder, 1e-6f, n + " meso shoulder");
+                Assert.AreEqual(shipped.Meso.Cells, fixture.Meso.Cells, n + " meso cells");
+                Assert.AreEqual(shipped.Meso.Stretch, fixture.Meso.Stretch, 1e-6f, n + " meso stretch");
+                Assert.AreEqual(shipped.Meso.RainKeep, fixture.Meso.RainKeep, 1e-6f, n + " meso rain keep");
+            }
             Assert.AreEqual(shipped.LightMs, fixture.LightMs, 1e-6f, n + " light ms");
             Assert.AreEqual(shipped.LightPowder, fixture.LightPowder, 1e-6f, n + " light powder");
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
@@ -74,6 +100,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         Assert.AreEqual(s.Lift.KeyAt(k), f.Lift.KeyAt(k), 1e-6f, t + " lift key " + k);
                         Assert.AreEqual(s.Lift.ValueAt(k), f.Lift.ValueAt(k), 1e-6f, t + " lift value " + k);
                     }
+                }
+                Assert.AreEqual(s.Climate == null, f.Climate == null, t + " has a climate");
+                if (s.Climate != null)
+                {
+                    Assert.AreEqual(s.Climate.Weight, f.Climate.Weight, 1e-6f, t + " climate weight");
+                    SameCurve(s.Climate.Latitude, f.Climate.Latitude, t + " climate latitude");
+                    SameCurve(s.Climate.Surface, f.Climate.Surface, t + " climate surface");
+                    SameCurve(s.Climate.Humidity, f.Climate.Humidity, t + " climate humidity");
+                    SameCurve(s.Climate.Precipitation, f.Climate.Precipitation, t + " climate precipitation");
                 }
                 Assert.AreEqual(s.Profile.Count, f.Profile.Count, t + " profile keys");
                 for (int k = 0; k < s.Profile.Count; k++)

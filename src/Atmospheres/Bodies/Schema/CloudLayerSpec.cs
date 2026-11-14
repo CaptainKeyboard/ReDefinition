@@ -55,6 +55,8 @@ namespace ReDefinition.Atmospheres
         internal float HeadAmbient { get; set; } = 1f;
         // The type's height-shaped threshold (cfg node LIFT; null: none): see CloudTypeDef.Lift.
         internal Curve Lift { get; set; }
+        // The type's climate (cfg node CLIMATE, null: none): see CloudClimateSpec.
+        internal CloudClimateSpec Climate { get; set; }
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -76,7 +78,7 @@ namespace ReDefinition.Atmospheres
             return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion)
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
-                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift
+                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate
             };
         }
     }
@@ -141,6 +143,10 @@ namespace ReDefinition.Atmospheres
         internal float AltoType { get; set; } = -1f;
         internal float AltoFrom { get; set; } = 0.05f;
         internal float AltoFull { get; set; } = 0.3f;
+        // The meso-scale cover pattern (cfg node MESO, null: none) and the size of the type patches (cfg keys typePatchKm and typePatchBlend): see CloudMesoSpec and CloudLayerDef.
+        internal CloudMesoSpec Meso { get; set; }
+        internal float TypePatchKm { get; set; } = 70f;
+        internal float TypePatchBlend { get; set; } = 0.06f;
         // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
         internal WeatherDeckRule Deck { get; set; }
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
@@ -189,7 +195,10 @@ namespace ReDefinition.Atmospheres
                 FibreStretch = FibreStretch,
                 AltoType = AltoType,
                 AltoFrom = AltoFrom,
-                AltoFull = AltoFull
+                AltoFull = AltoFull,
+                Meso = Meso,
+                TypePatchKm = TypePatchKm,
+                TypePatchBlend = TypePatchBlend
             };
         }
     }

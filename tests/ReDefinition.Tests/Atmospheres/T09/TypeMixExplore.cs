@@ -8,22 +8,12 @@ using ReDefinition.Tests.Atmospheres.C25;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // E40 type-mix audit: the maps the cloud painter hands to the layer pass, made by the real generator and the module's own rules, dumped as raw bytes for tools/e40_type_mix.py.
-    // Per seed and time: the shared coverage and precipitation maps, and per layer of Kerbin's cfg the layer's coverage bytes and type bytes exactly as OwnCloudModule.FetchStep
-    // builds them (layer map at the layer's mid height, the deck rule for the decks and the cumulonimbus, fairType / rainType / the altocumulus rule for the others). Fog is left
-    // out (no humidity input): the rain deck shows no fog there. It runs only when TYPEMIX_OUT names a directory (a minute or two of CPU).
+    // E40 type-mix audit: the maps the cloud painter hands to the layer pass, made by the real generator and the module's own rules (TypeMixFixture), dumped as raw bytes for
+    // tools/e40_type_mix.py. Per seed and time: the shared coverage and precipitation maps, and per layer of Kerbin's cfg the layer's coverage bytes and type bytes. TYPEMIX_STAGE=0
+    // dumps without the E40 L3 stage (the generator's maps and the old type rule), anything else with it. It runs only when TYPEMIX_OUT names a directory (a few minutes of CPU).
     [TestClass]
     public class TypeMixExplore
     {
-        private const double Day = 21549.425;
-
-        private static byte[] Bytes(float[] values)
-        {
-            var b = new byte[values.Length];
-            for (int i = 0; i < b.Length; i++) b[i] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(values[i] * 255.0, MidpointRounding.ToEven)));
-            return b;
-        }
-
         private static void Dump(string folder, string name, byte[] data)
         {
             File.WriteAllBytes(Path.Combine(folder, name + ".u8"), data);
@@ -34,16 +24,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             string folder = Environment.GetEnvironmentVariable("TYPEMIX_OUT");
             if (string.IsNullOrEmpty(folder)) return;
+            bool stage = Environment.GetEnvironmentVariable("TYPEMIX_STAGE") != "0";
             Directory.CreateDirectory(folder);
             int[] seeds = { 1, 2, 3 };
             int times = 8;
             double t0 = 3.0e6;
-            CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
+            CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
             LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
             try
             {
                 var meta = new StringBuilder();
-                meta.AppendLine("width " + GeneratorMaps.Width + " height " + GeneratorMaps.Height + " radiusM 600000 day " + Day + " t0 " + t0);
+                meta.AppendLine("width " + GeneratorMaps.Width + " height " + GeneratorMaps.Height + " radiusM 600000 day " + TypeMixFixture.Day + " t0 " + t0 + " stage " + (stage ? 1 : 0));
                 foreach (CloudLayerDef l in layers)
                 {
                     meta.Append("layer " + l.Name + " mid " + CloudBridgeStack.MidHeightM(l) + " types");
@@ -63,55 +54,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     int body = FieldFixture.BodyIndex;
                     for (int k = 0; k < times; k++)
                     {
-                        double ut = t0 + k * Day / times;
+                        double ut = t0 + k * TypeMixFixture.Day / times;
                         string tag = "s" + seed + "_t" + k + "_";
-                        field.Maps.RenderNow(body, ut);
-                        var cov = new WeatherMap();
-                        var typ = new WeatherMap();
-                        Assert.IsTrue(field.GetMap(body, WeatherMapKind.Coverage, ut, cov));
-                        Assert.IsTrue(field.GetMap(body, WeatherMapKind.Precipitation, ut, typ));
-                        cov.PackBytes(0f, 1f);
-                        typ.PackBytes(0f, 1f);
-                        Dump(folder, tag + "sharedCover", cov.Bytes);
-                        Dump(folder, tag + "precip", typ.Bytes);
+                        TypeMixFixture.Shared shared = TypeMixFixture.Maps(field, body, ut);
+                        Dump(folder, tag + "sharedCover", shared.Cover.Bytes);
+                        Dump(folder, tag + "precip", shared.Precip.Bytes);
                         foreach (CloudLayerDef l in layers)
                         {
-                            double mid = CloudBridgeStack.MidHeightM(l);
-                            var map = new WeatherMap();
-                            field.GetLayerCoverage(body, ut, mid, map);
-                            int key = (int)Math.Round(Math.Max(0.0, mid) / GeneratorMaps.LayerStepM);
-                            field.Maps.RenderLayerNow(body, key);
-                            Assert.IsTrue(field.GetLayerCoverage(body, ut, mid, map));
-                            map.PackBytes(0f, 1f);
-                            byte[] cover = map.Bytes, typeBytes;
-                            if (l.Deck != null)
-                            {
-                                var rc = new byte[cover.Length];
-                                var rt = new byte[cover.Length];
-                                l.Deck.Apply(cover, typ.Values, null, null, rc, rt);
-                                cover = rc;
-                                typeBytes = rt;
-                            }
-                            else
-                            {
-                                byte[] scratch = null, altoScratch = null;
-                                typeBytes = CloudLookTuning.TypeBytes(typ.Bytes, l.FairType, -1f, ref scratch, l.RainType);
-                                if (l.AltoType >= 0f)
-                                {
-                                    var altoMid = new WeatherMap();
-                                    var altoLow = new WeatherMap();
-                                    foreach (var pair in new[] { Tuple.Create(l.TypeMidHeightM(l.AltoType), altoMid), Tuple.Create(l.TypeMidHeightM(l.FairType >= 0f ? l.FairType : 0f), altoLow) })
-                                    {
-                                        field.GetLayerCoverage(body, ut, pair.Item1, pair.Item2);
-                                        field.Maps.RenderLayerNow(body, (int)Math.Round(Math.Max(0.0, pair.Item1) / GeneratorMaps.LayerStepM));
-                                        Assert.IsTrue(field.GetLayerCoverage(body, ut, pair.Item1, pair.Item2));
-                                        pair.Item2.PackBytes(0f, 1f);
-                                    }
-                                    typeBytes = CloudLookTuning.ApplyAlto(typeBytes, typ.Bytes, altoMid.Bytes, altoLow.Bytes, l.AltoType, l.AltoFrom, l.AltoFull, ref altoScratch);
-                                }
-                            }
+                            byte[] cover, type;
+                            TypeMixFixture.Layer(field, body, shared, l, stage, out cover, out type);
                             Dump(folder, tag + l.Name + "_cover", cover);
-                            Dump(folder, tag + l.Name + "_type", typeBytes);
+                            Dump(folder, tag + l.Name + "_type", type);
                         }
                     }
                 }

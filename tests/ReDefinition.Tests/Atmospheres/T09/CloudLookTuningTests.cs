@@ -347,7 +347,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual("Cumulus humilis", at(0f), "fair weather");
             Assert.AreEqual("Cumulus mediocris", at(0.5f), "moderate rain");
             Assert.AreEqual("Cumulus congestus", at(1f), "the heaviest rain: a tower, not the middle-level sheet that ends the table");
-            Assert.AreEqual("Altocumulus", cumulus.Types[(int)Math.Round(cumulus.AltoType * last)].Name, "the sheet sits next to humilis, so that the type map does not pass through the towers between them (E40 L2 D1)");
+            Assert.AreEqual("Altocumulus", cumulus.Types[(int)Math.Round(cumulus.AltoType * last)].Name, "the sheet is the last type, off the walk of the climate types, so that a transition between two of them passes no third (E40 L3)");
         }
 
         // E40 L2 D1: the mid-level sheet is where the generator makes more cloud at the sheet's height than at the low type's height, and not where it rains.
