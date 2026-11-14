@@ -31,6 +31,15 @@ namespace ReDefinition.Atmospheres
         internal float Stretch { get; set; } = 1f;
         // The share of the generator's cover that stays where precipitation falls (1: the pattern never opens a gap in rain; 0: it may).
         internal float RainKeep { get; set; } = 1f;
+        // How far the field's edge is a thinning-out of small cells instead of a smooth ramp, 0 to 1 (cfg key scatter; 0, the default: the plain ramp). A real field of cumulus thins out
+        // towards its edge into scattered small cells and fragments; the ramp's value r (0 in the gap, 1 in the core) becomes the DENSITY of cells: a texel is cloud where a second, finer
+        // noise lies below r (with a soft step of ScatterSoft), so the mean over the edge is the ramp's mean exactly and a region keeps its cover.
+        internal float Scatter { get; set; }
+        // The cell of the scatter noise in depths of the body's troposphere (cfg key scatterDepths; two texels at least, see CloudMesoStage.SizeKm).
+        internal float ScatterDepths { get; set; } = DefaultScatterDepths;
+        // The width of the step between cell and gap in rank units of the scatter noise (cfg key scatterSoft; 0.02 hard).
+        internal float ScatterSoft { get; set; } = 0.3f;
+        internal const float DefaultScatterDepths = 3f;
 
         internal bool On { get { return Amount > 0f; } }
     }

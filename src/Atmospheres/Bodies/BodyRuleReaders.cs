@@ -263,21 +263,23 @@ namespace ReDefinition.Atmospheres
             };
         }
 
-        // MESO { scaleKm, octaves, amount, edge, shoulder, stretch, rainKeep } (E40 L3, CloudMesoSpec); null without the node.
+        // MESO { scaleKm, octaves, amount, edge, shoulder, stretch, rainKeep, scatter, scatterDepths, scatterSoft } (E40 L3, CloudMesoSpec); null without the node.
         private static CloudMesoSpec Meso(BodyNodeReader r)
         {
             if (!r.Present) return null;
             return new CloudMesoSpec
             {
                 ScaleKm = r.Float("scaleKm", 0f, 0f, 2000f),
-                ScaleDepths = r.Float("scaleDepths", 4.3f, 0.2f, 100f),
-                Octaves = r.Int("octaves", 2, 1, 4),
+                ScaleDepths = r.Float("scaleDepths", 4.3f, 0.2f, 100f),                Octaves = r.Int("octaves", 2, 1, 4),
                 Amount = r.Float("amount", 0f, 0f, 1f),
                 Edge = r.Float("edge", 0.25f, 0.02f, 1f),
                 Shoulder = r.Float("shoulder", 1f, 1f, 6f),
                 Cells = r.Float("cells", 0f, 0f, 1f) >= 0.5f,
                 Stretch = r.Float("stretch", 1f, 1f, 20f),
-                RainKeep = r.Float("rainKeep", 1f, 0f, 1f)
+                RainKeep = r.Float("rainKeep", 1f, 0f, 1f),
+                Scatter = r.Float("scatter", 0f, 0f, 1f),
+                ScatterDepths = r.Float("scatterDepths", CloudMesoSpec.DefaultScatterDepths, 0.2f, 100f),
+                ScatterSoft = r.Float("scatterSoft", 0.3f, 0.02f, 1f)
             };
         }
 

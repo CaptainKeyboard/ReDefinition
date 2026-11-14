@@ -56,6 +56,53 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
         }
 
+        // The edge of a field is a density of small cells (E40 L5 maps): the step's shift makes the mean over the scatter noise the ramp's value, and a region keeps its cover.
+        [TestMethod]
+        public void TheScatterStepHasTheRampsValueAsItsMean()
+        {
+            foreach (float w in new[] { 0.1f, 0.3f, 0.6f })
+                for (float r = 0f; r <= 1.0001f; r += 0.05f)
+                {
+                    float p = CloudMesoStage.ThinShift(r, w);
+                    double mean = 0.0;
+                    const int n = 20000;
+                    for (int k = 0; k < n; k++)
+                    {
+                        float u = (k + 0.5f) / n;
+                        float s = (p - u) / w + 0.5f;
+                        mean += s <= 0f ? 0f : s >= 1f ? 1f : s;
+                    }
+                    Assert.AreEqual(Math.Min(1f, r), mean / n, 0.002, "mean of the cell step at ramp value " + r + " and softness " + w);
+                }
+        }
+
+        [TestMethod]
+        public void TheEdgeOfAFieldThinsOutIntoCellsAndTheRegionKeepsItsCover()
+        {
+            CloudLayerDef cumulus = Cumulus();
+            Assert.IsTrue(cumulus.Meso.Scatter > 0f, "the shipped cumulus has a scattered edge");
+            float shipped = cumulus.Meso.Scatter;
+            try
+            {
+                foreach (byte level in new byte[] { 51, 102, 153 })
+                {
+                    byte[] ramp = null, cells = null, t = null;
+                    cumulus.Meso.Scatter = 0f;
+                    CloudMesoStage.Apply(cumulus, Inputs(Flat(0), Flat(128), Flat(128)), Flat(level), Flat(64), ref ramp, ref t);
+                    cumulus.Meso.Scatter = 1f;
+                    CloudMesoStage.Apply(cumulus, Inputs(Flat(0), Flat(128), Flat(128)), Flat(level), Flat(64), ref cells, ref t);
+                    Assert.AreEqual(Mean(ramp), Mean(cells), 0.01, "the mean cover of a region of " + level / 255.0 + " with the scattered edge and with the ramp");
+                    double midRamp = 0, midCells = 0;
+                    for (int j = 40; j < 216; j++) for (int i = 0; i < W; i++) { double a = ramp[j * W + i] / 255.0, b = cells[j * W + i] / 255.0; if (a > 0.1 && a < 0.9) midRamp++; if (b > 0.1 && b < 0.9) midCells++; }
+                    Assert.IsTrue(midCells < 0.5 * midRamp, "the thin edge is cells and gaps, not a half-covered ramp: " + midCells + " texels of in-between cover against " + midRamp);
+                }
+            }
+            finally
+            {
+                cumulus.Meso.Scatter = shipped;
+            }
+        }
+
         [TestMethod]
         public void ClearStaysClearAndClosedStaysClosed()
         {
@@ -218,6 +265,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         //   cirrus second  6.5-7.9 / 3.0-4.1                    0.10-0.11              (cover .52)                                    1.9-2.0    0.51-0.56  0.12-0.19
         //   rain deck home 14-17 / 11-16                       (the zonal belt: 0.75-0.80 of the variance over 28.6 d; one connected sheet of 160-170 d)
         //   rain deck second 12.5-15.6 / 9.6-13.1
+        // With the scattered edge of the fields (E40 L5 maps: the edge is a density of small cells, so two fields joined by a thin fringe of cells are one connected component of the map) the
+        // same four maps of the home planet give field diameters of cumulus 17-44 d, cb 16-50 d and cirrus 25-68 d (before: 17-36, 16-48, 26-37), the mean cover and the corr lengths as before
+        // (cumulus 3.1 / 2.9 d). Cumulus and cirrus fields are bounded by 55 d and 75 d for that (before the fix the cumulus fields were 125 d).
         // The bounds are these with the spread of single maps. Field diameters and the largest field are bounded only where the layer's mean cover stays under 0.4: a sky of more cover is one
         // connected sheet whatever the pattern.
         private static void CheckTheMapsOfABody(Func<int, GeneratorField> makeField, CloudLayerDef[] layers, double radiusKm, double depthKm, double dayS, string name)
@@ -250,7 +300,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             Assert.IsTrue(on.CorrZonalKm < 0.8 * off.CorrZonalKm, "the stage makes the cumulus pattern finer: " + on.CorrZonalKm + " against " + off.CorrZonalKm + " km" + tag);
                             if (Mean(onCover, 0, H) < 0.4)
                             {
-                                Assert.IsTrue(on.FieldDiameterKm < 43.0 * depthKm, "field diameter " + on.FieldDiameterKm + " km (before " + off.FieldDiameterKm + ")" + tag);
+                                Assert.IsTrue(on.FieldDiameterKm < 55.0 * depthKm, "field diameter " + on.FieldDiameterKm + " km (before " + off.FieldDiameterKm + ")" + tag);
                                 Assert.IsTrue(on.LargestFieldShare <= 0.4, "largest field " + on.LargestFieldShare + " of the field area (before " + off.LargestFieldShare + ")" + tag);
                             }
                             TypeMixMetrics.Mix mix = TypeMixMetrics.MixOf(onCover, onType, cumulus.Types.Count, 0.2);
@@ -281,7 +331,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             Assert.IsTrue(cs.CorrZonalKm > cs.CorrMeridionalKm, "cirrus fibres are longer along the parallel than across it" + tag);
                             if (Mean(cirrusCover, 0, H) < 0.4)
                             {
-                                Assert.IsTrue(cs.FieldDiameterKm < 50.0 * depthKm, "cirrus field diameter " + cs.FieldDiameterKm + " km" + tag);
+                                Assert.IsTrue(cs.FieldDiameterKm < 75.0 * depthKm, "cirrus field diameter " + cs.FieldDiameterKm + " km" + tag);
                                 Assert.IsTrue(cs.LargestFieldShare <= 0.4, "cirrus largest field " + cs.LargestFieldShare + tag);
                             }
                             Assert.IsTrue(TypeMixMetrics.MixOf(cirrusCover, cirrusType, 2, 0.2).TypesIn300kmWindow >= 1.5, "cirrus types in a window of 28.6 d" + tag);

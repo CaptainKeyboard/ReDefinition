@@ -36,10 +36,22 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 seeds = new[] { int.Parse(part[0]) };
                 firstTime = lastTime = int.Parse(part[1]);
             }
+            // TYPEMIX_RANGE=<first>:<last>: the times of a shorter dump (with TYPEMIX_SEEDS=<a,b,...> the seeds), for a quick comparison of two cfg values
+            string range = Environment.GetEnvironmentVariable("TYPEMIX_RANGE"), seedList = Environment.GetEnvironmentVariable("TYPEMIX_SEEDS");
+            if (!string.IsNullOrEmpty(range))
+            {
+                string[] part = range.Split(':');
+                firstTime = int.Parse(part[0]);
+                lastTime = int.Parse(part[1]);
+            }
+            if (!string.IsNullOrEmpty(seedList)) seeds = Array.ConvertAll(seedList.Split(','), int.Parse);
             double t0 = 3.0e6;
             // TYPEMIX_BODY=second: the second body of the P1 tests (FieldFixture.SecondFacts) with Kerbin's layer set scaled to its troposphere (TypeMixFixture.ShippedLayersScaled).
             bool second = Environment.GetEnvironmentVariable("TYPEMIX_BODY") == "second";
             CloudLayerDef[] layers = second ? TypeMixFixture.ShippedLayersScaled(7.5 / 10.5) : TypeMixFixture.ShippedLayers();
+            // TYPEMIX_DECKFLOOR=<0..1>: the rain deck's coverage floor of this dump (the measurement of what the floor does to the deck)
+            string deckFloor = Environment.GetEnvironmentVariable("TYPEMIX_DECKFLOOR");
+            if (!string.IsNullOrEmpty(deckFloor)) layers[0].Deck.RainFloor = float.Parse(deckFloor, System.Globalization.CultureInfo.InvariantCulture);
             LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
             try
             {

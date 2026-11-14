@@ -360,7 +360,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheMesoPatternAndTheTypeClimateAreReadBuiltAndDefaultToNone()
         {
             string climate = "CLIMATE{weight = 0.8;LATITUDE{key0 = 0 1;key1 = 1 0.2}SURFACE{key0 = 0 0.5;key1 = 1 1}HUMIDITY{key0 = 0 0;key1 = 1 1}PRECIPITATION{key0 = 0 1;key1 = 1 0}}";
-            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;typePatchKm = 33;typePatchDepths = 9;typePatchBlend = 0.1;MESO{scaleKm = 60;scaleDepths = 6;octaves = 3;amount = 0.5;edge = 0.2;shoulder = 2;cells = 1;stretch = 4;rainKeep = 0.5}"
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;typePatchKm = 33;typePatchDepths = 9;typePatchBlend = 0.1;MESO{scaleKm = 60;scaleDepths = 6;octaves = 3;amount = 0.5;edge = 0.2;shoulder = 2;cells = 1;stretch = 4;rainKeep = 0.5;scatter = 0.7;scatterDepths = 2;scatterSoft = 0.2}"
                 + "TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 1}" + climate + "}}"
                 + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}"
                 + "LAYER{name = C;innerAltitudeM = 100;outerAltitudeM = 900;MESO{amount = 7;octaves = 9;scaleKm = 1}" + GoodType + "}");
@@ -377,6 +377,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.IsTrue(a.Meso.Cells);
             Assert.AreEqual(4f, a.Meso.Stretch);
             Assert.AreEqual(0.5f, a.Meso.RainKeep);
+            Assert.AreEqual(0.7f, a.Meso.Scatter, 1e-6f);
+            Assert.AreEqual(2f, a.Meso.ScatterDepths, 1e-6f);
+            Assert.AreEqual(0.2f, a.Meso.ScatterSoft, 1e-6f);
             Assert.AreEqual(0.8f, a.Types[0].Climate.Weight, 1e-6f);
             Assert.AreEqual(0.6f, a.Types[0].Climate.Latitude.Evaluate(0.5f), 1e-6f);
             Assert.AreEqual(0.75f, a.Types[0].Climate.Surface.Evaluate(0.5f), 1e-6f);
@@ -400,6 +403,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(1f, c.Meso.ScaleKm);
             Assert.AreEqual(4.3f, c.Meso.ScaleDepths, 1e-6f, "no scaleDepths key: the default size in depths");            Assert.IsFalse(c.Meso.Cells, "no cells key: blobs");
             Assert.AreEqual(1f, c.Meso.Shoulder, "no shoulder key: a linear ramp");
+            Assert.AreEqual(0f, c.Meso.Scatter, "no scatter key: the plain ramp");
+            Assert.AreEqual(CloudMesoSpec.DefaultScatterDepths, c.Meso.ScatterDepths, 1e-6f);
             Assert.IsTrue(r.Warnings.Any(w => w.Contains("amount")), string.Join("; ", r.Warnings));
             Assert.IsFalse(new CloudMesoSpec().On);
         }

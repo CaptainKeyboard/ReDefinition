@@ -19,8 +19,7 @@ namespace ReDefinition.Atmospheres
         internal ulong Seed;
         // The body's scales (GeneratorField.CloudScalesOf): the radius, the depth of the troposphere (the unit of the patterns' sizes) and the latitudes (rad) of the edges of the first two
         // circulation cells (the unit of the climate's latitude bands; NaN: plain latitude). A caller sets them from its body; without a radius and a depth (0) the stage changes nothing.
-        internal double RadiusKm, DepthKm;
-        internal double Edge1Rad = double.NaN, Edge2Rad = double.NaN;
+        internal double RadiusKm, DepthKm;        internal double Edge1Rad = double.NaN, Edge2Rad = double.NaN;
         // The tropopause's share of the atmosphere's depth where a body does not state its tropopause (GeneratorRules.TropopauseDepthShare's default).
         internal const double DefaultTropopauseShare = 0.15;
     }
@@ -68,6 +67,9 @@ namespace ReDefinition.Atmospheres
             float[] u = Pattern(inp.Seed, 11, SizeKm(meso.ScaleKm, meso.ScaleDepths, inp), meso.Octaves, meso.Stretch, w, h, inp.RadiusKm);
             float amount = meso.Amount, edge = meso.Edge, keep = meso.RainKeep, gamma = meso.Shoulder;
             double shift = ColumnShift(inp, w);
+            // The edge of a field thins out into small cells (CloudMesoSpec.Scatter): a second, finer noise; null where the layer has none.
+            float scatter = meso.Scatter, soft = meso.ScatterSoft;
+            float[] us = scatter > 0f ? Pattern(inp.Seed, 17, SizeKm(0f, meso.ScatterDepths, inp), 2, 1f, w, h, inp.RadiusKm) : null;
             // The pattern of a cover m is a ramp over the noise rank u, from 0 at t to 1 at t + edge, raised to the power `gamma`: a field has a core of 1 and a shoulder that falls off to the gap, and
             // t is set so that the mean over u is m (the integral of the ramp is edge / (gamma + 1)); a power above 1 puts less of the area above one half than m, so that a region of m = 0.6 does not
             // close into one field. The ends of the range, where t would leave 0 to 1, scale or lift the pattern to keep its mean.
@@ -99,11 +101,31 @@ namespace ReDefinition.Atmospheres
                         bin = (float)Math.Pow(ramp, gamma) * (m / Math.Max(rampMean, 1e-4f));
                     }
                     else bin = (float)Math.Pow(Saturate((n - t) / edge), gamma);
-                    float v = m + amount * (Math.Min(1f, Math.Max(0f, bin)) - m);
+                    bin = Math.Min(1f, Math.Max(0f, bin));
+                    if (us != null) bin += scatter * (Thin(bin, Lookup(us, w, h, i, j, shift), soft) - bin);
+                    float v = m + amount * (bin - m);
                     if (keep > 0f && inp.Precip != null) v = Math.Max(v, m * keep * Smooth(0.02f, 0.25f, inp.Precip[k] / 255f));
                     output[k] = ToByte(v);
                 }
             }
+        }
+
+        // The edge as a density of cells: a texel with ramp value r (0 gap, 1 core) is a cell (1) where the scatter noise u (uniform ranks) lies below r, with a soft step of width w. Over u the
+        // mean of this is exactly r (the step is shifted so that the mean of its clipped ramp is r, ThinShift), so a region keeps the cover its ramp has.
+        private static float Thin(float r, float u, float w)
+        {
+            return Saturate((ThinShift(r, w) - u) / w + 0.5f);
+        }
+
+        // The position of the soft step whose mean over a uniform u is r: the clipped ramp of width w has the mean (p + w/2)^2 / (2w) where it is cut by the lower end, and the mirror image at the upper end.
+        internal static float ThinShift(float r, float w)
+        {
+            if (r <= 0f) return -0.5f * w;
+            if (r >= 1f) return 1f + 0.5f * w;
+            float half = 0.5f * w;
+            if (r < half) return (float)Math.Sqrt(2f * w * r) - half;
+            if (r > 1f - half) return 1f - ((float)Math.Sqrt(2f * w * (1f - r)) - half);
+            return r;
         }
 
         // ---- type ----
