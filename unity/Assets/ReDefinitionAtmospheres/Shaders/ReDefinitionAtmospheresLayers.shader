@@ -474,7 +474,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         sky = lerp(Luma(sky).xxx, sky, _LightR.z) * _LightS.z * _LightL[li].z;
                         ambPart = max(sky * _PhaseP.w, (_LightQ.z * Luma(_SunColor.rgb) * LIGHT_INV4PI).xxx);
                         float lit = kind < 1.5 ? exp(-dens * dt * 4.0) : 0.25;
-                        dirPart = _SunColor.rgb * SunAir(pc, _Sun.xyz) * lit * ph * _PhaseP.w;
+                        dirPart = _SunColor.rgb * SunAir(pc, _Sun.xyz) * lit * lerp(ph, LIGHT_INV4PI, _LightL[li].w) * _PhaseP.w;
                         src = dirPart + ambPart;
                     }
                     // The type's light response by height (E40 B3): the direct light and the sky's fill of the sample, scaled by the type's factors.

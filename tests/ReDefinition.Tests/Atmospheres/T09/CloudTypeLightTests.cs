@@ -86,15 +86,31 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheShippedKerbinTypesShadeTheBaseAndLightTheHeadWhereTheLookWantsIt()
         {
             var layers = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers;
-            foreach (string name in new[] { "Cumulus humilis", "Cumulus mediocris", "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
+            foreach (string name in new[] { "Cumulus mediocris", "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
             {
                 CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
                 Assert.IsTrue(t.BaseLight < 0.8f, name + " has a shaded base");
                 Assert.IsTrue(t.HeadLight > 1.1f, name + " has a bright head");
             }
-            CloudTypeSpec stratus = layers.SelectMany(l => l.Types).Single(x => x.Name == "Stratus");
-            Assert.IsTrue(stratus.HeadLight - stratus.BaseLight < 0.4f, "a stratus is flat: little contrast from base to top");
-            Assert.IsTrue(stratus.HeadLight < 1f, "and grey, not bright");
+            CloudTypeSpec humilis = layers.SelectMany(l => l.Types).Single(x => x.Name == "Cumulus humilis");
+            Assert.IsTrue(humilis.BaseLight < 1f && humilis.HeadLight > 1.1f, "humilis: a shaded base under a bright head, the milder pair the model's own light needs");
+            CloudTypeSpec stratocumulus = layers.SelectMany(l => l.Types).Single(x => x.Name == "Stratocumulus");
+            Assert.AreEqual(1f, stratocumulus.BaseLight, "stratocumulus needs no factor on the direct light");
+            Assert.AreEqual(1f, stratocumulus.HeadLight, "stratocumulus needs no factor on the direct light");
+            // The decks of stratus and nimbostratus (rain and snow) have no factor: their light follows the two-stream anchors without one (E40 look round 2).
+            foreach (string name in new[] { "Stratus", "Nimbostratus", "Snow stratus", "Snow nimbus" })
+            {
+                CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
+                Assert.AreEqual(1f, t.BaseLight, name + " base light");
+                Assert.AreEqual(1f, t.HeadLight, name + " head light");
+                Assert.AreEqual(1f, t.BaseAmbient, name + " base ambient");
+                Assert.AreEqual(1f, t.HeadAmbient, name + " head ambient");
+            }
+            foreach (CloudLayerSpec deck in layers.Where(l => l.Name.StartsWith("Kerbin-weather")))
+            {
+                Assert.AreEqual(1f, deck.LightMs, deck.Name + " light ms");
+                Assert.AreEqual(1f, deck.LightAmbient, deck.Name + " light ambient");
+            }
         }
 
         [TestMethod]

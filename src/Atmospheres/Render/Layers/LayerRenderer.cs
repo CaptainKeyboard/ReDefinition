@@ -122,6 +122,7 @@ namespace ReDefinition.Atmospheres
         private Texture2D profileTexture, infoTexture;
         // Each layer's light response (CloudLayerDef.LightMs, LightPowder, LightAmbient), handed to the light settings of the frame (E40 B3).
         private readonly Vector3[] layerLight = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
+        private readonly float[] layerIsotropy = new float[CloudLayerDef.MaxLayers];
         private RenderTexture target;
         private CommandBuffer commands;
         private Camera attached;
@@ -256,6 +257,7 @@ namespace ReDefinition.Atmospheres
                 layerD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 1f, layer.MapShiftDeg);
                 layerE[l] = Vector4.zero;
                 layerLight[l] = new Vector3(layer.LightMs, layer.LightPowder, layer.LightAmbient);
+                layerIsotropy[l] = layer.LightIsotropy;
                 HeightTuning height = source.Heights.TuningOf(l);
                 HeightMaps heightMaps = source.Heights.MapsOf(l);
                 layerH[l] = height == null ? Vector4.zero
@@ -357,6 +359,7 @@ namespace ReDefinition.Atmospheres
             if (f.Light != null)
             {
                 for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;
+                for (int l = 0; l < layerIsotropy.Length && l < f.Light.LayerIsotropy.Length; l++) f.Light.LayerIsotropy[l] = l < layerCount ? layerIsotropy[l] : 0f;
                 f.Light.Upload(m);
             }
             if (f.Far != null) f.Far.Upload(m);

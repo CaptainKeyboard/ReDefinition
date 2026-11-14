@@ -325,6 +325,9 @@ def cap_shadow_darkness(tau=4.0, e_deg=45.0):
 
 
 TAUS = (0.1, 1.0, 5.0, 20.0)
+# The phase function and albedo of the slab-flux reference (the shadow's diffuse share): a droplet's asymmetry 0.85 as one lobe, no absorption (see cap_shadow_vs_tau).
+SHADOW_PHASE = pr.Phase(0.85, -0.3, 1.0)
+SHADOW_ALBEDO = 0.99999
 
 
 def cap_shadow_vs_tau(q, photons=None):
@@ -333,11 +336,15 @@ def cap_shadow_vs_tau(q, photons=None):
     The curve is the slab-flux photon walk of parity_ref.slab_sun_transmission, not the ground radiance of the image renderer: that
     estimate of the diffuse light was a one-sample-per-direction Monte Carlo with a truncated scattering order, whose value at tau 20
     ran from 4e-5 to 0.29 over its settings (4e-5, 0.29, 0.093, 0.076), so the curve was not monotone; the walk conserves energy and
-    its sampling error is 0.2 % at 400000 photons (amendment of package FX-T04 to T11's reference)."""
+    its sampling error is 0.2 % at 400000 photons (amendment of package FX-T04 to T11's reference).
+
+    E40 look round 2: the walk runs with a droplet's single lobe (g 0.85) and an albedo of 0.99999, the two-stream anchors of the cloud's own light and of the shadow's
+    diffuse share (CloudShadowMath.FittedTransmission). With the reference renderer's phase function (asymmetry 0.758) and albedo 0.999 a cloud of optical depth 100
+    passed 0.018 of the sun against 0.083 for a droplet that does not absorb."""
     photons = photons or (400000 if q["order"] < 64 else 2000000)
     out, err = [], []
     for tau in TAUS:
-        share, e = pr.slab_sun_transmission(tau, 45.0, photons=photons)
+        share, e = pr.slab_sun_transmission(tau, 45.0, phase=SHADOW_PHASE, albedo=SHADOW_ALBEDO, photons=photons)
         out.append(share)
         err.append(e)
     return {"taus": list(TAUS), "factors": np.array(out), "ref_factors": np.array(out), "ref_error": list(err), "elevation_deg": 45.0, "photons": photons}
@@ -586,16 +593,16 @@ def selftest(quick=True, fast=False):
 
     # R12 reference curve: monotone in tau, the same for two seeds, energy conserving, and the two-stream result as an independent value.
     c1 = cap_shadow_vs_tau(q)["ref_factors"]
-    c2 = np.array([pr.slab_sun_transmission(tau, 45.0, photons=400000, seed=99)[0] for tau in TAUS])
+    c2 = np.array([pr.slab_sun_transmission(tau, 45.0, phase=SHADOW_PHASE, albedo=SHADOW_ALBEDO, photons=400000, seed=99)[0] for tau in TAUS])
     mono = bool(np.all(np.diff(c1) < 0) and np.all(np.diff(c2) < 0))
     t.add("R12 reference curve falls with tau", "%s" % ", ".join("%.4f" % v for v in c1), "monotone", mono)
     seed_err = float(np.max(np.abs(c1 - c2) / c1))
     t.add("R12 reference, two seeds", "%.4f" % seed_err, "<= 0.02", seed_err <= 0.02)
-    g1 = pr.Phase().w1 * pr.Phase().g1 + (1.0 - pr.Phase().w1) * pr.Phase().g2
-    two_stream = np.array([1.0 / (1.0 + 0.75 * (1.0 - g1) * tau) for tau in TAUS])
+    g1 = SHADOW_PHASE.w1 * SHADOW_PHASE.g1 + (1.0 - SHADOW_PHASE.w1) * SHADOW_PHASE.g2
+    two_stream =np.array([1.0 / (1.0 + 0.75 * (1.0 - g1) * tau) for tau in TAUS])
     ts_err = float(np.max(np.abs(c1 - two_stream) / c1))
     t.add("R12 reference against the two-stream slab", "%.4f" % ts_err, "<= 0.08", ts_err <= 0.08, "(Meador and Weaver 1980, asymmetry %.3f)" % g1)
-    a1, _ = pr.slab_sun_transmission(5.0, 45.0, albedo=1.0, photons=100000)
+    a1, _ = pr.slab_sun_transmission(5.0, 45.0, phase=SHADOW_PHASE, albedo=1.0, photons=100000)
     t.add("R12 reference, no absorption, tau 5", "%.4f" % a1, "within 0.08 of two-stream", abs(a1 - two_stream[2]) / two_stream[2] <= 0.08)
 
     if not fast:

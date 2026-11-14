@@ -60,7 +60,8 @@ namespace ReDefinition.WeatherPlayer
                     LightMs = jl.lightMs,
                     LightPowder = jl.lightPowder,
                     LightAmbient = jl.lightAmbient,
-                    FibreStretch = jl.fibreStretch
+                    FibreStretch = jl.fibreStretch,
+                    LightIsotropy = jl.lightIsotropy
                 };
                 bool hasMap = !string.IsNullOrEmpty(jl.coverageMap) || !string.IsNullOrEmpty(jl.typeMap);
                 if (hasMap) { def.CoverageMapHandle = 0; def.TypeMapHandle = 0; anyMap = true; }

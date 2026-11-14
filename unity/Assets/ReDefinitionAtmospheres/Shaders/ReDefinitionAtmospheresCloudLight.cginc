@@ -27,7 +27,7 @@ float4 _LightT;   // bolt count, sun tap count override (0: the march's own), li
 float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is); the aerosol component is _LightV.zw
 float4 _LightU;   // diffusion share (light that has diffused into the deep core, isotropic, as a share of the sun's isotropic light), its optical depth scale, isotropic share of the octaves above the first
 float4 _LightV;   // diffusion decay with the optical depth towards the light (0: the saturating term), the analytic occlusion's column ends at the cloud type's top (1) or at the layer's outer altitude (0), the sun air's second component (grey extinction along the zenith path at sea level, scale height in m)
-float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, unused
+float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, isotropic share of the Cheap and Fog kinds' single scattering (ice crystals, E40 look round 2)
 float4 _MoonDir[2], _MoonCol[2];   // towards the light; colour times intensity (rgb, 0: off)
 float4 _BoltPos[4], _BoltCol[4];   // planet frame position and range (w); colour times intensity
 float4 _CellA;    // parity test cell: centre (planet frame) and horizontal radius (w > 0: the cell replaces the layers' density)

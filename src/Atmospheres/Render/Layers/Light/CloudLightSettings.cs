@@ -89,8 +89,10 @@ namespace ReDefinition.Atmospheres
         // reused with the sun march's reuse, 2 it is reused and moved by what the ray has crossed since (look against the per-sample taps: mean
         // tone-mapped difference at most 0.0091 with the step growth, 0.0071 alone, on the six views of the table).
         public int UpReuse;
-        // Per layer (index = layer): multiple scattering brightness, powder scale, ambient scale.
+        // Per layer (index = layer): multiple scattering brightness, powder scale, ambient scale (and, below, the isotropic share of the Cheap and Fog kinds).
         public readonly Vector3[] LayerScale = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
+        // Per layer: the isotropic share of the Cheap and Fog kinds' single scattering (0 = the global phase; the shader's _LightL.w).
+        public readonly float[] LayerIsotropy = new float[CloudLayerDef.MaxLayers];
         // The extra lights and the lightning bolts.
         public readonly CloudLight[] Lights = new CloudLight[MaxLights];
         public readonly CloudBolt[] Bolts = new CloudBolt[MaxBolts];
@@ -152,7 +154,7 @@ namespace ReDefinition.Atmospheres
             for (int i = 0; i < layerL.Length; i++)
             {
                 Vector3 s = i < LayerScale.Length ? LayerScale[i] : Vector3.one;
-                layerL[i] = new Vector4(s.x, s.y, s.z, 0f);
+                layerL[i] = new Vector4(s.x, s.y, s.z, i < LayerIsotropy.Length ? Mathf.Clamp01(LayerIsotropy[i]) : 0f);
             }
             m.SetVectorArray(Ids.LightL, layerL);
             for (int i = 0; i < MaxLights; i++)

@@ -205,11 +205,11 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         }
 
         // The sun's total irradiance under a slab of vertical optical depth tauV as a share of the open ground's, beam and scattered light
-        // together: 1 / (1 + A tauV^P) (CloudShadowMath.FittedTransmission, fitted to the slab-flux photon walk of the parity reference,
-        // 0.2 % at tau 0.1, 1, 5 and 20).
+        // together: 1 / (1 + A tauV^P) (CloudShadowMath.FittedTransmission: the two-stream form of a droplet's asymmetry 0.85 without absorption, which the slab-flux
+        // photon walk of the parity reference follows to 2 % from tau 0.1 to 100).
         float DiffuseShare(float tauV)
         {
-            return tauV <= 0 ? 1.0 : 1.0 / (1.0 + 0.168 * pow(tauV, 1.05));
+            return tauV <= 0 ? 1.0 : 1.0 / (1.0 + 0.11 * tauV);
         }
 
         // The sun's light that reaches a point (pc relative to the planet's centre, in metres): the mean of exp(-tau) over the taps across the

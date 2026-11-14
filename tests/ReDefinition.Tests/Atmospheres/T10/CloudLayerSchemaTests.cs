@@ -247,7 +247,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         [TestMethod]
         public void TheLayersLightResponseReadsFromTheLayerNodeAndDefaultsToTheGlobalFit()
         {
-            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;lightMs = 0.8;lightPowder = 1.5;lightAmbient = 0.6;" + GoodType + "}"
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;lightMs = 0.8;lightPowder = 1.5;lightAmbient = 0.6;lightIsotropy = 0.5;" + GoodType + "}"
                 + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
             CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
@@ -257,10 +257,13 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(1f, b.LightMs);
             Assert.AreEqual(1f, b.LightPowder);
             Assert.AreEqual(1f, b.LightAmbient);
+            Assert.AreEqual(0.5f, a.LightIsotropy, 1e-6f);
+            Assert.AreEqual(0f, b.LightIsotropy);
             CloudLayerDef built = a.Build(1);
             Assert.AreEqual(0.8f, built.LightMs, 1e-6f);
             Assert.AreEqual(1.5f, built.LightPowder, 1e-6f);
             Assert.AreEqual(0.6f, built.LightAmbient, 1e-6f);
+            Assert.AreEqual(0.5f, built.LightIsotropy, 1e-6f);
         }
 
         // E40 L2 D1: the type's height-shaped threshold (LIFT, a curve like PROFILE) and the layer's fibre stretch.

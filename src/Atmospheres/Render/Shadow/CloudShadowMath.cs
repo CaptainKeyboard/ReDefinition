@@ -51,16 +51,16 @@ namespace ReDefinition.Atmospheres
             return forwardWeight * forwardG + (1.0 - forwardWeight) * backG;
         }
 
-        // The sun's energy that reaches the ground under a slab of vertical optical depth tauV, beam and scattered light together, for the
-        // dual-lobe phase function of the reference renderer (g 0.85 and -0.3, forward weight 0.92, albedo 0.999), as a share of the open sky's.
-        // The reference is the slab-flux photon walk of tools/weather_metrics/parity_ref.py (slab_sun_transmission, sun at 45 degrees, 400000
-        // photons a point, sampling error 0.2 %): 0.9852, 0.8570, 0.5221 and 0.2045 for tau 0.1, 1, 5 and 20 (the same for every seed; the
-        // two-stream form above gives 0.9822, 0.8464, 0.5242 and 0.2160 with the asymmetry 0.758 of the phase function, within 6 %).
-        // 1 / T - 1 = A tau^P with A 0.168 and P 1.05 follows the four points to 0.3 % (0.9852, 0.8561, 0.5236, 0.2042). The numbers belong
-        // to that phase function; the lighting package (T03) owns the phase and may refit them. An earlier fit (A 0.0453, P 1.54) followed the
-        // image renderer's ground radiance, whose diffuse estimate lost the multiply scattered light (see tools/weather_metrics/parity_run.py
-        // cap_shadow_vs_tau). [VERIFY] for suns other than 45 degrees: the reference was run there only.
-        internal const double FitA = 0.168, FitP = 1.05;
+        // The sun's energy that reaches the ground under a slab of vertical optical depth tauV, beam and scattered light together, as a share of the open sky's, for a droplet's
+        // asymmetry of 0.85 and no absorption: 1 / T - 1 = 0.75 (1 - 0.85) tauV, the two-stream form above. The slab-flux photon walk of tools/weather_metrics/parity_ref.py
+        // (slab_sun_transmission, sun at 45 degrees, 400000 photons a point, a single lobe g 0.85, albedo 0.99999) gives 0.9918, 0.9108, 0.6404, 0.313, 0.1544 and 0.0833 for tau 0.1,
+        // 1, 5, 20, 50 and 100; the form follows them to 1.3 % at tau 1 and 2 % elsewhere. This is also what the cloud's own light shows from below (tools/weather_metrics/
+        // light_slab_check.py: the base's radiance over the sun's irradiance, 0.64 at tau 5, 0.29 at 25).
+        // E40 look round 2: the fit before (A 0.168, P 1.05) followed the same walk with the reference renderer's phase function (g 0.85 and -0.3 at weight 0.92, an asymmetry of 0.758)
+        // and its albedo of 0.999, which loses 0.1 % of the light at every scattering and leaves a thick cloud little: T at tau 100 was 0.018 (the walk) against 0.083 without the loss, and
+        // the fit's 0.045 beyond its last point of tau 20 was below both. The ground under a rain deck of optical depth 66 got 0.075 of the sun where the deck's own base shows
+        // 0.17. [VERIFY] for suns other than 45 degrees: the reference was run there only.
+        internal const double FitA = 0.11, FitP = 1.0;
 
         internal static double FittedTransmission(double tauVertical)
         {

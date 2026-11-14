@@ -204,6 +204,7 @@ namespace ReDefinition.Atmospheres
                     r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
                     SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
                     LightMs = r.Float("lightMs", 1f, 0f, 4f), LightPowder = r.Float("lightPowder", 1f, 0f, 4f), LightAmbient = r.Float("lightAmbient", 1f, 0f, 4f),
+                    LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f),
                     RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f),
                     AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f) });
             }

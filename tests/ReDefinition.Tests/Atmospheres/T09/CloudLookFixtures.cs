@@ -39,10 +39,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
             rain.Types[1].DensityScale = 0.22f;
-            rain.LightMs = 0.8f;
-            rain.LightAmbient = 0.75f;
-            Light(rain.Types[1], 0.7f, 0.9f, 0.8f, 0.9f);
-            Light(rain.Types[2], 0.65f, 0.85f, 0.8f, 0.9f);
             return rain;
         }
 
@@ -58,9 +54,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[1].DensityScale = 0.45f;
             cumulus.Types[2].DensityScale = 0.7f;
             cumulus.Types[3].DensityScale = 0.7f;
-            Light(cumulus.Types[0], 0.8f, 1.1f, 0.9f, 1f);
-            Light(cumulus.Types[2], 0.75f, 1.25f, 0.9f, 1f);
-            Light(cumulus.Types[3], 0.7f, 1.25f, 0.85f, 1f);
+            Light(cumulus.Types[0], 1f, 1f, 0.9f, 1f);
+            Light(cumulus.Types[2], 0.9f, 1.15f, 0.9f, 1f);
+            Light(cumulus.Types[3], 0.7f, 1.15f, 0.85f, 1f);
             Light(cumulus.Types[4], 0.65f, 1.25f, 0.8f, 1f);
             // The types' height-shaped threshold (cfg node LIFT, E40 L2 D1).
             cumulus.Types[0].Lift = C(0f, 0f, 0.5f, 0f, 1f, 0.1f);
@@ -98,6 +94,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cirrus.Types[0].DensityScale = 2.5f;
             cirrus.Types[1].DensityScale = 4f;
             cirrus.LightAmbient = 1.3f;
+            cirrus.LightIsotropy = 0.5f;
             Light(cirrus.Types[0], 1f, 1.15f, 1f, 1f);
             cirrus.SoftnessScale = 2f;
             cirrus.WaterPower = 1f;

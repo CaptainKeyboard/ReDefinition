@@ -150,16 +150,17 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheFittedTransmissionFollowsTheSlabFluxReferenceWithinOnePercentAndFallsWithTau()
+        public void TheFittedTransmissionFollowsTheSlabFluxReferenceWithinTwoPercentAndFallsWithTau()
         {
-            // tools/weather_metrics/parity_ref.py slab_sun_transmission: sun 45 degrees, 400000 photons a point (sampling error 0.2 %).
-            double[] taus = { 0.1, 1.0, 5.0, 20.0 };
-            double[] reference = { 0.9852, 0.8570, 0.5221, 0.2045 };
+            // tools/weather_metrics/parity_ref.py slab_sun_transmission with a single lobe g 0.85 and albedo 0.99999 (E40 look round 2): sun 45 degrees, 400000 photons a point
+            // (sampling error 0.1 % at most).
+            double[] taus = { 0.1, 1.0, 5.0, 20.0, 50.0, 100.0 };
+            double[] reference = { 0.9918, 0.9108, 0.6404, 0.313, 0.1544, 0.0833 };
             double previous = 1.0;
             for (int i = 0; i < taus.Length; i++)
             {
                 double fitted = CloudShadowMath.FittedTransmission(taus[i]);
-                Assert.AreEqual(reference[i], fitted, 0.01 * reference[i], "tau " + taus[i]);
+                Assert.AreEqual(reference[i], fitted, 0.02 * reference[i], "tau " + taus[i]);
                 Assert.IsTrue(fitted < previous);
                 previous = fitted;
             }

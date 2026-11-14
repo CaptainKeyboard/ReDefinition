@@ -186,6 +186,10 @@ namespace ReDefinition.Atmospheres
         internal float LightMs { get; set; } = 1f;
         internal float LightPowder { get; set; } = 1f;
         internal float LightAmbient { get; set; } = 1f;
+        // The share of the sun's single scattering that a Cheap or Fog layer sends equally in all directions (cfg key lightIsotropy, 0 to 1, 0 = the water-drop phase of the
+        // global fit). Ice crystals scatter far more to the sides and back than a water drop does, which is why a thin cirrus sheet is bright seen from above; the shader's
+        // _LightL.w carries it (CloudLightSettings.LayerIsotropy). The lit kinds (Weather) have the octaves' own isotropic share and ignore it.
+        internal float LightIsotropy { get; set; }
         // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
         internal float RainType { get; set; } = 1f;
         // How much longer the layer's noise features are along the planet's axis than across it (cfg key fibreStretch, 1 and above; 1: isotropic): the lookup is compressed along the
