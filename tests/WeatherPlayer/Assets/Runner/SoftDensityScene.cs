@@ -157,6 +157,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "skip") c.Skip = true;
                 else if (t == "skipc") c.SkipClosed = true;
                 else if (t == "drop") c.Drop = true;
+                else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
                 else if (t.StartsWith("lc")) c.Cutoff = Number(t, 2) / 1000f;
