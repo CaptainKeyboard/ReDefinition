@@ -12,10 +12,15 @@ namespace ReDefinition.Atmospheres
 
         private readonly float[] profile;
         private readonly float[] baseShare, topShare, erosion;
+        private readonly CloudLayerDef layer;
+        // The soft density's state the profile was baked for (the stamp of the rise by height and the density scale, and whether the soft density was on).
+        private long bakedStamp = -1;
+        private bool bakedSoft;
 
         internal LayerTypeTable(CloudLayerDef layer)
         {
             if (layer == null) throw new ArgumentNullException("layer");
+            this.layer = layer;
             Count = layer.Types.Count;
             profile = new float[Count * ProfileSamples];
             baseShare = new float[Count];
@@ -24,18 +29,42 @@ namespace ReDefinition.Atmospheres
             for (int t = 0; t < Count; t++)
             {
                 CloudTypeDef type = layer.Types[t];
-                for (int i = 0; i < ProfileSamples; i++)
-                    profile[t * ProfileSamples + i] = type.Profile.Evaluate(i / (float)(ProfileSamples - 1));
                 baseShare[t] = type.BaseShare;
                 topShare[t] = type.TopShare;
                 erosion[t] = type.Erosion;
             }
+            Bake();
+        }
+
+        // The profile samples of every type: the type's curve times its density scale and, where the layer's density is the soft water content, the rise by height (E40 soft
+        // density: the shader reads the rise and the scale through this texture, so it needs no code for them).
+        private void Bake()
+        {
+            bool soft = layer.Soft;
+            for (int t = 0; t < Count; t++)
+            {
+                CloudTypeDef type = layer.Types[t];
+                for (int i = 0; i < ProfileSamples; i++)
+                {
+                    double h = i / (double)(ProfileSamples - 1);
+                    profile[t * ProfileSamples + i] = (float)(type.Profile.Evaluate((float)h) * type.ProfileFactor(h, soft));
+                }
+            }
+            bakedSoft = soft;
+            bakedStamp = CloudCoverShift.Stamp;
+        }
+
+        // Bakes the profile again where the soft density's state changed since (a setting, a tuning key, a layer's noise amount).
+        private void Sync()
+        {
+            if (bakedStamp == CloudCoverShift.Stamp && bakedSoft == layer.Soft) return;
+            Bake();
         }
 
         internal int Count { get; }
 
         // The profile samples of all types, type after type: the texture the shader reads (width ProfileSamples, height Count).
-        internal float[] ProfileData { get { return profile; } }
+        internal float[] ProfileData { get { Sync(); return profile; } }
 
         // Base share, top share, erosion of a type.
         internal void Info(int type, out float b, out float t, out float e)
@@ -48,6 +77,7 @@ namespace ReDefinition.Atmospheres
         // The profile of one type at a height share 0 to 1, linear between the samples (what the texture's bilinear filter does).
         internal float ProfileAt(int type, double h)
         {
+            Sync();
             if (h <= 0.0) return profile[type * ProfileSamples];
             if (h >= 1.0) return profile[type * ProfileSamples + ProfileSamples - 1];
             double x = h * (ProfileSamples - 1);
@@ -110,9 +140,17 @@ namespace ReDefinition.Atmospheres
         {
             double share = (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM;
             if (share < 0.0 || share > 1.0) return 0.0;
-            double s = Shape(coverageMap, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
+            double s = Share(layer, coverageMap);
             if (s <= 0.0) return 0.0;
             return layer.EffectiveSigmaPerM * s * table.Profile(typeMap, share);
+        }
+
+        // The layer's share of a column for a map value, as the density takes it: the clear-sky rule on the map value, the soft edge's share, to the layer's exponent.
+        // Where the layer keeps the old density this is Shape of the map value (the rule and the exponent are off).
+        internal static double Share(CloudLayerDef layer, double coverageMap)
+        {
+            double s = Shape(layer.ClearSkyMap(coverageMap), layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
+            return CloudWater.Pow(s, layer.EffectiveWaterPower);
         }
 
         // The same with the coverage share given (the shape noise's share, CloudShadowShapeNoise) instead of the plain threshold; a share below 0 is not given.

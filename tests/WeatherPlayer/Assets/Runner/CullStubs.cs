@@ -21,6 +21,12 @@ namespace ReDefinition.Atmospheres
             return Values.TryGetValue(key, out v) ? v : compiledDefault;
         }
 
+        // A switch: a value other than 0 is true (CloudSoftDensity reads layers.softDensity so).
+        internal static bool Flag(string key, bool compiledDefault)
+        {
+            return Get(key, compiledDefault ? 1f : 0f) != 0f;
+        }
+
         // The player's way to set a key (the game's table swaps at the frame boundary; a job sets its keys before it draws).
         internal static void SetOverride(string key, float value)
         {

@@ -151,7 +151,7 @@ namespace ReDefinition.Atmospheres
                 layer.TightAltitudes(out tightInner, out tightOuter);
                 layerA[l] = new Vector4(layer.InnerAltitudeM, layer.OuterAltitudeM, tightInner, tightOuter);
                 layerB[l] = new Vector4(layer.EffectiveSigmaPerM, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.ShadowStrength);
-                layerC[l] = new Vector4(0f, 0f, layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
+                layerC[l] = new Vector4(layer.ClearSkyK, layer.EffectiveWaterPower - 1f, layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
                 layerD[l] = new Vector4(0f, 0f, 0f, layer.MapShiftDeg);
                 // The noise numbers as the layer pass has them (LayerRenderer: amount, 1 / scale, erosion, map shift), the erosion 0: the shape alone, as the pass's light march reads it.
                 noiseD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 0f, layer.MapShiftDeg);

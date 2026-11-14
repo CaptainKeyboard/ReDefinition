@@ -305,8 +305,25 @@ def erode(s, d, erosion, prm):
     return np.clip(c * h, 0.0, 1.0)
 
 
-def column_tau(vols, xs, ys, prm, sigma_h, base=2200.0, top=2500.0, coverage=0.0, amount=1.0, edge=0.15, steps=12):
-    """Vertical optical depth through the deck at ground positions (xs, ys), flat: the harness's own geometry."""
+def soft_layer_numbers(coverage, old_edge, amount, closed, softness, softness_scale=1.0):
+    """The soft water content's numbers of a layer (E40 soft density; CloudLayerDef.EffectiveCoverage / EffectiveEdgeSoftness / ClearSkyK in C#): returns
+    (coverage', edge', clear_k) for the old coverage C, edge e, noise amount A, the water content at the outline `closed` and the owner's softness x the layer's scale.
+    With these, the share saturate(((n - 0.5) A + map' + coverage' - 1) / edge' + 0.5), eroded without hardness (prm.hard_gain = 0) and taken to the layer's water
+    power, is the soft water content whose outline is where the old share began; map' = min(map, 2 map - clear_k) is the clear-sky rule."""
+    w = max(0.02, softness * softness_scale)
+    cov = coverage + 0.5 * old_edge + (closed - 0.5) * amount * w
+    k = max(0.0, (1.0 - coverage - 0.5 * old_edge - 0.5 * amount) + closed * amount * w)
+    return cov, amount * w, k
+
+
+def clear_sky(map_value, clear_k):
+    """The clear-sky rule of the soft density: the map value as the density reads it (clear_k 0: off)."""
+    m = np.asarray(map_value, dtype=np.float64)
+    return np.minimum(m, 2.0 * m - clear_k) if clear_k > 0.0 else m
+
+
+def column_tau(vols, xs, ys, prm, sigma_h, base=2200.0, top=2500.0, coverage=0.0, amount=1.0, edge=0.15, steps=12, power=1.0):
+    """Vertical optical depth through the deck at ground positions (xs, ys), flat: the harness's own geometry. power: the layer's water exponent of the share (1: none)."""
     m = len(xs)
     tau = np.zeros(m)
     hs = base + (top - base) * (np.arange(steps) + 0.5) / steps
@@ -318,6 +335,8 @@ def column_tau(vols, xs, ys, prm, sigma_h, base=2200.0, top=2500.0, coverage=0.0
         if prm.erosion > 0:
             d = detail_value(vols, p, prm)
             s = erode(s, d, prm.erosion, prm)
+        if power != 1.0:
+            s = s ** power
         tau += sigma_h * s * (top - base) / steps
     return tau
 
@@ -358,7 +377,7 @@ def layer_seed(seed, layer):
     return int(hash3(layer, 3, 5, seed)) & 0xFFFFFF
 
 
-def planet_ray_tau(vols, prm, origin, dirs, planet_r, inner, outer, sigma, max_steps, min_step, growth, coverage=0.0, amount=1.0, edge=0.15, jitter=0.5, distance_lod=True):
+def planet_ray_tau(vols, prm, origin, dirs, planet_r, inner, outer, sigma, max_steps, min_step, growth, coverage=0.0, amount=1.0, edge=0.15, jitter=0.5, distance_lod=True, power=1.0):
     """The optical depth of rays from `origin` along `dirs` (N, 3) through one layer (inner..outer altitude) by the shader's march: the
     sphere spans of the layer, the midpoint rule, count = clamp(ceil(len / step), 1, max_steps), the density sigma * share (the slab type
     with profile 1, erosion prm.erosion). The ground ends the ray."""
@@ -397,6 +416,8 @@ def planet_ray_tau(vols, prm, origin, dirs, planet_r, inner, outer, sigma, max_s
         s = np.clip(((n_shape - 0.5) * amount + coverage) / edge + 0.5, 0.0, 1.0)
         d = detail_value(vols, pts, prm, foot=dt[act] if distance_lod else None)
         s = erode(s, d, prm.erosion, prm)
+        if power != 1.0:
+            s = s ** power
         tau[act] += sigma * s * dt[act]
     return tau
 

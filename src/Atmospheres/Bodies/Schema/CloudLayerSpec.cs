@@ -43,6 +43,12 @@ namespace ReDefinition.Atmospheres
     // erosion the detail noise gets.
     internal sealed class CloudTypeSpec
     {
+        // The soft water content's per-type numbers (E40 soft density; cfg keys baseGain, riseShare and densityScale): the gain of the density at the type's base, the share of
+        // its height over which it rises to 1, and a factor on the type's density (1: none). Baked into the type's tabulated profile.
+        internal float BaseGain { get; set; } = 0.3f;
+        internal float RiseShare { get; set; } = 0.5f;
+        internal float DensityScale { get; set; } = 1f;
+
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
             Name = name ?? "";
@@ -60,7 +66,7 @@ namespace ReDefinition.Atmospheres
 
         internal CloudTypeDef Build()
         {
-            return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion);
+            return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion) { BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale };
         }
     }
 
@@ -104,6 +110,10 @@ namespace ReDefinition.Atmospheres
         // The type value of the layer where no precipitation falls (cfg key fairType, 0 to 1 over the type table; -1: the precipitation level itself, so the first type).
         // With it the type value is fairType + (1 - fairType) * precipitation (CloudLookTuning.TypeValue).
         internal float FairType { get; set; } = -1f;
+        // The soft water content's per-layer numbers (E40 soft density; cfg keys softnessScale and waterPower): the factor on the owner's softness (1: the setting itself) and the
+        // exponent of the water content in the density. The starting values are [UNKNOWN]: they are judged on pictures.
+        internal float SoftnessScale { get; set; } = 1f;
+        internal float WaterPower { get; set; } = 2f;
         // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
         internal WeatherDeckRule Deck { get; set; }
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
@@ -141,7 +151,9 @@ namespace ReDefinition.Atmospheres
                 NoiseAmount = NoiseAmount,
                 NoiseScaleM = NoiseScaleM,
                 FairType = FairType,
-                Deck = Deck
+                Deck = Deck,
+                SoftnessScale = SoftnessScale,
+                WaterPower = WaterPower
             };
         }
     }

@@ -53,6 +53,8 @@ namespace ReDefinition.Atmospheres
                 { "cloudNoiseDistanceLod", "Fades the finest detail out where it could only shimmer, with distance. Off, the detail is read at every step and costs more." },
                 { "cloudFineDetail", "Adds a second, finer octave of detail to the cloud edge. Off, the edge is smoother." },
                 { "cloudEntryRefinement", "Finds the front of a cloud with finer steps, which calms the grain of a single frame and costs more. Off by default." },
+                { "cloudSoftness", "How wide the soft rim of a cloud is. Low values give a cloud a firmer outline, high values let it thin out slowly into the sky and show less grain, but make the bodies thinner." },
+                { "cloudSamples", "The most points the cloud march takes along a ray: Low 24, Medium 32, High 48 (the Medium step quality's count; the other step qualities scale by the same share). Fewer points are cheaper; with a soft rim 32 already looks better than the old clouds did with 48." },
                 { "cloudHashDither", "Offsets the march of each pixel with white noise. Off, the offset follows a regular pattern that can show as a faint grid in a single frame." },
                 { "cloudLightQuality", "How the sunlight in the clouds is marched: Low takes 2 steps towards the sun and 2 scattering octaves, Medium 3 and 3, High 4 and 4. More steps give softer, brighter cloud bodies and cost more." },
                 { "cloudLightOctaves", "How many times the light scatters inside a cloud: 1 is single scattering, 4 gives the soft glow of a thick cloud. The quality level sets the upper limit." },

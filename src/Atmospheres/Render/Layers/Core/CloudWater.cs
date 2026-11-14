@@ -68,6 +68,13 @@ namespace ReDefinition.Atmospheres
             return Sat((content - e) / Math.Max(1.0 - e, 1e-3));
         }
 
+        // The share as the density takes it: to the layer's exponent. The one helper every reader (the shader's pow, the CPU twins, the shadow) calls.
+        internal static double Pow(double share, double power)
+        {
+            if (share <= 0.0) return 0.0;
+            return power == 1.0 ? share : Math.Pow(share, power);
+        }
+
         // The gain of the density by the height in the cloud (0 at its base, 1 at its top).
         internal static double Rise(double height, CloudWaterNumbers k)
         {

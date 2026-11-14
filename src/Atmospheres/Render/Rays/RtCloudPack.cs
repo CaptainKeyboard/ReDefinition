@@ -68,6 +68,8 @@ namespace ReDefinition.Atmospheres
         // The coverage threshold and the edge softness the shape is formed with now (the layer's EffectiveCoverage and EffectiveEdgeSoftness: the runtime
         // coverage shift and the look knobs are in them).
         public float Coverage = 1f, EdgeSoftness = 0.15f;
+        // The soft density's two more numbers (E40 soft density): the clear-sky rule's K of the map value (0: off) and the exponent of the share (1: none).
+        public float ClearSkyK, WaterPower = 1f;
         // The longitude the layer's maps are turned by against the body's frame now, degrees.
         public float MapShiftDeg;
         // The distance fade of the layer's picture (P64), m from the eye; Infinity: none. A reflection ray applies it, a light ray does not.
@@ -133,7 +135,8 @@ namespace ReDefinition.Atmospheres
             double coverage, tauFull;
             Sample(layer, latDeg, mapLonDeg, out coverage, out tauFull);
             RtCloudLayerEntry e = Entries[layer];
-            return LayerDensity.Shape(coverage, e.Coverage, e.EdgeSoftness) * tauFull;
+            double share = LayerDensity.Shape(CloudLayerDef.ClearSky((float)coverage, e.ClearSkyK), e.Coverage, e.EdgeSoftness);
+            return CloudWater.Pow(share, e.WaterPower) * tauFull;
         }
 
         private static int Wrap(int i, int n)

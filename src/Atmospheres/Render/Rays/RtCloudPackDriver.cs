@@ -146,6 +146,8 @@ namespace ReDefinition.Atmospheres
             e.ShadowStrength = layer.ShadowStrength;
             e.Coverage = layer.EffectiveCoverage;
             e.EdgeSoftness = layer.EffectiveEdgeSoftness;
+            e.ClearSkyK = layer.ClearSkyK;
+            e.WaterPower = layer.EffectiveWaterPower;
             e.MapShiftDeg = layer.MapShiftDeg;
             e.FadeNearM = layer.EffectiveFadeNearM;
             e.FadeFarM = layer.EffectiveFadeFarM;
@@ -160,10 +162,10 @@ namespace ReDefinition.Atmospheres
             for (int i = 0; i < pack.LayerCount && i < source.LayerCount; i++)
             {
                 RtCloudLayerEntry e = pack.Entries[i];
-                float strength = e.ShadowStrength, shift = e.MapShiftDeg, near = e.FadeNearM, far = e.FadeFarM, coverage = e.Coverage, soft = e.EdgeSoftness;
+                float strength = e.ShadowStrength, shift = e.MapShiftDeg, near = e.FadeNearM, far = e.FadeFarM, coverage = e.Coverage, soft = e.EdgeSoftness, clearK = e.ClearSkyK, power = e.WaterPower;
                 Live(e, source.LayerAt(e.StackIndex));
                 if (strength != e.ShadowStrength || shift != e.MapShiftDeg || near != e.FadeNearM || far != e.FadeFarM || coverage != e.Coverage
-                    || soft != e.EdgeSoftness) changed = true;
+                    || soft != e.EdgeSoftness || clearK != e.ClearSkyK || power != e.WaterPower) changed = true;
             }
             if (changed) pack.LiveVersion = ++counter;
         }

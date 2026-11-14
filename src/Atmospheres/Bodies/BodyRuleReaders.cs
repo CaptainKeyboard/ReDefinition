@@ -201,7 +201,8 @@ namespace ReDefinition.Atmospheres
                 layers.Add(new CloudLayerSpec(name, (float)inner, (float)outer, r.Float("sigmaPerM", 0.03f, 1.0e-6f, 10f), r.Enum("kind", LayerKind.Weather),
                     r.String("group", ""), r.Float("coverage", 1f, 0f, 1f), r.Float("edgeSoftness", 0.15f, 0f, 1f), r.Float("fadeNearM", 0f, 0f, 1.0e9f),
                     r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
-                    r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r) });
+                    r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
+                    SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f) });
             }
             return layers;
         }
@@ -242,7 +243,12 @@ namespace ReDefinition.Atmospheres
                 r.Warn("PROFILE", "the type " + name + " of " + layer + " needs a PROFILE with keys 'height density' (height 0 to 1 ascending); it is ignored");
                 return null;
             }
-            return new CloudTypeSpec(name, baseShare, topShare, r.Float("erosion", 0.3f, 0f, 1f), profile);
+            return new CloudTypeSpec(name, baseShare, topShare, r.Float("erosion", 0.3f, 0f, 1f), profile)
+            {
+                BaseGain = r.Float("baseGain", 0.3f, 0f, 1f),
+                RiseShare = r.Float("riseShare", 0.5f, 0f, 1f),
+                DensityScale = r.Float("densityScale", 1f, 0.001f, 100f)
+            };
         }
 
         // PROFILE { key0 = height density, ... }: heights 0 to 1 ascending, densities 0 to 1. Null where there is no valid curve.

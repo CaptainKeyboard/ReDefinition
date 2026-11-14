@@ -20,6 +20,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.EdgeSoftness, fixture.EdgeSoftness, 1e-6f, n + " edge softness");
             Assert.AreEqual(shipped.NoiseAmount, fixture.NoiseAmount, 1e-6f, n + " noise amount");
             Assert.AreEqual(shipped.NoiseScaleM, fixture.NoiseScaleM, 1e-3f, n + " noise scale");
+            Assert.AreEqual(shipped.SoftnessScale, fixture.SoftnessScale, 1e-6f, n + " softness scale");
+            Assert.AreEqual(shipped.WaterPower, fixture.WaterPower, 1e-6f, n + " water power");
             Assert.AreEqual(shipped.Group, fixture.Group, n + " group");
             Assert.AreEqual(shipped.Kind, fixture.Kind, n + " kind");
             Assert.AreEqual(shipped.Deck == null, fixture.Deck == null, n + " deck rule present");
@@ -46,6 +48,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.BaseShare, f.BaseShare, 1e-6f, t + " base");
                 Assert.AreEqual(s.TopShare, f.TopShare, 1e-6f, t + " top");
                 Assert.AreEqual(s.Erosion, f.Erosion, 1e-6f, t + " erosion");
+                Assert.AreEqual(s.BaseGain, f.BaseGain, 1e-6f, t + " base gain");
+                Assert.AreEqual(s.RiseShare, f.RiseShare, 1e-6f, t + " rise share");
+                Assert.AreEqual(s.DensityScale, f.DensityScale, 1e-6f, t + " density scale");
                 Assert.AreEqual(s.Profile.Count, f.Profile.Count, t + " profile keys");
                 for (int k = 0; k < s.Profile.Count; k++)
                 {

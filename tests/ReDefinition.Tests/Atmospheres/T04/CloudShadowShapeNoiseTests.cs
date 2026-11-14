@@ -9,6 +9,14 @@ namespace ReDefinition.Tests
     [TestClass]
     public class CloudShadowShapeNoiseTests
     {
+        // The slab's numbers (coverage 0.35, softness 0.15, amount 1) are the old density's; with the soft water content the shadow reads the layer's effective numbers
+        // (CloudSoftDensityTests pins that), so these tests run on the old density.
+        [TestCleanup]
+        public void BackToTheDefaultDensity()
+        {
+            ReDefinition.Tests.Atmospheres.T09.OldDensity.End();
+        }
+
         private static readonly NoiseVolumeSet Volumes = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(0), 5u);
 
         // A slab of vertical optical depth 1 at a constant map value, the layer's coverage 0.35 and softness 0.15 (the shipped cumulus layer's), noise amount 1 at 500 m.
@@ -77,6 +85,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheShadowOfACellFieldHasCellsAndTheMeanFollowsTheShare()
         {
+            ReDefinition.Tests.Atmospheres.T09.OldDensity.Begin();
             PatchSource s = Source(1f);
             CloudShadowField noisy = ShadowScenes.Field(s, 1, 12);
             noisy.ShapeNoise = Noise(Volumes);
@@ -108,6 +117,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheSharePassedToTheFieldIsTheShapeModelsAtTheRotatedPoint()
         {
+            ReDefinition.Tests.Atmospheres.T09.OldDensity.Begin();
             NoiseLayerParams prm = NoiseLayerParams.Default(500.0);
             prm.OffsetX = 12345.0;
             prm.OffsetY = 6789.0;

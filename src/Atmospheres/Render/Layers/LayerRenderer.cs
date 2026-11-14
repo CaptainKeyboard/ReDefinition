@@ -283,7 +283,8 @@ namespace ReDefinition.Atmospheres
                 cullL[l] = new Vector4(layerH2[l].y > 0f ? 0f : (float)CullMath.MinVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; }),
-                    0f, 0f, 0f);
+                    // y: the soft density's clear-sky K of the map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density).
+                    layer.ClearSkyK, layer.EffectiveWaterPower - 1f, 0f);
                 Array.Copy(table.ProfileData, 0, profile, l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples, table.Count * LayerTypeTable.ProfileSamples);
                 for (int t = 0; t < table.Count; t++)
                 {

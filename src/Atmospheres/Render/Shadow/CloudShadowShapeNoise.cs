@@ -65,7 +65,8 @@ namespace ReDefinition.Atmospheres
             double wy = worldToMap[1] * x + worldToMap[4] * y + worldToMap[7] * z;
             double wz = worldToMap[2] * x + worldToMap[5] * y + worldToMap[8] * z;
             NoiseLayerParams prm = layerParams[layerIndex];
-            return CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, cov, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
+            double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, layer.ClearSkyMap(cov), layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
+            return CloudWater.Pow(share, layer.EffectiveWaterPower);
         }
     }
 }

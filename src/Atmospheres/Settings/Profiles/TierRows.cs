@@ -132,6 +132,7 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.Keys.CloudNoiseTier, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
             { AtmospheresSettings.Keys.CloudLightQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
             { AtmospheresSettings.Keys.CloudShadowQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
+            { AtmospheresSettings.Keys.CloudSamples, "fewer grid points are a quality cost the owner picks (24 and 32 against 48); a tier sets it only after the owner agrees to a lower default" },
             { AtmospheresSettings.Keys.CloudResolution, "a level above 1 lowers the cloud picture's resolution; a tier sets it only after the owner agrees to a lower default" },
             { AtmospheresSettings.Keys.CloudRefineBisect, "a cheaper form of the entry refinement that gives up some of its gain; a tier sets it only after the owner agrees to the trade" },
             { AtmospheresSettings.Keys.CloudRefineEdgeMask, "switches the edge-adaptive cloud picture on, which lowers the resolution of the flat faces; a tier sets it only after the owner agrees to a lower default" },

@@ -92,38 +92,39 @@ namespace ReDefinition.Atmospheres
         // The mean of ShapeSample over n uniform in [0, 1], in closed form: the value is a piecewise linear function of u = x0 + a (n - 0.5), so
         // its mean over the uniform u is the difference of an antiderivative. (A step of the closed form: u at or above 1 is a full cloud, not
         // the end of the ramp, which is the shader's early return.)
+        // power: the layer's exponent of the share (CloudWater.Pow); the mean is that of the share to the power (the closed form below), not the power of the mean.
+        // The shader's FarShareMean returns the mean of the share and the exponent is applied to it afterwards (E40 B1: the residual, MEASURED in FarViewTests).
         internal static double ShapeMean(double cov, double coverage, double edge, double amount, double erosion, double detailMean,
-                                         double hardBase, double hardGain, double densityRemap = 0.0)
+                                         double hardBase, double hardGain, double densityRemap = 0.0, double power = 1.0)
         {
-            double mean = ShapeMeanPlain(cov, coverage, edge, amount, erosion, detailMean, hardBase, hardGain);
+            double mean = ShapeMeanPlain(cov, coverage, edge, amount, erosion, detailMean, hardBase, hardGain, power);
             // layers.densityRemap thins every share by the same factor once the detail is its mean (CloudShapeModel.InteriorThinning).
             return densityRemap > 0.0 && erosion > 0.0 ? mean * CloudShapeModel.InteriorThinning(densityRemap, erosion, detailMean) : mean;
         }
 
         private static double ShapeMeanPlain(double cov, double coverage, double edge, double amount, double erosion, double detailMean,
-                                             double hardBase, double hardGain)
+                                             double hardBase, double hardGain, double power)
         {
             double x0 = (cov + coverage - 1.0) / edge + 0.5;
             double a = amount / edge;
-            if (a < 1e-3) return EdgeValue(x0, erosion, detailMean, hardBase, hardGain);
+            if (a < 1e-3) return CloudWater.Pow(EdgeValue(x0, erosion, detailMean, hardBase, hardGain), power);
             double lo = x0 - 0.5 * a, hi = x0 + 0.5 * a;
             double er = erosion > 0.0 ? erosion * (1.0 - detailMean) : 0.0;
             double k = erosion > 0.0 ? hardBase + hardGain * erosion : 1.0;
             double m = Math.Max(k, 1e-6) / Math.Max(1.0 - er, 1e-3);   // the slope of the ramp above u = er
             double u1 = er + 1.0 / m;                                    // where the ramp reaches 1
             double b = Math.Min(hi, 1.0);
-            double integral = b > lo ? Antiderivative(b, er, m, u1) - Antiderivative(lo, er, m, u1) : 0.0;
+            double integral = b > lo ? Antiderivative(b, er, m, u1, power) - Antiderivative(lo, er, m, u1, power) : 0.0;
             double ones = Math.Max(0.0, hi - Math.Max(lo, 1.0));
             return (integral + ones) / (hi - lo);
         }
 
-        // The antiderivative of clamp(m (u - er), 0, 1).
-        private static double Antiderivative(double u, double er, double m, double u1)
+        // The antiderivative of clamp(m (u - er), 0, 1) to the power p.
+        private static double Antiderivative(double u, double er, double m, double u1, double power)
         {
             if (u <= er) return 0.0;
-            if (u < u1) return 0.5 * m * (u - er) * (u - er);
-            double p = u1 - er;
-            return 0.5 * m * p * p + (u - u1);
+            if (u < u1) return Math.Pow(m, power) * Math.Pow(u - er, power + 1.0) / (power + 1.0);
+            return (u1 - er) / (power + 1.0) + (u - u1);
         }
 
         // The weight of the mean against the single sample for a march spacing foot (m) and the noise scale (m): 0 up to start scales, 1 from

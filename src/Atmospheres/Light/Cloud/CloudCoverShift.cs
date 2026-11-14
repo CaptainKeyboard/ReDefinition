@@ -26,7 +26,7 @@ namespace ReDefinition.Atmospheres
             get
             {
                 Refresh();
-                return stamp + CloudLookTuning.Stamp;
+                return stamp + CloudLookTuning.Stamp + CloudSoftDensity.Stamp;
             }
         }
 

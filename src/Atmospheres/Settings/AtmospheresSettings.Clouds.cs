@@ -36,6 +36,9 @@ namespace ReDefinition.Atmospheres
             internal const string CloudFineDetail = "cloudFineDetail";
             internal const string CloudEntryRefinement = "cloudEntryRefinement";
             internal const string CloudHashDither = "cloudHashDither";
+            // Own clouds: the soft water content (E40 soft density): the width of the rim and the most grid points of the march.
+            internal const string CloudSoftness = "cloudSoftness";
+            internal const string CloudSamples = "cloudSamples";
             // Own clouds: the light (T03)
             internal const string CloudLightQuality = "cloudLightQuality";
             internal const string CloudLightOctaves = "cloudLightOctaves";
@@ -96,6 +99,9 @@ namespace ReDefinition.Atmospheres
         internal static bool CloudFineDetail => B(Keys.CloudFineDetail);
         internal static bool CloudEntryRefinement => B(Keys.CloudEntryRefinement);
         internal static bool CloudHashDither => B(Keys.CloudHashDither);
+        internal static float CloudSoftness => F(Keys.CloudSoftness);
+        // Low 24, Medium 32, High 48 grid points at most (relative to the Medium step quality's 48).
+        internal static CloudDetailLevel CloudSamples => E<CloudDetailLevel>(Keys.CloudSamples);
 
         internal static CloudDetailLevel CloudLightQuality => E<CloudDetailLevel>(Keys.CloudLightQuality);
         internal static int CloudLightOctaves => I(Keys.CloudLightOctaves);
@@ -190,6 +196,9 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("rtOwnClouds", false, CL, "Own Clouds In Ray Tracing", OWN),
                 SettingDef.Int("rtOwnCloudsLayerCap", 0, 0, CloudLayerDef.MaxLayers, CL, "Ray Tracing Cloud Layer Cap", OWN),
                 SettingDef.Bool("cloudHashDither", true, CL, "Cloud White Dither", OWN),
+                // E40 soft density: how wide the soft rim of a cloud is (noise rank, 0.3 to 1.0) and how many grid points the march takes at most (Low 24, Medium 32, High 48).
+                SettingDef.Float("cloudSoftness", 0.5, 0.3, 1.0, CL, "Cloud Softness", OWN),
+                SettingDef.Choice("cloudSamples", typeof(CloudDetailLevel), CloudDetailLevel.High, CL, "Cloud Samples", OWN, RV),
 
                 // The light (T03)
                 SettingDef.Choice("cloudLightQuality", typeof(CloudDetailLevel), CloudDetailLevel.High, CL, "Cloud Light Quality", OWN, RV),

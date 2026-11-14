@@ -103,6 +103,93 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return line + "| mean|err| " + (err / Cs.Length).ToString("0.000") + " | any " + any + "| median tau closed " + med;
         }
 
+        // The optical depth of a vertical column through the PRODUCT's density: the layer's effective numbers (CloudLayerDef), the clear-sky rule, the share of CloudShapeModel with
+        // the layer's exponent, the type table with the rise by height and the density scale baked in. No other mapping of this file.
+        private static double ProductColumnTau(CloudLayerDef layer, LayerTypeTable table, NoiseVolumeSet set, NoiseLayerParams prm, double hx, double hy, double map, double typeValue,
+                                               int steps = 48)
+        {
+            const double R = 600000.0;
+            double eb, et;
+            table.InterpolatedHeights(typeValue, out eb, out et);
+            if (!(et > eb)) return 0.0;
+            int ia, ib;
+            double f;
+            table.Neighbours(typeValue, out ia, out ib, out f);
+            float b0, t0, e0, b1, t1, e1;
+            table.Info(ia, out b0, out t0, out e0);
+            table.Info(ib, out b1, out t1, out e1);
+            double erosion = e0 + (e1 - e0) * f, span = (et - eb) * layer.ThicknessM, dz = span / steps, tau = 0.0;
+            float clearMap = layer.ClearSkyMap((float)map);
+            for (int q = 0; q < steps; q++)
+            {
+                double share = eb + (et - eb) * (q + 0.5) / steps;
+                double rr = R + layer.InnerAltitudeM + share * layer.ThicknessM, zz = Math.Sqrt(Math.Max(1.0, rr * rr - hx * hx - hy * hy));
+                double s = CloudShapeModel.Share(set, ref prm, hx, hy, zz, clearMap, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.EffectiveNoiseAmount, erosion, true, dz);
+                if (s <= 0.0) continue;
+                s = CloudWater.Pow(s, layer.EffectiveWaterPower);
+                tau += layer.EffectiveSigmaPerM * s * table.Profile(typeValue, share) * dz;
+            }
+            return tau;
+        }
+
+        private static double Percentile(System.Collections.Generic.List<double> sorted, double p)
+        {
+            return sorted.Count == 0 ? 0.0 : sorted[Math.Min(sorted.Count - 1, (int)(p * sorted.Count))];
+        }
+
+        // The opacity table of E40 B1 (looking straight up, per layer and per type, at the map values 0.2 .. 0.8): the share of columns with any cloud (tau >= 0.05), over those the 10th,
+        // 50th and 90th percentile of the optical depth and of alpha = 1 - exp(-tau), and the share of the whole sky with alpha above 0.5 and above 0.95. Runs only with SOFT_REPORT.
+        [TestMethod, TestCategory("Explore")]
+        public void OpacityPerTypeThroughTheProduct()
+        {
+            string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
+            if (string.IsNullOrEmpty(path)) return;
+            CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
+            double[] maps = { 0.2, 0.4, 0.6, 0.8 };
+            CloudSoftDensity.DetailMean = Volumes.DetailMean;
+            File.AppendAllText(path, "OPACITY PER TYPE, product mapping (softness " + CloudSoftDensity.Softness.ToString("0.0") + ", detail mean " + Volumes.DetailMean.ToString("0.000")
+                                     + "); per map value: any% | tau p10/p50/p90 | alpha p10/p50/p90 | sky alpha>0.5 % | sky alpha>0.95 %" + Environment.NewLine);
+            for (int li = 0; li < layers.Length; li++)
+            {
+                CloudLayerDef layer = layers[li];
+                var table = new LayerTypeTable(layer);
+                File.AppendAllText(path, "LAYER " + layer.Name + " sigma " + layer.EffectiveSigmaPerM.ToString("0.0000") + " thickness " + layer.ThicknessM.ToString("0") + " closed " + layer.SoftClosed.ToString("0.000")
+                                         + " K " + layer.ClearSkyK.ToString("0.000") + " power " + layer.EffectiveWaterPower.ToString("0.0") + Environment.NewLine);
+                for (int t = 0; t < layer.Types.Count; t++)
+                {
+                    double typeValue = layer.Types.Count == 1 ? 0.0 : t / (double)(layer.Types.Count - 1);
+                    double thick = (layer.Types[t].TopShare - layer.Types[t].BaseShare) * layer.ThicknessM;
+                    var line = new StringBuilder("  " + layer.Types[t].Name.PadRight(20) + " full-column tau " + (layer.EffectiveSigmaPerM * thick * 0.6).ToString("0.0") + " :");
+                    foreach (double map in maps)
+                    {
+                        var taus = new System.Collections.Generic.List<double>();
+                        int n = 0, a50 = 0, a95 = 0;
+                        for (int s = 0; s < 12; s++)
+                        {
+                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, li);
+                            CoverMeaningModel.Place(ref prm, s);
+                            for (int j = 0; j < 10; j++)
+                                for (int i = 0; i < 10; i++)
+                                {
+                                    double tau = ProductColumnTau(layer, table, Volumes, prm, (i - 5) * prm.ScaleM * 6.0, (j - 5) * prm.ScaleM * 6.0, map, typeValue);
+                                    n++;
+                                    double alpha = 1.0 - Math.Exp(-tau);
+                                    if (alpha > 0.5) a50++;
+                                    if (alpha > 0.95) a95++;
+                                    if (tau >= 0.05) taus.Add(tau);
+                                }
+                        }
+                        taus.Sort();
+                        var alphas = taus.ConvertAll(x => 1.0 - Math.Exp(-x));
+                        line.Append("  map " + map.ToString("0.0") + ": " + (100.0 * taus.Count / n).ToString("0") + "% | " + Percentile(taus, 0.1).ToString("0.0") + "/" + Percentile(taus, 0.5).ToString("0.0")
+                                    + "/" + Percentile(taus, 0.9).ToString("0.0") + " | " + Percentile(alphas, 0.1).ToString("0.00") + "/" + Percentile(alphas, 0.5).ToString("0.00") + "/"
+                                    + Percentile(alphas, 0.9).ToString("0.00") + " | " + (100.0 * a50 / n).ToString("0") + "% | " + (100.0 * a95 / n).ToString("0") + "%");
+                    }
+                    File.AppendAllText(path, line + Environment.NewLine);
+                }
+            }
+        }
+
         [TestMethod, TestCategory("Explore")]
         public void ClosedSharePerMapValue()
         {

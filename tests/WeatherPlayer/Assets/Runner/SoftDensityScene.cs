@@ -24,6 +24,10 @@ namespace ReDefinition.WeatherPlayer
             public int Mode;
             public float Softness, EdgePower = 1f, Width = 0.5f, Power = 2f, BaseGain = 1f, Rise, SigmaScale = 1f;
             public bool SunAtCloud;
+            // True: the PRODUCT's own density (E40 soft density, package B1): the job's layer numbers stay as the file gave them, CloudLayerDef's effective numbers, the type table's
+            // rise by height, the exponent and the clear-sky rule make the water content (Width is the owner's softness setting). Every other medium runs the old density
+            // (layers.softDensity 0) and rewrites the job's numbers itself.
+            public bool Product;
         }
 
         internal static readonly Medium[] Media =
@@ -42,6 +46,10 @@ namespace ReDefinition.WeatherPlayer
             // The same lit by the sun as filtered by the air above a cloud at 2 km (E40-sun-colour-design.md: 0.945 / 0.882 / 0.738 of the white sun 2.35 at the
             // scene's sun elevation) instead of the air above the camera at the ground: a preview of the sun-colour patch on the soft medium.
             new Medium { Name = "c100k2w", Mode = 2, Width = 1f, Power = 2f, BaseGain = 0.3f, Rise = 0.5f, SunAtCloud = true },
+            // The product's density with the owner's softness 0.5 and 1.0 (the cfg's per-layer numbers of the job's layer: no softnessScale, the exponent 2, the type's gain 0.3 and
+            // rise 0.5, the same as s50k2 / s100k2 above, which they have to reproduce within noise).
+            new Medium { Name = "pr50", Mode = 3, Product = true, Width = 0.5f },
+            new Medium { Name = "pr100", Mode = 3, Product = true, Width = 1f },
         };
 
         // The marches every medium is drawn with (GrainTable's: the product's grid march with the golden-ratio offset; 32 and 24 grid points at most).
@@ -116,6 +124,22 @@ namespace ReDefinition.WeatherPlayer
             o.Restore(jl);
             jl.sigma = o.Sigma * m.SigmaScale;
             float closed = 0f;
+            // The tuning key of the old density: every medium but the product's runs on it (the player's tuning table is cleared by each Load, so the key goes into the job).
+            LayersJobKey[] savedTuning = job.tuning;
+            var keys = new System.Collections.Generic.List<LayersJobKey>(savedTuning ?? new LayersJobKey[0]);
+            if (!m.Product) keys.Add(new LayersJobKey { key = CloudSoftDensity.TuneOn, value = 0f });
+            job.tuning = keys.ToArray();
+            if (m.Product)
+            {
+                // The product path: nothing of the job's layer is rewritten. The owner's softness and the detail mean reach the layer through CloudSoftDensity (the game: OwnCloudOptions and
+                // the noise binding), the edge hardness off through the switch OwnCloudOptions.Apply(NoiseSwitches) sets.
+                CloudSoftDensity.Softness = m.Width;
+                CloudSoftDensity.DetailMean = detailMean;
+                rig.Renderer.Noise.Switches.SoftEdge = true;
+                rig.Load(job, input);
+                job.tuning = savedTuning;
+                return 0f;
+            }
             if (m.Mode > 0)
             {
                 CloudWaterNumbers k = Numbers(m);
@@ -129,6 +153,7 @@ namespace ReDefinition.WeatherPlayer
             else if (m.Softness > 0f) jl.softness = m.Softness;
             rig.Renderer.Noise.Switches.SoftEdge = m.Mode > 0;
             rig.Load(job, input);
+            job.tuning = savedTuning;
             return closed;
         }
 
@@ -140,7 +165,8 @@ namespace ReDefinition.WeatherPlayer
 
         internal static void Apply(LayerFrame f, Medium m)
         {
-            f.EdgePower = m.Mode > 0 ? m.Power : m.EdgePower;
+            // The product's exponent is the layer's own (the shader multiplies the frame's by it): the frame's stays 1.
+            f.EdgePower = m.Product ? 1f : m.Mode > 0 ? m.Power : m.EdgePower;
             // The frame is the rig's fresh one of this medium's Load, so the job's sun colour is there unless it is replaced here.
             if (m.SunAtCloud) f.SunColour = new Color(2.221f, 2.073f, 1.734f);
         }

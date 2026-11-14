@@ -40,7 +40,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float4 _CsParams2;       // x: weight of the diffuse floor in the mask (0: the pure direct beam), y: share of the lit colour that is the sun's direct light (forward path)
         float4 _CsLayerA[4];     // inner altitude, outer altitude, tight inner altitude, tight outer altitude (m)
         float4 _CsLayerB[4];     // sigma per m, coverage, edge softness, shadow strength
-        float4 _CsLayerC[4];     // -, -, map slice (< 0: no map), type count
+        float4 _CsLayerC[4];     // clear-sky K of the map value (0: off), water exponent minus 1, map slice (< 0: no map), type count
         float4 _CsLayerD[4];     // steps per span of the layer, -, -, map shift (degrees)
         sampler2D _CsTypeProfile;
         sampler2D _CsTypeInfo;
@@ -151,6 +151,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 float vMin = 0.5 / _CsMapDim.y;
                 uv.y = clamp(uv.y, vMin, 1.0 - vMin);
                 cov = UNITY_SAMPLE_TEX2DARRAY_LOD(_CsCovMaps, float3(uv, slice), 0).r;
+                cov = min(cov, 2.0 * cov - _CsLayerC[li].x);   // E40 soft density: the clear-sky rule of the layer pass (K = 0 is off)
                 typeValue = UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).r;
             }
             float typeCount = _CsLayerC[li].w;
@@ -165,6 +166,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             // The coverage share: the map's threshold, or the layer pass's shape noise moving it (NoiseShareNear is the threshold itself where the amount is 0 or the volumes are not up).
             float s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);
             if (s <= 0) return 0;
+            if (_CsLayerC[li].y != 0.0) s = pow(s, 1.0 + _CsLayerC[li].y);   // E40 soft density: the layer's water exponent minus 1 (0: none)
             float h = (share - b) / (tp - b);
             return _CsLayerB[li].x * s * lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
         }

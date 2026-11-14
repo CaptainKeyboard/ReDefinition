@@ -29,16 +29,26 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Tuning.Instance.BeginFrame(++frame);
         }
 
+        // These tests are about the knobs' arithmetic on the layer's own numbers, which is the old density's (E40 soft density: with the soft water content the uploaded constants
+        // are derived from them; CloudSoftDensityTests and CloudCoverOracleTests pin that); the baseline here is layers.softDensity 0.
         private static void Clear()
         {
             Tuning.ClearOverrides();
+            Tuning.SetOverride(CloudSoftDensity.TuneOn, 0f);
             Tuning.Instance.BeginFrame(++frame);
+        }
+
+        [TestInitialize]
+        public void Setup()
+        {
+            Clear();
         }
 
         [TestCleanup]
         public void Cleanup()
         {
-            Clear();
+            Tuning.ClearOverrides();
+            Tuning.Instance.BeginFrame(++frame);
         }
 
         [TestMethod]

@@ -453,6 +453,7 @@
         {"id": "weather-cloudRefineBisect4", "name": "Cloud Entry Bisection Steps 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "4"}},
         {"id": "weather-cloudRefineBisect3Res4", "name": "Cloud Entry Bisection Steps 3, Cloud Resolution 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineBisect": "3", "atmo.cloudReconMode": "Block", "atmo.cloudResolution": "4"}},
         {"id": "weather-cloudRefineEdgeMask", "name": "Cloud Refine At Edge Mask true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineEdgeMask": "True"}},
+        {"id": "weather-cloudSamples", "name": "Cloud Samples Low with Cloud Softness 1.0 (24 grid points)", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudSamples": "Low", "atmo.cloudSoftness": "1"}},
         {"id": "weather-cloudRefineEdgeMaskBisect3", "name": "Cloud Refine At Edge Mask true, Cloud Entry Bisection Steps 3", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRefineEdgeMask": "True", "atmo.cloudRefineBisect": "3"}}
       ]
     },

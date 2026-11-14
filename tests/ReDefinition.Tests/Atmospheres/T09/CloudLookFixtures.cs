@@ -26,6 +26,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 new CloudTypeDef("Stratus", 0.1f, 0.5f, C(0f, 0f, 0.12f, 0.8f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.15f),
                 new CloudTypeDef("Nimbostratus", 0.05f, 1f, C(0f, 0.1f, 0.08f, 0.9f, 0.6f, 1f, 0.9f, 0.6f, 1f, 0f), 0.2f));
             rain.Deck = new WeatherDeckRule { RainFloor = 0.9f };
+            // The soft water content's numbers of the cfg (E40 soft density): a softer, flatter deck.
+            rain.SoftnessScale = 1.5f;
+            foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
             return rain;
         }
 
@@ -45,14 +48,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 new CloudTypeDef("Cumulonimbus calvus", 0f, 0.7f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
                 new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f));
             cb.Deck = new WeatherDeckRule { Fog = false, PrecipType = 0f };
+            foreach (CloudTypeDef t in cb.Types) t.RiseShare = 0.3f;
             return cb;
         }
 
         internal static CloudLayerDef Cirrus()
         {
-            return Layer("Kerbin-cirrus", "", 9000f, 11000f, 0.0002f, 0.3f, 0.35f, 0.5f, 15000f, LayerKind.Cheap,
+            CloudLayerDef cirrus = Layer("Kerbin-cirrus", "", 9000f, 11000f, 0.0002f, 0.3f, 0.35f, 0.5f, 15000f, LayerKind.Cheap,
                 new CloudTypeDef("Cirrus", 0.1f, 0.9f, C(0f, 0f, 0.35f, 0.9f, 0.65f, 0.8f, 1f, 0f), 0.7f),
                 new CloudTypeDef("Cirrostratus", 0.2f, 0.8f, C(0f, 0f, 0.3f, 0.7f, 0.7f, 0.7f, 1f, 0f), 0.3f));
+            // Thin sheets have no core: a softer rim and the water content enters the density linearly (the cfg's numbers).
+            cirrus.SoftnessScale = 2f;
+            cirrus.WaterPower = 1f;
+            return cirrus;
         }
     }
 }

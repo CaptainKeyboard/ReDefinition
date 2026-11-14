@@ -197,7 +197,8 @@ namespace ReDefinition.Atmospheres
         // (cumulus, erosion about 0.5) has a hard edge and a smooth one (stratus, cirrus: erosion near 0) a soft one.
         internal static double Hardness(double erosion)
         {
-            return NoiseModel.HardnessBase + NoiseModel.HardnessGain * erosion;
+            // E40 soft density: nothing hardens the edge of the soft water content (the shader's hardness gain is 0 with NoiseSwitches.SoftEdge, which the settings set with it).
+            return NoiseModel.HardnessBase + (CloudSoftDensity.Enabled ? 0.0 : NoiseModel.HardnessGain) * erosion;
         }
 
         // The soft coverage share s (0 to 1) eaten into by the detail and hardened: the share of the column that is cloud at the point (P04, P12).

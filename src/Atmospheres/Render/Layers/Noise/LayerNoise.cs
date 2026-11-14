@@ -144,6 +144,8 @@ namespace ReDefinition.Atmospheres
             curlTexture = Make3D(set.CurlN, TextureFormat.RGBA32, set.Curl, "cloud noise curl");
             GenerationMs = set.GenerationMs;
             detailMean = set.DetailMean;
+            // The water content at the outline of the soft density reads the detail's mean (CloudSoftDensity); a stack uploaded before the volumes were ready is uploaded again.
+            CloudSoftDensity.DetailMean = detailMean;
             // The shape volume alone stays on the CPU for the readers of the shape noise (CloudShadowShapeNoise: the cloud shadow's CPU twin, the sun dimming); the detail and curl
             // volumes are on the GPU only.
             ShapeVolumes = new NoiseVolumeSet { ShapeN = set.ShapeN, Shape = set.Shape, DetailMean = set.DetailMean };

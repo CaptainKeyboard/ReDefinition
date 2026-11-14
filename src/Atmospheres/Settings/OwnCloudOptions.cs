@@ -114,6 +114,8 @@ namespace ReDefinition.Atmospheres
             s.DistanceLod = On(v, AtmospheresSettings.Keys.CloudNoiseDistanceLod);
             s.FineDetail = On(v, AtmospheresSettings.Keys.CloudFineDetail);
             s.SizeLevel = (int)Level(v, AtmospheresSettings.Keys.CloudNoiseTier);
+            // E40 soft density: nothing hardens the edge of the soft water content (the tuning key layers.softDensity 0 gives the old edge back).
+            s.SoftEdge = CloudSoftDensity.Enabled;
         }
 
         internal static void Apply(NoiseSwitches s)
@@ -160,6 +162,12 @@ namespace ReDefinition.Atmospheres
             c.CapKeepSpans = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCapKeep, CompiledCull.CapKeepSpans)), 1, 8);
         }
 
+        // The grid points the cloudSamples choice stands for: Low 24, Medium 32, High 48.
+        internal static int SamplesOf(CloudDetailLevel level)
+        {
+            return level == CloudDetailLevel.Low ? 24 : level == CloudDetailLevel.Medium ? 32 : 48;
+        }
+
         // T01, T01c, T05: the march of a frame.
         internal static void Apply(LayerFrame f, Func<string, double> v)
         {
@@ -170,6 +178,10 @@ namespace ReDefinition.Atmospheres
             // empty samples is as long as the product's grid step at most, so the search is N times finer where the clouds are at about the density reads of before.
             // E40 grain against TVC: the multiplier may be below 1 (down to 0.25): on a span cut to the types present (layers.spanTight) fewer grid points still lie closer
             // than the full count did over the type table's whole interval.
+            // E40 soft density: cloudSamples (Low 24, Medium 32, High 48 of the Medium step quality's 48) scales the count of every step quality by the same share; the
+            // owner's softness is read into CloudSoftDensity once a frame (the layers' uploaded numbers follow it).
+            maxSteps = CloudSoftDensity.ScaleSamples(maxSteps, SamplesOf(Level(v, AtmospheresSettings.Keys.CloudSamples)));
+            CloudSoftDensity.Softness = v(AtmospheresSettings.Keys.CloudSoftness);
             f.MaxSteps = Math.Max(4, Math.Min(256, Mathf.RoundToInt(maxSteps * Mathf.Clamp(Tuning.Get(TuneGridFine, GridFineDefault), 0.25f, 8f))));
             f.SunSteps = sunSteps;
             f.MinStepM = minStep;

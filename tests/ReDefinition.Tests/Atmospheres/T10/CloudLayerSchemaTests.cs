@@ -220,6 +220,31 @@ namespace ReDefinition.Tests.Atmospheres.T10
         private const string GoodType = "TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}}";
 
         [TestMethod]
+        public void TheSoftWaterNumbersReadFromTheLayerAndTypeNodesWithTheirDefaults()
+        {
+            string typeWith = "TYPE{name = T;baseShare = 0;topShare = 1;baseGain = 0.7;riseShare = 0.25;densityScale = 0.4;PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}}";
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;softnessScale = 2;waterPower = 1;" + typeWith + "}"
+                + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
+            Assert.AreEqual(2f, a.SoftnessScale);
+            Assert.AreEqual(1f, a.WaterPower);
+            Assert.AreEqual(0.7f, a.Types[0].BaseGain, 1e-6f);
+            Assert.AreEqual(0.25f, a.Types[0].RiseShare, 1e-6f);
+            Assert.AreEqual(0.4f, a.Types[0].DensityScale, 1e-6f);
+            // Absent keys: the defaults measured in step (a) of E40 soft density.
+            Assert.AreEqual(1f, b.SoftnessScale);
+            Assert.AreEqual(2f, b.WaterPower);
+            Assert.AreEqual(0.3f, b.Types[0].BaseGain, 1e-6f);
+            Assert.AreEqual(0.5f, b.Types[0].RiseShare, 1e-6f);
+            Assert.AreEqual(1f, b.Types[0].DensityScale);
+            // The built layer and type carry them.
+            CloudLayerDef built = a.Build(1);
+            Assert.AreEqual(2f, built.SoftnessScale);
+            Assert.AreEqual(0.4f, built.Types[0].DensityScale, 1e-6f);
+        }
+
+        [TestMethod]
         public void AUnreadableLayerIsAWarningAndTheOthersStay()
         {
             string text = "LAYER{name = Good;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}"

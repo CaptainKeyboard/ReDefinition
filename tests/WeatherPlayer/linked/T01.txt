@@ -8,6 +8,7 @@ src/Atmospheres/Render/Layers/Core/LayerStack.cs
 src/Atmospheres/Render/Layers/Core/LayerStackSource.cs
 src/Atmospheres/Render/Layers/Core/LayerSpanBound.cs
 src/Atmospheres/Render/Layers/Core/CloudWater.cs
+src/Atmospheres/Render/Layers/Core/CloudSoftDensity.cs
 src/Atmospheres/Render/Layers/LayerMapStore.cs
 src/Atmospheres/Render/Layers/LayerRenderer.cs
 src/Atmospheres/Eve/MapSlew.cs

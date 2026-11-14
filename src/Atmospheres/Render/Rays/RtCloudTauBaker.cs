@@ -25,6 +25,7 @@ namespace ReDefinition.Atmospheres
         private readonly int layers, width, height, steps, stride;
         private readonly float[] data;
         private readonly float[] shift, tightInner, tightOuter, coverage, softness, shapeOfOne;
+        private readonly CloudLayerDef[] layerDefs;
         private readonly HeightTuning[] tuning;
         private readonly float[][] byType;
         private readonly long perStage;
@@ -53,6 +54,7 @@ namespace ReDefinition.Atmospheres
             coverage = new float[layers];
             softness = new float[layers];
             shapeOfOne = new float[layers];
+            layerDefs = new CloudLayerDef[layers];
             tuning = new HeightTuning[layers];
             byType = new float[layers][];
             for (int l = 0; l < layers; l++)
@@ -64,7 +66,9 @@ namespace ReDefinition.Atmospheres
                 softness[l] = layer.EffectiveEdgeSoftness;
                 // The shape at a map value of 1: a density with the shape in it is divided by it, so that tau_full does not depend on the coverage threshold
                 // of the bake.
-                shapeOfOne[l] = (float)Math.Max(1e-3, LayerDensity.Shape(1.0, coverage[l], softness[l]));
+                // (E40 soft density: the share is the layer's, with the clear-sky rule and the exponent, as the ray side forms it.)
+                layerDefs[l] = layer;
+                shapeOfOne[l] = (float)Math.Max(1e-3, LayerDensity.Share(layer, 1.0));
                 HeightTuning t = heightSource == null ? null : heightSource.HeightOf(l);
                 tuning[l] = t != null && t.Any ? t : null;
             }
@@ -141,7 +145,7 @@ namespace ReDefinition.Atmospheres
         {
             int c = column < 0 ? column + width : column >= width ? column - width : column;
             int r = row < 0 ? 0 : row >= height ? height - 1 : row;
-            return LayerDensity.Shape(data[((long)l * width * height + (long)r * width + c) * 2], coverage[l], softness[l]);
+            return LayerDensity.Share(layerDefs[l], data[((long)l * width * height + (long)r * width + c) * 2]);
         }
 
         private void BakeNode(int l, int column, int row, long index)

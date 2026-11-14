@@ -16,7 +16,7 @@ namespace ReDefinition.Atmospheres
             double thickness = layer.ThicknessM;
             double share = (altitudeM - layer.InnerAltitudeM) / thickness;
             // coverageShare: the shape noise's share of the column (CloudShadowShapeNoise) in place of the plain threshold; below 0 it is not given.
-            double s = coverageShare >= 0.0 ? coverageShare : LayerDensity.Shape(coverageMap, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
+            double s = coverageShare >= 0.0 ? coverageShare : LayerDensity.Share(layer, coverageMap);
             if (s <= 0.0) return 0.0;
             int a, c;
             double f, b, top;

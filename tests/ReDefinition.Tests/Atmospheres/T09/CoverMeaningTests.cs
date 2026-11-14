@@ -16,6 +16,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
     [TestClass]
     public class CoverMeaningTests
     {
+        [TestCleanup]
+        public void BackToTheDefaultDensity()
+        {
+            OldDensity.End();
+        }
+
         private static NoiseVolumeSet[] volumes = new NoiseVolumeSet[4];
 
         private static NoiseVolumeSet Volumes(uint seed)
@@ -59,6 +65,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheProposedMappingGivesAClosedShareOfAboutTheMapValue()
         {
+            // The model's mapping is built from the layer's own numbers (CoverNumbers.Of reads the Effective* getters), which are the old density's.
+            OldDensity.Begin();
             CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus() };
             double[] types = { 0.5, 0.0, 0.229 };
             uint[] seeds = { 1u, 2u, 3u };

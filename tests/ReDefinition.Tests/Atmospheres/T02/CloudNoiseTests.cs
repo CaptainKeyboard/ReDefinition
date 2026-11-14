@@ -12,6 +12,12 @@ namespace ReDefinition.Tests
     [TestClass]
     public class CloudNoiseTests
     {
+        [TestCleanup]
+        public void BackToTheDefaultDensity()
+        {
+            ReDefinition.Tests.Atmospheres.T09.OldDensity.End();
+        }
+
         private static NoiseVolumeSet medium;
 
         private static NoiseVolumeSet Medium
@@ -176,6 +182,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheSpectrumSlopesOfTheAlphaStripesAreInTheHarnessBandOverRealisations()
         {
+            // The band is the reference renderer's for the hardened edge of the old density (E40 soft density: the soft water content has no such reference).
+            ReDefinition.Tests.Atmospheres.T09.OldDensity.Begin();
             // parity_checks.py noise_spectrum: 12 stripes of 40 km at 50 m, the slope of the mean power in three octave bands from 2.4 km to 300 m
             // (band 1.3 to 2.6). One realisation scatters (the reference renderer's own 24 realisations: standard deviation 0.4 / 0.3 / 0.2), so
             // the model is judged on 8 realisations (2 volume seeds x 4 layer seeds): the mean of each band inside the band and most realisations inside.
@@ -278,6 +286,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void ARaggedTypeHasAHarderEdgeThanASmoothOne()
         {
+            // The hardened edge is the old density's (E40 soft density: nothing hardens the soft water content, CloudSoftDensityTests).
+            ReDefinition.Tests.Atmospheres.T09.OldDensity.Begin();
             // P12: along a ramp of the soft share the eroded share goes from 0 to 1 over a narrower stretch for erosion 0.5 than for 0.05.
             Assert.IsTrue(CloudShapeModel.Hardness(0.5) > CloudShapeModel.Hardness(0.05));
             double narrow = RampWidth(0.5), wide = RampWidth(0.05);

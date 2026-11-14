@@ -44,6 +44,20 @@ namespace ReDefinition.Atmospheres
         internal Curve Profile { get; }
         // How far the detail noise eats into the type, 0 to 1 (the table's erodeness).
         internal float Erosion { get; }
+        // The soft water content's numbers of the type (E40 soft density, cfg keys baseGain, riseShare, densityScale): the gain of the density at the type's base and the
+        // share of its height over which it rises to 1 (0: no rise), and a factor on the whole density. All three are baked into the type's tabulated profile
+        // (LayerTypeTable), so the shader needs no code for them. The defaults are the values measured in step (a); densityScale 1 changes nothing.
+        internal float BaseGain { get; set; } = 0.3f;
+        internal float RiseShare { get; set; } = 0.5f;
+        internal float DensityScale { get; set; } = 1f;
+
+        // The factor the type's profile is multiplied by at a height share h of the type (0 base, 1 top): its density scale, with the rise by height where the soft density is on.
+        internal double ProfileFactor(double h, bool soft)
+        {
+            double f = DensityScale;
+            if (soft) f *= CloudWater.Rise(h, new CloudWaterNumbers { Width = 0.5, Power = 2.0, BaseGain = BaseGain, RiseShare = RiseShare });
+            return f;
+        }
 
         // A type with a constant density between its base and its top: the type of the analytic test scenes.
         internal static CloudTypeDef Slab(string name, float baseShare, float topShare)
@@ -98,7 +112,20 @@ namespace ReDefinition.Atmospheres
         internal string Group { get; set; } = "";
         // The threshold the readers use: Coverage with the runtime shift (CloudCoverShift; tuning cloud.coverageShift, default 0 = Coverage). Read this, never Coverage.
         // Also the layer's own shift (CloudLookTuning, cloud.layerCoverageShift.<name>), default 0.
+        // With the soft density on (CloudSoftDensity, the default) and a noise amount above 0 this is the coverage constant of the soft water content (see Soft below).
         internal float EffectiveCoverage
+        {
+            get
+            {
+                if (!Soft) return ThresholdCoverage;
+                double w = SoftWidth, a = SoftAmount;
+                double c = CloudSoftDensity.CoverMeaning ? 0.5 + (ThresholdCoverage - Coverage) + (SoftClosed - 0.5) * w
+                                                          : ThresholdCoverage + 0.5 * OldEdge + (SoftClosed - 0.5) * a * w;
+                return (float)c;
+            }
+        }
+        // The old threshold: Coverage with the runtime shift, the share of the soft edge's centre (the outline of the old density).
+        internal float ThresholdCoverage
         {
             get
             {
@@ -109,8 +136,92 @@ namespace ReDefinition.Atmospheres
         }
         // The numbers of the layer with the look knobs applied (CloudLookTuning; every default is a factor of 1 or no change): the readers use these, never the configured ones.
         internal float EffectiveSigmaPerM { get { Look(); return lookSigma == 1f ? SigmaPerM : SigmaPerM * lookSigma; } }
-        internal float EffectiveEdgeSoftness { get { Look(); return lookSoftness == 1f ? EdgeSoftness : EdgeSoftness * lookSoftness; } }
-        internal float EffectiveNoiseAmount { get { Look(); return lookNoiseAmount == 1f ? NoiseAmount : NoiseAmount * lookNoiseAmount; } }
+        internal float EffectiveEdgeSoftness { get { return Soft ? (float)(SoftAmount * SoftWidth) : OldEdge; } }
+        internal float EffectiveNoiseAmount { get { return Soft ? (float)SoftAmount : ConfiguredNoiseAmount; } }
+        private float OldEdge { get { Look(); return lookSoftness == 1f ? EdgeSoftness : EdgeSoftness * lookSoftness; } }
+        private float ConfiguredNoiseAmount { get { Look(); return lookNoiseAmount == 1f ? NoiseAmount : NoiseAmount * lookNoiseAmount; } }
+
+        // ---- The soft water content (E40 soft density, package B1): ONE place that turns the layer's cfg numbers into the numbers every reader uses. ----
+        // The layer shader, the cloud shadow and every CPU twin evaluate the share saturate((map + (n - 0.5) A + cov - 1) / edge + 0.5), eroded, to a power. With
+        //   A = the layer's noise amount, w = the owner's softness x SoftnessScale, edge = A w, cov = C + 0.5 e + (closed - 0.5) A w
+        // (C the threshold coverage, e the old edge softness, closed the water content at which a column of the layer's types is just closed), the edge hardness off and the exponent
+        // WaterPower this IS CloudWater's water content whose outline is where the old share began (CloudWaterTests). The thin water below the outline must not appear where the old
+        // cloud did not exist: the map value is moved before the share, map' = min(map, 2 map - K) (ClearSkyMap), K = m0 + closed A w with m0 = 1 - C - 0.5 e - 0.5 A.
+        // Where the layer has no noise (A = 0) it keeps the old density.
+        internal bool Soft { get { return CloudSoftDensity.Enabled && ConfiguredNoiseAmount > 0f; } }
+        // The factor on the owner's softness: the layer's cfg key softnessScale (a weather deck softer, a cirrus sheet softest).
+        internal float SoftnessScale { get; set; } = 1f;
+        // The exponent of the water content in the density: the layer's cfg key waterPower (2: the density grows with the square of the water; 1: thin sheets have no core).
+        internal float WaterPower { get; set; } = 2f;
+        private double SoftAmount { get { return CloudSoftDensity.CoverMeaning ? 1.0 : ConfiguredNoiseAmount; } }
+        // The width of the water content's rise in noise rank.
+        private double SoftWidth { get { return Math.Max(0.02, CloudSoftDensity.Softness * SoftnessScale); } }
+
+        // The exponent a reader applies to the eroded share (1 where the layer keeps the old density).
+        internal float EffectiveWaterPower { get { return Soft ? WaterPower : 1f; } }
+
+        // The water content at the outline: the mean over the layer's types of CloudWater.Closed (the types of one layer differ by under 0.02: MEASURED, E40 step (a)).
+        internal double SoftClosed
+        {
+            get
+            {
+                Look();
+                long stamp = CloudCoverShift.Stamp;
+                // The key also holds the numbers a test may change after the first read (the types' data, the exponent).
+                double key = lookSigma + WaterPower * 7.0;
+                for (int i = 0; i < Types.Count; i++) key += Types[i].DensityScale * 3.1 + Types[i].BaseGain * 5.3 + Types[i].RiseShare * 11.7 + Types[i].Erosion * 13.9;
+                if (closedStamp == stamp && closedKey == key) return closedValue;
+                double sum = 0.0;
+                for (int i = 0; i < Types.Count; i++)
+                {
+                    CloudTypeDef type = Types[i];
+                    CloudWaterNumbers k = new CloudWaterNumbers { Width = SoftWidth, Power = WaterPower, BaseGain = type.BaseGain, RiseShare = type.RiseShare };
+                    CloudTypeDef t = type;
+                    double mean = CloudWater.ColumnMean(h => t.Profile.Evaluate((float)h), k, 128);
+                    double tau = EffectiveSigmaPerM * (type.TopShare - type.BaseShare) * ThicknessM * mean * type.DensityScale;
+                    sum += CloudWater.Closed(tau, type.Erosion, CloudSoftDensity.DetailMean, k);
+                }
+                closedValue = sum / Types.Count;
+                closedKey = key;
+                closedStamp = stamp;
+                return closedValue;
+            }
+        }
+        private double closedValue;
+        private long closedStamp = -1;
+        private double closedKey = double.NaN;
+
+        // The least map value the layer's clear-sky rule keeps: 0 where the rule is off. See ClearSkyMap.
+        internal float ClearSkyK
+        {
+            get
+            {
+                if (!Soft) return 0f;
+                double w = SoftWidth, a = SoftAmount, k;
+                if (CloudSoftDensity.CoverMeaning) k = SoftClosed * w - (ThresholdCoverage - Coverage);
+                else k = (1.0 - ThresholdCoverage - 0.5 * OldEdge - 0.5 * a) + SoftClosed * a * w;
+                return (float)Math.Max(0.0, k);
+            }
+        }
+
+        // The coverage map value as the density reads it: the thin water below the outline does not appear where the old cloud did not exist (the shader's one line is the same).
+        internal float ClearSkyMap(float map)
+        {
+            return ClearSky(map, ClearSkyK);
+        }
+
+        // The same in double precision (the CPU readers keep the map value as they have it where the rule is off).
+        internal double ClearSkyMap(double map)
+        {
+            float k = ClearSkyK;
+            return k > 0f ? Math.Min(map, 2.0 * map - k) : map;
+        }
+
+        // The same for a given K (the baked entries of the raytracing pack keep K, not the layer).
+        internal static float ClearSky(float map, float k)
+        {
+            return k > 0f ? Math.Min(map, 2f * map - k) : map;
+        }
         internal float EffectiveNoiseScaleM { get { Look(); return lookNoiseSize == 1f ? NoiseScaleM : NoiseScaleM * lookNoiseSize; } }
         // The distance fade: the layer's own where it has one, else the global one of cloud.fadeFarM (none by default).
         internal float EffectiveFadeNearM { get { Look(); return float.IsPositiveInfinity(FadeFarM) && lookFade ? lookFadeNear : FadeNearM; } }

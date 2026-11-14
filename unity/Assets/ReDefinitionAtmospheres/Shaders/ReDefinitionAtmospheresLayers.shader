@@ -233,6 +233,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float vMin = 0.5 / _MapDim.y;
                 uv.y = clamp(uv.y, vMin, 1.0 - vMin);
                 cov = UNITY_SAMPLE_TEX2DARRAY_LOD(_CovMaps, float3(uv, slice), 0).r;
+                cov = min(cov, 2.0 * cov - _CullL[li].y);   // E40 soft density: the clear-sky rule of the water content (CloudLayerDef.ClearSkyMap); K = 0 is off
                 // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. layers.profileShape only
                 // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
                 if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0) return 0;
@@ -278,7 +279,8 @@ Shader "ReDefinition/AtmospheresLayers"
             // The coverage share: the map moved by the shape noise, the soft edge, the erosion (read only in the edge band) and the edge hardness (T02).
             float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion);
             if (s <= 0) return 0;
-            if (_RefineP.z > 0.05 && _RefineP.z != 1.0) s = pow(s, _RefineP.z);
+            float pw = _RefineP.z * (1.0 + _CullL[li].z);   // the frame's exponent times the layer's water exponent (stored minus 1: 0 = none)
+            if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             float h = (share - b) / (tp - b);
             float prof = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
             return _LayerB[li].x * s * prof * fade;

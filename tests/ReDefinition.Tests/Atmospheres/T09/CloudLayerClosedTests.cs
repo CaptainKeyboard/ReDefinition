@@ -9,6 +9,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
     [TestClass]
     public class CloudLayerClosedTests
     {
+        [TestCleanup]
+        public void BackToTheDefaultDensity()
+        {
+            OldDensity.End();
+        }
+
         private static CloudLayerDef Rain() { return CloudLookFixtures.Rain(); }
         private static CloudLayerDef Cumulus() { return CloudLookFixtures.Cumulus(); }
         private static CloudLayerDef Cumulonimbus() { return CloudLookFixtures.Cumulonimbus(); }
@@ -24,6 +30,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheEquivalentThicknessIsTheProfilesHeightIntegralOfTheInterpolatedType()
         {
+            // The plain profile's integral is the old density's table; with the soft density the table carries the rise by height (CloudSoftDensityTests).
+            OldDensity.Begin();
             CloudLayerDef rain = Rain();
             var table = new LayerTypeTable(rain);
             // Fog at type 0: 0.1 of 2100 m times the mean of its profile (0.9 to 0.5 over 0.7, then 0.5 to 0 over 0.3: 0.7 * 0.7 + 0.3 * 0.25 = 0.565).

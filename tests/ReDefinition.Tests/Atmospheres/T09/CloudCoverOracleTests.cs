@@ -245,14 +245,23 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
             float[] want0 = { 0.50f, 0.35f, 0.12f, 0.30f }, want15 = { 0.35f, 0.20f, 0f, 0.15f };
             long before = CloudCoverShift.Stamp;
-            for (int i = 0; i < 4; i++) Assert.AreEqual(want0[i], layers[i].EffectiveCoverage, 1e-6f, "default, layer " + i);
+            // E40 soft density: the shifted threshold is ThresholdCoverage; the coverage the pass uploads (EffectiveCoverage) is the soft water content's constant, which
+            // moves by exactly the shift where the threshold is not clamped.
+            var uploaded0 = new float[4];
+            for (int i = 0; i < 4; i++)
+            {
+                Assert.AreEqual(want0[i], layers[i].ThresholdCoverage, 1e-6f, "default, layer " + i);
+                uploaded0[i] = layers[i].EffectiveCoverage;
+            }
             Set(CloudCoverShift.TuneShift, -0.15f);
             Assert.IsTrue(CloudCoverShift.Stamp > before, "the renderer uploads again");
             for (int i = 0; i < 4; i++)
             {
-                Assert.AreEqual(want15[i], layers[i].EffectiveCoverage, 1e-6f, "shift -0.15, layer " + i);
-                // The cloud shadows' frame values and the CPU density read the same getter: the shape of the CPU twin at a map value is the one of that coverage.
-                Assert.AreEqual(LayerDensity.Shape(0.7, want15[i], layers[i].EdgeSoftness), LayerDensity.Shape(0.7, layers[i].EffectiveCoverage, layers[i].EffectiveEdgeSoftness), 1e-12);
+                Assert.AreEqual(want15[i], layers[i].ThresholdCoverage, 1e-6f, "shift -0.15, layer " + i);
+                if (want15[i] > 0f) Assert.AreEqual(uploaded0[i] - 0.15f, layers[i].EffectiveCoverage, 1e-5f, "the uploaded constant moves by the shift, layer " + i);
+                // The cloud shadows' frame values and the CPU density read the same getters: the share of a map value is the one of those numbers.
+                Assert.AreEqual(CloudWater.Pow(LayerDensity.Shape(layers[i].ClearSkyMap(0.7), layers[i].EffectiveCoverage, layers[i].EffectiveEdgeSoftness), layers[i].EffectiveWaterPower),
+                                LayerDensity.Share(layers[i], 0.7), 1e-12);
             }
             Report("O2.frame values at shift -0.15: L0 " + layers[0].EffectiveCoverage + " L1 " + layers[1].EffectiveCoverage + " L2 " + layers[2].EffectiveCoverage + " L3 " + layers[3].EffectiveCoverage);
         }
