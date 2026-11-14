@@ -44,6 +44,9 @@ namespace ReDefinition.Atmospheres
         // The display stage of the final composite (pass 4, CloudOutputStage is its reference): exposure, the gamma the radiance is encoded with (1: the stage is
         // off, the pass writes its radiance as it is) and the white of the stage, the sun's display value of the scene. The weather player leaves it off.
         public float OutputExposure = 1f, OutputGamma = 1f, OutputWhite = 1f;
+        // The colour of the stage's white (E40 B3): the sun's colour at the clouds over its luminance, so that a sunlit cloud top comes out neutral. White: the white is the grey
+        // OutputWhite (the stage as it was). CloudOutputStage.WhiteTint makes it.
+        public Color OutputWhiteTint = Color.white;
         // The cost controls of the march (package T01c). CoverageBound: the noise is evaluated only where the map can reach the threshold
         // (exact). EmptyLeap: the most grid steps one leap over empty samples takes (1: none). LightCutoff: a step whose weight in the
         // ray's colour is below this reuses the sun transmittance of the span's last lit step (0: every step marches to the sun).
@@ -141,6 +144,8 @@ namespace ReDefinition.Atmospheres
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
         private Material material;
         private Texture2D profileTexture, infoTexture;
+        // Each layer's light response (CloudLayerDef.LightMs, LightPowder, LightAmbient), handed to the light settings of the frame (E40 B3).
+        private readonly Vector3[] layerLight = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
         private RenderTexture target;
         private CommandBuffer commands;
         private Camera attached;
@@ -174,7 +179,7 @@ namespace ReDefinition.Atmospheres
                 Problem = "the layer shader does not compile (" + material.passCount + " passes)";
                 return false;
             }
-            profileTexture = new Texture2D(LayerTypeTable.ProfileSamples, CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes, TextureFormat.RFloat, false, true)
+            profileTexture = new Texture2D(LayerTypeTable.ProfileSamples, CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes, TextureFormat.RGBAFloat, false, true)
             {
                 name = "layer type profiles",
                 filterMode = FilterMode.Bilinear,
@@ -256,7 +261,9 @@ namespace ReDefinition.Atmospheres
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             radius = source.BodyRadiusM;
-            var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes];
+            // Four channels per sample (E40 B3): r the density profile, g the direct light factor, b the sky-fill factor, a unused (0). Unused rows keep the neutral light factors.
+            var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
+            for (int i = 0; i < profile.Length; i += 4) { profile[i + 1] = 1f; profile[i + 2] = 1f; }
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers];
             for (int l = 0; l < layerCount; l++)
             {
@@ -272,6 +279,7 @@ namespace ReDefinition.Atmospheres
                                         layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
                 layerD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 1f, layer.MapShiftDeg);
                 layerE[l] = Vector4.zero;
+                layerLight[l] = new Vector3(layer.LightMs, layer.LightPowder, layer.LightAmbient);
                 HeightTuning height = source.Heights.TuningOf(l);
                 HeightMaps heightMaps = source.Heights.MapsOf(l);
                 layerH[l] = height == null ? Vector4.zero
@@ -285,7 +293,14 @@ namespace ReDefinition.Atmospheres
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; }),
                     // y: the soft density's clear-sky K of the map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density).
                     layer.ClearSkyK, layer.EffectiveWaterPower - 1f, 0f);
-                Array.Copy(table.ProfileData, 0, profile, l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples, table.Count * LayerTypeTable.ProfileSamples);
+                float[] density = table.ProfileData, lightData = table.LightData;
+                for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
+                {
+                    int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 4;
+                    profile[texel] = density[i];
+                    profile[texel + 1] = lightData[i * 2];
+                    profile[texel + 2] = lightData[i * 2 + 1];
+                }
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;
@@ -352,6 +367,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdLimitP, new Vector4(f.RayLimitM, f.AidMode, f.LayerMask, f.UseSceneDepth ? 1f : 0f));
             m.SetVector(IdPhaseP, f.Phase);
             m.SetVector(Shader.PropertyToID("_OutP"), new Vector4(Mathf.Max(0f, f.OutputExposure), 1f / Mathf.Max(1f, f.OutputGamma), Mathf.Max(1e-4f, f.OutputWhite), f.OutputGamma > 1.0001f ? 1f : 0f));
+            m.SetVector(Shader.PropertyToID("_OutW"), new Vector4(f.OutputWhiteTint.r, f.OutputWhiteTint.g, f.OutputWhiteTint.b, 0f));
             m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
@@ -362,7 +378,11 @@ namespace ReDefinition.Atmospheres
             double phase = f.FrameNumber * 0.6180339887498949;
             m.SetVector(IdGrainP, new Vector4(f.EntryRamp ? 1f : 0f, Mathf.Clamp(f.CloudStep, 1f, 8f), Mathf.Clamp(f.DitherSequence, 0, 2), (float)(phase - Math.Floor(phase))));
             m.SetVector(IdSurfP, new Vector4(f.LightPerEntry ? 1f : 0f, 0f, 0f, 0f));
-            if (f.Light != null) f.Light.Upload(m);
+            if (f.Light != null)
+            {
+                for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;
+                f.Light.Upload(m);
+            }
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);
             m.SetVectorArray(IdCullL, cullL);

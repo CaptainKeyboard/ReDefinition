@@ -13,6 +13,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return new Curve(x, y);
         }
 
+        // The type's light response by height (cfg keys baseLight, headLight, baseAmbient, headAmbient).
+        private static void Light(CloudTypeDef t, float baseLight, float headLight, float baseAmbient, float headAmbient)
+        {
+            t.BaseLight = baseLight;
+            t.HeadLight = headLight;
+            t.BaseAmbient = baseAmbient;
+            t.HeadAmbient = headAmbient;
+        }
+
         private static CloudLayerDef Layer(string name, string group, float inner, float outer, float sigma, float coverage, float edge, float noise, float scaleM, LayerKind kind,
                                            params CloudTypeDef[] types)
         {
@@ -30,6 +39,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
             rain.Types[1].DensityScale = 0.22f;
+            rain.LightMs = 0.8f;
+            rain.LightAmbient = 0.75f;
+            Light(rain.Types[1], 0.7f, 0.9f, 0.8f, 0.9f);
+            Light(rain.Types[2], 0.65f, 0.85f, 0.8f, 0.9f);
             return rain;
         }
 
@@ -45,6 +58,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[1].DensityScale = 0.7f;
             cumulus.Types[2].DensityScale = 0.7f;
             cumulus.Types[4].DensityScale = 0.45f;
+            Light(cumulus.Types[0], 0.8f, 1.1f, 0.9f, 1f);
+            Light(cumulus.Types[1], 0.75f, 1.25f, 0.9f, 1f);
+            Light(cumulus.Types[2], 0.7f, 1.25f, 0.85f, 1f);
+            Light(cumulus.Types[3], 0.65f, 1.25f, 0.8f, 1f);
             return cumulus;
         }
 
@@ -55,6 +72,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f));
             cb.Deck = new WeatherDeckRule { Fog = false, PrecipType = 0f };
             foreach (CloudTypeDef t in cb.Types) t.RiseShare = 0.3f;
+            cb.LightAmbient = 0.8f;
+            Light(cb.Types[0], 0.55f, 1.2f, 0.7f, 1f);
+            Light(cb.Types[1], 0.55f, 1.15f, 0.7f, 1.05f);
             return cb;
         }
 
@@ -66,6 +86,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // Thin sheets have no core: a softer rim and the water content enters the density linearly (the cfg's numbers).
             cirrus.Types[0].DensityScale = 2.5f;
             cirrus.Types[1].DensityScale = 4f;
+            cirrus.LightAmbient = 1.3f;
+            Light(cirrus.Types[0], 1f, 1.15f, 1f, 1f);
             cirrus.SoftnessScale = 2f;
             cirrus.WaterPower = 1f;
             return cirrus;

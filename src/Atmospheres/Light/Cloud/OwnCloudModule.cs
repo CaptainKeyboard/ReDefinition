@@ -41,7 +41,10 @@ namespace ReDefinition.Atmospheres
         // The tuning keys of this module (ATMO_TUNING { key = value }, or a matrix row atmo.<key>).
         internal const string TuneCameraEvent = "cloud.cameraEvent", TuneSunGain = "cloud.sunGain", TuneSunAirWithScatterer = "cloud.sunAirWithScatterer",
             TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma", TuneStatsS = "cloud.statsS", TuneReaddEveryFrame = "cloud.readdEveryFrame",
-            TuneAfterScatterer = "cloud.afterScatterer";
+            TuneAfterScatterer = "cloud.afterScatterer",
+            // E40 B3: the white point of the output stage follows the sun at the clouds (CloudOutputStage.WhiteTint): the strength 0 to 1 (default 1, 0 = the grey white as before) and
+            // the altitude the sun's air is taken at (default -1: the lower quarter of the stack's lowest layer, CloudOutputStage.NominalCloudAltitudeM; a value of 0 or more is that altitude in m).
+            TuneWhitePoint = "cloud.whitePoint", TuneWhiteAltitudeM = "cloud.whiteAltitudeM";
         private const int MapWidth = GeneratorMaps.Width, MapHeight = GeneratorMaps.Height;
         private const float SunGainDefault = 1f;
         // The most layers of the field's coverage cache; the type value of a layer is the precipitation level, 0 (fair) to 1 (storm).
@@ -919,6 +922,28 @@ namespace ReDefinition.Atmospheres
             f.OutputExposure = Tuning.Get(TuneExposure, CloudOutputStage.ExposureDefault);
             f.OutputGamma = Tuning.Get(TuneOutputGamma, CloudOutputStage.GammaDefault);
             f.OutputWhite = Math.Max(0.01f, sceneSun.grayscale);
+            {
+                // The white point's colour: the sun a cloud at the nominal altitude gets (the pass's sun times the shader's air above it), over its luminance, by the sun's height.
+                Vector3 whiteViewer = GameGlobals.ActiveVessel != null ? GameGlobals.ActiveVessel.transform.position : camPos;
+                Vector3 whiteFromCentre = whiteViewer - f.PlanetCenter;
+                double whiteDistance = whiteFromCentre.magnitude;
+                double whiteSin = whiteDistance > 1.0 ? Vector3.Dot(whiteFromCentre / (float)whiteDistance, f.TowardsSun) : 1.0;
+                float whiteAltitude = Tuning.Get(TuneWhiteAltitudeM, -1f);
+                if (whiteAltitude < 0f)
+                {
+                    // The lowest layer of the stack decides what the sky shows first: the sun at the lower quarter of it.
+                    whiteAltitude = float.MaxValue;
+                    if (stack != null)
+                        for (int i = 0; i < stack.LayerCount; i++)
+                        {
+                            CloudLayerDef lowest = stack.LayerAt(i);
+                            whiteAltitude = Math.Min(whiteAltitude, CloudOutputStage.NominalCloudAltitudeM(lowest.InnerAltitudeM, lowest.ThicknessM));
+                        }
+                    if (whiteAltitude == float.MaxValue) whiteAltitude = 1500f;
+                }
+                Color cloudSun = CloudSunAir.AtAltitude(passSun, whiteSin, whiteAltitude, f.Light);
+                f.OutputWhiteTint = CloudOutputStage.WhiteTint(cloudSun, CloudOutputStage.WhiteShare(whiteSin, Tuning.Get(TuneWhitePoint, 1f)));
+            }
             Color ambientTop, ambientBottom;
             if (RenderSettings.ambientMode == AmbientMode.Trilight)
             {

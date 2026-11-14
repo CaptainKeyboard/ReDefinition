@@ -59,6 +59,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _LimitP;      // ray length limit in m (<= 0: none), aid mode (0 natural, 1 optical depth, 2 layer colours), layer mask, use scene depth
         float4 _PhaseP;      // g forward, g back, forward weight, albedo
         float4 _OutP;        // display stage of the final composite (pass 4): exposure, 1 / gamma, white (the sun's display value), on (1)
+        float4 _OutW;        // the white point's colour (E40 B3): the per-channel share of the white of a sunlit cloud (1, 1, 1: the white is grey); w unused
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
@@ -189,6 +190,14 @@ Shader "ReDefinition/AtmospheresLayers"
             return tex2Dlod(_TypeProfile, float4(u, v, 0, 0)).r;
         }
 
+        // The whole texel of the profile: r the density, g the direct light factor, b the sky-fill factor of the type at the height h (E40 B3).
+        float4 TypeProfile4(int li, int type, float h)
+        {
+            float u = (saturate(h) * (PROFILE_SAMPLES - 1) + 0.5) / PROFILE_SAMPLES;
+            float v = (li * MAXT + type + 0.5) / (MAXL * MAXT);
+            return tex2Dlod(_TypeProfile, float4(u, v, 0, 0));
+        }
+
         float3 TypeInfo(int li, int type)
         {
             return tex2Dlod(_TypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / MAXL, 0, 0)).rgb;
@@ -199,6 +208,8 @@ Shader "ReDefinition/AtmospheresLayers"
         // The altitude of the top of the cloud type at the last point LayerDensity was asked for (the layer's outer altitude where no type was reached, and for the
         // parity cell). The march copies it right after its own density read; the ambient's analytic occlusion measures the cloud above a sample to this top.
         static float gTopAlt = 0;
+        // The light factors of the type at the last point LayerDensity was asked for (x direct light, y sky fill; 1: neutral); copied by the march like gTopAlt.
+        static float2 gTypeLight = float2(1.0, 1.0);
 
         float LayerDensity(int li, float3 pc, float alt, float t, out float share)
         {
@@ -282,8 +293,9 @@ Shader "ReDefinition/AtmospheresLayers"
             float pw = _RefineP.z * (1.0 + _CullL[li].z);   // the frame's exponent times the layer's water exponent (stored minus 1: 0 = none)
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             float h = (share - b) / (tp - b);
-            float prof = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
-            return _LayerB[li].x * s * prof * fade;
+            float4 pf = lerp(TypeProfile4(li, ta, h), TypeProfile4(li, tb, h), f);
+            gTypeLight = pf.yz;
+            return _LayerB[li].x * s * pf.x * fade;
         }
 
         // ---- light (package T03: the phase, the light march, the octaves, the ambient, the lights, the light cache) ----
@@ -441,6 +453,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     if (_CullD.x > 0.5) gNoiseFoot = CullFoot(t, dtv);
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
                     float topAlt = gTopAlt;   // before the light march asks LayerDensity for other points
+                    float2 typeLight = gTypeLight;
                     r.steps += 1;
                     if (bis > 0)
                     {
@@ -570,6 +583,10 @@ Shader "ReDefinition/AtmospheresLayers"
                         dirPart = _SunColor.rgb * SunAir(pc, _Sun.xyz) * lit * ph * _PhaseP.w;
                         src = dirPart + ambPart;
                     }
+                    // The type's light response by height (E40 B3): the direct light and the sky's fill of the sample, scaled by the type's factors.
+                    src += dirPart * (typeLight.x - 1.0) + ambPart * (typeLight.y - 1.0);
+                    dirPart *= typeLight.x;
+                    ambPart *= typeLight.y;
                     // The colour map's tint of the layer (P15; one when the layer has none).
                     float3 tint = NoiseTint(li, pc);
                     src *= tint;
@@ -738,7 +755,7 @@ Shader "ReDefinition/AtmospheresLayers"
             if (_OutP.w < 0.5 || _LimitP.y > 0.5) return c;
             float w = max(_OutP.z, 1e-4);
             float a = max(c.a, 1e-4);
-            float3 u = max(c.rgb / a * _OutP.x / w, 0.0);
+            float3 u = max(c.rgb / a * _OutP.x / (w * max(_OutW.rgb, 1e-3)), 0.0);
             c.rgb = w * pow(u, _OutP.y) * c.a;
             return c;
         }

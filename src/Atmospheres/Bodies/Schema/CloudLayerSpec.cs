@@ -48,6 +48,11 @@ namespace ReDefinition.Atmospheres
         internal float BaseGain { get; set; } = 0.3f;
         internal float RiseShare { get; set; } = 0.5f;
         internal float DensityScale { get; set; } = 1f;
+        // The type's light response by height (cfg keys baseLight, headLight, baseAmbient, headAmbient; E40 B3): see CloudTypeDef.
+        internal float BaseLight { get; set; } = 1f;
+        internal float HeadLight { get; set; } = 1f;
+        internal float BaseAmbient { get; set; } = 1f;
+        internal float HeadAmbient { get; set; } = 1f;
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -66,7 +71,11 @@ namespace ReDefinition.Atmospheres
 
         internal CloudTypeDef Build()
         {
-            return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion) { BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale };
+            return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion)
+            {
+                BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
+                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient
+            };
         }
     }
 
@@ -114,6 +123,11 @@ namespace ReDefinition.Atmospheres
         // exponent of the water content in the density. The starting values are [UNKNOWN]: they are judged on pictures.
         internal float SoftnessScale { get; set; } = 1f;
         internal float WaterPower { get; set; } = 2f;
+        // The layer's light response (E40 B3; cfg keys lightMs, lightPowder, lightAmbient): factors on the multiple-scattering brightness, on the powder term (the darkening of thin
+        // edges) and on the sky's fill of the layer; 1 is the global fit. They reach the shader through _LightL (CloudLightSettings.LayerScale).
+        internal float LightMs { get; set; } = 1f;
+        internal float LightPowder { get; set; } = 1f;
+        internal float LightAmbient { get; set; } = 1f;
         // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
         internal WeatherDeckRule Deck { get; set; }
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
@@ -153,7 +167,10 @@ namespace ReDefinition.Atmospheres
                 FairType = FairType,
                 Deck = Deck,
                 SoftnessScale = SoftnessScale,
-                WaterPower = WaterPower
+                WaterPower = WaterPower,
+                LightMs = LightMs,
+                LightPowder = LightPowder,
+                LightAmbient = LightAmbient
             };
         }
     }

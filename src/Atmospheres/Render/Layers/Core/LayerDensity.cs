@@ -34,6 +34,32 @@ namespace ReDefinition.Atmospheres
                 erosion[t] = type.Erosion;
             }
             Bake();
+            // The types' light response by height (E40 B3): two factors per sample, direct light and sky fill, for the shader's profile texture (channels g and b).
+            light = new float[Count * ProfileSamples * 2];
+            for (int t = 0; t < Count; t++)
+                for (int i = 0; i < ProfileSamples; i++)
+                {
+                    double d, a;
+                    layer.Types[t].LightFactors(i / (double)(ProfileSamples - 1), out d, out a);
+                    light[(t * ProfileSamples + i) * 2] = (float)d;
+                    light[(t * ProfileSamples + i) * 2 + 1] = (float)a;
+                }
+        }
+
+        private readonly float[] light;
+
+        // The light factors of all types, sample after sample: direct light and sky fill (the shader's profile texture channels g and b).
+        internal float[] LightData { get { return light; } }
+
+        // The light factors of one type at a height share 0 to 1, linear between the samples (what the texture's bilinear filter does).
+        internal void LightAt(int type, double h, out double direct, out double ambient)
+        {
+            double x = (h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h) * (ProfileSamples - 1);
+            int i = Math.Min((int)x, ProfileSamples - 2);
+            double f = x - i;
+            int a = (type * ProfileSamples + i) * 2, b = a + 2;
+            direct = light[a] + (light[b] - light[a]) * f;
+            ambient = light[a + 1] + (light[b + 1] - light[a + 1]) * f;
         }
 
         // The profile samples of every type: the type's curve times its density scale and, where the layer's density is the soft water content, the rise by height (E40 soft

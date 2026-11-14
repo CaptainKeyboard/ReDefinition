@@ -22,6 +22,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.NoiseScaleM, fixture.NoiseScaleM, 1e-3f, n + " noise scale");
             Assert.AreEqual(shipped.SoftnessScale, fixture.SoftnessScale, 1e-6f, n + " softness scale");
             Assert.AreEqual(shipped.WaterPower, fixture.WaterPower, 1e-6f, n + " water power");
+            Assert.AreEqual(shipped.LightMs, fixture.LightMs, 1e-6f, n + " light ms");
+            Assert.AreEqual(shipped.LightPowder, fixture.LightPowder, 1e-6f, n + " light powder");
+            Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
             Assert.AreEqual(shipped.Group, fixture.Group, n + " group");
             Assert.AreEqual(shipped.Kind, fixture.Kind, n + " kind");
             Assert.AreEqual(shipped.Deck == null, fixture.Deck == null, n + " deck rule present");
@@ -51,6 +54,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.BaseGain, f.BaseGain, 1e-6f, t + " base gain");
                 Assert.AreEqual(s.RiseShare, f.RiseShare, 1e-6f, t + " rise share");
                 Assert.AreEqual(s.DensityScale, f.DensityScale, 1e-6f, t + " density scale");
+                Assert.AreEqual(s.BaseLight, f.BaseLight, 1e-6f, t + " base light");
+                Assert.AreEqual(s.HeadLight, f.HeadLight, 1e-6f, t + " head light");
+                Assert.AreEqual(s.BaseAmbient, f.BaseAmbient, 1e-6f, t + " base ambient");
+                Assert.AreEqual(s.HeadAmbient, f.HeadAmbient, 1e-6f, t + " head ambient");
                 Assert.AreEqual(s.Profile.Count, f.Profile.Count, t + " profile keys");
                 for (int k = 0; k < s.Profile.Count; k++)
                 {

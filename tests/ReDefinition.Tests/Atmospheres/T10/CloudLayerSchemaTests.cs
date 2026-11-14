@@ -212,7 +212,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0, CloudLayerSet.MostAtOnce(r.Climate.Clouds.Layers));
         }
 
-        private static BodyParseResult Parse(string cloudsInner)
+        internal static BodyParseResult Parse(string cloudsInner)
         {
             return BodyTestSupport.Run(BodyTestSupport.Planet("Test", BodyTestSupport.HomeYear), "REDEFINITION_BODY{name = Test;CLOUDS{" + cloudsInner + "}}");
         }
@@ -242,6 +242,25 @@ namespace ReDefinition.Tests.Atmospheres.T10
             CloudLayerDef built = a.Build(1);
             Assert.AreEqual(2f, built.SoftnessScale);
             Assert.AreEqual(0.4f, built.Types[0].DensityScale, 1e-6f);
+        }
+
+        [TestMethod]
+        public void TheLayersLightResponseReadsFromTheLayerNodeAndDefaultsToTheGlobalFit()
+        {
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;lightMs = 0.8;lightPowder = 1.5;lightAmbient = 0.6;" + GoodType + "}"
+                + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
+            Assert.AreEqual(0.8f, a.LightMs, 1e-6f);
+            Assert.AreEqual(1.5f, a.LightPowder, 1e-6f);
+            Assert.AreEqual(0.6f, a.LightAmbient, 1e-6f);
+            Assert.AreEqual(1f, b.LightMs);
+            Assert.AreEqual(1f, b.LightPowder);
+            Assert.AreEqual(1f, b.LightAmbient);
+            CloudLayerDef built = a.Build(1);
+            Assert.AreEqual(0.8f, built.LightMs, 1e-6f);
+            Assert.AreEqual(1.5f, built.LightPowder, 1e-6f);
+            Assert.AreEqual(0.6f, built.LightAmbient, 1e-6f);
         }
 
         [TestMethod]

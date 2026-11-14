@@ -202,7 +202,8 @@ namespace ReDefinition.Atmospheres
                     r.String("group", ""), r.Float("coverage", 1f, 0f, 1f), r.Float("edgeSoftness", 0.15f, 0f, 1f), r.Float("fadeNearM", 0f, 0f, 1.0e9f),
                     r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
                     r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
-                    SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f) });
+                    SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
+                    LightMs = r.Float("lightMs", 1f, 0f, 4f), LightPowder = r.Float("lightPowder", 1f, 0f, 4f), LightAmbient = r.Float("lightAmbient", 1f, 0f, 4f) });
             }
             return layers;
         }
@@ -247,7 +248,11 @@ namespace ReDefinition.Atmospheres
             {
                 BaseGain = r.Float("baseGain", 0.3f, 0f, 1f),
                 RiseShare = r.Float("riseShare", 0.5f, 0f, 1f),
-                DensityScale = r.Float("densityScale", 1f, 0.001f, 100f)
+                DensityScale = r.Float("densityScale", 1f, 0.001f, 100f),
+                BaseLight = r.Float("baseLight", 1f, 0f, 4f),
+                HeadLight = r.Float("headLight", 1f, 0f, 4f),
+                BaseAmbient = r.Float("baseAmbient", 1f, 0f, 4f),
+                HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f)
             };
         }
 

@@ -51,6 +51,23 @@ namespace ReDefinition.Atmospheres
         internal float RiseShare { get; set; } = 0.5f;
         internal float DensityScale { get; set; } = 1f;
 
+        // The type's light response by height (E40 B3; cfg keys baseLight, headLight, baseAmbient, headAmbient): factors on the direct light and on the sky's fill at the type's base
+        // and at its top, smoothly between (1: the global fit). A cumulus gets a shaded flat base and bright hard-lit heads, a stratus a flat dark base. Baked into the type's
+        // tabulated profile texture (channels g and b, LayerTypeTable.LightAt), read by the layer shader at the sample.
+        internal float BaseLight { get; set; } = 1f;
+        internal float HeadLight { get; set; } = 1f;
+        internal float BaseAmbient { get; set; } = 1f;
+        internal float HeadAmbient { get; set; } = 1f;
+
+        // The two factors (direct light, sky fill) at a height share h of the type.
+        internal void LightFactors(double h, out double direct, out double ambient)
+        {
+            double x = h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h;
+            double s = x * x * (3.0 - 2.0 * x);
+            direct = BaseLight + (HeadLight - BaseLight) * s;
+            ambient = BaseAmbient + (HeadAmbient - BaseAmbient) * s;
+        }
+
         // The factor the type's profile is multiplied by at a height share h of the type (0 base, 1 top): its density scale, with the rise by height where the soft density is on.
         internal double ProfileFactor(double h, bool soft)
         {
@@ -153,6 +170,11 @@ namespace ReDefinition.Atmospheres
         internal float SoftnessScale { get; set; } = 1f;
         // The exponent of the water content in the density: the layer's cfg key waterPower (2: the density grows with the square of the water; 1: thin sheets have no core).
         internal float WaterPower { get; set; } = 2f;
+        // The layer's light response (cfg keys lightMs, lightPowder, lightAmbient; 1 = the global fit): factors on the multiple-scattering brightness, the powder term and the sky's
+        // fill. CloudLightSettings.LayerScale carries them to the shader's _LightL.
+        internal float LightMs { get; set; } = 1f;
+        internal float LightPowder { get; set; } = 1f;
+        internal float LightAmbient { get; set; } = 1f;
         private double SoftAmount { get { return CloudSoftDensity.CoverMeaning ? 1.0 : ConfiguredNoiseAmount; } }
         // The width of the water content's rise in noise rank.
         private double SoftWidth { get { return Math.Max(0.02, CloudSoftDensity.Softness * SoftnessScale); } }

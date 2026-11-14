@@ -48,6 +48,38 @@ namespace ReDefinition.Atmospheres
             return w / Math.Max(exposure, 1e-4f) * (float)Math.Pow(Math.Max(p, 0f) / w, gamma);
         }
 
+        // The white point's colour (E40 B3): the sun's colour at the clouds over its luminance, taken by `share` (0: grey white, the stage as it was; 1: a cloud top lit by that
+        // sun comes out neutral). Each channel of the stage divides by this tint (OutputStage in the layer shader), so a cloud lit by the sun at its altitude is white: a camera
+        // or an eye adapts to the light it sees. The sky and the ground, which the pass does not draw, keep their own colour.
+        internal static UnityEngine.Color WhiteTint(UnityEngine.Color cloudSun, float share)
+        {
+            float luma = Math.Max(cloudSun.r * 0.2126f + cloudSun.g * 0.7152f + cloudSun.b * 0.0722f, 1e-5f);
+            float s = Math.Max(0f, Math.Min(1f, share));
+            return new UnityEngine.Color(1f + (cloudSun.r / luma - 1f) * s, 1f + (cloudSun.g / luma - 1f) * s, 1f + (cloudSun.b / luma - 1f) * s, 1f);
+        }
+
+        // The altitude the sun is taken at for the white point: the lower quarter of a layer (the part that the sky shows first and the part the sun's air still reddens most).
+        internal static float NominalCloudAltitudeM(float innerAltitudeM, float thicknessM)
+        {
+            return innerAltitudeM + 0.25f * Math.Max(thicknessM, 0f);
+        }
+
+        // How much of the white point's adaptation applies for a sun at sinElevation: none near the horizon (a sunset's clouds stay orange), all from about 24 degrees up.
+        internal static float WhiteShare(double sinElevation, float strength)
+        {
+            double t = Math.Max(0.0, Math.Min(1.0, (sinElevation - 0.05) / 0.35));
+            return (float)(t * t * (3.0 - 2.0 * t)) * Math.Max(0f, Math.Min(1f, strength));
+        }
+
+        // The display value of a radiance c of one channel with that channel's white tint: Encode with the white and the tint multiplied.
+        internal static float Encode(float c, float white, float tint, float exposure, float gamma)
+        {
+            if (gamma <= OffGamma) return c;
+            float w = Math.Max(white, 1e-4f);
+            float u = Math.Max(c * exposure / (w * Math.Max(tint, 1e-3f)), 0f);
+            return w * (float)Math.Pow(u, 1.0 / gamma);
+        }
+
         // The same for a premultiplied colour channel with its alpha (the shader divides the coverage out and puts it back).
         internal static float EncodePremultiplied(float premultiplied, float alpha, float white, float exposure, float gamma)
         {

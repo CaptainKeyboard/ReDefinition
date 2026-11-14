@@ -27,6 +27,17 @@ namespace ReDefinition.Atmospheres
             return new Color(r, g, b, viewerSun.a);
         }
 
+        // The colour the shader gives a cloud sample at altitudeM: the pass's sun colour times the air above the sample (the shader's SunAir, per channel). Where the shader's air is
+        // off (SunAirHeightM 0) it is the pass's sun colour itself.
+        internal static Color AtAltitude(Color passSun, double sinElevation, double altitudeM, CloudLightSettings air)
+        {
+            if (!(air.SunAirHeightM > 0f)) return passSun;
+            double r = CloudLightMath.SunAir(sinElevation, air.SunAirTau.x, air.SunAirHeightM, air.SunAirMieTau, air.SunAirMieHeightM, altitudeM, air.SunAirWhiteBalance);
+            double g = CloudLightMath.SunAir(sinElevation, air.SunAirTau.y, air.SunAirHeightM, air.SunAirMieTau, air.SunAirMieHeightM, altitudeM, air.SunAirWhiteBalance);
+            double b = CloudLightMath.SunAir(sinElevation, air.SunAirTau.z, air.SunAirHeightM, air.SunAirMieTau, air.SunAirMieHeightM, altitudeM, air.SunAirWhiteBalance);
+            return new Color((float)(passSun.r * r), (float)(passSun.g * g), (float)(passSun.b * b), passSun.a);
+        }
+
         private static double Factor(double sinElevation, double altitudeM, CloudLightSettings air, float tauChannel)
         {
             return CloudLightMath.CameraAirFactor(sinElevation, tauChannel, air.SunAirHeightM, air.SunAirMieTau, air.SunAirMieHeightM, altitudeM, air.SunAirWhiteBalance);
