@@ -276,12 +276,13 @@ namespace ReDefinition.Atmospheres
                 }
                 Noise.SetStretch(l, layer.FibreStretch);
                 Noise.SetVertical(l, layer.VerticalScale);
+                Noise.SetSmoothing(l, layer.ShapeSmoothing);
                 Noise.SetFibre(l, layer.FibreMinWindMs, layer.FibreTurnSeconds);
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;
                     table.Info(t, out b, out top, out e);
-                    info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, e, 0f);
+                    info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, e, table.SmoothingOfType(t));
                 }
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++) layerH[l] = layerH2[l] = cullL[l] = Vector4.zero;

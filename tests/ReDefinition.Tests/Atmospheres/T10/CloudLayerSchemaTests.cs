@@ -298,6 +298,44 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(FibreAxis.DefaultTurnSeconds, b.FibreTurnSeconds);
         }
 
+        // E40 L6 shape: the layer's shapeSmoothing (the default of a type without its own) and its default 0.
+        [TestMethod]
+        public void TheLayersShapeSmoothingReadsFromTheLayerNodeAndDefaultsToNone()
+        {
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;shapeSmoothing = 1.5;" + GoodType + "}"
+                + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
+            Assert.AreEqual(1.5f, a.ShapeSmoothing, 1e-6f);
+            Assert.AreEqual(1.5f, a.Build(1).ShapeSmoothing, 1e-6f);
+            Assert.AreEqual(0f, b.ShapeSmoothing);
+        }
+
+        // E40 L6 shape: a type's shapeSmoothing overrides the layer's, a type without one takes the layer's, and the table hands the GPU the interpolated width.
+        [TestMethod]
+        public void ATypesShapeSmoothingOverridesTheLayersAndATypeWithoutOneTakesIt()
+        {
+            string prof = "PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}";
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;shapeSmoothing = 0.5;"
+                + "TYPE{name = Flat;baseShare = 0;topShare = 0.2;" + prof + "}"
+                + "TYPE{name = Tall;baseShare = 0;topShare = 1;shapeSmoothing = 2;" + prof + "}"
+                + "TYPE{name = Plain;baseShare = 0;topShare = 1;shapeSmoothing = 0;" + prof + "}}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single();
+            Assert.AreEqual(-1f, a.Types[0].ShapeSmoothing, "no key: the layer's");
+            Assert.AreEqual(2f, a.Types[1].ShapeSmoothing);
+            Assert.AreEqual(0f, a.Types[2].ShapeSmoothing, "0 is a value: none");
+            CloudLayerDef def = a.Build(1);
+            Assert.AreEqual(2f, def.Types[1].ShapeSmoothing);
+            var table = new LayerTypeTable(def);
+            Assert.AreEqual(0.5f, table.SmoothingOfType(0), "the layer's");
+            Assert.AreEqual(2f, table.SmoothingOfType(1));
+            Assert.AreEqual(0f, table.SmoothingOfType(2));
+            Assert.AreEqual(0.5, table.SmoothingOf(0.0), 1e-9);
+            Assert.AreEqual(1.25, table.SmoothingOf(0.25), 1e-9, "half way between the first two types");
+            Assert.AreEqual(2.0, table.SmoothingOf(0.5), 1e-9);
+        }
+
         // E40 L2 D1: the type's height-shaped threshold (LIFT, a curve like PROFILE) and the layer's fibre stretch.
         [TestMethod]
         public void TheShapeKeysReadFromTheTypeAndLayerNodesAndDefaultToNone()

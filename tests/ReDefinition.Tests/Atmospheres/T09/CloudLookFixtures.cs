@@ -72,6 +72,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[3].Lift = C(0f, 0f, 0.15f, 0f, 0.5f, 0.17f, 0.8f, 0.33f, 1f, 0.5f);
             cumulus.Types[4].Lift = C(0f, 0f, 0.4f, 0f, 1f, 0.1f);
             cumulus.VerticalScale = 0.5f;
+            cumulus.Types[1].ShapeSmoothing = 1.5f;
+            cumulus.Types[2].ShapeSmoothing = 1.5f;
+            cumulus.Types[3].ShapeSmoothing = 1.5f;
             // The type at no precipitation is humilis (the second of five), at full precipitation congestus (the fourth); the mid-level sheet's rule picks the altocumulus (the last).
             cumulus.FairType = 0.25f;
             cumulus.RainType = 0.75f;
@@ -102,6 +105,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.12f, 1f, 0.28f);
             cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.18f, 0.7f, 0.18f, 0.9f, 0f, 1f, 0f);
             cb.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f, Scatter = 1f, ScatterDepths = 3f };
+            cb.ShapeSmoothing = 0.3f;
             return cb;
         }
 

@@ -42,7 +42,8 @@ namespace ReDefinition.WeatherPlayer
                         HeadLight = jt.headLight,
                         BaseAmbient = jt.baseAmbient,
                         HeadAmbient = jt.headAmbient,
-                        Lift = jt.lift != null && jt.lift.Length >= 2 ? new Curve(Evenly(jt.lift.Length), jt.lift) : null
+                        Lift = jt.lift != null && jt.lift.Length >= 2 ? new Curve(Evenly(jt.lift.Length), jt.lift) : null,
+                        ShapeSmoothing = jt.shapeSmoothing
                     });
                 }
                 var def = new CloudLayerDef(jl.name, 0, jl.inner, jl.outer, types, jl.sigma, (LayerKind)jl.kind)
@@ -59,6 +60,7 @@ namespace ReDefinition.WeatherPlayer
                     LightAmbient = jl.lightAmbient,
                     FibreStretch = jl.fibreStretch,
                     VerticalScale = jl.verticalScale,
+                    ShapeSmoothing = jl.shapeSmoothing,
                     FibreMinWindMs = jl.fibreMinWindMs,
                     FibreTurnSeconds = jl.fibreTurnSeconds,
                     LightIsotropy = jl.lightIsotropy,

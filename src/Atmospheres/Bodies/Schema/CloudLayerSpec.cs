@@ -57,6 +57,8 @@ namespace ReDefinition.Atmospheres
         internal Curve Lift { get; set; }
         // The type's climate (cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
+        // The type's own smoothing of the shape noise (cfg key shapeSmoothing; below 0: the layer's): see CloudTypeDef.ShapeSmoothing.
+        internal float ShapeSmoothing { get; set; } = -1f;
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -78,7 +80,8 @@ namespace ReDefinition.Atmospheres
             return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion)
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
-                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate
+                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate,
+                ShapeSmoothing = ShapeSmoothing
             };
         }
     }
@@ -144,6 +147,8 @@ namespace ReDefinition.Atmospheres
         internal float FibreStretch { get; set; } = 1f;
         // The vertical scale of the layer's noise lattice (cfg key verticalScale; 0: the body's sphereScale): see CloudLayerDef.VerticalScale.
         internal float VerticalScale { get; set; }
+        // The smoothing of the layer's shape noise in noise scales (cfg key shapeSmoothing; 0: none): see CloudLayerDef.ShapeSmoothing.
+        internal float ShapeSmoothing { get; set; }
         // The layer's fibre axis numbers (cfg keys fibreMinWindMs, fibreTurnSeconds): see CloudLayerDef.
         internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
         internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
@@ -204,6 +209,7 @@ namespace ReDefinition.Atmospheres
                 RainType = RainType,
                 FibreStretch = FibreStretch,
                 VerticalScale = VerticalScale,
+                ShapeSmoothing = ShapeSmoothing,
                 FibreMinWindMs = FibreMinWindMs,
                 FibreTurnSeconds = FibreTurnSeconds,
                 AltoType = AltoType,

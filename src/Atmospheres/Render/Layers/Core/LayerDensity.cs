@@ -26,12 +26,14 @@ namespace ReDefinition.Atmospheres
             baseShare = new float[Count];
             topShare = new float[Count];
             erosion = new float[Count];
+            smoothing = new float[Count];
             for (int t = 0; t < Count; t++)
             {
                 CloudTypeDef type = layer.Types[t];
                 baseShare[t] = type.BaseShare;
                 topShare[t] = type.TopShare;
                 erosion[t] = type.Erosion;
+                smoothing[t] = type.ShapeSmoothing >= 0f ? type.ShapeSmoothing : Math.Max(0f, layer.ShapeSmoothing);
             }
             Bake();
             // The types' light response by height (E40 B3): two factors per sample, direct light and sky fill, for the shader's profile texture (channels g and b).
@@ -50,6 +52,23 @@ namespace ReDefinition.Atmospheres
         }
 
         private readonly float[] light, lift;
+        // The width in noise scales the shape noise is smoothed over where each type is drawn (E40 L6 shape): the type's own key, the layer's where it has none.
+        private readonly float[] smoothing;
+
+        // The smoothing of a type (noise scales).
+        internal float SmoothingOfType(int type)
+        {
+            return smoothing[type];
+        }
+
+        // The smoothing at a type value: the two neighbouring types' blended by the weight of the second (the shader's read of the type info texture's alpha).
+        internal double SmoothingOf(double typeValue)
+        {
+            int a, c;
+            double f;
+            Neighbours(typeValue, out a, out c, out f);
+            return smoothing[a] + (smoothing[c] - smoothing[a]) * f;
+        }
 
         // The lift of the coverage threshold of all types, sample after sample (the shader's profile texture channel a; 0 where a type has no LIFT).
         internal float[] LiftData { get { return lift; } }

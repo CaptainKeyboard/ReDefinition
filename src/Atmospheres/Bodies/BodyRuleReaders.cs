@@ -207,6 +207,7 @@ namespace ReDefinition.Atmospheres
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f), LightPlateau = r.Float("lightPlateau", 0f, 0f, 4f),
                     AmbientMs = r.Float("ambientMs", CloudLayerDef.DefaultAmbientMs, 0f, 20f), AmbientDecay = r.Float("ambientDecay", CloudLayerDef.DefaultAmbientDecay, 0f, 2f),
                     RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
+                    ShapeSmoothing = r.Float("shapeSmoothing", 0f, 0f, 8f),
                     FibreMinWindMs = r.Float("fibreMinWindMs", FibreAxis.DefaultMinWindMs, 0f, 100f),
                     FibreTurnSeconds = r.Float("fibreTurnSeconds", FibreAxis.DefaultTurnSeconds, 0f, 3600f),
                     AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f),
@@ -263,6 +264,7 @@ namespace ReDefinition.Atmospheres
                 BaseAmbient = r.Float("baseAmbient", 1f, 0f, 4f),
                 HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f),
                 Lift = ProfileCurve(r.Child("LIFT"), "lift"),
+                ShapeSmoothing = r.Float("shapeSmoothing", -1f, -1f, 8f),
                 Climate = Climate(r.Child("CLIMATE"))
             };
         }

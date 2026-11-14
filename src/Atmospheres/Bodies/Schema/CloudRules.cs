@@ -66,6 +66,10 @@ namespace ReDefinition.Atmospheres
         internal Curve Lift { get; set; }
         // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
+        // How far the shape noise is smoothed where this type is drawn (E40 L6 shape; cfg key shapeSmoothing, in noise scales; below 0: the layer's own, 0: not at all): see
+        // CloudLayerDef.ShapeSmoothing. A tall type (congestus) needs it, a flat sheet (stratocumulus) wants the volume's fine octaves for its lumps. The GPU reads it from the type
+        // info texture's alpha (LayerTypeTable.SmoothingOf).
+        internal float ShapeSmoothing { get; set; } = -1f;
 
         internal double LiftAt(double h)
         {
@@ -216,6 +220,11 @@ namespace ReDefinition.Atmospheres
         // rises in a cell is the same over the depth of the cloud, so the noise that decides where it stands must not change over that depth, or the bodies float at different heights and
         // the tops are slivers (E40 L5 shape). A deck (stratus, fog) keeps 1.
         internal float VerticalScale { get; set; }
+        // How far the layer's shape noise is smoothed (cfg key shapeSmoothing, in noise scales: the width of the box the shape volume is averaged over before it is read; 0: the volume
+        // as it is). The top of a cloud is where the shape noise crosses the type's rising threshold, so a top stands higher by the noise's swing over the threshold's slope, and the
+        // fine octaves of the volume (cone-shaped Worley peaks among them) turn into narrow spires that are a kilometre tall (E40 L6 shape). Averaged, those octaves are gone and the
+        // tops are rounded: the volume's mip chain, each level equalised again so that the share of the sky a map value covers does not move (NoiseVolumeSet.ShapeMips).
+        internal float ShapeSmoothing { get; set; }
         // The fibre axis of the layer (cfg keys fibreMinWindMs and fibreTurnSeconds): the wind below which the fibres keep to the body's pole, and the time the axis takes to turn to a
         // new wind (FibreAxis).
         internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;

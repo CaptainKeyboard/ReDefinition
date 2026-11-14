@@ -180,9 +180,9 @@ Shader "ReDefinition/AtmospheresLayers"
             return tex2Dlod(_TypeProfile, float4(u, v, 0, 0));
         }
 
-        float3 TypeInfo(int li, int type)
+        float4 TypeInfo(int li, int type)
         {
-            return tex2Dlod(_TypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / MAXL, 0, 0)).rgb;
+            return tex2Dlod(_TypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / MAXL, 0, 0));
         }
 
         // The density of layer li at a point (pc relative to the planet's centre, alt its altitude), distance t along the ray from the camera.
@@ -240,8 +240,9 @@ Shader "ReDefinition/AtmospheresLayers"
             ta = min(ta, (int)typeCount - 1);
             int tb = min(ta + 1, (int)typeCount - 1);
             float f = x2 - ta;
-            float3 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
+            float4 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
+            gNoiseSm = lerp(ia.w, ib.w, f);
             float erosionType = lerp(ia.z, ib.z, f);
             if (heightOn)
             {

@@ -66,6 +66,8 @@ namespace ReDefinition.Atmospheres
         private readonly double[] stretch = { 1.0, 1.0, 1.0, 1.0 };
         // The vertical scale of each layer's lattice (CloudLayerDef.VerticalScale; 0: the switch SphereScale, the body's key).
         private readonly double[] vertical = new double[CloudLayerDef.MaxLayers];
+        // How far each layer's shape noise is smoothed, in noise scales (CloudLayerDef.ShapeSmoothing; 0: not at all).
+        private readonly double[] smoothing = new double[CloudLayerDef.MaxLayers];
         // Each layer's fibre axis numbers (CloudLayerDef.FibreMinWindMs and FibreTurnSeconds).
         private readonly float[] minWind = { FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs };
         private readonly double[] turnSeconds = { FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds };
@@ -148,7 +150,7 @@ namespace ReDefinition.Atmospheres
             Destroy(shapeTexture);
             Destroy(detailTexture);
             Destroy(curlTexture);
-            shapeTexture = Make3D(set.ShapeN, TextureFormat.R8, set.Shape, "cloud noise shape");
+            shapeTexture = MakeShape3D(set);
             detailTexture = Make3D(set.DetailN, TextureFormat.R8, set.Detail, "cloud noise detail");
             curlTexture = Make3D(set.CurlN, TextureFormat.RGBA32, set.Curl, "cloud noise curl");
             GenerationMs = set.GenerationMs;
@@ -157,8 +159,26 @@ namespace ReDefinition.Atmospheres
             CloudSoftDensity.DetailMean = detailMean;
             // The shape volume alone stays on the CPU for the readers of the shape noise (CloudShadowShapeNoise: the cloud shadow's CPU twin, the sun dimming); the detail and curl
             // volumes are on the GPU only.
-            ShapeVolumes = new NoiseVolumeSet { ShapeN = set.ShapeN, Shape = set.Shape, DetailMean = set.DetailMean };
+            ShapeVolumes = new NoiseVolumeSet { ShapeN = set.ShapeN, Shape = set.Shape, ShapeMips = set.ShapeMips, DetailMean = set.DetailMean };
             VolumeBytes = (long)set.Shape.Length + set.Detail.Length + set.Curl.Length;
+        }
+
+        // The shape volume with its mip chain (the levels NoiseVolumeSet.ShapeMips holds, each equalised again), read trilinear so that a layer's smoothing (shapeSmoothing) can ask for a level
+        // between two.
+        private static Texture3D MakeShape3D(NoiseVolumeSet set)
+        {
+            int levels = set.ShapeMips != null ? set.ShapeMips.Length + 1 : 1;
+            var texture = new Texture3D(set.ShapeN, set.ShapeN, set.ShapeN, TextureFormat.R8, levels > 1)
+            {
+                name = "cloud noise shape",
+                filterMode = levels > 1 ? FilterMode.Trilinear : FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Repeat,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            texture.SetPixelData(set.Shape, 0);
+            for (int m = 1; m < levels; m++) texture.SetPixelData(set.ShapeMips[m - 1], m);
+            texture.Apply(false, true);
+            return texture;
         }
 
         private static Texture3D Make3D(int n, TextureFormat format, byte[] data, string name)
@@ -204,6 +224,12 @@ namespace ReDefinition.Atmospheres
         internal void SetVertical(int layer, double scale)
         {
             if (layer >= 0 && layer < vertical.Length) vertical[layer] = scale > 0.0 && !double.IsNaN(scale) ? scale : 0.0;
+        }
+
+        // How far a layer's shape noise is smoothed, in noise scales (0 or less: not at all; the cfg key shapeSmoothing).
+        internal void SetSmoothing(int layer, double scales)
+        {
+            if (layer >= 0 && layer < smoothing.Length) smoothing[layer] = scales > 0.0 && !double.IsNaN(scales) ? scales : 0.0;
         }
 
         // A layer's fibre axis numbers: the wind below which the fibres keep to the pole (m/s) and the time the axis takes to turn to a new wind (s; the cfg keys fibreMinWindMs and fibreTurnSeconds).
@@ -263,6 +289,25 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        private int ShapeSize()
+        {
+            return ShapeVolumes != null ? ShapeVolumes.ShapeN : NoiseSizes.ForLevel(Switches.SizeLevel).Shape;
+        }
+
+        // The mip level of the shape volume a layer reads without a type of its own (the CPU readers that do not know the type, the cloud shadow's twin): the volume's size where it is
+        // there, else the size of the switch's level.
+        private double ShapeLodOf(int layer)
+        {
+            return CloudShapeModel.SmoothingLod(smoothing[layer], ShapeSize());
+        }
+
+        // log2 of the voxels per noise scale of the shape volume (its size over the ShapePeriodScales scales it spans): the shader adds the log2 of a type's smoothing in scales to get the
+        // mip level (_NoiseT.w; CloudShapeModel.SmoothingLod is the same in double precision).
+        private float ShapeVoxelsLog2()
+        {
+            return (float)Math.Log(ShapeSize() / NoiseModel.ShapePeriodScales, 2.0);
+        }
+
         // The model parameters of a layer as the shader gets them (the CPU twin of the uniforms), for the tests and the CPU consumers.
         internal NoiseLayerParams LayerParams(int layer, double scaleM, double referenceRadiusM)
         {
@@ -278,6 +323,7 @@ namespace ReDefinition.Atmospheres
                 OffsetZ = bz - driftZ[layer],
                 Seed = NoiseSeeds.LayerSeed(Switches.Seed, layer),
                 SphereScale = vertical[layer] > 0.0 ? vertical[layer] : Switches.SphereScale,
+                ShapeLod = ShapeLodOf(layer),
                 NoDistanceLod = !Switches.DistanceLod,
                 NoFineDetail = !Switches.FineDetail,
                 DensityRemap = CloudLookTuning.DensityRemap,
@@ -303,7 +349,7 @@ namespace ReDefinition.Atmospheres
             material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, 0f, 0f));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
-            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? (float)NoiseModel.FineDetailWeight : 0f, (float)NoiseModel.FineDetailFrequency, CloudLookTuning.DensityRemap, 0f));
+            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? (float)NoiseModel.FineDetailWeight : 0f, (float)NoiseModel.FineDetailFrequency, CloudLookTuning.DensityRemap, ShapeVoxelsLog2()));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);

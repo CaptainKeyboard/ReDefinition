@@ -35,12 +35,14 @@ float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's f
                          // read in full / from which it is dropped (z = 0: LOD off), w the detail volume's mean (what the erosion reads once dropped)
 
 float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read, z layers.densityRemap (0: the erosion acts only in the soft edge),
-                         // w unused (0)
+                         // w log2 of the shape volume's voxels per noise scale (the mip level of a smoothing of s scales is log2(s) + w; E40 L6 shape)
 
 // 1 on the light path: no erosion there (the light march reads the shape only).
 static int gNoiseLod = 0;
 // The march's sample spacing in m at the current sample (set by the march per layer span; 0: unknown, no distance LOD).
 static float gNoiseFoot = 0;
+// The width in noise scales the shape volume is averaged over at the current sample (the type's shapeSmoothing from the type info texture's alpha, set by LayerDensity; 0: not at all; E40 L6 shape).
+static float gNoiseSm = 0;
 
 uint NzLow(uint x)
 {
@@ -124,7 +126,7 @@ float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float coverage, float edge, float amount, float erosion)
 {
     float3 q = NoiseLookup(li, pc, scale, flow);
-    float n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), 0)).r;
+    float n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), max(0.0, log2(max(gNoiseSm, 1e-4)) + _NoiseT.w))).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
     // _NoiseT.z (layers.densityRemap, default 0): the erosion also thins the interior of a closed deck; 0 leaves the interior at the share 1.
     if (s <= 0 || erosion <= 0 || gNoiseLod != 0) return s;

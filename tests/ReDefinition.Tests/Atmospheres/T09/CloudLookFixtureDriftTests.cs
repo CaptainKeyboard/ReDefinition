@@ -67,6 +67,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
             Assert.AreEqual(shipped.FibreStretch, fixture.FibreStretch, 1e-6f, n + " fibre stretch");
             Assert.AreEqual(shipped.VerticalScale, fixture.VerticalScale, 1e-6f, n + " vertical scale");
+            Assert.AreEqual(shipped.ShapeSmoothing, fixture.ShapeSmoothing, 1e-6f, n + " shape smoothing");
             Assert.AreEqual(shipped.FibreMinWindMs, fixture.FibreMinWindMs, 1e-6f, n + " fibre minimum wind");
             Assert.AreEqual(shipped.FibreTurnSeconds, fixture.FibreTurnSeconds, 1e-6f, n + " fibre turn time");
             Assert.AreEqual(shipped.LightIsotropy, fixture.LightIsotropy, 1e-6f, n + " light isotropy");
@@ -107,6 +108,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.HeadLight, f.HeadLight, 1e-6f, t + " head light");
                 Assert.AreEqual(s.BaseAmbient, f.BaseAmbient, 1e-6f, t + " base ambient");
                 Assert.AreEqual(s.HeadAmbient, f.HeadAmbient, 1e-6f, t + " head ambient");
+                Assert.AreEqual(s.ShapeSmoothing, f.ShapeSmoothing, 1e-6f, t + " shape smoothing");
                 Assert.AreEqual(s.Lift == null, f.Lift == null, t + " has a lift curve");
                 if (s.Lift != null)
                 {

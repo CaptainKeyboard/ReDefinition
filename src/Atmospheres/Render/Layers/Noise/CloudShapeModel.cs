@@ -27,6 +27,16 @@ namespace ReDefinition.Atmospheres
     {
         internal int ShapeN, DetailN, CurlN;
         internal byte[] Shape, Detail, Curl;
+        // The shape volume's mip chain without its first level (level m is ShapeMips[m - 1], of size ShapeN >> m): each level is the 2 x 2 x 2 mean of the one above, equalised again
+        // (NoiseVolumes.ShapeMips), so every level has the uniform spread of values the coverage threshold relies on. Null: none (a set made without the chain).
+        internal byte[][] ShapeMips;
+        // The number of levels of a volume of size n (down to 1 x 1 x 1).
+        internal static int MipLevels(int n)
+        {
+            int levels = 1;
+            while (n > 1) { n >>= 1; levels++; }
+            return levels;
+        }
         // The milliseconds the generation took.
         internal double GenerationMs;
         // The mean of the detail volume (0 to 1): what the erosion reads where the distance LOD has dropped the detail.
@@ -44,6 +54,7 @@ namespace ReDefinition.Atmospheres
                 Detail = NoiseVolumes.Detail(sizes.Detail, seed + NoiseVolumes.DetailSeedOffset),
                 Curl = NoiseVolumes.Curl(sizes.Curl, seed + NoiseVolumes.CurlSeedOffset)
             };
+            set.ShapeMips = NoiseVolumes.ShapeMips(set.Shape, set.ShapeN);
             long sum = 0;
             for (int i = 0; i < set.Detail.Length; i++) sum += set.Detail[i];
             set.DetailMean = sum / (255.0 * set.Detail.Length);
@@ -61,6 +72,8 @@ namespace ReDefinition.Atmospheres
         internal uint Seed;
         // P03: the vertical scale of the lattice about the layer's reference radius (1: planet-centred lattice, < 1: the lattice follows the sphere's angles).
         internal double SphereScale, ReferenceRadiusM;
+        // E40 L6 shape: the mip level of the shape volume the layer reads (LayerNoise.SmoothingLod from the cfg key shapeSmoothing; 0: the volume itself, between two levels the two are blended).
+        internal double ShapeLod;
         // P18: the distance the detail has risen along the local up (m).
         internal double UpDistanceM;
         // The distance the whole pattern has been carried by the flow map (m); the lookup moves the other way.
@@ -163,11 +176,29 @@ namespace ReDefinition.Atmospheres
             return acc / 255.0;
         }
 
+        // The mip level the shape volume is read at for a layer's smoothing: the box of `scales` noise scales over the volume's voxel (the volume spans ShapePeriodScales scales in
+        // `size` voxels); 0 below one voxel, and never past the last level.
+        internal static double SmoothingLod(double scales, int size)
+        {
+            if (!(scales > 0.0) || size < 2) return 0.0;
+            double voxels = scales * size / NoiseModel.ShapePeriodScales;
+            double lod = voxels > 1.0 ? Math.Log(voxels, 2.0) : 0.0;
+            return Math.Min(lod, NoiseVolumeSet.MipLevels(size) - 1);
+        }
+
         // The base shape noise at a lookup point (0 to 1).
         internal static double ShapeAt(NoiseVolumeSet set, ref NoiseLayerParams prm, double qx, double qy, double qz)
         {
             double period = NoiseModel.ShapePeriodScales * prm.ScaleM;
-            return Trilinear(set.Shape, set.ShapeN, 1, 0, qx / period, qy / period, qz / period);
+            double ux = qx / period, uy = qy / period, uz = qz / period;
+            if (!(prm.ShapeLod > 0.0) || set.ShapeMips == null || set.ShapeMips.Length == 0) return Trilinear(set.Shape, set.ShapeN, 1, 0, ux, uy, uz);
+            // The mip chain: the level below the asked one and the one above are read trilinear each and blended by the fraction (the GPU's trilinear filter).
+            double lod = Math.Min(prm.ShapeLod, set.ShapeMips.Length);
+            int below = (int)Math.Floor(lod);
+            double f = lod - below;
+            double a = below == 0 ? Trilinear(set.Shape, set.ShapeN, 1, 0, ux, uy, uz) : Trilinear(set.ShapeMips[below - 1], set.ShapeN >> below, 1, 0, ux, uy, uz);
+            if (f <= 0.0 || below >= set.ShapeMips.Length) return a;
+            return a + (Trilinear(set.ShapeMips[below], set.ShapeN >> (below + 1), 1, 0, ux, uy, uz) - a) * f;
         }
 
         // The erosion detail at a lookup point (0 to 1): the curl displaces the lookup, the rise of the detail moves it along the local up

@@ -24,6 +24,8 @@ namespace ReDefinition.WeatherPlayer
         public float baseLight = 1f, headLight = 1f, baseAmbient = 1f, headAmbient = 1f;
         // The type's height-shaped threshold (E40 L2 D1; the cfg node LIFT) sampled evenly over the type's height, at least two values; none: no lift.
         public float[] lift;
+        // The smoothing of the shape noise where the type is drawn, in noise scales (E40 L6 shape; the cfg key shapeSmoothing; below 0: the layer's).
+        public float shapeSmoothing = -1f;
     }
 
     [Serializable]
@@ -55,6 +57,7 @@ namespace ReDefinition.WeatherPlayer
         // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).
         public float verticalScale;
         // The smoothing of the shape noise in noise scales (E40 L6 shape; the cfg key shapeSmoothing; 0: none), the fibre axis numbers (the cfg keys fibreMinWindMs and fibreTurnSeconds)
+        public float shapeSmoothing;
         public float fibreMinWindMs = 0.5f, fibreTurnSeconds = 20f;
         // The layer's wind in world space (m/s; E40 L5 shape): the fibres lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
         public float[] wind;

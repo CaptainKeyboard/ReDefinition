@@ -114,6 +114,54 @@ namespace ReDefinition.Atmospheres
             for (int rank = 0; rank < order.Length; rank++) v[order[rank]] = (rank + 0.5) / order.Length;
         }
 
+        // The mip chain of the shape volume (levels 1 and below, E40 L6 shape): level m has size n >> m and each voxel is the mean of the 2 x 2 x 2 voxels of the level above, which is
+        // then equalised again (the rank over the level, equal means sharing their mean rank), so that every level, like the volume itself, has a uniform spread of values: a coverage
+        // threshold at the middle of the noise covers half the sky at any level. The averaging takes the fine octaves out (their cells are 4 voxels wide at 64^3, the volume's size at level 1).
+        internal static byte[][] ShapeMips(byte[] level0, int n)
+        {
+            var levels = new System.Collections.Generic.List<byte[]>();
+            byte[] above = level0;
+            for (int size = n; size > 1;)
+            {
+                int half = size / 2;
+                var mean = new double[half * half * half];
+                for (int z = 0; z < half; z++)
+                    for (int y = 0; y < half; y++)
+                        for (int x = 0; x < half; x++)
+                        {
+                            int sum = 0;
+                            for (int dz = 0; dz < 2; dz++)
+                                for (int dy = 0; dy < 2; dy++)
+                                    for (int dx = 0; dx < 2; dx++)
+                                        sum += above[((2 * z + dz) * size + 2 * y + dy) * size + 2 * x + dx];
+                            mean[(z * half + y) * half + x] = sum / 8.0;
+                        }
+                EqualizeTied(mean);
+                above = ToBytes(mean);
+                levels.Add(above);
+                size = half;
+            }
+            return levels.ToArray();
+        }
+
+        // Replaces each value by its rank over the volume (0 to 1, uniform) like Equalize, but values that are equal share the mean of their ranks (a coarse level has many equal means; ranking
+        // them in the order of the sort would paint the sort's order into the volume).
+        private static void EqualizeTied(double[] v)
+        {
+            var keys = (double[])v.Clone();
+            var order = new int[v.Length];
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+            Array.Sort(keys, order);
+            for (int start = 0; start < order.Length;)
+            {
+                int end = start + 1;
+                while (end < order.Length && keys[end] == keys[start]) end++;
+                double rank = (start + end - 1) * 0.5;
+                for (int k = start; k < end; k++) v[order[k]] = (rank + 0.5) / order.Length;
+                start = end;
+            }
+        }
+
         // The detail volume, n^3 bytes (R8).
         internal static byte[] Detail(int n, uint seed)
         {
