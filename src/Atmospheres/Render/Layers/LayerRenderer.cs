@@ -67,6 +67,10 @@ namespace ReDefinition.Atmospheres
         // interleaved gradient noise (lower temporal noise, a regular pattern). The owner's look decision between the two is pending.
         public bool SpanTight;
         public int DitherSequence = 2;
+        // E40 L2 E1: DitherPhase is the sequence of the frame's phase (StepPhase.Of: 1 the golden ratio, the default), DitherShift the gradient-noise pattern's shift per frame
+        // (StepPhase.Shift; 0: the pattern stands still).
+        public int DitherPhase = 1;
+        public float DitherShift;
         // E40 L2 package A2 (layers.dropEmpty): a layer whose coverage map holds no value that can lift its density above zero anywhere a ray of the frame (or a light
         // march from one) can reach is not marched: its tight outer altitude becomes -1 (LayerRenderer.TightenSpans). Exact, whatever SpanTight says. The compiled
         // value is off (the pass as it was); the product's is OwnCloudOptions'.
@@ -346,9 +350,10 @@ namespace ReDefinition.Atmospheres
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
-            // The golden-ratio phase of the frame in double precision (a float product loses the fraction at the frame counts of a long session).
-            double phase = f.FrameNumber * 0.6180339887498949;
-            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : 0f, Mathf.Clamp(f.DitherSequence, 1, 2), 0f));
+            // The phase of the frame (the golden-ratio sequence unless layers.ditherPhase says otherwise) in double precision (a float product loses the fraction at the frame
+            // counts of a long session), and the per-frame shift of the gradient-noise pattern (layers.ditherShift; 0: the pattern stands still).
+            double phase = StepPhase.Of(f.DitherPhase, f.FrameNumber);
+            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : 0f, Mathf.Clamp(f.DitherSequence, 1, 2), StepPhase.Shift(f.FrameNumber, f.DitherShift)));
             if (f.Light != null)
             {
                 for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;

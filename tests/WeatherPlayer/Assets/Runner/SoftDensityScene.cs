@@ -126,7 +126,9 @@ namespace ReDefinition.WeatherPlayer
         // E40 ground cost (series e40-gc-*): a case is a march name and modifiers joined by '+', every modifier the player's twin of a tuning key or setting:
         //   r<NN>     the march target's side over the full target's, NN / 100 (recon.resolution: r40 is 0.4)      jit    the per-frame sub-pixel jitter (recon.jitter 1)
         //   acc<NN>   the history weight, NN / 100 (recon.accumulate)                                              blk<N> the block level N of cloudResolution (no march history of its own)
-        //   ls<N>     layers.lightStride                lc<NNN>  layers.lightCutoff NNN / 1000                    ds<N> layers.ditherSequence
+        //   clip<NN>  the history's clip width in standard deviations, NN / 10 (the product: 10; clip1000 is no clip in practice)
+        //   dp<N>     layers.ditherPhase (1 golden, 2 van der Corput, 3 shuffled strata, 4 white, 5 golden per block)   sh<NN> layers.ditherShift NN / 100 (the gradient noise moves 5.588 x that per frame)
+        //   ls<N>     layers.lightStride              lc<NNN>  layers.lightCutoff NNN / 1000                    ds<N> layers.ditherSequence
         //   lq<N>     cloudLightQuality 0 Low, 1 Medium, 2 High (taps and octaves; without it the frame's own: 3 sun taps, 4 octaves)   sun<N> the frame's sun steps
         //   skip      cloudSkipEmpty (the tile pass)    skipc    cloudSkipClosed                                  leap<N> layers.emptyLeap
         //   drop      layers.dropEmpty (LayerFrame.DropEmpty: a layer whose map cannot reach the threshold anywhere in view is not marched; exact)
@@ -136,7 +138,8 @@ namespace ReDefinition.WeatherPlayer
         internal sealed class Case
         {
             public string Name, Base = "seq1";
-            public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f;
+            public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f, Shift;
+            public int Phase;
             public bool Jitter, Skip, SkipClosed, Drop;
             public int Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
         }
@@ -159,6 +162,9 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "drop") c.Drop = true;
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
+                else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
+                else if (t.StartsWith("dp")) c.Phase = Number(t, 2);
+                else if (t.StartsWith("sh")) c.Shift = Number(t, 2) / 100f;
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
                 else if (t.StartsWith("lc")) c.Cutoff = Number(t, 2) / 1000f;
                 else if (t.StartsWith("lq")) c.Quality = Number(t, 2);
@@ -183,7 +189,9 @@ namespace ReDefinition.WeatherPlayer
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
-            if (c.Dither >= 0) f.DitherSequence = c.Dither;
+            f.DitherSequence = c.Dither >= 0 ? c.Dither : FrameDefaults.DitherSequence;
+            f.DitherPhase = c.Phase > 0 ? c.Phase : FrameDefaults.DitherPhase;
+            f.DitherShift = c.Shift > 0f ? c.Shift : FrameDefaults.DitherShift;
             if (c.Debug >= 0) f.CostDebug = c.Debug;
             if (c.Leap > 0) f.EmptyLeap = c.Leap;
             f.SunSteps = c.Sun > 0 ? c.Sun : 3;
@@ -206,6 +214,7 @@ namespace ReDefinition.WeatherPlayer
             s.Resolution = c.Resolution;
             s.Jitter = c.Jitter;
             if (s.Accumulate > 0f) s.Accumulate = c.Accumulate;
+            if (c.ClipSigma >= 0f) s.ClipSigma = c.ClipSigma;
             return s;
         }
 

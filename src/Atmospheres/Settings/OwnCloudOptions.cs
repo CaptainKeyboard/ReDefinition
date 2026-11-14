@@ -48,6 +48,13 @@ namespace ReDefinition.Atmospheres
         // owner has seen both in the game (E40 step (c)).
         internal const string TuneDitherSequence = "layers.ditherSequence";
         internal const int DitherSequenceDefault = 2;
+        // E40 L2 E1: layers.ditherPhase (LayerFrame.DitherPhase; StepPhase.Of: 1 the golden-ratio sequence, the default; 2 the van der Corput sequence; 3 a random order of eight strata
+        // per block of eight frames; 4 a white phase per frame; 5 the golden sequence restarted at a random place every eight frames) and layers.ditherShift (LayerFrame.DitherShift:
+        // the gradient-noise pattern moves by this many times 5.588 pixels in x and y per frame; 0, the default: it stands still). Candidates against the static weave of the
+        // fixed pattern under the history (docs of the result: .local/plans/atmospheres/E40-weave-march-result.md).
+        internal const string TuneDitherPhase = "layers.ditherPhase", TuneDitherShift = "layers.ditherShift";
+        internal const int DitherPhaseDefault = StepPhase.Golden;
+        internal const float DitherShiftDefault = 0f;
         // E40 L2 package A2: layers.dropEmpty (LayerFrame.DropEmpty; 1, the default: a layer whose coverage map cannot lift its density above zero anywhere the frame's rays
         // or their light marches reach is not marched, an exact cut; 0: every layer is marched over its span as before). Independent of layers.spanTight.
         internal const string TuneDropEmpty = "layers.dropEmpty";
@@ -195,6 +202,8 @@ namespace ReDefinition.Atmospheres
             f.SpanTight = Tuning.Flag(TuneSpanTight, SpanTightDefault);
             f.DropEmpty = Tuning.Flag(TuneDropEmpty, DropEmptyDefault);
             f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 2);
+            f.DitherPhase = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherPhase, DitherPhaseDefault)), 1, StepPhase.Count);
+            f.DitherShift = Tuning.Get(TuneDitherShift, DitherShiftDefault);
             Apply(f.Cull, v);
         }
 

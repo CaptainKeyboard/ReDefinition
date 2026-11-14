@@ -66,7 +66,7 @@ Shader "ReDefinition/AtmospheresLayers"
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
         // for every pixel (a probe), 0: the product's per-pixel rotation. z the per-pixel offset (layers.ditherSequence): 1 an integer hash (white), 2 the interleaved
-        // gradient noise. w 0.
+        // gradient noise. w the argument of the gradient noise's own frame shift (layers.ditherShift): the pattern moves by 5.588 w pixels in x and y, 0: it stands still.
         float4 _DitherP;
         // The temporal reconstruction (package T05): the march target holds one pixel of every N x N block of the full target.
         float4 _ReconP;      // block size N (1: the target is the full target), the block offset x and y in full pixels, 0
@@ -360,7 +360,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // The step offset: the pixel keeps one offset (the interleaved gradient noise, a blue-noise pattern in space) and every frame adds the golden ratio to it
             // (Roberts 2018, the R1 sequence): any run of frames spreads its offsets evenly over the grid step, so the history of the pass integrates the step by
             // strata instead of by chance (the cloud's entry, its light at the sample's depth and the hit or miss of a thin rim all depend on that offset).
-            float jitterValue = frac((_DitherP.z < 1.5 ? DitherHash(pixel) : Ign(pixel, 0.0)) + _DitherP.x);
+            float jitterValue = frac((_DitherP.z < 1.5 ? DitherHash(pixel) : Ign(pixel, _DitherP.w)) + _DitherP.x);
             float jitter = lerp(0.5, jitterValue, _StepP.y);
             // The cone's rotation of the light taps (_DitherP.y 1: a fixed rotation, a probe): the same pattern at another place, advanced in time by the same
             // phase (T03v2).

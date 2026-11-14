@@ -11,6 +11,7 @@ src/Atmospheres/Render/Layers/Core/CloudWater.cs
 src/Atmospheres/Render/Layers/Core/CloudSoftDensity.cs
 src/Atmospheres/Render/Layers/LayerMapStore.cs
 src/Atmospheres/Render/Layers/LayerRenderer.cs
+src/Atmospheres/Render/Layers/StepPhase.cs
 src/Atmospheres/Eve/MapSlew.cs
 src/Common/**/WeatherMap.cs
 src/Common/**/IWeatherField.cs
