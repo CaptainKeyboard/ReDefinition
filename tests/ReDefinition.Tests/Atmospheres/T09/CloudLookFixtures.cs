@@ -72,7 +72,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         internal static CloudLayerDef Cumulonimbus()
         {
-            CloudLayerDef cb = Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f, 8000f, LayerKind.Weather,
+            CloudLayerDef cb = Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f, 5000f, LayerKind.Weather,
                 new CloudTypeDef("Cumulonimbus calvus", 0f, 0.7f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
                 new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f));
             cb.Deck = new WeatherDeckRule { Fog = false, PrecipType = 0f };
@@ -80,8 +80,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cb.LightAmbient = 0.8f;
             Light(cb.Types[0], 0.55f, 1.2f, 0.7f, 1f);
             Light(cb.Types[1], 0.55f, 1.15f, 0.7f, 1.05f);
-            cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.1f, 1f, 0.2f);
-            cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.2f, 0.7f, 0.2f, 0.9f, 0f, 1f, 0f);
+            cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.25f, 1f, 0.45f);
+            cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.35f, 0.7f, 0.35f, 0.9f, 0f, 1f, 0f);
             return cb;
         }
 
