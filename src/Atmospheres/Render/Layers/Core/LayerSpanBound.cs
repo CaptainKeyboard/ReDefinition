@@ -95,6 +95,11 @@ namespace ReDefinition.Atmospheres
         // MaxTexels.
         private static bool Window(int width, int height, double latDeg, double lonDeg, double regionDeg, out int y0, out int y1, out int xStart, out int columns)
         {
+            return Window(width, height, latDeg, lonDeg, regionDeg, MaxTexels, out y0, out y1, out xStart, out columns);
+        }
+
+        private static bool Window(int width, int height, double latDeg, double lonDeg, double regionDeg, int maxTexels, out int y0, out int y1, out int xStart, out int columns)
+        {
             double degPerRow = 180.0 / height, degPerCol = 360.0 / width;
             y0 = Math.Max(0, (int)Math.Floor((90.0 - (latDeg + regionDeg)) / degPerRow - 0.5) - 1);
             y1 = Math.Min(height - 1, (int)Math.Ceiling((90.0 - (latDeg - regionDeg)) / degPerRow - 0.5) + 1);
@@ -104,7 +109,7 @@ namespace ReDefinition.Atmospheres
             int xc = (int)Math.Floor((lonDeg + 180.0) / degPerCol);
             xStart = columns >= width ? 0 : xc - half;
             int rows = y1 - y0 + 1;
-            return rows > 0 && (long)rows * columns <= MaxTexels;
+            return rows > 0 && (long)rows * columns <= maxTexels;
         }
 
         // Widens e by the bytes of one height map (HeightMaps.Bytes: three bytes per texel, root, top, variation; a byte b is (b - 128) / 127 of the range).
@@ -146,6 +151,37 @@ namespace ReDefinition.Atmospheres
             if (!(minThicknessM > 0f)) return;
             downM = rootRangeM * Math.Max(0f, -e.RootMin) + variationRangeM * Math.Max(0f, -e.VariationMin) + 2f * raggedM;
             upM = rootRangeM * Math.Max(0f, e.RootMax) + variationRangeM * Math.Max(0f, e.VariationMax) + topRangeM * Math.Max(0f, e.TopMax) + 2f * raggedM + minThicknessM;
+        }
+
+        // Above this many texels the drop test does not scan (a camera in orbit): the layer stays. The scan runs only when a map was uploaded or the camera reached
+        // another texel, so the window may be larger than the span cut's.
+        internal const int DropMaxTexels = 60000;
+
+        // E40 L2 package A2 (layers.dropEmpty): true when NO texel of the layer's coverage map inside the cap can lift the layer's density above zero, i.e. the layer
+        // holds no cloud that any ray from the camera (or a light march of one) can meet. It is the shader's own coverage bound (LayerDensity: the shape is zero where
+        // map' + coverage - 1 + 0.5 amount + 0.5 edge <= 0, with map' = the clear-sky rule of the map value) taken over the largest byte of the window; the rule is
+        // monotone in the map value, so the largest byte gives the largest map'. Bilinear reads lie between the texels the window covers. False wherever in doubt (no
+        // map, a region of more than DropMaxTexels). No allocation.
+        internal static bool CoverageEmpty(byte[] coverageBytes, int width, int height, double latDeg, double lonDeg, double regionDeg, float clearSkyK, float coverage,
+                                           float noiseAmount, float edge, out int texels)
+        {
+            texels = 0;
+            if (coverageBytes == null || width < 2 || height < 2 || !(regionDeg >= 0.0)) return false;
+            int y0, y1, xStart, columns;
+            if (!Window(width, height, latDeg, lonDeg, regionDeg, DropMaxTexels, out y0, out y1, out xStart, out columns)) return false;
+            int covMax = 0;
+            for (int y = y0; y <= y1; y++)
+            {
+                int row = y * width;
+                for (int k = 0; k < columns; k++)
+                {
+                    int c = coverageBytes[row + ((xStart + k) % width + width) % width];
+                    if (c > covMax) covMax = c;
+                }
+            }
+            texels = (y1 - y0 + 1) * columns;
+            double cov = CloudLayerDef.ClearSky(covMax / 255f, clearSkyK);
+            return cov + coverage - 1.0 + 0.5 * noiseAmount + 0.5 * Math.Max(edge, 1e-4f) <= -1e-4;
         }
 
         // The bound of one layer. coverageBytes / typeBytes: the maps as uploaded (width x height, row 0 at the north pole, column 0 at longitude -180); latDeg and

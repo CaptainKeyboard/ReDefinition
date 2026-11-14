@@ -48,6 +48,10 @@ namespace ReDefinition.Atmospheres
         // owner has seen both in the game (E40 step (c)).
         internal const string TuneDitherSequence = "layers.ditherSequence";
         internal const int DitherSequenceDefault = 2;
+        // E40 L2 package A2: layers.dropEmpty (LayerFrame.DropEmpty; 1, the default: a layer whose coverage map cannot lift its density above zero anywhere the frame's rays
+        // or their light marches reach is not marched, an exact cut; 0: every layer is marched over its span as before). Independent of layers.spanTight.
+        internal const string TuneDropEmpty = "layers.dropEmpty";
+        internal const bool DropEmptyDefault = true;
 
         // The tuning keys of the light's look constants (T03); the compiled defaults are the fields of CloudLightSettings.
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
@@ -189,6 +193,7 @@ namespace ReDefinition.Atmospheres
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
             f.SpanTight = Tuning.Flag(TuneSpanTight, SpanTightDefault);
+            f.DropEmpty = Tuning.Flag(TuneDropEmpty, DropEmptyDefault);
             f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 2);
             Apply(f.Cull, v);
         }

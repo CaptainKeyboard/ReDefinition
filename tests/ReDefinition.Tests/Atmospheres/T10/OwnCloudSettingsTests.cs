@@ -471,6 +471,33 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
         }
 
+        // E40 L2 package A2: layers.dropEmpty is a default (a layer whose map cannot reach the threshold in view is not marched), off by its key; the compiled frame is the pass as it was.
+        [TestMethod]
+        public void TheDropEmptyKeyIsADefaultWithAKeyBack()
+        {
+            Tuning.ClearOverrides();
+            NextFrame();
+            var frame = new LayerFrame();
+            Assert.IsFalse(frame.DropEmpty);
+            Assert.AreEqual("layers.dropEmpty", OwnCloudOptions.TuneDropEmpty);
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.IsTrue(OwnCloudOptions.DropEmptyDefault);
+            Assert.AreEqual(OwnCloudOptions.DropEmptyDefault, frame.DropEmpty);
+            Tuning.SetOverride(OwnCloudOptions.TuneDropEmpty, 0f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.IsFalse(frame.DropEmpty);
+            // Independent of the span cut.
+            Tuning.SetOverride(OwnCloudOptions.TuneDropEmpty, 1f);
+            Tuning.SetOverride(OwnCloudOptions.TuneSpanTight, 0f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.IsTrue(frame.DropEmpty);
+            Assert.IsFalse(frame.SpanTight);
+            Tuning.ClearOverrides();
+            NextFrame();
+        }
+
         [TestMethod]
         public void ThePassDrawsOnlyWhereTheSwitchIsOnAndTheSourceIsOurs()
         {

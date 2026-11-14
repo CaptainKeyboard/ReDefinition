@@ -21,6 +21,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 
 import numpy as np
@@ -147,6 +148,19 @@ COST2_STAGES = [
 TEMPORAL2_STAGES = [
     ("temporal-r2-50", "ground,above,l4ground", "pr50", [c for c in R2_50 if c != "seq1"]),
     ("temporal-r2-100", "ground,l4ground", "pr100", R2_100),
+]
+
+
+# Package L2DROP (E40 L2 A2, e40-l2drop-*): layers.dropEmpty on and off in ONE run (the case modifier "drop" is LayerFrame.DropEmpty), the cost and the pictures. The pictures of a
+# case and of the same case with "drop" must be identical: collect_drop_compare prints the largest absolute difference of every pair of dumped frames.
+DROP_BASES = [B32, "seq1"]
+DROP_100 = [B24]
+DROPCOST_STAGES = [
+    ("cost-drop50", "ground,above,l4ground,l4above,l4empty", "pr50", DROP_BASES + on(B32, ["drop"]) + on("seq1", ["drop", "r33", "r33+drop"]) + on(B32, ["r33", "r33+drop"])),
+    ("cost-drop100", "ground,above,l4ground,l4above", "pr100", DROP_100 + on(B24, ["drop", "r33", "r33+drop"])),
+]
+DROPTEMPORAL_STAGES = [
+    ("temporal-drop50", "l4ground,l4above,l4empty", "pr50", [B32] + on(B32, ["drop"]) + ["seq1"] + on("seq1", ["drop"])),
 ]
 
 
@@ -341,7 +355,49 @@ def sheet(name, view, medium, labelled, tvc=True, tile=(1100, 619)):
     print(path)
 
 
+DROP_FRAME = re.compile(r"^gs-(?P<view>[a-z0-9]+)-(?P<medium>[a-z0-9]+)-(?P<scenario>[a-z]+)-(?P<case>.+)\+drop-(?P<mode>plain|acc20)-f(?P<frame>\d+)$")
+
+
+def drop_pairs(folder):
+    """(frame name with the drop, the same frame without it) for every dumped frame of a case run with 'drop' and without."""
+    pairs = []
+    for fn in sorted(os.listdir(folder)):
+        if not fn.endswith(".npy"):
+            continue
+        name = fn[:-4]
+        m = DROP_FRAME.match(name)
+        if m:
+            plain = "gs-%s-%s-%s-%s-%s-f%s" % (m.group("view"), m.group("medium"), m.group("scenario"), m.group("case"), m.group("mode"), m.group("frame"))
+            if os.path.isfile(os.path.join(folder, plain + ".npy")):
+                pairs.append((name, plain))
+    return pairs
+
+
+def collect_drop_compare(ctx):
+    """The pictures with layers.dropEmpty against the same case without it: the largest absolute difference of the half floats over every pair of frames (exact: 0)."""
+    metrics = collect_temporal(ctx, DROPTEMPORAL_STAGES, os.path.join(BUILD, "e40l2drop-temporal-results.json"))
+    worst, lines = 0.0, ["E40-L2DROP: frames with layers.dropEmpty against the same case without it (max abs difference over RGBA of the half floats; 0 = identical)"]
+    for label, _, _, _ in DROPTEMPORAL_STAGES:
+        folder = ctx.folder(label)
+        for dropped, plain in drop_pairs(folder):
+            a = np.load(os.path.join(folder, dropped + ".npy")).astype(np.float64)
+            b = np.load(os.path.join(folder, plain + ".npy")).astype(np.float64)
+            diff = float(np.abs(a - b).max()) if a.shape == b.shape else float("inf")
+            worst = max(worst, diff)
+            lines.append("   %-70s max abs diff %.8f" % (dropped, diff))
+            metrics.append(Metric.info("e40l2drop.diff." + dropped.replace("+", "_"), diff))
+    lines.append("   pairs %d, worst %.8f" % (len(lines) - 1, worst))
+    metrics.append(Metric.info("e40l2drop.diff.worst", worst))
+    print("\n".join(lines))
+    with open(os.path.join(BUILD, "e40l2drop-compare.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    return metrics
+
+
 ensure_inputs()
+register_series("e40-l2drop-cost", [cost_stage(*s) for s in DROPCOST_STAGES],
+                lambda ctx: collect_cost(ctx, DROPCOST_STAGES, os.path.join(BUILD, "e40l2drop-cost-results.json")), exclusive=True, who="e40-gc")
+register_series("e40-l2drop-temporal", [temporal_stage(*s) for s in DROPTEMPORAL_STAGES], collect_drop_compare, exclusive=False, who="e40-gc")
 register_series("e40-gc-cost", [cost_stage(*s) for s in COST_STAGES], collect_cost, exclusive=True, who="e40-gc")
 register_series("e40-gc-temporal", [temporal_stage(*s) for s in TEMPORAL_STAGES], collect_temporal, exclusive=False, who="e40-gc")
 register_series("e40-gc2-cost", [cost_stage(*s) for s in COST2_STAGES], lambda ctx: collect_cost(ctx, COST2_STAGES, os.path.join(BUILD, "e40gc2-cost-results.json")),
@@ -353,7 +409,7 @@ register_series("e40-gc2-temporal", [temporal_stage(*s) for s in TEMPORAL2_STAGE
 def selftest():
     for cases in (LEVERS50, LEVERS100, ATTR):
         assert len(set(cases)) == len(cases), "a case twice"
-    for label, views, media, cases in COST_STAGES + TEMPORAL_STAGES + COST2_STAGES + TEMPORAL2_STAGES:
+    for label, views, media, cases in COST_STAGES + TEMPORAL_STAGES + COST2_STAGES + TEMPORAL2_STAGES + DROPCOST_STAGES + DROPTEMPORAL_STAGES:
         assert len(set(cases)) == len(cases), label
         assert all(v in VIEWS for v in views.split(",")), label
         assert all("," not in c for c in cases)

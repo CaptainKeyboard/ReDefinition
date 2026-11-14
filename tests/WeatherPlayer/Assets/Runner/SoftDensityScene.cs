@@ -129,6 +129,7 @@ namespace ReDefinition.WeatherPlayer
         //   ls<N>     layers.lightStride                lc<NNN>  layers.lightCutoff NNN / 1000                    ds<N> layers.ditherSequence
         //   lq<N>     cloudLightQuality 0 Low, 1 Medium, 2 High (taps and octaves; without it the frame's own: 3 sun taps, 4 octaves)   sun<N> the frame's sun steps
         //   skip      cloudSkipEmpty (the tile pass)    skipc    cloudSkipClosed                                  leap<N> layers.emptyLeap
+        //   drop      layers.dropEmpty (LayerFrame.DropEmpty: a layer whose map cannot reach the threshold anywhere in view is not marched; exact)
         //   lm<N>     the layers that are marched, bit i = layer i (0: all; a measurement of what dropping the empty layers before the march would save)
         //   dbg<N>    the cost debug mask (1 no light, 2 no shape noise, 4 no erosion; not a picture of the product)
         // The base is seq1 (the product's grid march with the 48 points of the High setting), seq1m<N> and tseq1m<N> (N grid points, the second on the cut span) or a GrainTable name.
@@ -136,7 +137,7 @@ namespace ReDefinition.WeatherPlayer
         {
             public string Name, Base = "seq1";
             public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f;
-            public bool Jitter, Skip, SkipClosed;
+            public bool Jitter, Skip, SkipClosed, Drop;
             public int Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
         }
 
@@ -155,6 +156,7 @@ namespace ReDefinition.WeatherPlayer
                 if (t == "jit") c.Jitter = true;
                 else if (t == "skip") c.Skip = true;
                 else if (t == "skipc") c.SkipClosed = true;
+                else if (t == "drop") c.Drop = true;
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
                 else if (t.StartsWith("lc")) c.Cutoff = Number(t, 2) / 1000f;
@@ -185,6 +187,7 @@ namespace ReDefinition.WeatherPlayer
             if (c.Leap > 0) f.EmptyLeap = c.Leap;
             f.SunSteps = c.Sun > 0 ? c.Sun : 3;
             f.LayerMask = c.Mask;
+            f.DropEmpty = c.Drop;
             f.Cull.SkipEmpty = c.Skip;
             f.Cull.SkipClosed = c.SkipClosed;
             CloudLightSettings q = c.Quality >= 0 ? CloudLightSettings.ForQuality(c.Quality) : LightDefaults;
