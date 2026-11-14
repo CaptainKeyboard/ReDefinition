@@ -192,6 +192,19 @@ namespace ReDefinition.Atmospheres
         // global fit). Ice crystals scatter far more to the sides and back than a water drop does, which is why a thin cirrus sheet is bright seen from above; the shader's
         // _LightL.w carries it (CloudLightSettings.LayerIsotropy). The lit kinds (Weather) have the octaves' own isotropic share and ignore it.
         internal float LightIsotropy { get; set; }
+        // The side and back plateau of a Cheap or Fog layer's phase function, in units of the isotropic phase (cfg key lightPlateau, 0 = none; the shader's _LightM.z), added to the lobes of
+        // the global fit after lightIsotropy has taken its share. An ice crystal scatters far more to the sides and back than the drop of the global fit (whose phase is 0.17 of the
+        // isotropic one at 120 degrees) and keeps its forward lobe: the isotropic share alone gives the plateau only by taking the forward lobe away in the same measure
+        // (E40 L6 light, the cirrus sweep: lightIsotropy 0.5 to 1 made a veil seen from above brighter by 37 % and the same veil toward the sun dimmer by 52 %).
+        internal float LightPlateau { get; set; }
+        // The sky's light inside the clouds of a lit (Weather) layer (cfg keys ambientMs and ambientDecay; E40 L6 light). The sky's irradiance enters a cloud at its top and diffuses
+        // in it like the sun's, so a thick cloud returns most of it at the top and passes a share of it to the base. The sky's isotropic source at a sample gets the addition
+        // AmbientMs / (1 + AmbientDecay tau), tau the optical depth to the top of the cloud (the shader's _LightM). AmbientDecay is the two-stream's 0.75 (1 - g) for the layer's
+        // droplets or crystals (g 0.85: 0.11). AmbientMs is the amplification of the source at the surface by the multiple scattering (the octaves of the light model: 1 + ms
+        // sum b^n = 3.97 for the sun's light), taken a little lower (3.5) so that the top of a thick slab is on the two-stream's reflection and the base under it. 0: none.
+        internal const float DefaultAmbientMs = 3.5f, DefaultAmbientDecay = 0.11f;
+        internal float AmbientMs { get; set; } = DefaultAmbientMs;
+        internal float AmbientDecay { get; set; } = DefaultAmbientDecay;
         // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
         internal float RainType { get; set; } = 1f;
         // How much longer the layer's noise features are along the planet's axis than across it (cfg key fibreStretch, 1 and above; 1: isotropic): the lookup is compressed along the

@@ -46,6 +46,10 @@ namespace ReDefinition.WeatherPlayer
         public float[] drift;
         // The soft water content's per-layer numbers and the layer's light response (E40; the cfg keys softnessScale, waterPower, lightAmbient).
         public float softnessScale = 1f, waterPower = 2f, lightAmbient = 1f, lightIsotropy;
+        // The sky's light inside a lit layer's clouds (E40 L6 light; the cfg keys ambientMs and ambientDecay); below zero: CloudLayerDef's defaults.
+        public float ambientMs = -1f, ambientDecay = -1f;
+        // The side and back plateau of a Cheap or Fog layer's phase (the cfg key lightPlateau; 0: none).
+        public float lightPlateau;
         // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
         public float fibreStretch = 1f;
         // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).

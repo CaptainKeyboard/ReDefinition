@@ -115,6 +115,7 @@ namespace ReDefinition.Atmospheres
         // Each layer's light response (CloudLayerDef.LightAmbient; the shader's _LightL.x and .y stay 1), handed to the light settings of the frame (E40 B3).
         private readonly Vector3[] layerLight = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
         private readonly float[] layerIsotropy = new float[CloudLayerDef.MaxLayers];
+        private readonly Vector3[] layerSkyMs = new Vector3[CloudLayerDef.MaxLayers];
         private RenderTexture target;
         private CommandBuffer commands;
         private Camera attached;
@@ -250,6 +251,7 @@ namespace ReDefinition.Atmospheres
                 layerE[l] = Vector4.zero;
                 layerLight[l] = new Vector3(1f, 1f, layer.LightAmbient);
                 layerIsotropy[l] = layer.LightIsotropy;
+                layerSkyMs[l] = new Vector3(layer.AmbientMs, layer.AmbientDecay, layer.LightPlateau);
                 HeightTuning height = source.Heights.TuningOf(l);
                 HeightMaps heightMaps = source.Heights.MapsOf(l);
                 layerH[l] = height == null ? Vector4.zero
@@ -353,6 +355,7 @@ namespace ReDefinition.Atmospheres
             {
                 for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;
                 for (int l = 0; l < layerIsotropy.Length && l < f.Light.LayerIsotropy.Length; l++) f.Light.LayerIsotropy[l] = l < layerCount ? layerIsotropy[l] : 0f;
+                for (int l = 0; l < layerSkyMs.Length && l < f.Light.LayerM.Length; l++) f.Light.LayerM[l] = l < layerCount ? layerSkyMs[l] : Vector3.zero;
                 f.Light.Upload(m);
             }
             if (f.Far != null) f.Far.Upload(m);

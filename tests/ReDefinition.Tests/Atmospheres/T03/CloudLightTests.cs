@@ -170,6 +170,42 @@ namespace ReDefinition.Tests
         {
             Assert.AreEqual(0.03 * 3.0 / (4.0 * Math.PI), CloudLightMath.AmbientFloor(0.03, 3.0), 1e-12);
         }
+
+        // E40 L6 light: the sky's light that has diffused into the cloud follows the two-stream slab. A uniform slab of optical depth tau lit by a sky of radiance 1 returns, at the top, a
+        // radiance of R = 1 - T (T = 1 / (1 + 0.11 tau)) and passes T of it to the base; the model's source (the occlusion plus SkyDiffusion, the gain 1/4 of an isotropic source) marched
+        // like the shader does it lies within 25 % of the top's R and 25 % of the base's T for tau 25 to 200 (the python mirror, light_slab_check.py table, has the same numbers).
+        [TestMethod]
+        public void TheSkysDiffusionReturnsTheTwoStreamReflectionAtTheTopAndPassesItsTransmissionToTheBase()
+        {
+            const double ms = 3.5, decay = 0.11, occlusion = 1.2765, height = 1200.0, viewSin = 0.7986;
+            foreach (double tau in new[] { 25.0, 60.0, 100.0, 200.0 })
+            {
+                double sigma = tau / height;
+                double top = SlabRadiance(sigma, height, viewSin, false, ms, decay, occlusion), bottom = SlabRadiance(sigma, height, viewSin, true, ms, decay, occlusion);
+                double t = 1.0 / (1.0 + decay * tau);
+                Assert.AreEqual(1.0 - t, top, 0.25 * (1.0 - t) + 0.02, "top of tau " + tau);
+                Assert.AreEqual(t, bottom, 0.25 * t + 0.002, "base of tau " + tau);
+            }
+            Assert.AreEqual(3.5, CloudLightMath.SkyDiffusion(0.0, 3.5, 0.11), 1e-12);
+            Assert.AreEqual(0.0, CloudLightMath.SkyDiffusion(10.0, 0.0, 0.11), 1e-12);
+        }
+
+        // The radiance of a ray through a uniform slab (extinction sigma, height h) under a sky of radiance one: the source is the sky's isotropic source 1 / 4 times the occlusion
+        // exp(-occlusion tau) plus SkyDiffusion at the optical depth tau to the slab's top, marched with the energy-conserving step; up: the camera below, looking at the base.
+        private static double SlabRadiance(double sigma, double h, double viewSin, bool up, double ms, double decay, double occlusion)
+        {
+            const int n = 400;
+            double ds = h / n / viewSin, trans = 1.0, acc = 0.0;
+            for (int i = 0; i < n; i++)
+            {
+                double x = (i + 0.5) / n, z = (up ? x : 1.0 - x) * h;
+                double tu = sigma * (h - z), ext = 1.0 - Math.Exp(-sigma * ds);
+                double source = 0.25 * (Math.Exp(-tu * occlusion) + CloudLightMath.SkyDiffusion(tu, ms, decay));
+                acc += trans * source * ext;
+                trans *= 1.0 - ext;
+            }
+            return acc;
+        }
     }
 
     [TestClass]

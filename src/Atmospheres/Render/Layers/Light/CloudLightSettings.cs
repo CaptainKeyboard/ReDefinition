@@ -49,6 +49,10 @@ namespace ReDefinition.Atmospheres
         // The gain of the sky radiance as an isotropic source: a scatterer lit by the whole hemisphere of radiance L has the source pi L / (4 pi) = L / 4
         // (T03v2: the earlier fit ended at 0.2447, next to the lower wall 0.2 of its range, for this reason; the physical value is set and no longer fitted).
         public float AmbientGain = 0.25f;
+        // Per layer (E40 L6 light; the shader's _LightM): x the sky's light inside the clouds (amplitude), y its decay with the optical depth to the cloud's top (the layers' cfg keys
+        // ambientMs and ambientDecay, see CloudLayerDef.AmbientMs), z the plateau of a Cheap or Fog layer's phase (cfg key lightPlateau). All zero for a settings object nobody fills:
+        // the harness's parity cells have none of the three in their reference.
+        public readonly Vector3[] LayerM = new Vector3[CloudLayerDef.MaxLayers];
         // How the occlusion reads what lies above: false (default) from the local density and the layer's remaining height, with no taps; true: UpSteps taps
         // straight up (the earlier path, kept as a switch for the cost table; 0.9 to 2.4 ms more at 1707 x 960).
         public bool AmbientOcclusionTaps;
@@ -114,9 +118,10 @@ namespace ReDefinition.Atmospheres
                 LightR = Shader.PropertyToID("_LightR"), LightS = Shader.PropertyToID("_LightS"), LightT = Shader.PropertyToID("_LightT"),
                 LightL = Shader.PropertyToID("_LightL"), MoonDir = Shader.PropertyToID("_MoonDir"), MoonCol = Shader.PropertyToID("_MoonCol"),
                 BoltPos = Shader.PropertyToID("_BoltPos"), BoltCol = Shader.PropertyToID("_BoltCol"), CellA = Shader.PropertyToID("_CellA"),
-                CellB = Shader.PropertyToID("_CellB"), LightU = Shader.PropertyToID("_LightU"), SunAir = Shader.PropertyToID("_SunAir"), LightV = Shader.PropertyToID("_LightV"), PhaseP = Shader.PropertyToID("_PhaseP");
+                CellB = Shader.PropertyToID("_CellB"), LightU = Shader.PropertyToID("_LightU"), SunAir = Shader.PropertyToID("_SunAir"), LightV = Shader.PropertyToID("_LightV"), LightM = Shader.PropertyToID("_LightM"), PhaseP = Shader.PropertyToID("_PhaseP");
         }
 
+        private readonly Vector4[] layerM = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] layerL = new Vector4[CloudLayerDef.MaxLayers], moonDir = new Vector4[MaxLights], moonCol = new Vector4[MaxLights],
             boltPos = new Vector4[MaxBolts], boltCol = new Vector4[MaxBolts];
 
@@ -153,6 +158,12 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.SunAir, new Vector4(SunAirTau.x, SunAirTau.y, SunAirTau.z, Mathf.Max(SunAirHeightM, 0f)));
             m.SetVector(Ids.LightU, new Vector4(Mathf.Max(Diffusion, 0f), Mathf.Max(DiffusionTau, 0.01f), Mathf.Clamp01(MsIsotropy), SunAirWhiteBalance ? 1f : 0f));
             m.SetVector(Ids.LightV, new Vector4(Mathf.Max(DiffusionDecay, 0f), AmbientColumnToTypeTop ? 1f : 0f, Mathf.Max(SunAirMieTau, 0f), Mathf.Max(SunAirMieHeightM, 1f)));
+            for (int i = 0; i < layerM.Length; i++)
+            {
+                Vector3 k = i < LayerM.Length ? LayerM[i] : Vector3.zero;
+                layerM[i] = new Vector4(Mathf.Max(k.x, 0f), Mathf.Max(k.y, 0f), Mathf.Max(k.z, 0f), 0f);
+            }
+            m.SetVectorArray(Ids.LightM, layerM);
             for (int i = 0; i < layerL.Length; i++)
             {
                 Vector3 s = i < LayerScale.Length ? LayerScale[i] : Vector3.one;

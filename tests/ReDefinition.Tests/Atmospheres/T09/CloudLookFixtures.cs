@@ -64,7 +64,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Light(cumulus.Types[0], 1f, 1f, 0.9f, 1f);
             Light(cumulus.Types[1], 1f, 1f, 0.9f, 1f);
             Light(cumulus.Types[2], 1f, 1f, 0.85f, 1f);
-            Light(cumulus.Types[3], 1f, 1.25f, 0.8f, 1f);
+            Light(cumulus.Types[3], 1f, 1.2f, 0.8f, 1f);
             // The types' height-shaped threshold (cfg node LIFT, E40 L2 D1).
             cumulus.Types[0].Lift = C(0f, 0f, 0.5f, 0f, 1f, 0.1f);
             cumulus.Types[1].Lift = C(0f, 0f, 0.3f, 0f, 0.7f, 0.08f, 1f, 0.2f);
@@ -115,7 +115,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cirrus.Types[1].DensityScale = 4f;
             cirrus.LightAmbient = 1.3f;
             cirrus.LightIsotropy = 0.5f;
-            Light(cirrus.Types[0], 1f, 1.15f, 1f, 1f);
+            cirrus.LightPlateau = 0.5f;
+            Light(cirrus.Types[0], 1f, 1f, 1f, 1f);
             cirrus.SoftnessScale = 2f;
             cirrus.WaterPower = 1f;
             cirrus.FibreStretch = 6f;

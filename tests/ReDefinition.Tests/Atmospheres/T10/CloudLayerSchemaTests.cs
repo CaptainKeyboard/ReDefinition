@@ -260,6 +260,28 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.5f, built.LightIsotropy, 1e-6f);
         }
 
+        // E40 L6 light: the sky's light inside the clouds of a lit layer (ambientMs, ambientDecay) is a layer key with the two-stream defaults.
+        [TestMethod]
+        public void TheSkysDiffusionReadsFromTheLayerNodeAndDefaultsToTheTwoStreamValues()
+        {
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;ambientMs = 2;ambientDecay = 0.2;lightPlateau = 0.6;" + GoodType + "}"
+                + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
+            Assert.AreEqual(2f, a.AmbientMs, 1e-6f);
+            Assert.AreEqual(0.2f, a.AmbientDecay, 1e-6f);
+            Assert.AreEqual(CloudLayerDef.DefaultAmbientMs, b.AmbientMs);
+            Assert.AreEqual(CloudLayerDef.DefaultAmbientDecay, b.AmbientDecay);
+            CloudLayerDef built = a.Build(1);
+            Assert.AreEqual(2f, built.AmbientMs, 1e-6f);
+            Assert.AreEqual(0.2f, built.AmbientDecay, 1e-6f);
+            Assert.AreEqual(0.6f, a.LightPlateau, 1e-6f);
+            Assert.AreEqual(0f, b.LightPlateau);
+            Assert.AreEqual(0.6f, built.LightPlateau, 1e-6f);
+            // The decay is the two-stream's 0.75 (1 - g) of the droplets' asymmetry g = 0.85.
+            Assert.AreEqual(0.75f * (1f - 0.85f), CloudLayerDef.DefaultAmbientDecay, 0.005f);
+        }
+
         // E40 L2 D1: the type's height-shaped threshold (LIFT, a curve like PROFILE) and the layer's fibre stretch.
         [TestMethod]
         public void TheShapeKeysReadFromTheTypeAndLayerNodesAndDefaultToNone()

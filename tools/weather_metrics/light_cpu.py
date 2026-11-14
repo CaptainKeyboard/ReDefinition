@@ -22,7 +22,8 @@ class Params(object):
     """The light's numbers; the names are the jobs' (light.py MODEL)."""
     DEFAULTS = dict(forwardG=0.85, backG=-0.3, forwardWeight=0.92, albedo=0.999, octaves=4, octaveA=0.3081, octaveB=0.5482, octaveC=0.898,
                     msBrightness=2.9358, diffusion=2.0, diffusionTau=25.0, powder=0.8075, powderLength=400.0, ambientFloor=0.05,
-                    ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.25, sunSteps=4, tapRatio=2.0, msIsotropy=0.7552, diffusionDecay=0.08)
+                    ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.25, sunSteps=4, tapRatio=2.0, msIsotropy=0.7552, diffusionDecay=0.08,
+                    ambientMs=0.0, ambientDecay=0.11)    # the sky's diffusion in the cloud (E40 L6 light; layer keys ambientMs / ambientDecay): 0 here, the parity cells have none
 
     def __init__(self, **kw):
         self.__dict__.update(self.DEFAULTS)
@@ -179,7 +180,7 @@ def render(p, cell, cam, sun, sky_top, sky_bottom, steps=128, sun_col=SUN_E, sun
             tu = dens * np.maximum(cell.outer - alt, 0.0)
             open_ = np.exp(-tu * p.ambientOcclusion)
             floor = max(p.ambientFloor, 0.0301) * (sc if np.isscalar(sc) else sc) * INV4PI
-            amb = np.maximum(sky * open_ * p.albedo, floor)
+            amb = np.maximum((sky * open_ + sky_top * p.ambientGain * p.ambientMs / (1.0 + p.ambientDecay * tu)) * p.albedo, floor)
             src = direct * powder * p.albedo + amb
             add = np.where(active, T * src * ext, 0.0)
             rad += add

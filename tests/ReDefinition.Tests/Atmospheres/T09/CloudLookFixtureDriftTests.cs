@@ -68,6 +68,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.FibreStretch, fixture.FibreStretch, 1e-6f, n + " fibre stretch");
             Assert.AreEqual(shipped.VerticalScale, fixture.VerticalScale, 1e-6f, n + " vertical scale");
             Assert.AreEqual(shipped.LightIsotropy, fixture.LightIsotropy, 1e-6f, n + " light isotropy");
+            Assert.AreEqual(shipped.LightPlateau, fixture.LightPlateau, 1e-6f, n + " light plateau");
+            Assert.AreEqual(shipped.AmbientMs, fixture.AmbientMs, 1e-6f, n + " sky diffusion amplitude");
+            Assert.AreEqual(shipped.AmbientDecay, fixture.AmbientDecay, 1e-6f, n + " sky diffusion decay");
             Assert.AreEqual(shipped.Group, fixture.Group, n + " group");
             Assert.AreEqual(shipped.Kind, fixture.Kind, n + " kind");
             Assert.AreEqual(shipped.Deck == null, fixture.Deck == null, n + " deck rule present");

@@ -27,6 +27,7 @@ float4 _LightT;   // bolt count, sun tap count override (0: the march's own), li
 float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is); the aerosol component is _LightV.zw
 float4 _LightU;   // diffusion share (light that has diffused into the deep core, isotropic, as a share of the sun's isotropic light), its optical depth scale, isotropic share of the octaves above the first
 float4 _LightV;   // diffusion decay with the optical depth towards the light (0: the saturating term), the analytic occlusion's column ends at the cloud type's top (1) or at the layer's outer altitude (0), the sun air's second component (grey extinction along the zenith path at sea level, scale height in m)
+float4 _LightM[4];  // per layer (E40 L6 light): x, y the sky's light inside the clouds (amplitude in shares of the sky's isotropic source at the surface, decay with the optical depth below the top; two-stream: 1 / (1 + decay tau)), z the side and back plateau of a Cheap or Fog layer's phase (ice) in units of the isotropic phase, added to the water drop's lobes
 float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, isotropic share of the Cheap and Fog kinds' single scattering (ice crystals, E40 look round 2)
 float4 _MoonDir[2], _MoonCol[2];   // towards the light; colour times intensity (rgb, 0: off)
 float4 _BoltPos[4], _BoltCol[4];   // planet frame position and range (w); colour times intensity
@@ -282,7 +283,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     float3 sky = lerp(_AmbientBottom.rgb, _AmbientTop.rgb, saturate(share));
     float l = Luma(sky);
     sky = lerp(l.xxx, sky, _LightR.z) * _LightS.z * _LightL[li].z;
-    float open = 1.0;
+    float open = 1.0, skyMs = 0;
     tauUpOut = 0;
     if (_LightQ.w > 0)
     {
@@ -306,12 +307,14 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
         }
         tauUpOut = tu;
         open = exp(-tu * _LightQ.w);
+        skyMs = _LightM[li].x / (1.0 + _LightM[li].y * tu);   // the sky's light that has diffused into the cloud: the two-stream's transmission of the column above
     }
     // The floor is a share of the isotropic light of all lights, so a night lit by a moon is not black either.
     float lightLuma = Luma(sunCol) + Luma(_MoonCol[0].rgb) + Luma(_MoonCol[1].rgb);
     float3 floorLight = _LightQ.z * lightLuma * LIGHT_INV4PI;
     dirPart = direct * powder * _PhaseP.w;
-    ambPart = max(sky * open * _PhaseP.w, floorLight.xxx);
+    float3 skyTop = lerp(Luma(_AmbientTop.rgb).xxx, _AmbientTop.rgb, _LightR.z) * _LightS.z * _LightL[li].z;   // the diffused light came in at the top: the sky above, not the local gradient
+    ambPart = max((sky * open + skyTop * skyMs) * _PhaseP.w, floorLight.xxx);
     return dirPart + ambPart + BoltLight(pc) * _PhaseP.w;
 }
 #endif

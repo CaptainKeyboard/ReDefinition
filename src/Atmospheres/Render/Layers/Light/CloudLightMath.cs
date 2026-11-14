@@ -144,6 +144,14 @@ namespace ReDefinition.Atmospheres
             return (1.0 - Math.Exp(-tau / Math.Max(tauScale, 1e-3))) / (1.0 + Math.Max(decay, 0.0) * tau);
         }
 
+        // The share of the sky's isotropic source that a sample gets from the sky's light that has diffused into the cloud (E40 L6 light; mirrors LightSource of the shader): the
+        // amplitude ms at the top falls with the optical depth tau to the cloud's top by 1 / (1 + decay tau), the two-stream transmission of a slab (decay = 0.75 (1 - g), 0.11 for
+        // g 0.85). It is added to the occlusion's exp(-occlusion tau), the first optical depth's share of the sky light.
+        internal static double SkyDiffusion(double tau, double ms, double decay)
+        {
+            return Math.Max(ms, 0.0) / (1.0 + Math.Max(decay, 0.0) * Math.Max(tau, 0.0));
+        }
+
         // The powder factor: 1 - exp(-2 sigma L) blended in by strength.
         internal static double Powder(double density, double lengthM, double strength)
         {

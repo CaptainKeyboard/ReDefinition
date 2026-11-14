@@ -59,7 +59,10 @@ namespace ReDefinition.WeatherPlayer
                     LightAmbient = jl.lightAmbient,
                     FibreStretch = jl.fibreStretch,
                     VerticalScale = jl.verticalScale,
-                    LightIsotropy = jl.lightIsotropy
+                    LightIsotropy = jl.lightIsotropy,
+                    LightPlateau = jl.lightPlateau,
+                    AmbientMs = jl.ambientMs >= 0f ? jl.ambientMs : CloudLayerDef.DefaultAmbientMs,
+                    AmbientDecay = jl.ambientDecay >= 0f ? jl.ambientDecay : CloudLayerDef.DefaultAmbientDecay
                 };
                 bool hasMap = !string.IsNullOrEmpty(jl.coverageMap) || !string.IsNullOrEmpty(jl.typeMap);
                 if (hasMap) { def.CoverageMapHandle = 0; def.TypeMapHandle = 0; anyMap = true; }

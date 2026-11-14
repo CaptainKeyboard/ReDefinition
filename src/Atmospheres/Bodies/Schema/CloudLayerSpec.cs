@@ -132,6 +132,11 @@ namespace ReDefinition.Atmospheres
         internal float LightAmbient { get; set; } = 1f;
         // The isotropic share of a Cheap or Fog layer's single scattering (cfg key lightIsotropy; CloudLayerDef.LightIsotropy).
         internal float LightIsotropy { get; set; }
+        // The side and back plateau of a Cheap or Fog layer's phase (cfg key lightPlateau; CloudLayerDef.LightPlateau).
+        internal float LightPlateau { get; set; }
+        // The sky's light inside a lit layer's clouds (cfg keys ambientMs and ambientDecay; CloudLayerDef.AmbientMs).
+        internal float AmbientMs { get; set; } = CloudLayerDef.DefaultAmbientMs;
+        internal float AmbientDecay { get; set; } = CloudLayerDef.DefaultAmbientDecay;
         // The type value of the layer at full precipitation (cfg key rainType; 1: the last type of the table). With fairType the type value runs from fairType at no precipitation to
         // rainType at full precipitation, so a table whose last type is not a rain cloud (altocumulus after congestus) can end its precipitation axis at the type that is.
         internal float RainType { get; set; } = 1f;
@@ -190,6 +195,9 @@ namespace ReDefinition.Atmospheres
                 WaterPower = WaterPower,
                 LightAmbient = LightAmbient,
                 LightIsotropy = LightIsotropy,
+                LightPlateau = LightPlateau,
+                AmbientMs = AmbientMs,
+                AmbientDecay = AmbientDecay,
                 RainType = RainType,
                 FibreStretch = FibreStretch,
                 VerticalScale = VerticalScale,

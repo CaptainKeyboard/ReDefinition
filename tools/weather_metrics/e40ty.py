@@ -68,6 +68,9 @@ TYPES = [
     ("cirrus", "cirrus", "Kerbin-cirrus", "Cirrus", 0.65, (GROUND, 12500.0), (35.0, -35.0)),
     ("cirrus", "cirrostratus", "Kerbin-cirrus", "Cirrostratus", 0.8, (GROUND, 12500.0), (35.0, -35.0)),
 ]
+# E40TY_ONLY=<family>[,<family>]: only these families of the table (a sweep of one family's keys without the others).
+if os.environ.get("E40TY_ONLY"):
+    TYPES = [t for t in TYPES if t[0] in os.environ["E40TY_ONLY"].split(",")]
 # The comparison tiles of True Volumetric Clouds (game frames of the K-T2 series, its own weather): the family they are put beside.
 TVC_DIR = os.path.join("C:", os.sep, "Users", "franz", "IdeaProjects", "ReDefinition", ".local", "work", "series-pictures", "K-T2")
 TVC = {"cumulus": "t09-tvc1707-ground-tvc-1707x960-natural.png", "stratocumulus": "t09-tvc1707-above-tvc-1707x960-natural.png"}
@@ -92,7 +95,7 @@ NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE
 # The layer wind of a type's job in m/s as (east, north) (E40 L5 shape): the cirrus fibres lie along it. The sheet's cirrus is blown from the south-west, 25 m/s.
 WIND_EN = {"cirrus": (17.7, 17.7), "cirrostratus": (17.7, 17.7)}
 
-LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale")
+LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau")
 TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient")
 
 
@@ -298,6 +301,41 @@ def alpha_words(alpha):
     return dict(cover=float(mask.mean()), median=float(np.median(a)), p10=float(np.percentile(a, 10)), p90=float(np.percentile(a, 90)), opaque=float((a > 0.95).mean()))
 
 
+def card_references(tint):
+    """The white card of a frame (E40 L6 light): a Lambertian white surface under the sun of the sheets, as radiance relative to W (the card facing the sun outside the air = 1) and as the
+    display value of the stage. 'sky' adds the sheets' ambient (AMBIENT_TOP over W for a card facing up; half of it for a card facing the sun, which sees half the sky)."""
+    mu0 = math.sin(math.radians(SUN_ELEVATION))
+    sky = AMBIENT_TOP[1] / WHITE
+
+    def shown(r):
+        return float(encode(np.array([r * WHITE] * 3), tint) @ np.array([0.2126, 0.7152, 0.0722]))
+
+    return dict(card_sun=1.0, card_sun_display=shown(1.0), card_flat=mu0, card_flat_display=shown(mu0), card_sun_sky=1.0 + 0.5 * sky, card_flat_sky=mu0 + sky,
+                card_sun_sky_display=shown(1.0 + 0.5 * sky), card_flat_sky_display=shown(mu0 + sky))
+
+
+def light_words(m, cam, tint):
+    """Percentiles of the closed part's luminance (alpha above 0.9) relative to W and as the display value, the sky pixels next to it, and the cards of the frame; None without a closed part."""
+    a = m[..., 3]
+    core = a > 0.9
+    covered = a > 0.03
+    # What the cloud adds to the picture, premultiplied (its radiance times its alpha), relative to W: the thin types have no closed part.
+    veil = float((m[..., :3][covered] @ np.array([0.2126, 0.7152, 0.0722])).mean() / WHITE) if covered.sum() > 200 else float("nan")
+    if core.sum() < 200:
+        return dict(veil_rel=veil)
+    neutral = m[..., :3] / np.maximum(a[..., None], 1e-4)
+    luma = neutral[core] @ np.array([0.2126, 0.7152, 0.0722]) / WHITE
+    shown = encode(neutral[core], tint) @ np.array([0.2126, 0.7152, 0.0722])
+    pct = [10, 50, 90, 99]
+    back = backdrop(cam, False)
+    free = a < 0.05
+    sky_display = float(np.median(back[free] @ np.array([0.2126, 0.7152, 0.0722]))) if free.sum() > 200 else float("nan")
+    out = dict(veil_rel=veil, rel=[float(x) for x in np.percentile(luma, pct)], display=[float(x) for x in np.percentile(shown, pct)], sky_display=sky_display,
+               sky_rel=float((sky_display / WHITE) ** GAMMA) if sky_display == sky_display else float("nan"))
+    out.update(card_references(tint))
+    return out
+
+
 def collect(ctx):
     sheet = ctx.folder("sheet")
     aux = ctx.folder("aux")
@@ -312,6 +350,7 @@ def collect(ctx):
         layer = layers_by_name[spec[2]]
         tint = white_tint(layer["inner"] + 0.25 * (layer["outer"] - layer["inner"]))   # CloudOutputStage.NominalCloudAltitudeM
         results.setdefault(key, {})["white_tint"] = [float(x) for x in tint]
+        results[key]["card"] = card_references(tint)
         row = {}
         for view in VIEWS:
             path = os.path.join(sheet, jid(key, view) + ".npy")
@@ -337,6 +376,14 @@ def collect(ctx):
             lines.append("   %-14s %-6s: cloud covers %.2f of the picture, median alpha %.2f (p10 %.2f, p90 %.2f), nearly opaque (above 0.95) %.2f of it, blue over red of its closed part %.2f (without the tint %.2f)"
                          % (key, view, words["cover"], words["median"], words["p10"], words["p90"], words["opaque"], blue_red, blue_red_plain))
             metrics.append(Metric.info("e40ty.%s.%s.alpha_median" % (key, view), words["median"]))
+            lw = light_words(m, cam, tint)
+            results[key][view]["light"] = lw
+            lines.append("   %-14s %-6s: the cloud adds (premultiplied, alpha above 0.03) %.3f of W on average" % (key, view, lw["veil_rel"]))
+            if "rel" in lw:
+                lines.append("   %-14s %-6s: closed part (alpha above 0.9) radiance relative to W (the card facing the sun outside the air): p10 %.2f p50 %.2f p90 %.2f p99 %.2f = display %.2f %.2f %.2f %.2f; "
+                             "the sky pixels next to it: radiance %.2f display %.2f; white card in the same frame: facing the sun %.2f (display %.2f), horizontal %.2f (display %.2f), both with the sky %.2f / %.2f"
+                             % ((key, view) + tuple(lw["rel"]) + tuple(lw["display"]) + (lw["sky_rel"], lw["sky_display"], lw["card_sun"], lw["card_sun_display"], lw["card_flat"], lw["card_flat_display"],
+                                                                                          lw["card_sun_sky"], lw["card_flat_sky"])))
         apath = os.path.join(aux, jid(key, "ground", True) + "-tau.npy")
         if os.path.isfile(apath):
             tau = np.load(apath).astype(np.float64)
@@ -353,6 +400,9 @@ def collect(ctx):
             r = tiles.get(key, {})
             cols = []
             for name, text in (("ground", "ground"), ("above", "from above"), ("sun", "toward the sun"), ("sky", "the sky without the cloud"), ("aid", "optical depth (blue thin, green 1, red thick)")):
+                if name == "ground" and key in results:
+                    c = results[key]["card"]
+                    text = "ground, white card %.2f sun / %.2f flat (sky incl. %.2f / %.2f)" % (c["card_sun_display"], c["card_flat_display"], c["card_sun_sky_display"], c["card_flat_sky_display"])
                 cols.append(label(r[name], "%s: %s" % (key, text)) if name in r else np.zeros((TILE[1], TILE[0], 3)))
             rows.append(np.concatenate(cols, axis=1))
         if family in TVC and os.path.isfile(os.path.join(TVC_DIR, TVC[family])):
