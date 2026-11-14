@@ -204,7 +204,8 @@ namespace ReDefinition.Atmospheres
                     r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
                     SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
                     LightMs = r.Float("lightMs", 1f, 0f, 4f), LightPowder = r.Float("lightPowder", 1f, 0f, 4f), LightAmbient = r.Float("lightAmbient", 1f, 0f, 4f),
-                    RainType = r.Float("rainType", 1f, 0f, 1f) });
+                    RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f),
+                    AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f) });
             }
             return layers;
         }
@@ -253,12 +254,13 @@ namespace ReDefinition.Atmospheres
                 BaseLight = r.Float("baseLight", 1f, 0f, 4f),
                 HeadLight = r.Float("headLight", 1f, 0f, 4f),
                 BaseAmbient = r.Float("baseAmbient", 1f, 0f, 4f),
-                HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f)
+                HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f),
+                Lift = ProfileCurve(r.Child("LIFT"), "lift")
             };
         }
 
-        // PROFILE { key0 = height density, ... }: heights 0 to 1 ascending, densities 0 to 1. Null where there is no valid curve.
-        private static Curve ProfileCurve(BodyNodeReader r)
+        // PROFILE { key0 = height density, ... } (and LIFT { key0 = height lift, ... }, the same form): heights 0 to 1 ascending, values 0 to 1. Null where there is no valid curve.
+        private static Curve ProfileCurve(BodyNodeReader r, string what = "density")
         {
             if (!r.Present) return null;
             var xs = new List<float>();
@@ -272,7 +274,7 @@ namespace ReDefinition.Atmospheres
                 if (parts.Length != 2 || !BodyNodeReader.TryNumber(parts[0], out x) || !BodyNodeReader.TryNumber(parts[1], out y)
                     || x < 0.0 || x > 1.0 || y < 0.0 || y > 1.0 || (xs.Count > 0 && !(x > xs[xs.Count - 1])))
                 {
-                    r.Warn("key" + i, "'" + text + "' is not 'height density' with both in 0 to 1 and the heights ascending; the profile is ignored");
+                    r.Warn("key" + i, "'" + text + "' is not 'height " + what + "' with both in 0 to 1 and the heights ascending; the curve is ignored");
                     return null;
                 }
                 xs.Add((float)x);

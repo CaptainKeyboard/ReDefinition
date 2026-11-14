@@ -73,6 +73,9 @@ namespace ReDefinition.Atmospheres
         internal bool NoFineDetail;
         // layers.densityRemap (CloudLookTuning): the share of the erosion that also thins a closed deck's interior; 0: the erosion acts only in the soft edge.
         internal double DensityRemap;
+        // E40 L2 D1 (cfg key fibreStretch): the lookup is compressed along the unit axis (AxisX, AxisY, AxisZ) by 1 - Stretch, i.e. the features are 1 / (1 - Stretch) times longer along it;
+        // 0: isotropic. The shader's axis is the body's pole (the third row of the world-to-map matrix), (0, 0, 1) in the planet frame of the tests.
+        internal double Stretch, AxisX, AxisY, AxisZ;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
@@ -111,7 +114,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The point the volumes are read at: the planet-centred point (optionally on the spherical lattice), the layer's offset, minus the
-        // distance the flow has carried the pattern, then the untiling displacement.
+        // distance the flow has carried the pattern, the fibre stretch along the axis, then the untiling displacement.
         internal static void LookupPoint(ref NoiseLayerParams prm, double px, double py, double pz, out double qx, out double qy, out double qz)
         {
             if (prm.SphereScale != 1.0 && prm.SphereScale > 0.0)
@@ -126,6 +129,13 @@ namespace ReDefinition.Atmospheres
             qx = px + prm.OffsetX - prm.FlowX;
             qy = py + prm.OffsetY - prm.FlowY;
             qz = pz + prm.OffsetZ - prm.FlowZ;
+            if (prm.Stretch != 0.0)
+            {
+                double along = (qx * prm.AxisX + qy * prm.AxisY + qz * prm.AxisZ) * prm.Stretch;
+                qx -= prm.AxisX * along;
+                qy -= prm.AxisY * along;
+                qz -= prm.AxisZ * along;
+            }
             if (!prm.Untile) return;
             double amp = (prm.WarpAmplitude > 0.0 ? prm.WarpAmplitude : NoiseModel.WarpAmplitudeScales) * prm.ScaleM;
             double cell = (prm.WarpCell > 0.0 ? prm.WarpCell : NoiseModel.WarpCellScales) * prm.ScaleM;

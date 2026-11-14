@@ -36,6 +36,7 @@ namespace ReDefinition.Atmospheres
             Bake();
             // The types' light response by height (E40 B3): two factors per sample, direct light and sky fill, for the shader's profile texture (channels g and b).
             light = new float[Count * ProfileSamples * 2];
+            lift = new float[Count * ProfileSamples];
             for (int t = 0; t < Count; t++)
                 for (int i = 0; i < ProfileSamples; i++)
                 {
@@ -43,10 +44,37 @@ namespace ReDefinition.Atmospheres
                     layer.Types[t].LightFactors(i / (double)(ProfileSamples - 1), out d, out a);
                     light[(t * ProfileSamples + i) * 2] = (float)d;
                     light[(t * ProfileSamples + i) * 2 + 1] = (float)a;
+                    // The height-shaped threshold (E40 L2 D1): the shader's profile texture channel a.
+                    lift[t * ProfileSamples + i] = (float)layer.Types[t].LiftAt(i / (double)(ProfileSamples - 1));
                 }
         }
 
-        private readonly float[] light;
+        private readonly float[] light, lift;
+
+        // The lift of the coverage threshold of all types, sample after sample (the shader's profile texture channel a; 0 where a type has no LIFT).
+        internal float[] LiftData { get { return lift; } }
+
+        // The lift of the layer's threshold at a type value and a height share of the layer, in map units: the two neighbouring types' lifts at the same height of the interpolated
+        // type, blended (the shader's read of the profile texture's channel a); 0 outside the type. The CPU readers of the density take the column shape and do not call it; the
+        // tests of the shape do.
+        internal double LiftOf(double typeValue, double layerShare)
+        {
+            int a, c;
+            double f, b, t;
+            Neighbours(typeValue, out a, out c, out f);
+            InterpolatedHeights(typeValue, out b, out t);
+            if (layerShare < b || layerShare > t || !(t > b)) return 0.0;
+            double h = (layerShare - b) / (t - b);
+            return LiftSample(a, h) * (1.0 - f) + LiftSample(c, h) * f;
+        }
+
+        private double LiftSample(int type, double h)
+        {
+            double x = (h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h) * (ProfileSamples - 1);
+            int i = Math.Min((int)x, ProfileSamples - 2);
+            double f = x - i;
+            return lift[type * ProfileSamples + i] * (1.0 - f) + lift[type * ProfileSamples + i + 1] * f;
+        }
 
         // The light factors of all types, sample after sample: direct light and sky fill (the shader's profile texture channels g and b).
         internal float[] LightData { get { return light; } }

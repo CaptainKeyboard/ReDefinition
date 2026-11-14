@@ -62,9 +62,11 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdShape = Shader.PropertyToID("_NoiseShape"), IdDetail = Shader.PropertyToID("_NoiseDetail"),
             IdCurl = Shader.PropertyToID("_NoiseCurl"), IdFlow = Shader.PropertyToID("_NoiseFlow"), IdColour = Shader.PropertyToID("_NoiseColour"),
             IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"), IdS = Shader.PropertyToID("_NoiseS"),
-            IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer");
+            IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer"), IdStretch = Shader.PropertyToID("_NoiseStretch");
 
-        private readonly Vector4[] offsets = new Vector4[CloudLayerDef.MaxLayers], layerData = new Vector4[CloudLayerDef.MaxLayers];
+        private readonly Vector4[] offsets = new Vector4[CloudLayerDef.MaxLayers], layerData = new Vector4[CloudLayerDef.MaxLayers], stretchData = new Vector4[CloudLayerDef.MaxLayers];
+        // The factor each layer's noise features are longer along the body's axis than across (CloudLayerDef.FibreStretch; 1: isotropic).
+        private readonly double[] stretch = { 1.0, 1.0, 1.0, 1.0 };
         private readonly double[] driftX = new double[CloudLayerDef.MaxLayers], driftY = new double[CloudLayerDef.MaxLayers],
             driftZ = new double[CloudLayerDef.MaxLayers], rise = new double[CloudLayerDef.MaxLayers];
         private readonly LayerNoiseMotion[] motion = new LayerNoiseMotion[CloudLayerDef.MaxLayers];
@@ -184,6 +186,13 @@ namespace ReDefinition.Atmospheres
             if (layer >= 0 && layer < motion.Length) motion[layer] = value;
         }
 
+        // How much longer a layer's noise features are along the body's axis than across it (1 and above; 1: isotropic): the lookup is compressed along the axis by 1 / k. The axis itself is
+        // the shader's: the third row of the world-to-map matrix, the body's pole. The uniform holds 1 - 1 / k.
+        internal void SetStretch(int layer, double k)
+        {
+            if (layer >= 0 && layer < stretch.Length) stretch[layer] = k < 1.0 || double.IsNaN(k) ? 1.0 : k;
+        }
+
         // Sets the distance the pattern has drifted (m, world space) and the detail has risen (m) of a layer directly (a measurement, a restore).
         internal void SetState(int layer, Vector3 driftDistanceM, float riseDistanceM)
         {
@@ -227,7 +236,9 @@ namespace ReDefinition.Atmospheres
                 NoFineDetail = !Switches.FineDetail,
                 DensityRemap = CloudLookTuning.DensityRemap,
                 ReferenceRadiusM = referenceRadiusM,
-                UpDistanceM = rise[layer]
+                UpDistanceM = rise[layer],
+                Stretch = 1.0 - 1.0 / stretch[layer],
+                AxisZ = 1.0
             };
         }
 
@@ -259,9 +270,11 @@ namespace ReDefinition.Atmospheres
                 offsets[l] = new Vector4((float)(bx - driftX[l]), (float)(by - driftY[l]), (float)(bz - driftZ[l]), NoiseSeeds.LayerSeed(Switches.Seed, l));
                 LayerNoiseMotion m = motion[l];
                 layerData[l] = new Vector4(flowTexture != null ? m.FlowAmplitudeM : 0f, m.FlowLooped ? 1f : 0f, colourTexture != null ? m.ColourStrength : 0f, (float)rise[l]);
+                stretchData[l] = new Vector4((float)(1.0 - 1.0 / stretch[l]), 0f, 0f, 0f);
             }
             material.SetVectorArray(IdOffset, offsets);
             material.SetVectorArray(IdLayer, layerData);
+            material.SetVectorArray(IdStretch, stretchData);
         }
 
         private void EnsureDefaults()

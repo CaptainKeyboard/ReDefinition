@@ -73,14 +73,29 @@ VIEWS = ("ground", "above", "sun")
 
 # E40TY_NOLIGHT=1: the same pictures with every light factor of the cfg at 1 (the control of the type and layer light response), under the names e40-ty-nolight-*.
 NOLIGHT = os.environ.get("E40TY_NOLIGHT") == "1"
-NAME = "e40-ty-nolight" if NOLIGHT else "e40-ty"
+# E40TY_SHAPE=<scale>: the same pictures with layers.profileShape at that scale (the types' height-shaped threshold times it; 0: none, and then no fibre stretch either), under the names
+# e40-ty-shape<scale>-* (the control and the sweep of the shape keys of E40 L2 D1).
+SHAPE_SCALE = float(os.environ["E40TY_SHAPE"]) if os.environ.get("E40TY_SHAPE") else None
+NOSHAPE = SHAPE_SCALE == 0.0
+# E40TY_SPHERE=<scale>: the noise lattice's vertical scale (the body key sphereScale; 1: as today, below 1 the features are longer in the vertical), under the names e40-ty-sphere<scale>-*.
+SPHERE = float(os.environ["E40TY_SPHERE"]) if os.environ.get("E40TY_SPHERE") else None
+NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE_SCALE is not None else "e40-ty") + ("-sphere%g" % SPHERE if SPHERE is not None else "")
 
-LAYER_EXTRA = ("softnessScale", "waterPower", "lightMs", "lightPowder", "lightAmbient")
+LAYER_EXTRA = ("softnessScale", "waterPower", "lightMs", "lightPowder", "lightAmbient", "fibreStretch")
 TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient")
 
 
+def lift_samples(type_node):
+    """The type's LIFT node (E40 L2 D1) sampled at the table's 128 points; None where the type has none."""
+    for c in type_node["children"]:
+        if c["name"] == "LIFT":
+            keys = [tuple(float(x) for x in v.split()) for _, v in c["values"]]
+            return [float(v) for v in np.interp(np.linspace(0.0, 1.0, 128), [k[0] for k in keys], [k[1] for k in keys])]
+    return None
+
+
 def cfg_extras():
-    """{layer: ({key: float}, {type name: {key: float}})} of the soft and light keys of the shipped Clouds-Kerbin.cfg."""
+    """{layer: ({key: float}, {type name: {key: float, 'lift': [128 floats]}})} of the soft, light and shape keys of the shipped Clouds-Kerbin.cfg."""
     with open(e40o.CFG, encoding="utf-8") as f:
         root = e40o.parse_nodes(f.read())
     clouds = e40o.find(root, "CLOUDS")
@@ -90,6 +105,9 @@ def cfg_extras():
         tk = {}
         for t in [c for c in layer["children"] if c["name"] == "TYPE"]:
             tk[e40o.val(t, "name")] = {k: float(e40o.val(t, k)) for k in TYPE_EXTRA if e40o.val(t, k) is not None}
+            lift = lift_samples(t)
+            if lift is not None:
+                tk[e40o.val(t, "name")]["lift"] = lift
         out[e40o.val(layer, "name")] = (lk, tk)
     return out
 
@@ -129,9 +147,9 @@ def job_layer(spec, extras, layers_by_name):
     layer = layers_by_name[layer_name]
     lk, tk = extras[layer_name]
     jl = e40o.job_layer(layer, const_map(map_value), const_map(type_value(layer, type_name)))
-    jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light"))})
+    jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k == "fibreStretch")})
     for t in jl["types"]:
-        t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient"))})
+        t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")})
     return jl
 
 
@@ -151,7 +169,9 @@ def build_jobs():
                 cam = view_camera(spec, view, size)
                 bucket.append(lay.job(jid(spec[1], view, aux_flag), mode, cam, [job_layer(spec, extras, layers_by_name)], size[0], size[1], planet=R, mapWidth=MAP_W, mapHeight=MAP_H,
                                       sun=lay.sun_vector(cam.pos, 0.0, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
-                                      soft=SOFTNESS, maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3))
+                                      soft=SOFTNESS, maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3,
+                                      tuning=[dict(key="layers.profileShape", value=SHAPE_SCALE)] if SHAPE_SCALE is not None else [],
+                                      **(dict(noise=dict(sphere=SPHERE)) if SPHERE is not None else {})))
     return lum, aux
 
 
@@ -333,9 +353,8 @@ def collect(ctx):
 
 
 def stages():
-    jobs = os.path.join(INPUT, "jobs.json")
-    if not os.path.isfile(jobs) or os.path.getmtime(jobs) < os.path.getmtime(os.path.abspath(__file__)):
-        write_inputs()
+    # Always written afresh: the cfg and the E40TY_* switches are read here, and neither moves the script's time stamp.
+    write_inputs()
     return [Stage("sheet", ["-mode", "scene", "-scene", "type-sheet", "-in", INPUT], size=(1708, 960), proxy=False, timeout=2400),
             Stage("aux", ["-mode", "scene", "-scene", "layers", "-in", INPUT_AUX], size=(1280, 720), proxy=False, timeout=1800)]
 

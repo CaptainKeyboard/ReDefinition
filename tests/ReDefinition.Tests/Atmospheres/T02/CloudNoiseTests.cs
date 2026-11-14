@@ -322,6 +322,45 @@ namespace ReDefinition.Tests
             Assert.IsTrue(qx / 603000.0 < 1.0);
         }
 
+        [TestMethod]
+        public void TheFibreStretchCompressesTheLookupAlongTheAxisAndLengthensTheFeatures()
+        {
+            // E40 L2 D1: the lookup point loses the share a = 1 - 1 / k of its part along the axis (the shader's q -= ax (dot(q, ax) a)); the other directions are untouched.
+            NoiseLayerParams iso = NoiseLayerParams.Default(500.0);
+            iso.Untile = false;
+            NoiseLayerParams fibre = iso;
+            fibre.Stretch = 1.0 - 1.0 / 4.0;
+            fibre.AxisZ = 1.0;
+            double qx, qy, qz;
+            CloudShapeModel.LookupPoint(ref fibre, 1200.0, -300.0, 8000.0, out qx, out qy, out qz);
+            Assert.AreEqual(1200.0, qx, 1e-9);
+            Assert.AreEqual(-300.0, qy, 1e-9);
+            Assert.AreEqual(2000.0, qz, 1e-9, "the axis part is a quarter");
+            // The features: the shape noise differs less along the axis than across it over the same lag, and the same lag in an isotropic layer differs as much both ways.
+            double lag = 3.0 * 500.0, alongSum = 0.0, acrossSum = 0.0, isoAlong = 0.0, isoAcross = 0.0;
+            int n = 0;
+            for (int i = 0; i < 40; i++)
+                for (int j = 0; j < 10; j++)
+                {
+                    double x = i * 811.0, y = j * 1307.0, z = (i + j) * 977.0;
+                    double a = Shape(ref fibre, x, y, z), b = Shape(ref iso, x, y, z);
+                    alongSum += Math.Abs(a - Shape(ref fibre, x, y, z + lag));
+                    acrossSum += Math.Abs(a - Shape(ref fibre, x + lag, y, z));
+                    isoAlong += Math.Abs(b - Shape(ref iso, x, y, z + lag));
+                    isoAcross += Math.Abs(b - Shape(ref iso, x + lag, y, z));
+                    n++;
+                }
+            Assert.IsTrue(alongSum < 0.6 * acrossSum, "along " + alongSum / n + " across " + acrossSum / n);
+            Assert.IsTrue(Math.Abs(isoAlong - isoAcross) < 0.25 * isoAcross, "isotropic: along " + isoAlong / n + " across " + isoAcross / n);
+        }
+
+        private static double Shape(ref NoiseLayerParams prm, double x, double y, double z)
+        {
+            double qx, qy, qz;
+            CloudShapeModel.LookupPoint(ref prm, x, y, z, out qx, out qy, out qz);
+            return CloudShapeModel.ShapeAt(Medium, ref prm, qx, qy, qz);
+        }
+
         // ---- the layers' numbers, the maps ----
 
         [TestMethod]

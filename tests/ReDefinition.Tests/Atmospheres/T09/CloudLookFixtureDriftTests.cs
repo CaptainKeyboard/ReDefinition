@@ -24,9 +24,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.WaterPower, fixture.WaterPower, 1e-6f, n + " water power");
             Assert.AreEqual(shipped.FairType, fixture.FairType, 1e-6f, n + " fair type");
             Assert.AreEqual(shipped.RainType, fixture.RainType, 1e-6f, n + " rain type");
+            Assert.AreEqual(shipped.AltoType, fixture.AltoType, 1e-6f, n + " alto type");
+            Assert.AreEqual(shipped.AltoFrom, fixture.AltoFrom, 1e-6f, n + " alto from");
+            Assert.AreEqual(shipped.AltoFull, fixture.AltoFull, 1e-6f, n + " alto full");
             Assert.AreEqual(shipped.LightMs, fixture.LightMs, 1e-6f, n + " light ms");
             Assert.AreEqual(shipped.LightPowder, fixture.LightPowder, 1e-6f, n + " light powder");
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
+            Assert.AreEqual(shipped.FibreStretch, fixture.FibreStretch, 1e-6f, n + " fibre stretch");
             Assert.AreEqual(shipped.Group, fixture.Group, n + " group");
             Assert.AreEqual(shipped.Kind, fixture.Kind, n + " kind");
             Assert.AreEqual(shipped.Deck == null, fixture.Deck == null, n + " deck rule present");
@@ -60,6 +64,16 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.HeadLight, f.HeadLight, 1e-6f, t + " head light");
                 Assert.AreEqual(s.BaseAmbient, f.BaseAmbient, 1e-6f, t + " base ambient");
                 Assert.AreEqual(s.HeadAmbient, f.HeadAmbient, 1e-6f, t + " head ambient");
+                Assert.AreEqual(s.Lift == null, f.Lift == null, t + " has a lift curve");
+                if (s.Lift != null)
+                {
+                    Assert.AreEqual(s.Lift.Count, f.Lift.Count, t + " lift keys");
+                    for (int k = 0; k < s.Lift.Count; k++)
+                    {
+                        Assert.AreEqual(s.Lift.KeyAt(k), f.Lift.KeyAt(k), 1e-6f, t + " lift key " + k);
+                        Assert.AreEqual(s.Lift.ValueAt(k), f.Lift.ValueAt(k), 1e-6f, t + " lift value " + k);
+                    }
+                }
                 Assert.AreEqual(s.Profile.Count, f.Profile.Count, t + " profile keys");
                 for (int k = 0; k < s.Profile.Count; k++)
                 {

@@ -53,6 +53,8 @@ namespace ReDefinition.Atmospheres
         internal float HeadLight { get; set; } = 1f;
         internal float BaseAmbient { get; set; } = 1f;
         internal float HeadAmbient { get; set; } = 1f;
+        // The type's height-shaped threshold (cfg node LIFT; null: none): see CloudTypeDef.Lift.
+        internal Curve Lift { get; set; }
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -74,7 +76,7 @@ namespace ReDefinition.Atmospheres
             return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion)
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
-                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient
+                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift
             };
         }
     }
@@ -131,6 +133,12 @@ namespace ReDefinition.Atmospheres
         // The type value of the layer at full precipitation (cfg key rainType; 1: the last type of the table). With fairType the type value runs from fairType at no precipitation to
         // rainType at full precipitation, so a table whose last type is not a rain cloud (altocumulus after congestus) can end its precipitation axis at the type that is.
         internal float RainType { get; set; } = 1f;
+        // How much longer the noise features are along the body's axis than across it (cfg key fibreStretch; 1: isotropic): see CloudLayerDef.FibreStretch.
+        internal float FibreStretch { get; set; } = 1f;
+        // The mid-level sheet's rule (cfg keys altoType, altoFrom, altoFullAt; altoType -1: none): see CloudLayerDef.AltoType.
+        internal float AltoType { get; set; } = -1f;
+        internal float AltoFrom { get; set; } = 0.05f;
+        internal float AltoFull { get; set; } = 0.3f;
         // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
         internal WeatherDeckRule Deck { get; set; }
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
@@ -174,7 +182,11 @@ namespace ReDefinition.Atmospheres
                 LightMs = LightMs,
                 LightPowder = LightPowder,
                 LightAmbient = LightAmbient,
-                RainType = RainType
+                RainType = RainType,
+                FibreStretch = FibreStretch,
+                AltoType = AltoType,
+                AltoFrom = AltoFrom,
+                AltoFull = AltoFull
             };
         }
     }

@@ -50,20 +50,27 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             CloudLayerDef cumulus = Layer("Kerbin-cumulus", "", 1700f, 7400f, 0.05f, 0.35f, 0.15f, 1f, 500f, LayerKind.Weather,
                 new CloudTypeDef("Stratocumulus", 0f, 0.11f, C(0f, 0f, 0.15f, 0.9f, 0.6f, 1f, 1f, 0f), 0.3f),
+                new CloudTypeDef("Altocumulus", 0.54f, 0.68f, C(0f, 0f, 0.2f, 0.9f, 0.7f, 0.8f, 1f, 0f), 0.4f),
                 new CloudTypeDef("Cumulus humilis", 0f, 0.21f, C(0f, 0f, 0.08f, 0.9f, 0.55f, 1f, 0.9f, 0.5f, 1f, 0f), 0.45f),
                 new CloudTypeDef("Cumulus mediocris", 0f, 0.47f, C(0f, 0f, 0.06f, 0.9f, 0.5f, 1f, 0.85f, 0.6f, 1f, 0f), 0.5f),
-                new CloudTypeDef("Cumulus congestus", 0f, 1f, C(0f, 0f, 0.04f, 0.9f, 0.45f, 1f, 0.8f, 0.7f, 1f, 0f), 0.55f),
-                new CloudTypeDef("Altocumulus", 0.54f, 0.68f, C(0f, 0f, 0.2f, 0.9f, 0.7f, 0.8f, 1f, 0f), 0.4f));
+                new CloudTypeDef("Cumulus congestus", 0f, 1f, C(0f, 0f, 0.04f, 0.9f, 0.45f, 1f, 0.8f, 0.7f, 1f, 0f), 0.55f));
             cumulus.Types[0].DensityScale = 0.7f;
-            cumulus.Types[1].DensityScale = 0.7f;
+            cumulus.Types[1].DensityScale = 0.45f;
             cumulus.Types[2].DensityScale = 0.7f;
-            cumulus.Types[4].DensityScale = 0.45f;
+            cumulus.Types[3].DensityScale = 0.7f;
             Light(cumulus.Types[0], 0.8f, 1.1f, 0.9f, 1f);
-            Light(cumulus.Types[1], 0.75f, 1.25f, 0.9f, 1f);
-            Light(cumulus.Types[2], 0.7f, 1.25f, 0.85f, 1f);
-            Light(cumulus.Types[3], 0.65f, 1.25f, 0.8f, 1f);
-            cumulus.FairType = 0.25f;
-            cumulus.RainType = 0.75f;
+            Light(cumulus.Types[2], 0.75f, 1.25f, 0.9f, 1f);
+            Light(cumulus.Types[3], 0.7f, 1.25f, 0.85f, 1f);
+            Light(cumulus.Types[4], 0.65f, 1.25f, 0.8f, 1f);
+            // The types' height-shaped threshold (cfg node LIFT, E40 L2 D1).
+            cumulus.Types[0].Lift = C(0f, 0f, 0.5f, 0f, 1f, 0.1f);
+            cumulus.Types[1].Lift = C(0f, 0f, 0.4f, 0f, 1f, 0.1f);
+            cumulus.Types[2].Lift = C(0f, 0f, 0.3f, 0f, 0.7f, 0.08f, 1f, 0.2f);
+            cumulus.Types[3].Lift = C(0f, 0f, 0.2f, 0f, 0.6f, 0.12f, 1f, 0.3f);
+            cumulus.Types[4].Lift = C(0f, 0f, 0.15f, 0f, 0.5f, 0.15f, 1f, 0.38f);
+            // The type at no precipitation is humilis (the third of five); the mid-level sheet's rule picks the altocumulus (the second).
+            cumulus.FairType = 0.5f;
+            cumulus.AltoType = 0.25f;
             return cumulus;
         }
 
@@ -77,12 +84,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cb.LightAmbient = 0.8f;
             Light(cb.Types[0], 0.55f, 1.2f, 0.7f, 1f);
             Light(cb.Types[1], 0.55f, 1.15f, 0.7f, 1.05f);
+            cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.1f, 1f, 0.2f);
+            cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.2f, 0.7f, 0.2f, 0.9f, 0f, 1f, 0f);
             return cb;
         }
 
         internal static CloudLayerDef Cirrus()
         {
-            CloudLayerDef cirrus = Layer("Kerbin-cirrus", "", 9000f, 11000f, 0.0002f, 0.3f, 0.35f, 0.5f, 15000f, LayerKind.Cheap,
+            CloudLayerDef cirrus = Layer("Kerbin-cirrus", "", 9000f, 11000f, 0.0002f, 0.3f, 0.35f, 0.5f, 3000f, LayerKind.Cheap,
                 new CloudTypeDef("Cirrus", 0.1f, 0.9f, C(0f, 0f, 0.35f, 0.9f, 0.65f, 0.8f, 1f, 0f), 0.7f),
                 new CloudTypeDef("Cirrostratus", 0.2f, 0.8f, C(0f, 0f, 0.3f, 0.7f, 0.7f, 0.7f, 1f, 0f), 0.3f));
             // Thin sheets have no core: a softer rim and the water content enters the density linearly (the cfg's numbers).
@@ -92,6 +101,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Light(cirrus.Types[0], 1f, 1.15f, 1f, 1f);
             cirrus.SoftnessScale = 2f;
             cirrus.WaterPower = 1f;
+            cirrus.FibreStretch = 6f;
             return cirrus;
         }
     }

@@ -263,6 +263,45 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.6f, built.LightAmbient, 1e-6f);
         }
 
+        // E40 L2 D1: the type's height-shaped threshold (LIFT, a curve like PROFILE) and the layer's fibre stretch.
+        [TestMethod]
+        public void TheShapeKeysReadFromTheTypeAndLayerNodesAndDefaultToNone()
+        {
+            string lifted = "TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}LIFT{key0 = 0 0;key1 = 0.4 0;key2 = 1 0.3}}";
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;fibreStretch = 6;" + lifted + "}"
+                + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
+            Assert.AreEqual(6f, a.FibreStretch);
+            Assert.AreEqual(3, a.Types[0].Lift.Count);
+            Assert.AreEqual(1f, b.FibreStretch);
+            Assert.IsNull(b.Types[0].Lift);
+            // The mid-level sheet's rule (altoType, altoFrom, altoFullAt): none by default, built into the layer, and its type's middle height is found from the table.
+            r = Parse("LAYER{name = D;innerAltitudeM = 1000;outerAltitudeM = 3000;altoType = 1;altoFrom = 0.1;altoFullAt = 0.4;TYPE{name = Low;baseShare = 0;topShare = 0.2;PROFILE{key0 = 0 1}}"
+                + "TYPE{name = Sheet;baseShare = 0.5;topShare = 0.7;PROFILE{key0 = 0 1}}}");
+            CloudLayerSpec d = r.Climate.Clouds.Layers.Single();
+            Assert.AreEqual(-1f, b.AltoType);
+            Assert.AreEqual(1f, d.AltoType);
+            CloudLayerDef sheet = d.Build(1);
+            Assert.AreEqual(0.1f, sheet.AltoFrom, 1e-6f);
+            Assert.AreEqual(0.4f, sheet.AltoFull, 1e-6f);
+            Assert.AreEqual(1000.0 + 0.6 * 2000.0, sheet.TypeMidHeightM(1f), 1e-3, "the sheet's middle: 0.6 of the layer");
+            Assert.AreEqual(1000.0 + 0.1 * 2000.0, sheet.TypeMidHeightM(0f), 1e-3);
+            CloudLayerDef built = a.Build(1);
+            Assert.AreEqual(6f, built.FibreStretch);
+            Assert.AreEqual(0.0, built.Types[0].LiftAt(0.2), 1e-6);
+            Assert.AreEqual(0.15, built.Types[0].LiftAt(0.7), 1e-6, "linear between the keys 0.4 -> 0 and 1 -> 0.3");
+            Assert.AreEqual(0.3, built.Types[0].LiftAt(2.0), 1e-6, "clamped to the top");
+            Assert.AreEqual(0.0, b.Build(1).Types[0].LiftAt(0.9), 0.0);
+            // A lift that cannot be read is a warning and the type has none (the type itself stays); a stretch below 1 is brought up to 1.
+            r = Parse("LAYER{name = C;innerAltitudeM = 100;outerAltitudeM = 900;fibreStretch = 0.2;TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 1}LIFT{key0 = 0 -0.2}}}");
+            Assert.AreEqual(1, r.Climate.Clouds.Layers.Count);
+            Assert.IsNull(r.Climate.Clouds.Layers[0].Types[0].Lift);
+            Assert.AreEqual(1f, r.Climate.Clouds.Layers[0].FibreStretch);
+            Assert.IsTrue(r.Warnings.Any(w => w.Contains("lift")), string.Join("; ", r.Warnings));
+            Assert.IsTrue(r.Warnings.Any(w => w.Contains("fibreStretch")), string.Join("; ", r.Warnings));
+        }
+
         [TestMethod]
         public void AUnreadableLayerIsAWarningAndTheOthersStay()
         {

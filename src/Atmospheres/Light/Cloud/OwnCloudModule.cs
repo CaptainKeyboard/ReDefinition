@@ -94,7 +94,9 @@ namespace ReDefinition.Atmospheres
         private readonly WeatherMap coverageMap = new WeatherMap(), typeMap = new WeatherMap(), layerMap = new WeatherMap();
         private readonly StackMapMirror stackMaps = new StackMapMirror();
         // The look knobs of the maps (CloudLookTuning): per-layer type bytes and maps, and the held layer maps of a combined fetch.
-        private byte[] typeScratch;
+        private byte[] typeScratch, altoScratch;
+        // The layer maps at the mid-level sheet's height and at the fair-weather type's height (E40 L2 D1, CloudLookTuning.ApplyAlto).
+        private readonly WeatherMap altoMidMap = new WeatherMap(), altoLowMap = new WeatherMap();
         // The weather deck rule's inputs (FetchFogInputs) and its per-layer results (WeatherDeckRule.Apply).
         private readonly WeatherMap humidityMap = new WeatherMap(), temperatureMap = new WeatherMap(), windMap = new WeatherMap();
         private float[] spreadScratch, fogSpreadK, fogWind;
@@ -779,6 +781,17 @@ namespace ReDefinition.Atmospheres
             {
                 // The type at no precipitation: the tuning key where it is set, else the layer's own (cfg key fairType; -1: the precipitation level itself).
                 typeBytes = CloudLookTuning.TypeBytes(typeMap.Bytes, fairType, CloudLookTuning.TypeOverrideOf(layerName), ref typeScratch, stack.LayerAt(l).RainType);
+                // The mid-level sheet's rule (cfg altoType): where the generator makes more cloud at the sheet's height than at the fair-weather type's height, the type map shows the sheet.
+                CloudLayerDef layerDef = stack.LayerAt(l);
+                if (layerDef.AltoType >= 0f && gf != null && CloudLookTuning.TypeOverrideOf(layerName) < 0f
+                    && gf.GetLayerCoverage(b.flightGlobalsIndex, ut, layerDef.TypeMidHeightM(layerDef.AltoType), altoMidMap)
+                    && gf.GetLayerCoverage(b.flightGlobalsIndex, ut, layerDef.TypeMidHeightM(fairType >= 0f ? fairType : 0f), altoLowMap)
+                    && altoMidMap.Width == MapWidth && altoMidMap.Height == MapHeight && altoLowMap.Width == MapWidth && altoLowMap.Height == MapHeight)
+                {
+                    altoMidMap.PackBytes(0f, 1f);
+                    altoLowMap.PackBytes(0f, 1f);
+                    typeBytes = CloudLookTuning.ApplyAlto(typeBytes, typeMap.Bytes, altoMidMap.Bytes, altoLowMap.Bytes, layerDef.AltoType, layerDef.AltoFrom, layerDef.AltoFull, ref altoScratch);
+                }
             }
             WeatherMap typeForCpu = typeMap;
             if (!ReferenceEquals(typeBytes, typeMap.Bytes))

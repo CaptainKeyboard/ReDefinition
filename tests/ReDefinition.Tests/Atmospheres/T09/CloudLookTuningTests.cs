@@ -46,12 +46,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return new[] { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
         }
 
-        // layers.profileShape (E40 lead investigation): off by default, clamped to 0..2, and no part of the layers' uploaded numbers (the stamp stays).
+        // layers.profileShape (E40 L2 D1): the scale on the types' height-shaped threshold, 1 by default (the cfg's LIFT as it is), clamped to 0..2, and no part of the layers' uploaded numbers (the stamp stays).
         [TestMethod]
-        public void TheProfileShapeIsOffByDefaultClampedAndLeavesTheStampAlone()
+        public void TheProfileShapeIsTheCfgsLiftByDefaultClampedAndLeavesTheStampAlone()
         {
             Clear();
-            Assert.AreEqual(0f, CloudLookTuning.ProfileShape);
+            Assert.AreEqual(1f, CloudLookTuning.ProfileShape);
             long stamp = CloudLookTuning.Stamp;
             Set(CloudLookTuning.TuneProfileShape, 0.8f);
             Assert.AreEqual(0.8f, CloudLookTuning.ProfileShape);
@@ -61,9 +61,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Set(CloudLookTuning.TuneProfileShape, -1f);
             Assert.AreEqual(0f, CloudLookTuning.ProfileShape);
             Set(CloudLookTuning.TuneProfileShape, float.NaN);
-            Assert.AreEqual(0f, CloudLookTuning.ProfileShape);
+            Assert.AreEqual(1f, CloudLookTuning.ProfileShape);
             Clear();
-            Assert.AreEqual(0f, CloudLookTuning.ProfileShape);
+            Assert.AreEqual(1f, CloudLookTuning.ProfileShape);
         }
 
         [TestMethod]
@@ -347,7 +347,31 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual("Cumulus humilis", at(0f), "fair weather");
             Assert.AreEqual("Cumulus mediocris", at(0.5f), "moderate rain");
             Assert.AreEqual("Cumulus congestus", at(1f), "the heaviest rain: a tower, not the middle-level sheet that ends the table");
-            Assert.AreEqual("Altocumulus", cumulus.Types[last].Name, "the table still ends with the altocumulus sheet (drawn where a rule picks it, not by precipitation)");
+            Assert.AreEqual("Altocumulus", cumulus.Types[(int)Math.Round(cumulus.AltoType * last)].Name, "the sheet sits next to humilis, so that the type map does not pass through the towers between them (E40 L2 D1)");
+        }
+
+        // E40 L2 D1: the mid-level sheet is where the generator makes more cloud at the sheet's height than at the low type's height, and not where it rains.
+        [TestMethod]
+        public void TheMidLevelSheetShowsWhereTheAirAloftIsMoistAndTheLowAirIsNotAndNotInRain()
+        {
+            Assert.AreEqual(0f, CloudLookTuning.AltoShare(0.3f, 0.3f, 0.05f, 0.3f), "as much low cloud as mid cloud: no sheet");
+            Assert.AreEqual(0f, CloudLookTuning.AltoShare(0.2f, 0.5f, 0.05f, 0.3f), "more low cloud: no sheet");
+            Assert.AreEqual(1f, CloudLookTuning.AltoShare(0.7f, 0.2f, 0.05f, 0.3f), "mid cloud where the low sky is clear: the sheet");
+            Assert.AreEqual(0.5f, CloudLookTuning.AltoShare(0.5f, 0.325f, 0.05f, 0.3f), 1e-5f, "the middle of the ramp");
+            Assert.AreEqual(1f, CloudLookTuning.AltoShare(0.4f, 0.3f, 0.05f, 0.05f), "a step where from and full are the same");
+            byte[] type = { 128, 128, 128, 128, 191 };
+            byte[] precip = { 0, 0, 0, 255, 0 };
+            byte[] mid = { 255, 255, 0, 255, 255 }, low = { 0, 255, 0, 0, 0 };
+            byte[] scratch = null;
+            byte[] shown = CloudLookTuning.ApplyAlto(type, precip, mid, low, 0.25f, 0.05f, 0.3f, ref scratch);
+            Assert.AreEqual(64, shown[0], "the sheet where the low sky is clear");
+            Assert.AreEqual(128, shown[1], "low cloud as much as mid cloud: the fair type stays");
+            Assert.AreEqual(128, shown[2], "no mid-level cloud: the fair type stays");
+            Assert.AreEqual(128, shown[3], "heavy rain hides the sheet");
+            Assert.AreEqual(64, shown[4], "the type value runs to the sheet from wherever it was");
+            Assert.AreEqual((byte)128, type[0], "the source is not changed");
+            Assert.AreSame(type, CloudLookTuning.ApplyAlto(type, precip, mid, low, -1f, 0.05f, 0.3f, ref scratch), "no sheet type: the bytes themselves");
+            Assert.AreSame(type, CloudLookTuning.ApplyAlto(type, precip, null, low, 0.25f, 0.05f, 0.3f, ref scratch), "a missing map: the bytes themselves");
         }
 
         [TestMethod]

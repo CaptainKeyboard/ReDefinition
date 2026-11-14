@@ -22,6 +22,8 @@ namespace ReDefinition.WeatherPlayer
         // The soft water content's numbers of the type and its light response by height (E40; the cfg keys of the same names): the defaults are the type's own.
         public float baseGain = 0.3f, riseShare = 0.5f, densityScale = 1f;
         public float baseLight = 1f, headLight = 1f, baseAmbient = 1f, headAmbient = 1f;
+        // The type's height-shaped threshold (E40 L2 D1; the cfg node LIFT) sampled evenly over the type's height, at least two values; none: no lift.
+        public float[] lift;
     }
 
     [Serializable]
@@ -44,6 +46,8 @@ namespace ReDefinition.WeatherPlayer
         public float[] drift;
         // The soft water content's per-layer numbers and the layer's light response (E40; the cfg keys softnessScale, waterPower, lightMs, lightPowder, lightAmbient).
         public float softnessScale = 1f, waterPower = 2f, lightMs = 1f, lightPowder = 1f, lightAmbient = 1f;
+        // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
+        public float fibreStretch = 1f;
     }
 
     [Serializable]

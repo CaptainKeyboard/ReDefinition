@@ -255,14 +255,13 @@ Shader "ReDefinition/AtmospheresLayers"
             erosion = erosionType * _LayerD[li].z;
             float coverage = _LayerB[li].y;
             float edge = max(_LayerB[li].z, 1e-4);
-            // layers.profileShape (_NoiseT.w, default 0: off): the type's height profile lifts the coverage threshold where it is below 1, so a cloud narrows towards
-            // its top (and its base) instead of standing as a column of the map's outline with a flat top; the lift is in map units. The technique is the height
+            // E40 L2 D1: the type's height-shaped threshold. The profile texture's channel a (cfg node LIFT of the type, 0 where there is none) lifts the coverage threshold at this height
+            // by up to 1 in map units, times layers.profileShape (_NoiseT.w, 1: as the cfg says, 0: the column shape), so a cloud is narrower where the lift is high: a cumulus dome over a
+            // flat base, a cumulonimbus tower under a wide anvil. The lift is never negative, so the coverage bounds of above and below stay exact. The technique is the height
             // gradient of Schneider's cloudscapes (SIGGRAPH 2015: the coverage is reduced by the height signal of the cloud type); the code is the project's own.
-            [branch] if (_NoiseT.w > 0)
-            {
-                float hs = (share - b) / (tp - b);
-                cov -= _NoiseT.w * (1.0 - saturate(lerp(TypeProfile(li, ta, hs), TypeProfile(li, tb, hs), f)));
-            }
+            float h = (share - b) / (tp - b);
+            float4 pf = lerp(TypeProfile4(li, ta, h), TypeProfile4(li, tb, h), f);
+            cov -= _NoiseT.w * pf.a;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
             if (_CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
@@ -274,8 +273,6 @@ Shader "ReDefinition/AtmospheresLayers"
             if (s <= 0) return 0;
             float pw = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
-            float h = (share - b) / (tp - b);
-            float4 pf = lerp(TypeProfile4(li, ta, h), TypeProfile4(li, tb, h), f);
             gTypeLight = pf.yz;
             return _LayerB[li].x * s * pf.x * fade;
         }

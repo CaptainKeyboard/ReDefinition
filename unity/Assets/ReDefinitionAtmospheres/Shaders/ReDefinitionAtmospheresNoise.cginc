@@ -5,7 +5,7 @@
 // NumPy twin tools/weather_metrics/noise_model.py; the integer hash and the lookups are the same in the three.
 //
 // The model, in lengths of the layer's noise scale s (= 1 / _LayerD.y, the lattice cell of the shape volume's finest octave):
-//   q = p + layer offset - flow (the pattern moves along the flow);  q += A_w s W(q / (C_w s))          the untiling displacement (W: vector value noise of the integer hash)
+//   q = p + layer offset - flow (the pattern moves along the flow);  q -= a (q . pole) pole (the fibre stretch, a = 1 - 1 / k);  q += A_w s W(q / (C_w s))          the untiling displacement (W: vector value noise of the integer hash)
 //   n = shape(q / (16 s));  the coverage threshold moves by (n - 0.5) * amount; the soft edge turns it into the share s0
 //   d = detail((q + curl * A_c s - up * rise) / (4 s));  the share is eaten into by the erosion: c = (s0 - e (1 - d)) / (1 - e (1 - d)),
 //   then hardened by (hb + hg e) and clamped: a ragged type has a hard edge, a smooth one a soft edge.
@@ -27,6 +27,8 @@ float4 _NoiseQ;          // warp amplitude, warp cell, curl amplitude (in noise 
 float4 _NoiseR;          // hardness base, hardness gain, shape period, detail period (in noise scales)
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
 float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y flow looped (1) or one phase (0), z colour map strength, w rise of the detail in m
+
+float4 _NoiseStretch[4]; // per layer: x 1 - 1 / k of the layer's fibre stretch k (0: isotropic), yzw free
 
 float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's finest cell (noise scales), y/z the march spacing in cells up to which the detail is
                          // read in full / from which it is dropped (z = 0: LOD off), w the detail volume's mean (what the erosion reads once dropped)
@@ -98,6 +100,9 @@ float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
         p = pc * ((rref + (r - rref) * _NoiseP.w) / max(r, 1.0));
     }
     float3 q = p + _NoiseOffset[li].xyz - flow;
+    // E40 L2 D1 (cfg fibreStretch): the lookup is compressed along the body's pole (the third row of the world-to-map matrix) by 1 - _NoiseStretch[li].x, so the features are longer along it (cirrus fibres).
+    float3 ax = float3(_WorldToMap._m20, _WorldToMap._m21, _WorldToMap._m22);
+    q -= ax * (dot(q, ax) * _NoiseStretch[li].x);
     if (_NoiseP.y > 0.5)
         q += (_NoiseQ.x * scale) * NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
     return q;

@@ -105,8 +105,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         // The optical depth of a vertical column through the PRODUCT's density: the layer's effective numbers (CloudLayerDef), the clear-sky rule, the share of CloudShapeModel with
         // the layer's exponent, the type table with the rise by height and the density scale baked in. No other mapping of this file.
-        private static double ProductColumnTau(CloudLayerDef layer, LayerTypeTable table, NoiseVolumeSet set, NoiseLayerParams prm, double hx, double hy, double map, double typeValue,
-                                               int steps = 48)
+        internal static double ProductColumnTau(CloudLayerDef layer, LayerTypeTable table, NoiseVolumeSet set, NoiseLayerParams prm, double hx, double hy, double map, double typeValue,
+                                                int steps = 48, double liftScale = 0.0)
         {
             const double R = 600000.0;
             double eb, et;
@@ -124,7 +124,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 double share = eb + (et - eb) * (q + 0.5) / steps;
                 double rr = R + layer.InnerAltitudeM + share * layer.ThicknessM, zz = Math.Sqrt(Math.Max(1.0, rr * rr - hx * hx - hy * hy));
-                double s = CloudShapeModel.Share(set, ref prm, hx, hy, zz, clearMap, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.EffectiveNoiseAmount, erosion, true, dz);
+                // The shader's height-shaped threshold (E40 L2 D1): the map value lowered by the type's lift at this height times layers.profileShape.
+                double lift = liftScale > 0.0 ? liftScale * table.LiftOf(typeValue, share) : 0.0;
+                double s = CloudShapeModel.Share(set, ref prm, hx, hy, zz, clearMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.EffectiveNoiseAmount, erosion, true, dz);
                 if (s <= 0.0) continue;
                 s = CloudWater.Pow(s, layer.EffectiveWaterPower);
                 tau += layer.EffectiveSigmaPerM * s * table.Profile(typeValue, share) * dz;
@@ -242,6 +244,90 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     }
                     File.AppendAllText(path, line + Environment.NewLine);
                 }
+        }
+
+        // Whether the cloud body stands at a height share h of the type over the place (hx, hy): the shader's coverage share of the point is at least a half (the soft edge's middle),
+        // with the type's lift times liftScale taken off the map value.
+        private static bool BodyAt(CloudLayerDef layer, LayerTypeTable table, NoiseVolumeSet set, NoiseLayerParams prm, double hx, double hy, double map, double typeValue, double h, double liftScale)
+        {
+            const double R = 600000.0;
+            double eb, et;
+            table.InterpolatedHeights(typeValue, out eb, out et);
+            double share = eb + (et - eb) * h;
+            double rr = R + layer.InnerAltitudeM + share * layer.ThicknessM, zz = Math.Sqrt(Math.Max(1.0, rr * rr - hx * hx - hy * hy));
+            double lift = liftScale > 0.0 ? liftScale * table.LiftOf(typeValue, share) : 0.0;
+            return CloudShapeModel.Share(set, ref prm, hx, hy, zz, layer.ClearSkyMap((float)map) - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.EffectiveNoiseAmount, 0.0, false, 0.0) >= 0.5;
+        }
+
+        // E40 L2 D1 (the height-shaped threshold), per type of a layer at the map values 0.3 / 0.5 / 0.7 and the lift scale 0 (the column shape) and 1 (the cfg's LIFT):
+        //   closed: the share of columns looking up with optical depth 0.92 or more (the cover meaning's measure, which the lift must leave near what the map says)
+        //   base / top: the share of the sky where the cloud body stands at 10 percent and at 90 percent of the type's height, and over the top level the number of separate pieces
+        //   per 100 body columns and the share of the body that is its largest piece (a plate with holes is one large piece, a field of heads is many small ones).
+        // Runs only with SOFT_REPORT.
+        [TestMethod, TestCategory("Explore")]
+        public void LiftedShapePerType()
+        {
+            string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
+            if (string.IsNullOrEmpty(path)) return;
+            CloudSoftDensity.DetailMean = Volumes.DetailMean;
+            const int N = 40;
+            File.AppendAllText(path, "HEIGHT-SHAPED THRESHOLD, product mapping (softness " + CloudSoftDensity.Softness.ToString("0.0") + "), " + N + " x " + N + " columns at half a noise scale, 4 sites; per map value:"
+                                     + " closed share (lift 0 -> 1) | body at 10 percent of the height (lift 1) | body at 90 percent (lift 0 -> 1) | top level: pieces per 100 body columns, largest piece (lift 0 -> 1)" + Environment.NewLine);
+            CloudLayerDef[] layers = { CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus() };
+            // The vertical scale of the noise lattice (the body key sphereScale; 1: the planet-centred lattice, below 1 a feature is longer in the vertical): both are measured.
+            foreach (double sphere in new[] { 1.0, 0.4 })
+            for (int li = 0; li < layers.Length; li++)
+            {
+                CloudLayerDef layer = layers[li];
+                var table = new LayerTypeTable(layer);
+                for (int t = 0; t < layer.Types.Count; t++)
+                {
+                    double typeValue = t / (double)(layer.Types.Count - 1);
+                    var line = new StringBuilder("  sphereScale " + sphere.ToString("0.0") + " " + layer.Types[t].Name.PadRight(20) + " :");
+                    foreach (double map in new[] { 0.3, 0.5, 0.7 })
+                    {
+                        var closed = new double[2];
+                        double baseShare = 0.0;
+                        var top = new double[2];
+                        var pieces = new double[2];
+                        var largest = new double[2];
+                        int sites = 4;
+                        for (int s = 0; s < sites; s++)
+                        {
+                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, li + 1);
+                            prm.SphereScale = sphere;
+                            prm.ReferenceRadiusM = 600000.0 + 0.5 * (layer.InnerAltitudeM + layer.OuterAltitudeM);
+                            CoverMeaningModel.Place(ref prm, s);
+                            for (int variant = 0; variant < 2; variant++)
+                            {
+                                var topBody = new bool[N * N];
+                                int count = 0, closedCount = 0, baseCount = 0;
+                                for (int j = 0; j < N; j++)
+                                    for (int i = 0; i < N; i++)
+                                    {
+                                        double hx = (i - N / 2) * prm.ScaleM * 0.5, hy = (j - N / 2) * prm.ScaleM * 0.5;
+                                        if (ProductColumnTau(layer, table, Volumes, prm, hx, hy, map, typeValue, 24, variant) >= CloudWater.ClosedTau) closedCount++;
+                                        if (variant == 1 && BodyAt(layer, table, Volumes, prm, hx, hy, map, typeValue, 0.1, 1.0)) baseCount++;
+                                        if (BodyAt(layer, table, Volumes, prm, hx, hy, map, typeValue, 0.9, variant)) { topBody[j * N + i] = true; count++; }
+                                    }
+                                int biggest, components;
+                                Components(topBody, N, out biggest, out components);
+                                closed[variant] += closedCount / (double)(N * N) / sites;
+                                top[variant] += count / (double)(N * N) / sites;
+                                if (variant == 1) baseShare += baseCount / (double)(N * N) / sites;
+                                if (count > 0)
+                                {
+                                    pieces[variant] += 100.0 * components / count / sites;
+                                    largest[variant] += biggest / (double)count / sites;
+                                }
+                            }
+                        }
+                        line.Append("  map " + map.ToString("0.0") + ": " + closed[0].ToString("0.00") + "->" + closed[1].ToString("0.00") + " | " + baseShare.ToString("0.00") + " | " + top[0].ToString("0.00") + "->"
+                                    + top[1].ToString("0.00") + " | " + pieces[0].ToString("0.0") + "->" + pieces[1].ToString("0.0") + ", " + largest[0].ToString("0.00") + "->" + largest[1].ToString("0.00"));
+                    }
+                    File.AppendAllText(path, line + Environment.NewLine);
+                }
+            }
         }
 
         // The largest 4-connected piece (in cells) and the number of pieces of a boolean grid.

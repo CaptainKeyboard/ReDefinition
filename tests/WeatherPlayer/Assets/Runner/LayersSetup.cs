@@ -42,7 +42,8 @@ namespace ReDefinition.WeatherPlayer
                         BaseLight = jt.baseLight,
                         HeadLight = jt.headLight,
                         BaseAmbient = jt.baseAmbient,
-                        HeadAmbient = jt.headAmbient
+                        HeadAmbient = jt.headAmbient,
+                        Lift = jt.lift != null && jt.lift.Length >= 2 ? new Curve(Evenly(jt.lift.Length), jt.lift) : null
                     });
                 }
                 var def = new CloudLayerDef(jl.name, 0, jl.inner, jl.outer, types, jl.sigma, (LayerKind)jl.kind)
@@ -58,7 +59,8 @@ namespace ReDefinition.WeatherPlayer
                     WaterPower = jl.waterPower,
                     LightMs = jl.lightMs,
                     LightPowder = jl.lightPowder,
-                    LightAmbient = jl.lightAmbient
+                    LightAmbient = jl.lightAmbient,
+                    FibreStretch = jl.fibreStretch
                 };
                 bool hasMap = !string.IsNullOrEmpty(jl.coverageMap) || !string.IsNullOrEmpty(jl.typeMap);
                 if (hasMap) { def.CoverageMapHandle = 0; def.TypeMapHandle = 0; anyMap = true; }
@@ -163,6 +165,13 @@ namespace ReDefinition.WeatherPlayer
                 noise.SetState(l, drift, jl.rise);
             }
             if (noise.Switches.Enabled) noise.EnsureReady();
+        }
+
+        private static float[] Evenly(int count)
+        {
+            var xs = new float[count];
+            for (int i = 0; i < count; i++) xs[i] = i / (float)(count - 1);
+            return xs;
         }
 
         internal static byte[] Constant(LayersJob job, byte value)

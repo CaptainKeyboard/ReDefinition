@@ -59,6 +59,17 @@ namespace ReDefinition.Atmospheres
         internal float BaseAmbient { get; set; } = 1f;
         internal float HeadAmbient { get; set; } = 1f;
 
+        // The type's height-shaped threshold (E40 L2 D1; cfg node LIFT { key0 = height lift, ... }, null: none): at the height h of the type (0 base, 1 top) the coverage threshold is lifted by
+        // lift(h) in map units, so the cloud's outline is narrower there than where the lift is 0 (Schneider's height gradient, as data per type). A cumulus lifts towards the top (a dome over
+        // a flat base), a cumulonimbus lifts its middle and lets the top stand wide (the anvil). Never negative: the lift only lowers the map value, so the coverage bounds of the march
+        // and of the layer drop (LayerSpanBound.CoverageEmpty) stay exact. Baked into the type's tabulated profile texture (channel a, LayerTypeTable.LiftData).
+        internal Curve Lift { get; set; }
+
+        internal double LiftAt(double h)
+        {
+            return Lift == null ? 0.0 : Lift.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
+        }
+
         // The two factors (direct light, sky fill) at a height share h of the type.
         internal void LightFactors(double h, out double direct, out double ambient)
         {
@@ -177,6 +188,25 @@ namespace ReDefinition.Atmospheres
         internal float LightAmbient { get; set; } = 1f;
         // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
         internal float RainType { get; set; } = 1f;
+        // How much longer the layer's noise features are along the planet's axis than across it (cfg key fibreStretch, 1 and above; 1: isotropic): the lookup is compressed along the
+        // axis by 1 / FibreStretch (E40 L2 D1; Noise.cginc NoiseLookup). Cirrus fibres; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
+        // towards the poles (where the stretch then lies in the vertical and does not show in a thin layer).
+        internal float FibreStretch { get; set; } = 1f;
+        // The mid-level sheet's rule (E40 L2 D1; cfg keys altoType, altoFrom, altoFullAt): AltoType is the type value of the table's mid-level sheet (an altocumulus), -1: none. Where the
+        // generator makes more cloud at that type's height than at the fair-weather type's height (the difference of the two layer maps, from AltoFrom to AltoFullAt), the type map
+        // shows the sheet instead of the precipitation's type (CloudLookTuning.ApplyAlto).
+        internal float AltoType { get; set; } = -1f;
+        internal float AltoFrom { get; set; } = 0.05f;
+        internal float AltoFull { get; set; } = 0.3f;
+
+        // The height above sea level of the middle of the type at a type value (the type at the nearest index of the table), m.
+        internal double TypeMidHeightM(float typeValue)
+        {
+            int index = Types.Count <= 1 ? 0 : (int)Math.Round(Math.Max(0f, Math.Min(1f, typeValue)) * (Types.Count - 1));
+            CloudTypeDef t = Types[index];
+            return InnerAltitudeM + 0.5 * (t.BaseShare + t.TopShare) * ThicknessM;
+        }
+
         private double SoftAmount { get { return CloudSoftDensity.CoverMeaning ? 1.0 : ConfiguredNoiseAmount; } }
         // The width of the water content's rise in noise rank.
         private double SoftWidth { get { return Math.Max(0.02, CloudSoftDensity.Softness * SoftnessScale); } }

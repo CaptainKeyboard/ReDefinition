@@ -217,7 +217,9 @@ class Params(object):
     """The constants of the model. Everything that is a length is a multiple of the layer's scale."""
 
     def __init__(self, scale=375.0, untile=True, warp_amp=6.5, warp_cell=14.0, curl=True, curl_amp=0.6, seed=1, offset=(0.0, 0.0, 0.0),
-                 erosion=0.5, hard_base=1.0, hard_gain=4.0):
+                 erosion=0.5, hard_base=1.0, hard_gain=4.0, stretch=1.0, axis=(0.0, 0.0, 1.0)):
+        # stretch: how much longer the features are along the unit `axis` than across it (the layer's fibreStretch, E40 L2 D1; 1: isotropic).
+        self.stretch, self.axis = stretch, np.asarray(axis, dtype=np.float64)
         self.scale, self.untile, self.warp_amp, self.warp_cell, self.curl, self.curl_amp = scale, untile, warp_amp, warp_cell, curl, curl_amp
         self.seed, self.offset, self.erosion, self.hard_base, self.hard_gain = seed, np.asarray(offset, dtype=np.float64), erosion, hard_base, hard_gain
 
@@ -245,8 +247,10 @@ class Volumes(object):
 
 
 def lookup_point(p, prm):
-    """The point the volumes are read at: the layer offset, then the untiling displacement."""
+    """The point the volumes are read at: the layer offset, the fibre stretch (the lookup compressed along the axis by 1 / stretch), then the untiling displacement."""
     q = p + prm.offset
+    if prm.stretch != 1.0:
+        q = q - np.asarray(q @ prm.axis)[..., None] * prm.axis * (1.0 - 1.0 / prm.stretch)
     if prm.untile:
         lw = prm.warp_cell * prm.scale
         q = q + prm.warp_amp * prm.scale * value_vec(q / lw, prm.seed + 4001)

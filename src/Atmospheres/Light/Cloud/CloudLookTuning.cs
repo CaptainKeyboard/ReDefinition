@@ -22,9 +22,9 @@ namespace ReDefinition.Atmospheres
     //   cloud.deckPrecip.<name>           the probe's: a precipitation level the layer's deck rule sees everywhere, 0 to 1 (-1: the field's)
     //   cloud.deckFog.<name>              the probe's: a fog share the layer's deck rule sees everywhere, 0 to 1 (-1: the field's dew-point spread and wind)
     //   layers.densityRemap               the share of the erosion that also thins the interior of a closed deck (0: erosion only in the soft edge)
-    //   layers.profileShape               how far the type's height profile lifts the coverage threshold where the profile is below 1, in map units (0: the profile scales the
-    //                                     density only and every cloud is an upright column with a flat top; above 0 a cloud narrows where its profile falls, so tops are domed).
-    //                                     Shader only (_NoiseT.w): the CPU readers and the cloud shadow keep the column shape.
+    //   layers.profileShape               the scale on the types' height-shaped threshold (cfg node LIFT of a TYPE, in map units; E40 L2 D1): 1 (default) is what the cfg says, 0 gives the
+    //                                     column shape back (every cloud an upright column with a flat top), 2 doubles the lift. Shader only (_NoiseT.w): the CPU readers of the
+    //                                     density and the cloud shadow keep the column shape.
     //   cloud.coverCombine                0 to 1: how far the layer maps are scaled so that their random-overlap union equals the field's cover (0: maps as they are)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
     //   cloud.fadeNearShare               share of cloud.fadeFarM where the fade starts (0.5)
@@ -40,7 +40,7 @@ namespace ReDefinition.Atmospheres
             TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.";
 
         private static long seenVersion = -1;
-        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f, profileShape;
+        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f, profileShape = 1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -102,7 +102,7 @@ namespace ReDefinition.Atmospheres
             farHaze = h;
             hazeStrength = hs;
             // Read by the noise binding every frame; it does not change the layers' uploaded numbers, so it does not raise the stamp.
-            profileShape = Clean(Tuning.Get(TuneProfileShape, 0f), 0f, 0f, 2f);
+            profileShape = Clean(Tuning.Get(TuneProfileShape, 1f), 1f, 0f, 2f);
             // The per-layer keys of the names asked for so far are read again in place; a value that moved counts as a change.
             changed |= Reread(LayerShift, TuneLayerShift, 0f, -1f, 1f);
             changed |= Reread(TypeFairByName, TuneTypeFair, -1f, -1f, 1f);
@@ -283,6 +283,36 @@ namespace ReDefinition.Atmospheres
             for (int i = 0; i < precipitation.Length; i++)
             {
                 float v = TypeValue(precipitation[i] / 255f, fair, overrideValue, rain);
+                scratch[i] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(v * 255.0, MidpointRounding.ToEven)));
+            }
+            return scratch;
+        }
+
+        // The share (0 to 1) of the mid-level sheet in a texel (E40 L2 D1): how much more cloud the generator makes at the sheet's height than at the fair-weather type's height (map values
+        // 0 to 1), smoothly from `from` (none) to `full` (all). A sheet shows where the air aloft is moist and the low air is not: the low cumulus is what the low map says.
+        internal static float AltoShare(float mid, float low, float from, float full)
+        {
+            float d = mid - low;
+            if (!(full > from)) return d >= from ? 1f : 0f;
+            float x = (d - from) / (full - from);
+            x = x <= 0f ? 0f : x >= 1f ? 1f : x;
+            return x * x * (3f - 2f * x);
+        }
+
+        // The type bytes of a layer with the mid-level sheet's rule applied: where the generator makes the sheet (AltoShare of the maps at the sheet's and at the low type's height) and
+        // it does not rain (the share goes out by the precipitation from 0 to 0.4: a rain cloud hides the sheet), the type value runs from the type bytes' value to `alto`. mid, low:
+        // the layer maps at those heights as bytes. alto < 0, or a map that is missing or of another size: the type bytes themselves (no copy). The source arrays are not changed.
+        internal static byte[] ApplyAlto(byte[] type, byte[] precipitation, byte[] mid, byte[] low, float alto, float from, float full, ref byte[] scratch)
+        {
+            if (alto < 0f || type == null || precipitation == null || mid == null || low == null
+                || mid.Length != type.Length || low.Length != type.Length || precipitation.Length != type.Length) return type;
+            if (scratch == null || scratch.Length != type.Length) scratch = new byte[type.Length];
+            for (int i = 0; i < type.Length; i++)
+            {
+                float rain = precipitation[i] / 255f / 0.4f;
+                rain = rain >= 1f ? 1f : rain;
+                float share = AltoShare(mid[i] / 255f, low[i] / 255f, from, full) * (1f - rain * rain * (3f - 2f * rain));
+                float v = type[i] / 255f + (alto - type[i] / 255f) * share;
                 scratch[i] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(v * 255.0, MidpointRounding.ToEven)));
             }
             return scratch;
