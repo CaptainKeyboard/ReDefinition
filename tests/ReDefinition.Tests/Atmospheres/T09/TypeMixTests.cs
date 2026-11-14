@@ -344,6 +344,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             TypeMixFixture.Layer(field, body, shared, deck, true, out deckCover, out deckType);
                             TypeMixMetrics.Sizes ds = TypeMixMetrics.Of(deckCover, 0.5);
                             double lambdaMaxKm = field.SystemWavelengthMaxKm(body);
+                            // no rain from a clear sky: wherever it rains (level 0.08 and up) the deck carries at least its rainMin, so no raining texel has the pattern's gap alone
+                            int clearRain = 0, rainTexels = 0;
+                            for (int k = 0; k < deckCover.Length; k++)
+                                if (shared.Precip.Bytes[k] / 255.0 >= deck.Meso.RainMinFullAt) { rainTexels++; if (deckCover[k] / 255.0 < deck.Meso.RainMin - 0.01) clearRain++; }
+                            Assert.IsTrue(rainTexels > 0 && clearRain == 0, "rain texels under a deck below its rainMin " + deck.Meso.RainMin + ": " + clearRain + " of " + rainTexels + tag);
                             if (Mean(deckCover, 0, H) < 0.4)
                             {
                                 Assert.IsTrue(ds.FieldDiameterKm < 1.6 * lambdaMaxKm, "rain deck field diameter " + ds.FieldDiameterKm + " km against the systems' longest wavelength " + lambdaMaxKm + tag);

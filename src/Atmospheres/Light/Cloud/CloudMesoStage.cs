@@ -72,6 +72,7 @@ namespace ReDefinition.Atmospheres
             // The edge of a field thins out into small cells (CloudMesoSpec.Scatter): a second, finer noise; null where the layer has none.
             float scatter = meso.Scatter, soft = meso.ScatterSoft;
             float keepFrom = meso.RainKeepFrom, keepFull = meso.RainKeepFullAt;
+            float rainMin = meso.RainMin, minFrom = meso.RainMinFrom, minFull = meso.RainMinFullAt;
             float[] us = scatter > 0f ? Pattern(inp.Seed, 17, SizeKm(0f, meso.ScatterDepths, inp), 2, 1f, w, h, inp.RadiusKm) : null;
             // The pattern of a cover m is a ramp over the noise rank u, from 0 at t to 1 at t + edge, raised to the power `gamma`: a field has a core of 1 and a shoulder that falls off to the gap, and
             // t is set so that the mean over u is m (the integral of the ramp is edge / (gamma + 1)); a power above 1 puts less of the area above one half than m, so that a region of m = 0.6 does not
@@ -108,6 +109,7 @@ namespace ReDefinition.Atmospheres
                     if (us != null) bin += scatter * (Thin(bin, Lookup(us, w, h, i, j, shift), soft) - bin);
                     float v = m + amount * (bin - m);
                     if (keep > 0f && inp.Precip != null) v = Math.Max(v, m * keep * Smooth(keepFrom, keepFull, inp.Precip[k] / 255f));
+                    if (rainMin > 0f && inp.Precip != null) v = Math.Max(v, rainMin * Smooth(minFrom, minFull, inp.Precip[k] / 255f));
                     output[k] = ToByte(v);
                 }
             }

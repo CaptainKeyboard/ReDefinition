@@ -281,6 +281,9 @@ namespace ReDefinition.Atmospheres
                 RainKeep = r.Float("rainKeep", 1f, 0f, 1f),
                 RainKeepFrom = r.Float("rainKeepFrom", 0.02f, 0f, 1f),
                 RainKeepFullAt = r.Float("rainKeepFullAt", 0.25f, 0f, 1f),
+                RainMin = r.Float("rainMin", 0f, 0f, 1f),
+                RainMinFrom = r.Float("rainMinFrom", 0.04f, 0f, 1f),
+                RainMinFullAt = r.Float("rainMinFullAt", 0.08f, 0f, 1f),
                 Scatter = r.Float("scatter", 0f, 0f, 1f),
                 ScatterDepths = r.Float("scatterDepths", CloudMesoSpec.DefaultScatterDepths, 0.2f, 100f),
                 ScatterSoft = r.Float("scatterSoft", 0.3f, 0.02f, 1f)

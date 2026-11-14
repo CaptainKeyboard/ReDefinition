@@ -38,6 +38,11 @@ namespace ReDefinition.Atmospheres
         // rainKeepFrom, rainKeepFullAt; the defaults are the stage's old fixed 0.02 and 0.25).
         internal float RainKeepFrom { get; set; } = 0.02f;
         internal float RainKeepFullAt { get; set; } = 0.25f;
+        // The least cover (map value) the pattern leaves where it rains (cfg key rainMin; 0, the default: none), complete at precipitation level RainMinFullAt and beginning at RainMinFrom (cfg keys
+        // rainMinFrom, rainMinFullAt). It keeps rain from falling out of a clear sky where the pattern has a gap: the deck is broken there, never absent. Below one half so that it is no field.
+        internal float RainMin { get; set; }
+        internal float RainMinFrom { get; set; } = 0.04f;
+        internal float RainMinFullAt { get; set; } = 0.08f;
         // How far the field's edge is a thinning-out of small cells instead of a smooth ramp, 0 to 1 (cfg key scatter; 0, the default: the plain ramp). A real field of cumulus thins out
         // towards its edge into scattered small cells and fragments; the ramp's value r (0 in the gap, 1 in the core) becomes the DENSITY of cells: a texel is cloud where a second, finer
         // noise lies below r (with a soft step of ScatterSoft), so the mean over the edge is the ramp's mean exactly and a region keeps its cover.

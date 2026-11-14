@@ -56,6 +56,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(shipped.Meso.RainKeep, fixture.Meso.RainKeep, 1e-6f, n + " meso rain keep");
                 Assert.AreEqual(shipped.Meso.RainKeepFrom, fixture.Meso.RainKeepFrom, 1e-6f, n + " meso rain keep from");
                 Assert.AreEqual(shipped.Meso.RainKeepFullAt, fixture.Meso.RainKeepFullAt, 1e-6f, n + " meso rain keep full at");
+                Assert.AreEqual(shipped.Meso.RainMin, fixture.Meso.RainMin, 1e-6f, n + " meso rain min");
+                Assert.AreEqual(shipped.Meso.RainMinFrom, fixture.Meso.RainMinFrom, 1e-6f, n + " meso rain min from");
+                Assert.AreEqual(shipped.Meso.RainMinFullAt, fixture.Meso.RainMinFullAt, 1e-6f, n + " meso rain min full at");
                 Assert.AreEqual(shipped.Meso.ScaleSystems, fixture.Meso.ScaleSystems, 1e-6f, n + " meso scale systems");
                 Assert.AreEqual(shipped.Meso.Scatter, fixture.Meso.Scatter, 1e-6f, n + " meso scatter");
                 Assert.AreEqual(shipped.Meso.ScatterDepths, fixture.Meso.ScatterDepths, 1e-6f, n + " meso scatter depths");

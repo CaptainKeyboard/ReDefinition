@@ -41,7 +41,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 new CloudTypeDef("Stratus", 0.1f, 0.5f, C(0f, 0f, 0.12f, 0.8f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.15f),
                 new CloudTypeDef("Nimbostratus", 0.05f, 1f, C(0f, 0.1f, 0.08f, 0.9f, 0.6f, 1f, 0.9f, 0.6f, 1f, 0f), 0.2f));
             rain.Deck = new WeatherDeckRule { RainFloor = 0.9f, RainFloorFullAt = 0.7f };
-            rain.Meso = new CloudMesoSpec { ScaleSystems = 0.6f, Octaves = 2, Amount = 1f, Edge = 0.5f, Shoulder = 3f, Cells = true, Stretch = 1f, RainKeep = 0.8f, RainKeepFrom = 0.4f, RainKeepFullAt = 0.8f, Scatter = 1f, ScatterDepths = 3f };
+            rain.Meso = new CloudMesoSpec { ScaleSystems = 0.6f, Octaves = 2, Amount = 1f, Edge = 0.5f, Shoulder = 3f, Cells = true, Stretch = 1f, RainKeep = 0.8f, RainKeepFrom = 0.4f, RainKeepFullAt = 0.8f, RainMin = 0.45f, RainMinFrom = 0.04f, RainMinFullAt = 0.08f, Scatter = 1f, ScatterDepths = 3f };
             // The soft water content's numbers of the cfg (E40 soft density): a softer, flatter deck.
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;

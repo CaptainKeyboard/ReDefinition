@@ -360,7 +360,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheMesoPatternAndTheTypeClimateAreReadBuiltAndDefaultToNone()
         {
             string climate = "CLIMATE{weight = 0.8;LATITUDE{key0 = 0 1;key1 = 1 0.2}SURFACE{key0 = 0 0.5;key1 = 1 1}HUMIDITY{key0 = 0 0;key1 = 1 1}PRECIPITATION{key0 = 0 1;key1 = 1 0}}";
-            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;typePatchKm = 33;typePatchDepths = 9;typePatchBlend = 0.1;MESO{scaleKm = 60;scaleDepths = 6;octaves = 3;amount = 0.5;edge = 0.2;shoulder = 2;cells = 1;stretch = 4;rainKeep = 0.5;scatter = 0.7;scatterDepths = 2;scatterSoft = 0.2;scaleSystems = 0.6;rainKeepFrom = 0.3;rainKeepFullAt = 0.9}"
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;typePatchKm = 33;typePatchDepths = 9;typePatchBlend = 0.1;MESO{scaleKm = 60;scaleDepths = 6;octaves = 3;amount = 0.5;edge = 0.2;shoulder = 2;cells = 1;stretch = 4;rainKeep = 0.5;scatter = 0.7;scatterDepths = 2;scatterSoft = 0.2;scaleSystems = 0.6;rainKeepFrom = 0.3;rainKeepFullAt = 0.9;rainMin = 0.4;rainMinFrom = 0.05;rainMinFullAt = 0.1}"
                 + "TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 1}" + climate + "}}"
                 + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}"
                 + "LAYER{name = C;innerAltitudeM = 100;outerAltitudeM = 900;MESO{amount = 7;octaves = 9;scaleKm = 1}" + GoodType + "}");
@@ -383,6 +383,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.6f, a.Meso.ScaleSystems, 1e-6f);
             Assert.AreEqual(0.3f, a.Meso.RainKeepFrom, 1e-6f);
             Assert.AreEqual(0.9f, a.Meso.RainKeepFullAt, 1e-6f);
+            Assert.AreEqual(0.4f, a.Meso.RainMin, 1e-6f);
+            Assert.AreEqual(0.05f, a.Meso.RainMinFrom, 1e-6f);
+            Assert.AreEqual(0.1f, a.Meso.RainMinFullAt, 1e-6f);
             Assert.AreEqual(0.8f, a.Types[0].Climate.Weight, 1e-6f);
             Assert.AreEqual(0.6f, a.Types[0].Climate.Latitude.Evaluate(0.5f), 1e-6f);
             Assert.AreEqual(0.75f, a.Types[0].Climate.Surface.Evaluate(0.5f), 1e-6f);
@@ -408,6 +411,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(1f, c.Meso.Shoulder, "no shoulder key: a linear ramp");
             Assert.AreEqual(0f, c.Meso.Scatter, "no scatter key: the plain ramp");
             Assert.AreEqual(0f, c.Meso.ScaleSystems, "no scaleSystems key: the size is in depths");
+            Assert.AreEqual(0f, c.Meso.RainMin, "no rainMin key: none");
             Assert.AreEqual(0.02f, c.Meso.RainKeepFrom, 1e-6f, "no rainKeepFrom key: the stage's old 0.02");
             Assert.AreEqual(0.25f, c.Meso.RainKeepFullAt, 1e-6f, "no rainKeepFullAt key: the stage's old 0.25");
             Assert.AreEqual(CloudMesoSpec.DefaultScatterDepths, c.Meso.ScatterDepths, 1e-6f);
