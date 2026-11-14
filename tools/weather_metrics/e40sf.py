@@ -17,8 +17,12 @@ What it makes:
             "fits" where the busy delta is at most TVC's, else "does not fit". The scene fair has no TVC figure of its own: it is held against the same numbers for scale only.
   grain     per scene, view and variant: temporal noise of a cloud pixel (tstd, over the pixels the clouds changed against the baseline frame), spatial grain hfx, the box measure of
             start 56 (box_tstd, box_blob), and each variant's tstd over the first variant's and over "hard"'s.
-  sheets    e40-59-<view>-sheet.png (clock) and e40-59-fair-<view>-sheet.png (fair): the first frame of every variant side by side, in the table's order, plus TVC's frame of start 47 in
-            the clock scene; e40-59-<view>-strip.png / e40-59-fair-<view>-strip.png: frames a | b | c and the temporal noise (x 8) of a crop, one row per variant.
+            The verdict is "fits" / "does not fit" / "undecidable (within 0.5 ms)": the run-to-run floor of the busy delta is about 0.5 ms (start 56), and TVC's figures were taken against
+            a pass-off baseline while ours leave out the two blits of the pass (0.1 to 0.3 ms kinder to us), so a delta within 0.5 ms of TVC's figure decides nothing.
+            The column "/ soft" is the busy delta over the variant soft's in the same view (the drop, the march target and the cut span are read as these ratios).
+  sheets    e40-59-<view>-sheet.png (clock) and e40-59-fair-<view>-sheet.png (fair): the first frame of soft | hard | soft100s24 | softr33 | softcut16 side by side (the variants that
+            ran), plus TVC's frame of start 47 in the clock scene; e40-59-<view>-strip.png / e40-59-fair-<view>-strip.png: frames a | b | c and the temporal noise (x 8) of a crop, one row
+            per variant; e40-59-fair-<view>-dither.png: soft | softhash, a full-size crop of a cloud body enlarged 2x, for the owner's dither decision (the weave against the speckle).
 Stdlib for the tables; the sheets need numpy and Pillow.
 """
 import argparse
@@ -37,6 +41,11 @@ VIEW_ORDER = ("ground", "above", "inside", "sky3")
 NOTES = []
 RES = "1707x960"
 START = "soft59"
+# A delta this close to TVC's figure decides nothing: the run-to-run floor is about 0.5 ms (start 56).
+UNDECIDABLE_MS = 0.5
+# The tiles of a view's sheet, in this order (the variants that ran), and the pair of the dither sheet.
+SHEET_ORDER = ("soft", "hard", "soft100s24", "softr33", "softcut16")
+DITHER_PAIR = ("soft", "softhash")
 
 
 def load_kt2():
@@ -95,8 +104,17 @@ def fmt(value, digits=3):
     return "-" if value is None or (isinstance(value, float) and math.isnan(value)) else ("%.*f" % (digits, value))
 
 
+def verdict_of(shown, tvc):
+    """'fits' / 'does not fit' / 'undecidable (within 0.5 ms)' of a busy delta against TVC's figure; '-' without either."""
+    if shown is None or tvc is None:
+        return "-"
+    if abs(shown - tvc) <= UNDECIDABLE_MS:
+        return "undecidable (within %.1f ms)" % UNDECIDABLE_MS
+    return "fits" if shown <= tvc else "does not fit"
+
+
 def cost_rows(found, rows, kt2):
-    """The cost table: [(scene, view, variant, busy_delta, label_ms, frame_delta, tvc, verdict)] and the notes it fills."""
+    """The cost table: [(scene, view, variant, busy_delta, label_ms, frame_delta, tvc, verdict, reports, over_soft)] and the notes it fills."""
     table = []
     for scene, prefix in SCENES:
         for view in views_of(rows, scene):
@@ -104,21 +122,25 @@ def cost_rows(found, rows, kt2):
             if base is None:
                 continue
             base_busy = kt2.busy_ms(base)
+            soft_delta = None
             for variant in variants_of(rows, scene, view):
                 v = found.get((prefix + variant, view, RES))
                 if v is None:
                     continue
                 busy = kt2.busy_ms(v)
                 delta = None if busy is None or base_busy is None else busy - base_busy
+                if variant == "soft":
+                    soft_delta = delta
+                over_soft = None if delta is None or soft_delta in (None, 0.0) else delta / soft_delta
                 frame = None if v["frame"] is None or base["frame"] is None else v["frame"] - base["frame"]
                 tvc = TVC_MS.get(view)
                 shown = delta if delta is not None else frame
-                verdict = "-" if shown is None or tvc is None else ("fits" if shown <= tvc else "does not fit")
+                verdict = verdict_of(shown, tvc)
                 if scene == "fair" and verdict != "-":
                     verdict += " (same figures, other scene)"
                 if delta is not None and delta < -0.1:
                     NOTES.append("cost %s %s %s: the busy delta %.2f ms is negative (NOT SENSIBLE)" % (scene, view, variant, delta))
-                table.append((scene, view, variant, delta, v["labels"], frame, tvc, verdict, v["reports"]))
+                table.append((scene, view, variant, delta, v["labels"], frame, tvc, verdict, v["reports"], over_soft))
     return table
 
 
@@ -149,7 +171,9 @@ def effective_rows(rows):
             for variant in variants_of(rows, scene, view):
                 p = "T09s.%s.%s.%s." % (scene, view, variant)
                 if p + "effective_ok" in rows:
-                    out.append((scene, view, variant, num(rows.get(p + "grid_points")), num(rows.get(p + "softness")), rows.get(p + "soft_density"), rows.get(p + "effective_ok")))
+                    out.append((scene, view, variant, num(rows.get(p + "grid_points")), num(rows.get(p + "softness")), rows.get(p + "soft_density"), rows.get(p + "effective_ok"),
+                                num(rows.get(p + "march_w")), num(rows.get(p + "march_h")), num(rows.get(p + "layers_none")), num(rows.get(p + "layers_total")),
+                                rows.get(p + "span_tight"), rows.get(p + "drop_empty"), rows.get(p + "skip_empty")))
     return out
 
 
@@ -174,11 +198,11 @@ def tables(texts):
     out_lines, metrics = [], []
     cost = cost_rows(found, rows, kt2)
     out_lines.append("COST (ms, busy time minus the baseline window with no layer drawn; label = the pass's own group; TVC = busy-delta of start 47)")
-    out_lines.append("  %-6s %-7s %-12s %8s %8s %8s %6s  %s" % ("scene", "view", "variant", "busy d", "label", "frame d", "TVC", "against TVC (reports)"))
-    for scene, view, variant, delta, label, frame, tvc, verdict, reports in cost:
-        out_lines.append("  %-6s %-7s %-12s %8s %8s %8s %6s  %s (%d)" % (scene, view, variant, fmt(delta, 2), fmt(label, 2), fmt(frame, 2), fmt(tvc, 2), verdict, reports))
+    out_lines.append("  %-6s %-7s %-12s %8s %8s %8s %7s %6s  %s" % ("scene", "view", "variant", "busy d", "label", "frame d", "/ soft", "TVC", "against TVC (reports)"))
+    for scene, view, variant, delta, label, frame, tvc, verdict, reports, over_soft in cost:
+        out_lines.append("  %-6s %-7s %-12s %8s %8s %8s %7s %6s  %s (%d)" % (scene, view, variant, fmt(delta, 2), fmt(label, 2), fmt(frame, 2), fmt(over_soft, 2), fmt(tvc, 2), verdict, reports))
         base = "T09s.cost.%s.%s.%s." % (scene, view, variant)
-        for name, value in (("busy_delta_ms", delta), ("label_ms", label), ("frame_delta_ms", frame)):
+        for name, value in (("busy_delta_ms", delta), ("label_ms", label), ("frame_delta_ms", frame), ("over_soft", over_soft)):
             if value is not None:
                 metrics.append({"metric": base + name, "value": round(value, 4), "variant": None})
         if scene == "clock" and verdict in ("fits", "does not fit"):
@@ -193,9 +217,12 @@ def tables(texts):
             if value is not None:
                 metrics.append({"metric": base + name, "value": round(value, 6), "variant": None})
     eff = effective_rows(rows)
-    out_lines.append("WHAT THE PASS RAN WITH (grid points, soft rim width, soft density; ok = the table's numbers)")
-    for scene, view, variant, points, softness, soft, ok in eff:
-        out_lines.append("  %-6s %-7s %-12s %4s points  softness %s  soft density %s  ok %s" % (scene, view, variant, fmt(points, 0), fmt(softness, 2), soft, ok))
+    out_lines.append("WHAT THE PASS RAN WITH (grid points, soft rim width, soft density, march target, layers left out of the march; ok = the table's numbers)")
+    for scene, view, variant, points, softness, soft, ok, mw, mh, none, total, tight, drop, skip in eff:
+        target = "-" if mw is None or mh is None else "%dx%d" % (mw, mh)
+        left_out = "-" if none is None or total is None else "%d of %d" % (none, total)
+        out_lines.append("  %-6s %-7s %-12s %4s points  softness %s  soft density %s  target %-9s left out %-7s tight %s drop %s skip %s  ok %s"
+                         % (scene, view, variant, fmt(points, 0), fmt(softness, 2), soft, target, left_out, tight, drop, skip, ok))
         if ok is False:
             NOTES.append("the pass did not run with the table's numbers: %s %s %s (%s points, softness %s, soft density %s)" % (scene, view, variant, fmt(points, 0), fmt(softness, 2), soft))
     suns = sun_lines(texts)
@@ -258,6 +285,52 @@ def tvc_pictures(folders):
     return out
 
 
+def dither_crop(soft, off, size=(400, 225), body=(0.3, 0.85)):
+    """The corner (x, y) of the crop that holds a cloud body: the window where the clouds changed the baseline most, among those that are not wholly cloud (a rim stays in it, so the weave
+    of the interleaved step offset and the speckle of the hash both show). soft and off are float images (h, w, 3); the cloud is the pixels that differ from the baseline by 0.05 or more."""
+    import numpy as np
+    h, w = soft.shape[:2]
+    cw, ch = min(size[0], w), min(size[1], h)
+    changed = (np.abs(soft - off).max(axis=2) >= 0.05).astype(np.float32)
+    # The share of cloud pixels per window from an integral image, on a 20 pixel grid.
+    integral = np.pad(changed, ((1, 0), (1, 0))).cumsum(axis=0).cumsum(axis=1)
+    best, best_full, at, at_full = -1.0, -1.0, (0, 0), (0, 0)
+    for y in range(0, h - ch + 1, 20):
+        for x in range(0, w - cw + 1, 20):
+            share = float(integral[y + ch, x + cw] - integral[y, x + cw] - integral[y + ch, x] + integral[y, x]) / (cw * ch)
+            if body[0] <= share <= body[1] and share > best:
+                best, at = share, (x, y)
+            if share > best_full:
+                best_full, at_full = share, (x, y)
+    return at if best >= 0.0 else at_full
+
+
+def dither_sheet(variants, path, np, Image, ImageDraw, font, bar=18, zoom=2):
+    """soft | softhash side by side, the same crop of the frame a at full size enlarged 2x with the nearest pixel (no smoothing, so the weave and the speckle are as drawn).
+    Returns the path, or None when a frame of the pair or of the baseline is missing."""
+    soft_name, hash_name = DITHER_PAIR
+    off = variants.get("off", {}).get("a")
+    if soft_name not in variants or hash_name not in variants or "a" not in variants[soft_name] or "a" not in variants[hash_name] or off is None:
+        return None
+
+    def load(p):
+        return np.asarray(Image.open(p).convert("RGB"), dtype=np.float32) / 255.0
+
+    soft, other, base = load(variants[soft_name]["a"]), load(variants[hash_name]["a"]), load(off)
+    x, y = dither_crop(soft, base)
+    ch, cw = min(225, soft.shape[0]), min(400, soft.shape[1])
+    cells = []
+    for name, img in ((soft_name, soft), (hash_name, other)):
+        crop = (np.clip(img[y:y + ch, x:x + cw], 0, 1) * 255).astype(np.uint8)
+        big = Image.fromarray(crop).resize((cw * zoom, ch * zoom), Image.NEAREST)
+        canvas = Image.new("RGB", (big.width, big.height + bar), (16, 16, 16))
+        canvas.paste(big, (0, bar))
+        ImageDraw.Draw(canvas).text((4, 3), "%s   crop %d,%d %dx%d at full size, enlarged %dx" % (name, x, y, cw, ch, zoom), fill=(235, 235, 235), font=font)
+        cells.append(np.asarray(canvas))
+    Image.fromarray(np.concatenate(cells, axis=1)).save(path)
+    return path
+
+
 def make_sheets(pictures, out_dir, extra_tvc_folders=()):
     """Writes the sheets and the strips; returns the list of files. numpy and Pillow are needed."""
     import numpy as np
@@ -280,7 +353,8 @@ def make_sheets(pictures, out_dir, extra_tvc_folders=()):
     for (scene, view), variants in sorted(index.items()):
         prefix = "e40-59-" + ("fair-" if scene == "fair" else "")
         names = [v for v in variants if v != "off" and "a" in variants[v]]
-        tiles = [tile(variants[v]["a"], v) for v in names]
+        # The sheet: soft | hard | soft100s24 | softr33 | softcut16 (those that ran), then TVC; the other variants are in the strips.
+        tiles = [tile(variants[v]["a"], v) for v in SHEET_ORDER if v in names]
         if scene == "clock" and view in tvc:
             tiles.append(tile(tvc[view], "TVC (start 47)"))
         if tiles:
@@ -292,6 +366,10 @@ def make_sheets(pictures, out_dir, extra_tvc_folders=()):
             path = os.path.join(out_dir, "%s%s-sheet.png" % (prefix, view))
             sheet.save(path)
             written.append(path)
+        if scene == "fair":
+            path = dither_sheet(variants, os.path.join(out_dir, "%s%s-dither.png" % (prefix, view)), np, Image, ImageDraw, font)
+            if path:
+                written.append(path)
         # The strips: one crop for the view, the window where the first two frames of the first variant differ most.
         have = [v for v in names if all(l in variants[v] for l in "abc")]
         if not have:
@@ -397,23 +475,36 @@ def selftest():
     import tempfile
     log = []
     # The clock scene: ground (soft 2.0 over the baseline: fits TVC's 2.59; hard 3.0: does not), above (soft 5.0: fits 5.30).
-    log += _window("ground", "k_off", 10.0, None) + _window("ground", "k_soft", 12.0, 1.9) + _window("ground", "k_hard", 13.0, 2.8)
-    log += _window("above", "k_off", 10.0, None) + _window("above", "k_soft", 15.0, 4.8)
-    log += _window("ground", "fw_off", 9.0, None) + _window("ground", "fw_soft", 14.0, 4.7)
-    for scene, view, variant, tstd in (("clock", "ground", "soft", 0.002), ("clock", "ground", "hard", 0.008), ("clock", "above", "soft", 0.003), ("fair", "ground", "soft", 0.004),
-                                      ("fair", "ground", "hard", 0.016)):
+    log += _window("ground", "k_off", 10.0, None) + _window("ground", "k_soft", 12.0, 1.9) + _window("ground", "k_hard", 14.0, 2.8)
+    log += _window("above", "k_off", 10.0, None) + _window("above", "k_soft", 14.0, 4.8)
+    log += _window("ground", "fw_off", 9.0, None) + _window("ground", "fw_soft", 14.0, 4.7) + _window("ground", "fw_softr33", 11.5, 2.4) + _window("ground", "fw_softnodrop", 14.6, 4.9)
+    # Within 0.5 ms of TVC's 2.59 at the clock ground (2.9): undecidable, and no fits_tvc row; the ratio over soft is the drop's / the march target's read.
+    log += _window("ground", "k_softr33", 12.9, 1.2)
+    for scene, view, variant, tstd in (("clock", "ground", "soft", 0.002), ("clock", "ground", "hard", 0.008), ("clock", "ground", "softr33", 0.003), ("clock", "above", "soft", 0.003),
+                                      ("fair", "ground", "soft", 0.004), ("fair", "ground", "hard", 0.016), ("fair", "ground", "softr33", 0.005), ("fair", "ground", "softnodrop", 0.004)):
         p = "T09s.%s.%s.%s." % (scene, view, variant)
         log += [_row(p + "tstd", tstd), _row(p + "hfx", -0.01), _row(p + "box_tstd", tstd * 2), _row(p + "box_blob", 0.01), _row(p + "cloud_share", 0.4),
-                _row(p + "grid_points", 48), _row(p + "softness", 0.5), _row(p + "soft_density", variant == "soft"), _row(p + "effective_ok", True)]
+                _row(p + "grid_points", 48), _row(p + "softness", 0.5), _row(p + "soft_density", variant != "hard"), _row(p + "effective_ok", True),
+                _row(p + "march_w", 563 if variant == "softr33" else 854), _row(p + "march_h", 317 if variant == "softr33" else 480),
+                _row(p + "layers_none", 0 if variant == "softnodrop" else 2), _row(p + "layers_total", 4), _row(p + "span_tight", False), _row(p + "drop_empty", variant != "softnodrop"),
+                _row(p + "skip_empty", variant == "softr33")]
     log.append("T09 sun colour (fair, frame 7): Scatterer loaded True, ...; the read sees the restored colour: True")
     text = "\n".join(log)
     out_lines, metrics = tables([text])
     rows = {m["metric"]: m["value"] for m in metrics}
     assert abs(rows["T09s.cost.clock.ground.soft.busy_delta_ms"] - 2.0) < 1e-9, rows
     assert rows["T09s.cost.clock.ground.soft.fits_tvc"] is True and rows["T09s.cost.clock.ground.hard.fits_tvc"] is False, rows
-    assert abs(rows["T09s.cost.clock.above.soft.busy_delta_ms"] - 5.0) < 1e-9 and rows["T09s.cost.clock.above.soft.fits_tvc"] is True, rows
+    assert abs(rows["T09s.cost.clock.above.soft.busy_delta_ms"] - 4.0) < 1e-9 and rows["T09s.cost.clock.above.soft.fits_tvc"] is True, rows
     assert abs(rows["T09s.cost.clock.ground.soft.label_ms"] - 1.9) < 1e-9, rows
     assert abs(rows["T09s.cost.fair.ground.soft.busy_delta_ms"] - 5.0) < 1e-9 and "T09s.cost.fair.ground.soft.fits_tvc" not in rows, rows
+    # The verdict words: a delta within 0.5 ms of TVC's figure is undecidable and gets no fits_tvc row.
+    assert verdict_of(1.9, 2.59) == "fits" and verdict_of(3.2, 2.59) == "does not fit", (verdict_of(1.9, 2.59), verdict_of(3.2, 2.59))
+    assert verdict_of(2.59 + 0.5, 2.59).startswith("undecidable") and verdict_of(2.59 - 0.4, 2.59).startswith("undecidable") and verdict_of(None, 2.59) == "-"
+    assert "T09s.cost.clock.ground.softr33.fits_tvc" not in rows and abs(rows["T09s.cost.clock.ground.softr33.busy_delta_ms"] - 2.9) < 1e-9, rows
+    assert abs(rows["T09s.cost.clock.ground.softr33.over_soft"] - 2.9 / 2.0) < 1e-3 and abs(rows["T09s.cost.fair.ground.softr33.over_soft"] - 2.5 / 5.0) < 1e-3, rows
+    assert abs(rows["T09s.cost.fair.ground.softnodrop.over_soft"] - 5.6 / 5.0) < 1e-3, rows
+    assert any("undecidable (within 0.5 ms)" in l and "softr33" in l for l in out_lines), out_lines
+    assert any("target 563x317" in l and "softr33" in l for l in out_lines) and any("left out 2 of 4" in l for l in out_lines), out_lines
     assert abs(rows["T09s.grain.clock.ground.hard.tstd_over_hard"] - 1.0) < 1e-9 and abs(rows["T09s.grain.clock.ground.soft.tstd_over_hard"] - 0.25) < 1e-9, rows
     assert abs(rows["T09s.grain.fair.ground.hard.tstd_over_first"] - 4.0) < 1e-9, rows
     assert any("T09 sun colour (fair" in l for l in out_lines)
@@ -437,7 +528,7 @@ def selftest():
         rng = np.random.RandomState(1)
         base = np.tile(np.linspace(0, 1, 1707, dtype=np.float32)[None, :, None], (960, 1, 3))
         for scene_suffix in ("", "_fair"):
-            for variant in ("off", "soft", "hard"):
+            for variant in ("off", "soft", "hard", "softr33", "softhash"):
                 for letter in "abc":
                     if variant == "off" and letter != "a":
                         continue
@@ -448,10 +539,21 @@ def selftest():
         out = os.path.join(tmp, "out")
         written = make_sheets(pics, out)
         names = sorted(os.path.basename(p) for p in written)
-        assert names == ["e40-59-fair-ground-sheet.png", "e40-59-fair-ground-strip.png", "e40-59-ground-sheet.png", "e40-59-ground-strip.png"], names
+        assert names == ["e40-59-fair-ground-dither.png", "e40-59-fair-ground-sheet.png", "e40-59-fair-ground-strip.png", "e40-59-ground-sheet.png", "e40-59-ground-strip.png"], names
         with Image.open(os.path.join(out, "e40-59-ground-sheet.png")) as sheet:
             size = sheet.size
-        assert size == (3 * 640, 360 + 18), size              # soft, hard and TVC: one row of three tiles (a fourth tile starts a second row)
+        assert size == (3 * 640, 2 * (360 + 18)), size        # soft, hard, softr33 and TVC (softhash is in the strip and the dither sheet only): four tiles, two rows of three
+        with Image.open(os.path.join(out, "e40-59-fair-ground-dither.png")) as dither:
+            dsize = dither.size
+        assert dsize == (2 * 800, 450 + 18), dsize              # soft | softhash, a 400 x 225 crop enlarged 2x
+        # The crop sits on a cloud body: the window whose cloud share is inside the body band, a rim in it.
+        h, w = 960, 1707
+        soft_img = np.zeros((h, w, 3), np.float32)
+        off_img = np.zeros((h, w, 3), np.float32)
+        soft_img[300:700, 600:1100] = 0.5                       # a body of 500 x 400 pixels
+        x, y = dither_crop(soft_img, off_img)
+        share = float((np.abs(soft_img - off_img).max(axis=2)[y:y + 225, x:x + 400] >= 0.05).mean())
+        assert 0.3 <= share <= 0.85, (x, y, share)
     print("selftest passed")
 
 

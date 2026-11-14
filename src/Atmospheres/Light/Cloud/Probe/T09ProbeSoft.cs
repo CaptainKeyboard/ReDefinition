@@ -16,12 +16,13 @@ namespace ReDefinition.Atmospheres
     // THE VARIANT TABLE (SoftVariants) is the one place to change what is compared. A variant is a name and key = value pairs: "s:<setting>=<number>" sets a setting
     // (cloudSoftness, cloudSamples: Low 0 / Medium 1 / High 2), "t:<tuning key>=<number>" forces a tuning key. Every variant starts from the defaults (SoftBase), so the pairs
     // are the whole difference. FairCost / ClockCost name the views (g ground, i inside, a above, s sky3) that get a cost window; every variant gets its three frames in every
-    // view it runs in. A slot with Pairs null is empty and not run: give it pairs, and cost views, and it runs; the plan line in the log and SoftEstimateS say what the table costs.
+    // view it runs in (all views of both scenes unless In(...) restricts it). A slot with Pairs null is empty and not run: give it pairs, and cost views, and it runs; the plan line in the log and SoftEstimateS say what the table costs.
     //
     // Rows (series K-T2, metric T09s.<scene>.<view>.<variant>.<row>):
     //   tstd, hfx, mask_n, mask_hf, mask_hf_off, cloud_share   the grain of the pixels the clouds changed against the baseline (T09ProbeGrain.MeasureGrain; the same measure as the grain start)
     //   box_tstd, box_blob, box_lap, box_luma                  the same over the fixed boxes of the view (T09ProbeGt.MeasureGtGrain; the measure of start 56)
     //   grid_points, softness, soft_density, effective_ok      what the pass really ran with: the grid points of the march, the width of the soft rim, the soft density's switch
+    //   march_w, march_h, span_tight, drop_empty, skip_empty, dither_sequence, layers_none, layers_total, spans   the march target's size, the cost candidates' switches, the layers left out of the march
     //   cost_frames, cost_fps, cost_frames_drawn               the cost window; the GPU time is read from the profiler's reports by kt2.py
     //   T09s.sun.<scene>.*                                     the sun colour of the clouds (SoftSunColour)
     internal sealed partial class T09Probe
@@ -33,11 +34,45 @@ namespace ReDefinition.Atmospheres
             internal string[] Pairs;
             // The views with a cost window: g ground, i inside, a above, s sky3.
             internal string FairCost = "", ClockCost = "";
+            // The views the variant runs in at all (frames and windows) per scene: "" every view of the scene, "-" none, else the letters (g ground, i inside, a above, s sky3).
+            // A cost window outside these views is a table error (TableProblem).
+            internal string FairViews = "", ClockViews = "";
             internal bool Active { get { return Pairs != null; } }
 
             internal bool Costs(bool fair, char view)
             {
                 return (fair ? FairCost : ClockCost).IndexOf(view) >= 0;
+            }
+
+            internal bool Runs(bool fair, char view)
+            {
+                string views = fair ? FairViews : ClockViews;
+                return views.Length == 0 || (views != "-" && views.IndexOf(view) >= 0);
+            }
+
+            // The variant restricted to the views of each scene (see FairViews).
+            internal SoftVariant In(string fairViews, string clockViews)
+            {
+                FairViews = fairViews;
+                ClockViews = clockViews;
+                return this;
+            }
+
+            // Null when the table row is sound: every cost view is a view the variant runs in, and the view letters are the four known ones.
+            internal string TableProblem()
+            {
+                foreach (bool fair in new[] { true, false })
+                {
+                    string scene = fair ? "fair" : "clock";
+                    string views = fair ? FairViews : ClockViews;
+                    foreach (char c in views) if (c != '-' && "gias".IndexOf(c) < 0) return Name + ": the " + scene + " view letter '" + c + "' is none of g i a s";
+                    foreach (char c in fair ? FairCost : ClockCost)
+                    {
+                        if ("gias".IndexOf(c) < 0) return Name + ": the " + scene + " cost view letter '" + c + "' is none of g i a s";
+                        if (!Runs(fair, c)) return Name + ": a cost window in the " + scene + " view " + c + " that the variant does not run in";
+                    }
+                }
+                return null;
             }
         }
 
@@ -53,16 +88,24 @@ namespace ReDefinition.Atmospheres
 
         // soft: the defaults of origin/main (the soft density on, cloudSoftness 0.5, cloudSamples High = 48 grid points: the Medium tier does not set cloudSamples, so the "Medium: 32" of the
         // brief is not what the game runs; the owner's favourite "soft48" IS this variant and has no row of its own). hard: layers.softDensity 0, the density before the soft water content.
-        // soft100s24: cloudSoftness 1.0 with cloudSamples Low (24), the owner's other favourite. The slots are for the cost candidates of package A
-        // (.local/plans/atmospheres/E40-ground-cost-result.md); an example that costs one window: Soft("soft32", "", "g", "s:" + AtmospheresSettings.Keys.CloudSamples + "=1") (cloudSamples Medium, 32 points).
+        // soft100s24: cloudSoftness 1.0 with cloudSamples Low (24), the owner's other favourite; no grid points are left of the old sampling keys, the count is cloudSamples alone.
+        // The table of 2026-11-14 evening (E40 L2 package B2): the cost candidates of .local/plans/atmospheres/E40-ground-cost-result.md against TVC, sized to the time plan
+        // (SoftEstimateS at most 1020 s of SoftMaxSeconds). In: the views a variant runs in (frames and windows), "" every view of the scene, "-" none.
+        //   softhash   layers.ditherSequence 1, the white hash the default drew before (the owner's look decision, E40 step (c)): the fair views' frames, no window, not in the clock scene
+        //   softr33    the march target at 0.33 of the full size (recon.resolution) with cloudSkipEmpty on (the tile test that starts no ray in a tile the maps prove empty; its default is OFF)
+        //   softcut16  the span cut to the cloud types around the camera (layers.spanTight) with a grid of 16 points (layers.gridFine 0.3333 of 48) at the march target 0.33
+        //   softnodrop layers.dropEmpty 0: every layer is marched over its span as before the drop of layers with no visible cloud (default on); what the drop saves is soft against this
+        // Cut for the time (the lead's order): soft100s24's clock window and softnodrop's clock view (the plan: 1058 s with them, 1005 s without, the test pins 1020).
+        // Slots are gone: the table is full. The size of one more candidate is what SoftEstimateS says; an example that costs one window: Soft("soft32", "", "g", "s:" + AtmospheresSettings.Keys.CloudSamples + "=1").
         internal static readonly SoftVariant[] SoftVariants =
         {
             Soft("soft", "ga", "gias"),
-            Soft("hard", "ga", "ga", "t:" + CloudSoftDensity.TuneOn + "=0"),
-            Soft("soft100s24", "ga", "gias", "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0"),
-            // The owner's look decision between the two step offsets (E40 step (c)): the white hash the default drew before, frames only, no cost window.
-            Soft("softhash", "", "", "t:" + OwnCloudOptions.TuneDitherSequence + "=1"),
-            SoftSlot("slot2"), SoftSlot("slot3"), SoftSlot("slot4")
+            Soft("hard", "g", "g", "t:" + CloudSoftDensity.TuneOn + "=0"),
+            Soft("soft100s24", "g", "", "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0"),
+            Soft("softhash", "", "", "t:" + OwnCloudOptions.TuneDitherSequence + "=1").In("", "-"),
+            Soft("softr33", "ga", "gias", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33", "s:" + AtmospheresSettings.Keys.CloudSkipEmpty + "=1"),
+            Soft("softcut16", "g", "g", "t:" + OwnCloudOptions.TuneSpanTight + "=1", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "g"),
+            Soft("softnodrop", "g", "", "t:" + OwnCloudOptions.TuneDropEmpty + "=0").In("g", "-")
         };
 
         // The scenario's own limit (the runner's is 20 minutes for the whole start: the game needs about 90 s to come up). A guard only: the scenario ends when its last view is done.
@@ -71,10 +114,16 @@ namespace ReDefinition.Atmospheres
         // one clean one (the period may run a few hundredths over 10 s, which a window of 20 s would not survive).
         internal const double SoftWindowS = 22.0;
         // After a variant's keys changed: frames for the history of the half-size march, and seconds for the maps' round (the layers' numbers follow CloudSoftDensity.Stamp).
+        // recon.resolution makes LayerReconstructor.Record create the march target and the history pair at the new size (Fits fails: haveLowHistory false); the history then fills
+        // with the weight recon.accumulate 0.2 a frame, so 90 frames leave 0.8^90 = 2e-9 of the empty start: the settle holds for the change to 0.33 and the change back.
         private const int SoftSettleFrames = DiagSettleFrames + 60;
         private const double SoftSettleS = 2.0;
         // The estimate of the time (seconds) one step takes, for the plan and for the guard that leaves out a view the time no longer holds.
-        internal const double SoftPlaceS = 25.0, SoftSwitchS = 4.5, SoftFrameReadS = 1.5, SoftPickClockS = 60.0, SoftPickCoverS = 90.0, SoftReserveS = 20.0;
+        // SoftPlaceS: MEASURED in the log of start 56 (series K-T2, start gt1707, .local/work/GT/build/atmo-series/K-T2-20261113-181107-gt1707.log): a placement took about 3.5 s, and the
+        // whole gap from the end of one view's last window to the begin of the next view's first window (placement, the stable gate, the variant's switch, the first frames) was at
+        // most 9.0 s (18:26:46 -> 18:26:55, 18:29:07 -> 18:29:16, 18:30:20 -> 18:30:29). 8 s is more than twice the measured placement and the gap it stands in has room for the
+        // switch and frames that are counted apart. (The first plan assumed 25 s.) The grain read of a trio took 1.3 to 2 s there: SoftFrameReadS 1.5 per frame stays, a margin of 2 to 3.
+        internal const double SoftPlaceS = 8.0, SoftSwitchS = 4.5, SoftFrameReadS = 1.5, SoftPickClockS = 60.0, SoftPickCoverS = 90.0, SoftReserveS = 20.0;
 
         private bool SoftStart
         {
@@ -105,6 +154,21 @@ namespace ReDefinition.Atmospheres
             internal double Softness;
             internal int Samples, GridPoints;
             internal bool SoftDensity;
+            // E40 L2 B2: the march target's side over the full target's (recon.resolution; the history path of recon.accumulate runs at it), the cut span, the drop of layers with no
+            // visible cloud, the step offset's sequence and the tile test of empty sky (the setting cloudSkipEmpty).
+            internal float Resolution;
+            internal bool SpanTight, DropEmpty, SkipEmpty;
+            internal int DitherSequence;
+        }
+
+        private static readonly float SoftCompiledResolution = new LayerFrame().Resolution;
+
+        // The march target's size for a frame of w x h at the side ratio (LayerReconstructor.Record: Low mode, round(w * scale), at least 2).
+        internal static void SoftMarchSize(int w, int h, float resolution, out int lw, out int lh)
+        {
+            float scale = Mathf.Clamp(resolution, 0.1f, 1f);
+            lw = Math.Max(2, Mathf.RoundToInt(w * scale));
+            lh = Math.Max(2, Mathf.RoundToInt(h * scale));
         }
 
         internal static SoftExpectation SoftExpect(SoftVariant v)
@@ -113,6 +177,10 @@ namespace ReDefinition.Atmospheres
             double level = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default;
             bool soft = true;
             float gridFine = OwnCloudOptions.GridFineDefault;
+            float resolution = SoftCompiledResolution;
+            bool spanTight = OwnCloudOptions.SpanTightDefault, dropEmpty = OwnCloudOptions.DropEmptyDefault;
+            bool skipEmpty = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSkipEmpty).Default != 0.0;
+            int dither = OwnCloudOptions.DitherSequenceDefault;
             if (v.Pairs != null)
             {
                 foreach (string pair in v.Pairs)
@@ -125,6 +193,11 @@ namespace ReDefinition.Atmospheres
                     else if (setting && key == AtmospheresSettings.Keys.CloudSamples) level = value;
                     else if (!setting && key == CloudSoftDensity.TuneOn) soft = value != 0f;
                     else if (!setting && key == OwnCloudOptions.TuneGridFine) gridFine = value;
+                    else if (setting && key == AtmospheresSettings.Keys.CloudSkipEmpty) skipEmpty = value != 0f;
+                    else if (!setting && key == OwnCloudOptions.TuneReconResolution) resolution = value;
+                    else if (!setting && key == OwnCloudOptions.TuneSpanTight) spanTight = value != 0f;
+                    else if (!setting && key == OwnCloudOptions.TuneDropEmpty) dropEmpty = value != 0f;
+                    else if (!setting && key == OwnCloudOptions.TuneDitherSequence) dither = Math.Max(1, Math.Min(2, Mathf.RoundToInt(value)));
                 }
             }
             softness = Math.Max(CloudSoftDensity.MinSoftness, Math.Min(CloudSoftDensity.MaxSoftness, softness));
@@ -134,7 +207,11 @@ namespace ReDefinition.Atmospheres
             LayerSwitches.StepQuality(Math.Max(0, Math.Min(2, (int)AtmospheresSettings.Number(AtmospheresSettings.Keys.LayerStepQuality))), out baseMax, out sun, out min);
             int points = CloudSoftDensity.ScaleSamples(baseMax, samples);
             points = Math.Max(4, Math.Min(256, Mathf.RoundToInt(points * Mathf.Clamp(gridFine, 0.25f, 8f))));
-            return new SoftExpectation { Softness = softness, Samples = samples, SoftDensity = soft, GridPoints = points };
+            return new SoftExpectation
+            {
+                Softness = softness, Samples = samples, SoftDensity = soft, GridPoints = points, Resolution = Mathf.Clamp(resolution, 0.1f, 1f), SpanTight = spanTight, DropEmpty = dropEmpty,
+                SkipEmpty = skipEmpty, DitherSequence = dither
+            };
         }
 
         // The seconds one view takes with the variants of the table: the placement, the baseline (settle, one frame, a window), then per variant the switch, three frames and its window.
@@ -143,7 +220,7 @@ namespace ReDefinition.Atmospheres
             double s = SoftPlaceS + SoftFrameReadS * 2.0 + SoftWindowS;
             foreach (SoftVariant v in table)
             {
-                if (!v.Active) continue;
+                if (!v.Active || !v.Runs(fair, view)) continue;
                 s += SoftSwitchS + 3.0 * SoftFrameReadS + (v.Costs(fair, view) ? SoftWindowS : 0.0);
             }
             return s;
@@ -186,6 +263,8 @@ namespace ReDefinition.Atmospheres
             UseOwn();
             SetSetting(AtmospheresSettings.Keys.CloudSoftness, AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSoftness).Default);
             SetSetting(AtmospheresSettings.Keys.CloudSamples, AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default);
+            // A variant's setting must not leak into the next one (the tuning keys are cleared by UseOwn): cloudSkipEmpty is off by default and softr33 turns it on.
+            SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSkipEmpty).Default);
         }
 
         private void SoftApply(SoftVariant v)
@@ -216,8 +295,39 @@ namespace ReDefinition.Atmospheres
         }
 
         // The numbers the pass ran with after the variant's keys: from the module's own frame (written in the pre-cull of every frame), against what the table says.
-        private void SoftVerify(string head, SoftVariant v)
+        // E40 L2 B2: the numbers of the cost candidates too: the march target's size (rows march_w, march_h; the target the pass really drew into, read from the player's reconstructor),
+        // the cut span, the drop switch, the step offset's sequence and the tile test, and the layers the pass left out ("none" in LayerRenderer.SpanStats: row layers_none of
+        // layers_total). The target's size is checked where the reconstructor exists (not in a test host's fake world; MarchSizeReader is the seam).
+        internal Func<OwnCloudModule, int[]> MarchSizeReader = ReadMarchSize;
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static int[] ReadMarchSize(OwnCloudModule own)
         {
+            LayerReconstructor player = own.Driver != null ? own.Driver.Player : null;
+            RenderTexture target = player != null ? player.March : null;
+            return target != null ? new[] { target.width, target.height } : null;
+        }
+
+        // The layers of a SpanStats text that carry "none" (no interval: left out of the march, by the drop or by the cut span) and the layers it names.
+        internal static void SoftCountNone(string spans, out int none, out int total)
+        {
+            none = 0;
+            total = 0;
+            if (string.IsNullOrEmpty(spans)) return;
+            string[] tokens = spans.Split(' ');
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                if (tokens[i].Length > 1 && tokens[i][0] == 'L' && char.IsDigit(tokens[i][1])) total++;
+                else if (tokens[i] == "none") none++;
+            }
+        }
+
+        // The layers left out per view with the variant soft (the baseline of the drop: the same pose, the default keys).
+        private readonly Dictionary<string, int> softNoneBySoft = new Dictionary<string, int>();
+
+        private void SoftVerify(string viewHead, SoftVariant v)
+        {
+            string head = viewHead + v.Name + ".";
             OwnCloudModule own = OwnCloudModule.Current;
             if (own == null) return;
             SoftExpectation e = SoftExpect(v);
@@ -228,12 +338,51 @@ namespace ReDefinition.Atmospheres
             Emit(head + "softness", softness);
             Emit(head + "soft_density", on);
             bool ok = points == e.GridPoints && Math.Abs(softness - e.Softness) < 1e-6 && on == e.SoftDensity;
+            string more = "";
+            bool spanTight = own.Frame.SpanTight, drop = own.Frame.DropEmpty, skip = own.Frame.Cull != null && own.Frame.Cull.SkipEmpty;
+            int dither = own.Frame.DitherSequence;
+            Emit(head + "span_tight", spanTight);
+            Emit(head + "drop_empty", drop);
+            Emit(head + "skip_empty", skip);
+            Emit(head + "dither_sequence", dither);
+            bool framesOk = spanTight == e.SpanTight && drop == e.DropEmpty && skip == e.SkipEmpty && dither == e.DitherSequence;
+            ok = ok && framesOk;
+            more += ", span tight " + spanTight + "/" + e.SpanTight + ", drop " + drop + "/" + e.DropEmpty + ", skip empty " + skip + "/" + e.SkipEmpty + ", dither " + dither + "/" + e.DitherSequence;
+            if (MarchSizeReader != null)
+            {
+                int[] size = MarchSizeReader(own);
+                if (size != null)
+                {
+                    int lw, lh;
+                    SoftMarchSize(Game.ScreenWidth, Game.ScreenHeight, e.Resolution, out lw, out lh);
+                    Emit(head + "march_w", size[0]);
+                    Emit(head + "march_h", size[1]);
+                    bool sizeOk = size[0] == lw && size[1] == lh;
+                    ok = ok && sizeOk;
+                    more += ", march target " + size[0] + "x" + size[1] + " (expected " + lw + "x" + lh + ")";
+                }
+            }
+            string spans = own.Renderer != null ? own.Renderer.SpanStats : null;
+            if (spans != null)
+            {
+                int none, total;
+                SoftCountNone(spans, out none, out total);
+                Emit(head + "layers_none", none);
+                Emit(head + "layers_total", total);
+                EmitText(head + "spans", spans);
+                more += ", layers left out " + none + " of " + total + " [" + spans + "]";
+                if (v.Name == "soft") softNoneBySoft[viewHead] = none;
+                int reference;
+                // dropEmpty off can only leave FEWER layers out than the same pose with the drop on: more is a variant that did not take effect (or a pose that moved).
+                if (!e.DropEmpty && softNoneBySoft.TryGetValue(viewHead, out reference) && none > reference)
+                    Warn("drop_effect", viewHead + v.Name + ": " + none + " layers left out with dropEmpty 0 against " + reference + " with the defaults");
+            }
             Emit(head + "effective_ok", ok);
             AtmospheresLog.Say("T09 soft variant " + v.Name + " (" + head + "): grid points " + points + " (expected " + e.GridPoints + "), softness " + softness.ToString("0.###", CultureInfo.InvariantCulture)
-                               + " (expected " + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + "), soft density " + on + " (expected " + e.SoftDensity + ")");
+                               + " (expected " + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + "), soft density " + on + " (expected " + e.SoftDensity + ")" + more);
             if (ChecksEffectiveNumbers)
                 Check("T09s.effective_" + head.Replace('.', '_') + v.Name, ok, "grid points " + points + " against " + e.GridPoints + ", softness " + softness.ToString("0.###", CultureInfo.InvariantCulture) + " against "
-                      + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + ", soft density " + on + " against " + e.SoftDensity);
+                      + e.Softness.ToString("0.###", CultureInfo.InvariantCulture) + ", soft density " + on + " against " + e.SoftDensity + more);
         }
 
         private IEnumerator<ProbeWait> SoftScenario()
@@ -304,7 +453,10 @@ namespace ReDefinition.Atmospheres
                 if (!v.Active) { sb.Append(" (empty slot)"); continue; }
                 SoftExpectation e = SoftExpect(v);
                 sb.Append(" [softness ").Append(e.Softness.ToString("0.###", CultureInfo.InvariantCulture)).Append(", ").Append(e.GridPoints).Append(" grid points, soft density ")
-                  .Append(e.SoftDensity ? "on" : "off").Append(", cost fair '").Append(v.FairCost).Append("' clock '").Append(v.ClockCost).Append("']");
+                  .Append(e.SoftDensity ? "on" : "off").Append(", march target ").Append(e.Resolution.ToString("0.##", CultureInfo.InvariantCulture)).Append(", in fair '").Append(v.FairViews)
+                  .Append("' clock '").Append(v.ClockViews).Append("', cost fair '").Append(v.FairCost).Append("' clock '").Append(v.ClockCost).Append("']");
+                string problem = v.TableProblem();
+                if (problem != null) Check("T09s.table_" + v.Name, false, problem);
             }
             double estimate = SoftEstimateS(SoftVariants);
             AtmospheresLog.Say("T09 soft plan: " + sb + "; estimated " + estimate.ToString("0") + " s of " + SoftMaxSeconds.ToString("0") + " s");
@@ -373,10 +525,10 @@ namespace ReDefinition.Atmospheres
 
             foreach (SoftVariant v in SoftVariants)
             {
-                if (!v.Active) continue;
+                if (!v.Active || !v.Runs(fair, letter)) continue;
                 SoftApply(v);
                 foreach (ProbeWait w in SoftSettle()) yield return w;
-                SoftVerify(head + v.Name + ".", v);
+                SoftVerify(head, v);
                 foreach (ProbeWait w in SoftGrainRead(view, head + v.Name + ".", pictureView, v.Name)) yield return w;
                 if (v.Costs(fair, letter))
                     foreach (ProbeWait w in SoftCostWindow(view, head + v.Name + ".", tagPrefix + v.Name)) yield return w;
