@@ -7,7 +7,7 @@
     python tools/weather_metrics/e40wv.py --selftest
 
 A case is a SoftTable case (tests/WeatherPlayer/Assets/Runner/SoftDensityScene.cs): the product's 48-point march (seq1) and modifiers joined by '+' (r33 the march target's
-size, acc10 the history weight 0.1, clip1000 no clip of the history, jit the sub-pixel jitter, ds1 the white hash, ds2 the gradient noise, ds3.. the new patterns).
+size, acc10 the history weight 0.1, clip1000 no clip of the history, jit the sub-pixel jitter (ReconSettings.Jitter), ds1 the white hash, ds2 the gradient noise).
 The scene `weave` writes, per case, the last three frames and the mean of the last eight of a still camera after 120 frames, and the converged reference of the pose.
 
 THE MEASURE OF A STATIC PATTERN. The residual of a frame is its display luma minus the converged picture's (a march of 256 steps without an offset). A pattern that is the same in
@@ -50,14 +50,14 @@ def on(base, mods):
 
 
 # What the history and the target size do to the pattern, one thing at a time (the March of the product is seq1: 48 grid points, the gradient-noise offset).
-CAUSE_MODS = ["", "ds1", "acc00", "acc10", "acc05", "clip1000", "clip20", "jit", "dp2", "dp3", "dp4", "dp5", "sh100", "sh10"]
+CAUSE_MODS = ["", "ds1", "acc00", "acc10", "acc05", "clip1000", "clip20", "jit"]       # dp2..dp5 and sh10, sh100 (layers.ditherPhase, layers.ditherShift) are gone: no case separated from the default
 CAUSE = [B48 + "+r%d%s" % (r, "+" + m if m else "") for r in (50, 33) for m in CAUSE_MODS]
 CAUSE_STAGES = [("weave-cause", "ground,above", "pr50", CAUSE)]
 # Filled in by the fix: the new patterns at both targets, against today.
 FIX = []
 FIX_STAGES = [("weave-fix", "ground,above", "pr50", FIX)] if FIX else []
 # The game's camera is never still: the same cases while the camera turns 0.15 degrees a frame (9 degrees a second), 60 frames, the last frame at the reference's pose.
-MOVE_MODS = ["", "ds1", "acc10", "clip1000", "jit", "dp4", "sh100"]
+MOVE_MODS = ["", "ds1", "acc10", "clip1000", "jit"]
 MOVE = [B48 + "+r%d%s" % (r, "+" + m if m else "") for r in (50, 33) for m in MOVE_MODS]
 MOVE_STAGES = [("weave-move", "ground,above", "pr50", MOVE)]
 STAGES = CAUSE_STAGES + FIX_STAGES

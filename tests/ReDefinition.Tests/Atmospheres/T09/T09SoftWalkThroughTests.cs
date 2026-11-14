@@ -12,7 +12,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // both scenes, every view, every variant's three frames and its cost windows, the sun colour line, the failures it must name, and the arguments the runner passes.
     public partial class T09WalkThroughTests
     {
-        private static readonly string[] SoftRemoved = { "cloudEntryRefinement", "refine", "surface", "layers.cloudStep", "layers.entryRamp", "cloudHashDither", "layers.edgePower" };
+        private static readonly string[] SoftRemoved = { "cloudEntryRefinement", "refine", "surface", "layers.cloudStep", "layers.entryRamp", "cloudHashDither", "layers.edgePower", "layers.dropEmpty", "layers.ditherPhase", "layers.ditherShift", "recon.jitter", "layers.profileShape" };
 
         private Run StartSoft(Action<Run> tweak = null)
         {
@@ -47,7 +47,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheSoftTableIsTheTableOfTheEveningAndUsesNoRemovedKey()
         {
             var names = T09Probe.SoftVariants.Select(v => v.Name).ToList();
-            CollectionAssert.AreEqual(new[] { "soft", "hard", "soft100s24", "softhash", "softr33", "softcut16", "softnodrop" }, names);
+            CollectionAssert.AreEqual(new[] { "soft", "hard", "soft100s24", "softhash", "softr33", "softcut16" }, names);
             Assert.AreEqual(names.Count, names.Distinct().Count(), "the names are unique");
             Assert.AreEqual(0, T09Probe.SoftVariants.Count(v => !v.Active), "no empty slot is left");
             T09Probe.SoftVariant hash = T09Probe.SoftVariants.First(v => v.Name == "softhash");
@@ -55,12 +55,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual("", hash.FairCost + hash.ClockCost, "softhash has frames and no cost window");
             Assert.IsTrue(hash.Runs(true, 'g') && hash.Runs(true, 'a'), "softhash runs in both fair views");
             Assert.IsFalse(T09Probe.SoftClockViews.Any(c => hash.Runs(false, c)), "softhash is not in the clock scene");
-            // The table as built: { fair cost, clock cost, fair views run, clock views run } (the lead's table less the two cuts for the time: soft100s24's clock window, softnodrop's clock view).
+            // The table as built: { fair cost, clock cost, fair views run, clock views run } (the lead's table less the cut for the time, soft100s24's clock window, and less softnodrop, gone with layers.dropEmpty).
             var expected = new Dictionary<string, string[]>
             {
                 { "soft", new[] { "ga", "gias", "ga", "gias" } }, { "hard", new[] { "g", "g", "ga", "gias" } }, { "soft100s24", new[] { "g", "", "ga", "gias" } },
                 { "softhash", new[] { "", "", "ga", "" } }, { "softr33", new[] { "ga", "gias", "ga", "gias" } },
-                { "softcut16", new[] { "g", "g", "g", "g" } }, { "softnodrop", new[] { "g", "", "g", "" } }
+                { "softcut16", new[] { "g", "g", "g", "g" } }
             };
             foreach (T09Probe.SoftVariant v in T09Probe.SoftVariants)
             {
@@ -123,23 +123,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.5f, soft.Resolution, 1e-6f, "the march target is half size by default");
             Assert.IsFalse(soft.SkipEmpty, "cloudSkipEmpty is off by default (so softr33 sets it)");
             Assert.IsFalse(soft.SpanTight);
-            Assert.IsTrue(soft.DropEmpty, "the drop of layers with no visible cloud is on by default");
             Assert.AreEqual(2, soft.DitherSequence);
             T09Probe.SoftExpectation r33 = of("softr33");
             Assert.AreEqual(0.33f, r33.Resolution, 1e-6f);
             Assert.IsTrue(r33.SkipEmpty);
             Assert.AreEqual(48, r33.GridPoints);
-            Assert.IsTrue(r33.DropEmpty && !r33.SpanTight && r33.SoftDensity);
+            Assert.IsTrue(!r33.SpanTight && r33.SoftDensity);
             T09Probe.SoftExpectation cut = of("softcut16");
             Assert.AreEqual(16, cut.GridPoints, "48 points at gridFine 0.3333");
             Assert.IsTrue(cut.SpanTight);
             Assert.AreEqual(0.33f, cut.Resolution, 1e-6f);
             Assert.IsFalse(cut.SkipEmpty);
-            T09Probe.SoftExpectation nodrop = of("softnodrop");
-            Assert.IsFalse(nodrop.DropEmpty);
-            Assert.AreEqual(0.5f, nodrop.Resolution, 1e-6f);
             Assert.AreEqual(1, of("softhash").DitherSequence);
-            Assert.IsTrue(of("softhash").DropEmpty);
+            Assert.AreEqual(0.5f, of("softhash").Resolution, 1e-6f);
             int lw, lh;
             T09Probe.SoftMarchSize(1707, 960, 0.33f, out lw, out lh);
             Assert.AreEqual(563, lw);
@@ -161,7 +157,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(estimate <= T09Probe.SoftMaxSeconds - 60.0, "the default table needs " + estimate.ToString("0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0"));
             Assert.AreEqual(1020.0, T09Probe.SoftMaxSeconds - 60.0, "the pin: 1020 s");
             Assert.IsTrue(estimate >= 600.0, "the estimate counts the windows: " + estimate.ToString("0"));
-            Assert.AreEqual(1005.0, estimate, 1e-6, "the table as built: 1005 s (1058 s with soft100s24's clock window and softnodrop's clock view)");
+            Assert.AreEqual(974.0, estimate, 1e-6, "the table as built: 974 s (1005 s with softnodrop, 1058 s with that and soft100s24's clock window)");
             Assert.IsTrue(T09Probe.SoftPlaceS >= 7.0, "a placement was measured at 3.5 s: the estimate keeps at least twice that");
             // A cost candidate with one window in each of the ground views: the price of one more variant.
             var table = T09Probe.SoftVariants.Select(v => v).ToList();
@@ -252,7 +248,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         Assert.AreEqual(1.0, Number(r, row + "effective_ok"), row + "the numbers are the table's");
                         // The cost candidates' switches and the march target as the table says (the fake reconstructor sizes it from recon.resolution).
                         Assert.AreEqual(e.SpanTight ? 1.0 : 0.0, Number(r, row + "span_tight"), row + "span tight");
-                        Assert.AreEqual(e.DropEmpty ? 1.0 : 0.0, Number(r, row + "drop_empty"), row + "drop empty");
                         Assert.AreEqual(e.SkipEmpty ? 1.0 : 0.0, Number(r, row + "skip_empty"), row + "skip empty");
                         Assert.AreEqual(e.DitherSequence, Number(r, row + "dither_sequence"), row + "dither sequence");
                         int ew, eh;
@@ -271,7 +266,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(frames, (int)Number(r, "T09s.frames_read"));
             Assert.AreEqual(6.0, Number(r, "T09s.sections"));
             Assert.AreEqual(0.0, Number(r, "T09s.sections_skipped"));
-            Assert.AreEqual(1, r.Log.Count(l => l.StartsWith("T09 soft plan: ") && l.Contains("softnodrop [") && l.Contains("march target 0.33")), "the plan line names the new variants and the march target");
+            Assert.AreEqual(1, r.Log.Count(l => l.StartsWith("T09 soft plan: ") && l.Contains("softcut16 [") && l.Contains("march target 0.33")), "the plan line names the new variants and the march target");
             // The K-T2 clock is chosen after the fair scene from the universal time this start began at: the same hour as the plain start's (K-T2 own1707: five hours on from the base).
             Assert.AreEqual(1000800.0 + 5 * 3600.0, Number(r, "T09.ut"), 1e-6, "the K-T2 clock of the TVC start");
             Assert.AreEqual(0.0, Number(r, "T09s.fair.ut") % 3600.0, 1e-6);
@@ -342,7 +337,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             SoftDrive(r);
             Assert.IsFalse(r.Probe.Passed, "softr33's march target is not the one the table asks for");
             Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("T09s.effective_") && f.Contains("softr33")), r.Joined);
-            Assert.IsFalse(r.Probe.Failures.Any(f => f.Contains("T09s.effective_") && f.Contains("softnodrop")), "the variants at half size are fine");
+            Assert.IsFalse(r.Probe.Failures.Any(f => f.Contains("T09s.effective_") && f.Contains("softhash")), "the variants at half size are fine");
             AssertNoUnhandled(r);
         }
 

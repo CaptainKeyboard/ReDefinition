@@ -27,12 +27,11 @@ namespace ReDefinition.Atmospheres
         internal const string TuneAccumulate = "recon.accumulate";
         internal const float AccumulateDefault = 0.2f;
 
-        // E40 ground cost (package L2COST): the size of the history path's march target and its per-frame sub-pixel jitter, so that a march below half size laid up over
-        // several frames is a variant of the game start and not only of the player. recon.resolution is the march target's side over the full target's (0.1 to 1; default
-        // 0.5, the compiled LayerFrame.Resolution); recon.jitter 1 gives the march rays the 16-phase Halton offset (ReconSettings.Jitter; default 0). Both act wherever the
-        // reconstructor runs in its mode Low: the history path of level 1 (recon.accumulate above 0) and the mode setting Low.
-        internal const string TuneReconResolution = "recon.resolution", TuneReconJitter = "recon.jitter";
-        internal const bool ReconJitterDefault = false;
+        // E40 ground cost (package L2COST): the size of the history path's march target, so that a march below half size laid up over several frames is a variant of the
+        // game start and not only of the player. recon.resolution is the march target's side over the full target's (0.1 to 1; default 0.5, the compiled LayerFrame.Resolution);
+        // it acts wherever the reconstructor runs in its mode Low: the history path of level 1 (recon.accumulate above 0) and the mode setting Low. (The key recon.jitter, the
+        // 16-phase Halton offset of the march rays, is gone: it was never on and the static pictures were worse with it; ReconSettings.Jitter stays for the temporal probe.)
+        internal const string TuneReconResolution = "recon.resolution";
 
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
         // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
@@ -48,17 +47,6 @@ namespace ReDefinition.Atmospheres
         // owner has seen both in the game (E40 step (c)).
         internal const string TuneDitherSequence = "layers.ditherSequence";
         internal const int DitherSequenceDefault = 2;
-        // E40 L2 E1: layers.ditherPhase (LayerFrame.DitherPhase; StepPhase.Of: 1 the golden-ratio sequence, the default; 2 the van der Corput sequence; 3 a random order of eight strata
-        // per block of eight frames; 4 a white phase per frame; 5 the golden sequence restarted at a random place every eight frames) and layers.ditherShift (LayerFrame.DitherShift:
-        // the gradient-noise pattern moves by this many times 5.588 pixels in x and y per frame; 0, the default: it stands still). Candidates against the static weave of the
-        // fixed pattern under the history (docs of the result: .local/plans/atmospheres/E40-weave-march-result.md).
-        internal const string TuneDitherPhase = "layers.ditherPhase", TuneDitherShift = "layers.ditherShift";
-        internal const int DitherPhaseDefault = StepPhase.Golden;
-        internal const float DitherShiftDefault = 0f;
-        // E40 L2 package A2: layers.dropEmpty (LayerFrame.DropEmpty; 1, the default: a layer whose coverage map cannot lift its density above zero anywhere the frame's rays
-        // or their light marches reach is not marched, an exact cut; 0: every layer is marched over its span as before). Independent of layers.spanTight.
-        internal const string TuneDropEmpty = "layers.dropEmpty";
-        internal const bool DropEmptyDefault = true;
 
         // The tuning keys of the light's look constants (T03); the compiled defaults are the fields of CloudLightSettings.
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
@@ -200,10 +188,7 @@ namespace ReDefinition.Atmospheres
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
             f.SpanTight = Tuning.Flag(TuneSpanTight, SpanTightDefault);
-            f.DropEmpty = Tuning.Flag(TuneDropEmpty, DropEmptyDefault);
             f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 2);
-            f.DitherPhase = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherPhase, DitherPhaseDefault)), 1, StepPhase.Count);
-            f.DitherShift = Tuning.Get(TuneDitherShift, DitherShiftDefault);
             Apply(f.Cull, v);
         }
 
@@ -331,13 +316,11 @@ namespace ReDefinition.Atmospheres
             {
                 s.Mode = ReconMode.Low;
                 s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, CompiledFrame.Resolution), 0.1f, 1f);
-                s.Jitter = Tuning.Flag(TuneReconJitter, ReconJitterDefault);
                 s.Accumulate = accumulate;
             }
             else if (low)
             {
                 s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, CompiledFrame.Resolution), 0.1f, 1f);
-                s.Jitter = Tuning.Flag(TuneReconJitter, ReconJitterDefault);
                 s.Accumulate = accumulate;
             }
         }

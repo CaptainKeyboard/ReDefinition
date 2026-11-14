@@ -28,7 +28,7 @@ What the first run gave (kept as rows, no longer judged): X1 held for the transi
 a 600 m layer closes more than the horizontal share); X2 missed: the product's march is NOT darker than the converged one (0.997), its grain is 15 to 33 times the converged one's and
 none of the refinements removes it; X3 and X4 gave nothing: the rain deck and the towers have a noise scale of 10 and 8 km, so one site is one draw (site 0 is clear of both).
 
-SECOND RUN, expected results written before it (after the switch layers.profileShape was built):
+SECOND RUN, expected results written before it (after the switch layers.profileShape was built; the key is gone since E40 L4 clean, the series keeps the cfg's LIFT as its one row):
   Y1  The cumulus layer at 500 m / 1.0 from above: with layers.profileShape 0 the tops are flat (standard deviation of the first hit's altitude over the closed pixels under
       40 m); with 0.8 at least three times that, and the cloud share falls by 0.05 to 0.30. Four sites.
   Y2  fg over eight sites: the mean share below the horizon with tau >= 0.92 is at least 0.15 at type 0 (Fog) and under 0.10 at type 0.5 (the camera at 264 m is in the
@@ -182,7 +182,7 @@ def convergence_jobs():
 MASK_SITES = 6
 FOG_SITES = 8
 PS_SITES = 4
-PS_VALUES = (0.0, 0.4, 0.8)
+PS_VALUES = (1.0,)          # the scale of the cfg's LIFT; the key layers.profileShape that swept it is gone (E40 L4 clean), so the cfg's LIFT is the only row
 PS_TYPES = (("sc", 0.0), ("hum", 0.25))
 PS_SHAPE = (500.0, 1.0)
 OLD_SHAPE = (5000.0, 0.35)
@@ -218,7 +218,7 @@ def profile_jobs():
             for tname, typ in PS_TYPES:
                 for ps in PS_VALUES:
                     jobs += pair("ps-%s-%s-p%02d-s%d" % (view, tname, int(round(ps * 10)), site), view, [e40o.job_layer(cu, const_map(0.665), const_map(typ))], PRODUCT,
-                                 scale_keys(*PS_SHAPE) + [("layers.profileShape", ps)], site=site)
+                                 scale_keys(*PS_SHAPE), site=site)
     return jobs
 
 
@@ -250,7 +250,7 @@ def colour_jobs():
     cu = SPECS[CUMULUS]
     for view in VIEWS:
         for name, extra in COLOUR_VARIANTS.items():
-            jobs += pair("co-%s-%s" % (view, name), view, [e40o.job_layer(cu, const_map(0.665), const_map(0.25))], PRODUCT, scale_keys(*PS_SHAPE) + [("layers.profileShape", 0.8)],
+            jobs += pair("co-%s-%s" % (view, name), view, [e40o.job_layer(cu, const_map(0.665), const_map(0.25))], PRODUCT, scale_keys(*PS_SHAPE),
                          site=1, **extra)
     return jobs
 
@@ -454,16 +454,12 @@ def collect(ctx):
             for ps in PS_VALUES:
                 key = "%s-%s-p%02d" % (view, tname, int(round(ps * 10)))
                 prof[key] = site_numbers("ps-" + key + "-s%d", view)
-                lines.append("   %-6s %-4s profileShape %.1f    %.2f / %4.1f / %6.1f" % ((view, tname, ps) + prof[key]))
+                lines.append("   %-6s %-4s the cfg's LIFT    %.2f / %4.1f / %6.1f" % ((view, tname) + prof[key]))
                 for i, nm in enumerate(("share", "transitions", "relief_m")):
                     metrics.append(Metric.info("e40fl.ps.%s.%s" % (key, nm), prof[key][i]))
                 for site in (0, 1):
                     pictures("ps-%s-s%d" % (key, site), view, "ps-%s-s%d" % (key, site))
-    flat, domed = prof["above-sc-p00"], prof["above-sc-p08"]
-    metrics.append(Metric.info("e40fl.Y1.flat_top_relief_m", flat[2]))
-    metrics.append(Metric.info("e40fl.Y1.relief_ratio", domed[2] / max(flat[2], 1e-6)))
-    metrics.append(Metric.reference("e40fl.Y1.share_fall", flat[0] - domed[0], 0.175, rel=0.0, floor=0.125))
-    results["profile"] = prof
+    results["profile"] = prof          # (the flat-top comparison Y1 needed layers.profileShape 0, gone in E40 L4 clean)
 
     # ---- the march against the converged march ----
     lines.append("MARCH (luma of the closed pixels over the converged march's / grain hf / hf over the converged one's / mean steps per pixel)")
@@ -563,7 +559,7 @@ def collect(ctx):
     results["fog"] = fg
 
     # ---- the colour (third run; no expectation judged: the colour is the owner's choice, the rows are the evidence) ----
-    lines.append("COLOUR (cumulus humilis at 500 m / 1.0, profileShape 0.8, site 1): display colour r g b of the closed pixels (median), blue over red")
+    lines.append("COLOUR (cumulus humilis at 500 m / 1.0, the cfg's LIFT, site 1): display colour r g b of the closed pixels (median), blue over red")
     co = {}
     for view in VIEWS:
         for name in COLOUR_VARIANTS:
@@ -610,11 +606,11 @@ def selftest():
     jobs = build_jobs()
     ids = [j["id"] for j in jobs]
     assert len(ids) == len(set(ids)), "job ids repeat"
-    assert "sh-above-n0700-a100" in ids and "cv-ground-cand-steps96-x" in ids and "mk-masked-s5" in ids and "fg-fog-s7-x" in ids and "ps-above-hum-p08-s3" in ids
+    assert "sh-above-n0700-a100" in ids and "cv-ground-cand-steps96-x" in ids and "mk-masked-s5" in ids and "fg-fog-s7-x" in ids and "ps-above-hum-p10-s3" in ids
     masked = [j for j in jobs if j["id"] == "mk-masked-s2"][0]
     assert masked["layerMask"] == 1 and len(masked["layers"]) == 2
-    shaped = dict((d["key"], d["value"]) for d in [j for j in jobs if j["id"] == "ps-ground-sc-p04-s0"][0]["tuning"])
-    assert abs(shaped["layers.profileShape"] - 0.4) < 1e-9 and abs(shaped["cloud.layerNoiseSizeScale." + CUMULUS] * SPECS[CUMULUS]["scale"] - 500.0) < 1e-6
+    shaped = dict((d["key"], d["value"]) for d in [j for j in jobs if j["id"] == "ps-ground-sc-p10-s0"][0]["tuning"])
+    assert abs(shaped["cloud.layerNoiseSizeScale." + CUMULUS] * SPECS[CUMULUS]["scale"] - 500.0) < 1e-6
     k = dict((d["key"], d["value"]) for d in [j for j in jobs if j["id"] == "sh-above-n0700-a100"][0]["tuning"])
     cu = SPECS[CUMULUS]
     assert abs(k["cloud.layerNoiseSizeScale." + CUMULUS] * cu["scale"] - 700.0) < 1e-6 and abs(k["cloud.layerNoiseAmountScale." + CUMULUS] * cu["noise"] - 1.0) < 1e-9

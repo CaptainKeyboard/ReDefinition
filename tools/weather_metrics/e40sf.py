@@ -19,7 +19,7 @@ What it makes:
             start 56 (box_tstd, box_blob), and each variant's tstd over the first variant's and over "hard"'s.
             The verdict is "fits" / "does not fit" / "undecidable (within 0.5 ms)": the run-to-run floor of the busy delta is about 0.5 ms (start 56), and TVC's figures were taken against
             a pass-off baseline while ours leave out the two blits of the pass (0.1 to 0.3 ms kinder to us), so a delta within 0.5 ms of TVC's figure decides nothing.
-            The column "/ soft" is the busy delta over the variant soft's in the same view (the drop, the march target and the cut span are read as these ratios).
+            The column "/ soft" is the busy delta over the variant soft's in the same view (the march target and the cut span are read as these ratios).
   sheets    e40-59-<view>-sheet.png (clock) and e40-59-fair-<view>-sheet.png (fair): the first frame of soft | hard | soft100s24 | softr33 | softcut16 side by side (the variants that
             ran), plus TVC's frame of start 47 in the clock scene; e40-59-<view>-strip.png / e40-59-fair-<view>-strip.png: frames a | b | c and the temporal noise (x 8) of a crop, one row
             per variant; e40-59-fair-<view>-dither.png: soft | softhash, a full-size crop of a cloud body enlarged 2x, for the owner's dither decision (the weave against the speckle).
@@ -173,7 +173,7 @@ def effective_rows(rows):
                 if p + "effective_ok" in rows:
                     out.append((scene, view, variant, num(rows.get(p + "grid_points")), num(rows.get(p + "softness")), rows.get(p + "soft_density"), rows.get(p + "effective_ok"),
                                 num(rows.get(p + "march_w")), num(rows.get(p + "march_h")), num(rows.get(p + "layers_none")), num(rows.get(p + "layers_total")),
-                                rows.get(p + "span_tight"), rows.get(p + "drop_empty"), rows.get(p + "skip_empty")))
+                                rows.get(p + "span_tight"), rows.get(p + "skip_empty")))
     return out
 
 
@@ -218,11 +218,11 @@ def tables(texts):
                 metrics.append({"metric": base + name, "value": round(value, 6), "variant": None})
     eff = effective_rows(rows)
     out_lines.append("WHAT THE PASS RAN WITH (grid points, soft rim width, soft density, march target, layers left out of the march; ok = the table's numbers)")
-    for scene, view, variant, points, softness, soft, ok, mw, mh, none, total, tight, drop, skip in eff:
+    for scene, view, variant, points, softness, soft, ok, mw, mh, none, total, tight, skip in eff:
         target = "-" if mw is None or mh is None else "%dx%d" % (mw, mh)
         left_out = "-" if none is None or total is None else "%d of %d" % (none, total)
-        out_lines.append("  %-6s %-7s %-12s %4s points  softness %s  soft density %s  target %-9s left out %-7s tight %s drop %s skip %s  ok %s"
-                         % (scene, view, variant, fmt(points, 0), fmt(softness, 2), soft, target, left_out, tight, drop, skip, ok))
+        out_lines.append("  %-6s %-7s %-12s %4s points  softness %s  soft density %s  target %-9s left out %-7s tight %s skip %s  ok %s"
+                         % (scene, view, variant, fmt(points, 0), fmt(softness, 2), soft, target, left_out, tight, skip, ok))
         if ok is False:
             NOTES.append("the pass did not run with the table's numbers: %s %s %s (%s points, softness %s, soft density %s)" % (scene, view, variant, fmt(points, 0), fmt(softness, 2), soft))
     suns = sun_lines(texts)
@@ -477,16 +477,16 @@ def selftest():
     # The clock scene: ground (soft 2.0 over the baseline: fits TVC's 2.59; hard 3.0: does not), above (soft 5.0: fits 5.30).
     log += _window("ground", "k_off", 10.0, None) + _window("ground", "k_soft", 12.0, 1.9) + _window("ground", "k_hard", 14.0, 2.8)
     log += _window("above", "k_off", 10.0, None) + _window("above", "k_soft", 14.0, 4.8)
-    log += _window("ground", "fw_off", 9.0, None) + _window("ground", "fw_soft", 14.0, 4.7) + _window("ground", "fw_softr33", 11.5, 2.4) + _window("ground", "fw_softnodrop", 14.6, 4.9)
-    # Within 0.5 ms of TVC's 2.59 at the clock ground (2.9): undecidable, and no fits_tvc row; the ratio over soft is the drop's / the march target's read.
+    log += _window("ground", "fw_off", 9.0, None) + _window("ground", "fw_soft", 14.0, 4.7) + _window("ground", "fw_softr33", 11.5, 2.4)
+    # Within 0.5 ms of TVC's 2.59 at the clock ground (2.9): undecidable, and no fits_tvc row; the ratio over soft is the march target's read.
     log += _window("ground", "k_softr33", 12.9, 1.2)
     for scene, view, variant, tstd in (("clock", "ground", "soft", 0.002), ("clock", "ground", "hard", 0.008), ("clock", "ground", "softr33", 0.003), ("clock", "above", "soft", 0.003),
-                                      ("fair", "ground", "soft", 0.004), ("fair", "ground", "hard", 0.016), ("fair", "ground", "softr33", 0.005), ("fair", "ground", "softnodrop", 0.004)):
+                                      ("fair", "ground", "soft", 0.004), ("fair", "ground", "hard", 0.016), ("fair", "ground", "softr33", 0.005)):
         p = "T09s.%s.%s.%s." % (scene, view, variant)
         log += [_row(p + "tstd", tstd), _row(p + "hfx", -0.01), _row(p + "box_tstd", tstd * 2), _row(p + "box_blob", 0.01), _row(p + "cloud_share", 0.4),
                 _row(p + "grid_points", 48), _row(p + "softness", 0.5), _row(p + "soft_density", variant != "hard"), _row(p + "effective_ok", True),
                 _row(p + "march_w", 563 if variant == "softr33" else 854), _row(p + "march_h", 317 if variant == "softr33" else 480),
-                _row(p + "layers_none", 0 if variant == "softnodrop" else 2), _row(p + "layers_total", 4), _row(p + "span_tight", False), _row(p + "drop_empty", variant != "softnodrop"),
+                _row(p + "layers_none", 2), _row(p + "layers_total", 4), _row(p + "span_tight", False),
                 _row(p + "skip_empty", variant == "softr33")]
     log.append("T09 sun colour (fair, frame 7): Scatterer loaded True, ...; the read sees the restored colour: True")
     text = "\n".join(log)
@@ -502,7 +502,6 @@ def selftest():
     assert verdict_of(2.59 + 0.5, 2.59).startswith("undecidable") and verdict_of(2.59 - 0.4, 2.59).startswith("undecidable") and verdict_of(None, 2.59) == "-"
     assert "T09s.cost.clock.ground.softr33.fits_tvc" not in rows and abs(rows["T09s.cost.clock.ground.softr33.busy_delta_ms"] - 2.9) < 1e-9, rows
     assert abs(rows["T09s.cost.clock.ground.softr33.over_soft"] - 2.9 / 2.0) < 1e-3 and abs(rows["T09s.cost.fair.ground.softr33.over_soft"] - 2.5 / 5.0) < 1e-3, rows
-    assert abs(rows["T09s.cost.fair.ground.softnodrop.over_soft"] - 5.6 / 5.0) < 1e-3, rows
     assert any("undecidable (within 0.5 ms)" in l and "softr33" in l for l in out_lines), out_lines
     assert any("target 563x317" in l and "softr33" in l for l in out_lines) and any("left out 2 of 4" in l for l in out_lines), out_lines
     assert abs(rows["T09s.grain.clock.ground.hard.tstd_over_hard"] - 1.0) < 1e-9 and abs(rows["T09s.grain.clock.ground.soft.tstd_over_hard"] - 0.25) < 1e-9, rows

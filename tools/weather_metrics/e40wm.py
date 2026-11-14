@@ -8,7 +8,7 @@
 The scene of e40gc.py's l4ground / l4above (the four layers of Clouds-Kerbin.cfg in fair weather, the same two cameras) with maps that are NOT constant: every layer's coverage map is a
 512 x 256 field (the size of the generator's maps) with the statistics of a fair-weather sky: the rain deck holds a few small patches of cover far from the camera, the cumulus
 layer broad cells, the cumulonimbus layer a few isolated cells, the cirrus layer streaks over a third of the globe. Each layer has cover SOMEWHERE inside the horizon and is
-empty along most rays; this is the case the game start soft59 showed (layers.dropEmpty left out 0 of 4 layers) and the constant maps of e40gc.py cannot show.
+empty along most rays; this is the case the game start soft59 showed (the layer drop, layers.dropEmpty, left out 0 of 4 layers and is gone) and the constant maps of e40gc.py cannot show.
 The views are named r4ground and r4above; a case is a SoftTable case (see e40wv.py).
 """
 import argparse
@@ -118,8 +118,8 @@ def ensure_inputs():
 
 B48 = "seq1"
 B24 = "seq1m24"
-# Step 1, what the game start showed, in the player with maps that hold cover somewhere: soft against hard; layers.dropEmpty and the tile test alone; the third-size target and the cut span.
-STEP1 = [B48, B48 + "+drop", B48 + "+skip", B48 + "+skip+drop", B48 + "+r33", B48 + "+r33+skip", B48 + "+r33+drop", "tseq1m16+r33", "tseq1m16+r33+skip"]
+# Step 1, what the game start showed, in the player with maps that hold cover somewhere: the tile test alone; the third-size target and the cut span (the cases with layers.dropEmpty are gone with the key).
+STEP1 = [B48, B48 + "+skip", B48 + "+r33", B48 + "+r33+skip", "tseq1m16+r33", "tseq1m16+r33+skip"]
 # Step 2, where the soft density's extra cost goes: the cost debug masks (1 no light, 2 no shape noise, 4 no erosion) on hard and on the product's soft 0.5.
 ATTR = [B48, B48 + "+dbg1", B48 + "+dbg2", B48 + "+dbg3", B48 + "+dbg7"]
 COST_STAGES = [

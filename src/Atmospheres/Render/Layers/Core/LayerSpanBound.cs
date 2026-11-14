@@ -153,37 +153,6 @@ namespace ReDefinition.Atmospheres
             upM = rootRangeM * Math.Max(0f, e.RootMax) + variationRangeM * Math.Max(0f, e.VariationMax) + topRangeM * Math.Max(0f, e.TopMax) + 2f * raggedM + minThicknessM;
         }
 
-        // Above this many texels the drop test does not scan (a camera in orbit): the layer stays. The scan runs only when a map was uploaded or the camera reached
-        // another texel, so the window may be larger than the span cut's.
-        internal const int DropMaxTexels = 60000;
-
-        // E40 L2 package A2 (layers.dropEmpty): true when NO texel of the layer's coverage map inside the cap can lift the layer's density above zero, i.e. the layer
-        // holds no cloud that any ray from the camera (or a light march of one) can meet. It is the shader's own coverage bound (LayerDensity: the shape is zero where
-        // map' + coverage - 1 + 0.5 amount + 0.5 edge <= 0, with map' = the clear-sky rule of the map value) taken over the largest byte of the window; the rule is
-        // monotone in the map value, so the largest byte gives the largest map'. Bilinear reads lie between the texels the window covers. False wherever in doubt (no
-        // map, a region of more than DropMaxTexels). No allocation.
-        internal static bool CoverageEmpty(byte[] coverageBytes, int width, int height, double latDeg, double lonDeg, double regionDeg, float clearSkyK, float coverage,
-                                           float noiseAmount, float edge, out int texels)
-        {
-            texels = 0;
-            if (coverageBytes == null || width < 2 || height < 2 || !(regionDeg >= 0.0)) return false;
-            int y0, y1, xStart, columns;
-            if (!Window(width, height, latDeg, lonDeg, regionDeg, DropMaxTexels, out y0, out y1, out xStart, out columns)) return false;
-            int covMax = 0;
-            for (int y = y0; y <= y1; y++)
-            {
-                int row = y * width;
-                for (int k = 0; k < columns; k++)
-                {
-                    int c = coverageBytes[row + ((xStart + k) % width + width) % width];
-                    if (c > covMax) covMax = c;
-                }
-            }
-            texels = (y1 - y0 + 1) * columns;
-            double cov = CloudLayerDef.ClearSky(covMax / 255f, clearSkyK);
-            return cov + coverage - 1.0 + 0.5 * noiseAmount + 0.5 * Math.Max(edge, 1e-4f) <= -1e-4;
-        }
-
         // The bound of one layer. coverageBytes / typeBytes: the maps as uploaded (width x height, row 0 at the north pole, column 0 at longitude -180); latDeg and
         // lonDeg: the camera's place in the layer's map (the longitude already turned by the layer's map shift); regionDeg: RegionDeg. coverage, noiseAmount and edge are
         // the numbers the shader's coverage bound uses (_LayerB.y, _LayerD.x, _LayerB.z). staticInnerM / staticOuterM: the table's tight interval, never left.

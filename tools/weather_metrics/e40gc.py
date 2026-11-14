@@ -13,7 +13,7 @@ at 1707 x 960 for the cost and 1708 x 960 for the pictures. The views:
                   cirrus map 0.35 (the numbers of the cfg, B3's light and soft keys). A constructed fair-weather sky, not a frame of the game.
   l4empty         the same four layers with every map at 0 (the ground camera): nothing to see, what a clear sky costs
 
-A case is SoftTable.Case of tests/WeatherPlayer/Assets/Runner/SoftDensityScene.cs: a march name and modifiers joined by '+' (r40 = recon.resolution 0.4, jit = recon.jitter 1,
+A case is SoftTable.Case of tests/WeatherPlayer/Assets/Runner/SoftDensityScene.cs: a march name and modifiers joined by '+' (r40 = recon.resolution 0.4, jit = ReconSettings.Jitter (no key),
 blk2 = cloudResolution 2, ls3 = layers.lightStride 3, lc100 = layers.lightCutoff 0.1, lq1 = cloudLightQuality Medium, ds2 = layers.ditherSequence 2, skip = cloudSkipEmpty,
 skipc = cloudSkipClosed, dbg<N> = the cost debug mask, tseq1m16 = layers.spanTight 1 with 16 grid points on the cut span).
 """
@@ -151,17 +151,7 @@ TEMPORAL2_STAGES = [
 ]
 
 
-# Package L2DROP (E40 L2 A2, e40-l2drop-*): layers.dropEmpty on and off in ONE run (the case modifier "drop" is LayerFrame.DropEmpty), the cost and the pictures. The pictures of a
-# case and of the same case with "drop" must be identical: collect_drop_compare prints the largest absolute difference of every pair of dumped frames.
-DROP_BASES = [B32, "seq1"]
-DROP_100 = [B24]
-DROPCOST_STAGES = [
-    ("cost-drop50", "ground,above,l4ground,l4above,l4empty", "pr50", DROP_BASES + on(B32, ["drop"]) + on("seq1", ["drop", "r33", "r33+drop"]) + on(B32, ["r33", "r33+drop"])),
-    ("cost-drop100", "ground,above,l4ground,l4above", "pr100", DROP_100 + on(B24, ["drop", "r33", "r33+drop"])),
-]
-DROPTEMPORAL_STAGES = [
-    ("temporal-drop50", "l4ground,l4above,l4empty", "pr50", [B32] + on(B32, ["drop"]) + ["seq1"] + on("seq1", ["drop"])),
-]
+# (The package L2DROP, series e40-l2drop-cost / -temporal / -control for layers.dropEmpty, is gone with the key: E40 L4 clean.)
 
 
 def cost_stage(label, views, media, cases):
@@ -355,87 +345,7 @@ def sheet(name, view, medium, labelled, tvc=True, tile=(1100, 619)):
     print(path)
 
 
-DROP_FRAME = re.compile(r"^gs-(?P<view>[a-z0-9]+)-(?P<medium>[a-z0-9]+)-(?P<scenario>[a-z]+)-(?P<case>.+)\+drop-(?P<mode>plain|acc20)-f(?P<frame>\d+)$")
-
-
-def drop_pairs(folder):
-    """(frame name with the drop, the same frame without it) for every dumped frame of a case run with 'drop' and without."""
-    pairs = []
-    for fn in sorted(os.listdir(folder)):
-        if not fn.endswith(".npy"):
-            continue
-        name = fn[:-4]
-        m = DROP_FRAME.match(name)
-        if m:
-            plain = "gs-%s-%s-%s-%s-%s-f%s" % (m.group("view"), m.group("medium"), m.group("scenario"), m.group("case"), m.group("mode"), m.group("frame"))
-            if os.path.isfile(os.path.join(folder, plain + ".npy")):
-                pairs.append((name, plain))
-    return pairs
-
-
-def collect_drop_compare(ctx):
-    """The pictures with layers.dropEmpty against the same case without it: the largest absolute difference of the half floats over every pair of frames (exact: 0)."""
-    metrics = collect_temporal(ctx, DROPTEMPORAL_STAGES, os.path.join(BUILD, "e40l2drop-temporal-results.json"))
-    worst, lines = 0.0, ["E40-L2DROP: frames with layers.dropEmpty against the same case without it (max abs difference over RGBA of the half floats; 0 = identical)"]
-    for label, _, _, _ in DROPTEMPORAL_STAGES:
-        folder = ctx.folder(label)
-        for dropped, plain in drop_pairs(folder):
-            a = np.load(os.path.join(folder, dropped + ".npy")).astype(np.float64)
-            b = np.load(os.path.join(folder, plain + ".npy")).astype(np.float64)
-            diff = float(np.abs(a - b).max()) if a.shape == b.shape else float("inf")
-            worst = max(worst, diff)
-            lines.append("   %-70s max abs diff %.8f" % (dropped, diff))
-            metrics.append(Metric.info("e40l2drop.diff." + dropped.replace("+", "_"), diff))
-    lines.append("   pairs %d, worst %.8f" % (len(lines) - 1, worst))
-    metrics.append(Metric.info("e40l2drop.diff.worst", worst))
-    print("\n".join(lines))
-    with open(os.path.join(BUILD, "e40l2drop-compare.txt"), "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    return metrics
-
-
-CONTROL_STAGES = [("temporal-ctl50", "l4ground,l4above", "pr50", [B32, B32 + "+ctl", B32 + "+drop"])]
-CONTROL_FRAME = re.compile(r"^gs-(?P<view>[a-z0-9]+)-(?P<medium>[a-z0-9]+)-(?P<scenario>[a-z]+)-(?P<case>[^-]+)-acc20-f(?P<frame>\d+)$")
-
-
-def collect_control(ctx):
-    """Run-to-run control: the same case twice with the key off (+ctl) and with the key on (+drop), each against the plain case; per scenario the largest difference and the count of differing frames."""
-    metrics, lines = [], ["E40-L2DROP control: max abs diff of half floats against the plain case (pairs differing / pairs)"]
-    stats = {}
-    for label, _, _, _ in CONTROL_STAGES:
-        folder = ctx.folder(label)
-        for fn in sorted(os.listdir(folder)):
-            m = CONTROL_FRAME.match(fn[:-4]) if fn.endswith(".npy") else None
-            if not m or "+" not in m.group("case"):
-                continue
-            kind = m.group("case").split("+", 1)[1]
-            base = fn[:-4].replace("-" + m.group("case") + "-", "-" + m.group("case").split("+", 1)[0] + "-")
-            if kind not in ("ctl", "drop") or not os.path.isfile(os.path.join(folder, base + ".npy")):
-                continue
-            a = np.load(os.path.join(folder, fn)).astype(np.float64)
-            b = np.load(os.path.join(folder, base + ".npy")).astype(np.float64)
-            d = np.abs(a - b)
-            key = (kind, m.group("view"), m.group("scenario"))
-            s = stats.setdefault(key, [0.0, 0, 0, 0])
-            s[0] = max(s[0], float(d.max()))
-            s[1] += 1 if d.max() > 0 else 0
-            s[2] += 1
-            s[3] = max(s[3], int((d.max(axis=-1) > 0).sum()))
-    for key in sorted(stats):
-        s = stats[key]
-        lines.append("   %-5s %-9s %-9s max %.6f ; pairs differing %d / %d ; most differing pixels in a frame %d" % (key + (s[0], s[1], s[2], s[3])))
-        metrics.append(Metric.info("e40l2drop.control.%s.%s.%s.max" % key, s[0]))
-    print("\n".join(lines))
-    with open(os.path.join(BUILD, "e40l2drop-control.txt"), "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    return metrics
-
-
 ensure_inputs()
-register_series("e40-l2drop-control", [temporal_stage(*s) for s in CONTROL_STAGES], collect_control, exclusive=False, who="e40-gc")
-register_series("e40-l2drop-cost", [cost_stage(*s) for s in DROPCOST_STAGES],
-                lambda ctx: collect_cost(ctx, DROPCOST_STAGES, os.path.join(BUILD, "e40l2drop-cost-results.json")), exclusive=True, who="e40-gc")
-register_series("e40-l2drop-temporal", [temporal_stage(*s) for s in DROPTEMPORAL_STAGES], collect_drop_compare, exclusive=False, who="e40-gc")
 register_series("e40-gc-cost", [cost_stage(*s) for s in COST_STAGES], collect_cost, exclusive=True, who="e40-gc")
 register_series("e40-gc-temporal", [temporal_stage(*s) for s in TEMPORAL_STAGES], collect_temporal, exclusive=False, who="e40-gc")
 register_series("e40-gc2-cost", [cost_stage(*s) for s in COST2_STAGES], lambda ctx: collect_cost(ctx, COST2_STAGES, os.path.join(BUILD, "e40gc2-cost-results.json")),
@@ -447,7 +357,7 @@ register_series("e40-gc2-temporal", [temporal_stage(*s) for s in TEMPORAL2_STAGE
 def selftest():
     for cases in (LEVERS50, LEVERS100, ATTR):
         assert len(set(cases)) == len(cases), "a case twice"
-    for label, views, media, cases in COST_STAGES + TEMPORAL_STAGES + COST2_STAGES + TEMPORAL2_STAGES + DROPCOST_STAGES + DROPTEMPORAL_STAGES:
+    for label, views, media, cases in COST_STAGES + TEMPORAL_STAGES + COST2_STAGES + TEMPORAL2_STAGES:
         assert len(set(cases)) == len(cases), label
         assert all(v in VIEWS for v in views.split(",")), label
         assert all("," not in c for c in cases)

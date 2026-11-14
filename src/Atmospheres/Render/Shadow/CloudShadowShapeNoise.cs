@@ -7,7 +7,7 @@ namespace ReDefinition.Atmospheres
     // cfg, noise amount 1 at 500 m). With this switch on the shadow reads the same share: the shape noise alone, the way the pass's own light march reads it (no erosion:
     // gNoiseLod), from the same volume, scale, offsets and drift (LayerNoise), so that the shader's twin (ReDefinitionAtmospheresCloudShadow.shader includes
     // ReDefinitionAtmospheresNoise.cginc and calls NoiseShareNear) and this class are one definition. Not mirrored: the flow map of a body that has one, the
-    // profileShape lift (layers.profileShape, default off), and the height maps' ragged boundary (HeightDensity resolves the type's local base and top as before).
+    // types' height-shaped threshold (the LIFT of the cfg), and the height maps' ragged boundary (HeightDensity resolves the type's local base and top as before).
     //
     // The switch is the tuning key shadow.shapeNoise (OwnCloudOptions.ShadowShapeNoise): 1 reads the noise, 0 the map alone (the shadow before E40 FL-FIX).
     internal sealed class CloudShadowShapeNoise

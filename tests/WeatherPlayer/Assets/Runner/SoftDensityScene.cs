@@ -124,23 +124,20 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // E40 ground cost (series e40-gc-*): a case is a march name and modifiers joined by '+', every modifier the player's twin of a tuning key or setting:
-        //   r<NN>     the march target's side over the full target's, NN / 100 (recon.resolution: r40 is 0.4)      jit    the per-frame sub-pixel jitter (recon.jitter 1)
+        //   r<NN>     the march target's side over the full target's, NN / 100 (recon.resolution: r40 is 0.4)      jit    the per-frame sub-pixel jitter (ReconSettings.Jitter; no key)
         //   acc<NN>   the history weight, NN / 100 (recon.accumulate)                                              blk<N> the block level N of cloudResolution (no march history of its own)
         //   clip<NN>  the history's clip width in standard deviations, NN / 10 (the product: 10; clip1000 is no clip in practice)
-        //   dp<N>     layers.ditherPhase (1 golden, 2 van der Corput, 3 shuffled strata, 4 white, 5 golden per block)   sh<NN> layers.ditherShift NN / 100 (the gradient noise moves 5.588 x that per frame)
         //   ls<N>     layers.lightStride              lc<NNN>  layers.lightCutoff NNN / 1000                    ds<N> layers.ditherSequence
         //   lq<N>     cloudLightQuality 0 Low, 1 Medium, 2 High (taps and octaves; without it the frame's own: 3 sun taps, 4 octaves)   sun<N> the frame's sun steps
         //   skip      cloudSkipEmpty (the tile pass)    skipc    cloudSkipClosed                                  leap<N> layers.emptyLeap
-        //   drop      layers.dropEmpty (LayerFrame.DropEmpty: a layer whose map cannot reach the threshold anywhere in view is not marched; exact)
         //   lm<N>     the layers that are marched, bit i = layer i (0: all; a measurement of what dropping the empty layers before the march would save)
         //   dbg<N>    the cost debug mask (1 no light, 2 no shape noise, 4 no erosion; not a picture of the product)
         // The base is seq1 (the product's grid march with the 48 points of the High setting), seq1m<N> and tseq1m<N> (N grid points, the second on the cut span) or a GrainTable name.
         internal sealed class Case
         {
             public string Name, Base = "seq1";
-            public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f, Shift;
-            public int Phase;
-            public bool Jitter, Skip, SkipClosed, Drop;
+            public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f;
+            public bool Jitter, Skip, SkipClosed;
             public int Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
         }
 
@@ -159,12 +156,9 @@ namespace ReDefinition.WeatherPlayer
                 if (t == "jit") c.Jitter = true;
                 else if (t == "skip") c.Skip = true;
                 else if (t == "skipc") c.SkipClosed = true;
-                else if (t == "drop") c.Drop = true;
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
-                else if (t.StartsWith("dp")) c.Phase = Number(t, 2);
-                else if (t.StartsWith("sh")) c.Shift = Number(t, 2) / 100f;
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
                 else if (t.StartsWith("lc")) c.Cutoff = Number(t, 2) / 1000f;
                 else if (t.StartsWith("lq")) c.Quality = Number(t, 2);
@@ -190,13 +184,10 @@ namespace ReDefinition.WeatherPlayer
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
             f.DitherSequence = c.Dither >= 0 ? c.Dither : FrameDefaults.DitherSequence;
-            f.DitherPhase = c.Phase > 0 ? c.Phase : FrameDefaults.DitherPhase;
-            f.DitherShift = c.Shift > 0f ? c.Shift : FrameDefaults.DitherShift;
             if (c.Debug >= 0) f.CostDebug = c.Debug;
             if (c.Leap > 0) f.EmptyLeap = c.Leap;
             f.SunSteps = c.Sun > 0 ? c.Sun : 3;
             f.LayerMask = c.Mask;
-            f.DropEmpty = c.Drop;
             f.Cull.SkipEmpty = c.Skip;
             f.Cull.SkipClosed = c.SkipClosed;
             CloudLightSettings q = c.Quality >= 0 ? CloudLightSettings.ForQuality(c.Quality) : LightDefaults;

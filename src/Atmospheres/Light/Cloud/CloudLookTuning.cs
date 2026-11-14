@@ -22,9 +22,6 @@ namespace ReDefinition.Atmospheres
     //   cloud.deckPrecip.<name>           the probe's: a precipitation level the layer's deck rule sees everywhere, 0 to 1 (-1: the field's)
     //   cloud.deckFog.<name>              the probe's: a fog share the layer's deck rule sees everywhere, 0 to 1 (-1: the field's dew-point spread and wind)
     //   layers.densityRemap               the share of the erosion that also thins the interior of a closed deck (0: erosion only in the soft edge)
-    //   layers.profileShape               the scale on the types' height-shaped threshold (cfg node LIFT of a TYPE, in map units; E40 L2 D1): 1 (default) is what the cfg says, 0 gives the
-    //                                     column shape back (every cloud an upright column with a flat top), 2 doubles the lift. Shader only (_NoiseT.w): the CPU readers of the
-    //                                     density and the cloud shadow keep the column shape.
     //   cloud.coverCombine                0 to 1: how far the layer maps are scaled so that their random-overlap union equals the field's cover (0: maps as they are)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
     //   cloud.fadeNearShare               share of cloud.fadeFarM where the fade starts (0.5)
@@ -36,11 +33,11 @@ namespace ReDefinition.Atmospheres
             TuneNoiseSize = "cloud.layerNoiseSizeScale", TuneLayerShift = "cloud.layerCoverageShift.", TuneTypeFair = "cloud.typeFair.", TuneTypeOverride = "cloud.typeOverride.",
             TuneDensityRemap = "layers.densityRemap", TuneCoverCombine = "cloud.coverCombine", TuneFadeFar = "cloud.fadeFarM",
             TuneFadeNearShare = "cloud.fadeNearShare", TuneFarHaze = "cloud.farHaze", TuneHazeStrength = "cloud.hazeStrength", TuneMapOverride = "cloud.mapOverride.",
-            TuneProfileShape = "layers.profileShape", TuneDeckRule = "cloud.deckRule.",
+            TuneDeckRule = "cloud.deckRule.",
             TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.";
 
         private static long seenVersion = -1;
-        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f, profileShape = 1f;
+        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -101,8 +98,6 @@ namespace ReDefinition.Atmospheres
             fadeNearShare = n;
             farHaze = h;
             hazeStrength = hs;
-            // Read by the noise binding every frame; it does not change the layers' uploaded numbers, so it does not raise the stamp.
-            profileShape = Clean(Tuning.Get(TuneProfileShape, 1f), 1f, 0f, 2f);
             // The per-layer keys of the names asked for so far are read again in place; a value that moved counts as a change.
             changed |= Reread(LayerShift, TuneLayerShift, 0f, -1f, 1f);
             changed |= Reread(TypeFairByName, TuneTypeFair, -1f, -1f, 1f);
@@ -180,8 +175,6 @@ namespace ReDefinition.Atmospheres
         internal static float CoverCombine { get { Refresh(); return combine; } }
         internal static float FarHazeForce { get { Refresh(); return farHaze; } }
         internal static float HazeStrengthScale { get { Refresh(); return hazeStrength; } }
-        // layers.profileShape (0: off): the lift of the coverage threshold where the type's profile is below 1 (the layer shader's _NoiseT.w).
-        internal static float ProfileShape { get { Refresh(); return profileShape; } }
 
         // The extra coverage shift of the layer of that name (0: none).
         internal static float ShiftOf(string layerName)

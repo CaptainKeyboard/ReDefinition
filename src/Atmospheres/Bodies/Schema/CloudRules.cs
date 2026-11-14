@@ -62,7 +62,7 @@ namespace ReDefinition.Atmospheres
         // The type's height-shaped threshold (E40 L2 D1; cfg node LIFT { key0 = height lift, ... }, null: none): at the height h of the type (0 base, 1 top) the coverage threshold is lifted by
         // lift(h) in map units, so the cloud's outline is narrower there than where the lift is 0 (Schneider's height gradient, as data per type). A cumulus lifts towards the top (a dome over
         // a flat base), a cumulonimbus lifts its middle and lets the top stand wide (the anvil). Never negative: the lift only lowers the map value, so the coverage bounds of the march
-        // and of the layer drop (LayerSpanBound.CoverageEmpty) stay exact. Baked into the type's tabulated profile texture (channel a, LayerTypeTable.LiftData).
+        // and of the span cut (LayerSpanBound.Bound) stay exact. Baked into the type's tabulated profile texture (channel a, LayerTypeTable.LiftData).
         internal Curve Lift { get; set; }
         // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }

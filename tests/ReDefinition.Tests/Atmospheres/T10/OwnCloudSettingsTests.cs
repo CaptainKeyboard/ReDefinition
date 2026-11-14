@@ -330,9 +330,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(new LayerFrame().LightStride, frame.LightStride);
         }
 
-        // E40 ground cost: the size of the history path's march target and its sub-pixel jitter are tuning keys with the compiled values as defaults.
+        // E40 ground cost: the size of the history path's march target is a tuning key with the compiled value as its default (the key recon.jitter is gone: the march rays carry no jitter).
         [TestMethod]
-        public void TheReconKeysSetTheMarchTargetsSizeAndJitterWithoutChangingTheDefault()
+        public void TheReconKeySetsTheMarchTargetsSizeWithoutChangingTheDefault()
         {
             Tuning.ClearOverrides();
             NextFrame();
@@ -343,17 +343,16 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.5f, recon.Resolution);
             Assert.IsFalse(recon.Jitter);
             Tuning.SetOverride(OwnCloudOptions.TuneReconResolution, 0.4f);
-            Tuning.SetOverride(OwnCloudOptions.TuneReconJitter, 1f);
             NextFrame();
             OwnCloudOptions.Apply(recon, Defaults());
             Assert.AreEqual(ReconMode.Low, recon.Mode);
             Assert.AreEqual(0.4f, recon.Resolution);
-            Assert.IsTrue(recon.Jitter);
+            Assert.IsFalse(recon.Jitter);
             Assert.AreEqual(0.2f, recon.Accumulate);
-            // The mode setting Low reads the same keys; the numbers stay inside 0.1 to 1.
+            // The mode setting Low reads the same key; the number stays inside 0.1 to 1.
             OwnCloudOptions.Apply(recon, Defaults("cloudReconMode", (int)ReconMode.Low));
             Assert.AreEqual(0.4f, recon.Resolution);
-            Assert.IsTrue(recon.Jitter);
+            Assert.IsFalse(recon.Jitter);
             Tuning.SetOverride(OwnCloudOptions.TuneReconResolution, 0.01f);
             NextFrame();
             OwnCloudOptions.Apply(recon, Defaults());
@@ -467,33 +466,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(12, frame.MaxSteps);
-            Tuning.ClearOverrides();
-            NextFrame();
-        }
-
-        // E40 L2 package A2: layers.dropEmpty is a default (a layer whose map cannot reach the threshold in view is not marched), off by its key; the compiled frame is the pass as it was.
-        [TestMethod]
-        public void TheDropEmptyKeyIsADefaultWithAKeyBack()
-        {
-            Tuning.ClearOverrides();
-            NextFrame();
-            var frame = new LayerFrame();
-            Assert.IsFalse(frame.DropEmpty);
-            Assert.AreEqual("layers.dropEmpty", OwnCloudOptions.TuneDropEmpty);
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsTrue(OwnCloudOptions.DropEmptyDefault);
-            Assert.AreEqual(OwnCloudOptions.DropEmptyDefault, frame.DropEmpty);
-            Tuning.SetOverride(OwnCloudOptions.TuneDropEmpty, 0f);
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsFalse(frame.DropEmpty);
-            // Independent of the span cut.
-            Tuning.SetOverride(OwnCloudOptions.TuneDropEmpty, 1f);
-            Tuning.SetOverride(OwnCloudOptions.TuneSpanTight, 0f);
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsTrue(frame.DropEmpty);
-            Assert.IsFalse(frame.SpanTight);
             Tuning.ClearOverrides();
             NextFrame();
         }

@@ -124,7 +124,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 double share = eb + (et - eb) * (q + 0.5) / steps;
                 double rr = R + layer.InnerAltitudeM + share * layer.ThicknessM, zz = Math.Sqrt(Math.Max(1.0, rr * rr - hx * hx - hy * hy));
-                // The shader's height-shaped threshold (E40 L2 D1): the map value lowered by the type's lift at this height times layers.profileShape.
+                // The shader's height-shaped threshold (E40 L2 D1): the map value lowered by the type's lift at this height times liftScale (1 is the cfg's LIFT).
                 double lift = liftScale > 0.0 ? liftScale * table.LiftOf(typeValue, share) : 0.0;
                 double s = CloudShapeModel.Share(set, ref prm, hx, hy, zz, clearMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.EffectiveNoiseAmount, erosion, true, dz);
                 if (s <= 0.0) continue;

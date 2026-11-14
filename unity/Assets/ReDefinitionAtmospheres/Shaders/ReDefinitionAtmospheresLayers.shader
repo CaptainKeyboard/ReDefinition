@@ -66,7 +66,7 @@ Shader "ReDefinition/AtmospheresLayers"
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
         // for every pixel (a probe), 0: the product's per-pixel rotation. z the per-pixel offset (layers.ditherSequence): 1 an integer hash (white), 2 the interleaved
-        // gradient noise. w the argument of the gradient noise's own frame shift (layers.ditherShift): the pattern moves by 5.588 w pixels in x and y, 0: it stands still.
+        // gradient noise. w unused (0): the gradient noise's pattern stands still.
         float4 _DitherP;
         // The temporal reconstruction (package T05): the march target holds one pixel of every N x N block of the full target.
         float4 _ReconP;      // block size N (1: the target is the full target), the block offset x and y in full pixels, 0
@@ -227,7 +227,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 uv.y = clamp(uv.y, vMin, 1.0 - vMin);
                 cov = UNITY_SAMPLE_TEX2DARRAY_LOD(_CovMaps, float3(uv, slice), 0).r;
                 cov = min(cov, 2.0 * cov - _CullL[li].y);   // E40 soft density: the clear-sky rule of the water content (CloudLayerDef.ClearSkyMap); K = 0 is off
-                // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. layers.profileShape only
+                // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. the type's lift only
                 // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
                 if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0) return 0;
                 typeValue = UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).r;
@@ -256,12 +256,12 @@ Shader "ReDefinition/AtmospheresLayers"
             float coverage = _LayerB[li].y;
             float edge = max(_LayerB[li].z, 1e-4);
             // E40 L2 D1: the type's height-shaped threshold. The profile texture's channel a (cfg node LIFT of the type, 0 where there is none) lifts the coverage threshold at this height
-            // by up to 1 in map units, times layers.profileShape (_NoiseT.w, 1: as the cfg says, 0: the column shape), so a cloud is narrower where the lift is high: a cumulus dome over a
+            // by up to 1 in map units, so a cloud is narrower where the lift is high: a cumulus dome over a
             // flat base, a cumulonimbus tower under a wide anvil. The lift is never negative, so the coverage bounds of above and below stay exact. The technique is the height
             // gradient of Schneider's cloudscapes (SIGGRAPH 2015: the coverage is reduced by the height signal of the cloud type); the code is the project's own.
             float h = (share - b) / (tp - b);
             float4 pf = lerp(TypeProfile4(li, ta, h), TypeProfile4(li, tb, h), f);
-            cov -= _NoiseT.w * pf.a;
+            cov -= pf.a;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
             if (_CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
@@ -360,7 +360,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // The step offset: the pixel keeps one offset (the interleaved gradient noise, a blue-noise pattern in space) and every frame adds the golden ratio to it
             // (Roberts 2018, the R1 sequence): any run of frames spreads its offsets evenly over the grid step, so the history of the pass integrates the step by
             // strata instead of by chance (the cloud's entry, its light at the sample's depth and the hit or miss of a thin rim all depend on that offset).
-            float jitterValue = frac((_DitherP.z < 1.5 ? DitherHash(pixel) : Ign(pixel, _DitherP.w)) + _DitherP.x);
+            float jitterValue = frac((_DitherP.z < 1.5 ? DitherHash(pixel) : Ign(pixel, 0.0)) + _DitherP.x);
             float jitter = lerp(0.5, jitterValue, _StepP.y);
             // The cone's rotation of the light taps (_DitherP.y 1: a fixed rotation, a probe): the same pattern at another place, advanced in time by the same
             // phase (T03v2).

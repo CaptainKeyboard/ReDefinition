@@ -73,8 +73,8 @@ VIEWS = ("ground", "above", "sun")
 
 # E40TY_NOLIGHT=1: the same pictures with every light factor of the cfg at 1 (the control of the type and layer light response), under the names e40-ty-nolight-*.
 NOLIGHT = os.environ.get("E40TY_NOLIGHT") == "1"
-# E40TY_SHAPE=<scale>: the same pictures with layers.profileShape at that scale (the types' height-shaped threshold times it; 0: none, and then no fibre stretch either), under the names
-# e40-ty-shape<scale>-* (the control and the sweep of the shape keys of E40 L2 D1).
+# E40TY_SHAPE=0: the same pictures without the types' height-shaped threshold and without the fibre stretch (the jobs carry neither; the key layers.profileShape that scaled the
+# threshold is gone), under the names e40-ty-shape0-* (the control of the shape keys of E40 L2 D1).
 SHAPE_SCALE = float(os.environ["E40TY_SHAPE"]) if os.environ.get("E40TY_SHAPE") else None
 NOSHAPE = SHAPE_SCALE == 0.0
 # E40TY_SPHERE=<scale>: the noise lattice's vertical scale (the body key sphereScale; 1: as today, below 1 the features are longer in the vertical), under the names e40-ty-sphere<scale>-*.
@@ -170,7 +170,6 @@ def build_jobs():
                 bucket.append(lay.job(jid(spec[1], view, aux_flag), mode, cam, [job_layer(spec, extras, layers_by_name)], size[0], size[1], planet=R, mapWidth=MAP_W, mapHeight=MAP_H,
                                       sun=lay.sun_vector(cam.pos, 0.0, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
                                       soft=SOFTNESS, maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3,
-                                      tuning=[dict(key="layers.profileShape", value=SHAPE_SCALE)] if SHAPE_SCALE is not None else [],
                                       **(dict(noise=dict(sphere=SPHERE)) if SPHERE is not None else {})))
     return lum, aux
 

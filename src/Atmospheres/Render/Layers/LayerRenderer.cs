@@ -67,14 +67,6 @@ namespace ReDefinition.Atmospheres
         // interleaved gradient noise (lower temporal noise, a regular pattern). The owner's look decision between the two is pending.
         public bool SpanTight;
         public int DitherSequence = 2;
-        // E40 L2 E1: DitherPhase is the sequence of the frame's phase (StepPhase.Of: 1 the golden ratio, the default), DitherShift the gradient-noise pattern's shift per frame
-        // (StepPhase.Shift; 0: the pattern stands still).
-        public int DitherPhase = 1;
-        public float DitherShift;
-        // E40 L2 package A2 (layers.dropEmpty): a layer whose coverage map holds no value that can lift its density above zero anywhere a ray of the frame (or a light
-        // march from one) can reach is not marched: its tight outer altitude becomes -1 (LayerRenderer.TightenSpans). Exact, whatever SpanTight says. The compiled
-        // value is off (the pass as it was); the product's is OwnCloudOptions'.
-        public bool DropEmpty;
         // Package T16, the visibility culling and the distance LOD (all switches off until the owner agrees).
         public CullSettings Cull = new CullSettings();
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
@@ -352,10 +344,10 @@ namespace ReDefinition.Atmospheres
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
-            // The phase of the frame (the golden-ratio sequence unless layers.ditherPhase says otherwise) in double precision (a float product loses the fraction at the frame
-            // counts of a long session), and the per-frame shift of the gradient-noise pattern (layers.ditherShift; 0: the pattern stands still).
-            double phase = StepPhase.Of(f.DitherPhase, f.FrameNumber);
-            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : 0f, Mathf.Clamp(f.DitherSequence, 1, 2), StepPhase.Shift(f.FrameNumber, f.DitherShift)));
+            // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the gradient
+            // noise's pattern stands still (w 0).
+            double phase = StepPhase.Of(f.FrameNumber);
+            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : 0f, Mathf.Clamp(f.DitherSequence, 1, 2), 0f));
             if (f.Light != null)
             {
                 for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;
@@ -430,53 +422,11 @@ namespace ReDefinition.Atmospheres
                         }
                     }
                 }
-                if (outer >= 0f && f.DropEmpty && DropsEmpty(l, f)) { inner = 0f; outer = -1f; }
                 layerA[l].z = inner;
                 layerA[l].w = outer;
                 spanScanned[l] = scanned;
             }
         }
-
-        // E40 L2 package A2 (LayerFrame.DropEmpty): true when layer l holds no cloud that a ray of this frame can meet, or that a light march from a point a ray meets can reach.
-        // The cap is the camera's horizon cap at the highest shell of any layer, plus the light march's reach (times 1.5 for the cone of the taps) and a quarter degree;
-        // the layer's own map is read over it (LayerSpanBound.CoverageEmpty). Kept (false): no surface (a gas giant: rays pass through the planet), no map, the probe's
-        // test cell, a region of more than LayerSpanBound.DropMaxTexels. The verdict is cached per layer and recomputed when a map was uploaded, the stack changed or the
-        // camera reached another texel or another region.
-        private bool DropsEmpty(int l, LayerFrame f)
-        {
-            if (!f.HasSurface || Maps.Coverage == null || layerC[l].z < 0f || uploadedSource == null) return false;
-            if (f.Light != null && f.Light.CellRadiusM > 0f) return false;
-            Vector3 q = f.WorldToMap.MultiplyVector(cameraPosition - f.PlanetCenter);
-            double len = Math.Sqrt((double)q.x * q.x + (double)q.y * q.y + (double)q.z * q.z);
-            if (!(len > 1.0)) return false;
-            double lat = Math.Asin(Math.Max(-1.0, Math.Min(1.0, q.z / len))) * (180.0 / Math.PI);
-            double lon = Math.Atan2(q.y, q.x) * (180.0 / Math.PI) - layerD[l].w;
-            lon -= 360.0 * Math.Floor((lon + 180.0) / 360.0);
-            float highest = 0f;
-            for (int k = 0; k < layerCount; k++) highest = Math.Max(highest, Math.Max(tightTable[k].y, layerA[k].y));
-            double region = LayerSpanBound.RegionDeg(radius, len - radius, highest, 1.5 * f.SunMarchM) + 0.25;
-            var numbers = new Vector4(layerB[l].y, layerD[l].x, layerB[l].z, cullL[l].y);
-            long key = Maps.CoverageVersion(l) * 1000003L + uploadedVersion * 31L + uploadedShift
-                       + (long)Math.Floor(lat / 180.0 * Maps.Height) * 104729L + (long)Math.Floor(lon / 360.0 * Maps.Width) * 1299709L
-                       + (long)Math.Round(region * 4.0) * 15485863L;
-            Vector4 held = dropNumbers[l];
-            // Component by component: Vector4's == compares with a tolerance.
-            bool same = numbers.x == held.x && numbers.y == held.y && numbers.z == held.z && numbers.w == held.w;
-            if (!dropValid[l] || key != dropKey[l] || !same)
-            {
-                int texels;
-                dropResult[l] = LayerSpanBound.CoverageEmpty(Maps.CoverageBytes(l), Maps.Width, Maps.Height, lat, lon, region, cullL[l].y, layerB[l].y, layerD[l].x, layerB[l].z, out texels);
-                dropKey[l] = key;
-                dropNumbers[l] = numbers;
-                dropValid[l] = true;
-            }
-            return dropResult[l];
-        }
-
-        private readonly long[] dropKey = new long[CloudLayerDef.MaxLayers];
-        private readonly bool[] dropValid = new bool[CloudLayerDef.MaxLayers];
-        private readonly bool[] dropResult = new bool[CloudLayerDef.MaxLayers];
-        private readonly Vector4[] dropNumbers = new Vector4[CloudLayerDef.MaxLayers];
 
         // The intervals of the last Apply as text (the probe's row and the log): per layer "none", "table <inner>-<outer>" or "<inner>-<outer>" in m.
         internal string SpanStats
