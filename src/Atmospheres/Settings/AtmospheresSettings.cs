@@ -108,6 +108,7 @@ namespace ReDefinition.Atmospheres
             if (loaded) return;
             loaded = true;
             LoadFrom(ModFolder.PluginFile(Mod, FileName));
+            ApplyLaunchPins(Environment.GetCommandLineArgs());
         }
 
         // The settings of that file; where it does not exist it is written with the current settings. True if it was written.

@@ -6,14 +6,16 @@
   "profile": "Medium",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 1,
+  "plannedStarts": 4,
   "bundle": true,
   "settings": [
     { "file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": { "raytracing": "Off", "frameGeneration": false, "qualityAuto": false, "quality": "NativeAA" } },
     { "file": "settings.cfg", "set": { "SYNC_VBL": 0, "FRAMERATE_LIMIT": 1000 } }
   ],
-  "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1, "ownClouds": 1, "cloudSource": "Ours" },
-  "sections": [ { "id": "SURFACEPROBE", "package": "SURFACE", "title": "The white of the far terrain" } ],
+  "sections": [
+    { "id": "SURFACEPROBE", "package": "SURFACE", "title": "The white of the far terrain" },
+    { "id": "SURFACEGROUND", "package": "SURFACE", "title": "The ground of the KSC with the cover off from load" }
+  ],
   "collect": [
     { "from": "GameData/ReDefinition/Atmospheres/PluginData/CloudViewer/Captures", "to": ".local/work/series-pictures/K-S2/captures", "optional": true },
     { "from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures", "to": ".local/work/series-pictures/K-S2", "optional": true }
@@ -23,8 +25,30 @@
       "id": "surface",
       "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
       "description": "Five frames of one pose and one sun (SurfaceProbe, module order 993) at 2560x1440, UI_SCALE 1.5. About 4 to 6 minutes after the flight is up.",
+      "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1, "ownClouds": 1, "cloudSource": "Ours" },
       "disableMods": [ "EVE" ],
       "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceProbe" ]
+    },
+    {
+      "id": "ground_on",
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
+      "description": "The control of the ground starts (SurfaceGroundProbe, module order 994): Atmospheres on with the weather effects and the own clouds from load (-atmoSet), K-S2's time and sun, the cb_far pose at both headings and two ground-level poses over the pad, every layer empty. About 3 to 4 minutes after the flight is up.",
+      "disableMods": [ "EVE" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
+    },
+    {
+      "id": "ground_off",
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
+      "description": "As ground_on with Atmospheres' master switch off from load (-atmoSet enabled=0): no module of the package acts, the cover's PQS mod is never put into the ground. The frames of the pad's ground without any of the package.",
+      "disableMods": [ "EVE" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
+    },
+    {
+      "id": "ground_nocover",
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
+      "description": "As ground_on with only the cover feature off from load (-atmoSet groundCover=0): the rest of the package runs, the cover's PQS mod is never put into the ground.",
+      "disableMods": [ "EVE" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "groundCover=0,weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
     }
   ],
   "rows": []
