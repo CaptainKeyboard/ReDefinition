@@ -252,6 +252,8 @@ namespace ReDefinition.Atmospheres
         internal sealed class Soft60Target
         {
             internal string Name, LayerPart, TypePart;
+            // A type name with this part is not the target's (the cumulonimbus view centres on a tower, not on its anvil sheet; null: none).
+            internal string ExcludePart;
             internal float MinCover, WeakCover;
             internal double GroundPitchDeg, GroundMidM, AboveAglM, AbovePitchDeg, AboveMidM;
             // The cumulus bodies get a baseline frame (the light rows need one).
@@ -259,7 +261,8 @@ namespace ReDefinition.Atmospheres
 
             internal bool Matches(string layerName, string typeName)
             {
-                return layerName != null && typeName != null && layerName.IndexOf(LayerPart, StringComparison.OrdinalIgnoreCase) >= 0 && typeName.IndexOf(TypePart, StringComparison.OrdinalIgnoreCase) >= 0;
+                return layerName != null && typeName != null && layerName.IndexOf(LayerPart, StringComparison.OrdinalIgnoreCase) >= 0 && typeName.IndexOf(TypePart, StringComparison.OrdinalIgnoreCase) >= 0
+                       && (ExcludePart == null || typeName.IndexOf(ExcludePart, StringComparison.OrdinalIgnoreCase) < 0);
             }
         }
 
@@ -267,7 +270,9 @@ namespace ReDefinition.Atmospheres
         {
             new Soft60Target { Name = "humilis", LayerPart = "cumulus", TypePart = "humilis", MinCover = 0.55f, WeakCover = 0.30f, GroundPitchDeg = 20.0, GroundMidM = 2300.0, AboveAglM = 8300.0, AbovePitchDeg = 25.0, AboveMidM = 2300.0, Light = true },
             new Soft60Target { Name = "congestus", LayerPart = "cumulus", TypePart = "congestus", MinCover = 0.55f, WeakCover = 0.30f, GroundPitchDeg = 25.0, GroundMidM = 4500.0, AboveAglM = 10500.0, AbovePitchDeg = 25.0, AboveMidM = 5000.0, Light = true },
-            new Soft60Target { Name = "cumulonimbus", LayerPart = "cumulonimbus", TypePart = "cumulonimbus", MinCover = 0.35f, WeakCover = 0.15f, GroundPitchDeg = 28.0, GroundMidM = 6000.0, AboveAglM = 14000.0, AbovePitchDeg = 25.0, AboveMidM = 8000.0 },
+            // E40 CB: the whole cell with its anvil: from the ground 30 km away at 12 degrees (the view's centre at 6.6 km, the tower's 11 km top at 20 degrees, the anvil within the
+            // picture's width), from above at 24 km looking 30 degrees down on the anvil (9 km) 26 km ahead. Before: 11 km away at 28 degrees and 13 km from 14 km up, inside the tower.
+            new Soft60Target { Name = "cumulonimbus", LayerPart = "cumulonimbus", TypePart = "cumulonimbus", ExcludePart = "anvil", MinCover = 0.35f, WeakCover = 0.15f, GroundPitchDeg = 12.0, GroundMidM = 6600.0, AboveAglM = 24000.0, AbovePitchDeg = 30.0, AboveMidM = 9000.0 },
             new Soft60Target { Name = "cirrus", LayerPart = "cirrus", TypePart = "cirrus", MinCover = 0.45f, WeakCover = 0.25f, GroundPitchDeg = 35.0, GroundMidM = 10000.0, AboveAglM = 12500.0, AbovePitchDeg = 30.0, AboveMidM = 10000.0 }
         };
 
