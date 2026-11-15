@@ -106,7 +106,7 @@ namespace ReDefinition.Atmospheres
         // The seconds one type-placed view takes: the placement, the switch of the variant soft, its three frames and, for the cumulus bodies, the baseline frame.
         internal static double Soft60TypeViewS(Soft60Target t, bool above)
         {
-            return (above ? Soft60FarAirPlaceS : SoftPlaceS) + SoftSwitchS + 3.0 * SoftFrameReadS + (t.Light ? SoftFrameReadS + Soft60BaselineS : 0.0);
+            return (above ? Soft60FarAirPlaceS : SoftPlaceS) + SoftSwitchS + 3.0 * SoftFrameReadS + SoftFrameReadS + Soft60BaselineS;
         }
 
         internal static double Soft60EstimateS(IList<SoftVariant> table)
@@ -256,7 +256,7 @@ namespace ReDefinition.Atmospheres
             internal string ExcludePart;
             internal float MinCover, WeakCover;
             internal double GroundPitchDeg, GroundMidM, AboveAglM, AbovePitchDeg, AboveMidM;
-            // The cumulus bodies get a baseline frame (the light rows need one).
+            // The cumulus bodies get the light rows (against the baseline frame every type view takes).
             internal bool Light;
 
             internal bool Matches(string layerName, string typeName)
@@ -513,7 +513,7 @@ namespace ReDefinition.Atmospheres
             string pictureView = view.Name + (fair ? "_fair" : "");
             SoftVariant soft = Soft60Default;
             softOffRaw = null;
-            if (target.Light)
+            // Every type view gets the baseline frame (E40 PP: the parity replay lays its cloud over the game's own frame without clouds); the light rows stay the cumulus bodies'.
             {
                 SoftBase();
                 Game.SetLayerMask(NoLayersMask);

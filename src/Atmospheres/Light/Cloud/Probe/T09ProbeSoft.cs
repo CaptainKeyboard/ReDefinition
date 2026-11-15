@@ -611,6 +611,11 @@ namespace ReDefinition.Atmospheres
             count = Math.Max(1, Math.Min(SoftFrameLetters.Length, count));
             string what = view.Name + " " + variant + " grain";
             for (int i = 0; i < 12 && Game.HoldReached && !Game.HoldStable; i++) yield return ProbeWait.Frames(5);
+            // E40 PP: the maps and the pass's numbers of the frame the first picture of the variant is read in (the parity replay, tools/weather_metrics/e40pp.py); the variants
+            // the parity check compares only (the product's soft and the reference refsoft), so that a start writes a few dozen dumps, not one per cost variant.
+            OwnCloudModule parityOwn = OwnCloudModule.Current;
+            if (parityOwn != null && (variant == "soft" || variant == "refsoft"))
+                parityOwn.DumpMaps("pic-" + pictureView + "-" + variant + "-u" + ((long)Game.UniversalTime).ToString(CultureInfo.InvariantCulture));
             T09Pose before = Game.ReadPose();
             var raws = new List<Color[]>();
             var images = new List<T09Image>();

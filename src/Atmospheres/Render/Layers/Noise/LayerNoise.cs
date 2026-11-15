@@ -315,6 +315,17 @@ namespace ReDefinition.Atmospheres
             rise[layer] = riseDistanceM;
         }
 
+        // A layer's state as SetState takes it and its wind (E40 PP: the probe's dump, so that the weather player starts from the game's pattern).
+        internal void StateOf(int layer, double[] driftDistanceM, out double riseDistanceM, out Vector3 windMs)
+        {
+            bool ok = layer >= 0 && layer < motion.Length;
+            driftDistanceM[0] = ok ? driftX[layer] : 0.0;
+            driftDistanceM[1] = ok ? driftY[layer] : 0.0;
+            driftDistanceM[2] = ok ? driftZ[layer] : 0.0;
+            riseDistanceM = ok ? rise[layer] : 0.0;
+            windMs = ok ? motion[layer].DriftMs : Vector3.zero;
+        }
+
         // Advances the drift, the rise and the flow time by a frame.
         internal void Advance(double dt)
         {

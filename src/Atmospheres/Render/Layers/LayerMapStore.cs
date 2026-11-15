@@ -60,6 +60,12 @@ namespace ReDefinition.Atmospheres
 
         private readonly long[] typeVersion = new long[CloudLayerDef.MaxLayers];
 
+        // The bytes a layer's type map is moving toward (E40 PP: the probe dumps both, the map as uploaded and its target).
+        internal byte[] TypeGoalBytes(int layer)
+        {
+            return typeGoal[layer];
+        }
+
         internal Texture2DArray Coverage { get; private set; }
         internal Texture2DArray Types { get; private set; }
         internal int Width { get; private set; }

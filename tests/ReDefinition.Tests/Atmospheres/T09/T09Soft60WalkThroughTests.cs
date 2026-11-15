@@ -137,13 +137,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The guard of the type views (Soft60TypeView) leaves a view out that the time no longer holds, with SoftReserveS to spare: the plan must fit that much of the limit. Start 60's
             // part before the type views took 717 s against a plan of 892 s, so the plan has room that it does not use.
             Assert.IsTrue(estimate <= T09Probe.SoftMaxSeconds - T09Probe.SoftReserveS, "the plan needs " + estimate.ToString("0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0") + " (the pin is 1060)");
-            Assert.AreEqual(1020.0, estimate, 1e-6, "the plan as built: 1020 s (softr50 has no weave and no reference of its own, the clock-ground window moved from softcut16 to soft100s24; 1037.5 s before; 1017.5 s before the far placements were priced: the four views from the air take 12 s to place, not 7; 1007.5 s of the first build: one reference of 8 frames, softacc10, two scans; now four references of 4 frames before their variants, no softacc10, one scan)");
+            Assert.AreEqual(1028.0, estimate, 1e-6, "the plan as built: 1028 s (E40 PP: the cumulonimbus and cirrus type views take a baseline frame too, +8 s; 1020 s before; softr50 has no weave and no reference of its own, the clock-ground window moved from softcut16 to soft100s24; 1037.5 s before; 1017.5 s before the far placements were priced: the four views from the air take 12 s to place, not 7; 1007.5 s of the first build: one reference of 8 frames, softacc10, two scans; now four references of 4 frames before their variants, no softacc10, one scan)");
             // The evidence for the constants: a placement was measured at 3.6 s and a frame with its picture at 0.7 s in start 59.
             Assert.IsTrue(T09Probe.SoftPlaceS >= 1.9 * 3.6 && T09Probe.SoftFrameReadS >= 1.35 * 0.7);
-            // A type view is priced with its placement, switch and frames; the cumulus bodies add the baseline frame.
+            // A type view is priced with its placement, switch, baseline frame (every type view since E40 PP) and frames; the light rows of the cumulus bodies add no time.
             T09Probe.Soft60Target humilis = T09Probe.Soft60Targets[0], cirrus = T09Probe.Soft60Targets[3];
             Assert.IsTrue(humilis.Light && !cirrus.Light);
-            Assert.AreEqual(T09Probe.Soft60TypeViewS(cirrus, false) + T09Probe.SoftFrameReadS + T09Probe.Soft60BaselineS, T09Probe.Soft60TypeViewS(humilis, false), 1e-9);
+            Assert.AreEqual(T09Probe.Soft60TypeViewS(cirrus, false), T09Probe.Soft60TypeViewS(humilis, false), 1e-9);
+            Assert.AreEqual(T09Probe.SoftPlaceS + T09Probe.SoftSwitchS + 4.0 * T09Probe.SoftFrameReadS + T09Probe.Soft60BaselineS, T09Probe.Soft60TypeViewS(cirrus, false), 1e-9);
             // A far placement from the air was measured at 17.2 s with the old 150-frame wait for the anchor (5.4 s of it); the estimate keeps the 12 s that is left, and the ground views the 7 s.
             Assert.IsTrue(T09Probe.Soft60FarAirPlaceS >= 17.2 - 5.4);
             Assert.AreEqual(T09Probe.Soft60FarAirPlaceS - T09Probe.SoftPlaceS, T09Probe.Soft60TypeViewS(humilis, true) - T09Probe.Soft60TypeViewS(humilis, false), 1e-9);
@@ -394,7 +395,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.AreEqual(1.0, Number(r, "T09s.clock." + view + ".placed_ok"), view);
                     foreach (char letter in "abc") Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + view + "-soft_" + letter + "-")), view + " frame " + letter);
                     Assert.AreEqual(1.0, Number(r, "T09s.clock." + view + ".centre_match"), view + " the target's type is under the view's centre");
-                    Assert.AreEqual(t == "cirrus" || t == "cumulonimbus" ? 0 : 1, r.World.Saved.Count(f => f.Contains("-" + view + "-off_a-")), view + " baseline frame only for the cumulus bodies");
+                    Assert.AreEqual(1, r.World.Saved.Count(f => f.Contains("-" + view + "-off_a-")), view + " a baseline frame for every type view (E40 PP)");
                     Assert.IsTrue(Number(r, "T09s.clock." + view + ".sun_elev_deg") > 0.0, view + " the sun at its place is a row");
                     Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 type view " + view + ": the sun stands ")), view + " the sun at its place is logged");
                 }

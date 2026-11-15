@@ -1449,14 +1449,120 @@ namespace ReDefinition.Atmospheres
                     string name = stack.LayerAt(l).Name;
                     if (cover != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-cover.u8"), cover);
                     if (type != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-type.u8"), type);
+                    // E40 PP: the targets the slew moves the maps toward, and the height maps the GPU holds (three bytes a texel: root, top, variation; ranges in pass.json).
+                    byte[] coverGoal = renderer.Maps.CoverageGoalBytes(l), typeGoal = renderer.Maps.TypeGoalBytes(l);
+                    if (coverGoal != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-cover-goal.u8"), coverGoal);
+                    if (typeGoal != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-type-goal.u8"), typeGoal);
+                    HeightMaps heights = renderer.Heights.AppliedMaps(l);
+                    if (heights != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-height.u8"), heights.Bytes);
                 }
                 if (climateHumidity != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "humidity.u8"), climateHumidity);
-                AtmospheresLog.Say("own clouds: dumped the layer maps of " + stack.LayerCount + " layers to " + dir);
+                System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "pass.json"), PassJson(tag));
+                AtmospheresLog.Say("own clouds: dumped the layer maps of " + stack.LayerCount + " layers and the pass's numbers (pass.json) to " + dir);
             }
             catch (Exception e)
             {
                 AtmospheresLog.Say("own clouds: the map dump of " + tag + " failed: " + e.Message);
             }
+        }
+
+        // E40 PP: the pass's numbers of the frame the maps are dumped in (.local/plans/atmospheres/E40-player-parity.md): the camera relative to the body's centre in world
+        // axes (the noise is looked up in world axes, so the replay keeps them and takes the world-to-map rotation), the clock, the sun's direction and its colours (the scene's,
+        // Scatterer's restored one, the pass's), the display stage, the noise's drift and wind, the reconstruction, the height maps' ranges, which layers carry drawn anvils, and
+        // the uniforms the material holds (LayerPassReadout). Positions in m, directions unit vectors.
+        private string PassJson(string tag)
+        {
+            var s = new System.Text.StringBuilder(32768);
+            LayerFrame f = frame;
+            Camera cam = attachedCamera;
+            Vector3 centre = f.PlanetCenter;
+            s.Append("{\"tag\": ").Append(LayerPassReadout.Str(tag));
+            s.Append(",\n \"ut\": ").Append(LayerPassReadout.Num(Planetarium.GetUniversalTime())).Append(", \"frame\": ").Append(Time.frameCount);
+            s.Append(", \"body\": ").Append(LayerPassReadout.Str(body != null ? body.name : null)).Append(", \"planetRadius\": ").Append(LayerPassReadout.Num(body != null ? body.Radius : 0.0));
+            if (cam != null)
+            {
+                Transform t = cam.transform;
+                s.Append(",\n \"camera\": {\"position\": ");
+                Json3(s, t.position - centre);
+                s.Append(", \"forward\": ");
+                Json3(s, t.forward);
+                s.Append(", \"right\": ");
+                Json3(s, t.right);
+                s.Append(", \"up\": ");
+                Json3(s, t.up);
+                s.Append(", \"fov\": ").Append(LayerPassReadout.Num(cam.fieldOfView)).Append(", \"width\": ").Append(cam.pixelWidth).Append(", \"height\": ").Append(cam.pixelHeight).Append('}');
+            }
+            s.Append(",\n \"worldToMap\": [");
+            for (int r = 0; r < 3; r++)
+            {
+                if (r > 0) s.Append(", ");
+                Vector4 row = f.WorldToMap.GetRow(r);
+                Json3(s, new Vector3(row.x, row.y, row.z));
+            }
+            s.Append("],\n \"sun\": {\"towards\": ");
+            Json3(s, f.TowardsSun);
+            s.Append(", \"colour\": ");
+            JsonColour(s, f.SunColour);
+            s.Append(", \"scene\": ");
+            JsonColour(s, sunRead.Scene);
+            s.Append(", \"unmodulated\": ");
+            JsonColour(s, sunRead.Unmodulated);
+            s.Append(", \"pass\": ");
+            JsonColour(s, sunRead.Pass);
+            s.Append(", \"haveUnmodulated\": ").Append(sunRead.HaveUnmodulated ? 1 : 0).Append(", \"divided\": ").Append(sunRead.Divided ? 1 : 0)
+             .Append(", \"sinElevation\": ").Append(LayerPassReadout.Num(sunRead.SinElevation)).Append(", \"sunAirHeightM\": ").Append(LayerPassReadout.Num(sunRead.SunAirHeightM)).Append('}');
+            s.Append(",\n \"output\": {\"exposure\": ").Append(LayerPassReadout.Num(f.OutputExposure)).Append(", \"gamma\": ").Append(LayerPassReadout.Num(f.OutputGamma))
+             .Append(", \"white\": ").Append(LayerPassReadout.Num(f.OutputWhite)).Append(", \"whiteTint\": ");
+            JsonColour(s, f.OutputWhiteTint);
+            s.Append("},\n \"ambientTop\": ");
+            JsonColour(s, f.AmbientTop);
+            s.Append(", \"ambientBottom\": ");
+            JsonColour(s, f.AmbientBottom);
+            s.Append(",\n \"recon\": {\"mode\": ").Append(LayerPassReadout.Str(Stats.Mode)).Append(", \"setting\": ").Append(LayerPassReadout.Str(recon.Mode.ToString()))
+             .Append(", \"resolution\": ").Append(LayerPassReadout.Num(recon.Resolution)).Append(", \"accumulate\": ").Append(LayerPassReadout.Num(recon.Accumulate))
+             .Append(", \"frameResolution\": ").Append(LayerPassReadout.Num(f.Resolution)).Append(", \"maxSteps\": ").Append(f.MaxSteps).Append(", \"dither\": ").Append(f.DitherSequence)
+             .Append(", \"historyCuts\": ").Append(driver != null ? driver.CutCount : 0).Append('}');
+            LayerNoise noise = renderer.Noise;
+            s.Append(",\n \"noise\": {\"seed\": ").Append(noise.Switches.Seed).Append(", \"flowTime\": ").Append(LayerPassReadout.Num(noise.FlowTimeSeconds)).Append(", \"layers\": [");
+            var drift = new double[3];
+            for (int l = 0; l < stack.LayerCount; l++)
+            {
+                double rise;
+                Vector3 wind;
+                noise.StateOf(l, drift, out rise, out wind);
+                if (l > 0) s.Append(", ");
+                s.Append("{\"drift\": [").Append(LayerPassReadout.Num(drift[0])).Append(", ").Append(LayerPassReadout.Num(drift[1])).Append(", ").Append(LayerPassReadout.Num(drift[2]))
+                 .Append("], \"rise\": ").Append(LayerPassReadout.Num(rise)).Append(", \"wind\": ");
+                Json3(s, wind);
+                s.Append(", \"axis\": ");
+                Json3(s, noise.AxisOf(l));
+                s.Append('}');
+            }
+            s.Append("]},\n \"layers\": [");
+            for (int l = 0; l < stack.LayerCount; l++)
+            {
+                CloudLayerDef d = stack.LayerAt(l);
+                HeightMaps h = renderer.Heights.AppliedMaps(l);
+                if (l > 0) s.Append(",\n  ");
+                s.Append("{\"name\": ").Append(LayerPassReadout.Str(d.Name)).Append(", \"anvilDrawn\": ").Append(AnvilMap.AnvilTypeIndex(d) >= 0 ? 1 : 0)
+                 .Append(", \"heightSeed\": ").Append(stack.Heights.SeedOf(l));
+                if (h != null)
+                    s.Append(", \"height\": {\"width\": ").Append(h.Width).Append(", \"height\": ").Append(h.Height).Append(", \"root\": ").Append(LayerPassReadout.Num(h.RootRangeM))
+                     .Append(", \"top\": ").Append(LayerPassReadout.Num(h.TopRangeM)).Append(", \"variation\": ").Append(LayerPassReadout.Num(h.VariationRangeM)).Append('}');
+                s.Append('}');
+            }
+            s.Append("],\n \"uniforms\": ").Append(LayerPassReadout.Uniforms(renderer.Material)).Append("}\n");
+            return s.ToString();
+        }
+
+        private static void Json3(System.Text.StringBuilder s, Vector3 v)
+        {
+            s.Append('[').Append(LayerPassReadout.Num(v.x)).Append(", ").Append(LayerPassReadout.Num(v.y)).Append(", ").Append(LayerPassReadout.Num(v.z)).Append(']');
+        }
+
+        private static void JsonColour(System.Text.StringBuilder s, Color c)
+        {
+            s.Append('[').Append(LayerPassReadout.Num(c.r)).Append(", ").Append(LayerPassReadout.Num(c.g)).Append(", ").Append(LayerPassReadout.Num(c.b)).Append(']');
         }
 
         private void PublishStats(float now)
