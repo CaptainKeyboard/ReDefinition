@@ -219,6 +219,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 open = session = true;
                 clock = new ViewerClock(gameUt);
                 plan.Clear();
+                speedMemory.Reset(CloudSpeed);
                 openSettings.Clear();
                 foreach (string k in new[] { AtmospheresSettings.Keys.CloudSoftness, AtmospheresSettings.Keys.ForceLevel, AtmospheresSettings.Keys.ForceType }) openSettings[k] = Options.Setting(k);
                 touched.Clear();
@@ -296,10 +297,12 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         {
             CloudsFrozen = false;
             Note(CloudMotion.TuneScale);
-            Options.SetOverride(CloudMotion.TuneScale, CloudMotion.Clamp(scale));
+            float speed = CloudMotion.Clamp(scale);
+            speedMemory.Seen(speed);
+            Options.SetOverride(CloudMotion.TuneScale, speed);
         }
 
-        private float speedBeforeFreeze = 1f;
+        private readonly CloudSpeedMemory speedMemory = new CloudSpeedMemory();
 
         public void FreezeClouds(bool on)
         {
@@ -307,10 +310,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Note(CloudMotion.TuneScale);
             if (on)
             {
-                speedBeforeFreeze = CloudSpeed;
+                speedMemory.Seen(CloudSpeed);
                 Options.SetOverride(CloudMotion.TuneScale, 0f);
             }
-            else Options.SetOverride(CloudMotion.TuneScale, speedBeforeFreeze);
+            else Options.SetOverride(CloudMotion.TuneScale, speedMemory.Last);
             CloudsFrozen = on;
         }
 

@@ -50,7 +50,7 @@ namespace ReDefinition.Atmospheres.Viewer
         private double pendingAgl = double.NaN;
         private float pendingSince;
         private string pendingCapture;
-        private float speedBeforeFreeze = 1f;
+        private readonly CloudSpeedMemory speedMemory = new CloudSpeedMemory();
 
         private CloudViewer()
         {
@@ -112,6 +112,7 @@ namespace ReDefinition.Atmospheres.Viewer
             PoseName = "start";
             Baseline = false;
             frozenClouds = false;
+            speedMemory.Reset(CloudSpeed);
             heights.Clear();
             settingKeys.Clear();
             settingsAtOpen.Clear();
@@ -393,10 +394,10 @@ namespace ReDefinition.Atmospheres.Viewer
             if (on == frozenClouds) return;
             if (on)
             {
-                speedBeforeFreeze = CloudSpeed;
+                speedMemory.Seen(CloudSpeed);
                 SetKey(CloudMotion.TuneScale, 0f);
             }
-            else SetKey(CloudMotion.TuneScale, speedBeforeFreeze);
+            else SetKey(CloudMotion.TuneScale, speedMemory.Last);
             frozenClouds = on;
         }
 
@@ -408,7 +409,9 @@ namespace ReDefinition.Atmospheres.Viewer
         internal void SetCloudSpeed(float scale)
         {
             frozenClouds = false;
-            SetKey(CloudMotion.TuneScale, CloudMotion.Clamp(scale));
+            float speed = CloudMotion.Clamp(scale);
+            speedMemory.Seen(speed);
+            SetKey(CloudMotion.TuneScale, speed);
         }
 
         internal void SetWeather(ViewerWeather weather)

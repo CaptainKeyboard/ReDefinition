@@ -38,5 +38,45 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             rig.PlacePose(inside);
             Assert.AreEqual(AltitudeScale.ToSlider(inside.AglM), rig.AltitudeSlider, 1e-6);
         }
+
+        // --- Freeze Clouds returns to the last speed above 0 ---
+
+        [TestMethod]
+        public void TheSpeedMemoryKeepsTheLastSpeedAbove0AndStartsAtOne()
+        {
+            var memory = new CloudSpeedMemory();
+            Assert.AreEqual(1f, memory.Last);
+            memory.Seen(4f);
+            memory.Seen(0f);
+            memory.Seen(float.NaN);
+            Assert.AreEqual(4f, memory.Last, "a speed of 0 is not remembered");
+            memory.Reset(0f);
+            Assert.AreEqual(1f, memory.Last, "a session that starts frozen returns to the default");
+            memory.Reset(2.5f);
+            Assert.AreEqual(2.5f, memory.Last);
+        }
+
+        [TestMethod]
+        public void FreezingCloudsThatAlreadyStandStillAndReleasingThemLetsThemFlowAgain()
+        {
+            var rig = new FakeViewerRig();
+            rig.ToggleWindow();
+            rig.SetCloudSpeed(0f);
+            rig.FreezeClouds(true);
+            rig.FreezeClouds(false);
+            Assert.AreEqual(1f, rig.CloudSpeed, "no speed above 0 was seen: back to the default");
+
+            rig.SetCloudSpeed(4f);
+            rig.SetCloudSpeed(0f);
+            rig.FreezeClouds(true);
+            rig.FreezeClouds(false);
+            Assert.AreEqual(4f, rig.CloudSpeed, "the last speed above 0");
+
+            rig.SetCloudSpeed(3f);
+            rig.FreezeClouds(true);
+            Assert.AreEqual(0f, rig.CloudSpeed);
+            rig.FreezeClouds(false);
+            Assert.AreEqual(3f, rig.CloudSpeed, "the speed it was frozen at");
+        }
     }
 }

@@ -260,6 +260,24 @@ namespace ReDefinition.Atmospheres.Viewer
         }
     }
 
+    // The speed Freeze Clouds returns to: the last speed above 0 the viewer saw (the speed it was set to, or the one in force when the clouds were frozen), 1 before any.
+    // A speed of 0 is never remembered, so that freezing clouds that already stand still, and releasing them, does not leave them still.
+    internal sealed class CloudSpeedMemory
+    {
+        internal float Last { get; private set; } = CloudMotion.DefaultScale;
+
+        internal void Seen(float speed)
+        {
+            if (speed > 0f && !float.IsNaN(speed) && !float.IsInfinity(speed)) Last = speed;
+        }
+
+        internal void Reset(float speedNow)
+        {
+            Last = CloudMotion.DefaultScale;
+            Seen(speedNow);
+        }
+    }
+
     // The schedule of a picture: the window is hidden for HideFrames frames, the picture is asked for in the frame after, and the window stays hidden through that
     // frame too (the screen is read at the end of the frame the request is made in), then it is shown again.
     internal sealed class CaptureSchedule
