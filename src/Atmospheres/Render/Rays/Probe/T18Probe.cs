@@ -200,6 +200,23 @@ namespace ReDefinition.Atmospheres
             Emit("T18.frame_ms_steady", steadyMs);
             Emit("T18.frame_ms_delta_steady", steadyMs - offMs);
             Emit("T18.rt_frame_ms_delta", steadyMs - offMs);
+            Emit("T18.rt_ms_off", offMs);
+            Emit("T18.rt_ms_taps8", steadyMs);
+
+            // 3b. The cost of the lookups a ray takes: the most taps a span takes (rt.rayTaps), the same view, the pack standing.
+            foreach (int taps in new[] { 4, 16 })
+            {
+                ForceTuning("rt.rayTaps", taps);
+                yield return ProbeWait.Frames(30);
+                t0 = Time.realtimeSinceStartup;
+                f0 = Time.frameCount;
+                yield return ProbeWait.Frames(300);
+                double ms = FrameMs(t0, f0);
+                Emit("T18.rt_ms_taps" + taps, ms);
+                Emit("T18.rt_ms_delta_taps" + taps, ms - offMs);
+            }
+            ClearForced();
+            yield return ProbeWait.Frames(30);
 
             // 4. Facts.
             RtCloudPack pack = RtOwnClouds.Pack;
