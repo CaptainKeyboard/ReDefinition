@@ -7,7 +7,7 @@ namespace ReDefinition.Atmospheres
     internal sealed class RtCloudPackSettings
     {
         internal const string TunePackWidth = "rt.packWidth", TuneBakeSteps = "rt.bakeSteps", TuneBakeBudgetMs = "rt.bakeBudgetMs",
-            TuneDepthStride = "rt.depthStride", TuneRebakeIntervalS = "rt.rebakeIntervalS";
+            TuneDepthStride = "rt.depthStride", TuneRebakeIntervalS = "rt.rebakeIntervalS", TuneRayTaps = "rt.rayTaps";
 
         // On or off: off builds nothing and publishes nothing.
         internal bool Enabled;
@@ -28,6 +28,8 @@ namespace ReDefinition.Atmospheres
         // refresh of its maps (OwnCloudPlan.MapIntervalS, one second), which is more often than a bake can finish. A new stack, another size or layer count
         // starts at once.
         internal float RebakeIntervalS = 10f;
+        // The most taps a traced ray takes in one span of a layer (the ray side's RtCloudRayMath.MaxTaps, which the shaders read from the packet).
+        internal int RayTaps = RtCloudRayMath.MaxTaps;
 
         internal int Height { get { return Math.Max(1, Width / 2); } }
 
@@ -49,6 +51,7 @@ namespace ReDefinition.Atmospheres
             s.BudgetMs = Math.Max(0.02f, Math.Min(5f, tuning(TuneBakeBudgetMs, compiled.BudgetMs)));
             s.DepthStride = (int)Math.Max(1f, Math.Min(4f, tuning(TuneDepthStride, compiled.DepthStride)));
             s.RebakeIntervalS = Math.Max(0f, Math.Min(600f, tuning(TuneRebakeIntervalS, compiled.RebakeIntervalS)));
+            s.RayTaps = (int)Math.Max(1f, Math.Min(16f, tuning(TuneRayTaps, compiled.RayTaps)));
             return s;
         }
     }

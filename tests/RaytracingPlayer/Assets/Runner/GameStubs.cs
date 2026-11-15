@@ -34,6 +34,84 @@ namespace ReDefinition.Proxy
     }
 }
 
+// The few KSP types the linked raytracing sources name (RtMaterialIntent's Parallax terrain, RtCamera.Probe's file name,
+// CaptureFolder's root): the test player has no game, no config and no scene.
+public class CelestialBody
+{
+    public string bodyName = "Kerbin";
+}
+
+public static class FlightGlobals
+{
+    public static CelestialBody GetHomeBody() { return null; }
+}
+
+public class ConfigNode
+{
+    public ConfigNode[] GetNodes(string name) { return new ConfigNode[0]; }
+    public ConfigNode GetNode(string name) { return null; }
+    public string GetValue(string name) { return null; }
+}
+
+public class GameDatabase
+{
+    // No database: RtMaterialIntent reads no Parallax terrain.
+    public static GameDatabase Instance { get { return null; } }
+    public ConfigNode[] GetConfigNodes(string name) { return new ConfigNode[0]; }
+}
+
+public static class HighLogic
+{
+    public static string LoadedScene { get { return "Player"; } }
+}
+
+public static class KSPUtil
+{
+    public static string ApplicationRootPath { get { return UnityEngine.Application.dataPath + "/.."; } }
+}
+
+namespace ReDefinition.Modules
+{
+    // The three weather switches RtCamera.Weather reads from the add-on's live settings.
+    internal sealed class OwnSettings
+    {
+        public bool RtWeatherFog = true, RtWeatherReachCap, RtWeatherFewerBounces;
+    }
+}
+
+namespace ReDefinition
+{
+    // No add-on in the test player: RtCamera.Weather takes its defaults.
+    public sealed class ReDefinitionAddon
+    {
+        internal static ReDefinitionAddon Instance { get { return null; } }
+        internal Modules.OwnSettings Live = new Modules.OwnSettings();
+    }
+}
+
+namespace ReDefinition.Core
+{
+    // The weather the atmospheres write (src/Common/Weather/WeatherView.cs): none in the test player.
+    internal sealed class WeatherView
+    {
+        public bool Active;
+        public float Level, SunTransmission = 1f, VisibilityM = 1e5f, FogDensity;
+        public UnityEngine.Color FogColour = UnityEngine.Color.white;
+        public bool IsStale(int frameCount) { return true; }
+    }
+
+    internal static class WeatherHooks
+    {
+        public static readonly WeatherView View = new WeatherView();
+    }
+
+    // The planner's extra assumptions (src/Common/PlannerHooks.cs): none.
+    public static class PlannerHooks
+    {
+        internal static ForeignAssumption[] ExtraAssumptions;
+    }
+}
+
 namespace ReDefinition.Raytracing
 {
     // Parallax's grass ranges, which RtCamera reads for the meadow's shade (src/Raytracing/Ksp/RtKspMods.cs): the

@@ -1,4 +1,5 @@
 using System;
+using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres
 {
@@ -49,6 +50,40 @@ namespace ReDefinition.Atmospheres
         internal static long Bytes(int width, int height, int layers)
         {
             return (long)width * height * layers * Channels * sizeof(float);
+        }
+
+        // The texels of the header row a pack needs (ReDefinition.Core.RayCloudLayout): the body's numbers, then each layer's.
+        internal static int HeaderTexels(int layers)
+        {
+            return RayCloudLayout.GlobalTexels + layers * RayCloudLayout.LayerTexels;
+        }
+
+        // The header row the traced rays read below the slices (RayCloudLayout), two floats a texel, `header` of 2 x Width floats: the body's radius
+        // and whether it has a surface, then per layer the shell's radii, the shadow strength and coverage, the edge softness and clear-sky K, the water
+        // power and map shift, the distance fade (far 0 for none). The live fields are in it, so it is written again whenever the pack's LiveVersion moves.
+        internal static void WriteHeader(RtCloudPack pack, float[] header)
+        {
+            if (header.Length < HeaderTexels(pack.LayerCount) * Channels)
+                throw new ArgumentException("The header row is narrower than the pack's numbers.", "header");
+            Array.Clear(header, 0, header.Length);
+            header[0] = (float)pack.BodyRadiusM;
+            header[1] = pack.HasSurface ? 1f : 0f;
+            for (int i = 0; i < pack.LayerCount; i++)
+            {
+                RtCloudLayerEntry e = pack.Entries[i];
+                int k = (RayCloudLayout.GlobalTexels + i * RayCloudLayout.LayerTexels) * Channels;
+                header[k] = (float)e.InnerRadiusM;
+                header[k + 1] = (float)e.OuterRadiusM;
+                header[k + 2] = e.ShadowStrength;
+                header[k + 3] = e.Coverage;
+                header[k + 4] = e.EdgeSoftness;
+                header[k + 5] = e.ClearSkyK;
+                header[k + 6] = e.WaterPower;
+                header[k + 7] = e.MapShiftDeg;
+                bool fades = !float.IsInfinity(e.FadeFarM) && !float.IsNaN(e.FadeFarM) && e.FadeFarM > e.FadeNearM;
+                header[k + 8] = fades ? e.FadeNearM : 0f;
+                header[k + 9] = fades ? e.FadeFarM : 0f;
+            }
         }
     }
 

@@ -92,8 +92,9 @@
     {
       "id": "t18",
       "productSwitches": { "ownClouds": 1, "cloudSource": "Ours", "rtOwnClouds": 0 },
-      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } } ],
-      "description": "RtOwnClouds (T18Probe, module order 991): bake cost, upload, pack contents, agreement of the pack's ray law with the cloud shadow field at five places and a lattice, layer cap, switch off. The probe sets rtOwnClouds itself. A pad flight with a broken sky near the vessel (cover about 0.4 to 0.7, the K-T2d clock step); at most 10 minutes of scenario. Rows: tests/series/rows/T18.json; design: section 7 of .local/plans/atmospheres/T18-design.md.",
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } },
+                    { "file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": { "raytracing": "Full" } } ],
+      "description": "The own layers in the main mod's traced rays (T18Probe, module order 991), raytracing Full (the pack is kept only while the rays trace): the clock set to an hour with a cover of 0.4 to 0.7 over the pad and the sun 25 to 60 degrees up; the frame time with rtOwnClouds off and on (the cost of the layers in the rays), bake cost, upload, pack contents, the rays taking the pack without a proxy problem, agreement of the pack's ray law with the cloud shadow field at five places and a lattice, pictures on and off (t18-pad/horizon-on/off-...-game.png), layer cap, switch off. The probe sets rtOwnClouds itself. At most 10 minutes of scenario. Rows: tests/series/rows/T18.json; design: section 7 of .local/plans/atmospheres/T18-design.md.",
       "disableMods": [ "EVE" ],
       "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "T18Probe" ]
     }

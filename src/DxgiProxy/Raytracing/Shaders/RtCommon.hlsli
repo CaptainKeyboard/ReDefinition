@@ -693,21 +693,204 @@ float CloudTransmittanceAt(float3 at)
     return 1.0f / (1.0f + 7.0f * density + 26.0f * density * density);
 }
 
+// The own cloud layers of ReDefinition Atmospheres (cloudRadii.w RT_CLOUDS_MODE_OWN; RtOwnCloudBlock
+// in the game). The law is the atmospheres' RtCloudRayMath, which this mirrors in float: per
+// layer the ray's spans through the layer's shell, each cut into at most cloudFades.w taps of at
+// most 400 m; at a tap the layer's vertical optical depth shape(coverage) x tau_full, read from
+// the layer's slice of cloudTexture (r the coverage map, g the column depth at full cloud),
+// times the tap's length over the shell's thickness. The block: cloudRow0-2 the camera-relative
+// world to the map frame (the body's centre at the origin, x towards longitude 0, y towards 90
+// east, z north, m); cloudRadii the highest top, the lowest base, the layer count; cloudFades
+// the texture's width, a slice's height, the fade of the whole, the taps. The texture's last
+// row holds the numbers (RT_OWN_CLOUDS_*).
+#define OWN_CLOUDS (cloudRadii.w > 1.5f)
+static const float kOwnTapSpacing = 400.0f;
+
+// Texel `texel` of the header row.
+float2 OwnCloudHeader(uint texel)
+{
+    return cloudTexture.Load(int3(int(texel), int(cloudRadii.z * cloudFades.y + 0.5f), 0)).rg;
+}
+
+// The near and far distance of a ray (map frame, unit direction) through a sphere about the
+// centre; false where it misses. c as (|o| - r)(|o| + r) keeps its digits at a planet's size.
+bool OwnSphere(float3 o, float3 d, float radius, out float t0, out float t1)
+{
+    float distance = length(o);
+    float b = dot(o, d);
+    float h = b * b - (distance - radius) * (distance + radius);
+    t0 = 0.0f;
+    t1 = 0.0f;
+    if (h < 0.0f)
+        return false;
+    h = sqrt(h);
+    t0 = -b - h;
+    t1 = -b + h;
+    return true;
+}
+
+// A layer's vertical optical depth at a point of the map frame: the filtered coverage's shape
+// times the filtered full-cloud depth (RtCloudPack.ColumnTau).
+float OwnColumnTau(uint layer, float3 q, float shiftDeg, float coverage, float softness, float clearK, float power)
+{
+    float r = max(length(q), 1.0f);
+    float lat = asin(clamp(q.z / r, -1.0f, 1.0f)) * (180.0f / kPi);
+    float lon = atan2(q.y, q.x) * (180.0f / kPi) - shiftDeg;
+    float slice = cloudFades.y;
+    float y = clamp((90.0f - lat) * slice / 180.0f, 0.5f, slice - 0.5f);
+    float2 uv = float2((lon + 180.0f) / 360.0f, (float(layer) * slice + y) / (cloudRadii.z * slice + RT_OWN_CLOUDS_HEADER_ROWS));
+    float2 m = cloudTexture.SampleLevel(linearWrap, uv, 0.0f).rg;
+    float map = clearK > 0.0f ? min(m.r, 2.0f * m.r - clearK) : m.r;
+    float share = saturate((map + coverage - 1.0f) / max(softness, 1e-4f) + 0.5f);
+    share = share > 0.0f ? (power == 1.0f ? share : pow(share, power)) : 0.0f;
+    return share * m.g;
+}
+
+// The smooth weight of a layer's distance fade at a distance (LayerDensity.DistanceFade); 1
+// without one (far 0).
+float OwnFade(float2 nearFar, float t)
+{
+    if (nearFar.y <= nearFar.x)
+        return 1.0f;
+    float x = saturate((nearFar.y - t) / (nearFar.y - nearFar.x));
+    return x * x * (3.0f - 2.0f * x);
+}
+
+// The optical depth of the own layers along a ray from `position` (camera-relative world) in
+// `towards` (unit) up to tMax. A light's ray (light) takes each layer's shadow strength and no
+// distance fade; a ray that sees the cloud (not light) the fade and no strength. `weighted`
+// gives the tau-weighted point the cloud is seen at, in the map frame.
+float OwnCloudTau(float3 position, float3 towards, float tMax, bool light, out float3 weighted)
+{
+    float3 o = float3(dot(cloudRow0, float4(position, 1.0f)), dot(cloudRow1, float4(position, 1.0f)), dot(cloudRow2, float4(position, 1.0f)));
+    float3 d = normalize(float3(dot(cloudRow0.xyz, towards), dot(cloudRow1.xyz, towards), dot(cloudRow2.xyz, towards)));
+    weighted = 0.0f;
+    float t0, t1;
+    if (!OwnSphere(o, d, cloudRadii.x, t0, t1) || t1 <= 0.0f)
+        return 0.0f;
+    float2 body = OwnCloudHeader(0u);
+    uint layers = uint(cloudRadii.z + 0.5f);
+    uint taps = clamp(uint(cloudFades.w + 0.5f), 1u, 16u);
+    float total = 0.0f;
+    float3 sum = 0.0f;
+    for (uint layer = 0u; layer < layers; ++layer)
+    {
+        uint base = RT_OWN_CLOUDS_GLOBAL_TEXELS + layer * RT_OWN_CLOUDS_LAYER_TEXELS;
+        float2 radii = OwnCloudHeader(base);
+        float2 strengthCoverage = OwnCloudHeader(base + 1u);
+        float2 softClear = OwnCloudHeader(base + 2u);
+        float2 powerShift = OwnCloudHeader(base + 3u);
+        float2 fade = OwnCloudHeader(base + 4u);
+        float thickness = radii.y - radii.x;
+        if (thickness <= 0.0f || (light && strengthCoverage.x <= 0.0f))
+            continue;
+        float o0, o1;
+        if (!OwnSphere(o, d, radii.y, o0, o1))
+            continue;
+        float lo = max(o0, 0.0f), hi = min(o1, tMax);
+        if (hi <= lo)
+            continue;
+        // The shell is the outer sphere's stretch less the inner sphere's (LayerGeometry.ShellSpans).
+        float2 spans[2];
+        uint count = 0u;
+        float i0, i1;
+        if (radii.x <= body.x || !OwnSphere(o, d, radii.x, i0, i1))
+        {
+            spans[0] = float2(lo, hi);
+            count = 1u;
+        }
+        else
+        {
+            float aEnd = min(i0, hi);
+            if (aEnd > lo)
+                spans[count++] = float2(lo, aEnd);
+            float bStart = max(i1, lo);
+            if (hi > bStart)
+                spans[count++] = float2(bStart, hi);
+        }
+        float tau = 0.0f;
+        for (uint s = 0u; s < count; ++s)
+        {
+            float span = spans[s].y - spans[s].x;
+            uint n = clamp(uint(ceil(span / kOwnTapSpacing)), 1u, taps);
+            float dt = span / float(n);
+            for (uint k = 0u; k < n; ++k)
+            {
+                float t = spans[s].x + dt * (float(k) + 0.5f);
+                float3 q = o + d * t;
+                float step = OwnColumnTau(layer, q, powerShift.y, strengthCoverage.y, softClear.x, softClear.y, powerShift.x) * dt / thickness;
+                if (!light)
+                    step *= OwnFade(fade, t);
+                tau += step;
+                sum += q * step;
+            }
+        }
+        total += light ? tau * strengthCoverage.x : tau;
+    }
+    weighted = sum;
+    return total;
+}
+
+// What of a light's ray from a point towards it gets through the own layers: exp(-tau), the
+// ray cut at the body's sea-level sphere for a light below the horizon of a body with a
+// surface (RtCloudRayMath.LightTransmission).
+float OwnCloudLight(float3 position, float3 towards)
+{
+    float tMax = 1.0e30f;
+    float2 body = OwnCloudHeader(0u);
+    if (body.y > 0.5f)
+    {
+        float3 o = float3(dot(cloudRow0, float4(position, 1.0f)), dot(cloudRow1, float4(position, 1.0f)), dot(cloudRow2, float4(position, 1.0f)));
+        float3 d = normalize(float3(dot(cloudRow0.xyz, towards), dot(cloudRow1.xyz, towards), dot(cloudRow2.xyz, towards)));
+        float g0, g1;
+        if (OwnSphere(o, d, body.x, g0, g1) && g0 > 0.0f)
+            tMax = g0;
+    }
+    float3 weighted;
+    float tau = OwnCloudTau(position, towards, tMax, true, weighted);
+    return tau <= 0.0f ? 1.0f : exp(-tau);
+}
+
 // What of a light's ray from a point towards it gets through the main body's cloud layer, as
 // EVE's own screen-space cloud shadow takes it for the sun (its ScreenSpaceCloudShadow shader,
 // volumetric variant). The ray leaves the shadow's sphere above the point (CloudExit).
 // There the coverage and the density curve at that height come from the layer's map
 // (cloudTexture). The transmittance is 1 / (1 + 7d + 26d^2), tinted by the shadow's colour
 // at the shadow's strength, faded in as the light comes from above and below the sphere.
-// It is 1 without a layer.
+// It is 1 without a layer. The own layers take OwnCloudLight instead.
 float3 CloudTransmittance(float3 position, float3 towards)
 {
+    if (OWN_CLOUDS)
+        return OwnCloudLight(position, towards) * cloudFades.z + (1.0f - cloudFades.z);
     float3 at;
     float fade;
     if (!CloudExit(position, towards, at, fade))
         return 1.0f;
     float tr = CloudTransmittanceAt(at);
     return 1.0f + fade * cloudFades.x * (1.0f - tr) * (saturate(tr * cloudColor.rgb) - 1.0f);
+}
+
+// The sky a ray that escapes the scene sees through the own layers, from anywhere: the cloud
+// over the sky by its opacity 1 - exp(-tau) (RtCloudRayMath.ViewOpacity, with the layers'
+// distance fades), lit as CloudOverSky lights EVE's layer, at the point the cloud is seen at
+// (the optical depth's mean along the ray). The reflection probe holds none of the own
+// layers (their pass draws for the flight camera alone), so they go over it as well.
+float3 OwnCloudOverSky(float3 origin, float3 direction, float3 sky)
+{
+    float3 weighted;
+    float tau = OwnCloudTau(origin, direction, 1.0e30f, false, weighted);
+    if (tau <= 1e-4f)
+        return sky;
+    float tr = exp(-tau);
+    float3 upMap = normalize(weighted / tau);
+    float3 up = normalize(cloudRow0.xyz * upMap.x + cloudRow1.xyz * upMap.y + cloudRow2.xyz * upMap.z);
+    float3 lit = InputColor(sunColor.rgb) * saturate(dot(up, normalize(sunDirection.xyz))) + SkyLight(up);
+    if (LIGHT_COUNT > 0u)
+        lit += lightColor0.rgb * saturate(dot(up, normalize(lightDirection0.xyz)));
+    if (LIGHT_COUNT > 1u)
+        lit += lightColor1.rgb * saturate(dot(up, normalize(lightDirection1.xyz)));
+    float3 cloud = lit * cloudColor.w * lerp(1.0f, 0.5f, 1.0f - tr);
+    return lerp(sky, cloud, cloudFades.z * (1.0f - tr));
 }
 
 // The sky a ray that escapes the scene sees from under the layer. It is the cloud where it
@@ -717,6 +900,8 @@ float3 CloudTransmittance(float3 position, float3 towards)
 // already.
 float3 CloudOverSky(float3 origin, float3 direction, float3 sky)
 {
+    if (OWN_CLOUDS)
+        return OwnCloudOverSky(origin, direction, sky);
     float3 at;
     float fade;
     if (HAS_ENVIRONMENT || !CloudExit(origin, direction, at, fade))

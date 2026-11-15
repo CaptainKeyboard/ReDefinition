@@ -73,6 +73,13 @@ namespace ReDefinition.Proxy
         internal const int InputInstances = 6;
         // The main body's cloud layer (RtEveClouds; RtContract.h, RT_INPUT_CLOUDS).
         internal const int InputClouds = 7;
+        // What the cloud block holds (RtContract.h, RT_CLOUDS_MODE_*): EVE's layer or the own layers of ReDefinition Atmospheres, and the own
+        // layers' texture layout (RT_OWN_CLOUDS_*; ReDefinition.Common's RayCloudLayout, RtOwnCloudBlock).
+        internal const int CloudsModeEve = 1;
+        internal const int CloudsModeOwn = 2;
+        internal const int OwnCloudsHeaderRows = 1;
+        internal const int OwnCloudsGlobalTexels = 1;
+        internal const int OwnCloudsLayerTexels = 5;
         // Instance flags (Raytracing.h, kRtInstance*).
         internal const uint InstanceTerrain = 1u << 0;
         internal const uint InstanceScenery = 1u << 2;

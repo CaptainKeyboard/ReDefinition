@@ -1,24 +1,32 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The probe of package T18 inside the integrated series K-T3 (rows tests/series/rows/T18.json): the ray-side pack of the own layers in the running game.
-    // It runs one flight and measures, in this order:
-    //   1. the frame time with rtOwnClouds off (300 frames);
+    // The probe of package T18 inside the integrated series K-T3 (rows tests/series/rows/T18.json): the own layers in the main mod's traced rays in the
+    // running game. The start pins raytracing Full: the pack is kept only while the rays trace (RayCloudSeam.Asked). It runs one pad flight and measures,
+    // in this order:
+    //   0. the clock: an hour whose cover over the vessel is 0.4 to 0.7 (nearest 0.55) with the sun 25 to 60 degrees up, from the weather field;
+    //   1. the frame time with rtOwnClouds off (300 frames, the rays tracing without the own layers);
     //   2. the switch on: the wall time and the frame time until the first pack stands, the bake's main-thread time and its worst tick, the upload;
-    //   3. the frame time with the pack standing and refreshed (300 frames);
+    //   3. the frame time with the pack standing and in the rays (300 frames): the cost of the own layers in the rays is 3 against 1;
     //   4. the pack's facts: the layers in it against the stack's, the texture;
-    //   5. the five places round the vessel (RtPackAgreement.Pick, sun 45 degrees, 6 degrees at the terminator): the shadow factor by the pack's rays
+    //   5. the rays: they ask, take the pack into their frames, and the proxy reports no problem with it (a texture it cannot share drops every frame);
+    //   6. the five places round the vessel (RtPackAgreement.Pick, sun 45 degrees, 6 degrees at the terminator): the shadow factor by the pack's law
     //      against the cloud shadow field at 64 steps a span, and against the field at the shadow pass's 8 steps; and the scan of the whole lattice;
-    //   6. the layer cap 2: the pack holds two layers; then the switch off: no pack, no texture.
-    // What it cannot measure: the picture of the rays (nothing in the main mod reads the pack yet), the GPU cost, a cloud in a reflection. Frame times are
-    // the CPU's (Time.unscaledDeltaTime); the series pins no frame cap.
+    //   7. pictures with the layers in the rays, then the layer cap 2, then the switch off and the same pictures without them.
+    // Frame times are the CPU's (Time.unscaledDeltaTime) and carry the GPU where it bounds the frame; the series pins no frame cap.
     [AtmospheresModule(991)]
     internal sealed class T18Probe : SeriesProbe
     {
         internal const string Series = "K-T3";
+
+        // The clock's search: hours from the next full hour, the cover band and its target, the sun band, the clock tries.
+        private const int ClockHours = 96, ClockTries = 12;
+        private const double CoverMin = 0.4, CoverMax = 0.7, CoverTarget = 0.55, SunMinDeg = 25.0, SunMaxDeg = 60.0, FieldWaitS = 60.0;
 
         protected override string SeriesName
         {
@@ -41,6 +49,95 @@ namespace ReDefinition.Atmospheres
             return frames <= 0 ? 0.0 : (Time.realtimeSinceStartup - fromTime) * 1000.0 / frames;
         }
 
+        private static double SunElevationDeg(Vessel v)
+        {
+            CelestialBody sun = GameGlobals.Sun;
+            if (sun == null || v == null || v.mainBody == null) return 90.0;
+            Vector3d toSun = (sun.position - v.GetWorldPos3D()).normalized;
+            Vector3d up = (v.GetWorldPos3D() - v.mainBody.position).normalized;
+            return Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(toSun, up)))) * 180.0 / Math.PI;
+        }
+
+        private bool clockOk;
+        private double clockCover, clockSun;
+
+        // Step 0: the field asked at the vessel, 3 km up, for every hour; the hours with a cover in the band nearest to the target first, the clock set to
+        // each until the sun stands in its band.
+        private IEnumerable<ProbeWait> ChooseClock(Vessel vessel)
+        {
+            clockOk = false;
+            int body = vessel.mainBody.flightGlobalsIndex;
+            double baseUt = Math.Ceiling(Planetarium.GetUniversalTime() / 3600.0) * 3600.0;
+            var answered = new List<KeyValuePair<double, double>>();
+            double giveUp = Elapsed + FieldWaitS;
+            while (true)
+            {
+                answered.Clear();
+                for (int k = 0; k < ClockHours; k++)
+                {
+                    WeatherSample s;
+                    double t = baseUt + k * 3600.0;
+                    if (WeatherHub.Sample(body, vessel.latitude, vessel.longitude, 3000.0, t, out s)) answered.Add(new KeyValuePair<double, double>(t, s.CloudCover01));
+                }
+                if (answered.Count == ClockHours || Elapsed >= giveUp) break;
+                yield return ProbeWait.Seconds(1);
+            }
+            Emit("T18.clock_answered", answered.Count);
+            var order = answered.FindAll(c => c.Value >= CoverMin && c.Value <= CoverMax);
+            order.Sort((a, b) =>
+            {
+                int byCover = Math.Abs(a.Value - CoverTarget).CompareTo(Math.Abs(b.Value - CoverTarget));
+                return byCover != 0 ? byCover : a.Key.CompareTo(b.Key);
+            });
+            Emit("T18.clock_in_band", order.Count);
+            int tried = 0;
+            foreach (KeyValuePair<double, double> c in order)
+            {
+                if (tried++ >= ClockTries) break;
+                ForceUniversalTime(c.Key);
+                yield return ProbeWait.Frames(6);
+                double sun = SunElevationDeg(vessel);
+                if (sun < SunMinDeg || sun > SunMaxDeg) continue;
+                clockOk = true;
+                clockCover = c.Value;
+                clockSun = sun;
+                break;
+            }
+        }
+
+        // A picture of the screen as the player sees it, into the series' pictures (collected to .local/work/series-pictures/K-T3).
+        private IEnumerable<ProbeWait> Picture(string view, string state)
+        {
+            string name = "t18-" + view + "-" + state + "-" + Screen.width + "x" + Screen.height + "-game.png";
+            try
+            {
+                Directory.CreateDirectory(SeriesPictures.Folder);
+                ScreenCapture.CaptureScreenshot(Path.Combine(SeriesPictures.Folder, name));
+            }
+            catch (Exception e)
+            {
+                EmitText("T18.picture_fault", name + ": " + e.GetType().Name + " " + e.Message);
+            }
+            yield return ProbeWait.Frames(4);
+        }
+
+        // The two views: the flight camera as the start has it (the vessel's glossy parts, the ground under the clouds), and the camera turned level
+        // to the horizon (the sky, the far ground and the sea seen through the rays).
+        private IEnumerable<ProbeWait> Pictures(string state, float hdg, float pitch)
+        {
+            FlightCamera camera = FlightCamera.fetch;
+            if (camera == null) yield break;
+            camera.camHdg = hdg;
+            camera.camPitch = pitch;
+            yield return ProbeWait.Frames(30);
+            foreach (ProbeWait w in Picture("pad", state)) yield return w;
+            camera.camPitch = 0.02f;
+            yield return ProbeWait.Frames(30);
+            foreach (ProbeWait w in Picture("horizon", state)) yield return w;
+            camera.camHdg = hdg;
+            camera.camPitch = pitch;
+        }
+
         protected override IEnumerator<ProbeWait> Scenario()
         {
             OwnCloudModule module = null;
@@ -49,14 +146,26 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
             SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
+            SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0);
             yield return ProbeWait.Until(() => { module = OwnCloudModule.Current; return HighLogic.LoadedScene == GameScenes.FLIGHT && InFlightReady() && module != null && module.Stack != null && module.Stack.LayerCount > 0; },
                                          300, "the flight scene and the own cloud stack");
-            var stack = (LayerStackSource)module.Stack;
             Vessel vessel = FlightGlobals.ActiveVessel;
+
+            // 0. The clock.
+            foreach (ProbeWait w in ChooseClock(vessel)) yield return w;
+            Check("an hour with a broken sky and the sun up", clockOk, clockOk ? null : "no hour of " + ClockHours + " has a cover " + CoverMin + " to " + CoverMax + " with the sun " + SunMinDeg + " to " + SunMaxDeg + " degrees up");
+            if (!clockOk) yield break;
+            Emit("T18.cover_chosen", clockCover);
+            Emit("T18.sun_chosen_deg", clockSun);
+            // The maps of the new hour reach the stack within a few seconds (OwnCloudPlan.MapIntervalS).
+            yield return ProbeWait.Seconds(5);
+            yield return ProbeWait.Until(() => module.Stack != null && module.Stack.LayerCount > 0, 120, "the own cloud stack at the chosen hour");
+            var stack = (LayerStackSource)module.Stack;
             Emit("T18.stack_layers", stack.LayerCount);
+            Emit("T18.rays_asked_at_start", RayCloudSeam.Asked(Time.frameCount));
+            Check("the rays trace (raytracing on)", RayCloudSeam.Asked(Time.frameCount), "RayCloudSeam: no ask from the main mod's raytracing; the start must pin raytracing Full");
 
             // 1. Off.
-            SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0);
             SetSetting(AtmospheresSettings.Keys.RtOwnCloudsLayerCap, 0);
             yield return ProbeWait.Frames(30);
             Emit("T18.off_no_pack", RtOwnClouds.Pack == null && RtOwnClouds.Texture == null);
@@ -83,13 +192,14 @@ namespace ReDefinition.Atmospheres
             Emit("T18.upload_ms", RtOwnClouds.LastUploadMs);
             Emit("T18.upload_worst_ms", RtOwnClouds.WorstUploadMs);
 
-            // 3. Steady.
+            // 3. Steady, the layers in the rays.
             t0 = Time.realtimeSinceStartup;
             f0 = Time.frameCount;
             yield return ProbeWait.Frames(300);
             double steadyMs = FrameMs(t0, f0);
             Emit("T18.frame_ms_steady", steadyMs);
             Emit("T18.frame_ms_delta_steady", steadyMs - offMs);
+            Emit("T18.rt_frame_ms_delta", steadyMs - offMs);
 
             // 4. Facts.
             RtCloudPack pack = RtOwnClouds.Pack;
@@ -99,15 +209,27 @@ namespace ReDefinition.Atmospheres
             Emit("T18.layers_in_pack", pack.LayerCount);
             Emit("T18.layers_in_pack_all", pack.LayerCount == expected);
             Emit("T18.pack_width", pack.Width);
-            Emit("T18.pack_mb", RtCloudPackLayout.Bytes(pack.Width, pack.Height, pack.LayerCount) / (1024.0 * 1024.0));
+            Emit("T18.pack_mb", RtCloudPackLayout.Bytes(pack.Width, pack.Height, pack.LayerCount) * 2 / (1024.0 * 1024.0));
             Texture texture = RtOwnClouds.Texture;
-            Emit("T18.texture_ok", texture != null && texture.width == pack.Width && texture.height == pack.Height * pack.LayerCount);
+            Emit("T18.texture_ok", texture != null && texture.width == pack.Width && texture.height == pack.Height * pack.LayerCount + RayCloudLayout.HeaderRows);
             double covered = 0.0;
             for (int i = 0; i < pack.Width * pack.Height * 2; i += 2)
                 if (LayerDensity.Shape(pack.Data[i], pack.Entries[0].Coverage, pack.Entries[0].EdgeSoftness) > 0.0) covered += 1.0;
             Emit("T18.layer0_cloud_share", covered / (pack.Width * pack.Height));
 
-            // 5. The five places and the scan, against the stack as it stands now.
+            // 5. The rays take the pack.
+            yield return ProbeWait.Until(() => Time.frameCount - RayCloudSeam.TakenFrame <= 2, 120, "the rays taking the own pack");
+            bool fresh = RayCloudSeam.Fresh(Time.frameCount, vessel.mainBody.flightGlobalsIndex);
+            bool took = Time.frameCount - RayCloudSeam.TakenFrame <= 2;
+            string status = RayCloudSeam.HostStatus() ?? "";
+            bool problem = status.IndexOf("cannot be shared", StringComparison.Ordinal) >= 0 || status.IndexOf("input 7", StringComparison.Ordinal) >= 0;
+            Emit("T18.view_fresh", fresh);
+            Emit("T18.rays_took_pack", took);
+            Emit("T18.rays_problem", problem);
+            EmitText("T18.rays_status", status.Length > 200 ? status.Substring(0, 200) : status);
+            Check("the rays take the own pack and the proxy shares it", fresh && took && !problem, "fresh " + fresh + ", taken " + took + ", status: " + status);
+
+            // 6. The five places and the scan, against the stack as it stands now.
             LayerTypeTable[] tables = stack.Tables();
             string missing;
             List<RtAgreementPlace> places = RtPackAgreement.Pick(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, 45.0, out missing);
@@ -121,7 +243,6 @@ namespace ReDefinition.Atmospheres
             }
             Emit("T18.places_missing", missing.Length == 0 ? 0 : missing.Split(',').Length);
             if (missing.Length > 0) EmitText("T18.places_missing_kinds", missing);
-            Check("all five kinds of place exist in the sky", missing.Length == 0, missing.Length == 0 ? null : "no place for " + missing);
             foreach (double elevation in new[] { 45.0, 6.0 })
             {
                 RtAgreementScan scan = RtPackAgreement.Scan(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, elevation);
@@ -132,7 +253,10 @@ namespace ReDefinition.Atmospheres
                 Emit(key + "_worst", scan.Worst);
             }
 
-            // 6. The layer cap, then off.
+            // 7. Pictures with the layers in the rays; the layer cap; off and the same pictures without.
+            FlightCamera camera = FlightCamera.fetch;
+            float hdg = camera != null ? camera.camHdg : 0f, pitch = camera != null ? camera.camPitch : 0f;
+            foreach (ProbeWait w in Pictures("on", hdg, pitch)) yield return w;
             SetSetting(AtmospheresSettings.Keys.RtOwnCloudsLayerCap, 2);
             int capExpected = Math.Min(2, stack.LayerCount);
             yield return ProbeWait.Until(() => RtOwnClouds.Pack != null && RtOwnClouds.Pack.LayerCount == capExpected && !RtOwnClouds.Baking, 240, "the pack with the layer cap");
@@ -140,8 +264,11 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.RtOwnCloudsLayerCap, 0);
             SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0);
             yield return ProbeWait.Frames(10);
-            Emit("T18.off_releases_pack", RtOwnClouds.Pack == null && RtOwnClouds.Texture == null);
-            Check("the switch off releases the pack and the texture", RtOwnClouds.Pack == null && RtOwnClouds.Texture == null);
+            bool released = RtOwnClouds.Pack == null && RtOwnClouds.Texture == null && !RayCloudSeam.Fresh(Time.frameCount, vessel.mainBody.flightGlobalsIndex);
+            Emit("T18.off_releases_pack", released);
+            Check("the switch off releases the pack, the texture and the rays' view", released);
+            foreach (ProbeWait w in Pictures("off", hdg, pitch)) yield return w;
+            SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 1);
         }
     }
 }

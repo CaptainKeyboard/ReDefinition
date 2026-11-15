@@ -264,6 +264,12 @@ namespace ReDefinition.RaytracingPlayer
                 Finish();
                 yield break;
             }
+            if (Argument("-only") == "clouds")
+            {
+                yield return OwnClouds();
+                Finish();
+                yield break;
+            }
             if (Argument("-only") == "ocean")
             {
                 raytracing.enabled = true;
@@ -298,7 +304,6 @@ namespace ReDefinition.RaytracingPlayer
             Dump(raytracing.SunTexture, "sun", 1f);
             Dump(raytracing.NormalTexture, "normal", 1f);
             Dump(raytracing.DiffuseTexture, "diffuse", 1f);
-            Dump(raytracing.EnvironmentTexture, "environment", 1f);
             Dump(raytracing.ForwardTexture, "forward", 1f);
             Log("signals 0x" + raytracing.LastSignals.ToString("X") + ", reflections replaced " + RtLighting.ReflectionsReplaced);
             if (probe.texture != null) Log("probe " + probe.texture.GetType().Name + " " + probe.texture.width);
@@ -571,6 +576,195 @@ namespace ReDefinition.RaytracingPlayer
             Destroy(copy);
             cam.transform.position = position;
             cam.transform.rotation = rotation;
+        }
+
+        // The own cloud layers of ReDefinition Atmospheres in the rays (RtOwnCloudBlock, RtCommon.hlsli OwnCloud*), on a small body whose sphere
+        // touches the ground at the origin: radius 600 m, its centre 600 m below, one layer from 30 to 60 m with a column depth of 0.5 at full cloud.
+        // The texture and the block are laid out as ReDefinition.Common's RayCloudLayout and RtOwnCloudBlock write them (RtRaySideTests holds those).
+        // Expected before the run: without the layer the clouds' transmittance towards the sun (RT_FLAG_CLOUD_SHADOW) is 1 everywhere; under a full
+        // layer it is exp(-0.5 x chord / 30 m) at each ground point, the chord through the shell along the sun; under a layer east of a meridian the
+        // ground is half shadowed, its edge where the sun's rays leave the cloud; a mirror's reflection changes where it mirrors the clouds.
+        // Images: clouds_shadow_{none,full,half}, clouds_specular_{none,full}, the frames clouds_frame_{none,full}.
+        private IEnumerator OwnClouds()
+        {
+            const float Radius = 600f, Inner = 630f, Outer = 660f, TauFull = 0.5f, EdgeLonDeg = 1.82f;
+            const int Width = 512, Slice = 256;
+            var centre = new Vector3(0f, -Radius, 0f);
+            // World to map: map x = world up (longitude 0 at the origin), map y = world x (east), map z = world z (north).
+            Matrix4x4 toMap = Matrix4x4.identity;
+            toMap.SetRow(0, new Vector4(0f, 1f, 0f, 0f));
+            toMap.SetRow(1, new Vector4(1f, 0f, 0f, 0f));
+            toMap.SetRow(2, new Vector4(0f, 0f, 1f, 0f));
+
+            GameObject mirror = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            mirror.transform.position = new Vector3(0f, 0.02f, 8f);
+            mirror.transform.localScale = new Vector3(1.2f, 1f, 1.2f);
+            var mirrorMaterial = new Material(Resources.Load<Material>("RtStandard")) { color = new Color(0.9f, 0.9f, 0.9f) };
+            mirrorMaterial.SetFloat("_Glossiness", 1f);
+            mirrorMaterial.SetFloat("_Metallic", 1f);
+            mirror.GetComponent<Renderer>().sharedMaterial = mirrorMaterial;
+            probe.RenderProbe();
+
+            Texture2D Pack(bool eastOnly)
+            {
+                // Four floats a texel, the numbers in r and g, as RtOwnClouds uploads them (the proxy cannot share R32G32).
+                var data = new float[Width * (Slice + 1) * 4];
+                for (int j = 0; j < Slice; j++)
+                    for (int i = 0; i < Width; i++)
+                    {
+                        float lon = -180f + (i + 0.5f) * 360f / Width;
+                        data[(j * Width + i) * 4] = !eastOnly || lon >= EdgeLonDeg ? 1f : 0f;
+                        data[(j * Width + i) * 4 + 1] = TauFull;
+                    }
+                int h = Slice * Width * 4;
+                float[] header = { Radius, 1f, Inner, Outer, 1f, 0.5f, 0.15f, 0f, 1f, 0f, 0f, 0f };
+                for (int k = 0; k < header.Length / 2; k++)
+                {
+                    data[h + k * 4] = header[k * 2];
+                    data[h + k * 4 + 1] = header[k * 2 + 1];
+                }
+                var bytes = new byte[data.Length * 4];
+                Buffer.BlockCopy(data, 0, bytes, 0, bytes.Length);
+                var texture = new Texture2D(Width, Slice + 1, TextureFormat.RGBAFloat, false, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };
+                texture.LoadRawTextureData(bytes);
+                texture.Apply(false, false);
+                return texture;
+            }
+
+            Texture2D current = null;
+            raytracing.Clouds = block =>
+            {
+                for (int i = 0; i < block.Length; i++) block[i] = 0f;
+                if (current == null) return IntPtr.Zero;
+                Matrix4x4 m = toMap * Matrix4x4.Translate(cam.transform.position - centre);
+                for (int row = 0; row < 3; row++)
+                    for (int column = 0; column < 4; column++)
+                        block[row * 4 + column] = m[row, column];
+                block[12] = Outer;
+                block[13] = Inner;
+                block[14] = 1f;
+                block[15] = RtNative.CloudsModeOwn;
+                block[16] = Width;
+                block[17] = Slice;
+                block[18] = 1f;
+                block[19] = 8f;
+                block[20] = block[21] = block[22] = block[23] = 1f;
+                return current.GetNativeTexturePtr();
+            };
+
+            // The transmittance a ground point expects under the full layer.
+            float Expected(Vector3 ground)
+            {
+                Vector3 o = toMap.MultiplyVector(ground - centre), d = toMap.MultiplyVector(towardsSun).normalized;
+                float b = Vector3.Dot(o, d), len = o.magnitude;
+                float outer = -b + Mathf.Sqrt(b * b - (len - Outer) * (len + Outer));
+                float inner = -b + Mathf.Sqrt(Mathf.Max(b * b - (len - Inner) * (len + Inner), 0f));
+                return Mathf.Exp(-TauFull * (outer - inner) / (Outer - Inner));
+            }
+
+            Color[] SunPixels() => Pixels(raytracing.SunTexture);
+            float At(Color[] pixels, Vector3 world)
+            {
+                Vector3 s = cam.WorldToScreenPoint(world);
+                int w = raytracing.SunTexture.width, hgt = raytracing.SunTexture.height;
+                int x = Mathf.Clamp(Mathf.RoundToInt(s.x * w / Screen.width), 0, w - 1), y = Mathf.Clamp(Mathf.RoundToInt(s.y * hgt / Screen.height), 0, hgt - 1);
+                return pixels[y * w + x].r;
+            }
+
+            RtSettings saved = raytracing.Settings;
+            raytracing.Settings.Denoise = false;
+            raytracing.CloudShadowProbe = true;
+            raytracing.enabled = true;
+            if (raytracing.Problem != null)
+            {
+                Check(false, "raytracing on", raytracing.Problem);
+                yield break;
+            }
+            var points = new[] { new Vector3(0f, 0f, 0f), new Vector3(6f, 0f, 12f), new Vector3(-10f, 0f, 20f), new Vector3(12f, 0f, 30f) };
+
+            // No layer.
+            for (int i = 0; i < 30; i++) yield return null;
+            Color[] none = SunPixels();
+            Dump(raytracing.SunTexture, "clouds_shadow_none", 1f);
+            float noneMin = 1f;
+            foreach (Vector3 p in points) noneMin = Mathf.Min(noneMin, At(none, p));
+            Check(noneMin > 0.999f, "no own cloud layer: the sun's rays pass unshaded", "least transmittance at the points " + noneMin.ToString("0.0000"));
+
+            // The full layer: each point against its own chord.
+            current = Pack(false);
+            for (int i = 0; i < 30; i++) yield return null;
+            Color[] full = SunPixels();
+            Dump(raytracing.SunTexture, "clouds_shadow_full", 1f);
+            float worst = 0f;
+            string detail = "";
+            foreach (Vector3 p in points)
+            {
+                float got = At(full, p), want = Expected(p);
+                worst = Mathf.Max(worst, Mathf.Abs(got - want));
+                detail += (detail.Length > 0 ? ", " : "") + got.ToString("0.000") + " for " + want.ToString("0.000");
+            }
+            Check(worst < 0.02f, "the full own layer: transmittance towards the sun as the chord gives it", detail + "; worst difference " + worst.ToString("0.0000"));
+
+            // The reflections with the full layer against none: the mirror and the frame.
+            raytracing.CloudShadowProbe = false;
+            raytracing.Settings = saved;
+            for (int i = 0; i < 60; i++) yield return null;
+            Color[] specularFull = raytracing.SpecularTexture != null ? Pixels(raytracing.SpecularTexture) : null;
+            Dump(raytracing.SpecularTexture, "clouds_specular_full", 1f);
+            Texture2D frameFull = null;
+            yield return Capture(t => frameFull = t, "clouds_frame_full");
+            current = null;
+            for (int i = 0; i < 60; i++) yield return null;
+            Color[] specularNone = raytracing.SpecularTexture != null ? Pixels(raytracing.SpecularTexture) : null;
+            Dump(raytracing.SpecularTexture, "clouds_specular_none", 1f);
+            Texture2D frameNone = null;
+            yield return Capture(t => frameNone = t, "clouds_frame_none");
+            if (specularFull != null && specularNone != null)
+            {
+                // The mirror's middle, a patch of 9 x 9 places on it.
+                float sumFull = 0f, sumNone = 0f;
+                int w = raytracing.SpecularTexture.width, hgt = raytracing.SpecularTexture.height;
+                for (int gz = -4; gz <= 4; gz++)
+                    for (int gx = -4; gx <= 4; gx++)
+                    {
+                        Vector3 s = cam.WorldToScreenPoint(mirror.transform.position + new Vector3(gx, 0f, gz));
+                        int x = Mathf.Clamp(Mathf.RoundToInt(s.x * w / Screen.width), 0, w - 1), y = Mathf.Clamp(Mathf.RoundToInt(s.y * hgt / Screen.height), 0, hgt - 1);
+                        Color a = specularFull[y * w + x], b = specularNone[y * w + x];
+                        sumFull += (a.r + a.g + a.b) / 3f;
+                        sumNone += (b.r + b.g + b.b) / 3f;
+                    }
+                float change = Mathf.Abs(sumFull - sumNone) / Mathf.Max(sumNone, 1e-4f);
+                Check(change > 0.1f, "the mirror's raytraced reflection shows the own layer", "mean reflected light " + (sumFull / 81f).ToString("0.0000") + " with the layer, "
+                      + (sumNone / 81f).ToString("0.0000") + " without (" + (change * 100f).ToString("0") + " %)");
+            }
+            else
+                Log("the mirror's reflection: no specular signal in this rendering path; frames written");
+            Log("frame brightness at the mirror: " + Brightness(frameFull, mirror.transform.position, 6).ToString("0.000") + " with the layer, "
+                + Brightness(frameNone, mirror.transform.position, 6).ToString("0.000") + " without");
+
+            // Half a layer: cloud east of a meridian; the ground half shadowed, the edge in view.
+            raytracing.Settings.Denoise = false;
+            raytracing.CloudShadowProbe = true;
+            current = Pack(true);
+            for (int i = 0; i < 30; i++) yield return null;
+            Color[] half = SunPixels();
+            Dump(raytracing.SunTexture, "clouds_shadow_half", 1f);
+            int surfaces = 0, shaded = 0;
+            foreach (Color c in half)
+            {
+                if (c.a <= 0f) continue;
+                surfaces++;
+                if (c.r < 0.9f) shaded++;
+            }
+            float share = surfaces > 0 ? shaded / (float)surfaces : 0f;
+            float east = At(half, new Vector3(15f, 0f, 10f)), west = At(half, new Vector3(-25f, 0f, 10f));
+            Check(share > 0.1f && share < 0.9f && east < 0.9f && west > 0.99f, "half an own layer: the ground under it shadowed, beside it not",
+                  (share * 100f).ToString("0") + " % of the surfaces shaded; east of the edge " + east.ToString("0.000") + ", west " + west.ToString("0.000"));
+
+            raytracing.CloudShadowProbe = false;
+            raytracing.Settings = saved;
+            current = null;
+            Destroy(mirror);
         }
 
         // The texture's mean per channel as a log line, or none without one.

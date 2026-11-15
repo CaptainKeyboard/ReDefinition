@@ -10,7 +10,7 @@ size. The player's checks come back from its log. Exits 0 when every check of ev
 passed. With --turn or --upscale it records the camera turn instead and measures it with
 analyze_rt_turn.py or analyze_upscale_turn.py.
 
-Usage: python tools/build_rt_player.py [--unity <Unity.exe>] [--ksp <KSP folder>] [--no-build] [--only ocean|glow] [--turn] [--upscale]
+Usage: python tools/build_rt_player.py [--unity <Unity.exe>] [--ksp <KSP folder>] [--no-build] [--only ocean|glow|clouds] [--turn] [--upscale]
 """
 
 import argparse
@@ -77,6 +77,12 @@ SOURCES = [
     'src/Fsr3/Fsr3UpscalerResources.cs',
     'src/Fsr3/ResourceView.cs',
     'src/Upscaler/Rig/RcasSharpener.cs',
+    # What RtCamera's probe and weather parts name (the KSP and add-on types they also name are stubs in GameStubs.cs).
+    'src/Raytracing/RtParity.cs',
+    'src/Raytracing/RtCamera.Weather.cs',
+    'src/Core/CaptureFolder.cs',
+    'src/Common/Log.cs',
+    'src/Proxy/NativeText.cs',
 ]
 SHADERS = [
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtCapture.shader',
@@ -213,7 +219,7 @@ def main():
         'KspRoot', r'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program'))
     parser.add_argument('--no-build', action='store_true')
     # One check alone, in the run with Deferred's lighting (RtPlayerRunner, -only).
-    parser.add_argument('--only', choices=['ocean', 'glow'])
+    parser.add_argument('--only', choices=['ocean', 'glow', 'clouds'])
     parser.add_argument('--turn', action='store_true',
                         help='record the camera turn (RtTurnRunner) through DLSS Ray Reconstruction, the denoiser and'
                              ' without raytracing, and measure it with analyze_rt_turn.py, instead of the checks')

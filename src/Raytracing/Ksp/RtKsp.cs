@@ -248,8 +248,23 @@ namespace ReDefinition.Raytracing
             // the sky's light 0.065, 0.135, 0.314 linear under a white sun; with Scatterer
             // 0.043, 0.093, 0.194 under a sun of 0.73, 0.57, 0.34).
             camera.SkyNeutral = () => RtKspMods.ScattererInstalled ? 0f : 1f;
-            camera.Clouds = data => !NoCloudsInRays && clouds.Fill(data, RtKspMods.SceneBody(), sceneCamera.transform.position)
-                ? clouds.Texture : RtEveClouds.None(data);
+            // The own layers of ReDefinition Atmospheres where they stand for the scene's body (RtOwnCloudBlock), else EVE's layer; never both. The
+            // ask tells the atmospheres that the rays trace, so that they keep their pack only then.
+            camera.Clouds = data =>
+            {
+                RayCloudSeam.Ask(Time.frameCount);
+                if (NoCloudsInRays) return RtEveClouds.None(data);
+                CelestialBody body = RtKspMods.SceneBody();
+                Vector3 eye = sceneCamera.transform.position;
+                if (RtOwnCloudBlock.Fill(data, body, eye))
+                {
+                    RayCloudSeam.TakenFrame = Time.frameCount;
+                    return RayCloudSeam.View.Texture;
+                }
+                return clouds.Fill(data, body, eye) ? clouds.Texture : RtEveClouds.None(data);
+            };
+            RtCamera traced = camera;
+            RayCloudSeam.HostStatus = () => traced != null ? traced.Status() : null;
             scatter = new RtParallaxScatter();
             camera.Scene.AddGpuSource(scatter);
             camera.enabled = true;

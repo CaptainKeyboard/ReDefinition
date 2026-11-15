@@ -10,12 +10,14 @@ namespace ReDefinition.Tests.Atmospheres.T18
     public class RtOwnCloudsOptionsTests
     {
         [TestMethod]
-        public void BothKeysAreOffByDefaultAndHaveHelpAndNoTierRow()
+        public void TheSwitchIsOnTheCapOffAndBothHaveHelpAndNoTierRow()
         {
+            // The rays seeing the own layers is a visible feature (on); the layer cap is a quality reduction (off until the owner agrees).
+            Assert.AreEqual(1.0, AtmospheresSettings.Definition("rtOwnClouds").Default, "rtOwnClouds");
+            Assert.AreEqual(0.0, AtmospheresSettings.Definition("rtOwnCloudsLayerCap").Default, "rtOwnCloudsLayerCap");
             foreach (string key in new[] { "rtOwnClouds", "rtOwnCloudsLayerCap" })
             {
                 SettingDef def = AtmospheresSettings.Definition(key);
-                Assert.AreEqual(0.0, def.Default, key + " is off until the owner agrees");
                 // No profile row: no tier sets either key, and TierRows.NotSet names only keys that have a row.
                 Assert.IsFalse(TierRows.NotSet.ContainsKey(key), key);
                 Assert.AreEqual("", def.ProfileRow ?? "", key);
@@ -38,6 +40,8 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Assert.AreEqual(0.25f, compiled.BudgetMs);
             Assert.AreEqual(2, compiled.DepthStride);
             Assert.AreEqual(10f, compiled.RebakeIntervalS);
+            Assert.AreEqual(RtCloudRayMath.MaxTaps, compiled.RayTaps, "the shaders' taps are the law's");
+            Assert.AreEqual(16, RtCloudPackSettings.From(true, 0, (key, value) => key == RtCloudPackSettings.TuneRayTaps ? 99f : value).RayTaps);
             var extreme = RtCloudPackSettings.From(true, 0, (key, value) => key == RtCloudPackSettings.TuneDepthStride ? 99f : key == RtCloudPackSettings.TuneRebakeIntervalS ? -4f : value);
             Assert.AreEqual(4, extreme.DepthStride);
             Assert.AreEqual(0f, extreme.RebakeIntervalS);

@@ -175,8 +175,9 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("cloudTapLod", false, CL, "Cloud Light Taps By Distance", OWN, RV),
                 SettingDef.Bool("cloudDetailLod", false, CL, "Cloud Detail By Distance", OWN, RV),
                 SettingDef.Int("cloudLayerCapDistance", 0, 0, 400, CL, "Cloud Layer Cap Distance In Km", OWN, RV),
-                // Package T18: the traced rays see the own layers. Off until measured; the layer cap of the ray side is a quality reduction (0 is every layer).
-                SettingDef.Bool("rtOwnClouds", false, CL, "Own Clouds In Ray Tracing", OWN),
+                // Package T18: the traced rays see the own layers (a visible feature: on; it bakes only while the raytracing traces). The layer cap of the
+                // ray side is a quality reduction (0 is every layer).
+                SettingDef.Bool("rtOwnClouds", true, CL, "Own Clouds In Ray Tracing", OWN),
                 SettingDef.Int("rtOwnCloudsLayerCap", 0, 0, CloudLayerDef.MaxLayers, CL, "Ray Tracing Cloud Layer Cap", OWN),
                 // E40 soft density: how wide the soft rim of a cloud is (noise rank, 0.3 to 1.0) and how many grid points the march takes at most (Low 24, Medium 32, High 48).
                 SettingDef.Float("cloudSoftness", 0.5, 0.3, 1.0, CL, "Cloud Softness", OWN),

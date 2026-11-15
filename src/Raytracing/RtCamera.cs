@@ -79,8 +79,11 @@ namespace ReDefinition.Raytracing
         // The name of the pose a report was asked for (ParityNow), logged before the report.
         private string parityLabel;
         private uint parityFlag;
-        // The main body's cloud layer: fills the packet's cloud constants (RtFramePacket.clouds)
-        // and gives its map's native texture (RT_INPUT_CLOUDS); zero for none.
+        // For a check (the test player's clouds): the sun's visibility output holds the clouds' transmittance towards the sun alone
+        // (RT_FLAG_CLOUD_SHADOW), in place of the sun's visibility.
+        internal bool CloudShadowProbe;
+        // The main body's cloud layer, EVE's or the own layers (RtOwnCloudBlock): fills the packet's cloud constants
+        // (RtFramePacket.clouds) and gives its map's native texture (RT_INPUT_CLOUDS); zero for none.
         internal Func<float[], IntPtr> Clouds = clouds =>
         {
             for (int i = 0; i < clouds.Length; i++) clouds[i] = 0f;
@@ -988,7 +991,8 @@ namespace ReDefinition.Raytracing
             bool reset = !haveHistory || Cut() || switched;
             bool legacySmoothness = LegacySmoothness() && !DeferredSmoothness;
             packet.Flags = RtPacketBuilder.Flags(Settings.Denoise && !reconstruct, reset, withMotion, reconstruct, legacySmoothness,
-                                                 SurfaceIntent(deferred), parityFlag);
+                                                 SurfaceIntent(deferred), parityFlag)
+                           | (CloudShadowProbe ? RtNative.FlagCloudShadow : 0u);
             if (reconstruct)
             {
                 GuidesFrame = Time.frameCount;

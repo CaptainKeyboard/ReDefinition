@@ -120,6 +120,15 @@
 // The main body's cloud layer (RtCommon.hlsli, CloudTransmittance): an equirectangular map,
 // r its coverage, g the density curve at the shadow's height (ReDefinitionRtClouds.shader).
 #define RT_INPUT_CLOUDS 7
+// What the cloud block (RtFramePacket.clouds, cloudRadii.w) holds: EVE's one layer
+// (RtEveClouds), or the own layers of ReDefinition Atmospheres (RtOwnCloudBlock; the
+// texture's layout is ReDefinition.Common's RayCloudLayout: the layers' slices, then a header
+// row of the body's numbers in its first texels and each layer's numbers after them).
+#define RT_CLOUDS_MODE_EVE 1
+#define RT_CLOUDS_MODE_OWN 2
+#define RT_OWN_CLOUDS_HEADER_ROWS 1
+#define RT_OWN_CLOUDS_GLOBAL_TEXELS 1
+#define RT_OWN_CLOUDS_LAYER_TEXELS 5
 #define RT_INSTANCES_PER_ROW 256
 // Texels one GPU instance takes in RT_INPUT_INSTANCES: its transform's three rows, then its
 // colour (rgb, all zero for none).
