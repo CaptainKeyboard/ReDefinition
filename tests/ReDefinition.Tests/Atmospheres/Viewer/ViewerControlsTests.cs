@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
 using ReDefinition.Atmospheres.Viewer;
+using ReDefinition.Core;
 
 namespace ReDefinition.Tests.Atmospheres.Viewer
 {
@@ -37,6 +39,67 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreNotEqual(AltitudeScale.ToSlider(inside.AglM), rig.AltitudeSlider, 1e-3, "the default is not the pose's height");
             rig.PlacePose(inside);
             Assert.AreEqual(AltitudeScale.ToSlider(inside.AglM), rig.AltitudeSlider, 1e-6);
+        }
+
+        // --- A/B and the presets hold the forced precipitation and the weather ---
+
+        [TestMethod]
+        public void TheSettingsOfAnOptionSetAreTheCloudsGroupAndTheForcedPrecipitation()
+        {
+            List<string> keys = ViewerOptionKeys.Settings(new[] { "cloudSoftness", AtmospheresSettings.Keys.ForceLevel });
+            CollectionAssert.AreEqual(new[] { "cloudSoftness", AtmospheresSettings.Keys.ForceLevel, AtmospheresSettings.Keys.ForceType }, keys, "each key once, the force keys last");
+        }
+
+        [TestMethod]
+        public void AFlipAcrossRainDeckAndTheFieldPutsBackTheRainAndTheWeatherLabel()
+        {
+            var rig = new FakeViewerRig();
+            rig.ToggleWindow();
+            double level0 = rig.Setting(AtmospheresSettings.Keys.ForceLevel), type0 = rig.Setting(AtmospheresSettings.Keys.ForceType);
+            rig.StoreA();
+            rig.SetWeather(ViewerWeather.RainDeck);
+            Assert.AreEqual(0.6, rig.Setting(AtmospheresSettings.Keys.ForceLevel), 1e-9);
+            Assert.AreEqual((double)(int)ForceType.Rain, rig.Setting(AtmospheresSettings.Keys.ForceType));
+            string deck = CloudLookTuning.TuneMapOverride + FakeViewerRig.KerbinLayers[0].Name;
+            Assert.IsTrue(rig.HasOverride(deck));
+
+            rig.FlipAB();
+            Assert.AreEqual(ViewerWeather.Field, rig.CurrentWeather, "A was the field's weather");
+            Assert.AreEqual(level0, rig.Setting(AtmospheresSettings.Keys.ForceLevel), 1e-9, "the rain of the other side is gone");
+            Assert.AreEqual(type0, rig.Setting(AtmospheresSettings.Keys.ForceType));
+            Assert.IsFalse(rig.HasOverride(deck), "and its overrides with it");
+
+            rig.FlipAB();
+            Assert.AreEqual(ViewerWeather.RainDeck, rig.CurrentWeather, "B is Rain Deck again");
+            Assert.AreEqual(0.6, rig.Setting(AtmospheresSettings.Keys.ForceLevel), 1e-9);
+            Assert.AreEqual((double)(int)ForceType.Rain, rig.Setting(AtmospheresSettings.Keys.ForceType));
+            Assert.IsTrue(rig.HasOverride(deck));
+        }
+
+        [TestMethod]
+        public void APresetKeepsTheForcedPrecipitationAndTheWeatherThroughItsFile()
+        {
+            var store = new FakeViewerRig.Store();
+            store.Settings[AtmospheresSettings.Keys.ForceLevel] = 0.6;
+            store.Settings[AtmospheresSettings.Keys.ForceType] = (double)(int)ForceType.Rain;
+            List<string> settings = ViewerOptionKeys.Settings(new[] { AtmospheresSettings.Keys.CloudSoftness });
+            OptionSet set = OptionSet.Capture(store, settings, new string[0], ViewerWeather.RainDeck);
+            string path = Path.Combine(Path.GetTempPath(), "cloud-viewer-weather-" + Guid.NewGuid().ToString("N") + ".cfg");
+            OptionSet back;
+            try
+            {
+                Assert.IsTrue(ModSettingsFile.Write(path, root => { foreach (ConfigNode child in set.ToNode().nodes) root.AddNode(child); }));
+                back = ModSettingsFile.Read<OptionSet>(path, OptionSet.FromNode, null);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+            Assert.IsNotNull(back);
+            Assert.AreEqual(ViewerWeather.RainDeck, back.Weather);
+            Assert.AreEqual(0.6, back.Settings[AtmospheresSettings.Keys.ForceLevel], 1e-9);
+            Assert.AreEqual((double)(int)ForceType.Rain, back.Settings[AtmospheresSettings.Keys.ForceType]);
+            Assert.AreEqual(ViewerWeather.Field, OptionSet.FromNode(new ConfigNode()).Weather, "a file without a weather: the field's");
         }
 
         // --- A pose cancels a height still waiting for the slider ---

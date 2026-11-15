@@ -43,7 +43,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         };
 
         private readonly List<string> keyNames = new List<string>();
-        private readonly List<string> settingKeys = new List<string> { AtmospheresSettings.Keys.CloudSoftness };
+        private readonly List<string> settingKeys = ViewerOptionKeys.Settings(new[] { AtmospheresSettings.Keys.CloudSoftness });
         private readonly OptionFlip flip = new OptionFlip();
         private readonly CaptureSchedule schedule = new CaptureSchedule(2);
         private readonly Dictionary<string, long> files = new Dictionary<string, long>();
@@ -315,14 +315,17 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 
         public void StoreA()
         {
-            flip.StoreA(OptionSet.Capture(Options, settingKeys, keyNames));
+            flip.StoreA(OptionSet.Capture(Options, settingKeys, keyNames, weather));
         }
+
+        // The forced weather the viewer shows now (its label).
+        internal ViewerWeather CurrentWeather { get { return weather; } }
 
         public void FlipAB()
         {
             if (FlipDoesNothing) return;
             foreach (string k in keyNames) Note(k);
-            flip.Flip(Options, settingKeys, keyNames);
+            flip.Flip(Options, settingKeys, keyNames, ref weather);
         }
 
         public void SetKey(string key, float value)

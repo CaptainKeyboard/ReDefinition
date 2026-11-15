@@ -114,11 +114,12 @@ namespace ReDefinition.Atmospheres.Viewer
             heights.Clear();
             settingKeys.Clear();
             settingsAtOpen.Clear();
+            var cloudSettings = new List<string>();
             foreach (SettingDef def in AtmospheresSettings.Definitions)
-                if (def.Category == AtmospheresSettings.Categories.Clouds && def.Kind != SettingKind.Text) settingKeys.Add(def.Key);
+                if (def.Category == AtmospheresSettings.Categories.Clouds && def.Kind != SettingKind.Text) cloudSettings.Add(def.Key);
+            // The Clouds group and the forced precipitation: what A/B and the presets hold, and what is put back at Close.
+            settingKeys.AddRange(ViewerOptionKeys.Settings(cloudSettings));
             foreach (string key in settingKeys) settingsAtOpen[key] = store.Setting(key);
-            settingsAtOpen[AtmospheresSettings.Keys.ForceLevel] = store.Setting(AtmospheresSettings.Keys.ForceLevel);
-            settingsAtOpen[AtmospheresSettings.Keys.ForceType] = store.Setting(AtmospheresSettings.Keys.ForceType);
             overridesAtOpen.Clear();
             touched.Clear();
             flip.Clear();
@@ -483,14 +484,16 @@ namespace ReDefinition.Atmospheres.Viewer
 
         internal void StoreA()
         {
-            flip.StoreA(OptionSet.Capture(store, settingKeys, keyNames));
+            flip.StoreA(OptionSet.Capture(store, settingKeys, keyNames, Weather));
             AtmospheresLog.Say("cloud viewer: options stored as A");
         }
 
         internal void FlipAB()
         {
             foreach (string k in keyNames) Note(k);
-            if (!flip.Flip(store, settingKeys, keyNames)) return;
+            ViewerWeather weather = Weather;
+            if (!flip.Flip(store, settingKeys, keyNames, ref weather)) return;
+            Weather = weather;
             CloudBridgeLights.RequestHistoryReset("cloud viewer A/B");
             AtmospheresLog.Say("cloud viewer: showing " + flip.Showing);
             if (Changed != null) Changed();
@@ -505,7 +508,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             string name = ViewerPresets.SafeName(typed);
             if (name.Length == 0) return false;
-            OptionSet set = OptionSet.Capture(store, settingKeys, keyNames);
+            OptionSet set = OptionSet.Capture(store, settingKeys, keyNames, Weather);
             bool ok = ModSettingsFile.Write(PresetPath(name), root =>
             {
                 ConfigNode node = set.ToNode();
@@ -522,6 +525,7 @@ namespace ReDefinition.Atmospheres.Viewer
             if (set == null) return false;
             foreach (string k in keyNames) Note(k);
             set.ApplyTo(store, keyNames);
+            Weather = set.Weather;
             CloudBridgeLights.RequestHistoryReset("cloud viewer preset");
             AtmospheresLog.Say("cloud viewer: preset " + name + " loaded (" + set.Settings.Count + " settings, " + set.Overrides.Count + " overrides)");
             if (Changed != null) Changed();

@@ -53,18 +53,32 @@ namespace ReDefinition.Atmospheres.Viewer
         }
     }
 
-    // One set of options: the values of a list of settings and the tuning overrides among a list of keys (a key without an entry has no override).
+    // The settings A/B and the presets hold: the settings of the Clouds group and the forced precipitation (forceLevel, forceType) that a forced weather sets with its overrides.
+    internal static class ViewerOptionKeys
+    {
+        internal static List<string> Settings(IEnumerable<string> cloudsGroup)
+        {
+            var keys = new List<string>(cloudsGroup);
+            foreach (string key in new[] { AtmospheresSettings.Keys.ForceLevel, AtmospheresSettings.Keys.ForceType })
+                if (!keys.Contains(key)) keys.Add(key);
+            return keys;
+        }
+    }
+
+    // One set of options: the values of a list of settings, the tuning overrides among a list of keys (a key without an entry has no override) and the name of the forced
+    // weather the overrides belong to.
     internal sealed class OptionSet
     {
-        internal const string SettingsNode = "SETTINGS", TuningNode = "TUNING";
+        internal const string SettingsNode = "SETTINGS", TuningNode = "TUNING", ViewerNode = "VIEWER", WeatherValue = "weather";
 
         internal readonly Dictionary<string, double> Settings = new Dictionary<string, double>(StringComparer.Ordinal);
         internal readonly Dictionary<string, float> Overrides = new Dictionary<string, float>(StringComparer.Ordinal);
+        internal ViewerWeather Weather = ViewerWeather.Field;
 
         // The options as the store holds them now.
-        internal static OptionSet Capture(IOptionStore store, IEnumerable<string> settingKeys, IEnumerable<string> tuningKeys)
+        internal static OptionSet Capture(IOptionStore store, IEnumerable<string> settingKeys, IEnumerable<string> tuningKeys, ViewerWeather weather = ViewerWeather.Field)
         {
-            var set = new OptionSet();
+            var set = new OptionSet { Weather = weather };
             foreach (string key in settingKeys) set.Settings[key] = store.Setting(key);
             foreach (string key in tuningKeys)
             {
@@ -93,6 +107,7 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (KeyValuePair<string, double> pair in Settings) settings.AddValue(pair.Key, pair.Value.ToString("R", CultureInfo.InvariantCulture));
             ConfigNode tuning = root.AddNode(TuningNode);
             foreach (KeyValuePair<string, float> pair in Overrides) tuning.AddValue(pair.Key, pair.Value.ToString("R", CultureInfo.InvariantCulture));
+            root.AddNode(ViewerNode).AddValue(WeatherValue, Weather.ToString());
             return root;
         }
 
@@ -115,6 +130,9 @@ namespace ReDefinition.Atmospheres.Viewer
                     float f;
                     if (float.TryParse(v.value, NumberStyles.Float, CultureInfo.InvariantCulture, out f) && !float.IsNaN(f) && !float.IsInfinity(f)) set.Overrides[v.name] = f;
                 }
+            ConfigNode viewer = root.GetNode(ViewerNode);
+            ViewerWeather weather;
+            if (viewer != null && Enum.TryParse(viewer.GetValue(WeatherValue), out weather) && Enum.IsDefined(typeof(ViewerWeather), weather)) set.Weather = weather;
             return set;
         }
     }
@@ -142,9 +160,17 @@ namespace ReDefinition.Atmospheres.Viewer
         // Swaps the sides; false where nothing is stored.
         internal bool Flip(IOptionStore store, IEnumerable<string> settingKeys, IList<string> tuningKeys)
         {
+            ViewerWeather weather = ViewerWeather.Field;
+            return Flip(store, settingKeys, tuningKeys, ref weather);
+        }
+
+        // Swaps the sides; weather is the forced weather shown now and becomes the one of the side put back.
+        internal bool Flip(IOptionStore store, IEnumerable<string> settingKeys, IList<string> tuningKeys, ref ViewerWeather weather)
+        {
             if (stored == null) return false;
-            OptionSet shown = OptionSet.Capture(store, settingKeys, tuningKeys);
+            OptionSet shown = OptionSet.Capture(store, settingKeys, tuningKeys, weather);
             stored.ApplyTo(store, tuningKeys);
+            weather = stored.Weather;
             stored = shown;
             Showing = Showing == 'A' ? 'B' : 'A';
             return true;
