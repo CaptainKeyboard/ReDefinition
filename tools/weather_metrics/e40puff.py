@@ -86,7 +86,7 @@ VARIANTS = {
     "fine0": ("(a) no fine octave (weight 0)", tune_dotted([("cloud.billow.fine", 0.0)]), None),
     "fine4": ("(a) the fine octave at 4 times the frequency (2.37 now)", tune_dotted([("cloud.billow.fineFreq", 4.0)]), None),
     "nolod": ("(a) no distance LOD of the detail", v_nolod, None),
-    "light": ("(b) the first tap of the light march reads the erosion (billows shade each other)", tune_dotted([("cloud.billow.light", 1.0)]), None),
+    "light": ("(b) billow shading: the direct light of a sample follows the erosion detail there (cloud.billow.light 1)", tune_dotted([("cloud.billow.light", 1.0)]), None),
     "nosmooth": ("(c) no shape smoothing", v_nosmooth, None),
     "soft03": ("(c) the soft density's width 0.3 (0.5 now)", v_soft03, None),
     "sharp": ("(d) the composite upsamples with a Catmull-Rom spline (cloud.billow.sharpen 1)", tune_dotted([("cloud.billow.sharpen", 1.0)]), None),

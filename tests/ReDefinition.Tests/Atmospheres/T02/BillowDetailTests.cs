@@ -60,7 +60,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheKeysAreNeutralAtTheirDefaults()
         {
-            Assert.IsFalse(CloudLookTuning.BillowLight);
+            Assert.AreEqual(0f, CloudLookTuning.BillowLight);
             Assert.AreEqual(1f, CloudLookTuning.BillowContrast);
             Assert.AreEqual(0f, CloudLookTuning.BillowTop);
             Assert.AreEqual(0f, CloudLookTuning.BillowSharpen);

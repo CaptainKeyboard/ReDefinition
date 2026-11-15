@@ -127,7 +127,6 @@ float3 SunAir(float3 pc, float3 sunDir)
 float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot)
 {
     float tau = 0;
-    float footSave = gNoiseFoot;
     gNoiseLod = 1;   // the light path reads the shape only, not the erosion detail (T02)
     float3 ax = abs(dir.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 u = normalize(cross(dir, ax));
@@ -163,12 +162,7 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
                     q += (u * cos(ang) + v * sin(ang)) * rad;
                 }
                 float qs;
-                // PUFF (_BillowP.x): the first tap of the layer's own light path reads the erosion too, with the footprint of its own length, so that a billow shades the one behind it.
-                bool billowTap = _BillowP.x > 0.5 && i == 0 && (lj == own || own < 0);
-                gNoiseLod = billowTap ? 0 : 1;
-                if (billowTap) gNoiseFoot = len;
                 acc += LayerDensity(lj, q, length(q) - _PlanetR, t, qs) * (edge - prev);
-                gNoiseLod = 1;
                 prev = edge;
                 gain *= ratio;
             }
@@ -176,7 +170,6 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
         }
     }
     gNoiseLod = 0;
-    gNoiseFoot = footSave;
     return tau;
 }
 

@@ -196,7 +196,8 @@ namespace ReDefinition.Atmospheres
         internal static float CellLon { get { Refresh(); return cellLon; } }
 
         // --- Billow detail (package PUFF): the small-scale detail of the cloud's surface. Every key is neutral at its default, so the pass is as it was. ---------------------------------
-        //   cloud.billow.light        1: the first tap of the light march reads the erosion too, so that the billows shade each other (0)
+        //   cloud.billow.light        above 0: billow shading, a sample's direct light is scaled by 1 + 2 x this x (d - mean), d the erosion detail's value at the sample (the bumps catch the light,
+        //                             the crevices are shaded; no extra density read, which would put a second copy of the erosion into the shader and crash its compiler) (0: off)
         //   cloud.billow.contrast     the erosion detail's contrast about its mean (1)
         //   cloud.billow.top          the erosion's gain toward the cloud's top: erosion x (1 + gain x height in the cloud) (0)
         //   cloud.billow.fine         the weight of the fine octave of the detail (-1: the compiled NoiseModel.FineDetailWeight)
@@ -205,7 +206,7 @@ namespace ReDefinition.Atmospheres
         internal const string TuneBillowLight = "cloud.billow.light", TuneBillowContrast = "cloud.billow.contrast", TuneBillowTop = "cloud.billow.top",
             TuneBillowFine = "cloud.billow.fine", TuneBillowFineFreq = "cloud.billow.fineFreq", TuneBillowSharpen = "cloud.billow.sharpen";
 
-        internal static bool BillowLight { get { return Tuning.Get(TuneBillowLight, 0f) > 0.5f; } }
+        internal static float BillowLight { get { return Clean(Tuning.Get(TuneBillowLight, 0f), 0f, 0f, 8f); } }
         internal static float BillowContrast { get { return Clean(Tuning.Get(TuneBillowContrast, 1f), 1f, 0f, 8f); } }
         internal static float BillowTop { get { return Clean(Tuning.Get(TuneBillowTop, 0f), 0f, 0f, 8f); } }
         internal static float BillowSharpen { get { return Clean(Tuning.Get(TuneBillowSharpen, 0f), 0f, 0f, 1f); } }

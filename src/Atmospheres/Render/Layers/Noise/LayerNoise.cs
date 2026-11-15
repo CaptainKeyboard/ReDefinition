@@ -423,7 +423,7 @@ namespace ReDefinition.Atmospheres
             material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? CloudLookTuning.BillowFine((float)NoiseModel.FineDetailWeight) : 0f,
                                                                            CloudLookTuning.BillowFineFreq((float)NoiseModel.FineDetailFrequency), CloudLookTuning.DensityRemap, ShapeVoxelsLog2()));
             // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top, the composite's sharpening).
-            material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight ? 1f : 0f, CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
+            material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);

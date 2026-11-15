@@ -215,6 +215,7 @@ Shader "ReDefinition/AtmospheresLayers"
         {
             share = 0;
             gEmptyM = 0;
+            gNoiseD = _NoiseS.w;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
             gTopAlt = outer;
             gBaseAlt = inner;
@@ -455,6 +456,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
                     float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
                     float2 typeLight = gTypeLight;
+                    float billowD = gNoiseD;
                     r.steps += 1;
                     if (dens <= 0)
                     {
@@ -523,6 +525,10 @@ Shader "ReDefinition/AtmospheresLayers"
                     src += dirPart * (typeLight.x - 1.0) + ambPart * (typeLight.y - 1.0);
                     dirPart *= typeLight.x;
                     ambPart *= typeLight.y;
+                    // PUFF (_BillowP.x): billow shading, a sample's direct light follows the erosion detail there (the bumps catch the light, the crevices between them are shaded).
+                    float billowShade = saturate(1.0 + _BillowP.x * 2.0 * (billowD - _NoiseS.w));
+                    src += dirPart * (billowShade - 1.0);
+                    dirPart *= billowShade;
                     // The colour map's tint of the layer (P15; one when the layer has none).
                     float3 tint = NoiseTint(li, pc);
                     src *= tint;
