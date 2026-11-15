@@ -201,9 +201,12 @@ def bumps(m, ok):
             "edgeShare": float(np.count_nonzero(on)) / max(int(np.count_nonzero(edge)), 1)}
 
 
-def measure(img, base, box=None):
+def measure(img, base, box=None, ok_in=None):
+    """The numbers of one picture. box: pixels to leave out (x0, y0, x1, y1); ok_in: a boolean mask of the pixels to use (e40pp.measure_mask)."""
     dist = cloud_distance(img, base)
     ok = valid_mask(dist.shape, box)
+    if ok_in is not None:
+        ok &= ok_in
     lum = luminance(img)
     res = {"edge": edge_group(dist, ok)}
     m_in = (dist > 0.22) & ok
@@ -218,6 +221,17 @@ def measure(img, base, box=None):
     lo, hi, mid = (dist > 0.12) & ok, (dist > 0.35) & ok, (dist > 0.22) & ok
     res["rimPx"] = float(np.count_nonzero(lo & ~hi)) / max(edge_length(mid, ok), 1)
     return res
+
+
+def summary(r):
+    """The few numbers a variant table shows: the variance share of the 2-16 px bands (tiles), the edge dimension at 8-64 px and the edge-length ratio against sigma 4 at the 0.22
+    threshold, attached bumps per 1000 px of body edge at 0.12, the relative structure function at 4 and 16 px. NaN where the picture has no cloud of that kind."""
+    e = r["edge"].get(0.22, {})
+    nan = float("nan")
+    sh = r["spectrum"]["shares"]
+    fine = sum(sh.get(k, 0.0) for k in ("2-4", "4-8", "8-16")) if sh else nan
+    return {"fine": fine, "D8_64": e.get("D_8_64", nan), "L4": e.get("Lratio_s4", nan), "bumps": r["bumps"][0.12]["per1000"],
+            "S4": r["structure"].get(4, nan), "S16": r["structure"].get(16, nan), "cover": r["cover"]}
 
 
 def table(label, r):

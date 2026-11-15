@@ -63,7 +63,7 @@ namespace ReDefinition.Atmospheres
             IdCurl = Shader.PropertyToID("_NoiseCurl"), IdFlow = Shader.PropertyToID("_NoiseFlow"), IdColour = Shader.PropertyToID("_NoiseColour"),
             IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"), IdS = Shader.PropertyToID("_NoiseS"),
             IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer"), IdStretch = Shader.PropertyToID("_NoiseStretch"), IdAxis = Shader.PropertyToID("_NoiseAxis"),
-            IdLattice = Shader.PropertyToID("_NoiseLattice"), IdLatticeP = Shader.PropertyToID("_NoiseL");
+            IdLattice = Shader.PropertyToID("_NoiseLattice"), IdLatticeP = Shader.PropertyToID("_NoiseL"), IdBillow = Shader.PropertyToID("_BillowP");
 
         // E40 C4: the tables of the untiling warp and the ragged boundary (NoiseLattice), the viewer's place and each layer's scale and reference radius they follow.
         private readonly NoiseLattice lattice = new NoiseLattice();
@@ -395,6 +395,9 @@ namespace ReDefinition.Atmospheres
                 NoDistanceLod = !Switches.DistanceLod,
                 NoFineDetail = !Switches.FineDetail,
                 DensityRemap = CloudLookTuning.DensityRemap,
+                BillowContrastDelta = CloudLookTuning.BillowContrast - 1.0,
+                FineWeight = CloudLookTuning.BillowFine(-1f) >= 0f ? CloudLookTuning.BillowFine(-1f) : (double?)null,
+                FineFrequency = CloudLookTuning.BillowFineFreq(0f),
                 ReferenceRadiusM = referenceRadiusM,
                 UpDistanceM = rise[layer],
                 Stretch = 1.0 - 1.0 / stretch[layer],
@@ -417,7 +420,10 @@ namespace ReDefinition.Atmospheres
             material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, 0f, 0f));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
-            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? (float)NoiseModel.FineDetailWeight : 0f, (float)NoiseModel.FineDetailFrequency, CloudLookTuning.DensityRemap, ShapeVoxelsLog2()));
+            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? CloudLookTuning.BillowFine((float)NoiseModel.FineDetailWeight) : 0f,
+                                                                           CloudLookTuning.BillowFineFreq((float)NoiseModel.FineDetailFrequency), CloudLookTuning.DensityRemap, ShapeVoxelsLog2()));
+            // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top, the composite's sharpening).
+            material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight ? 1f : 0f, CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);

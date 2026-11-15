@@ -89,11 +89,18 @@ namespace ReDefinition.Atmospheres
         // E40 L2 D1 (cfg key fibreStretch): the lookup is compressed along the unit axis (AxisX, AxisY, AxisZ) by 1 - Stretch, i.e. the features are 1 / (1 - Stretch) times longer along it;
         // 0: isotropic. The shader's axis is the body's pole (the third row of the world-to-map matrix), (0, 0, 1) in the planet frame of the tests.
         internal double Stretch, AxisX, AxisY, AxisZ;
+        // PUFF (cloud.billow.*): the detail's contrast about its mean minus 1 (0: as it was), the weight of the fine octave (null: NoiseModel.FineDetailWeight) and its frequency
+        // (0 or less: NoiseModel.FineDetailFrequency). The gain toward the top and the light tap belong to the shader's density and light march and have no twin here.
+        internal double BillowContrastDelta, FineFrequency;
+        internal double? FineWeight;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
             return new NoiseLayerParams { ScaleM = scaleM, Untile = true, Curl = true, Seed = 1, SphereScale = 1.0 };
         }
+
+        internal double FineWeightValue { get { return FineWeight.HasValue ? FineWeight.Value : NoiseModel.FineDetailWeight; } }
+        internal double FineFrequencyValue { get { return FineFrequency > 0.0 ? FineFrequency : NoiseModel.FineDetailFrequency; } }
     }
 
     // The shape and erosion model on the CPU (package T02): the function the shader evaluates, in double precision, for the tests, for
@@ -305,15 +312,18 @@ namespace ReDefinition.Atmospheres
             }
             if (!prm.NoFineDetail)
             {
-                double lod2 = DetailLod(ref prm, footM, NoiseModel.FineDetailFrequency);
+                double freq = prm.FineFrequencyValue;
+                double lod2 = DetailLod(ref prm, footM, freq);
                 double d2 = set.DetailMean;
                 if (lod2 < 1.0)
                 {
-                    d2 = DetailAt(set, ref prm, qx, qy, qz, px / r, py / r, pz / r, NoiseModel.FineDetailFrequency);
+                    d2 = DetailAt(set, ref prm, qx, qy, qz, px / r, py / r, pz / r, freq);
                     if (lod2 > 0.0) d2 += (set.DetailMean - d2) * lod2;
                 }
-                d += (d2 - d) * NoiseModel.FineDetailWeight;
+                d += (d2 - d) * prm.FineWeightValue;
             }
+            // PUFF: the detail's contrast about its mean (0: as it was).
+            if (prm.BillowContrastDelta != 0.0) d = Math.Min(1.0, Math.Max(0.0, set.DetailMean + (d - set.DetailMean) * (1.0 + prm.BillowContrastDelta)));
             double eroded = Erode(s, d, erosion);
             // layers.densityRemap: the erosion also thins the interior of a closed deck, by the share of the detail's gap (the structure a flat slab lacks).
             if (prm.DensityRemap > 0.0) eroded *= InteriorThinning(prm.DensityRemap, erosion, d);

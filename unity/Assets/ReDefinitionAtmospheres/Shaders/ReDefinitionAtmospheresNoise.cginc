@@ -39,6 +39,9 @@ float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's f
 float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read, z layers.densityRemap (0: the erosion acts only in the soft edge),
                          // w log2 of the shape volume's voxels per noise scale (the mip level of a smoothing of s scales is log2(s) + w; E40 L6 shape)
 
+float4 _BillowP;         // billow detail (package PUFF; all 0 = the model as it was): x 1: the first tap of the light march reads the erosion too (the billows shade each other), y the detail's contrast about
+                         // its mean minus 1 (d' = mean + (d - mean) (1 + y)), z the erosion's gain toward the cloud's top (erosion (1 + z h), h the height in the cloud 0..1), w the composite's sharpening 0..1
+
 // 1 on the light path: no erosion there (the light march reads the shape only).
 static int gNoiseLod = 0;
 // The march's sample spacing in m at the current sample (set by the march per layer span; 0: unknown, no distance LOD).
@@ -181,6 +184,8 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
         }
         d += (d2 - d) * _NoiseT.x;
     }
+    // PUFF: the detail's contrast about its mean (0: as it was).
+    d = saturate(_NoiseS.w + (d - _NoiseS.w) * (1.0 + _BillowP.y));
     float er = erosion * (1.0 - d);
     float c = saturate((s - er) / max(1.0 - er, 1e-3));
     float eroded = c;

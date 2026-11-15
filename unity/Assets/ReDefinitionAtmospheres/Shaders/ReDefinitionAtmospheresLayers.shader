@@ -294,6 +294,8 @@ Shader "ReDefinition/AtmospheresLayers"
             // The cost debug bits switch the shape noise (2) and the erosion (4) off.
             float noiseAmount = fmod(floor(_CostP.y * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
             if (fmod(floor(_CostP.y * 0.25), 2.0) >= 0.5) erosion = 0;
+            // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
+            erosion *= 1.0 + _BillowP.z * saturate(h);
             // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band).
             float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion);
             if (s <= 0) return 0;
@@ -655,7 +657,42 @@ Shader "ReDefinition/AtmospheresLayers"
                 sum += tex2Dlod(_MarchTex, float4(uvc, 0, 0)) * w;
                 wsum += w;
             }
-            return sum / max(wsum, 1e-6);
+            float4 res = sum / max(wsum, 1e-6);
+            // PUFF (_BillowP.w): the Catmull-Rom spline's difference to the bilinear read is added to the depth-aware result (a sharper upsampling of the march target; the
+            // result stays within the range of the four nearest texels, so nothing rings at an edge).
+            [branch] if (_BillowP.w > 0.0)
+            {
+                float wx[4], wy[4];
+                wx[0] = f.x * (-0.5 + f.x * (1.0 - 0.5 * f.x));
+                wx[1] = 1.0 + f.x * f.x * (-2.5 + 1.5 * f.x);
+                wx[2] = f.x * (0.5 + f.x * (2.0 - 1.5 * f.x));
+                wx[3] = f.x * f.x * (-0.5 + 0.5 * f.x);
+                wy[0] = f.y * (-0.5 + f.y * (1.0 - 0.5 * f.y));
+                wy[1] = 1.0 + f.y * f.y * (-2.5 + 1.5 * f.y);
+                wy[2] = f.y * (0.5 + f.y * (2.0 - 1.5 * f.y));
+                wy[3] = f.y * f.y * (-0.5 + 0.5 * f.y);
+                float4 cubic = 0, lin = 0;
+                float4 mn = 1e30, mx = -1e30;
+                [unroll] for (int j = 0; j < 4; j++)
+                {
+                    [unroll] for (int a = 0; a < 4; a++)
+                    {
+                        float4 t = tex2Dlod(_MarchTex, float4((base + float2(a - 1, j - 1) + 0.5) * texel, 0, 0));
+                        cubic += t * (wx[a] * wy[j]);
+                        if (a == 1 || a == 2)
+                        {
+                            if (j == 1 || j == 2)
+                            {
+                                lin += t * ((a == 2 ? f.x : 1.0 - f.x) * (j == 2 ? f.y : 1.0 - f.y));
+                                mn = min(mn, t);
+                                mx = max(mx, t);
+                            }
+                        }
+                    }
+                }
+                res = clamp(res + _BillowP.w * (cubic - lin), mn, mx);
+            }
+            return res;
         }
         // The display stage (CloudOutputStage.cs is its CPU twin and the test's reference): the march's radiance is physical, the target it is
         // written into holds display values of a Gamma-space scene whose white is the sun's own display value W. Per channel, on the colour
