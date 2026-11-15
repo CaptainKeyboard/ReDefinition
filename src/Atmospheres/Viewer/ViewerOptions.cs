@@ -47,9 +47,11 @@ namespace ReDefinition.Atmospheres.Viewer
 
         public float Effective(string key, float compiledDefault)
         {
+            // The override and the nodes' value as they stand now, not the table a reader got at the frame's start: that one still holds a value whose override was removed in this
+            // frame (a solo mode that took the cell off read the cell back from it and put it on again: K-S1 start, every uniform-field view was drawn as one far cell).
             float value;
             if (Tuning.Instance.TryGetOverride(key, out value)) return value;
-            return Tuning.Peek(key, compiledDefault);
+            return Tuning.Instance.TryGetLoaded(key, out value) ? value : compiledDefault;
         }
     }
 

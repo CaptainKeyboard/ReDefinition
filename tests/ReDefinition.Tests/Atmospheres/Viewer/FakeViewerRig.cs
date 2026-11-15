@@ -37,6 +37,12 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         internal bool SliderResetsAim, CameraDoesNotFollow, ClockLeftWrongAtClose, RainAtPad, FieldOvercast;
         // A close that leaves the game's clock where the time offset and the freeze put it.
         internal bool CloseKeepsTimeOffset;
+        // A game that runs at 0.4 of the real time (a low frame rate), a camera that looks the other way round from the aim asked for (the viewer's first guess of the camera's
+        // heading before it was tuned), a window that stands half beyond the left edge of the screen and one that cannot be measured.
+        internal bool SlowGame, AimLooksAway, WindowCutOffLeft, WindowNotMeasurable;
+        // The screen the window stands on.
+        internal int ScreenW = 1707, ScreenH = 960;
+        internal float UiScaleValue = 1.5f;
 
         internal readonly Store Options = new Store();
         internal static readonly ViewerLayer[] KerbinLayers =
@@ -59,7 +65,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         private readonly float[] cover = new float[KerbinLayers.Length];
         private ViewerClock clock;
         private bool open, session, captureWasBusy;
-        private double real, gameUt = 1000800.0, flow;
+        private double real, gameUt = 1000800.0, flow, physics = 500.0;
         private int frame = 100, captureFrame = -1, releasedFrame = -1, captures, placedFrame;
         private float exposure = 1f;
         private string watched;
@@ -82,7 +88,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         {
             real += dt;
             frame++;
-            gameUt += dt;
+            // The game's own time: at a low frame rate the physics steps are limited per frame and the game's clock runs slower than the real time (0.4 of it at 10 fps).
+            double game = dt * (SlowGame ? 0.4 : 1.0);
+            gameUt += game;
+            physics += game;
             if (session)
             {
                 if (!(FreezeIgnored && clock.Frozen)) gameUt = clock.Step(gameUt);
@@ -181,8 +190,24 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public IList<ViewerLayer> Layers { get { return KerbinLayers; } }
         public int Frame { get { return frame; } }
         public double RealS { get { return real; } }
+        public double PhysicsTimeS { get { return physics; } }
         public double GameUt { get { return gameUt; } }
         public virtual double SunElevationDeg { get { return SunStandsStill ? 30.0 : 80.0 * Math.Sin(2.0 * Math.PI * gameUt / 21600.0); } }
+        // The sun stands in the west (afternoon); the angle to the camera's direction is the great-circle angle between the two directions.
+        internal double SunAzimuth = 270.0;
+        public double SunAzimuthDeg { get { return SunAzimuth; } }
+
+        public double CameraSunAngleDeg
+        {
+            get
+            {
+                ViewerPoseReading p = Pose;
+                double e1 = p.ElevationDeg * Math.PI / 180.0, e2 = SunElevationDeg * Math.PI / 180.0, da = (p.AzimuthDeg - SunAzimuth) * Math.PI / 180.0;
+                double c = Math.Sin(e1) * Math.Sin(e2) + Math.Cos(e1) * Math.Cos(e2) * Math.Cos(da);
+                return Math.Acos(Math.Max(-1.0, Math.Min(1.0, c))) * 180.0 / Math.PI;
+            }
+        }
+
         public bool HoldStable { get { return frame - placedFrame >= 30; } }
         public double FlowTimeS { get { return flow; } }
         public IList<double> DriftM { get { return (double[])drift.Clone(); } }
@@ -204,7 +229,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             {
                 return new ViewerPoseReading
                 {
-                    VesselAslM = startAsl + agl, VesselAglM = agl, CameraAglM = CameraAgl(), CameraToVesselM = CameraDoesNotFollow ? camDist + Math.Abs(agl - poseAgl) : camDist, AzimuthDeg = aimAz, ElevationDeg = aimEl
+                    VesselAslM = startAsl + agl, VesselAglM = agl, CameraAglM = CameraAgl(), CameraToVesselM = CameraDoesNotFollow ? camDist + Math.Abs(agl - poseAgl) : camDist,
+                    AzimuthDeg = AimLooksAway ? ViewerAim.Wrap(aimAz + 180.0) : aimAz, ElevationDeg = aimEl
                 };
             }
         }
@@ -213,6 +239,22 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public bool AddonRunning { get { return true; } }
         public bool WindowOpen { get { return open; } }
         public bool WindowVisible { get { return open && (WindowStaysVisible || !schedule.Busy); } }
+        public int ScreenWidth { get { return ScreenW; } }
+        public int ScreenHeight { get { return ScreenH; } }
+        public float UiScale { get { return UiScaleValue; } }
+        public string AimNote { get { return null; } }
+
+        // The window as the placement leaves it: inside the screen, its height as the list's height at this UI scale allows; a fault puts it half beyond the left edge.
+        public bool WindowBox(out ScreenBox box)
+        {
+            box = default(ScreenBox);
+            if (!open || WindowNotMeasurable) return false;
+            float width = 660f * UiScaleValue, height = (WindowPlacement.ListHeight(ScreenH, UiScaleValue) + 80f) * UiScaleValue;
+            float x = WindowCutOffLeft ? -0.4f * width : Math.Max(8f, ScreenW * 0.5f);
+            if (x + width > ScreenW - 8f && !WindowCutOffLeft) x = ScreenW - 8f - width;
+            box = new ScreenBox { XMin = x, XMax = x + width, YMin = 8f, YMax = 8f + height };
+            return true;
+        }
         public bool SessionActive { get { return session; } }
         public bool PlacementPending { get { return plan.Pending || aimIn >= 0; } }
         public int KeyCount { get { return KeysExpected; } }

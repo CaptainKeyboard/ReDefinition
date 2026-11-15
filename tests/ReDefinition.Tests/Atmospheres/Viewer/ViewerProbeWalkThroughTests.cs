@@ -162,6 +162,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             {
                 var row = (Dictionary<string, object>)o;
                 Assert.AreEqual("K-V1", (string)row["series"], (string)row["metric"]);
+                // The rows of the second start ("wide", ViewerWindowProbe) are judged by ViewerWindowTests.
+                if ((string)row["start"] == "wide") continue;
                 Assert.AreEqual("viewer", (string)row["start"], (string)row["metric"]);
                 Assert.IsFalse(listed.ContainsKey((string)row["metric"]), "row twice: " + (string)row["metric"]);
                 listed[(string)row["metric"]] = row;
@@ -346,6 +348,50 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Run r = Start(rig => rig.CloseKeepsTimeOffset = true);
             Drive(r);
             AssertFailsWith(r, "restore_time");
+        }
+
+        // The defect of the K-V1 start of 2026-11-15: the game ran at 0.38 of the real time (a low frame rate), the viewer's clock was right and the real-time reference failed it.
+        [TestMethod]
+        public void AGameThatRunsSlowerThanTheRealTimeStillPassesEveryTimeCheck()
+        {
+            Run r = Start(rig => rig.SlowGame = true);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("viewer: the game's clock is back") && l.EndsWith(" - ok") && l.Contains("physics time since")), "restore_time judged by the physics time\n" + Dump(r));
+        }
+
+        [TestMethod]
+        public void ASlowGameDoesNotHideAClockTheViewerLeavesWrong()
+        {
+            Run r = Start(rig => { rig.SlowGame = true; rig.ClockLeftWrongAtClose = true; });
+            Drive(r);
+            AssertFailsWith(r, "restore_time");
+        }
+
+        [TestMethod]
+        public void ACameraThatLooksTheOtherWayFromThePosesHeadingFailsThePoseAzimuth()
+        {
+            Run r = Start(rig => rig.AimLooksAway = true);
+            Drive(r);
+            AssertFailsWith(r, "pose_aim_azimuth");
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("viewer: the camera's heading: expected 90") && l.Contains("read -90")), Dump(r));
+        }
+
+        [TestMethod]
+        public void AWindowCutOffAtTheScreensEdgeFailsWindowInsideScreen()
+        {
+            Run r = Start(rig => rig.WindowCutOffLeft = true);
+            Drive(r);
+            AssertFailsWith(r, "window_inside_screen");
+        }
+
+        [TestMethod]
+        public void AWindowThatCannotBeMeasuredFailsWindowInsideScreenInsteadOfPassing()
+        {
+            Run r = Start(rig => rig.WindowNotMeasurable = true);
+            Drive(r);
+            AssertFailsWith(r, "window_inside_screen");
+            Assert.IsTrue(r.Log.Any(l => l.Contains("could not be measured")), Dump(r));
         }
 
         [TestMethod]

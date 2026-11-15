@@ -35,11 +35,11 @@ namespace ReDefinition.Atmospheres.Viewer
         internal const double MeasureS = 3.0, PollMapS = 60.0, PollPlaceS = 60.0, PollShortS = 10.0;
         internal const int MinKeys = 100, MinPictureBytes = 1000, SettleFrames = 30;
         // The aim is read once it stands still (two readings two frames apart within AimStillDeg, at most AimStillMaxFrames frames); the keep-aim check sets this aim by hand first.
-        internal const double AimStillDeg = 0.05, KeepAimHeadingDeg = 200.0, KeepAimElevationDeg = 7.0;
+        internal const double AimStillDeg = 0.05, KeepAimHeadingDeg = 200.0, KeepAimElevationDeg = 7.0, TurnedAwayDeg = 30.0, TurnedAwayElevationDeg = 5.0;
         internal const int AimStillMaxFrames = 80;
-        // The game's clock against the start's UT plus the real seconds since (the game's time runs with the real time at 1x, a little slower where the frames are long).
-        // (The game's time runs on physics steps of at most 0.04 s a frame: a slow stretch loses some of the real seconds, so the band is wide; the line prints both.)
-        internal const double RestoreTimeS = 10.0;
+        // The game's clock against the start's UT plus the physics seconds the game ran since (Rig.PhysicsTimeS: the game's time runs on physics steps of at most 0.04 s a frame,
+        // so at a low frame rate it falls behind the real time; the line prints both). The band is a few physics steps and the frame the clock was read in.
+        internal const double RestoreTimeS = 3.0;
         // A precipitation level above this at the pad: the deck's rain floor keeps the Fair cover up.
         internal const double RainAtPadLevel = 0.01;
 
@@ -203,8 +203,9 @@ namespace ReDefinition.Atmospheres.Viewer
             yield return ProbeWait.Until(() => Rig.FlightReady && Rig.PassDrawing, 300, "the flight scene and the own cloud pass drawing");
             reached = true;
             yield return ProbeWait.Seconds(3);
-            // The reference of restore_time that does not come from the viewer.
-            double utStart = Rig.GameUt, realStart = Rig.RealS;
+            // The reference of restore_time that does not come from the viewer: the game's UT before the viewer opened and the physics time the game lets pass since (Time.fixedTime,
+            // not the real time: the game's clock runs slower than the real time wherever the frames are longer than its physics steps allow, 0.4 of it at 10 fps).
+            double utStart = Rig.GameUt, realStart = Rig.RealS, physicsStart = Rig.PhysicsTimeS;
             IList<ViewerLayer> layers = Rig.Layers;
             Info("layers", layers.Count);
             int drawnAtStart = Rig.PassFramesDrawn;
@@ -251,6 +252,17 @@ namespace ReDefinition.Atmospheres.Viewer
             double az = Circular(ground.HeadingDeg, p.AzimuthDeg);
             Verdict("pose_aim_azimuth", "the camera's heading", az <= AimAzimuthDeg, F(ground.HeadingDeg) + " +-" + F(AimAzimuthDeg) + " deg", F(p.AzimuthDeg) + " deg");
             Info("pose_aim_azimuth_deg", p.AzimuthDeg);
+            if (Rig.AimNote != null) LogLine("viewer: the camera's aim stopped short of the pose's: " + Rig.AimNote);
+            // The window stands wholly inside the screen (it has been open through the placement above, so its list and its position have settled).
+            WindowFitReading win = ViewerWindowCheck.Read(Rig);
+            Verdict("window_inside_screen", "the window lies wholly inside the screen", win.Inside, win.Expected, win.Read);
+            Info("screen_width_px", win.ScreenW);
+            Info("screen_height_px", win.ScreenH);
+            Info("ui_scale", win.UiScale);
+            Info("window_x_min_px", win.Box.XMin);
+            Info("window_x_max_px", win.Box.XMax);
+            Info("window_y_min_px", win.Box.YMin);
+            Info("window_y_max_px", win.Box.YMax);
             // One screenshot of the open window at this pose, for a person.
             string shot = Rig.Screenshot("viewer-window-open.png");
             yield return ProbeWait.Frames(20);
@@ -265,7 +277,9 @@ namespace ReDefinition.Atmospheres.Viewer
             yield return ProbeWait.Frames(SettleFrames);
             foreach (ProbeWait w in StillAim()) yield return w;
             ViewerPoseReading before = Rig.Pose;
-            bool aimTurned = Circular(KeepAimHeadingDeg, before.AzimuthDeg) <= AimAzimuthDeg && Math.Abs(KeepAimElevationDeg - before.ElevationDeg) <= AimElevationDeg;
+            // Turned: the aim read back stands well away from the pose's (heading and elevation), so that a placement that put the pose's aim back would show. How far it stands from
+            // the heading asked for is not judged here: the pose rows judge the viewer's own aim, and this row the keeping of whatever aim the player's hand left.
+            bool aimTurned = Circular(before.AzimuthDeg, ground.HeadingDeg) >= TurnedAwayDeg && Math.Abs(before.ElevationDeg - ground.ElevationDeg) >= TurnedAwayElevationDeg;
             Rig.RequestAltitude(sliderTarget);
             yield return ProbeWait.Frames(2);
             foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
@@ -275,7 +289,8 @@ namespace ReDefinition.Atmospheres.Viewer
             double distanceAfterSlider = p.CameraToVesselM;
             Near("slider_height", "the altitude slider's height above the terrain", sliderTarget, p.VesselAglM, Math.Max(AltitudeAbsM, AltitudeRel * sliderTarget));
             Verdict("slider_keeps_aim", "the camera's heading and pitch stay where the player turned them (not the pose's)", aimTurned && Circular(before.AzimuthDeg, p.AzimuthDeg) <= AimAzimuthDeg && Math.Abs(before.ElevationDeg - p.ElevationDeg) <= AimElevationDeg,
-                    "turned to heading " + F(KeepAimHeadingDeg) + " elevation " + F(KeepAimElevationDeg) + " (read " + F(before.AzimuthDeg) + " / " + F(before.ElevationDeg) + "), and still there after the change within " + F(AimAzimuthDeg) + " / " + F(AimElevationDeg) + " deg",
+                    "turned by hand away from the pose's " + F(ground.HeadingDeg) + " / " + F(ground.ElevationDeg) + " by at least " + F(TurnedAwayDeg) + " / " + F(TurnedAwayElevationDeg) + " deg (read " + F(before.AzimuthDeg) + " / " + F(before.ElevationDeg)
+                    + "), and still there after the change within " + F(AimAzimuthDeg) + " / " + F(AimElevationDeg) + " deg",
                     "heading " + F(p.AzimuthDeg) + ", elevation " + F(p.ElevationDeg) + (aimTurned ? "" : "; the camera did not take the turned aim"));
             const double typed = 8000.0;
             Rig.RequestAltitude(typed);
@@ -292,15 +307,15 @@ namespace ReDefinition.Atmospheres.Viewer
                     F(ground.CameraDistM) + " +-" + F(distanceTolerance) + " m both times", F(distanceAfterSlider) + " m after the slider, " + F(p.CameraToVesselM) + " m after the typed height");
 
             // --- e. Time: the offset, the freeze, the sun ---
-            double ut0 = Rig.GameUt, real0 = Rig.RealS, sun0 = Rig.SunElevationDeg;
+            double ut0 = Rig.GameUt, phys0 = Rig.PhysicsTimeS, sun0 = Rig.SunElevationDeg;
             Rig.SetTimeOffset(OffsetSeconds);
             yield return ProbeWait.Seconds(1.5);
-            double ut1 = Rig.GameUt, real1 = Rig.RealS, sun1 = Rig.SunElevationDeg;
-            Near("time_offset", "the time offset moves the game's clock", OffsetSeconds + (real1 - real0), ut1 - ut0, UtAbsS);
+            double ut1 = Rig.GameUt, phys1 = Rig.PhysicsTimeS, sun1 = Rig.SunElevationDeg;
+            Near("time_offset", "the time offset moves the game's clock", OffsetSeconds + (phys1 - phys0), ut1 - ut0, UtAbsS);
             Rig.SetTimeOffset(-OffsetSeconds);
             yield return ProbeWait.Seconds(1.5);
-            double ut2 = Rig.GameUt, real2 = Rig.RealS, sun2 = Rig.SunElevationDeg;
-            Near("time_offset_back", "a negative offset moves it back", -2.0 * OffsetSeconds + (real2 - real1), ut2 - ut1, UtAbsS);
+            double ut2 = Rig.GameUt, phys2 = Rig.PhysicsTimeS, sun2 = Rig.SunElevationDeg;
+            Near("time_offset_back", "a negative offset moves it back", -2.0 * OffsetSeconds + (phys2 - phys1), ut2 - ut1, UtAbsS);
             double moved = Math.Max(Math.Abs(sun1 - sun0), Math.Abs(sun2 - sun0));
             Info("sun_elevation_start_deg", sun0);
             Info("sun_elevation_moved_deg", moved);
@@ -309,16 +324,16 @@ namespace ReDefinition.Atmospheres.Viewer
             yield return ProbeWait.Seconds(1);
             Rig.FreezeTime(true);
             yield return ProbeWait.Frames(3);
-            double frozenUt = Rig.ClockFrozenUt, natural0 = Rig.ClockNatural, realF = Rig.RealS;
+            double frozenUt = Rig.ClockFrozenUt, natural0 = Rig.ClockNatural, physF = Rig.PhysicsTimeS;
             yield return ProbeWait.Seconds(MeasureS);
-            double heldUt = Rig.GameUt, naturalRan = Rig.ClockNatural - natural0, realRan = Rig.RealS - realF;
-            Verdict("time_freeze", "Freeze Time holds the game's clock while the natural time runs on", Rig.ClockFrozen && Math.Abs(heldUt - frozenUt) <= FreezeHeldS && Math.Abs(naturalRan - realRan) <= UtAbsS,
-                    "clock at " + F(frozenUt) + " +-" + F(FreezeHeldS) + ", natural +" + F(realRan) + " s", "clock " + F(heldUt) + ", natural +" + F(naturalRan) + " s, frozen " + Rig.ClockFrozen);
+            double heldUt = Rig.GameUt, naturalRan = Rig.ClockNatural - natural0, physRan = Rig.PhysicsTimeS - physF;
+            Verdict("time_freeze", "Freeze Time holds the game's clock while the natural time runs on", Rig.ClockFrozen && Math.Abs(heldUt - frozenUt) <= FreezeHeldS && Math.Abs(naturalRan - physRan) <= UtAbsS,
+                    "clock at " + F(frozenUt) + " +-" + F(FreezeHeldS) + ", natural +" + F(physRan) + " s (the game's physics time)", "clock " + F(heldUt) + ", natural +" + F(naturalRan) + " s, frozen " + Rig.ClockFrozen);
             Rig.FreezeTime(false);
-            double realU = Rig.RealS;
+            double physU = Rig.PhysicsTimeS;
             yield return ProbeWait.Seconds(MeasureS);
             double resumed = Rig.GameUt;
-            Near("time_resumes", "the clock runs on from where it was held", frozenUt + (Rig.RealS - realU), resumed, UtAbsS);
+            Near("time_resumes", "the clock runs on from where it was held", frozenUt + (Rig.PhysicsTimeS - physU), resumed, UtAbsS);
             Rig.SetTimeOffset(0.0);
             yield return ProbeWait.Seconds(1);
 
@@ -526,10 +541,11 @@ namespace ReDefinition.Atmospheres.Viewer
                     "overrides gone " + overridesGone + ", softness " + F(Rig.Setting(AtmospheresSettings.Keys.CloudSoftness)) + ", forceLevel " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)) + ", speed " + F(Rig.CloudSpeed));
             double utBack = Rig.GameUt;
             // The reference is the UT before the viewer opened and the real seconds since, not the viewer's own natural time (which a wrong accumulation would share).
-            double utExpected = utStart + (Rig.RealS - realStart);
+            double physicsSince = Rig.PhysicsTimeS - physicsStart;
+            double utExpected = utStart + physicsSince;
             Verdict("restore_time", "the game's clock is back on the natural time", Math.Abs(utBack - utExpected) <= RestoreTimeS,
-                    F(utStart) + " (UT before the viewer opened) + the real time since (" + F(Rig.RealS - realStart) + " s) +-" + F(RestoreTimeS), F(utBack) + " (the viewer's natural time at the close: " + F(naturalAtClose)
-                    + ", " + F(Rig.RealS - realClose) + " s ago)");
+                    F(utStart) + " (UT before the viewer opened) + the physics time since (" + F(physicsSince) + " s; the real time since was " + F(Rig.RealS - realStart) + " s) +-" + F(RestoreTimeS),
+                    F(utBack) + " (the viewer's natural time at the close: " + F(naturalAtClose) + ", " + F(Rig.RealS - realClose) + " s ago)");
             yield return ProbeWait.Seconds(4);
             double asl = Rig.Pose.VesselAslM;
             Near("restore_vessel", "the vessel is back at its start", startAsl, asl, RestoreVesselM);

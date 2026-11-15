@@ -183,6 +183,8 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             if (!Active) return;
             Active = false;
+            tuner = null;
+            ShowHud();
             try
             {
                 if (clock != null && HighLogic.LoadedSceneIsFlight) Planetarium.SetUniversalTime(clock.Natural);
@@ -283,9 +285,14 @@ namespace ReDefinition.Atmospheres.Viewer
             double agl;
             if (heights.TryTake(Time.unscaledTime, AltitudeSettleS, out agl)) PlaceAt(agl, true);
             if (aimIn >= 0 && --aimIn < 0) Aim();
+            TuneAim();
             if (capture.Step()) TakeCapture();
             bool busy = capture.Busy;
-            if (captureWasBusy && !busy) CaptureReleasedFrame = Time.frameCount;
+            if (captureWasBusy && !busy)
+            {
+                CaptureReleasedFrame = Time.frameCount;
+                ShowHud();
+            }
             captureWasBusy = busy;
         }
 
@@ -298,7 +305,7 @@ namespace ReDefinition.Atmospheres.Viewer
         // A placement is under way: an altitude waits for the slider to stand still, or the camera is yet to be aimed.
         internal bool PlacementPending
         {
-            get { return heights.Pending || aimIn >= 0; }
+            get { return heights.Pending || aimIn >= 0 || (tuner != null && !tuner.Done); }
         }
 
         internal KspT09World World
@@ -343,6 +350,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             Vessel v = GameGlobals.ActiveVessel;
             if (v == null) return;
+            tuner = null;
             double terrain = 0.0;
             try { terrain = world.TerrainAltitude(SiteLat, SiteLon); } catch (Exception) { terrain = 0.0; }
             double altitude = Math.Max(0.0, terrain) + aglM;
@@ -369,6 +377,7 @@ namespace ReDefinition.Atmospheres.Viewer
             fc.mode = FlightCamera.Modes.FREE;
             if (aimKeep)
             {
+                tuner = null;
                 fc.camHdg = keepHeading;
                 fc.camPitch = keepPitch;
                 return;
@@ -376,9 +385,46 @@ namespace ReDefinition.Atmospheres.Viewer
             world.SetCameraDistance(cameraDistanceWanted);
             double el = aimElevation;
             if (double.IsNaN(el)) el = -T09Probe.HorizonDipDeg(world.BodyRadius, double.IsNaN(TargetAglM) ? 0.0 : TargetAglM);
-            // The convention of the K-T2 ground views: the camera stands behind the vessel, heading + 180 degrees, pitch minus the elevation.
-            fc.camHdg = (float)((aimHeading + 180.0) * Math.PI / 180.0);
-            fc.camPitch = (float)(-el * Math.PI / 180.0);
+            // A first guess (ViewerAim); TuneAim then turns the camera by what its measured aim lacks, until the view looks where the pose says.
+            fc.camHdg = ViewerAim.HeadingRad(aimHeading);
+            fc.camPitch = ViewerAim.PitchRad(el);
+            tuner = new AimTuner(aimHeading, el);
+            AimNote = null;
+        }
+
+        // The tuner of the pose's aim, and why it stopped short of the aim (null where it got there).
+        private AimTuner tuner;
+        internal string AimNote { get; private set; }
+
+        // Every frame while a pose's aim is being tuned: the camera's real aim is read and the heading and pitch turned by the error once it stands still.
+        private void TuneAim()
+        {
+            if (tuner == null || tuner.Done)
+            {
+                if (tuner != null && tuner.Note != null && AimNote == null)
+                {
+                    AimNote = tuner.Note;
+                    AtmospheresLog.Say("cloud viewer: the camera's aim for the " + PoseName + " pose: " + tuner.Note);
+                }
+                return;
+            }
+            FlightCamera fc = FlightCamera.fetch;
+            if (fc == null || fc.mainCamera == null) return;
+            double az, el, turnHeading, turnPitch;
+            world.CameraAim(out az, out el);
+            if (!tuner.Frame(az, el, out turnHeading, out turnPitch)) return;
+            fc.camHdg += (float)(turnHeading * Math.PI / 180.0);
+            fc.camPitch += (float)(turnPitch * Math.PI / 180.0);
+        }
+
+        // Turns the camera by hand, as a player drags it: the compass heading and elevation of the view (no tuning: the camera is left where the turn put it).
+        internal void TurnCamera(double headingDeg, double elevationDeg)
+        {
+            FlightCamera fc = FlightCamera.fetch;
+            if (fc == null) return;
+            tuner = null;
+            fc.camHdg = ViewerAim.HeadingRad(headingDeg);
+            fc.camPitch = ViewerAim.PitchRad(elevationDeg);
         }
 
         // The time of day: an offset from the natural time, in seconds.
@@ -390,7 +436,8 @@ namespace ReDefinition.Atmospheres.Viewer
 
         internal void FreezeTime(bool on)
         {
-            if (clock == null) return;
+            // The window's toggle reports its value again when the window is built anew: an unchanged state is not a new freeze.
+            if (clock == null || clock.Frozen == on) return;
             clock.Freeze(on);
             AtmospheresLog.Say("cloud viewer: time " + (on ? "frozen at UT " + clock.FrozenUt.ToString("0", CultureInfo.InvariantCulture) : "running"));
         }
@@ -574,6 +621,14 @@ namespace ReDefinition.Atmospheres.Viewer
         internal void RequestCapture()
         {
             if (!capture.Request()) return;
+            // The game's own interface (clock, navball, readouts) is part of the screen and changes from one picture to the next: it is hidden as well, and shown again once the
+            // picture is asked for (an interface the player had hidden himself stays hidden).
+            KSP.UI.UIMasterController ui = KSP.UI.UIMasterController.Instance;
+            if (ui != null && ui.IsUIShowing)
+            {
+                ui.HideUI();
+                hudHidden = true;
+            }
             pendingCapture = ViewerPresets.UniqueName(DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture), name => File.Exists(CapturePath(name)));
         }
 
@@ -584,6 +639,15 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // The window is to be hidden.
         internal bool Capturing { get { return capture.Busy; } }
+
+        private bool hudHidden;
+
+        private void ShowHud()
+        {
+            if (!hudHidden) return;
+            hudHidden = false;
+            if (KSP.UI.UIMasterController.Instance != null) KSP.UI.UIMasterController.Instance.ShowUI();
+        }
 
         private void TakeCapture()
         {

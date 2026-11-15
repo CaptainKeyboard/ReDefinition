@@ -43,6 +43,16 @@ namespace ReDefinition.Atmospheres.Viewer
             get { return shown != null && shown.gameObject.activeSelf; }
         }
 
+        // Keeps the window inside the screen (ViewerWindowFit) and answers where it stands.
+        private ViewerWindowFit fit;
+
+        // The window's box on the screen in pixels; false where there is no window or it cannot be measured.
+        internal bool WindowBox(out ScreenBox box)
+        {
+            box = default(ScreenBox);
+            return shown != null && fit != null && fit.Box(out box);
+        }
+
         internal void Toggle()
         {
             if (shown != null) Close();
@@ -105,7 +115,8 @@ namespace ReDefinition.Atmospheres.Viewer
                 Folded(CompareGroup, CompareRows()),
                 Folded(KeysGroup, KeyRows())
             };
-            var list = new TabScrollList(new Vector2(Width - 20f, 520f),
+            // The list is as high as the screen leaves room for at KSP's UI scale and scrolls where its content is longer; the title and the buttons stay in view.
+            var list = new TabScrollList(new Vector2(Width - 20f, WindowPlacement.ListHeight(Screen.height, GameSettings.UI_SCALE)),
                 new DialogGUIVerticalLayout(Width - 40f, -1f, 4f, new RectOffset(4, 4, 4, 4), TextAnchor.UpperLeft, rows.ToArray()));
             var buttons = new DialogGUIHorizontalLayout(Width - 20f, 30f, 6f, new RectOffset(), TextAnchor.MiddleCenter,
                 Tip(new DialogGUIButton("Capture", viewer.RequestCapture, 110f, 26f, false), "Capture Picture"),
@@ -113,6 +124,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 new DialogGUIButton("Close", Close, 90f, 26f, false));
             var dialog = new MultiOptionDialog("ReDefinitionCloudViewer", "", "Cloud Viewer", HighLogic.UISkin, Width, list, buttons);
             shown = DialogWindow.Show(PopupDialog.SpawnPopupDialog(new Vector2(0.75f, 0.5f), new Vector2(0.75f, 0.5f), dialog, true, HighLogic.UISkin, true));
+            fit = ViewerWindowFit.Add(shown);
             ScrollListSettle.Apply(list);
             ScrollBackground.Clear(shown.gameObject);
             ScrollThrough.Apply(shown.gameObject);

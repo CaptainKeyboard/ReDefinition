@@ -26,8 +26,15 @@ namespace ReDefinition.Atmospheres.Viewer
         int Frame { get; }
         // Real seconds (Time.realtimeSinceStartup).
         double RealS { get; }
+        // The game's own physics time (Time.fixedTime): it advances by one step per physics step the game ran, as the universal time does at 1x, so that it is the time the game
+        // lets pass whatever the frame rate (a frame longer than the physics steps' limit loses real time, and with it the universal time, at about 0.4 of the real time at 10 fps).
+        double PhysicsTimeS { get; }
         double GameUt { get; }
         double SunElevationDeg { get; }
+        // The sun's compass azimuth at the vessel (0 north, 90 east), and the angle in degrees between the direction the camera looks in and the direction of the sun (0: the camera
+        // looks at the sun, 180: the sun stands straight behind it); NaN where they cannot be read.
+        double SunAzimuthDeg { get; }
+        double CameraSunAngleDeg { get; }
         ViewerPoseReading Pose { get; }
         // The vessel stands where the hold keeps it.
         bool HoldStable { get; }
@@ -52,6 +59,13 @@ namespace ReDefinition.Atmospheres.Viewer
         bool AddonRunning { get; }
         bool WindowOpen { get; }
         bool WindowVisible { get; }
+        // The window's box on the screen in pixels (false where it cannot be measured), the screen's size in pixels and KSP's UI scale.
+        bool WindowBox(out ScreenBox box);
+        int ScreenWidth { get; }
+        int ScreenHeight { get; }
+        float UiScale { get; }
+        // Why the camera's aim for the pose stopped short of it (null where it got there).
+        string AimNote { get; }
         bool SessionActive { get; }
         bool PlacementPending { get; }
         int KeyCount { get; }
@@ -133,8 +147,47 @@ namespace ReDefinition.Atmospheres.Viewer
 
         public int Frame { get { return Time.frameCount; } }
         public double RealS { get { return Time.realtimeSinceStartup; } }
+        public double PhysicsTimeS { get { return Time.fixedTime; } }
         public double GameUt { get { return Planetarium.GetUniversalTime(); } }
         public double SunElevationDeg { get { return viewer.World.SunElevationDeg(); } }
+
+        // The directions at the camera: to the sun, the camera's forward, and north and east in the camera's horizontal plane.
+        private static bool Directions(out Vector3d toSun, out Vector3d forward, out Vector3d north, out Vector3d east)
+        {
+            toSun = forward = north = east = Vector3d.zero;
+            CelestialBody sun = GameGlobals.Sun;
+            FlightCamera fc = FlightCamera.fetch;
+            CelestialBody body = FlightGlobals.currentMainBody;
+            if (sun == null || fc == null || fc.mainCamera == null || body == null) return false;
+            Vector3d position = fc.mainCamera.transform.position;
+            toSun = (sun.position - position).normalized;
+            forward = fc.mainCamera.transform.forward;
+            Vector3d up = (position - body.position).normalized;
+            Vector3d axis = body.RotationAxis.normalized;
+            north = (axis - up * Vector3d.Dot(axis, up)).normalized;
+            east = Vector3d.Cross(up, north);
+            return true;
+        }
+
+        public double SunAzimuthDeg
+        {
+            get
+            {
+                Vector3d toSun, forward, north, east;
+                if (!Directions(out toSun, out forward, out north, out east)) return double.NaN;
+                return Math.Atan2(Vector3d.Dot(toSun, east), Vector3d.Dot(toSun, north)) * 180.0 / Math.PI;
+            }
+        }
+
+        public double CameraSunAngleDeg
+        {
+            get
+            {
+                Vector3d toSun, forward, north, east;
+                if (!Directions(out toSun, out forward, out north, out east)) return double.NaN;
+                return Math.Acos(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(toSun, forward)))) * 180.0 / Math.PI;
+            }
+        }
         public bool HoldStable { get { return viewer.World.HoldStable; } }
 
         public ViewerPoseReading Pose
@@ -240,6 +293,11 @@ namespace ReDefinition.Atmospheres.Viewer
         public bool AddonRunning { get { return CloudViewerAddon.Running; } }
         public bool WindowOpen { get { return window.IsOpen; } }
         public bool WindowVisible { get { return window.Visible; } }
+        public bool WindowBox(out ScreenBox box) { return window.WindowBox(out box); }
+        public int ScreenWidth { get { return Screen.width; } }
+        public int ScreenHeight { get { return Screen.height; } }
+        public float UiScale { get { return GameSettings.UI_SCALE; } }
+        public string AimNote { get { return viewer.AimNote; } }
         public bool SessionActive { get { return viewer.Active; } }
         public bool PlacementPending { get { return viewer.PlacementPending; } }
         public int KeyCount { get { return viewer.Keys.Count; } }
@@ -260,13 +318,10 @@ namespace ReDefinition.Atmospheres.Viewer
         public void PlacePose(ViewerPose pose) { viewer.PlacePose(pose); }
         public void RequestAltitude(double aglM) { viewer.RequestAltitude(aglM); }
 
-        // The convention of CloudViewer.Aim (the K-T2 ground views): the camera stands behind the vessel, heading + 180 degrees, pitch minus the elevation.
+        // The viewer's own turn of the camera (CloudViewer.TurnCamera, the convention of ViewerAim); where the camera stands is read back, not taken from what was asked.
         public void SetCameraAim(double headingDeg, double elevationDeg)
         {
-            FlightCamera fc = FlightCamera.fetch;
-            if (fc == null) return;
-            fc.camHdg = (float)((headingDeg + 180.0) * Math.PI / 180.0);
-            fc.camPitch = (float)(-elevationDeg * Math.PI / 180.0);
+            viewer.TurnCamera(headingDeg, elevationDeg);
         }
 
         public void SetTimeOffset(double seconds) { viewer.SetTimeOffset(seconds); }
