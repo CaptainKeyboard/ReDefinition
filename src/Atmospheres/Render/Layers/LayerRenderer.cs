@@ -59,6 +59,10 @@ namespace ReDefinition.Atmospheres
         // span keeps then. A weather deck (noise scale 10 km) or a cumulonimbus layer (5 km) is searched at a spacing that follows its features, not every 100 m.
         public float SpanSpacing;
         public int SpanSpacingMin = 20;
+        // E40 C2: the longest leap over empty grid points in the layer's noise scales (0: off, the leap is EmptyLeap's grid points whatever the layer). A span of a layer with coarse noise
+        // (a weather deck 10 km, a cumulonimbus layer 5 km) is stepped every 100 m or less; where the density is empty the march then leaps up to this many scales at a time and goes back to
+        // the grid point after the last empty one when a leap lands on cloud, so a cloud is entered at the grid's own resolution and only a feature narrower than the leap can be passed over.
+        public float LeapScales;
         // The product's values: the leap and the layer-kind shares are off (they gained nothing on the view table), the sun march is reused
         // below a step weight of 0.05 and between every two lit steps.
         public float EmptyLeap = 1f, LightCutoff = 0.05f, CheapShare = 1f, FogShare = 1f;
@@ -371,7 +375,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
-            m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), 0f, 0f));
+            m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), Mathf.Max(0f, f.LeapScales), 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).

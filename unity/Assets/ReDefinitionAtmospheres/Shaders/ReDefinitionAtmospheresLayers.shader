@@ -428,6 +428,8 @@ Shader "ReDefinition/AtmospheresLayers"
                 // The samples lie on the grid s0 + dt * (i + jitter). An empty sample lets the next ones leap over 1, 2 .. leapMax grid
                 // points; a leap that lands on cloud goes back to the grid point after the last empty one, so a cloud is always entered
                 // at the grid's own resolution and only features narrower than the leap can be passed over.
+                // E40 C2: a layer with coarse noise leaps up to _SpacingP.z of its noise scales over empty grid points (the leap's growth is capped there); 0: the leap of _SkipP.x for every layer.
+                float leapCap = (_SpacingP.z > 0.0 && _LayerD[li].y > 0.0) ? max(leapMax, floor(_SpacingP.z / (_LayerD[li].y * dt))) : leapMax;
                 float tEnd = s1[k];
                 float t = s0[k] + dt * jitter;
                 float tLast = t - dt;
@@ -455,7 +457,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         tLast = t + reachSkip;
                         arrived = leap;
                         t += dtv * leap + reachSkip;
-                        leap = min(leap + 1.0, leapMax);
+                        leap = min(leap + 1.0, leapCap);
                         continue;
                     }
                     if (arrived > 1.5)

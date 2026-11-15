@@ -26,6 +26,12 @@ namespace ReDefinition.Atmospheres
         internal const float SpanSpacingDefault = 0f;
         internal const int SpanSpacingMinDefault = 20;
 
+        // E40 C2: layers.leapScale (LayerFrame.LeapScales; the longest leap over empty grid points in the layer's noise scales, 0 = off).
+        internal const string TuneLeapScale = "layers.leapScale";
+        // 1: the largest leap whose picture is the one without it (player series e40-c1-sheet, error against the converged picture: 1.0 the same to four digits in all eight views, 2.0 +0.003 to +0.006,
+        // 4.0 +0.02 to +0.05); the pass costs 18 to 35 percent less at the clock's views (series e40-c1-cost). layers.leapScale 0 is the march as it was.
+        internal const float LeapScaleDefault = 1f;
+
         // E40 grain: the multiplier of the most grid points of a span (LayerFrame.MaxSteps); 1: the step quality's count.
         internal const string TuneGridFine = "layers.gridFine";
         internal const float GridFineDefault = 1f;
@@ -205,6 +211,7 @@ namespace ReDefinition.Atmospheres
             f.EmptyReach = Tuning.Flag(TuneEmptyReach, EmptyReachDefault);
             f.SpanSpacing = Mathf.Max(0f, Tuning.Get(TuneSpanSpacing, SpanSpacingDefault));
             f.SpanSpacingMin = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneSpanSpacingMin, SpanSpacingMinDefault)), 1, 256);
+            f.LeapScales = Mathf.Max(0f, Tuning.Get(TuneLeapScale, LeapScaleDefault));
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
