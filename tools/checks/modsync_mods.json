@@ -5,7 +5,7 @@
   "gamedata": {
     "EnvironmentalVisualEnhancements": { "label": "EVE", "use": "direct", "catalogue_mods": ["EVE"], "clone": "EnvironmentalVisualEnhancements", "repo": "LGhassen/EnvironmentalVisualEnhancements", "no_feed": true, "updates_name": "EVE (Redux, volumetric)", "source": { "branch": "origin/release-5", "file": "ContentEVE/GameData/EnvironmentalVisualEnhancements/EnvironmentalVisualEnhancements.version", "kind": "avc" }, "note": "no GitHub release of the Redux 3.2 line; the build is distributed elsewhere; the public branch release-5 holds its source" },
     "scatterer": { "label": "Scatterer", "use": "direct", "catalogue_mods": ["Scatterer"], "clone": "Scatterer", "repo": "LGhassen/Scatterer", "no_feed": true, "updates_name": "Scatterer", "source": { "branch": "origin/dev", "file": "scatterer/Scatterer.cs", "kind": "needle", "needle_format": "versionNumber = \"{v}\"" }, "note": "no GitHub release of the 0.09 line; the build is distributed elsewhere; the public branch dev holds its source" },
-    "ParallaxContinued": { "label": "Parallax Continued", "use": "direct", "installed_override": { "version": "1.1.0", "evidence": "ParallaxContinued.dll SHA-256 90ec6a3e... equals the one in release 1.1.0 (checked 2026-11-15); CKAN registry says 1.0.4, the assembly says 1.0.0.0" }, "catalogue_mods": ["Parallax"], "clone": "Parallax-Continued", "repo": "Gameslinx/Parallax-Continued" },
+    "ParallaxContinued": { "label": "Parallax Continued", "use": "direct", "installed_override": { "version": "1.1.2", "evidence": "installed by modsync from release 1.1.2 on 2026-11-15 (archive .local/archive/modsync/parallax-continued-1.1.0/install.json holds the SHA-256 of the zip); before that the DLL was release 1.1.0 by SHA-256; CKAN registry says 1.0.4, the assembly says 1.0.0.0" }, "catalogue_mods": ["Parallax"], "clone": "Parallax-Continued", "repo": "Gameslinx/Parallax-Continued" },
     "zzz_Deferred": { "label": "Deferred", "use": "direct", "catalogue_mods": ["Deferred"], "clone": "Deferred", "repo": "LGhassen/Deferred" },
     "TUFX": { "label": "TUFX", "use": "direct", "catalogue_mods": ["TUFX"], "clone": "TUFX", "repo": "KSPModStewards/TUFX" },
     "000_Harmony": { "label": "HarmonyKSP", "use": "direct", "catalogue_mods": [], "clone": "HarmonyKSP", "repo": "KSPModdingLibs/HarmonyKSP", "note": "every patch of ours; no catalogue entry, the API is stable" },
@@ -35,15 +35,22 @@
     "StockScattererConfigs": { "label": "StockScattererConfigs", "use": "indirect" },
     "ScattererAtmosphereCache": { "label": "ScattererAtmosphereCache", "use": "indirect" },
     "Parallax_StockPlanetTextures": { "label": "Parallax stock planet textures", "use": "indirect", "no_upstream": true },
-    "Parallax_StockScatterTextures": { "label": "Parallax stock scatter textures", "use": "indirect", "no_upstream": true },
-    "Parallax_StockTerrainTextures": { "label": "Parallax stock terrain textures", "use": "indirect", "no_upstream": true },
+    "Parallax_StockScatterTextures": { "label": "Parallax stock scatter textures", "use": "indirect", "installed_override": { "version": "1.1.1", "evidence": "installed by modsync from release 1.1.1 on 2026-11-15" } },
+    "Parallax_StockTerrainTextures": { "label": "Parallax stock terrain textures", "use": "indirect", "installed_override": { "version": "1.1.1", "evidence": "installed by modsync from release 1.1.1 on 2026-11-15" } },
     "Squad": { "label": "Squad", "use": "ours", "note": "the game" },
     "SquadExpansion": { "label": "SquadExpansion", "use": "ours", "note": "the game" },
     "ReDefinition": { "label": "ReDefinition", "use": "ours" }
   },
   "installable": {
     "Parsek": { "folders": ["Parsek"], "asset": "^Parsek-v[0-9.]+\\.zip$" },
-    "Parallax Continued": { "never_install": "the 1.1 line needs the scatter and terrain texture packs of the same line (1 GB and 2 GB) and a Kopernicus of the same date: installed by hand after the review" },
+    "Parallax Continued": { "parts": [
+      { "folders": ["ParallaxContinued"], "asset": "^ParallaxContinued-[0-9.]+\\.zip$", "preserve_replace": true, "preserve": [] },
+      { "folders": ["Parallax_StockTerrainTextures"], "release": "1.1.1", "asset": "^ParallaxContinued_StockTerrainTextures-[0-9.]+\\.zip$", "preserve_replace": true, "preserve": [] },
+      { "folders": ["Parallax_StockScatterTextures"], "release": "1.1.1", "asset": "^ParallaxContinued_StockScatterTextures-[0-9.]+\\.zip$", "preserve_replace": true, "preserve": [] }
+    ], "note": "the plugin of the latest release and the packs of the release 1.1.1 that carries them (release notes of 1.1.2); the planet pack 1.0.3 stays" },
+    "Kopernicus": { "folders": ["Kopernicus"], "asset": "^Kopernicus-1\\.12\\.1-[0-9]+\\.zip$", "last_number": true, "preserve": ["Config/Kopernicus_Config.cfg"] },
+    "ModularFlightIntegrator": { "folders": ["ModularFlightIntegrator"], "asset": "^ModularFlightIntegrator-[0-9.]+\\.zip$" },
+    "ToolbarControl": { "folders": ["001_ToolbarControl"], "asset": "^ToolbarControl-1\\.12\\.[0-9]+-[0-9.]+\\.zip$" },
     "Deferred": { "folders": ["zzz_Deferred"], "asset": "^Deferred_[0-9.]+\\.zip$", "preserve": ["Deferred.cfg"] },
     "Firefly": { "folders": ["Firefly"], "asset": "^Firefly-[0-9.]+\\.zip$" },
     "TUFX": { "folders": ["TUFX"], "asset": "^TUFX-[0-9.]+\\.zip$" },

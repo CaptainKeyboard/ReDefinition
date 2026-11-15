@@ -1114,7 +1114,7 @@ def latest_release(entry):
     return tag, data.get("assets", [])
 
 
-def install(mod_name, dry_run=False, report_path=None, series=None, ksp=None, deps=None):
+def install(mod_name, dry_run=False, report_path=None, series=None, ksp=None, deps=None, owner_approved=None, allow_changed=False):
     """The install of one mod. `deps` overrides the outside world for the tests (release lookup, download, checks)."""
     deps = deps or {}
     ksp = ksp or ksp_root()
@@ -1135,11 +1135,22 @@ def install(mod_name, dry_run=False, report_path=None, series=None, ksp=None, de
 
     tag, assets = (deps.get("latest_release") or latest_release)(entry)
     version = (cmu.numbers(tag) and ".".join(str(n) for n in cmu.numbers(tag))) or tag
-    asset = pick_asset(assets, entry["repo"], plan["asset"])
-    folders = plan["folders"]
+    # A mod is one part (one archive), or several (Parallax: the plugin of the latest release and the texture packs of the release that
+    # carries them). Every part names its folders, its asset pattern and, where it is not the latest release, its release tag.
+    parts = plan.get("parts") or [{"folders": plan["folders"], "asset": plan["asset"]}]
+    resolved = []
+    for part in parts:
+        if part.get("release") and part["release"] != tag:
+            part_assets = (deps.get("release_assets") or release_assets)(entry, part["release"])
+            part_tag = part["release"]
+        else:
+            part_assets, part_tag = assets, tag
+        resolved.append({"part": part, "tag": part_tag, "asset": pick_asset(part_assets, entry["repo"], part["asset"])})
+    asset = resolved[0]["asset"]
+    folders = [f for p in parts for f in p["folders"]]
     old_version = next((r["installed"] for r in inventory(ksp)["mods"] if r["folder"] == folders[0]), None)
-    say("%s: installed %s, latest stable %s, asset %s" % (mod_name, old_version, tag, asset["name"]))
-    if old_version and compare(tag, old_version) <= 0:
+    say("%s: installed %s, latest stable %s, assets %s" % (mod_name, old_version, tag, ", ".join(r["asset"]["name"] for r in resolved)))
+    if old_version and (compare(last_of(tag), last_of(old_version)) if plan.get("last_number") else compare(tag, old_version)) <= 0:
         raise Refusal("%s is already at %s" % (mod_name, old_version))
     report_file = report_path or find_report(slug(mod_name), tag)
     if not report_file or not os.path.exists(report_file):
@@ -1156,56 +1167,103 @@ def install(mod_name, dry_run=False, report_path=None, series=None, ksp=None, de
     if held:
         raise Refusal("a lock is held: " + "; ".join(held))
     if dry_run:
-        say("dry run: would verify the branch %s, download %s, back up %s, extract into GameData, run the fingerprint check and the series preflight" % (report.get("branch"), asset["browser_download_url"], folders))
+        say("dry run: would verify the branch %s, download %s, back up %s, extract into GameData, run the fingerprint check and the series preflight" % (
+            report.get("branch"), ", ".join(r["asset"]["browser_download_url"] for r in resolved), folders))
         return {"dry_run": True, "log": log}
-    ok, tail = (deps.get("branch_passes") or branch_passes)(report)
-    if not ok:
-        raise Refusal("the branch does not build or pass its tests:\n" + tail)
+    if owner_approved:
+        # The owner approved this install by name; a mod whose review found nothing to adapt has no branch to build. The approval is recorded.
+        if report.get("adapted"):
+            raise Refusal("the report says the code was adapted: merge the branch, then install")
+        say("branch build and tests skipped on the owner's approval: " + owner_approved)
+    else:
+        ok, tail = (deps.get("branch_passes") or branch_passes)(report)
+        if not ok:
+            raise Refusal("the branch does not build or pass its tests:\n" + tail)
     baseline, _, _ = (deps.get("foreign_check") or foreign_check)()
     archive = os.path.join(REPO, ARCHIVE_DIR, "%s-%s" % (slug(mod_name), old_version or "unknown"))
     download_dir = os.path.join(cache_dir(), "downloads", "%s-%s" % (slug(mod_name), version))
     os.makedirs(download_dir, exist_ok=True)
-    zip_path = os.path.join(download_dir, asset["name"])
-    (deps.get("download") or download)(asset["browser_download_url"], zip_path)
-    digest = sha256_of(zip_path)
-    say("downloaded %s, sha256 %s" % (asset["name"], digest))
+    downloads = []
+    for r in resolved:
+        zip_path = os.path.join(download_dir, r["asset"]["name"])
+        (deps.get("download") or download)(r["asset"]["browser_download_url"], zip_path)
+        r["zip"], r["sha256"] = zip_path, sha256_of(zip_path)
+        if r["asset"].get("size") and os.path.getsize(zip_path) != r["asset"]["size"]:
+            raise Refusal("%s is %d bytes, the release says %d" % (r["asset"]["name"], os.path.getsize(zip_path), r["asset"]["size"]))
+        say("downloaded %s from %s, %d bytes, sha256 %s" % (r["asset"]["name"], r["asset"]["browser_download_url"], os.path.getsize(zip_path), r["sha256"]))
+        downloads.append({"asset": r["asset"]["name"], "url": r["asset"]["browser_download_url"], "sha256": r["sha256"]})
+    digest = resolved[0]["sha256"]
     if os.path.exists(archive):
         raise Refusal("the backup folder %s exists already" % archive)
+    needed = sum(folder_size(os.path.join(ksp, "GameData", f)) for f in folders) * 2 + sum(os.path.getsize(r["zip"]) * 2 for r in resolved)
+    free = shutil.disk_usage(ksp).free
+    if free < needed * 1.2:
+        raise Refusal("%d bytes free, %d needed for the backup and the new files" % (free, needed * 1.2))
     os.makedirs(archive)
     for folder in folders:
         source = os.path.join(ksp, "GameData", folder)
         if os.path.isdir(source):
             shutil.copytree(source, os.path.join(archive, folder))
-    shutil.copy2(zip_path, os.path.join(archive, "new-" + asset["name"]))
-    preserve = list(config["preserve_default"]) + list(plan.get("preserve", []))
+    # The backup is checked against the installed folders before anything is deleted.
+    for folder in folders:
+        source = os.path.join(ksp, "GameData", folder)
+        if os.path.isdir(source) and folder_size(source) != folder_size(os.path.join(archive, folder)):
+            shutil.rmtree(archive)
+            raise Refusal("the backup of %s differs in size from the folder: nothing was changed" % folder)
+    with open(os.path.join(archive, "downloads.json"), "w", encoding="utf-8") as f:
+        json.dump(downloads, f, indent=1)
     try:
-        for folder in folders:
-            target = os.path.join(ksp, "GameData", folder)
-            if os.path.isdir(target):
-                for dirpath, _, files in os.walk(target, topdown=False):
-                    for name in files:
-                        inner = os.path.relpath(os.path.join(dirpath, name), target).replace("\\", "/")
-                        if not any(fnmatch.fnmatch(inner.lower(), p.lower()) for p in preserve):
-                            os.remove(os.path.join(dirpath, name))
-                    if not os.listdir(dirpath) and dirpath != target:
-                        os.rmdir(dirpath)
-        written = extract_zip(zip_path, ksp, folders, preserve)
-        say("installed %d files" % len(written))
+        for r in resolved:
+            part = r["part"]
+            preserve = list(part.get("preserve", [])) if part.get("preserve_replace") else list(config["preserve_default"]) + list(plan.get("preserve", [])) + list(part.get("preserve", []))
+            for folder in part["folders"]:
+                target = os.path.join(ksp, "GameData", folder)
+                if os.path.isdir(target):
+                    for dirpath, _, files in os.walk(target, topdown=False):
+                        for name in files:
+                            inner = os.path.relpath(os.path.join(dirpath, name), target).replace("\\", "/")
+                            if not any(fnmatch.fnmatch(inner.lower(), p.lower()) for p in preserve):
+                                os.remove(os.path.join(dirpath, name))
+                        if not os.listdir(dirpath) and dirpath != target:
+                            os.rmdir(dirpath)
+            written = extract_zip(r["zip"], ksp, part["folders"], preserve)
+            say("installed %d files from %s" % (len(written), r["asset"]["name"]))
         after, code, _ = (deps.get("foreign_check") or foreign_check)()
-        newly = sorted(i for i, s in after.items() if s.startswith("FAIL") and not baseline.get(i, "").startswith("FAIL"))
-        if newly:
-            raise Refusal("the fingerprint check shows new FAILs: " + ", ".join(newly))
+        failing = sorted(i for i, s in after.items() if s.startswith("FAIL") and not baseline.get(i, "").startswith("FAIL"))
+        if allow_changed:
+            # Rebuilt mods change their IL: a fingerprint that Changed is reported for reading, only a name that is gone (Broken) undoes the install.
+            changed = [i for i in failing if after[i] == "FAIL Changed"]
+            failing = [i for i in failing if after[i] != "FAIL Changed"]
+            if changed:
+                say("fingerprints Changed (to be read, the fallbacks apply meanwhile): " + ", ".join(changed))
+        if failing:
+            raise Refusal("the fingerprint check shows new FAILs: " + ", ".join(failing))
         pre_code, pre_out = (deps.get("series_preflight") or series_preflight)(series or config["series"])
         if pre_code != 0:
             raise Refusal("the series preflight fails:\n" + pre_out)
     except Exception as error:
         say("verification failed (%s): putting the backup back" % error)
         rollback(ksp, archive, folders)
-        write_install_record(archive, mod_name, old_version, tag, digest, asset, "rolled back: %s" % error, log)
+        write_install_record(archive, mod_name, old_version, tag, digest, asset, "rolled back: %s" % error, log, downloads)
         raise
-    write_install_record(archive, mod_name, old_version, tag, digest, asset, "installed", log)
+    write_install_record(archive, mod_name, old_version, tag, digest, asset, "installed", log, downloads)
     say("done; backup in " + archive)
-    return {"dry_run": False, "archive": archive, "sha256": digest, "log": log}
+    return {"dry_run": False, "archive": archive, "sha256": digest, "log": log, "downloads": downloads}
+
+
+def folder_size(path):
+    """The total size of the files under a folder; 0 where there is none."""
+    total = 0
+    for dirpath, _, files in os.walk(path):
+        for name in files:
+            total += os.path.getsize(os.path.join(dirpath, name))
+    return total
+
+
+def release_assets(entry, tag):
+    """The assets of one named release of a mod_updates.json repository (a part of a mod that is carried by an older release)."""
+    data = json.loads(http("https://api.github.com/repos/%s/releases/tags/%s" % (entry["repo"], urllib.parse.quote(tag)), accept="application/vnd.github+json"))
+    return data.get("assets", [])
 
 
 def find_report(mod_slug, tag):
@@ -1238,17 +1296,18 @@ def rollback(ksp, archive, folders):
             shutil.copytree(saved, target)
 
 
-def write_install_record(archive, mod_name, old_version, tag, digest, asset, outcome, log):
+def write_install_record(archive, mod_name, old_version, tag, digest, asset, outcome, log, downloads=None):
     record = {"mod": mod_name, "old": old_version, "new": tag, "asset": asset["name"], "url": asset["browser_download_url"], "sha256": digest,
-              "outcome": outcome, "time": datetime.datetime.now().isoformat(timespec="seconds"), "log": log}
+              "downloads": downloads or [], "outcome": outcome, "time": datetime.datetime.now().isoformat(timespec="seconds"), "log": log}
     with open(os.path.join(archive, "install.json"), "w", encoding="utf-8") as f:
         json.dump(record, f, indent=1)
 
 
 def download(url, path):
-    data = http(url, timeout=1800)
-    with open(path, "wb") as f:
-        f.write(data)
+    """Streams a release file to disk (the texture packs are 2 GB)."""
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=300) as response, open(path, "wb") as f:
+        shutil.copyfileobj(response, f, 1 << 20)
 
 
 # ----------------------------------------------------------------------------------------------------------------- the summary
@@ -1308,6 +1367,10 @@ def main(argv=None):
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--report")
     p.add_argument("--series")
+    p.add_argument("--owner-approved", help="a sentence naming the owner's approval of this install; skips the branch build and tests of a review that adapted no code (recorded in the log)")
+    p.add_argument("--allow-changed", action="store_true", help="a fingerprint that Changed is reported, not undone; only a name that is gone rolls back")
+    p = sub.add_parser("rollback", help="puts the folders of a backup in .local/archive/modsync/<mod>-<oldversion> back into GameData (KSP closed, no lock held)")
+    p.add_argument("archive")
     sub.add_parser("guard", help="exit 0 and 'free' where KSP does not run and no lock is held, else 1 and the reasons")
     p = sub.add_parser("summary", help="the German summary of a nightly run from its results file; --write also writes LATEST.md and notify.log")
     p.add_argument("results", help="a JSON list of {mod, checked, new, verdict, branch, install, problem, report}")
@@ -1344,6 +1407,19 @@ def main(argv=None):
             with open(args.out, "w", encoding="utf-8") as f:
                 f.write(text)
         return 0
+    if args.command == "rollback":
+        reasons = (["KSP_x64 runs"] if ksp_running() else []) + ["lock held: " + h for h in locks_held()]
+        if reasons:
+            print("modsync rollback: refused: " + "; ".join(reasons), file=sys.stderr)
+            return 3
+        archive = os.path.abspath(args.archive)
+        folders = sorted(d for d in os.listdir(archive) if os.path.isdir(os.path.join(archive, d)))
+        if not folders:
+            print("modsync rollback: no folders in " + archive, file=sys.stderr)
+            return 3
+        rollback(ksp_root(), archive, folders)
+        print("modsync rollback: put back " + ", ".join(folders))
+        return 0
     if args.command == "guard":
         reasons = (["KSP_x64 runs"] if ksp_running() else []) + ["lock held: " + h for h in locks_held()]
         print("; ".join(reasons) if reasons else "free")
@@ -1356,7 +1432,7 @@ def main(argv=None):
         return 0
     if args.command == "install":
         try:
-            install(args.mod, args.dry_run, args.report, args.series)
+            install(args.mod, args.dry_run, args.report, args.series, owner_approved=args.owner_approved, allow_changed=args.allow_changed)
         except Refusal as refusal:
             print("modsync install: refused: %s" % refusal, file=sys.stderr)
             return 3

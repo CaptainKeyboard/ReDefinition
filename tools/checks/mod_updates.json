@@ -10,5 +10,8 @@
   { "name": "Waterfall", "repo": "KSPModStewards/Waterfall", "tested": "0.11.0", "note": "" },
   { "name": "Distant Object Enhancement", "repo": "net-lisias-ksp/DistantObject", "tested": "2.2.1.8", "note": "" },
   { "name": "Persistent Rotation", "repo": "linuxgurugamer/PersistentRotation", "tested": "1.9.2.1", "note": "" },
-  { "name": "HarmonyKSP", "repo": "KSPModdingLibs/HarmonyKSP", "tested": "2.2.1", "note": "needed by the mod itself" }
+  { "name": "HarmonyKSP", "repo": "KSPModdingLibs/HarmonyKSP", "tested": "2.2.1", "note": "needed by the mod itself" },
+  { "name": "Kopernicus", "repo": "Kopernicus/Kopernicus", "tested": "249", "tag_regex": "^release-", "note": "release-<number>; the Parallax 1.1 packs need release 252 or later (its KSC scatter mask replaces Kopernicus's)" },
+  { "name": "ModularFlightIntegrator", "repo": "sarbian/ModularFlightIntegrator", "tested": "1.2.10.0", "note": "the wind hook's override slot" },
+  { "name": "ToolbarControl", "repo": "linuxgurugamer/ToolbarControl", "tested": "0.1.9.14", "note": "" }
 ]

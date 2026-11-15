@@ -211,8 +211,8 @@ class ExtractTests(unittest.TestCase):
             ms.pick_asset(assets, "a/b", r"zip$")
 
 
-class InstallTests(unittest.TestCase):
-    """The whole install on a fake KSP with every outside call replaced."""
+class InstallFixture(unittest.TestCase):
+    """A fake KSP with Firefly 1.0.5 and every outside call of the install replaced."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -264,6 +264,10 @@ class InstallTests(unittest.TestCase):
 
     def folder(self, *parts):
         return os.path.join(self.ksp, "GameData", "Firefly", *parts)
+
+
+class InstallTests(InstallFixture):
+    """The whole install on the fake KSP."""
 
     def test_installs_backs_up_and_keeps_settings(self):
         result = self.run_install()
@@ -329,6 +333,86 @@ class InstallTests(unittest.TestCase):
             ms.branch_passes({"branch": "main", "worktree": ms.REPO})
         with self.assertRaises(ms.Refusal):
             ms.branch_passes({"branch": "claude/mod-update-x-1", "worktree": os.path.join(os.path.dirname(ms.REPO), "elsewhere")})
+
+
+class PartsInstallTests(InstallFixture):
+    """A mod of two archives (the plugin and a pack of another release), installed clean, with the owner's approval and a Changed fingerprint tolerated."""
+
+    def setUp(self):
+        super().setUp()
+        pack = os.path.join(self.ksp, "GameData", "FireflyPack")
+        os.makedirs(os.path.join(pack, "PluginData"))
+        with open(os.path.join(pack, "old-pack.txt"), "w") as f:
+            f.write("old")
+        with open(os.path.join(pack, "PluginData", "tex.bin"), "w") as f:
+            f.write("old texture")
+        self.pack_zip = os.path.join(self.tmp.name, "FireflyPack-1.0.5.zip")
+        make_zip(self.pack_zip, {"GameData/FireflyPack/new-pack.txt": "new", "GameData/FireflyPack/PluginData/tex.bin": "new texture"})
+        self.pack_asset = {"name": "FireflyPack-1.0.5.zip", "browser_download_url": "https://github.com/M1rageDev/Firefly/releases/download/1.0.5/FireflyPack-1.0.5.zip"}
+        self._config = ms.load_config
+        config = ms.load_config()
+        config["installable"]["Firefly"] = {"parts": [
+            {"folders": ["Firefly"], "asset": r"^Firefly-[0-9.]+\.zip$"},
+            {"folders": ["FireflyPack"], "release": "1.0.5", "asset": r"^FireflyPack-[0-9.]+\.zip$", "preserve_replace": True, "preserve": []}]}
+        ms.load_config = lambda: config
+
+    def tearDown(self):
+        ms.load_config = self._config
+        super().tearDown()
+
+    def deps(self, **over):
+        base = super().deps()
+        zips = {"Firefly-1.0.6.zip": self.zip, "FireflyPack-1.0.5.zip": self.pack_zip}
+
+        def download(url, path):
+            self.calls.append(("download", url))
+            with open(zips[os.path.basename(path)], "rb") as src, open(path, "wb") as dst:
+                dst.write(src.read())
+
+        base.update({"download": download, "release_assets": lambda entry, tag: [self.pack_asset]})
+        base.update(over)
+        return base
+
+    def test_both_archives_replace_their_folders_cleanly_and_the_pack_keeps_nothing_old(self):
+        self.run_install()
+        pack = os.path.join(self.ksp, "GameData", "FireflyPack")
+        self.assertTrue(os.path.exists(os.path.join(pack, "new-pack.txt")))
+        self.assertFalse(os.path.exists(os.path.join(pack, "old-pack.txt")))
+        self.assertEqual(open(os.path.join(pack, "PluginData", "tex.bin")).read(), "new texture")
+        self.assertTrue(os.path.exists(self.folder("new.txt")))
+        backup = os.path.join(self.tmp.name, "archive", "firefly-1.0.5.0")
+        self.assertTrue(os.path.exists(os.path.join(backup, "FireflyPack", "old-pack.txt")))
+        downloads = json.load(open(os.path.join(backup, "downloads.json")))
+        self.assertEqual([d["asset"] for d in downloads], ["Firefly-1.0.6.zip", "FireflyPack-1.0.5.zip"])
+        self.assertTrue(all(len(d["sha256"]) == 64 for d in downloads))
+
+    def test_a_failed_check_puts_both_folders_back(self):
+        with self.assertRaises(ms.Refusal):
+            self.run_install(series_preflight=lambda s: (1, "bad"))
+        self.assertTrue(os.path.exists(os.path.join(self.ksp, "GameData", "FireflyPack", "old-pack.txt")))
+        self.assertFalse(os.path.exists(os.path.join(self.ksp, "GameData", "FireflyPack", "new-pack.txt")))
+        self.assertTrue(os.path.exists(self.folder("old.txt")))
+
+    def test_owner_approval_skips_the_branch_and_allow_changed_tolerates_changed_only(self):
+        states = iter([({"a": "PASS"}, 0, ""), ({"a": "FAIL Changed"}, 1, "")])
+        ms.install("Firefly", report_path=self.report, ksp=self.ksp, owner_approved="owner said so", allow_changed=True,
+                   deps=self.deps(foreign_check=lambda: next(states), branch_passes=lambda r: (False, "must not run")))
+        self.assertTrue(os.path.exists(self.folder("new.txt")))
+        states = iter([({"b": "PASS"}, 0, ""), ({"b": "FAIL Broken"}, 1, "")])
+        shutil_rmtree = __import__("shutil").rmtree
+        shutil_rmtree(os.path.join(self.tmp.name, "archive"))
+        with open(os.path.join(self.folder("Firefly.version")), "w") as f:
+            json.dump({"NAME": "Firefly", "VERSION": "1.0.5.0"}, f)
+        with self.assertRaises(ms.Refusal):
+            ms.install("Firefly", report_path=self.report, ksp=self.ksp, owner_approved="owner said so", allow_changed=True,
+                       deps=self.deps(foreign_check=lambda: next(states)))
+
+    def test_the_owner_approval_does_not_cover_adapted_code(self):
+        data = json.load(open(self.report))
+        data["adapted"] = True
+        json.dump(data, open(self.report, "w"))
+        with self.assertRaises(ms.Refusal):
+            ms.install("Firefly", report_path=self.report, ksp=self.ksp, owner_approved="x", deps=self.deps())
 
 
 class NotifyTests(unittest.TestCase):
