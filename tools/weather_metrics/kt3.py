@@ -346,7 +346,9 @@ def series_results(texts):
         sid, variants = start_of(text)
         sid = sid or key
         if not variants:
-            NOTES.append("%s: no begin line of K-T3 in the log" % key)
+            # A start whose probe is a package's own (T18Probe) has no switch-row begin line; its rows are judged by the series' row files, not here.
+            if not re.search(r"\bT18\.\w+", text):
+                NOTES.append("%s: no begin line of K-T3 in the log" % key)
             continue
         found = kt2.parse(text.splitlines())
         res = next((r for (_v, _view, r) in found), "1707x960")

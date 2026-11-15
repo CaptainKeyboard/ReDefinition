@@ -10,13 +10,16 @@ namespace ReDefinition.Atmospheres
     // running game. The start pins raytracing Full: the pack is kept only while the rays trace (RayCloudSeam.Asked). It runs one pad flight and measures,
     // in this order:
     //   0. the clock: an hour whose cover over the vessel is 0.4 to 0.7 (nearest 0.55) with the sun 25 to 60 degrees up, from the weather field;
-    //   1. the frame time with rtOwnClouds off (300 frames, the rays tracing without the own layers);
-    //   2. the switch on: the wall time and the frame time until the first pack stands, the bake's main-thread time and its worst tick, the upload;
-    //   3. the frame time with the pack standing and in the rays (300 frames): the cost of the own layers in the rays is 3 against 1;
+    //   1. the switch off: no pack;
+    //   2. the switch on: the wall time until the first pack stands, the bake's main-thread time and its worst tick, the upload;
+    //   3. the cost of the own layers in the rays: interleaved windows of the same traced scene with the pack in the rays and hidden from them (the pack stays,
+    //      RtOwnClouds.HideFromRays), at 4, 8 and 16 taps; the bake's main-thread time per frame over those windows; the age of the pack over a refresh cycle;
     //   4. the pack's facts: the layers in it against the stack's, the texture;
-    //   5. the rays: they ask, take the pack into their frames, and the proxy reports no problem with it (a texture it cannot share drops every frame);
-    //   6. the five places round the vessel (RtPackAgreement.Pick, sun 45 degrees, 6 degrees at the terminator): the shadow factor by the pack's law
-    //      against the cloud shadow field at 64 steps a span, and against the field at the shadow pass's 8 steps; and the scan of the whole lattice;
+    //   5. the rays: they ask, take the pack into their frames, and the proxy reports no problem with it (a texture it cannot share drops every frame); the
+    //      view's frame (the vessel's place in the map frame against its latitude and longitude), shell and size, and the header row's numbers;
+    //   6. the five places round the vessel (RtPackAgreement.Pick, sun 45 degrees, 6 degrees at the terminator): |T_ray - T_field| of the sun's transmittance
+    //      against the cloud shadow field at 64 steps a span, and against the field at the shadow pass's 8 steps; and the scan of the whole lattice; each for the
+    //      pack that stands and for a pack baked in the same call (no age);
     //   7. pictures with the layers in the rays, then the layer cap 2, then the switch off and the same pictures without them.
     // Frame times are the CPU's (Time.unscaledDeltaTime) and carry the GPU where it bounds the frame; the series pins no frame cap.
     [AtmospheresModule(991)]
@@ -49,6 +52,46 @@ namespace ReDefinition.Atmospheres
         {
             int frames = Time.frameCount - fromFrame;
             return frames <= 0 ? 0.0 : (Time.realtimeSinceStartup - fromTime) * 1000.0 / frames;
+        }
+
+        // One window of the cost measurement: `settle` frames unmeasured, then the mean frame time of `frames` frames, ms, in windowMs.
+        private double windowMs;
+
+        private IEnumerable<ProbeWait> Window(int settle, int frames)
+        {
+            yield return ProbeWait.Frames(settle);
+            float t0 = Time.realtimeSinceStartup;
+            int f0 = Time.frameCount;
+            yield return ProbeWait.Frames(frames);
+            windowMs = FrameMs(t0, f0);
+        }
+
+        private void EmitScan(string key, RtAgreementScan scan)
+        {
+            Emit(key + "_places", scan.Places);
+            Emit(key + "_median", scan.Median);
+            Emit(key + "_p90", scan.P90);
+            Emit(key + "_worst", scan.Worst);
+            Emit(key + "_tau_ratio", scan.TauRatioMedian);
+        }
+
+        private static double Mean(List<double> values)
+        {
+            double sum = 0.0;
+            foreach (double v in values) sum += v;
+            return values.Count == 0 ? 0.0 : sum / values.Count;
+        }
+
+        private static double Spread(List<double> values)
+        {
+            if (values.Count == 0) return 0.0;
+            double lo = double.MaxValue, hi = double.MinValue;
+            foreach (double v in values)
+            {
+                lo = Math.Min(lo, v);
+                hi = Math.Max(hi, v);
+            }
+            return hi - lo;
         }
 
         private static double SunElevationDeg(Vessel v)
@@ -215,59 +258,81 @@ namespace ReDefinition.Atmospheres
             Emit("T18.rays_asked_at_start", RayCloudSeam.Asked(Time.frameCount));
             Check("the rays trace (raytracing on)", RayCloudSeam.Asked(Time.frameCount), "RayCloudSeam: no ask from the main mod's raytracing; the start must pin raytracing Full");
 
-            // 1. Off.
+            // 1. Off: no pack with the switch off. The scene settles for 120 frames first (the new hour's maps, the weather, the sky's own work).
             SetSetting(AtmospheresSettings.Keys.RtOwnCloudsLayerCap, 0);
-            yield return ProbeWait.Frames(30);
+            yield return ProbeWait.Frames(120);
             Emit("T18.off_no_pack", RtOwnClouds.Pack == null && RtOwnClouds.Texture == null);
-            float t0 = Time.realtimeSinceStartup;
-            int f0 = Time.frameCount;
-            yield return ProbeWait.Frames(300);
-            double offMs = FrameMs(t0, f0);
-            Emit("T18.frame_ms_off", offMs);
 
-            // 2. On.
+            // 2. On: the wall time to the first pack, the frames while it bakes, the bake and the upload.
             int bakesBefore = RtOwnClouds.Stats.BakesDone;
             float onAt = Time.realtimeSinceStartup;
             int onFrame = Time.frameCount;
             SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 1);
             yield return ProbeWait.Until(() => RtOwnClouds.Pack != null && RtOwnClouds.Texture != null, 240, "the first ray cloud pack");
-            double bakeMs = FrameMs(onAt, onFrame);
             Emit("T18.first_pack_wall_s", Time.realtimeSinceStartup - onAt);
-            Emit("T18.frame_ms_bake", bakeMs);
-            Emit("T18.frame_ms_delta_bake", bakeMs - offMs);
+            Emit("T18.frame_ms_bake", FrameMs(onAt, onFrame));
             RtCloudPackDriver.Statistics stats = RtOwnClouds.Stats;
             Emit("T18.bake_total_ms", stats.LastBakeMs);
-            Emit("T18.bake_tick_worst_ms", stats.WorstTickMs);
+            Emit("T18.bake_wall_s", stats.LastBakeWallS);
+            Emit("T18.bake_tick_worst_ms", stats.WorstFirstTickMs);
             Emit("T18.bakes_done", stats.BakesDone - bakesBefore);
             Emit("T18.upload_ms", RtOwnClouds.LastUploadMs);
             Emit("T18.upload_worst_ms", RtOwnClouds.WorstUploadMs);
+            yield return ProbeWait.Until(() => Time.frameCount - RayCloudSeam.TakenFrame <= 2, 120, "the rays taking the own pack");
 
-            // 3. Steady, the layers in the rays: only once the rays take the pack, or the window would time the rays without it.
-            yield return ProbeWait.Until(() => Time.frameCount - RayCloudSeam.TakenFrame <= 2, 120, "the rays taking the own pack before the steady window");
-            yield return ProbeWait.Frames(30);
-            t0 = Time.realtimeSinceStartup;
-            f0 = Time.frameCount;
-            yield return ProbeWait.Frames(300);
-            double steadyMs = FrameMs(t0, f0);
-            Emit("T18.frame_ms_steady", steadyMs);
-            Emit("T18.frame_ms_delta_steady", steadyMs - offMs);
-            Emit("T18.rt_frame_ms_delta", steadyMs - offMs);
-            Emit("T18.rt_ms_off", offMs);
-            Emit("T18.rt_ms_taps8", steadyMs);
-
-            // 3b. The cost of the lookups a ray takes: the most taps a span takes (rt.rayTaps), the same view, the pack standing.
-            foreach (int taps in new[] { 4, 16 })
-            {
-                ForceTuning("rt.rayTaps", taps);
-                yield return ProbeWait.Frames(30);
-                t0 = Time.realtimeSinceStartup;
-                f0 = Time.frameCount;
-                yield return ProbeWait.Frames(300);
-                double ms = FrameMs(t0, f0);
-                Emit("T18.rt_ms_taps" + taps, ms);
-                Emit("T18.rt_ms_delta_taps" + taps, ms - offMs);
-            }
+            // 3. The cost of the own layers in the rays: the same traced scene with the pack in the rays and with it hidden from them (the pack stays and is kept
+            // current, so nothing but what the rays read differs). Windows of 100 frames after 20 to settle, in rounds; the order inside a round turns each round so that
+            // a drift of the scene (the sky, other work on the machine) does not fall on one kind. A kind's number is the mean of its windows; its spread (largest
+            // minus smallest window) says whether the figure can be trusted: a spread of a few ms is a machine under other load, and the cost row is then not a result.
+            double bakeMsAtStart = RtOwnClouds.Stats.TotalBakeMs;
+            int framesAtStart = Time.frameCount, uploadsAtStart = RtOwnClouds.Uploads;
+            RtOwnClouds.Stats.WorstTickMs = 0.0;
+            string[] kinds = { "hidden", "taps8", "taps4", "taps16" };
+            var windows = new Dictionary<string, List<double>>();
+            foreach (string k in kinds) windows[k] = new List<double>();
+            int invalid = 0;
+            for (int round = 0; round < 3; round++)
+                for (int n = 0; n < kinds.Length; n++)
+                {
+                    string kind = kinds[(n + round) % kinds.Length];
+                    RtOwnClouds.HideFromRays = kind == "hidden";
+                    if (kind == "taps4") ForceTuning("rt.rayTaps", 4);
+                    else if (kind == "taps16") ForceTuning("rt.rayTaps", 16);
+                    else ClearForced();
+                    foreach (ProbeWait w in Window(20, 100)) yield return w;
+                    windows[kind].Add(windowMs);
+                    // A window counts only where the rays did what the kind says: hidden, nothing taken at its end; the others, the pack taken in the last frames.
+                    bool taken = Time.frameCount - RayCloudSeam.TakenFrame <= 2;
+                    if (taken == (kind == "hidden")) invalid++;
+                }
+            RtOwnClouds.HideFromRays = false;
             ClearForced();
+            double hidden = Mean(windows["hidden"]);
+            double spread = Math.Max(Spread(windows["hidden"]), Spread(windows["taps8"]));
+            Emit("T18.rt_ms_off", hidden);
+            Emit("T18.rt_ms_taps8", Mean(windows["taps8"]));
+            Emit("T18.rt_ms_taps4", Mean(windows["taps4"]));
+            Emit("T18.rt_ms_taps16", Mean(windows["taps16"]));
+            Emit("T18.rt_frame_ms_delta", Mean(windows["taps8"]) - hidden);
+            Emit("T18.rt_ms_delta_taps4", Mean(windows["taps4"]) - hidden);
+            Emit("T18.rt_ms_delta_taps16", Mean(windows["taps16"]) - hidden);
+            Emit("T18.rt_ms_spread", spread);
+            Emit("T18.rt_windows_wrong", invalid);
+            // A figure to trust: every window did what its kind says and the repeats of a kind lie within 2 ms (or 5 %) of each other.
+            Emit("T18.rt_cost_valid", invalid == 0 && spread <= Math.Max(2.0, 0.05 * hidden));
+            // What keeping the pack current cost in those frames (all windows, the bake's own stopwatch): the main-thread ms of baking per traced frame, and the
+            // worst refresh tick.
+            int windowFrames = Math.Max(1, Time.frameCount - framesAtStart);
+            Emit("T18.refresh_bake_ms_per_frame", (RtOwnClouds.Stats.TotalBakeMs - bakeMsAtStart) / windowFrames);
+            Emit("T18.refresh_tick_worst_ms", RtOwnClouds.Stats.WorstTickMs);
+            Emit("T18.refresh_uploads", RtOwnClouds.Uploads - uploadsAtStart);
+            // The age of the sky the pack shows: after a whole refresh cycle (a second pack standing), the largest age since the first pack stood.
+            int bakesAfterFirst = RtOwnClouds.Stats.BakesDone;
+            RtOwnClouds.Stats.MaxAgeS = RtOwnClouds.Stats.AgeS;
+            yield return ProbeWait.Until(() => RtOwnClouds.Stats.BakesDone > bakesAfterFirst, 240, "a refreshed ray cloud pack");
+            Emit("T18.pack_age_max_s", RtOwnClouds.Stats.MaxAgeS);
+            Emit("T18.refresh_bake_wall_s", RtOwnClouds.Stats.LastBakeWallS);
+            Emit("T18.refresh_bake_total_ms", RtOwnClouds.Stats.LastBakeMs);
             yield return ProbeWait.Frames(30);
 
             // 4. Facts.
@@ -303,8 +368,42 @@ namespace ReDefinition.Atmospheres
             Check("the rays take the own pack and the proxy shares it", fresh && took && !problem, "fresh " + fresh + ", taken " + took + ", status: " + status);
             Check("the proxy traced its latest frame with the own cloud block (cloudsMode=2 in its status; a dxgi.dll from before this build lacks it)", proxyOwn, "status: " + status);
 
-            // 6. The five places and the scan, against the stack as it stands now.
+            // 5b. What the shaders read, as the game gives it: the view block's frame and shell against the body and the pack, and the header row's numbers.
+            // The vessel's place in the map frame must come out at its latitude and longitude (a wrong frame, a mirrored axis or a rotation of the body that is
+            // not in the matrix moves it by degrees), and the shell and the texture's size must be the pack's.
+            RayCloudView view = RayCloudSeam.View;
+            CelestialBody viewBody = vessel.mainBody;
+            Vector3 centre = (Vector3)viewBody.position;
+            Vector3 inMap = view.WorldToMap.MultiplyVector((Vector3)vessel.GetWorldPos3D() - centre);
+            double mapLat = Math.Asin(Math.Max(-1.0, Math.Min(1.0, inMap.z / inMap.magnitude))) * 180.0 / Math.PI, mapLon = Math.Atan2(inMap.y, inMap.x) * 180.0 / Math.PI;
+            double lonErr = Math.Abs(mapLon - vessel.longitude);
+            lonErr = Math.Min(lonErr, 360.0 - lonErr);
+            Emit("T18.view_frame_err_deg", Math.Max(Math.Abs(mapLat - vessel.latitude), lonErr));
+            double minInner = double.MaxValue, maxOuter = 0.0;
+            for (int i = 0; i < pack.LayerCount; i++)
+            {
+                minInner = Math.Min(minInner, pack.Entries[i].InnerRadiusM);
+                maxOuter = Math.Max(maxOuter, pack.Entries[i].OuterRadiusM);
+            }
+            Emit("T18.view_shell_ok", Math.Abs(view.InnerRadiusM - minInner) < 1.0 && Math.Abs(view.OuterRadiusM - maxOuter) < 1.0);
+            Emit("T18.view_size_ok", view.Width == pack.Width && view.SliceHeight == pack.Height && view.LayerCount == pack.LayerCount && view.BodyIndex == pack.BodyIndex);
+            Emit("T18.view_body_radius_err_m", Math.Abs(pack.BodyRadiusM - viewBody.Radius));
+            for (int i = 0; i < pack.LayerCount; i++)
+            {
+                RtCloudLayerEntry e = pack.Entries[i];
+                EmitText("T18.header_layer" + i, e.Name + " shell " + (e.InnerRadiusM - pack.BodyRadiusM).ToString("0") + " to " + (e.OuterRadiusM - pack.BodyRadiusM).ToString("0")
+                                                 + " m, strength " + e.ShadowStrength.ToString("0.00") + ", coverage " + e.Coverage.ToString("0.000") + ", softness " + e.EdgeSoftness.ToString("0.000")
+                                                 + ", clearK " + e.ClearSkyK.ToString("0.000") + ", power " + e.WaterPower.ToString("0.00") + ", shift " + e.MapShiftDeg.ToString("0.00"));
+            }
+
+            // 6. The five places and the scan, against the stack as it stands now, for the pack that stands (its age is in it) and for a pack baked in this very
+            // call (the stack and the pack are then the same instant, so what is left is the model: if the two differ, the standing pack is stale; if both are far
+            // from the field, the ray side's reading of the field is wrong). The figures are |T_ray - T_reference| (RtAgreementScan).
             LayerTypeTable[] tables = stack.Tables();
+            long bakeStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            RtCloudPack freshPack = RtCloudPackDriver.BakeNow(stack, tables, RtOwnClouds.LiveSettings());
+            Emit("T18.fresh_bake_ms", (System.Diagnostics.Stopwatch.GetTimestamp() - bakeStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+            Emit("T18.pack_age_at_scan_s", RtOwnClouds.Stats.AgeS);
             string missing;
             List<RtAgreementPlace> places = RtPackAgreement.Pick(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, 45.0, out missing);
             foreach (RtAgreementPlace p in places)
@@ -317,14 +416,13 @@ namespace ReDefinition.Atmospheres
             }
             Emit("T18.places_missing", missing.Length == 0 ? 0 : missing.Split(',').Length);
             if (missing.Length > 0) EmitText("T18.places_missing_kinds", missing);
+            string missingFresh;
+            foreach (RtAgreementPlace p in RtPackAgreement.Pick(stack, tables, freshPack, vessel.latitude, vessel.longitude, 4.0, 0.2, 45.0, out missingFresh))
+                Emit("T18.shadow_fresh_diff_" + p.Name.Substring(0, 2), p.Diff);
             foreach (double elevation in new[] { 45.0, 6.0 })
             {
-                RtAgreementScan scan = RtPackAgreement.Scan(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, elevation);
-                string key = "T18.scan" + (int)elevation;
-                Emit(key + "_places", scan.Places);
-                Emit(key + "_median", scan.Median);
-                Emit(key + "_p90", scan.P90);
-                Emit(key + "_worst", scan.Worst);
+                EmitScan("T18.scan" + (int)elevation, RtPackAgreement.Scan(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, elevation));
+                EmitScan("T18.scan" + (int)elevation + "_fresh", RtPackAgreement.Scan(stack, tables, freshPack, vessel.latitude, vessel.longitude, 4.0, 0.2, elevation));
             }
 
             // 7. Pictures with the layers in the rays; the layer cap; off and the same pictures without.
@@ -345,10 +443,10 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 1);
             // The pairs against each other: a view whose pair does not differ shows no own cloud in the rays (or none in view).
             double best = -1.0;
-            foreach (string view in Views)
+            foreach (string pictureView in Views)
             {
-                double diff = PictureDifference(view);
-                Emit("T18.picture_diff_" + view.Replace('-', '_'), diff);
+                double diff = PictureDifference(pictureView);
+                Emit("T18.picture_diff_" + pictureView.Replace('-', '_'), diff);
                 if (diff > best) best = diff;
             }
             Emit("T18.picture_diff_max", best);

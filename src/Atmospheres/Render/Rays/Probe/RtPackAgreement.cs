@@ -15,14 +15,23 @@ namespace ReDefinition.Atmospheres
         // The direct light that reaches the place: the shadow field at 64 steps, at 8 steps, and by the pack's rays.
         public double Reference, Quick, Ray;
 
-        public double Diff { get { return Math.Abs(Ray - Reference) / Math.Max(1e-9, Reference); } }
-        public double QuickDiff { get { return Math.Abs(Quick - Reference) / Math.Max(1e-9, Reference); } }
+        // The differences are in the share of the sun's light (the transmittance T = exp(-tau), 0 to 1): |T_ray - T_reference| is the difference in how
+        // dark the ground is, which is what the eye sees. A relative difference of T (or of tau) is large where T is near 0 and invisible there.
+        public double Diff { get { return Math.Abs(Ray - Reference); } }
+        public double QuickDiff { get { return Math.Abs(Quick - Reference); } }
     }
 
     internal sealed class RtAgreementScan
     {
+        // The places judged: those where the reference or the ray is neither fully clear nor fully dark (T between 0.02 and 0.98). Places where both are
+        // clear or both are dark agree by definition and are left out, so that they do not dilute the figures; a place where one is dark and the other is not stays in.
         public int Places;
+        // |T_ray - T_reference| over the places: the median, the 90th percentile, the worst.
         public double Median, P90, Worst;
+        // The median of tau_ray / tau_reference (tau = -ln T) over the places where the reference has T between 0.1 and 0.9: the scale of the ray side against the field.
+        // A factor of two in the cloud's depth, or a layer taken twice or not at all, moves it far from 1; the slab-in-shell approximation does not.
+        public double TauRatioMedian;
+        public int RatioPlaces;
     }
 
     internal static class RtPackAgreement
@@ -177,7 +186,7 @@ namespace ReDefinition.Atmospheres
             return list;
         }
 
-        // The relative difference of the ray against the reference over every place of the lattice where the reference factor is between 0.05 and 0.95.
+        // The absolute difference of the ray's transmittance against the reference's over the lattice (see RtAgreementScan for the places that count).
         internal static RtAgreementScan Scan(ICloudLayerSource source, LayerTypeTable[] tables, RtCloudPack pack, double lat0, double lon0, double halfSpanDeg,
                                              double stepDeg, double elevationDeg)
         {
@@ -189,6 +198,7 @@ namespace ReDefinition.Atmospheres
             };
             int n = (int)Math.Round(halfSpanDeg / stepDeg);
             var diffs = new List<double>();
+            var ratios = new List<double>();
             for (int i = -n; i <= n; i++)
                 for (int j = -n; j <= n; j++)
                 {
@@ -198,17 +208,22 @@ namespace ReDefinition.Atmospheres
                     Position(source.BodyRadiusM, lat, lon, out x, out y, out z);
                     SunTowards(lat, lon, elevationDeg, SunAzimuthDeg, out sx, out sy, out sz);
                     double reference = c.Reference.DirectTransmission(x, y, z, sx, sy, sz);
-                    if (reference <= 0.05 || reference >= 0.95) continue;
-                    diffs.Add(Math.Abs(RtCloudRayMath.LightTransmission(pack, x, y, z, sx, sy, sz) - reference) / reference);
+                    double ray = RtCloudRayMath.LightTransmission(pack, x, y, z, sx, sy, sz);
+                    bool referenceMid = reference > 0.02 && reference < 0.98, rayMid = ray > 0.02 && ray < 0.98;
+                    if (!referenceMid && !rayMid) continue;
+                    diffs.Add(Math.Abs(ray - reference));
+                    if (reference > 0.1 && reference < 0.9) ratios.Add(Math.Log(Math.Max(1e-6, ray)) / Math.Log(reference));
                 }
             diffs.Sort();
-            var scan = new RtAgreementScan { Places = diffs.Count };
+            ratios.Sort();
+            var scan = new RtAgreementScan { Places = diffs.Count, RatioPlaces = ratios.Count };
             if (diffs.Count > 0)
             {
                 scan.Median = diffs[diffs.Count / 2];
                 scan.P90 = diffs[(int)(diffs.Count * 0.9)];
                 scan.Worst = diffs[diffs.Count - 1];
             }
+            if (ratios.Count > 0) scan.TauRatioMedian = ratios[ratios.Count / 2];
             return scan;
         }
     }

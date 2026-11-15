@@ -28,13 +28,13 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Console.WriteLine("missing: '" + missing + "'");
             foreach (RtAgreementPlace p in places)
                 Console.WriteLine(p.Name + " lat " + p.LatDeg.ToString("0.0") + " lon " + p.LonDeg.ToString("0.0") + " ref " + p.Reference.ToString("0.000") + " ray "
-                                  + p.Ray.ToString("0.000") + " diff " + (100 * p.Diff).ToString("0.00") + " % quick " + (100 * p.QuickDiff).ToString("0.00") + " %");
+                                  + p.Ray.ToString("0.000") + " |dT| " + p.Diff.ToString("0.000") + " quick " + p.QuickDiff.ToString("0.000"));
             Assert.AreEqual("", missing, "every kind of place exists in this sky");
             Assert.AreEqual(5, places.Count);
             foreach (RtAgreementPlace p in places)
             {
                 Assert.IsTrue(p.Reference > 0.02 && p.Reference < 0.98, p.Name + ": the shadow is neither 0 nor 1");
-                Assert.IsTrue(p.Diff <= 0.10, p.Name + ": " + p.Diff);
+                Assert.IsTrue(p.Diff <= 0.05, p.Name + ": |dT| " + p.Diff);
             }
             Assert.AreEqual(6.0, places[4].ElevationDeg, "the terminator place has the low sun");
         }
@@ -56,10 +56,11 @@ namespace ReDefinition.Tests.Atmospheres.T18
             LatLonSource s = Sky();
             RtCloudPack pack = PackScenes.Bake(s, s.Tables());
             RtAgreementScan scan = RtPackAgreement.Scan(s, s.Tables(), pack, 0.0, 0.0, 4.0, 0.2, 45.0);
-            Console.WriteLine("scan 45: n " + scan.Places + " median " + (100 * scan.Median).ToString("0.00") + " % p90 " + (100 * scan.P90).ToString("0.00") + " % worst "
-                              + (100 * scan.Worst).ToString("0.00") + " %");
+            Console.WriteLine("scan 45: n " + scan.Places + " |dT| median " + scan.Median.ToString("0.0000") + " p90 " + scan.P90.ToString("0.0000") + " worst "
+                              + scan.Worst.ToString("0.0000") + " tau ratio " + scan.TauRatioMedian.ToString("0.000"));
             Assert.IsTrue(scan.Places > 50);
-            Assert.IsTrue(scan.P90 <= 0.10, "p90 " + scan.P90);
+            Assert.IsTrue(scan.P90 <= 0.03, "p90 |dT| " + scan.P90);
+            Assert.IsTrue(Math.Abs(scan.TauRatioMedian - 1.0) <= 0.05, "tau ratio " + scan.TauRatioMedian);
             var clear = new LatLonSource(PackScenes.Kerbin).Add("low", 1500, 3500, 1.6, (lat, lon) => 0.0);
             RtAgreementScan none = RtPackAgreement.Scan(clear, clear.Tables(), PackScenes.Bake(clear, clear.Tables()), 0.0, 0.0, 2.0, 0.5, 45.0);
             Assert.AreEqual(0, none.Places);
