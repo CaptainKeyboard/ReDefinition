@@ -232,6 +232,60 @@ namespace ReDefinition.Tests.Atmospheres.Solo
             Assert.AreEqual("Kerbin-cumulus / Cumulus humilis", CloudSoloPlan.Label(cumulus, 1));
         }
 
+        // A store in memory, as the viewer's tests have it.
+        private sealed class MemoryStore : ReDefinition.Atmospheres.Viewer.IOptionStore
+        {
+            internal readonly Dictionary<string, double> SettingValues = new Dictionary<string, double>();
+            internal readonly Dictionary<string, float> OverrideValues = new Dictionary<string, float>();
+
+            public double Setting(string key) { double v; return SettingValues.TryGetValue(key, out v) ? v : 0.0; }
+            public bool SetSetting(string key, double value) { SettingValues[key] = value; return true; }
+            public bool TryOverride(string key, out float value) { return OverrideValues.TryGetValue(key, out value); }
+            public void SetOverride(string key, float value) { OverrideValues[key] = value; }
+            public void ClearOverride(string key) { OverrideValues.Remove(key); }
+            public float Effective(string key, float compiledDefault) { float v; return OverrideValues.TryGetValue(key, out v) ? v : compiledDefault; }
+        }
+
+        [TestMethod]
+        public void TheSoloStateIsInTheKeysSoTheABFlipAndThePresetsCarryIt()
+        {
+            CloudLayerDef[] stack = Stack();
+            var store = new MemoryStore();
+            var settingKeys = new string[0];
+            List<string> keyNames = ReDefinition.Atmospheres.Viewer.CloudKeyRegistry.Expand(stack.Select(l => l.Name)).Select(k => k.Key).ToList();
+            // A: the cumulonimbus cell. B: the field's own weather (no solo). Capture A, flip to B, flip back.
+            var cell = new SoloSelection { Layer = 2, Type = 1, Strength = 1f, Cell = true, CellKm = 12.0, CellLatDeg = -0.1, CellLonDeg = -74.0 };
+            foreach (KeyValuePair<string, float> pair in CloudSoloPlan.Overrides(stack, cell)) if (!float.IsNaN(pair.Value)) store.SetOverride(pair.Key, pair.Value);
+            var flip = new ReDefinition.Atmospheres.Viewer.OptionFlip();
+            flip.StoreA(ReDefinition.Atmospheres.Viewer.OptionSet.Capture(store, settingKeys, keyNames));
+            foreach (KeyValuePair<string, float> pair in CloudSoloPlan.Overrides(stack, new SoloSelection { Layer = -1, Type = -1 })) store.ClearOverride(pair.Key);
+            Assert.IsFalse(CloudSoloPlan.Read(stack, store.Effective).On, "B: the field's own weather");
+            Assert.IsTrue(flip.Flip(store, settingKeys, keyNames));
+            SoloSelection a = CloudSoloPlan.Read(stack, store.Effective);
+            Assert.IsTrue(a.On && a.Cell && a.Layer == 2 && a.Type == 1, "A is the cell again after the flip");
+            Assert.AreEqual(-74.0, a.CellLonDeg, 1e-5);
+            Assert.IsTrue(flip.Flip(store, settingKeys, keyNames));
+            Assert.IsFalse(CloudSoloPlan.Read(stack, store.Effective).On, "and B again after the second flip");
+            Assert.AreEqual(0, store.OverrideValues.Count, "nothing of the solo mode is left in B");
+            // The preset's file form: the overrides survive a node and back.
+            foreach (KeyValuePair<string, float> pair in CloudSoloPlan.Overrides(stack, cell)) if (!float.IsNaN(pair.Value)) store.SetOverride(pair.Key, pair.Value);
+            var set = ReDefinition.Atmospheres.Viewer.OptionSet.FromNode(ReDefinition.Atmospheres.Viewer.OptionSet.Capture(store, settingKeys, keyNames).ToNode());
+            foreach (string k in keyNames) store.ClearOverride(k);
+            set.ApplyTo(store, keyNames);
+            SoloSelection loaded = CloudSoloPlan.Read(stack, store.Effective);
+            Assert.IsTrue(loaded.On && loaded.Cell && loaded.Layer == 2, "the preset loads the cell");
+        }
+
+        [TestMethod]
+        public void TheButtonsNameATypeWithoutTheGenusItsLayerShares()
+        {
+            CloudLayerDef cumulus = CloudLookFixtures.Cumulus(), cb = CloudLookFixtures.Cumulonimbus(), rain = CloudLookFixtures.Rain();
+            Assert.AreEqual("Humilis", CloudSoloPlan.ShortLabel(cumulus, 1));
+            Assert.AreEqual("Stratocumulus", CloudSoloPlan.ShortLabel(cumulus, 0));
+            Assert.AreEqual("Incus", CloudSoloPlan.ShortLabel(cb, 1));
+            Assert.AreEqual("Nimbostratus", CloudSoloPlan.ShortLabel(rain, 2));
+        }
+
         [TestMethod]
         public void TheNewKeysAreInTheViewersRegistryWithTheDefaultsThatChangeNothing()
         {

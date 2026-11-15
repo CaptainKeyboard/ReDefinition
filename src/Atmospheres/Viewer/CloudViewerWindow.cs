@@ -10,7 +10,7 @@ namespace ReDefinition.Atmospheres.Viewer
     // The cloud viewer's window: KSP's own dialog in the build of the atmospheres' settings window (fold groups, single-line labels of fixed width, rows within
     // the page, the list's background cleared, tooltips in the game's style), so ZTheme restyles it where it is installed. It draws CloudViewer and decides nothing.
     // Opening it starts the viewer's session; closing it (the button, Escape, a scene change) ends it and puts everything back.
-    internal sealed class CloudViewerWindow
+    internal sealed partial class CloudViewerWindow
     {
         internal static readonly CloudViewerWindow Instance = new CloudViewerWindow();
 
@@ -175,6 +175,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 new DialogGUILabel(() => viewer.WindText(), PageWidth),
                 new DialogGUILabel(() => "Weather " + WeatherPresets.Title(viewer.Weather) + ", pose " + PosePresets.Title(viewer.PoseName) + ", options " + viewer.Flip.Showing
                                          + (viewer.Baseline ? ", baseline: no layer drawn" : ""), PageWidth),
+                new DialogGUILabel(() => viewer.SoloText(), PageWidth),
                 new DialogGUILabel(() => viewer.WatchText(), PageWidth),
                 new DialogGUILabel(() => viewer.LastCapture.Length > 0 ? "Last picture " + viewer.LastCapture : "Pictures go to PluginData/CloudViewer/Captures", PageWidth)
             };
@@ -250,6 +251,7 @@ namespace ReDefinition.Atmospheres.Viewer
                           Tip(new DialogGUIToggle(() => viewer.CloudsFrozen, "Freeze Clouds", on => viewer.FreezeClouds(on), 100f, RowHeight), "Freeze Clouds")));
             rows.Add(Line(Tip(new DialogGUIToggle(() => viewer.Baseline, "Baseline: No Layer Drawn", on => viewer.SetBaseline(on), 260f, RowHeight), "No Layer Drawn"),
                           Tip(new DialogGUIButton("Refresh Layers", Rebuild, 140f, RowHeight, false), "Refresh Layers")));
+            rows.AddRange(SoloRows());
             return rows;
         }
 

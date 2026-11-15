@@ -12,7 +12,7 @@ namespace ReDefinition.Atmospheres.Viewer
     // without layers), the options (settings and tuning overrides, A/B, presets) and the capture. Everything it changes is noted at Open and put back at Close:
     // the game time (the natural time, ViewerClock), the vessel's place (the hold of the K-T2 probe, KspT09World, places and holds it), the camera, the cheat
     // switches the placement sets, the settings it touched and the tuning overrides. The window (CloudViewerWindow) draws this and decides nothing.
-    internal sealed class CloudViewer
+    internal sealed partial class CloudViewer
     {
         internal static readonly CloudViewer Instance = new CloudViewer();
 
@@ -204,6 +204,7 @@ namespace ReDefinition.Atmospheres.Viewer
                     foreach (KeyValuePair<string, float> pair in WeatherPresets.Overrides(ViewerWeather.Field, Layers())) Restore(pair.Key);
                     Restore(CloudMotion.TuneScale);
                     Restore(CloudLookTuning.TuneCoverCombine);
+                    RestoreSolo();
                 }
                 Tuning.Instance.Watch(null);
                 WatchedKey = null;

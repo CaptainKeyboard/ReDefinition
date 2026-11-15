@@ -48,6 +48,15 @@ namespace ReDefinition.Atmospheres
             return layer.Name + " / " + layer.Types[type].Name;
         }
 
+        // The text of a type's button: its name without the genus its layer's other types share ("Cumulus humilis" -> "Humilis"), first letter up.
+        internal static string ShortLabel(CloudLayerDef layer, int type)
+        {
+            string name = layer.Types[type].Name ?? "";
+            foreach (string genus in new[] { "Cumulonimbus ", "Cumulus " })
+                if (name.StartsWith(genus, StringComparison.OrdinalIgnoreCase) && name.Length > genus.Length) name = name.Substring(genus.Length);
+            return name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name.Substring(1);
+        }
+
         // A type whose tower feeds an anvil (the cfg key outflow): drawn as a cell, the solo mode's one non-uniform case.
         internal static bool IsCellType(CloudLayerDef layer, int type)
         {
