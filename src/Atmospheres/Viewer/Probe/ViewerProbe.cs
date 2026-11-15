@@ -34,6 +34,13 @@ namespace ReDefinition.Atmospheres.Viewer
         internal const double RestoreVesselM = 40.0, SidecarUtS = 5.0, SidecarAglM = 25.0;
         internal const double MeasureS = 3.0, PollMapS = 60.0, PollPlaceS = 60.0, PollShortS = 10.0;
         internal const int MinKeys = 100, MinPictureBytes = 1000, SettleFrames = 30;
+        // The aim is read once it stands still (two readings two frames apart within AimStillDeg, at most AimStillMaxFrames frames); the keep-aim check sets this aim by hand first.
+        internal const double AimStillDeg = 0.05, KeepAimHeadingDeg = 200.0, KeepAimElevationDeg = 7.0;
+        internal const int AimStillMaxFrames = 80;
+        // The game's clock against the start's UT plus the real seconds since (the game's time runs with the real time at 1x, a little slower where the frames are long).
+        internal const double RestoreTimeS = 5.0;
+        // A precipitation level above this at the pad: the deck's rain floor keeps the Fair cover up.
+        internal const double RainAtPadLevel = 0.01;
 
         // The game the scenario reads and drives; a test replaces it with a fake rig. Made when the scenario first asks (every start of the game makes this module, only the
         // series' start uses it).
@@ -96,6 +103,26 @@ namespace ReDefinition.Atmospheres.Viewer
             double end = Rig.RealS + seconds;
             while (!condition() && Rig.RealS < end) yield return ProbeWait.Frames(1);
             polled = condition();
+        }
+
+        // A check that cannot tell here (the field's own weather hides the effect): logged and counted as information, never a failure.
+        private void Unclear(string what, string expected, string read, string why)
+        {
+            LogLine("viewer: " + what + ": expected " + expected + ", read " + read + " - UNCLEAR (" + why + ")");
+        }
+
+        // Waits until the camera's aim stands still: two readings two frames apart within AimStillDeg (the camera follows with a lag, as K-T2's SettleAim waits for).
+        private IEnumerable<ProbeWait> StillAim()
+        {
+            ViewerPoseReading last = Rig.Pose;
+            for (int i = 0; i < AimStillMaxFrames; i++)
+            {
+                yield return ProbeWait.Frames(2);
+                ViewerPoseReading now = Rig.Pose;
+                bool still = Circular(last.AzimuthDeg, now.AzimuthDeg) <= AimStillDeg && Math.Abs(last.ElevationDeg - now.ElevationDeg) <= AimStillDeg;
+                last = now;
+                if (still) yield break;
+            }
         }
 
         private static double Circular(double a, double b)
@@ -173,6 +200,8 @@ namespace ReDefinition.Atmospheres.Viewer
             yield return ProbeWait.Until(() => Rig.FlightReady && Rig.PassDrawing, 300, "the flight scene and the own cloud pass drawing");
             reached = true;
             yield return ProbeWait.Seconds(3);
+            // The reference of restore_time that does not come from the viewer.
+            double utStart = Rig.GameUt, realStart = Rig.RealS;
             IList<ViewerLayer> layers = Rig.Layers;
             Info("layers", layers.Count);
             int drawnAtStart = Rig.PassFramesDrawn;
@@ -211,6 +240,7 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
             Verdict("pose_settles", "the ground pose is placed and the vessel held", polled, "placement done, hold stable", "pending " + Rig.PlacementPending + ", hold stable " + Rig.HoldStable);
             yield return ProbeWait.Frames(SettleFrames);
+            foreach (ProbeWait w in StillAim()) yield return w;
             ViewerPoseReading p = Rig.Pose;
             Near("pose_height", "the ground pose's height above the terrain", ground.AglM, p.VesselAglM, Math.Max(AltitudeAbsM, AltitudeRel * ground.AglM));
             Near("pose_camera_distance", "the camera's distance from the vessel", ground.CameraDistM, p.CameraToVesselM, Math.Max(CameraDistAbsM, CameraDistRel * ground.CameraDistM));
@@ -226,24 +256,37 @@ namespace ReDefinition.Atmospheres.Viewer
 
             double max = AltitudeScale.MaxAglM(70000.0);
             double sliderTarget = AltitudeScale.FromSlider(AltitudeScale.ToSlider(2000.0), max);
+            // An aim other than the pose's, turned by hand: a placement that did not keep the aim would put the pose's back (a placement that leaves the camera alone cannot be told
+            // from one that keeps it where the aim is the pose's own).
+            Rig.SetCameraAim(KeepAimHeadingDeg, KeepAimElevationDeg);
+            yield return ProbeWait.Frames(SettleFrames);
+            foreach (ProbeWait w in StillAim()) yield return w;
             ViewerPoseReading before = Rig.Pose;
+            bool aimTurned = Circular(KeepAimHeadingDeg, before.AzimuthDeg) <= AimAzimuthDeg && Math.Abs(KeepAimElevationDeg - before.ElevationDeg) <= AimElevationDeg;
             Rig.RequestAltitude(sliderTarget);
             yield return ProbeWait.Frames(2);
             foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
             yield return ProbeWait.Frames(SettleFrames);
+            foreach (ProbeWait w in StillAim()) yield return w;
             p = Rig.Pose;
+            double distanceAfterSlider = p.CameraToVesselM;
             Near("slider_height", "the altitude slider's height above the terrain", sliderTarget, p.VesselAglM, Math.Max(AltitudeAbsM, AltitudeRel * sliderTarget));
-            Verdict("slider_keeps_aim", "the camera's heading and pitch stay where they were", Circular(before.AzimuthDeg, p.AzimuthDeg) <= AimAzimuthDeg && Math.Abs(before.ElevationDeg - p.ElevationDeg) <= AimElevationDeg,
-                    "heading " + F(before.AzimuthDeg) + " +-" + F(AimAzimuthDeg) + ", elevation " + F(before.ElevationDeg) + " +-" + F(AimElevationDeg), "heading " + F(p.AzimuthDeg) + ", elevation " + F(p.ElevationDeg));
-            Verdict("camera_follows", "the camera is within its distance of the vessel's height", Math.Abs(p.CameraAglM - p.VesselAglM) <= p.CameraToVesselM + 20.0,
-                    "within " + F(p.CameraToVesselM + 20.0) + " m of " + F(p.VesselAglM), F(p.CameraAglM) + " m");
+            Verdict("slider_keeps_aim", "the camera's heading and pitch stay where the player turned them (not the pose's)", aimTurned && Circular(before.AzimuthDeg, p.AzimuthDeg) <= AimAzimuthDeg && Math.Abs(before.ElevationDeg - p.ElevationDeg) <= AimElevationDeg,
+                    "turned to heading " + F(KeepAimHeadingDeg) + " elevation " + F(KeepAimElevationDeg) + " (read " + F(before.AzimuthDeg) + " / " + F(before.ElevationDeg) + "), and still there after the change within " + F(AimAzimuthDeg) + " / " + F(AimElevationDeg) + " deg",
+                    "heading " + F(p.AzimuthDeg) + ", elevation " + F(p.ElevationDeg) + (aimTurned ? "" : "; the camera did not take the turned aim"));
             const double typed = 8000.0;
             Rig.RequestAltitude(typed);
             yield return ProbeWait.Frames(2);
             foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
             yield return ProbeWait.Frames(SettleFrames);
+            foreach (ProbeWait w in StillAim()) yield return w;
             p = Rig.Pose;
             Near("typed_height", "the typed height above the terrain", typed, p.VesselAglM, Math.Max(AltitudeAbsM, AltitudeRel * typed));
+            // The camera stands where the pose put it from the vessel after both height changes: a camera left behind would be far from it.
+            double distanceTolerance = Math.Max(CameraDistAbsM, CameraDistRel * ground.CameraDistM);
+            Verdict("camera_follows", "the camera stays at the pose's distance from the vessel after the slider and the typed height",
+                    Math.Abs(distanceAfterSlider - ground.CameraDistM) <= distanceTolerance && Math.Abs(p.CameraToVesselM - ground.CameraDistM) <= distanceTolerance,
+                    F(ground.CameraDistM) + " +-" + F(distanceTolerance) + " m both times", F(distanceAfterSlider) + " m after the slider, " + F(p.CameraToVesselM) + " m after the typed height");
 
             // --- e. Time: the offset, the freeze, the sun ---
             double ut0 = Rig.GameUt, real0 = Rig.RealS, sun0 = Rig.SunElevationDeg;
@@ -282,6 +325,11 @@ namespace ReDefinition.Atmospheres.Viewer
             ViewerLayer? cumulus = FirstWithRole(layers, WeatherPresets.Role.Cumulus, out cumulusIndex);
             Info("weather_roles_missing", (deck.HasValue ? 0 : 1) + (cumulus.HasValue ? 0 : 1));
             float cumulusFair = float.NaN;
+            // What the field's own weather is at the pad before anything is forced: a deck already closed shows nothing of Overcast, rain keeps the Fair cover up.
+            float deckBaseline = deck.HasValue ? Rig.LayerCover(deckIndex) : float.NaN;
+            double padRain = Rig.PrecipitationLevel;
+            Info("weather_field_deck_cover", deckBaseline);
+            Info("weather_pad_precipitation", padRain);
             ViewerWeather[] sequence = { ViewerWeather.Overcast, ViewerWeather.Fair, ViewerWeather.Cumulus, ViewerWeather.RainDeck, ViewerWeather.Field };
             foreach (ViewerWeather weather in sequence)
             {
@@ -314,7 +362,16 @@ namespace ReDefinition.Atmospheres.Viewer
                 float deckRead = deck.HasValue ? Rig.LayerCover(deckIndex) : float.NaN, cumulusRead = cumulus.HasValue ? Rig.LayerCover(cumulusIndex) : float.NaN;
                 if (weather == ViewerWeather.Fair) cumulusFair = cumulusRead;
                 string wanted = weather == ViewerWeather.Cumulus ? "cumulus cover at least " + F(cumulusFair + CoverRise) : "deck cover " + (deckUp ? "at least " : "at most ") + F(deckWanted);
-                Verdict("weather_" + tag + "_cover", weather + ": the pass draws it (the layer's cover at the vessel)", polled, wanted, "deck " + F(deckRead) + ", cumulus " + F(cumulusRead));
+                string seen = "deck " + F(deckRead) + ", cumulus " + F(cumulusRead);
+                string unclear = null;
+                if (weather == ViewerWeather.Overcast && deck.HasValue && deckBaseline >= CoverHigh)
+                    unclear = "the field's own deck cover at the pad was " + F(deckBaseline) + " before anything was forced: forcing it shows no change";
+                else if (weather == ViewerWeather.Fair && !polled && padRain > RainAtPadLevel)
+                    unclear = "it rains at the pad (level " + F(padRain) + "): the deck's rain floor keeps the cover up, which the Fair preset does not switch off";
+                if (weather == ViewerWeather.Overcast || weather == ViewerWeather.Fair) Info("weather_" + tag + "_unclear", unclear != null ? 1.0 : 0.0);
+                if (unclear != null) Unclear("weather_" + tag + "_cover", wanted + (weather == ViewerWeather.Overcast ? " (from " + F(deckBaseline) + ")" : ""), seen, unclear);
+                else Verdict("weather_" + tag + "_cover", weather + ": the pass draws it (the layer's cover at the vessel)", polled,
+                             wanted + (weather == ViewerWeather.Overcast ? ", from the field's " + F(deckBaseline) : ""), seen);
                 Info("weather_" + tag + "_deck_cover", deckRead);
                 Info("weather_" + tag + "_cumulus_cover", cumulusRead);
                 if (weather == ViewerWeather.RainDeck)
@@ -453,8 +510,11 @@ namespace ReDefinition.Atmospheres.Viewer
             Verdict("restore_options", "the options the viewer set are back (overrides gone, settings, cloud speed)", overridesGone && settingsBack, "no override left, softness " + F(softness0) + ", forceLevel " + F(forceLevel0) + ", speed 1",
                     "overrides gone " + overridesGone + ", softness " + F(Rig.Setting(AtmospheresSettings.Keys.CloudSoftness)) + ", forceLevel " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)) + ", speed " + F(Rig.CloudSpeed));
             double utBack = Rig.GameUt;
-            Verdict("restore_time", "the game's clock is back on the natural time", utBack >= naturalAtClose - UtAbsS && utBack <= naturalAtClose + (Rig.RealS - realClose) + UtAbsS,
-                    F(naturalAtClose) + " + the real time since the close (" + F(Rig.RealS - realClose) + " s) +-" + F(UtAbsS), F(utBack));
+            // The reference is the UT before the viewer opened and the real seconds since, not the viewer's own natural time (which a wrong accumulation would share).
+            double utExpected = utStart + (Rig.RealS - realStart);
+            Verdict("restore_time", "the game's clock is back on the natural time", Math.Abs(utBack - utExpected) <= RestoreTimeS,
+                    F(utStart) + " (UT before the viewer opened) + the real time since (" + F(Rig.RealS - realStart) + " s) +-" + F(RestoreTimeS), F(utBack) + " (the viewer's natural time at the close: " + F(naturalAtClose)
+                    + ", " + F(Rig.RealS - realClose) + " s ago)");
             yield return ProbeWait.Seconds(4);
             double asl = Rig.Pose.VesselAslM;
             Near("restore_vessel", "the vessel is back at its start", startAsl, asl, RestoreVesselM);

@@ -32,6 +32,9 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         // The faults.
         internal bool WindowNeverOpens, SpeedIgnored, FlipDoesNothing, SliderPlacesWrong, FreezeIgnored, WeatherNotForced, CombineStaysOn, WindowStaysVisible, NothingWritten,
             ReadNotSeen, SidecarWrongWeather, NoSecondName, TimeOffsetIgnored, CloseKeepsOptions, SunStandsStill;
+        // More faults: an altitude change that puts the pose's aim back, a camera left behind by an altitude change, a clock the viewer leaves wrong at the close while its own natural
+        // time stays right, rain at the pad (the deck's rain floor keeps a Fair cover up) and a field that is overcast at the pad before anything is forced.
+        internal bool SliderResetsAim, CameraDoesNotFollow, ClockLeftWrongAtClose, RainAtPad, FieldOvercast;
 
         internal readonly Store Options = new Store();
         internal static readonly ViewerLayer[] KerbinLayers =
@@ -109,8 +112,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             for (int l = 0; l < cover.Length; l++)
             {
                 float target = Options.Effective(CloudLookTuning.TuneMapOverride + KerbinLayers[l].Name, -1f);
-                if (target < 0f) target = 0.4f;
+                if (target < 0f) target = FieldOvercast ? 0.9f : 0.4f;
                 else if (Options.Effective(CloudLookTuning.TuneCoverCombine, 1f) > 0f) target = Math.Min(target, 0.4f);
+                // The deck's rain floor applies unless the preset switched the deck rule off.
+                if (RainAtPad && l == 0 && Options.Effective(CloudLookTuning.TuneDeckRule + KerbinLayers[l].Name, -1f) != 0f) target = Math.Max(target, 0.6f);
                 cover[l] += (target - cover[l]) * (float)Math.Min(1.0, dt / 2.0);
             }
         }
@@ -126,6 +131,11 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             wantAgl = aglM;
             agl = SliderPlacesWrong && keep ? aglM + 300.0 : aglM;
             keepAim = keep;
+            if (keep && SliderResetsAim)
+            {
+                aimAz = poseAz;
+                aimEl = poseEl;
+            }
             aimIn = 20;
             placedFrame = frame;
         }
@@ -171,6 +181,9 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public float PassExposure { get { return exposure; } }
         public float PassMapOverride(string layerName) { return WeatherNotForced ? -1f : Options.Effective(CloudLookTuning.TuneMapOverride + layerName, -1f); }
         public float LayerCover(int layer) { return cover[layer]; }
+        public double PrecipitationLevel { get { return RainAtPad && !RainUnreadable ? 0.5 : 0.0; } }
+        // The rain floor is there but the field reads no rain.
+        internal bool RainUnreadable;
         public float TuningValue(string key, float compiledDefault) { return Options.Effective(key, compiledDefault); }
         public bool HasOverride(string key) { return Options.Overrides.ContainsKey(key); }
         public double Setting(string key) { return Options.Setting(key); }
@@ -183,7 +196,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             {
                 return new ViewerPoseReading
                 {
-                    VesselAslM = startAsl + agl, VesselAglM = agl, CameraAglM = CameraAgl(), CameraToVesselM = camDist, AzimuthDeg = aimAz, ElevationDeg = aimEl
+                    VesselAslM = startAsl + agl, VesselAglM = agl, CameraAglM = CameraAgl(), CameraToVesselM = CameraDoesNotFollow ? camDist + Math.Abs(agl - poseAgl) : camDist, AzimuthDeg = aimAz, ElevationDeg = aimEl
                 };
             }
         }
@@ -228,7 +241,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 return;
             }
             open = session = false;
-            gameUt = clock.Natural;
+            gameUt = clock.Natural + (ClockLeftWrongAtClose ? 600.0 : 0.0);
             if (!CloseKeepsOptions)
             {
                 foreach (KeyValuePair<string, double> pair in openSettings) Options.SetSetting(pair.Key, pair.Value);
@@ -249,7 +262,18 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             aimAz = pose.HeadingDeg;
             aimEl = double.IsNaN(pose.ElevationDeg) ? 0.0 : pose.ElevationDeg;
             camDist = pose.CameraDistM;
+            poseAz = aimAz;
+            poseEl = aimEl;
             Place(pose.AglM, false);
+            poseAgl = agl;
+        }
+
+        private double poseAz, poseEl, poseAgl;
+
+        public void SetCameraAim(double headingDeg, double elevationDeg)
+        {
+            aimAz = headingDeg;
+            aimEl = elevationDeg;
         }
 
         public void RequestAltitude(double aglM)

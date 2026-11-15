@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Atmospheres.Viewer
@@ -38,6 +39,8 @@ namespace ReDefinition.Atmospheres.Viewer
         // cloud.mapOverride.<layer> as the pass reads it (-1: the field's map), and the cover the pass's CPU mirror holds at the vessel (NaN where there is none).
         float PassMapOverride(string layerName);
         float LayerCover(int layer);
+        // The precipitation level (0 to 1) of the weather field at the vessel; NaN where it cannot be read.
+        double PrecipitationLevel { get; }
         // The tuning table's value of a key (no read for the read check), and whether the key has an override.
         float TuningValue(string key, float compiledDefault);
         bool HasOverride(string key);
@@ -68,6 +71,8 @@ namespace ReDefinition.Atmospheres.Viewer
         void ToggleWindow();
         void PlacePose(ViewerPose pose);
         void RequestAltitude(double aglM);
+        // Turns the camera by hand to this compass heading and elevation (the way a player drags it), so that a later placement that keeps the aim can be told from one that resets it.
+        void SetCameraAim(double headingDeg, double elevationDeg);
         void SetTimeOffset(double seconds);
         void FreezeTime(bool on);
         void SetWeather(ViewerWeather weather);
@@ -103,7 +108,7 @@ namespace ReDefinition.Atmospheres.Viewer
 
         public bool FlightReady
         {
-            get { return HighLogic.LoadedScene == GameScenes.FLIGHT && FlightGlobals.ready && FlightGlobals.fetch != null && FlightGlobals.ActiveVessel != null && FlightCamera.fetch != null; }
+            get { return HighLogic.LoadedScene == GameScenes.FLIGHT && GameGlobals.Present && FlightGlobals.ready && GameGlobals.ActiveVessel != null && FlightCamera.fetch != null; }
         }
 
         public bool PassDrawing
@@ -188,11 +193,29 @@ namespace ReDefinition.Atmospheres.Viewer
         public float LayerCover(int layer)
         {
             LayerStackSource stack = Stack();
-            Vessel v = FlightGlobals.ActiveVessel;
+            Vessel v = GameGlobals.ActiveVessel;
             if (stack == null || v == null || layer < 0 || layer >= stack.LayerCount) return float.NaN;
             float cover, type;
             stack.SampleMaps(layer, v.latitude, v.longitude, out cover, out type);
             return cover;
+        }
+
+        public double PrecipitationLevel
+        {
+            get
+            {
+                try
+                {
+                    Vessel v = GameGlobals.ActiveVessel;
+                    WeatherSample s;
+                    if (v == null || v.mainBody == null || !WeatherHub.Sample(v.mainBody.flightGlobalsIndex, v.latitude, v.longitude, 0.0, Planetarium.GetUniversalTime(), out s)) return double.NaN;
+                    return s.Level01;
+                }
+                catch (Exception)
+                {
+                    return double.NaN;
+                }
+            }
         }
 
         public float TuningValue(string key, float compiledDefault)
@@ -236,6 +259,16 @@ namespace ReDefinition.Atmospheres.Viewer
         public void ToggleWindow() { window.Toggle(); }
         public void PlacePose(ViewerPose pose) { viewer.PlacePose(pose); }
         public void RequestAltitude(double aglM) { viewer.RequestAltitude(aglM); }
+
+        // The convention of CloudViewer.Aim (the K-T2 ground views): the camera stands behind the vessel, heading + 180 degrees, pitch minus the elevation.
+        public void SetCameraAim(double headingDeg, double elevationDeg)
+        {
+            FlightCamera fc = FlightCamera.fetch;
+            if (fc == null) return;
+            fc.camHdg = (float)((headingDeg + 180.0) * Math.PI / 180.0);
+            fc.camPitch = (float)(-elevationDeg * Math.PI / 180.0);
+        }
+
         public void SetTimeOffset(double seconds) { viewer.SetTimeOffset(seconds); }
         public void FreezeTime(bool on) { viewer.FreezeTime(on); }
         public void SetWeather(ViewerWeather weather) { viewer.SetWeather(weather); }

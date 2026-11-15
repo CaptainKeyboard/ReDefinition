@@ -173,9 +173,11 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 if (pair.Key.EndsWith("_ok", StringComparison.Ordinal))
                 {
                     Assert.AreEqual(1.0, Convert.ToDouble(pair.Value["equals"], CultureInfo.InvariantCulture), pair.Key + " must equal 1");
-                    // The drift row is written only where the layers have wind to measure; every other check is required.
+                    // The drift row is written only where the layers have wind to measure, the Overcast and Fair cover rows only where the field's own weather lets them tell; every
+                    // other check is required.
                     bool optional = pair.Value.ContainsKey("required") && (bool)pair.Value["required"] == false;
-                    Assert.AreEqual(pair.Key == "VIEWER.speed_drift_ratio_ok", optional, pair.Key + (optional ? " is optional" : " is required: it is a check"));
+                    bool mayBeMissing = pair.Key == "VIEWER.speed_drift_ratio_ok" || pair.Key == "VIEWER.weather_overcast_cover_ok" || pair.Key == "VIEWER.weather_fair_cover_ok";
+                    Assert.AreEqual(mayBeMissing, optional, pair.Key + (optional ? " is optional" : " is required: it is a check"));
                 }
                 else Assert.IsTrue(pair.Value.ContainsKey("required") && (bool)pair.Value["required"] == false, pair.Key + " is information (required false)");
             }
@@ -307,6 +309,64 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Run r = Start(rig => rig.CloseKeepsOptions = true);
             Drive(r);
             AssertFailsWith(r, "restore_options");
+        }
+
+        // --- The checks the plausibility review made able to fail ---
+
+        // The old bound (the camera within its own distance of the vessel's height) held whatever the distance was.
+        [TestMethod]
+        public void ACameraLeftBehindByAnAltitudeChangeFailsCameraFollows()
+        {
+            Run r = Start(rig => rig.CameraDoesNotFollow = true);
+            Drive(r);
+            AssertFailsWith(r, "camera_follows");
+        }
+
+        [TestMethod]
+        public void AnAltitudeChangeThatPutsThePosesAimBackFailsKeepAim()
+        {
+            Run r = Start(rig => rig.SliderResetsAim = true);
+            Drive(r);
+            AssertFailsWith(r, "slider_keeps_aim");
+        }
+
+        [TestMethod]
+        public void AClockTheViewerLeavesWrongAtTheCloseFailsRestoreTimeAgainstTheStartsUt()
+        {
+            Run r = Start(rig => rig.ClockLeftWrongAtClose = true);
+            Drive(r);
+            AssertFailsWith(r, "restore_time");
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("viewer: the game's clock is back") && l.Contains("UT before the viewer opened")), "the line names the outside reference");
+        }
+
+        [TestMethod]
+        public void ADeckAlreadyClosedAtThePadMakesTheOvercastCheckUnclearNotPassedOrFailed()
+        {
+            Run r = Start(rig => rig.FieldOvercast = true);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Dictionary<string, string> rows = Emitted(r);
+            Assert.IsFalse(rows.ContainsKey(ViewerProbe.Prefix + "weather_overcast_cover_ok"), "no verdict row where the check cannot tell");
+            Assert.AreEqual(1.0, double.Parse(rows[ViewerProbe.Prefix + "weather_overcast_unclear"], System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual(0.0, double.Parse(rows[ViewerProbe.Prefix + "weather_fair_unclear"], System.Globalization.CultureInfo.InvariantCulture));
+            Assert.IsTrue(r.Log.Any(l => l.Contains("weather_overcast_cover") && l.Contains("UNCLEAR")) || r.Log.Any(l => l.Contains("Overcast") && l.Contains(" - UNCLEAR (")), "the line says UNCLEAR\n" + Dump(r));
+        }
+
+        [TestMethod]
+        public void AFairCoverThatRainKeepsUpIsUnclearWhereItRainsAndFailedWhereItDoesNot()
+        {
+            Run raining = Start(rig => rig.RainAtPad = true);
+            Drive(raining);
+            Assert.IsTrue(raining.Probe.Passed, Dump(raining));
+            Dictionary<string, string> rows = Emitted(raining);
+            Assert.IsFalse(rows.ContainsKey(ViewerProbe.Prefix + "weather_fair_cover_ok"));
+            Assert.AreEqual(1.0, double.Parse(rows[ViewerProbe.Prefix + "weather_fair_unclear"], System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual(0.0, double.Parse(rows[ViewerProbe.Prefix + "weather_overcast_unclear"], System.Globalization.CultureInfo.InvariantCulture));
+            Assert.IsTrue(raining.Log.Any(l => l.Contains("UNCLEAR (it rains at the pad")), Dump(raining));
+
+            Run dry = Start(rig => { rig.RainAtPad = true; rig.RainUnreadable = true; });
+            Drive(dry);
+            AssertFailsWith(dry, "weather_fair_cover");
         }
 
         // --- The sidecar's reader ---
