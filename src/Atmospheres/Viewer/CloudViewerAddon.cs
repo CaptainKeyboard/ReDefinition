@@ -16,9 +16,13 @@ namespace ReDefinition.Atmospheres.Viewer
         private ForecastKey toggle, flip, capture;
         private bool started;
 
+        // The addon of this flight scene runs (the main mod is there): without it nothing ticks the viewer.
+        internal static bool Running { get; private set; }
+
         private void Start()
         {
             if (!HostGate.Open) return;
+            Running = true;
             toggle = new ForecastKey(ToggleKey);
             flip = new ForecastKey(FlipKey);
             capture = new ForecastKey(CaptureKey);
@@ -29,6 +33,7 @@ namespace ReDefinition.Atmospheres.Viewer
         private void OnDestroy()
         {
             if (!started) return;
+            Running = false;
             GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoadRequested);
             End();
         }

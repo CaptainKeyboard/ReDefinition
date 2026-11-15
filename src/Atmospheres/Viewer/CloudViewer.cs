@@ -269,6 +269,26 @@ namespace ReDefinition.Atmospheres.Viewer
             }
             if (aimIn >= 0 && --aimIn < 0) Aim();
             if (capture.Step()) TakeCapture();
+            bool busy = capture.Busy;
+            if (captureWasBusy && !busy) CaptureReleasedFrame = Time.frameCount;
+            captureWasBusy = busy;
+        }
+
+        private bool captureWasBusy;
+
+        // The game's frame in which the last picture was asked for and the first frame the window was let back in (the probe reads the order of the two).
+        internal int CaptureFrame { get; private set; } = -1;
+        internal int CaptureReleasedFrame { get; private set; } = -1;
+
+        // A placement is under way: an altitude waits for the slider to stand still, or the camera is yet to be aimed.
+        internal bool PlacementPending
+        {
+            get { return !double.IsNaN(pendingAgl) || aimIn >= 0; }
+        }
+
+        internal KspT09World World
+        {
+            get { return world; }
         }
 
         // --- Scene ---
@@ -546,6 +566,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             try
             {
+                CaptureFrame = Time.frameCount;
                 string png = CapturePath(pendingCapture);
                 Directory.CreateDirectory(Path.GetDirectoryName(png));
                 ScreenCapture.CaptureScreenshot(png);

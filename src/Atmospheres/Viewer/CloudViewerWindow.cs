@@ -34,6 +34,12 @@ namespace ReDefinition.Atmospheres.Viewer
             get { return shown != null; }
         }
 
+        // The window is open and not hidden for a picture.
+        internal bool Visible
+        {
+            get { return shown != null && shown.gameObject.activeSelf; }
+        }
+
         internal void Toggle()
         {
             if (shown != null) Close();

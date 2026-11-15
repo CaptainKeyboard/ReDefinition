@@ -1,0 +1,329 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Atmospheres;
+using ReDefinition.Atmospheres.Viewer;
+using ReDefinition.Core;
+using ReDefinition.Tests.Atmospheres.B09;
+
+namespace ReDefinition.Tests.Atmospheres.Viewer
+{
+    // The whole K-V1 scenario of ViewerProbe, from "flight and pass ready" to the verdict, against a model of the game (FakeViewerRig): the order of the steps, every row the start
+    // emits (and that tests/series/rows/VPROBE.json lists exactly these), and one fault test for each effect of the viewer the probe judges: the probe has to fail with the check
+    // that names it, never with an unhandled exception. What it cannot cover: the real window and its controls, the vessel's physics and hold, the pass's frame order, the files
+    // the game writes (the model's are in memory), and whether the thresholds fit the real game; the start review (.local/work/viewer-start-review.md) lists what the start
+    // alone can show.
+    [TestClass]
+    public class ViewerProbeWalkThroughTests
+    {
+        private const double Dt = 0.05;
+
+        private sealed class Run
+        {
+            internal FakeViewerRig Rig;
+            internal ViewerProbe Probe;
+            internal readonly List<string> Log = new List<string>();
+            internal readonly List<string> Rows = new List<string>();
+            internal int Quits;
+            internal string Joined { get { return string.Join("; ", Probe.Failures.ToArray()); } }
+        }
+
+        private Action<string> savedLog;
+        private Action<string> savedSink;
+        private Action<string> savedSay;
+
+        [TestInitialize]
+        public void Capture()
+        {
+            savedLog = SeriesProbe.LogLine;
+            savedSink = AtmoResult.Sink;
+            savedSay = AtmospheresLog.SayLine;
+            SeriesProbe.ForgetRunningProbes();
+            AtmospheresSettings.ResetToDefaults();
+            Tuning.ClearOverrides();
+        }
+
+        [TestCleanup]
+        public void Release()
+        {
+            SeriesProbe.LogLine = savedLog;
+            AtmoResult.Sink = savedSink;
+            AtmospheresLog.SayLine = savedSay;
+            AtmospheresSettings.ResetToDefaults();
+            SeriesProbe.ForgetRunningProbes();
+        }
+
+        private static Run Start(Action<FakeViewerRig> fault = null)
+        {
+            var r = new Run { Rig = new FakeViewerRig() };
+            if (fault != null) fault(r.Rig);
+            SeriesProbe.LogLine = m => r.Log.Add(m);
+            AtmoResult.Sink = r.Rows.Add;
+            r.Probe = new ViewerProbe { Rig = r.Rig, CommandLineOverride = new[] { "KSP_x64.exe", "-atmoSeries", "K-V1", "-atmoStart", "viewer", "-atmoProbe", "ViewerProbe" } };
+            r.Probe.QuitGame = () => r.Quits++;
+            r.Probe.Init();
+            return r;
+        }
+
+        private static void Drive(Run r, double maxS = 900.0)
+        {
+            double elapsed = 0.0;
+            while (elapsed < maxS && !(r.Probe.Finished && r.Quits > 0))
+            {
+                r.Rig.Advance(Dt);
+                r.Probe.Tick((float)Dt);
+                elapsed += Dt;
+            }
+        }
+
+        private static string Dump(Run r)
+        {
+            return "--- failures: " + r.Joined + "\n--- log tail:\n" + string.Join("\n", r.Log.Skip(Math.Max(0, r.Log.Count - 30)).ToArray());
+        }
+
+        private static readonly Regex RowPattern = new Regex("\"metric\":\"(?<m>[^\"]+)\",\"value\":(?<v>\"(?:[^\"\\\\]|\\\\.)*\"|[^,}]+)");
+
+        private static Dictionary<string, string> Emitted(Run r)
+        {
+            var map = new Dictionary<string, string>();
+            foreach (string line in r.Rows)
+            {
+                Match m = RowPattern.Match(line);
+                if (m.Success) map[m.Groups["m"].Value] = m.Groups["v"].Value.Trim('"');
+            }
+            return map;
+        }
+
+        private static void AssertFailsWith(Run r, string check)
+        {
+            Assert.IsTrue(r.Probe.Finished, "the probe ended\n" + Dump(r));
+            Assert.IsFalse(r.Probe.Passed, "the probe failed\n" + Dump(r));
+            Assert.IsFalse(r.Probe.Failures.Any(f => f.StartsWith("exception in the scenario")), "no unhandled exception: " + r.Joined);
+            Assert.IsFalse(r.Probe.Failures.Any(f => f.StartsWith("the scenario did not end")), "the scenario ended on its own: " + r.Joined);
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(ViewerProbe.Prefix + check + " ") || f == ViewerProbe.Prefix + check), "the failure names " + check + ": " + r.Joined);
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: FAILED")), "the verdict line was written");
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("viewer: ") && l.EndsWith(" - FAILED")), "a 'viewer:' line says what was expected and what was read");
+            Assert.AreEqual(1, r.Quits, "the game was told to quit once");
+        }
+
+        // --- The healthy start ---
+
+        [TestMethod]
+        public void AHealthyViewerStartPassesEveryCheckInOrder()
+        {
+            Run r = Start();
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(1, r.Quits);
+            Assert.AreEqual("viewer", r.Probe.StartId);
+            Assert.AreEqual("Probe: PASSED", r.Log[r.Log.Count - 1]);
+            Assert.IsTrue(r.Probe.Elapsed < 10 * 60, "the scenario fits its ten minutes: " + r.Probe.Elapsed);
+            Assert.IsTrue(r.Probe.Elapsed > 30, "the real scenario is not a handful of frames: " + r.Probe.Elapsed);
+
+            // The order of the checks of the log is the order of the plan: window, pose and altitude, time, weather, A/B, speed, capture, close.
+            string[] order =
+            {
+                "closed_at_start", "addon_running", "window_opens", "keys_listed", "window_closes", "window_reopens", "pose_height", "window_screenshot", "slider_height", "typed_height",
+                "time_offset", "sun_moves", "time_freeze", "time_resumes", "weather_overcast_forced", "weather_fair_cover", "weather_cumulus_cover", "weather_raindeck_precipitation",
+                "weather_field_forced", "ab_b_pass", "ab_flip_a_pass", "ab_flip_b_pass", "speed_x1_flows", "speed_x4_ratio", "speed_frozen", "speed_resumes", "capture_hidden", "capture_files",
+                "capture_sidecar", "capture_second", "close_ends_session", "restore_options", "restore_time", "restore_vessel", "pass_kept_drawing"
+            };
+            int last = -1;
+            foreach (string name in order)
+            {
+                int at = r.Rows.FindIndex(last + 1, l => l.Contains("\"metric\":\"" + ViewerProbe.Prefix + name + "_ok\""));
+                Assert.IsTrue(at > last, name + " is emitted after the one before it\n" + Dump(r));
+                last = at;
+            }
+            Dictionary<string, string> rows = Emitted(r);
+            foreach (KeyValuePair<string, string> pair in rows.Where(p => p.Key.EndsWith("_ok", StringComparison.Ordinal)))
+                Assert.AreEqual("1", pair.Value, pair.Key + " is ok in the healthy start");
+            // Every check logs what was expected and what was read.
+            Assert.IsTrue(r.Log.Count(l => l.StartsWith("viewer: ") && l.EndsWith(" - ok")) >= 40);
+            Assert.IsFalse(r.Log.Any(l => l.EndsWith(" - FAILED")));
+        }
+
+        // The rows file lists exactly what the probe writes: no check without a row, no row the start does not fill.
+        [TestMethod]
+        public void TheRowsFileListsExactlyTheMetricsTheProbeEmits()
+        {
+            Run r = Start();
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            string root = RepoRoot.Root("tests", "series", "rows", "VPROBE.json");
+            var file = (Dictionary<string, object>)MiniJson.Parse(File.ReadAllText(Path.Combine(root, "tests", "series", "rows", "VPROBE.json")));
+            Assert.AreEqual("VPROBE", (string)file["package"]);
+            var listed = new Dictionary<string, Dictionary<string, object>>();
+            foreach (object o in (List<object>)file["rows"])
+            {
+                var row = (Dictionary<string, object>)o;
+                Assert.AreEqual("K-V1", (string)row["series"], (string)row["metric"]);
+                Assert.AreEqual("viewer", (string)row["start"], (string)row["metric"]);
+                Assert.IsFalse(listed.ContainsKey((string)row["metric"]), "row twice: " + (string)row["metric"]);
+                listed[(string)row["metric"]] = row;
+            }
+            Dictionary<string, string> emitted = Emitted(r);
+            CollectionAssert.AreEquivalent(emitted.Keys.ToList(), listed.Keys.ToList(), "rows file against the emitted metrics");
+            foreach (KeyValuePair<string, Dictionary<string, object>> pair in listed)
+            {
+                if (pair.Key.EndsWith("_ok", StringComparison.Ordinal))
+                {
+                    Assert.AreEqual(1.0, Convert.ToDouble(pair.Value["equals"], CultureInfo.InvariantCulture), pair.Key + " must equal 1");
+                    // The drift row is written only where the layers have wind to measure; every other check is required.
+                    bool optional = pair.Value.ContainsKey("required") && (bool)pair.Value["required"] == false;
+                    Assert.AreEqual(pair.Key == "VIEWER.speed_drift_ratio_ok", optional, pair.Key + (optional ? " is optional" : " is required: it is a check"));
+                }
+                else Assert.IsTrue(pair.Value.ContainsKey("required") && (bool)pair.Value["required"] == false, pair.Key + " is information (required false)");
+            }
+        }
+
+        // --- One fault for each effect the probe judges ---
+
+        [TestMethod]
+        public void AWindowThatDoesNotOpenFailsTheStartAtOnce()
+        {
+            Run r = Start(rig => rig.WindowNeverOpens = true);
+            Drive(r);
+            AssertFailsWith(r, "window_opens");
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("session did not start")));
+            Assert.IsFalse(Emitted(r).ContainsKey(ViewerProbe.Prefix + "slider_height_ok"), "nothing further is checked without a session");
+        }
+
+        [TestMethod]
+        public void AnAltitudeSliderThatPlacesTheVesselWrongFails()
+        {
+            Run r = Start(rig => rig.SliderPlacesWrong = true);
+            Drive(r);
+            AssertFailsWith(r, "slider_height");
+            Assert.IsTrue(Emitted(r).ContainsKey(ViewerProbe.Prefix + "typed_height_ok"), "the start goes on and returns the other rows");
+        }
+
+        [TestMethod]
+        public void ACloudSpeedThatIsNotAppliedToTheNoiseClockFails()
+        {
+            Run r = Start(rig => rig.SpeedIgnored = true);
+            Drive(r);
+            AssertFailsWith(r, "speed_x4_ratio");
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(ViewerProbe.Prefix + "speed_frozen")), "a frozen cloud that still flows fails too: " + r.Joined);
+        }
+
+        [TestMethod]
+        public void AFlipThatChangesNothingFailsTheABRows()
+        {
+            Run r = Start(rig => rig.FlipDoesNothing = true);
+            Drive(r);
+            AssertFailsWith(r, "ab_flip_a_pass");
+        }
+
+        [TestMethod]
+        public void AReadCheckThatNeverSeesThePassFailsTheABRows()
+        {
+            Run r = Start(rig => rig.ReadNotSeen = true);
+            Drive(r);
+            AssertFailsWith(r, "ab_b_read_check");
+        }
+
+        [TestMethod]
+        public void AFrozenClockThatKeepsRunningFails()
+        {
+            Run r = Start(rig => rig.FreezeIgnored = true);
+            Drive(r);
+            AssertFailsWith(r, "time_freeze");
+        }
+
+        [TestMethod]
+        public void ATimeOffsetThatMovesNothingFails()
+        {
+            Run r = Start(rig => rig.TimeOffsetIgnored = true);
+            Drive(r);
+            AssertFailsWith(r, "time_offset");
+        }
+
+        [TestMethod]
+        public void ASunThatDoesNotFollowTheClockFails()
+        {
+            Run r = Start(rig => rig.SunStandsStill = true);
+            Drive(r);
+            AssertFailsWith(r, "sun_moves");
+        }
+
+        [TestMethod]
+        public void AForcedWeatherThePassDoesNotReadFails()
+        {
+            Run r = Start(rig => rig.WeatherNotForced = true);
+            Drive(r);
+            AssertFailsWith(r, "weather_overcast_forced");
+        }
+
+        // The defect the cloud viewer had: the combination of the layer maps to the field's cover scaled a forced Overcast down.
+        [TestMethod]
+        public void AForcedWeatherThatTheCombinationScalesDownFailsOnTheCover()
+        {
+            Run r = Start(rig => rig.CombineStaysOn = true);
+            Drive(r);
+            AssertFailsWith(r, "weather_overcast_forced");
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(ViewerProbe.Prefix + "weather_overcast_cover")), "the cover stays under the forced value: " + r.Joined);
+        }
+
+        [TestMethod]
+        public void AWindowThatStaysInThePictureFails()
+        {
+            Run r = Start(rig => rig.WindowStaysVisible = true);
+            Drive(r);
+            AssertFailsWith(r, "capture_hidden");
+        }
+
+        [TestMethod]
+        public void APictureThatIsNotWrittenFails()
+        {
+            Run r = Start(rig => rig.NothingWritten = true);
+            Drive(r);
+            AssertFailsWith(r, "capture_files");
+        }
+
+        [TestMethod]
+        public void ASidecarThatNamesTheWrongWeatherFails()
+        {
+            Run r = Start(rig => rig.SidecarWrongWeather = true);
+            Drive(r);
+            AssertFailsWith(r, "capture_sidecar");
+        }
+
+        [TestMethod]
+        public void ASecondPictureThatWritesOverTheFirstFails()
+        {
+            Run r = Start(rig => rig.NoSecondName = true);
+            Drive(r);
+            AssertFailsWith(r, "capture_second");
+        }
+
+        [TestMethod]
+        public void AViewerThatKeepsItsOptionsOnCloseFailsTheRestoreRow()
+        {
+            Run r = Start(rig => rig.CloseKeepsOptions = true);
+            Drive(r);
+            AssertFailsWith(r, "restore_options");
+        }
+
+        // --- The sidecar's reader ---
+
+        [TestMethod]
+        public void TheSidecarReaderTakesTheSceneLinesAndTheFirstOfAKey()
+        {
+            string text = ViewerSidecar.Format(new CaptureRecord { Picture = "p.png", Body = "Kerbin", Pose = "ground", Weather = "Fair", Ut = 12.5, Side = 'A', CloudSpeed = 4f, AltitudeAglM = 321.0 },
+                                               new SettingDef[0], k => 0.0, k => "", new CloudKey[0], new FakeViewerRig.Store());
+            Dictionary<string, string> map = ViewerProbe.ParseSidecar(text);
+            Assert.AreEqual("p.png", map["picture"]);
+            Assert.AreEqual("Fair", map["weather"]);
+            Assert.AreEqual("4", map["cloudSpeed"]);
+            Assert.AreEqual("A", map["abSide"]);
+            Assert.AreEqual("321.0", map["altitudeAgl"]);
+            Assert.AreEqual("12.5", map["ut"]);
+            Assert.AreEqual(0, ViewerProbe.ParseSidecar(null).Count);
+        }
+    }
+}

@@ -1,0 +1,373 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using ReDefinition.Atmospheres;
+using ReDefinition.Atmospheres.Viewer;
+
+namespace ReDefinition.Tests.Atmospheres.Viewer
+{
+    // The viewer probe's game without the game (IViewerRig): the viewer's own pure parts do the work where they exist (ViewerClock, OptionFlip and OptionSet,
+    // WeatherPresets, CaptureSchedule, ViewerSidecar, AltitudeScale), and the rest is a small model of what the game does with them: the vessel's placement, the cloud pass
+    // reading the tuning table every frame (exposure, noise clock, drift), the map mirror slewing to the forced cover, the files. A fault is a flag that makes one of the
+    // viewer's effects not happen, so that the probe has to fail with the named check.
+    internal sealed class FakeViewerRig : IViewerRig
+    {
+        // The store of the model: the settings and the overrides the game's table would hold.
+        internal sealed class Store : IOptionStore
+        {
+            internal readonly Dictionary<string, double> Settings = new Dictionary<string, double>
+            {
+                { AtmospheresSettings.Keys.CloudSoftness, 0.5 }, { AtmospheresSettings.Keys.ForceLevel, -1.0 }, { AtmospheresSettings.Keys.ForceType, 0.0 }
+            };
+            internal readonly Dictionary<string, float> Overrides = new Dictionary<string, float>();
+
+            public double Setting(string key) { double v; return Settings.TryGetValue(key, out v) ? v : 0.0; }
+            public bool SetSetting(string key, double value) { Settings[key] = value; return true; }
+            public bool TryOverride(string key, out float value) { return Overrides.TryGetValue(key, out value); }
+            public void SetOverride(string key, float value) { Overrides[key] = value; }
+            public void ClearOverride(string key) { Overrides.Remove(key); }
+            public float Effective(string key, float compiledDefault) { float v; return Overrides.TryGetValue(key, out v) ? v : compiledDefault; }
+        }
+
+        // The faults.
+        internal bool WindowNeverOpens, SpeedIgnored, FlipDoesNothing, SliderPlacesWrong, FreezeIgnored, WeatherNotForced, CombineStaysOn, WindowStaysVisible, NothingWritten,
+            ReadNotSeen, SidecarWrongWeather, NoSecondName, TimeOffsetIgnored, CloseKeepsOptions, SunStandsStill;
+
+        internal readonly Store Options = new Store();
+        internal static readonly ViewerLayer[] KerbinLayers =
+        {
+            new ViewerLayer { Name = "Kerbin-weather-rain", Group = CloudCoverShift.RainGroup, InnerAltitudeM = 300f, ThicknessM = 3000f },
+            new ViewerLayer { Name = "Kerbin-cumulus", Group = "", InnerAltitudeM = 600f, ThicknessM = 7000f },
+            new ViewerLayer { Name = "Kerbin-cumulonimbus", Group = "", InnerAltitudeM = 500f, ThicknessM = 12000f },
+            new ViewerLayer { Name = "Kerbin-cirrus", Group = "", InnerAltitudeM = 9000f, ThicknessM = 2000f }
+        };
+
+        private readonly List<string> keyNames = new List<string>();
+        private readonly List<string> settingKeys = new List<string> { AtmospheresSettings.Keys.CloudSoftness };
+        private readonly OptionFlip flip = new OptionFlip();
+        private readonly CaptureSchedule schedule = new CaptureSchedule(2);
+        private readonly Dictionary<string, long> files = new Dictionary<string, long>();
+        private readonly Dictionary<string, string> texts = new Dictionary<string, string>();
+        private readonly Dictionary<string, double> openSettings = new Dictionary<string, double>();
+        private readonly HashSet<string> touched = new HashSet<string>();
+        private readonly double[] drift = new double[KerbinLayers.Length * 3];
+        private readonly float[] cover = new float[KerbinLayers.Length];
+        private ViewerClock clock;
+        private bool open, session, captureWasBusy;
+        private double real, gameUt = 1000800.0, flow;
+        private int frame = 100, captureFrame = -1, releasedFrame = -1, captures, placedFrame;
+        private float exposure = 1f;
+        private string watched;
+        private int watchedRead = int.MinValue;
+        private ViewerWeather weather = ViewerWeather.Field;
+        private string pendingName, lastCapture = "", poseName = "";
+        // The vessel.
+        private double agl, wantAgl, pendingAgl = double.NaN, pendingSince, camDist = 100.0, aimAz, aimEl;
+        private int aimIn = -1;
+        private bool keepAim;
+        private double startAsl = 70.0;
+
+        internal FakeViewerRig()
+        {
+            foreach (ViewerLayer l in KerbinLayers) cover[Array.IndexOf(KerbinLayers, l)] = 0.4f;
+        }
+
+        // One frame of the game: the clock, the viewer's tick, then the pass reads the table.
+        internal void Advance(double dt)
+        {
+            real += dt;
+            frame++;
+            gameUt += dt;
+            if (session)
+            {
+                if (!(FreezeIgnored && clock.Frozen)) gameUt = clock.Step(gameUt);
+                if (!double.IsNaN(pendingAgl) && real - pendingSince >= 0.4)
+                {
+                    Place(pendingAgl, true);
+                    pendingAgl = double.NaN;
+                }
+                if (aimIn >= 0 && --aimIn < 0)
+                {
+                    if (!keepAim)
+                    {
+                        // aim kept where it was; the pose's aim was set at the placement
+                    }
+                }
+                if (schedule.Step()) TakeCapture();
+                bool busy = schedule.Busy;
+                if (captureWasBusy && !busy) releasedFrame = frame;
+                captureWasBusy = busy;
+            }
+            // The pass: the table's values this frame.
+            exposure = Options.Effective("cloud.exposure", 1f);
+            float scale = SpeedIgnored ? 1f : CloudMotion.Clamp(Options.Effective(CloudMotion.TuneScale, 1f));
+            flow += dt * scale;
+            for (int l = 0; l < drift.Length; l += 3)
+            {
+                drift[l] += 1.5 * dt * scale;
+                drift[l + 1] += 0.5 * dt * scale;
+            }
+            if (watched != null && !ReadNotSeen && (watched == "cloud.exposure" || watched == CloudMotion.TuneScale)) watchedRead = frame;
+            // The map mirror slews to the forced cover (or the field's 0.4), the combination scales a forced cover down to the field's.
+            for (int l = 0; l < cover.Length; l++)
+            {
+                float target = Options.Effective(CloudLookTuning.TuneMapOverride + KerbinLayers[l].Name, -1f);
+                if (target < 0f) target = 0.4f;
+                else if (Options.Effective(CloudLookTuning.TuneCoverCombine, 1f) > 0f) target = Math.Min(target, 0.4f);
+                cover[l] += (target - cover[l]) * (float)Math.Min(1.0, dt / 2.0);
+            }
+        }
+
+        private void Place(double aglM, bool keep)
+        {
+            wantAgl = aglM;
+            agl = SliderPlacesWrong && keep ? aglM + 300.0 : aglM;
+            keepAim = keep;
+            aimIn = 20;
+            placedFrame = frame;
+        }
+
+        private void TakeCapture()
+        {
+            captureFrame = frame;
+            if (NothingWritten) return;
+            string png = CapturePicturePath(pendingName);
+            files[png] = 4000;
+            var record = new CaptureRecord
+            {
+                Picture = pendingName + ".png", Taken = "t", Body = "Kerbin", Pose = poseName, Weather = WeatherPresets.Title(SidecarWrongWeather ? ViewerWeather.Overcast : weather), Ut = gameUt,
+                TimeFrozen = clock.Frozen, CloudSpeed = CloudMotion.Clamp(Options.Effective(CloudMotion.TuneScale, 1f)), Side = flip.Showing, AltitudeAglM = CameraAgl()
+            };
+            texts[Path.ChangeExtension(png, ".txt")] = ViewerSidecar.Format(record, AtmospheresSettings.Definitions, AtmospheresSettings.Number, AtmospheresSettings.Text,
+                                                                          CloudKeyRegistry.Expand(LayerNames()), Options);
+            lastCapture = pendingName + ".png";
+        }
+
+        private static IEnumerable<string> LayerNames()
+        {
+            foreach (ViewerLayer l in KerbinLayers) yield return l.Name;
+        }
+
+        private double CameraAgl()
+        {
+            return agl - camDist * Math.Sin(aimEl * Math.PI / 180.0);
+        }
+
+        // --- The game ---
+        public bool FlightReady { get { return true; } }
+        public bool PassDrawing { get { return true; } }
+        public int PassFramesDrawn { get { return frame; } }
+        public IList<ViewerLayer> Layers { get { return KerbinLayers; } }
+        public int Frame { get { return frame; } }
+        public double RealS { get { return real; } }
+        public double GameUt { get { return gameUt; } }
+        public double SunElevationDeg { get { return SunStandsStill ? 30.0 : 80.0 * Math.Sin(2.0 * Math.PI * gameUt / 21600.0); } }
+        public bool HoldStable { get { return frame - placedFrame >= 30; } }
+        public double FlowTimeS { get { return flow; } }
+        public IList<double> DriftM { get { return (double[])drift.Clone(); } }
+        public float PassExposure { get { return exposure; } }
+        public float PassMapOverride(string layerName) { return WeatherNotForced ? -1f : Options.Effective(CloudLookTuning.TuneMapOverride + layerName, -1f); }
+        public float LayerCover(int layer) { return cover[layer]; }
+        public float TuningValue(string key, float compiledDefault) { return Options.Effective(key, compiledDefault); }
+        public bool HasOverride(string key) { return Options.Overrides.ContainsKey(key); }
+        public double Setting(string key) { return Options.Setting(key); }
+        public int TuningFrame { get { return frame; } }
+        public int WatchedReadFrame { get { return watchedRead; } }
+
+        public ViewerPoseReading Pose
+        {
+            get
+            {
+                return new ViewerPoseReading
+                {
+                    VesselAslM = startAsl + agl, VesselAglM = agl, CameraAglM = CameraAgl(), CameraToVesselM = camDist, AzimuthDeg = aimAz, ElevationDeg = aimEl
+                };
+            }
+        }
+
+        // --- The viewer ---
+        public bool AddonRunning { get { return true; } }
+        public bool WindowOpen { get { return open; } }
+        public bool WindowVisible { get { return open && (WindowStaysVisible || !schedule.Busy); } }
+        public bool SessionActive { get { return session; } }
+        public bool PlacementPending { get { return !double.IsNaN(pendingAgl) || aimIn >= 0; } }
+        public int KeyCount { get { return KeysExpected; } }
+        public int KeysExpected { get { return CloudKeyRegistry.All.Count + KerbinLayers.Length * CloudKeyRegistry.PerLayer.Count; } }
+        public double ClockNatural { get { return clock != null ? clock.Natural : double.NaN; } }
+        public double ClockOffsetS { get { return clock != null ? clock.OffsetS : double.NaN; } }
+        public bool ClockFrozen { get { return clock != null && clock.Frozen; } }
+        public double ClockFrozenUt { get { return clock != null ? clock.FrozenUt : double.NaN; } }
+        public float CloudSpeed { get { return CloudMotion.Clamp(Options.Effective(CloudMotion.TuneScale, 1f)); } }
+        public bool CloudsFrozen { get; private set; }
+        public char Showing { get { return flip.Showing; } }
+        public bool Capturing { get { return schedule.Busy; } }
+        public string LastCapture { get { return lastCapture; } }
+        public int CaptureFrame { get { return captureFrame; } }
+        public int CaptureReleasedFrame { get { return releasedFrame; } }
+
+        public void ToggleWindow()
+        {
+            if (WindowNeverOpens && !open) return;
+            if (!open)
+            {
+                open = session = true;
+                clock = new ViewerClock(gameUt);
+                openSettings.Clear();
+                foreach (string k in new[] { AtmospheresSettings.Keys.CloudSoftness, AtmospheresSettings.Keys.ForceLevel, AtmospheresSettings.Keys.ForceType }) openSettings[k] = Options.Setting(k);
+                touched.Clear();
+                flip.Clear();
+                keyNames.Clear();
+                foreach (CloudKey k in CloudKeyRegistry.Expand(LayerNames())) keyNames.Add(k.Key);
+                weather = ViewerWeather.Field;
+                CloudsFrozen = false;
+                return;
+            }
+            open = session = false;
+            gameUt = clock.Natural;
+            if (!CloseKeepsOptions)
+            {
+                foreach (KeyValuePair<string, double> pair in openSettings) Options.SetSetting(pair.Key, pair.Value);
+                foreach (string key in touched) Options.ClearOverride(key);
+            }
+            agl = 0.0;
+            aimEl = aimAz = 0.0;
+        }
+
+        private void Note(string key)
+        {
+            touched.Add(key);
+        }
+
+        public void PlacePose(ViewerPose pose)
+        {
+            poseName = pose.Name;
+            aimAz = pose.HeadingDeg;
+            aimEl = double.IsNaN(pose.ElevationDeg) ? 0.0 : pose.ElevationDeg;
+            camDist = pose.CameraDistM;
+            Place(pose.AglM, false);
+        }
+
+        public void RequestAltitude(double aglM)
+        {
+            pendingAgl = aglM;
+            pendingSince = real;
+        }
+
+        public void SetTimeOffset(double seconds)
+        {
+            if (TimeOffsetIgnored) return;
+            clock.OffsetS = seconds;
+        }
+
+        public void FreezeTime(bool on)
+        {
+            clock.Freeze(on);
+        }
+
+        public void SetWeather(ViewerWeather w)
+        {
+            weather = w;
+            if (WeatherNotForced) return;
+            foreach (KeyValuePair<string, float> pair in WeatherPresets.Overrides(w, KerbinLayers))
+            {
+                Note(pair.Key);
+                if (float.IsNaN(pair.Value)) Options.ClearOverride(pair.Key);
+                else Options.SetOverride(pair.Key, pair.Value);
+            }
+            float combine = WeatherPresets.CombineOverride(w);
+            Note(CloudLookTuning.TuneCoverCombine);
+            if (float.IsNaN(combine) || CombineStaysOn) Options.ClearOverride(CloudLookTuning.TuneCoverCombine);
+            else Options.SetOverride(CloudLookTuning.TuneCoverCombine, combine);
+            double level;
+            ForceType type;
+            WeatherPresets.Precipitation(w, out level, out type);
+            Options.SetSetting(AtmospheresSettings.Keys.ForceLevel, level >= 0.0 ? level : openSettings[AtmospheresSettings.Keys.ForceLevel]);
+            Options.SetSetting(AtmospheresSettings.Keys.ForceType, level >= 0.0 ? (double)(int)type : openSettings[AtmospheresSettings.Keys.ForceType]);
+        }
+
+        public void SetCloudSpeed(float scale)
+        {
+            CloudsFrozen = false;
+            Note(CloudMotion.TuneScale);
+            Options.SetOverride(CloudMotion.TuneScale, CloudMotion.Clamp(scale));
+        }
+
+        private float speedBeforeFreeze = 1f;
+
+        public void FreezeClouds(bool on)
+        {
+            if (on == CloudsFrozen) return;
+            Note(CloudMotion.TuneScale);
+            if (on)
+            {
+                speedBeforeFreeze = CloudSpeed;
+                Options.SetOverride(CloudMotion.TuneScale, 0f);
+            }
+            else Options.SetOverride(CloudMotion.TuneScale, speedBeforeFreeze);
+            CloudsFrozen = on;
+        }
+
+        public void StoreA()
+        {
+            flip.StoreA(OptionSet.Capture(Options, settingKeys, keyNames));
+        }
+
+        public void FlipAB()
+        {
+            if (FlipDoesNothing) return;
+            foreach (string k in keyNames) Note(k);
+            flip.Flip(Options, settingKeys, keyNames);
+        }
+
+        public void SetKey(string key, float value)
+        {
+            Note(key);
+            Options.SetOverride(key, value);
+        }
+
+        public void SetViewerSetting(string key, double value)
+        {
+            Options.SetSetting(key, value);
+        }
+
+        public void WatchKey(string key)
+        {
+            watched = key;
+            watchedRead = int.MinValue;
+        }
+
+        public void RequestCapture()
+        {
+            if (!schedule.Request()) return;
+            captures++;
+            // The name is the clock's second: both pictures of a quick pair would get the same stamp, the viewer numbers them.
+            string stamp = "20261115-120000";
+            pendingName = NoSecondName ? stamp : ViewerPresets.UniqueName(stamp, n => files.ContainsKey(CapturePicturePath(n)));
+        }
+
+        // --- Files ---
+        public string CapturePicturePath(string fileName)
+        {
+            return Path.Combine("C:\\fake\\CloudViewer\\Captures", Path.GetFileNameWithoutExtension(fileName) + ".png");
+        }
+
+        public string ReadText(string path)
+        {
+            string text;
+            return texts.TryGetValue(path, out text) ? text : null;
+        }
+
+        public long FileSize(string path)
+        {
+            long size;
+            return files.TryGetValue(path, out size) ? size : -1;
+        }
+
+        public string Screenshot(string name)
+        {
+            string path = Path.Combine("C:\\fake\\series-pictures", name);
+            files[path] = 9000;
+            return path;
+        }
+    }
+}

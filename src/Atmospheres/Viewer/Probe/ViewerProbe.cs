@@ -1,0 +1,473 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+
+namespace ReDefinition.Atmospheres.Viewer
+{
+    // The probe of series K-V1 (start "viewer", rows tests/series/rows/VPROBE.json): does the in-game cloud viewer work in the running game? It drives the viewer through the
+    // calls the window's controls make (CloudViewerWindow is a thin layer over CloudViewer, which holds the session and decides; a mouse click is not simulated) and reads the
+    // effect back where the game shows it, not in the viewer's own numbers:
+    //   a. the window: Toggle (the call of the hotkey and of the settings window's button) opens it and starts the session, a second Toggle ends it, a third opens it again;
+    //      the key list holds the registry's keys and the per-layer keys of the stack that stands;
+    //   b. the A/B flip: a tuning key (cloud.exposure) and a setting (cloudSoftness) are set, stored as A and changed; the flip puts the stored values back in the table, the
+    //      own pass's frame reads them (LayerFrame.OutputExposure) and the read check sees the pass read the key in the frame just run;
+    //   c. the altitude control: the ground pose, the log slider's value and a typed height put the vessel where they say (height above the terrain) and keep the camera's aim;
+    //   d. the cloud speed (cloud.motionScale): the noise clock and the layers' drift of the own pass advance by that many times the real time, freeze at 0 and resume;
+    //   e. the time controls (offset, freeze, resume) against the game's own clock and the sun's elevation, and the forced weathers against the pass's own map readers
+    //      (cloud.mapOverride.<layer>, the CPU mirror of the layer's cover) and the settings forceLevel and forceType;
+    //   f. the capture: the picture and its sidecar are written, the window stays hidden through the frame the screen is read in and the sidecar names what was set.
+    // Then the window is closed and everything it changed has to be back. Every check logs "viewer: <what>: expected ..., read ... - ok|FAILED" and the probe fails itself.
+    // What it cannot prove: how the window looks and whether its controls respond to the mouse (one screenshot of the open window is saved for a person to look at), the
+    // hotkey (it has no default binding), and the look of the forced weathers or of the picture.
+    [AtmospheresModule(992)]
+    internal sealed class ViewerProbe : SeriesProbe
+    {
+        internal const string Series = "K-V1";
+        internal const string Prefix = "VIEWER.";
+
+        // The tolerances of the checks (they are in tests/series rows' notes and in the start review).
+        internal const double AltitudeAbsM = 15.0, AltitudeRel = 0.015, CameraDistRel = 0.25, CameraDistAbsM = 15.0, AimAzimuthDeg = 5.0, AimElevationDeg = 3.0;
+        internal const double UtAbsS = 2.0, FreezeHeldS = 0.25, SunMovesDeg = 3.0, OffsetSeconds = 5400.0;
+        internal const double FlowRateMin = 0.5, FlowRateMax = 1.5, SpeedScale = 4.0, RatioMin = 3.4, RatioMax = 4.6, FrozenFlowS = 0.001;
+        internal const double DriftMeasurableM = 0.5, DriftRatioMin = 3.0, DriftRatioMax = 5.0, DriftFrozenShare = 0.1;
+        internal const double ExposureStep = 0.75, ExposureEps = 1e-4, CoverHigh = 0.7, CoverLow = 0.2, CoverRise = 0.15;
+        internal const double RestoreVesselM = 40.0, SidecarUtS = 5.0, SidecarAglM = 25.0;
+        internal const double MeasureS = 3.0, PollMapS = 60.0, PollPlaceS = 60.0, PollShortS = 10.0;
+        internal const int MinKeys = 100, MinPictureBytes = 1000, SettleFrames = 30;
+
+        // The game the scenario reads and drives; a test replaces it with a fake rig. Made when the scenario first asks (every start of the game makes this module, only the
+        // series' start uses it).
+        private IViewerRig rig;
+        private bool reached;
+
+        internal IViewerRig Rig
+        {
+            get { return rig ?? (rig = new GameViewerRig()); }
+            set { rig = value; }
+        }
+
+        protected override string SeriesName
+        {
+            get { return Series; }
+        }
+
+        protected override double MaxSeconds
+        {
+            get { return 10 * 60; }
+        }
+
+        protected override string LostGround()
+        {
+            if (!reached) return null;
+            return Rig.FlightReady ? null : "the flight scene was lost during the scenario";
+        }
+
+        private static string F(double v)
+        {
+            return v.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        // One check: the row VIEWER.<name>_ok, the log line with what was expected and what was read, and the probe's own verdict.
+        private bool Verdict(string name, string what, bool ok, string expected, string read)
+        {
+            LogLine("viewer: " + what + ": expected " + expected + ", read " + read + (ok ? " - ok" : " - FAILED"));
+            Emit(Prefix + name + "_ok", ok);
+            Check(Prefix + name, ok, ok ? null : "expected " + expected + ", read " + read);
+            return ok;
+        }
+
+        private bool Near(string name, string what, double expected, double read, double tolerance)
+        {
+            bool ok = !double.IsNaN(read) && Math.Abs(read - expected) <= tolerance;
+            return Verdict(name, what, ok, F(expected) + " +-" + F(tolerance), F(read));
+        }
+
+        private void Info(string name, double value)
+        {
+            Emit(Prefix + name, value);
+        }
+
+        // The frames until a condition holds or the real seconds are over; the answer is in polled (a timeout is a verdict of its own, not the end of the probe, so that one
+        // start returns every row it can).
+        private bool polled;
+
+        private IEnumerable<ProbeWait> Poll(Func<bool> condition, double seconds)
+        {
+            double end = Rig.RealS + seconds;
+            while (!condition() && Rig.RealS < end) yield return ProbeWait.Frames(1);
+            polled = condition();
+        }
+
+        private static double Circular(double a, double b)
+        {
+            double d = Math.Abs(a - b) % 360.0;
+            return d > 180.0 ? 360.0 - d : d;
+        }
+
+        private static ViewerPose PoseNamed(IList<ViewerLayer> layers, string name)
+        {
+            foreach (ViewerPose p in PosePresets.For(layers)) if (p.Name == name) return p;
+            return new ViewerPose { Name = name };
+        }
+
+        private static ViewerLayer? FirstWithRole(IList<ViewerLayer> layers, WeatherPresets.Role role, out int index)
+        {
+            for (int i = 0; i < layers.Count; i++)
+            {
+                if (WeatherPresets.RoleOf(layers[i]) == role)
+                {
+                    index = i;
+                    return layers[i];
+                }
+            }
+            index = -1;
+            return null;
+        }
+
+        // The side of a sidecar's "key = value" lines (the scene's, then the settings' and the tuning keys' that differ from their defaults); the first of a key wins.
+        internal static Dictionary<string, string> ParseSidecar(string text)
+        {
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (text == null) return map;
+            foreach (string raw in text.Split('\n'))
+            {
+                int eq = raw.IndexOf('=');
+                if (eq <= 0) continue;
+                string key = raw.Substring(0, eq).Trim();
+                string value = raw.Substring(eq + 1);
+                int comment = value.IndexOf("//", StringComparison.Ordinal);
+                if (comment >= 0) value = value.Substring(0, comment);
+                if (key.Length > 0 && !map.ContainsKey(key)) map[key] = value.Trim();
+            }
+            return map;
+        }
+
+        // The cloud pass's noise clock and layer drift over a window of real seconds: flow seconds per real second, and the layers' drift in metres per second (sum of the
+        // layers' displacement vectors' lengths).
+        private double flowRate, driftRate;
+
+        private IEnumerable<ProbeWait> Measure(double seconds)
+        {
+            double flow0 = Rig.FlowTimeS, real0 = Rig.RealS;
+            IList<double> drift0 = Rig.DriftM;
+            yield return ProbeWait.Seconds(seconds);
+            double real = Rig.RealS - real0;
+            flowRate = real > 0.0 ? (Rig.FlowTimeS - flow0) / real : double.NaN;
+            IList<double> drift1 = Rig.DriftM;
+            double sum = 0.0;
+            for (int l = 0; l + 2 < drift1.Count && l + 2 < drift0.Count; l += 3)
+            {
+                double dx = drift1[l] - drift0[l], dy = drift1[l + 1] - drift0[l + 1], dz = drift1[l + 2] - drift0[l + 2];
+                sum += Math.Sqrt(dx * dx + dy * dy + dz * dz);
+            }
+            driftRate = real > 0.0 ? sum / real : double.NaN;
+        }
+
+        protected override IEnumerator<ProbeWait> Scenario()
+        {
+            // The switches the series declares for this start (productSwitches).
+            SetSetting(AtmospheresSettings.Keys.Enabled, 1.0);
+            SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
+            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
+            SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
+            yield return ProbeWait.Until(() => Rig.FlightReady && Rig.PassDrawing, 300, "the flight scene and the own cloud pass drawing");
+            reached = true;
+            yield return ProbeWait.Seconds(3);
+            IList<ViewerLayer> layers = Rig.Layers;
+            Info("layers", layers.Count);
+            int drawnAtStart = Rig.PassFramesDrawn;
+            double startAsl = Rig.Pose.VesselAslM;
+            Info("start_vessel_asl_m", startAsl);
+            double softness0 = Rig.Setting(AtmospheresSettings.Keys.CloudSoftness);
+            double forceLevel0 = Rig.Setting(AtmospheresSettings.Keys.ForceLevel), forceType0 = Rig.Setting(AtmospheresSettings.Keys.ForceType);
+            Verdict("closed_at_start", "the viewer is closed before it is opened", !Rig.WindowOpen && !Rig.SessionActive, "no window, no session", "window " + Rig.WindowOpen + ", session " + Rig.SessionActive);
+
+            // --- a. The window ---
+            Verdict("addon_running", "the viewer's frame addon runs in the flight scene", Rig.AddonRunning, "running", Rig.AddonRunning ? "running" : "not started (no main mod?)");
+            Rig.ToggleWindow();
+            foreach (ProbeWait w in Poll(() => Rig.WindowOpen && Rig.SessionActive && Rig.WindowVisible, PollShortS)) yield return w;
+            Verdict("window_opens", "Toggle opens the window and starts the session", polled, "window open, visible, session active",
+                    "window " + Rig.WindowOpen + ", visible " + Rig.WindowVisible + ", session " + Rig.SessionActive);
+            Info("keys_listed", Rig.KeyCount);
+            Verdict("keys_listed", "the key list holds the registry's keys and the stack's per-layer keys", Rig.KeyCount == Rig.KeysExpected && Rig.KeyCount > MinKeys,
+                    Rig.KeysExpected + " keys (more than " + MinKeys + ")", Rig.KeyCount + " keys");
+            Rig.ToggleWindow();
+            foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, PollShortS)) yield return w;
+            Verdict("window_closes", "a second Toggle closes the window and ends the session", polled, "no window, no session", "window " + Rig.WindowOpen + ", session " + Rig.SessionActive);
+            yield return ProbeWait.Frames(5);
+            Rig.ToggleWindow();
+            foreach (ProbeWait w in Poll(() => Rig.WindowOpen && Rig.SessionActive && Rig.WindowVisible, PollShortS)) yield return w;
+            Verdict("window_reopens", "a third Toggle opens it again", polled, "window open, session active", "window " + Rig.WindowOpen + ", session " + Rig.SessionActive);
+            if (!Rig.SessionActive)
+            {
+                Fail("the viewer's session did not start: nothing further can be checked");
+                yield break;
+            }
+
+            // --- c. The pose, the camera, the altitude control ---
+            ViewerPose ground = PoseNamed(layers, "ground");
+            Rig.PlacePose(ground);
+            yield return ProbeWait.Frames(2);
+            foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
+            Verdict("pose_settles", "the ground pose is placed and the vessel held", polled, "placement done, hold stable", "pending " + Rig.PlacementPending + ", hold stable " + Rig.HoldStable);
+            yield return ProbeWait.Frames(SettleFrames);
+            ViewerPoseReading p = Rig.Pose;
+            Near("pose_height", "the ground pose's height above the terrain", ground.AglM, p.VesselAglM, Math.Max(AltitudeAbsM, AltitudeRel * ground.AglM));
+            Near("pose_camera_distance", "the camera's distance from the vessel", ground.CameraDistM, p.CameraToVesselM, Math.Max(CameraDistAbsM, CameraDistRel * ground.CameraDistM));
+            Near("pose_aim_elevation", "the camera's elevation", ground.ElevationDeg, p.ElevationDeg, AimElevationDeg);
+            double az = Circular(ground.HeadingDeg, p.AzimuthDeg);
+            Verdict("pose_aim_azimuth", "the camera's heading", az <= AimAzimuthDeg, F(ground.HeadingDeg) + " +-" + F(AimAzimuthDeg) + " deg", F(p.AzimuthDeg) + " deg");
+            Info("pose_aim_azimuth_deg", p.AzimuthDeg);
+            // One screenshot of the open window at this pose, for a person.
+            string shot = Rig.Screenshot("viewer-window-open.png");
+            yield return ProbeWait.Frames(20);
+            long shotBytes = Rig.FileSize(shot);
+            Verdict("window_screenshot", "the screenshot of the open window is written", shotBytes > MinPictureBytes, "a file of more than " + MinPictureBytes + " bytes", shotBytes + " bytes");
+
+            double max = AltitudeScale.MaxAglM(70000.0);
+            double sliderTarget = AltitudeScale.FromSlider(AltitudeScale.ToSlider(2000.0), max);
+            ViewerPoseReading before = Rig.Pose;
+            Rig.RequestAltitude(sliderTarget);
+            yield return ProbeWait.Frames(2);
+            foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
+            yield return ProbeWait.Frames(SettleFrames);
+            p = Rig.Pose;
+            Near("slider_height", "the altitude slider's height above the terrain", sliderTarget, p.VesselAglM, Math.Max(AltitudeAbsM, AltitudeRel * sliderTarget));
+            Verdict("slider_keeps_aim", "the camera's heading and pitch stay where they were", Circular(before.AzimuthDeg, p.AzimuthDeg) <= AimAzimuthDeg && Math.Abs(before.ElevationDeg - p.ElevationDeg) <= AimElevationDeg,
+                    "heading " + F(before.AzimuthDeg) + " +-" + F(AimAzimuthDeg) + ", elevation " + F(before.ElevationDeg) + " +-" + F(AimElevationDeg), "heading " + F(p.AzimuthDeg) + ", elevation " + F(p.ElevationDeg));
+            Verdict("camera_follows", "the camera is within its distance of the vessel's height", Math.Abs(p.CameraAglM - p.VesselAglM) <= p.CameraToVesselM + 20.0,
+                    "within " + F(p.CameraToVesselM + 20.0) + " m of " + F(p.VesselAglM), F(p.CameraAglM) + " m");
+            const double typed = 8000.0;
+            Rig.RequestAltitude(typed);
+            yield return ProbeWait.Frames(2);
+            foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
+            yield return ProbeWait.Frames(SettleFrames);
+            p = Rig.Pose;
+            Near("typed_height", "the typed height above the terrain", typed, p.VesselAglM, Math.Max(AltitudeAbsM, AltitudeRel * typed));
+
+            // --- e. Time: the offset, the freeze, the sun ---
+            double ut0 = Rig.GameUt, real0 = Rig.RealS, sun0 = Rig.SunElevationDeg;
+            Rig.SetTimeOffset(OffsetSeconds);
+            yield return ProbeWait.Seconds(1.5);
+            double ut1 = Rig.GameUt, real1 = Rig.RealS, sun1 = Rig.SunElevationDeg;
+            Near("time_offset", "the time offset moves the game's clock", OffsetSeconds + (real1 - real0), ut1 - ut0, UtAbsS);
+            Rig.SetTimeOffset(-OffsetSeconds);
+            yield return ProbeWait.Seconds(1.5);
+            double ut2 = Rig.GameUt, real2 = Rig.RealS, sun2 = Rig.SunElevationDeg;
+            Near("time_offset_back", "a negative offset moves it back", -2.0 * OffsetSeconds + (real2 - real1), ut2 - ut1, UtAbsS);
+            double moved = Math.Max(Math.Abs(sun1 - sun0), Math.Abs(sun2 - sun0));
+            Info("sun_elevation_start_deg", sun0);
+            Info("sun_elevation_moved_deg", moved);
+            Verdict("sun_moves", "the sun's elevation follows the clock", moved > SunMovesDeg, "a change of more than " + F(SunMovesDeg) + " deg", F(sun0) + " -> " + F(sun1) + " / " + F(sun2) + " deg");
+            Rig.SetTimeOffset(0.0);
+            yield return ProbeWait.Seconds(1);
+            Rig.FreezeTime(true);
+            yield return ProbeWait.Frames(3);
+            double frozenUt = Rig.ClockFrozenUt, natural0 = Rig.ClockNatural, realF = Rig.RealS;
+            yield return ProbeWait.Seconds(MeasureS);
+            double heldUt = Rig.GameUt, naturalRan = Rig.ClockNatural - natural0, realRan = Rig.RealS - realF;
+            Verdict("time_freeze", "Freeze Time holds the game's clock while the natural time runs on", Rig.ClockFrozen && Math.Abs(heldUt - frozenUt) <= FreezeHeldS && Math.Abs(naturalRan - realRan) <= UtAbsS,
+                    "clock at " + F(frozenUt) + " +-" + F(FreezeHeldS) + ", natural +" + F(realRan) + " s", "clock " + F(heldUt) + ", natural +" + F(naturalRan) + " s, frozen " + Rig.ClockFrozen);
+            Rig.FreezeTime(false);
+            double realU = Rig.RealS;
+            yield return ProbeWait.Seconds(MeasureS);
+            double resumed = Rig.GameUt;
+            Near("time_resumes", "the clock runs on from where it was held", frozenUt + (Rig.RealS - realU), resumed, UtAbsS);
+            Rig.SetTimeOffset(0.0);
+            yield return ProbeWait.Seconds(1);
+
+            // --- e. Forced weather ---
+            int deckIndex, cumulusIndex;
+            ViewerLayer? deck = FirstWithRole(layers, WeatherPresets.Role.Deck, out deckIndex);
+            ViewerLayer? cumulus = FirstWithRole(layers, WeatherPresets.Role.Cumulus, out cumulusIndex);
+            Info("weather_roles_missing", (deck.HasValue ? 0 : 1) + (cumulus.HasValue ? 0 : 1));
+            float cumulusFair = float.NaN;
+            ViewerWeather[] sequence = { ViewerWeather.Overcast, ViewerWeather.Fair, ViewerWeather.Cumulus, ViewerWeather.RainDeck, ViewerWeather.Field };
+            foreach (ViewerWeather weather in sequence)
+            {
+                string tag = weather.ToString().ToLowerInvariant();
+                Rig.SetWeather(weather);
+                yield return ProbeWait.Frames(5);
+                // What the pass reads: every layer's forced map value and the combination switched off (the field's weather: no override).
+                var mismatches = new List<string>();
+                foreach (KeyValuePair<string, float> pair in WeatherPresets.Overrides(weather, layers))
+                {
+                    if (!pair.Key.StartsWith(CloudLookTuning.TuneMapOverride, StringComparison.Ordinal)) continue;
+                    string layer = pair.Key.Substring(CloudLookTuning.TuneMapOverride.Length);
+                    float expected = float.IsNaN(pair.Value) ? -1f : pair.Value;
+                    float read = Rig.PassMapOverride(layer);
+                    if (Math.Abs(read - expected) > 0.004f) mismatches.Add(layer + " " + F(read) + " (wanted " + F(expected) + ")");
+                }
+                bool combineOk = weather == ViewerWeather.Field ? !Rig.HasOverride(CloudLookTuning.TuneCoverCombine) : Rig.TuningValue(CloudLookTuning.TuneCoverCombine, 1f) == 0f;
+                Verdict("weather_" + tag + "_forced", weather + ": the pass reads every layer's forced map and the combination to the field's cover", mismatches.Count == 0 && combineOk,
+                        "every cloud.mapOverride.<layer> as the preset, cloud.coverCombine " + (weather == ViewerWeather.Field ? "not overridden" : "0"),
+                        mismatches.Count == 0 ? "cloud.coverCombine " + F(Rig.TuningValue(CloudLookTuning.TuneCoverCombine, 1f)) : string.Join("; ", mismatches.ToArray()));
+                if (weather == ViewerWeather.Field) break;
+
+                // What the pass drew from it: the layer's cover in the CPU mirror at the vessel, once a map round has come (a deck is 1 or 0, the cumulus layer moves with the preset).
+                Func<bool> arrived;
+                float deckWanted = weather == ViewerWeather.Overcast || weather == ViewerWeather.RainDeck ? (float)CoverHigh : (float)CoverLow;
+                bool deckUp = weather == ViewerWeather.Overcast || weather == ViewerWeather.RainDeck;
+                if (weather == ViewerWeather.Cumulus) arrived = () => !cumulus.HasValue || Rig.LayerCover(cumulusIndex) >= cumulusFair + CoverRise;
+                else arrived = () => !deck.HasValue || (deckUp ? Rig.LayerCover(deckIndex) >= deckWanted : Rig.LayerCover(deckIndex) <= deckWanted);
+                foreach (ProbeWait w in Poll(arrived, PollMapS)) yield return w;
+                float deckRead = deck.HasValue ? Rig.LayerCover(deckIndex) : float.NaN, cumulusRead = cumulus.HasValue ? Rig.LayerCover(cumulusIndex) : float.NaN;
+                if (weather == ViewerWeather.Fair) cumulusFair = cumulusRead;
+                string wanted = weather == ViewerWeather.Cumulus ? "cumulus cover at least " + F(cumulusFair + CoverRise) : "deck cover " + (deckUp ? "at least " : "at most ") + F(deckWanted);
+                Verdict("weather_" + tag + "_cover", weather + ": the pass draws it (the layer's cover at the vessel)", polled, wanted, "deck " + F(deckRead) + ", cumulus " + F(cumulusRead));
+                Info("weather_" + tag + "_deck_cover", deckRead);
+                Info("weather_" + tag + "_cumulus_cover", cumulusRead);
+                if (weather == ViewerWeather.RainDeck)
+                {
+                    Verdict("weather_raindeck_precipitation", "Rain Deck forces rain at the camera (forceLevel and forceType)", Math.Abs(Rig.Setting(AtmospheresSettings.Keys.ForceLevel) - 0.6) < 1e-6
+                            && (int)Rig.Setting(AtmospheresSettings.Keys.ForceType) == (int)ForceType.Rain, "level 0.6, type Rain",
+                            "level " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)) + ", type " + F(Rig.Setting(AtmospheresSettings.Keys.ForceType)));
+                }
+            }
+            Verdict("weather_field_restores_precipitation", "the field's weather gives the forced precipitation back", Math.Abs(Rig.Setting(AtmospheresSettings.Keys.ForceLevel) - forceLevel0) < 1e-6
+                    && (int)Rig.Setting(AtmospheresSettings.Keys.ForceType) == (int)forceType0, "level " + F(forceLevel0) + ", type " + F(forceType0),
+                    "level " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)) + ", type " + F(Rig.Setting(AtmospheresSettings.Keys.ForceType)));
+
+            // --- b. A/B ---
+            const string exposureKey = "cloud.exposure";
+            float exposureA = Rig.PassExposure;
+            double softnessA = Rig.Setting(AtmospheresSettings.Keys.CloudSoftness);
+            float exposureB = exposureA + (float)ExposureStep;
+            double softnessB = softnessA >= 0.75 ? 0.5 : 1.0;
+            Rig.StoreA();
+            Rig.SetKey(exposureKey, exposureB);
+            Rig.SetViewerSetting(AtmospheresSettings.Keys.CloudSoftness, softnessB);
+            Rig.WatchKey(exposureKey);
+            yield return ProbeWait.Frames(10);
+            Verdict("ab_b_pass", "B: the pass's frame reads the new exposure, the setting holds the new softness", Math.Abs(Rig.PassExposure - exposureB) <= ExposureEps && Rig.Setting(AtmospheresSettings.Keys.CloudSoftness) == softnessB && Rig.Showing == 'B',
+                    "exposure " + F(exposureB) + ", softness " + F(softnessB) + ", side B", "exposure " + F(Rig.PassExposure) + ", softness " + F(Rig.Setting(AtmospheresSettings.Keys.CloudSoftness)) + ", side " + Rig.Showing);
+            Verdict("ab_b_read_check", "B: the read check sees the pass read cloud.exposure in the frame just run", ReadThisFrame(), "read in frame " + Rig.TuningFrame + " or the one before",
+                    Rig.WatchedReadFrame == int.MinValue ? "never read" : "last read in frame " + Rig.WatchedReadFrame);
+            Rig.FlipAB();
+            yield return ProbeWait.Frames(10);
+            Verdict("ab_flip_a_pass", "Flip: the stored A's values stand again (exposure, softness, no override)", Math.Abs(Rig.PassExposure - exposureA) <= ExposureEps && Rig.Setting(AtmospheresSettings.Keys.CloudSoftness) == softnessA
+                    && !Rig.HasOverride(exposureKey) && Rig.Showing == 'A', "exposure " + F(exposureA) + ", softness " + F(softnessA) + ", no override, side A",
+                    "exposure " + F(Rig.PassExposure) + ", softness " + F(Rig.Setting(AtmospheresSettings.Keys.CloudSoftness)) + ", override " + Rig.HasOverride(exposureKey) + ", side " + Rig.Showing);
+            Verdict("ab_flip_a_read_check", "A: the read check sees the pass read cloud.exposure with no override set", ReadThisFrame(), "read in frame " + Rig.TuningFrame + " or the one before",
+                    Rig.WatchedReadFrame == int.MinValue ? "never read" : "last read in frame " + Rig.WatchedReadFrame);
+            Rig.FlipAB();
+            yield return ProbeWait.Frames(10);
+            Verdict("ab_flip_b_pass", "a second Flip brings B back", Math.Abs(Rig.PassExposure - exposureB) <= ExposureEps && Rig.Setting(AtmospheresSettings.Keys.CloudSoftness) == softnessB && Rig.Showing == 'B',
+                    "exposure " + F(exposureB) + ", softness " + F(softnessB) + ", side B", "exposure " + F(Rig.PassExposure) + ", softness " + F(Rig.Setting(AtmospheresSettings.Keys.CloudSoftness)) + ", side " + Rig.Showing);
+            Rig.FlipAB();
+            yield return ProbeWait.Frames(5);
+
+            // --- d. The cloud speed ---
+            Rig.SetCloudSpeed(1f);
+            yield return ProbeWait.Seconds(1);
+            foreach (ProbeWait w in Measure(MeasureS)) yield return w;
+            double flow1 = flowRate, drift1 = driftRate;
+            Info("flow_rate_x1", flow1);
+            Info("drift_m_per_s_x1", drift1);
+            Verdict("speed_x1_flows", "at speed 1 the noise clock runs with the real time", flow1 >= FlowRateMin && flow1 <= FlowRateMax, F(FlowRateMin) + " to " + F(FlowRateMax) + " flow s per real s", F(flow1));
+            Rig.SetCloudSpeed((float)SpeedScale);
+            yield return ProbeWait.Seconds(1);
+            foreach (ProbeWait w in Measure(MeasureS)) yield return w;
+            double flow4 = flowRate, drift4 = driftRate;
+            Info("flow_rate_x4", flow4);
+            Info("drift_m_per_s_x4", drift4);
+            Verdict("speed_x4_ratio", "at speed 4 the noise clock runs 4 times faster", flow1 > 0.0 && flow4 / flow1 >= RatioMin && flow4 / flow1 <= RatioMax,
+                    "a ratio of " + F(RatioMin) + " to " + F(RatioMax), F(flow4) + " / " + F(flow1) + " = " + F(flow4 / flow1));
+            Verdict("speed_ui_value", "the viewer's speed and the tuning table agree with the control", Math.Abs(Rig.CloudSpeed - SpeedScale) < 1e-4 && Math.Abs(Rig.TuningValue(CloudMotion.TuneScale, 1f) - SpeedScale) < 1e-4,
+                    "speed " + F(SpeedScale) + " in both", "viewer " + F(Rig.CloudSpeed) + ", table " + F(Rig.TuningValue(CloudMotion.TuneScale, 1f)));
+            bool driftMeasurable = drift1 > DriftMeasurableM;
+            Info("drift_measurable", driftMeasurable ? 1.0 : 0.0);
+            if (driftMeasurable)
+                Verdict("speed_drift_ratio", "at speed 4 the layers' drift is 4 times faster", drift4 / drift1 >= DriftRatioMin && drift4 / drift1 <= DriftRatioMax,
+                        "a ratio of " + F(DriftRatioMin) + " to " + F(DriftRatioMax), F(drift4) + " / " + F(drift1) + " = " + F(drift4 / drift1) + " m per s");
+            else LogLine("viewer: the layers' drift is not measurable here (" + F(drift1) + " m per s at speed 1: no wind at the layers); the noise clock above stands for the motion");
+            Rig.FreezeClouds(true);
+            yield return ProbeWait.Seconds(1);
+            foreach (ProbeWait w in Measure(MeasureS)) yield return w;
+            Info("flow_rate_frozen", flowRate);
+            Verdict("speed_frozen", "Freeze Clouds stops the noise clock and the drift", Rig.CloudsFrozen && flowRate <= FrozenFlowS && (!driftMeasurable || driftRate <= DriftFrozenShare * drift1)
+                    && Math.Abs(Rig.TuningValue(CloudMotion.TuneScale, 1f)) < 1e-6, "flow rate at most " + F(FrozenFlowS) + ", scale 0",
+                    "flow rate " + F(flowRate) + ", drift " + F(driftRate) + " m per s, scale " + F(Rig.TuningValue(CloudMotion.TuneScale, 1f)));
+            Rig.FreezeClouds(false);
+            yield return ProbeWait.Seconds(1);
+            foreach (ProbeWait w in Measure(MeasureS)) yield return w;
+            Verdict("speed_resumes", "letting the clouds go again brings the speed back", flow1 > 0.0 && flowRate / flow1 >= RatioMin && flowRate / flow1 <= RatioMax && !Rig.CloudsFrozen,
+                    "a ratio of " + F(RatioMin) + " to " + F(RatioMax), F(flowRate) + " / " + F(flow1) + " = " + F(flowRate / flow1));
+            Rig.SetCloudSpeed(1f);
+
+            // --- f. The capture ---
+            string lastBefore = Rig.LastCapture;
+            Rig.RequestCapture();
+            yield return ProbeWait.Frames(1);
+            int hidden = 0, visible = 0, guard = 0;
+            while (Rig.Capturing && guard++ < 120)
+            {
+                if (Rig.WindowVisible) visible++;
+                else hidden++;
+                yield return ProbeWait.Frames(1);
+            }
+            string picture = null;
+            foreach (ProbeWait w in Poll(() => Rig.LastCapture != lastBefore && Rig.LastCapture.Length > 0 && Rig.FileSize(Rig.CapturePicturePath(Rig.LastCapture)) > MinPictureBytes, 15.0)) yield return w;
+            bool firstWritten = polled;
+            if (firstWritten) picture = Rig.LastCapture;
+            Verdict("capture_hidden", "the window is hidden while the picture is taken and back afterwards", visible == 0 && hidden >= 2 && Rig.WindowVisible && Rig.CaptureReleasedFrame > Rig.CaptureFrame,
+                    "hidden in every frame from the request to the frame after the picture was asked for, then shown", hidden + " hidden and " + visible + " visible frames, picture asked in frame " + Rig.CaptureFrame
+                    + ", window back in frame " + Rig.CaptureReleasedFrame + ", visible now " + Rig.WindowVisible);
+            string sidecarPath = picture == null ? null : System.IO.Path.ChangeExtension(Rig.CapturePicturePath(picture), ".txt");
+            string sidecar = sidecarPath == null ? null : Rig.ReadText(sidecarPath);
+            Verdict("capture_files", "the picture and its sidecar are written", firstWritten && sidecar != null, "a picture of more than " + MinPictureBytes + " bytes and a sidecar",
+                    picture == null ? "no picture" : picture + (sidecar == null ? ", no sidecar" : ", with its sidecar"));
+            Dictionary<string, string> side = ParseSidecar(sidecar);
+            ViewerPoseReading pose = Rig.Pose;
+            string sideUt, sideAgl;
+            side.TryGetValue("ut", out sideUt);
+            side.TryGetValue("altitudeAgl", out sideAgl);
+            double ut, agl;
+            bool utOk = double.TryParse(sideUt, NumberStyles.Float, CultureInfo.InvariantCulture, out ut) && Math.Abs(ut - Rig.GameUt) <= SidecarUtS;
+            bool aglOk = double.TryParse(sideAgl, NumberStyles.Float, CultureInfo.InvariantCulture, out agl) && Math.Abs(agl - pose.CameraAglM) <= SidecarAglM;
+            string pictureName, poseName, weatherName, speedText, sideText, frozenText;
+            side.TryGetValue("picture", out pictureName);
+            side.TryGetValue("pose", out poseName);
+            side.TryGetValue("weather", out weatherName);
+            side.TryGetValue("cloudSpeed", out speedText);
+            side.TryGetValue("abSide", out sideText);
+            side.TryGetValue("timeFrozen", out frozenText);
+            bool sidecarOk = pictureName == picture && poseName == "ground" && weatherName == WeatherPresets.Title(ViewerWeather.Field) && speedText == "1" && sideText == "A" && frozenText == "False" && utOk && aglOk;
+            Verdict("capture_sidecar", "the sidecar names what was set", sidecarOk, "picture " + picture + ", pose ground, weather " + WeatherPresets.Title(ViewerWeather.Field) + ", cloudSpeed 1, abSide A, not frozen, the game's UT and camera height",
+                    "picture " + pictureName + ", pose " + poseName + ", weather " + weatherName + ", cloudSpeed " + speedText + ", abSide " + sideText + ", timeFrozen " + frozenText + ", ut " + sideUt + ", altitudeAgl " + sideAgl);
+            Rig.RequestCapture();
+            yield return ProbeWait.Frames(1);
+            foreach (ProbeWait w in Poll(() => !Rig.Capturing && Rig.LastCapture != picture && Rig.LastCapture.Length > 0 && Rig.FileSize(Rig.CapturePicturePath(Rig.LastCapture)) > MinPictureBytes, 15.0)) yield return w;
+            Verdict("capture_second", "a second picture has its own file and the first stays", polled && Rig.FileSize(Rig.CapturePicturePath(picture ?? "")) > MinPictureBytes, "two different files", picture + " and " + Rig.LastCapture);
+
+            // --- The window closed: everything back ---
+            double naturalAtClose = Rig.ClockNatural, realClose = Rig.RealS;
+            Rig.ToggleWindow();
+            foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, PollShortS)) yield return w;
+            Verdict("close_ends_session", "closing the window ends the session", polled, "no window, no session", "window " + Rig.WindowOpen + ", session " + Rig.SessionActive);
+            yield return ProbeWait.Frames(10);
+            bool overridesGone = !Rig.HasOverride(CloudMotion.TuneScale) && !Rig.HasOverride(exposureKey) && !Rig.HasOverride(CloudLookTuning.TuneCoverCombine);
+            foreach (ViewerLayer l in layers) overridesGone &= !Rig.HasOverride(CloudLookTuning.TuneMapOverride + l.Name);
+            bool settingsBack = Rig.Setting(AtmospheresSettings.Keys.CloudSoftness) == softness0 && Math.Abs(Rig.Setting(AtmospheresSettings.Keys.ForceLevel) - forceLevel0) < 1e-6
+                                && (int)Rig.Setting(AtmospheresSettings.Keys.ForceType) == (int)forceType0 && Math.Abs(Rig.CloudSpeed - 1f) < 1e-6;
+            Verdict("restore_options", "the options the viewer set are back (overrides gone, settings, cloud speed)", overridesGone && settingsBack, "no override left, softness " + F(softness0) + ", forceLevel " + F(forceLevel0) + ", speed 1",
+                    "overrides gone " + overridesGone + ", softness " + F(Rig.Setting(AtmospheresSettings.Keys.CloudSoftness)) + ", forceLevel " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)) + ", speed " + F(Rig.CloudSpeed));
+            double utBack = Rig.GameUt;
+            Verdict("restore_time", "the game's clock is back on the natural time", utBack >= naturalAtClose - UtAbsS && utBack <= naturalAtClose + (Rig.RealS - realClose) + UtAbsS,
+                    F(naturalAtClose) + " + the real time since the close (" + F(Rig.RealS - realClose) + " s) +-" + F(UtAbsS), F(utBack));
+            yield return ProbeWait.Seconds(4);
+            double asl = Rig.Pose.VesselAslM;
+            Near("restore_vessel", "the vessel is back at its start", startAsl, asl, RestoreVesselM);
+            Verdict("pass_kept_drawing", "the own cloud pass kept drawing through the whole run", Rig.PassDrawing && Rig.PassFramesDrawn > drawnAtStart, "drawing, more frames than at the start", "drawing " + Rig.PassDrawing
+                    + ", " + (Rig.PassFramesDrawn - drawnAtStart) + " frames since the start");
+            Info("elapsed_s", Elapsed);
+        }
+
+        // The pass read the watched key in the frame just run or the one before (the viewer's own looks at it are not counted: Tuning.Peek).
+        private bool ReadThisFrame()
+        {
+            int read = Rig.WatchedReadFrame;
+            return read != int.MinValue && Rig.TuningFrame - read <= 1;
+        }
+    }
+}
