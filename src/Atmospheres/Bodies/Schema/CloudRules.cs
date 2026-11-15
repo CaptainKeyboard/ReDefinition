@@ -311,6 +311,8 @@ namespace ReDefinition.Atmospheres
             return InnerAltitudeM + 0.5 * (t.BaseShare + t.TopShare) * ThicknessM;
         }
 
+        // 1 with the cover meaning: the noise amount is the rank space itself there (scaling it would break "a map value is the share of the sky"), so cfg noiseAmount and the look key
+        // cloud.layerNoiseAmountScale only decide whether the layer has noise (Soft); they set the amount only with cloud.coverMeaning 0 (the old mapping, kept switchable).
         private double SoftAmount { get { return CloudSoftDensity.CoverMeaning ? 1.0 : ConfiguredNoiseAmount; } }
         // The width of the water content's rise in noise rank.
         private double SoftWidth { get { return Math.Max(0.02, CloudSoftDensity.Softness * SoftnessScale); } }

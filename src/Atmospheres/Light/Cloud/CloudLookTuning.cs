@@ -9,7 +9,8 @@ namespace ReDefinition.Atmospheres
     // CloudLayerDef's Effective* getters and the module read these, never the configured numbers, so the layer pass, the cloud shadows and the CPU readers see one value.
     //   cloud.layerSigmaScale             factor on every layer's sigma per m (1)
     //   cloud.layerSoftnessScale          factor on every layer's edge softness (1)
-    //   cloud.layerNoiseAmountScale       factor on every layer's noise amount (1)
+    //   cloud.layerNoiseAmountScale       factor on every layer's noise amount (1). It only acts with cloud.coverMeaning 0: with the cover meaning (default) the amount is 1 by definition (the
+    //                                     outline stands at noise rank 1 - map value, so a map value is the share of the sky), and a factor above 0 changes nothing but the on / off of the noise
     //   cloud.layerNoiseSizeScale         factor on every layer's noise scale in m (1)
     //   cloud.mapOverride.<name>          a constant coverage-map value for the layer everywhere, 0 to 1 (-1: the field's map); tells a map that varies over the view from the pass
     //   cloud.layerSigmaScale.<name>, cloud.layerSoftnessScale.<name>, cloud.layerNoiseAmountScale.<name>, cloud.layerNoiseSizeScale.<name>
