@@ -24,5 +24,12 @@ namespace ReDefinition.Atmospheres
         internal float WavelengthM { get; set; } = DefaultWavelengthM;
         internal float SizeTrendM { get; set; } = DefaultSizeTrendM;
         internal float SizeRadiusM { get; set; } = DefaultSizeRadiusM;
+
+        // RAGGED BASE: the displacement of the lower boundary in m at an erosion of 0.5 (heightRaggedM) and the size of its detail in m (heightRaggedScaleM). The thinnest a cloud may get, in m
+        // (heightMinThicknessM), holds where a raised base pushes the top up with it.
+        internal const float DefaultRaggedM = 110f, DefaultRaggedScaleM = 220f, DefaultMinThicknessM = 120f;
+        internal float RaggedM { get; set; } = DefaultRaggedM;
+        internal float RaggedScaleM { get; set; } = DefaultRaggedScaleM;
+        internal float MinThicknessM { get; set; } = DefaultMinThicknessM;
     }
 }

@@ -168,7 +168,10 @@ namespace ReDefinition.Atmospheres
                 VariationM = r.Float("heightVariationM", CloudHeightRules.DefaultVariationM, 0f, 2000f),
                 WavelengthM = r.Float("heightWavelengthM", CloudHeightRules.DefaultWavelengthM, 100f, 1.0e7f),
                 SizeTrendM = r.Float("heightSizeTrendM", CloudHeightRules.DefaultSizeTrendM, -5000f, 5000f),
-                SizeRadiusM = r.Float("heightSizeRadiusM", CloudHeightRules.DefaultSizeRadiusM, 100f, 1.0e7f)
+                SizeRadiusM = r.Float("heightSizeRadiusM", CloudHeightRules.DefaultSizeRadiusM, 100f, 1.0e7f),
+                RaggedM = r.Float("heightRaggedM", CloudHeightRules.DefaultRaggedM, 0f, 2000f),
+                RaggedScaleM = r.Float("heightRaggedScaleM", CloudHeightRules.DefaultRaggedScaleM, 1f, 1.0e6f),
+                MinThicknessM = r.Float("heightMinThicknessM", CloudHeightRules.DefaultMinThicknessM, 1f, 5000f)
             };
         }
 

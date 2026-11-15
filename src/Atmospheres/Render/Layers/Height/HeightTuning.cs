@@ -31,11 +31,11 @@ namespace ReDefinition.Atmospheres
         public float SizeTrendM = CloudHeightRules.DefaultSizeTrendM, SizeRadiusM = CloudHeightRules.DefaultSizeRadiusM;
 
         // RAGGED BASE: the displacement of the lower boundary in m at an erosion of 0.5, and the size of its detail in m.
-        public float RaggedM = 110f, RaggedScaleM = 220f;
+        public float RaggedM = CloudHeightRules.DefaultRaggedM, RaggedScaleM = CloudHeightRules.DefaultRaggedScaleM;
 
         // TOP FROM UPDRAFT: m of top per m/s of updraft above the reference, the reference updraft, the most the top moves, the random
         // share of it (a cell is not a formula) and the thinnest a cloud may get.
-        public float TopGainMPerMs = 120f, ReferenceUpdraftMs = 1.2f, TopMaxM = 1200f, TopJitterM = 40f, MinThicknessM = 120f;
+        public float TopGainMPerMs = 120f, ReferenceUpdraftMs = 1.2f, TopMaxM = 1200f, TopJitterM = 40f, MinThicknessM = CloudHeightRules.DefaultMinThicknessM;
 
         // The seed of the noise fields (the body's seed).
         public uint Seed = 1u;
@@ -98,6 +98,9 @@ namespace ReDefinition.Atmospheres
             VariationWavelengthM = r.WavelengthM;
             SizeTrendM = r.SizeTrendM;
             SizeRadiusM = r.SizeRadiusM;
+            RaggedM = r.RaggedM;
+            RaggedScaleM = r.RaggedScaleM;
+            MinThicknessM = r.MinThicknessM;
         }
     }
 }

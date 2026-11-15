@@ -104,6 +104,9 @@ namespace ReDefinition.Tests
             Assert.AreEqual(12000f, none.WavelengthM);
             Assert.AreEqual(-220f, none.SizeTrendM);
             Assert.AreEqual(40000f, none.SizeRadiusM);
+            Assert.AreEqual(110f, none.RaggedM);
+            Assert.AreEqual(220f, none.RaggedScaleM);
+            Assert.AreEqual(120f, none.MinThicknessM);
             Assert.AreSame(CloudHeightRules.Default, CloudRules.Default.Height);
             // The compiled tuning and the body's tuning are the same numbers, so they build the same bytes.
             var compiled = new HeightTuning();
@@ -115,6 +118,9 @@ namespace ReDefinition.Tests
             Assert.AreEqual(compiled.VariationWavelengthM, body.VariationWavelengthM);
             Assert.AreEqual(compiled.SizeTrendM, body.SizeTrendM);
             Assert.AreEqual(compiled.SizeRadiusM, body.SizeRadiusM);
+            Assert.AreEqual(compiled.RaggedM, body.RaggedM);
+            Assert.AreEqual(compiled.RaggedScaleM, body.RaggedScaleM);
+            Assert.AreEqual(compiled.MinThicknessM, body.MinThicknessM);
             HeightInputs input = MoistAndDry();
             input.Coverage = new float[W * H];
             for (int i = 0; i < W * H; i++) input.Coverage[i] = (i % W) < W / 3 ? 1f : 0f;
@@ -124,7 +130,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheKeysReadFromTheCloudsNodeAndArePassedToTheBodysTuning()
         {
-            CloudHeightRules r = Rules("heightLclMPerK = 100;heightReferenceSpreadK = 3;heightPhysicsMaxM = 300;heightVariationM = 60;heightWavelengthM = 20000;heightSizeTrendM = -80;heightSizeRadiusM = 90000;");
+            CloudHeightRules r = Rules("heightLclMPerK = 100;heightReferenceSpreadK = 3;heightPhysicsMaxM = 300;heightVariationM = 60;heightWavelengthM = 20000;heightSizeTrendM = -80;heightSizeRadiusM = 90000;heightRaggedM = 40;heightRaggedScaleM = 500;heightMinThicknessM = 300;");
             Assert.AreEqual(100f, r.LclMPerK);
             Assert.AreEqual(3f, r.ReferenceSpreadK);
             Assert.AreEqual(300f, r.PhysicsMaxM);
@@ -132,6 +138,9 @@ namespace ReDefinition.Tests
             Assert.AreEqual(20000f, r.WavelengthM);
             Assert.AreEqual(-80f, r.SizeTrendM);
             Assert.AreEqual(90000f, r.SizeRadiusM);
+            Assert.AreEqual(40f, r.RaggedM);
+            Assert.AreEqual(500f, r.RaggedScaleM);
+            Assert.AreEqual(300f, r.MinThicknessM);
             HeightTuning t = Tuning(r, true, true, true, true);
             Assert.AreEqual(100f, t.LclMPerK);
             Assert.AreEqual(3f, t.ReferenceSpreadK);
@@ -140,6 +149,9 @@ namespace ReDefinition.Tests
             Assert.AreEqual(20000f, t.VariationWavelengthM);
             Assert.AreEqual(-80f, t.SizeTrendM);
             Assert.AreEqual(90000f, t.SizeRadiusM);
+            Assert.AreEqual(40f, t.RaggedM);
+            Assert.AreEqual(500f, t.RaggedScaleM);
+            Assert.AreEqual(300f, t.MinThicknessM);
             // The switches are not touched by the numbers.
             Assert.IsFalse(Tuning(r, false, false, false, false).Any);
         }
@@ -148,15 +160,18 @@ namespace ReDefinition.Tests
         public void AKeyThatIsNotANumberOrOutOfRangeIsHeldAndWarnedOnceNamingNodeAndKey()
         {
             IReadOnlyList<string> warnings;
-            CloudHeightRules r = Rules("heightLclMPerK = abc;heightVariationM = -40;heightWavelengthM = 5;heightPhysicsMaxM = 90000;heightSizeTrendM = 1e9;", out warnings);
+            CloudHeightRules r = Rules("heightLclMPerK = abc;heightVariationM = -40;heightWavelengthM = 5;heightPhysicsMaxM = 90000;heightSizeTrendM = 1e9;heightRaggedM = 1e6;heightRaggedScaleM = 0;heightMinThicknessM = 0;", out warnings);
             Assert.AreEqual(CloudHeightRules.DefaultLclMPerK, r.LclMPerK, "not a number: the default");
             Assert.AreEqual(0f, r.VariationM, "below the range: its floor");
             Assert.AreEqual(100f, r.WavelengthM);
             Assert.AreEqual(5000f, r.PhysicsMaxM, "above the range: its ceiling");
             Assert.AreEqual(5000f, r.SizeTrendM);
-            foreach (string key in new[] { "heightLclMPerK", "heightVariationM", "heightWavelengthM", "heightPhysicsMaxM", "heightSizeTrendM" })
+            Assert.AreEqual(2000f, r.RaggedM);
+            Assert.AreEqual(1f, r.RaggedScaleM);
+            Assert.AreEqual(1f, r.MinThicknessM);
+            foreach (string key in new[] { "heightLclMPerK", "heightVariationM", "heightWavelengthM", "heightPhysicsMaxM", "heightSizeTrendM", "heightRaggedM", "heightRaggedScaleM", "heightMinThicknessM" })
                 Assert.AreEqual(1, warnings.Count(w => w.Contains("CLOUDS." + key + ":")), key + " in " + string.Join("; ", warnings));
-            Assert.AreEqual(5, warnings.Count, string.Join("; ", warnings));
+            Assert.AreEqual(8, warnings.Count, string.Join("; ", warnings));
             // A misspelt key is the reader's unknown-key warning, with the key it was meant to be.
             BodyParseResult typo = CloudLayerSchemaTests.Parse("heightVariationm = 3;" + Layer);
             Assert.IsTrue(typo.Warnings.Any(w => w.Contains("heightVariationm") && w.Contains("heightVariationM")), string.Join("; ", typo.Warnings));
@@ -253,6 +268,63 @@ namespace ReDefinition.Tests
             int x0 = W / 2 + 10;
             Assert.IsTrue(Root("heightSizeRadiusM = 400000;", x0) < Root("heightSizeRadiusM = 40000;", x0) - 20.0,
                           "wide " + Root("heightSizeRadiusM = 400000;", x0) + " narrow " + Root("heightSizeRadiusM = 40000;", x0));
+        }
+
+        // A layer of 1500 m to 3000 m with one type from its inner altitude to its outer one at an erosion of 0.5 (the reference of heightRaggedM).
+        private static CloudLayerDef Deck()
+        {
+            var type = new CloudTypeDef("t", 0f, 1f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f }), 0.5f);
+            return new CloudLayerDef("l", 1, 1500f, 3000f, new List<CloudTypeDef> { type }, 0.01f) { Coverage = 0.5f, EdgeSoftness = 1e-4f };
+        }
+
+        [TestMethod]
+        public void TheRaggedKeyMovesTheBaseByTheKeysMetresAndMinThicknessIsTheThinnestCloud()
+        {
+            CloudLayerDef layer = Deck();
+            var table = new LayerTypeTable(layer);
+            double Density(string keys, double altitude, LocalHeights heights, double ragged)
+            {
+                HeightTuning t = Tuning(Rules(keys), false, false, false, true);
+                return HeightDensity.Extinction(layer, table, t, altitude, 1.0, 0.0, heights, ragged);
+            }
+            var flat = new LocalHeights();
+            // At the boundary's unit value 1 and the erosion 0.5 the base moves up by heightRaggedM.
+            Assert.AreEqual(0.0, Density("heightRaggedM = 300;", 1700.0, flat, 1.0), "the base is at 1800 m");
+            Assert.IsTrue(Density("heightRaggedM = 300;", 1900.0, flat, 1.0) > 0.0);
+            Assert.IsTrue(Density("heightRaggedM = 100;", 1700.0, flat, 1.0) > 0.0, "the base is at 1600 m");
+            Assert.AreEqual(0.0, Density("heightRaggedM = 100;", 1550.0, flat, 1.0), "the base is at 1600 m");
+            Assert.IsTrue(Density("heightRaggedM = 0;", 1510.0, flat, 1.0) > 0.0, "no displacement");
+            // The top falls 2000 m (more than the layer holds): what stays is the thinnest cloud above the base.
+            var lowered = new LocalHeights { TopM = -2000f };
+            Assert.IsTrue(Density("heightMinThicknessM = 600;", 1500.0 + 550.0, lowered, 0.0) > 0.0);
+            Assert.AreEqual(0.0, Density("heightMinThicknessM = 600;", 1500.0 + 650.0, lowered, 0.0));
+            Assert.IsTrue(Density("heightMinThicknessM = 100;", 1500.0 + 80.0, lowered, 0.0) > 0.0);
+            Assert.AreEqual(0.0, Density("heightMinThicknessM = 100;", 1500.0 + 150.0, lowered, 0.0));
+        }
+
+        [TestMethod]
+        public void TheRaggedScaleKeyIsTheSizeOfTheLumpsInThePlanAndInTheCpuTwinOfTheShader()
+        {
+            HeightTuning small = Tuning(Rules("heightRaggedScaleM = 100;"), false, false, false, true), large = Tuning(Rules("heightRaggedScaleM = 5000;"), false, false, false, true);
+            Assert.AreEqual(100f, small.RaggedScaleM);
+            Assert.AreEqual(5000f, large.RaggedScaleM);
+            // The lattice is the position over the scale: along a line of 3 km the small scale crosses many lumps, the large one a part of one.
+            double Wiggle(HeightTuning t)
+            {
+                double total = 0.0, previous = HeightModel.RaggedAt(R + 1500.0, 0.0, 0.0, R + 1500.0, t.RaggedScaleM, 5u);
+                for (int i = 1; i <= 300; i++)
+                {
+                    double v = HeightModel.RaggedAt(R + 1500.0, i * 10.0, 0.0, R + 1500.0, t.RaggedScaleM, 5u);
+                    total += Math.Abs(v - previous);
+                    previous = v;
+                }
+                return total;
+            }
+            Assert.IsTrue(Wiggle(small) > 3.0 * Wiggle(large), "100 m " + Wiggle(small) + ", 5 km " + Wiggle(large));
+            var layer = new CloudLayerDef("l", 1, 1000f, 3000f, new List<CloudTypeDef> { CloudTypeDef.Slab("s", 0f, 1f) }, 0.01f);
+            var source = new LayerStackSource(1, R, true);
+            source.Add(layer, null, null);
+            Assert.AreEqual(5000f, HeightPlan.Make(source, large, 0.0, 3u, W, H).Tunings[0].RaggedScaleM, "the plan's copy carries the body's scale on to the layer pass");
         }
 
         [TestMethod]
