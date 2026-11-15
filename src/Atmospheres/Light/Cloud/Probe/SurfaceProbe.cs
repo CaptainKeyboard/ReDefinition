@@ -19,6 +19,8 @@ namespace ReDefinition.Atmospheres
         // The scene's ambient light (RenderSettings.ambientLight) and the sun light's colour times intensity, as the game holds them in that frame.
         internal Color Ambient;
         internal float SunIntensity;
+        internal int AmbientMode;
+        internal Color SunColour;
     }
 
     // The probe of series K-S2 (start "surface", rows tests/series/rows/SURFACEPROBE.json): where the white of the far terrain in the solo pictures comes from. The same cb_far pose as
@@ -92,7 +94,8 @@ namespace ReDefinition.Atmospheres
             {
                 On = RenderSettings.fog, Mode = (int)RenderSettings.fogMode, Density = RenderSettings.fogDensity, Colour = RenderSettings.fogColor,
                 Held = FogWriter.WrittenDensity, Asked = view.FogDensity, Level = view.Level, VisibilityM = view.VisibilityM,
-                Ambient = RenderSettings.ambientLight, SunIntensity = sun != null ? sun.intensity : float.NaN
+                Ambient = RenderSettings.ambientLight, SunIntensity = sun != null ? sun.intensity : float.NaN, AmbientMode = (int)RenderSettings.ambientMode,
+                SunColour = sun != null ? sun.color : Color.black
             };
         }
 
@@ -168,7 +171,7 @@ namespace ReDefinition.Atmospheres
             ViewerPoseReading p = Rig.Pose;
             LogLine("surface: " + frame + ": fog " + (f.On ? "on" : "off") + ", mode " + f.Mode + ", density " + F(f.Density) + ", colour " + F(f.Colour.r) + " " + F(f.Colour.g) + " " + F(f.Colour.b)
                     + ", the fog writer holds " + F(f.Held) + ", the view asks " + F(f.Asked) + ", level " + F(f.Level) + ", visibility " + F(f.VisibilityM) + " m, the field's level at the vessel "
-                    + F(Rig.PrecipitationLevel) + "; ambient " + F(f.Ambient.r) + " " + F(f.Ambient.g) + " " + F(f.Ambient.b) + ", sun light " + F(f.SunIntensity) + "; camera azimuth " + F(p.AzimuthDeg)
+                    + F(Rig.PrecipitationLevel) + "; ambient (mode " + f.AmbientMode + ") " + F(f.Ambient.r) + " " + F(f.Ambient.g) + " " + F(f.Ambient.b) + ", sun light " + F(f.SunIntensity) + " colour " + F(f.SunColour.r) + " " + F(f.SunColour.g) + " " + F(f.SunColour.b) + "; camera azimuth " + F(p.AzimuthDeg)
                     + " elevation " + F(p.ElevationDeg) + " at " + F(p.CameraAglM) + " m, " + F(SunAngleReader()) + " deg from the sun; sun elevation " + F(Rig.SunElevationDeg) + " deg; UT " + F(Rig.GameUt));
             Emit(Prefix + frame + "_fog_density", f.On ? f.Density : 0.0);
             Emit(Prefix + frame + "_fog_asked", f.Asked);
@@ -229,12 +232,16 @@ namespace ReDefinition.Atmospheres
             Enter(frame, entry);
             if (frame == "drawn")
             {
-                foreach (ProbeWait w in Poll(() => Math.Abs(Rig.PassMapOverride(entry.LayerName) - 1f) <= SoloProbe.MapReadTolerance && Rig.PassLayerMask == bit, PollMapS)) yield return w;
+                foreach (ProbeWait w in Poll(() => Rig.PassDrawing && Math.Abs(Rig.PassMapOverride(entry.LayerName) - 1f) <= SoloProbe.MapReadTolerance && Rig.PassLayerMask == bit, PollMapS)) yield return w;
                 Verdict(pose + "_drawn_alone", pose + ": the cell is drawn alone", polled, "the layer's forced map 1 and the pass's layer mask the layer's bit", "map " + F(Rig.PassMapOverride(entry.LayerName)) + ", mask " + Rig.PassLayerMask);
             }
             else if (frame == "baseline")
             {
-                foreach (ProbeWait w in Poll(() => Math.Abs(Rig.PassMapOverride(entry.LayerName)) <= SoloProbe.MapReadTolerance && Rig.PassLayerMask == bit, PollMapS)) yield return w;
+                foreach (ProbeWait w in Poll(() => Rig.PassDrawing && Math.Abs(Rig.PassMapOverride(entry.LayerName)) <= SoloProbe.MapReadTolerance && Rig.PassLayerMask == bit, PollMapS)) yield return w;
+            }
+            else if (frame == "no_cover")
+            {
+                foreach (ProbeWait w in Poll(() => Rig.PassDrawing, PollMapS)) yield return w;
             }
             foreach (ProbeWait w in FogSettles()) yield return w;
             if (frame == "no_cover") yield return ProbeWait.Seconds(CoverWaitS);
@@ -265,7 +272,10 @@ namespace ReDefinition.Atmospheres
             Rig.SetSoloCellAhead(CellAheadKm);
             Rig.SetSolo(entry.Layer, entry.Type);
             Rig.SetSoloStrength(0f);
-            foreach (ProbeWait w in Poll(() => Math.Abs(Rig.PassMapOverride(entry.LayerName)) <= SoloProbe.MapReadTolerance && Rig.PassLayerMask == bit, PollMapS)) yield return w;
+            // The pass and the terrain's cover come back after the switches of the frames before (the stack is rebuilt, the cover repaints within a budget of a few ms a frame).
+            foreach (ProbeWait w in Poll(() => Rig.PassDrawing, 30.0)) yield return w;
+            if (pose != "p1") yield return ProbeWait.Seconds(CoverWaitS);
+            foreach (ProbeWait w in Poll(() => Rig.PassDrawing && Math.Abs(Rig.PassMapOverride(entry.LayerName)) <= SoloProbe.MapReadTolerance && Rig.PassLayerMask == bit, PollMapS)) yield return w;
             Verdict(pose + "_empty_frame", pose + ": the frame has every layer empty", polled, "the solo layer's forced map 0 and the pass's layer mask the layer's bit", "map " + F(Rig.PassMapOverride(entry.LayerName)) + ", mask " + Rig.PassLayerMask);
             foreach (string frame in frames)
                 foreach (ProbeWait w in Frame(pose, frame, entry, bit, pictures, fogs)) yield return w;
