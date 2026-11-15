@@ -153,7 +153,23 @@ namespace ReDefinition.Atmospheres
                 r.Has("snowTypeNames") ? r.List("snowTypeNames") : null, r.Has("stratusTypeNames") ? r.List("stratusTypeNames") : null,
                 r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), layers, r.Float("sphereScale", 1f, 0.25f, 1f),
                 r.Float("hazeBlue", CloudRules.DefaultHazeBlue, 0f, 1f), r.Float("hazeNearBlue", CloudRules.DefaultHazeNearBlue, 0f, 1f),
-                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)), layerSet);
+                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)), layerSet, HeightRules(r));
+        }
+
+        // The keys height* of the CLOUDS node (E40 HKEYS): the numbers of the height variation of the layers (CloudHeightRules). A key that is not a number keeps its default, one outside its range
+        // is brought into it, both with a warning that names the node and the key (BodyNodeReader.Double); a key that is not there is the number the clouds always had (CloudHeightRules).
+        private static CloudHeightRules HeightRules(BodyNodeReader r)
+        {
+            return new CloudHeightRules
+            {
+                LclMPerK = r.Float("heightLclMPerK", CloudHeightRules.DefaultLclMPerK, 0f, 1000f),
+                ReferenceSpreadK = r.Float("heightReferenceSpreadK", CloudHeightRules.DefaultReferenceSpreadK, 0f, 50f),
+                PhysicsMaxM = r.Float("heightPhysicsMaxM", CloudHeightRules.DefaultPhysicsMaxM, 0f, 5000f),
+                VariationM = r.Float("heightVariationM", CloudHeightRules.DefaultVariationM, 0f, 2000f),
+                WavelengthM = r.Float("heightWavelengthM", CloudHeightRules.DefaultWavelengthM, 100f, 1.0e7f),
+                SizeTrendM = r.Float("heightSizeTrendM", CloudHeightRules.DefaultSizeTrendM, -5000f, 5000f),
+                SizeRadiusM = r.Float("heightSizeRadiusM", CloudHeightRules.DefaultSizeRadiusM, 100f, 1.0e7f)
+            };
         }
 
         // A length of a LAYER node in m: the metre key, else the depth key (troposphere depths, E40 Q8a) times the body's depth; the metre key wins where both are there.

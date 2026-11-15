@@ -175,7 +175,7 @@ namespace ReDefinition.Atmospheres
             Apply(s, Live);
         }
 
-        // T13: the four switches of the height variation; the numbers are the body's (HeightTuning.Parse) and stay as the caller set them.
+        // T13: the four switches of the height variation; the numbers are the body's (CloudHeightRules, HeightTuning.TakeNumbers) and stay as the caller set them.
         internal static void Apply(HeightTuning t, Func<string, double> v)
         {
             t.BaseVariation = On(v, AtmospheresSettings.Keys.CloudBaseVariation);

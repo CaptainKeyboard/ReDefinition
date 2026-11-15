@@ -225,6 +225,8 @@ namespace ReDefinition.Atmospheres
         private double pendingUt;
         private float pendingNow;
         private int heightSwitches = -1;
+        // The body's height numbers the heightTuning holds now (reference compared: the rules of a body are one object until the cfg is read again).
+        private CloudHeightRules heightRules;
         // The height maps are built off the main thread; the main thread pumps it with this budget (ms) a frame and applies what it finishes.
         private readonly HeightJob heightJob = new HeightJob();
         private const double HeightPumpBudgetMs = 0.8;
@@ -352,7 +354,7 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             FetchMaps(b, field, ut, now, dt);
-            BuildHeights(b, field, ut, now);
+            BuildHeights(c, b, field, ut, now);
             // The upload of a new stack and the height slices (one a frame) are timed: the worst frame is a hitch of the pass (the first call, with Mono's
             // JIT in it, is left out of the worst).
             long uploadStart = Stopwatch.GetTimestamp();
@@ -1044,12 +1046,19 @@ namespace ReDefinition.Atmospheres
         // The height maps of the layers (T13): at a slow rhythm, after a switch changed and after the stack was built. The build runs on a worker
         // (HeightJob) from a copy of what it reads; the main thread starts it, reads a field that is not thread safe in slices of a budget, and
         // applies a finished result to the stack it was planned for.
-        private void BuildHeights(CelestialBody b, IWeatherField field, double ut, float now)
+        private void BuildHeights(BodyClimate c, CelestialBody b, IWeatherField field, double ut, float now)
         {
             long start = Stopwatch.GetTimestamp();
             OwnCloudOptions.Apply(heightTuning);
+            // The numbers are the body's (cfg keys height*); a body whose rules were read again is one more reason for a build.
+            bool numbersChanged = !ReferenceEquals(c.Clouds.Height, heightRules);
+            if (numbersChanged)
+            {
+                heightTuning.TakeNumbers(c.Clouds.Height);
+                heightRules = c.Clouds.Height;
+            }
             int switches = (heightTuning.BaseVariation ? 1 : 0) | (heightTuning.BasePhysics ? 2 : 0) | (heightTuning.TopFromUpdraft ? 4 : 0) | (heightTuning.BaseRagged ? 8 : 0);
-            bool changed = switches != heightSwitches;
+            bool changed = switches != heightSwitches || numbersChanged;
             heightSwitches = switches;
             HeightResult done;
             HeightTake take = heightJob.TryTake(out done);

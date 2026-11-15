@@ -1,13 +1,11 @@
 using System;
-using System.Collections.Generic;
-using System.Globalization;
 
 namespace ReDefinition.Atmospheres
 {
     // The numbers of the height variation of the cloud layers (package T13): where the base of a cloud lies and how high its top reaches
     // vary over the sky instead of being one level per type. The four switches carry the settings cloudBaseVariation, cloudBasePhysics,
     // cloudTopFromUpdraft and baseRagged (OwnCloudOptions.Apply); the rest are the look and physics constants of a body, read from the
-    // keys of its CLOUDS node (Parse), so that no body's value lives in code (a gas giant or a dusty moon sets its own).
+    // keys of its CLOUDS node (CloudHeightRules, TakeNumbers), so that no body's value lives in code (a gas giant or a dusty moon sets its own).
     // The four switches default ON only conditionally: the K-T1 rows T13.height_cost_ms (<= 0.1 ms) and T13.ragged_base_shimmer (<= 0.0015) are
     // unmeasured; flip the defaults to OFF at T09's first start if either is red (tests/series/rows/T13.json, .local T13-status.md).
     //
@@ -24,13 +22,13 @@ namespace ReDefinition.Atmospheres
         // BASE PHYSICS: metres of base per kelvin of dew-point spread, the spread at which the type table's base applies as it is (0: the
         // mean spread of the body's humidity map, so that the type table's base is the body's average and the physics makes it vary), and
         // the most the physics moves the base either way.
-        public float LclMPerK = 125f, ReferenceSpreadK = 0f, PhysicsMaxM = 500f;
+        public float LclMPerK = CloudHeightRules.DefaultLclMPerK, ReferenceSpreadK = CloudHeightRules.DefaultReferenceSpreadK, PhysicsMaxM = CloudHeightRules.DefaultPhysicsMaxM;
 
         // BASE VARIATION: the standard deviation of the low-frequency offset in m, and its wavelength on the ground in m. The size trend
         // is the change of the base in m for a neighbourhood fully covered against an uncovered one (negative: larger clouds sit lower)
         // within a radius in m.
-        public float VariationAmplitudeM = 110f, VariationWavelengthM = 12000f;
-        public float SizeTrendM = -220f, SizeRadiusM = 40000f;
+        public float VariationAmplitudeM = CloudHeightRules.DefaultVariationM, VariationWavelengthM = CloudHeightRules.DefaultWavelengthM;
+        public float SizeTrendM = CloudHeightRules.DefaultSizeTrendM, SizeRadiusM = CloudHeightRules.DefaultSizeRadiusM;
 
         // RAGGED BASE: the displacement of the lower boundary in m at an erosion of 0.5, and the size of its detail in m.
         public float RaggedM = 110f, RaggedScaleM = 220f;
@@ -90,37 +88,16 @@ namespace ReDefinition.Atmospheres
             return t;
         }
 
-        // The keys of a body's CLOUDS node (heightLclMPerK, heightReferenceSpreadK, heightPhysicsMaxM, heightVariationM, heightWavelengthM,
-        // heightSizeTrendM, heightSizeRadiusM, heightRaggedM, heightRaggedScaleM, heightTopGainMPerMs, heightReferenceUpdraftMs,
-        // heightTopMaxM, heightTopJitterM, heightMinThicknessM); a missing key keeps the compiled value.
-        internal static HeightTuning Parse(IDictionary<string, string> keys)
+        // The numbers of a body's CLOUDS node (CloudHeightRules, the keys height*; BodyRuleReaders.Clouds reads and bounds them) take the place of the compiled ones; the switches stay.
+        internal void TakeNumbers(CloudHeightRules r)
         {
-            var t = new HeightTuning();
-            if (keys == null) return t;
-            t.LclMPerK = Read(keys, "heightLclMPerK", t.LclMPerK);
-            t.ReferenceSpreadK = Read(keys, "heightReferenceSpreadK", t.ReferenceSpreadK);
-            t.PhysicsMaxM = Math.Max(0f, Read(keys, "heightPhysicsMaxM", t.PhysicsMaxM));
-            t.VariationAmplitudeM = Math.Max(0f, Read(keys, "heightVariationM", t.VariationAmplitudeM));
-            t.VariationWavelengthM = Math.Max(100f, Read(keys, "heightWavelengthM", t.VariationWavelengthM));
-            t.SizeTrendM = Read(keys, "heightSizeTrendM", t.SizeTrendM);
-            t.SizeRadiusM = Math.Max(100f, Read(keys, "heightSizeRadiusM", t.SizeRadiusM));
-            t.RaggedM = Math.Max(0f, Read(keys, "heightRaggedM", t.RaggedM));
-            t.RaggedScaleM = Math.Max(1f, Read(keys, "heightRaggedScaleM", t.RaggedScaleM));
-            t.TopGainMPerMs = Read(keys, "heightTopGainMPerMs", t.TopGainMPerMs);
-            t.ReferenceUpdraftMs = Read(keys, "heightReferenceUpdraftMs", t.ReferenceUpdraftMs);
-            t.TopMaxM = Math.Max(0f, Read(keys, "heightTopMaxM", t.TopMaxM));
-            t.TopJitterM = Math.Max(0f, Read(keys, "heightTopJitterM", t.TopJitterM));
-            t.MinThicknessM = Math.Max(1f, Read(keys, "heightMinThicknessM", t.MinThicknessM));
-            return t;
-        }
-
-        private static float Read(IDictionary<string, string> keys, string name, float fallback)
-        {
-            string text;
-            float value;
-            if (keys.TryGetValue(name, out text) && float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) &&
-                !float.IsNaN(value) && !float.IsInfinity(value)) return value;
-            return fallback;
+            LclMPerK = r.LclMPerK;
+            ReferenceSpreadK = r.ReferenceSpreadK;
+            PhysicsMaxM = r.PhysicsMaxM;
+            VariationAmplitudeM = r.VariationM;
+            VariationWavelengthM = r.WavelengthM;
+            SizeTrendM = r.SizeTrendM;
+            SizeRadiusM = r.SizeRadiusM;
         }
     }
 }

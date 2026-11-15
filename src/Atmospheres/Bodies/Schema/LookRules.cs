@@ -23,8 +23,10 @@ namespace ReDefinition.Atmospheres
         internal CloudRules(CloudSourceKind? source = null, CloudDiscovery discover = CloudDiscovery.Auto, string baseLayer = "",
             IEnumerable<string> weatherLayers = null, IEnumerable<string> snowTypeNames = null, IEnumerable<string> stratusTypeNames = null,
             IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0, IEnumerable<CloudLayerSpec> layers = null, float sphereScale = 1f,
-            float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue, Vector3? hazeTint = null, string layerSet = "")
+            float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue, Vector3? hazeTint = null, string layerSet = "",
+            CloudHeightRules height = null)
         {
+            Height = height ?? CloudHeightRules.Default;
             Layers = SchemaList.Of(layers);
             LayerSet = layerSet ?? "";
             SphereScale = sphereScale;
@@ -73,6 +75,8 @@ namespace ReDefinition.Atmospheres
         // fades into a violet and a band of far clouds reads darker than the sky behind it. The gain is the ratio of the sky's horizon radiance to the power law's colour; 1 keeps the law as it was.
         internal Vector3 HazeTint { get; }
         internal const float DefaultHazeBlue = 0.35f, DefaultHazeNearBlue = 0f;
+        // Keys height* (E40 HKEYS): the numbers of the height variation of the layers' bases and tops (HeightTuning); never null.
+        internal CloudHeightRules Height { get; }
     }
 
     // The colours and limits of the body's air. Node LOOK.

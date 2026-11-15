@@ -71,17 +71,6 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheTuningReadsItsKeysAndIgnoresBadOnes()
-        {
-            var keys = new Dictionary<string, string> { { "heightLclMPerK", "100" }, { "heightRaggedM", "abc" }, { "heightTopMaxM", "-5" } };
-            HeightTuning t = HeightTuning.Parse(keys);
-            Assert.AreEqual(100f, t.LclMPerK);
-            Assert.AreEqual(new HeightTuning().RaggedM, t.RaggedM);
-            Assert.AreEqual(0f, t.TopMaxM);
-            Assert.AreEqual(new HeightTuning().VariationAmplitudeM, HeightTuning.Parse(null).VariationAmplitudeM);
-        }
-
-        [TestMethod]
         public void AFogLayerHasNoHeightVariationAndAThinHighLayerVariesMore()
         {
             var t = new HeightTuning();
