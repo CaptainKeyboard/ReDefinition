@@ -150,6 +150,8 @@ namespace ReDefinition.WeatherPlayer
             public float Leap100;
             // E40 C3: cg<N> the step growth along a span (cloudStepGrowth) of N / 1000000 per m (cg alone: the switch's own default), eo<N> the march's early-out transmittance N / 1000 (the product's 0.01).
             public int GrowthE6, EarlyOut;
+            // E40 C4: wt<N> layers.warpTable (0 the warp's lattice values hashed at every sample, 1 the table of half floats, 2 the table of bytes; the product 1).
+            public int WarpTable = 1;
         }
 
         private static int Number(string token, int prefix)
@@ -177,6 +179,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("mn")) c.Moon = Number(t, 2);   // E40 C2
                 else if (t.StartsWith("mc")) c.MoonCut = Number(t, 2);   // E40 C2
                 else if (t.StartsWith("lp")) c.Leap100 = Number(t, 2) / 100f;   // E40 C2
+                else if (t.StartsWith("wt")) c.WarpTable = Number(t, 2);   // E40 C4
                 else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
@@ -227,6 +230,7 @@ namespace ReDefinition.WeatherPlayer
             f.SpanSpacing = c.Spacing;
             f.SpanSpacingMin = c.SpacingMin;
             f.LeapScales = c.Leap100;
+            f.WarpTable = c.WarpTable;
             for (int i = 0; i < f.Light.Lights.Length; i++) f.Light.Lights[i] = new CloudLight { Towards = Vector3.up, Colour = Color.black };
             // The product's light.moonMinShare (OwnCloudOptions.MoonTooFaint, which the player does not link): a moon below that share of the sun is left out.
             if (c.Moon > 0 && !(c.MoonCut > 0 && c.Moon / 10000f < c.MoonCut / 1000f))
