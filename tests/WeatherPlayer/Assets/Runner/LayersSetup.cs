@@ -72,6 +72,7 @@ namespace ReDefinition.WeatherPlayer
                     AnvilSeconds = jl.anvilSeconds,
                     AnvilUpdraftMs = jl.anvilUpdraftMs,
                     AnvilScale = jl.anvilScale,
+                    TowerScale = jl.towerScale,
                     LightIsotropy = jl.lightIsotropy,
                     LightPlateau = jl.lightPlateau,
                     LightCellWidth = jl.lightCellWidth,

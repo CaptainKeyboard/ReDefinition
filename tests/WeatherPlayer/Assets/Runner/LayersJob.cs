@@ -70,6 +70,8 @@ namespace ReDefinition.WeatherPlayer
         // The anvil of the layer's towers (E40 CB; the cfg keys anvilType, anvilSeconds, anvilUpdraftMs, anvilScale; anvilType -1: none) and the shear of the anvil's level against
         // the steering level (rad/s eastward; the game takes it from the generator, CloudDriftRadS): the setup draws the anvils into the job's maps with AnvilMap.
         public float anvilType = -1f, anvilSeconds = 3600f, anvilUpdraftMs = 6f, anvilScale = 1f, anvilShearRadS;
+        // The width of the tower under the anvil (E40 CB2; cfg key towerScale, 1 = derived).
+        public float towerScale = 1f;
         // A factor on the type map's values before the anvils are drawn (1: none): a game dump of the cumulonimbus layer from before E40 CB has the precipitation level 0 to 1 as its type, which
         // the table with the anvil sheet reads at rainType (0.5) and below.
         public float typeScale = 1f;

@@ -167,6 +167,8 @@ namespace ReDefinition.Atmospheres
         internal float AnvilSeconds { get; set; } = CloudLayerDef.DefaultAnvilSeconds;
         internal float AnvilUpdraftMs { get; set; } = CloudLayerDef.DefaultAnvilUpdraftMs;
         internal float AnvilScale { get; set; } = 1f;
+        // The width of the tower under the anvil (cfg key towerScale): see CloudLayerDef.TowerScale.
+        internal float TowerScale { get; set; } = 1f;
         // The mid-level sheet's rule (cfg keys altoType, altoFrom, altoFullAt; altoType -1: none): see CloudLayerDef.AltoType.
         internal float AltoType { get; set; } = -1f;
         internal float AltoFrom { get; set; } = 0.05f;
@@ -235,6 +237,7 @@ namespace ReDefinition.Atmospheres
                 AnvilSeconds = AnvilSeconds,
                 AnvilUpdraftMs = AnvilUpdraftMs,
                 AnvilScale = AnvilScale,
+                TowerScale = TowerScale,
                 AltoType = AltoType,
                 AltoFrom = AltoFrom,
                 AltoFull = AltoFull,

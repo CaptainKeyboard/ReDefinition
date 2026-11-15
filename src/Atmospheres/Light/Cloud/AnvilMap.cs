@@ -9,7 +9,8 @@ namespace ReDefinition.Atmospheres
     // area grows by the outflow over its lifetime, pi R^2 d = pi r^2 (d + w tau), so its radius is R = r sqrt(1 + w tau / d) (r the tower's radius where it reaches the anvil, w the
     // updraft there, tau the time it has spread, d the sheet's depth), and the wind shear between the steering level and the anvil carries it downwind.
     // Here: every tower of the layer's coverage map that reaches the anvil base (its map value above the median-noise threshold, its type one that feeds an outflow: cfg type key
-    // `outflow`) is one connected source; its anvil is drawn into the coverage map around it, from the tower's own value at its edge down to the value at which the noise shows the first
+    // `outflow`) is one connected source; its towers are its updraft cores (E40 CB2: the strength maxima, each as wide as the column under the anvil is deep, CoreRadiusM), the rest of
+    // the source is outflow; the anvil is drawn into the coverage map around the cores, from the tower's own value at its edge down to the value at which the noise shows the first
     // wisp beyond the anvil's radius (thin translucent edges by construction), and the type map there becomes the layer's anvil type (cfg layer key anvilType: a type that spans the
     // layer like the towers' and whose LIFT closes every column below the sheet and whose profile holds density only in it). The type map is bilinear, so between a tower and its sheet
     // the types mix: with one base for both, the mix raises the threshold below the sheet (the tower's wall narrows by its own noise) instead of sloping a smooth base from the ground
@@ -48,6 +49,28 @@ namespace ReDefinition.Atmospheres
             for (int i = 0; i < n; i++)
                 if (type.Profile.Evaluate((i + 0.5f) / n) > 0.01f && type.BakedLiftAt((i + 0.5) / n) < 0.999) held++;
             return held / (double)n * Math.Max(0.0, type.TopShare - type.BaseShare) * layer.ThicknessM;
+        }
+
+        // The height share of the layer at which the anvil sheet begins (the lowest height where its type holds density); 1 where the layer has no anvil type.
+        internal static double SheetBaseShare(CloudLayerDef layer)
+        {
+            int t = AnvilTypeIndex(layer);
+            if (t < 0) return 1.0;
+            CloudTypeDef type = layer.Types[t];
+            const int n = 256;
+            for (int i = 0; i < n; i++)
+            {
+                double h = (i + 0.5) / n;
+                if (type.Profile.Evaluate((float)h) > 0.01f && type.BakedLiftAt(h) < 0.999) return type.BaseShare + h * Math.Max(0.0, type.TopShare - type.BaseShare);
+            }
+            return 1.0;
+        }
+
+        // The radius of a tower's updraft core (E40 CB2): a convective column about as wide as it is deep, its diameter the depth from the layer's base (the condensation level) to the
+        // anvil sheet's base, times the body's multiplier (cfg towerScale, 1 = derived). A cumulonimbus 7 km deep under its anvil stands on a core about 7 km across.
+        internal static double CoreRadiusM(CloudLayerDef layer)
+        {
+            return 0.5 * Math.Max(0.0, layer.TowerScale) * SheetBaseShare(layer) * layer.ThicknessM;
         }
 
         internal static int AnvilTypeIndex(CloudLayerDef layer)
@@ -113,6 +136,8 @@ namespace ReDefinition.Atmospheres
             internal readonly List<double> TowerRadiusM = new List<double>(), ReachM = new List<double>(), UpdraftMs = new List<double>(), Strength = new List<double>();
             internal double ShiftTexels;
             internal int Changed;
+            // The towers (updraft cores) of all sources.
+            internal int Cores;
         }
 
         // Draws the anvils of a layer into its coverage and type bytes in place (width x height, row 0 at the north pole, column 0 at -180, as LayerMapStore holds them).
@@ -146,6 +171,7 @@ namespace ReDefinition.Atmospheres
             var label = new int[n];
             var anvil = new float[n];
             var core = new bool[n];
+            var spread = new bool[n];
             var queue = new int[n];
             var members = new List<int>();
             int next = 0;
@@ -174,49 +200,65 @@ namespace ReDefinition.Atmospheres
                         }
                     }
                 }
-                // The tower where it reaches the anvil: its cross-section's area, its strongest value, and the updraft that strength carries.
+                // The source where it reaches the anvil: its area, its strongest value, and the updraft that strength carries.
                 double area = 0.0, sMax = 0.0, covMax = 0.0;
                 foreach (int p in members)
                 {
                     area += dy * 2.0 * Math.PI * inp.RadiusM * Math.Cos(Lat(p / w, h)) / w;
                     sMax = Math.Max(sMax, strength[p]);
                     covMax = Math.Max(covMax, cover[p] / 255.0);
-                    core[p] = true;
                 }
-                double towerR = Math.Sqrt(area / Math.PI), updraft = layer.AnvilUpdraftMs * sMax;
-                double reach = towerR * (RadiusRatio(updraft, layer.AnvilSeconds, depth, layer.AnvilScale) - 1.0);
-                if (report != null) { report.TowerRadiusM.Add(towerR); report.ReachM.Add(reach); report.UpdraftMs.Add(updraft); report.Strength.Add(sMax); }
-                if (!(reach > 1.0) || covMax <= medianRaw) continue;
-                double end = SheetEnd(covMax, medianRaw, visRaw, reach);
-                // The boundary texels of the tower (a neighbour outside it): the distance of a texel to the tower is its distance to the nearest of them.
-                var boundary = new List<int>();
-                int yMin = h, yMax = -1;
+                // E40 CB2: the tower is the cell's updraft core, not the whole area the cell covers (a source as wide as the cell stood as a flat-walled box 30 to 40 km wide). The cores
+                // are the source's strength maxima (a plateau of equal maxima counts once, at its middle texel) with every texel of the source within the core radius of one; the rest of
+                // the source is the cell's outflow and takes the sheet. The outflow law takes the cores' updraft area (never more than the source).
+                List<int> centres = Centres(members, strength, w, h);
+                double coreR = CoreRadiusM(layer);
                 foreach (int p in members)
                 {
                     int py = p / w, px = p - py * w;
+                    double dx = 2.0 * Math.PI * inp.RadiusM * Math.Max(Math.Cos(Lat(py, h)), 1e-3) / w;
+                    foreach (int c in centres)
+                    {
+                        int cy = c / w, ddx = px - (c - cy * w);
+                        if (ddx > w / 2) ddx -= w;
+                        if (ddx < -w / 2) ddx += w;
+                        double ex = ddx * dx, ey = (py - cy) * dy;
+                        if (p == c || ex * ex + ey * ey <= coreR * coreR) { core[p] = true; break; }
+                    }
+                }
+                double single = Math.Min(coreR, Math.Sqrt(area / Math.PI / centres.Count));
+                double towerR = Math.Min(coreR * Math.Sqrt(centres.Count), Math.Sqrt(area / Math.PI)), updraft = layer.AnvilUpdraftMs * sMax;
+                double reach = towerR * (RadiusRatio(updraft, layer.AnvilSeconds, depth, layer.AnvilScale) - 1.0);
+                if (report != null) { report.TowerRadiusM.Add(towerR); report.ReachM.Add(reach); report.UpdraftMs.Add(updraft); report.Strength.Add(sMax); report.Cores += centres.Count; }
+                if (!(reach > 1.0) || covMax <= medianRaw)
+                {
+                    // No anvil: the whole source stays a tower, as the map has it.
+                    foreach (int p in members) core[p] = true;
+                    continue;
+                }
+                double end = SheetEnd(covMax, medianRaw, visRaw, reach);
+                var cores = new List<int>();
+                int yMin = h, yMax = -1;
+                foreach (int p in members)
+                {
+                    int py = p / w;
                     yMin = Math.Min(yMin, py);
                     yMax = Math.Max(yMax, py);
-                    bool edgeTexel = false;
-                    for (int o = 0; o < 4 && !edgeTexel; o++)
-                    {
-                        int qy = py + (o == 2 ? -1 : o == 3 ? 1 : 0), qx = px + (o == 0 ? -1 : o == 1 ? 1 : 0);
-                        if (qy < 0 || qy >= h) continue;
-                        edgeTexel = label[qy * w + (qx % w + w) % w] != label[p];
-                    }
-                    if (edgeTexel) boundary.Add(p);
+                    if (core[p]) cores.Add(p);
                 }
+                // The sheet's value at a texel: by its distance beyond the nearest core's edge (the distance to the core texel's centre less the core's radius); the source's own texels
+                // outside the cores keep at least their own value.
                 int reachRows = Math.Min(MaxReachTexels, (int)Math.Ceiling(end / dy) + 1);
                 for (int y = Math.Max(0, yMin - reachRows); y <= Math.Min(h - 1, yMax + reachRows); y++)
                 {
                     double dx = 2.0 * Math.PI * inp.RadiusM * Math.Max(Math.Cos(Lat(y, h)), 1e-3) / w;
                     int reachCols = Math.Min(Math.Min(MaxReachTexels, w / 2), (int)Math.Ceiling(end / dx) + 1);
-                    // The columns: the tower's own span on its boundary, widened by the reach.
-                    foreach (int x in ColumnsNear(boundary, w, reachCols))
+                    foreach (int x in ColumnsNear(members, w, reachCols))
                     {
                         int i = y * w + x;
-                        if (label[i] == label[members[0]]) continue;
+                        if (core[i]) continue;
                         double best = double.MaxValue;
-                        foreach (int p in boundary)
+                        foreach (int p in cores)
                         {
                             int py = p / w, px = p - py * w;
                             int ddx = x - px;
@@ -226,7 +268,20 @@ namespace ReDefinition.Atmospheres
                             double d2 = ex * ex + ey * ey;
                             if (d2 < best) best = d2;
                         }
-                        double v = SheetValue(covMax, medianRaw, visRaw, Math.Sqrt(best), reach);
+                        double beyond = Math.Max(0.0, Math.Sqrt(best) - single);
+                        double v = SheetValue(covMax, medianRaw, visRaw, beyond, reach);
+                        // The cell's own cloud under the sheet (the source and its rim, of a type that belongs to the tower's family: an outflow weight above 0) is the outflow too where the
+                        // sheet is drawn (it reaches a texel or more): the rim of a cell carries calvus-mixed types whose columns stood as a wide box around the core (E40 CB2, player run a),
+                        // and the rim takes the sheet's end and one texel more: a rim texel left beside the sheet passes incus on the bilinear type axis from calvus to the sheet (an open
+                        // ring of tower around the sheet's edge, run b). A weak source's sheet (shorter than a texel) leaves the source and its rim as they are (the game's clock maps:
+                        // 112 weak sources; with the whole source under the sheet's type the replay cost 1 ms more at the ground, e40-c3-cost run new1).
+                        double diag = Math.Sqrt(dx * dx + dy * dy);
+                        bool drawn = end >= dy;
+                        if ((label[i] == label[members[0]] && drawn) || (drawn && beyond <= end + diag && OutflowAt(layer, type[i] / 255.0) > 0.0 && cover[i] > 0))
+                        {
+                            v = Math.Max(v, cover[i] / 255.0);
+                            spread[i] = true;
+                        }
                         if (v > anvil[i]) anvil[i] = (float)v;
                     }
                 }
@@ -256,39 +311,17 @@ namespace ReDefinition.Atmospheres
                         carried[y * w + x] = m;
                     }
             }
-            // The ring of texels around a tower is half tower, half sheet: the type map is bilinear, and a sheet texel next to the tower mixed the sheet's type (closed below the sheet) into
-            // the tower across the whole texel between them, which emptied the tower's body below the sheet in the player (a stub under a floating sheet, E40 CB run 4); a ring that kept
-            // its own maps left a hole in the sheet around the tower (run 5). The ring takes the sheet's coverage and the type halfway between its own and the sheet's, so the closure of
-            // the sheet's type below its base reaches the tower over two texels and the sheet is whole over the tower.
-            var ring = new bool[n];
-            for (int i = 0; i < n; i++)
-            {
-                if (!core[i]) continue;
-                int py = i / w, px = i - py * w;
-                for (int oy = -1; oy <= 1; oy++)
-                {
-                    int qy = py + oy;
-                    if (qy < 0 || qy >= h) continue;
-                    for (int ox = -1; ox <= 1; ox++) ring[qy * w + ((px + ox) % w + w) % w] = true;
-                }
-            }
+            // The sheet around a core takes the anvil's type in full: the bilinear type between the core texel and its neighbour mixes the sheet's closure below its base into the tower,
+            // so the tower's wall stands where the mix closes it (about half a texel out at the noise's middle value) and the tower runs whole from its base into the sheet. (A ring of
+            // half types around a core as wide as the cell, E40 CB, mixed the calvus of the cell's rim into it and ended the tower kilometres under the sheet.)
             int changed = 0;
             var sheet = new bool[n];
             for (int i = 0; i < n; i++)
             {
-                if (core[i] || carried[i] <= cover[i] / 255.0f) continue;
-                if (ring[i])
-                {
-                    byte rb = (byte)Math.Min(255.0, Math.Round(carried[i] * 255.0));
-                    if (rb <= cover[i]) continue;
-                    cover[i] = rb;
-                    type[i] = (byte)((type[i] + anvilByte + 1) / 2);
-                    changed++;
-                    continue;
-                }
+                if (core[i]) continue;
                 byte b = (byte)Math.Min(255.0, Math.Round(carried[i] * 255.0));
-                if (b <= cover[i]) continue;
-                cover[i] = b;
+                if (!spread[i] && b <= cover[i]) continue;
+                if (b > cover[i]) cover[i] = b;
                 type[i] = anvilByte;
                 sheet[i] = true;
                 changed++;
@@ -307,7 +340,7 @@ namespace ReDefinition.Atmospheres
                     for (int ox = -1; ox <= 1; ox++)
                     {
                         int q = qy * w + ((px + ox) % w + w) % w;
-                        if (!sheet[q] && !ring[q] && cover[q] <= visByte) type[q] = anvilByte;
+                        if (!sheet[q] && !core[q] && cover[q] <= visByte) type[q] = anvilByte;
                     }
                 }
             }
@@ -318,6 +351,64 @@ namespace ReDefinition.Atmospheres
         private static double Lat(int row, int h)
         {
             return Math.PI * (0.5 - (row + 0.5) / h);
+        }
+
+        // The centres of a source's updraft cores: its strength maxima, each a plateau (connected texels of one strength) with no stronger neighbour; the centre of a plateau is the member
+        // nearest to its mean position.
+        private static List<int> Centres(List<int> members, double[] strength, int w, int h)
+        {
+            var centres = new List<int>();
+            var done = new HashSet<int>();
+            var plateau = new List<int>();
+            foreach (int start in members)
+            {
+                if (done.Contains(start)) continue;
+                plateau.Clear();
+                plateau.Add(start);
+                done.Add(start);
+                bool top = true;
+                for (int k = 0; k < plateau.Count; k++)
+                {
+                    int py = plateau[k] / w, px = plateau[k] - py * w;
+                    for (int oy = -1; oy <= 1; oy++)
+                    {
+                        int qy = py + oy;
+                        if (qy < 0 || qy >= h) continue;
+                        for (int ox = -1; ox <= 1; ox++)
+                        {
+                            int q = qy * w + ((px + ox) % w + w) % w;
+                            if (strength[q] > strength[start]) top = false;
+                            else if (strength[q] == strength[start] && done.Add(q)) plateau.Add(q);
+                        }
+                    }
+                }
+                if (!top) continue;
+                // The mean position, the columns unwrapped around the first member.
+                int x0 = start % w;
+                double mx = 0.0, my = 0.0;
+                foreach (int p in plateau)
+                {
+                    int ddx = p % w - x0;
+                    if (ddx > w / 2) ddx -= w;
+                    if (ddx < -w / 2) ddx += w;
+                    mx += ddx;
+                    my += p / w;
+                }
+                mx /= plateau.Count;
+                my /= plateau.Count;
+                int best = start;
+                double bestD = double.MaxValue;
+                foreach (int p in plateau)
+                {
+                    int ddx = p % w - x0;
+                    if (ddx > w / 2) ddx -= w;
+                    if (ddx < -w / 2) ddx += w;
+                    double d = (ddx - mx) * (ddx - mx) + (p / w - my) * (p / w - my);
+                    if (d < bestD) { bestD = d; best = p; }
+                }
+                centres.Add(best);
+            }
+            return centres;
         }
 
         // The columns within reach of a tower's boundary (wrapped), each once.

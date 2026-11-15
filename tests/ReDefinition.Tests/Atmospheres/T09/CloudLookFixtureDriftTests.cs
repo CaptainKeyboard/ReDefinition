@@ -77,6 +77,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.AnvilSeconds, fixture.AnvilSeconds, 1e-6f, n + " anvil seconds");
             Assert.AreEqual(shipped.AnvilUpdraftMs, fixture.AnvilUpdraftMs, 1e-6f, n + " anvil updraft");
             Assert.AreEqual(shipped.AnvilScale, fixture.AnvilScale, 1e-6f, n + " anvil scale");
+            Assert.AreEqual(shipped.TowerScale, fixture.TowerScale, 1e-6f, n + " tower scale");
             Assert.AreEqual(shipped.LightIsotropy, fixture.LightIsotropy, 1e-6f, n + " light isotropy");
             Assert.AreEqual(shipped.LightPlateau, fixture.LightPlateau, 1e-6f, n + " light plateau");
             Assert.AreEqual(shipped.AmbientMs, fixture.AmbientMs, 1e-6f, n + " sky diffusion amplitude");
@@ -165,8 +166,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             // e40-fn: the towers of the map 0.8 are 14 to 16 km wide at 8000 m (cells of 10 to 30 km); 3000 m gives 7 to 9 km. A change of these two numbers is a new measurement.
             // E40 L2 D1: 5000 m (about 11 km towers by interpolation, not measured at nadir) so that the cloud is separate towers with the cfg's LIFT, not a slab; the amount stays 0.4.
+            // E40 CB2: the towers come from the map (AnvilMap: the updraft core, about 6 km across), so the noise is the tower's texture: 1500 m (bodies of 6 to 12 km, turrets of 1.5 km;
+            // the player series e40-ty, rows cbanvil: 5000 m a smooth column, 2000 m slabs, 1000 m fragments).
             CloudLayerSpec cb = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == "Kerbin-cumulonimbus");
-            Assert.AreEqual(5000f, cb.NoiseScaleM, 0f);
+            Assert.AreEqual(1500f, cb.NoiseScaleM, 0f);
             Assert.AreEqual(0.4f, cb.NoiseAmount, 0f);
         }
 

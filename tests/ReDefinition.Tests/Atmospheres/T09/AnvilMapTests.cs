@@ -70,8 +70,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 AnvilMap.Report r = Run(cb, 600000.0, 12.0, peak, 0.0, out cp, out tp);
                 Console.WriteLine("cell peak " + peak + ": sources " + r.TowerRadiusM.Count + (r.TowerRadiusM.Count > 0 ? ", tower " + r.TowerRadiusM[0].ToString("0") + " m, reach "
                                   + r.ReachM[0].ToString("0") + " m, updraft " + r.UpdraftMs[0].ToString("0.0") + " m/s, strength " + r.Strength[0].ToString("0.00") : "") + ", texels " + r.Changed
-                                  + ", east extent " + Extent(cp, cb, 600000.0, 1).ToString("0") + " m");
-            }
+                                  + ", east extent " + Extent(cp, cb, 600000.0, 1).ToString("0") + " m");            }
             double texel = 2.0 * Math.PI * 600000.0 / W;
             // The sheet: 1.5 to 3 km deep under the tropopause (the layer's top), its base in the WMO's upper troposphere.
             double depth = AnvilMap.SheetDepthM(cb);
@@ -124,6 +123,61 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double east = Extent(c1, cb, 600000.0, 1), west = Extent(c1, cb, 600000.0, -1);
             double carry = shear * cb.AnvilSeconds * 600000.0;
             Assert.IsTrue(east > west + 0.5 * carry, "east " + east + " m, west " + west + " m, carry " + carry + " m");
+        }
+
+        // E40 CB2: the tower under the anvil is the cell's updraft core, as wide as the column under the sheet is deep, not the whole cell (a cell 30 km across stood as a flat-walled box
+        // as wide as itself): a broad strong cell keeps one tower texel at its strongest point, the rest of its area is the sheet; towerScale is the body's multiplier on the core.
+        [TestMethod]
+        public void TheTowerIsTheUpdraftCoreNotTheWholeCell()
+        {
+            CloudLayerDef cb = CloudLookFixtures.Cumulonimbus();
+            double depth = AnvilMap.SheetBaseShare(cb) * cb.ThicknessM;
+            Assert.AreEqual(0.5 * depth, AnvilMap.CoreRadiusM(cb), 1e-6, "a core as wide as it is deep");
+            Assert.IsTrue(depth > 5000.0 && depth < 9000.0, "the column under the sheet: " + depth + " m");
+            byte anvil = (byte)Math.Round(AnvilMap.AnvilTypeIndex(cb) / (double)(cb.Types.Count - 1) * 255.0);
+            foreach (double scale in new[] { 1.0, 3.0 })
+            {
+                cb.TowerScale = (float)scale;
+                byte[] cover, type;
+                AnvilMap.Report r = Run(cb, 600000.0, 30.0, 1.0, 0.0, out cover, out type);
+                int towers = 0, sheet = 0;
+                double outline = AnvilMap.MedianRaw(cb) * 255.0;
+                for (int i = 0; i < cover.Length; i++)
+                {
+                    if (cover[i] < outline) continue;
+                    if (type[i] == anvil) sheet++;
+                    else towers++;
+                }
+                double texelArea = Math.Pow(2.0 * Math.PI * 600000.0 / W, 2.0);
+                double coreArea = Math.PI * Math.Pow(AnvilMap.CoreRadiusM(cb), 2.0);
+                Console.WriteLine("towerScale " + scale + ": cores " + r.Cores + ", tower texels " + towers + ", sheet texels " + sheet + ", core area " + (coreArea / texelArea).ToString("0.0") + " texels");
+                Assert.AreEqual(1, r.Cores, "one cell, one core");
+                Assert.IsTrue(sheet > 4 * towers, "the cell's area is its sheet: " + sheet + " against " + towers);
+                Assert.IsTrue(towers >= 1 && towers <= Math.Max(1.0, 2.0 * coreArea / texelArea), "the tower texels follow the core's area: " + towers);
+                Assert.AreEqual(AnvilMap.CoreRadiusM(cb), r.TowerRadiusM[0], 1e-6, "the outflow law takes the core (the cell is wider than it)");
+            }
+        }
+
+        // E40 CB2: the rim of a cell (map values under the outline of a source, types between calvus and incus) under its sheet is the sheet too: no texel of a calvus-incus mix stays
+        // beside the sheet within its end (on the bilinear type axis it would open an incus ring around the sheet's edge, a wide box around the core).
+        [TestMethod]
+        public void NoTowerTypeStaysBesideTheSheetOfAStrongCell()
+        {
+            CloudLayerDef cb = CloudLookFixtures.Cumulonimbus();
+            byte[] cover, type;
+            Run(cb, 600000.0, 12.0, 1.0, 0.0, out cover, out type);
+            byte anvil = (byte)Math.Round(AnvilMap.AnvilTypeIndex(cb) / (double)(cb.Types.Count - 1) * 255.0);
+            int towers = 0, rim = 0;
+            for (int y = H / 2 - 6; y <= H / 2 + 6; y++)
+                for (int x = W / 2 - 6; x <= W / 2 + 6; x++)
+                {
+                    int i = y * W + x;
+                    if (type[i] == anvil || type[i] == 0) continue;
+                    // the visible rim: a column with the noise's middle value is thin cloud from a map value of about 0.375 (the soft edge's 0.03 share)
+                    if (cover[i] >= 0.375 * 255.0) { if (type[i] == (byte)Math.Round(cb.RainType * 255.0)) towers++; else rim++; }
+                }
+            Assert.AreEqual(0, rim, "visible rim texels of a tower type beside the sheet");
+            Assert.IsTrue(towers >= 1, "the core stays a tower");
         }
 
         [TestMethod]
