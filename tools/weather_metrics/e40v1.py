@@ -28,6 +28,7 @@ from weather_metrics import e40c1 as c1  # noqa: E402
 from weather_metrics import e40gn as gn  # noqa: E402
 from weather_metrics import e40o  # noqa: E402
 from weather_metrics import e40ty  # noqa: E402
+from weather_metrics import horizon_sky as hs  # noqa: E402
 from weather_metrics import layers as lay  # noqa: E402
 from weather_metrics import parity_ref as pr  # noqa: E402
 
@@ -160,7 +161,7 @@ def build_job(view, variant):
     if "tuning" in v:
         args["tuning"] = e40o.tuning(v["tuning"])
     if v.get("haze"):
-        args["far"] = haze_block(spec)
+        args["far"] = haze_block(spec, v["az"])
     sun = [spec["sun"]] * 3
     return lay.job("gn-%s-prod-f0" % tag(view, variant), "lum", cam, job_layers(spec["scene"], variant), W, H, planet=c1.R, mapWidth=c1.MAP_W, mapHeight=c1.MAP_H, frameNumber=0,
                    soft=v.get("soft", 0.5), sun=lay.sun_vector(cam.pos, v["az"], spec["elev"]), sunColour=sun, ambientTop=gn.AMBIENT_TOP, ambientBottom=gn.AMBIENT_BOTTOM, **args)
@@ -168,19 +169,18 @@ def build_job(view, variant):
 
 SC_RAYLEIGH = (0.0153407799e-3, 0.0357074998e-3, 0.0875488967e-3)
 SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
-HAZE_TINT = np.array([1.35, 1.48, 1.17])      # the cfg's hazeTintR / G / B (E40 FL far)
+LOWEST_LAYER_QUARTER_M = 0.25 * 4690.0         # the lowest layer's lower quarter, where the white point's sun and the far colour's ray are taken
 
 
-def haze_block(spec):
-    """The far block of the product at this scene's sun: Scatterer's air of Kerbin, the in-scatter the sun's own over the horizon's 0.35 blue, times the white tint and the cfg's hazeTint."""
-    ray = np.array(SC_RAYLEIGH)
+def haze_block(spec, sun_azimuth=AZIMUTH):
+    """The far block of the product at this scene's sun: Scatterer's air of Kerbin, the colours a far cloud fades into and a short path in-scatters worked out from the air along the view
+    ray (E40 H1 haze, horizon_sky.py), times the white tint. The camera looks along HEADING, the sun is at sun_azimuth."""
     tint = tint_of(spec)
-
-    def inscatter(exponent):
-        return np.maximum(spec["sun"] * 0.23 * (ray / ray.mean()) ** exponent, np.array(gn.AMBIENT_TOP))
-
+    relative = abs(sun_azimuth - HEADING) % 360.0
+    relative = 360.0 - relative if relative > 180.0 else relative
+    far, near, _ = hs.far_near(hs.KERBIN, HEIGHT_M, LOWEST_LAYER_QUARTER_M, spec["elev"], relative, spec["white"], gn.AMBIENT_TOP)
     return dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0,
-                inscatter=[float(x) for x in inscatter(0.35) * tint * HAZE_TINT], inscatterNear=[float(x) for x in inscatter(0.0) * tint])
+                inscatter=[float(x) for x in np.array(far) * tint], inscatterNear=[float(x) for x in np.array(near) * tint])
 
 
 def all_jobs():

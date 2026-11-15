@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 from weather_metrics import Metric, Stage, register_series  # noqa: E402
 from weather_metrics import e40gn as gn  # noqa: E402
 from weather_metrics import e40o  # noqa: E402
+from weather_metrics import horizon_sky as hs  # noqa: E402
 from weather_metrics import layers as lay  # noqa: E402
 from weather_metrics import parity_ref as pr  # noqa: E402
 
@@ -45,7 +46,9 @@ EDGE_KM = float(os.environ.get("E40FAR_EDGE", 3.0))          # the cell's visibl
 DISTANCES_KM = (2, 6, 12, 25, 50)
 # azimuth, elevation: hi and lo from the east (the cell is lit from the side), fw toward the sun (the camera looks north, the sun is north), bk the sun behind the camera
 SUNS = {"hi": (90.0, 45.6), "lo": (90.0, 12.0), "fw": (0.0, 45.6), "bk": (180.0, 45.6)}
-VARIANT_SUNS = ("hi", "fw")                                   # the suns the chain variants run at (congestus)
+# E40FAR_SUNS=hi,lo: only these suns (a before / after haze picture at two sun heights in a quarter of the jobs).
+SUNS = {k: v for k, v in SUNS.items() if k in os.environ.get("E40FAR_SUNS", ",".join(SUNS)).split(",")}
+VARIANT_SUNS = tuple(s for s in ("hi", "fw") if s in SUNS)    # the suns the chain variants run at (congestus)
 CLOUDS = (("humilis", "Kerbin-cumulus", "Cumulus humilis"), ("congestus", "Kerbin-cumulus", "Cumulus congestus"))
 PRODUCT_FRAMES = 4
 WHITE = 0.7486                                              # the stage's white (the scene sun's display value)
@@ -74,7 +77,10 @@ VARIANTS = {
     "g0": ("prod", dict(stepGrowth=0.0)),                        # no step growth with distance
     "m96": ("prod", dict(maxSteps=96)),                          # 96 grid points per span
 }
-HAZE = os.environ.get("E40FAR_HAZE")                           # after: the haze of E40 T1 at Scatterer's air of Kerbin (the product's), for the before/after pictures
+# E40FAR_HAZE: after = the haze of E40 T1 at Scatterer's air of Kerbin (the law before E40 H1, with E40FAR_TINT as its gain); sky = the colours worked out from the air (E40 H1 haze: the
+# product); E40FAR_BACKDROP=model: the sky behind the pictures is the model's at the sun and the camera, not the game's measured one of start 61 (44 degrees).
+HAZE = os.environ.get("E40FAR_HAZE")
+BACKDROP_MODEL = os.environ.get("E40FAR_BACKDROP") == "model"
 TAG = os.environ.get("E40FAR_TAG")
 NAME = "e40-fl" + ("-" + TAG if TAG else "")
 SC_RAYLEIGH = (0.0153407799e-3, 0.0357074998e-3, 0.0875488967e-3)
@@ -161,18 +167,29 @@ def target_altitude(layer, type_name):
     return layer["inner"] + (layer["outer"] - layer["inner"]) * 0.5 * (t["baseShare"] + t["topShare"])
 
 
-def haze_block(layer):
-    """The far block of a job with Scatterer's air and the in-scatter of the product (E40 T1: short-path colour the sun's own, the horizon's 0.35 blue), for E40FAR_HAZE=after."""
+def view_azimuth(sun):
+    """The camera of the sheets and of the band looks north: the sun's azimuth from the view, folded to 0 to 180 degrees."""
+    az = abs(SUNS[sun][0]) % 360.0
+    return 360.0 - az if az > 180.0 else az
+
+
+def haze_block(layer, sun="hi"):
+    """The far block of a job with Scatterer's air. E40FAR_HAZE=after: the in-scatter of E40 T1 (short-path colour the sun's own, the horizon's 0.35 blue, E40FAR_TINT its gain); sky: the colours
+    worked out from the air at this sun (E40 H1 haze, horizon_sky.py: the product)."""
     if not HAZE:
         return None
     ray = np.array(SC_RAYLEIGH)
-    tint = white_tint(layer["inner"] + 0.25 * (layer["outer"] - layer["inner"]))
+    layer_altitude = layer["inner"] + 0.25 * (layer["outer"] - layer["inner"])
+    tint = white_tint(layer_altitude, SUNS[sun][1])
+    air = dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0)
+    if HAZE == "sky":
+        far, near, _ = hs.far_near(hs.KERBIN, CAMERA_HEIGHT, layer_altitude, SUNS[sun][1], view_azimuth(sun), WHITE, AMBIENT_TOP)
+        return dict(air, inscatter=[float(x) for x in np.array(far) * tint], inscatterNear=[float(x) for x in np.array(near) * tint])
 
     def inscatter(exponent):
         return np.maximum(2.35 * 0.23 * (ray / ray.mean()) ** exponent, np.array(AMBIENT_TOP))
 
-    return dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0,
-                inscatter=[float(x) for x in inscatter(0.35) * tint * HAZE_TINT], inscatterNear=[float(x) for x in inscatter(0.0) * tint])
+    return dict(air, inscatter=[float(x) for x in inscatter(0.35) * tint * HAZE_TINT], inscatterNear=[float(x) for x in inscatter(0.0) * tint])
 
 
 def job_id(cloud, sun, km, march, variant=None):
@@ -208,7 +225,7 @@ def build_jobs():
                         numbers_here.update(extra if variant else {})
                         j = lay.job(job_id(cloud, sun, km, march, variant), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=MAP[0], mapHeight=MAP[1], sun=sun_vec,
                                     sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM, soft=SOFTNESS, tuning=TUNING, **numbers_here,
-                                    **(dict(far=haze_block(layer)) if HAZE else {}))
+                                    **(dict(far=haze_block(layer, sun)) if HAZE else {}))
                         (variants if variant else base).append(j)
     # the band: a field of the type (constant coverage map) seen from the ground along the horizon, the clouds of every distance in one picture
     band_cov = "band-cov.r8"
@@ -230,12 +247,12 @@ def build_jobs():
                         t.update(TYPE_OVERRIDE)
                 base.append(lay.job("fl-band-%s-%s-%s" % (cloud, sun, march), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=MAP[0], mapHeight=MAP[1], sun=sun_vec,
                                     sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM, soft=SOFTNESS, tuning=TUNING, **numbers,
-                                    **(dict(far=haze_block(layer)) if HAZE else {})))
+                                    **(dict(far=haze_block(layer, sun)) if HAZE else {})))
     return base, variants
 
 
 BAND_COVER = float(os.environ.get("E40FAR_BANDCOVER", 0.5))
-BAND_SUNS = ("hi", "fw", "bk")
+BAND_SUNS = tuple(s for s in ("hi", "fw", "bk") if s in SUNS)
 BAND_PITCH = 6.0
 BAND_ELEVATIONS = (0.0, 2.0, 4.0, 8.0, 16.0, 40.0)
 
@@ -281,21 +298,42 @@ def encode(c, tint):
     return WHITE * np.power(np.maximum(c / (WHITE * tint), 0.0), 1.0 / GAMMA)
 
 
-def backdrop(cam):
+MODEL_ELEVATIONS = (-0.9, 0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 55.0, 90.0)
+_model_sky = {}
+
+
+def model_sky(sun):
+    """The model's sky (display values, camera at CAMERA_HEIGHT, view toward the north) at the ray elevations MODEL_ELEVATIONS above the horizontal, for this sun: the table the backdrop reads."""
+    if sun not in _model_sky:
+        m = hs.medium(hs.KERBIN)
+        rows = []
+        for el in MODEL_ELEVATIONS:
+            far, _ = hs.evaluate(m, CAMERA_HEIGHT, math.radians(el), math.radians(SUNS[sun][1]), math.radians(view_azimuth(sun)))
+            rows.append(hs.display(far, m["sky_exposure"]))
+        _model_sky[sun] = np.array(rows)
+    return _model_sky[sun]
+
+
+def backdrop(cam, sun="hi"):
     d = cam.ray_directions().reshape(cam.height, cam.width, 3)
     up = cam.pos / np.linalg.norm(cam.pos)
     dip = math.acos(R / np.linalg.norm(cam.pos))
     elev = np.degrees(np.arcsin(np.clip(d @ up, -1.0, 1.0)) + dip)
-    t = np.clip(elev / 60.0, 0.0, 1.0)[..., None] ** 0.5
-    sky = GAME_SKY_HORIZON * (1.0 - t) + GAME_SKY_ZENITH * t
+    if BACKDROP_MODEL:
+        table = model_sky(sun)
+        ray = np.degrees(np.arcsin(np.clip(d @ up, -1.0, 1.0)))
+        sky = np.stack([np.interp(ray, MODEL_ELEVATIONS, table[:, c]) for c in range(3)], axis=-1)
+    else:
+        t = np.clip(elev / 60.0, 0.0, 1.0)[..., None] ** 0.5
+        sky = GAME_SKY_HORIZON * (1.0 - t) + GAME_SKY_ZENITH * t
     w = np.clip((elev + 1.0) / 2.0, 0.0, 1.0)[..., None]
     return np.clip(sky * w + gn.SEA * (1.0 - w), 0.0, 1.0)
 
 
-def picture(m, cam, tint):
+def picture(m, cam, tint, sun="hi"):
     a = np.clip(m[..., 3:4], 0.0, 1.0)
     colour = encode(m[..., :3] / np.maximum(a, 1e-4), tint)
-    return np.clip(colour * a + backdrop(cam) * (1.0 - a), 0.0, 1.0)
+    return np.clip(colour * a + backdrop(cam, sun) * (1.0 - a), 0.0, 1.0)
 
 
 def load(folder, jid, kind):
@@ -339,12 +377,12 @@ def measure(folder, jid, tint):
     return out
 
 
-def composite_words(lum, cam, tint):
+def composite_words(lum, cam, tint, sun="hi"):
     """The cloud composited over the backdrop where alpha is above 0.5: mean rgb and luma, the backdrop's over the same pixels, and the position of green between red and blue ((G-R)/(B-R))."""
     a = lum[..., 3]
     sel = a > 0.5
-    img = picture(lum, cam, tint)
-    sky = backdrop(cam)
+    img = picture(lum, cam, tint, sun)
+    sky = backdrop(cam, sun)
     mean, sky_mean = img[sel].mean(0), sky[sel].mean(0)
     return dict(rgb=[float(x) for x in mean], luma=float(mean @ LUMA), sky_rgb=[float(x) for x in sky_mean], sky_luma=float(sky_mean @ LUMA),
                 hue=float((mean[1] - mean[0]) / (mean[2] - mean[0])), sky_hue=float((sky_mean[1] - sky_mean[0]) / (sky_mean[2] - sky_mean[0])))
@@ -372,7 +410,7 @@ def collect(ctx):
                     cam = camera_for(km, alt, SIZE)
                     lum = load(base_folder, jid, "lum")
                     if lum is not None:
-                        img = picture(lum[::1], cam, tint)
+                        img = picture(lum[::1], cam, tint, sun)
                         gn.save_png(os.path.join(out_dir, "%s-%s-%s-d%d-%s.png" % (NAME, cloud, sun, km, march)), img)
                         row.append(label(img, "%s %s %s %d km" % (cloud, sun, march, km)))
                     if m is None:
@@ -385,7 +423,7 @@ def collect(ctx):
                                         m.get("first_km_p10_p50", [0, float("nan")])[1], m.get("tau_p50", float("nan")), m.get("steps_mean", float("nan"))))
                         metrics.append(Metric.info("e40far.%s.rel_p90" % jid, m["rel"][2]))
                         if HAZE and lum is not None:
-                            c = composite_words(lum, cam, tint)
+                            c = composite_words(lum, cam, tint, sun)
                             results[jid]["composite"] = c
                             lines.append("   %-34s HAZE: cloud over the sky (alpha above 0.5) rgb %.3f %.3f %.3f luma %.3f, sky behind it rgb %.3f %.3f %.3f luma %.3f, (G-R)/(B-R) %.2f against %.2f"
                                          % ((jid,) + tuple(c["rgb"]) + (c["luma"],) + tuple(c["sky_rgb"]) + (c["sky_luma"], c["hue"], c["sky_hue"])))
@@ -410,7 +448,7 @@ def collect(ctx):
                 if lum is None:
                     lines.append("   %-34s no picture" % jid)
                     continue
-                img = picture(lum, cam, tint)
+                img = picture(lum, cam, tint, sun)
                 gn.save_png(os.path.join(out_dir, "%s-band-%s-%s-%s.png" % (NAME, cloud, sun, march)), img)
                 a = lum[..., 3]
                 neutral = lum[..., :3] / np.maximum(a[..., None], 1e-4)
