@@ -12,7 +12,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
         // Settings that bake a small pack in one tick: a long budget.
         private static RtCloudPackSettings Quick(int width, int cap)
         {
-            return new RtCloudPackSettings { Enabled = true, Width = width, LayerCap = cap, BudgetMs = 100000f, RebakeIntervalS = 1e6f };
+            return new RtCloudPackSettings { Enabled = true, Width = width, LayerCap = cap, BudgetMs = 100000f, FirstBudgetMs = 100000f, RebakeIntervalS = 1e6f };
         }
 
         [TestMethod]

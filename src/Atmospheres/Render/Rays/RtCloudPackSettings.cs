@@ -7,7 +7,7 @@ namespace ReDefinition.Atmospheres
     internal sealed class RtCloudPackSettings
     {
         internal const string TunePackWidth = "rt.packWidth", TuneBakeSteps = "rt.bakeSteps", TuneBakeBudgetMs = "rt.bakeBudgetMs",
-            TuneDepthStride = "rt.depthStride", TuneRebakeIntervalS = "rt.rebakeIntervalS", TuneRayTaps = "rt.rayTaps";
+            TuneDepthStride = "rt.depthStride", TuneRebakeIntervalS = "rt.rebakeIntervalS", TuneRayTaps = "rt.rayTaps", TuneFirstBakeBudgetMs = "rt.firstBakeBudgetMs";
 
         // On or off: off builds nothing and publishes nothing.
         internal bool Enabled;
@@ -18,8 +18,12 @@ namespace ReDefinition.Atmospheres
         internal int Width = 512;
         // The midpoint steps of a column of the full-cloud depth (the cloud shadow's rule, CloudShadowField.StepsPerSpan).
         internal int Steps = 8;
-        // What one frame may spend on baking, ms of the main thread.
-        internal float BudgetMs = 0.25f;
+        // What one frame may spend on baking a pack that is made again (a standing pack serves meanwhile), ms of the main thread: the cost of keeping the pack current,
+        // 0.3 ms on every traced frame (the budget the raytracing allows the own layers). The age of the pack is the bake's CPU time over this, in frames.
+        internal float BudgetMs = 0.3f;
+        // The same for a bake with no pack to show yet (the switch just went on) or for another layer count: the rays see no cloud until it is done, so it is
+        // made in a few seconds, at the price of one traced frame in ten or so.
+        internal float FirstBudgetMs = 6.0f;
         // The full-cloud depth is made at every Nth texel in each direction and interpolated between (1: every texel). A layer without height variation
         // reads a table and gains little from it. Two: a third of the bake with height variation (RtBakeCostTests: 0.6 s against 1.8 s for four layers on
         // the test machine) at a median shadow difference of 3.9 % against 3.5 % for every texel.
@@ -49,6 +53,7 @@ namespace ReDefinition.Atmospheres
             s.Width = (s.Width + 1) & ~1;
             s.Steps = (int)Math.Max(2f, Math.Min(32f, tuning(TuneBakeSteps, compiled.Steps)));
             s.BudgetMs = Math.Max(0.02f, Math.Min(5f, tuning(TuneBakeBudgetMs, compiled.BudgetMs)));
+            s.FirstBudgetMs = Math.Max(0.02f, Math.Min(20f, tuning(TuneFirstBakeBudgetMs, compiled.FirstBudgetMs)));
             s.DepthStride = (int)Math.Max(1f, Math.Min(4f, tuning(TuneDepthStride, compiled.DepthStride)));
             s.RebakeIntervalS = Math.Max(0f, Math.Min(600f, tuning(TuneRebakeIntervalS, compiled.RebakeIntervalS)));
             s.RayTaps = (int)Math.Max(1f, Math.Min(16f, tuning(TuneRayTaps, compiled.RayTaps)));

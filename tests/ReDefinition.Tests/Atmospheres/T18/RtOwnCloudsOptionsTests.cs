@@ -37,7 +37,8 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Assert.AreEqual(512, compiled.Width, "the weather maps' own lattice");
             Assert.AreEqual(256, compiled.Height);
             Assert.AreEqual(8, compiled.Steps);
-            Assert.AreEqual(0.25f, compiled.BudgetMs);
+            Assert.AreEqual(0.3f, compiled.BudgetMs);
+            Assert.AreEqual(6.0f, compiled.FirstBudgetMs, "the first pack is made in seconds");
             Assert.AreEqual(2, compiled.DepthStride);
             Assert.AreEqual(10f, compiled.RebakeIntervalS);
             Assert.AreEqual(RtCloudRayMath.MaxTaps, compiled.RayTaps, "the shaders' taps are the law's");
@@ -54,6 +55,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Assert.AreEqual(1024, wild.Width);
             Assert.AreEqual(2, wild.Steps);
             Assert.AreEqual(0.02f, wild.BudgetMs);
+            Assert.AreEqual(0.02f, wild.FirstBudgetMs);
             var odd = RtCloudPackSettings.From(true, 0, (key, value) => key == RtCloudPackSettings.TunePackWidth ? 201f : value);
             Assert.AreEqual(0, odd.Width % 2, "an even width, so that the height is half of it");
         }

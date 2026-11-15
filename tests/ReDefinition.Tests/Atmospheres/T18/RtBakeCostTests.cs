@@ -79,11 +79,23 @@ namespace ReDefinition.Tests.Atmospheres.T18
                     driver.Tick(stack, tables, settings);
                     ticks++;
                 }
-                Console.WriteLine("through the driver at " + settings.BudgetMs + " ms a tick (" + (heights ? "with" : "without") + " height variation): " + ticks
-                                  + " ticks, last bake " + driver.Stats.LastBakeMs.ToString("0.0") + " ms, worst tick " + driver.Stats.WorstTickMs.ToString("0.00")
+                Console.WriteLine("through the driver at " + settings.FirstBudgetMs + " ms a tick (" + (heights ? "with" : "without") + " height variation): " + ticks
+                                  + " ticks, last bake " + driver.Stats.LastBakeMs.ToString("0.0") + " ms, worst tick " + driver.Stats.WorstFirstTickMs.ToString("0.00")
                                   + " ms; pack " + RtCloudPackLayout.Bytes(512, 256, 4) / (1024 * 1024) + " MB");
                 Assert.IsNotNull(driver.Current);
-                Assert.IsTrue(driver.Stats.WorstTickMs < settings.BudgetMs * 8 + 5, "a tick overshoots its budget by one check interval (64 texels) at most");
+                // The first tick also builds the baker and runs the code for the first time (Debug build, JIT): printed, not judged.
+                // A standing pack made again: the refresh budget bounds it, and the pack is current within the seconds the frames of a traced scene take.
+                settings.RebakeIntervalS = 0f;
+                int refreshTicks = 0;
+                RtCloudPack standing = driver.Current;
+                while (ReferenceEquals(driver.Current, standing) && refreshTicks < 200000)
+                {
+                    driver.Tick(stack, tables, settings);
+                    refreshTicks++;
+                }
+                Console.WriteLine("refresh at " + settings.BudgetMs + " ms a tick: " + refreshTicks + " ticks, worst tick " + driver.Stats.WorstTickMs.ToString("0.00") + " ms");
+                Assert.IsFalse(ReferenceEquals(driver.Current, standing));
+                Assert.IsTrue(driver.Stats.WorstTickMs < settings.BudgetMs * 3 + 5, "a refresh tick overshoots its budget by one check interval (64 texels) at most");
             }
         }
 

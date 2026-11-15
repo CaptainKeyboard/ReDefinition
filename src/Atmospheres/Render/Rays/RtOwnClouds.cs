@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using ReDefinition.Core;
+using Unity.Collections;
 using UnityEngine;
 
 namespace ReDefinition.Atmospheres
@@ -26,12 +27,14 @@ namespace ReDefinition.Atmospheres
         private static bool loggedOn, loggedPublished;
         private static LayerStackSource tablesFor;
         private static LayerTypeTable[] tables;
-        private static byte[] bytes, headerBytes;
-        private static float[] header, expanded, headerExpanded;
+        private static byte[] headerBytes;
+        private static float[] header, headerExpanded;
 
         // What the series probe reads.
         internal static double LastUploadMs, WorstUploadMs;
         internal static int Uploads, HeaderCopies;
+        // The series probe's switch: keep the pack but do not publish the view, so that the traced rays run without the own layers (T18Probe's cost windows).
+        internal static bool HideFromRays;
 
         internal static RtCloudPackDriver.Statistics Stats { get { return driver.Stats; } }
 
@@ -79,6 +82,12 @@ namespace ReDefinition.Atmospheres
             }
             if (pack.Version != uploadedVersion || texture == null) Upload(pack);
             else if (pack.LiveVersion != uploadedLiveVersion) CopyHeader(pack);
+            // The probe's cost measurement: the pack stands and stays current but the rays are not shown it (the same traced scene without the own layers).
+            if (HideFromRays)
+            {
+                RayCloudSeam.Clear();
+                return;
+            }
             Publish(pack, settings);
         }
 
@@ -162,13 +171,10 @@ namespace ReDefinition.Atmospheres
             int rowFloats = pack.Width * RtCloudPackLayout.Channels;
             if (header == null || header.Length != rowFloats) header = new float[rowFloats];
             RtCloudPackLayout.WriteHeader(pack, header);
-            int texels = pack.Width * rows;
-            if (expanded == null || expanded.Length != texels * 4) expanded = new float[texels * 4];
-            Expand(pack.Data, 0, expanded, 0, pack.Data.Length / 2);
-            Expand(header, 0, expanded, pack.Data.Length * 2, pack.Width * RayCloudLayout.HeaderRows);
-            if (bytes == null || bytes.Length != expanded.Length * sizeof(float)) bytes = new byte[expanded.Length * sizeof(float)];
-            Buffer.BlockCopy(expanded, 0, bytes, 0, bytes.Length);
-            texture.LoadRawTextureData(bytes);
+            // Written into the texture's own CPU copy: no managed staging arrays (two 8 MB copies for a four-layer pack) between the pack and the upload.
+            NativeArray<float> raw = texture.GetRawTextureData<float>();
+            Expand(pack.Data, 0, raw, 0, pack.Data.Length / 2);
+            Expand(header, 0, raw, pack.Data.Length * 2, pack.Width * RayCloudLayout.HeaderRows);
             texture.Apply(false, false);
             uploadedVersion = pack.Version;
             uploadedLiveVersion = pack.LiveVersion;
@@ -212,6 +218,18 @@ namespace ReDefinition.Atmospheres
 
         // Two floats a texel into four (r, g, 0, 0): the raytracing shares its inputs between Direct3D 11 and 12, and the driver does not share
         // R32G32_FLOAT (the proxy's log: "input 7: format 16 cannot be shared", which drops the whole traced frame), R32G32B32A32_FLOAT it does.
+        private static void Expand(float[] from, int fromIndex, NativeArray<float> to, int toIndex, int texels)
+        {
+            for (int i = 0; i < texels; i++)
+            {
+                int t = toIndex + i * 4, f = fromIndex + i * 2;
+                to[t] = from[f];
+                to[t + 1] = from[f + 1];
+                to[t + 2] = 0f;
+                to[t + 3] = 0f;
+            }
+        }
+
         private static void Expand(float[] from, int fromIndex, float[] to, int toIndex, int texels)
         {
             for (int i = 0; i < texels; i++)

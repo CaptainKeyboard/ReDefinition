@@ -14,7 +14,13 @@ namespace ReDefinition.Atmospheres
         {
             public int BakeStarts, BakesDone, Drops;
             // The main-thread time of the baking: the last finished bake (all its ticks), all bakes, and the worst single tick.
-            public double LastBakeMs, TotalBakeMs, WorstTickMs;
+            public double LastBakeMs, TotalBakeMs;
+            // The worst tick of the baking of a standing pack (the refresh) and of a bake that has no pack to show yet or a new layer count (the first bake, at its own budget).
+            public double WorstTickMs, WorstFirstTickMs;
+            // The real time from the start of the last finished bake to its pack, s: how old the pack's data is the moment it stands.
+            public double LastBakeWallS;
+            // The age of the standing pack's sky now and the largest it reached since the last reset (s): the bound on how old a cloud the rays see.
+            public double AgeS, MaxAgeS;
             // Units of bake work (three stages over the texels), not texels.
             public long WorkUnitsBaked;
         }
@@ -23,7 +29,9 @@ namespace ReDefinition.Atmospheres
 
         // Real seconds; a test replaces it.
         internal Func<double> Clock = () => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
-        private double lastStartS = double.NegativeInfinity;
+        private double lastStartS = double.NegativeInfinity, packStartS;
+        // Whether the bake in progress has no pack to show (the first one, or one for another layer count): it runs at the larger budget.
+        private bool bakeIsFirst;
 
         private RtCloudTauBaker baker;
         private double bakerMs;
@@ -62,6 +70,7 @@ namespace ReDefinition.Atmospheres
             {
                 baker = new RtCloudTauBaker(source, tables, layers, settings.Width, settings.Height, settings.Steps, settings.DepthStride);
                 lastStartS = now;
+                bakeIsFirst = structural;
                 bakeSource = source;
                 bakerWidth = settings.Width;
                 bakerHeight = settings.Height;
@@ -72,7 +81,7 @@ namespace ReDefinition.Atmospheres
             bool worked = baker != null, finished = false;
             if (worked)
             {
-                long deadline = start + (long)(settings.BudgetMs * Stopwatch.Frequency / 1000.0);
+                long deadline = start + (long)((bakeIsFirst ? settings.FirstBudgetMs : settings.BudgetMs) * Stopwatch.Frequency / 1000.0);
                 long before = (long)(baker.Progress * baker.WorkUnits + 0.5);
                 bool done = baker.Step(texelsPerTickCap, () => Stopwatch.GetTimestamp() >= deadline);
                 Stats.WorkUnitsBaked += (long)(baker.Progress * baker.WorkUnits + 0.5) - before;
@@ -82,7 +91,13 @@ namespace ReDefinition.Atmospheres
                     finished = true;
                 }
             }
-            if (Current != null) Refresh(source);
+            if (Current != null)
+            {
+                Refresh(source);
+                // How old the sky the pack shows is: the time since its bake began (its texels were read between the start and the end of the bake).
+                Stats.AgeS = Clock() - packStartS;
+                Stats.MaxAgeS = Math.Max(Stats.MaxAgeS, Stats.AgeS);
+            }
             double ms = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
             if (worked)
             {
@@ -91,9 +106,23 @@ namespace ReDefinition.Atmospheres
                 {
                     Stats.LastBakeMs = bakerMs;
                     Stats.TotalBakeMs += bakerMs;
+                    Stats.LastBakeWallS = Clock() - lastStartS;
                 }
+                if (bakeIsFirst) Stats.WorstFirstTickMs = Math.Max(Stats.WorstFirstTickMs, ms);
+                else Stats.WorstTickMs = Math.Max(Stats.WorstTickMs, ms);
             }
-            Stats.WorstTickMs = Math.Max(Stats.WorstTickMs, ms);
+        }
+
+        // The whole pack in one call, not published and not counted: the stack as it stands in this very call. The series probe measures the standing pack against
+        // it (a pack made a few seconds ago differs from the stack by what moved since) and the tests bake with it.
+        internal static RtCloudPack BakeNow(ICloudLayerSource source, LayerTypeTable[] tables, RtCloudPackSettings settings)
+        {
+            int layers = settings.LayersFor(source.LayerCount);
+            var baker = new RtCloudTauBaker(source, tables, layers, settings.Width, settings.Height, settings.Steps, settings.DepthStride);
+            baker.Step(int.MaxValue);
+            var entries = new RtCloudLayerEntry[layers];
+            for (int i = 0; i < layers; i++) entries[i] = EntryFor(source, i);
+            return new RtCloudPack(source.BodyIndex, source.BodyRadiusM, source.HasSurface, settings.Width, settings.Height, entries, baker.Data, baker.SourceVersion);
         }
 
         // Swaps the finished bake in.
@@ -105,6 +134,7 @@ namespace ReDefinition.Atmospheres
             pack.Version = ++counter;
             pack.LiveVersion = pack.Version;
             Current = pack;
+            packStartS = lastStartS;
             packSource = bakeSource;
             baker = null;
             Stats.BakesDone++;

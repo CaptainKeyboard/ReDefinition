@@ -25,6 +25,11 @@ namespace ReDefinition.Atmospheres
         private readonly int layers, width, height, steps, stride;
         private readonly float[] data;
         private readonly float[] shift, tightInner, tightOuter, coverage, softness, shapeOfOne;
+        // The layer's numbers of the share as they stood when the bake began (the clear-sky K, the exponent), and per texel whether the share is above 0: the near
+        // check of a node reads 25 texels, and the layer's getters (the clear-sky K walks the types) are too dear for that.
+        private readonly float[] clearK;
+        private readonly double[] shareAtOne, shareRatio, sigma;
+        private readonly byte[] cloudy;
         private readonly CloudLayerDef[] layerDefs;
         private readonly HeightTuning[] tuning;
         private readonly float[][] byType;
@@ -54,6 +59,11 @@ namespace ReDefinition.Atmospheres
             coverage = new float[layers];
             softness = new float[layers];
             shapeOfOne = new float[layers];
+            shareAtOne = new double[layers];
+            shareRatio = new double[layers];
+            sigma = new double[layers];
+            clearK = new float[layers];
+            cloudy = new byte[perStage];
             layerDefs = new CloudLayerDef[layers];
             tuning = new HeightTuning[layers];
             byType = new float[layers][];
@@ -64,11 +74,15 @@ namespace ReDefinition.Atmospheres
                 layer.TightAltitudes(out tightInner[l], out tightOuter[l]);
                 coverage[l] = layer.EffectiveCoverage;
                 softness[l] = layer.EffectiveEdgeSoftness;
+                clearK[l] = layer.ClearSkyK;
                 // The shape at a map value of 1: a density with the shape in it is divided by it, so that tau_full does not depend on the coverage threshold
                 // of the bake.
                 // (E40 soft density: the share is the layer's, with the clear-sky rule and the exponent, as the ray side forms it.)
                 layerDefs[l] = layer;
-                shapeOfOne[l] = (float)Math.Max(1e-3, LayerDensity.Share(layer, 1.0));
+                shareAtOne[l] = LayerDensity.Share(layer, 1.0);
+                shapeOfOne[l] = (float)Math.Max(1e-3, shareAtOne[l]);
+                shareRatio[l] = shareAtOne[l] <= 0.0 ? 0.0 : shareAtOne[l] / shapeOfOne[l];
+                sigma[l] = layer.EffectiveSigmaPerM;
                 HeightTuning t = heightSource == null ? null : heightSource.HeightOf(l);
                 tuning[l] = t != null && t.Any ? t : null;
             }
@@ -139,13 +153,14 @@ namespace ReDefinition.Atmospheres
             source.SampleMaps(l, lat, lonMap + shift[l], out cover, out type);
             data[index * 2] = cover;
             data[index * 2 + 1] = 0f;
+            cloudy[index] = LayerDensity.Shape(CloudLayerDef.ClearSky(cover, clearK[l]), coverage[l], softness[l]) > 0.0 ? (byte)1 : (byte)0;
         }
 
-        private double ShapeAt(int l, int column, int row)
+        private bool CloudyAt(int l, int column, int row)
         {
             int c = column < 0 ? column + width : column >= width ? column - width : column;
             int r = row < 0 ? 0 : row >= height ? height - 1 : row;
-            return LayerDensity.Share(layerDefs[l], data[((long)l * width * height + (long)r * width + c) * 2]);
+            return cloudy[(long)l * width * height + (long)r * width + c] != 0;
         }
 
         private void BakeNode(int l, int column, int row, long index)
@@ -155,7 +170,7 @@ namespace ReDefinition.Atmospheres
             bool near = false;
             for (int dr = -stride; dr <= stride && !near; dr++)
                 for (int dc = -stride; dc <= stride && !near; dc++)
-                    if (ShapeAt(l, column + dc, row + dr) > 0.0) near = true;
+                    if (CloudyAt(l, column + dc, row + dr)) near = true;
             if (!near) return;
             double lat, lonMap;
             RtCloudPackLayout.TexelLatLon(column, row, width, height, out lat, out lonMap);
@@ -168,34 +183,23 @@ namespace ReDefinition.Atmospheres
                 if (byType[l] == null) byType[l] = TypeDepthTable(l, source.LayerAt(l), tables[l]);
                 double x = Math.Max(0.0, Math.Min(1.0, type)) * (TypeTable - 1);
                 int i = Math.Min(TypeTable - 2, (int)x);
-                double f = x - i;
-                data[index * 2 + 1] = (float)(byType[l][i] * (1.0 - f) + byType[l][i + 1] * f);
+                double between = x - i;
+                data[index * 2 + 1] = (float)(byType[l][i] * (1.0 - between) + byType[l][i + 1] * between);
                 return;
             }
-            CloudLayerDef layer = source.LayerAt(l);
+            CloudLayerDef layer = layerDefs[l];
             LayerTypeTable table = tables[l];
+            HeightTuning t = tuning[l];
             LocalHeights heights = heightSource.SampleHeights(l, lat, lon);
             // The steps stand inside the cloud's own interval at this place (its local base and top), not the layer's tight interval: the height variation
             // widens the tight interval to several times the thickness of the cloud, and a midpoint rule over all of it would put one or two steps in the cloud.
-            double bottom, top;
-            LocalInterval(layer, table, tuning[l], type, heights, out bottom, out top);
-            if (!(top > bottom)) return;
-            double dz = (top - bottom) / steps;
-            double tau = 0.0;
-            for (int k = 0; k < steps; k++)
-                tau += HeightDensity.Extinction(layer, table, tuning[l], bottom + dz * (k + 0.5), 1.0, type, heights, 0.0) * dz;
-            data[index * 2 + 1] = (float)Math.Min(tau / shapeOfOne[l], RtCloudPackLayout.MaxTau);
-        }
-
-        // The altitudes (m above sea level) between which HeightDensity.Extinction is not zero at a place: the interpolated type's base and top with the local
-        // offsets, the way HeightDensity.Extinction forms them.
-        private static void LocalInterval(CloudLayerDef layer, LayerTypeTable table, HeightTuning t, double typeMap, LocalHeights heights, out double lo, out double hi)
-        {
+            // This is HeightDensity.Extinction's column with what does not change along it taken out of the loop: the type's neighbours and heights, the local
+            // base and top (all of one place) and the layer's numbers (the tau_full of a column is sigma x the profile's integral; the coverage share is out).
             double thickness = layer.ThicknessM;
             int a, c;
             double f, b, top;
-            table.Neighbours(typeMap, out a, out c, out f);
-            table.InterpolatedHeights(typeMap, out b, out top);
+            table.Neighbours(type, out a, out c, out f);
+            table.InterpolatedHeights(type, out b, out top);
             float ba, ta, ea, bc, tc, ec;
             table.Info(a, out ba, out ta, out ea);
             table.Info(c, out bc, out tc, out ec);
@@ -203,8 +207,15 @@ namespace ReDefinition.Atmospheres
             double lb, lt;
             LayerGeometry.LocalBaseTop(b, top, erosion, thickness, heights, 0.0, t.BaseRagged ? t.RaggedM : 0.0, t.MinThicknessM, out lb, out lt,
                                        -layer.InnerAltitudeM / thickness);
-            lo = layer.InnerAltitudeM + lb * thickness;
-            hi = layer.InnerAltitudeM + lt * thickness;
+            if (!(lt > lb)) return;
+            double profileSum = 0.0;
+            for (int k = 0; k < steps; k++)
+            {
+                double h = (k + 0.5) / steps;
+                profileSum += table.ProfileAt(a, h) * (1.0 - f) + table.ProfileAt(c, h) * f;
+            }
+            double tau = sigma[l] * profileSum * (lt - lb) * thickness / steps * shareRatio[l];
+            data[index * 2 + 1] = (float)Math.Min(tau, RtCloudPackLayout.MaxTau);
         }
 
         // A texel between the nodes: the bilinear mean of the four nodes round it (longitude wraps; the last rows use the last node row).
