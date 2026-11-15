@@ -15,8 +15,13 @@ namespace ReDefinition.Atmospheres.Viewer
         internal float Strength;
         internal bool Cell;
         internal double CellAheadKm;
-        // The pose: the vessel's height above the ground, the camera's elevation and compass heading, its distance from the vessel.
-        internal double AglM, ElevationDeg, HeadingDeg, CameraDistM;
+        // The pose: the vessel's height above the ground, the camera's elevation, its distance from the vessel and its compass heading RELATIVE TO THE SUN: the sun's measured
+        // azimuth plus HeadingFromSunDeg (180: the sun stands straight behind the camera, the sunlit view of RE section 0.5; 0: the camera looks into the sun, a named backlit view).
+        internal double AglM, ElevationDeg, HeadingFromSunDeg, CameraDistM;
+        // A view that looks into the sun on purpose (a named backlit row); every other view is a sunlit one and fails when the camera looks within SunBehindMinDeg of the sun.
+        internal bool Backlit { get { return Math.Abs(HeadingFromSunDeg) < 90.0; } }
+        // The compass heading of the view for a measured sun azimuth.
+        internal double HeadingFor(double sunAzimuthDeg) { return ViewerAim.Wrap(sunAzimuthDeg + HeadingFromSunDeg); }
         // The share of the frame the cloud is expected to fill (the frame without the vessel's box), and the share of the frame's height it reaches from its lowest to its highest row
         // (NaN: not judged).
         internal double ShareMin, ShareMax, SpanMin, SpanMax;
@@ -52,15 +57,15 @@ namespace ReDefinition.Atmospheres.Viewer
         internal const double NoiseFloorShare = 0.01;
         internal const double PollPlaceS = 60.0, PollMapS = 20.0, PollPictureS = 15.0, SettleS = 3.0, AimStillDeg = 0.05;
         // The pose the game reached: the camera's elevation within this of the view's, at least this high above the ground; Kerbin's radius for the horizon's row and the margin above it.
-        internal const double PoseElevationDeg = 3.0, MinCameraAglM = 5.0, BodyRadiusM = 600000.0, HorizonMarginV = 0.01;
+        internal const double PoseElevationDeg = 3.0, PoseHeadingDeg = 5.0, SunBehindMinDeg = 60.0, MinCameraAglM = 5.0, BodyRadiusM = 600000.0, HorizonMarginV = 0.01;
         internal const int SettleFrames = 60, AimStillMaxFrames = 80, MinPictureBytes = 1000;
 
         // The views. The pose and the bands are stated before the start (the start review): a uniform field at the cover share it is forced at, seen from the ground at the elevation that
-        // puts the layer across the frame; the cell ahead of the camera so that its tower and the anvil it spreads fill the frame (cb_near, 25 km) or stand on the horizon (cb_far, 60 km).
+        // puts the layer across the frame; the cell ahead of the camera so that its tower and the anvil it spreads fill the frame (cb_near, 25 km) or stand on the horizon (cb_far, 40 km: the far end of the side view of RE section 1.2, CB-S 10-40 km).
         internal static readonly SoloView[] Views =
         {
             Cell("cb_near", "Cumulonimbus incus", 25.0, 200.0, 15.0, 0.40, 0.90, 0.40, 1.0, "section 1 (CB-G, CB-S): tower flanks, flat dark base, anvil spreading overhead; checklist 1-4, 8"),
-            Cell("cb_far", "Cumulonimbus incus", 60.0, 300.0, 5.0, 0.04, 0.60, 0.20, 0.80, "section 1 (CB-S): the whole cell on the horizon, anvil flat at the top; checklist 1-5, 8"),
+            Cell("cb_far", "Cumulonimbus incus", 40.0, 300.0, 5.0, 0.04, 0.60, 0.20, 0.80, "section 1 (CB-S, side view 10-40 km): the whole cell on the horizon, anvil flat at the top; checklist 1-5, 8"),
             Field("sc", WeatherPresets.Role.Cumulus, "Stratocumulus", 0.8f, 200.0, 45.0, 0.35, 1.0, "section 2 (SC-G): lumps and gaps, dark parts, no fibre"),
             Field("humilis", WeatherPresets.Role.Cumulus, "Cumulus humilis", 0.5f, 200.0, 35.0, 0.15, 0.90, "section 5 (CU-G): detached, flat dark base, sharp outline, flat and low"),
             Field("mediocris", WeatherPresets.Role.Cumulus, "Cumulus mediocris", 0.5f, 200.0, 35.0, 0.30, 0.97, "section 5 (CU-G): detached, cauliflower tops, about as tall as wide"),
@@ -76,7 +81,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             return new SoloView
             {
-                Name = name, Role = WeatherPresets.Role.Cumulonimbus, TypeName = type, Strength = 1f, Cell = true, CellAheadKm = aheadKm, AglM = aglM, ElevationDeg = elevationDeg, HeadingDeg = 90.0, CameraDistM = 100.0,
+                Name = name, Role = WeatherPresets.Role.Cumulonimbus, TypeName = type, Strength = 1f, Cell = true, CellAheadKm = aheadKm, AglM = aglM, ElevationDeg = elevationDeg, HeadingFromSunDeg = 180.0, CameraDistM = 100.0,
                 ShareMin = shareMin, ShareMax = shareMax, SpanMin = spanMin, SpanMax = spanMax, Reference = reference
             };
         }
@@ -85,7 +90,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             return new SoloView
             {
-                Name = name, Role = role, TypeName = type, Strength = strength, Cell = false, AglM = aglM, ElevationDeg = elevationDeg, HeadingDeg = 90.0, CameraDistM = 100.0,
+                Name = name, Role = role, TypeName = type, Strength = strength, Cell = false, AglM = aglM, ElevationDeg = elevationDeg, HeadingFromSunDeg = 180.0, CameraDistM = 100.0,
                 ShareMin = shareMin, ShareMax = shareMax, SpanMin = double.NaN, SpanMax = double.NaN, Reference = reference
             };
         }
@@ -243,10 +248,10 @@ namespace ReDefinition.Atmospheres.Viewer
             Rig.FreezeClouds(true);
             // The vessel is placed and held before the clock jumps (K-T2 sets the time before it places; the viewer's hold keeps the vessel on the turning ground).
             SoloView firstView = Views[0];
-            Rig.PlacePose(new ViewerPose { Name = firstView.Name, AglM = firstView.AglM, ElevationDeg = firstView.ElevationDeg, HeadingDeg = firstView.HeadingDeg, CameraDistM = firstView.CameraDistM });
+            Rig.PlacePose(new ViewerPose { Name = firstView.Name, AglM = firstView.AglM, ElevationDeg = firstView.ElevationDeg, HeadingDeg = 90.0, CameraDistM = firstView.CameraDistM });
             yield return ProbeWait.Frames(2);
             foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
-            // The first offset at which the sun stands in the band and goes down (afternoon: the sun is behind a camera looking east, heading 90, and not in the frame).
+            // The first offset at which the sun stands in the band and goes down (afternoon). The camera's heading of every view is then taken from the sun's measured azimuth.
             double sun = double.NaN, previous = double.NaN;
             for (int k = 0; k <= SunSteps && double.IsNaN(sun); k++)
             {
@@ -262,6 +267,9 @@ namespace ReDefinition.Atmospheres.Viewer
             Rig.FreezeTime(true);
             yield return ProbeWait.Seconds(1);
             Info("sun_elevation_deg", sun);
+            sunAzimuth = Rig.SunAzimuthDeg;
+            Info("sun_azimuth_deg", sunAzimuth);
+            if (!Verdict("sun_azimuth", "the sun's compass azimuth is read, so that every view can be turned away from it", !double.IsNaN(sunAzimuth), "a number", F(sunAzimuth))) yield break;
             IList<SoloEntry> entries = Rig.SoloEntries;
             Info("solo_types", entries.Count);
             Info("fov_deg", Rig.FieldOfViewDeg);
@@ -293,6 +301,15 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // Whether the last view reached its picture (the count the scenario judges at the end).
         private bool done;
+        // The sun's measured azimuth (the time is frozen: it stays), which every view's heading is taken from.
+        private double sunAzimuth = double.NaN;
+
+        // Whether the angle between the camera's direction and the sun's suits the view: a sunlit view looks more than SunBehindMinDeg away from the sun, a backlit one less.
+        internal static bool SunAngleSuits(bool backlit, double angleDeg)
+        {
+            if (double.IsNaN(angleDeg)) return false;
+            return backlit ? angleDeg <= SunBehindMinDeg : angleDeg > SunBehindMinDeg;
+        }
 
         private IEnumerable<ProbeWait> RunView(SoloView v, IList<ViewerLayer> layers, IList<SoloEntry> entries, bool first)
         {
@@ -304,7 +321,8 @@ namespace ReDefinition.Atmospheres.Viewer
             int bit = 1 << entry.Layer;
 
             // The pose, then the type alone: the cell's centre is ahead of the camera as it stands.
-            Rig.PlacePose(new ViewerPose { Name = v.Name, AglM = v.AglM, ElevationDeg = v.ElevationDeg, HeadingDeg = v.HeadingDeg, CameraDistM = v.CameraDistM });
+            double heading = v.HeadingFor(sunAzimuth);
+            Rig.PlacePose(new ViewerPose { Name = v.Name, AglM = v.AglM, ElevationDeg = v.ElevationDeg, HeadingDeg = heading, CameraDistM = v.CameraDistM });
             yield return ProbeWait.Frames(2);
             foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
             yield return ProbeWait.Frames(SettleFrames);
@@ -312,9 +330,16 @@ namespace ReDefinition.Atmospheres.Viewer
             // The pose the frame shares are stated for, read from the game: the camera looks where the view says and stands above the ground (a camera under the terrain is lifted by the game
             // and looks elsewhere). The horizon's row follows from the measured aim; the rows below it are the ground, which the measure leaves out.
             ViewerPoseReading pose = Rig.Pose;
-            bool poseOk = Math.Abs(pose.ElevationDeg - v.ElevationDeg) <= PoseElevationDeg && pose.CameraAglM >= MinCameraAglM;
-            Verdict(v.Name + "_pose", v.Name + ": the camera stands above the ground and looks where the view says", poseOk, "elevation " + F(v.ElevationDeg) + " +-" + F(PoseElevationDeg) + " deg, camera at least " + F(MinCameraAglM) + " m over the ground",
-                    "elevation " + F(pose.ElevationDeg) + " deg, camera " + F(pose.CameraAglM) + " m over the ground");
+            // Heading as well as elevation: a camera that looks the other way (K-S1 start 1: 180 degrees round, the sun in the frame, the cell behind the aim) is not at the pose.
+            bool poseOk = Math.Abs(pose.ElevationDeg - v.ElevationDeg) <= PoseElevationDeg && Circular(pose.AzimuthDeg, heading) <= PoseHeadingDeg && pose.CameraAglM >= MinCameraAglM;
+            Verdict(v.Name + "_pose", v.Name + ": the camera stands above the ground and looks where the view says", poseOk, "elevation " + F(v.ElevationDeg) + " +-" + F(PoseElevationDeg) + " deg, heading " + F(heading) + " +-" + F(PoseHeadingDeg)
+                    + " deg (the sun's azimuth " + F(sunAzimuth) + " + " + F(v.HeadingFromSunDeg) + "), camera at least " + F(MinCameraAglM) + " m over the ground",
+                    "elevation " + F(pose.ElevationDeg) + " deg, heading " + F(pose.AzimuthDeg) + " deg, camera " + F(pose.CameraAglM) + " m over the ground" + (Rig.AimNote != null ? "; " + Rig.AimNote : ""));
+            // The angle between where the camera looks and the sun, read from the game's own vectors: the sunlit views must not look into the sun (K-S1 start 1 did, 180 degrees round).
+            double sunAngle = Rig.CameraSunAngleDeg;
+            Info(v.Name + "_sun_angle_deg", sunAngle);
+            Verdict(v.Name + "_sun_angle", v.Name + ": the camera looks " + (v.Backlit ? "towards the sun (a named backlit view)" : "away from the sun (a sunlit view)"), SunAngleSuits(v.Backlit, sunAngle),
+                    v.Backlit ? "at most " + F(SunBehindMinDeg) + " deg between the camera's direction and the sun" : "more than " + F(SunBehindMinDeg) + " deg between the camera's direction and the sun", F(sunAngle) + " deg");
             double skyFromV = Math.Max(0.0, Math.Min(1.0, PictureMask.HorizonRow(pose.ElevationDeg, Rig.FieldOfViewDeg, pose.CameraAglM, BodyRadiusM) + HorizonMarginV));
             Rig.SetSoloCellAhead(v.CellAheadKm > 0.0 ? v.CellAheadKm : CloudViewer.SoloCellDefaultKm);
             Rig.SetSolo(entry.Layer, entry.Type);
@@ -370,14 +395,15 @@ namespace ReDefinition.Atmospheres.Viewer
             int mask = Rig.PassLayerMask;
             bool isolated = soloMapped && mask == bit && others && NoRainForced() && sel.On && sel.Layer == entry.Layer && sel.Type == entry.Type && sel.Cell == v.Cell;
             Verdict(v.Name + "_isolated", v.Name + ": only this layer and type is drawn", isolated, "the pass's layer mask " + bit + ", forced map " + F(v.Strength) + ", every other layer 0, no forced rain",
-                    "mask " + mask + ", forced map " + F(Rig.PassMapOverride(entry.LayerName)) + ", solo " + (sel.On ? sel.Layer + "/" + sel.Type : "off") + (others ? "" : ", " + othersReason) + ", forceLevel "
-                    + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)));
+                    "mask " + mask + ", forced map " + F(Rig.PassMapOverride(entry.LayerName)) + ", solo " + (sel.On ? sel.Layer + "/" + sel.Type + (sel.Cell ? " as a cell" : " as a uniform field") : "off")
+                    + (soloMapped ? "" : ", the layer's cover at the vessel stood at " + F(Rig.LayerCover(entry.Layer)) + " (" + (v.Cell ? "the cell's map was not read" : "a uniform field reads its strength everywhere") + ")")
+                    + (others ? "" : ", " + othersReason) + ", forceLevel " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)));
             foreach (ProbeWait w in Take()) yield return w;
             string picture = taken;
             MaskReading m = default(MaskReading);
             bool measured = picture != null && Rig.MeasurePictures(picture, baseline, skyFromV, out m);
             Verdict(v.Name + "_picture", v.Name + ": the solo picture is written and can be read against the baseline", measured, "a picture of more than " + MinPictureBytes + " bytes, readable", picture ?? "none");
-            LogLine("solo: " + v.Name + ": baseline " + baseline + ", picture " + picture + ", pose " + F(v.AglM) + " m, elevation " + F(v.ElevationDeg) + " deg, heading " + F(v.HeadingDeg) + " deg, field of view "
+            LogLine("solo: " + v.Name + ": baseline " + baseline + ", picture " + picture + ", pose " + F(v.AglM) + " m, elevation " + F(v.ElevationDeg) + " deg, heading " + F(heading) + " deg, sun angle " + F(sunAngle) + " deg, field of view "
                     + F(Rig.FieldOfViewDeg) + " deg; reference " + v.Reference);
             if (!measured) yield break;
             Info(v.Name + "_share", m.Share);

@@ -249,6 +249,58 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             AssertFailsWith(r, "sc_pose");
         }
 
+        // K-S1 start 1: the views were placed at heading 90 and the camera looked 180 degrees round, into the setting sun.
+        [TestMethod]
+        public void ACameraThatLooksIntoTheSunFailsThePoseAndTheSunAngleOfEveryView()
+        {
+            Run r = Start(rig => rig.AimLooksAway = true);
+            Drive(r);
+            AssertFailsWith(r, "cb_near_sun_angle");
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SoloProbe.Prefix + "sc_pose")), "the heading is judged too: " + r.Joined);
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SoloProbe.Prefix + "nimbostratus_sun_angle")), "every view is judged: " + r.Joined);
+        }
+
+        [TestMethod]
+        public void EveryViewIsPlacedWithTheSunBehindTheCameraAtTheMeasuredAzimuth()
+        {
+            Run r = Start(rig => rig.SunAzimuth = 250.0);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Dictionary<string, string> rows = Emitted(r);
+            Assert.AreEqual(250.0, double.Parse(rows[SoloProbe.Prefix + "sun_azimuth_deg"], CultureInfo.InvariantCulture), 1e-6);
+            foreach (SoloView v in SoloProbe.Views)
+            {
+                Assert.IsFalse(v.Backlit, v.Name + " is a sunlit view");
+                Assert.AreEqual(70.0, v.HeadingFor(250.0), 1e-9, v.Name + ": the sun's azimuth plus 180");
+                double angle = double.Parse(rows[SoloProbe.Prefix + v.Name + "_sun_angle_deg"], CultureInfo.InvariantCulture);
+                Assert.IsTrue(angle > SoloProbe.SunBehindMinDeg, v.Name + ": " + angle);
+            }
+        }
+
+        [TestMethod]
+        public void ASunWhoseAzimuthCannotBeReadStopsTheStartByName()
+        {
+            Run r = Start(rig => rig.SunAzimuth = double.NaN);
+            Drive(r);
+            AssertFailsWith(r, "sun_azimuth");
+            Assert.IsFalse(Emitted(r).ContainsKey(SoloProbe.Prefix + "cb_near_pose_ok"), "no view is shot into an unknown sun");
+        }
+
+        [TestMethod]
+        public void TheSunAngleRuleSeparatesSunlitFromBacklitViews()
+        {
+            Assert.IsTrue(SoloProbe.SunAngleSuits(false, 75.0));
+            Assert.IsFalse(SoloProbe.SunAngleSuits(false, 60.0), "within 60 degrees of the sun is not a sunlit view");
+            Assert.IsFalse(SoloProbe.SunAngleSuits(false, 3.0));
+            Assert.IsTrue(SoloProbe.SunAngleSuits(true, 3.0), "a named backlit view looks at the sun");
+            Assert.IsFalse(SoloProbe.SunAngleSuits(true, 120.0));
+            Assert.IsFalse(SoloProbe.SunAngleSuits(false, double.NaN), "an unread angle never passes");
+            Assert.IsFalse(SoloProbe.SunAngleSuits(true, double.NaN));
+            var backlit = new SoloView { HeadingFromSunDeg = 0.0 };
+            Assert.IsTrue(backlit.Backlit);
+            Assert.AreEqual(-170.0, backlit.HeadingFor(190.0), 1e-9, "wrapped to -180..180");
+        }
+
         [TestMethod]
         public void TheMeasureLeavesOutTheGroundBelowTheHorizonOfTheMeasuredPose()
         {
