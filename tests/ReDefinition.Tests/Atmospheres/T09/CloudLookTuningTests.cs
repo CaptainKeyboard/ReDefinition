@@ -208,11 +208,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.35f, l1.LookedEdgeSoftness, 1e-6f);
             Assert.AreEqual(0.035f, l1.EffectiveSigmaPerM, 1e-6f);
             Assert.AreEqual(0.7f, l1.EffectiveNoiseAmount, 1e-5f);
-            Assert.AreEqual(700f, l1.EffectiveNoiseScaleM, 1e-2f);
+            Assert.AreEqual(350f, l1.EffectiveNoiseScaleM, 1e-2f);
             Assert.AreEqual(CloudLookFixtures.Cumulonimbus().SigmaPerM, CloudLookFixtures.Cumulonimbus().EffectiveSigmaPerM, 0f, "the other layers keep their numbers");
         }
 
-        // The sets' noise factors on the cfg's base: no set leaves the reader's range of the amount (0 to 1) or the cell sizes the model is made for (about 300 m to 15 km).
+        // The sets' noise factors on the cfg's base: no set leaves the reader's range of the amount (0 to 1) or the cell sizes the model is made for (about 150 m to 15 km).
         [TestMethod]
         public void EveryLookSetKeepsTheCumulusNoiseInsideTheModelsRange()
         {
@@ -223,7 +223,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Tuning.Instance.BeginFrame(++frameCounter);
                 CloudLayerDef l1 = CloudLookFixtures.Cumulus();
                 Assert.IsTrue(l1.EffectiveNoiseAmount >= 0f && l1.EffectiveNoiseAmount <= 1f, set.Tag + " amount " + l1.EffectiveNoiseAmount);
-                Assert.IsTrue(l1.EffectiveNoiseScaleM >= 300f && l1.EffectiveNoiseScaleM <= 15000f, set.Tag + " scale " + l1.EffectiveNoiseScaleM);
+                Assert.IsTrue(l1.EffectiveNoiseScaleM >= 150f && l1.EffectiveNoiseScaleM <= 15000f, set.Tag + " scale " + l1.EffectiveNoiseScaleM);
             }
         }
 

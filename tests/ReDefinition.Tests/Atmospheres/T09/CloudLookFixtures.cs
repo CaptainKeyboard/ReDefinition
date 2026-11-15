@@ -55,7 +55,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         internal static CloudLayerDef Cumulus()
         {
-            CloudLayerDef cumulus = Layer("Kerbin-cumulus", "", 1700f, 7400f, 0.05f, 0.35f, 0.15f, 1f, 500f, LayerKind.Weather,
+            CloudLayerDef cumulus = Layer("Kerbin-cumulus", "", 1700f, 7400f, 0.05f, 0.35f, 0.15f, 1f, 250f, LayerKind.Weather,
                 new CloudTypeDef("Stratocumulus", 0f, 0.11f, C(0f, 0f, 0.15f, 0.9f, 0.6f, 1f, 1f, 0f), 0.3f),
                 new CloudTypeDef("Cumulus humilis", 0f, 0.21f, C(0f, 0f, 0.08f, 0.9f, 0.55f, 1f, 0.9f, 0.5f, 1f, 0f), 0.45f),
                 new CloudTypeDef("Cumulus mediocris", 0f, 0.47f, C(0f, 0f, 0.06f, 0.9f, 0.5f, 1f, 0.85f, 0.6f, 1f, 0f), 0.5f),
@@ -75,10 +75,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[2].Lift = C(0f, 0f, 0.2f, 0f, 0.6f, 0.12f, 1f, 0.3f);
             cumulus.Types[3].Lift = C(0f, 0f, 0.15f, 0f, 0.5f, 0.17f, 0.8f, 0.33f, 1f, 0.5f);
             cumulus.Types[4].Lift = C(0f, 0f, 0.4f, 0f, 1f, 0.1f);
-            cumulus.VerticalScale = 0.5f;
+            cumulus.VerticalScale = 0.35f;
             cumulus.Types[1].ShapeSmoothing = 1.5f;
-            cumulus.Types[2].ShapeSmoothing = 1.5f;
-            cumulus.Types[3].ShapeSmoothing = 1.5f;
+            cumulus.Types[2].ShapeSmoothing = 3f;
+            cumulus.Types[3].ShapeSmoothing = 3f;
             cumulus.TopReach = 0.2105f;
             cumulus.TopRefMs = 1.2f;
             cumulus.TopFullMs = 11.2f;

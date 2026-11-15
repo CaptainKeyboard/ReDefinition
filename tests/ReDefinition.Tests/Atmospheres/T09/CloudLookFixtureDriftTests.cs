@@ -167,7 +167,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheCumulusLayerOfTheFileIsACellFieldNotASheet()
         {
             CloudLayerSpec cumulus = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == "Kerbin-cumulus");
-            Assert.AreEqual(500f, cumulus.NoiseScaleM, 0f);
+            // E40 S1: 250 m (cells of 1 to 2 km, the size of a fair-weather cumulus field; the 500 m before gave cells of 2 to 4 km, measured by the player series e40-s1).
+            Assert.AreEqual(250f, cumulus.NoiseScaleM, 0f);
             Assert.AreEqual(1f, cumulus.NoiseAmount, 0f);
         }
     }

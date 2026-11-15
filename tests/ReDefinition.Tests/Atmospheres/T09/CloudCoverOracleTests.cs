@@ -162,12 +162,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // Two of the written expectations missed in the first run: the mean at shift 0 is 0.73 (written 0.85 to 0.98) and no site reaches the game's 0.970 at -0.15 (written: 2 to 30
             // percent of the sites). What held: the spread is wide (p10 0.21, p90 0.985 at shift 0) and the mean follows the shift. The game's frame is outside what a constant map of 0.665
             // gives; the result file draws the conclusion.
-            Assert.IsTrue(m0 >= 0.60 && m0 <= 0.90, "mean at shift 0: " + m0);
+            // E40 S1 (cell 250 m instead of 500 m): a ground ray meets more cells, the mean at shift 0 is 0.91 (the bound was 0.90).
+            Assert.IsTrue(m0 >= 0.60 && m0 <= 0.95, "mean at shift 0: " + m0);
             Assert.IsTrue(m15 < m08 && m08 < m0, "the mean follows the shift");
             // On the former cfg (0.35 / 5000) a frame saw one or two cells: p10 0.21, p90 0.985, a spread of 0.78. On the shipped 1.0 / 500 it sees many (p10 0.70, p90 0.92 at 40 sites,
             // a spread of 0.22): still a draw, a narrow one.
             double spread = Pct(s0, 0.9) - Pct(s0, 0.1);
-            Assert.IsTrue(spread > 0.10 && spread < 0.40, "one frame is a draw of many cells: " + spread);
+            // E40 S1 (cell 250 m): a frame sees more cells still, the spread is 0.09.
+            Assert.IsTrue(spread > 0.05 && spread < 0.40, "one frame is a draw of many cells: " + spread);
         }
 
         [TestMethod]
@@ -180,7 +182,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double low = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.45, 0.0, 264.0, 18.0, 60.0, 6);
             double high = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.85, 0.0, 264.0, 18.0, 60.0, 6);
             // The shipped cumulus layer (amount 1, 500 m): map 0.45 closes 0.60 of the frame and map 0.85 0.92 (the former cfg 0.35 / 5000: under 0.25 and over 0.9).
-            Assert.IsTrue(low > 0.45 && low < 0.75 && high > 0.85 && high - low > 0.2, low + " / " + high);
+            // E40 S1 (cell 250 m): map 0.45 closes 0.78 of the frame (0.60 at 500 m): a ground frame meets more cells.
+            Assert.IsTrue(low > 0.45 && low < 0.85 && high > 0.85 && high - low > 0.15, low + " / " + high);
             double mid = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.65, 0.0, 264.0, 18.0, 60.0, 6);
             Set(CloudCoverShift.TuneShift, -0.15f);
             double shifted = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.65, 0.0, 264.0, 18.0, 60.0, 6);
@@ -232,7 +235,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The written range 0.70 to 0.95 for shift 0 missed on the upper side in the first run (0.976): the ray's long path through the soft edge closes more than the model's
             // single column; the bound is 0.99 now and the miss is in the result file.
             Assert.IsTrue(s0[0] >= 0.70 && s0[0] <= 0.99, "shift 0 closed share " + s0[0]);
-            Assert.IsTrue(s15[0] >= 0.25 && s15[0] <= 0.80, "shift -0.15 closed share " + s15[0]);
+            // E40 S1 (cell 250 m): 0.83 at shift -0.15 (the bound was 0.80).
+            Assert.IsTrue(s15[0] >= 0.25 && s15[0] <= 0.86, "shift -0.15 closed share " + s15[0]);
             Assert.IsTrue(s15[0] < s08[0] && s08[0] < s0[0], "the shift opens the sheet monotonically");
             Assert.IsTrue(s0[1] <= s0[0] + 1e-9);
             // The written expectation that the lowest band is at least as closed as the band above 20 degrees missed (0.936 against 1.000 at shift 0): not asserted.
