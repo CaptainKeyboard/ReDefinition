@@ -263,13 +263,18 @@ namespace ReDefinition.Atmospheres
         internal float TopFullMs { get; set; } = 6f;
         // The anvil of the layer's towers (E40 CB; AnvilMap): AnvilType is the type value of the outflow sheet (cfg key anvilType, -1: no anvil; a type whose profile and LIFT hold it to the
         // sheet's band, AnvilMap.SheetDepthM), AnvilSeconds the time the sheet has spread (anvilSeconds; the generator's shortest cell life, 1 h), AnvilUpdraftMs the updraft at the anvil base of a tower at full
-        // strength (anvilUpdraftMs; the generator's full-strength cell, GeneratorField.WindowCellUpdraftMs), AnvilScale the body's multiplier on the spread beyond the tower (anvilScale, 1 =
+        // strength (anvilUpdraftMs; 0, the default: the body's own, the generator's full-strength cell sqrt(B g H) times its CellUpdraftScale lever, WeatherGenerator.CellUpdraftMs; a number above 0
+        // replaces it for the layer), AnvilScale the body's multiplier on the spread beyond the tower (anvilScale, 1 =
         // the outflow law). The sheet's depth is the anvil type's band; the tower's radius is the map's; the downwind carry is the body's wind shear (CloudDriftRadS).
         internal float AnvilType { get; set; } = -1f;
         internal float AnvilSeconds { get; set; } = DefaultAnvilSeconds;
         internal float AnvilUpdraftMs { get; set; } = DefaultAnvilUpdraftMs;
         internal float AnvilScale { get; set; } = 1f;
-        internal const float DefaultAnvilSeconds = 3600f, DefaultAnvilUpdraftMs = 6f;
+        // The layer's towers come from the generator's list of living convective cells (cfg key cellList; WeatherGenerator.Cells) and not from the point-sampled layer map with the deck rule and
+        // the meso stage: AnvilMap.PaintCells draws each cell's footprint into the maps area-averaged over the texel, AnvilMap.ApplyCells spreads each cell's anvil from the cell's own numbers
+        // (centre, radius, strength). Off by default; the layer needs an anvil type.
+        internal bool CellList { get; set; }
+        internal const float DefaultAnvilSeconds = 3600f, DefaultAnvilUpdraftMs = 0f;
         // The mid-level sheet's rule (E40 L2 D1; cfg keys altoType, altoFrom, altoFullAt): AltoType is the type value of the table's mid-level sheet (an altocumulus), -1: none. Where the
         // generator makes more cloud at that type's height than at the fair-weather type's height (the difference of the two layer maps, from AltoFrom to AltoFullAt), the type map
         // shows the sheet instead of the precipitation's type (CloudLookTuning.ApplyAlto).

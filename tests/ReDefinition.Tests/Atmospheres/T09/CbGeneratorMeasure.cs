@@ -151,7 +151,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     int over = 0;
                     double outline = AnvilMap.MedianRaw(cb) * 255.0;
                     for (int i = 0; i < c.Length; i++) if (c[i] > outline) over++;
-                    AnvilMap.Apply(cb, (byte[])c.Clone(), (byte[])types[cbIndex].Clone(), new AnvilInputs { Width = GeneratorMaps.Width, Height = GeneratorMaps.Height, RadiusM = 600000.0, ShearRadS = 0.0 }, rep);
+                    AnvilMap.Apply(cb, (byte[])c.Clone(), (byte[])types[cbIndex].Clone(), new AnvilInputs { Width = GeneratorMaps.Width, Height = GeneratorMaps.Height, RadiusM = 600000.0, ShearRadS = 0.0, UpdraftMs = kf.CellUpdraftMsOf(FieldFixture.BodyIndex) }, rep);
                     int n = rep.Strength.Count, s3 = 0, s6 = 0; double mx = 0;
                     foreach (double v in rep.Strength) { if (v > mx) mx = v; if (v > 0.3) s3++; if (v > 0.6) s6++; }
                     sb.AppendLine("  ut " + ut.ToString("0") + " phase " + ((ut % bucket) / bucket).ToString("0.00") + ": sources " + n + ", max " + mx.ToString("0.000") + ", >0.3: " + s3 + ", >0.6: " + s6 + ", texels over outline " + over);

@@ -126,7 +126,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cb.RainType = 0.5f;
             cb.AnvilType = 1f;
             cb.AnvilSeconds = 3600f;
-            cb.AnvilUpdraftMs = 6f;
+            cb.AnvilUpdraftMs = 0f;   // the body's own full-cell updraft (AnvilInputs.UpdraftMs); the shipped cfg has no key
             cb.AnvilScale = 1f;
             cb.VerticalScale = 0.6f;
             cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.079f, 1f, 0.175f);

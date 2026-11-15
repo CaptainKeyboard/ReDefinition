@@ -121,6 +121,13 @@ namespace ReDefinition.Atmospheres
         private readonly AnvilInputs[] anvilInputs = new AnvilInputs[CloudLayerDef.MaxLayers];
         private readonly byte[][] anvilCover = new byte[CloudLayerDef.MaxLayers][], anvilType = new byte[CloudLayerDef.MaxLayers][];
         private readonly WeatherMap[] anvilCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers], anvilTypeMaps = new WeatherMap[CloudLayerDef.MaxLayers];
+        // CELLS: a layer with cfg key cellList draws its towers from the generator's list of convective cells (AnvilMap.PaintCells / ApplyCells): the cells of the last fetch, the maps painted from
+        // them and the painter's buffers; the list is null where the layer's last fetch did not use it (no generator, no list yet, a probe's override of the maps).
+        private readonly List<AtmoSim.Core.ConvectiveCell>[] cellLists = new List<AtmoSim.Core.ConvectiveCell>[CloudLayerDef.MaxLayers];
+        private readonly bool[] cellLayerNow = new bool[CloudLayerDef.MaxLayers];
+        private readonly byte[][] cellCover = new byte[CloudLayerDef.MaxLayers][], cellType = new byte[CloudLayerDef.MaxLayers][];
+        private readonly WeatherMap[] cellCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
+        private readonly AnvilMap.CellScratch cellScratch = new AnvilMap.CellScratch();
 
         private void TakeAnvilInputs(CelestialBody b, GeneratorField gf, int l)
         {
@@ -131,7 +138,7 @@ namespace ReDefinition.Atmospheres
                 double mid = CloudBridgeStack.MidHeightM(d);
                 shear = gf.CloudDriftRadS(b.flightGlobalsIndex, mid + 0.5 * d.ThicknessM) - gf.CloudDriftRadS(b.flightGlobalsIndex, mid);
             }
-            anvilInputs[l] = new AnvilInputs { Width = MapWidth, Height = MapHeight, RadiusM = b.Radius, ShearRadS = shear };
+            anvilInputs[l] = new AnvilInputs { Width = MapWidth, Height = MapHeight, RadiusM = b.Radius, ShearRadS = shear, UpdraftMs = gf != null ? gf.CellUpdraftMsOf(b.flightGlobalsIndex) : 0.0 };
         }
 
         // Draws the layer's anvils into copies of its maps; true (and the copies and their CPU maps in the arguments) where it changed them.
@@ -143,7 +150,7 @@ namespace ReDefinition.Atmospheres
             if (AnvilMap.AnvilTypeIndex(d) < 0 || inp.Width * inp.Height != cover.Length || typeBytes == null || typeBytes.Length != cover.Length) return false;
             byte[] c = anvilCover[l] = CopyInto(anvilCover[l], cover);
             byte[] t = anvilType[l] = CopyInto(anvilType[l], typeBytes);
-            if (!AnvilMap.Apply(d, c, t, inp)) return false;
+            if (!(cellLayerNow[l] && cellLists[l] != null ? AnvilMap.ApplyCells(d, cellLists[l], c, t, inp) : AnvilMap.Apply(d, c, t, inp))) return false;
             coverCpu = anvilCoverMaps[l] ?? (anvilCoverMaps[l] = new WeatherMap());
             typeCpu = anvilTypeMaps[l] ?? (anvilTypeMaps[l] = new WeatherMap());
             coverCpu.Resize(inp.Width, inp.Height);
@@ -867,8 +874,34 @@ namespace ReDefinition.Atmospheres
             float fairType = CloudLookTuning.FairType(CloudLookTuning.TypeFairOf(layerName), stack.LayerAt(l).FairType);
             byte[] typeBytes;
             bool haveAltoMaps = false;
-            WeatherDeckRule deck =CloudLookTuning.DeckRuleOf(layerName, stack.LayerAt(l).Deck);
-            if (deck != null)
+            // CELLS: a layer with the cell list draws its towers from the generator's cells and not from the point-sampled layer map: no deck rule, no meso stage (not under a probe's override
+            // of the maps or the types, and only once the worker has made a list).
+            CloudLayerDef cellDef = stack.LayerAt(l);
+            bool cellLayer = cellDef.CellList && AnvilMap.AnvilTypeIndex(cellDef) >= 0 && gf != null && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f;
+            if (cellLayer)
+            {
+                double cellsUt;
+                List<AtmoSim.Core.ConvectiveCell> list = cellLists[l] ?? (cellLists[l] = new List<AtmoSim.Core.ConvectiveCell>(2048));
+                cellLayer = gf.GetCells(b.flightGlobalsIndex, ut, list, out cellsUt);
+            }
+            cellLayerNow[l] = cellLayer;
+            WeatherDeckRule deck = cellLayer ? null : CloudLookTuning.DeckRuleOf(layerName, stack.LayerAt(l).Deck);
+            if (cellLayer)
+            {
+                int n = cover.Length;
+                byte[] paintedCover = cellCover[l] ?? (cellCover[l] = new byte[n]);
+                byte[] paintedType = cellType[l] ?? (cellType[l] = new byte[n]);
+                if (paintedCover.Length != n) cellCover[l] = paintedCover = new byte[n];
+                if (paintedType.Length != n) cellType[l] = paintedType = new byte[n];
+                AnvilMap.PaintCells(cellDef, cellLists[l], anvilInputs[l], cellScratch, paintedCover, paintedType);
+                WeatherMap paintedMap = cellCoverMaps[l] ?? (cellCoverMaps[l] = new WeatherMap());
+                paintedMap.Resize(coverSource.Width, coverSource.Height);
+                for (int i = 0; i < n; i++) paintedMap.Values[i] = paintedCover[i] / 255f;
+                cover = paintedCover;
+                coverSource = paintedMap;
+                typeBytes = paintedType;
+            }
+            else if (deck != null)
             {
                 int n = cover.Length;
                 byte[] ruleCover = deckCover[l] ?? (deckCover[l] = new byte[n]);
@@ -913,7 +946,7 @@ namespace ReDefinition.Atmospheres
             }
             // E40 L3: the meso-scale cover pattern and the types from their climate, from the layer's own cfg data (not under the probe's overrides of the maps and types).
             CloudLayerDef mesoDef = stack.LayerAt(l);
-            if (forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && deck == null)) && gf != null)
+            if (!cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && deck == null)) && gf != null)
             {
                 CloudMesoInputs mi = mesoInputs;
                 mi.Width = MapWidth;

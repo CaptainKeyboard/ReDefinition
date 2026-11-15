@@ -39,8 +39,6 @@ namespace ReDefinition.Atmospheres
         internal const float OpticalDepthPerCloudWater = 12f;
         // The grams of cloud water per cubic metre that one unit of the generator's cloud density stands for in the 3D window. [VERIFY C21.]
         internal const float WindowGramsPerDensity = 0.7f;
-        // The updraft in m/s of a convective cell at full strength in the 3D window.
-        internal const float WindowCellUpdraftMs = 6f;
 
         // The size of the 3D window: cells east, north and up.
         internal const int WindowNx = 32, WindowNy = 32, WindowNz = 24;
@@ -260,6 +258,13 @@ namespace ReDefinition.Atmospheres
             return maps.GetLayer(bodyIndex, ut, heightM, target);
         }
 
+        // The living convective cells of a body (WeatherGenerator.Cells) from the worker's last list, for the time asked (snapshotUt is the list's own time). False until the worker has made
+        // the first list. Not part of IWeatherField; the painter of a layer that draws its towers from the cells (cfg layer key cellList) asks for it.
+        internal bool GetCells(int bodyIndex, double ut, List<ConvectiveCell> target, out double snapshotUt)
+        {
+            return maps.GetCells(bodyIndex, ut, target, out snapshotUt);
+        }
+
         // The seed of the body's generator (0: no state), so that patterns made for a body differ from seed to seed.
         internal ulong SeedOf(int bodyIndex)
         {
@@ -296,6 +301,13 @@ namespace ReDefinition.Atmospheres
             GeneratorState s = StateOf(bodyIndex);
             if (s == null || s.Broken) return 0.0;
             return 3.0 * s.Generator.D.SystemRadiusM * s.Parameters.SystemLambdaMax * 0.001;
+        }
+
+        // The updraft in m/s of a full-strength convective cell of a body (the generator's: sqrt(B g H) times the body's CellUpdraftScale lever); 0 for a body without a generator.
+        internal double CellUpdraftMsOf(int bodyIndex)
+        {
+            GeneratorState s = StateOf(bodyIndex);
+            return s == null || s.Broken ? 0.0 : s.Generator.CellUpdraftMs;
         }
 
         // The angular rate (rad/s, eastward) at which a pattern fixed to the clouds of a layer at a height moves over the ground (E40 L3, the meso pattern of CloudMesoStage): the rate of the
@@ -444,7 +456,8 @@ namespace ReDefinition.Atmospheres
         {
             double hs = HeightScaleOf(ref w);
             double lift = 0.3 * w.Uplift * DMath.SmoothStep(0.0, 1500.0 * hs, altM);
-            if (!layered) return TowerShare(ref w, altM) * WindowCellUpdraftMs + lift;
+            // the updraft of a full-strength cell is the body's (Weather.CellUpdraftMs: sqrt(B g H) times the body's multiplier)
+            if (!layered) return TowerShare(ref w, altM) * w.CellUpdraftMs + lift;
             if (!(w.CellStrength > 0.0)) return lift;
             double top = LayerCoupling.TopNow(ref w, VerticalOptions);
             double rise = LayerCoupling.TopRiseMs(ref w, VerticalOptions);

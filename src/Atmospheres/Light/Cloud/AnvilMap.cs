@@ -22,12 +22,20 @@ namespace ReDefinition.Atmospheres
         internal double RadiusM;
         // The angular rate (rad/s, eastward) of the anvil's level against the tower's steering level: the shear that carries the sheet downwind (0: none).
         internal double ShearRadS;
+        // The updraft (m/s) of a full-strength cell of the body (the generator's, GeneratorField.CellUpdraftMsOf): the layer's anvilUpdraftMs, where it is set, takes its place.
+        internal double UpdraftMs;
     }
 
     internal static class AnvilMap
     {
         // The most a source reaches, in texels (a guard against a deck-sized source: its anvil is cut there).
         internal const int MaxReachTexels = 64;
+
+        // The updraft of a full-strength tower (m/s): the layer's own number where the cfg gives one (anvilUpdraftMs above 0), else the body's (the generator's full-strength cell: sqrt(B g H)).
+        internal static double FullUpdraftMs(CloudLayerDef layer, AnvilInputs inp)
+        {
+            return layer.AnvilUpdraftMs > 0f ? layer.AnvilUpdraftMs : Math.Max(0.0, inp.UpdraftMs);
+        }
 
         // The anvil's radius over the tower's: R / r = 1 + scale (sqrt(1 + w tau / d) - 1), the outflow law with the body's multiplier on the spread beyond the tower (1 = derived).
         internal static double RadiusRatio(double updraftMs, double seconds, double depthM, double scale)
@@ -183,7 +191,7 @@ namespace ReDefinition.Atmospheres
                     covMax = Math.Max(covMax, cover[p] / 255.0);
                     core[p] = true;
                 }
-                double towerR = Math.Sqrt(area / Math.PI), updraft = layer.AnvilUpdraftMs * sMax;
+                double towerR = Math.Sqrt(area / Math.PI), updraft = FullUpdraftMs(layer, inp) * sMax;
                 double reach = towerR * (RadiusRatio(updraft, layer.AnvilSeconds, depth, layer.AnvilScale) - 1.0);
                 if (report != null) { report.TowerRadiusM.Add(towerR); report.ReachM.Add(reach); report.UpdraftMs.Add(updraft); report.Strength.Add(sMax); }
                 if (!(reach > 1.0) || covMax <= medianRaw) continue;
@@ -231,6 +239,14 @@ namespace ReDefinition.Atmospheres
                     }
                 }
             }
+            return Compose(layer, cover, type, inp, anvil, core, visRaw, anvilByte, report);
+        }
+
+        // The rest of the drawing, the same for the sheets of connected texels (Apply) and of the cells (ApplyCells): `anvil` holds the sheet's raw value at every texel (0: none) and `core` marks the
+        // texels of the towers. The sheet is carried downwind by the shear, the ring around a tower takes half the sheet's type, and the texels around the sheet that show nothing take its type.
+        private static bool Compose(CloudLayerDef layer, byte[] cover, byte[] type, AnvilInputs inp, float[] anvil, bool[] core, double visRaw, byte anvilByte, Report report)
+        {
+            int w = inp.Width, h = inp.Height, n = w * h;
             // Downwind: the sheet is carried by the shear over its lifetime; each texel takes the largest value of the sheet upwind of it along the parallel (a constant angular rate is
             // the same number of texels on every row).
             double shift = inp.ShearRadS * layer.AnvilSeconds * w / (2.0 * Math.PI);
@@ -313,6 +329,202 @@ namespace ReDefinition.Atmospheres
             }
             if (report != null) report.Changed = changed;
             return changed > 0;
+        }
+
+        // ---- the generator's cells (package CELLS, cfg layer key cellList) ------------------------------------------------------------------------------------------------------------------
+        // A layer whose towers come from the generator's list of living convective cells (WeatherGenerator.Cells) paints each cell's footprint into the maps and spreads its anvil from the cell's own
+        // numbers (centre, radius, strength) instead of reading towers out of a point-sampled map. The cells are 3.4 to 6 km in e-folding radius and a map texel is 7.4 km, so a point sample sees a
+        // cell's peak at 0.2 to 1 of its height depending on where the grid falls: the footprint is drawn as the cell's cover averaged over the texel (4 x 4 sub-samples), the area fraction the
+        // cell covers, and the tower's radius, strength and updraft are the cell's, not the map's.
+
+        // The cover of a cell at its centre as the generator's layer coupling has it (LayerCoupling.Coverage: tower term 1 - exp(-3 x 0.7 x strength)).
+        internal const double CellCoverGain = 3.0 * 0.7;
+        // The cells weaker than this are not drawn.
+        internal const double MinCellStrength = 0.02;
+        // The sub-samples per texel side of the area average.
+        internal const int Subsamples = 4;
+        // The footprint value (of the cell's Gaussian, 0.25: 1.18 radii from the centre) from which the cell's rain level is the whole of its type; it falls off linearly outside.
+        internal const float RainFootprint = 0.25f;
+
+        // The band buffers of the painter (a row of texels at a time, so the memory is 2 x 512 x 16 floats, not a map of sub-samples), kept by the caller between calls.
+        internal sealed class CellScratch
+        {
+            internal float[] Strength = new float[0], Level = new float[0];
+            internal List<int>[] Rows = new List<int>[0];
+
+            internal void Prepare(int w, int h)
+            {
+                if (Strength.Length != w * Subsamples * Subsamples) { Strength = new float[w * Subsamples * Subsamples]; Level = new float[w * Subsamples * Subsamples]; }
+                if (Rows.Length != h)
+                {
+                    Rows = new List<int>[h];
+                    for (int y = 0; y < h; y++) Rows[y] = new List<int>();
+                }
+                else
+                    for (int y = 0; y < h; y++) Rows[y].Clear();
+            }
+        }
+
+        // Draws the cells' footprints into the layer's cover and type bytes (width x height, row 0 at the north pole, column 0 at -180, as LayerMapStore holds them), which it clears first:
+        // cover = the mean over the texel of 1 - exp(-CellCoverGain s), s the strongest cell's strength at the sub-sample (the point version's max over cells); type = RainType times the mean
+        // of the cell's rain level scaled by its footprint (the precipitation axis, so a strong raining cell is incus and a weak one calvus). Returns the number of cells drawn.
+        internal static int PaintCells(CloudLayerDef layer, IList<AtmoSim.Core.ConvectiveCell> cells, AnvilInputs inp, CellScratch scratch, byte[] cover, byte[] type)
+        {
+            int w = inp.Width, h = inp.Height, n = w * h;
+            if (cover == null || type == null || cover.Length < n || type.Length < n || w < 2 || h < 2 || !(inp.RadiusM > 0.0) || scratch == null) return 0;
+            Array.Clear(cover, 0, n);
+            Array.Clear(type, 0, n);
+            if (cells == null || cells.Count == 0) return 0;
+            scratch.Prepare(w, h);
+            double radius = inp.RadiusM;
+            int drawn = 0;
+            for (int ci = 0; ci < cells.Count; ci++)
+            {
+                AtmoSim.Core.ConvectiveCell c = cells[ci];
+                if (!(c.Strength >= MinCellStrength) || !(c.RadiusM > 0.0)) continue;
+                double span = 3.0 * c.RadiusM / radius;
+                int y0 = Math.Max(0, (int)Math.Floor((0.5 - (c.LatRad + span) / Math.PI) * h)), y1 = Math.Min(h - 1, (int)Math.Floor((0.5 - (c.LatRad - span) / Math.PI) * h));
+                for (int y = y0; y <= y1; y++) scratch.Rows[y].Add(ci);
+                drawn++;
+            }
+            int s = Subsamples;
+            float cover255 = 255f / (s * s);
+            for (int y = 0; y < h; y++)
+            {
+                List<int> row = scratch.Rows[y];
+                if (row.Count == 0) continue;
+                Array.Clear(scratch.Strength, 0, scratch.Strength.Length);
+                Array.Clear(scratch.Level, 0, scratch.Level.Length);
+                foreach (int ci in row)
+                {
+                    AtmoSim.Core.ConvectiveCell c = cells[ci];
+                    double cosC = Math.Max(Math.Cos(c.LatRad), 1e-3), reach = 3.0 * c.RadiusM, rad2 = c.RadiusM * c.RadiusM;
+                    int half = (int)Math.Ceiling(reach / (radius * cosC) / (2.0 * Math.PI) * w) + 1;
+                    int centre = (int)Math.Floor((c.LonRad / (2.0 * Math.PI) + 0.5) * w);
+                    int from = -half, to = half;
+                    if (to - from + 1 > w) { from = 0; to = w - 1; centre = 0; }
+                    for (int k = from; k <= to; k++)
+                    {
+                        int x = (((centre + k) % w) + w) % w;
+                        for (int sy = 0; sy < s; sy++)
+                        {
+                            double lat = (0.5 - (y + (sy + 0.5) / s) / h) * Math.PI;
+                            double ey = radius * (lat - c.LatRad);
+                            if (ey > reach || ey < -reach) continue;
+                            for (int sx = 0; sx < s; sx++)
+                            {
+                                double lon = ((x + (sx + 0.5) / s) / w - 0.5) * 2.0 * Math.PI;
+                                double ex = radius * cosC * WrapPi(lon - c.LonRad);
+                                double r2 = (ex * ex + ey * ey) / rad2;
+                                if (r2 > 9.0) continue;
+                                float g = (float)Math.Exp(-r2), st = (float)c.Strength * g, lv = (float)c.RainLevel * Math.Min(1f, g * (1f / RainFootprint));
+                                int idx = (sy * s + sx) * w + x;
+                                if (st > scratch.Strength[idx]) scratch.Strength[idx] = st;
+                                if (lv > scratch.Level[idx]) scratch.Level[idx] = lv;
+                            }
+                        }
+                    }
+                }
+                for (int x = 0; x < w; x++)
+                {
+                    double cov = 0.0, lvl = 0.0;
+                    for (int k = 0; k < s * s; k++)
+                    {
+                        float st = scratch.Strength[k * w + x];
+                        if (st > 0f) cov += 1.0 - Math.Exp(-CellCoverGain * st);
+                        lvl += scratch.Level[k * w + x];
+                    }
+                    cover[y * w + x] = (byte)Math.Min(255.0, Math.Round(cov * cover255));
+                    type[y * w + x] = (byte)Math.Min(255.0, Math.Round(layer.RainType * lvl * cover255));
+                }
+            }
+            return drawn;
+        }
+
+        private static double WrapPi(double x)
+        {
+            x = x % (2.0 * Math.PI);
+            if (x > Math.PI) x -= 2.0 * Math.PI;
+            else if (x < -Math.PI) x += 2.0 * Math.PI;
+            return x;
+        }
+
+        // The anvils of the cells into the cover and type bytes that PaintCells drew (and the layer combination may have scaled): each cell is one source with its own radius, strength and updraft.
+        // The tower's radius is where its own cover reaches the layer's outline, r = radius sqrt(ln(CellCoverGain s / -ln(1 - outline))) (a cell whose centre stays under the outline has no tower
+        // and spreads nothing); its updraft is the body's full-strength cell times the strength times the type's outflow at the cell's texel (a cell that does not rain feeds no anvil); the sheet
+        // is the outflow law's, drawn at its distance from the tower's edge. False (nothing changed) where the layer has no anvil type or no cell spreads one.
+        internal static bool ApplyCells(CloudLayerDef layer, IList<AtmoSim.Core.ConvectiveCell> cells, byte[] cover, byte[] type, AnvilInputs inp, Report report = null)
+        {
+            int anvilIndex = AnvilTypeIndex(layer);
+            int w = inp.Width, h = inp.Height, n = w * h;
+            if (anvilIndex < 0 || cells == null || cover == null || type == null || cover.Length < n || type.Length < n || w < 2 || h < 2 || !(inp.RadiusM > 0.0)) return false;
+            double depth = SheetDepthM(layer);
+            if (!(depth > 0.0)) return false;
+            double medianRaw = MedianRaw(layer), visRaw = WispRaw(layer);
+            if (!(medianRaw > 0.0) || !(medianRaw < 1.0)) return false;
+            double outlineLoad = -Math.Log(1.0 - medianRaw);
+            byte anvilByte = (byte)Math.Round(anvilIndex / (double)(layer.Types.Count - 1) * 255.0);
+            double radius = inp.RadiusM, dy = Math.PI * radius / h, full = FullUpdraftMs(layer, inp);
+            if (report != null) report.ShiftTexels = inp.ShearRadS * layer.AnvilSeconds * w / (2.0 * Math.PI);
+            var anvil = new float[n];
+            var core = new bool[n];
+            bool any = false;
+            for (int ci = 0; ci < cells.Count; ci++)
+            {
+                AtmoSim.Core.ConvectiveCell c = cells[ci];
+                if (!(c.Strength >= MinCellStrength) || !(c.RadiusM > 0.0)) continue;
+                double load = CellCoverGain * c.Strength;
+                if (!(load > outlineLoad)) continue;
+                int cy = Math.Max(0, Math.Min(h - 1, (int)Math.Floor((0.5 - c.LatRad / Math.PI) * h)));
+                int cx = (((int)Math.Floor((c.LonRad / (2.0 * Math.PI) + 0.5) * w) % w) + w) % w;
+                // the type of the cell's own rain (the precipitation axis, rainType x level), not the painted texel: the outflow does not depend on where the grid falls
+                double outflow = OutflowAt(layer, layer.RainType * Math.Max(0.0, Math.Min(1.0, c.RainLevel)));
+                if (!(outflow > 0.0)) continue;
+                double towerR = c.RadiusM * Math.Sqrt(Math.Log(load / outlineLoad));
+                double updraft = full * Math.Min(1.0, c.Strength) * outflow;
+                double reach = towerR * (RadiusRatio(updraft, layer.AnvilSeconds, depth, layer.AnvilScale) - 1.0);
+                if (report != null) { report.TowerRadiusM.Add(towerR); report.ReachM.Add(reach); report.UpdraftMs.Add(updraft); report.Strength.Add(c.Strength); }
+                double cosC = Math.Max(Math.Cos(c.LatRad), 1e-3);
+                double dx = 2.0 * Math.PI * radius * cosC / w;
+                // the cell's own cover at its centre is the sheet's value where it joins the tower (the painted texel is an area average, below it)
+                double covMax = 1.0 - Math.Exp(-load);
+                int towerRows = (int)Math.Ceiling(towerR / dy) + 1, towerCols = Math.Min(w / 2, (int)Math.Ceiling(towerR / dx) + 1);
+                for (int oy = -towerRows; oy <= towerRows; oy++)
+                {
+                    int qy = cy + oy;
+                    if (qy < 0 || qy >= h) continue;
+                    for (int ox = -towerCols; ox <= towerCols; ox++)
+                    {
+                        double ex = ox * dx, ey = oy * dy;
+                        if (ex * ex + ey * ey > towerR * towerR) continue;
+                        int i = qy * w + (((cx + ox) % w) + w) % w;
+                        core[i] = true;
+                    }
+                }
+                core[cy * w + cx] = true;
+                if (!(reach > 1.0) || covMax <= medianRaw) continue;
+                double end = SheetEnd(covMax, medianRaw, visRaw, reach);
+                int reachRows = Math.Min(MaxReachTexels, (int)Math.Ceiling((towerR + end) / dy) + 1);
+                int reachCols = Math.Min(Math.Min(MaxReachTexels, w / 2), (int)Math.Ceiling((towerR + end) / dx) + 1);
+                for (int oy = -reachRows; oy <= reachRows; oy++)
+                {
+                    int qy = cy + oy;
+                    if (qy < 0 || qy >= h) continue;
+                    double ey = oy * dy;
+                    for (int ox = -reachCols; ox <= reachCols; ox++)
+                    {
+                        int i = qy * w + (((cx + ox) % w) + w) % w;
+                        if (core[i]) continue;
+                        double ex = ox * dx;
+                        double d = Math.Sqrt(ex * ex + ey * ey) - towerR;
+                        if (d <= 0.0) continue;
+                        double v = SheetValue(covMax, medianRaw, visRaw, d, reach);
+                        if (v > anvil[i]) { anvil[i] = (float)v; any = true; }
+                    }
+                }
+            }
+            if (!any) return false;
+            return Compose(layer, cover, type, inp, anvil, core, visRaw, anvilByte, report);
         }
 
         private static double Lat(int row, int h)

@@ -68,9 +68,23 @@ namespace ReDefinition.Atmospheres
             internal LayerOptions Options;
         }
 
+        // The list of the living convective cells of a body (package CELLS, WeatherGenerator.Cells): made on the worker like the layer maps, at most every CellIntervalMs of real time, for the
+        // time it was asked about; two lists per body, so a read copies a finished one. A body nobody asks for any more drops it.
+        internal const int CellIntervalMs = 1000;
+
+        private sealed class CellSnap
+        {
+            internal List<ConvectiveCell> Current, Spare = new List<ConvectiveCell>(2048);
+            internal double Ut, WantedUt = double.NaN;
+            internal long Version, LastAskedMs, LastRenderMs = long.MinValue / 2;
+        }
+
         private sealed class Body
         {
             internal readonly object Lock = new object();
+            // Held for the whole render of the cell list of the body.
+            internal readonly object CellRender = new object();
+            internal CellSnap Cells;
             // Held for the whole render of a layer map of the body.
             internal readonly object LayerRender = new object();
             internal readonly Dictionary<int, LayerSnap> Layers = new Dictionary<int, LayerSnap>();
@@ -274,6 +288,87 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // The living convective cells of a body: the last finished list, asked for the time given (the snapshot's own time in snapshotUt). Their rain levels are on the body's bands. False until
+        // the first list is there (or the body has no generator, or cells are off: then true and an empty list).
+        internal bool GetCells(int bodyIndex, double ut, List<ConvectiveCell> target, out double snapshotUt)
+        {
+            snapshotUt = double.NaN;
+            if (target == null || double.IsNaN(ut) || double.IsInfinity(ut)) return false;
+            GeneratorState state = field.StateOf(bodyIndex);
+            if (state == null || state.Broken) return false;
+            Body b = BodyOf(bodyIndex);
+            lock (b.Lock)
+            {
+                if (b.Cells == null) b.Cells = new CellSnap();
+                b.Cells.WantedUt = ut;
+                b.Cells.LastAskedMs = clock.ElapsedMilliseconds;
+            }
+            wake.Set();
+            if (Synchronous)
+            {
+                bool missing;
+                lock (b.Lock)
+                {
+                    missing = b.Cells.Current == null;
+                }
+                if (missing) RenderCellsNow(bodyIndex);
+            }
+            lock (b.Lock)
+            {
+                CellSnap snap = b.Cells;
+                if (snap.Current == null) return false;
+                target.Clear();
+                target.AddRange(snap.Current);
+                snapshotUt = snap.Ut;
+                return true;
+            }
+        }
+
+        // Renders the cell list of a body for the time it was asked about and publishes it. True where a list was made.
+        internal bool RenderCellsNow(int bodyIndex)
+        {
+            GeneratorState s = field.StateOf(bodyIndex);
+            if (s == null || s.Broken) return false;
+            Body b = BodyOf(bodyIndex);
+            lock (b.CellRender)
+            {
+                CellSnap snap;
+                List<ConvectiveCell> target;
+                double ut;
+                lock (b.Lock)
+                {
+                    snap = b.Cells;
+                    if (snap == null) return false;
+                    target = snap.Spare;
+                    ut = snap.WantedUt;
+                }
+                if (double.IsNaN(ut)) return false;
+                target.Clear();
+                s.Generator.Cells(ut, target);
+                float[] bands = s.Bands;
+                for (int i = 0; i < target.Count; i++)
+                {
+                    ConvectiveCell c = target[i];
+                    if (double.IsNaN(c.Strength) || double.IsInfinity(c.Strength) || double.IsNaN(c.LatRad) || double.IsNaN(c.LonRad))
+                    {
+                        s.Trip();
+                        return false;
+                    }
+                    c.RainLevel = PrecipScale.LevelFromRate((float)c.RainMmH, bands);
+                    target[i] = c;
+                }
+                lock (b.Lock)
+                {
+                    snap.Spare = snap.Current ?? new List<ConvectiveCell>(2048);
+                    snap.Current = target;
+                    snap.Ut = ut;
+                    snap.Version = field.Version;
+                    snap.LastRenderMs = clock.ElapsedMilliseconds;
+                }
+                return true;
+            }
+        }
+
         private static void Hand(WeatherMap target, WeatherMapKind kind, int bodyIndex, double ut, long version, int width, int height, float[] values)
         {
             target.Resize(width, height);
@@ -376,7 +471,27 @@ namespace ReDefinition.Atmospheres
                 bool coverDue = cover && (b.CoverCurrent == null || now - b.LastCoverMs >= CoverIntervalMs || Math.Abs(ut - b.CoverCurrent.Ut) > CoverJumpS);
                 if (coverDue) RenderCoverNow(index, ut);
                 RenderDueLayers(index, b);
+                RenderDueCells(index, b);
             }
+        }
+
+        // The cell list of a body that was asked about and is due; a list nobody asks for any more is dropped.
+        private void RenderDueCells(int bodyIndex, Body b)
+        {
+            bool due = false;
+            long now = clock.ElapsedMilliseconds;
+            lock (b.Lock)
+            {
+                CellSnap snap = b.Cells;
+                if (snap == null) return;
+                if (now - snap.LastAskedMs > IdleMs)
+                {
+                    b.Cells = null;
+                    return;
+                }
+                due = now - snap.LastRenderMs >= CellIntervalMs && (snap.Current == null || snap.Ut != snap.WantedUt);
+            }
+            if (due) RenderCellsNow(bodyIndex);
         }
 
         // The layer maps (E43) of a body that were asked about and are due; a layer nobody asks for any more is dropped.

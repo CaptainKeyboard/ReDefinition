@@ -266,6 +266,7 @@ namespace ReDefinition.Atmospheres
                     AnvilSeconds = r.Float("anvilSeconds", CloudLayerDef.DefaultAnvilSeconds, 0f, 86400f),
                     AnvilUpdraftMs = r.Float("anvilUpdraftMs", CloudLayerDef.DefaultAnvilUpdraftMs, 0f, 100f),
                     AnvilScale = r.Float("anvilScale", 1f, 0f, 10f),
+                    CellList = r.Bool("cellList", false),
                     AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f),
                     Meso = Meso(r.Child("MESO")), TypePatchKm = r.Float("typePatchKm", 0f, 0f, 2000f),
                     TypePatchDepths = r.Float("typePatchDepths", CloudMesoSpec.DefaultTypePatchDepths, 0.2f, 100f), TypePatchBlend = r.Float("typePatchBlend", 0.06f, 0.005f, 0.5f) });

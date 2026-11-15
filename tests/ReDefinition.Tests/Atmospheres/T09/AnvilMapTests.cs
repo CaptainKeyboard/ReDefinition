@@ -11,6 +11,28 @@ namespace ReDefinition.Tests.Atmospheres.T09
     public class AnvilMapTests
     {
         private const int W = 512, H = 256;
+        // The updraft of a full-strength cell of the test body (Kerbin: sqrt(B g H) = 6 m/s, WeatherGenerator.CellUpdraftMs); the layer takes it from AnvilInputs.UpdraftMs.
+        private const double FullCellMs = 6.0;
+
+        [TestMethod]
+        public void TheFullCellUpdraftIsTheBodysUnlessTheLayerNamesOne()
+        {
+            CloudLayerDef cb = CloudLookFixtures.Cumulonimbus();
+            Assert.AreEqual(0f, cb.AnvilUpdraftMs, 0f, "the shipped layer names none");
+            Assert.AreEqual(4.5, AnvilMap.FullUpdraftMs(cb, new AnvilInputs { UpdraftMs = 4.5 }), 0.0, "the body's");
+            Assert.AreEqual(0.0, AnvilMap.FullUpdraftMs(cb, new AnvilInputs()), 0.0, "a body without a generator: no outflow");
+            cb.AnvilUpdraftMs = 3f;
+            Assert.AreEqual(3.0, AnvilMap.FullUpdraftMs(cb, new AnvilInputs { UpdraftMs = 4.5 }), 0.0, "the layer's number replaces the body's");
+            cb.AnvilUpdraftMs = 0f;
+            byte[] c1, t1, c2, t2;
+            Cell(cb, 600000.0, 12.0, 1.0, out c1, out t1);
+            Cell(cb, 600000.0, 12.0, 1.0, out c2, out t2);
+            var weakBody = new AnvilMap.Report();
+            var strongBody = new AnvilMap.Report();
+            AnvilMap.Apply(cb, c1, t1, new AnvilInputs { Width = W, Height = H, RadiusM = 600000.0, UpdraftMs = 3.0 }, weakBody);
+            AnvilMap.Apply(cb, c2, t2, new AnvilInputs { Width = W, Height = H, RadiusM = 600000.0, UpdraftMs = 9.0 }, strongBody);
+            Assert.IsTrue(strongBody.ReachM[0] > weakBody.ReachM[0], "a body with a stronger full cell spreads a wider anvil");
+        }
 
         // The cell: coverage from 0.3 outside to peak at the centre (flat core where the Gaussian is above 1 / 1.4), type value rainType x the same shape (the precipitation axis).
         private static void Cell(CloudLayerDef layer, double radiusM, double cellKm, double peak, out byte[] cover, out byte[] type)
@@ -32,7 +54,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             Cell(layer, radiusM, cellKm, peak, out cover, out type);
             var report = new AnvilMap.Report();
-            AnvilMap.Apply(layer, cover, type, new AnvilInputs { Width = W, Height = H, RadiusM = radiusM, ShearRadS = shear }, report);
+            AnvilMap.Apply(layer, cover, type, new AnvilInputs { Width = W, Height = H, RadiusM = radiusM, ShearRadS = shear, UpdraftMs = FullCellMs }, report);
             return report;
         }
 
