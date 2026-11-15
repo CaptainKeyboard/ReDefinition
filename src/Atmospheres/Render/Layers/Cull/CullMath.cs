@@ -123,6 +123,20 @@ namespace ReDefinition.Atmospheres
             return sigmaPerM * thicknessM * Math.Max(share, 0.0) * Math.Max(mean, 0.0);
         }
 
+        // The vertical optical depth of a full column of the layer at the types' mean: sigma times the thickness times the mean (top - base) share of the types times the mean of
+        // their mean profiles (E40 MVCLOUD: the opacity of the layer in the cloud motion's weights; MinVerticalTau is the bound below).
+        internal static double MeanVerticalTau(double sigmaPerM, double thicknessM, int types, Func<int, double> shareOfType, Func<int, double> meanProfileOfType)
+        {
+            if (types <= 0) return 0.0;
+            double share = 0.0, mean = 0.0;
+            for (int t = 0; t < types; t++)
+            {
+                share += shareOfType(t);
+                mean += meanProfileOfType(t);
+            }
+            return sigmaPerM * thicknessM * Math.Max(share / types, 0.0) * Math.Max(mean / types, 0.0);
+        }
+
         // The maximum and the minimum of the texels of a w x h byte map that fall in each cell of a gw x gh grid (a texel belongs to the cell its centre
         // lies in). One pass over the map.
         internal static void Cells(byte[] map, int w, int h, int gw, int gh, byte[] max, byte[] min)
