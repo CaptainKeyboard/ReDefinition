@@ -42,11 +42,18 @@ namespace ReDefinition.Atmospheres
         // The step offset is one fixed sequence (the interleaved gradient noise per pixel, advanced by the golden ratio per frame; the shader's _DitherP).
         internal const string TuneSpanTight = "layers.spanTight";
         internal const bool SpanTightDefault = false;
-        // layers.ditherSequence (LayerFrame.DitherSequence): 1 a per-pixel white hash offset, 2 (the default) the interleaved gradient noise, both advanced by the golden ratio per
-        // frame. 2 has the lower temporal noise (rim 0.0023 against 0.0032 at the soft 0.5, player series e40-gs3) but a regular screen-fixed pattern; kept as a key until the
-        // owner has seen both in the game (E40 step (c)).
+        // layers.ditherSequence (LayerFrame.DitherSequence): 1 a per-pixel white hash offset, 2 the interleaved gradient noise, 3 (the default, E40 F2) the 16 x 16 blue-noise tile
+        // (DitherMatrix), all advanced by the golden ratio per frame. 2 has the lower temporal noise than 1 (rim 0.0023 against 0.0032 at the soft 0.5, player series e40-gs3) but
+        // a regular screen-fixed pattern (a few percent of the residual's power in single spatial lines); 3 has the temporal noise of 2 and a spectrum with no line
+        // (the strongest line 0.4 / 0.9 percent of the power against 4.2 / 3.5, series e40-f2-fix) and no power below 0.15 cycles per pixel in its tile.
         internal const string TuneDitherSequence = "layers.ditherSequence";
-        internal const int DitherSequenceDefault = 2;
+        internal const int DitherSequenceDefault = 3;
+        // layers.ditherFix (E40 F2, default 1): the per-pixel patterns of the step offset and the light cone are read on the march target's own pixel grid, and the cone's rotation
+        // is the blue-noise tile. 0 is the pass before F2: the pattern read on the camera's grid scaled by the uv (a half-size target read it at every second pixel, a third-size target at
+        // every third, so that neighbouring offsets differed by 0.11 / 0.07 along one axis and the offsets' lines showed in the picture) and the gradient noise for the cone
+        // (set layers.ditherSequence 2 with it for the pass as it was).
+        internal const string TuneDitherFix = "layers.ditherFix";
+        internal const bool DitherFixDefault = true;
 
         // The tuning keys of the light's look constants (T03); the compiled defaults are the fields of CloudLightSettings.
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
@@ -186,7 +193,10 @@ namespace ReDefinition.Atmospheres
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
             f.SpanTight = Tuning.Flag(TuneSpanTight, SpanTightDefault);
-            f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 2);
+            f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 3);
+            bool fix = Tuning.Flag(TuneDitherFix, DitherFixDefault);
+            f.DitherOwnGrid = fix;
+            f.ConePattern = fix ? 3 : 0;
             Apply(f.Cull, v);
         }
 

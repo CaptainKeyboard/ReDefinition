@@ -120,7 +120,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.5f, soft.Resolution, 1e-6f, "the march target is half size by default");
             Assert.IsFalse(soft.SkipEmpty, "cloudSkipEmpty is off by default (so softr33 sets it)");
             Assert.IsFalse(soft.SpanTight);
-            Assert.AreEqual(2, soft.DitherSequence);
+            Assert.AreEqual(3, soft.DitherSequence, "the step offset is the blue-noise tile by default (E40 F2)");
             T09Probe.SoftExpectation r33 = of("softr33");
             Assert.AreEqual(0.33f, r33.Resolution, 1e-6f);
             Assert.IsTrue(r33.SkipEmpty);

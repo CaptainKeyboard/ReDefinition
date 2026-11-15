@@ -226,7 +226,7 @@ namespace ReDefinition.Atmospheres
                     else if (setting && key == AtmospheresSettings.Keys.CloudSkipEmpty) skipEmpty = value != 0f;
                     else if (!setting && key == OwnCloudOptions.TuneReconResolution) resolution = value;
                     else if (!setting && key == OwnCloudOptions.TuneSpanTight) spanTight = value != 0f;
-                    else if (!setting && key == OwnCloudOptions.TuneDitherSequence) dither = Math.Max(1, Math.Min(2, Mathf.RoundToInt(value)));
+                    else if (!setting && key == OwnCloudOptions.TuneDitherSequence) dither = Math.Max(1, Math.Min(3, Mathf.RoundToInt(value)));
                     else if (!setting && key == OwnCloudOptions.TuneAccumulate) accumulate = Mathf.Clamp01(value);
                 }
             }

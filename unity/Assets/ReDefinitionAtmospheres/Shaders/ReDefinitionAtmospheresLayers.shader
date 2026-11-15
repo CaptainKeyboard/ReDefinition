@@ -65,9 +65,11 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
-        // for every pixel (a probe), 0: the product's per-pixel rotation. z the per-pixel offset (layers.ditherSequence): 1 an integer hash (white), 2 the interleaved
-        // gradient noise. w unused (0): the gradient noise's pattern stands still.
+        // for every pixel (a probe), 0: the product's per-pixel rotation (the gradient noise), 2 its integer hash, 3 the blue-noise tile. z the per-pixel offset (layers.ditherSequence):
+        // 1 an integer hash (white), 2 the interleaved gradient noise, 3 the blue-noise tile. w 1: the pattern's pixel is the march target's own (a low-resolution target draws texel k as pixel k); 0: the camera's size scales the uv, so a
+        // half-size target reads the pattern at every second pixel and the neighbours' offsets are strongly correlated. The gradient noise's pattern stands still.
         float4 _DitherP;
+        float4 _DitherM[64];   // E40 F2: the 16 x 16 blue-noise tile of the step offset 3 and the cone rotation 3 (ranks over 256, a texel per component)
         // The temporal reconstruction (package T05): the march target holds one pixel of every N x N block of the full target.
         float4 _ReconP;      // block size N (1: the target is the full target), the block offset x and y in full pixels, 0
         float4 _ReconD;      // the full target's width and height in pixels, the march target's width and height in pixels
@@ -314,6 +316,14 @@ Shader "ReDefinition/AtmospheresLayers"
             return (h >> 8) * (1.0 / 16777216.0);
         }
 
+        // The per-pixel step offset of layers.ditherSequence 3: a 16 x 16 tile of blue noise (_DitherM, the ranks of a void-and-cluster arrangement over 256, DitherMatrix.cs).
+        float DitherBlue(float2 p)
+        {
+            int2 q = int2(floor(p)) & 15;
+            int i = q.y * 16 + q.x;
+            return _DitherM[i >> 2][i & 3];
+        }
+
         MarchOut March(float3 o, float3 d, float tmax, float2 pixel)
         {
             MarchOut r;
@@ -358,14 +368,14 @@ Shader "ReDefinition/AtmospheresLayers"
             float T = 1.0;
             float mu = dot(_Sun.xyz, d);
             float ph = Phase(mu);
-            // The step offset: the pixel keeps one offset (the interleaved gradient noise, a blue-noise pattern in space) and every frame adds the golden ratio to it
+            // The step offset: the pixel keeps one offset (the blue-noise tile; the interleaved gradient noise puts a few percent of its power into single spatial lines, which show) and every frame adds the golden ratio to it
             // (Roberts 2018, the R1 sequence): any run of frames spreads its offsets evenly over the grid step, so the history of the pass integrates the step by
             // strata instead of by chance (the cloud's entry, its light at the sample's depth and the hit or miss of a thin rim all depend on that offset).
-            float jitterValue = frac((_DitherP.z < 1.5 ? DitherHash(pixel) : Ign(pixel, 0.0)) + _DitherP.x);
+            float jitterValue = frac((_DitherP.z < 1.5 ? DitherHash(pixel) : (_DitherP.z < 2.5 ? Ign(pixel, 0.0) : DitherBlue(pixel))) + _DitherP.x);
             float jitter = lerp(0.5, jitterValue, _StepP.y);
             // The cone's rotation of the light taps (_DitherP.y 1: a fixed rotation, a probe): the same pattern at another place, advanced in time by the same
             // phase (T03v2).
-            float rot = frac(Ign(pixel + 17.0, 0.0) + _DitherP.x) * 6.2831853 * (_DitherP.y > 0.5 ? 0.0 : 1.0);
+            float rot = frac((_DitherP.y < 1.5 ? Ign(pixel + 17.0, 0.0) : (_DitherP.y < 2.5 ? DitherHash(pixel + 17.0) : DitherBlue(pixel.yx + 5.0))) + _DitherP.x) * 6.2831853 * (_DitherP.y > 0.5 && _DitherP.y < 1.5 ? 0.0 : 1.0);
             int maxSteps = (int)_MarchP.x;
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;
@@ -551,7 +561,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float3 d = RayDir(i.uv);
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
             float tmax = SceneDistance(i.uv, d);
-            float2 pixel = i.uv * (_ReconP.x < 1.5 ? _ScreenParams.xy : _ReconD.xy);
+            float2 pixel = i.uv * (_ReconP.x < 1.5 ? (_DitherP.w > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : _ScreenParams.xy) : _ReconD.xy);
             MarchOut r = March(o, d, tmax, pixel);
             if (_LimitP.y > 1.5 && _LimitP.y < 2.5)
             {

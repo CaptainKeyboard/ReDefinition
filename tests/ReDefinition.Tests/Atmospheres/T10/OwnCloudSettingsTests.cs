@@ -418,24 +418,57 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         // E40 grain against TVC: the span cut is off by default and its key switches it on; the grid multiplier reaches below 1.
-        // E40 step (c): the step offset is the gradient noise by default (2); the key layers.ditherSequence 1 gives the white hash back; values outside 1 to 2 are clamped.
+        // E40 F2: the step offset is the blue-noise tile by default (3); the key layers.ditherSequence 1 gives the white hash back and 2 the gradient noise; values outside 1 to 3 are clamped.
         [TestMethod]
-        public void TheDitherSequenceIsTheGradientNoiseByDefaultWithAKeyForTheHash()
+        public void TheDitherSequenceIsTheBlueNoiseTileByDefaultWithKeysForTheHashAndTheGradientNoise()
         {
             Tuning.ClearOverrides();
             NextFrame();
             var frame = new LayerFrame();
-            Assert.AreEqual(2, frame.DitherSequence);
+            Assert.AreEqual(3, frame.DitherSequence);
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(OwnCloudOptions.DitherSequenceDefault, frame.DitherSequence);
+            Assert.AreEqual(3, frame.DitherSequence);
             Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 1f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(1, frame.DitherSequence);
+            Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 2f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(2, frame.DitherSequence);
             Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 0f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(1, frame.DitherSequence, "0 (a new offset per frame) is gone: clamped to 1");
+            Tuning.SetOverride(OwnCloudOptions.TuneDitherSequence, 9f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(3, frame.DitherSequence, "above 3 is clamped to 3");
+            Tuning.ClearOverrides();
+            NextFrame();
+        }
+
+        // E40 F2: the patterns are read on the march target's own pixel grid with the blue-noise tile for the cone by default; layers.ditherFix 0 is the pass before F2.
+        [TestMethod]
+        public void TheDitherPatternsAreReadOnTheOwnGridByDefaultWithAKeyForTheOldPass()
+        {
+            Tuning.ClearOverrides();
+            NextFrame();
+            var frame = new LayerFrame();
+            Assert.IsTrue(frame.DitherOwnGrid);
+            Assert.AreEqual(3, frame.ConePattern);
+            frame.DitherOwnGrid = false;
+            frame.ConePattern = 0;
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.IsTrue(OwnCloudOptions.DitherFixDefault);
+            Assert.IsTrue(frame.DitherOwnGrid, "the default is the fix");
+            Assert.AreEqual(3, frame.ConePattern);
+            Tuning.SetOverride(OwnCloudOptions.TuneDitherFix, 0f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.IsFalse(frame.DitherOwnGrid, "0 reads the pattern on the camera's grid scaled by the uv, as before F2");
+            Assert.AreEqual(0, frame.ConePattern, "and the cone's rotation is the gradient noise");
             Tuning.ClearOverrides();
             NextFrame();
         }

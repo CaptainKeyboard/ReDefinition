@@ -343,7 +343,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.05, Number(r, "T09s.fair.ground.softacc05.accumulate"), 1e-6);
             Assert.AreEqual(0.2, Number(r, "T09s.fair.ground.soft.accumulate"), 1e-6, "the history weight is back at its default after the variants that changed it");
             Assert.AreEqual(1.0, Number(r, "T09s.fair.ground.softhash.dither_sequence"));
-            Assert.AreEqual(2.0, Number(r, "T09s.fair.ground.softr33.dither_sequence"), "the other variants keep the gradient noise");
+            Assert.AreEqual(3.0, Number(r, "T09s.fair.ground.softr33.dither_sequence"), "the other variants keep the default (the blue-noise tile)");
             // The cost windows of the lead's list: soft in six views, softr33 in six, softcut16 at both grounds, soft100s24 at the fair ground; none for the weave variants.
             Func<string, int> begins = name => r.Log.Count(l => l.StartsWith("T09 view begin: ") && l.Contains(" " + name + " 1707x960"));
             Assert.AreEqual(2, begins("fw_soft"));

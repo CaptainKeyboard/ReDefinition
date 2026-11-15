@@ -64,9 +64,15 @@ namespace ReDefinition.Atmospheres
         // E40 grain against TVC. SpanTight: the march searches each layer only over the altitudes of the cloud types the camera can see this frame and leaves out a
         // layer whose coverage map cannot reach the threshold there (LayerSpanBound); false: the type table's whole interval (the pass as it was).
         // DitherSequence: the per-pixel step offset, advanced by the golden ratio per frame: 1 an integer hash (white; what the default drew before E40 step (c)), 2 the
-        // interleaved gradient noise (lower temporal noise, a regular pattern). The owner's look decision between the two is pending.
+        // interleaved gradient noise (lower temporal noise, a few strong spatial lines), 3 (E40 F2, the default) the blue-noise tile of DitherMatrix (the same temporal noise, no line).
         public bool SpanTight;
-        public int DitherSequence = 2;
+        public int DitherSequence = 3;
+        // E40 F2: the step offset's and the light cone's pixel pattern is read on the march target's own pixel grid (true) or on the camera's pixel grid scaled by the uv
+        // (false: what the pass did until F2; a half-size target then read the pattern at every second pixel, so that along one axis the offsets of neighbours differed by
+        // 0.11 (half size) or 0.07 (a third), and the picture showed their lines).
+        public bool DitherOwnGrid = true;
+        // The per-pixel rotation of the light cone (read only where the cone has a spread): 0 the gradient noise (what the pass drew until F2), 2 an integer hash, 3 (the default) the blue-noise tile.
+        public int ConePattern = 3;
         // Package T16, the visibility culling and the distance LOD (all switches off until the owner agrees).
         public CullSettings Cull = new CullSettings();
         // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
@@ -162,6 +168,10 @@ namespace ReDefinition.Atmospheres
                 wrapMode = TextureWrapMode.Clamp
             };
             material.SetTexture(IdTypeProfile, profileTexture);
+            var blue = new Vector4[DitherMatrix.Count / 4];
+            float[] tile = DitherMatrix.Values();
+            for (int i = 0; i < tile.Length; i++) blue[i >> 2][i & 3] = tile[i];
+            material.SetVectorArray(Shader.PropertyToID("_DitherM"), blue);
             material.SetTexture(IdTypeInfo, infoTexture);
             commands = new CommandBuffer { name = "ReDefinition layer pass" };
             Heights.Ensure(2, 2);
@@ -349,10 +359,10 @@ namespace ReDefinition.Atmospheres
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
-            // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the gradient
-            // noise's pattern stands still (w 0).
+            // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
+            // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).
             double phase = StepPhase.Of(f.FrameNumber);
-            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : 0f, Mathf.Clamp(f.DitherSequence, 1, 2), 0f));
+            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : (f.ConePattern == 2 || f.ConePattern == 3 ? f.ConePattern : 0f), Mathf.Clamp(f.DitherSequence, 1, 3), f.DitherOwnGrid ? 1f : 0f));
             if (f.Light != null)
             {
                 for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;
