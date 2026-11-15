@@ -28,8 +28,55 @@ namespace ReDefinition.Atmospheres
         internal float Get(string key, float compiledDefault)
         {
             Dictionary<string, float> table = Volatile.Read(ref effective);
+            // The cloud viewer's read check: one key may be watched, and the frame of its last read is kept (one null check per read while nothing is watched).
+            string watch = Volatile.Read(ref watched);
+            if (watch != null && string.Equals(watch, key, StringComparison.Ordinal)) Volatile.Write(ref watchedReadFrame, Volatile.Read(ref frame));
             float value;
             return table.TryGetValue(key, out value) ? value : compiledDefault;
+        }
+
+        private string watched;
+        private int watchedReadFrame = int.MinValue;
+
+        // Watches one key (null: none): LastWatchedRead then says in which frame a reader last asked for it, so that the viewer can tell a key that is read every
+        // frame from one that is read on a change or at a build only.
+        internal void Watch(string key)
+        {
+            Volatile.Write(ref watched, key);
+            Volatile.Write(ref watchedReadFrame, int.MinValue);
+        }
+
+        // The frame (BeginFrame's count) of the last read of the watched key; int.MinValue where it was not read since Watch.
+        internal int LastWatchedRead
+        {
+            get { return Volatile.Read(ref watchedReadFrame); }
+        }
+
+        // The frame count of the last BeginFrame.
+        internal int Frame
+        {
+            get { return Volatile.Read(ref frame); }
+        }
+
+        // The override of a key, where one is set (the value takes effect at the next BeginFrame).
+        internal bool TryGetOverride(string key, out float value)
+        {
+            lock (gate) return overrides.TryGetValue(key, out value);
+        }
+
+        // The value the nodes give a key, where they name it.
+        internal bool TryGetLoaded(string key, out float value)
+        {
+            lock (gate) return loaded.TryGetValue(key, out value);
+        }
+
+        // Removes the override of one key; the nodes' value or the compiled default stands again at the next BeginFrame.
+        internal void ClearOverride(string key)
+        {
+            lock (gate)
+            {
+                if (overrides.Remove(key)) dirty = true;
+            }
         }
 
         // Takes the values of the nodes (key = number lines); a line that is not a number is skipped. Later nodes win. They replace the
@@ -130,6 +177,11 @@ namespace ReDefinition.Atmospheres
         internal static void ClearOverrides()
         {
             Table.ClearOverrides();
+        }
+
+        internal static void ClearOverride(string key)
+        {
+            Table.ClearOverride(key);
         }
 
         // Rises each time the table changed.

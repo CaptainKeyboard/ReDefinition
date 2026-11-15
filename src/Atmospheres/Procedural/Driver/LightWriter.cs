@@ -18,6 +18,9 @@ namespace ReDefinition.Atmospheres
     {
         // The level below which nothing is written: the weather scale starts at 0.04.
         internal const float OffBelow = PrecipScale.FlurriesFrom;
+        // The tuning keys of the sun dimming's weights and their compiled defaults.
+        internal const string TuneSunDimWeight = "light.sunDimWeight", TuneSunDimWeightEve = "light.sunDimWeightEve";
+        internal const float SunDimWeightDefault = 1f, SunDimWeightEveDefault = 0.5f;
 
         private readonly StormAmbient ambient = new StormAmbient();
         private readonly AmbientTracker sunIntensity = new AmbientTracker();
@@ -58,7 +61,7 @@ namespace ReDefinition.Atmospheres
         // The sun factor for a look: the curve's direct dimming, counted with the EVE weight where an EVE layer carries the weather.
         internal static float SunFactorOf(float curveSunDirect, bool eveLayerPresent)
         {
-            float w = eveLayerPresent ? Tuning.Get("light.sunDimWeightEve", 0.5f) : Tuning.Get("light.sunDimWeight", 1f);
+            float w = eveLayerPresent ? Tuning.Get(TuneSunDimWeightEve, SunDimWeightEveDefault) : Tuning.Get(TuneSunDimWeight, SunDimWeightDefault);
             w = w < 0f ? 0f : w > 1f ? 1f : w;
             return 1f - w * (1f - curveSunDirect);
         }

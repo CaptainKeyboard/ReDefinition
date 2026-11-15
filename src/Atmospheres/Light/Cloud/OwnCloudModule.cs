@@ -375,7 +375,8 @@ namespace ReDefinition.Atmospheres
                 Hide(false);
                 return;
             }
-            renderer.Noise.Advance(dt);
+            // cloud.motionScale (CloudMotion, default 1: unchanged) scales the clouds' drift for the cloud viewer; 0 holds them still.
+            renderer.Noise.Advance(dt * CloudMotion.Scale);
             if (!mapsPrimed)
             {
                 Stats.Why = "waiting for the first maps";
