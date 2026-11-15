@@ -174,10 +174,25 @@ namespace AtmoSim.Core
         // Diagnostic (the close-up of one system in isolation): only this slot of this hemisphere is evaluated (-1 = all). Not a lever of the proof.
         public int DebugSingleSlot = -1, DebugSingleHemisphere = 0;
 
-        // The round-3 generator: every lever of round 4 switched off (20 000-query hash A3F0491D2808765F).
+        // ---- levers of tuning round 5 (package CBGEN, the life of the convective cells). The values below are the round-5 values; Round4() restores the round-4 generator. ----
+        // R5a: a convective cell is born at any time of its 3-hour bucket and lives on into the next one (its life is 1 to 3 hours, so only the bucket before can still hold one): the number of
+        // living cells is the same at every time of the day. false = the round-4 draw, in which a cell lives wholly inside its bucket: no cell is alive at a bucket's edges, and the area under
+        // cells of strength above 0.3 swings with the bucket from 0 at its edges to 2.3 % of the globe in its middle (CbGeneratorMeasure).
+        public bool StationaryCells = true;
+
+        // The round-4 generator: every lever of round 5 switched off (20 000-query hash 2D072A29599D4050).
+        public BodyParams Round4()
+        {
+            var p = Clone();
+            p.StationaryCells = false;
+            return p;
+        }
+
+        // The round-3 generator: every lever of round 4 and 5 switched off (20 000-query hash A3F0491D2808765F).
         public BodyParams Round3()
         {
             var p = Clone();
+            p.StationaryCells = false;
             p.BodyScaledLengths = false;
             p.HeightWind = false;
             p.PrecipTypeLegacy = true;
@@ -188,6 +203,7 @@ namespace AtmoSim.Core
         public BodyParams Round2()
         {
             var p = Clone();
+            p.StationaryCells = false;
             p.BodyScaledLengths = false;
             p.HeightWind = false;
             p.PrecipTypeLegacy = true;

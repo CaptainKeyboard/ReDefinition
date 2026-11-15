@@ -723,22 +723,39 @@ namespace AtmoSim.Tests
             Assert.AreEqual(h, Timing.HashQueries(new WeatherGenerator(BodyParams.KerbinLike().Round3(), 1), q, order, 0));
         }
 
+        // Tuning round 5 (CBGEN): Round4() restores the round-4 generator bit for bit (a cell lives wholly inside its 3-hour bucket).
         [TestMethod]
         public void TheRoundFourGeneratorHasItsGoldenHashAndIsOrderIndependent()
         {
-            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            var g = new WeatherGenerator(BodyParams.KerbinLike().Round4(), 1);
             var q = Timing.Queries(20000, 77, 3.0e7);
             ulong h = Timing.HashQueries(g, q, null, 0);
             Assert.AreEqual(GoldenRound4Hash, h);
             var order = new int[q.Length]; for (int i = 0; i < order.Length; i++) order[i] = i;
             var rr = new Rng(5);
             for (int i = order.Length - 1; i > 0; i--) { int k = (int)(rr.Uniform() * (i + 1)); int tmp = order[i]; order[i] = order[k]; order[k] = tmp; }
+            Assert.AreEqual(h, Timing.HashQueries(new WeatherGenerator(BodyParams.KerbinLike().Round4(), 1), q, order, 0));
+        }
+
+        [TestMethod]
+        public void TheRoundFiveGeneratorHasItsGoldenHashAndIsOrderIndependent()
+        {
+            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            var q = Timing.Queries(20000, 77, 3.0e7);
+            ulong h = Timing.HashQueries(g, q, null, 0);
+            Assert.AreEqual(GoldenRound5Hash, h);
+            var order = new int[q.Length]; for (int i = 0; i < order.Length; i++) order[i] = i;
+            var rr = new Rng(5);
+            for (int i = order.Length - 1; i > 0; i--) { int k = (int)(rr.Uniform() * (i + 1)); int tmp = order[i]; order[i] = order[k]; order[k] = tmp; }
             Assert.AreEqual(h, Timing.HashQueries(new WeatherGenerator(BodyParams.KerbinLike(), 1), q, order, 0));
         }
 
+        // Round 5 (CBGEN): cells are born at any time of their bucket (StationaryCells). Before: 0x2D072A29599D4050 (Round4()).
+        public const ulong GoldenRound5Hash = 0x233D55A4D9EE2E43UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 5
+
         // Re-recorded by P1 (planet independence): the convective lengths, drifts and column heights follow the body's troposphere and jet speed (BodyDerived.CellLatticeM ...; the Kerbin-like set has a
         // troposphere of 11000 m against the calibration 10500 m: HeightScale 1.048). Before: 0x7CAF7C7A93CDAAB6. Rounds 1 to 3 and Signed() keep their hashes (BodyScaledLengths false).
-        public const ulong GoldenRound4Hash = 0x2D072A29599D4050UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 4 (E43)
+        public const ulong GoldenRound4Hash = 0x2D072A29599D4050UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the levers of tuning round 4 (E43; Round4())
         public const ulong GoldenRound2Hash = 0xD01F43163C7A1646UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, levers of tuning round 2 (Round2())
         public const ulong GoldenRound3Hash = 0xA3F0491D2808765FUL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 3
 

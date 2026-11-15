@@ -169,7 +169,7 @@ namespace AtmoSim.Tests
             Row("E43.golden_hash_round4", 1, "equal on 4 threads", "7CAF7C7A93CDAAB6 (level of the default generator)");
         }
 
-        private static ulong CoreTestsGolden() { return ReconDataTests.GoldenRound4Hash; }
+        private static ulong CoreTestsGolden() { return ReconDataTests.GoldenRound5Hash; }
 
         [TestMethod]
         public void TheSampleStaysCheap()

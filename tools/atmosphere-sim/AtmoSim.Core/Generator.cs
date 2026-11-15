@@ -932,14 +932,16 @@ namespace AtmoSim.Core
         // ---- convective cells ---------------------------------------------------------------------------------------------
 
         // Strongest cell influence at a point from the lattice cells around it (3 rows x 3 columns in the frame drifting with
-        // the steering wind of the row). Cells live 1-3 hours inside one 3-hour bucket and have a sin^2 life envelope.
+        // the steering wind of the row). Cells live 1-3 hours and have a sin^2 life envelope. Round 5 (StationaryCells): a lattice cell of a 3-hour bucket is born at any time of
+        // the bucket and may live on into the next one, so the cells of the bucket before are looked at too; the number of living cells is the same at every time. Round 4: the
+        // cell lives wholly inside its bucket (born in the first part, so that it dies before the bucket ends), and no cell is alive at the edges of a bucket.
         private double CellStrength(double lat, double lon, double ut, double pcell, out double tower, out double phase, out double life)
         {
             double lc = D.CellLatticeM;
             double rowH = lc / a;
             double bucketF = DMath.Floor(ut / CellHourBucketS);
-            long bucket = (long)bucketF;
             long j0 = (long)DMath.Floor(lat / rowH);
+            bool stationary = Body.StationaryCells;
             double best = 0.0, bestTower = 0.0, bestPhase = 0.0, bestLife = 0.0;
             for (int dj = -1; dj <= 1; dj++)
             {
@@ -963,26 +965,31 @@ namespace AtmoSim.Core
                 {
                     long i = (long)fi + di;
                     long ci = ((i % nj) + nj) % nj;
-                    ulong hc = Hash.Of(Seed ^ 0xC311C311UL, j, ci, bucket);
-                    double u1 = Hash.Draw(hc, 0);
-                    double margin = pcell - u1;
-                    if (margin <= 0.0) continue;
-                    double dur = 3600.0 + 7200.0 * Hash.Draw(hc, 1);
-                    double start = (CellHourBucketS - dur) * Hash.Draw(hc, 2);
-                    double age = ut - (bucketF * CellHourBucketS + start);
-                    if (age <= 0.0 || age >= dur) continue;
-                    double sa = DMath.Sin(DMath.Pi * age / dur);
-                    double env = sa * sa;
-                    double jx = (Hash.Draw(hc, 3) * 2.0 - 1.0) * 0.3, jy = (Hash.Draw(hc, 4) * 2.0 - 1.0) * 0.3;
-                    double rad = 0.3 * lc * (0.75 + 0.5 * Hash.Draw(hc, 5));
-                    double cLon = -DMath.Pi + (ci + 0.5 + jx) * dlon;
-                    double cLat = latC + jy * rowH;
-                    double dx = a * cosC * DMath.WrapPi(lonL - cLon);
-                    double dy = a * (lat - cLat);
-                    double r2 = (dx * dx + dy * dy) / (rad * rad);
-                    if (r2 > 9.0) continue;
-                    double c = env * DMath.Exp(-r2) * DMath.SmoothStep(0.0, 0.1, margin);
-                    if (c > best) { best = c; bestTower = Hash.Draw(hc, 6); bestPhase = age / dur; bestLife = dur; }
+                    // the bucket of the draw (round 5: this one and the one before; a cell of the bucket before has 1 to 3 hours of life and starts in its 3 hours)
+                    for (int back = 0; back < (stationary ? 2 : 1); back++)
+                    {
+                        double bucketStartS = (bucketF - back) * CellHourBucketS;
+                        ulong hc = Hash.Of(Seed ^ 0xC311C311UL, j, ci, (long)(bucketF - back));
+                        double u1 = Hash.Draw(hc, 0);
+                        double margin = pcell - u1;
+                        if (margin <= 0.0) continue;
+                        double dur = 3600.0 + 7200.0 * Hash.Draw(hc, 1);
+                        double start = (stationary ? CellHourBucketS : CellHourBucketS - dur) * Hash.Draw(hc, 2);
+                        double age = ut - (bucketStartS + start);
+                        if (age <= 0.0 || age >= dur) continue;
+                        double sa = DMath.Sin(DMath.Pi * age / dur);
+                        double env = sa * sa;
+                        double jx = (Hash.Draw(hc, 3) * 2.0 - 1.0) * 0.3, jy = (Hash.Draw(hc, 4) * 2.0 - 1.0) * 0.3;
+                        double rad = 0.3 * lc * (0.75 + 0.5 * Hash.Draw(hc, 5));
+                        double cLon = -DMath.Pi + (ci + 0.5 + jx) * dlon;
+                        double cLat = latC + jy * rowH;
+                        double dx = a * cosC * DMath.WrapPi(lonL - cLon);
+                        double dy = a * (lat - cLat);
+                        double r2 = (dx * dx + dy * dy) / (rad * rad);
+                        if (r2 > 9.0) continue;
+                        double c = env * DMath.Exp(-r2) * DMath.SmoothStep(0.0, 0.1, margin);
+                        if (c > best) { best = c; bestTower = Hash.Draw(hc, 6); bestPhase = age / dur; bestLife = dur; }
+                    }
                 }
             }
             tower = bestTower; phase = bestPhase; life = bestLife;
