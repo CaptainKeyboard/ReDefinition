@@ -1123,6 +1123,7 @@ namespace ReDefinition.Atmospheres
             f.OutputExposure = Tuning.Get(TuneExposure, CloudOutputStage.ExposureDefault);
             f.OutputGamma = Tuning.Get(TuneOutputGamma, CloudOutputStage.GammaDefault);
             f.OutputWhite = Math.Max(0.01f, sceneSun.grayscale);
+            float hazeLayerAltitude = 1500f;
             {
                 // The white point's colour: the sun a cloud at the nominal altitude gets (the pass's sun times the shader's air above it), over its luminance, by the sun's height.
                 Vector3 whiteViewer = GameGlobals.ActiveVessel != null ? GameGlobals.ActiveVessel.transform.position : camPos;
@@ -1142,6 +1143,7 @@ namespace ReDefinition.Atmospheres
                         }
                     if (whiteAltitude == float.MaxValue) whiteAltitude = 1500f;
                 }
+                hazeLayerAltitude = whiteAltitude;
                 Color cloudSun = CloudSunAir.AtAltitude(passSun, whiteSin, whiteAltitude, f.Light);
                 f.OutputWhiteTint = CloudOutputStage.WhiteTint(cloudSun, CloudOutputStage.WhiteShare(whiteSin, Tuning.Get(TuneWhitePoint, 1f)));
             }
@@ -1163,7 +1165,7 @@ namespace ReDefinition.Atmospheres
             float sunLuminance = Math.Max(0.01f, sunColour.grayscale);
             for (int i = 0; i < CloudLightSettings.MaxLights; i++) f.Light.Lights[i] = new CloudLight { Towards = Vector3.up, Colour = Color.black };
             CloudBridgeLights.MoonLight provider = CloudBridgeLights.Moon;
-            Vector3 towards;
+            Vector3 towards = Vector3.up;
             Color moonColour;
             if (provider != null && provider(b, (Vector3d)camPos, out towards, out moonColour))
             {
@@ -1192,18 +1194,25 @@ namespace ReDefinition.Atmospheres
             f.Far.Haze = CloudHazePlan.Active(f.Far.Haze, f.Far.HazeAuto, moveBehindScattering);
             Color hazeDisplay = new Color(Tuning.Get(CloudHazePlan.TuneR, CloudHazePlan.DefaultDisplayColour.r), Tuning.Get(CloudHazePlan.TuneG, CloudHazePlan.DefaultDisplayColour.g),
                                           Tuning.Get(CloudHazePlan.TuneB, CloudHazePlan.DefaultDisplayColour.b), 1f);
-            // The horizon colour (hazeBlue of the body) is what a far cloud fades into, the near colour (hazeNearBlue) what a short path in-scatters; both leave the white point's tint out
-            // (CloudHazePlan.ExemptFromWhitePoint). E40 T1 tint.
+            // The colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray, the near colour what a short path in-scatters (E40 H1 haze, CloudHorizonSky;
+            // cloud.hazeSky 0: the law of before, hazeBlue / hazeNearBlue of the body and its share of the sun); both leave the white point's tint out (CloudHazePlan.ExemptFromWhitePoint).
             int hazeColourSource = (int)Tuning.Get(CloudHazePlan.TuneColour, 0f);
             float hazeShare = Tuning.Get(CloudHazePlan.TuneShare, CloudBridgeAir.HorizonShare);
-            f.Far.Inscatter = CloudHazePlan.ExemptFromWhitePoint(
-                CloudHazePlan.WithTint(CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeBlue),
-                                       hazeColourSource == 1 ? Vector3.one : c.Clouds.HazeTint),   // a display colour the key asks for is not tinted
-                f.OutputWhiteTint, f.OutputGamma);
-            f.Far.InscatterNear = CloudHazePlan.ExemptFromWhitePoint(
-                CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeNearBlue),
-                f.OutputWhiteTint, f.OutputGamma);
             double altitude = ((Vector3d)camPos - b.position).magnitude - b.Radius;
+            Color farRadiance, nearRadiance;
+            if (hazeColourSource == 0 && Tuning.Get(CloudHazePlan.TuneSky, 1f) > 0.5f
+                && SkyHazeColours(cam, f, b, altitude, hazeLayerAltitude, moon, sunLuminance, towards, ambientTop, out farRadiance, out nearRadiance))
+            {
+                farRadiance = CloudHazePlan.WithTint(farRadiance, c.Clouds.HazeTint);
+            }
+            else
+            {
+                farRadiance = CloudHazePlan.WithTint(CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeBlue),
+                                                     hazeColourSource == 1 ? Vector3.one : c.Clouds.HazeTint);   // a display colour the key asks for is not tinted
+                nearRadiance = CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeNearBlue);
+            }
+            f.Far.Inscatter = CloudHazePlan.ExemptFromWhitePoint(farRadiance, f.OutputWhiteTint, f.OutputGamma);
+            f.Far.InscatterNear = CloudHazePlan.ExemptFromWhitePoint(nearRadiance, f.OutputWhiteTint, f.OutputGamma);
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)
@@ -1211,6 +1220,38 @@ namespace ReDefinition.Atmospheres
                 nextWind = now + 1f;
                 UpdateMotion(cam, b, ut);
             }
+        }
+
+        // The evaluations of the air's horizon colour for the sun and for the moon (they keep the higher orders between frames, CloudHorizonSky.Evaluator) and the time of the last log line.
+        private readonly CloudHorizonSky.Evaluator skySun = new CloudHorizonSky.Evaluator(), skyMoon = new CloudHorizonSky.Evaluator();
+        private float nextSkyLog;
+
+        // The colours a far cloud fades into and a short path in-scatters, from the body's air along the view ray of the camera that stands on the lowest layer (E40 H1 haze). False where
+        // there is no air to work from.
+        private bool SkyHazeColours(Camera cam, LayerFrame f, CelestialBody b, double altitude, float layerAltitudeM, Color moon, float sunLuminance, Vector3 moonTowards, Color ambient, out Color far, out Color near)
+        {
+            far = near = ambient;
+            if (!air.Valid) return false;
+            Vector3 up = (cam.transform.position - f.PlanetCenter).normalized, forward = cam.transform.forward;
+            var v = new CloudHazePlan.SkyView { HeightM = altitude, LayerAltitudeM = layerAltitudeM };
+            CloudHorizonSky.ViewAngles(up, forward, f.TowardsSun, out v.SunElevation, out v.SunAzimuth);
+            if (moon.grayscale > 0f)
+            {
+                CloudHorizonSky.ViewAngles(up, forward, moonTowards, out v.MoonElevation, out v.MoonAzimuth);
+                v.MoonOverSun = moon * (1f / sunLuminance);
+            }
+            if (!CloudHazePlan.SkyInscatter(skySun, skyMoon, air, b.Radius, v, ambient, f.OutputWhite, f.OutputExposure, f.OutputGamma, out far, out near)) return false;
+            if (Time.realtimeSinceStartup >= nextSkyLog)
+            {
+                nextSkyLog = Time.realtimeSinceStartup + 10f;
+                AtmospheresLog.Say("own clouds: haze colours of " + b.name + "'s air (display) far " + CloudOutputStage.Encode(far.r, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + " "
+                                   + CloudOutputStage.Encode(far.g, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + " " + CloudOutputStage.Encode(far.b, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000")
+                                   + ", near " + CloudOutputStage.Encode(near.r, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + " " + CloudOutputStage.Encode(near.g, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000")
+                                   + " " + CloudOutputStage.Encode(near.b, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + "; sun " + (v.SunElevation * 180.0 / Math.PI).ToString("0.0") + " deg up, view "
+                                   + (v.SunAzimuth * 180.0 / Math.PI).ToString("0") + " deg from it, camera " + altitude.ToString("0") + " m, sky exposure " + air.SkyExposureAt(altitude).ToString("0.00")
+                                   + ", higher orders worked out " + skySun.Recomputed + " times");
+            }
+            return true;
         }
 
         // The air of the body: Scatterer's atmosphere node where Scatterer is loaded and the node reads (cloud.airSource), the body's own data otherwise. It is read before the

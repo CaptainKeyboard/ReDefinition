@@ -36,11 +36,38 @@ namespace ReDefinition.Atmospheres
                     if (!TryFloat(atmo.GetValue("HM"), out hm)) { why = "HM of " + bodyName + " is missing or not a number"; return none; }
                     CloudBridgeAir.Air air = CloudBridgeAir.FromScatterer(betaR, betaM, hr, hm);
                     if (!air.Valid) why = "the values of " + bodyName + " are not positive";
+                    else ReadSky(atmo, ref air);
                     return air;
                 }
             }
             why = "no " + BodyNode + " node named " + bodyName;
             return none;
+        }
+
+        // The numbers the sky's colour needs from the same node (E40 H1 haze): m_mieG, averageGroundReflectance and the configPoints' altitude / skyExposure pairs. A key that is missing or not a
+        // number leaves the air's default (CloudHorizonSky.DefaultMieG, DefaultGroundAlbedo, DefaultSkyExposure) for that value.
+        internal static void ReadSky(ConfigNode atmo, ref CloudBridgeAir.Air air)
+        {
+            float g, albedo;
+            air.MieG = TryFloat(atmo.GetValue("m_mieG"), out g) ? g : (float)CloudHorizonSky.DefaultMieG;
+            air.GroundAlbedo = TryFloat(atmo.GetValue("averageGroundReflectance"), out albedo) ? albedo : (float)CloudHorizonSky.DefaultGroundAlbedo;
+            air.HasSky = true;
+            ConfigNode points = atmo.GetNode("configPoints");
+            if (points == null) return;
+            var altitudes = new System.Collections.Generic.List<float>();
+            var exposures = new System.Collections.Generic.List<float>();
+            foreach (ConfigNode item in points.GetNodes("Item"))
+            {
+                float altitude, exposure;
+                if (!TryFloat(item.GetValue("altitude"), out altitude) || !TryFloat(item.GetValue("skyExposure"), out exposure) || !(exposure > 0f)) continue;
+                int at = altitudes.Count;
+                while (at > 0 && altitudes[at - 1] > altitude) at--;
+                altitudes.Insert(at, altitude);
+                exposures.Insert(at, exposure);
+            }
+            if (altitudes.Count == 0) return;
+            air.SkyExposureAltitudesM = altitudes.ToArray();
+            air.SkyExposures = exposures.ToArray();
         }
 
         // The air from the game database.

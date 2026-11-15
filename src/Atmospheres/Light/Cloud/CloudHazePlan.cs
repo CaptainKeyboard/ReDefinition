@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace ReDefinition.Atmospheres
@@ -82,6 +83,44 @@ namespace ReDefinition.Atmospheres
             float r = near.r + (far.r - near.r) * w, g = near.g + (far.g - near.g) * w, b = near.b + (far.b - near.b) * w;
             return new Color(premultiplied.r * airTransmittance.x + alpha * r * (1f - airTransmittance.x), premultiplied.g * airTransmittance.y + alpha * g * (1f - airTransmittance.y),
                              premultiplied.b * airTransmittance.z + alpha * b * (1f - airTransmittance.z), premultiplied.a);
+        }
+
+        // cloud.hazeSky (E40 H1 haze): 1 (the default) the colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray (CloudHorizonSky), the short-path
+        // colour the same medium's local source over its extinction; 0 the law of before (the sun's share and the Rayleigh power law of hazeBlue / hazeNearBlue, the body's hazeTint gain).
+        internal const string TuneSky = "cloud.hazeSky";
+
+        // The sun's and the moon's view of the horizon at one frame, for SkyInscatter: the camera's height above the sea, the height of the lowest layer (the ray its far clouds stand on), the
+        // elevation of each light and the azimuth of the view from it, and how bright the moon's light is against the sun's per channel (zero: no moon).
+        internal struct SkyView
+        {
+            public double HeightM, LayerAltitudeM, SunElevation, SunAzimuth, MoonElevation, MoonAzimuth;
+            public Color MoonOverSun;
+        }
+
+        // The colours a far cloud fades into at the end of the air (far) and over a short path (near), in the pass's radiance, from the body's air: the sky's display value of the horizon ray
+        // (Scatterer's display law, skyExposure of the node) decoded through the output stage so that a deck that has faded completely shows the sky's colour on the screen, floored at the
+        // ambient. False where the air gives no medium (the caller keeps the law of before). The evaluators keep the higher orders between frames.
+        internal static bool SkyInscatter(CloudHorizonSky.Evaluator sun, CloudHorizonSky.Evaluator moon, CloudBridgeAir.Air air, double planetRadiusM, SkyView v, Color ambient, float white, float exposure,
+                                          float gamma, out Color far, out Color near)
+        {
+            far = near = ambient;
+            CloudHorizonSky.Medium medium = CloudHorizonSky.MediumOf(air, planetRadiusM);
+            if (!medium.Valid) return false;
+            double elevation = CloudHorizonSky.LayerElevation(v.HeightM, v.LayerAltitudeM, planetRadiusM);
+            CloudHorizonSky.Horizon h = sun.Evaluate(medium, v.HeightM, elevation, v.SunElevation, v.SunAzimuth);
+            if (v.MoonOverSun.grayscale > 0f)
+            {
+                CloudHorizonSky.Horizon m = moon.Evaluate(medium, v.HeightM, elevation, v.MoonElevation, v.MoonAzimuth);
+                h.Far.R += v.MoonOverSun.r * m.Far.R; h.Far.G += v.MoonOverSun.g * m.Far.G; h.Far.B += v.MoonOverSun.b * m.Far.B;
+                h.Near.R += v.MoonOverSun.r * m.Near.R; h.Near.G += v.MoonOverSun.g * m.Near.G; h.Near.B += v.MoonOverSun.b * m.Near.B;
+            }
+            double skyExposure = air.SkyExposureAt(v.HeightM);
+            CloudHorizonSky.Rgb df = CloudHorizonSky.Display(h.Far, skyExposure), dn = CloudHorizonSky.Display(h.Near, skyExposure);
+            far = new Color(Math.Max(ambient.r, CloudOutputStage.Decode((float)df.R, white, exposure, gamma)), Math.Max(ambient.g, CloudOutputStage.Decode((float)df.G, white, exposure, gamma)),
+                            Math.Max(ambient.b, CloudOutputStage.Decode((float)df.B, white, exposure, gamma)), 1f);
+            near = new Color(Math.Max(ambient.r, CloudOutputStage.Decode((float)dn.R, white, exposure, gamma)), Math.Max(ambient.g, CloudOutputStage.Decode((float)dn.G, white, exposure, gamma)),
+                             Math.Max(ambient.b, CloudOutputStage.Decode((float)dn.B, white, exposure, gamma)), 1f);
+            return true;
         }
 
         // The body's gain per channel on the colour a far cloud fades into (body keys hazeTintR / G / B, E40 FL far): the Rayleigh power law of hazeBlue is bluer and greener-poor than the horizon of

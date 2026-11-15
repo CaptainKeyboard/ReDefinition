@@ -34,6 +34,26 @@ namespace ReDefinition.Atmospheres
             // True where the numbers are Scatterer's own (its atmosphere node), false for the Earth-scaled air of the body's data. The sun colour that Scatterer filters can only be
             // divided by the air that made it (CloudSunAir).
             public bool FromScatterer;
+            // The numbers of Scatterer's node that the sky's colour needs besides the coefficients (E40 H1 haze): the Mie phase function's asymmetry (m_mieG), the ground's albedo
+            // (averageGroundReflectance) and the exposure of the sky (the node's configPoints, skyExposure, taken at the camera's height: SkyExposureAt). HasSky is false where they were
+            // not read (the body's own air: CloudHorizonSky's defaults apply).
+            public float MieG, GroundAlbedo;
+            public bool HasSky;
+            public float[] SkyExposureAltitudesM, SkyExposures;
+
+            // The sky exposure at a height above the sea (linear between the config points, the first or last outside them); the default where the node gave none.
+            public float SkyExposureAt(double heightM)
+            {
+                if (SkyExposures == null || SkyExposures.Length == 0) return (float)CloudHorizonSky.DefaultSkyExposure;
+                if (SkyExposures.Length == 1 || heightM <= SkyExposureAltitudesM[0]) return SkyExposures[0];
+                for (int i = 1; i < SkyExposures.Length; i++)
+                {
+                    if (heightM > SkyExposureAltitudesM[i]) continue;
+                    float t = (float)((heightM - SkyExposureAltitudesM[i - 1]) / Math.Max(1e-6, SkyExposureAltitudesM[i] - SkyExposureAltitudesM[i - 1]));
+                    return SkyExposures[i - 1] + (SkyExposures[i] - SkyExposures[i - 1]) * t;
+                }
+                return SkyExposures[SkyExposures.Length - 1];
+            }
         }
 
         // The air of a body: the sea-level pressure in Pa, temperature in K and molar mass in kg/mol, and the pressure at a second height
