@@ -116,13 +116,14 @@ namespace ReDefinition.WeatherPlayer
         //   skip      cloudSkipEmpty (the tile pass)    skipc    cloudSkipClosed                                  leap<N> layers.emptyLeap
         //   lm<N>     the layers that are marched, bit i = layer i (0: all; a measurement of what dropping the empty layers before the march would save)
         //   dbg<N>    the cost debug mask (1 no light, 2 no shape noise, 4 no erosion; not a picture of the product)
+        //   og        the pattern's pixel grid of the pass before E40 F2 (the camera's size scales the uv)       cr<N>  the light cone's rotation pattern: 0 gradient noise, 1 fixed, 2 hash, 3 blue noise (the default)
         // The base is seq1 (the product's grid march with the 48 points of the High setting), seq1m<N> and tseq1m<N> (N grid points, the second on the cut span) or a GrainTable name.
         internal sealed class Case
         {
             public string Name, Base = "seq1";
             public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f;
-            public bool Jitter, Skip, SkipClosed;
-            public int Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
+            public bool Jitter, Skip, SkipClosed, OldGrid;
+            public int ConePattern = -1, Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
         }
 
         private static int Number(string token, int prefix)
@@ -140,7 +141,9 @@ namespace ReDefinition.WeatherPlayer
                 if (t == "jit") c.Jitter = true;
                 else if (t == "skip") c.Skip = true;
                 else if (t == "skipc") c.SkipClosed = true;
+                else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
+                else if (t.StartsWith("cr")) c.ConePattern = Number(t, 2);   // E40 F2: the light cone's rotation pattern (LayerFrame.ConePattern)
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
@@ -168,6 +171,9 @@ namespace ReDefinition.WeatherPlayer
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
             f.DitherSequence = c.Dither >= 0 ? c.Dither : FrameDefaults.DitherSequence;
+            f.DitherOwnGrid = !c.OldGrid;
+            f.ConePattern = c.ConePattern >= 0 ? c.ConePattern : FrameDefaults.ConePattern;
+            f.FixedConeRotation = c.ConePattern == 1;   // cr1: the probe's fixed rotation (no per-pixel pattern of the cone at all)
             if (c.Debug >= 0) f.CostDebug = c.Debug;
             if (c.Leap > 0) f.EmptyLeap = c.Leap;
             f.SunSteps = c.Sun > 0 ? c.Sun : 3;
