@@ -100,7 +100,7 @@ Scatterer_atmosphere
             Assert.AreEqual(0.1f, kerbin.GroundAlbedo, 1e-6f);
             Assert.AreEqual(0.2f, kerbin.SkyExposureAt(0.0), 1e-6f);
             Assert.AreEqual(0.2f, kerbin.SkyExposureAt(50000.0), 1e-6f, "one config point: the same everywhere");
-            string text = Nodes.Replace("skyExposure = 0.200000003", "skyExposure = 0.2").Replace("altitude = 0\n                skyExposure = 0.2",
+            string text = Nodes.Replace("\r\n", "\n").Replace("skyExposure = 0.200000003", "skyExposure = 0.2").Replace("altitude = 0\n                skyExposure = 0.2",
                 "altitude = 0\n                skyExposure = 0.2\n            }\n            Item\n            {\n                altitude = 10000\n                skyExposure = 0.4");
             string why;
             CloudBridgeAir.Air two = ScattererAirReader.Read(new[] { ConfigNode.Parse(text).GetNode("Scatterer_atmosphere") }, "Kerbin", out why);
