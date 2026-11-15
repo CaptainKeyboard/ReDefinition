@@ -39,7 +39,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         internal bool CloseKeepsTimeOffset;
         // A game that runs at 0.4 of the real time (a low frame rate), a camera that looks the other way round from the aim asked for (the viewer's first guess of the camera's
         // heading before it was tuned), a window that stands half beyond the left edge of the screen and one that cannot be measured.
-        internal bool SlowGame, AimLooksAway, WindowCutOffLeft, WindowNotMeasurable;
+        internal bool ClockDiverges, SlowGame, AimLooksAway, WindowCutOffLeft, WindowNotMeasurable;
         // The screen the window stands on.
         internal int ScreenW = 1707, ScreenH = 960;
         internal float UiScaleValue = 1.5f;
@@ -90,7 +90,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             frame++;
             // The game's own time: at a low frame rate the physics steps are limited per frame and the game's clock runs slower than the real time (0.4 of it at 10 fps).
             double game = dt * (SlowGame ? 0.4 : 1.0);
-            gameUt += game;
+            gameUt += game * (ClockDiverges ? 0.5 : 1.0);
             physics += game;
             if (session)
             {

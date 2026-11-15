@@ -27,6 +27,7 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // The tolerances of the checks (they are in tests/series rows' notes and in the start review).
         internal const double AltitudeAbsM = 15.0, AltitudeRel = 0.015, CameraDistRel = 0.25, CameraDistAbsM = 15.0, AimAzimuthDeg = 5.0, AimElevationDeg = 3.0;
+        internal const double PhysicsRatioMin = 0.85, PhysicsRatioMax = 1.15, ResumedShare = 0.5;
         internal const double UtAbsS = 2.0, FreezeHeldS = 0.25, SunMovesDeg = 3.0, OffsetSeconds = 5400.0;
         internal const double FlowRateMin = 0.5, FlowRateMax = 1.5, SpeedScale = 4.0, RatioMin = 3.4, RatioMax = 4.6, FrozenFlowS = 0.001;
         internal const double DriftMeasurableM = 0.5, DriftRatioMin = 3.0, DriftRatioMax = 5.0, DriftFrozenShare = 0.1;
@@ -329,11 +330,18 @@ namespace ReDefinition.Atmospheres.Viewer
             double heldUt = Rig.GameUt, naturalRan = Rig.ClockNatural - natural0, physRan = Rig.PhysicsTimeS - physF;
             Verdict("time_freeze", "Freeze Time holds the game's clock while the natural time runs on", Rig.ClockFrozen && Math.Abs(heldUt - frozenUt) <= FreezeHeldS && Math.Abs(naturalRan - physRan) <= UtAbsS,
                     "clock at " + F(frozenUt) + " +-" + F(FreezeHeldS) + ", natural +" + F(physRan) + " s (the game's physics time)", "clock " + F(heldUt) + ", natural +" + F(naturalRan) + " s, frozen " + Rig.ClockFrozen);
+            // The reference of every time row is the physics time: the game's clock must advance with it (measured, not assumed; the viewer's natural time follows the game's clock).
+            double ratio = physRan > 1.0 ? naturalRan / physRan : double.NaN;
+            Info("natural_per_physics", ratio);
+            Verdict("natural_tracks_physics", "the game's clock advances with its physics time (the reference of the time rows)", !double.IsNaN(ratio) && ratio >= PhysicsRatioMin && ratio <= PhysicsRatioMax,
+                    F(PhysicsRatioMin) + " to " + F(PhysicsRatioMax) + " game seconds per physics second", F(naturalRan) + " / " + F(physRan) + " = " + F(ratio));
             Rig.FreezeTime(false);
-            double physU = Rig.PhysicsTimeS;
+            double physU = Rig.PhysicsTimeS, heldAt = Rig.GameUt;
             yield return ProbeWait.Seconds(MeasureS);
-            double resumed = Rig.GameUt;
-            Near("time_resumes", "the clock runs on from where it was held", frozenUt + (Rig.PhysicsTimeS - physU), resumed, UtAbsS);
+            double resumed = Rig.GameUt, physSince = Rig.PhysicsTimeS - physU;
+            // The clock must have run on, by at least half the physics time that passed: at a low frame rate that is about a second, below the band of the position check.
+            Verdict("time_resumes", "the clock runs on from where it was held", Math.Abs(resumed - (frozenUt + physSince)) <= UtAbsS && resumed - heldAt >= ResumedShare * physSince,
+                    "from " + F(frozenUt) + " by the physics time since (" + F(physSince) + " s) +-" + F(UtAbsS) + ", at least " + F(ResumedShare * physSince) + " s more than at the resume", F(resumed) + " (" + F(resumed - heldAt) + " s more than at the resume)");
             Rig.SetTimeOffset(0.0);
             yield return ProbeWait.Seconds(1);
 

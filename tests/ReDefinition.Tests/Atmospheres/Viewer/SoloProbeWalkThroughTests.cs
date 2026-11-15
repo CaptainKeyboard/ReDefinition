@@ -287,6 +287,19 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         }
 
         [TestMethod]
+        public void AViewsNoiseFloorLiftsTheLowerBoundOfItsShare()
+        {
+            Assert.AreEqual(0.03, SoloProbe.EffectiveShareMin(0.03, 0.005), 1e-12, "a floor near nothing leaves the band's bound");
+            Assert.AreEqual(0.105, SoloProbe.EffectiveShareMin(0.03, 0.035), 1e-12, "the 0.035 of the start of 2026-11-15 would have lifted the cirrus bound over it");
+            Assert.AreEqual(0.03, SoloProbe.EffectiveShareMin(0.03, double.NaN), 1e-12, "an unread floor leaves the band's bound");
+            Run r = Start();
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            foreach (SoloView v in SoloProbe.Views)
+                Assert.IsTrue(Emitted(r).ContainsKey(SoloProbe.Prefix + v.Name + "_noise_floor_share"), v.Name + " has its own floor");
+        }
+
+        [TestMethod]
         public void TheSunAngleRuleSeparatesSunlitFromBacklitViews()
         {
             Assert.IsTrue(SoloProbe.SunAngleSuits(false, 75.0));

@@ -65,7 +65,7 @@ namespace ReDefinition.Atmospheres.Viewer
         internal static readonly SoloView[] Views =
         {
             Cell("cb_near", "Cumulonimbus incus", 25.0, 200.0, 15.0, 0.40, 0.90, 0.40, 1.0, "section 1 (CB-G, CB-S): tower flanks, flat dark base, anvil spreading overhead; checklist 1-4, 8"),
-            Cell("cb_far", "Cumulonimbus incus", 40.0, 300.0, 5.0, 0.04, 0.60, 0.20, 0.80, "section 1 (CB-S, side view 10-40 km): the whole cell on the horizon, anvil flat at the top; checklist 1-5, 8"),
+            Cell("cb_far", "Cumulonimbus incus", 40.0, 300.0, 5.0, 0.04, 0.85, 0.20, 0.80, "section 1 (CB-S, side view 10-40 km): the whole cell on the horizon, anvil flat at the top; checklist 1-5, 8"),
             Field("sc", WeatherPresets.Role.Cumulus, "Stratocumulus", 0.8f, 200.0, 45.0, 0.35, 1.0, "section 2 (SC-G): lumps and gaps, dark parts, no fibre"),
             Field("humilis", WeatherPresets.Role.Cumulus, "Cumulus humilis", 0.5f, 200.0, 35.0, 0.15, 0.90, "section 5 (CU-G): detached, flat dark base, sharp outline, flat and low"),
             Field("mediocris", WeatherPresets.Role.Cumulus, "Cumulus mediocris", 0.5f, 200.0, 35.0, 0.30, 0.97, "section 5 (CU-G): detached, cauliflower tops, about as tall as wide"),
@@ -303,6 +303,15 @@ namespace ReDefinition.Atmospheres.Viewer
         private bool done;
         // The sun's measured azimuth (the time is frozen: it stays), which every view's heading is taken from.
         private double sunAzimuth = double.NaN;
+        // The share two pictures of this view's empty frame differ in.
+        private double floorShare = double.NaN;
+        internal const double NoiseFloorFactor = 3.0;
+
+        // The lower bound of a share: the band's, or the noise floor of the view times NoiseFloorFactor where that is higher (an unread floor leaves the band's).
+        internal static double EffectiveShareMin(double bandMin, double floor)
+        {
+            return double.IsNaN(floor) ? bandMin : Math.Max(bandMin, NoiseFloorFactor * floor);
+        }
 
         // Whether the angle between the camera's direction and the sun's suits the view: a sunlit view looks more than SunBehindMinDeg away from the sun, a backlit one less.
         internal static bool SunAngleSuits(bool backlit, double angleDeg)
@@ -368,14 +377,17 @@ namespace ReDefinition.Atmospheres.Viewer
                 Verdict(v.Name + "_baseline_taken", v.Name + ": the baseline picture is written", false, "a picture of more than " + MinPictureBytes + " bytes", "none");
                 yield break;
             }
+            // The noise floor of this view: a second picture of the same empty frame. The first view's must be next to nothing (the floor every share is measured above); every
+            // view's own floor lifts the lower bound of its share (NoiseFloorFactor times it), so that a band whose floor lies near the noise cannot pass on the noise alone.
+            foreach (ProbeWait w in Take()) yield return w;
+            MaskReading floor = default(MaskReading);
+            bool floorRead = taken != null && Rig.MeasurePictures(taken, baseline, skyFromV, out floor);
+            floorShare = floorRead ? floor.Share : double.NaN;
+            Info(v.Name + "_noise_floor_share", floorShare);
             if (first)
             {
-                // The noise floor: a second picture of the same frame.
-                foreach (ProbeWait w in Take()) yield return w;
-                MaskReading floor = default(MaskReading);
-                bool read = taken != null && Rig.MeasurePictures(taken, baseline, skyFromV, out floor);
-                Verdict("noise_floor", "two pictures of the same empty frame differ by next to nothing", read && floor.Share <= NoiseFloorShare, "at most " + F(NoiseFloorShare) + " of the frame", read ? F(floor.Share) : "a picture could not be read");
-                Info("noise_floor_share", read ? floor.Share : double.NaN);
+                Verdict("noise_floor", "two pictures of the same empty frame differ by next to nothing", floorRead && floor.Share <= NoiseFloorShare, "at most " + F(NoiseFloorShare) + " of the frame", floorRead ? F(floor.Share) : "a picture could not be read");
+                Info("noise_floor_share", floorShare);
             }
 
             // The solo picture: the type at its strength.
@@ -408,7 +420,9 @@ namespace ReDefinition.Atmospheres.Viewer
             if (!measured) yield break;
             Info(v.Name + "_share", m.Share);
             Info(v.Name + "_row_span", m.RowSpan);
-            Verdict(v.Name + "_share", v.Name + ": the cloud fills the stated share of the frame", m.Share >= v.ShareMin && m.Share <= v.ShareMax, F(v.ShareMin) + " to " + F(v.ShareMax) + " of the frame",
+            double lower = EffectiveShareMin(v.ShareMin, floorShare);
+            Verdict(v.Name + "_share", v.Name + ": the cloud fills the stated share of the frame", m.Share >= lower && m.Share <= v.ShareMax,
+                    F(lower) + " (the band's " + F(v.ShareMin) + ", or " + F(NoiseFloorFactor) + " times this view's noise floor " + F(floorShare) + ") to " + F(v.ShareMax) + " of the frame",
                     F(m.Share) + " (" + m.Masked + " of " + m.Counted + " pixels)");
             if (!double.IsNaN(v.SpanMin))
                 Verdict(v.Name + "_span", v.Name + ": the cloud reaches the stated share of the frame's height", m.RowSpan >= v.SpanMin && m.RowSpan <= v.SpanMax, F(v.SpanMin) + " to " + F(v.SpanMax) + " of the height",

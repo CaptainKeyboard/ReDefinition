@@ -368,6 +368,15 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             AssertFailsWith(r, "restore_time");
         }
 
+        // The reference of the time rows is the physics time; where the game's clock does not follow it the probe says so instead of judging against a wrong reference.
+        [TestMethod]
+        public void AGameClockThatDoesNotFollowThePhysicsTimeFailsTheReferenceCheck()
+        {
+            Run r = Start(rig => rig.ClockDiverges = true);
+            Drive(r);
+            AssertFailsWith(r, "natural_tracks_physics");
+        }
+
         [TestMethod]
         public void ACameraThatLooksTheOtherWayFromThePosesHeadingFailsThePoseAzimuth()
         {
