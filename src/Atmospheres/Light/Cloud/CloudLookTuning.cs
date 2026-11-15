@@ -28,6 +28,10 @@ namespace ReDefinition.Atmospheres
     //   cloud.fadeNearShare               share of cloud.fadeFarM where the fade starts (0.5)
     //   cloud.farHaze                     -1: the cloudFarHaze setting decides, 0 / 1 forces the aerial perspective off / on, 2 automatic (on where the pass is behind Scatterer's scattering; CloudHazePlan)
     //   cloud.hazeStrength                factor on the aerial perspective's strength (1)
+    //   cloud.soloLayer                   solo mode (E40 SOLO): the 1-based index of the only layer the pass draws (0: every layer); the layers' maps and types are the per-layer keys above
+    //   cloud.cellKm, cloud.cellLat, cloud.cellLon
+    //                                     a forced map (cloud.mapOverride.<name>) as ONE cell instead of a constant: a Gaussian of this e-folding radius in km round the point (degrees),
+    //                                     the override's value at its centre, 0 outside (0: the constant map); the one cumulonimbus cell whose tower spreads an anvil (AnvilMap)
     internal static class CloudLookTuning
     {
         // The default of cloud.coverCombine (E40 F1): the layer maps meet the field's cover.
@@ -38,10 +42,12 @@ namespace ReDefinition.Atmospheres
             TuneDensityRemap = "layers.densityRemap", TuneCoverCombine = "cloud.coverCombine", TuneFadeFar = "cloud.fadeFarM",
             TuneFadeNearShare = "cloud.fadeNearShare", TuneFarHaze = "cloud.farHaze", TuneHazeStrength = "cloud.hazeStrength", TuneMapOverride = "cloud.mapOverride.",
             TuneDeckRule = "cloud.deckRule.",
-            TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.";
+            TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.",
+            TuneSoloLayer = "cloud.soloLayer", TuneCellKm = "cloud.cellKm", TuneCellLat = "cloud.cellLat", TuneCellLon = "cloud.cellLon";
 
         private static long seenVersion = -1;
         private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
+        private static float cellKm, cellLat, cellLon;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -90,8 +96,12 @@ namespace ReDefinition.Atmospheres
             float h = Tuning.Get(TuneFarHaze, -1f);
             h = float.IsNaN(h) || float.IsInfinity(h) ? -1f : h < 0f ? -1f : h > 1.5f ? 2f : h > 0f ? 1f : 0f;
             float hs = Clean(Tuning.Get(TuneHazeStrength, 1f), 1f, 0f, 100f);
+            float ck = Clean(Tuning.Get(TuneCellKm, 0f), 0f, 0f, 1e5f), cla = Clean(Tuning.Get(TuneCellLat, 0f), 0f, -90f, 90f), clo = Clean(Tuning.Get(TuneCellLon, 0f), 0f, -360f, 360f);
             bool changed = s != sigma || e != softness || a != noiseAmount || z != noiseSize || r != remap || c != combine || f != fadeFar || n != fadeNearShare
-                           || h != farHaze || hs != hazeStrength;
+                           || h != farHaze || hs != hazeStrength || ck != cellKm || cla != cellLat || clo != cellLon;
+            cellKm = ck;
+            cellLat = cla;
+            cellLon = clo;
             sigma = s;
             softness = e;
             noiseAmount = a;
@@ -179,6 +189,23 @@ namespace ReDefinition.Atmospheres
         internal static float CoverCombine { get { Refresh(); return combine; } }
         internal static float FarHazeForce { get { Refresh(); return farHaze; } }
         internal static float HazeStrengthScale { get { Refresh(); return hazeStrength; } }
+        // The forced map as one cell (cloud.cellKm above 0): its e-folding radius in km and its centre in degrees.
+        internal static float CellKm { get { Refresh(); return cellKm; } }
+        internal static float CellLat { get { Refresh(); return cellLat; } }
+        internal static float CellLon { get { Refresh(); return cellLon; } }
+
+        // The layer mask of the solo key (cloud.soloLayer): bit n - 1 for a value n from 1 to the largest stack; 0 (every layer) otherwise.
+        internal static int SoloMask()
+        {
+            return SoloMaskOf(Tuning.Get(TuneSoloLayer, 0f));
+        }
+
+        internal static int SoloMaskOf(float key)
+        {
+            if (float.IsNaN(key) || float.IsInfinity(key)) return 0;
+            int n = (int)Math.Round(key);
+            return n >= 1 && n <= CloudLayerDef.MaxLayers ? 1 << (n - 1) : 0;
+        }
 
         // The extra coverage shift of the layer of that name (0: none).
         internal static float ShiftOf(string layerName)

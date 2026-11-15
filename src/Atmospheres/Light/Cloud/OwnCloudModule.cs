@@ -849,10 +849,16 @@ namespace ReDefinition.Atmospheres
                 byte forcedByte = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(forcedCover * 255.0, MidpointRounding.ToEven)));
                 byte[] filled = forcedBytes[l] ?? (forcedBytes[l] = new byte[cover.Length]);
                 if (filled.Length != cover.Length) forcedBytes[l] = filled = new byte[cover.Length];
-                for (int i = 0; i < filled.Length; i++) filled[i] = forcedByte;
                 WeatherMap forcedMap = forcedMaps[l] ?? (forcedMaps[l] = new WeatherMap());
                 forcedMap.Resize(coverSource.Width, coverSource.Height);
-                for (int i = 0; i < forcedMap.Values.Length; i++) forcedMap.Values[i] = forcedByte / 255f;
+                // cloud.cellKm above 0 (E40 SOLO): the forced value is the strength of ONE cell at cloud.cellLat / cloud.cellLon instead of a constant (CloudSoloCell).
+                if (CloudLookTuning.CellKm > 0f && filled.Length == forcedMap.Width * forcedMap.Height)
+                    CloudSoloCell.Fill(filled, forcedMap.Values, forcedMap.Width, forcedMap.Height, b.Radius, CloudLookTuning.CellLat, CloudLookTuning.CellLon, CloudLookTuning.CellKm, forcedCover);
+                else
+                {
+                    for (int i = 0; i < filled.Length; i++) filled[i] = forcedByte;
+                    for (int i = 0; i < forcedMap.Values.Length; i++) forcedMap.Values[i] = forcedByte / 255f;
+                }
                 cover = filled;
                 coverSource = forcedMap;
             }
@@ -1098,6 +1104,8 @@ namespace ReDefinition.Atmospheres
         {
             LayerFrame f = frame;
             OwnCloudOptions.Apply(f);
+            // E40 SOLO: cloud.soloLayer draws one layer alone (a mask a probe set, Frame.LayerMask, wins).
+            f.SoloMask = CloudLookTuning.SoloMask();
             // The light cache (cloudLightCache, default off): made when the switch is first on, filled in the pass's buffer every frame, handed to the
             // light settings so that the shader reads it only while Enabled (OwnCloudOptions.Apply sets that from the key).
             if (lightCache == null && AtmospheresSettings.CloudLightCache)

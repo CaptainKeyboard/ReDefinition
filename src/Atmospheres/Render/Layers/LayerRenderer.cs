@@ -41,6 +41,10 @@ namespace ReDefinition.Atmospheres
         // layers drawn (bit i = layer i; 0 = all).
         public float RayLimitM;
         public int AidMode, LayerMask;
+        // The layer the solo key names (cloud.soloLayer, CloudLookTuning.SoloMask): the only layer drawn while LayerMask is 0. A mask set by a probe wins over it.
+        public int SoloMask;
+        // The mask the shader gets: the probe's, else the solo key's, else 0 (every layer).
+        public int DrawnMask { get { return LayerMask != 0 ? LayerMask : SoloMask; } }
         // The display stage of the final composite (pass 4, CloudOutputStage is its reference): exposure, the gamma the radiance is encoded with (1: the stage is
         // off, the pass writes its radiance as it is) and the white of the stage, the sun's display value of the scene. The weather player leaves it off.
         public float OutputExposure = 1f, OutputGamma = 1f, OutputWhite = 1f;
@@ -380,7 +384,8 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdAmbientBottom, f.AmbientBottom);
             m.SetVector(IdMarchP, new Vector4(Mathf.Clamp(f.MaxSteps, 1, 256), Mathf.Clamp(f.SunSteps, 1, 8), f.StepGrowth, f.EarlyOut));
             m.SetVector(IdStepP, new Vector4(f.MinStepM, f.Jitter, f.FrameNumber, f.HasSurface ? 1f : 0f));
-            m.SetVector(IdLimitP, new Vector4(f.RayLimitM, f.AidMode, f.LayerMask, f.UseSceneDepth ? 1f : 0f));
+            UploadedLayerMask = f.DrawnMask;
+            m.SetVector(IdLimitP, new Vector4(f.RayLimitM, f.AidMode, UploadedLayerMask, f.UseSceneDepth ? 1f : 0f));
             m.SetVector(IdPhaseP, f.Phase);
             m.SetVector(Shader.PropertyToID("_OutP"), new Vector4(Mathf.Max(0f, f.OutputExposure), 1f / Mathf.Max(1f, f.OutputGamma), Mathf.Max(1e-4f, f.OutputWhite), f.OutputGamma > 1.0001f ? 1f : 0f));
             m.SetVector(Shader.PropertyToID("_OutW"), new Vector4(f.OutputWhiteTint.r, f.OutputWhiteTint.g, f.OutputWhiteTint.b, 0f));
@@ -497,6 +502,9 @@ namespace ReDefinition.Atmospheres
                 return text.ToString();
             }
         }
+
+        // The layer mask the last frame's material was given (bit i = layer i; 0 = every layer): what the shader skips layers by. The solo probe reads it back.
+        internal int UploadedLayerMask { get; private set; }
 
         private readonly bool[] spanScanned = new bool[CloudLayerDef.MaxLayers];
 
