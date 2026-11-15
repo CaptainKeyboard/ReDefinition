@@ -1688,7 +1688,8 @@ namespace ReDefinition.Atmospheres
                                + Stats.WorstMapMs.ToString("0.0") + " ms, main step worst " + Stats.WorstMapMainMs.ToString("0.0") + " ms), height builds " + Stats.HeightBuilds
                                + " (last " + Stats.LastHeightMs.ToString("0.0") + " ms on the worker, worst " + Stats.WorstHeightMs.ToString("0.0") + " ms, first "
                                + Stats.FirstHeightMs.ToString("0.0") + " ms, main thread worst " + Stats.WorstHeightMainMs.ToString("0.0") + " ms), height upload worst "
-                               + Stats.WorstUploadMs.ToString("0.0") + " ms, buffer attaches " + Stats.BufferAttaches + ", moves behind Scatterer's scattering " + Stats.OrderMoves + ", moon light " + (Stats.MoonOverSun * 100f).ToString("0.00") + " percent of the sun"
+                               + Stats.WorstUploadMs.ToString("0.0") + " ms, motion vector frames " + Stats.MotionFrames
+                               + (string.IsNullOrEmpty(Stats.MotionNote) ? "" : " (" + Stats.MotionNote + ")") + ", buffer attaches " + Stats.BufferAttaches + ", moves behind Scatterer's scattering " + Stats.OrderMoves + ", moon light " + (Stats.MoonOverSun * 100f).ToString("0.00") + " percent of the sun"
                                + (Stats.MoonOverSun > 0f ? (Stats.MoonDropped ? " (not marched to: too faint)" : " (marched to at every cloud sample)") : "") + ", history cuts " + (driver != null ? driver.CutCount : 0)
                                + (driver != null && driver.LastCutReason != null ? " (last: " + driver.LastCutReason + ")" : ""));
         }
