@@ -23,9 +23,10 @@ namespace ReDefinition.Atmospheres
         internal CloudRules(CloudSourceKind? source = null, CloudDiscovery discover = CloudDiscovery.Auto, string baseLayer = "",
             IEnumerable<string> weatherLayers = null, IEnumerable<string> snowTypeNames = null, IEnumerable<string> stratusTypeNames = null,
             IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0, IEnumerable<CloudLayerSpec> layers = null, float sphereScale = 1f,
-            float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue, Vector3? hazeTint = null)
+            float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue, Vector3? hazeTint = null, string layerSet = "")
         {
             Layers = SchemaList.Of(layers);
+            LayerSet = layerSet ?? "";
             SphereScale = sphereScale;
             HazeTint = hazeTint ?? Vector3.one;
             HazeBlue = hazeBlue;
@@ -53,9 +54,11 @@ namespace ReDefinition.Atmospheres
         internal IReadOnlyList<string> DustTypeNames { get; }
         // Key eveLayerCap: the most EVE layers the painter drives for this body; 0 follows the player's setting.
         internal int EveLayerCap { get; }
-        // The LAYER sub-nodes: the layer set of the own cloud system for this body (empty: the body has none of its own). A body with
-        // atmosphere and no LAYER nodes draws no own clouds.
+        // The layer set of the own cloud system for this body: the LAYER sub-nodes, or where there are none the layer template sized to the body (CloudLayerTemplate);
+        // empty: the body draws no own clouds (layers = none, no atmosphere, no template, no water phase).
         internal IReadOnlyList<CloudLayerSpec> Layers { get; }
+        // Which set Layers is and why (E40 Q8a, CloudLayerTemplate): "authored, 5 layers", "template Earthlike, 5 layers, troposphere 7.5 km", "none (layers = none)"; empty: not resolved.
+        internal string LayerSet { get; }
         // Key sphereScale: the vertical scale of the noise lattice about the layers' reference radius (NoiseSwitches.SphereScale; 1: the
         // lattice is planet-centred).
         internal float SphereScale { get; }

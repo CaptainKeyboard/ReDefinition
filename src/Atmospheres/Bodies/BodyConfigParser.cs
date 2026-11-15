@@ -38,14 +38,15 @@ namespace ReDefinition.Atmospheres
         // The tilt (degrees) between the axis and the reference plane's normal above which an add-on counts as having tilted the body.
         internal const double AxisTiltDetectDegrees = 0.5;
 
-        internal static BodyParseResult Parse(BodyFacts facts, ConfigNode node, BodyPlayerOptions player, int globalSeed)
+        // cloudTemplates: the REDEFINITION_CLOUD_TEMPLATE nodes (CloudLayerTemplate); null: a body without LAYER nodes has no own layers.
+        internal static BodyParseResult Parse(BodyFacts facts, ConfigNode node, BodyPlayerOptions player, int globalSeed, IReadOnlyList<ConfigNode> cloudTemplates = null)
         {
             var warnings = new List<string>();
             BodyFacts f = facts ?? new BodyFacts();
             int seed = BodyClimate.SeedOf(f.Name, globalSeed);
             try
             {
-                return ParseInner(f, node, player ?? BodyPlayerOptions.Default, seed, warnings);
+                return ParseInner(f, node, player ?? BodyPlayerOptions.Default, seed, warnings, cloudTemplates);
             }
             catch (Exception e)
             {
@@ -55,7 +56,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        private static BodyParseResult ParseInner(BodyFacts f, ConfigNode node, BodyPlayerOptions player, int seed, List<string> warnings)
+        private static BodyParseResult ParseInner(BodyFacts f, ConfigNode node, BodyPlayerOptions player, int seed, List<string> warnings, IReadOnlyList<ConfigNode> cloudTemplates)
         {
             var root = new BodyNodeReader(node, NodeName + "[" + f.Name + "]", warnings);
             foreach (string name in root.NodeNames())
@@ -93,9 +94,13 @@ namespace ReDefinition.Atmospheres
             bool accept = root.Bool("acceptOutsideEnvelope", false);
             BodyStatus status = ResolveStatus(root, f, accept, warnings);
 
+            // The cloud layers: the authored set, else the template sized to the body's troposphere (E40 Q8a).
+            IceRules ice = BodyRuleReaders.Ice(root.Child("ICE"));
+            GeneratorRules generator = BodyRuleReaders.Generator(root.Child("GENERATOR"));
+            var layerContext = new CloudLayerContext { Facts = f, Generator = generator, Temperature = temperature, Status = status, Templates = cloudTemplates };
             var climate = new BodyClimate(f.Name, f.Index, f.RadiusM, year, f.DaySeconds, status, seed, seasons, temperature, precip, covers,
-                BodyRuleReaders.Ice(root.Child("ICE")), BodyRuleReaders.Generator(root.Child("GENERATOR")),
-                BodyRuleReaders.Clouds(root.Child("CLOUDS")), BodyRuleReaders.Look(root.Child("LOOK")), BodyRuleReaders.Sound(root.Child("SOUND")),
+                ice, generator,
+                BodyRuleReaders.Clouds(root.Child("CLOUDS"), layerContext), BodyRuleReaders.Look(root.Child("LOOK")), BodyRuleReaders.Sound(root.Child("SOUND")),
                 BodyRuleReaders.Wind(root.Child("WIND")), BodyRuleReaders.Gameplay(root.Child("GAMEPLAY")), BodyRuleReaders.Aurora(root.Child("AURORA")),
                 BodyRuleReaders.LightMedium(root.Child("LIGHT_MEDIUM")), BodyRuleReaders.Frost(root.Child("FROST")), BodyRuleReaders.Forecast(root.Child("FORECAST")), player.Frequency);
             // A key inside a known node that nothing asked for is a typo (or a key of another version): the default stays, and it is said.
@@ -184,7 +189,7 @@ namespace ReDefinition.Atmospheres
             string types = c.Precip.Types.Count == 0 ? "by temperature" : string.Join("/", c.Precip.Types.Select(t => t.Id));
             string covers = c.Covers.Count == 0 ? "none" : string.Join("/", c.Covers.Select(x => x.Id));
             return "body " + c.Name + ": " + c.Status + ", year " + c.YearSeconds.ToString("0", CultureInfo.InvariantCulture) + " s (" + yearNote + "), clock " + c.Seasons.Clock
-                + ", tilt " + tiltNote + ", precipitation " + types + ", cover " + covers + ", seed " + c.Seed.ToString(CultureInfo.InvariantCulture)
+                + ", tilt " + tiltNote + ", precipitation " + types + ", cover " + covers + (c.Clouds.LayerSet.Length > 0 ? ", clouds " + c.Clouds.LayerSet : "") + ", seed " + c.Seed.ToString(CultureInfo.InvariantCulture)
                 + ", " + warningCount + " warning" + (warningCount == 1 ? "" : "s");
         }
     }

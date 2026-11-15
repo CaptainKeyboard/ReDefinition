@@ -12,6 +12,8 @@ namespace ReDefinition.Atmospheres
         private readonly Func<IEnumerable<string>> fieldSource;
         private readonly Func<IDictionary<string, BodyPlayerOptions>> playerSource;
         private readonly Func<int> seedSource;
+        private readonly Func<IEnumerable<ConfigNode>> templateSource;
+        private List<ConfigNode> templates;
         private readonly Dictionary<string, BodyClimate> cache = new Dictionary<string, BodyClimate>(StringComparer.OrdinalIgnoreCase);
         // Where the lines go; tests replace them.
         internal Action<string> Say = AtmospheresLog.Say;
@@ -24,13 +26,15 @@ namespace ReDefinition.Atmospheres
 
         // The provider with the sources of the game; the other constructor is for tests.
         internal BodyConfigProvider()
-            : this(GameNodes, EveFieldNames, () => BodiesFile.Read(null), () => AtmospheresSettings.GenSeed)
+            : this(GameNodes, EveFieldNames, () => BodiesFile.Read(null), () => AtmospheresSettings.GenSeed, TemplateNodes)
         {
         }
 
+        // templateSource: the REDEFINITION_CLOUD_TEMPLATE nodes (E40 Q8a, CloudLayerTemplate); null: none.
         internal BodyConfigProvider(Func<IEnumerable<ConfigNode>> nodeSource, Func<IEnumerable<string>> fieldSource,
-            Func<IDictionary<string, BodyPlayerOptions>> playerSource, Func<int> seedSource)
+            Func<IDictionary<string, BodyPlayerOptions>> playerSource, Func<int> seedSource, Func<IEnumerable<ConfigNode>> templateSource = null)
         {
+            this.templateSource = templateSource;
             this.nodeSource = nodeSource;
             this.fieldSource = fieldSource;
             this.playerSource = playerSource;
@@ -66,6 +70,7 @@ namespace ReDefinition.Atmospheres
             wildcard = null;
             fields = null;
             player = null;
+            templates = null;
         }
 
         // The climate of a body from its facts: the matching node, the player's options, the parse, the log line. Public to the tests.
@@ -82,7 +87,7 @@ namespace ReDefinition.Atmospheres
             }
             BodyPlayerOptions options;
             if (player == null || !player.TryGetValue(facts.Name, out options)) options = BodyPlayerOptions.Default;
-            BodyParseResult result = BodyConfigParser.Parse(facts, node, options, seedSource());
+            BodyParseResult result = BodyConfigParser.Parse(facts, node, options, seedSource(), templates);
             string source = node == null ? "no node" : (wild ? "node *" : "node");
             Say(result.Summary + " [" + source + "]");
             foreach (string note in notes) Warn("body-config", facts.Name + ": " + note);
@@ -142,11 +147,25 @@ namespace ReDefinition.Atmospheres
             {
                 notes.Add("bodies.cfg could not be read (" + e.GetType().Name + ": " + e.Message + ")");
             }
+            templates = new List<ConfigNode>();
+            try
+            {
+                if (templateSource != null) templates.AddRange(templateSource() ?? new ConfigNode[0]);
+            }
+            catch (Exception e)
+            {
+                notes.Add("the " + CloudLayerTemplate.NodeName + " nodes could not be read (" + e.GetType().Name + ": " + e.Message + ")");
+            }
         }
 
         private static IEnumerable<ConfigNode> GameNodes()
         {
             return GameDatabase.Instance == null ? new ConfigNode[0] : GameDatabase.Instance.GetConfigNodes(BodyConfigParser.NodeName);
+        }
+
+        private static IEnumerable<ConfigNode> TemplateNodes()
+        {
+            return GameDatabase.Instance == null ? new ConfigNode[0] : GameDatabase.Instance.GetConfigNodes(CloudLayerTemplate.NodeName);
         }
 
         // The names of EVE's particle fields: the OBJECT nodes of every EVE_PARTICLE_FIELD_CONFIG node.

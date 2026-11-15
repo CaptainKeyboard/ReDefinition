@@ -78,7 +78,7 @@ namespace ReDefinition.Atmospheres
             if (lapse > 0) p.LapseKPerM = lapse;
             double diurnal = First(g.DiurnalLandAmpK, fit != null ? fit.DiurnalAmpK : double.NaN);
             if (diurnal >= 0) p.DiurnalLandAmpK = diurnal;
-            double tropopause = First(g.TropopauseM, f.AtmosphereDepthM > 0 ? g.TropopauseDepthShare * f.AtmosphereDepthM : double.NaN);
+            double tropopause = g.TroposphereDepthM(f.AtmosphereDepthM);
             if (tropopause > 0) p.TropopauseM = tropopause;
 
             // The sea and the ice model.

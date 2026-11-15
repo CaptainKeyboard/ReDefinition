@@ -320,7 +320,7 @@ namespace ReDefinition.Atmospheres
             if (!want)
             {
                 Stats.Why = !AtmospheresSettings.Enabled ? "mod off" : !flight ? "no flight scene" : c == null ? "no body config" :
-                    !OwnCloudOptions.Active(source) ? "ownClouds off or the source is not Ours" : specs == 0 ? "no layers for the body" : "map view or no weather";
+                    !OwnCloudOptions.Active(source) ? "ownClouds off or the source is not Ours" : specs == 0 ? "no layers for the body (" + c.Clouds.LayerSet + ")" : "map view or no weather";
                 Hide();
                 return;
             }

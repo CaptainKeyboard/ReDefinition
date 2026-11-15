@@ -355,6 +355,14 @@ namespace ReDefinition.Atmospheres
         // Keys tropopauseM and tropopauseDepthShare: the height of the tropopause; NaN takes the share of the atmosphere's depth.
         internal double TropopauseM { get; }
         internal double TropopauseDepthShare { get; }
+
+        // The depth of the troposphere in m for an atmosphere this deep: tropopauseM, else the share of the depth; NaN where neither is known (the generator's rule, GeneratorBodies.Build).
+        internal double TroposphereDepthM(double atmosphereDepthM)
+        {
+            if (TropopauseM > 0) return TropopauseM;
+            return atmosphereDepthM > 0 ? TropopauseDepthShare * atmosphereDepthM : double.NaN;
+        }
+
         // Keys lapseKPerM, surfaceMeanK, diurnalLandAmpK: NaN takes the fit of the game's temperature curves (ThermalFit), else the temperature
         // target of the body, else the generator's default.
         internal double LapseKPerM { get; }

@@ -142,22 +142,45 @@ namespace ReDefinition.Atmospheres
                 r.Int("seedOffset", 0, -BodyLimits.MaxSeedOffset, BodyLimits.MaxSeedOffset), r.Bool("waves", true), r.Bool("cells", true), levers);
         }
 
-        internal static CloudRules Clouds(BodyNodeReader r)
+        // The CLOUDS node; the layer set is the authored one, the template or none (CloudLayerTemplate; ctx null: the authored LAYER nodes only, no template).
+        internal static CloudRules Clouds(BodyNodeReader r, CloudLayerContext ctx = null)
         {
             CloudSourceKind? source = null;
             if (r.Has("cloudSource")) source = r.Enum("cloudSource", CloudSourceKind.Ours);
+            string layerSet;
+            List<CloudLayerSpec> layers = CloudLayerTemplate.Choose(r, ctx, out layerSet);
             return new CloudRules(source, r.Enum("discover", CloudDiscovery.Auto), r.String("baseLayer", ""), r.List("weatherLayers"),
                 r.Has("snowTypeNames") ? r.List("snowTypeNames") : null, r.Has("stratusTypeNames") ? r.List("stratusTypeNames") : null,
-                r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), CloudLayers(r), r.Float("sphereScale", 1f, 0.25f, 1f),
+                r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), layers, r.Float("sphereScale", 1f, 0.25f, 1f),
                 r.Float("hazeBlue", CloudRules.DefaultHazeBlue, 0f, 1f), r.Float("hazeNearBlue", CloudRules.DefaultHazeNearBlue, 0f, 1f),
-                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)));
+                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)), layerSet);
+        }
+
+        // A length of a LAYER node in m: the metre key, else the depth key (troposphere depths, E40 Q8a) times the body's depth; the metre key wins where both are there.
+        private static double Length(BodyNodeReader r, string metreKey, string depthKey, double depthM, double fallback, double min, double max)
+        {
+            bool metres = r.Has(metreKey), depths = r.Has(depthKey);
+            if (metres || !depths)
+            {
+                if (metres && depths) r.Warn(depthKey, "both " + metreKey + " and " + depthKey + " are given; " + metreKey + " counts");
+                return r.Double(metreKey, fallback, min, max);
+            }
+            double share = r.Double(depthKey, double.NaN, -100.0, 1000.0);
+            if (double.IsNaN(share)) return fallback;
+            if (!(depthM > 0))
+            {
+                r.Warn(depthKey, "the depth of the body's troposphere is not known; the key cannot be used");
+                return fallback;
+            }
+            return Math.Min(max, Math.Max(min, share * depthM));
         }
 
         // The most LAYER nodes and TYPE nodes a body's own cloud set holds (the set may be larger than the draw limit; groups and the cap choose).
         internal const int MaxLayerSpecs = 8;
 
         // The LAYER nodes of CLOUDS (CloudLayerSpec): a layer or type that cannot be read is a warning and is left out, never an exception.
-        internal static List<CloudLayerSpec> CloudLayers(BodyNodeReader clouds)
+        // depthM: the depth of the body's troposphere in m, the unit of the depth keys (innerDepths, outerDepths, noiseScaleDepths, lightCellWidthDepths); NaN: unknown.
+        internal static List<CloudLayerSpec> CloudLayers(BodyNodeReader clouds, double depthM = double.NaN)
         {
             var layers = new List<CloudLayerSpec>();
             var names = new HashSet<string>(StringComparer.Ordinal);
@@ -181,11 +204,11 @@ namespace ReDefinition.Atmospheres
                     r.Warn("name", "the layer " + name + " is there twice; the first one counts");
                     continue;
                 }
-                double inner = r.Double("innerAltitudeM", double.NaN, -1.0e7, 1.0e7);
-                double outer = r.Double("outerAltitudeM", double.NaN, -1.0e7, 1.0e7);
+                double inner = Length(r, "innerAltitudeM", "innerDepths", depthM, double.NaN, -1.0e7, 1.0e7);
+                double outer = Length(r, "outerAltitudeM", "outerDepths", depthM, double.NaN, -1.0e7, 1.0e7);
                 if (double.IsNaN(inner) || double.IsNaN(outer) || !(outer > inner))
                 {
-                    r.Warn("outerAltitudeM", "the layer " + name + " needs innerAltitudeM below outerAltitudeM; it is ignored");
+                    r.Warn("outerAltitudeM", "the layer " + name + " needs innerAltitudeM below outerAltitudeM (or innerDepths below outerDepths); it is ignored");
                     continue;
                 }
                 var types = new List<CloudTypeSpec>();
@@ -203,12 +226,12 @@ namespace ReDefinition.Atmospheres
                 layers.Add(new CloudLayerSpec(name, (float)inner, (float)outer, r.Float("sigmaPerM", 0.03f, 1.0e-6f, 10f), r.Enum("kind", LayerKind.Weather),
                     r.String("group", ""), r.Float("coverage", 1f, 0f, 1f), r.Float("edgeSoftness", 0.15f, 0f, 1f), r.Float("fadeNearM", 0f, 0f, 1.0e9f),
                     r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
-                    r.Float("noiseAmount", 0.3f, 0f, 1f), r.Float("noiseScaleM", 8000f, 1f, 1.0e7f), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
+                    r.Float("noiseAmount", 0.3f, 0f, 1f), (float)Length(r, "noiseScaleM", "noiseScaleDepths", depthM, 8000.0, 1.0, 1.0e7), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
                     SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
                     LightAmbient =r.Float("lightAmbient", 1f, 0f, 4f),
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f), LightPlateau = r.Float("lightPlateau", 0f, 0f, 4f),
                     AmbientMs = r.Float("ambientMs", CloudLayerDef.DefaultAmbientMs, 0f, 20f), AmbientDecay = r.Float("ambientDecay", CloudLayerDef.DefaultAmbientDecay, 0f, 2f),
-                    LightCellWidth = r.Float("lightCellWidth", 0f, 0f, 1.0e6f),
+                    LightCellWidth = (float)Length(r, "lightCellWidth", "lightCellWidthDepths", depthM, 0.0, 0.0, 1.0e6),
                     RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
                     ShapeSmoothing = r.Float("shapeSmoothing", 0f, 0f, 8f),
                     FibreMinWindMs = r.Float("fibreMinWindMs", FibreAxis.DefaultMinWindMs, 0f, 100f),
