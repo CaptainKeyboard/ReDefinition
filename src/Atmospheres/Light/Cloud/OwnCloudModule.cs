@@ -65,6 +65,9 @@ namespace ReDefinition.Atmospheres
             public int OrderMoves;
             // Whether the light cache is filled and read in the frame just recorded (cloudLightCache on).
             public bool LightCacheOn;
+            // E40 C2: the extra lights' luminance over the sun's in the frame just recorded, and whether one was left out as too faint (light.moonMinShare); what a game start reads of why the pass costs what it does.
+            public float MoonOverSun;
+            public bool MoonDropped;
             // The size of the camera the pass draws into (its depth target): the render size, which the upscaler sets below the window size.
             public int RenderWidth, RenderHeight;
             public string Mode = "off", Why = "not started";
@@ -1117,6 +1120,17 @@ namespace ReDefinition.Atmospheres
                 f.Light.Lights[0] = new CloudLight { Towards = towards, Colour = moon };
             }
             OwnCloudOptions.LimitMoonLights(f.Light, OwnCloudOptions.LiveSettings);
+            // E40 C2: an extra light below light.moonMinShare of the sun (any moon in a daytime sky) is not marched to; the haze's in-scatter below still reads the moon as it was.
+            float moonShare = Tuning.Get(OwnCloudOptions.TuneMoonMinShare, OwnCloudOptions.MoonMinShareDefault);
+            float moonLuma = Math.Max(f.Light.Lights[0].Colour.grayscale, f.Light.Lights[1].Colour.grayscale);
+            Stats.MoonOverSun = moonLuma / sunLuminance;
+            Stats.MoonDropped = false;
+            for (int i = 0; i < CloudLightSettings.MaxLights; i++)
+            {
+                if (f.Light.Lights[i].Colour.grayscale <= 0f || !OwnCloudOptions.MoonTooFaint(f.Light.Lights[i].Colour.grayscale, sunLuminance, moonShare)) continue;
+                f.Light.Lights[i].Colour = Color.black;
+                Stats.MoonDropped = true;
+            }
             LightningModule lightning = LightningModule.Current;
             if (lightning != null) lightning.FillBolts(f.Light, b, OwnCloudPlan.FlashPeakScale(sunLuminance));
             else f.Light.BoltCount = 0;
@@ -1334,7 +1348,8 @@ namespace ReDefinition.Atmospheres
                                + Stats.WorstMapMs.ToString("0.0") + " ms, main step worst " + Stats.WorstMapMainMs.ToString("0.0") + " ms), height builds " + Stats.HeightBuilds
                                + " (last " + Stats.LastHeightMs.ToString("0.0") + " ms on the worker, worst " + Stats.WorstHeightMs.ToString("0.0") + " ms, first "
                                + Stats.FirstHeightMs.ToString("0.0") + " ms, main thread worst " + Stats.WorstHeightMainMs.ToString("0.0") + " ms), height upload worst "
-                               + Stats.WorstUploadMs.ToString("0.0") + " ms, buffer attaches " + Stats.BufferAttaches + ", moves behind Scatterer's scattering " + Stats.OrderMoves + ", history cuts " + (driver != null ? driver.CutCount : 0)
+                               + Stats.WorstUploadMs.ToString("0.0") + " ms, buffer attaches " + Stats.BufferAttaches + ", moves behind Scatterer's scattering " + Stats.OrderMoves + ", moon light " + (Stats.MoonOverSun * 100f).ToString("0.00") + " percent of the sun"
+                               + (Stats.MoonOverSun > 0f ? (Stats.MoonDropped ? " (not marched to: too faint)" : " (marched to at every cloud sample)") : "") + ", history cuts " + (driver != null ? driver.CutCount : 0)
                                + (driver != null && driver.LastCutReason != null ? " (last: " + driver.LastCutReason + ")" : ""));
         }
     }

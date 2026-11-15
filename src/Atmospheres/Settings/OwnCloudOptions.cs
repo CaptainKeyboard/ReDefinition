@@ -76,6 +76,20 @@ namespace ReDefinition.Atmospheres
         internal const string TuneDitherFix = "layers.ditherFix";
         internal const bool DitherFixDefault = true;
 
+        // E40 C2: light.moonMinShare: an extra light (moon, planet shine) whose luminance is below this share of the sun's is not marched to and adds nothing (0: every light above zero is
+        // marched, the pass as it was). Every cloud sample marched to each lit moon afresh (the moon's taps through every layer, no reuse), and the player's cost series measured that at +21 to +28 percent
+        // of the pass for a moon at 3 percent of the sun, which the game has in any daytime sky with a moon (RtReflectors.CloudLight gives light for any body in the sky). A moon of a few
+        // hundredths of the sun changes a cloud's brightness by less than that share; at dusk the sun's luminance falls, the share rises, and the moon comes in.
+        internal const string TuneMoonMinShare = "light.moonMinShare";
+        // 0.03: a moon at 3 percent of the sun changes the error against the picture without it by 0.0001 to 0.0005 (luma, series e40-c1-sheet case mn300); the full Mun is 2.7 percent at best.
+        internal const float MoonMinShareDefault = 0.03f;
+
+        // Whether a light of that luminance is too faint beside a sun of that luminance to be marched to (share: light.moonMinShare).
+        internal static bool MoonTooFaint(float moonLuma, float sunLuma, float share)
+        {
+            return share > 0f && moonLuma < share * Mathf.Max(sunLuma, 1e-4f);
+        }
+
         // The tuning keys of the light's look constants (T03); the compiled defaults are the fields of CloudLightSettings.
         internal const string TuneOctaveA = "light.octaveA", TuneOctaveB = "light.octaveB", TuneOctaveC = "light.octaveC",
             TuneMsBrightness = "light.msBrightness", TuneDiffusion = "light.diffusion", TuneDiffusionTau = "light.diffusionTau",
