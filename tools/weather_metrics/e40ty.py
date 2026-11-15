@@ -96,7 +96,7 @@ NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE
 WIND_EN = {"cirrus": (17.7, 17.7), "cirrostratus": (17.7, 17.7)}
 
 LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing", "fibreMinWindMs",
-               "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs", "anvilType", "anvilSeconds", "anvilUpdraftMs", "anvilScale", "lightCellWidth")
+               "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs", "anvilType", "anvilSeconds", "anvilUpdraftMs", "anvilScale", "lightCellWidth", "towerScale")
 # E40TY_NOSMOOTH=1: the same pictures without the shape smoothing and the top-from-updraft numbers of the layers (the "before" of E40 L6 shape on the same player), under the tag given.
 NOSMOOTH = os.environ.get("E40TY_NOSMOOTH") == "1"
 TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose", "outflow")
@@ -272,19 +272,54 @@ def cb_jobs(layers_by_name, extras):
 # the type following the strength as in the game, the anvils drawn by AnvilMap in the player's setup with a shear between the anvil and the steering level of CB_SHEAR_MS (east).
 # Views: from the ground 35 km south of the cell (the whole tower), from the side at the anvil's height 70 km away, and from above.
 CB_ANVIL_ROWS = (("weak", 0.6), ("moderate", 0.8), ("strong", 1.0))
-CB_ANVIL_VIEWS = ("ground", "anvil", "above")
-CB_ANVIL_CAMERAS = {"ground": (40.0, 400.0, 13.0), "anvil": (90.0, 9500.0, -1.0), "above": (55.0, 26000.0, -30.0)}
+# near (E40 CB2): from the ground 25 km south, the tower from its base to its dome (the turrets of its flanks).
+CB_ANVIL_VIEWS = ("near", "ground", "anvil", "above")
+CB_ANVIL_CAMERAS = {"near": (25.0, 400.0, 18.0), "ground": (40.0, 400.0, 13.0), "anvil": (90.0, 9500.0, -1.0), "above": (55.0, 26000.0, -30.0)}
+CB_ANVIL_TEXT = {"near": "from the ground, 25 km", "ground": "from the ground, 40 km", "anvil": "side at the anvil's height, 90 km", "above": "from above, 26 km up, 55 km south"}
+# E40TY_CBONLY=1: only the anvil rows (the type table and the tower rows are not drawn: a quick look at the cumulonimbus).
+CB_ONLY = os.environ.get("E40TY_CBONLY") == "1"
 CB_SHEAR_MS = 8.0
 # The anvil rows' coverage outside the cell: 0 (a clear sky around one cell; at the tower rows' 0.3 the layer's clear-sky rule keeps the background, K about 0.14 since the cover
 # meaning, and the cell drowns in a sheet of the same layer).
 CB_ANVIL_OUTSIDE = 0.0
 
 
-def cb_anvil_camera(view, size):
+def cb_anvil_camera(view, size, centre=None):
+    """The anvil row's camera `view`, south of the cell; centre (lat, lon in degrees) of the cell, default the sheet's cell on the equator at SITE_LON_DEG."""
     km, height, pitch = CB_ANVIL_CAMERAS[view]
-    lon, lat = math.radians(SITE_LON_DEG), -km * 1000.0 / R
+    clat, clon = (0.0, SITE_LON_DEG) if centre is None else centre
+    lon, lat = math.radians(clon), math.radians(clat) - km * 1000.0 / R
     pos = np.array([math.cos(lat) * math.cos(lon), math.cos(lat) * math.sin(lon), math.sin(lat)]) * (R + height)
     return pr.Camera(pos, 0.0, pitch, size[0], size[1], FOV)
+
+
+# E40TY_CBGAME=<dump folder> (E40 CB2): one more anvil row, the game's own cumulonimbus map of that dump (a K-T2 baseline or type-view dump of the soft-cost window: <layer>-cover.u8 and
+# -type.u8, 512 x 256), the cameras put south of its strongest outflow source (the clear-sky value over the outline times the type's outflow, the incus share of the type). A dump from before
+# E40 CB has the precipitation level 0 to 1 as its type: the job's typeScale is the layer's rainType (the table reads it at rainType and below), and the player's setup draws the anvils.
+CB_GAME = os.environ.get("E40TY_CBGAME")
+
+
+def cb_game_files(dump, layer):
+    """Copies the dump's cumulonimbus maps into the inputs; returns (cover name, type name, centre (lat, lon) in degrees, the source's strength)."""
+    w, h = CB_MAP
+    cover = np.fromfile(os.path.join(dump, CB_LAYER + "-cover.u8"), dtype=np.uint8)
+    types = np.fromfile(os.path.join(dump, CB_LAYER + "-type.u8"), dtype=np.uint8)
+    if cover.size != w * h or types.size != w * h:
+        raise SystemExit("the dump's maps are not %d x %d" % (w, h))
+    os.makedirs(INPUT, exist_ok=True)
+    cover.tofile(os.path.join(INPUT, "cbgame-cov.r8"))
+    types.tofile(os.path.join(INPUT, "cbgame-typ.r8"))
+    # The outline as AnvilMap reads it: the clear-sky value from 1 - the effective coverage on (the soft layer's numbers of the player's run, CloudLookFixtures: coverage 0.391, K 0.141).
+    k, m0 = 0.141, 1.0 - 0.391
+    c = cover.astype(np.float64) / 255.0
+    e = np.minimum(c, 2.0 * c - k)
+    rain = cb_rain_type()
+    tv = np.minimum(types.astype(np.float64) / 255.0 * rain, 1.0)
+    outflow = np.clip(tv / 0.5, 0.0, 1.0)
+    score = np.clip((e - m0) / (1.0 - m0), 0.0, 1.0) * outflow
+    i = int(np.argmax(score))
+    y, x = divmod(i, w)
+    return "cbgame-cov.r8", "cbgame-typ.r8", (90.0 - (y + 0.5) * 180.0 / h, (x + 0.5) * 360.0 / w - 180.0), float(score[i])
 
 
 def cb_anvil_jobs(layers_by_name, extras):
@@ -304,7 +339,26 @@ def cb_anvil_jobs(layers_by_name, extras):
                                 sun=lay.sun_vector(cam.pos, CB_SUN_AZIMUTH, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
                                 soft=SOFTNESS, maxSteps=320, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3))
             heights.append(dict(id=jid(tag, view), variation=0, physics=0, topUpdraft=1, ragged=0, updraftMap=up_name, width=CB_MAP[0], height=CB_MAP[1], seed=1))
+    if CB_GAME:
+        cov_name, typ_name, centre, strength = cb_game_files(CB_GAME, layer)
+        CB_GAME_CENTRE[:] = [centre, strength]
+        for view in CB_ANVIL_VIEWS:
+            jl = e40o.job_layer(layer, cov_name, typ_name)
+            jl.update({k: v for k, v in lk.items()})
+            jl["anvilShearRadS"] = CB_SHEAR_MS / R
+            if cb_rain_type() < 1.0 and np.fromfile(os.path.join(INPUT, typ_name), dtype=np.uint8).max() > cb_rain_type() * 255.0 + 1.0:
+                jl["typeScale"] = cb_rain_type()
+            for t in jl["types"]:
+                t.update({k: v for k, v in tk.get(t["name"], {}).items()})
+            cam = cb_anvil_camera(view, SIZE, centre)
+            jobs.append(lay.job(jid("cbgame", view), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=CB_MAP[0], mapHeight=CB_MAP[1],
+                                sun=lay.sun_vector(cam.pos, CB_SUN_AZIMUTH, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
+                                soft=SOFTNESS, maxSteps=320, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3))
     return jobs, heights
+
+
+# The game row's cell (filled by cb_anvil_jobs): [(lat, lon) in degrees, the source's strength].
+CB_GAME_CENTRE = []
 
 
 # E40TY_HAZE=before|after: the same pictures with the pass's aerial perspective on at Scatterer's air of Kerbin (E40 T1 tint), the in-scatter as the product gives it BEFORE the package (one
@@ -342,6 +396,10 @@ def build_jobs():
     layers_by_name = {s["name"]: s for s in e40o.kerbin_layers(CFG_PATH)}
     extras = cfg_extras()
     lum, aux = [], []
+    if CB_ONLY:
+        anvil, anvil_heights = cb_anvil_jobs(layers_by_name, extras)
+        CB_HEIGHTS[:] = anvil_heights
+        return anvil, aux
     for spec in TYPES:
         for view in VIEWS:
             for mode, size, bucket, aux_flag in (("lum", SIZE, lum, False), ("aux", AUX_SIZE, aux, True)):
@@ -512,14 +570,14 @@ def light_words(m, cam, tint):
 
 def collect(ctx):
     sheet = ctx.folder("sheet")
-    aux = ctx.folder("aux")
+    aux = None if CB_ONLY else ctx.folder("aux")
     out_dir = os.path.join(e40o.main_repo(), ".local", "work", "series-pictures", "E40")
     os.makedirs(out_dir, exist_ok=True)
     layers_by_name = {s["name"]: s for s in e40o.kerbin_layers(CFG_PATH)}
     metrics, lines, results = [], ["E40-TY: every type of the shipped cfg, one layer at a time, converged, soft %.1f; the white tint is that of the sun at the lower quarter of the layer"
                                    % SOFTNESS], {}
     tiles = {}
-    for spec in TYPES:
+    for spec in ([] if CB_ONLY else TYPES):
         family, key = spec[0], spec[1]
         layer = layers_by_name[spec[2]]
         tint = white_tint(layer["inner"] + 0.25 * (layer["outer"] - layer["inner"]))   # CloudOutputStage.NominalCloudAltitudeM
@@ -589,7 +647,7 @@ def collect(ctx):
     cb_layer = layers_by_name[CB_LAYER]
     cb_tint = white_tint(cb_layer["inner"] + 0.25 * (cb_layer["outer"] - cb_layer["inner"]))
     cb_rows = []
-    for key, type_name in CB_TOWERS:
+    for key, type_name in ([] if CB_ONLY else CB_TOWERS):
         cols = []
         for view, text in (("side", "side view, 30 km, tops follow the updraft"), ("top", "from above, 25 km"), ("flat", "side view, the type table's own top")):
             path = os.path.join(sheet, jid(key, view) + ".npy")
@@ -618,7 +676,8 @@ def collect(ctx):
     for key, strength in CB_ANVIL_ROWS:
         tag = "cbanvil-" + key
         cols = []
-        for view, text in (("ground", "from the ground, 40 km"), ("anvil", "side at the anvil's height, 90 km"), ("above", "from above, 26 km up, 55 km south")):
+        for view in CB_ANVIL_VIEWS:
+            text = CB_ANVIL_TEXT[view]
             path = os.path.join(sheet, jid(tag, view) + ".npy")
             if not os.path.isfile(path):
                 lines.append("   %-18s %-6s: no picture" % (tag, view))
@@ -635,6 +694,22 @@ def collect(ctx):
             results.setdefault(tag, {})[view] = dict(alpha=words, widest_px=int(widths.max()) if widths.size else 0)
             lines.append("   %-18s %-6s: cloud covers %.2f of the picture, the widest opaque row %d px" % (tag, view, words["cover"], int(widths.max())))
         anvil_rows.append(np.concatenate(cols, axis=1))
+    if CB_GAME:
+        if not CB_GAME_CENTRE:
+            write_inputs()
+        centre, strength = CB_GAME_CENTRE
+        cols = []
+        for view in CB_ANVIL_VIEWS:
+            path = os.path.join(sheet, jid("cbgame", view) + ".npy")
+            if not os.path.isfile(path):
+                cols.append(np.zeros((TILE[1] * 2, TILE[0] * 2, 3)))
+                continue
+            m = load_lum(sheet, jid("cbgame", view))
+            img = picture(m, cb_anvil_camera(view, SIZE, centre), cb_tint, with_sun=False)
+            gn.save_png(os.path.join(out_dir, "%s-cbgame-%s.png" % (NAME, view)), img)
+            cols.append(label(box(img, (TILE[0] * 2, TILE[1] * 2)), "game map %s (lat %.1f lon %.1f, source %.2f): %s" % (os.path.basename(os.path.normpath(CB_GAME)), centre[0], centre[1], strength,
+                                                                                                                   CB_ANVIL_TEXT[view])))
+        anvil_rows.append(np.concatenate(cols, axis=1))
     if anvil_rows:
         gn.save_png(os.path.join(out_dir, "%s-cbanvil-sheet.png" % NAME), np.concatenate(anvil_rows, axis=0))
     with open(RESULTS, "w", encoding="utf-8") as f:
@@ -646,8 +721,10 @@ def collect(ctx):
 def stages():
     # Always written afresh: the cfg and the E40TY_* switches are read here, and neither moves the script's time stamp.
     write_inputs()
-    return [Stage("sheet", ["-mode", "scene", "-scene", "type-sheet", "-in", INPUT], size=(1708, 960), proxy=False, timeout=2400),
-            Stage("aux", ["-mode", "scene", "-scene", "layers", "-in", INPUT_AUX], size=(1280, 720), proxy=False, timeout=1800)]
+    sheet = Stage("sheet", ["-mode", "scene", "-scene", "type-sheet", "-in", INPUT], size=(1708, 960), proxy=False, timeout=2400)
+    if CB_ONLY:
+        return [sheet]
+    return [sheet, Stage("aux", ["-mode", "scene", "-scene", "layers", "-in", INPUT_AUX], size=(1280, 720), proxy=False, timeout=1800)]
 
 
 register_series("e40-ty", stages(), collect, exclusive=False, who="e40-ty")
