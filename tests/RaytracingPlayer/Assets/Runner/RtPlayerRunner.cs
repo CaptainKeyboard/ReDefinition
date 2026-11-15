@@ -763,6 +763,47 @@ namespace ReDefinition.RaytracingPlayer
 
             raytracing.CloudShadowProbe = false;
             raytracing.Settings = saved;
+
+            // The layer in front of a surface a reflection ends at, not the sky: a dark wall in the mirror's reflection (the camera's ray reflects up at
+            // 17 degrees and meets the wall at 150 m, 45 m up, after about 50 m of the layer). Without the layer the mirror shows the dark wall; with it
+            // the layer's light in front of the wall, so brighter by far.
+            GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.transform.position = new Vector3(0f, 50f, 150f);
+            wall.transform.localScale = new Vector3(80f, 100f, 2f);
+            var wallMaterial = new Material(Resources.Load<Material>("RtStandard")) { color = new Color(0.03f, 0.03f, 0.03f) };
+            wallMaterial.SetFloat("_Glossiness", 0f);
+            wallMaterial.SetFloat("_Metallic", 0f);
+            wall.GetComponent<Renderer>().sharedMaterial = wallMaterial;
+            float MirrorPatch()
+            {
+                if (raytracing.SpecularTexture == null) return float.NaN;
+                Color[] pixels = Pixels(raytracing.SpecularTexture);
+                int w = raytracing.SpecularTexture.width, hgt = raytracing.SpecularTexture.height;
+                float sum = 0f;
+                for (int gz = -4; gz <= 4; gz++)
+                    for (int gx = -4; gx <= 4; gx++)
+                    {
+                        Vector3 s = cam.WorldToScreenPoint(mirror.transform.position + new Vector3(gx, 0f, gz));
+                        int x = Mathf.Clamp(Mathf.RoundToInt(s.x * w / Screen.width), 0, w - 1), y = Mathf.Clamp(Mathf.RoundToInt(s.y * hgt / Screen.height), 0, hgt - 1);
+                        Color c = pixels[y * w + x];
+                        sum += (c.r + c.g + c.b) / 3f;
+                    }
+                return sum / 81f;
+            }
+            current = null;
+            for (int i = 0; i < 60; i++) yield return null;
+            float wallNone = MirrorPatch();
+            Dump(raytracing.SpecularTexture, "clouds_wall_none", 1f);
+            current = Pack(false);
+            for (int i = 0; i < 60; i++) yield return null;
+            float wallFull = MirrorPatch();
+            Dump(raytracing.SpecularTexture, "clouds_wall_full", 1f);
+            if (float.IsNaN(wallNone) || float.IsNaN(wallFull))
+                Log("the wall in the mirror: no specular signal in this rendering path");
+            else
+                Check(wallFull > 2f * wallNone + 0.01f, "the own layer in front of a surface the reflection ends at",
+                      "mean reflected light " + wallFull.ToString("0.0000") + " with the layer, " + wallNone.ToString("0.0000") + " without");
+            Destroy(wall);
             current = null;
             Destroy(mirror);
         }

@@ -870,17 +870,19 @@ float3 CloudTransmittance(float3 position, float3 towards)
     return 1.0f + fade * cloudFades.x * (1.0f - tr) * (saturate(tr * cloudColor.rgb) - 1.0f);
 }
 
-// The sky a ray that escapes the scene sees through the own layers, from anywhere: the cloud
-// over the sky by its opacity 1 - exp(-tau) (RtCloudRayMath.ViewOpacity, with the layers'
-// distance fades), lit as CloudOverSky lights EVE's layer, at the point the cloud is seen at
-// (the optical depth's mean along the ray). The reflection probe holds none of the own
-// layers (their pass draws for the flight camera alone), so they go over it as well.
-float3 OwnCloudOverSky(float3 origin, float3 direction, float3 sky)
+// The own layers along a ray up to tMax, for what lies behind them (a surface the ray hits, the
+// planet's sphere, the sky): the share of the light behind that gets through, and the cloud's
+// own light already weighted by the opacity it adds. The opacity is 1 - exp(-tau)
+// (RtCloudRayMath.ViewOpacity, with the layers' distance fades); the cloud is lit as
+// CloudOverSky lights EVE's layer, at the point it is seen at (the optical depth's mean along
+// the ray).
+float OwnCloudSeen(float3 origin, float3 direction, float tMax, out float3 cloud)
 {
+    cloud = 0.0f;
     float3 weighted;
-    float tau = OwnCloudTau(origin, direction, 1.0e30f, false, weighted);
+    float tau = OwnCloudTau(origin, direction, tMax, false, weighted);
     if (tau <= 1e-4f)
-        return sky;
+        return 1.0f;
     float tr = exp(-tau);
     float3 upMap = normalize(weighted / tau);
     float3 up = normalize(cloudRow0.xyz * upMap.x + cloudRow1.xyz * upMap.y + cloudRow2.xyz * upMap.z);
@@ -889,8 +891,19 @@ float3 OwnCloudOverSky(float3 origin, float3 direction, float3 sky)
         lit += lightColor0.rgb * saturate(dot(up, normalize(lightDirection0.xyz)));
     if (LIGHT_COUNT > 1u)
         lit += lightColor1.rgb * saturate(dot(up, normalize(lightDirection1.xyz)));
-    float3 cloud = lit * cloudColor.w * lerp(1.0f, 0.5f, 1.0f - tr);
-    return lerp(sky, cloud, cloudFades.z * (1.0f - tr));
+    float opacity = cloudFades.z * (1.0f - tr);
+    cloud = lit * cloudColor.w * lerp(1.0f, 0.5f, 1.0f - tr) * opacity;
+    return 1.0f - opacity;
+}
+
+// The sky a ray that escapes the scene sees through the own layers, from anywhere: the cloud
+// over the sky. The reflection probe holds none of the own layers (their pass draws for the
+// flight camera alone), so they go over it as well.
+float3 OwnCloudOverSky(float3 origin, float3 direction, float3 sky)
+{
+    float3 cloud;
+    float seen = OwnCloudSeen(origin, direction, 1.0e30f, cloud);
+    return sky * seen + cloud;
 }
 
 // The sky a ray that escapes the scene sees from under the layer. It is the cloud where it
@@ -1388,6 +1401,16 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
             float keepFog = FogKeep(hit.found ? hit.distance : SegmentToBody(origin, direction, hit.distance));
             total += weight * (1.0f - keepFog) * FogColour();
             weight *= keepFog;
+        }
+        // A mirror's first segment through the own layers before what it ends at: the surface it hits,
+        // or the planet's sphere (the ground past the terrain the scene holds). A ray that sees the sky
+        // takes them below, over the sky.
+        if (OWN_CLOUDS && mirror && bounce == 0u && (hit.found || BodyBlocks(origin, direction)))
+        {
+            float3 inFront;
+            float passes = OwnCloudSeen(origin, direction, hit.found ? hit.distance : SegmentToBody(origin, direction, hit.distance), inFront);
+            total += weight * inFront;
+            weight *= passes;
         }
         if (!hit.found)
         {
