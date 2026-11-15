@@ -57,21 +57,70 @@ namespace ReDefinition.Atmospheres
         // One window of the cost measurement: `settle` frames unmeasured (the first frames after a switch carry the switch's own work), then `frames` frames each
         // timed, ms. The window's figure is the MEDIAN frame time (windowMs): a frame that another process's GPU work or a garbage collection stretched does not
         // move it, as it moves a mean. windowMax is the longest frame, for the log.
-        private double windowMs, windowMax;
+        //
+        // The CPU frame time is NOT what the cost is read from: the game is CPU bound at about 30 ms a frame while the traced passes take a few ms of GPU time, so
+        // the GPU's extra work hides behind the CPU and a window's frame time moves with the frame pacing (start 67: the layers 'saved' 1.2 ms, which is impossible).
+        // The cost is read from the proxy's own GPU timestamps of the traced passes (the 'trace=' field of its status line, which stamps only while the ini's
+        // rtGpuTimings is 1): each frame's GPU milliseconds of the ray passes, whatever the CPU did, medians per window as above (windowGpuMs; -1 where the proxy
+        // gave no figure).
+        private double windowMs, windowMax, windowGpuMs;
+        private int windowGpuFrames;
         private readonly List<double> frameTimes = new List<double>();
+        private readonly List<double> gpuTimes = new List<double>();
 
         private IEnumerable<ProbeWait> Window(int settle, int frames)
         {
             yield return ProbeWait.Frames(settle);
             frameTimes.Clear();
+            gpuTimes.Clear();
             for (int i = 0; i < frames; i++)
             {
                 yield return ProbeWait.Frames(1);
                 frameTimes.Add(Time.unscaledDeltaTime * 1000.0);
+                double gpu = HostTraceMs();
+                if (gpu > 0.0) gpuTimes.Add(gpu);
             }
             windowMax = 0.0;
             foreach (double t in frameTimes) windowMax = Math.Max(windowMax, t);
             windowMs = Median(frameTimes);
+            windowGpuFrames = gpuTimes.Count;
+            windowGpuMs = gpuTimes.Count == 0 ? -1.0 : Median(gpuTimes);
+        }
+
+        // The GPU milliseconds of the proxy's latest traced frame (the 'trace=' of its status line); 0 where it gives none.
+        private static double HostTraceMs()
+        {
+            string status = RayCloudSeam.HostStatus();
+            if (string.IsNullOrEmpty(status)) return 0.0;
+            int at = status.IndexOf(" trace=", StringComparison.Ordinal);
+            if (at < 0) return 0.0;
+            at += 7;
+            int end = status.IndexOf("ms", at, StringComparison.Ordinal);
+            double value;
+            if (end < 0 || !double.TryParse(status.Substring(at, end - at), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value)) return 0.0;
+            return value;
+        }
+
+        [System.Runtime.InteropServices.DllImport("kernel32", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern bool WritePrivateProfileString(string section, string key, string value, string file);
+
+        [System.Runtime.InteropServices.DllImport("kernel32", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern uint GetPrivateProfileString(string section, string key, string fallback, System.Text.StringBuilder buffer, uint size, string file);
+
+        // The proxy's ini (beside KSP_x64.exe); the proxy rereads it when it is written.
+        private static string ProxyIniPath()
+        {
+            return Path.Combine(Path.GetDirectoryName(Path.GetFullPath(Application.dataPath)) ?? "", "ReDefinitionProxy.ini");
+        }
+
+        // Sets rtGpuTimings in the proxy's ini; returns the value it had ("0" where there was none) so that it can be put back.
+        private static string SetProxyGpuTimings(string value)
+        {
+            string file = ProxyIniPath();
+            var old = new System.Text.StringBuilder(32);
+            GetPrivateProfileString("Proxy", "rtGpuTimings", "0", old, (uint)old.Capacity, file);
+            if (old.ToString() != value) WritePrivateProfileString("Proxy", "rtGpuTimings", value, file);
+            return old.ToString();
         }
 
         private static double Median(List<double> values)
@@ -290,9 +339,10 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Until(() => Time.frameCount - RayCloudSeam.TakenFrame <= 2, 120, "the rays taking the own pack");
 
             // 3. The cost of the own layers in the rays: the same traced scene with the pack in the rays and with it hidden from them (the pack stays and is kept
-            // current, so nothing but what the rays read differs). Five rounds; a round holds one window of each kind, the order turning each round so that a drift of
-            // the scene (the sky, other work on the machine) does not fall on one kind. A window is 30 frames to settle (not measured: the first frames after a
-            // switch carry its work) and 60 timed frames, and its figure is the median frame time. A kind's figure is the median of its windows' figures; the
+            // current, so nothing but what the rays read differs). Eight rounds; a round holds one window of each kind, the order turning each round so that a drift of
+            // the scene (the sky, other work on the machine) does not fall on one kind. A window is 20 frames to settle (not measured: the first frames after a
+            // switch carry its work) and 50 timed frames, and its figure is the median of the frame times (CPU, information) and of the GPU's own stamps of the traced
+            // passes (the cost, T18.rt_gpu_*). The vessel and the camera stand still; the sun moves 0.004 degrees a second, which does not change the rays' work. A kind's figure is the median of its windows' figures; the
             // cost is the median over the rounds of (taps8 - hidden) of the same round, so that a slow drift cancels in each pair. The spread is the largest
             // distance of a round's figure of a kind from that kind's median: it says whether the figure can be trusted. A VALID measurement needs: every window did what
             // its kind says (the rays took the pack, or did not); no round of a kind more than max(2 ms, 5 %) from its median; and no other process using the GPU
@@ -302,11 +352,19 @@ namespace ReDefinition.Atmospheres
             RtOwnClouds.Stats.WorstTickMs = 0.0;
             RtOwnClouds.WorstSliceMs = 0.0;
             string[] kinds = { "hidden", "taps8", "taps4", "taps16" };
-            const int Rounds = 5;
+            const int Rounds = 8;
             var windows = new Dictionary<string, List<double>>();
-            foreach (string k in kinds) windows[k] = new List<double>();
-            int invalid = 0;
+            var gpuWindows = new Dictionary<string, List<double>>();
+            foreach (string k in kinds)
+            {
+                windows[k] = new List<double>();
+                gpuWindows[k] = new List<double>();
+            }
+            int invalid = 0, gpuMissing = 0;
             double longestFrame = 0.0;
+            // The proxy stamps the passes only where its ini says so; the value it had is put back after the windows.
+            string timingsWas = SetProxyGpuTimings("1");
+            yield return ProbeWait.Frames(30);
             for (int round = 0; round < Rounds; round++)
                 for (int n = 0; n < kinds.Length; n++)
                 {
@@ -315,8 +373,11 @@ namespace ReDefinition.Atmospheres
                     if (kind == "taps4") ForceTuning("rt.rayTaps", 4);
                     else if (kind == "taps16") ForceTuning("rt.rayTaps", 16);
                     else ClearForced();
-                    foreach (ProbeWait w in Window(30, 60)) yield return w;
+                    foreach (ProbeWait w in Window(20, 50)) yield return w;
                     windows[kind].Add(windowMs);
+                    bool gpuOk = windowGpuMs > 0.0 && windowGpuFrames >= 25;
+                    gpuWindows[kind].Add(gpuOk ? windowGpuMs : double.NaN);
+                    if (!gpuOk) gpuMissing++;
                     longestFrame = Math.Max(longestFrame, windowMax);
                     // A window counts only where the rays did what the kind says: hidden, nothing taken at its end; the others, the pack taken in the last frames.
                     bool taken = Time.frameCount - RayCloudSeam.TakenFrame <= 2;
@@ -324,6 +385,7 @@ namespace ReDefinition.Atmospheres
                 }
             RtOwnClouds.HideFromRays = false;
             ClearForced();
+            SetProxyGpuTimings(timingsWas);
             double hidden = Median(windows["hidden"]);
             double spread = 0.0;
             foreach (string k in kinds)
@@ -350,8 +412,53 @@ namespace ReDefinition.Atmospheres
             Emit("T18.rt_ms_spread", spread);
             Emit("T18.rt_longest_frame_ms", longestFrame);
             Emit("T18.rt_windows_wrong", invalid);
-            // A figure to trust: every window did what its kind says and no round of a kind lies more than 2 ms (or 5 %) from the kind's median.
-            Emit("T18.rt_cost_valid", invalid == 0 && spread <= Math.Max(2.0, 0.05 * hidden));
+            // The cost from the GPU's own stamps of the traced passes (see Window): per kind the median of the rounds' window medians, the cost the median over the
+            // rounds of (kind - hidden) of the same round. The spread is the largest distance of a round of a kind from the kind's median; the resolution is half the
+            // range of the paired deltas of taps8, which is what a difference between two runs of this measurement can be trusted to.
+            var gpuDeltas8 = new List<double>();
+            var gpuDeltas4 = new List<double>();
+            var gpuDeltas16 = new List<double>();
+            double gpuSpread = 0.0;
+            for (int r = 0; r < Rounds; r++)
+            {
+                double h = gpuWindows["hidden"][r];
+                if (double.IsNaN(h)) continue;
+                if (!double.IsNaN(gpuWindows["taps8"][r])) gpuDeltas8.Add(gpuWindows["taps8"][r] - h);
+                if (!double.IsNaN(gpuWindows["taps4"][r])) gpuDeltas4.Add(gpuWindows["taps4"][r] - h);
+                if (!double.IsNaN(gpuWindows["taps16"][r])) gpuDeltas16.Add(gpuWindows["taps16"][r] - h);
+            }
+            var gpuMedians = new Dictionary<string, double>();
+            foreach (string k in kinds)
+            {
+                var present = gpuWindows[k].FindAll(v => !double.IsNaN(v));
+                double m = Median(present);
+                gpuMedians[k] = m;
+                foreach (double v in present) gpuSpread = Math.Max(gpuSpread, Math.Abs(v - m));
+            }
+            double gpuRange = 0.0;
+            if (gpuDeltas8.Count > 0)
+            {
+                double lo = double.MaxValue, hi = double.MinValue;
+                foreach (double d in gpuDeltas8)
+                {
+                    lo = Math.Min(lo, d);
+                    hi = Math.Max(hi, d);
+                }
+                gpuRange = hi - lo;
+            }
+            Emit("T18.rt_gpu_ms_off", gpuMedians["hidden"]);
+            Emit("T18.rt_gpu_ms_taps8", gpuMedians["taps8"]);
+            Emit("T18.rt_gpu_ms_taps4", gpuMedians["taps4"]);
+            Emit("T18.rt_gpu_ms_taps16", gpuMedians["taps16"]);
+            Emit("T18.rt_gpu_delta", Median(gpuDeltas8));
+            Emit("T18.rt_gpu_delta_taps4", Median(gpuDeltas4));
+            Emit("T18.rt_gpu_delta_taps16", Median(gpuDeltas16));
+            Emit("T18.rt_gpu_spread", gpuSpread);
+            Emit("T18.rt_gpu_resolution_ms", 0.5 * gpuRange);
+            Emit("T18.rt_gpu_windows_missing", gpuMissing);
+            // A figure to trust: every window did what its kind says, every window has its GPU figure, and no round of a kind lies more than max(0.15 ms, 3 %) from the
+            // kind's median (a quiet GPU: another process on it moves the passes by far more).
+            Emit("T18.rt_cost_valid", invalid == 0 && gpuMissing == 0 && gpuSpread <= Math.Max(0.15, 0.03 * gpuMedians["hidden"]));
             // What keeping the pack current cost in those frames (all windows, the bake's own stopwatch): the main-thread ms of baking per traced frame, and the
             // worst refresh tick.
             int windowFrames = Math.Max(1, Time.frameCount - framesAtStart);
@@ -459,10 +566,57 @@ namespace ReDefinition.Atmospheres
                 EmitScan("T18.scan" + (int)elevation, RtPackAgreement.Scan(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, elevation));
                 EmitScan("T18.scan" + (int)elevation + "_fresh", RtPackAgreement.Scan(stack, tables, freshPack, vessel.latitude, vessel.longitude, 4.0, 0.2, elevation));
             }
-            // What both sides read at the three places of the 45 degree lattice where they differ most (RtPackAgreement.WorstPlaces), one line per place and layer.
+            // What both sides read at the three places of the 45 degree lattice where they differ most (RtPackAgreement.WorstPlaces), one line per place and layer;
+            // for the pack that stands and, in the same words, for the one baked in this call.
             int worstLine = 0;
             foreach (string line in RtPackAgreement.WorstPlaces(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, 45.0, 3))
                 EmitText("T18.scan45_worst_place_" + worstLine++, line);
+            worstLine = 0;
+            foreach (string line in RtPackAgreement.WorstPlaces(stack, tables, freshPack, vessel.latitude, vessel.longitude, 4.0, 0.2, 45.0, 3))
+                EmitText("T18.scan45_fresh_worst_place_" + worstLine++, line);
+
+            // The age of the standing pack. The weather's patterns move with the wind, so a pack that is `age` seconds old shows the clouds where they were: its
+            // transmittance at a place is the fresh pack's at the place the pattern has moved to (the place plus the wind's drift over the age). The wind is the
+            // mean wind 3 km up at the vessel (the layers' own winds are not read); the figures say how much of the standing pack's difference the drift explains.
+            WeatherSample windSample;
+            double ageS = RtOwnClouds.Stats.AgeS, windEast = 0.0, windNorth = 0.0;
+            bool haveWind = WeatherHub.Sample(vessel.mainBody.flightGlobalsIndex, vessel.latitude, vessel.longitude, 3000.0, Planetarium.GetUniversalTime(), out windSample);
+            if (haveWind)
+            {
+                windEast = windSample.WindWorld.x;
+                windNorth = windSample.WindWorld.y;
+            }
+            Emit("T18.age_wind_east_ms", windEast);
+            Emit("T18.age_wind_north_ms", windNorth);
+            Emit("T18.age_shift_m", Math.Sqrt(windEast * windEast + windNorth * windNorth) * ageS);
+            foreach (RtAgreementPlace p in places)
+            {
+                string key = p.Name.Substring(0, 2);
+                if (p.ElevationDeg != 45.0) continue;
+                double dLat, dLon;
+                RtPackAgreement.DriftDegrees(freshPack.BodyRadiusM, p.LatDeg, windEast, windNorth, ageS, out dLat, out dLon);
+                double freshHere = RtPackAgreement.RayTransmission(freshPack, p.LatDeg, p.LonDeg, 45.0);
+                double moved = RtPackAgreement.RayTransmission(freshPack, p.LatDeg + dLat, p.LonDeg + dLon, 45.0);
+                Emit("T18.shadow_stale_diff_" + key, Math.Abs(p.Ray - freshHere));
+                Emit("T18.shadow_stale_expected_" + key, Math.Abs(freshHere - moved));
+                Emit("T18.shadow_stale_advected_" + key, Math.Abs(p.Ray - moved));
+            }
+            double staleRaw, staleAdvected, staleExpected;
+            int stalePlaces;
+            RtPackAgreement.StaleScan(pack, freshPack, vessel.latitude, vessel.longitude, 4.0, 0.2, 45.0, windEast, windNorth, ageS, out staleRaw, out staleAdvected, out staleExpected, out stalePlaces);
+            Emit("T18.scan45_stale_places", stalePlaces);
+            Emit("T18.scan45_stale_p90", staleRaw);
+            Emit("T18.scan45_stale_expected_p90", staleExpected);
+            Emit("T18.scan45_stale_advected_p90", staleAdvected);
+
+            // The variant with the depth at every texel (rt.depthStride 1): the pack baked in this call with it, and its figures against the same field. It costs more
+            // to bake (the bake ms below); this says what that buys.
+            RtCloudPackSettings everyTexel = RtOwnClouds.LiveSettings();
+            everyTexel.DepthStride = 1;
+            long strideStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            RtCloudPack strideOne = RtCloudPackDriver.BakeNow(stack, tables, everyTexel);
+            Emit("T18.fresh_stride1_bake_ms", (System.Diagnostics.Stopwatch.GetTimestamp() - strideStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+            EmitScan("T18.scan45_fresh_stride1", RtPackAgreement.Scan(stack, tables, strideOne, vessel.latitude, vessel.longitude, 4.0, 0.2, 45.0));
 
             // 7. Pictures with the layers in the rays; the layer cap; off and the same pictures without.
             FlightCamera camera = FlightCamera.fetch;

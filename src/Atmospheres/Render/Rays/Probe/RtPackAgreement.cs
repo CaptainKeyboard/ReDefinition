@@ -186,6 +186,62 @@ namespace ReDefinition.Atmospheres
             return list;
         }
 
+        // The sun's transmittance at a place by the pack's rays alone.
+        internal static double RayTransmission(RtCloudPack pack, double lat, double lon, double elevationDeg)
+        {
+            double x, y, z, sx, sy, sz;
+            Position(pack.BodyRadiusM, lat, lon, out x, out y, out z);
+            SunTowards(lat, lon, elevationDeg, SunAzimuthDeg, out sx, out sy, out sz);
+            return RtCloudRayMath.LightTransmission(pack, x, y, z, sx, sy, sz);
+        }
+
+        // How far a cloud pattern moves in `ageS` seconds in the wind (east and north m/s) at a place, as the shift of latitude and longitude in degrees.
+        internal static void DriftDegrees(double bodyRadiusM, double lat, double windEastMs, double windNorthMs, double ageS, out double dLatDeg, out double dLonDeg)
+        {
+            double cos = Math.Max(0.05, Math.Cos(lat * Math.PI / 180.0));
+            dLatDeg = windNorthMs * ageS / bodyRadiusM * 180.0 / Math.PI;
+            dLonDeg = windEastMs * ageS / (bodyRadiusM * cos) * 180.0 / Math.PI;
+        }
+
+        // The pack that stands against the one baked now over the lattice, in the transmittance of the sun's light: the age of the standing pack (its sky is `ageS`
+        // old; the weather's patterns move with the wind) shows as a shift of the pattern, so the standing pack at a place is the fresh pack at the place the pattern has
+        // moved to, which is the place plus the wind's drift. Returns p90 |T_standing - T_fresh| (raw), p90 |T_standing - T_fresh(place + drift)| (advected: the
+        // pack's age taken out by the wind), and p90 |T_fresh - T_fresh(place + drift)| (the change the drift alone makes: what the age is expected to cost).
+        internal static void StaleScan(RtCloudPack standing, RtCloudPack fresh, double lat0, double lon0, double halfSpanDeg, double stepDeg, double elevationDeg,
+                                       double windEastMs, double windNorthMs, double ageS, out double raw, out double advected, out double expected, out int places)
+        {
+            int n = (int)Math.Round(halfSpanDeg / stepDeg);
+            var rawList = new List<double>();
+            var advectedList = new List<double>();
+            var expectedList = new List<double>();
+            for (int i = -n; i <= n; i++)
+                for (int j = -n; j <= n; j++)
+                {
+                    double lat = lat0 + i * stepDeg, lon = lon0 + j * stepDeg;
+                    if (Math.Abs(lat) > 85.0) continue;
+                    double dLat, dLon;
+                    DriftDegrees(fresh.BodyRadiusM, lat, windEastMs, windNorthMs, ageS, out dLat, out dLon);
+                    double s = RayTransmission(standing, lat, lon, elevationDeg), f = RayTransmission(fresh, lat, lon, elevationDeg);
+                    double moved = RayTransmission(fresh, lat + dLat, lon + dLon, elevationDeg);
+                    bool mid = (s > 0.02 && s < 0.98) || (f > 0.02 && f < 0.98) || (moved > 0.02 && moved < 0.98);
+                    if (!mid) continue;
+                    rawList.Add(Math.Abs(s - f));
+                    advectedList.Add(Math.Abs(s - moved));
+                    expectedList.Add(Math.Abs(f - moved));
+                }
+            places = rawList.Count;
+            raw = Percentile90(rawList);
+            advected = Percentile90(advectedList);
+            expected = Percentile90(expectedList);
+        }
+
+        private static double Percentile90(List<double> values)
+        {
+            if (values.Count == 0) return 0.0;
+            values.Sort();
+            return values[(int)(values.Count * 0.9)];
+        }
+
         // What both sides read at the places of the lattice where they differ most (the `count` worst): one line each, the place, T of the field and of the ray, and per
         // layer the optical depth along the sun ray (strength applied) by the field's march and by the pack's taps, the map values there, and the pack's own texel
         // there (coverage, tau_full, the base and top it holds as altitudes in m). Where a game start fails the scan, these lines say which layer and which number

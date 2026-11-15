@@ -39,6 +39,32 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Assert.AreEqual(6.0, places[4].ElevationDeg, "the terminator place has the low sun");
         }
 
+        // A pack that is old by the wind's drift only is the fresh pack moved: taking the drift out must make the two agree, and the drift alone must account for the
+        // difference between them (the probe's age rows, T18.scan45_stale_*).
+        [TestMethod]
+        public void AStandingPackThatIsOldByTheWindOnlyAgreesOnceTheDriftIsTakenOut()
+        {
+            const double windEast = 100.0, ageS = 30.0;
+            double dLat, dLon;
+            RtPackAgreement.DriftDegrees(PackScenes.Kerbin, 0.0, windEast, 0.0, ageS, out dLat, out dLon);
+            Assert.AreEqual(0.0, dLat, 1e-12);
+            Assert.AreEqual(windEast * ageS / PackScenes.Kerbin * 180.0 / Math.PI, dLon, 1e-9);
+            var noise = PackScenes.Noise(7, 4);
+            var old = new LatLonSource(PackScenes.Kerbin).Add("low", 1500, 3500, 1.6, noise);
+            // The pattern has moved east by the drift since: the fresh sky at a place is the old sky at the place the drift west of it.
+            var now = new LatLonSource(PackScenes.Kerbin).Add("low", 1500, 3500, 1.6, (lat, lon) => noise(lat, lon - dLon));
+            RtCloudPack standing = PackScenes.Bake(old, old.Tables()), fresh = PackScenes.Bake(now, now.Tables());
+            double raw, advected, expected;
+            int places;
+            RtPackAgreement.StaleScan(standing, fresh, 0.0, 0.0, 4.0, 0.2, 45.0, windEast, 0.0, ageS, out raw, out advected, out expected, out places);
+            Console.WriteLine("places " + places + " raw " + raw.ToString("0.000") + " advected " + advected.ToString("0.000") + " expected " + expected.ToString("0.000"));
+            Assert.IsTrue(places > 100, "places " + places);
+            Assert.IsTrue(raw > 0.04, "the drift is a difference to explain (" + raw + ")");
+            // Not exactly 0: the two packs are baked on the texel lattice and the drift is a fraction of a texel, so the bilinear reads differ by a little.
+            Assert.IsTrue(advected < 0.06 && advected < raw / 5.0, "with the drift taken out the packs agree (" + advected + " against " + raw + ")");
+            Assert.IsTrue(Math.Abs(expected - raw) < 0.03, "the drift alone is what the age cost (expected " + expected + ", raw " + raw + ")");
+        }
+
         [TestMethod]
         public void AClearSkyHasNoPlaceAndSaysWhichKindsAreMissing()
         {
