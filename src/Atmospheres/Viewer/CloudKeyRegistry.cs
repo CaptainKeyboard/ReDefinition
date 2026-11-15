@@ -136,6 +136,9 @@ namespace ReDefinition.Atmospheres.Viewer
             // The reconstruction (OwnCloudOptions.Apply(ReconSettings), LayerReconstructDriver.Configure).
             N(OwnCloudOptions.TuneAccumulate, OwnCloudOptions.AccumulateDefault, KeyLiveness.FrameHistory),
             N(OwnCloudOptions.TuneReconResolution, OwnCloudOptions.ReconResolutionDefault, KeyLiveness.FrameHistory),
+            F(OwnCloudOptions.TuneLayerMotion, OwnCloudOptions.LayerMotionDefault, KeyLiveness.FrameHistory, "cloud motion in the history and the motion vectors"),
+            F(OwnCloudOptions.TuneMotionVectors, OwnCloudOptions.MotionVectorsDefault, note: "motion vectors for the upscalers"),
+            F(OwnCloudOptions.TuneMotionAudit, OwnCloudOptions.MotionAuditDefault, note: "logs the vectors' error"),
             F(EdgeSettings.TuneReconstructor, EdgeSettings.ReconstructorDefault, KeyLiveness.FrameHistory),
             F(EdgeSettings.TuneEdgeAdaptive, EdgeSettings.AdaptiveDefault, KeyLiveness.FrameHistory),
             N(EdgeSettings.TuneThreshold, EdgeSettings.ThresholdDefault),
