@@ -186,6 +186,54 @@ namespace ReDefinition.Atmospheres
             return list;
         }
 
+        // What both sides read at the places of the lattice where they differ most (the `count` worst): one line each, the place, T of the field and of the ray, and per
+        // layer the optical depth along the sun ray (strength applied) by the field's march and by the pack's taps, the map values there, and the pack's own texel
+        // there (coverage, tau_full, the base and top it holds as altitudes in m). Where a game start fails the scan, these lines say which layer and which number
+        // differ: a column depth that is capped, a base and top that are not the field's, a map that is not the stack's.
+        internal static List<string> WorstPlaces(ICloudLayerSource source, LayerTypeTable[] tables, RtCloudPack pack, double lat0, double lon0, double halfSpanDeg,
+                                                 double stepDeg, double elevationDeg, int count)
+        {
+            var reference = new CloudShadowField(source, tables) { StepsPerSpan = 64, DiscSamples = 1 };
+            int n = (int)Math.Round(halfSpanDeg / stepDeg);
+            var all = new List<double[]>();
+            for (int i = -n; i <= n; i++)
+                for (int j = -n; j <= n; j++)
+                {
+                    double lat = lat0 + i * stepDeg, lon = lon0 + j * stepDeg;
+                    if (Math.Abs(lat) > 85.0) continue;
+                    double x, y, z, sx, sy, sz;
+                    Position(source.BodyRadiusM, lat, lon, out x, out y, out z);
+                    SunTowards(lat, lon, elevationDeg, SunAzimuthDeg, out sx, out sy, out sz);
+                    double tf = reference.DirectTransmission(x, y, z, sx, sy, sz), tr = RtCloudRayMath.LightTransmission(pack, x, y, z, sx, sy, sz);
+                    all.Add(new[] { Math.Abs(tf - tr), lat, lon, tf, tr });
+                }
+            all.Sort((a, b) => b[0].CompareTo(a[0]));
+            var lines = new List<string>();
+            for (int k = 0; k < count && k < all.Count; k++)
+            {
+                double[] w = all[k];
+                double x, y, z, sx, sy, sz;
+                Position(source.BodyRadiusM, w[1], w[2], out x, out y, out z);
+                SunTowards(w[1], w[2], elevationDeg, SunAzimuthDeg, out sx, out sy, out sz);
+                string line = "lat " + w[1].ToString("0.0") + " lon " + w[2].ToString("0.0") + " T field " + w[3].ToString("0.000") + " ray " + w[4].ToString("0.000");
+                for (int l = 0; l < pack.LayerCount; l++)
+                {
+                    CloudLayerDef def = source.LayerAt(pack.Entries[l].StackIndex);
+                    double field = reference.LayerOpticalDepth(pack.Entries[l].StackIndex, x, y, z, sx, sy, sz, double.MaxValue) * def.ShadowStrength;
+                    double rays = RtCloudRayMath.LayerTau(pack, l, x, y, z, sx, sy, sz, double.MaxValue) * def.ShadowStrength;
+                    float cover, type;
+                    source.SampleMaps(pack.Entries[l].StackIndex, w[1], w[2], out cover, out type);
+                    double packCover, tauFull, baseW, topW;
+                    pack.Sample(l, w[1], w[2] - pack.Entries[l].MapShiftDeg, out packCover, out tauFull, out baseW, out topW);
+                    double inner = pack.Entries[l].InnerRadiusM - pack.BodyRadiusM, thickness = pack.Entries[l].ThicknessM;
+                    string band = tauFull > 1e-6 ? (inner + baseW / tauFull * thickness).ToString("0") + "-" + (inner + topW / tauFull * thickness).ToString("0") : "none";
+                    lines.Add(line + " | " + pack.Entries[l].Name + " tau field " + field.ToString("0.00") + " pack " + rays.ToString("0.00") + " map " + cover.ToString("0.00") + "/" + type.ToString("0.00")
+                              + " texel cover " + packCover.ToString("0.00") + " tau_full " + tauFull.ToString("0.0") + " band m " + band);
+                }
+            }
+            return lines;
+        }
+
         // The absolute difference of the ray's transmittance against the reference's over the lattice (see RtAgreementScan for the places that count).
         internal static RtAgreementScan Scan(ICloudLayerSource source, LayerTypeTable[] tables, RtCloudPack pack, double lat0, double lon0, double halfSpanDeg,
                                              double stepDeg, double elevationDeg)

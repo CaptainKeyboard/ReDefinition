@@ -7,9 +7,11 @@ namespace ReDefinition.Atmospheres
     // at the origin, x towards longitude 0, y towards longitude 90 east, z north (the map frame of CloudShadowField).
     //
     // For each layer: the ray's chord through the layer's shell (LayerGeometry.ShellSpans, the same spans the cloud shadow walks), split into at most MaxTaps
-    // taps of at most TapSpacingM; at each tap the pack's tau_v at the tap's place, times the tap's length over the shell's thickness (a column's density
-    // is tau_v over the thickness, taken as uniform across the shell: the type table's profile is in tau_v, not in the path). The light's transmission is
-    // exp(-sum of strength x tau), the cloud shadow's direct term (CloudShadowMath.DirectTransmission).
+    // taps of at most TapSpacingM; at each tap the pack's tau_v at the tap's place, times the length of the tap's path that lies between the column's base and
+    // top (the pack holds both) over the cloud's thickness there: a column's density is tau_v over the cloud's own thickness, taken as uniform across it (the
+    // type table's profile is in tau_v, not in the path). The cloud is not spread over the shell: a shell several times thicker than the cloud (the height
+    // variation and the type table's heights widen it) would average the clouds of a band as wide as it is thick, in every direction, into each shadow.
+    // The light's transmission is exp(-sum of strength x tau), the cloud shadow's direct term (CloudShadowMath.DirectTransmission).
     internal static class RtCloudRayMath
     {
         // The most taps one chord gets, and the length one tap stands for, m.
@@ -18,6 +20,25 @@ namespace ReDefinition.Atmospheres
 
         // The optical depth of one layer along the ray o + t d for t from 0 to tMax, before the layer's strength.
         internal static double LayerTau(RtCloudPack pack, int layer, double ox, double oy, double oz, double dx, double dy, double dz, double tMax)
+        {
+            return LayerTau(pack, layer, ox, oy, oz, dx, dy, dz, tMax, MaxTaps);
+        }
+
+        // The share of a tap's path that lies between a column's base and top: the path climbs from fraction f0 to f1 of the shell, the cloud occupies [baseFraction,
+        // topFraction]. A level path (no climb) is inside or out.
+        internal static double BandShare(double f0, double f1, double baseFraction, double topFraction)
+        {
+            double lo = Math.Min(f0, f1), hi = Math.Max(f0, f1), width = hi - lo;
+            if (width < 1e-6) return lo >= baseFraction && lo <= topFraction ? 1.0 : 0.0;
+            double overlap = Math.Min(hi, topFraction) - Math.Max(lo, baseFraction);
+            return overlap <= 0.0 ? 0.0 : overlap / width;
+        }
+
+        // The smallest cloud thickness a column is taken to have, as a fraction of the shell: a column whose base and top the filter has pressed together does
+        // not get an unbounded density (its share of the path shrinks with it).
+        internal const double MinBandFraction = 0.002;
+
+        internal static double LayerTau(RtCloudPack pack, int layer, double ox, double oy, double oz, double dx, double dy, double dz, double tMax, int maxTaps)
         {
             RtCloudLayerEntry e = pack.Entries[layer];
             double thickness = e.ThicknessM;
@@ -29,17 +50,28 @@ namespace ReDefinition.Atmospheres
             for (int s = 0; s < count; s++)
             {
                 LayerSpan span = s == 0 ? a : b;
-                int taps = (int)Math.Max(1.0, Math.Min(MaxTaps, Math.Ceiling(span.Length / TapSpacingM)));
+                int taps = (int)Math.Max(1.0, Math.Min(maxTaps, Math.Ceiling(span.Length / TapSpacingM)));
                 double dt = span.Length / taps;
                 for (int k = 0; k < taps; k++)
                 {
-                    double t = span.T0 + dt * (k + 0.5);
-                    double lat, lon;
+                    double t0 = span.T0 + dt * k, t = t0 + 0.5 * dt, t1 = t0 + dt;
+                    double lat, lon, columnTau, baseFraction, topFraction;
                     LayerGeometry.LatLon(ox + dx * t, oy + dy * t, oz + dz * t, out lat, out lon);
-                    tau += pack.ColumnTau(layer, lat, lon - e.MapShiftDeg) * dt / thickness;
+                    pack.Column(layer, lat, lon - e.MapShiftDeg, out columnTau, out baseFraction, out topFraction);
+                    if (!(columnTau > 0.0)) continue;                    double f0 = (Radius(ox + dx * t0, oy + dy * t0, oz + dz * t0) - e.InnerRadiusM) / thickness;
+                    double f1 = (Radius(ox + dx * t1, oy + dy * t1, oz + dz * t1) - e.InnerRadiusM) / thickness;
+                    double inside = BandShare(f0, f1, baseFraction, topFraction);
+                    if (inside <= 0.0) continue;
+                    // The column's depth over the cloud's own thickness is its density; the path inside the band times it is the tap's depth.
+                    tau += columnTau * dt * inside / (Math.Max(MinBandFraction, topFraction - baseFraction) * thickness);
                 }
             }
             return tau;
+        }
+
+        private static double Radius(double x, double y, double z)
+        {
+            return Math.Sqrt(x * x + y * y + z * z);
         }
 
         // All layers, each scaled by its shadow strength (withStrength) or not.

@@ -54,16 +54,33 @@ namespace ReDefinition.Atmospheres
             return frames <= 0 ? 0.0 : (Time.realtimeSinceStartup - fromTime) * 1000.0 / frames;
         }
 
-        // One window of the cost measurement: `settle` frames unmeasured, then the mean frame time of `frames` frames, ms, in windowMs.
-        private double windowMs;
+        // One window of the cost measurement: `settle` frames unmeasured (the first frames after a switch carry the switch's own work), then `frames` frames each
+        // timed, ms. The window's figure is the MEDIAN frame time (windowMs): a frame that another process's GPU work or a garbage collection stretched does not
+        // move it, as it moves a mean. windowMax is the longest frame, for the log.
+        private double windowMs, windowMax;
+        private readonly List<double> frameTimes = new List<double>();
 
         private IEnumerable<ProbeWait> Window(int settle, int frames)
         {
             yield return ProbeWait.Frames(settle);
-            float t0 = Time.realtimeSinceStartup;
-            int f0 = Time.frameCount;
-            yield return ProbeWait.Frames(frames);
-            windowMs = FrameMs(t0, f0);
+            frameTimes.Clear();
+            for (int i = 0; i < frames; i++)
+            {
+                yield return ProbeWait.Frames(1);
+                frameTimes.Add(Time.unscaledDeltaTime * 1000.0);
+            }
+            windowMax = 0.0;
+            foreach (double t in frameTimes) windowMax = Math.Max(windowMax, t);
+            windowMs = Median(frameTimes);
+        }
+
+        private static double Median(List<double> values)
+        {
+            if (values.Count == 0) return 0.0;
+            var sorted = new List<double>(values);
+            sorted.Sort();
+            int mid = sorted.Count / 2;
+            return sorted.Count % 2 == 1 ? sorted[mid] : 0.5 * (sorted[mid - 1] + sorted[mid]);
         }
 
         private void EmitScan(string key, RtAgreementScan scan)
@@ -73,25 +90,6 @@ namespace ReDefinition.Atmospheres
             Emit(key + "_p90", scan.P90);
             Emit(key + "_worst", scan.Worst);
             Emit(key + "_tau_ratio", scan.TauRatioMedian);
-        }
-
-        private static double Mean(List<double> values)
-        {
-            double sum = 0.0;
-            foreach (double v in values) sum += v;
-            return values.Count == 0 ? 0.0 : sum / values.Count;
-        }
-
-        private static double Spread(List<double> values)
-        {
-            if (values.Count == 0) return 0.0;
-            double lo = double.MaxValue, hi = double.MinValue;
-            foreach (double v in values)
-            {
-                lo = Math.Min(lo, v);
-                hi = Math.Max(hi, v);
-            }
-            return hi - lo;
         }
 
         private static double SunElevationDeg(Vessel v)
@@ -175,7 +173,9 @@ namespace ReDefinition.Atmospheres
         // The two views: the flight camera as the start has it (the vessel's glossy parts, the ground under the clouds), and the camera turned level
         // to the horizon (the sky, the far ground and the sea seen through the rays).
         // The horizon is taken at four headings a quarter turn apart, since which way the sea and the far ground lie from the pad is not known to the probe.
-        private static readonly string[] Views = { "pad", "horizon-h0", "horizon-h1", "horizon-h2", "horizon-h3" };
+        // The sea views: the camera 400 m out and 0.45 rad up, looking down on the water at a glancing angle (the water's mirror image of the sky is where the rays'
+        // clouds show: the pad's camera at 23 m sees a few pixels of sea). Again four headings, since which way the sea lies is not known to the probe.
+        private static readonly string[] Views = { "pad", "horizon-h0", "horizon-h1", "horizon-h2", "horizon-h3", "sea-h0", "sea-h1", "sea-h2", "sea-h3" };
 
         private IEnumerable<ProbeWait> Pictures(string state, float hdg, float pitch)
         {
@@ -192,6 +192,16 @@ namespace ReDefinition.Atmospheres
                 yield return ProbeWait.Frames(30);
                 foreach (ProbeWait w in Picture(Views[1 + k], state)) yield return w;
             }
+            float distance = camera.Distance;
+            camera.SetDistance(400f);
+            camera.camPitch = 0.45f;
+            for (int k = 0; k < 4; k++)
+            {
+                camera.camHdg = hdg + k * (float)(Math.PI / 2.0);
+                yield return ProbeWait.Frames(30);
+                foreach (ProbeWait w in Picture(Views[5 + k], state)) yield return w;
+            }
+            camera.SetDistance(distance);
             camera.camHdg = hdg;
             camera.camPitch = pitch;
         }
@@ -276,22 +286,28 @@ namespace ReDefinition.Atmospheres
             Emit("T18.bake_wall_s", stats.LastBakeWallS);
             Emit("T18.bake_tick_worst_ms", stats.WorstFirstTickMs);
             Emit("T18.bakes_done", stats.BakesDone - bakesBefore);
-            Emit("T18.upload_ms", RtOwnClouds.LastUploadMs);
-            Emit("T18.upload_worst_ms", RtOwnClouds.WorstUploadMs);
+            Emit("T18.upload_ms", RtOwnClouds.FirstUploadMs);
             yield return ProbeWait.Until(() => Time.frameCount - RayCloudSeam.TakenFrame <= 2, 120, "the rays taking the own pack");
 
             // 3. The cost of the own layers in the rays: the same traced scene with the pack in the rays and with it hidden from them (the pack stays and is kept
-            // current, so nothing but what the rays read differs). Windows of 100 frames after 20 to settle, in rounds; the order inside a round turns each round so that
-            // a drift of the scene (the sky, other work on the machine) does not fall on one kind. A kind's number is the mean of its windows; its spread (largest
-            // minus smallest window) says whether the figure can be trusted: a spread of a few ms is a machine under other load, and the cost row is then not a result.
+            // current, so nothing but what the rays read differs). Five rounds; a round holds one window of each kind, the order turning each round so that a drift of
+            // the scene (the sky, other work on the machine) does not fall on one kind. A window is 30 frames to settle (not measured: the first frames after a
+            // switch carry its work) and 60 timed frames, and its figure is the median frame time. A kind's figure is the median of its windows' figures; the
+            // cost is the median over the rounds of (taps8 - hidden) of the same round, so that a slow drift cancels in each pair. The spread is the largest
+            // distance of a round's figure of a kind from that kind's median: it says whether the figure can be trusted. A VALID measurement needs: every window did what
+            // its kind says (the rays took the pack, or did not); no round of a kind more than max(2 ms, 5 %) from its median; and no other process using the GPU
+            // (the series is run on a quiet machine: a Unity job or a second game on the same GPU moves the windows by several ms).
             double bakeMsAtStart = RtOwnClouds.Stats.TotalBakeMs;
             int framesAtStart = Time.frameCount, uploadsAtStart = RtOwnClouds.Uploads;
             RtOwnClouds.Stats.WorstTickMs = 0.0;
+            RtOwnClouds.WorstSliceMs = 0.0;
             string[] kinds = { "hidden", "taps8", "taps4", "taps16" };
+            const int Rounds = 5;
             var windows = new Dictionary<string, List<double>>();
             foreach (string k in kinds) windows[k] = new List<double>();
             int invalid = 0;
-            for (int round = 0; round < 3; round++)
+            double longestFrame = 0.0;
+            for (int round = 0; round < Rounds; round++)
                 for (int n = 0; n < kinds.Length; n++)
                 {
                     string kind = kinds[(n + round) % kinds.Length];
@@ -299,26 +315,42 @@ namespace ReDefinition.Atmospheres
                     if (kind == "taps4") ForceTuning("rt.rayTaps", 4);
                     else if (kind == "taps16") ForceTuning("rt.rayTaps", 16);
                     else ClearForced();
-                    foreach (ProbeWait w in Window(20, 100)) yield return w;
+                    foreach (ProbeWait w in Window(30, 60)) yield return w;
                     windows[kind].Add(windowMs);
+                    longestFrame = Math.Max(longestFrame, windowMax);
                     // A window counts only where the rays did what the kind says: hidden, nothing taken at its end; the others, the pack taken in the last frames.
                     bool taken = Time.frameCount - RayCloudSeam.TakenFrame <= 2;
                     if (taken == (kind == "hidden")) invalid++;
                 }
             RtOwnClouds.HideFromRays = false;
             ClearForced();
-            double hidden = Mean(windows["hidden"]);
-            double spread = Math.Max(Spread(windows["hidden"]), Spread(windows["taps8"]));
+            double hidden = Median(windows["hidden"]);
+            double spread = 0.0;
+            foreach (string k in kinds)
+            {
+                double m = Median(windows[k]);
+                foreach (double v in windows[k]) spread = Math.Max(spread, Math.Abs(v - m));
+            }
+            var deltas8 = new List<double>();
+            var deltas4 = new List<double>();
+            var deltas16 = new List<double>();
+            for (int r = 0; r < Rounds; r++)
+            {
+                deltas8.Add(windows["taps8"][r] - windows["hidden"][r]);
+                deltas4.Add(windows["taps4"][r] - windows["hidden"][r]);
+                deltas16.Add(windows["taps16"][r] - windows["hidden"][r]);
+            }
             Emit("T18.rt_ms_off", hidden);
-            Emit("T18.rt_ms_taps8", Mean(windows["taps8"]));
-            Emit("T18.rt_ms_taps4", Mean(windows["taps4"]));
-            Emit("T18.rt_ms_taps16", Mean(windows["taps16"]));
-            Emit("T18.rt_frame_ms_delta", Mean(windows["taps8"]) - hidden);
-            Emit("T18.rt_ms_delta_taps4", Mean(windows["taps4"]) - hidden);
-            Emit("T18.rt_ms_delta_taps16", Mean(windows["taps16"]) - hidden);
+            Emit("T18.rt_ms_taps8", Median(windows["taps8"]));
+            Emit("T18.rt_ms_taps4", Median(windows["taps4"]));
+            Emit("T18.rt_ms_taps16", Median(windows["taps16"]));
+            Emit("T18.rt_frame_ms_delta", Median(deltas8));
+            Emit("T18.rt_ms_delta_taps4", Median(deltas4));
+            Emit("T18.rt_ms_delta_taps16", Median(deltas16));
             Emit("T18.rt_ms_spread", spread);
+            Emit("T18.rt_longest_frame_ms", longestFrame);
             Emit("T18.rt_windows_wrong", invalid);
-            // A figure to trust: every window did what its kind says and the repeats of a kind lie within 2 ms (or 5 %) of each other.
+            // A figure to trust: every window did what its kind says and no round of a kind lies more than 2 ms (or 5 %) from the kind's median.
             Emit("T18.rt_cost_valid", invalid == 0 && spread <= Math.Max(2.0, 0.05 * hidden));
             // What keeping the pack current cost in those frames (all windows, the bake's own stopwatch): the main-thread ms of baking per traced frame, and the
             // worst refresh tick.
@@ -333,6 +365,9 @@ namespace ReDefinition.Atmospheres
             Emit("T18.pack_age_max_s", RtOwnClouds.Stats.MaxAgeS);
             Emit("T18.refresh_bake_wall_s", RtOwnClouds.Stats.LastBakeWallS);
             Emit("T18.refresh_bake_total_ms", RtOwnClouds.Stats.LastBakeMs);
+            // The refresh uploads a layer slice a frame (RtOwnClouds): the worst main-thread step of them, since the windows began.
+            yield return ProbeWait.Frames(10);
+            Emit("T18.upload_slice_worst_ms", RtOwnClouds.WorstSliceMs);
             yield return ProbeWait.Frames(30);
 
             // 4. Facts.
@@ -343,11 +378,11 @@ namespace ReDefinition.Atmospheres
             Emit("T18.layers_in_pack", pack.LayerCount);
             Emit("T18.layers_in_pack_all", pack.LayerCount == expected);
             Emit("T18.pack_width", pack.Width);
-            Emit("T18.pack_mb", RtCloudPackLayout.Bytes(pack.Width, pack.Height, pack.LayerCount) * 2 / (1024.0 * 1024.0));
+            Emit("T18.pack_mb", RtCloudPackLayout.Bytes(pack.Width, pack.Height, pack.LayerCount) / (1024.0 * 1024.0));
             Texture texture = RtOwnClouds.Texture;
             Emit("T18.texture_ok", texture != null && texture.width == pack.Width && texture.height == pack.Height * pack.LayerCount + RayCloudLayout.HeaderRows);
             double covered = 0.0;
-            for (int i = 0; i < pack.Width * pack.Height * 2; i += 2)
+            for (int i = 0; i < pack.Width * pack.Height * RtCloudPackLayout.Channels; i += RtCloudPackLayout.Channels)
                 if (LayerDensity.Shape(pack.Data[i], pack.Entries[0].Coverage, pack.Entries[0].EdgeSoftness) > 0.0) covered += 1.0;
             Emit("T18.layer0_cloud_share", covered / (pack.Width * pack.Height));
 
@@ -424,6 +459,10 @@ namespace ReDefinition.Atmospheres
                 EmitScan("T18.scan" + (int)elevation, RtPackAgreement.Scan(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, elevation));
                 EmitScan("T18.scan" + (int)elevation + "_fresh", RtPackAgreement.Scan(stack, tables, freshPack, vessel.latitude, vessel.longitude, 4.0, 0.2, elevation));
             }
+            // What both sides read at the three places of the 45 degree lattice where they differ most (RtPackAgreement.WorstPlaces), one line per place and layer.
+            int worstLine = 0;
+            foreach (string line in RtPackAgreement.WorstPlaces(stack, tables, pack, vessel.latitude, vessel.longitude, 4.0, 0.2, 45.0, 3))
+                EmitText("T18.scan45_worst_place_" + worstLine++, line);
 
             // 7. Pictures with the layers in the rays; the layer cap; off and the same pictures without.
             FlightCamera camera = FlightCamera.fetch;

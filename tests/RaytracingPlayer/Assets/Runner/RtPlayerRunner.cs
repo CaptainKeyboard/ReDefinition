@@ -607,7 +607,8 @@ namespace ReDefinition.RaytracingPlayer
 
             Texture2D Pack(bool eastOnly)
             {
-                // Four floats a texel, the numbers in r and g, as RtOwnClouds uploads them (the proxy cannot share R32G32).
+                // Four floats a texel as RtOwnClouds uploads them (the proxy cannot share R32G32): r the coverage, g the full depth, b and a the depth times the cloud's
+                // base and top as fractions of the shell (here the cloud fills the whole shell: base 0, top 1).
                 var data = new float[Width * (Slice + 1) * 4];
                 for (int j = 0; j < Slice; j++)
                     for (int i = 0; i < Width; i++)
@@ -615,6 +616,8 @@ namespace ReDefinition.RaytracingPlayer
                         float lon = -180f + (i + 0.5f) * 360f / Width;
                         data[(j * Width + i) * 4] = !eastOnly || lon >= EdgeLonDeg ? 1f : 0f;
                         data[(j * Width + i) * 4 + 1] = TauFull;
+                        data[(j * Width + i) * 4 + 2] = 0f;
+                        data[(j * Width + i) * 4 + 3] = TauFull;
                     }
                 int h = Slice * Width * 4;
                 float[] header = { Radius, 1f, Inner, Outer, 1f, 0.5f, 0.15f, 0f, 1f, 0f, 0f, 0f };

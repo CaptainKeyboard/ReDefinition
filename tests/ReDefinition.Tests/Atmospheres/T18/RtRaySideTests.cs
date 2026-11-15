@@ -175,14 +175,19 @@ namespace ReDefinition.Tests.Atmospheres.T18
                 slice = pack.Height;
                 layers = pack.LayerCount;
                 rows = slice * layers + RayCloudLayout.HeaderRows;
-                tex = new float[width * rows * 2];
+                tex = new float[width * rows * 4];
                 Array.Copy(pack.Data, tex, pack.Data.Length);
-                var header = new float[width * 2];
+                var header = new float[width * RtCloudPackLayout.HeaderChannels];
                 RtCloudPackLayout.WriteHeader(pack, header);
-                Array.Copy(header, 0, tex, pack.Data.Length, header.Length);
+                // The header row's numbers are two a texel in r and g; the texture holds four.
+                for (int i = 0; i < width; i++)
+                {
+                    tex[pack.Data.Length + i * 4] = header[i * 2];
+                    tex[pack.Data.Length + i * 4 + 1] = header[i * 2 + 1];
+                }
             }
 
-            private float Load(int x, int y, int c) { return tex[(y * width + x) * 2 + c]; }
+            private float Load(int x, int y, int c) { return tex[(y * width + x) * 4 + c]; }
 
             private void Header(int texel, out float a, out float b)
             {
@@ -191,7 +196,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
                 b = Load(texel, y, 1);
             }
 
-            private void Sample(float u, float v, out float r, out float g)
+            private void Sample(float u, float v, out float r, out float g, out float bw, out float aw)
             {
                 float x = u * width - 0.5f, y = v * rows - 0.5f;
                 int x0 = (int)Math.Floor(x), y0 = (int)Math.Floor(y);
@@ -199,6 +204,8 @@ namespace ReDefinition.Tests.Atmospheres.T18
                 int xa = Wrap(x0, width), xb = Wrap(x0 + 1, width), ya = Wrap(y0, rows), yb = Wrap(y0 + 1, rows);
                 r = Mix(Load(xa, ya, 0), Load(xb, ya, 0), Load(xa, yb, 0), Load(xb, yb, 0), fx, fy);
                 g = Mix(Load(xa, ya, 1), Load(xb, ya, 1), Load(xa, yb, 1), Load(xb, yb, 1), fx, fy);
+                bw = Mix(Load(xa, ya, 2), Load(xb, ya, 2), Load(xa, yb, 2), Load(xb, yb, 2), fx, fy);
+                aw = Mix(Load(xa, ya, 3), Load(xb, ya, 3), Load(xa, yb, 3), Load(xb, yb, 3), fx, fy);
             }
 
             private static float Mix(float a, float b, float c, float d, float fx, float fy)
@@ -207,6 +214,8 @@ namespace ReDefinition.Tests.Atmospheres.T18
             }
 
             private static int Wrap(int i, int n) { int m = i % n; return m < 0 ? m + n : m; }
+
+            private static float Sq(float v) { return v * v; }
 
             private static bool Sphere(float ox, float oy, float oz, float dx, float dy, float dz, float radius, out float t0, out float t1)
             {
@@ -221,19 +230,34 @@ namespace ReDefinition.Tests.Atmospheres.T18
                 return true;
             }
 
-            private float ColumnTau(int layer, float qx, float qy, float qz, float shift, float coverage, float softness, float clearK, float power)
+            private float ColumnTau(int layer, float qx, float qy, float qz, float shift, float coverage, float softness, float clearK, float power, out float baseF, out float topF)
             {
                 float r = Math.Max((float)Math.Sqrt(qx * qx + qy * qy + qz * qz), 1f);
                 float lat = (float)Math.Asin(Math.Max(-1f, Math.Min(1f, qz / r))) * (180f / Pi);
                 float lon = (float)Math.Atan2(qy, qx) * (180f / Pi) - shift;
                 float y = Math.Max(0.5f, Math.Min(slice - 0.5f, (90f - lat) * slice / 180f));
                 float u = (lon + 180f) / 360f, v = (layer * slice + y) / (layers * slice + RayCloudLayout.HeaderRows);
-                float mr, mg;
-                Sample(u, v, out mr, out mg);
+                float mr, mg, mb, ma;
+                Sample(u, v, out mr, out mg, out mb, out ma);
                 float map = clearK > 0f ? Math.Min(mr, 2f * mr - clearK) : mr;
                 float share = Math.Max(0f, Math.Min(1f, (map + coverage - 1f) / Math.Max(softness, 1e-4f) + 0.5f));
                 share = share > 0f ? (power == 1f ? share : (float)Math.Pow(share, power)) : 0f;
+                baseF = 0f;
+                topF = 1f;
+                if (mg > 1e-6f)
+                {
+                    baseF = Math.Max(0f, Math.Min(1f, mb / mg));
+                    topF = Math.Max(baseF, Math.Min(1f, ma / mg));
+                }
                 return share * mg;
+            }
+
+            private static float BandShare(float f0, float f1, float baseF, float topF)
+            {
+                float lo = Math.Min(f0, f1), hi = Math.Max(f0, f1), width = hi - lo;
+                if (width < 1e-6f) return lo >= baseF && lo <= topF ? 1f : 0f;
+                float overlap = Math.Min(hi, topF) - Math.Max(lo, baseF);
+                return overlap <= 0f ? 0f : overlap / width;
             }
 
             private float Tau(float ox, float oy, float oz, float dx, float dy, float dz, float tMax, bool light)
@@ -287,8 +311,15 @@ namespace ReDefinition.Tests.Atmospheres.T18
                         float dt = span / n;
                         for (int k = 0; k < n; k++)
                         {
-                            float t = spans[s * 2] + dt * (k + 0.5f);
-                            tau += ColumnTau(layer, ox + dx * t, oy + dy * t, oz + dz * t, shift, coverage, soft, clearK, power) * dt / thickness;
+                            float ta = spans[s * 2] + dt * k, t = ta + dt * 0.5f, tb = ta + dt;
+                            float baseF, topF;
+                            float column = ColumnTau(layer, ox + dx * t, oy + dy * t, oz + dz * t, shift, coverage, soft, clearK, power, out baseF, out topF);
+                            if (column <= 0f) continue;
+                            float f0 = ((float)Math.Sqrt(Sq(ox + dx * ta) + Sq(oy + dy * ta) + Sq(oz + dz * ta)) - inner) / thickness;
+                            float f1 = ((float)Math.Sqrt(Sq(ox + dx * tb) + Sq(oy + dy * tb) + Sq(oz + dz * tb)) - inner) / thickness;
+                            float inside = BandShare(f0, f1, baseF, topF);
+                            if (inside <= 0f) continue;
+                            tau += column * dt * inside / (Math.Max(0.002f, topF - baseF) * thickness);
                         }
                     }
                     total += light ? tau * strength : tau;

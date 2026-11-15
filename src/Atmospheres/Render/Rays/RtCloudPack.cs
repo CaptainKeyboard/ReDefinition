@@ -6,17 +6,25 @@ namespace ReDefinition.Atmospheres
     // The ray-side cloud pack of the own layers (package T18, RtOwnClouds): what the traced rays need to see the same clouds the own pass draws, ALL layers.
     // Pure (no Unity), so the tests and the weather player link it.
     //
-    // The pack is a table of layer entries and, per layer, one map of two numbers per texel, equirectangular in the layer's own map frame:
+    // The pack is a table of layer entries and, per layer, one map of four numbers per texel, equirectangular in the layer's own map frame:
     //   R  the layer's coverage map value (0 to 1) at the texel, as the stack's readers get it (ICloudLayerSource.SampleMaps);
     //   G  the column depth at full cloud, tau_full: the integral over the layer of sigma x profile(type, local heights), the extinction without the coverage
-    //      shape (0 where neither the texel nor a neighbour holds cloud).
-    // The ray side filters both bilinearly and forms the layer's vertical optical depth at a tap as shape(R) x G with the entry's coverage and softness
+    //      shape (0 where neither the texel nor a neighbour holds cloud);
+    //   B  tau_full x the cloud's base at the texel, A tau_full x its top, both as a fraction (0 to 1) of the entry's shell (the type table's interpolated
+    //      heights, or the local heights of the height variation: the field's own lb and lt). Weighted by tau_full so that the bilinear filter of the sampler
+    //      gives the tau-weighted mean base and top (B / G, A / G), which is what a column mixed from two texels has.
+    // The ray side filters all four bilinearly and forms the layer's vertical optical depth at a tap as shape(R) x G with the entry's coverage and softness
     // (LayerDensity.Shape), which is how the raster side and the cloud shadow of T04 read the same field (interpolate the map, then threshold). The edge of a
     // cloud then keeps the sharpness of the map, not of the pack's texel; the coverage shift and the soft edge of the look knobs act on the entry's numbers
     // without a new bake. It is not a second copy of a map: the maps stay in the layer stack (LayerStackSource); the pack holds what they and the type
     // table integrate to, and is made again when the stack's version moves.
     //
-    // Layout, binding for the consumer (RtCloudPackLayout): a texture of Width x (Height x LayerCount), two floats (R32G32F) per texel, layer i in the rows
+    // The cloud sits between its base and top, not across the whole shell: the shell is the interval of every type and every local height of the layer (the
+    // cumulonimbus shell is 12 km, a cloud in it 1 to 3 km), and a ray at 45 degrees crosses a shell's thickness in as many km sideways. A ray that took the
+    // column at every tap of the shell, spread evenly over its height, would average the clouds of a 12 km wide band into every shadow; a tap therefore counts
+    // only the part of its path that lies between the column's base and top (RtCloudRayMath.LayerTau), which is where the cloud shadow's march finds the cloud.
+    //
+    // Layout, binding for the consumer (RtCloudPackLayout): a texture of Width x (Height x LayerCount), four floats (R32G32B32A32F) per texel, layer i in the rows
     // [i x Height, (i + 1) x Height), row j of a slice at latitude 90 - (j + 0.5) x 180 / Height, column i at longitude -180 + (i + 0.5) x 360 / Width in the
     // layer's map frame (the world longitude is that plus the entry's MapShiftDeg). The consumer clamps a read to its slice's rows.
 
@@ -25,10 +33,13 @@ namespace ReDefinition.Atmospheres
     {
         // The most layers a pack holds: the own pass's own limit.
         internal const int MaxLayers = CloudLayerDef.MaxLayers;
-        // The floats a texel holds (coverage, tau_full).
-        internal const int Channels = 2;
+        // The floats a texel holds: R coverage, G tau_full, B and A the cloud's base and top, each weighted by tau_full (see the top of this file). The texture is
+        // R32G32B32A32F, so the pack's data is the texture's data (no expansion on the main thread, no staging arrays).
+        internal const int Channels = 4;
+        // The floats a texel of the header row holds in the pack's own layout (two numbers a texel; the texture expands them to four).
+        internal const int HeaderChannels = 2;
         // The largest column depth stored; a column thicker than this is as good as opaque for any light.
-        internal const float MaxTau = 64f;
+        internal const float MaxTau = 65536f;
 
         // The latitude and longitude (degrees, map frame) of the centre of texel (column, row) of a slice of width x height.
         internal static void TexelLatLon(int column, int row, int width, int height, out double latDeg, out double lonDeg)
@@ -63,7 +74,7 @@ namespace ReDefinition.Atmospheres
         // power and map shift, the distance fade (far 0 for none). The live fields are in it, so it is written again whenever the pack's LiveVersion moves.
         internal static void WriteHeader(RtCloudPack pack, float[] header)
         {
-            if (header.Length < HeaderTexels(pack.LayerCount) * Channels)
+            if (header.Length < HeaderTexels(pack.LayerCount) * HeaderChannels)
                 throw new ArgumentException("The header row is narrower than the pack's numbers.", "header");
             Array.Clear(header, 0, header.Length);
             header[0] = (float)pack.BodyRadiusM;
@@ -71,7 +82,7 @@ namespace ReDefinition.Atmospheres
             for (int i = 0; i < pack.LayerCount; i++)
             {
                 RtCloudLayerEntry e = pack.Entries[i];
-                int k = (RayCloudLayout.GlobalTexels + i * RayCloudLayout.LayerTexels) * Channels;
+                int k = (RayCloudLayout.GlobalTexels + i * RayCloudLayout.LayerTexels) * HeaderChannels;
                 header[k] = (float)e.InnerRadiusM;
                 header[k + 1] = (float)e.OuterRadiusM;
                 header[k + 2] = e.ShadowStrength;
@@ -120,7 +131,7 @@ namespace ReDefinition.Atmospheres
         {
             if (entries == null) throw new ArgumentNullException("entries");
             if (data == null || data.Length != (long)width * height * entries.Length * RtCloudPackLayout.Channels)
-                throw new ArgumentException("One width x height slice of two floats per entry.", "data");
+                throw new ArgumentException("One width x height slice of four floats per entry.", "data");
             BodyIndex = bodyIndex;
             BodyRadiusM = bodyRadiusM;
             HasSurface = hasSurface;
@@ -138,7 +149,7 @@ namespace ReDefinition.Atmospheres
         internal int Height { get; }
         internal RtCloudLayerEntry[] Entries { get; }
         internal int LayerCount { get { return Entries.Length; } }
-        // R32G32F, layer-major, texel-interleaved (see RtCloudPackLayout).
+        // R32G32B32A32F, layer-major, texel-interleaved (see RtCloudPackLayout).
         internal float[] Data { get; }
         // The version of the layer stack the data was baked from.
         internal long SourceVersion { get; }
@@ -151,6 +162,13 @@ namespace ReDefinition.Atmospheres
         // the latitude clamped: the filter of the consumer's sampler.
         internal void Sample(int layer, double latDeg, double mapLonDeg, out double coverage, out double tauFull)
         {
+            double baseWeighted, topWeighted;
+            Sample(layer, latDeg, mapLonDeg, out coverage, out tauFull, out baseWeighted, out topWeighted);
+        }
+
+        // The same with the two weighted heights (B and A of the texel: tau_full x the base and the top as a fraction of the shell), bilinear like the others.
+        internal void Sample(int layer, double latDeg, double mapLonDeg, out double coverage, out double tauFull, out double baseWeighted, out double topWeighted)
+        {
             double x, y;
             RtCloudPackLayout.TexelCoordinates(latDeg, mapLonDeg, Width, Height, out x, out y);
             int x0 = (int)Math.Floor(x), y0 = (int)Math.Floor(y);
@@ -158,20 +176,41 @@ namespace ReDefinition.Atmospheres
             int xa = Wrap(x0, Width), xb = Wrap(x0 + 1, Width);
             int ya = Clamp(y0, Height), yb = Clamp(y0 + 1, Height);
             int baseIndex = layer * Width * Height;
-            int ta = (baseIndex + ya * Width + xa) * 2, tb = (baseIndex + ya * Width + xb) * 2, tc = (baseIndex + yb * Width + xa) * 2, td = (baseIndex + yb * Width + xb) * 2;
+            const int c = RtCloudPackLayout.Channels;
+            int ta = (baseIndex + ya * Width + xa) * c, tb = (baseIndex + ya * Width + xb) * c, tc = (baseIndex + yb * Width + xa) * c, td = (baseIndex + yb * Width + xb) * c;
             double wa = (1.0 - fx) * (1.0 - fy), wb = fx * (1.0 - fy), wc = (1.0 - fx) * fy, wd = fx * fy;
             coverage = Data[ta] * wa + Data[tb] * wb + Data[tc] * wc + Data[td] * wd;
             tauFull = Data[ta + 1] * wa + Data[tb + 1] * wb + Data[tc + 1] * wc + Data[td + 1] * wd;
+            baseWeighted = Data[ta + 2] * wa + Data[tb + 2] * wb + Data[tc + 2] * wc + Data[td + 2] * wd;
+            topWeighted = Data[ta + 3] * wa + Data[tb + 3] * wb + Data[tc + 3] * wc + Data[td + 3] * wd;
         }
 
         // The layer's vertical optical depth at a place: the shape of the filtered coverage times the filtered full-cloud depth.
         internal double ColumnTau(int layer, double latDeg, double mapLonDeg)
         {
-            double coverage, tauFull;
-            Sample(layer, latDeg, mapLonDeg, out coverage, out tauFull);
+            double tau, baseFraction, topFraction;
+            Column(layer, latDeg, mapLonDeg, out tau, out baseFraction, out topFraction);
+            return tau;
+        }
+
+        // The same with the column's base and top as fractions of the shell (the tau-weighted mean of the texels the filter mixes; 0 and 1 where the column holds no cloud).
+        internal void Column(int layer, double latDeg, double mapLonDeg, out double tau, out double baseFraction, out double topFraction)
+        {
+            double coverage, tauFull, baseWeighted, topWeighted;
+            Sample(layer, latDeg, mapLonDeg, out coverage, out tauFull, out baseWeighted, out topWeighted);
             RtCloudLayerEntry e = Entries[layer];
             double share = LayerDensity.Shape(CloudLayerDef.ClearSky((float)coverage, e.ClearSkyK), e.Coverage, e.EdgeSoftness);
-            return CloudWater.Pow(share, e.WaterPower) * tauFull;
+            tau = CloudWater.Pow(share, e.WaterPower) * tauFull;
+            if (tauFull > 1e-6)
+            {
+                baseFraction = Math.Max(0.0, Math.Min(1.0, baseWeighted / tauFull));
+                topFraction = Math.Max(baseFraction, Math.Min(1.0, topWeighted / tauFull));
+            }
+            else
+            {
+                baseFraction = 0.0;
+                topFraction = 1.0;
+            }
         }
 
         private static int Wrap(int i, int n)

@@ -9,7 +9,7 @@ namespace ReDefinition.Atmospheres
     // RtOwnClouds (package T18): the traced rays' view of the own cloud layers. The module calls Tick every frame while the own clouds draw; behind the switch
     // rtOwnClouds and while the main mod's raytracing traces (RayCloudSeam.Asked) it keeps the ray-side pack of the stack current (RtCloudPackDriver), the
     // pack's texture on the GPU and the view the raytracing reads (RayCloudSeam.View). It draws nothing and costs the main thread the baking budget while a
-    // bake runs and the upload of the finished pack (one texture of Width x (Height x layers + 1) float pairs).
+    // bake runs and the upload of the finished pack (one texture of Width x (Height x layers + 1) texels of four floats, filled a layer slice a frame once it exists).
     //
     // Hand-over to the main mod's raytracing: RayCloudSeam.View (ReDefinition.Common) holds the texture, the map frame and the shell; the main mod's RtKsp
     // fills the packet's cloud block from it instead of EVE's layer (never both), and RtCommon.hlsli's OwnCloud* functions walk the layers by the law of
@@ -31,7 +31,8 @@ namespace ReDefinition.Atmospheres
         private static float[] header, headerExpanded;
 
         // What the series probe reads.
-        internal static double LastUploadMs, WorstUploadMs;
+        // The main-thread time of the last upload step (the whole texture, or one slice), the first (whole) upload, and the worst step since the start.
+        internal static double LastUploadMs, WorstUploadMs, FirstUploadMs, WorstSliceMs;
         internal static int Uploads, HeaderCopies;
         // The series probe's switch: keep the pack but do not publish the view, so that the traced rays run without the own layers (T18Probe's cost windows).
         internal static bool HideFromRays;
@@ -41,7 +42,7 @@ namespace ReDefinition.Atmospheres
         // The pack that stands (null: none, the switch is off or the first bake has not finished).
         internal static RtCloudPack Pack { get { return driver.Current; } }
 
-        // The pack's texture (R32G32B32A32F with b and a 0, Width x (Height x layers + 1) rows, see RtCloudPackLayout and RayCloudLayout); null while there is no pack.
+        // The pack's texture (R32G32B32A32F, Width x (Height x layers + 1) rows, see RtCloudPackLayout and RayCloudLayout); null while there is no pack.
         internal static Texture Texture { get { return texture; } }
 
         internal static bool Baking { get { return driver.Baking; } }
@@ -106,6 +107,12 @@ namespace ReDefinition.Atmospheres
                 UnityEngine.Object.Destroy(headerTexture);
                 headerTexture = null;
             }
+            if (sliceTexture != null)
+            {
+                UnityEngine.Object.Destroy(sliceTexture);
+                sliceTexture = null;
+            }
+            slicePack = null;
             textureLayers = 0;
             uploadedVersion = -1;
             uploadedLiveVersion = -1;
@@ -152,35 +159,89 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // One frame of getting `pack` into the texture. The pack's data is the texture's data (R32G32B32A32F), so it is one memory copy, not a loop over the
+        // texels (the old two-floats-to-four expansion through the NativeArray indexer was most of an 11.9 ms hitch). A texture that exists (a refresh) is filled
+        // one layer slice a frame through a staging texture and a GPU copy, so that no frame uploads more than a quarter of the pack; the traced rays read the
+        // old and the new slices side by side for those few frames, which is a sky a few seconds apart. The first upload (no texture, or another size) is whole.
         private static void Upload(RtCloudPack pack)
         {
             long start = Stopwatch.GetTimestamp();
             int rows = pack.Height * pack.LayerCount + RayCloudLayout.HeaderRows;
-            if (texture == null || texture.width != pack.Width || texture.height != rows || textureLayers != pack.LayerCount)
+            bool same = texture != null && texture.width == pack.Width && texture.height == rows && textureLayers == pack.LayerCount;
+            if (same && SystemInfo.copyTextureSupport != UnityEngine.Rendering.CopyTextureSupport.None)
             {
-                if (texture != null) UnityEngine.Object.Destroy(texture);
-                texture = new Texture2D(pack.Width, rows, TextureFormat.RGBAFloat, false, true)
-                {
-                    name = "ReDefinition Atmospheres ray cloud pack",
-                    wrapMode = TextureWrapMode.Repeat,
-                    filterMode = FilterMode.Bilinear,
-                    hideFlags = HideFlags.HideAndDontSave
-                };
-                textureLayers = pack.LayerCount;
+                UploadSlice(pack);
+                LastUploadMs = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+                WorstUploadMs = Math.Max(WorstUploadMs, LastUploadMs);
+                WorstSliceMs = Math.Max(WorstSliceMs, LastUploadMs);
+                return;
             }
-            int rowFloats = pack.Width * RtCloudPackLayout.Channels;
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+            texture = new Texture2D(pack.Width, rows, TextureFormat.RGBAFloat, false, true)
+            {
+                name = "ReDefinition Atmospheres ray cloud pack",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Bilinear,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            textureLayers = pack.LayerCount;
+            slicePack = null;
+            int rowFloats = pack.Width * RtCloudPackLayout.HeaderChannels;
             if (header == null || header.Length != rowFloats) header = new float[rowFloats];
             RtCloudPackLayout.WriteHeader(pack, header);
-            // Written into the texture's own CPU copy: no managed staging arrays (two 8 MB copies for a four-layer pack) between the pack and the upload.
+            // Written into the texture's own CPU copy: no managed staging arrays (a copy of 8 MB for a four-layer pack) between the pack and the upload.
             NativeArray<float> raw = texture.GetRawTextureData<float>();
-            Expand(pack.Data, 0, raw, 0, pack.Data.Length / 2);
-            Expand(header, 0, raw, pack.Data.Length * 2, pack.Width * RayCloudLayout.HeaderRows);
+            NativeArray<float>.Copy(pack.Data, 0, raw, 0, pack.Data.Length);
+            for (int i = 0; i < pack.Width * RayCloudLayout.HeaderRows; i++)
+            {
+                int t = pack.Data.Length + i * 4;
+                raw[t] = header[i * 2];
+                raw[t + 1] = header[i * 2 + 1];
+                raw[t + 2] = 0f;
+                raw[t + 3] = 0f;
+            }
             texture.Apply(false, false);
             uploadedVersion = pack.Version;
             uploadedLiveVersion = pack.LiveVersion;
             Uploads++;
             LastUploadMs = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+            FirstUploadMs = LastUploadMs;
             WorstUploadMs = Math.Max(WorstUploadMs, LastUploadMs);
+        }
+
+        // The pack being copied into the standing texture, and the slice it is at.
+        private static RtCloudPack slicePack;
+        private static int nextSlice;
+        private static Texture2D sliceTexture;
+
+        private static void UploadSlice(RtCloudPack pack)
+        {
+            if (!ReferenceEquals(slicePack, pack))
+            {
+                slicePack = pack;
+                nextSlice = 0;
+            }
+            int floats = pack.Width * pack.Height * RtCloudPackLayout.Channels;
+            if (sliceTexture == null || sliceTexture.width != pack.Width || sliceTexture.height != pack.Height)
+            {
+                if (sliceTexture != null) UnityEngine.Object.Destroy(sliceTexture);
+                sliceTexture = new Texture2D(pack.Width, pack.Height, TextureFormat.RGBAFloat, false, true)
+                {
+                    name = "ReDefinition Atmospheres ray cloud slice",
+                    filterMode = FilterMode.Point,
+                    hideFlags = HideFlags.HideAndDontSave
+                };
+            }
+            NativeArray<float>.Copy(pack.Data, nextSlice * floats, sliceTexture.GetRawTextureData<float>(), 0, floats);
+            sliceTexture.Apply(false, false);
+            Graphics.CopyTexture(sliceTexture, 0, 0, 0, 0, pack.Width, pack.Height, texture, 0, 0, 0, nextSlice * pack.Height);
+            nextSlice++;
+            if (nextSlice < pack.LayerCount) return;
+            // The last slice is in: the header row of this pack (the live numbers with it), then the pack stands.
+            slicePack = null;
+            uploadedVersion = pack.Version;
+            CopyHeader(pack);
+            Uploads++;
         }
 
         // The header row alone, after the live fields moved: a one-row texture uploaded and copied into the pack's last row on the GPU. Without the
@@ -192,7 +253,7 @@ namespace ReDefinition.Atmospheres
                 Upload(pack);
                 return;
             }
-            int rowFloats = pack.Width * RtCloudPackLayout.Channels;
+            int rowFloats = pack.Width * RtCloudPackLayout.HeaderChannels;
             if (header == null || header.Length != rowFloats) header = new float[rowFloats];
             RtCloudPackLayout.WriteHeader(pack, header);
             if (headerTexture == null || headerTexture.width != pack.Width)
@@ -218,18 +279,6 @@ namespace ReDefinition.Atmospheres
 
         // Two floats a texel into four (r, g, 0, 0): the raytracing shares its inputs between Direct3D 11 and 12, and the driver does not share
         // R32G32_FLOAT (the proxy's log: "input 7: format 16 cannot be shared", which drops the whole traced frame), R32G32B32A32_FLOAT it does.
-        private static void Expand(float[] from, int fromIndex, NativeArray<float> to, int toIndex, int texels)
-        {
-            for (int i = 0; i < texels; i++)
-            {
-                int t = toIndex + i * 4, f = fromIndex + i * 2;
-                to[t] = from[f];
-                to[t + 1] = from[f + 1];
-                to[t + 2] = 0f;
-                to[t + 3] = 0f;
-            }
-        }
-
         private static void Expand(float[] from, int fromIndex, float[] to, int toIndex, int texels)
         {
             for (int i = 0; i < texels; i++)

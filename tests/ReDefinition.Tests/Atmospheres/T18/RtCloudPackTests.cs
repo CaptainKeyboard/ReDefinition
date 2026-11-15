@@ -49,7 +49,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
             // texel; the full depth itself differs only where the shape is 0 (stride 2 interpolates nodes round a cloud into texels that hold none).
             CloudLayerDef layer = s.LayerAt(0);
             double worst = 0.0;
-            for (int i = 0; i < one.Data.Length; i += 2)
+            for (int i = 0; i < one.Data.Length; i += RtCloudPackLayout.Channels)
             {
                 double a = LayerDensity.Shape(one.Data[i], layer.EffectiveCoverage, layer.EffectiveEdgeSoftness) * one.Data[i + 1];
                 double b = LayerDensity.Shape(two.Data[i], layer.EffectiveCoverage, layer.EffectiveEdgeSoftness) * two.Data[i + 1];
@@ -71,7 +71,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
                     Assert.AreEqual(column, x, 1e-9);
                     Assert.AreEqual(row, y, 1e-9);
                 }
-            Assert.AreEqual(w * h * 3L * 2L * 4L, RtCloudPackLayout.Bytes(w, h, 3), "two floats a texel");
+            Assert.AreEqual(w * h * 3L * 4L * 4L, RtCloudPackLayout.Bytes(w, h, 3), "four floats a texel");
         }
 
         [TestMethod]

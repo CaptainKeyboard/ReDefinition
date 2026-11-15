@@ -697,8 +697,9 @@ float CloudTransmittanceAt(float3 at)
 // in the game). The law is the atmospheres' RtCloudRayMath, which this mirrors in float: per
 // layer the ray's spans through the layer's shell, each cut into at most cloudFades.w taps of at
 // most 400 m; at a tap the layer's vertical optical depth shape(coverage) x tau_full, read from
-// the layer's slice of cloudTexture (r the coverage map, g the column depth at full cloud),
-// times the tap's length over the shell's thickness. The block: cloudRow0-2 the camera-relative
+// the layer's slice of cloudTexture (r the coverage map, g the column depth at full cloud, b and a
+// that depth times the cloud's base and top as fractions of the shell), times the length of the
+// tap's path between the column's base and top over the cloud's thickness. The block: cloudRow0-2 the camera-relative
 // world to the map frame (the body's centre at the origin, x towards longitude 0, y towards 90
 // east, z north, m); cloudRadii the highest top, the lowest base, the layer count; cloudFades
 // the texture's width, a slice's height, the fade of the whole, the taps. The texture's last
@@ -731,7 +732,7 @@ bool OwnSphere(float3 o, float3 d, float radius, out float t0, out float t1)
 
 // A layer's vertical optical depth at a point of the map frame: the filtered coverage's shape
 // times the filtered full-cloud depth (RtCloudPack.ColumnTau).
-float OwnColumnTau(uint layer, float3 q, float shiftDeg, float coverage, float softness, float clearK, float power)
+float OwnColumnTau(uint layer, float3 q, float shiftDeg, float coverage, float softness, float clearK, float power, out float baseFraction, out float topFraction)
 {
     float r = max(length(q), 1.0f);
     float lat = asin(clamp(q.z / r, -1.0f, 1.0f)) * (180.0f / kPi);
@@ -739,11 +740,31 @@ float OwnColumnTau(uint layer, float3 q, float shiftDeg, float coverage, float s
     float slice = cloudFades.y;
     float y = clamp((90.0f - lat) * slice / 180.0f, 0.5f, slice - 0.5f);
     float2 uv = float2((lon + 180.0f) / 360.0f, (float(layer) * slice + y) / (cloudRadii.z * slice + RT_OWN_CLOUDS_HEADER_ROWS));
-    float2 m = cloudTexture.SampleLevel(linearWrap, uv, 0.0f).rg;
+    float4 m = cloudTexture.SampleLevel(linearWrap, uv, 0.0f);
     float map = clearK > 0.0f ? min(m.r, 2.0f * m.r - clearK) : m.r;
     float share = saturate((map + coverage - 1.0f) / max(softness, 1e-4f) + 0.5f);
     share = share > 0.0f ? (power == 1.0f ? share : pow(share, power)) : 0.0f;
+    // b and a hold tau_full times the cloud's base and top as fractions of the shell: the filter gives the tau-weighted mean (RtCloudPack.Column).
+    baseFraction = 0.0f;
+    topFraction = 1.0f;
+    if (m.g > 1e-6f)
+    {
+        baseFraction = saturate(m.b / m.g);
+        topFraction = clamp(m.a / m.g, baseFraction, 1.0f);
+    }
     return share * m.g;
+}
+
+// The share of a tap's path (it climbs from fraction f0 to f1 of the shell) that lies between a column's base and top (RtCloudRayMath.BandShare).
+float OwnBandShare(float f0, float f1, float baseFraction, float topFraction)
+{
+    float lo = min(f0, f1);
+    float hi = max(f0, f1);
+    float width = hi - lo;
+    if (width < 1e-6f)
+        return (lo >= baseFraction && lo <= topFraction) ? 1.0f : 0.0f;
+    float overlap = min(hi, topFraction) - max(lo, baseFraction);
+    return overlap <= 0.0f ? 0.0f : overlap / width;
 }
 
 // The smooth weight of a layer's distance fade at a distance (LayerDensity.DistanceFade); 1
@@ -816,9 +837,20 @@ float OwnCloudTau(float3 position, float3 towards, float tMax, bool light, out f
             float dt = span / float(n);
             for (uint k = 0u; k < n; ++k)
             {
-                float t = spans[s].x + dt * (float(k) + 0.5f);
+                float ta = spans[s].x + dt * float(k);
+                float t = ta + 0.5f * dt;
                 float3 q = o + d * t;
-                float step = OwnColumnTau(layer, q, powerShift.y, strengthCoverage.y, softClear.x, softClear.y, powerShift.x) * dt / thickness;
+                float baseFraction, topFraction;
+                float column = OwnColumnTau(layer, q, powerShift.y, strengthCoverage.y, softClear.x, softClear.y, powerShift.x, baseFraction, topFraction);
+                if (column <= 0.0f)
+                    continue;
+                // The cloud lies between its base and top, not across the shell: only the part of the tap's path inside the band counts, over the cloud's thickness.
+                float f0 = (length(o + d * ta) - radii.x) / thickness;
+                float f1 = (length(o + d * (ta + dt)) - radii.x) / thickness;
+                float inside = OwnBandShare(f0, f1, baseFraction, topFraction);
+                if (inside <= 0.0f)
+                    continue;
+                float step = column * dt * inside / (max(0.002f, topFraction - baseFraction) * thickness);
                 if (!light)
                     step *= OwnFade(fade, t);
                 tau += step;

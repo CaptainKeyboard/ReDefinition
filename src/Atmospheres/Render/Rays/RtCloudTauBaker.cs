@@ -151,8 +151,11 @@ namespace ReDefinition.Atmospheres
             RtCloudPackLayout.TexelLatLon(column, row, width, height, out lat, out lonMap);
             float cover, type;
             source.SampleMaps(l, lat, lonMap + shift[l], out cover, out type);
-            data[index * 2] = cover;
-            data[index * 2 + 1] = 0f;
+            const int c = RtCloudPackLayout.Channels;
+            data[index * c] = cover;
+            data[index * c + 1] = 0f;
+            data[index * c + 2] = 0f;
+            data[index * c + 3] = 0f;
             cloudy[index] = LayerDensity.Shape(CloudLayerDef.ClearSky(cover, clearK[l]), coverage[l], softness[l]) > 0.0 ? (byte)1 : (byte)0;
         }
 
@@ -184,7 +187,10 @@ namespace ReDefinition.Atmospheres
                 double x = Math.Max(0.0, Math.Min(1.0, type)) * (TypeTable - 1);
                 int i = Math.Min(TypeTable - 2, (int)x);
                 double between = x - i;
-                data[index * 2 + 1] = (float)(byType[l][i] * (1.0 - between) + byType[l][i + 1] * between);
+                double tauType = byType[l][i] * (1.0 - between) + byType[l][i + 1] * between;
+                double typeBase, typeTop;
+                tables[l].InterpolatedHeights(type, out typeBase, out typeTop);
+                WriteNode(index, l, tauType, typeBase, typeTop);
                 return;
             }
             CloudLayerDef layer = layerDefs[l];
@@ -215,7 +221,21 @@ namespace ReDefinition.Atmospheres
                 profileSum += table.ProfileAt(a, h) * (1.0 - f) + table.ProfileAt(c, h) * f;
             }
             double tau = sigma[l] * profileSum * (lt - lb) * thickness / steps * shareRatio[l];
-            data[index * 2 + 1] = (float)Math.Min(tau, RtCloudPackLayout.MaxTau);
+            WriteNode(index, l, tau, lb, lt);
+        }
+
+        // The node's tau_full and the cloud's base and top there (shares of the layer, as the table and the height variation have them) into the texel: G the depth,
+        // B and A the depth weighted by the base and the top as fractions of the layer's tight shell (see RtCloudPack).
+        private void WriteNode(long index, int l, double tau, double baseShare, double topShare)
+        {
+            const int c = RtCloudPackLayout.Channels;
+            double depth = Math.Min(tau, RtCloudPackLayout.MaxTau);
+            double shell = Math.Max(1.0, tightOuter[l] - tightInner[l]);
+            double fromBase = layerDefs[l].InnerAltitudeM + baseShare * layerDefs[l].ThicknessM, fromTop = layerDefs[l].InnerAltitudeM + topShare * layerDefs[l].ThicknessM;
+            double fb = Math.Max(0.0, Math.Min(1.0, (fromBase - tightInner[l]) / shell)), ft = Math.Max(fb, Math.Min(1.0, (fromTop - tightInner[l]) / shell));
+            data[index * c + 1] = (float)depth;
+            data[index * c + 2] = (float)(depth * fb);
+            data[index * c + 3] = (float)(depth * ft);
         }
 
         // A texel between the nodes: the bilinear mean of the four nodes round it (longitude wraps; the last rows use the last node row).
@@ -227,9 +247,14 @@ namespace ReDefinition.Atmospheres
             if (c1 >= width) c1 -= width;
             double fx = (column - c0) / (double)stride, fy = r1 == r0 ? 0.0 : (row - r0) / (double)stride;
             long slice = (long)l * width * height;
-            double a = data[(slice + (long)r0 * width + c0) * 2 + 1], b = data[(slice + (long)r0 * width + c1) * 2 + 1];
-            double c = data[(slice + (long)r1 * width + c0) * 2 + 1], d = data[(slice + (long)r1 * width + c1) * 2 + 1];
-            data[index * 2 + 1] = (float)((a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy);
+            const int ch = RtCloudPackLayout.Channels;
+            // The depth and the two weighted heights (channels 1 to 3) are weighted alike, so the same filter holds for all three.
+            for (int k = 1; k < ch; k++)
+            {
+                double a = data[(slice + (long)r0 * width + c0) * ch + k], b = data[(slice + (long)r0 * width + c1) * ch + k];
+                double c = data[(slice + (long)r1 * width + c0) * ch + k], d = data[(slice + (long)r1 * width + c1) * ch + k];
+                data[index * ch + k] = (float)((a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy);
+            }
         }
     }
 }
