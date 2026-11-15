@@ -132,6 +132,7 @@ namespace ReDefinition.WeatherPlayer
                 far.LodEnd = job.far.lodEnd;
                 if (job.far.rayleigh != null && job.far.rayleigh.Length >= 3) far.RayleighPerM = V(job.far.rayleigh);
                 far.Inscatter = Rgb(job.far.inscatter, far.Inscatter);
+                far.InscatterNear = job.far.inscatterNear != null && job.far.inscatterNear.Length >= 3 ? (Color?)Rgb(job.far.inscatterNear, far.Inscatter) : null;
                 far.Policy = job.far.policy != 0;
                 far.MinSamples = job.far.minSamples;
                 // The march policy of the far view: the step budget and the shortest step by the camera's altitude.

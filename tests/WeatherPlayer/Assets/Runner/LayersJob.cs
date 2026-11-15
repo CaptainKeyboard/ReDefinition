@@ -99,7 +99,8 @@ namespace ReDefinition.WeatherPlayer
         public int haze, shapeMean, policy, minSamples;
         // refine: the finest step of the entry above the band as a share of the grid step (0: the settings' default).
         public float refine, hazeStrength = 1f, mie = 4.44e-6f, rayleighHeight = 8000f, mieHeight = 1200f, lodStart = 1f, lodEnd = 3f;
-        public float[] rayleigh, inscatter;
+        // inscatterNear: the in-scatter colour over a short path (E40 T1 tint); absent: the same as inscatter.
+        public float[] rayleigh, inscatter, inscatterNear;
     }
 
     [Serializable]

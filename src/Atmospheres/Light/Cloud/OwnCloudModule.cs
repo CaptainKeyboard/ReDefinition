@@ -1126,8 +1126,16 @@ namespace ReDefinition.Atmospheres
             f.Far.Haze = CloudHazePlan.Active(f.Far.Haze, f.Far.HazeAuto, moveBehindScattering);
             Color hazeDisplay = new Color(Tuning.Get(CloudHazePlan.TuneR, CloudHazePlan.DefaultDisplayColour.r), Tuning.Get(CloudHazePlan.TuneG, CloudHazePlan.DefaultDisplayColour.g),
                                           Tuning.Get(CloudHazePlan.TuneB, CloudHazePlan.DefaultDisplayColour.b), 1f);
-            f.Far.Inscatter = CloudHazePlan.Inscatter((int)Tuning.Get(CloudHazePlan.TuneColour, 0f), sunColour, moon, ambientTop, f.Far.RayleighPerM,
-                                                      Tuning.Get(CloudHazePlan.TuneShare, CloudBridgeAir.HorizonShare), hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma);
+            // The horizon colour (hazeBlue of the body) is what a far cloud fades into, the near colour (hazeNearBlue) what a short path in-scatters; both leave the white point's tint out
+            // (CloudHazePlan.ExemptFromWhitePoint). E40 T1 tint.
+            int hazeColourSource = (int)Tuning.Get(CloudHazePlan.TuneColour, 0f);
+            float hazeShare = Tuning.Get(CloudHazePlan.TuneShare, CloudBridgeAir.HorizonShare);
+            f.Far.Inscatter = CloudHazePlan.ExemptFromWhitePoint(
+                CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeBlue),
+                f.OutputWhiteTint, f.OutputGamma);
+            f.Far.InscatterNear = CloudHazePlan.ExemptFromWhitePoint(
+                CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeNearBlue),
+                f.OutputWhiteTint, f.OutputGamma);
             double altitude = ((Vector3d)camPos - b.position).magnitude - b.Radius;
             f.Far.ApplyTo(f, altitude, b.Radius);
 

@@ -61,9 +61,37 @@ namespace ReDefinition.Atmospheres
         // the pass applies to its colour, CloudOutputStage.Decode), so that a deck that fades completely shows exactly that colour on the screen.
         internal static Color Inscatter(int source, Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share, Color display, float white, float exposure, float gamma)
         {
-            if (source != 1) return CloudBridgeAir.Inscatter(sun, moon, ambient, rayleighPerM, share);
+            return Inscatter(source, sun, moon, ambient, rayleighPerM, share, display, white, exposure, gamma, CloudBridgeAir.BlueExponent);
+        }
+
+        // The same with the blue exponent of the sun-share colour (colour source 0) as a number: the body's hazeBlue for the colour a far cloud fades into, hazeNearBlue for the in-scatter
+        // over a short path (E40 T1 tint). The display colour of source 1 has no exponent.
+        internal static Color Inscatter(int source, Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share, Color display, float white, float exposure, float gamma, float blueExponent)
+        {
+            if (source != 1) return CloudBridgeAir.Inscatter(sun, moon, ambient, rayleighPerM, share, blueExponent);
             return new Color(CloudOutputStage.Decode(display.r, white, exposure, gamma), CloudOutputStage.Decode(display.g, white, exposure, gamma),
                              CloudOutputStage.Decode(display.b, white, exposure, gamma), 1f);
+        }
+
+        // The aerial perspective of the layer shader's march, for one pixel, per channel (the CPU twin of the line at the end of the march): the cloud's premultiplied colour times the air's
+        // transmittance plus its alpha times the in-scatter times what the air took. The in-scatter colour is the short-path colour near and the horizon colour far, blended by the blue
+        // channel's extinction (1 - airT.z): a few kilometres of air have taken a quarter of the blue, a horizon's worth all of it.
+        internal static Color AerialMix(Color premultiplied, float alpha, Vector3 airTransmittance, Color near, Color far)
+        {
+            float w = 1f - airTransmittance.z;
+            float r = near.r + (far.r - near.r) * w, g = near.g + (far.g - near.g) * w, b = near.b + (far.b - near.b) * w;
+            return new Color(premultiplied.r * airTransmittance.x + alpha * r * (1f - airTransmittance.x), premultiplied.g * airTransmittance.y + alpha * g * (1f - airTransmittance.y),
+                             premultiplied.b * airTransmittance.z + alpha * b * (1f - airTransmittance.z), premultiplied.a);
+        }
+
+        // The in-scatter belongs to the air, not to the cloud's light. The output stage divides every channel of the pass by the white point's tint (the adaptation to the sun a cloud gets),
+        // and the sky and the sea behind the cloud, which the haze should melt it into, are not divided: with the in-scatter in the stage too, a far cloud faded into a colour 4 to 5 percent
+        // bluer than the sky it stands in front of (the tint of Kerbin's sun at a cloud is 1.04 / 0.99 / 0.95; E40 T1 tint). The radiance is multiplied by the tint so that the stage's
+        // division cancels. With the stage off (gamma at or below the off value) nothing is divided and nothing is changed.
+        internal static Color ExemptFromWhitePoint(Color radiance, Color whiteTint, float gamma)
+        {
+            if (gamma <= CloudOutputStage.OffGamma) return radiance;
+            return new Color(radiance.r * Mathf.Max(whiteTint.r, 1e-3f), radiance.g * Mathf.Max(whiteTint.g, 1e-3f), radiance.b * Mathf.Max(whiteTint.b, 1e-3f), radiance.a);
         }
     }
 }

@@ -446,6 +446,22 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(LayerKind.Fog, def.Kind);
         }
 
+        // E40 T1 tint: the colour of the air between the camera and a cloud, per body.
+        [TestMethod]
+        public void TheCloudsNodeCarriesTheHazeBlueOfTheHorizonAndOfAShortPath()
+        {
+            BodyParseResult none = Parse("LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(0.35f, none.Climate.Clouds.HazeBlue, "the horizon colour of before");
+            Assert.AreEqual(0f, none.Climate.Clouds.HazeNearBlue, "the source of a short path is the sun's own colour");
+            Assert.AreEqual(CloudBridgeAir.BlueExponent, CloudRules.DefaultHazeBlue, "the default of the key is the exponent the haze had before the key");
+            BodyParseResult set = Parse("hazeBlue = 0.5;hazeNearBlue = 0.1;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(0.5f, set.Climate.Clouds.HazeBlue);
+            Assert.AreEqual(0.1f, set.Climate.Clouds.HazeNearBlue);
+            BodyParseResult wild = Parse("hazeBlue = 7;hazeNearBlue = -2;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(1f, wild.Climate.Clouds.HazeBlue, "brought into 0 to 1");
+            Assert.AreEqual(0f, wild.Climate.Clouds.HazeNearBlue);
+        }
+
         // E40 L3: the meso-scale cover pattern (node MESO), the type patches (typePatchKm, typePatchBlend) and the types' climate (node CLIMATE with LATITUDE, SURFACE, HUMIDITY, PRECIPITATION).
         [TestMethod]
         public void TheMesoPatternAndTheTypeClimateAreReadBuiltAndDefaultToNone()

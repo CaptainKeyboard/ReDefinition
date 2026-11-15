@@ -219,6 +219,80 @@ Scatterer_atmosphere
             Assert.AreEqual(0.3f, CloudOutputStage.Decode(0.3f, 1f, 1f, 1f), 0f, "gamma 1 is the stage off");
         }
 
+        // E40 T1 tint, the numbers of K-T2 start 61 (frame 5623, the ground view): the pass's sun (2.807, 2.768, 2.827), the white point's tint at the lowest layer's lower quarter
+        // (1.036, 0.994, 0.949), the stage's white 0.7244, gamma 2.2, Kerbin's node. Measured in the game frames: the cloud pixels of the horizon band read blue over red 1.5 to 1.6 against 1.0
+        // for True Volumetric Clouds, the decks overhead 1.26 against 1.18; the chain (a neutral dark cloud of 0.45 and the pass's haze at 25 km) gives 1.50 offline. The rows below pin the
+        // terms of the haze colour: the in-scatter's own blue, the white point's share of it, and the blend of the short-path and the horizon colour.
+        private static readonly Color Start61Sun = new Color(2.807f, 2.768f, 2.827f, 1f);
+        private static readonly Color Start61Tint = new Color(1.036f, 0.994f, 0.949f, 1f);
+        private const float Start61White = 0.7244f;
+        private static readonly Vector3 KerbinRayleigh = new Vector3(1.53407799e-5f, 3.57074998e-5f, 8.75488967e-5f);
+
+        private static float BlueOverRed(float r, float b)
+        {
+            return b / r;
+        }
+
+        [TestMethod]
+        public void TheBlueExponentIsTheRayleighRatioToItsPowerAndZeroIsTheSunsOwnColour()
+        {
+            Color grey = CloudBridgeAir.Inscatter(Start61Sun, Color.black, Color.black, KerbinRayleigh, 0.23f, 0f);
+            Assert.AreEqual(Start61Sun.r * 0.23f, grey.r, 1e-6f);
+            Assert.AreEqual(Start61Sun.g * 0.23f, grey.g, 1e-6f);
+            Assert.AreEqual(Start61Sun.b * 0.23f, grey.b, 1e-6f, "exponent 0: the sun's colour times the share, nothing added");
+            Color blue = CloudBridgeAir.Inscatter(Start61Sun, Color.black, Color.black, KerbinRayleigh, 0.23f, 0.35f);
+            Color before = CloudBridgeAir.Inscatter(Start61Sun, Color.black, Color.black, KerbinRayleigh, 0.23f);
+            Assert.AreEqual(before.b, blue.b, 1e-6f, "the exponent of before is 0.35");
+            float expected = (float)Math.Pow(KerbinRayleigh.z / KerbinRayleigh.x, 0.35) * Start61Sun.b / Start61Sun.r;
+            Assert.AreEqual(expected, BlueOverRed(blue.r, blue.b), 1e-4f, "blue over red of the in-scatter follows the Rayleigh ratio to 0.35");
+            Assert.AreEqual(CloudBridgeAir.BlueExponent, CloudRules.DefaultHazeBlue, 0f);
+            Assert.AreEqual(0f, CloudRules.DefaultHazeNearBlue, 0f);
+        }
+
+        [TestMethod]
+        public void TheInscatterLeavesTheWhitePointOut()
+        {
+            // The stage divides each channel by the tint; with the in-scatter multiplied by it first, the display value is that of a stage without tint.
+            Color radiance = CloudBridgeAir.Inscatter(Start61Sun, Color.black, Color.black, KerbinRayleigh, 0.23f);
+            Color exempt = CloudHazePlan.ExemptFromWhitePoint(radiance, Start61Tint, 2.2f);
+            float[] tints = { Start61Tint.r, Start61Tint.g, Start61Tint.b };
+            float[] without = { radiance.r, radiance.g, radiance.b }, with = { exempt.r, exempt.g, exempt.b };
+            for (int i = 0; i < 3; i++)
+            {
+                float displayed = CloudOutputStage.Encode(with[i], Start61White, tints[i], 1f, 2.2f);
+                float reference = CloudOutputStage.Encode(without[i], Start61White, 1f, 2.2f);
+                Assert.AreEqual(reference, displayed, 1e-5f, "channel " + i);
+            }
+            // Measured in the frame: with the tint in the stage the horizon colour was 0.568 / 0.657 / 0.782 (blue over red 1.378); without it 0.577 / 0.656 / 0.764 (1.324).
+            float b = CloudOutputStage.Encode(radiance.b, Start61White, Start61Tint.b, 1f, 2.2f) / CloudOutputStage.Encode(radiance.r, Start61White, Start61Tint.r, 1f, 2.2f);
+            float c = CloudOutputStage.Encode(radiance.b, Start61White, 1f, 1f, 2.2f) / CloudOutputStage.Encode(radiance.r, Start61White, 1f, 1f, 2.2f);
+            Assert.AreEqual(1.378f, b, 0.01f);
+            Assert.AreEqual(1.324f, c, 0.01f);
+            Color off = CloudHazePlan.ExemptFromWhitePoint(radiance, Start61Tint, 1f);
+            Assert.AreEqual(radiance.b, off.b, 0f, "the stage off: nothing is divided, nothing is changed");
+        }
+
+        [TestMethod]
+        public void TheNearSourceIsGreyAndTheHorizonKeepsItsColour()
+        {
+            Color near = CloudHazePlan.ExemptFromWhitePoint(CloudBridgeAir.Inscatter(Start61Sun, Color.black, Color.black, KerbinRayleigh, 0.23f, 0f), Start61Tint, 2.2f);
+            Color far = CloudHazePlan.ExemptFromWhitePoint(CloudBridgeAir.Inscatter(Start61Sun, Color.black, Color.black, KerbinRayleigh, 0.23f, 0.35f), Start61Tint, 2.2f);
+            var cloud = new Color(0.2f, 0.2f, 0.2f, 1f);
+            // A cloud 25 km away: nothing of the blue gets through (T 0.66 / 0.46 / 0.19 at the pass's air), the pixel is the far colour's mix; at the end of the air (T 0) exactly it.
+            Color gone = CloudHazePlan.AerialMix(cloud, 1f, Vector3.zero, near, far);
+            Assert.AreEqual(far.r, gone.r, 1e-6f);
+            Assert.AreEqual(far.b, gone.b, 1e-6f, "a cloud behind all the air fades into the horizon's colour, as before the near colour existed");
+            // A thin air (the same near and far colour) is the single-colour mix of before.
+            var t = new Vector3(0.93f, 0.88f, 0.76f);
+            Color single = CloudHazePlan.AerialMix(cloud, 1f, t, far, far);
+            Assert.AreEqual(cloud.r * t.x + far.r * (1f - t.x), single.r, 1e-6f);
+            Assert.AreEqual(cloud.b * t.z + far.b * (1f - t.z), single.b, 1e-6f);
+            // A deck a few kilometres overhead (T 0.93 / 0.88 / 0.76): the haze it gets is bluer over red with the single horizon colour than with the near colour.
+            Color blueHaze = CloudHazePlan.AerialMix(cloud, 1f, t, far, far), nearHaze = CloudHazePlan.AerialMix(cloud, 1f, t, near, far);
+            Assert.IsTrue(nearHaze.b / nearHaze.r < blueHaze.b / blueHaze.r, "the near colour takes the second blue out of the deck's haze");
+            Assert.IsTrue(nearHaze.b > nearHaze.r, "the air's own extinction still makes it blue");
+        }
+
         // The fog mix at the numbers of start 55 (K-T2d, above view, bands 3 and 4 below the horizon row, order 1 and 0 of the same pixels) as an offline row: the pass's mix
         // C T + L (1 - T) with Scatterer's transmittance moves the deck of 0.48 neutral (ord1) toward the haze, and the lift is of the size the game measured for Scatterer's own
         // air (ord0 minus ord1 +0.17 / +0.20 / +0.23): the sign and order of magnitude, not the pixel values (the in-scatter colour of the game is not known offline).

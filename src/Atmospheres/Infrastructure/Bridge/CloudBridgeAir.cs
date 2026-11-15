@@ -103,15 +103,22 @@ namespace ReDefinition.Atmospheres
         // The same with the horizon share as a number (cloud.hazeShare).
         internal static Color Inscatter(Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share)
         {
+            return Inscatter(sun, moon, ambient, rayleighPerM, share, BlueExponent);
+        }
+
+        // The same with the blue exponent as a number (the body keys hazeBlue, for the colour a far cloud fades into, and hazeNearBlue, for the in-scatter over a short path; 0 is the sun's
+        // own colour, the first kilometres' source).
+        internal static Color Inscatter(Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share, float blueExponent)
+        {
             float mean = (rayleighPerM.x + rayleighPerM.y + rayleighPerM.z) / 3f;
-            float r = Tint(rayleighPerM.x, mean), g = Tint(rayleighPerM.y, mean), b = Tint(rayleighPerM.z, mean);
+            float r = Tint(rayleighPerM.x, mean, blueExponent), g = Tint(rayleighPerM.y, mean, blueExponent), b = Tint(rayleighPerM.z, mean, blueExponent);
             float lr = (sun.r + moon.r) * share * r, lg = (sun.g + moon.g) * share * g, lb = (sun.b + moon.b) * share * b;
             return new Color(Math.Max(lr, ambient.r), Math.Max(lg, ambient.g), Math.Max(lb, ambient.b), 1f);
         }
 
-        private static float Tint(float coefficient, float mean)
+        private static float Tint(float coefficient, float mean, float exponent)
         {
-            return mean > 0f ? (float)Math.Pow(Math.Max(coefficient, 1e-9f) / mean, BlueExponent) : 1f;
+            return mean > 0f ? (float)Math.Pow(Math.Max(coefficient, 1e-9f) / mean, exponent) : 1f;
         }
     }
 }

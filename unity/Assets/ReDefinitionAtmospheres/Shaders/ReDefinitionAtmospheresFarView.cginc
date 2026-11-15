@@ -21,6 +21,7 @@
 float4 _FarA;   // x aerial perspective on (1), y strength on the optical depth, z Rayleigh scale height (m), w aerosol scale height (m)
 float4 _FarB;   // Rayleigh extinction per m at sea level (rgb), aerosol extinction per m (w, grey)
 float4 _FarC;   // the in-scattered colour of the air at the horizon (rgb)
+float4 _FarE;   // the in-scattered colour over a short path (rgb): the source of the first kilometres; the pass blends it into _FarC by the blue extinction
 float4 _FarD;   // x shape-mean LOD on (1), y the spacing in noise scales from which the mean takes over, z the spacing at which it has taken over,
                 // w the fewest samples in a span of a layer (0: the march's own count)
 

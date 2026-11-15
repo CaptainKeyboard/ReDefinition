@@ -148,7 +148,8 @@ namespace ReDefinition.Atmospheres
             if (r.Has("cloudSource")) source = r.Enum("cloudSource", CloudSourceKind.Ours);
             return new CloudRules(source, r.Enum("discover", CloudDiscovery.Auto), r.String("baseLayer", ""), r.List("weatherLayers"),
                 r.Has("snowTypeNames") ? r.List("snowTypeNames") : null, r.Has("stratusTypeNames") ? r.List("stratusTypeNames") : null,
-                r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), CloudLayers(r), r.Float("sphereScale", 1f, 0.25f, 1f));
+                r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), CloudLayers(r), r.Float("sphereScale", 1f, 0.25f, 1f),
+                r.Float("hazeBlue", CloudRules.DefaultHazeBlue, 0f, 1f), r.Float("hazeNearBlue", CloudRules.DefaultHazeNearBlue, 0f, 1f));
         }
 
         // The most LAYER nodes and TYPE nodes a body's own cloud set holds (the set may be larger than the draw limit; groups and the cap choose).

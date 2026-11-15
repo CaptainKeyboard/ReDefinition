@@ -516,7 +516,7 @@ Shader "ReDefinition/AtmospheresLayers"
             if (_FarA.x > 0.5 && r.weightSum > 1e-9)
             {
                 float3 airT = exp(-FarAirTau(o, d, r.distSum / r.weightSum));
-                r.rgb = r.rgb * airT + r.alpha * _FarC.rgb * (1.0 - airT);
+                r.rgb = r.rgb * airT + r.alpha * lerp(_FarE.rgb, _FarC.rgb, 1.0 - airT.z) * (1.0 - airT);   // E40 T1: the in-scatter of a short path is the sun's own colour, of a long one the horizon's
             }
             return r;
         }

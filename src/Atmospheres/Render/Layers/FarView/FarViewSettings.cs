@@ -24,6 +24,10 @@ namespace ReDefinition.Atmospheres
         public float MiePerM = 4.44e-6f, RayleighHeightM = 8000f, MieHeightM = 1200f;
         // The colour of the in-scattered light of the air at the horizon, in the units of the frame's radiance.
         public Color Inscatter = new Color(0.62f, 0.68f, 0.76f);
+        // The colour of the in-scattered light over a SHORT path (E40 T1 tint): the source of the first kilometres is the sun's own colour (the air's blue is in the extinction already), and the
+        // saturated horizon colour above is what a cloud far away fades into. The pass blends the two by the blue channel's extinction along the ray (the aerial perspective at the end of the layer shader's march). Null: the same as
+        // Inscatter, so a caller that knows only one colour sees the pass as it was.
+        public Color? InscatterNear;
 
         // The distance LOD of the shape noise: where the march's sample spacing exceeds the noise's feature size the shape is replaced by its
         // mean over the noise (closed form, FarViewMath.ShapeMean). Spacing in noise scales from which the mean takes over and at which it
@@ -56,7 +60,7 @@ namespace ReDefinition.Atmospheres
         private static class Ids
         {
             internal static readonly int A = Shader.PropertyToID("_FarA"), B = Shader.PropertyToID("_FarB"), C = Shader.PropertyToID("_FarC"),
-                D = Shader.PropertyToID("_FarD");
+                D = Shader.PropertyToID("_FarD"), E = Shader.PropertyToID("_FarE");
         }
 
         // The top of the air that counts for the haze, in m above sea level: where the denser of the two species has fallen to a thousandth.
@@ -70,6 +74,8 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.A, new Vector4(Haze ? 1f : 0f, Mathf.Max(HazeStrength, 0f), Mathf.Max(RayleighHeightM, 1f), Mathf.Max(MieHeightM, 1f)));
             m.SetVector(Ids.B, new Vector4(RayleighPerM.x, RayleighPerM.y, RayleighPerM.z, MiePerM));
             m.SetVector(Ids.C, new Vector4(Inscatter.r, Inscatter.g, Inscatter.b, 0f));
+            Color near = InscatterNear ?? Inscatter;
+            m.SetVector(Ids.E, new Vector4(near.r, near.g, near.b, 0f));
             m.SetVector(Ids.D,new Vector4(ShapeMean ? 1f : 0f, Mathf.Max(LodStart, 0f), Mathf.Max(LodEnd, LodStart + 0.01f), Mathf.Clamp(MinSamples, 0, 16)));
         }
     }

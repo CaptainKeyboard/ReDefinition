@@ -22,10 +22,13 @@ namespace ReDefinition.Atmospheres
         // Source is null where the player's cloudSource setting decides.
         internal CloudRules(CloudSourceKind? source = null, CloudDiscovery discover = CloudDiscovery.Auto, string baseLayer = "",
             IEnumerable<string> weatherLayers = null, IEnumerable<string> snowTypeNames = null, IEnumerable<string> stratusTypeNames = null,
-            IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0, IEnumerable<CloudLayerSpec> layers = null, float sphereScale = 1f)
+            IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0, IEnumerable<CloudLayerSpec> layers = null, float sphereScale = 1f,
+            float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue)
         {
             Layers = SchemaList.Of(layers);
             SphereScale = sphereScale;
+            HazeBlue = hazeBlue;
+            HazeNearBlue = hazeNearBlue;
             Source = source;
             Discover = discover;
             BaseLayer = baseLayer ?? "";
@@ -55,6 +58,13 @@ namespace ReDefinition.Atmospheres
         // Key sphereScale: the vertical scale of the noise lattice about the layers' reference radius (NoiseSwitches.SphereScale; 1: the
         // lattice is planet-centred).
         internal float SphereScale { get; }
+        // Keys hazeBlue and hazeNearBlue (E40 T1 tint): how much bluer than the sun the air's in-scattered light is in the cloud pass's aerial perspective, as the exponent of the Rayleigh
+        // coefficient's ratio to its mean per channel (CloudBridgeAir.Inscatter). hazeBlue is the colour a cloud far away fades into (the saturated horizon colour of the body's sky; 0.35 fits
+        // Scatterer's horizon on Kerbin); hazeNearBlue is the colour of the in-scatter over a SHORT path, which the sun's colour alone gives (the air's own blue is in the extinction
+        // already, so the source of the first kilometres is the sun's grey: 0). The pass blends the two by the blue channel's extinction along the ray (FarView.cginc).
+        internal float HazeBlue { get; }
+        internal float HazeNearBlue { get; }
+        internal const float DefaultHazeBlue = 0.35f, DefaultHazeNearBlue = 0f;
     }
 
     // The colours and limits of the body's air. Node LOOK.
