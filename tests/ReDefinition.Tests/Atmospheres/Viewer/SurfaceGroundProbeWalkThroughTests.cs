@@ -80,7 +80,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 Rig = r.Rig, CommandLineOverride = args,
                 CoverQuadCount = () => on ? 900 : 0,
                 CoverInstalledCount = () => on ? 3 : 0,
-                GroundReader = () => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "ksc_exterior_terrain_grass_02", Shader = "Custom/ParallaxKSCTerrain", DistanceM = 20.0 }
+                GroundReader = () => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "ksc_exterior_terrain_grass_02", Shader = "Custom/ParallaxKSCTerrain", DistanceM = SurfaceGroundProbe.RayUpM + 2.0 }
             };
             r.Probe.SunAngleReader = () =>
             {
@@ -144,7 +144,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 Assert.AreEqual(start == SurfaceGroundProbe.StartOn ? 900.0 : 0.0, double.Parse(rows["GRD.g2_p2_cover_quads"], CultureInfo.InvariantCulture), 0.0, start + ": the cover's records");
                 Assert.AreEqual("1", rows["GRD.g2_p1_ground_is_parallax"], start + ": the shader the ray found is a Parallax one");
                 double ground = double.Parse(rows["GRD.g2_p1_camera_agl_m"], CultureInfo.InvariantCulture);
-                Assert.AreEqual(SurfaceGroundProbe.GroundCameraAglM, ground, 0.01, start + ": the ground-level camera stands 2 m above the ground");
+                Assert.AreEqual(SurfaceGroundProbe.GroundCameraAglM, ground, 0.01, start + ": the ground-level camera stands about 2 m over the lawn");
+                Assert.AreEqual(5.2, SurfaceGroundProbe.GroundCameraAglM, 0.0, "over the PQS terrain: the lawn lies 2.7 to 3.2 m above it");
                 Assert.AreEqual(291.3, double.Parse(rows["GRD.far_p1_camera_agl_m"], CultureInfo.InvariantCulture), 0.2, start + ": the far camera stands where K-S2's does");
                 Assert.IsTrue(double.Parse(rows["GRD.far_p1_sun_angle_deg"], CultureInfo.InvariantCulture) < 30.0, "heading 90 looks at the sun");
                 Assert.IsTrue(double.Parse(rows["GRD.far_p2_sun_angle_deg"], CultureInfo.InvariantCulture) > 150.0, "heading 270 looks away from it");
@@ -253,6 +254,17 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         }
 
         [TestMethod]
+        public void ACameraUnderTheLawnFailsTheClearanceOfTheGroundFrames()
+        {
+            Run r = Start(SurfaceGroundProbe.StartOn);
+            r.Probe.GroundReader = () => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "m", Shader = "s", DistanceM = SurfaceGroundProbe.RayUpM - 1.0 };
+            Drive(r);
+            Assert.IsFalse(r.Probe.Passed, Dump(r));
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "g2_p1_clearance")), r.Joined);
+            Assert.IsFalse(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "far_p1_")), "the far frames have no clearance check: " + r.Joined);
+        }
+
+        [TestMethod]
         public void AnUnknownStartIdFails()
         {
             Run r = Start("surface_x", coverOn: s => false);
@@ -278,7 +290,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             double vessel = SurfaceGroundProbe.VesselAglFor(SurfaceGroundProbe.GroundCameraAglM, SurfaceGroundProbe.GroundElevationDeg, SurfaceGroundProbe.GroundCameraDistM);
             double camera = vessel - SurfaceGroundProbe.GroundCameraDistM * Math.Sin(SurfaceGroundProbe.GroundElevationDeg * Math.PI / 180.0);
             Assert.AreEqual(SurfaceGroundProbe.GroundCameraAglM, camera, 1e-9);
-            Assert.IsTrue(vessel > 2.9 && vessel < 3.2, "about 3 m: " + vessel);
+            Assert.IsTrue(vessel > 6.1 && vessel < 6.4, "about 6.25 m: " + vessel);
         }
 
         [TestMethod]

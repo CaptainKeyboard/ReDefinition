@@ -36,10 +36,13 @@ namespace ReDefinition.Atmospheres
         internal const double FarAglM = 300.0, FarElevationDeg = 5.0, FarCameraDistM = 100.0, HeadingToward = 90.0, HeadingAway = 270.0, K1Ut = 1470283.6;
         // The ground-level pose: the camera is GroundCameraAglM above the ground, looking GroundElevationDeg up, GroundCameraDistM behind the vessel, which then stands
         // GroundCameraAglM + GroundCameraDistM * sin(elevation) above the ground (the camera sits below the vessel by that much).
-        internal const double GroundCameraAglM = 2.0, GroundElevationDeg = 1.5, GroundCameraDistM = 40.0;
-        // The camera of a ground-level frame is within these metres above the ground (the game may lift it a little over a bump); a far frame within FarAglToleranceM of 290.
-        internal const double GroundAglMinM = 0.3, GroundAglMaxM = 6.0, FarAglToleranceM = 15.0;
-        internal const double AimToleranceDeg = 0.5, SunDriftDeg = 1.0, PosesApartDeg = 60.0, RayAheadM = 30.0, RayUpM = 20.0, RayLengthM = 200.0;
+        // The height is over the PQS terrain (what the viewer places by); the space centre's grass surfaces lie 2.7 to 3.2 m above it (KscGrass.cs), so 5.2 m over the PQS terrain is
+        // about 2 m over the lawn. The headings of the ground frames are 90 and 180 (270 looks along the road to the VAB, which is concrete).
+        internal const double GroundCameraAglM = 5.2, GroundElevationDeg = 1.5, GroundCameraDistM = 40.0, GroundHeadingA = 90.0, GroundHeadingB = 180.0;
+        // The camera of a ground-level frame is within these metres above the PQS terrain (the game may lift it a little over a bump); a far frame within FarAglToleranceM of 290.
+        // Its clearance over the collider the ray finds under the ground it looks at (the lawn or the deck) is within GroundClearMinM and GroundClearMaxM: under the lawn is a failed view.
+        internal const double GroundAglMinM = 3.5, GroundAglMaxM = 8.0, GroundClearMinM = 0.8, GroundClearMaxM = 4.5, FarAglToleranceM = 15.0;
+        internal const double AimToleranceDeg = 0.5, SunDriftDeg = 1.0, PosesApartDeg = 60.0, RayAheadM = 30.0, RayUpM = 20.0, RayLengthM = 450.0;
         internal const double PollPlaceS = 60.0, PollMapS = 20.0, PollPictureS = 15.0, SettleS = 3.0, PollWindowS = 10.0, PollPassS = 40.0, CoverSettleS = 20.0;
         internal const int SettleFrames = 60, AimStillMaxFrames = 80, MinPictureBytes = 1000;
 
@@ -63,8 +66,8 @@ namespace ReDefinition.Atmospheres
         {
             new Frame { Name = "far_p1", Heading = HeadingToward, AglM = FarAglM, CameraDistM = FarCameraDistM, ElevationDeg = FarElevationDeg, WantedCameraAglM = FarAglM - FarCameraDistM * 0.0871557 },
             new Frame { Name = "far_p2", Heading = HeadingAway, AglM = FarAglM, CameraDistM = FarCameraDistM, ElevationDeg = FarElevationDeg, WantedCameraAglM = FarAglM - FarCameraDistM * 0.0871557 },
-            new Frame { Name = "g2_p1", Heading = HeadingToward, AglM = VesselAglFor(GroundCameraAglM, GroundElevationDeg, GroundCameraDistM), CameraDistM = GroundCameraDistM, ElevationDeg = GroundElevationDeg, WantedCameraAglM = GroundCameraAglM, Ground = true },
-            new Frame { Name = "g2_p2", Heading = HeadingAway, AglM = VesselAglFor(GroundCameraAglM, GroundElevationDeg, GroundCameraDistM), CameraDistM = GroundCameraDistM, ElevationDeg = GroundElevationDeg, WantedCameraAglM = GroundCameraAglM, Ground = true }
+            new Frame { Name = "g2_p1", Heading = GroundHeadingA, AglM = VesselAglFor(GroundCameraAglM, GroundElevationDeg, GroundCameraDistM), CameraDistM = GroundCameraDistM, ElevationDeg = GroundElevationDeg, WantedCameraAglM = GroundCameraAglM, Ground = true },
+            new Frame { Name = "g2_p2", Heading = GroundHeadingB, AglM = VesselAglFor(GroundCameraAglM, GroundElevationDeg, GroundCameraDistM), CameraDistM = GroundCameraDistM, ElevationDeg = GroundElevationDeg, WantedCameraAglM = GroundCameraAglM, Ground = true }
         };
 
         private IViewerRig rig;
@@ -253,6 +256,13 @@ namespace ReDefinition.Atmospheres
                     "within " + F(AimToleranceDeg) + " deg of its aim before the picture", "azimuth " + F(end.AzimuthDeg) + " (" + F(aim.AzimuthDeg) + "), elevation " + F(end.ElevationDeg) + " (" + F(aim.ElevationDeg) + ")");
             double lo = f.Ground ? GroundAglMinM : f.WantedCameraAglM - FarAglToleranceM, hi = f.Ground ? GroundAglMaxM : f.WantedCameraAglM + FarAglToleranceM;
             Verdict(f.Name + "_camera_height", f.Name + ": the camera stands at the height of the pose", aim.CameraAglM >= lo && aim.CameraAglM <= hi, F(lo) + " to " + F(hi) + " m above the ground", F(aim.CameraAglM) + " m");
+            if (f.Ground)
+            {
+                // The ray starts RayUpM over the camera: what it hits lies RayUpM less than its distance below the camera.
+                double clear = ground.Hit ? ground.DistanceM - RayUpM : double.NaN;
+                Verdict(f.Name + "_clearance", f.Name + ": the camera stands over the collider of the ground it looks at", !double.IsNaN(clear) && clear >= GroundClearMinM && clear <= GroundClearMaxM,
+                        F(GroundClearMinM) + " to " + F(GroundClearMaxM) + " m over the ground collider", ground.Hit ? F(clear) + " m over " + ground.Object : "no collider found");
+            }
             double sunEnd = Rig.SunElevationDeg;
             Verdict(f.Name + "_sun_fixed", f.Name + ": the sun did not move", !double.IsNaN(sunEnd) && Math.Abs(sunEnd - sun) <= SunDriftDeg, F(sun) + " +-" + F(SunDriftDeg) + " deg", F(sunEnd) + " deg");
         }
