@@ -27,6 +27,8 @@ namespace ReDefinition.Atmospheres
         // The clock's search: hours from the next full hour, the cover band and its target, the sun band, the clock tries.
         private const int ClockHours = 96, ClockTries = 12;
         private const double CoverMin = 0.4, CoverMax = 0.7, CoverTarget = 0.55, SunMinDeg = 25.0, SunMaxDeg = 60.0, FieldWaitS = 60.0;
+        // The precipitation level (0 to 1) above which an hour counts as wet at the vessel.
+        private const float DryLevelMax = 0.02f;
 
         protected override string SeriesName
         {
@@ -69,21 +71,27 @@ namespace ReDefinition.Atmospheres
             int body = vessel.mainBody.flightGlobalsIndex;
             double baseUt = Math.Ceiling(Planetarium.GetUniversalTime() / 3600.0) * 3600.0;
             var answered = new List<KeyValuePair<double, double>>();
+            var wet = new HashSet<double>();
             double giveUp = Elapsed + FieldWaitS;
             while (true)
             {
                 answered.Clear();
+                wet.Clear();
                 for (int k = 0; k < ClockHours; k++)
                 {
                     WeatherSample s;
                     double t = baseUt + k * 3600.0;
-                    if (WeatherHub.Sample(body, vessel.latitude, vessel.longitude, 3000.0, t, out s)) answered.Add(new KeyValuePair<double, double>(t, s.CloudCover01));
+                    if (!WeatherHub.Sample(body, vessel.latitude, vessel.longitude, 3000.0, t, out s)) continue;
+                    answered.Add(new KeyValuePair<double, double>(t, s.CloudCover01));
+                    if (s.Level01 > DryLevelMax) wet.Add(t);
                 }
                 if (answered.Count == ClockHours || Elapsed >= giveUp) break;
                 yield return ProbeWait.Seconds(1);
             }
             Emit("T18.clock_answered", answered.Count);
-            var order = answered.FindAll(c => c.Value >= CoverMin && c.Value <= CoverMax);
+            Emit("T18.clock_wet_hours", wet.Count);
+            // An hour with precipitation over the vessel has a rain deck under the layers: the pictures could not tell the own clouds from it.
+            var order = answered.FindAll(c => c.Value >= CoverMin && c.Value <= CoverMax && !wet.Contains(c.Key));
             order.Sort((a, b) =>
             {
                 int byCover = Math.Abs(a.Value - CoverTarget).CompareTo(Math.Abs(b.Value - CoverTarget));
@@ -123,6 +131,9 @@ namespace ReDefinition.Atmospheres
 
         // The two views: the flight camera as the start has it (the vessel's glossy parts, the ground under the clouds), and the camera turned level
         // to the horizon (the sky, the far ground and the sea seen through the rays).
+        // The horizon is taken at four headings a quarter turn apart, since which way the sea and the far ground lie from the pad is not known to the probe.
+        private static readonly string[] Views = { "pad", "horizon-h0", "horizon-h1", "horizon-h2", "horizon-h3" };
+
         private IEnumerable<ProbeWait> Pictures(string state, float hdg, float pitch)
         {
             FlightCamera camera = FlightCamera.fetch;
@@ -130,12 +141,51 @@ namespace ReDefinition.Atmospheres
             camera.camHdg = hdg;
             camera.camPitch = pitch;
             yield return ProbeWait.Frames(30);
-            foreach (ProbeWait w in Picture("pad", state)) yield return w;
+            foreach (ProbeWait w in Picture(Views[0], state)) yield return w;
             camera.camPitch = 0.02f;
-            yield return ProbeWait.Frames(30);
-            foreach (ProbeWait w in Picture("horizon", state)) yield return w;
+            for (int k = 0; k < 4; k++)
+            {
+                camera.camHdg = hdg + k * (float)(Math.PI / 2.0);
+                yield return ProbeWait.Frames(30);
+                foreach (ProbeWait w in Picture(Views[1 + k], state)) yield return w;
+            }
             camera.camHdg = hdg;
             camera.camPitch = pitch;
+        }
+
+        // The mean absolute difference of the colour of two pictures, 0 to 1, over every fifth texel; -1 where one cannot be read. The pictures are what
+        // the player would see: the metric says whether the rays' clouds changed the screen at all (an on/off pair that does not differ proves nothing).
+        private double PictureDifference(string view)
+        {
+            string on = Path.Combine(SeriesPictures.Folder, "t18-" + view + "-on-" + Screen.width + "x" + Screen.height + "-game.png");
+            string off = Path.Combine(SeriesPictures.Folder, "t18-" + view + "-off-" + Screen.width + "x" + Screen.height + "-game.png");
+            var a = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            var b = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            try
+            {
+                if (!File.Exists(on) || !File.Exists(off)) return -1.0;
+                if (!ImageConversion.LoadImage(a, File.ReadAllBytes(on)) || !ImageConversion.LoadImage(b, File.ReadAllBytes(off))) return -1.0;
+                if (a.width != b.width || a.height != b.height) return -1.0;
+                Color32[] pa = a.GetPixels32(), pb = b.GetPixels32();
+                double sum = 0.0;
+                int n = 0;
+                for (int i = 0; i < pa.Length; i += 5)
+                {
+                    sum += (Math.Abs(pa[i].r - pb[i].r) + Math.Abs(pa[i].g - pb[i].g) + Math.Abs(pa[i].b - pb[i].b)) / (3.0 * 255.0);
+                    n++;
+                }
+                return n == 0 ? -1.0 : sum / n;
+            }
+            catch (Exception e)
+            {
+                EmitText("T18.picture_fault", view + ": " + e.GetType().Name + " " + e.Message);
+                return -1.0;
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(a);
+                UnityEngine.Object.Destroy(b);
+            }
         }
 
         protected override IEnumerator<ProbeWait> Scenario()
@@ -192,7 +242,9 @@ namespace ReDefinition.Atmospheres
             Emit("T18.upload_ms", RtOwnClouds.LastUploadMs);
             Emit("T18.upload_worst_ms", RtOwnClouds.WorstUploadMs);
 
-            // 3. Steady, the layers in the rays.
+            // 3. Steady, the layers in the rays: only once the rays take the pack, or the window would time the rays without it.
+            yield return ProbeWait.Until(() => Time.frameCount - RayCloudSeam.TakenFrame <= 2, 120, "the rays taking the own pack before the steady window");
+            yield return ProbeWait.Frames(30);
             t0 = Time.realtimeSinceStartup;
             f0 = Time.frameCount;
             yield return ProbeWait.Frames(300);
@@ -240,11 +292,16 @@ namespace ReDefinition.Atmospheres
             bool took = Time.frameCount - RayCloudSeam.TakenFrame <= 2;
             string status = RayCloudSeam.HostStatus() ?? "";
             bool problem = status.IndexOf("cannot be shared", StringComparison.Ordinal) >= 0 || status.IndexOf("input 7", StringComparison.Ordinal) >= 0;
+            // The proxy reports the cloud block's mode of its latest traced frame: a dxgi.dll older than this build has no such field (or reads the block as
+            // EVE's layer, mode 1), and every check above would pass for it, since "took" is the managed side's own flag.
+            bool proxyOwn = status.IndexOf("cloudsMode=2", StringComparison.Ordinal) >= 0;
             Emit("T18.view_fresh", fresh);
             Emit("T18.rays_took_pack", took);
             Emit("T18.rays_problem", problem);
-            EmitText("T18.rays_status", status.Length > 200 ? status.Substring(0, 200) : status);
+            Emit("T18.proxy_reads_own_mode", proxyOwn);
+            EmitText("T18.rays_status", status.Length > 200 ? status.Substring(status.Length - 200) : status);
             Check("the rays take the own pack and the proxy shares it", fresh && took && !problem, "fresh " + fresh + ", taken " + took + ", status: " + status);
+            Check("the proxy traced its latest frame with the own cloud block (cloudsMode=2 in its status; a dxgi.dll from before this build lacks it)", proxyOwn, "status: " + status);
 
             // 6. The five places and the scan, against the stack as it stands now.
             LayerTypeTable[] tables = stack.Tables();
@@ -286,6 +343,15 @@ namespace ReDefinition.Atmospheres
             Check("the switch off releases the pack, the texture and the rays' view", released);
             foreach (ProbeWait w in Pictures("off", hdg, pitch)) yield return w;
             SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 1);
+            // The pairs against each other: a view whose pair does not differ shows no own cloud in the rays (or none in view).
+            double best = -1.0;
+            foreach (string view in Views)
+            {
+                double diff = PictureDifference(view);
+                Emit("T18.picture_diff_" + view.Replace('-', '_'), diff);
+                if (diff > best) best = diff;
+            }
+            Emit("T18.picture_diff_max", best);
         }
     }
 }

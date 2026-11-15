@@ -213,7 +213,7 @@ def upscale(exe, streamline, amd, ksp):
 def main():
     """Build the player unless --no-build, then run the turn, the upscaler turn, one check or all the runs."""
     parser = argparse.ArgumentParser()
-    parser.add_argument('--unity', default=r'C:\Program Files\Unity\Editor\Unity.exe')
+    parser.add_argument('--unity', default=r'C:\Program Files\Unity\Editor 2019.4.18f1\Editor\Unity.exe')
     # By default KspRoot, as the build takes it, or the Steam location.
     parser.add_argument('--ksp', default=os.environ.get(
         'KspRoot', r'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program'))

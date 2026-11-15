@@ -1704,6 +1704,9 @@ namespace redefinition
         uint32_t liveMeshes = 0;
         uint32_t lastInstances = 0;
         uint32_t lastBuilt = 0;
+        // The cloud block's mode of the latest frame traced (RT_CLOUDS_MODE_*; 0 for none), under statusLock: the
+        // managed side checks that a proxy of this build, not an older one, reads its own cloud pack.
+        uint32_t lastCloudsMode = 0;
         int slowFramesLogged = 0;
         int bigBuildsLogged = 0;
         int bigBuildsTimedLogged = 0;
