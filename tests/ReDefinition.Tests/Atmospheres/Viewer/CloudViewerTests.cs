@@ -193,6 +193,17 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(40, ViewerPresets.SafeName(new string('x', 99)).Length);
         }
 
+        [TestMethod]
+        public void TwoPicturesInOneSecondGetTwoNames()
+        {
+            var taken = new HashSet<string>();
+            Assert.AreEqual("20261115-120000", ViewerPresets.UniqueName("20261115-120000", taken.Contains));
+            taken.Add("20261115-120000");
+            Assert.AreEqual("20261115-120000-2", ViewerPresets.UniqueName("20261115-120000", taken.Contains));
+            taken.Add("20261115-120000-2");
+            Assert.AreEqual("20261115-120000-3", ViewerPresets.UniqueName("20261115-120000", taken.Contains));
+        }
+
         // --- Sidecar ---
 
         [TestMethod]

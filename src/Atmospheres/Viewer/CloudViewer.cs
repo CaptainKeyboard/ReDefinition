@@ -527,7 +527,12 @@ namespace ReDefinition.Atmospheres.Viewer
         internal void RequestCapture()
         {
             if (!capture.Request()) return;
-            pendingCapture = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            pendingCapture = ViewerPresets.UniqueName(DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture), name => File.Exists(CapturePath(name)));
+        }
+
+        internal static string CapturePath(string name)
+        {
+            return ModFolder.PluginFile(AtmospheresSettings.Mod, Path.Combine(ViewerPresets.Folder, Path.Combine("Captures", name + ".png")));
         }
 
         // The window is to be hidden.
@@ -537,7 +542,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             try
             {
-                string png = ModFolder.PluginFile(AtmospheresSettings.Mod, Path.Combine(ViewerPresets.Folder, Path.Combine("Captures", pendingCapture + ".png")));
+                string png = CapturePath(pendingCapture);
                 Directory.CreateDirectory(Path.GetDirectoryName(png));
                 ScreenCapture.CaptureScreenshot(png);
                 File.WriteAllText(Path.ChangeExtension(png, ".txt"), ViewerSidecar.Format(Record(Path.GetFileName(png)), AtmospheresSettings.Definitions, AtmospheresSettings.Number,

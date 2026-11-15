@@ -175,5 +175,14 @@ namespace ReDefinition.Atmospheres.Viewer
             string name = new string(chars.ToArray()).Trim('_');
             return name;
         }
+
+        // The name of a picture taken at a time (to the second): the stamp, with -2, -3 and so on where a picture of that name stands, so that two pictures in one
+        // second do not write over each other.
+        internal static string UniqueName(string stamp, Func<string, bool> exists)
+        {
+            string name = stamp;
+            for (int n = 2; exists(name); n++) name = stamp + "-" + n.ToString(CultureInfo.InvariantCulture);
+            return name;
+        }
     }
 }
