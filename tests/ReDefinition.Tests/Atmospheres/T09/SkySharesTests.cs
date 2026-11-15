@@ -64,6 +64,22 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(Visible(layers[2], 0.5, 0.0) < 0.05, "the cumulonimbus layer at 0.5 shows nothing");
         }
 
+        // The layer's cfg key coverage: with the cover meaning (default) the layer's numbers that the pass, the shadow, the RT pack and the cull bounds read do not depend on it (E40 K1COV:
+        // 0.35, 0.30 and 0.27 gave identical pictures); with cloud.coverMeaning 0 it is the outline's threshold again.
+        [TestMethod]
+        public void TheLayersCoverageKeyIsReadOnlyByTheOldMapping()
+        {
+            Func<float, CloudLayerDef> make = c => { CloudLayerDef l = CloudLookFixtures.Cumulus(); l.Coverage = c; return l; };
+            CloudLayerDef a = make(0.35f), b = make(0.27f);
+            Assert.IsTrue(a.Soft);
+            Assert.AreEqual(a.EffectiveCoverage, b.EffectiveCoverage, 1e-6f, "the threshold the pass uploads");
+            Assert.AreEqual(a.ClearSkyK, b.ClearSkyK, 1e-6f, "the clear-sky rule");
+            Assert.AreEqual(LayerTypeTable.LiftHeadroom(a), LayerTypeTable.LiftHeadroom(b), 1e-6, "the headroom of the lift and of the cull bounds");
+            Assert.AreEqual(a.EffectiveEdgeSoftness, b.EffectiveEdgeSoftness, 1e-6f);
+            CoverMeaningPin.Legacy();
+            Assert.AreEqual(0.08f, a.EffectiveCoverage - b.EffectiveCoverage, 1e-5f, "with the old mapping the coverage is the threshold");
+        }
+
         // Cover of the four layers for one time of a generator field: the maps as FetchStep makes them (deck rule, the meso stage), before the combination.
         private sealed class Sky
         {

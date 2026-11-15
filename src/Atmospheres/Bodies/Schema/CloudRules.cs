@@ -161,7 +161,8 @@ namespace ReDefinition.Atmospheres
         internal LayerKind Kind { get; }
 
         // The share of the map that clouds: a column is cloud where the coverage map is above 1 - Coverage (a ranked map gives the
-        // share Coverage of the body), 0 to 1.
+        // share Coverage of the body), 0 to 1. Read only with cloud.coverMeaning 0 (the old mapping) and by a layer without noise; with the cover meaning (default) the outline is at
+        // noise rank 1 - map value and Coverage cancels out of EffectiveCoverage and ClearSkyK (only the runtime shifts remain), so the cfg key coverage has no effect then.
         internal float Coverage { get; set; }
         // The group of the layer's spec (members of a group never show together), or empty; the layer-selective coverage shift acts on one group.
         internal string Group { get; set; } = "";
