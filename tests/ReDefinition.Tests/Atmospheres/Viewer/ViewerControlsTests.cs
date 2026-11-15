@@ -39,6 +39,72 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(AltitudeScale.ToSlider(inside.AglM), rig.AltitudeSlider, 1e-6);
         }
 
+        // --- A typed height is one placement ---
+
+        private const double MaxAgl = 300000.0;
+
+        [TestMethod]
+        public void TypingFiveHundredMetresPlacesOnceAtFiveHundredNotAtFiftyOnTheWay()
+        {
+            var typed = new TypedAltitude();
+            double agl;
+            var placed = new List<double>();
+            double now = 0.0;
+            foreach (string text in new[] { "5", "50", "500" })
+            {
+                typed.Typed(text, now);
+                now += 0.2;
+                if (typed.TryTake(now, false, MaxAgl, out agl)) placed.Add(agl);
+            }
+            Assert.AreEqual(0, placed.Count, "nothing is placed while the keys come");
+            Assert.IsTrue(typed.TryTake(now, true, MaxAgl, out agl), "Enter or the focus leaving ends the edit");
+            Assert.AreEqual(500.0, agl);
+            Assert.IsFalse(typed.TryTake(now, true, MaxAgl, out agl), "one placement per edit");
+            Assert.IsFalse(typed.Pending);
+        }
+
+        [TestMethod]
+        public void ATypedHeightThatStandsForAMomentIsPlacedOnceWithoutAnEnter()
+        {
+            var typed = new TypedAltitude();
+            double agl;
+            typed.Typed("1200", 10.0);
+            Assert.IsFalse(typed.TryTake(10.0 + TypedAltitude.IdleS - 0.1, false, MaxAgl, out agl));
+            Assert.IsTrue(typed.TryTake(10.0 + TypedAltitude.IdleS, false, MaxAgl, out agl));
+            Assert.AreEqual(1200.0, agl);
+            Assert.IsFalse(typed.TryTake(20.0, false, MaxAgl, out agl));
+        }
+
+        [TestMethod]
+        public void ATypedTextThatIsNoHeightInRangeIsDroppedWithoutAPlacement()
+        {
+            var typed = new TypedAltitude();
+            double agl;
+            foreach (string text in new[] { "", "abc", "5", "9.9", "300001", "NaN", "-40" })
+            {
+                typed.Typed(text, 0.0);
+                Assert.IsFalse(typed.TryTake(5.0, true, MaxAgl, out agl), "'" + text + "'");
+                Assert.IsFalse(typed.Pending, "'" + text + "' is dropped");
+            }
+            typed.Typed("10", 0.0);
+            Assert.IsTrue(typed.TryTake(5.0, true, MaxAgl, out agl), "the lowest height");
+            typed.Typed("300000", 0.0);
+            Assert.IsTrue(typed.TryTake(5.0, true, MaxAgl, out agl), "the highest height");
+        }
+
+        [TestMethod]
+        public void TheEditsOfTwoHeightsAreTwoPlacements()
+        {
+            var typed = new TypedAltitude();
+            double agl;
+            typed.Typed("800", 0.0);
+            Assert.IsTrue(typed.TryTake(0.1, true, MaxAgl, out agl));
+            Assert.AreEqual(800.0, agl);
+            typed.Typed("4000", 3.0);
+            Assert.IsTrue(typed.TryTake(3.1, true, MaxAgl, out agl));
+            Assert.AreEqual(4000.0, agl);
+        }
+
         // --- Freeze Clouds returns to the last speed above 0 ---
 
         [TestMethod]

@@ -260,6 +260,49 @@ namespace ReDefinition.Atmospheres.Viewer
         }
     }
 
+    // The height typed into the altitude field. Every keystroke changes the text ("50" on the way to "500"), so the text is only kept; the height is taken once the edit has
+    // ended (Enter, or the field loses the keyboard) or the typing has been idle for IdleS, and then it is one placement.
+    internal sealed class TypedAltitude
+    {
+        internal const double IdleS = 1.0;
+
+        private string text;
+        private double since;
+
+        internal bool Pending
+        {
+            get { return text != null; }
+        }
+
+        // The field's text changed.
+        internal void Typed(string typed, double nowS)
+        {
+            text = typed ?? "";
+            since = nowS;
+        }
+
+        internal void Clear()
+        {
+            text = null;
+        }
+
+        // The typed height where one is due: the edit ended, or the text has stood for IdleS. False while the typing goes on, and where the text is no height in range (it is
+        // dropped then: the next keystroke starts over).
+        internal bool TryTake(double nowS, bool ended, double maxAglM, out double aglM)
+        {
+            aglM = 0.0;
+            if (text == null) return false;
+            if (!ended && nowS - since < IdleS) return false;
+            string taken = text;
+            text = null;
+            double m;
+            if (!double.TryParse(taken, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out m)) return false;
+            if (double.IsNaN(m) || m < AltitudeScale.MinAglM || m > maxAglM) return false;
+            aglM = m;
+            return true;
+        }
+    }
+
     // The speed Freeze Clouds returns to: the last speed above 0 the viewer saw (the speed it was set to, or the one in force when the clouds were frozen), 1 before any.
     // A speed of 0 is never remembered, so that freezing clouds that already stand still, and releasing them, does not leave them still.
     internal sealed class CloudSpeedMemory

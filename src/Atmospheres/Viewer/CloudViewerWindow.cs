@@ -23,6 +23,9 @@ namespace ReDefinition.Atmospheres.Viewer
         private string search = "";
         private string presetName = "";
         private float scroll = 1f;
+        private readonly TypedAltitude typedHeight = new TypedAltitude();
+        private DialogGUITextInput typedAltitude;
+        private double maxTypedAgl = 300000.0;
 
         private CloudViewerWindow()
         {
@@ -50,6 +53,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             if (shown != null) return;
             if (!viewer.Open()) return;
+            typedHeight.Clear();
             Build();
         }
 
@@ -63,16 +67,25 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             PopupDialog old = shown;
             shown = null;
+            typedHeight.Clear();
             if (old != null) old.Dismiss();
             viewer.Close(sceneEnding);
         }
 
-        // Every frame (CloudViewerAddon): the window is hidden while a picture is taken.
+        // Every frame (CloudViewerAddon): the window is hidden while a picture is taken, and a typed height that has stood for a moment is placed.
         internal void Tick()
         {
             if (shown == null) return;
             bool hide = viewer.Capturing;
             if (shown.gameObject.activeSelf == hide) shown.gameObject.SetActive(!hide);
+            if (typedHeight.Pending) PlaceTyped(false);
+        }
+
+        // The typed height where one is due: ended is true where the field's edit has ended (Enter, focus lost).
+        private void PlaceTyped(bool ended)
+        {
+            double agl;
+            if (typedHeight.TryTake(Time.unscaledTime, ended, maxTypedAgl, out agl)) viewer.RequestAltitude(agl);
         }
 
         private void Build()
@@ -108,6 +121,8 @@ namespace ReDefinition.Atmospheres.Viewer
             TooltipText.WrapAll(new DialogGUIBase[] { list, buttons });
             DialogTooltips.Attach(new DialogGUIBase[] { list, buttons });
             RestoreScroll();
+            TMPro.TMP_InputField typedField = typedAltitude != null && typedAltitude.uiItem != null ? typedAltitude.uiItem.GetComponent<TMPro.TMP_InputField>() : null;
+            if (typedField != null) typedField.onEndEdit.AddListener(text => PlaceTyped(true));
             Driver driver = shown.gameObject.AddComponent<Driver>();
             driver.Window = this;
             driver.Dialog = shown;
@@ -190,11 +205,11 @@ namespace ReDefinition.Atmospheres.Viewer
                 if (Mathf.Approximately(f, viewer.AltitudeSlider)) return;
                 viewer.RequestAltitude(AltitudeScale.FromSlider(f, maxAgl));
             });
-            var typedAltitude = new DialogGUITextInput("", false, 8, text =>
+            // The typed height is placed when the edit ends (Enter, the field loses the keyboard) or the typing stops, not on every keystroke.
+            maxTypedAgl = maxAgl;
+            typedAltitude = new DialogGUITextInput("", false, 8, text =>
             {
-                double m;
-                if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out m) && m >= AltitudeScale.MinAglM && m <= maxAgl)
-                    viewer.RequestAltitude(m);
+                typedHeight.Typed(text, Time.unscaledTime);
                 return text;
             }, 90f, RowHeight);
             rows.Add(Line(new DialogGUILabel("Altitude", 80f), Tip(altitude, "Height Above Ground"),
