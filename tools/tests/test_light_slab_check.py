@@ -60,10 +60,10 @@ class TwoStreamAnchors(unittest.TestCase):
             self.assertTrue(low <= got / S.WHITE / want <= high, "ms %s: %.3f of the two-stream" % (ms, got / S.WHITE / want))
 
     def test_only_the_cumulus_layers_types_carry_a_base_light_factor(self):
-        # E40 V1 white: the cumulus layer's types carry 1.5 on the direct light (the sunlit side of a cloud at the level of a white card facing the sun); every other layer's types
-        # sit on the two-stream anchors as the model has them.
+        # E40 ML light: the cumulus layer's types carry 1.25 on the direct light (what the model's source function lacks against the photon walk of a sunlit cell, light_mc_sphere.py);
+        # every other layer's types sit on the two-stream anchors as the model has them.
         for layer, name, tau, h, sigma, profile, base_light, head_light, base_amb, head_amb in S.shipped_types():
-            self.assertEqual(base_light, 1.5 if layer == "Kerbin-cumulus" else 1.0, name)
+            self.assertEqual(base_light, 1.25 if layer == "Kerbin-cumulus" else 1.0, name)
 
     def test_the_shipped_rain_deck_types_carry_no_light_factor(self):
         for layer, name, tau, h, sigma, profile, base_light, head_light, base_amb, head_amb in S.shipped_types():
