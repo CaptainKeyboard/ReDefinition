@@ -253,7 +253,14 @@ def main():
         print('--- deferred: skipped, Deferred is not installed (%s)' % deferred)
         deferred_ok = True
     # 2560 by 1440 with DLSS Quality renders 1707 by 960.
-    budget_ok = run(exe, None, 'budget', ['-budget', '1'], (1707, 960))
+    # The budget reads the proxy's GPU timestamps, which are off unless the ini asks for them (rtGpuTimings).
+    ini = os.path.join(OUTPUT, 'ReDefinitionProxy.ini')
+    with open(ini, 'w') as file:
+        file.write('[Proxy]' + chr(10) + 'enabled=1' + chr(10) + 'rtGpuTimings=1' + chr(10))
+    try:
+        budget_ok = run(exe, None, 'budget', ['-budget', '1'], (1707, 960))
+    finally:
+        os.remove(ini)
     sys.exit(0 if forward_ok and builtin_ok and deferred_ok and budget_ok else 1)
 
 
