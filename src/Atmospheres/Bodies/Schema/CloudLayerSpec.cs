@@ -61,6 +61,8 @@ namespace ReDefinition.Atmospheres
         internal float ShapeSmoothing { get; set; } = -1f;
         // The share of the type's height over which its top closes (cfg key topClose): see CloudTypeDef.TopClose.
         internal float TopClose { get; set; } = CloudTypeDef.DefaultTopClose;
+        // How much a tower of this type feeds an anvil (cfg key outflow): see CloudTypeDef.Outflow.
+        internal float Outflow { get; set; }
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -83,7 +85,7 @@ namespace ReDefinition.Atmospheres
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate,
-                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose
+                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow
             };
         }
     }
@@ -158,6 +160,11 @@ namespace ReDefinition.Atmospheres
         internal float TopReach { get; set; }
         internal float TopRefMs { get; set; } = 1.2f;
         internal float TopFullMs { get; set; } = 6f;
+        // The anvil of the layer's towers (cfg keys anvilType, anvilSeconds, anvilUpdraftMs, anvilScale): see CloudLayerDef.
+        internal float AnvilType { get; set; } = -1f;
+        internal float AnvilSeconds { get; set; } = CloudLayerDef.DefaultAnvilSeconds;
+        internal float AnvilUpdraftMs { get; set; } = CloudLayerDef.DefaultAnvilUpdraftMs;
+        internal float AnvilScale { get; set; } = 1f;
         // The mid-level sheet's rule (cfg keys altoType, altoFrom, altoFullAt; altoType -1: none): see CloudLayerDef.AltoType.
         internal float AltoType { get; set; } = -1f;
         internal float AltoFrom { get; set; } = 0.05f;
@@ -221,6 +228,10 @@ namespace ReDefinition.Atmospheres
                 TopReach = TopReach,
                 TopRefMs = TopRefMs,
                 TopFullMs = TopFullMs,
+                AnvilType = AnvilType,
+                AnvilSeconds = AnvilSeconds,
+                AnvilUpdraftMs = AnvilUpdraftMs,
+                AnvilScale = AnvilScale,
                 AltoType = AltoType,
                 AltoFrom = AltoFrom,
                 AltoFull = AltoFull,

@@ -44,7 +44,8 @@ namespace ReDefinition.WeatherPlayer
                         HeadAmbient = jt.headAmbient,
                         Lift = jt.lift != null && jt.lift.Length >= 2 ? new Curve(Evenly(jt.lift.Length), jt.lift) : null,
                         ShapeSmoothing = jt.shapeSmoothing,
-                        TopClose = jt.topClose >= 0f ? jt.topClose : CloudTypeDef.DefaultTopClose
+                        TopClose = jt.topClose >= 0f ? jt.topClose : CloudTypeDef.DefaultTopClose,
+                        Outflow = jt.outflow
                     });
                 }
                 var def = new CloudLayerDef(jl.name, 0, jl.inner, jl.outer, types, jl.sigma, (LayerKind)jl.kind)
@@ -67,6 +68,10 @@ namespace ReDefinition.WeatherPlayer
                     TopReach = jl.topReach,
                     TopRefMs = jl.topRefMs,
                     TopFullMs = jl.topFullMs,
+                    AnvilType = jl.anvilType,
+                    AnvilSeconds = jl.anvilSeconds,
+                    AnvilUpdraftMs = jl.anvilUpdraftMs,
+                    AnvilScale = jl.anvilScale,
                     LightIsotropy = jl.lightIsotropy,
                     LightPlateau = jl.lightPlateau,
                     AmbientMs = jl.ambientMs >= 0f ? jl.ambientMs : CloudLayerDef.DefaultAmbientMs,
@@ -87,6 +92,17 @@ namespace ReDefinition.WeatherPlayer
                     LayersJobLayer jl = job.layers[l];
                     byte[] cov = string.IsNullOrEmpty(jl.coverageMap) ? Constant(job, 255) : File.ReadAllBytes(Path.Combine(input, jl.coverageMap));
                     byte[] typ = string.IsNullOrEmpty(jl.typeMap) ? Constant(job, 0) : File.ReadAllBytes(Path.Combine(input, jl.typeMap));
+                    if (jl.typeScale != 1f)
+                        for (int i = 0; i < typ.Length; i++) typ[i] = (byte)Mathf.Clamp(Mathf.Round(typ[i] * jl.typeScale), 0f, 255f);
+                    // E40 CB: the anvils of the layer's towers, drawn into the maps as the game draws them (OwnCloudModule.DrawAnvil).
+                    if (jl.anvilType >= 0f)
+                    {
+                        var report = new AnvilMap.Report();
+                        AnvilMap.Apply(source.LayerAt(l), cov, typ, new AnvilInputs { Width = job.mapWidth, Height = job.mapHeight, RadiusM = job.planetRadius, ShearRadS = jl.anvilShearRadS }, report);
+                        Debug.Log("[WeatherPlayer] anvil " + job.id + " layer " + l + ": sources " + report.TowerRadiusM.Count + ", texels " + report.Changed + ", shift " + report.ShiftTexels.ToString("0.00")
+                                  + (report.TowerRadiusM.Count > 0 ? ", first tower " + report.TowerRadiusM[0].ToString("0") + " m reach " + report.ReachM[0].ToString("0") + " m updraft "
+                                                                     + report.UpdraftMs[0].ToString("0.0") + " m/s strength " + report.Strength[0].ToString("0.00") : ""));
+                    }
                     renderer.Maps.SetTargetBytes(l, cov, typ);
                 }
                 renderer.Maps.Step(0f, MapSlew.DefaultRate, true);

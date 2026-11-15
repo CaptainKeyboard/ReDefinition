@@ -110,6 +110,47 @@ namespace ReDefinition.Atmospheres
         private readonly byte[][] mesoCover = new byte[CloudLayerDef.MaxLayers][], mesoType = new byte[CloudLayerDef.MaxLayers][];
         private readonly WeatherMap[] mesoCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private readonly byte[][] deckCover = new byte[CloudLayerDef.MaxLayers][], deckType = new byte[CloudLayerDef.MaxLayers][];
+        // E40 CB: the anvils drawn into a layer's maps (AnvilMap), the inputs taken at the layer's fetch (the body's radius, the shear between the anvil and the steering level), and
+        // the CPU copies of the maps with them.
+        private readonly AnvilInputs[] anvilInputs = new AnvilInputs[CloudLayerDef.MaxLayers];
+        private readonly byte[][] anvilCover = new byte[CloudLayerDef.MaxLayers][], anvilType = new byte[CloudLayerDef.MaxLayers][];
+        private readonly WeatherMap[] anvilCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers], anvilTypeMaps = new WeatherMap[CloudLayerDef.MaxLayers];
+
+        private void TakeAnvilInputs(CelestialBody b, GeneratorField gf, int l)
+        {
+            CloudLayerDef d = stack.LayerAt(l);
+            double shear = 0.0;
+            if (gf != null && d.AnvilType >= 0f)
+            {
+                double mid = CloudBridgeStack.MidHeightM(d);
+                shear = gf.CloudDriftRadS(b.flightGlobalsIndex, mid + 0.5 * d.ThicknessM) - gf.CloudDriftRadS(b.flightGlobalsIndex, mid);
+            }
+            anvilInputs[l] = new AnvilInputs { Width = MapWidth, Height = MapHeight, RadiusM = b.Radius, ShearRadS = shear };
+        }
+
+        // Draws the layer's anvils into copies of its maps; true (and the copies and their CPU maps in the arguments) where it changed them.
+        private bool DrawAnvil(int l, ref byte[] cover, ref byte[] typeBytes, out WeatherMap coverCpu, out WeatherMap typeCpu)
+        {
+            coverCpu = typeCpu = null;
+            CloudLayerDef d = stack.LayerAt(l);
+            AnvilInputs inp = anvilInputs[l];
+            if (AnvilMap.AnvilTypeIndex(d) < 0 || inp.Width * inp.Height != cover.Length || typeBytes == null || typeBytes.Length != cover.Length) return false;
+            byte[] c = anvilCover[l] = CopyInto(anvilCover[l], cover);
+            byte[] t = anvilType[l] = CopyInto(anvilType[l], typeBytes);
+            if (!AnvilMap.Apply(d, c, t, inp)) return false;
+            coverCpu = anvilCoverMaps[l] ?? (anvilCoverMaps[l] = new WeatherMap());
+            typeCpu = anvilTypeMaps[l] ?? (anvilTypeMaps[l] = new WeatherMap());
+            coverCpu.Resize(inp.Width, inp.Height);
+            typeCpu.Resize(inp.Width, inp.Height);
+            for (int i = 0; i < c.Length; i++)
+            {
+                coverCpu.Values[i] = c[i] / 255f;
+                typeCpu.Values[i] = t[i] / 255f;
+            }
+            cover = c;
+            typeBytes = t;
+            return true;
+        }
         private readonly WeatherMap[] deckCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private long lookStampSeen = -1;
         private readonly byte[][] forcedBytes = new byte[CloudLayerDef.MaxLayers][];
@@ -748,6 +789,7 @@ namespace ReDefinition.Atmospheres
             // Whether this round combines the layer maps (decided once, at its first layer: the key may change between the frames of a round).
             if (l == 0) combineRound = CloudLookTuning.CoverCombine > 0f && fetchHaveShared;
             GeneratorField gf = GeneratorModule.Current;
+            TakeAnvilInputs(b, gf, l);
             byte[] cover = coverageMap.Bytes;
             WeatherMap coverSource = coverageMap;
             bool layerFetched = gf != null && gf.GetLayerCoverage(b.flightGlobalsIndex, ut, CloudBridgeStack.MidHeightM(stack.LayerAt(l)), layerMap);
@@ -799,6 +841,10 @@ namespace ReDefinition.Atmospheres
                 if (ruleCover.Length != n) deckCover[l] = ruleCover = new byte[n];
                 if (ruleType.Length != n) deckType[l] = ruleType = new byte[n];
                 deck.Apply(cover, typeMap.Values, fogSpreadK, fogWind, ruleCover, ruleType, CloudLookTuning.DeckPrecipOf(layerName), CloudLookTuning.DeckFogOf(layerName));
+                // E40 CB: a deck layer whose table goes on past its rain types (the cumulonimbus layer's anvil sheet) ends its precipitation axis at rainType, as the other layers do.
+                float deckRain = stack.LayerAt(l).RainType;
+                if (deckRain < 1f)
+                    for (int i = 0; i < n; i++) ruleType[i] = (byte)Math.Round(ruleType[i] * deckRain);
                 float typeOverride = CloudLookTuning.TypeOverrideOf(layerName);
                 if (typeOverride >= 0f)
                 {
@@ -885,6 +931,8 @@ namespace ReDefinition.Atmospheres
             }
             else
             {
+                WeatherMap anvilCoverCpu, anvilTypeCpu;
+                if (DrawAnvil(l, ref cover, ref typeBytes, out anvilCoverCpu, out anvilTypeCpu)) { coverSource = anvilCoverCpu; typeForCpu = anvilTypeCpu; }
                 renderer.Maps.SetTargetBytes(l, cover, typeBytes);
                 stackMaps.Set(stack, l, coverSource, typeForCpu);
             }
@@ -913,11 +961,14 @@ namespace ReDefinition.Atmospheres
             if (slice + 1 < CombineSlices) return;
             for (int k = 0; k < stack.LayerCount; k++)
             {
+                byte[] kc = pendingCover[k], kt = pendingType[k];
+                WeatherMap anvilCoverCpu, anvilTypeCpu;
+                bool anvil = DrawAnvil(k, ref kc, ref kt, out anvilCoverCpu, out anvilTypeCpu);
                 WeatherMap combined = combinedMaps[k] ?? (combinedMaps[k] = new WeatherMap());
                 combined.Resize(coverageMap.Width, coverageMap.Height);
-                for (int i = 0; i < pendingCover[k].Length; i++) combined.Values[i] = pendingCover[k][i] / 255f;
-                renderer.Maps.SetTargetBytes(k, pendingCover[k], pendingType[k]);
-                stackMaps.Set(stack, k, combined, pendingTypeMap[k]);
+                for (int i = 0; i < kc.Length; i++) combined.Values[i] = kc[i] / 255f;
+                renderer.Maps.SetTargetBytes(k, kc, kt);
+                stackMaps.Set(stack, k, combined, anvil ? anvilTypeCpu : pendingTypeMap[k]);
             }
             fetchStep = -1;
             stepMaps = true;

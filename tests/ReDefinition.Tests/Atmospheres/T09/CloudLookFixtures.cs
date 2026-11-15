@@ -109,16 +109,27 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             CloudLayerDef cb = Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f, 5000f, LayerKind.Weather,
                 new CloudTypeDef("Cumulonimbus calvus", 0f, 0.85f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
-                new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f));
+                new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f),
+                new CloudTypeDef("Cumulonimbus anvil", 0f, 1f, C(0f, 0f, 0.72f, 0f, 0.8f, 1f, 0.9f, 0.9f, 1f, 0f), 0.7f));
             cb.Deck = new WeatherDeckRule { Fog = false, PrecipType = 0f };
             foreach (CloudTypeDef t in cb.Types) t.RiseShare = 0.3f;
             cb.LightAmbient = 0.8f;
             Light(cb.Types[0], 1f, 1.2f, 0.7f, 1f);
             Light(cb.Types[1], 1f, 1.15f, 0.7f, 1.05f);
+            Light(cb.Types[2], 1f, 1.15f, 0.7f, 1.05f);
+            cb.Types[1].Outflow = 1f;
+            cb.Types[2].DensityScale = 0.5f;
+            cb.Types[2].TopClose = 0.12f;
+            cb.Types[2].Lift = C(0f, 1f, 0.7f, 1f, 0.76f, 0f, 1f, 0f);
+            cb.RainType = 0.5f;
+            cb.AnvilType = 1f;
+            cb.AnvilSeconds = 3600f;
+            cb.AnvilUpdraftMs = 6f;
+            cb.AnvilScale = 1f;
             cb.VerticalScale = 0.6f;
             cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.079f, 1f, 0.175f);
             cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.061f, 0.7f, 0.061f, 0.9f, 0f, 1f, 0f);
-            cb.Types[1].TopClose = 0.5f;
+            cb.Types[1].TopClose = 0.25f;
             cb.Types[0].TopClose = 0.8f;
             cb.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f, Scatter = 1f, ScatterDepths = 3f };
             cb.ShapeSmoothing = 0.3f;

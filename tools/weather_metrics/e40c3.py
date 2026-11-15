@@ -47,6 +47,10 @@ CASES_LEV = [PROD + "+" + m for m in ("sp10", "sp10+spm12", "sp10+spm6", "skip",
 CASES_CUT = [PROD + "+" + m for m in ("cg5", "cg10", "cg20", "cg", "cg80", "eo30", "eo100", "cg20+r25", "cg20+lq1", "cg20+sp10", "r25+lq1", "cg20+r25+lq1", "cg+r25+lq1")]
 # The cases of the run: the product, the single levers and their combinations (the attribution of the earlier runs stays in the results files of those runs).
 CASES = [PROD] + [PROD + "+" + m for m in ("r25", "lq1", "sp10", "tl")] + CASES_CUT
+# E40C3_PROD=1: the cost stage alone with the product's case (a cfg change measured against the game's maps, E40 CB: the anvils drawn into them by the player's setup).
+PROD_ONLY = os.environ.get("E40C3_PROD") == "1"
+if PROD_ONLY:
+    CASES = [PROD]
 # The pictures and the error against the converged picture (series stage c3-sheet): the product and the levers that may stay in the picture's error.
 SHEET_CASES = [PROD] + [PROD + "+" + m for m in ("cg10", "cg20", "cg", "eo30", "eo100", "r25", "lq1", "sp10", "cg20+r25", "cg20+r25+lq1", "r25+lq1")]
 SHEET_FULL = c1.SHEET_FULL
@@ -203,6 +207,8 @@ def collect_motion(ctx):
 def stages():
     if not scene_names():
         return []
+    if PROD_ONLY:
+        return [cost_stage()]
     return [cost_stage(), probe_stage(), aux_stage(), sheet_stage(), motion_stage()]
 
 
@@ -258,6 +264,8 @@ def collect(ctx):
         except KeyError:
             continue
         metrics += collector(ctx)
+    if PROD_ONLY:
+        return metrics
     results = {}
     folder = ctx.folder("c3-aux")
     lines = ["E40-C3 ray statistics (aux pass, %dx%d, product march; steps = density reads per ray; lit = samples with a fresh sun march, taps = the sun march's reads with the product's reuse)" % c1.AUX_SIZE]

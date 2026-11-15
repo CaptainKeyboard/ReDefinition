@@ -28,6 +28,8 @@ namespace ReDefinition.WeatherPlayer
         public float shapeSmoothing = -1f;
         // The share of the type's height over which its top closes (E40 CB step 0; the cfg key topClose; below 0: the default of CloudTypeDef).
         public float topClose = -1f;
+        // How much a tower of the type feeds an anvil (E40 CB; the cfg key outflow).
+        public float outflow;
     }
 
     [Serializable]
@@ -63,6 +65,12 @@ namespace ReDefinition.WeatherPlayer
         public float shapeSmoothing;
         public float fibreMinWindMs = 0.5f, fibreTurnSeconds = 20f;
         public float topReach, topRefMs = 1.2f, topFullMs = 6f;
+        // The anvil of the layer's towers (E40 CB; the cfg keys anvilType, anvilSeconds, anvilUpdraftMs, anvilScale; anvilType -1: none) and the shear of the anvil's level against
+        // the steering level (rad/s eastward; the game takes it from the generator, CloudDriftRadS): the setup draws the anvils into the job's maps with AnvilMap.
+        public float anvilType = -1f, anvilSeconds = 3600f, anvilUpdraftMs = 6f, anvilScale = 1f, anvilShearRadS;
+        // A factor on the type map's values before the anvils are drawn (1: none): a game dump of the cumulonimbus layer from before E40 CB has the precipitation level 0 to 1 as its type, which
+        // the table with the anvil sheet reads at rainType (0.5) and below.
+        public float typeScale = 1f;
         // The layer's wind in world space (m/s; E40 L5 shape): the fibres lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
         public float[] wind;
     }

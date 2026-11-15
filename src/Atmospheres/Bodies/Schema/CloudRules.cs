@@ -73,6 +73,8 @@ namespace ReDefinition.Atmospheres
         // 0.8. 0: no closure (the profile alone ends the type).
         internal const float DefaultTopClose = 0.25f;
         internal float TopClose { get; set; } = DefaultTopClose;
+        // How much a tower of this type feeds an anvil (E40 CB; cfg key outflow, 0 to 1, 0: none): a cumulonimbus incus spreads its outflow at the tropopause, a calvus not yet (AnvilMap).
+        internal float Outflow { get; set; }
         // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
         // How far the shape noise is smoothed where this type is drawn (E40 L6 shape; cfg key shapeSmoothing, in noise scales; below 0: the layer's own, 0: not at all): see
@@ -254,6 +256,15 @@ namespace ReDefinition.Atmospheres
         internal float TopReach { get; set; }
         internal float TopRefMs { get; set; } = 1.2f;
         internal float TopFullMs { get; set; } = 6f;
+        // The anvil of the layer's towers (E40 CB; AnvilMap): AnvilType is the type value of the outflow sheet (cfg key anvilType, -1: no anvil; a type whose profile and LIFT hold it to the
+        // sheet's band, AnvilMap.SheetDepthM), AnvilSeconds the time the sheet has spread (anvilSeconds; the generator's shortest cell life, 1 h), AnvilUpdraftMs the updraft at the anvil base of a tower at full
+        // strength (anvilUpdraftMs; the generator's full-strength cell, GeneratorField.WindowCellUpdraftMs), AnvilScale the body's multiplier on the spread beyond the tower (anvilScale, 1 =
+        // the outflow law). The sheet's depth is the anvil type's band; the tower's radius is the map's; the downwind carry is the body's wind shear (CloudDriftRadS).
+        internal float AnvilType { get; set; } = -1f;
+        internal float AnvilSeconds { get; set; } = DefaultAnvilSeconds;
+        internal float AnvilUpdraftMs { get; set; } = DefaultAnvilUpdraftMs;
+        internal float AnvilScale { get; set; } = 1f;
+        internal const float DefaultAnvilSeconds = 3600f, DefaultAnvilUpdraftMs = 6f;
         // The mid-level sheet's rule (E40 L2 D1; cfg keys altoType, altoFrom, altoFullAt): AltoType is the type value of the table's mid-level sheet (an altocumulus), -1: none. Where the
         // generator makes more cloud at that type's height than at the fair-weather type's height (the difference of the two layer maps, from AltoFrom to AltoFullAt), the type map
         // shows the sheet instead of the precipitation's type (CloudLookTuning.ApplyAlto).
@@ -301,12 +312,16 @@ namespace ReDefinition.Atmospheres
                 Look();
                 long stamp = CloudCoverShift.Stamp;
                 // The key also holds the numbers a test may change after the first read (the types' data, the exponent).
-                double key = lookSigma + WaterPower * 7.0;
+                double key = lookSigma + WaterPower * 7.0 + AnvilType * 17.3;
                 for (int i = 0; i < Types.Count; i++) key += Types[i].DensityScale * 3.1 + Types[i].BaseGain * 5.3 + Types[i].RiseShare * 11.7 + Types[i].Erosion * 13.9;
                 if (closedStamp == stamp && closedKey == key) return closedValue;
                 double sum = 0.0;
+                // The anvil sheet (E40 CB) is drawn only by its rule, around the towers, and is thin: it is not one of the types the map's cover is calibrated on.
+                int anvil = AnvilMap.AnvilTypeIndex(this), counted = 0;
                 for (int i = 0; i < Types.Count; i++)
                 {
+                    if (i == anvil) continue;
+                    counted++;
                     CloudTypeDef type = Types[i];
                     CloudWaterNumbers k = new CloudWaterNumbers { Width = SoftWidth, Power = WaterPower, BaseGain = type.BaseGain, RiseShare = type.RiseShare };
                     CloudTypeDef t = type;
@@ -314,7 +329,7 @@ namespace ReDefinition.Atmospheres
                     double tau = EffectiveSigmaPerM * (type.TopShare - type.BaseShare) * ThicknessM * mean * type.DensityScale;
                     sum += CloudWater.Closed(tau, type.Erosion, CloudSoftDensity.DetailMean, k);
                 }
-                closedValue = sum / Types.Count;
+                closedValue = sum / Math.Max(1, counted);
                 closedKey = key;
                 closedStamp = stamp;
                 return closedValue;

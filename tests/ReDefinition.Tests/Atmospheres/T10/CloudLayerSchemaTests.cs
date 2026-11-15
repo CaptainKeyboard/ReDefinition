@@ -111,6 +111,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 { "Altocumulus", new[] { 2000f, 7000f, 2500f, 7500f } },
                 { "Cumulonimbus calvus", new[] { 600f, 2000f, 6000f, 12000f } },
                 { "Cumulonimbus incus", new[] { 600f, 2000f, 8000f, 16000f } },
+                // The anvil sheet of a cumulonimbus (its outflow): its type spans the layer like the towers' (so that the mix between them keeps one base); the sheet itself is where its
+                // LIFT opens, 8.6 km, and its top is the towers' (asserted below with the sheet's own band).
+                { "Cumulonimbus anvil", new[] { 600f, 2000f, 8000f, 16000f } },
                 { "Cirrus", new[] { 5000f, 13000f, 6000f, 13000f } },
                 { "Cirrostratus", new[] { 5000f, 13000f, 6000f, 13000f } }
             };

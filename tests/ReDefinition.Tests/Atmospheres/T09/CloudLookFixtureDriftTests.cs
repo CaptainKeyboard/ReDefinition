@@ -73,6 +73,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.TopReach, fixture.TopReach, 1e-6f, n + " top reach");
             Assert.AreEqual(shipped.TopRefMs, fixture.TopRefMs, 1e-6f, n + " top reference updraft");
             Assert.AreEqual(shipped.TopFullMs, fixture.TopFullMs, 1e-6f, n + " top full updraft");
+            Assert.AreEqual(shipped.AnvilType, fixture.AnvilType, 1e-6f, n + " anvil type");
+            Assert.AreEqual(shipped.AnvilSeconds, fixture.AnvilSeconds, 1e-6f, n + " anvil seconds");
+            Assert.AreEqual(shipped.AnvilUpdraftMs, fixture.AnvilUpdraftMs, 1e-6f, n + " anvil updraft");
+            Assert.AreEqual(shipped.AnvilScale, fixture.AnvilScale, 1e-6f, n + " anvil scale");
             Assert.AreEqual(shipped.LightIsotropy, fixture.LightIsotropy, 1e-6f, n + " light isotropy");
             Assert.AreEqual(shipped.LightPlateau, fixture.LightPlateau, 1e-6f, n + " light plateau");
             Assert.AreEqual(shipped.AmbientMs, fixture.AmbientMs, 1e-6f, n + " sky diffusion amplitude");
@@ -113,6 +117,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.HeadAmbient, f.HeadAmbient, 1e-6f, t + " head ambient");
                 Assert.AreEqual(s.ShapeSmoothing, f.ShapeSmoothing, 1e-6f, t + " shape smoothing");
                 Assert.AreEqual(s.TopClose, f.TopClose, 1e-6f, t + " top closure");
+                Assert.AreEqual(s.Outflow, f.Outflow, 1e-6f, t + " outflow");
                 Assert.AreEqual(s.Lift == null, f.Lift == null, t + " has a lift curve");
                 if (s.Lift != null)
                 {

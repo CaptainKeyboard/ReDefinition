@@ -122,6 +122,7 @@ def job_layers(scene, variant):
         lk, tk = extras[name]
         jl = e40o.job_layer(specs[name], c1.map_name(scene, "cover", name, "cover"), c1.map_name(scene, "cover", name, "type"))
         jl.update(lk)
+        c1.old_dump_type_scale(jl, name, lk, c1.map_name(scene, "cover", name, "type"))
         for t in jl["types"]:
             t.update(tk.get(t["name"], {}))
         if name == CUMULUS:

@@ -96,10 +96,10 @@ NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE
 WIND_EN = {"cirrus": (17.7, 17.7), "cirrostratus": (17.7, 17.7)}
 
 LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing", "fibreMinWindMs",
-               "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs")
+               "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs", "anvilType", "anvilSeconds", "anvilUpdraftMs", "anvilScale")
 # E40TY_NOSMOOTH=1: the same pictures without the shape smoothing and the top-from-updraft numbers of the layers (the "before" of E40 L6 shape on the same player), under the tag given.
 NOSMOOTH = os.environ.get("E40TY_NOSMOOTH") == "1"
-TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose")
+TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose", "outflow")
 
 
 def lift_samples(type_node):
@@ -198,8 +198,19 @@ CB_CAMERAS = {"side": (30.0, 400.0, 14.0), "top": (25.0, 16000.0, -33.0), "flat"
 CB_SUN_AZIMUTH = 160.0
 
 
-def cb_cell_files():
-    """Writes the cell's coverage map (a Gaussian of the great-circle distance to the cell, from CB_COVER_RANGE[0] outside to [1] at the centre) and the updraft map (R8, 0 to 12 m/s)."""
+def cb_rain_type():
+    """The cumulonimbus layer's rainType (the type value at full precipitation; the table goes on past it to the anvil sheet, E40 CB)."""
+    with open(CFG_PATH, encoding="utf-8") as f:
+        root = e40o.parse_nodes(f.read())
+    for layer in [c for c in e40o.find(root, "CLOUDS")["children"] if c["name"] == "LAYER"]:
+        if e40o.val(layer, "name") == CB_LAYER and e40o.val(layer, "rainType") is not None:
+            return float(e40o.val(layer, "rainType"))
+    return 1.0
+
+
+def cb_cell_files(strength=1.0, tag="cbcell", outside=None):
+    """Writes the cell's coverage map (a Gaussian of the great-circle distance to the cell, from CB_COVER_RANGE[0] (or `outside`) outside to [1] at the centre), its type map (the
+    precipitation axis: rainType x the same shape) and the updraft map (R8, 0 to 12 m/s). strength scales the cell (its top coverage, type and updraft) for the anvil rows."""
     w, h = CB_MAP
     units = lay.texel_unit_vectors(w, h)
     lon = math.radians(SITE_LON_DEG)
@@ -207,13 +218,16 @@ def cb_cell_files():
     dist_km = np.arccos(np.clip(units @ centre, -1.0, 1.0)) * R / 1000.0
     bump = np.exp(-(dist_km / CB_CELL_KM) ** 2)
     lo, hi = CB_COVER_RANGE
+    if outside is not None:
+        lo = outside
+    hi = lo + (hi - lo) * strength
     cover = np.rint(np.clip(lo + (hi - lo) * np.minimum(1.0, CB_CORE_GAIN * bump), 0.0, 1.0) * 255.0).astype(np.uint8)
-    updraft = np.rint(np.clip(CB_UPDRAFT_MS * bump / 12.0, 0.0, 1.0) * 255.0).astype(np.uint8)
+    updraft = np.rint(np.clip(CB_UPDRAFT_MS * strength * bump / 12.0, 0.0, 1.0) * 255.0).astype(np.uint8)
     os.makedirs(INPUT, exist_ok=True)
-    cover.tofile(os.path.join(INPUT, "cbcell-cov.r8"))
-    updraft.tofile(os.path.join(INPUT, "cbcell-up.r8"))
-    np.rint(np.clip(np.minimum(1.0, CB_CORE_GAIN * bump), 0.0, 1.0) * 255.0).astype(np.uint8).tofile(os.path.join(INPUT, "cbcell-typ.r8"))
-    return "cbcell-cov.r8", "cbcell-up.r8"
+    cover.tofile(os.path.join(INPUT, tag + "-cov.r8"))
+    updraft.tofile(os.path.join(INPUT, tag + "-up.r8"))
+    np.rint(np.clip(cb_rain_type() * strength * np.minimum(1.0, CB_CORE_GAIN * bump), 0.0, 1.0) * 255.0).astype(np.uint8).tofile(os.path.join(INPUT, tag + "-typ.r8"))
+    return tag + "-cov.r8", tag + "-up.r8"
 
 
 def cb_const_map(value):
@@ -251,6 +265,45 @@ def cb_jobs(layers_by_name, extras):
                                 **(dict(noise=dict(sphere=SPHERE)) if SPHERE is not None else {})))
             if view != "flat":
                 heights.append(dict(id=jid(key, view), variation=0, physics=0, topUpdraft=1, ragged=0, updraftMap=up_name, width=CB_MAP[0], height=CB_MAP[1], seed=1))
+    return jobs, heights
+
+
+# The cumulonimbus with its anvil (E40 CB): a weak, a moderate and a strong cell (the cell's top coverage, its type on the precipitation axis and its updraft scaled by the strength),
+# the type following the strength as in the game, the anvils drawn by AnvilMap in the player's setup with a shear between the anvil and the steering level of CB_SHEAR_MS (east).
+# Views: from the ground 35 km south of the cell (the whole tower), from the side at the anvil's height 70 km away, and from above.
+CB_ANVIL_ROWS = (("weak", 0.6), ("moderate", 0.8), ("strong", 1.0))
+CB_ANVIL_VIEWS = ("ground", "anvil", "above")
+CB_ANVIL_CAMERAS = {"ground": (40.0, 400.0, 13.0), "anvil": (90.0, 9500.0, -1.0), "above": (55.0, 26000.0, -30.0)}
+CB_SHEAR_MS = 8.0
+# The anvil rows' coverage outside the cell: 0 (a clear sky around one cell; at the tower rows' 0.3 the layer's clear-sky rule keeps the background, K about 0.14 since the cover
+# meaning, and the cell drowns in a sheet of the same layer).
+CB_ANVIL_OUTSIDE = 0.0
+
+
+def cb_anvil_camera(view, size):
+    km, height, pitch = CB_ANVIL_CAMERAS[view]
+    lon, lat = math.radians(SITE_LON_DEG), -km * 1000.0 / R
+    pos = np.array([math.cos(lat) * math.cos(lon), math.cos(lat) * math.sin(lon), math.sin(lat)]) * (R + height)
+    return pr.Camera(pos, 0.0, pitch, size[0], size[1], FOV)
+
+
+def cb_anvil_jobs(layers_by_name, extras):
+    layer, (lk, tk) = layers_by_name[CB_LAYER], extras[CB_LAYER]
+    jobs, heights = [], []
+    for key, strength in CB_ANVIL_ROWS:
+        tag = "cbanvil-" + key
+        cov_name, up_name = cb_cell_files(strength, tag, CB_ANVIL_OUTSIDE)
+        for view in CB_ANVIL_VIEWS:
+            jl = e40o.job_layer(layer, cov_name, tag + "-typ.r8")
+            jl.update({k: v for k, v in lk.items()})
+            jl["anvilShearRadS"] = CB_SHEAR_MS / R
+            for t in jl["types"]:
+                t.update({k: v for k, v in tk.get(t["name"], {}).items()})
+            cam = cb_anvil_camera(view, SIZE)
+            jobs.append(lay.job(jid(tag, view), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=CB_MAP[0], mapHeight=CB_MAP[1],
+                                sun=lay.sun_vector(cam.pos, CB_SUN_AZIMUTH, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
+                                soft=SOFTNESS, maxSteps=320, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3))
+            heights.append(dict(id=jid(tag, view), variation=0, physics=0, topUpdraft=1, ragged=0, updraftMap=up_name, width=CB_MAP[0], height=CB_MAP[1], seed=1))
     return jobs, heights
 
 
@@ -302,7 +355,9 @@ def build_jobs():
                                       **(dict(far=haze_block(layers_by_name[spec[2]])) if HAZE else {})))
     cb, heights = cb_jobs(layers_by_name, extras)
     lum.extend(cb)
-    CB_HEIGHTS[:] = heights
+    anvil, anvil_heights = cb_anvil_jobs(layers_by_name, extras)
+    lum.extend(anvil)
+    CB_HEIGHTS[:] = heights + anvil_heights
     return lum, aux
 
 
@@ -558,6 +613,30 @@ def collect(ctx):
         cb_rows.append(np.concatenate(cols, axis=1))
     if cb_rows:
         gn.save_png(os.path.join(out_dir, "%s-cbtower-sheet.png" % NAME), np.concatenate(cb_rows, axis=0))
+    # The anvil sheet (E40 CB): a row per cell strength, the ground view, the side view at the anvil's height, the view from above.
+    anvil_rows = []
+    for key, strength in CB_ANVIL_ROWS:
+        tag = "cbanvil-" + key
+        cols = []
+        for view, text in (("ground", "from the ground, 40 km"), ("anvil", "side at the anvil's height, 90 km"), ("above", "from above, 26 km up, 55 km south")):
+            path = os.path.join(sheet, jid(tag, view) + ".npy")
+            if not os.path.isfile(path):
+                lines.append("   %-18s %-6s: no picture" % (tag, view))
+                cols.append(np.zeros((TILE[1] * 2, TILE[0] * 2, 3)))
+                continue
+            m = load_lum(sheet, jid(tag, view))
+            img = picture(m, cb_anvil_camera(view, SIZE), cb_tint, with_sun=False)
+            gn.save_png(os.path.join(out_dir, "%s-%s-%s.png" % (NAME, tag, view)), img)
+            cols.append(label(box(img, (TILE[0] * 2, TILE[1] * 2)), "%s cell (strength %.1f): %s" % (key, strength, text)))
+            words = alpha_words(m[..., 3])
+            # the cloud's width in the picture at its widest row and at the row of its base (opaque columns), for the side views: anvil against tower
+            opaque = m[..., 3] > 0.5
+            widths = opaque.sum(axis=1)
+            results.setdefault(tag, {})[view] = dict(alpha=words, widest_px=int(widths.max()) if widths.size else 0)
+            lines.append("   %-18s %-6s: cloud covers %.2f of the picture, the widest opaque row %d px" % (tag, view, words["cover"], int(widths.max())))
+        anvil_rows.append(np.concatenate(cols, axis=1))
+    if anvil_rows:
+        gn.save_png(os.path.join(out_dir, "%s-cbanvil-sheet.png" % NAME), np.concatenate(anvil_rows, axis=0))
     with open(RESULTS, "w", encoding="utf-8") as f:
         json.dump(dict(results=results, lines=lines), f, indent=1)
     print("\n".join(lines))
@@ -578,8 +657,15 @@ def selftest():
     lum, aux = build_jobs()
     ids = [j["id"] for j in lum + aux]
     assert len(ids) == len(set(ids)), "job ids are unique"
-    assert len(lum) == len(TYPES) * len(VIEWS) + len(CB_TOWERS) * len(CB_VIEWS) and len(aux) == len(TYPES) * 2
-    assert len(CB_HEIGHTS) == len(CB_TOWERS) * (len(CB_VIEWS) - 1) and all(h["id"] in ids and not h["id"].endswith("-flat") for h in CB_HEIGHTS), "the flat control has no height maps"
+    n_anvil = len(CB_ANVIL_ROWS) * len(CB_ANVIL_VIEWS)
+    assert len(lum) == len(TYPES) * len(VIEWS) + len(CB_TOWERS) * len(CB_VIEWS) + n_anvil and len(aux) == len(TYPES) * 2
+    assert len(CB_HEIGHTS) == len(CB_TOWERS) * (len(CB_VIEWS) - 1) + n_anvil and all(h["id"] in ids and not h["id"].endswith("-flat") for h in CB_HEIGHTS), "the flat control has no height maps"
+    # the anvil rows carry the layer's anvil keys and the shear; the weak cell's maps are weaker than the strong cell's
+    anvil_job = [j for j in lum if j["id"] == jid("cbanvil-strong", "ground")][0]["layers"][0]
+    assert anvil_job.get("anvilType", -1) >= 0 and anvil_job["anvilShearRadS"] > 0, "the anvil keys reach the job"
+    weak = np.fromfile(os.path.join(INPUT, "cbanvil-weak-cov.r8"), dtype=np.uint8)
+    strong = np.fromfile(os.path.join(INPUT, "cbanvil-strong-cov.r8"), dtype=np.uint8)
+    assert weak.max() < strong.max(), (weak.max(), strong.max())
     # the cell's maps: the strongest texel at the cell's place, the coverage falling to the outside value, the updraft at its centre value
     cov = np.fromfile(os.path.join(INPUT, "cbcell-cov.r8"), dtype=np.uint8).reshape(CB_MAP[1], CB_MAP[0])
     up = np.fromfile(os.path.join(INPUT, "cbcell-up.r8"), dtype=np.uint8).reshape(CB_MAP[1], CB_MAP[0])

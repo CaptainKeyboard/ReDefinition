@@ -84,6 +84,30 @@ def camera(view, size):
     return pr.Camera(pos, yaw, pitch, size[0], size[1], gn.FOV)
 
 
+def layer_rain_type(name):
+    """A layer's rainType in the shipped cfg (1: none)."""
+    with open(e40ty.CFG_PATH, encoding="utf-8") as f:
+        root = e40o.parse_nodes(f.read())
+    for layer in [c for c in e40o.find(root, "CLOUDS")["children"] if c["name"] == "LAYER"]:
+        if e40o.val(layer, "name") == name and e40o.val(layer, "rainType") is not None:
+            return float(e40o.val(layer, "rainType"))
+    return 1.0
+
+
+def old_dump_type_scale(jl, name, lk, type_file):
+    """E40 CB: a game dump from before the cumulonimbus table grew its anvil sheet has the precipitation level 0 to 1 as the layer's type; the table reads it at rainType and below. Such a dump
+    (its type map above rainType) gets the job's typeScale; a dump of the game after E40 CB (types at rainType and below, the anvils already drawn) is left as it is."""
+    rain = layer_rain_type(name)
+    if lk.get("anvilType", -1.0) < 0.0 or rain >= 1.0:
+        return
+    for folder in (COST_IN, os.path.join(BUILD, "e40c2-in")):
+        path = os.path.join(folder, type_file)
+        if os.path.isfile(path):
+            if int(np.fromfile(path, dtype=np.uint8).max()) > rain * 255.0 + 2.0:
+                jl["typeScale"] = rain
+            return
+
+
 def job_layers(scene, variant):
     specs = {s["name"]: s for s in e40o.kerbin_layers()}
     extras = e40ty.cfg_extras()
@@ -92,6 +116,7 @@ def job_layers(scene, variant):
         lk, tk = extras[name]
         jl = e40o.job_layer(specs[name], map_name(scene, ALL[variant][0], name, "cover"), map_name(scene, ALL[variant][0], name, "type"))
         jl.update(lk)
+        old_dump_type_scale(jl, name, lk, map_name(scene, ALL[variant][0], name, "type"))
         for t in jl["types"]:
             t.update(tk.get(t["name"], {}))
         out.append(jl)
