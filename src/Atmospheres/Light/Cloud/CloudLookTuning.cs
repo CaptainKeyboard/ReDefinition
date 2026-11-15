@@ -22,13 +22,17 @@ namespace ReDefinition.Atmospheres
     //   cloud.deckPrecip.<name>           the probe's: a precipitation level the layer's deck rule sees everywhere, 0 to 1 (-1: the field's)
     //   cloud.deckFog.<name>              the probe's: a fog share the layer's deck rule sees everywhere, 0 to 1 (-1: the field's dew-point spread and wind)
     //   layers.densityRemap               the share of the erosion that also thins the interior of a closed deck (0: erosion only in the soft edge)
-    //   cloud.coverCombine                0 to 1: how far the layer maps are scaled so that their random-overlap union equals the field's cover (0: maps as they are)
+    //   cloud.coverCombine                0 to 1: how far the layer maps are scaled so that their random-overlap union equals the field's cover (0: maps as they are; default 1, E40 F1: each
+    //                                     layer map the generator makes carries about the field's whole cover, the four closed the sky twice over)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
     //   cloud.fadeNearShare               share of cloud.fadeFarM where the fade starts (0.5)
     //   cloud.farHaze                     -1: the cloudFarHaze setting decides, 0 / 1 forces the aerial perspective off / on, 2 automatic (on where the pass is behind Scatterer's scattering; CloudHazePlan)
     //   cloud.hazeStrength                factor on the aerial perspective's strength (1)
     internal static class CloudLookTuning
     {
+        // The default of cloud.coverCombine (E40 F1): the layer maps meet the field's cover.
+        internal const float DefaultCoverCombine = 1f;
+
         internal const string TuneSigma = "cloud.layerSigmaScale", TuneSoftness = "cloud.layerSoftnessScale", TuneNoiseAmount = "cloud.layerNoiseAmountScale",
             TuneNoiseSize = "cloud.layerNoiseSizeScale", TuneLayerShift = "cloud.layerCoverageShift.", TuneTypeFair = "cloud.typeFair.", TuneTypeOverride = "cloud.typeOverride.",
             TuneDensityRemap = "layers.densityRemap", TuneCoverCombine = "cloud.coverCombine", TuneFadeFar = "cloud.fadeFarM",
@@ -37,7 +41,7 @@ namespace ReDefinition.Atmospheres
             TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.";
 
         private static long seenVersion = -1;
-        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
+        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -81,7 +85,7 @@ namespace ReDefinition.Atmospheres
         private static void Load()
         {
             float s = Scale(Tuning.Get(TuneSigma, 1f)), e = Scale(Tuning.Get(TuneSoftness, 1f)), a = Scale(Tuning.Get(TuneNoiseAmount, 1f)), z = Scale(Tuning.Get(TuneNoiseSize, 1f));
-            float r = Unit(Tuning.Get(TuneDensityRemap, 0f)), c = Unit(Tuning.Get(TuneCoverCombine, 0f));
+            float r = Unit(Tuning.Get(TuneDensityRemap, 0f)), c = Unit(Tuning.Get(TuneCoverCombine, DefaultCoverCombine));
             float f = Clean(Tuning.Get(TuneFadeFar, 0f), 0f, 0f, 1e7f), n = Clean(Tuning.Get(TuneFadeNearShare, 0.5f), 0.5f, 0f, 1f);
             float h = Tuning.Get(TuneFarHaze, -1f);
             h = float.IsNaN(h) || float.IsInfinity(h) ? -1f : h < 0f ? -1f : h > 1.5f ? 2f : h > 0f ? 1f : 0f;
@@ -318,7 +322,8 @@ namespace ReDefinition.Atmospheres
             if (cover <= 0f) return 0f;
             if (Union(m, count, 1f) <= cover) return 1f;
             float lo = 0f, hi = 1f;
-            for (int i = 0; i < 24; i++)
+            // 12 halvings: the factor to 0.0003, far under the byte of the map it scales (E40 F1: the combination runs on every map round)
+            for (int i = 0; i < 12; i++)
             {
                 float mid = 0.5f * (lo + hi);
                 if (Union(m, count, mid) < cover) lo = mid;
@@ -334,14 +339,38 @@ namespace ReDefinition.Atmospheres
             return (float)(1.0 - keep);
         }
 
+        // The layers' maps of one round brought to the field (E40 F1): every layer map the generator makes carries about the whole cover of the field, so the four together close the sky
+        // twice over (the union of the 24 maps of the type-mix audit: 0.75 visible against the field's 0.40). CombineCover scales them so that their union is the field's cover, and a
+        // weather deck that has a rain floor is lifted to it again where it rains (rain falls from a cloud, whatever share of the cover the deck took). decks: the rule of each layer or
+        // null; level: the precipitation level map (null: no floors). weight 0 changes nothing.
+        internal static void MeetTheField(byte[][] layers, int count, byte[] shared, float weight, WeatherDeckRule[] decks, float[] level)
+        {
+            MeetTheFieldRange(layers, count, shared, weight, decks, level, 0, shared.Length);
+        }
+
+        // The same for the texels from to to - 1 (the module does a round's combination in slices over several frames: the whole map costs 100 ms).
+        internal static void MeetTheFieldRange(byte[][] layers, int count, byte[] shared, float weight, WeatherDeckRule[] decks, float[] level, int from, int to)
+        {
+            if (weight <= 0f) return;
+            CombineCoverRange(layers, count, shared, weight, from, to);
+            if (decks == null || level == null) return;
+            for (int l = 0; l < count; l++)
+                if (decks[l] != null) decks[l].RaiseToFloor(layers[l], level, from, to);
+        }
+
         // Scales the layers' coverage bytes in place so that the union of their maps (independent layers overlap at random) meets the shared coverage byte of each texel,
         // by weight (0: unchanged, 1: the full factor). Layers is [layer][texel].
         internal static void CombineCover(byte[][] layers, int count, byte[] shared, float weight)
         {
+            if (shared == null) return;
+            CombineCoverRange(layers, count, shared, weight, 0, shared.Length);
+        }
+
+        internal static void CombineCoverRange(byte[][] layers, int count, byte[] shared, float weight, int from, int to)
+        {
             if (weight <= 0f || layers == null || count <= 0) return;
             var m = new float[count];
-            int n = shared.Length;
-            for (int t = 0; t < n; t++)
+            for (int t = Math.Max(0, from); t < to; t++)
             {
                 bool any = false;
                 for (int l = 0; l < count; l++)

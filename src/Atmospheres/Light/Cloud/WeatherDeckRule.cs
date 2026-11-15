@@ -85,6 +85,26 @@ namespace ReDefinition.Atmospheres
             return RainFloor * Step(PrecipFrom, full, level);
         }
 
+        // Raises the cover bytes of a layer to the floor its rain guarantees (FloorOf per texel), in place: the cover of the layers has been brought to the field's after the rule (CloudLookTuning
+        // .MeetTheField), and rain falls from a cloud whatever share of the field's cover the layer took. A deck with no floor changes nothing.
+        internal void RaiseToFloor(byte[] cover, float[] level)
+        {
+            if (cover != null) RaiseToFloor(cover, level, 0, cover.Length);
+        }
+
+        // The same for the texels from to to - 1.
+        internal void RaiseToFloor(byte[] cover, float[] level, int from, int to)
+        {
+            if (!(RainFloor > 0f) || cover == null || level == null) return;
+            for (int i = Math.Max(0, from); i < to; i++)
+            {
+                float floor = FloorOf(level[i]);
+                if (floor <= 0f) continue;
+                byte b = (byte)Math.Min(255.0, Math.Round(floor * 255.0, MidpointRounding.ToEven));
+                if (b > cover[i]) cover[i] = b;
+            }
+        }
+
         // The same from the level and a fog share that is already known (the probe forces both, cloud.deckPrecip.<name> and cloud.deckFog.<name>).
         internal void Combine(float level, float fogShare, out float activity, out float typeValue)
         {

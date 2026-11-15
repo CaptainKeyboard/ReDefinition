@@ -128,6 +128,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheZenithTauOfTheRainDeckIsDeepAtTheHighPickAndNearZeroAtTheLowPick()
         {
+            // The deck as a step in the map value (the old mapping): with the cover meaning (E40 F1) a map value of 0.86 closes 86 percent of the columns, not all of them.
+            CoverMeaningPin.Legacy();
+            try
+            {
+                ZenithTauOfTheRainDeck();
+            }
+            finally
+            {
+                CoverMeaningPin.Release();
+            }
+        }
+
+        private static void ZenithTauOfTheRainDeck()
+        {
             CloudLayerDef rain = CloudLookFixtures.Rain();
             var table = new LayerTypeTable(rain);
             NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), 1u);

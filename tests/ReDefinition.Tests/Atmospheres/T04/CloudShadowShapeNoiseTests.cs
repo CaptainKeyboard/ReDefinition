@@ -13,6 +13,19 @@ namespace ReDefinition.Tests
         // (CloudSoftDensityTests pins that), so the tests below compute the share the same way.
         private static readonly NoiseVolumeSet Volumes = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(0), 5u);
 
+        // The slab's numbers are the old mapping's (coverage 0.35, edge 0.15): E40 F1 made the cover meaning the default, these tests pin the old one.
+        [TestInitialize]
+        public void Setup()
+        {
+            Atmospheres.T09.CoverMeaningPin.Legacy();
+        }
+
+        [TestCleanup]
+        public void Clean()
+        {
+            Atmospheres.T09.CoverMeaningPin.Release();
+        }
+
         // A slab of vertical optical depth 1 at a constant map value, the layer's coverage 0.35 and softness 0.15 (the shipped cumulus layer's), noise amount 1 at 500 m.
         private static PatchSource Source(float noiseAmount)
         {

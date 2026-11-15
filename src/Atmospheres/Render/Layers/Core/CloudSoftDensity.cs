@@ -7,11 +7,14 @@ namespace ReDefinition.Atmospheres
     // setting cloudSoftness, once per frame), from the noise binding (the detail volume's mean once the volumes are generated) and from the tuning table.
     // A layer with a noise amount of 0 keeps the plain soft edge of its cfg numbers (CloudLayerDef.Soft); the switch layers.softDensity and the old hardened density it
     // gave back went in step (c).
-    //   cloud.coverMeaning  0 (default): every layer keeps the cover it has today (the outline is where the old share began); 1: the outline is at noise rank 1 - map value
-    //                       (the cover meaning of the cover-meaning design; needs the per-layer shares of E40-layer-shares-design.md to be decided first).
+    //   cloud.coverMeaning  1 (default, E40 F1): the outline is at noise rank 1 - map value, so a map value is the share of the sky the layer closes (the cover meaning of the
+    //                       cover-meaning design; the layers' shares of the field are CloudLookTuning.MeetTheField); 0: every layer keeps the cover it had before (the outline is where
+    //                       the old share began: a deck is a step in the map value, a tower layer shows nothing below 0.65).
     internal static class CloudSoftDensity
     {
         internal const string TuneCoverMeaning = "cloud.coverMeaning";
+        // The default of cloud.coverMeaning.
+        internal const bool DefaultCoverMeaning = true;
         // The width of the rise of the water content in noise rank: the owner's setting cloudSoftness, 0.3 to 1.0.
         internal const double DefaultSoftness = 0.5, MinSoftness = 0.3, MaxSoftness = 1.0;
         // The mean of the detail volume at the Medium size, used until the volumes are generated (tested against the generator).
@@ -19,7 +22,7 @@ namespace ReDefinition.Atmospheres
 
         private static readonly object Gate = new object();
         private static long seenVersion = -1;
-        private static bool coverMeaning;
+        private static bool coverMeaning = DefaultCoverMeaning;
         private static double softness = DefaultSoftness, detailMean = NominalDetailMean;
         private static long stamp;
 
@@ -30,7 +33,7 @@ namespace ReDefinition.Atmospheres
             lock (Gate)
             {
                 if (version == seenVersion) return;
-                bool c = Tuning.Flag(TuneCoverMeaning, false);
+                bool c = Tuning.Flag(TuneCoverMeaning, DefaultCoverMeaning);
                 if (c != coverMeaning) stamp++;
                 coverMeaning = c;
                 System.Threading.Volatile.Write(ref seenVersion, version);

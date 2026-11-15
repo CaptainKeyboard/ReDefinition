@@ -76,7 +76,7 @@ def build_expect():
     add("h_top_off_a", "t13", T13)
     add("h_all_off_a", "t13", T13, "changes")
     add("remap1_g", "look", FREE, "changes")
-    add("combine1_g", "look", FREE)
+    add("combine0_g", "look", FREE)
     add("sigma2_g", "look", (-1.5, 0.6), "changes")
     add("soft2_g", "look", FREE, "changes")
     add("namt2_g", "look", FREE, "changes")

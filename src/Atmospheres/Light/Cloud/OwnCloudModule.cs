@@ -114,6 +114,8 @@ namespace ReDefinition.Atmospheres
         private readonly WeatherMap[] layerTypeMaps = new WeatherMap[CloudLayerDef.MaxLayers], combinedMaps = new WeatherMap[CloudLayerDef.MaxLayers],
             pendingTypeMap = new WeatherMap[CloudLayerDef.MaxLayers];
         private readonly byte[][] pendingCover = new byte[CloudLayerDef.MaxLayers][], pendingType = new byte[CloudLayerDef.MaxLayers][];
+        private readonly WeatherDeckRule[] pendingDeck = new WeatherDeckRule[CloudLayerDef.MaxLayers];
+        private bool combineRound;
         private LayerRenderer renderer;
         private LayerReconstructDriver driver;
         private LightCache lightCache;
@@ -730,6 +732,13 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             int l = step - 3;
+            if (l >= stack.LayerCount)
+            {
+                CombineSlice(l - stack.LayerCount);
+                return;
+            }
+            // Whether this round combines the layer maps (decided once, at its first layer: the key may change between the frames of a round).
+            if (l == 0) combineRound = CloudLookTuning.CoverCombine > 0f && fetchHaveShared;
             GeneratorField gf = GeneratorModule.Current;
             byte[] cover = coverageMap.Bytes;
             WeatherMap coverSource = coverageMap;
@@ -846,22 +855,14 @@ namespace ReDefinition.Atmospheres
                 typeForCpu.Resize(typeMap.Width, typeMap.Height);
                 for (int i = 0; i < typeBytes.Length; i++) typeForCpu.Values[i] = typeBytes[i] / 255f;
             }
-            if (CloudLookTuning.CoverCombine > 0f && fetchHaveShared)
+            if (combineRound)
             {
-                // Held until every layer has been fetched: the union needs all of them.
-                pendingCover[l] = (byte[])cover.Clone();
-                pendingType[l] = (byte[])typeBytes.Clone();
+                // Held until every layer has been fetched: the union needs all of them. The combination itself follows in CombineSlices steps of its own (CombineSlice).
+                pendingCover[l] = CopyInto(pendingCover[l], cover);
+                pendingType[l] = CopyInto(pendingType[l], typeBytes);
                 pendingTypeMap[l] = typeForCpu;
-                if (l + 1 < stack.LayerCount) return;
-                CloudLookTuning.CombineCover(pendingCover, stack.LayerCount, coverageMap.Bytes, CloudLookTuning.CoverCombine);
-                for (int k = 0; k < stack.LayerCount; k++)
-                {
-                    WeatherMap combined = combinedMaps[k] ?? (combinedMaps[k] = new WeatherMap());
-                    combined.Resize(coverageMap.Width, coverageMap.Height);
-                    for (int i = 0; i < pendingCover[k].Length; i++) combined.Values[i] = pendingCover[k][i] / 255f;
-                    renderer.Maps.SetTargetBytes(k, pendingCover[k], pendingType[k]);
-                    stackMaps.Set(stack, k, combined, pendingTypeMap[k]);
-                }
+                pendingDeck[l] = deck;
+                return;
             }
             else
             {
@@ -869,6 +870,36 @@ namespace ReDefinition.Atmospheres
                 stackMaps.Set(stack, l, coverSource, typeForCpu);
             }
             if (l + 1 < stack.LayerCount) return;
+            fetchStep = -1;
+            stepMaps = true;
+            Stats.MapFetches++;
+        }
+
+        // The slices a round's combination of the layer maps to the field's cover is cut into, a slice a frame (the whole map is 100 ms of CPU).
+        private const int CombineSlices = 8;
+
+        private static byte[] CopyInto(byte[] spare, byte[] source)
+        {
+            if (spare == null || spare.Length != source.Length) spare = new byte[source.Length];
+            Buffer.BlockCopy(source, 0, spare, 0, source.Length);
+            return spare;
+        }
+
+        // One slice of the combination (E40 F1, CloudLookTuning.MeetTheField) of the held layer maps; the last one stores them.
+        private void CombineSlice(int slice)
+        {
+            int n = coverageMap.Bytes.Length;
+            int from = (int)((long)n * slice / CombineSlices), to = (int)((long)n * (slice + 1) / CombineSlices);
+            CloudLookTuning.MeetTheFieldRange(pendingCover, stack.LayerCount, coverageMap.Bytes, CloudLookTuning.CoverCombine, pendingDeck, typeMap.Values, from, to);
+            if (slice + 1 < CombineSlices) return;
+            for (int k = 0; k < stack.LayerCount; k++)
+            {
+                WeatherMap combined = combinedMaps[k] ?? (combinedMaps[k] = new WeatherMap());
+                combined.Resize(coverageMap.Width, coverageMap.Height);
+                for (int i = 0; i < pendingCover[k].Length; i++) combined.Values[i] = pendingCover[k][i] / 255f;
+                renderer.Maps.SetTargetBytes(k, pendingCover[k], pendingType[k]);
+                stackMaps.Set(stack, k, combined, pendingTypeMap[k]);
+            }
             fetchStep = -1;
             stepMaps = true;
             Stats.MapFetches++;

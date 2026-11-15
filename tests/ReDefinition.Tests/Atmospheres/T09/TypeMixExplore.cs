@@ -81,12 +81,24 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         TypeMixFixture.Shared shared = TypeMixFixture.Maps(field, body, ut);
                         Dump(folder, tag + "sharedCover", shared.Cover.Bytes);
                         Dump(folder, tag + "precip", shared.Precip.Bytes);
-                        foreach (CloudLayerDef l in layers)
+                        var covers = new byte[layers.Length][];
+                        var types = new byte[layers.Length][];
+                        var decks = new WeatherDeckRule[layers.Length];
+                        for (int li = 0; li < layers.Length; li++)
                         {
-                            byte[] cover, type;
-                            TypeMixFixture.Layer(field, body, shared, l, stage, out cover, out type);
-                            Dump(folder, tag + l.Name + "_cover", cover);
-                            Dump(folder, tag + l.Name + "_type", type);
+                            TypeMixFixture.Layer(field, body, shared, layers[li], stage, out covers[li], out types[li]);
+                            decks[li] = layers[li].Deck;
+                        }
+                        // TYPEMIX_COMBINE=1: the layer maps brought to the field's cover as the module does (E40 F1), the floors of the weather decks kept
+                        if (Environment.GetEnvironmentVariable("TYPEMIX_COMBINE") == "1")
+                        {
+                            for (int li = 0; li < layers.Length; li++) covers[li] = (byte[])covers[li].Clone();
+                            CloudLookTuning.MeetTheField(covers, layers.Length, shared.Cover.Bytes, 1f, decks, shared.Precip.Values);
+                        }
+                        for (int li = 0; li < layers.Length; li++)
+                        {
+                            Dump(folder, tag + layers[li].Name + "_cover", covers[li]);
+                            Dump(folder, tag + layers[li].Name + "_type", types[li]);
                         }
                     }
                 }

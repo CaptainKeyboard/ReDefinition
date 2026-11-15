@@ -25,6 +25,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             Tuning.ClearOverrides();
             Tuning.Instance.BeginFrame(++frameCounter);
+            // the knobs' arithmetic is that of the old mapping (E40 F1 made the cover meaning the default)
+            CoverMeaningPin.Legacy();
         }
 
         [TestInitialize]
@@ -68,7 +70,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(1f, CloudLookTuning.NoiseSizeScaleOf(l.Name));
             }
             Assert.AreEqual(0f, CloudLookTuning.DensityRemap);
-            Assert.AreEqual(0f, CloudLookTuning.CoverCombine);
+            Assert.AreEqual(CloudLookTuning.DefaultCoverCombine, CloudLookTuning.CoverCombine);
             Assert.AreEqual(-1f, CloudLookTuning.FarHazeForce);
             Assert.AreEqual(1f, CloudLookTuning.HazeStrengthScale);
             float nearM, farM;

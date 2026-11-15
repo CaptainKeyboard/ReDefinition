@@ -18,6 +18,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
     {
         private static NoiseVolumeSet[] volumes = new NoiseVolumeSet[4];
 
+        // The model reads the layer's configured numbers (the mapping the prototype proposes replaces them): the old mapping's numbers are pinned (E40 F1 made the cover meaning the default).
+        [TestInitialize]
+        public void Setup()
+        {
+            CoverMeaningPin.Legacy();
+        }
+
+        [TestCleanup]
+        public void Clean()
+        {
+            CoverMeaningPin.Release();
+        }
+
         private static NoiseVolumeSet Volumes(uint seed)
         {
             return volumes[seed] ?? (volumes[seed] = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), seed));

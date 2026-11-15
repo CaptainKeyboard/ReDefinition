@@ -26,6 +26,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return new[] { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
         }
 
+        // The tests below are about the outline where the old share began (E40 F1 made the cover meaning the default; CoverMeaningTests and SkySharesTests pin that one).
+        [TestInitialize]
+        public void Setup()
+        {
+            CoverMeaningPin.Legacy();
+        }
+
         [TestCleanup]
         public void Clean()
         {

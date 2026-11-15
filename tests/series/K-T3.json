@@ -28,7 +28,7 @@
       ,
       "variants": [
         "off_g", "plain_g", "noise_off_g", "untile_off_g", "curl_off_g", "fine_off_g", "dlod_off_g", "tier_low_g", "tier_high_g",
-        "h_all_off_g", "h_bvar_off_g", "h_bphys_off_g", "h_ragged_off_g", "remap1_g", "combine1_g", "sigma2_g", "soft2_g", "namt2_g", "nsize2_g",
+        "h_all_off_g", "h_bvar_off_g", "h_bphys_off_g", "h_ragged_off_g", "remap1_g", "combine0_g", "sigma2_g", "soft2_g", "namt2_g", "nsize2_g",
         "off_a", "plain_a", "h_top_off_a", "h_all_off_a"
       ],
       "disableMods": [ "EVE", "Trajectories" ],

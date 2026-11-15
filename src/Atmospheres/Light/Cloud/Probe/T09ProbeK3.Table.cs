@@ -119,7 +119,7 @@ namespace ReDefinition.Atmospheres
             Add("h_top_off_a", Above, "t13").Set(K.CloudTopFromUpdraft, 0);
             AddHeightOff("h_all_off_a", Above);
             Add("remap1_g", Ground, Cloud).Tune(CloudLookTuning.TuneDensityRemap, 1f);
-            Add("combine1_g", Ground, Cloud).Tune(CloudLookTuning.TuneCoverCombine, 1f);
+            Add("combine0_g", Ground, Cloud).Tune(CloudLookTuning.TuneCoverCombine, 0f);
             Add("sigma2_g", Ground, Cloud).Tune(CloudLookTuning.TuneSigma, 2f);
             Add("soft2_g", Ground, Cloud).Tune(CloudLookTuning.TuneSoftness, 2f);
             Add("namt2_g", Ground, Cloud).Tune(CloudLookTuning.TuneNoiseAmount, 2f);
