@@ -110,6 +110,10 @@ namespace ReDefinition.Atmospheres
         private readonly WeatherMap[] deckCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private long lookStampSeen = -1;
         private readonly byte[][] forcedBytes = new byte[CloudLayerDef.MaxLayers][];
+        // E40 start 60: a layer without its own coverage map silently took the field's shared cover (every layer closed as far as the weather), which can turn a half
+        // sky into overcast. Each change between the own map and the fallback is now said per body and layer, with the reason and the time (the worker's first map comes
+        // a moment after the start, so a once-only line would be used up there).
+        private readonly Dictionary<string, bool> sharedCoverState = new Dictionary<string, bool>();
         private readonly WeatherMap[] forcedMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private readonly WeatherMap[] layerTypeMaps = new WeatherMap[CloudLayerDef.MaxLayers], combinedMaps = new WeatherMap[CloudLayerDef.MaxLayers],
             pendingTypeMap = new WeatherMap[CloudLayerDef.MaxLayers];
@@ -742,13 +746,24 @@ namespace ReDefinition.Atmospheres
             GeneratorField gf = GeneratorModule.Current;
             byte[] cover = coverageMap.Bytes;
             WeatherMap coverSource = coverageMap;
-            if (gf != null && gf.GetLayerCoverage(b.flightGlobalsIndex, ut, CloudBridgeStack.MidHeightM(stack.LayerAt(l)), layerMap)
-                && layerMap.Width == MapWidth && layerMap.Height == MapHeight)
+            bool layerFetched = gf != null && gf.GetLayerCoverage(b.flightGlobalsIndex, ut, CloudBridgeStack.MidHeightM(stack.LayerAt(l)), layerMap);
+            bool ownMap = layerFetched && layerMap.Width == MapWidth && layerMap.Height == MapHeight;
+            if (ownMap)
             {
                 layerMap.PackBytes(0f, 1f);
                 cover = layerMap.Bytes;
                 coverSource = layerMap;
             }
+            string sharedKey = b.bodyName + "/" + stack.LayerAt(l).Name;
+            bool wasShared;
+            if (!sharedCoverState.TryGetValue(sharedKey, out wasShared) ? !ownMap : wasShared == ownMap)
+            {
+                string why = ownMap ? "its own map again" : gf == null ? "the field's shared cover: no generator field"
+                    : !layerFetched ? "the field's shared cover: the generator returned no layer coverage"
+                    : "the field's shared cover: the layer map is " + layerMap.Width + "x" + layerMap.Height + ", not " + MapWidth + "x" + MapHeight;
+                AtmospheresLog.Say("own clouds: layer " + stack.LayerAt(l).Name + " of " + b.bodyName + " uses " + why + " (ut " + ut.ToString("0") + ")");
+            }
+            sharedCoverState[sharedKey] = !ownMap;
             // The look knobs (CloudLookTuning): a layer's own type value from the precipitation (cloud.typeFair.<name>, cloud.typeOverride.<name>), and the layer maps scaled so
             // that their union meets the field's cover (cloud.coverCombine). All at their defaults: the shared type bytes and the maps as fetched, as before.
             string layerName = stack.LayerAt(l).Name;
