@@ -31,7 +31,22 @@ namespace ReDefinition.WeatherPlayer
             // The cfg's per-layer numbers of the job's layer: no softnessScale, the exponent 2, the type's gain 0.3 and rise 0.5.
             new Medium { Name = "pr50", Width = 0.5f },
             new Medium { Name = "pr100", Width = 1f },
+            // E40 V1: narrower soft density widths, to see what the width does to the outlines.
+            new Medium { Name = "pr25", Width = 0.25f },
+            new Medium { Name = "pr10", Width = 0.1f },
         };
+
+        // E40 V1 (-light product): the sun the game gives the pass (the viewer's air divided out of the colour, the shader puts the air above each sample back: SunAirWhiteBalance off,
+        // Kerbin's air), as TypeSheetScene sets it. The job's sunColour is the pass's colour.
+        internal static void ProductLight(LayerFrame f)
+        {
+            f.Light.SunAirWhiteBalance = false;
+            f.Light.UseAir(new Vector3(0.01534f, 0.03571f, 0.08755f) / 1000f, 3840f, 0.01214f / 0.9f / 1000f, 1000f);
+        }
+
+        // -dump last: the still scenario writes frame 39 only (a case's four frames are for the temporal noise, not for a picture).
+        internal static bool DumpLast { get { return WeatherPass.Argument("-dump") == "last"; } }
+        internal static bool ProductLightOn { get { return WeatherPass.Argument("-light") == "product"; } }
 
         // The marches every medium is drawn with (GrainTable's: the product's grid march with the golden-ratio offset; 32 and 24 grid points at most).
         // -marches a,b,c replaces the list; seq1m<N> is N grid points at most, tseq1m<N> the same on the span cut to the types present (LayerFrame.SpanTight).
@@ -268,7 +283,7 @@ namespace ReDefinition.WeatherPlayer
         // GrainTemporalScene's scenarios without the slow turn (the fast one is the harder case of the same motion).
         private static readonly Scenario[] Scenarios =
         {
-            new Scenario { Name = "static", Dump = new[] { 36, 37, 38, 39 } },
+            new Scenario { Name = "static", Dump = SoftTable.DumpLast ? new[] { 39 } : new[] { 36, 37, 38, 39 } },
             new Scenario { Name = "fly", SidePerFrame = 5f, Dump = new[] { 37, 38 } },
             new Scenario { Name = "turnfast", YawPerFrame = 3f, Dump = new[] { 37, 38 } },
             new Scenario { Name = "flyfast", SidePerFrame = 40f, Dump = new[] { 37, 38 } },
@@ -341,8 +356,10 @@ namespace ReDefinition.WeatherPlayer
                 foreach (SoftTable.Medium medium in SoftTable.Selected())
                 {
                     SoftTable.Load(rig, job, input, medium, original, detailMean);
+                    if (SoftTable.ProductLightOn) SoftTable.ProductLight(rig.Frame);
                     foreach (Scenario sc in Scenarios)
                     {
+                        if (SoftTable.DumpLast && sc.Name != "static") continue;
                         // The converged reference of every pose that is written, of THIS medium.
                         // A case of an earlier scenario may have left taps, a cull or a cost mask on the frame: the references run on the frame's own defaults.
                         SoftTable.ApplyCase(rig.Frame, SoftTable.Parse("seq1"));
