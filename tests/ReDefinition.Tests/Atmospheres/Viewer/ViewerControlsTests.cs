@@ -41,6 +41,44 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(AltitudeScale.ToSlider(inside.AglM), rig.AltitudeSlider, 1e-6);
         }
 
+        // --- The key list follows the stack ---
+
+        [TestMethod]
+        public void TheKeyListIsBuiltAgainWhenTheStackAppearsAfterTheViewerOpened()
+        {
+            var list = new ViewerKeyList();
+            Assert.AreEqual(CloudKeyRegistry.All.Count, list.Keys.Count, "before the first build: the registry's keys");
+            Assert.IsTrue(list.Sync(new string[0]), "the first build");
+            Assert.AreEqual(0, list.LayerCount);
+            Assert.AreEqual(CloudKeyRegistry.All.Count, list.Keys.Count, "no stack: no per-layer keys");
+            Assert.IsFalse(list.Sync(new string[0]), "nothing changed");
+
+            string[] stack = FakeViewerRig.KerbinLayers.Select(l => l.Name).ToArray();
+            Assert.IsTrue(list.Sync(stack), "the stack stands now");
+            Assert.AreEqual(stack.Length, list.LayerCount);
+            Assert.AreEqual(CloudKeyRegistry.All.Count + stack.Length * CloudKeyRegistry.PerLayer.Count, list.Keys.Count);
+            Assert.AreEqual(list.Keys.Count, list.Names.Count);
+            Assert.IsTrue(list.Names.Contains(CloudLookTuning.TuneMapOverride + "Kerbin-cumulus"));
+            Assert.IsFalse(list.Sync(stack), "the same stack: nothing to build");
+            Assert.IsTrue(list.Sync(new[] { "Mun-dust" }), "another body's stack");
+            Assert.IsFalse(list.Names.Contains(CloudLookTuning.TuneMapOverride + "Kerbin-cumulus"));
+        }
+
+        // A set captured with the list of an empty stack misses the weather overrides; with the list the stack gives, it holds them.
+        [TestMethod]
+        public void AWeatherOverrideIsInASetOnlyOnceTheKeyListKnowsTheLayer()
+        {
+            var store = new FakeViewerRig.Store();
+            string deck = CloudLookTuning.TuneMapOverride + FakeViewerRig.KerbinLayers[0].Name;
+            store.SetOverride(deck, 1f);
+            var list = new ViewerKeyList();
+            list.Sync(new string[0]);
+            Assert.AreEqual(0, OptionSet.Capture(store, new string[0], list.Names).Overrides.Count, "the list built without the stack does not know the key");
+            list.Sync(FakeViewerRig.KerbinLayers.Select(l => l.Name).ToArray());
+            OptionSet set = OptionSet.Capture(store, new string[0], list.Names);
+            Assert.AreEqual(1f, set.Overrides[deck]);
+        }
+
         // --- A/B and the presets hold the forced precipitation and the weather ---
 
         [TestMethod]

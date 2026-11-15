@@ -36,8 +36,9 @@ namespace ReDefinition.Atmospheres.Viewer
         private readonly Dictionary<string, float> overridesAtOpen = new Dictionary<string, float>(StringComparer.Ordinal);
         private readonly HashSet<string> touched = new HashSet<string>(StringComparer.Ordinal);
         private readonly List<string> settingKeys = new List<string>();
-        private List<CloudKey> keys = new List<CloudKey>();
-        private readonly List<string> keyNames = new List<string>();
+        private readonly ViewerKeyList keyList = new ViewerKeyList();
+        private List<CloudKey> keys { get { return keyList.Keys; } }
+        private List<string> keyNames { get { return keyList.Names; } }
         private ViewerClock clock;
         private bool ignoreTemperature, noCrashDamage, placed, frozenClouds;
         private double startLat, startLon, startAlt;
@@ -132,16 +133,29 @@ namespace ReDefinition.Atmospheres.Viewer
         }
 
         // The keys of the list: the registry's and the per-layer keys of the stack that stands. Overrides set before the viewer opened are noted for the restore.
-        internal void RefreshKeys()
+        internal bool RefreshKeys()
         {
-            keys = CloudKeyRegistry.Expand(LayerNames());
-            keyNames.Clear();
+            bool rebuilt = keyList.Sync(new List<string>(LayerNames()));
             foreach (CloudKey k in keys)
             {
-                keyNames.Add(k.Key);
                 float value;
                 if (!touched.Contains(k.Key) && !overridesAtOpen.ContainsKey(k.Key) && store.TryOverride(k.Key, out value)) overridesAtOpen[k.Key] = value;
             }
+            return rebuilt;
+        }
+
+        // The list is built for the layers that stand now: the viewer may have opened before the own stack stood (the per-layer keys, and with them the weather overrides, would
+        // be missing from A/B, the presets and the sidecars). Where it changed the window is built again, unless the caller does it (notify false).
+        private void EnsureKeys(bool notify)
+        {
+            if (RefreshKeys() && notify && Changed != null) Changed();
+        }
+
+        private static int StackLayerCount()
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            LayerStackSource stack = m == null ? null : m.Stack as LayerStackSource;
+            return stack == null ? 0 : stack.LayerCount;
         }
 
         private static IEnumerable<string> LayerNames()
@@ -261,6 +275,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 Close(true);
                 return;
             }
+            if (StackLayerCount() != keyList.LayerCount) EnsureKeys(true);
             double observed = Planetarium.GetUniversalTime();
             double next = clock.Step(observed);
             if (next != observed) Planetarium.SetUniversalTime(next);
@@ -410,6 +425,7 @@ namespace ReDefinition.Atmospheres.Viewer
         internal void SetWeather(ViewerWeather weather)
         {
             Weather = weather;
+            EnsureKeys(true);
             foreach (KeyValuePair<string, float> pair in WeatherPresets.Overrides(weather, Layers()))
             {
                 if (float.IsNaN(pair.Value)) ResetKey(pair.Key);
@@ -484,12 +500,14 @@ namespace ReDefinition.Atmospheres.Viewer
 
         internal void StoreA()
         {
+            EnsureKeys(true);
             flip.StoreA(OptionSet.Capture(store, settingKeys, keyNames, Weather));
             AtmospheresLog.Say("cloud viewer: options stored as A");
         }
 
         internal void FlipAB()
         {
+            EnsureKeys(true);
             foreach (string k in keyNames) Note(k);
             ViewerWeather weather = Weather;
             if (!flip.Flip(store, settingKeys, keyNames, ref weather)) return;
@@ -508,6 +526,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             string name = ViewerPresets.SafeName(typed);
             if (name.Length == 0) return false;
+            EnsureKeys(true);
             OptionSet set = OptionSet.Capture(store, settingKeys, keyNames, Weather);
             bool ok = ModSettingsFile.Write(PresetPath(name), root =>
             {
@@ -523,6 +542,7 @@ namespace ReDefinition.Atmospheres.Viewer
             string path = PresetPath(ViewerPresets.SafeName(name));
             OptionSet set = ModSettingsFile.Read<OptionSet>(path, OptionSet.FromNode, null);
             if (set == null) return false;
+            EnsureKeys(true);
             foreach (string k in keyNames) Note(k);
             set.ApplyTo(store, keyNames);
             Weather = set.Weather;
