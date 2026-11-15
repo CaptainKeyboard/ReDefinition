@@ -35,7 +35,10 @@ $logDir = Join-Path $repo '.local\work\logs'
 $modsyncDir = Join-Path $repo '.local\work\modsync'
 $log = Join-Path $logDir ("nightly-modsync-$Date.log")
 $python = 'python'
-$claude = if (Test-Path 'C:\Users\franz\.local\bin\claude.exe') { 'C:\Users\franz\.local\bin\claude.exe' } else { 'claude' }
+$claudeLocal = Join-Path $env:USERPROFILE '.local\bin\claude.exe'
+$claude = if (Test-Path $claudeLocal) { $claudeLocal } else { 'claude' }
+# The review job gets only what it needs: files, the web, git and python (the repository's own tools). It has no general shell.
+$reviewTools = 'Read Glob Grep Edit Write WebFetch Bash(python:*) Bash(git:*) SendMessage ListAgents ToolSearch'
 New-Item -ItemType Directory -Force -Path $logDir, $modsyncDir | Out-Null
 $notifyFailure = $false
 
@@ -162,13 +165,13 @@ $worktree = Join-Path $repo (".local\work\nightly-$Date")
 $resultsFile = Join-Path $modsyncDir ("nightly-$Date.json")
 if ($DryRun) {
     Write-Output ('DRYRUN would: git worktree add --detach ' + $worktree + ' origin/main')
-    Write-Output ('DRYRUN would: claude -p <review prompt, ' + (New-ReviewPrompt $worktree $checkFile).Length + ' characters> --model sonnet --permission-mode acceptEdits --allowedTools "Bash Read Glob Grep Edit Write SendMessage ListAgents ToolSearch" --no-session-persistence   (cwd the worktree, output to the log)')
+    Write-Output ('DRYRUN would: claude -p <review prompt, ' + (New-ReviewPrompt $worktree $checkFile).Length + ' characters> --model sonnet --permission-mode acceptEdits --allowedTools "' + $reviewTools + '" --no-session-persistence   (cwd the worktree, output to the log)')
 } elseif (-not $notifyFailure) {
     if (-not (Test-Path $worktree)) { [void](Invoke-Logged 'git' @('worktree', 'add', '--detach', $worktree, 'origin/main')) }
     $promptFile = Join-Path $modsyncDir ("nightly-prompt-$Date.md")
     Set-Content -Path $promptFile -Value (New-ReviewPrompt $worktree $checkFile) -Encoding UTF8
     $prompt = Get-Content -Raw -Path $promptFile
-    $code = Invoke-Logged $claude @('-p', $prompt, '--model', 'sonnet', '--permission-mode', 'acceptEdits', '--allowedTools', 'Bash Read Glob Grep Edit Write SendMessage ListAgents ToolSearch', '--no-session-persistence') $worktree
+    $code = Invoke-Logged $claude @('-p', $prompt, '--model', 'sonnet', '--permission-mode', 'acceptEdits', '--allowedTools', $reviewTools, '--no-session-persistence') $worktree
     Write-Log "review job exit $code"
 }
 
