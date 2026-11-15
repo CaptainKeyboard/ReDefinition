@@ -221,7 +221,10 @@ namespace ReDefinition.Atmospheres
             flakeDirection = jump ? flakeDir : WindNoise.LimitFlakeDirection(flakeDirection, flakeDir, input.DtReal);
 
             // The air: the visibility is the smaller of the table's and the field's, and it moves at most a quarter of itself per second.
-            float visTarget = Math.Min(look.VisibilityM, input.Sample.VisibilityM > 0f ? input.Sample.VisibilityM : PrecipitationLook.ClearVisibilityM);
+            // A forced level (the viewer's and the probes' forceLevel) is the whole precipitation of the frame: the field's own visibility, which follows the field's level at the place,
+            // would hold a fog under a forced clear sky.
+            float fieldVisibility = input.LevelOverride >= 0f || !(input.Sample.VisibilityM > 0f) ? PrecipitationLook.ClearVisibilityM : input.Sample.VisibilityM;
+            float visTarget = Math.Min(look.VisibilityM, fieldVisibility);
             visibility = jump ? visTarget : WindNoise.LimitVisibility(visibility, visTarget, input.DtReal);
             float fogDensity = visibility >= PrecipitationLook.ClearVisibilityM ? 0f : PrecipitationLook.FogDensity(visibility);
             float brightness = FogBrightness(input.SunElevationRad);

@@ -29,6 +29,8 @@ namespace ReDefinition.Atmospheres
         private bool loggedStart;
         private bool loggedExternal;
         private float lastExternalDensity = -1f;
+        private float lastLoggedDensity = -1f;
+        private float nextLogAt;
 
         // How many times the fog was found changed by another writer.
         internal static int ExternalWrites { get; private set; }
@@ -121,6 +123,25 @@ namespace ReDefinition.Atmospheres
                 loggedStart = true;
                 AtmospheresLog.Say("fog: the weather view's fog is written into the scene fog (exponential squared, late in onPreCull)");
             }
+            LogState(view);
+        }
+
+        // The fog the scene holds while this writer owns it, logged when the density moved by a tenth or after ten seconds: the share of a far object's own colour that
+        // the exponential squared fog leaves is exp(-(distance x density)^2), so a density of 1e-4 leaves 5 % of a terrain at 17 km (a far mountain drawn in the fog
+        // colour, flat, is the look of a held fog, not of the air).
+        private void LogState(WeatherView view)
+        {
+            float now = Time.realtimeSinceStartup;
+            float density = ramp.Density;
+            bool moved = lastLoggedDensity < 0f || Mathf.Abs(density - lastLoggedDensity) > 0.1f * Mathf.Max(density, lastLoggedDensity);
+            if (!moved && now < nextLogAt) return;
+            lastLoggedDensity = density;
+            nextLogAt = now + 10f;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            AtmospheresLog.Say("fog: held " + density.ToString("0.000000", inv) + " (the view asks " + view.FogDensity.ToString("0.000000", inv) + "), colour "
+                               + ramp.R.ToString("0.00", inv) + " " + ramp.G.ToString("0.00", inv) + " " + ramp.B.ToString("0.00", inv) + ", level "
+                               + view.Level.ToString("0.000", inv) + ", visibility " + view.VisibilityM.ToString("0", inv) + " m, "
+                               + (density > 1e-9f ? "5 % of the terrain's own colour is left at " + (1.7320508f / density).ToString("0", inv) + " m" : "no fog"));
         }
 
         // The view has no fog: the written fog runs down to nothing and the saved fog goes back once it is zero.
@@ -130,6 +151,7 @@ namespace ReDefinition.Atmospheres
             if (ramp.Density > 1e-6f)
             {
                 Apply();
+                LogState(WeatherHooks.View);
                 return;
             }
             Release("weather ended");

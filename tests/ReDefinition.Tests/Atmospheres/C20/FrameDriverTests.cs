@@ -79,6 +79,27 @@ namespace ReDefinition.Tests.Atmospheres.C20
         }
 
         [TestMethod]
+        public void AForcedLevelOwnsTheVisibilityToo()
+        {
+            var composer = new FrameComposer();
+            var view = new WeatherView();
+            // The field rains hard at the place (its visibility 150 m) while the viewer forces a clear sky: no fog.
+            DriverInput forcedClear = Input(0.9f, 280f, 1);
+            forcedClear.Sample.VisibilityM = 150f;
+            forcedClear.LevelOverride = 0f;
+            composer.Compose(ref forcedClear, view);
+            Assert.AreEqual(0f, view.FogDensity, 0f, "the field's visibility does not hold a fog under a forced clear sky");
+            Assert.AreEqual(PrecipitationLook.ClearVisibilityM, view.VisibilityM, 1f);
+
+            // Without the force the field's visibility is the target as before.
+            var free = new WeatherView();
+            DriverInput open = Input(0.9f, 280f, 1);
+            open.Sample.VisibilityM = 150f;
+            new FrameComposer().Compose(ref open, free);
+            Assert.IsTrue(free.FogDensity > PrecipitationLook.FogDensity(1000f));
+        }
+
+        [TestMethod]
         public void TheLevelRisesNoFasterThanTheRateLimit()
         {
             var composer = new FrameComposer();
