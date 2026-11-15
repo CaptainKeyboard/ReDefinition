@@ -1,89 +1,195 @@
-#!/usr/bin/env python3
-"""Compares the far terrain of the five frames of series K-S2 (SurfaceProbe).
+"""The probe's surface images (RtCamera.WriteSurfaceImages) as pictures and figures per region. They show
+what the camera's ray met at each pixel, the shine the raytracing gives it (specular colour F0, smoothness),
+and the reflected light it traced. Where the same view was shot with the raytracing's light but without its
+reflections (mode Light beside Full), they show what the reflections add to the finished picture. Where it
+was shot without the raytracing (mode Off), they show how bright each region is there. They also show the
+space centre's lawn against the terrain beside it with the raytracing and without.
 
-  python tools/surface_sheet.py <log> --captures <folder> [--box x0 y0 x1 y1] [--out sheet.png]
-  python tools/surface_sheet.py --pictures a.png b.png ... [--box x0 y0 x1 y1]
+For each <prefix>-surface.bin in the run folder (the scene probe's views: <shot>-v<i>-Full), the script
+writes a sheet <prefix>-sheet.png and a table on the console and in <prefix>-regions.txt. The regions are
+RT_REGION_* in RtContract.h, with the space centre's ground split by the shine it gets, its lawn from its
+tarmac. The region terrain is the terrain at the drawn surface. The region lawn is the space centre's
+ground where it shines (its lawn). The region tarmac is the space centre's ground without shine. The
+region blade is a blade or other scatter at the drawn surface. The region behind blade is ground behind a
+blade the rays meet in front of the drawn surface. The region nothing is nothing near (far away). The
+region other is something else at the drawn surface (buildings, the vessel). The region other missed is
+something else in front of the drawn surface.
 
-The log's lines 'surface: <frame>: picture <file>' name the pictures; the frames are old_fog, baseline, drawn, no_weather, no_mod. The box is the far terrain's rows and columns in
-fractions of the picture (default: the horizon strip of the cb_far pose, x 0.15 to 0.95, y 0.50 to 0.60). Per frame it prints the mean colour, the luminance, the chroma
-((max - min) / max of the mean colour), the local contrast (the mean standard deviation of the luminance over 8 x 8 blocks) and the difference of the mean to the first frame, and
-writes a sheet of the box crops stacked (frame label on the left). Needs Pillow and numpy.
+Needs numpy and Pillow.
+
+Usage: python tools/surface_sheet.py <run folder> [prefix ...] [--out <folder>]
 """
-import argparse
 import os
 import re
+import struct
 import sys
 
-FRAMES = ["old_fog", "baseline", "drawn", "no_weather", "no_mod"]
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
+
+REGIONS = [
+    (1, 'terrain', (60, 170, 60)),
+    (2, 'lawn', (240, 150, 30)),
+    (-2, 'tarmac', (120, 120, 120)),
+    (3, 'blade', (200, 230, 80)),
+    (4, 'behind blade', (230, 40, 200)),
+    (5, 'nothing', (40, 40, 90)),
+    (6, 'other', (80, 140, 230)),
+    (7, 'other missed', (230, 60, 60)),
+]
 
 
-def pictures_from_log(path, folder):
-    found = {}
-    pattern = re.compile(r"surface: (\w+): picture (\S+)")
-    with open(path, encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            m = pattern.search(line)
-            if m and m.group(2) != "none":
-                found[m.group(1)] = os.path.join(folder, os.path.basename(m.group(2).replace("\\", "/")))
-    return [(f, found[f]) for f in FRAMES if f in found]
+def read_bin(path):
+    """One of the probe's surface images (width, height, then RGBA floats) as an array, rows from the top."""
+    with open(path, 'rb') as f:
+        width, height = struct.unpack('<ii', f.read(8))
+        data = np.frombuffer(f.read(), dtype='<f4')
+    # Rows from the bottom in the file; from the top here, as the shot's.
+    return data.reshape(height, width, 4)[::-1].copy()
 
 
-def measure(image, box):
-    import numpy as np
-    w, h = image.size
-    x0, y0, x1, y1 = int(box[0] * w), int(box[1] * h), int(box[2] * w), int(box[3] * h)
-    crop = np.asarray(image.convert("RGB").crop((x0, y0, x1, y1))).astype(float) / 255.0
-    mean = crop.reshape(-1, 3).mean(axis=0)
-    luma = crop @ np.array([0.2126, 0.7152, 0.0722])
-    bh, bw = luma.shape[0] // 8 * 8, luma.shape[1] // 8 * 8
-    blocks = luma[:bh, :bw].reshape(bh // 8, 8, bw // 8, 8).transpose(0, 2, 1, 3).reshape(-1, 64)
-    contrast = float(blocks.std(axis=1).mean())
-    chroma = float((mean.max() - mean.min()) / max(mean.max(), 1e-6))
-    return mean, float(luma.mean()), chroma, contrast, crop
+def linear(png, size):
+    """A screenshot resized to the size, from sRGB to linear light."""
+    image = Image.open(png).convert('RGB').resize(size, Image.BILINEAR)
+    srgb = np.asarray(image, dtype=np.float32) / 255.0
+    return np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
+
+
+def heat(value, top):
+    """0 .. top as dark blue, green, yellow, red."""
+    t = np.clip(value / max(top, 1e-9), 0.0, 1.0)
+    stops = np.array([[10, 20, 80], [20, 160, 60], [240, 230, 40], [230, 40, 20]], dtype=np.float32)
+    position = t * (len(stops) - 1)
+    low = np.floor(position).astype(int).clip(0, len(stops) - 2)
+    f = (position - low)[..., None]
+    return (stops[low] * (1 - f) + stops[low + 1] * f).astype(np.uint8)
+
+
+def regions_of(surface, mode):
+    """Each pixel's region (RT_REGION_*, -2 for the space centre's ground without shine, 0 for the sky)."""
+    region = np.rint(mode[..., 2] * 8.0).astype(int)
+    shine = surface[..., :3].max(axis=2)
+    region[(region == 2) & (shine <= 1e-4)] = -2
+    region[mode[..., 3] < 0.5] = 0  # the sky
+    return region
+
+
+def label(image, text):
+    """The image with the text drawn white on black at its top left corner."""
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default()
+    draw.rectangle([0, 0, 8 + 7 * len(text), 16], fill=(0, 0, 0))
+    draw.text((4, 2), text, fill=(255, 255, 255), font=font)
+    return image
+
+
+def sheet(folder, prefix, out):
+    """Write the sheet and the region table of one view into out, and print the table."""
+    names = {n: os.path.join(folder, prefix + '-' + n + '.bin')
+             for n in ('surface', 'surfacemode', 'specular', 'gbuffer0', 'gbuffer1', 'sun', 'diffuse')}
+    surface = read_bin(names['surface'])
+    mode = read_bin(names['surfacemode'])
+    height, width = surface.shape[:2]
+    size = (width, height)
+    optional = lambda n: read_bin(names[n]) if os.path.exists(names[n]) else np.zeros_like(surface)
+    specular = optional('specular')
+    # The drawn albedo (the proxy's copy, before the meadow's shade), the sun's visibility, the raytraced diffuse light.
+    albedo = imaging.luminance(optional('gbuffer0')[..., :3])
+    sun = optional('sun')[..., 0]
+    diffuse = imaging.luminance(np.maximum(optional('diffuse')[..., :3], 0.0))
+    meadow = mode[..., 1]
+    region = regions_of(surface, mode)
+    f0 = surface[..., :3].max(axis=2)
+    smooth = surface[..., 3]
+    spec_light = imaging.luminance(np.maximum(specular[..., :3], 0.0))
+    shot_png = os.path.join(folder, prefix + '.png')
+    shot = linear(shot_png, size) if os.path.exists(shot_png) else np.zeros((height, width, 3), np.float32)
+    # The same view in another mode: <shot>-v<i>-<mode>[-ini<n>].
+    view = re.match(r'^(.*-v\d+)-([A-Za-z]+)(-ini\d+)?$', prefix)
+    other = (lambda mode: os.path.join(folder, view.group(1) + '-' + mode + (view.group(3) or '') + '.png')) if view else None
+    # Mode Light: the finished picture without the raytraced reflections.
+    light_png = other('Light') if view and view.group(2) == 'Full' else ''
+    added = imaging.luminance(shot) - imaging.luminance(linear(light_png, size)) if light_png and os.path.exists(light_png) else None
+    # Without the raytracing (mode Off), its regions taken from this one.
+    off_png = other('Off') if view else ''
+    off = imaging.luminance(linear(off_png, size)) if os.path.exists(off_png) else None
+
+    lines = ['%-13s %7s %7s %7s %9s %9s %7s %7s %7s %7s %8s %8s %8s' % (
+        'region', 'share', 'F0', 'smooth', 'traced', 'F0*trace', 'albedo', 'meadow', 'sun', 'diffuse', 'picture',
+        'added' if added is not None else '', 'off' if off is not None else '')]
+    total = max(1, int((region != 0).sum()))
+    colours = np.zeros((height, width, 3), np.uint8)
+    for code, name, colour in REGIONS:
+        mask = region == code
+        colours[mask] = colour
+        n = int(mask.sum())
+        if n == 0:
+            continue
+        row = '%-13s %6.1f%% %7.3f %7.3f %9.4f %9.5f %7.3f %7.3f %7.3f %7.3f %8.4f' % (
+            name, 100.0 * n / total, f0[mask].mean(), smooth[mask].mean(), spec_light[mask].mean(),
+            (f0 * spec_light)[mask].mean(), albedo[mask].mean(), meadow[mask].mean(), sun[mask].mean(), diffuse[mask].mean(),
+            imaging.luminance(shot)[mask].mean())
+        row += ' %8.4f' % added[mask].mean() if added is not None else ' %8s' % ''
+        if off is not None:
+            row += ' %8.4f' % off[mask].mean()
+        lines.append(row)
+    # The space centre's lawn against the terrain beside it, with the raytracing and without.
+    terrain, lawn = region == 1, region == 2
+    if terrain.any() and lawn.any():
+        ratio = imaging.luminance(shot)[lawn].mean() / max(1e-6, imaging.luminance(shot)[terrain].mean())
+        line = 'lawn / terrain: %.3f' % ratio
+        if off is not None:
+            line += ', without the raytracing %.3f' % (off[lawn].mean() / max(1e-6, off[terrain].mean()))
+        lines.append(line)
+    table = '\n'.join(lines)
+    print(prefix)
+    print(table)
+    with open(os.path.join(out, prefix + '-regions.txt'), 'w', encoding='utf-8') as f:
+        f.write(table + '\n')
+
+    tiles = [
+        label(Image.open(shot_png).convert('RGB').resize(size) if os.path.exists(shot_png) else Image.new('RGB', size), 'picture'),
+        label(Image.fromarray(colours), 'regions: terrain green, lawn orange, tarmac grey, blade yellow-green, behind blade magenta'),
+        label(Image.fromarray(heat(f0, 0.25)), 'F0 (shine), 0 .. 0.25'),
+        label(Image.fromarray(heat(smooth, 0.6)), 'smoothness, 0 .. 0.6'),
+        label(Image.fromarray(heat(f0 * spec_light, max(1e-6, float(np.percentile(f0 * spec_light, 99))))),
+              'F0 x traced reflection, to its 99th percentile'),
+        label(Image.fromarray(heat(added, max(1e-6, float(np.percentile(np.abs(added), 99))))) if added is not None
+              else Image.new('RGB', size), 'what the reflections add (Full - Light)' if added is not None else 'no Light shot'),
+    ]
+    grid = Image.new('RGB', (width * 2, height * 3))
+    for i, tile in enumerate(tiles):
+        grid.paste(tile, ((i % 2) * width, (i // 2) * height))
+    grid.save(os.path.join(out, prefix + '-sheet.png'))
 
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("log", nargs="?")
-    p.add_argument("--captures", default=".local/work/series-pictures/K-S2/captures")
-    p.add_argument("--pictures", nargs="*")
-    p.add_argument("--box", nargs=4, type=float, default=[0.15, 0.50, 0.95, 0.60])
-    p.add_argument("--out")
-    a = p.parse_args()
-    from PIL import Image, ImageDraw
-    if a.pictures:
-        items = [(os.path.splitext(os.path.basename(f))[0], f) for f in a.pictures]
-    elif a.log:
-        items = pictures_from_log(a.log, a.captures)
-    else:
-        p.error("a log or --pictures")
-    rows, crops, first = [], [], None
-    for name, path in items:
-        if not os.path.exists(path):
-            print("missing:", name, path)
-            continue
-        mean, luma, chroma, contrast, crop = measure(Image.open(path), a.box)
-        if first is None:
-            first = mean
-        rows.append((name, mean, luma, chroma, contrast, mean - first))
-        crops.append((name, crop))
-    print("%-12s %-22s %7s %7s %9s  %s" % ("frame", "mean rgb", "luma", "chroma", "contrast", "mean minus first"))
-    for name, mean, luma, chroma, contrast, d in rows:
-        print("%-12s %5.3f %5.3f %5.3f    %7.3f %7.3f %9.4f  %+.3f %+.3f %+.3f" % (name, mean[0], mean[1], mean[2], luma, chroma, contrast, d[0], d[1], d[2]))
-    if a.out and crops:
-        import numpy as np
-        width = max(c.shape[1] for _, c in crops)
-        sheet = Image.new("RGB", (width + 110, sum(c.shape[0] + 4 for _, c in crops)), (20, 20, 20))
-        draw = ImageDraw.Draw(sheet)
-        y = 0
-        for name, crop in crops:
-            sheet.paste(Image.fromarray((crop * 255).astype("uint8")), (110, y))
-            draw.text((4, y + 4), name, fill=(255, 255, 255))
-            y += crop.shape[0] + 4
-        sheet.save(a.out)
-        print("sheet:", a.out)
+    """Make the sheet of every view named, or of every *-surface.bin in the run folder."""
+    args = sys.argv[1:]
+    if not args:
+        print(__doc__)
+        return 1
+    folder = args[0]
+    out = folder
+    prefixes = []
+    rest = args[1:]
+    while rest:
+        if rest[0] == '--out':
+            out = rest[1]
+            rest = rest[2:]
+        else:
+            prefixes.append(rest[0])
+            rest = rest[1:]
+    os.makedirs(out, exist_ok=True)
+    if not prefixes:
+        prefixes = sorted(f[:-len('-surface.bin')] for f in os.listdir(folder) if f.endswith('-surface.bin'))
+    for prefix in prefixes:
+        sheet(folder, prefix, out)
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())
