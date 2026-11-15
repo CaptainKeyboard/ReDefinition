@@ -63,6 +63,9 @@ namespace ReDefinition.Atmospheres
         // (a weather deck 10 km, a cumulonimbus layer 5 km) is stepped every 100 m or less; where the density is empty the march then leaps up to this many scales at a time and goes back to
         // the grid point after the last empty one when a leap lands on cloud, so a cloud is entered at the grid's own resolution and only a feature narrower than the leap can be passed over.
         public float LeapScales;
+        // E40 C4 (layers.warpTable): how the untiling warp of the shape lookup gets its lattice values: 0 hashed at every sample (the pass as it was), 1 a table of half floats around the camera
+        // (NoiseLattice; the same values inside its window, 84 km at the finest noise), 2 the same table of bytes.
+        public int WarpTable = 1;
         // The product's values: the leap and the layer-kind shares are off (they gained nothing on the view table), the sun march is reused
         // below a step weight of 0.05 and between every two lit steps.
         public float EmptyLeap = 1f, LightCutoff = 0.05f, CheapShare = 1f, FogShare = 1f;
@@ -394,6 +397,9 @@ namespace ReDefinition.Atmospheres
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));
+            Noise.Switches.WarpTable = f.WarpTable;
+            Noise.SetViewer(cameraPosition - f.PlanetCenter);
+            for (int l = 0; l < layerCount; l++) Noise.SetLatticeLayer(l, layerD[l].y > 0f ? 1.0 / layerD[l].y : 0.0, radius + 0.5 * (layerA[l].x + layerA[l].y));
             Noise.Bind(m, layerCount);
         }
 

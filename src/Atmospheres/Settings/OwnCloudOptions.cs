@@ -32,6 +32,10 @@ namespace ReDefinition.Atmospheres
         // 4.0 +0.02 to +0.05); the pass costs 18 to 35 percent less at the clock's views (series e40-c1-cost). layers.leapScale 0 is the march as it was.
         internal const float LeapScaleDefault = 1f;
 
+        // E40 C4: layers.warpTable (LayerFrame.WarpTable): the lattice values of the untiling warp from a table of half floats around the camera (1), of bytes (2) or hashed at every sample (0, the pass as it was).
+        internal const string TuneWarpTable = "layers.warpTable";
+        internal const int WarpTableDefault = 1;
+
         // E40 grain: the multiplier of the most grid points of a span (LayerFrame.MaxSteps); 1: the step quality's count.
         internal const string TuneGridFine = "layers.gridFine";
         internal const float GridFineDefault = 1f;
@@ -226,6 +230,7 @@ namespace ReDefinition.Atmospheres
             f.SpanSpacing = Mathf.Max(0f, Tuning.Get(TuneSpanSpacing, SpanSpacingDefault));
             f.SpanSpacingMin = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneSpanSpacingMin, SpanSpacingMinDefault)), 1, 256);
             f.LeapScales = Mathf.Max(0f, Tuning.Get(TuneLeapScale, LeapScaleDefault));
+            f.WarpTable = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneWarpTable, WarpTableDefault)), 0, 2);
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));

@@ -22,7 +22,9 @@ sampler3D _NoiseDetail;
 sampler3D _NoiseCurl;
 sampler2D _NoiseFlow;
 sampler2D _NoiseColour;
-float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w unused (the vertical scale of the lattice is per layer, _NoiseStretch.y)
+sampler3D _NoiseLattice; // the untiling warp's lattice table around the viewer (E40 C4; NoiseLattice.cs)
+float4 _NoiseL;          // the table: x cells per side, y 1 / that, z slices per layer's slab, w 1 / the slices of the texture
+float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w: the warp reads the lattice table (1) or hashes the corners of its cell (0) (layers.warpTable; the vertical scale of the lattice is per layer, _NoiseStretch.y)
 float4 _NoiseQ;          // warp amplitude, warp cell, curl amplitude (in noise scales), flow phase 0..1
 float4 _NoiseR;          // shape period, detail period (in noise scales)
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
@@ -92,6 +94,15 @@ float3 NoiseValueVec(float3 p, uint seed)
     return acc;
 }
 
+// NoiseValueVec from the lattice table (E40 C4): the quintic fade of the position, and the texture's linear filter blends the 8 corners of the cell with the fade as weights. The vector is in rgb, 0..1 per component.
+float4 NoiseLatticeAt(float3 c, float slab)
+{
+    float3 f0 = floor(c);
+    float3 t = f0 + NzFade(c - f0);
+    float z = t.z - _NoiseL.x * floor(t.z * _NoiseL.y);
+    return tex3Dlod(_NoiseLattice, float4((t.xy + 0.5) * _NoiseL.y, (slab * _NoiseL.z + z + 0.5) * _NoiseL.w, 0));
+}
+
 // The point the volumes are read at (see the header).
 float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
 {
@@ -107,7 +118,12 @@ float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
     float3 ax = _NoiseAxis[li].xyz;
     q -= ax * (dot(q, ax) * _NoiseStretch[li].x);
     if (_NoiseP.y > 0.5)
-        q += (_NoiseQ.x * scale) * NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
+    {
+        float3 wv;
+        [branch] if (_NoiseP.w > 0.5) wv = NoiseLatticeAt(q / (_NoiseQ.y * scale), li).rgb * 2.0 - 1.0;
+        else wv = NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
+        q += (_NoiseQ.x * scale) * wv;
+    }
     return q;
 }
 

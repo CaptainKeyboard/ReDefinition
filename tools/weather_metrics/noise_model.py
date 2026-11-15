@@ -213,6 +213,40 @@ def value_vec(p, seed):
     return acc
 
 
+LATTICE_N = 64   # the lattice table's cells per side (NoiseLattice.N)
+
+
+def lattice_window(origin, seed, n=LATTICE_N, precision="float"):
+    """The warp's lattice table of the window starting at the cell `origin` (3 ints): the corner value (0..1) of the cell origin + ((t - origin) mod n) at the texel t (array [z, y, x, 3]),
+    as NoiseLattice.FollowWarp writes it; precision "half" or "byte" rounds it as the texture of that format holds it. The shader reads it through lattice_read."""
+    o = np.asarray(origin, dtype=np.int64)
+    cells = [o[a] + ((np.arange(n) - o[a]) % n) for a in range(3)]
+    cz, cy, cx = np.meshgrid(cells[2], cells[1], cells[0], indexing="ij")
+    fx, fy, fz = hash_vec(hash3(cx, cy, cz, seed))
+    values = np.stack([fx, fy, fz], axis=-1)
+    if precision == "byte":
+        return np.floor(values * 255.0 + 0.5) / 255.0
+    if precision == "half":
+        return values.astype(np.float16).astype(np.float64)
+    return values
+
+
+def lattice_read(table, p):
+    """The shader's read of the warp table at points p (M, 3) in lattice units (NoiseLatticeAt): the quintic fade applied to the position, the 8 corners blended linearly and wrapped by
+    the table; each component -1..1."""
+    n = table.shape[0]
+    i0 = np.floor(p).astype(np.int64)
+    u = fade(p - i0)
+    acc = 0.0
+    for dx in (0, 1):
+        for dy in (0, 1):
+            for dz in (0, 1):
+                corner = table[(i0[:, 2] + dz) % n, (i0[:, 1] + dy) % n, (i0[:, 0] + dx) % n].astype(np.float64) * 2.0 - 1.0
+                w = (u[:, 0] if dx else 1 - u[:, 0]) * (u[:, 1] if dy else 1 - u[:, 1]) * (u[:, 2] if dz else 1 - u[:, 2])
+                acc = acc + w[:, None] * corner
+    return acc
+
+
 class Params(object):
     """The constants of the model. Everything that is a length is a multiple of the layer's scale."""
 
