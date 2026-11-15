@@ -70,6 +70,12 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && old;
                 return new FogReading { On = on, Mode = 3, Density = on ? 0.00012f : 0f, Colour = new Color(0.7f, 0.75f, 0.8f), Held = on ? 0.00012f : 0f, Asked = on ? 0.00012f : 0f, Level = 0f, VisibilityM = on ? 14000f : 20000f };
             };
+            // The angle between the camera and the sun: heading 90 looks at it, heading 270 away from it (what K-S1's log line says of the pose).
+            r.Probe.SunAngleReader = () =>
+            {
+                double d = Math.Abs(r.Rig.Pose.AzimuthDeg - 90.0) % 360.0;
+                return d > 180.0 ? 360.0 - d : d;
+            };
             r.Probe.QuitGame = () => r.Quits++;
             r.Probe.Init();
             return r;
@@ -111,21 +117,25 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Drive(r);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual("surface", r.Probe.StartId);
-            Assert.IsTrue(r.Probe.Elapsed < 12 * 60, "the scenario fits its twelve minutes: " + r.Probe.Elapsed);
+            Assert.IsTrue(r.Probe.Elapsed < 15 * 60, "the scenario fits its fifteen minutes: " + r.Probe.Elapsed);
             Assert.IsTrue(r.Probe.Elapsed > 60, "the real scenario is not a handful of frames: " + r.Probe.Elapsed);
             int last = -1;
-            foreach (string frame in SurfaceProbe.Frames)
+            foreach (string key in SurfaceProbe.FramesP1.Select(f => "p1_" + f).Concat(SurfaceProbe.FramesP2.Select(f => "p2_" + f)))
             {
-                int at = r.Log.FindIndex(l => l.StartsWith("surface: " + frame + ": fog "));
-                Assert.IsTrue(at > last, frame + " is described after the frame before it\n" + Dump(r));
+                int at = r.Log.FindIndex(l => l.StartsWith("surface: " + key + ": fog "));
+                Assert.IsTrue(at > last, key + " is described after the frame before it\n" + Dump(r));
                 last = at;
-                Assert.IsTrue(r.Log.Any(l => l.StartsWith("surface: " + frame + ": picture ") && !l.EndsWith("none")), frame + " has a picture");
+                Assert.IsTrue(r.Log.Any(l => l.StartsWith("surface: " + key + ": picture ") && !l.EndsWith("none")), key + " has a picture");
             }
             Dictionary<string, string> rows = Emitted(r);
-            Assert.IsTrue(double.Parse(rows[SurfaceProbe.Prefix + "old_fog_fog_density"], CultureInfo.InvariantCulture) > 0.0001, "the old rule's frame holds the fog");
-            Assert.AreEqual(0.0, double.Parse(rows[SurfaceProbe.Prefix + "baseline_fog_density"], CultureInfo.InvariantCulture), 0.0, "the rule now holds none");
-            Assert.AreEqual(0.0, double.Parse(rows[SurfaceProbe.Prefix + "no_weather_fog_density"], CultureInfo.InvariantCulture), 0.0);
-            Assert.AreEqual(0.0, double.Parse(rows[SurfaceProbe.Prefix + "no_mod_fog_density"], CultureInfo.InvariantCulture), 0.0);
+            Func<string, double> fog = k => double.Parse(rows[SurfaceProbe.Prefix + k + "_fog_density"], CultureInfo.InvariantCulture);
+            Assert.IsTrue(fog("p1_old_fog") > 0.0001, "the old rule's frame holds the fog");
+            Assert.AreEqual("1", rows[SurfaceProbe.Prefix + "old_fog_asks_fog"], "and the old rule asks for it");
+            foreach (string k in new[] { "p1_baseline", "p1_drawn", "p1_no_weather", "p1_no_pass", "p1_no_cover", "p1_no_atmo", "p2_baseline", "p2_drawn", "p2_no_atmo" })
+                Assert.AreEqual(0.0, fog(k), 0.0, k + ": the rule now holds none");
+            Assert.IsTrue(double.Parse(rows[SurfaceProbe.Prefix + "p1_sun_angle_deg"], CultureInfo.InvariantCulture) < 30.0, "pose 1 looks at the sun");
+            Assert.IsTrue(double.Parse(rows[SurfaceProbe.Prefix + "p2_sun_angle_deg"], CultureInfo.InvariantCulture) > 150.0, "pose 2 looks away from it");
+            Assert.IsTrue(AtmospheresSettings.OwnClouds && !AtmospheresSettings.GroundCover, "the switches are back as they were");
             Assert.IsTrue(AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects, "the switches are back on");
             Tuning.BeginFrame(100000);
             Assert.IsTrue(Tuning.Flag("driver.forcedLevelOwnsFog", true), "the fog rule's override is cleared");
@@ -182,7 +192,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsTrue(r.Probe.Finished, Dump(r));
             Assert.IsFalse(r.Probe.Passed, Dump(r));
             Assert.IsFalse(r.Probe.Failures.Any(f => f.StartsWith("exception in the scenario")), "no unhandled exception: " + r.Joined);
-            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceProbe.Prefix + "sun_fixed")), "the failure names sun_fixed: " + r.Joined);
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceProbe.Prefix + "p1_sun_fixed")), "the failure names p1_sun_fixed: " + r.Joined);
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("surface: ") && l.EndsWith(" - FAILED")), "a 'surface:' line says what was expected and what was read");
         }
     }

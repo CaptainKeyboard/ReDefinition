@@ -4,8 +4,8 @@
   python tools/surface_frames.py <log> --captures <folder> [--box x0 y0 x1 y1] [--out sheet.png]
   python tools/surface_frames.py --pictures a.png b.png ... [--box x0 y0 x1 y1]
 
-The log's lines 'surface: <frame>: picture <file>' name the pictures; the frames are old_fog, baseline, drawn, no_weather, no_mod. The box is the far terrain's rows and columns in
-fractions of the picture (default: the horizon strip of the cb_far pose, x 0.15 to 0.95, y 0.50 to 0.60). Per frame it prints the mean colour, the luminance, the chroma
+The log's lines 'surface: <pose>_<frame>: picture <file>' name the pictures (FRAMES below). The box is the far range's columns and rows in fractions of the picture (default: the
+range of K-S1's cb_far picture, x 0.40 to 0.82, y 0.535 to 0.575; look at the pictures first, the two headings show other terrain). Per frame it prints the mean colour, the luminance, the chroma
 ((max - min) / max of the mean colour), the local contrast (the mean standard deviation of the luminance over 8 x 8 blocks) and the difference of the mean to the first frame, and
 writes a sheet of the box crops stacked (frame label on the left). Needs Pillow and numpy.
 """
@@ -14,7 +14,7 @@ import os
 import re
 import sys
 
-FRAMES = ["old_fog", "baseline", "drawn", "no_weather", "no_mod"]
+FRAMES = ["p1_old_fog", "p1_baseline", "p1_drawn", "p1_no_weather", "p1_no_pass", "p1_no_cover", "p1_no_atmo", "p2_baseline", "p2_drawn", "p2_no_atmo"]
 
 
 def pictures_from_log(path, folder):
@@ -47,7 +47,7 @@ def main():
     p.add_argument("log", nargs="?")
     p.add_argument("--captures", default=".local/work/series-pictures/K-S2/captures")
     p.add_argument("--pictures", nargs="*")
-    p.add_argument("--box", nargs=4, type=float, default=[0.15, 0.50, 0.95, 0.60])
+    p.add_argument("--box", nargs=4, type=float, default=[0.40, 0.535, 0.82, 0.575])
     p.add_argument("--out")
     a = p.parse_args()
     from PIL import Image, ImageDraw
