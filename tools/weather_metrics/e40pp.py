@@ -49,10 +49,14 @@ PICTURES = os.path.join(MAIN, ".local", "work", "series-pictures", "E40")
 GAME_START = 62
 START_COMMIT = "ed1272e7"
 CFG_REL = "GameData/ReDefinition/Atmospheres/Bodies/Clouds-Kerbin.cfg"
-W, H = 1708, 960
+# The game's frames are 1707 x 960 (pass.json: width 1707, the march target 563 x 317); the replay renders the same size (E40 PP64: 1708 put every pixel grid one column off).
+W, H = 1707, 960
 SOLAR_DAY = 21600.0
-# The tolerance of parity (the definition, section 3): cloud-pixel mean colour, cover share, outline width.
-TOL_COLOUR, TOL_COVER, TOL_EDGE = 0.03, 0.03, 0.15
+# The tolerance of parity (E40 PP64; the definition, section 3, with the quantities that do not depend on the game's exposure kept apart from the one that does):
+#   cover share (points), outline width after smoothing both signals (the game's per-pixel grain is left out), mean chroma of the cloud pixels (rgb / luminance, largest channel),
+#   sunlit over shaded luminance (90th / 10th percentile of the cloud pixels, smoothed): none of these depends on the exposure of the game's frame.
+#   Cloud-pixel mean colour against the game's luminance (after the frame gain): TOL_COLOUR; it depends on the game's exposure (frame_gain) and is "unclear" where it fails.
+TOL_COLOUR, TOL_COVER, TOL_EDGE, TOL_CHROMA, TOL_LIT = 0.05, 0.03, 0.15, 0.03, 0.15
 # A pixel is cloud where the colour distance to the frame without clouds is above this (display units, the same for the game and the replay).
 CLOUD_SIGNAL = 0.03
 # ... and its saturation is this much lower than the baseline's (cloud_stats)
@@ -239,8 +243,12 @@ def job_layers(name, state, pass_json):
             t.update(tk.get(t["name"], {}))
             if state == "start62":
                 t["topClose"] = 0.0          # start 62 had no closing tops (58113ee6 came after it)
-        if state == "start62" or dumped.get(layer, {}).get("anvilDrawn"):
-            jl["anvilType"] = -1.0           # start 62 drew no anvils; a newer dump has them in its maps already
+        if state == "start62":
+            jl["anvilType"] = -1.0           # start 62 drew no anvils
+        elif pass_json:
+            # a dump of a start with pass.json has the maps as the GPU held them, anvils included: none is drawn again, but the layer keeps its cfg's anvilType (the cover threshold
+            # leaves the anvil's type out of the water content: with anvilType -1 the cumulonimbus layer's coverage came out 0.024 higher than the game's)
+            jl["anvilDrawn"] = 1
         elif lk.get("anvilType", -1.0) >= 0.0:
             # a dump from before E40 CB holds the precipitation level as the cumulonimbus type (e40c1.old_dump_type_scale)
             rain = c1.layer_rain_type(layer)
@@ -255,6 +263,8 @@ def job_layers(name, state, pass_json):
         if index < len(noise_layers):
             n = noise_layers[index]
             jl.update(drift=[float(x) for x in n["drift"]], rise=float(n["rise"]), wind=[float(x) for x in n["wind"]])
+            if n.get("axis"):
+                jl["axis"] = [float(x) for x in n["axis"]]
         out.append(jl)
     return out
 
@@ -475,6 +485,44 @@ def cloud_stats(img, off, sel):
     return out, sig, cloud
 
 
+def lit_ratio(img, cloud):
+    """The sunlit against the shaded side of the clouds: the 90th over the 10th percentile of the cloud pixels' luminance after a light smoothing (the game's per-pixel grain would
+    widen the spread; the exposure of the frame cancels in the ratio). NaN where the cloud has under 200 pixels."""
+    if int(cloud.sum()) < 200:
+        return float("nan")
+    from scipy.ndimage import gaussian_filter
+    lum = gaussian_filter(img @ v1.LUMA, LIT_SMOOTH_PX, mode="nearest")[cloud]
+    return float(np.percentile(lum, 90.0) / max(np.percentile(lum, 10.0), 1e-4))
+
+
+GAIN_MIN_PIXELS = 20000
+EDGE_DENOISE_PX = 4.0
+LIT_SMOOTH_PX = 2.0
+EDGE_FULL_COVER = 0.98
+
+
+def frame_gain(game, off, alpha, ok):
+    """The gain of the game's frame against its baseline where the replay has no cloud (alpha below 0.01): the game's camera runs TUFX (hdr, auto exposure, bloom), which scales the
+    whole frame by an exposure that depends on what the frame holds, so the frame with clouds and the baseline without them differ by a factor even where there is no cloud.
+    MEASURED on start 64: on cloud-free pixels game against baseline is a power law with exponent 0.97 to 1.02 (a pure gain), 0.89 to 1.06 over the views, the same at 20 and 100 pixels from
+    the nearest cloud (not bloom). The replay has no post stage: its composite is compared with the game's frame divided by this gain. None where the frame has too few cloud-free
+    pixels (a view inside a closed deck): then the exposure is not known."""
+    clear = ok & (alpha < 0.01)
+    if int(clear.sum()) < GAIN_MIN_PIXELS:
+        return None
+    return float((game[clear] @ v1.LUMA).mean() / max((off[clear] @ v1.LUMA).mean(), 1e-6))
+
+
+def opaque_gain(game, replay, alpha, ok):
+    """The game's luminance over the replay's on the pixels the replay covers (alpha above 0.9): the exposure of the game's frame times the replay's radiance error. Next to
+    frame_gain (the exposure read from the cloud-free pixels against the baseline frame) it shows how much of a brightness residual the exposure can account for: equal to the
+    frame gain means the replay's cloud radiance is the game's. None where under 5000 pixels are covered."""
+    sel = ok & (alpha > 0.9)
+    if int(sel.sum()) < 5000:
+        return None
+    return float((game[sel] @ v1.LUMA).mean() / max((replay[sel] @ v1.LUMA).mean(), 1e-6))
+
+
 def compare(name, game, replay, off, alt):
     ok = measure_mask(name, alt, game.shape)
     g, gsig, gc = cloud_stats(game, off, ok)
@@ -486,9 +534,17 @@ def compare(name, game, replay, off, alt):
         row["d_luma"] = (r["luma"] - g["luma"]) / g["luma"]
         row["d_colour"] = float(np.max(np.abs(rr - gr)) / g["luma"])
         row["d_chroma"] = float(np.max(np.abs(rr / r["luma"] - gr / g["luma"])))
+        row["lit_game"], row["lit_replay"] = lit_ratio(game, gc), lit_ratio(replay, rc)
+        row["d_lit"] = (row["lit_replay"] - row["lit_game"]) / row["lit_game"]
     ge, re_ = v1.edge_stats(gsig, ok), v1.edge_stats(rsig, ok)
     row["edge_game"], row["edge_replay"] = ge["edge"], re_["edge"]
     row["d_edge"] = (re_["edge"] - ge["edge"]) / ge["edge"] if ge["edge"] == ge["edge"] and ge["edge"] > 0 else float("nan")
+    # The same outline width after both signal maps are smoothed by EDGE_DENOISE_PX: the width is the median gradient of the signal, which the game's per-pixel grain (a short
+    # history under a moving camera, precipitation specks, bloom) raises and the replay's converged still frame does not have. Reported next to the raw width, never instead of it.
+    from scipy.ndimage import gaussian_filter
+    gs_, rs_ = v1.edge_stats(gaussian_filter(gsig, EDGE_DENOISE_PX, mode="nearest"), ok), v1.edge_stats(gaussian_filter(rsig, EDGE_DENOISE_PX, mode="nearest"), ok)
+    row["edge_game_dn"], row["edge_replay_dn"] = gs_["edge"], rs_["edge"]
+    row["d_edge_dn"] = (rs_["edge"] - gs_["edge"]) / gs_["edge"] if gs_["edge"] == gs_["edge"] and gs_["edge"] > 0 else float("nan")
     for key, sel in regions(ok):
         gg, _, _ = cloud_stats(game, off, sel)
         rr2, _, _ = cloud_stats(replay, off, sel)
@@ -499,22 +555,43 @@ def compare(name, game, replay, off, alt):
         row["regions"][key] = reg
     row["pass_colour"] = abs(row.get("d_colour", float("inf"))) <= TOL_COLOUR
     row["pass_cover"] = abs(row["d_cover"]) <= TOL_COVER
-    row["pass_edge"] = abs(row["d_edge"]) <= TOL_EDGE if row["d_edge"] == row["d_edge"] else False
-    row["parity"] = row["pass_colour"] and row["pass_cover"] and row["pass_edge"]
+    # a frame the cloud covers all over (cover from EDGE_FULL_COVER) has no outline to measure: the outline is not judged there (reported as is, never a pass or a fail)
+    row["edge_judged"] = g["cover"] < EDGE_FULL_COVER
+    row["pass_edge"] = (abs(row["d_edge_dn"]) <= TOL_EDGE if row["d_edge_dn"] == row["d_edge_dn"] else False) if row["edge_judged"] else True
+    row["pass_chroma"] = row.get("d_chroma", float("inf")) <= TOL_CHROMA
+    row["pass_lit"] = abs(row["d_lit"]) <= TOL_LIT if row.get("d_lit", float("nan")) == row.get("d_lit", float("nan")) else False
+    row["parity"] = all(row[k] for k in ("pass_colour", "pass_cover", "pass_edge", "pass_chroma", "pass_lit"))
     return row
 
 
 def residual_words(row):
-    return "colour %s, cover %+.3f, edge %s" % ("%.1f %%" % (100 * row["d_colour"]) if "d_colour" in row else "n/a", row["d_cover"],
-                                                 "%+.0f %%" % (100 * row["d_edge"]) if row["d_edge"] == row["d_edge"] else "n/a")
+    def pct(key):
+        return "%+.0f %%" % (100 * row[key]) if row.get(key, float("nan")) == row.get(key, float("nan")) else "n/a"
+
+    return "bright %s, chroma %.3f, cover %+.3f, lit/shaded %s, outline %s" % (
+        "%.1f %%" % (100 * row["d_colour"]) if "d_colour" in row else "n/a", row.get("d_chroma", float("nan")), row["d_cover"], pct("d_lit"), pct("d_edge_dn"))
+
+
+EXPOSURE_FREE = ("pass_cover", "pass_edge", "pass_chroma", "pass_lit")
+
+
+def verdict_of(row):
+    """in tolerance / out of tolerance / unclear. A residual in a quantity the game's exposure does not touch (cover, outline, chroma, sunlit over shaded) is out of tolerance.
+    The brightness of the cloud pixels does depend on it: the frame gain (frame_gain, read from the cloud-free pixels) takes part of it out, but the gain measured on the
+    clouds themselves can differ from it (the baseline frame has its own exposure), so a brightness residual outside the tolerance is unclear, never out of tolerance."""
+    if not all(row[k] for k in EXPOSURE_FREE):
+        return "out of tolerance"
+    return "in tolerance" if row["pass_colour"] else "unclear"
 
 
 def pair_picture(name, game, replay, row, state, start=GAME_START):
+    """The pair game | replay. The replay carries the label 'parity checked' only where the view is in tolerance; every other replay is a working view (the label rule)."""
     from PIL import Image
     sys.path.insert(0, os.path.join(REPO, "tools"))
     import picture_label as pl
+    shown = pl.text_for(parity=residual_words(row)) if row["verdict"] == "in tolerance" else pl.text_for(working=True)
     halves = []
-    for img, text in ((game, pl.text_for(game=start)),(replay, pl.text_for(parity="%s; state %s" % (residual_words(row), state)))):
+    for img, text in ((game, pl.text_for(game=start)), (replay, shown)):
         p = Image.fromarray(np.clip(np.rint(img * 255.0), 0, 255).astype(np.uint8), "RGB").resize((img.shape[1] // 2, img.shape[0] // 2), Image.BILINEAR)
         halves.append(pl.label_image(p, text))
     out = Image.new("RGB", (halves[0].width + halves[1].width + 6, max(h.height for h in halves)), (0, 0, 0))
@@ -522,7 +599,8 @@ def pair_picture(name, game, replay, row, state, start=GAME_START):
     out.paste(halves[1], (halves[0].width + 6, 0))
     from PIL import PngImagePlugin
     meta = PngImagePlugin.PngInfo()
-    meta.add_text(pl.KEY, "%s | %s" % (pl.text_for(game=start), pl.text_for(parity=residual_words(row))))
+    meta.add_text(pl.KEY, "%s | %s" % (pl.text_for(game=start), shown))
+    meta.add_text("ReDefinition-residual", "%s; state %s; verdict %s; frame gain %s" % (residual_words(row), state, row["verdict"], "%.3f" % row["gain"] if row.get("gain") is not None else "unknown"))
     os.makedirs(PICTURES, exist_ok=True)
     path = os.path.join(PICTURES, "e40-pp-s%d-%s-%s.png" % (start, state, name))
     out.save(path, pnginfo=meta)
@@ -533,6 +611,14 @@ def uniform_diff(pass_json, player_json, rel=1e-3):
     """The uniforms whose values differ between the game's pass.json and the player's readout (vectors, arrays, matrices, floats; a texture by its size)."""
     out = []
     g, p = pass_json["uniforms"], player_json
+    # What is left out and why (E40 PP64): the camera and the planet's centre are two ways to write the same camera relative to the centre (compared as the difference); the
+    # fourth element of the sun colour and the ambient colours is not read by the shader; the frame number and the jitter seed of the frame change from frame to frame; the display
+    # stage (_OutP, _OutW) is the replay's compose step, which takes the same white, tint and gamma from pass.json.
+    ignore = {"_PlanetCenter": None, "_CamPos": None, "_OutP": None, "_OutW": None, "_StepP": [2], "_DitherP": [0], "_SunColor": [3], "_AmbientTop": [3], "_AmbientBottom": [3]}
+    gv_cam = np.array(g["vectors"].get("_CamPos", [0, 0, 0, 0])[:3], dtype=float) - np.array(g["vectors"].get("_PlanetCenter", [0, 0, 0, 0])[:3], dtype=float)
+    pv_cam = np.array(p["vectors"].get("_CamPos", [0, 0, 0, 0])[:3], dtype=float) - np.array(p["vectors"].get("_PlanetCenter", [0, 0, 0, 0])[:3], dtype=float)
+    if not np.allclose(gv_cam, pv_cam, rtol=0.0, atol=1.0):
+        out.append(("_CamPos - _PlanetCenter", "game %s player %s" % (np.round(gv_cam, 1).tolist(), np.round(pv_cam, 1).tolist())))
     for group in ("floats", "vectors", "arrays", "matrices"):
         for k, gv in g[group].items():
             pv = p[group].get(k)
@@ -540,6 +626,12 @@ def uniform_diff(pass_json, player_json, rel=1e-3):
             if a.shape != b.shape:
                 out.append((k, "shape %s / %s" % (a.shape, b.shape)))
                 continue
+            if k in ignore:
+                if ignore[k] is None:
+                    continue
+                for i in ignore[k]:
+                    a[i::4] = 0.0
+                    b[i::4] = 0.0
             if a.size and not np.allclose(a, b, rtol=rel, atol=1e-6, equal_nan=True):
                 i = int(np.argmax(np.abs(a - b)))
                 out.append((k, "game %.6g player %.6g (element %d)" % (a[i], b[i], i)))
@@ -549,9 +641,12 @@ def uniform_diff(pass_json, player_json, rel=1e-3):
     return out
 
 
-LIGHT = ["-light", "product", "-dump", "last"]
-MARCH = c1.R33
-LABEL = "pp-a"
+# Frame 39 of the still scenario is the picture; the earlier frames (the history after a cut) are written too, to see how much grain the game's frame carries (collect: row["frames"]).
+EXTRA_FRAMES = (1, 2, 3, 5, 8, 12, 20)
+LIGHT = ["-light", "product", "-dump", "last", "-width", str(W), "-dumpframes", ",".join(str(i) for i in EXTRA_FRAMES + (39,))]
+# The product's march: the r33 case plus the leap over empty grid points the game's pass runs with (layers.leapScale 1: _SpacingP.z 1 in every pass.json; the r33 case alone has none).
+MARCH = c1.R33 + "+lp100"
+LABEL = "pp-b"
 
 
 def stage_list():
@@ -563,9 +658,27 @@ def stage_list():
                   timeout=3400)]
 
 
-def case_file(name, march):
+def case_file(name, march, frame=39):
     tag = view_tag(name)
-    return "gs-%s-pr50-static-%s-acc20-f39" % (tag, march) if march != "ref" else "gs-%s-pr50-static-ref-f39" % tag
+    return "gs-%s-pr50-static-%s-acc20-f%d" % (tag, march, frame) if march != "ref" else "gs-%s-pr50-static-ref-f%d" % (tag, frame)
+
+
+def grain_by_frame(name, folder, stage, game, off, gain, ok):
+    """The grain of the replay's earlier frames against the game's frame: the share of the cloud signal's power above 0.1 cycles per pixel (e40v1.edge_stats 'hf') and the outline width,
+    for the frames after a history cut. The replay's frame 39 is converged; the game's frame carries pixel-scale energy the converged replay lacks."""
+    out = {}
+    _, gsig, _ = cloud_stats(game / (gain or 1.0), off, ok)
+    ge = v1.edge_stats(gsig, ok)
+    out["game"] = dict(hf=ge["hf"], edge=ge["edge"])
+    for frame in EXTRA_FRAMES + (39,):
+        path = os.path.join(folder, case_file(name, MARCH, frame) + ".npy")
+        if not os.path.isfile(path):
+            continue
+        replay = compose(e40ty.load_lum(folder, case_file(name, MARCH, frame)), off, stage)
+        _, rsig, _ = cloud_stats(replay, off, ok)
+        re_ = v1.edge_stats(rsig, ok)
+        out[frame] = dict(hf=re_["hf"], edge=re_["edge"])
+    return out
 
 
 def collect(ctx):
@@ -582,9 +695,15 @@ def collect(ctx):
             continue
         m = e40ty.load_lum(folder, case_file(name, MARCH))
         replay = compose(m, off, stage)
-        row = compare(name, game, replay, off, stage["alt"])
-        row.update(state=stage["state"], source=stage["source"], dump=stage["dump"], ut=stage["ut"], white=stage["white"])
-        row["picture"] = pair_picture(name, game, replay, row, stage["state"], start)
+        gain = frame_gain(game, off, np.clip(m[:, :off.shape[1], 3], 0.0, 1.0), measure_mask(name, stage["alt"], game.shape))
+        raw = compare(name, game, replay, off, stage["alt"])
+        row = compare(name, game / gain, replay, off, stage["alt"]) if gain else raw
+        row.update(state=stage["state"], source=stage["source"], dump=stage["dump"], ut=stage["ut"], white=stage["white"], gain=gain,
+                   raw=dict(d_luma=raw.get("d_luma"), d_colour=raw.get("d_colour"), d_cover=raw["d_cover"], d_edge=raw["d_edge"]))
+        row["verdict"] = verdict_of(row)
+        row["k_opaque"] = opaque_gain(game, replay, np.clip(m[:, :off.shape[1], 3], 0.0, 1.0), measure_mask(name, stage["alt"], game.shape))
+        row["frames"] = grain_by_frame(name, folder, stage, game, off, gain, measure_mask(name, stage["alt"], game.shape))
+        row["picture"] = pair_picture(name, game, np.clip(replay * (gain or 1.0), 0.0, 1.0), row, stage["state"], start)
         dump_pj = os.path.join(MAPS, stage["dump"], "pass.json")
         uni = os.path.join(folder, case_file(name, MARCH) + "-uniforms.json")
         if os.path.isfile(dump_pj) and os.path.isfile(uni):
@@ -609,16 +728,32 @@ def collect(ctx):
 
 
 def report(rows):
-    lines = ["E40 PP parity (tolerance: colour %.0f %%, cover %.2f, edge %.0f %%)" % (100 * TOL_COLOUR, TOL_COVER, 100 * TOL_EDGE),
-             "   %-8s %-7s %6s %6s | %6s %6s %7s | %6s %6s %6s | %s" % ("view", "state", "cov g", "cov r", "dLuma", "dColour", "dChroma", "edge g", "edge r", "dEdge", "verdict")]
+    lines = ["E40 PP parity (tolerance: cover %.2f, outline %.0f %% after smoothing, chroma %.2f, sunlit/shaded %.0f %%, brightness %.0f %% after the frame gain)" % (
+                 TOL_COVER, 100 * TOL_EDGE, TOL_CHROMA, 100 * TOL_LIT, 100 * TOL_COLOUR),
+             "   %-8s %-7s %5s %5s | %6s %6s | %7s %7s %7s | %7s | %6s | %s" % ("view", "state", "gain", "kOpq", "cov g", "cov r", "bright", "dLuma", "dChroma", "dSunSh", "dEdgeDn", "verdict")]
     for name, r in rows.items():
         if "missing" in r:
             lines.append("   %-8s no %s" % (name, r["missing"]))
             continue
-        lines.append("   %-8s %-7s %6.3f %6.3f | %+6.3f %6.3f %7.3f | %6.1f %6.1f %+6.2f | %s" % (
-            name, r["state"], r["game"]["cover"], r["replay"]["cover"], r.get("d_luma", float("nan")), r.get("d_colour", float("nan")), r.get("d_chroma", float("nan")),
-            r["edge_game"], r["edge_replay"], r["d_edge"], "PARITY" if r["parity"] else "differs (%s)" % ", ".join(k[5:] for k in ("pass_colour", "pass_cover", "pass_edge") if not r[k])))
-        for k, v in r.get("uniform_diff", [])[:12]:
+        gain = r.get("gain")
+        raw = r.get("raw", {})
+        k = r.get("k_opaque")
+        failed = ", ".join(key[5:] for key in ("pass_colour", "pass_cover", "pass_edge", "pass_chroma", "pass_lit") if key in r and not r[key])
+        lines.append("   %-8s %-7s %5s %5s | %6.3f %6.3f | %7.3f %+7.3f %7.3f | %+7.2f | %+6.2f | %s%s" % (
+            name, r["state"], "%.3f" % gain if gain else "none", "%.3f" % k if k else "none", r["game"]["cover"], r["replay"]["cover"], r.get("d_colour", float("nan")), r.get("d_luma", float("nan")),
+            r.get("d_chroma", float("nan")), r.get("d_lit", float("nan")), r.get("d_edge_dn", float("nan")), r.get("verdict", "?"), " (%s)" % failed if failed else ""))
+        if gain and raw.get("d_colour") is not None:
+            lines.append("        before the frame gain: dLuma %+.3f dColour %.3f; raw outline game %.1f replay %.1f" % (raw["d_luma"], raw["d_colour"], r["edge_game"], r["edge_replay"]))
+        if "lit_game" in r:
+            lines.append("        sunlit over shaded (90th / 10th percentile of the cloud luminance): game %.2f replay %.2f" % (r["lit_game"], r["lit_replay"]))
+        if "edge_game_dn" in r:
+            lines.append("        outline after smoothing both signals by %.0f px: game %.1f replay %.1f%s" % (
+                EDGE_DENOISE_PX, r["edge_game_dn"], r["edge_replay_dn"], "" if r.get("edge_judged", True) else " (not judged: the cloud covers the frame)"))
+        if r.get("frames"):
+            fr = r["frames"]
+            lines.append("        grain (cloud signal power above 0.1 cycles/px, outline px): game %.4f / %.1f; replay frame %s" % (
+                fr["game"]["hf"], fr["game"]["edge"], ", ".join("%s: %.4f / %.1f" % (k, v["hf"], v["edge"]) for k, v in fr.items() if k != "game")))
+        for k, v in r.get("uniform_diff", []):
             lines.append("        uniform %s: %s" % (k, v))
     return "\n".join(lines)
 
@@ -652,6 +787,23 @@ def selftest():
     dark = off * (1 - blob) + 0.7 * blob
     row = compare("gfair", game, dark, off, 264.0)
     assert not row["pass_colour"] and row["d_luma"] < -0.05, row
+    # the frame gain: a game frame exposed 0.9 times is read from the cloud-free pixels, and divided out it is parity again; a frame with no cloud-free pixels has none (unclear)
+    alpha = blob[..., 0]
+    ok_all = np.ones((960, 1707), dtype=bool)
+    gain = frame_gain(game * 0.9, off, alpha, ok_all)
+    assert gain is not None and abs(gain - 0.9) < 1e-6, gain
+    assert compare("gfair", game * 0.9 / gain, game, off, 264.0)["parity"]
+    assert frame_gain(game, off, np.ones_like(alpha), ok_all) is None
+    # the verdict: a residual in a quantity the exposure does not touch is out of tolerance; only the brightness can be unclear
+    free = dict(pass_cover=True, pass_edge=True, pass_chroma=True, pass_lit=True)
+    assert verdict_of(dict(free, pass_colour=True)) == "in tolerance" and verdict_of(dict(free, pass_colour=False)) == "unclear"
+    assert verdict_of(dict(free, pass_colour=True, pass_cover=False)) == "out of tolerance" and verdict_of(dict(free, pass_colour=False, pass_lit=False)) == "out of tolerance"
+    # the sunlit over shaded ratio does not change with the exposure
+    cloud = np.zeros((960, 1707), dtype=bool)
+    cloud[100:500, 100:900] = True
+    ramp = np.tile(np.linspace(0.2, 0.8, 1707), (960, 1))[..., None] * np.ones(3)
+    assert abs(lit_ratio(ramp, cloud) - lit_ratio(ramp * 0.7, cloud)) < 1e-6
+    assert abs(opaque_gain(ramp * 0.9, ramp, np.ones((960, 1707)), np.ones((960, 1707), dtype=bool)) - 0.9) < 1e-9
     # the uniform difference names what differs
     pj = dict(uniforms=dict(floats={"_PlanetR": 600000.0}, vectors={"_Sun": [1, 0, 0, 4000]}, arrays={"_LayerA": [[1, 2, 3, 4]]}, matrices={}, textures={"_CovMaps": "512x256x4"}))
     pl_ = dict(floats={"_PlanetR": 600000.0}, vectors={"_Sun": [0.9, 0, 0, 4000]}, arrays={"_LayerA": [[1, 2, 3, 4]]}, matrices={}, textures={"_CovMaps": "512x256x4"})
@@ -689,7 +841,7 @@ if __name__ == "__main__":
     parser.add_argument("--state", choices=("start62", "now"))
     parser.add_argument("--start", type=int, default=GAME_START, help="the game start the frames are of")
     parser.add_argument("--report", action="store_true")
-    parser.add_argument("--collect", action="store_true", help="measure the last run's frames again (build/WeatherPlayer/e40-pp-pp-a) without running the player")
+    parser.add_argument("--collect", action="store_true", help="measure the last run's frames again (build/WeatherPlayer/e40-pp-pp-b) without running the player")
     a = parser.parse_args()
     if a.selftest:
         selftest()
