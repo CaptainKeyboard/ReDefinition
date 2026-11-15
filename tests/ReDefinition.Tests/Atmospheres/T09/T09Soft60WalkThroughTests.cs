@@ -120,11 +120,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (string r in new[] { "refsoft", "refsoftr33", "refsofthash", "refsoftacc05" })
             {
                 Assert.AreEqual(256, of(r).GridPoints, r + " marches 256 grid points");
-                Assert.AreEqual(0.5f, of(r).Resolution, 1e-6f, r + " is the converged picture at the half-size target");
+                Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, of(r).Resolution, 1e-6f, r + " is the converged picture at the default target");
             }
             Assert.AreEqual(48, soft.GridPoints);
             Assert.AreEqual(0.33f, of("softr33").Resolution, 1e-6f);
-            Assert.AreEqual(0.5f, of("softacc05").Resolution, 1e-6f, "the history variants keep the half-size target");
+            Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, of("softacc05").Resolution, 1e-6f, "the history variants keep the default target");
             foreach (T09Probe.SoftVariant v in T09Probe.Soft60ExtraTable) Assert.AreEqual("", v.FairCost + v.ClockCost, "the extra looks have no cost window");
         }
 
@@ -296,7 +296,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 x.Probe.MarchSizeReader = own =>
                 {
                     int mw, mh;
-                    T09Probe.SoftMarchSize(1707, 960, Tuning.Get(OwnCloudOptions.TuneReconResolution, 0.5f), out mw, out mh);
+                    T09Probe.SoftMarchSize(1707, 960, Tuning.Get(OwnCloudOptions.TuneReconResolution, OwnCloudOptions.ReconResolutionDefault), out mw, out mh);
                     return new[] { mw, mh };
                 };
             });

@@ -192,7 +192,7 @@ namespace ReDefinition.Atmospheres
             internal float Accumulate;
         }
 
-        private static readonly float SoftCompiledResolution = new LayerFrame().Resolution;
+        private static readonly float SoftCompiledResolution = OwnCloudOptions.ReconResolutionDefault;
 
         // The march target's size for a frame of w x h at the side ratio (LayerReconstructor.Record: Low mode, round(w * scale), at least 2).
         internal static void SoftMarchSize(int w, int h, float resolution, out int lw, out int lh)

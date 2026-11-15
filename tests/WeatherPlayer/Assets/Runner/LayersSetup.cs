@@ -103,6 +103,8 @@ namespace ReDefinition.WeatherPlayer
                 SunMarchM = job.sunMarch,
                 RayLimitM = job.rayLimit,
                 LayerMask = job.layerMask,
+                AidMode = job.mode == "lum" ? job.aid : 0,
+                EmptyReach = job.noReach == 0,
                 UseSceneDepth = job.occluder != null && job.occluder.Length == 4 && job.occluder[3] > 0f,
                 SunColour = Rgb(job.sunColour, new Color(3.0f, 2.9f, 2.7f)),
                 AmbientTop = Rgb(job.ambientTop, new Color(0.35f, 0.42f, 0.55f)),

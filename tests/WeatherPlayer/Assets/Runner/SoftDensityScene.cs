@@ -122,8 +122,11 @@ namespace ReDefinition.WeatherPlayer
         {
             public string Name, Base = "seq1";
             public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f;
-            public bool Jitter, Skip, SkipClosed, OldGrid;
+            public bool Jitter, Skip, SkipClosed, OldGrid, NoReach, StepGrowth, TapLod, FarMean;
             public int ConePattern = -1, Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
+            // E40 C1: sp<NN> the widest grid spacing of a span in the layer's noise scales, NN / 10 (0: off); spm<N> the fewest grid points such a span keeps
+            public float Spacing;
+            public int SpacingMin = 20;
         }
 
         private static int Number(string token, int prefix)
@@ -141,8 +144,14 @@ namespace ReDefinition.WeatherPlayer
                 if (t == "jit") c.Jitter = true;
                 else if (t == "skip") c.Skip = true;
                 else if (t == "skipc") c.SkipClosed = true;
+                else if (t == "nr") c.NoReach = true;   // E40 C1: the march without the leap over the empty reach (LayerFrame.EmptyReach false)
+                else if (t == "cg") c.StepGrowth = true;   // T16 cloudStepGrowth
+                else if (t == "tl") c.TapLod = true;   // T16 cloudTapLod
+                else if (t == "fm") c.FarMean = true;   // cloudFarShapeMean
                 else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
+                else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
+                else if (t.StartsWith("sp")) c.Spacing = Number(t, 2) / 10f;
                 else if (t.StartsWith("cr")) c.ConePattern = Number(t, 2);   // E40 F2: the light cone's rotation pattern (LayerFrame.ConePattern)
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
@@ -180,6 +189,12 @@ namespace ReDefinition.WeatherPlayer
             f.LayerMask = c.Mask;
             f.Cull.SkipEmpty = c.Skip;
             f.Cull.SkipClosed = c.SkipClosed;
+            f.Cull.StepGrowth = c.StepGrowth;
+            f.Cull.TapLod = c.TapLod;
+            f.Far.ShapeMean = c.FarMean;
+            f.EmptyReach = !c.NoReach;
+            f.SpanSpacing = c.Spacing;
+            f.SpanSpacingMin = c.SpacingMin;
             CloudLightSettings q = c.Quality >= 0 ? CloudLightSettings.ForQuality(c.Quality) : LightDefaults;
             f.Light.SunStepsOverride = q.SunStepsOverride;
             f.Light.MoonSteps = q.MoonSteps;

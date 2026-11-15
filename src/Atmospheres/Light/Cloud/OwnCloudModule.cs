@@ -466,6 +466,7 @@ namespace ReDefinition.Atmospheres
                 }
             }
             r.SpreadHeights = true;
+            r.SpreadReach = true;
             renderer = r;
             depthMaterial = depthMat;
             depthCommands = depthCb;

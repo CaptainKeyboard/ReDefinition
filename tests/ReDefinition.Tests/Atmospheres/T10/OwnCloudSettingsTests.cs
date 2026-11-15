@@ -339,8 +339,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Defaults());
             Assert.AreEqual(ReconMode.Low, recon.Mode);
-            Assert.AreEqual(new LayerFrame().Resolution, recon.Resolution);
-            Assert.AreEqual(0.5f, recon.Resolution);
+            Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, recon.Resolution);
+            Assert.AreEqual(0.33f, recon.Resolution);
             Assert.IsFalse(recon.Jitter);
             Tuning.SetOverride(OwnCloudOptions.TuneReconResolution, 0.4f);
             NextFrame();
@@ -368,7 +368,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Tuning.ClearOverrides();
             NextFrame();
             OwnCloudOptions.Apply(recon, Defaults());
-            Assert.AreEqual(0.5f, recon.Resolution);
+            Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, recon.Resolution);
             Assert.IsFalse(recon.Jitter);
         }
 
@@ -397,7 +397,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             OwnCloudOptions.Apply(recon, Defaults());
             Assert.AreEqual(ReconMode.Low, recon.Mode);
             Assert.AreEqual(0.2f, recon.Accumulate);
-            Assert.AreEqual(new LayerFrame().Resolution, recon.Resolution);
+            Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, recon.Resolution);
             Assert.IsFalse(recon.Jitter);
             OwnCloudOptions.Apply(recon, Defaults("cloudResolution", 2));
             Assert.AreEqual(ReconMode.Block, recon.Mode);

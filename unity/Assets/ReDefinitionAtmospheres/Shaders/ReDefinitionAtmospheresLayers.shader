@@ -51,6 +51,7 @@ Shader "ReDefinition/AtmospheresLayers"
         sampler2D _TypeInfo;
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
         UNITY_DECLARE_TEX2DARRAY(_TypeMaps);
+        UNITY_DECLARE_TEX2DARRAY(_CovReach);   // E40 C1: per layer and map texel the texels to the nearest texel that can hold cloud, less a margin (EmptyReachMaps.cs; zero: no reach)
         float4 _MapDim;      // map width, map height
         float4 _Sun;         // towards the sun, w: the longest sun march in m
         float4 _SunColor, _AmbientTop, _AmbientBottom;
@@ -62,6 +63,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _OutW;        // the white point's colour (E40 B3): the per-channel share of the white of a sunlit cloud (1, 1, 1: the white is grey); w unused
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
+        float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
@@ -194,10 +196,23 @@ Shader "ReDefinition/AtmospheresLayers"
         static float gTopAlt = 0;
         // The light factors of the type at the last point LayerDensity was asked for (x direct light, y sky fill; 1: neutral); copied by the march like gTopAlt.
         static float2 gTypeLight = float2(1.0, 1.0);
+        // E40 C1: the length along the ray (m) around the last point LayerDensity was asked for within which the layer's map is certainly empty (0: no statement); the march leaps by it.
+        static float gEmptyM = 0;
+
+        // The empty reach at a map point (EmptyReachMath.ReachMetres is its CPU twin): the texels to the nearest texel that can hold cloud as an angle on the planet (a texel is pi / height across
+        // and 2 pi / width times the cosine of the latitude along a parallel), as the chord at the planet's radius (a straight line keeps at least that far from the centre), on a body with a surface.
+        float EmptyReach(int li, float2 uv)
+        {
+            float e = UNITY_SAMPLE_TEX2DARRAY_LOD(_CovReach, float3(uv, _LayerC[li].z), 0).r * 255.0;
+            float texelLat = PI / _MapDim.y;
+            float latMax = min(abs(0.5 - uv.y) * PI + e * texelLat, 1.5707);
+            return _StepP.w * _PlanetR * sin(min(e * min(texelLat, 2.0 * PI / _MapDim.x * cos(latMax)), 1.5707));
+        }
 
         float LayerDensity(int li, float3 pc, float alt, float t, out float share)
         {
             share = 0;
+            gEmptyM = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
             gTopAlt = outer;
             share = (alt - inner) / (outer - inner);
@@ -231,7 +246,11 @@ Shader "ReDefinition/AtmospheresLayers"
                 cov = min(cov, 2.0 * cov - _CullL[li].y);   // E40 soft density: the clear-sky rule of the water content (CloudLayerDef.ClearSkyMap); K = 0 is off
                 // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. the type's lift only
                 // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
-                if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0) return 0;
+                if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0)
+                {
+                    gEmptyM = EmptyReach(li, uv);
+                    return 0;
+                }
                 typeValue = UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).r;
             }
             float erosion = 0;
@@ -401,7 +420,9 @@ Shader "ReDefinition/AtmospheresLayers"
                 // sample at a jittered place is a coin toss of the cloud's coverage that changes with the step count (the coverage of an orbit view
                 // jumped by 14 percent between two altitudes where the count went from two to one).
                 float minCount = max(1.0, _FarD.w);
-                int count = (int)clamp(ceil(len / stepLen), minCount, max(minCount, floor(maxSteps * share01 + 0.5)));
+                // E40 C1: a layer whose noise is coarse (a weather deck 10 km, a cumulonimbus 5 km) needs no grid point every 100 m: the count follows the span over the noise scale times the spacing, not below _SpacingP.y.
+                float featCount = (_SpacingP.x > 0.0 && _LayerD[li].y > 0.0) ? max(_SpacingP.y, ceil(len * _LayerD[li].y / _SpacingP.x)) : 1e4;
+                int count = (int)clamp(ceil(len / stepLen), minCount, max(minCount, min(floor(maxSteps * share01 + 0.5), featCount)));
                 float dt = len / count;
                 gNoiseFoot = dt;   // the sample spacing: the erosion detail's distance LOD (T02)
                 // The samples lie on the grid s0 + dt * (i + jitter). An empty sample lets the next ones leap over 1, 2 .. leapMax grid
@@ -429,9 +450,11 @@ Shader "ReDefinition/AtmospheresLayers"
                     r.steps += 1;
                     if (dens <= 0)
                     {
-                        tLast = t;
+                        // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (gEmptyM is 0 where no reach was read).
+                        float reachSkip = dtv * floor(gEmptyM / dtv);
+                        tLast = t + reachSkip;
                         arrived = leap;
-                        t += dtv * leap;
+                        t += dtv * leap + reachSkip;
                         leap = min(leap + 1.0, leapMax);
                         continue;
                     }

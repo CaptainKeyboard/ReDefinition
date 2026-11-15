@@ -53,6 +53,12 @@ namespace ReDefinition.Atmospheres
         // CheapShare, FogShare: the share of the step budget that cheap and fog layers get. CostDebug: cost attribution only (bit 0 no sun
         // march, bit 1 no coverage noise, bit 2 no erosion).
         public bool CoverageBound = true;
+        // E40 C1: the march leaps over the grid points that lie within the empty reach of an empty sample (EmptyReachMaps; exact: the density reads that are left are the same).
+        public bool EmptyReach = true;
+        // E40 C1: the widest spacing of the grid points of a layer's span in the layer's noise scales (0: off, the span gets the step quality's count), and the fewest grid points the
+        // span keeps then. A weather deck (noise scale 10 km) or a cumulonimbus layer (5 km) is searched at a spacing that follows its features, not every 100 m.
+        public float SpanSpacing;
+        public int SpanSpacingMin = 20;
         // The product's values: the leap and the layer-kind shares are off (they gained nothing on the view table), the sun march is reused
         // below a step weight of 0.05 and between every two lit steps.
         public float EmptyLeap = 1f, LightCutoff = 0.05f, CheapShare = 1f, FogShare = 1f;
@@ -113,6 +119,9 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
         internal CullBounds Bounds { get; } = new CullBounds();
+        // The empty-reach maps of the march (E40 C1): the distance from a texel of a layer's coverage map to the nearest texel that can hold cloud, which the march leaps over.
+        internal EmptyReachMaps Reach { get; } = new EmptyReachMaps();
+        private static readonly int IdCovReach = Shader.PropertyToID("_CovReach"), IdSpacingP = Shader.PropertyToID("_SpacingP");
         internal CullTiles Tiles { get; } = new CullTiles();
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
@@ -183,6 +192,9 @@ namespace ReDefinition.Atmospheres
         // (the weather player and the tests, which read the result in the same frame).
         internal bool SpreadHeights;
 
+        // True makes Apply rebuild one layer's empty-reach map a frame (the game); false rebuilds all that changed at once (the weather player and the tests).
+        internal bool SpreadReach;
+
         // Writes the next queued height slice; cheap when none waits. Call once a frame after Upload.
         internal void StepHeights()
         {
@@ -223,6 +235,7 @@ namespace ReDefinition.Atmospheres
             }
             Maps.Dispose();
             Bounds.Dispose();
+            Reach.Dispose();
             Tiles.Dispose();
             Heights.Dispose();
             Noise.Dispose();
@@ -358,6 +371,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
+            m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).
@@ -373,6 +387,8 @@ namespace ReDefinition.Atmospheres
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);
             m.SetVectorArray(IdCullL, cullL);
+            if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
+            m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));
             Noise.Bind(m, layerCount);
         }

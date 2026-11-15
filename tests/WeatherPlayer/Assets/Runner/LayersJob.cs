@@ -125,6 +125,10 @@ namespace ReDefinition.WeatherPlayer
         public int maxSteps = 256, sunSteps = 3;
         public float earlyOut, minStep = 1f, stepGrowth, jitter, sunMarch = 4000f, resolution = 1f;
         public int layerMask;
+        // The aid picture of a lum job (LayerFrame.AidMode; 4: direct light, light taps, ambient, alpha), 0: the natural march.
+        public int aid;
+        // 1: the march without the leap over the empty reach of the map (LayerFrame.EmptyReach false; the product leaps).
+        public int noReach;
         // The cost controls of the march (LayerFrame): coverage bound, leap, sun cut-off, cheap/fog step shares, lit steps per sun march; a
         // negative value leaves the product's default. resolution < 1 marches into a smaller target and composites up (colour jobs).
         public int costBound = -1, lightStride = -1;

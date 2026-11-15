@@ -33,6 +33,20 @@ namespace ReDefinition.Atmospheres
             return coverageVersion[layer];
         }
 
+        // The bytes a layer's coverage map is moving toward, and the number of targets given so far (E40 C1: the empty-reach map of the march is built from the largest of the
+        // map as it is and the map as it will be, which holds for every step of the slew between them, and is rebuilt when a target is given, not on every step of the slew).
+        internal byte[] CoverageGoalBytes(int layer)
+        {
+            return coverageGoal[layer];
+        }
+
+        internal long CoverageGoalVersion(int layer)
+        {
+            return coverageGoalVersion[layer];
+        }
+
+        private readonly long[] coverageGoalVersion = new long[CloudLayerDef.MaxLayers];
+
         // The bytes of a layer's type map as uploaded last, and the number of uploads so far (LayerSpanBound reads both maps of the frame).
         internal byte[] TypeBytes(int layer)
         {
@@ -89,14 +103,14 @@ namespace ReDefinition.Atmospheres
         // the first target of a map jumps (it is primed by it), later ones are reached with the slew limit.
         internal void SetTargets(int layer, WeatherMap coverageMap, WeatherMap typeMap)
         {
-            if (coverageMap != null) Copy(coverageMap, coverageGoal[layer]);
+            if (coverageMap != null) { Copy(coverageMap, coverageGoal[layer]); coverageGoalVersion[layer]++; }
             if (typeMap != null) Copy(typeMap, typeGoal[layer]);
         }
 
         // A map given as bytes directly (a test map, the player's input).
         internal void SetTargetBytes(int layer, byte[] coverageBytes, byte[] typeBytes)
         {
-            if (coverageBytes != null) Array.Copy(coverageBytes, coverageGoal[layer], coverageGoal[layer].Length);
+            if (coverageBytes != null) { Array.Copy(coverageBytes, coverageGoal[layer], coverageGoal[layer].Length); coverageGoalVersion[layer]++; }
             if (typeBytes != null) Array.Copy(typeBytes, typeGoal[layer], typeGoal[layer].Length);
         }
 

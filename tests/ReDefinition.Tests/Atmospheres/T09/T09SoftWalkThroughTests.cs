@@ -117,7 +117,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
             // The cost candidates: each differs from soft by its own switches alone.
             Func<string, T09Probe.SoftExpectation> of = n => T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == n));
-            Assert.AreEqual(0.5f, soft.Resolution, 1e-6f, "the march target is half size by default");
+            Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, soft.Resolution, 1e-6f, "the march target is a third by default (E40 C1)");
             Assert.IsFalse(soft.SkipEmpty, "cloudSkipEmpty is off by default (so softr33 sets it)");
             Assert.IsFalse(soft.SpanTight);
             Assert.AreEqual(3, soft.DitherSequence, "the step offset is the blue-noise tile by default (E40 F2)");
@@ -132,7 +132,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.33f, cut.Resolution, 1e-6f);
             Assert.IsFalse(cut.SkipEmpty);
             Assert.AreEqual(1, of("softhash").DitherSequence);
-            Assert.AreEqual(0.5f, of("softhash").Resolution, 1e-6f);
+            Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, of("softhash").Resolution, 1e-6f);
             int lw, lh;
             T09Probe.SoftMarchSize(1707, 960, 0.33f, out lw, out lh);
             Assert.AreEqual(563, lw);
@@ -189,7 +189,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             r.Probe.MarchSizeReader = own =>
             {
                 int mw, mh;
-                T09Probe.SoftMarchSize(1707, 960, Tuning.Get(OwnCloudOptions.TuneReconResolution, 0.5f), out mw, out mh);
+                T09Probe.SoftMarchSize(1707, 960, Tuning.Get(OwnCloudOptions.TuneReconResolution, OwnCloudOptions.ReconResolutionDefault), out mw, out mh);
                 return new[] { mw, mh };
             };
             SoftDrive(r);
@@ -328,12 +328,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void AMarchTargetThatDidNotTakeTheResolutionFailsTheVariantByName()
         {
             Run r = StartSoft();
-            // The target stays at half size whatever recon.resolution says.
+            // The target stays at half size whatever recon.resolution says (the default is a third since E40 C1).
             r.Probe.MarchSizeReader = own => new[] { 854, 480 };
             SoftDrive(r);
-            Assert.IsFalse(r.Probe.Passed, "softr33's march target is not the one the table asks for");
-            Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("T09s.effective_") && f.Contains("softr33")), r.Joined);
-            Assert.IsFalse(r.Probe.Failures.Any(f => f.Contains("T09s.effective_") && f.Contains("softhash")), "the variants at half size are fine");
+            Assert.IsFalse(r.Probe.Passed, "the march target is not the one the table asks for");
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("T09s.effective_") && f.Contains("softhash")), r.Joined);
             AssertNoUnhandled(r);
         }
 

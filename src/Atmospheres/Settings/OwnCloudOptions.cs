@@ -15,6 +15,17 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCoverageBound = "layers.coverageBound", TuneLightStride = "layers.lightStride", TuneLightCutoff = "layers.lightCutoff",
             TuneEmptyLeap = "layers.emptyLeap", TuneCheapShare = "layers.cheapShare", TuneFogShare = "layers.fogShare";
 
+        // E40 C1: layers.emptyReach (LayerFrame.EmptyReach, default 1): the march leaps over the grid points that lie within the empty reach of an empty sample (EmptyReachMaps). The
+        // density reads that are left are the same ones, so the picture does not change; 0 is the march as it was.
+        internal const string TuneEmptyReach = "layers.emptyReach";
+        internal const bool EmptyReachDefault = true;
+        // E40 C1: layers.spanSpacing (LayerFrame.SpanSpacing; the widest spacing of a span's grid points in the layer's noise scales, 0 = off) and layers.spanSpacingMin (the fewest grid
+        // points such a span keeps, default 20): the count of a span of a layer with coarse noise follows the span over the spacing, so a weather deck or a cumulonimbus layer is not
+        // searched every 100 m.
+        internal const string TuneSpanSpacing = "layers.spanSpacing", TuneSpanSpacingMin = "layers.spanSpacingMin";
+        internal const float SpanSpacingDefault = 0f;
+        internal const int SpanSpacingMinDefault = 20;
+
         // E40 grain: the multiplier of the most grid points of a span (LayerFrame.MaxSteps); 1: the step quality's count.
         internal const string TuneGridFine = "layers.gridFine";
         internal const float GridFineDefault = 1f;
@@ -32,6 +43,10 @@ namespace ReDefinition.Atmospheres
         // it acts wherever the reconstructor runs in its mode Low: the history path of level 1 (recon.accumulate above 0) and the mode setting Low. (The key recon.jitter, the
         // 16-phase Halton offset of the march rays, is gone: it was never on and the static pictures were worse with it; ReconSettings.Jitter stays for the temporal probe.)
         internal const string TuneReconResolution = "recon.resolution";
+        // E40 C1: the default of recon.resolution is a third (it was a half). Measured in the player on the game's real maps at the four K-T2 views (series e40-c1-sheet): the error of a
+        // frame against the converged picture is the same at 0.33 as at 0.5 (0.0208 against 0.0207 at the clock's ground, 0.0328 / 0.0328 from above) and the temporal noise 0.0001 to
+        // 0.0002 higher; the pass costs about half of what it did (series e40-c1-cost). The tuning key recon.resolution 0.5 gives the march as it was.
+        internal const float ReconResolutionDefault = 0.33f;
 
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
         // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
@@ -187,6 +202,9 @@ namespace ReDefinition.Atmospheres
             f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
             // The cost controls: tuning keys with the compiled values of the frame.
             f.CoverageBound = Tuning.Flag(TuneCoverageBound, CompiledFrame.CoverageBound);
+            f.EmptyReach = Tuning.Flag(TuneEmptyReach, EmptyReachDefault);
+            f.SpanSpacing = Mathf.Max(0f, Tuning.Get(TuneSpanSpacing, SpanSpacingDefault));
+            f.SpanSpacingMin = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneSpanSpacingMin, SpanSpacingMinDefault)), 1, 256);
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
@@ -323,12 +341,12 @@ namespace ReDefinition.Atmospheres
             if (accumulate > 0f && s.Mode == ReconMode.Full)
             {
                 s.Mode = ReconMode.Low;
-                s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, CompiledFrame.Resolution), 0.1f, 1f);
+                s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, ReconResolutionDefault), 0.1f, 1f);
                 s.Accumulate = accumulate;
             }
             else if (low)
             {
-                s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, CompiledFrame.Resolution), 0.1f, 1f);
+                s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, ReconResolutionDefault), 0.1f, 1f);
                 s.Accumulate = accumulate;
             }
         }
