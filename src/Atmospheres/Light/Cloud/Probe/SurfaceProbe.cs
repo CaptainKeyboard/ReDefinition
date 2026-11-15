@@ -102,6 +102,7 @@ namespace ReDefinition.Atmospheres
         // The angle between the flight camera's forward and the direction to the sun, in degrees (NaN where either cannot be read).
         private static double ReadSunAngle()
         {
+            if (HighLogic.LoadedScene != GameScenes.FLIGHT || FlightGlobals.fetch == null) return double.NaN;
             Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             Vessel v = FlightGlobals.ActiveVessel;
             CelestialBody sun = GameGlobals.Sun;
