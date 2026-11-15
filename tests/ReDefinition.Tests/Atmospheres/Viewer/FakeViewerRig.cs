@@ -35,6 +35,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         // More faults: an altitude change that puts the pose's aim back, a camera left behind by an altitude change, a clock the viewer leaves wrong at the close while its own natural
         // time stays right, rain at the pad (the deck's rain floor keeps a Fair cover up) and a field that is overcast at the pad before anything is forced.
         internal bool SliderResetsAim, CameraDoesNotFollow, ClockLeftWrongAtClose, RainAtPad, FieldOvercast;
+        // A close that leaves the game's clock where the time offset and the freeze put it.
+        internal bool CloseKeepsTimeOffset;
 
         internal readonly Store Options = new Store();
         internal static readonly ViewerLayer[] KerbinLayers =
@@ -247,7 +249,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 return;
             }
             open = session = false;
-            gameUt = clock.Natural + (ClockLeftWrongAtClose ? 600.0 : 0.0);
+            if (!CloseKeepsTimeOffset) gameUt = clock.Natural + (ClockLeftWrongAtClose ? 600.0 : 0.0);
             if (!CloseKeepsOptions)
             {
                 foreach (KeyValuePair<string, double> pair in openSettings) Options.SetSetting(pair.Key, pair.Value);

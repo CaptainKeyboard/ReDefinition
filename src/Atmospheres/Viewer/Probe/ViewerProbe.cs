@@ -38,7 +38,8 @@ namespace ReDefinition.Atmospheres.Viewer
         internal const double AimStillDeg = 0.05, KeepAimHeadingDeg = 200.0, KeepAimElevationDeg = 7.0;
         internal const int AimStillMaxFrames = 80;
         // The game's clock against the start's UT plus the real seconds since (the game's time runs with the real time at 1x, a little slower where the frames are long).
-        internal const double RestoreTimeS = 5.0;
+        // (The game's time runs on physics steps of at most 0.04 s a frame: a slow stretch loses some of the real seconds, so the band is wide; the line prints both.)
+        internal const double RestoreTimeS = 10.0;
         // A precipitation level above this at the pad: the deck's rain floor keeps the Fair cover up.
         internal const double RainAtPadLevel = 0.01;
 
@@ -109,6 +110,8 @@ namespace ReDefinition.Atmospheres.Viewer
         private void Unclear(string what, string expected, string read, string why)
         {
             LogLine("viewer: " + what + ": expected " + expected + ", read " + read + " - UNCLEAR (" + why + ")");
+            // The runner collects these lines into the report's warnings: a green table with a check that did not run is not silent.
+            LogLine("Probe: warning " + what + ": not judged, " + why);
         }
 
         // Waits until the camera's aim stands still: two readings two frames apart within AimStillDeg (the camera follows with a lag, as K-T2's SettleAim waits for).
@@ -324,7 +327,7 @@ namespace ReDefinition.Atmospheres.Viewer
             ViewerLayer? deck = FirstWithRole(layers, WeatherPresets.Role.Deck, out deckIndex);
             ViewerLayer? cumulus = FirstWithRole(layers, WeatherPresets.Role.Cumulus, out cumulusIndex);
             Info("weather_roles_missing", (deck.HasValue ? 0 : 1) + (cumulus.HasValue ? 0 : 1));
-            float cumulusFair = float.NaN;
+            float cumulusFair = float.NaN, deckUnderCumulus = float.NaN;
             // What the field's own weather is at the pad before anything is forced: a deck already closed shows nothing of Overcast, rain keeps the Fair cover up.
             float deckBaseline = deck.HasValue ? Rig.LayerCover(deckIndex) : float.NaN;
             double padRain = Rig.PrecipitationLevel;
@@ -361,6 +364,8 @@ namespace ReDefinition.Atmospheres.Viewer
                 foreach (ProbeWait w in Poll(arrived, PollMapS)) yield return w;
                 float deckRead = deck.HasValue ? Rig.LayerCover(deckIndex) : float.NaN, cumulusRead = cumulus.HasValue ? Rig.LayerCover(cumulusIndex) : float.NaN;
                 if (weather == ViewerWeather.Fair) cumulusFair = cumulusRead;
+                float deckBefore = deckUnderCumulus;
+                if (weather == ViewerWeather.Cumulus) deckUnderCumulus = deckRead;
                 string wanted = weather == ViewerWeather.Cumulus ? "cumulus cover at least " + F(cumulusFair + CoverRise) : "deck cover " + (deckUp ? "at least " : "at most ") + F(deckWanted);
                 string seen = "deck " + F(deckRead) + ", cumulus " + F(cumulusRead);
                 string unclear = null;
@@ -368,7 +373,9 @@ namespace ReDefinition.Atmospheres.Viewer
                     unclear = "the field's own deck cover at the pad was " + F(deckBaseline) + " before anything was forced: forcing it shows no change";
                 else if (weather == ViewerWeather.Fair && !polled && padRain > RainAtPadLevel)
                     unclear = "it rains at the pad (level " + F(padRain) + "): the deck's rain floor keeps the cover up, which the Fair preset does not switch off";
-                if (weather == ViewerWeather.Overcast || weather == ViewerWeather.Fair) Info("weather_" + tag + "_unclear", unclear != null ? 1.0 : 0.0);
+                else if (weather == ViewerWeather.RainDeck && deck.HasValue && deckBefore >= CoverHigh)
+                    unclear = "the deck stood at " + F(deckBefore) + " under the Cumulus preset (the rain floor of rain at the pad): forcing it shows no change";
+                if (weather == ViewerWeather.Overcast || weather == ViewerWeather.Fair || weather == ViewerWeather.RainDeck) Info("weather_" + tag + "_unclear", unclear != null ? 1.0 : 0.0);
                 if (unclear != null) Unclear("weather_" + tag + "_cover", wanted + (weather == ViewerWeather.Overcast ? " (from " + F(deckBaseline) + ")" : ""), seen, unclear);
                 else Verdict("weather_" + tag + "_cover", weather + ": the pass draws it (the layer's cover at the vessel)", polled,
                              wanted + (weather == ViewerWeather.Overcast ? ", from the field's " + F(deckBaseline) : ""), seen);
@@ -498,6 +505,14 @@ namespace ReDefinition.Atmospheres.Viewer
             Verdict("capture_second", "a second picture has its own file and the first stays", polled && Rig.FileSize(Rig.CapturePicturePath(picture ?? "")) > MinPictureBytes, "two different files", picture + " and " + Rig.LastCapture);
 
             // --- The window closed: everything back ---
+            // Closed from a dirty state, so that the close has something to undo: a forced weather with forced rain, the other side of the A/B pair, a time offset and the time held.
+            // (Before this the options were back already except the cloud speed and the clock was at its natural time, so a close that restored nothing passed.)
+            Rig.SetWeather(ViewerWeather.RainDeck);
+            Rig.FlipAB();
+            Rig.SetTimeOffset(OffsetSeconds);
+            yield return ProbeWait.Seconds(1.5);
+            Rig.FreezeTime(true);
+            yield return ProbeWait.Seconds(1);
             double naturalAtClose = Rig.ClockNatural, realClose = Rig.RealS;
             Rig.ToggleWindow();
             foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, PollShortS)) yield return w;

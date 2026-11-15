@@ -176,7 +176,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                     // The drift row is written only where the layers have wind to measure, the Overcast and Fair cover rows only where the field's own weather lets them tell; every
                     // other check is required.
                     bool optional = pair.Value.ContainsKey("required") && (bool)pair.Value["required"] == false;
-                    bool mayBeMissing = pair.Key == "VIEWER.speed_drift_ratio_ok" || pair.Key == "VIEWER.weather_overcast_cover_ok" || pair.Key == "VIEWER.weather_fair_cover_ok";
+                    bool mayBeMissing = pair.Key == "VIEWER.speed_drift_ratio_ok" || pair.Key == "VIEWER.weather_overcast_cover_ok" || pair.Key == "VIEWER.weather_fair_cover_ok"
+                                       || pair.Key == "VIEWER.weather_raindeck_cover_ok";
                     Assert.AreEqual(mayBeMissing, optional, pair.Key + (optional ? " is optional" : " is required: it is a check"));
                 }
                 else Assert.IsTrue(pair.Value.ContainsKey("required") && (bool)pair.Value["required"] == false, pair.Key + " is information (required false)");
@@ -340,6 +341,14 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         }
 
         [TestMethod]
+        public void ACloseThatLeavesTheTimeOffsetAndTheFreezeInPlaceFailsRestoreTime()
+        {
+            Run r = Start(rig => rig.CloseKeepsTimeOffset = true);
+            Drive(r);
+            AssertFailsWith(r, "restore_time");
+        }
+
+        [TestMethod]
         public void ADeckAlreadyClosedAtThePadMakesTheOvercastCheckUnclearNotPassedOrFailed()
         {
             Run r = Start(rig => rig.FieldOvercast = true);
@@ -363,6 +372,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(1.0, double.Parse(rows[ViewerProbe.Prefix + "weather_fair_unclear"], System.Globalization.CultureInfo.InvariantCulture));
             Assert.AreEqual(0.0, double.Parse(rows[ViewerProbe.Prefix + "weather_overcast_unclear"], System.Globalization.CultureInfo.InvariantCulture));
             Assert.IsTrue(raining.Log.Any(l => l.Contains("UNCLEAR (it rains at the pad")), Dump(raining));
+            Assert.IsTrue(raining.Log.Any(l => l.StartsWith("Probe: warning weather_fair_cover")), "an unclear check is a warning in the report: " + Dump(raining));
 
             Run dry = Start(rig => { rig.RainAtPad = true; rig.RainUnreadable = true; });
             Drive(dry);
