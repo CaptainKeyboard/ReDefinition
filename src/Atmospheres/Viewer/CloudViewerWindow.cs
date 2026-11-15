@@ -184,21 +184,17 @@ namespace ReDefinition.Atmospheres.Viewer
             // The altitude above the ground on a log scale, from 10 m to the orbit edge; a typed number in metres does the same.
             double depth = GameGlobals.ActiveVessel != null && GameGlobals.ActiveVessel.mainBody != null ? GameGlobals.ActiveVessel.mainBody.atmosphereDepth : 70000.0;
             double maxAgl = AltitudeScale.MaxAglM(depth);
-            float shownAltitude = AltitudeScale.ToSlider(double.IsNaN(viewer.TargetAglM) ? 200.0 : viewer.TargetAglM);
-            var altitude = new DialogGUISlider(() => shownAltitude, AltitudeScale.ToSlider(AltitudeScale.MinAglM), AltitudeScale.ToSlider(maxAgl), false, 250f, -1f, f =>
+            // The slider shows the height the viewer holds, so that a pose button moves it too.
+            var altitude = new DialogGUISlider(() => viewer.AltitudeSlider, AltitudeScale.ToSlider(AltitudeScale.MinAglM), AltitudeScale.ToSlider(maxAgl), false, 250f, -1f, f =>
             {
-                if (Mathf.Approximately(f, shownAltitude)) return;
-                shownAltitude = f;
+                if (Mathf.Approximately(f, viewer.AltitudeSlider)) return;
                 viewer.RequestAltitude(AltitudeScale.FromSlider(f, maxAgl));
             });
             var typedAltitude = new DialogGUITextInput("", false, 8, text =>
             {
                 double m;
                 if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out m) && m >= AltitudeScale.MinAglM && m <= maxAgl)
-                {
-                    shownAltitude = AltitudeScale.ToSlider(m);
                     viewer.RequestAltitude(m);
-                }
                 return text;
             }, 90f, RowHeight);
             rows.Add(Line(new DialogGUILabel("Altitude", 80f), Tip(altitude, "Height Above Ground"),

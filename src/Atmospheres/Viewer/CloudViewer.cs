@@ -31,6 +31,7 @@ namespace ReDefinition.Atmospheres.Viewer
         private readonly IOptionStore store = new GameOptionStore();
         private readonly KspT09World world = new KspT09World();
         private readonly OptionFlip flip = new OptionFlip();
+        private readonly AltitudePlan heights = new AltitudePlan();
         private readonly Dictionary<string, double> settingsAtOpen = new Dictionary<string, double>(StringComparer.Ordinal);
         private readonly Dictionary<string, float> overridesAtOpen = new Dictionary<string, float>(StringComparer.Ordinal);
         private readonly HashSet<string> touched = new HashSet<string>(StringComparer.Ordinal);
@@ -62,7 +63,9 @@ namespace ReDefinition.Atmospheres.Viewer
         internal bool Baseline { get; private set; }
         internal double SiteLat { get; private set; }
         internal double SiteLon { get; private set; }
-        internal double TargetAglM { get; private set; } = double.NaN;
+        internal double TargetAglM { get { return heights.Target; } }
+        // The altitude slider's position: it follows the height of the last pose, slider move or typed height.
+        internal float AltitudeSlider { get { return heights.SliderValue; } }
         internal string WatchedKey { get; private set; }
         internal string LastCapture { get; private set; } = "";
         internal IOptionStore Store { get { return store; } }
@@ -109,7 +112,7 @@ namespace ReDefinition.Atmospheres.Viewer
             PoseName = "start";
             Baseline = false;
             frozenClouds = false;
-            TargetAglM = double.NaN;
+            heights.Clear();
             settingKeys.Clear();
             settingsAtOpen.Clear();
             foreach (SettingDef def in AtmospheresSettings.Definitions)
@@ -323,7 +326,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             pendingAgl = aglM;
             pendingSince = Time.unscaledTime;
-            TargetAglM = aglM;
+            heights.Want(aglM);
         }
 
         private void PlaceAt(double aglM, bool keepAim)
@@ -342,7 +345,7 @@ namespace ReDefinition.Atmospheres.Viewer
             world.PlaceVessel(SiteLat, SiteLon, altitude);
             world.StartHold();
             placed = true;
-            TargetAglM = aglM;
+            heights.Want(aglM);
             aimIn = AimDelayFrames;
             CloudBridgeLights.RequestHistoryReset("cloud viewer placement");
             AtmospheresLog.Say("cloud viewer: vessel placed " + aglM.ToString("0", CultureInfo.InvariantCulture) + " m above the ground (" + altitude.ToString("0", CultureInfo.InvariantCulture)

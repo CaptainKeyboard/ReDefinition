@@ -233,6 +233,33 @@ namespace ReDefinition.Atmospheres.Viewer
         }
     }
 
+    // The height the viewer last placed the vessel at, and what the altitude slider shows for it: a pose button, the slider and the typed height all change the same value,
+    // so the slider follows whichever of them was used last.
+    internal sealed class AltitudePlan
+    {
+        // The slider's height before anything was placed.
+        internal const double DefaultAglM = 200.0;
+
+        // The height above the ground the vessel was placed at or is to be placed at; NaN before a placement.
+        internal double Target { get; private set; } = double.NaN;
+
+        internal void Want(double aglM)
+        {
+            Target = aglM;
+        }
+
+        internal void Clear()
+        {
+            Target = double.NaN;
+        }
+
+        // The slider's position on its log scale.
+        internal float SliderValue
+        {
+            get { return AltitudeScale.ToSlider(double.IsNaN(Target) ? DefaultAglM : Target); }
+        }
+    }
+
     // The schedule of a picture: the window is hidden for HideFrames frames, the picture is asked for in the frame after, and the window stays hidden through that
     // frame too (the screen is read at the end of the frame the request is made in), then it is shown again.
     internal sealed class CaptureSchedule

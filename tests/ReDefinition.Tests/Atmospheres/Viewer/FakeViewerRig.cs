@@ -118,8 +118,14 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             }
         }
 
+        private readonly AltitudePlan plan = new AltitudePlan();
+
+        // What the altitude slider shows (the viewer's AltitudeSlider).
+        internal float AltitudeSlider { get { return plan.SliderValue; } }
+
         private void Place(double aglM, bool keep)
         {
+            plan.Want(aglM);
             wantAgl = aglM;
             agl = SliderPlacesWrong && keep ? aglM + 300.0 : aglM;
             keepAim = keep;
@@ -212,6 +218,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             {
                 open = session = true;
                 clock = new ViewerClock(gameUt);
+                plan.Clear();
                 openSettings.Clear();
                 foreach (string k in new[] { AtmospheresSettings.Keys.CloudSoftness, AtmospheresSettings.Keys.ForceLevel, AtmospheresSettings.Keys.ForceType }) openSettings[k] = Options.Setting(k);
                 touched.Clear();
