@@ -77,6 +77,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.AnvilSeconds, fixture.AnvilSeconds, 1e-6f, n + " anvil seconds");
             Assert.AreEqual(shipped.AnvilUpdraftMs, fixture.AnvilUpdraftMs, 1e-6f, n + " anvil updraft");
             Assert.AreEqual(shipped.AnvilScale, fixture.AnvilScale, 1e-6f, n + " anvil scale");
+            Assert.AreEqual(shipped.AnvilClusterScale, fixture.AnvilClusterScale, 1e-6f, n + " anvil cluster scale");
             Assert.AreEqual(shipped.LightIsotropy, fixture.LightIsotropy, 1e-6f, n + " light isotropy");
             Assert.AreEqual(shipped.LightPlateau, fixture.LightPlateau, 1e-6f, n + " light plateau");
             Assert.AreEqual(shipped.AmbientMs, fixture.AmbientMs, 1e-6f, n + " sky diffusion amplitude");

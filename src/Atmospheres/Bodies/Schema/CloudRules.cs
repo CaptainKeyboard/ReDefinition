@@ -274,6 +274,10 @@ namespace ReDefinition.Atmospheres
         // the meso stage: AnvilMap.PaintCells draws each cell's footprint into the maps area-averaged over the texel, AnvilMap.ApplyCells spreads each cell's anvil from the cell's own numbers
         // (centre, radius, strength). Off by default; the layer needs an anvil type.
         internal bool CellList { get; set; }
+        // A storm is a cluster of updraft cells (cfg key anvilClusterScale): the cells of a cellList layer that lie within this many anvil reaches (the stronger cell's tower radius x (R / r - 1), the
+        // outflow law) of a stronger cell with an anvil are part of that storm: they keep their towers and feed the one sheet, whose radius follows the area of all their updrafts (the sheet's
+        // volume is the outflow of the whole cluster). 1 = derived from the body (the law's reach), 0 = every cell spreads its own anvil, above 1 = a wider storm.
+        internal float AnvilClusterScale { get; set; } = 1f;
         internal const float DefaultAnvilSeconds = 3600f, DefaultAnvilUpdraftMs = 0f;
         // The mid-level sheet's rule (E40 L2 D1; cfg keys altoType, altoFrom, altoFullAt): AltoType is the type value of the table's mid-level sheet (an altocumulus), -1: none. Where the
         // generator makes more cloud at that type's height than at the fair-weather type's height (the difference of the two layer maps, from AltoFrom to AltoFullAt), the type map

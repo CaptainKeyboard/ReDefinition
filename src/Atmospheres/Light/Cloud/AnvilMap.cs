@@ -119,6 +119,9 @@ namespace ReDefinition.Atmospheres
         internal sealed class Report
         {
             internal readonly List<double> TowerRadiusM = new List<double>(), ReachM = new List<double>(), UpdraftMs = new List<double>(), Strength = new List<double>();
+            // Per source: the number of cells in its storm (1: alone). Cells: the cells with a tower and an outflow, Absorbed: those that joined the storm of a stronger cell (ApplyCells).
+            internal readonly List<int> Members = new List<int>();
+            internal int Cells, Absorbed;
             internal double ShiftTexels;
             internal int Changed;
         }
@@ -441,6 +444,22 @@ namespace ReDefinition.Atmospheres
             return drawn;
         }
 
+        // One cell with a tower and an outflow, as ApplyCells sees it: its texel, its tower radius, updraft and the anvil's reach beyond the tower by the law; Area is the summed cross-section
+        // of the updrafts of its storm (its own, then every cell that joined it) and Members the number that joined.
+        private sealed class CellTower
+        {
+            internal int Cell, Cx, Cy, Members;
+            internal double Load, TowerR, Updraft, Reach, Area;
+        }
+
+        // The distance over the surface (m) between two cells (haversine).
+        internal static double SurfaceDistanceM(AtmoSim.Core.ConvectiveCell a, AtmoSim.Core.ConvectiveCell b, double radiusM)
+        {
+            double sLat = Math.Sin(0.5 * (b.LatRad - a.LatRad)), sLon = Math.Sin(0.5 * WrapPi(b.LonRad - a.LonRad));
+            double h = sLat * sLat + Math.Cos(a.LatRad) * Math.Cos(b.LatRad) * sLon * sLon;
+            return 2.0 * radiusM * Math.Asin(Math.Min(1.0, Math.Sqrt(Math.Max(0.0, h))));
+        }
+
         private static double WrapPi(double x)
         {
             x = x % (2.0 * Math.PI);
@@ -469,39 +488,71 @@ namespace ReDefinition.Atmospheres
             var anvil = new float[n];
             var core = new bool[n];
             bool any = false;
+            // The cells that have a tower and an outflow, strongest first (equal strengths by their place in the list: the same order every time).
+            var towers = new List<CellTower>();
             for (int ci = 0; ci < cells.Count; ci++)
             {
                 AtmoSim.Core.ConvectiveCell c = cells[ci];
                 if (!(c.Strength >= MinCellStrength) || !(c.RadiusM > 0.0)) continue;
                 double load = CellCoverGain * c.Strength;
                 if (!(load > outlineLoad)) continue;
-                int cy = Math.Max(0, Math.Min(h - 1, (int)Math.Floor((0.5 - c.LatRad / Math.PI) * h)));
-                int cx = (((int)Math.Floor((c.LonRad / (2.0 * Math.PI) + 0.5) * w) % w) + w) % w;
                 // the type of the cell's own rain (the precipitation axis, rainType x level), not the painted texel: the outflow does not depend on where the grid falls
                 double outflow = OutflowAt(layer, layer.RainType * Math.Max(0.0, Math.Min(1.0, c.RainLevel)));
                 if (!(outflow > 0.0)) continue;
-                double towerR = c.RadiusM * Math.Sqrt(Math.Log(load / outlineLoad));
-                double updraft = full * Math.Min(1.0, c.Strength) * outflow;
-                double reach = towerR * (RadiusRatio(updraft, layer.AnvilSeconds, depth, layer.AnvilScale) - 1.0);
-                if (report != null) { report.TowerRadiusM.Add(towerR); report.ReachM.Add(reach); report.UpdraftMs.Add(updraft); report.Strength.Add(c.Strength); }
+                var t = new CellTower { Cell = ci, Load = load };
+                t.Cy = Math.Max(0, Math.Min(h - 1, (int)Math.Floor((0.5 - c.LatRad / Math.PI) * h)));
+                t.Cx = (((int)Math.Floor((c.LonRad / (2.0 * Math.PI) + 0.5) * w) % w) + w) % w;
+                t.TowerR = c.RadiusM * Math.Sqrt(Math.Log(load / outlineLoad));
+                t.Updraft = full * Math.Min(1.0, c.Strength) * outflow;
+                t.Reach = t.TowerR * (RadiusRatio(t.Updraft, layer.AnvilSeconds, depth, layer.AnvilScale) - 1.0);
+                t.Area = Math.PI * t.TowerR * t.TowerR;
+                towers.Add(t);
+            }
+            towers.Sort((a, b) => cells[a.Cell].Strength != cells[b.Cell].Strength ? cells[b.Cell].Strength.CompareTo(cells[a.Cell].Strength) : a.Cell.CompareTo(b.Cell));
+            // A storm is a cluster of updraft cells: a cell within the cluster scale x the reach of a stronger cell's anvil joins that cell's storm (the strongest cell of a storm is its
+            // source; the storm's sheet is the outflow of the area of all its updrafts, so its tower radius in the law is that of the summed area).
+            var sources = new List<CellTower>();
+            double clusterScale = Math.Max(0.0, layer.AnvilClusterScale);
+            foreach (CellTower t in towers)
+            {
+                AtmoSim.Core.ConvectiveCell c = cells[t.Cell];
+                CellTower owner = null;
+                if (clusterScale > 0.0)
+                    foreach (CellTower s in sources)
+                    {
+                        double limit = clusterScale * s.Reach;
+                        if (!(limit > 1.0) || Math.Abs(c.LatRad - cells[s.Cell].LatRad) * radius > limit) continue;
+                        if (SurfaceDistanceM(c, cells[s.Cell], radius) < limit) { owner = s; break; }
+                    }
+                if (owner != null) { owner.Area += t.Area; owner.Members++; }
+                else sources.Add(t);
+                // every cell's tower is drawn (the sheet does not cover it); the cell's own cover at its centre is the sheet's value where it joins the tower (the painted texel is an area average, below it)
                 double cosC = Math.Max(Math.Cos(c.LatRad), 1e-3);
                 double dx = 2.0 * Math.PI * radius * cosC / w;
-                // the cell's own cover at its centre is the sheet's value where it joins the tower (the painted texel is an area average, below it)
-                double covMax = 1.0 - Math.Exp(-load);
-                int towerRows = (int)Math.Ceiling(towerR / dy) + 1, towerCols = Math.Min(w / 2, (int)Math.Ceiling(towerR / dx) + 1);
+                int towerRows = (int)Math.Ceiling(t.TowerR / dy) + 1, towerCols = Math.Min(w / 2, (int)Math.Ceiling(t.TowerR / dx) + 1);
                 for (int oy = -towerRows; oy <= towerRows; oy++)
                 {
-                    int qy = cy + oy;
+                    int qy = t.Cy + oy;
                     if (qy < 0 || qy >= h) continue;
                     for (int ox = -towerCols; ox <= towerCols; ox++)
                     {
                         double ex = ox * dx, ey = oy * dy;
-                        if (ex * ex + ey * ey > towerR * towerR) continue;
-                        int i = qy * w + (((cx + ox) % w) + w) % w;
-                        core[i] = true;
+                        if (ex * ex + ey * ey > t.TowerR * t.TowerR) continue;
+                        core[qy * w + (((t.Cx + ox) % w) + w) % w] = true;
                     }
                 }
-                core[cy * w + cx] = true;
+                core[t.Cy * w + t.Cx] = true;
+            }
+            if (report != null) { report.Cells += towers.Count; report.Absorbed += towers.Count - sources.Count; }
+            foreach (CellTower t in sources)
+            {
+                AtmoSim.Core.ConvectiveCell c = cells[t.Cell];
+                double towerR = t.TowerR, reach = t.Members > 0 ? Math.Sqrt(t.Area / Math.PI) * (RadiusRatio(t.Updraft, layer.AnvilSeconds, depth, layer.AnvilScale) - 1.0) : t.Reach;
+                int cy = t.Cy, cx = t.Cx;
+                if (report != null) { report.TowerRadiusM.Add(towerR); report.ReachM.Add(reach); report.UpdraftMs.Add(t.Updraft); report.Strength.Add(c.Strength); report.Members.Add(t.Members + 1); }
+                double cosC = Math.Max(Math.Cos(c.LatRad), 1e-3);
+                double dx = 2.0 * Math.PI * radius * cosC / w;
+                double covMax = 1.0 - Math.Exp(-t.Load);
                 if (!(reach > 1.0) || covMax <= medianRaw) continue;
                 double end = SheetEnd(covMax, medianRaw, visRaw, reach);
                 int reachRows = Math.Min(MaxReachTexels, (int)Math.Ceiling((towerR + end) / dy) + 1);
