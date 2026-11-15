@@ -27,8 +27,9 @@ namespace ReDefinition.Atmospheres.Viewer
         int PassLayerMask { get; }
         // The camera's vertical field of view in degrees.
         double FieldOfViewDeg { get; }
-        // The share of the frame a viewer picture fills with cloud against the baseline picture (both by their file names); false where either cannot be read.
-        bool MeasurePictures(string picture, string baseline, out MaskReading reading);
+        // The share of the frame a viewer picture fills with cloud against the baseline picture (both by their file names), counting the rows from skyFromV (a share of the height
+        // from the bottom) up; false where either cannot be read.
+        bool MeasurePictures(string picture, string baseline, double skyFromV, out MaskReading reading);
     }
 
     // The game's solo rig: the viewer's solo control, the pass's renderer, the camera and the picture files.
@@ -70,14 +71,14 @@ namespace ReDefinition.Atmospheres.Viewer
             }
         }
 
-        public bool MeasurePictures(string picture, string baseline, out MaskReading reading)
+        public bool MeasurePictures(string picture, string baseline, double skyFromV, out MaskReading reading)
         {
             reading = default(MaskReading);
             Texture2D a = Load(picture), b = Load(baseline);
             try
             {
                 if (a == null || b == null || a.width != b.width || a.height != b.height) return false;
-                reading = PictureMask.Measure(a.GetPixels32(), b.GetPixels32(), a.width, a.height);
+                reading = PictureMask.Measure(a.GetPixels32(), b.GetPixels32(), a.width, a.height, skyFromV);
                 return reading.Valid;
             }
             finally

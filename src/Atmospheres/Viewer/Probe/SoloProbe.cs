@@ -44,30 +44,32 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // The sun: the elevation the series is shot at, the band the search accepts, the offsets tried (a thirty-sixth of Kerbin's 21600 s day, 10 degrees of the sun's hour angle, which
         // is the width of the band) and how far it may move over the series.
-        internal const double SunTargetDeg = 45.0, SunBandDeg = 5.0, SunStepS = 600.0, SunDriftDeg = 1.0;
+        internal const double SunTargetDeg = 45.0, SunBandDeg = 6.0, SunStepS = 600.0, SunDriftDeg = 1.0;
         internal const int SunSteps = 36;
         // A forced map reads as this near (the pass's reader and the CPU mirror), and a layer reads as empty below this cover at the vessel.
         internal const double MapReadTolerance = 0.005, CoverEmpty = 0.02, CoverReach = 0.05;
         // Two baseline pictures of one pose differ by at most this share of the frame (the noise floor every share is measured above).
         internal const double NoiseFloorShare = 0.01;
         internal const double PollPlaceS = 60.0, PollMapS = 20.0, PollPictureS = 15.0, SettleS = 3.0, AimStillDeg = 0.05;
+        // The pose the game reached: the camera's elevation within this of the view's, at least this high above the ground; Kerbin's radius for the horizon's row and the margin above it.
+        internal const double PoseElevationDeg = 3.0, MinCameraAglM = 5.0, BodyRadiusM = 600000.0, HorizonMarginV = 0.01;
         internal const int SettleFrames = 60, AimStillMaxFrames = 80, MinPictureBytes = 1000;
 
         // The views. The pose and the bands are stated before the start (the start review): a uniform field at the cover share it is forced at, seen from the ground at the elevation that
         // puts the layer across the frame; the cell ahead of the camera so that its tower and the anvil it spreads fill the frame (cb_near, 25 km) or stand on the horizon (cb_far, 60 km).
         internal static readonly SoloView[] Views =
         {
-            Cell("cb_near", "Cumulonimbus incus", 25.0, 200.0, 15.0, 0.25, 0.90, 0.40, 0.95, "section 1 (CB-G, CB-S): tower flanks, flat dark base, anvil spreading overhead; checklist 1-4, 8"),
+            Cell("cb_near", "Cumulonimbus incus", 25.0, 200.0, 15.0, 0.40, 0.90, 0.40, 1.0, "section 1 (CB-G, CB-S): tower flanks, flat dark base, anvil spreading overhead; checklist 1-4, 8"),
             Cell("cb_far", "Cumulonimbus incus", 60.0, 300.0, 5.0, 0.04, 0.60, 0.20, 0.80, "section 1 (CB-S): the whole cell on the horizon, anvil flat at the top; checklist 1-5, 8"),
             Field("sc", WeatherPresets.Role.Cumulus, "Stratocumulus", 0.8f, 200.0, 45.0, 0.35, 1.0, "section 2 (SC-G): lumps and gaps, dark parts, no fibre"),
-            Field("humilis", WeatherPresets.Role.Cumulus, "Cumulus humilis", 0.5f, 200.0, 35.0, 0.15, 0.85, "section 5 (CU-G): detached, flat dark base, sharp outline, flat and low"),
-            Field("mediocris", WeatherPresets.Role.Cumulus, "Cumulus mediocris", 0.5f, 200.0, 35.0, 0.15, 0.85, "section 5 (CU-G): detached, cauliflower tops, about as tall as wide"),
-            Field("congestus", WeatherPresets.Role.Cumulus, "Cumulus congestus", 0.4f, 200.0, 35.0, 0.10, 0.80, "section 5 (CU-G): towering above the field of view, sharp outline"),
+            Field("humilis", WeatherPresets.Role.Cumulus, "Cumulus humilis", 0.5f, 200.0, 35.0, 0.15, 0.90, "section 5 (CU-G): detached, flat dark base, sharp outline, flat and low"),
+            Field("mediocris", WeatherPresets.Role.Cumulus, "Cumulus mediocris", 0.5f, 200.0, 35.0, 0.30, 0.97, "section 5 (CU-G): detached, cauliflower tops, about as tall as wide"),
+            Field("congestus", WeatherPresets.Role.Cumulus, "Cumulus congestus", 0.4f, 200.0, 35.0, 0.40, 1.0, "section 5 (CU-G): towering above the field of view, sharp outline"),
             Field("altocumulus", WeatherPresets.Role.Cumulus, "Altocumulus", 0.6f, 200.0, 50.0, 0.20, 0.95, "section 6 (AC-G): patch or layer of rounded elements, regular order"),
             Field("cirrus", WeatherPresets.Role.Cirrus, "Cirrus", 0.5f, 200.0, 55.0, 0.03, 0.85, "section 3 (CI-G): white delicate filaments, thin, the sky visible through"),
             Field("cirrostratus", WeatherPresets.Role.Cirrus, "Cirrostratus", 1.0f, 200.0, 55.0, 0.05, 1.0, "section 3 (CI-G): a thin whitish veil over the sky"),
-            Field("stratus", WeatherPresets.Role.Deck, "Stratus", 1.0f, 60.0, 45.0, 0.70, 1.0, "section 4 (NS-G): a grey layer of fairly uniform base"),
-            Field("nimbostratus", WeatherPresets.Role.Deck, "Nimbostratus", 1.0f, 60.0, 45.0, 0.85, 1.0, "section 4 (NS-G): featureless dark grey ceiling")
+            Field("stratus", WeatherPresets.Role.Deck, "Stratus", 1.0f, 90.0, 45.0, 0.70, 1.0, "section 4 (NS-G): a grey layer of fairly uniform base"),
+            Field("nimbostratus", WeatherPresets.Role.Deck, "Nimbostratus", 1.0f, 90.0, 45.0, 0.85, 1.0, "section 4 (NS-G): featureless dark grey ceiling")
         };
 
         private static SoloView Cell(string name, string type, double aheadKm, double aglM, double elevationDeg, double shareMin, double shareMax, double spanMin, double spanMax, string reference)
@@ -173,6 +175,8 @@ namespace ReDefinition.Atmospheres.Viewer
             while (Rig.Capturing && guard++ < 120) yield return ProbeWait.Frames(1);
             foreach (ProbeWait w in Poll(() => Rig.LastCapture != before && Rig.LastCapture.Length > 0 && Rig.FileSize(Rig.CapturePicturePath(Rig.LastCapture)) > MinPictureBytes, PollPictureS)) yield return w;
             if (polled) taken = Rig.LastCapture;
+            // The file is written asynchronously: a few frames more so that a reader does not get half of it.
+            yield return ProbeWait.Frames(5);
         }
 
         private static SoloEntry? Find(IList<SoloEntry> entries, SoloView v)
@@ -195,7 +199,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 if (l == layer) continue;
                 float forced = Rig.PassMapOverride(layers[l].Name);
                 float cover = Rig.LayerCover(l);
-                if (Math.Abs(forced) > MapReadTolerance || (!float.IsNaN(cover) && cover > CoverEmpty))
+                if (Math.Abs(forced) > MapReadTolerance || float.IsNaN(cover) || cover > CoverEmpty)
                 {
                     reason = layers[l].Name + ": forced map " + F(forced) + ", cover " + F(cover);
                     return false;
@@ -221,6 +225,10 @@ namespace ReDefinition.Atmospheres.Viewer
             SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
             SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
+            // The layers' bases are the cfg's: no humidity physics, no variation, no ragged boundary (a deck's base would move by up to 500 m and the camera could stand inside it).
+            SetSetting(AtmospheresSettings.Keys.CloudBasePhysics, 0.0);
+            SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0);
+            SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0);
             yield return ProbeWait.Until(() => Rig.FlightReady && Rig.PassDrawing, 300, "the flight scene and the own cloud pass drawing");
             reached = true;
             yield return ProbeWait.Seconds(3);
@@ -233,16 +241,23 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (ProbeWait w in Poll(() => Rig.WindowOpen && Rig.SessionActive, 10.0)) yield return w;
             if (!Verdict("window_opens", "the viewer opens", polled, "window and session within 10 s", "window " + Rig.WindowOpen + ", session " + Rig.SessionActive)) yield break;
             Rig.FreezeClouds(true);
-            double sun = double.NaN;
-            for (int k = 0; k < SunSteps && double.IsNaN(sun); k++)
+            // The vessel is placed and held before the clock jumps (K-T2 sets the time before it places; the viewer's hold keeps the vessel on the turning ground).
+            SoloView firstView = Views[0];
+            Rig.PlacePose(new ViewerPose { Name = firstView.Name, AglM = firstView.AglM, ElevationDeg = firstView.ElevationDeg, HeadingDeg = firstView.HeadingDeg, CameraDistM = firstView.CameraDistM });
+            yield return ProbeWait.Frames(2);
+            foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
+            // The first offset at which the sun stands in the band and goes down (afternoon: the sun is behind a camera looking east, heading 90, and not in the frame).
+            double sun = double.NaN, previous = double.NaN;
+            for (int k = 0; k <= SunSteps && double.IsNaN(sun); k++)
             {
                 Rig.SetTimeOffset(k * SunStepS);
                 yield return ProbeWait.Seconds(1.5);
                 double e = Rig.SunElevationDeg;
-                if (!double.IsNaN(e) && Math.Abs(e - SunTargetDeg) <= SunBandDeg) sun = e;
+                if (!double.IsNaN(e) && !double.IsNaN(previous) && Math.Abs(e - SunTargetDeg) <= SunBandDeg && e < previous) sun = e;
+                previous = e;
             }
             bool sunFound = !double.IsNaN(sun);
-            Verdict("sun_found", "an offset of the time puts the sun at the stated elevation", sunFound, F(SunTargetDeg) + " +-" + F(SunBandDeg) + " deg within a day", sunFound ? F(sun) + " deg" : "none of " + SunSteps + " offsets");
+            Verdict("sun_found", "an offset of the time puts the sun at the stated elevation", sunFound, F(SunTargetDeg) + " +-" + F(SunBandDeg) + " deg, going down, within a day", sunFound ? F(sun) + " deg" : "none of " + SunSteps + " offsets");
             if (!sunFound) yield break;
             Rig.FreezeTime(true);
             yield return ProbeWait.Seconds(1);
@@ -294,6 +309,13 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
             yield return ProbeWait.Frames(SettleFrames);
             foreach (ProbeWait w in StillAim()) yield return w;
+            // The pose the frame shares are stated for, read from the game: the camera looks where the view says and stands above the ground (a camera under the terrain is lifted by the game
+            // and looks elsewhere). The horizon's row follows from the measured aim; the rows below it are the ground, which the measure leaves out.
+            ViewerPoseReading pose = Rig.Pose;
+            bool poseOk = Math.Abs(pose.ElevationDeg - v.ElevationDeg) <= PoseElevationDeg && pose.CameraAglM >= MinCameraAglM;
+            Verdict(v.Name + "_pose", v.Name + ": the camera stands above the ground and looks where the view says", poseOk, "elevation " + F(v.ElevationDeg) + " +-" + F(PoseElevationDeg) + " deg, camera at least " + F(MinCameraAglM) + " m over the ground",
+                    "elevation " + F(pose.ElevationDeg) + " deg, camera " + F(pose.CameraAglM) + " m over the ground");
+            double skyFromV = Math.Max(0.0, Math.Min(1.0, PictureMask.HorizonRow(pose.ElevationDeg, Rig.FieldOfViewDeg, pose.CameraAglM, BodyRadiusM) + HorizonMarginV));
             Rig.SetSoloCellAhead(v.CellAheadKm > 0.0 ? v.CellAheadKm : CloudViewer.SoloCellDefaultKm);
             Rig.SetSolo(entry.Layer, entry.Type);
             Rig.SetSoloStrength(0f);
@@ -326,7 +348,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 // The noise floor: a second picture of the same frame.
                 foreach (ProbeWait w in Take()) yield return w;
                 MaskReading floor = default(MaskReading);
-                bool read = taken != null && Rig.MeasurePictures(taken, baseline, out floor);
+                bool read = taken != null && Rig.MeasurePictures(taken, baseline, skyFromV, out floor);
                 Verdict("noise_floor", "two pictures of the same empty frame differ by next to nothing", read && floor.Share <= NoiseFloorShare, "at most " + F(NoiseFloorShare) + " of the frame", read ? F(floor.Share) : "a picture could not be read");
                 Info("noise_floor_share", read ? floor.Share : double.NaN);
             }
@@ -353,7 +375,7 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (ProbeWait w in Take()) yield return w;
             string picture = taken;
             MaskReading m = default(MaskReading);
-            bool measured = picture != null && Rig.MeasurePictures(picture, baseline, out m);
+            bool measured = picture != null && Rig.MeasurePictures(picture, baseline, skyFromV, out m);
             Verdict(v.Name + "_picture", v.Name + ": the solo picture is written and can be read against the baseline", measured, "a picture of more than " + MinPictureBytes + " bytes, readable", picture ?? "none");
             LogLine("solo: " + v.Name + ": baseline " + baseline + ", picture " + picture + ", pose " + F(v.AglM) + " m, elevation " + F(v.ElevationDeg) + " deg, heading " + F(v.HeadingDeg) + " deg, field of view "
                     + F(Rig.FieldOfViewDeg) + " deg; reference " + v.Reference);

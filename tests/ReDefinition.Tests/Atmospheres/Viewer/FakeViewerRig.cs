@@ -198,7 +198,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public int TuningFrame { get { return frame; } }
         public int WatchedReadFrame { get { return watchedRead; } }
 
-        public ViewerPoseReading Pose
+        public virtual ViewerPoseReading Pose
         {
             get
             {

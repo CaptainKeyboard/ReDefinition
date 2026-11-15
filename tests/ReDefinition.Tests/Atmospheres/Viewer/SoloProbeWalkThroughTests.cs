@@ -122,7 +122,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Dictionary<string, string> rows = Emitted(r);
             foreach (SoloView v in SoloProbe.Views)
             {
-                foreach (string check in new[] { "type_found_ok", "background_clear_ok", "isolated_ok", "picture_ok", "share_ok" })
+                foreach (string check in new[] { "type_found_ok", "pose_ok", "background_clear_ok", "isolated_ok", "picture_ok", "share_ok" })
                     Assert.AreEqual("1", rows[SoloProbe.Prefix + v.Name + "_" + check], v.Name + " " + check);
                 Assert.AreEqual(!double.IsNaN(v.SpanMin), rows.ContainsKey(SoloProbe.Prefix + v.Name + "_span_ok"), v.Name + " span is judged where the view states it");
             }
@@ -239,6 +239,28 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Run r = Start(rig => rig.MaskNotSet = true);
             Drive(r);
             AssertFailsWith(r, "cb_near_isolated");
+        }
+
+        [TestMethod]
+        public void ACameraThatDoesNotLookWhereTheViewSaysFailsThePose()
+        {
+            Run r = Start(rig => rig.PoseLifted = true);
+            Drive(r);
+            AssertFailsWith(r, "sc_pose");
+        }
+
+        [TestMethod]
+        public void TheMeasureLeavesOutTheGroundBelowTheHorizonOfTheMeasuredPose()
+        {
+            Run r = Start();
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            // cb_far: the camera 5 degrees up over a horizon about 1.8 degrees down: the horizon row is 0.40 from the bottom, the last measure was given it plus the margin;
+            // the last view is a deck from 90 m at 45 degrees: the horizon is far below the frame.
+            Assert.AreEqual(0.0, r.Rig.LastSkyFromV, 1e-9, "no ground in the last view's frame");
+            double row = PictureMask.HorizonRow(5.0, 60.0, 300.0, 600000.0);
+            Assert.AreEqual(0.397, row, 0.005);
+            Assert.IsTrue(PictureMask.HorizonRow(45.0, 60.0, 90.0, 600000.0) < 0.0, "a view 45 degrees up has no horizon");
         }
 
         [TestMethod]

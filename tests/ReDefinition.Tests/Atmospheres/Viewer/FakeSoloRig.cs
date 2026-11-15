@@ -92,6 +92,19 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 
         public double FieldOfViewDeg { get { return 60.0; } }
 
+        // The game lifts a camera that stands under the terrain and looks elsewhere (the pose the views are stated for is not reached).
+        internal bool PoseLifted;
+
+        public override ViewerPoseReading Pose
+        {
+            get
+            {
+                ViewerPoseReading p = base.Pose;
+                if (PoseLifted) p.ElevationDeg -= 15.0;
+                return p;
+            }
+        }
+
         public override double SunElevationDeg { get { return base.SunElevationDeg + (SunDrifts ? RealS * 0.05 : 0.0); } }
 
         // A cell's map is empty at the vessel (it stands km ahead); a uniform field is the forced value.
@@ -118,7 +131,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 }
                 else
                 {
-                    share += 0.9 * value;
+                    // A uniform field seen obliquely covers more of the frame than its cover share.
+                    share += 0.4 + 0.5 * value;
                     span = Math.Max(span, 0.9);
                 }
             }
@@ -126,9 +140,13 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             frames[name] = new Frame { Share = Math.Min(1.0, share), Span = Math.Min(1.0, span) };
         }
 
-        public bool MeasurePictures(string picture, string baseline, out MaskReading reading)
+        // The sky row the last measure was given.
+        internal double LastSkyFromV = -1.0;
+
+        public bool MeasurePictures(string picture, string baseline, double skyFromV, out MaskReading reading)
         {
             reading = default(MaskReading);
+            LastSkyFromV = skyFromV;
             Frame p, b;
             if (!frames.TryGetValue(picture, out p) || !frames.TryGetValue(baseline, out b)) return false;
             double noise = NoisyBaseline && picture != baseline ? 0.05 : 0.0;

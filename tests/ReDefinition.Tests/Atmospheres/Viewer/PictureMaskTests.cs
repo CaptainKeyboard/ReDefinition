@@ -1,3 +1,4 @@
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres.Viewer;
 using UnityEngine;
@@ -67,6 +68,28 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(0.0, PictureMask.Measure(faint, Frame(Sky), W, H).Share, 1e-12, "4 of 255 is 0.016, under 0.03");
             Color32[] clear = Frame(new Color32(100, 140, 220, 255));
             Assert.AreEqual(1.0, PictureMask.Measure(clear, Frame(Sky), W, H).Share, 1e-12, "10 of 255 is 0.04, over it");
+        }
+
+        [TestMethod]
+        public void RowsBelowTheHorizonAreNotCountedAsCloud()
+        {
+            Color32[] picture = Frame(Sky);
+            // A shadow on the ground in the lower 40 rows (the horizon row 0.4) and a cloud in the upper 20.
+            Paint(picture, 0, W, 0, 40, new Color32(40, 60, 30, 255));
+            Paint(picture, 0, W, 80, 100, Cloud);
+            MaskReading all = PictureMask.Measure(picture, Frame(Sky), W, H);
+            MaskReading sky = PictureMask.Measure(picture, Frame(Sky), W, H, 0.41);
+            Assert.AreEqual(0.0, sky.RowLow - 0.8, 0.011, "the reach begins at the cloud, not at the ground");
+            Assert.AreEqual(1.0, sky.RowHigh, 0.011);
+            Assert.IsTrue(all.RowSpan > 0.9, "counted with the ground the reach is the whole frame: " + all.RowSpan);
+            Assert.IsTrue(sky.RowSpan < 0.25, "without it the reach is the cloud's: " + sky.RowSpan);
+        }
+
+        [TestMethod]
+        public void TheHorizonRowFollowsTheAimAndTheHeight()
+        {
+            Assert.AreEqual(0.5 - 0.5 * Math.Tan(1.8 * Math.PI / 180.0) / Math.Tan(30.0 * Math.PI / 180.0), PictureMask.HorizonRow(0.0, 60.0, 300.0, 600000.0), 0.006, "level camera: the horizon is just below the centre");
+            Assert.IsTrue(PictureMask.HorizonRow(15.0, 60.0, 200.0, 600000.0) < PictureMask.HorizonRow(5.0, 60.0, 200.0, 600000.0), "looking higher puts the horizon lower in the frame");
         }
 
         [TestMethod]

@@ -30,7 +30,17 @@ namespace ReDefinition.Atmospheres.Viewer
         // A row (a column) belongs to the cloud's reach where this share of its pixels differs.
         internal const double RowShare = 0.02;
 
-        internal static MaskReading Measure(Color32[] picture, Color32[] baseline, int width, int height)
+        // The row (as a share of the frame's height from the bottom) of the horizon: the camera looks elevationDeg above it and stands heightM over a body of the given radius, whose
+        // horizon dips by sqrt(2 h / R); the vertical field of view is fovDeg. Below 0 or above 1 the horizon is outside the frame.
+        internal static double HorizonRow(double elevationDeg, double fovDeg, double heightM, double radiusM)
+        {
+            double dip = Math.Sqrt(2.0 * Math.Max(0.0, heightM) / radiusM) * 180.0 / Math.PI;
+            double below = (-dip - elevationDeg) * Math.PI / 180.0;
+            return 0.5 + 0.5 * Math.Tan(below) / Math.Tan(0.5 * fovDeg * Math.PI / 180.0);
+        }
+
+        // Only the rows from skyFromV (a share of the height from the bottom) up count: the ground below the horizon (its cloud shadow, the sea, the grass) is not cloud.
+        internal static MaskReading Measure(Color32[] picture, Color32[] baseline, int width, int height, double skyFromV = 0.0)
         {
             var r = new MaskReading { Width = width, Height = height };
             if (picture == null || baseline == null || width <= 0 || height <= 0 || picture.Length < width * height || baseline.Length < width * height) return r;
@@ -39,6 +49,7 @@ namespace ReDefinition.Atmospheres.Viewer
             for (int y = 0; y < height; y++)
             {
                 double v = (y + 0.5) / height;
+                if (v < skyFromV) continue;
                 for (int x = 0; x < width; x++)
                 {
                     double u = (x + 0.5) / width;
