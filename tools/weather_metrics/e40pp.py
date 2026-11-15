@@ -362,8 +362,9 @@ def build_job(name, log, state, pass_json=None, dump=None):
     return job, stage
 
 
-def prepare(log_path=LOG, maps=MAPS, state=None):
-    """Copies each view's maps into the inputs and writes the jobs (state None: start62 where the dump has no pass.json, else now)."""
+def prepare(log_path=LOG, maps=MAPS, state=None, start=GAME_START):
+    """Copies each view's maps into the inputs and writes the jobs (state None: start62 where the dump has no pass.json, else now); start: the game start whose frames
+    the views are compared with (series-pictures/K-T2/start<N>, else the frames in K-T2 itself, the last start's)."""
     log = parse_log(log_path)
     os.makedirs(INPUT, exist_ok=True)
     jobs, stages, specs = [], {}, []
@@ -390,7 +391,7 @@ def prepare(log_path=LOG, maps=MAPS, state=None):
         except KeyError as e:
             print("%s: the log lacks %s, left out" % (name, e))
             continue
-        stage.update(state=st, dump=os.path.basename(dump))
+        stage.update(state=st, dump=os.path.basename(dump), start=int(start))
         jobs.append(job)
         stages[name] = stage
         specs.append(dict(id=job["id"], variation=1, physics=1, topUpdraft=1, ragged=1, humidityMap="%s-humidity.r8" % view_tag(name), updraftMap="", seed=664216370 & 0xFFFFFF))
@@ -415,8 +416,8 @@ def prepared_stages():
 # --------------------------------------------------------------------------------------------------------------------------------
 # The parity check
 # --------------------------------------------------------------------------------------------------------------------------------
-def game_frame(spec, kind):
-    path = os.path.join(GAME, "start%d" % GAME_START, "t09-soft60-%s-%s-1707x960-natural.png" % (spec["picture"], kind))
+def game_frame(spec, kind, start=GAME_START):
+    path = os.path.join(GAME, "start%d" % start,"t09-soft60-%s-%s-1707x960-natural.png" % (spec["picture"], kind))
     if not os.path.isfile(path):
         path = os.path.join(GAME, "t09-soft60-%s-%s-1707x960-natural.png" % (spec["picture"], kind))
     return e40ty.load_png(path) if os.path.isfile(path) else None
@@ -508,12 +509,12 @@ def residual_words(row):
                                                  "%+.0f %%" % (100 * row["d_edge"]) if row["d_edge"] == row["d_edge"] else "n/a")
 
 
-def pair_picture(name, game, replay, row, state):
+def pair_picture(name, game, replay, row, state, start=GAME_START):
     from PIL import Image
     sys.path.insert(0, os.path.join(REPO, "tools"))
     import picture_label as pl
     halves = []
-    for img, text in ((game, pl.text_for(game=GAME_START)), (replay, pl.text_for(parity="%s; state %s" % (residual_words(row), state)))):
+    for img, text in ((game, pl.text_for(game=start)),(replay, pl.text_for(parity="%s; state %s" % (residual_words(row), state)))):
         p = Image.fromarray(np.clip(np.rint(img * 255.0), 0, 255).astype(np.uint8), "RGB").resize((img.shape[1] // 2, img.shape[0] // 2), Image.BILINEAR)
         halves.append(pl.label_image(p, text))
     out = Image.new("RGB", (halves[0].width + halves[1].width + 6, max(h.height for h in halves)), (0, 0, 0))
@@ -521,9 +522,9 @@ def pair_picture(name, game, replay, row, state):
     out.paste(halves[1], (halves[0].width + 6, 0))
     from PIL import PngImagePlugin
     meta = PngImagePlugin.PngInfo()
-    meta.add_text(pl.KEY, "%s | %s" % (pl.text_for(game=GAME_START), pl.text_for(parity=residual_words(row))))
+    meta.add_text(pl.KEY, "%s | %s" % (pl.text_for(game=start), pl.text_for(parity=residual_words(row))))
     os.makedirs(PICTURES, exist_ok=True)
-    path = os.path.join(PICTURES, "e40-pp-%s-%s.png" % (state, name))
+    path = os.path.join(PICTURES, "e40-pp-s%d-%s-%s.png" % (start, state, name))
     out.save(path, pnginfo=meta)
     return path
 
@@ -573,7 +574,8 @@ def collect(ctx):
     stages = prepared_stages()
     for name, stage in stages.items():
         spec = VIEWS[name]
-        off, game = game_frame(spec, "off_a"), game_frame(spec, "soft_a")
+        start = stage.get("start", GAME_START)
+        off, game = game_frame(spec, "off_a", start), game_frame(spec, "soft_a", start)
         path = os.path.join(folder, case_file(name, MARCH) + ".npy")
         if off is None or game is None or not os.path.isfile(path):
             rows[name] = dict(missing="baseline" if off is None else "game frame" if game is None else "replay")
@@ -582,7 +584,7 @@ def collect(ctx):
         replay = compose(m, off, stage)
         row = compare(name, game, replay, off, stage["alt"])
         row.update(state=stage["state"], source=stage["source"], dump=stage["dump"], ut=stage["ut"], white=stage["white"])
-        row["picture"] = pair_picture(name, game, replay, row, stage["state"])
+        row["picture"] = pair_picture(name, game, replay, row, stage["state"], start)
         dump_pj = os.path.join(MAPS, stage["dump"], "pass.json")
         uni = os.path.join(folder, case_file(name, MARCH) + "-uniforms.json")
         if os.path.isfile(dump_pj) and os.path.isfile(uni):
@@ -685,6 +687,7 @@ if __name__ == "__main__":
     parser.add_argument("--log", default=LOG)
     parser.add_argument("--maps", default=MAPS)
     parser.add_argument("--state", choices=("start62", "now"))
+    parser.add_argument("--start", type=int, default=GAME_START, help="the game start the frames are of")
     parser.add_argument("--report", action="store_true")
     parser.add_argument("--collect", action="store_true", help="measure the last run's frames again (build/WeatherPlayer/e40-pp-pp-a) without running the player")
     a = parser.parse_args()
@@ -696,7 +699,7 @@ if __name__ == "__main__":
                 return os.path.join(REPO, "build", "WeatherPlayer", "e40-pp-" + label)
         collect(_Ctx())
     elif a.prepare:
-        prepare(a.log, a.maps, a.state)
+        prepare(a.log, a.maps, a.state, a.start)
     elif a.report:
         with open(RESULTS, encoding="utf-8") as f:
             data = json.load(f)
