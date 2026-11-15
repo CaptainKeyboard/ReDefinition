@@ -71,19 +71,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             var names = T09Probe.Soft60Variants.Select(v => v.Name).ToList();
             // Each weave variant has its own reference right before it (the clouds drift: a reference minutes away measures the drift).
-            CollectionAssert.AreEqual(new[] { "refsoft", "soft", "refsoftr33", "softr33", "softcut16", "soft100s24", "refsofthash", "softhash", "refsoftacc05", "softacc05" }, names);
+            CollectionAssert.AreEqual(new[] { "refsoft", "soft", "softr50", "softcut16", "soft100s24", "refsofthash", "softhash", "refsoftacc05", "softacc05" }, names);
             Assert.AreEqual(names.Count, names.Distinct().Count());
             // { fair cost, clock cost, fair views run, clock views run, frames, weave frames (the fair ground view) }
             var expected = new Dictionary<string, string[]>
             {
-                { "soft", new[] { "ga", "gias", "ga", "gias", "3", "8" } }, { "softr33", new[] { "ga", "gias", "ga", "gias", "1", "8" } },
-                { "softcut16", new[] { "g", "g", "g", "g", "1", "0" } }, { "soft100s24", new[] { "g", "", "g", "", "1", "0" } },
+                { "soft", new[] { "ga", "gias", "ga", "gias", "3", "8" } }, { "softr50", new[] { "ga", "gias", "ga", "gias", "1", "0" } },
+                { "softcut16", new[] { "g", "", "g", "", "1", "0" } }, { "soft100s24", new[] { "g", "g", "g", "g", "1", "0" } },
                 { "softhash", new[] { "", "", "g", "", "1", "8" } }, { "softacc05", new[] { "", "", "g", "", "1", "8" } },
-                { "refsoft", new[] { "", "", "g", "", "4", "0" } }, { "refsoftr33", new[] { "", "", "g", "", "4", "0" } },
+                { "refsoft", new[] { "", "", "g", "", "4", "0" } },
                 { "refsofthash", new[] { "", "", "g", "", "4", "0" } }, { "refsoftacc05", new[] { "", "", "g", "", "4", "0" } }
             };
             // The reference comes right before its variant in the table.
-            foreach (string weave in new[] { "soft", "softr33", "softhash", "softacc05" })
+            foreach (string weave in new[] { "soft", "softhash", "softacc05" })
                 Assert.AreEqual(names.IndexOf("ref" + weave) + 1, names.IndexOf(weave), weave + " follows its reference");
             foreach (T09Probe.SoftVariant v in T09Probe.Soft60Variants)
             {
@@ -108,22 +108,23 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     foreach (string removed in SoftRemoved) Assert.IsFalse(key.Contains(removed), v.Name + ": " + key + " is on the removal list");
                 }
             }
-            // Every cost view the lead asked for: soft and softr33 in all views, softcut16 at the two grounds, soft100s24 at the fair ground.
+            // Every cost view the lead asked for: soft and softr50 in all views, softcut16 at the fair ground, soft100s24 at the two grounds.
             Assert.AreEqual("gias", T09Probe.Soft60Default.ClockCost);
-            Assert.AreEqual("gias", T09Probe.Soft60Variants.First(v => v.Name == "softr33").ClockCost);
+            Assert.AreEqual("gias", T09Probe.Soft60Variants.First(v => v.Name == "softr50").ClockCost);
             // The weave variants are the fair ground view only; the references are the 256-step march.
             T09Probe.SoftExpectation soft = T09Probe.SoftExpect(T09Probe.Soft60Default);
             Func<string, T09Probe.SoftExpectation> of = n => T09Probe.SoftExpect(T09Probe.Soft60Variants.First(v => v.Name == n));
             Assert.AreEqual(0.2f, soft.Accumulate, 1e-6f, "the default history weight");
             Assert.AreEqual(0.05f, of("softacc05").Accumulate, 1e-6f);
             Assert.AreEqual(1, of("softhash").DitherSequence);
-            foreach (string r in new[] { "refsoft", "refsoftr33", "refsofthash", "refsoftacc05" })
+            foreach (string r in new[] { "refsoft", "refsofthash", "refsoftacc05" })
             {
                 Assert.AreEqual(256, of(r).GridPoints, r + " marches 256 grid points");
                 Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, of(r).Resolution, 1e-6f, r + " is the converged picture at the default target");
             }
             Assert.AreEqual(48, soft.GridPoints);
-            Assert.AreEqual(0.33f, of("softr33").Resolution, 1e-6f);
+            Assert.AreEqual(0.5f, of("softr50").Resolution, 1e-6f, "softr50 is the march target of before C1");
+            Assert.IsFalse(of("softr50").SkipEmpty, "softr50 differs from soft by the target alone");
             Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, of("softacc05").Resolution, 1e-6f, "the history variants keep the default target");
             foreach (T09Probe.SoftVariant v in T09Probe.Soft60ExtraTable) Assert.AreEqual("", v.FairCost + v.ClockCost, "the extra looks have no cost window");
         }
@@ -136,7 +137,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The guard of the type views (Soft60TypeView) leaves a view out that the time no longer holds, with SoftReserveS to spare: the plan must fit that much of the limit. Start 60's
             // part before the type views took 717 s against a plan of 892 s, so the plan has room that it does not use.
             Assert.IsTrue(estimate <= T09Probe.SoftMaxSeconds - T09Probe.SoftReserveS, "the plan needs " + estimate.ToString("0") + " s of " + T09Probe.SoftMaxSeconds.ToString("0") + " (the pin is 1060)");
-            Assert.AreEqual(1037.5, estimate, 1e-6, "the plan as built: 1037.5 s (1017.5 s before the far placements were priced: the four views from the air take 12 s to place, not 7; 1007.5 s of the first build: one reference of 8 frames, softacc10, two scans; now four references of 4 frames before their variants, no softacc10, one scan)");
+            Assert.AreEqual(1020.0, estimate, 1e-6, "the plan as built: 1020 s (softr50 has no weave and no reference of its own, the clock-ground window moved from softcut16 to soft100s24; 1037.5 s before; 1017.5 s before the far placements were priced: the four views from the air take 12 s to place, not 7; 1007.5 s of the first build: one reference of 8 frames, softacc10, two scans; now four references of 4 frames before their variants, no softacc10, one scan)");
             // The evidence for the constants: a placement was measured at 3.6 s and a frame with its picture at 0.7 s in start 59.
             Assert.IsTrue(T09Probe.SoftPlaceS >= 1.9 * 3.6 && T09Probe.SoftFrameReadS >= 1.35 * 0.7);
             // A type view is priced with its placement, switch and frames; the cumulus bodies add the baseline frame.
@@ -151,7 +152,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             try
             {
                 foreach (T09Probe.SoftVariant v in T09Probe.Soft60Variants) v.WeaveFrames = 0;
-                Assert.IsTrue(T09Probe.Soft60EstimateS(T09Probe.Soft60Variants) < estimate - 20.0, "the weave frames cost seconds the plan counts");
+                Assert.IsTrue(T09Probe.Soft60EstimateS(T09Probe.Soft60Variants) < estimate - 10.0, "the weave frames cost seconds the plan counts");
             }
             finally
             {
@@ -309,9 +310,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(T09Probe.Soft60EstimateS(T09Probe.Soft60Variants), Number(r, "T09s.plan_estimate_s"), 1e-6);
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 soft plan (soft60): ") && l.Contains("refsoft [") && l.Contains("history 0.05")), "the plan line names the variants and their history weights");
 
-            // The weave diagnosis: eight consecutive frames in the fair ground view for four variants, each with four frames of its own reference right before it.
+            // The weave diagnosis: eight consecutive frames in the fair ground view for three variants, each with four frames of its own reference right before it.
             string pv = "ground_fair";
-            foreach (string name in new[] { "soft", "softr33", "softhash", "softacc05" })
+            foreach (string name in new[] { "soft", "softhash", "softacc05" })
             {
                 foreach (char letter in "abcdefgh")
                     Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + pv + "-" + name + "_" + letter + "-")), name + " frame " + letter + " in the fair ground view");
@@ -331,7 +332,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             Assert.IsFalse(r.World.Saved.Any(f => f.Contains("softacc10") || f.Contains("-ref256_")), "the cut variants are gone");
             Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-above_fair-ref") || f.Contains("-ground-ref")), "the references are in the fair ground view only");
-            foreach (string name in new[] { "softcut16", "soft100s24" })
+            foreach (string name in new[] { "softr50", "softcut16", "soft100s24" })
             {
                 Assert.IsTrue(r.World.Saved.Any(f => f.Contains("-" + pv + "-" + name + "_a-")) && !r.World.Saved.Any(f => f.Contains("-" + pv + "-" + name + "_b-")), name + " has one frame");
                 Assert.AreEqual(1.0, Number(r, "T09s.fair.ground." + name + ".frames"));
@@ -339,24 +340,24 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-ground-softhash_")), "the weave variants are not in the clock scene");
             Assert.IsFalse(r.World.Saved.Any(f => f.Contains("-above_fair-softhash_")), "nor in the fair above view");
             Assert.AreEqual(3.0, Number(r, "T09s.fair.above.soft.frames"));
-            Assert.AreEqual(1.0, Number(r, "T09s.fair.above.softr33.frames"));
+            Assert.AreEqual(1.0, Number(r, "T09s.fair.above.softr50.frames"));
             Assert.AreEqual(0.05, Number(r, "T09s.fair.ground.softacc05.accumulate"), 1e-6);
             Assert.AreEqual(0.2, Number(r, "T09s.fair.ground.soft.accumulate"), 1e-6, "the history weight is back at its default after the variants that changed it");
             Assert.AreEqual(1.0, Number(r, "T09s.fair.ground.softhash.dither_sequence"));
-            Assert.AreEqual(3.0, Number(r, "T09s.fair.ground.softr33.dither_sequence"), "the other variants keep the default (the blue-noise tile)");
-            // The cost windows of the lead's list: soft in six views, softr33 in six, softcut16 at both grounds, soft100s24 at the fair ground; none for the weave variants.
+            Assert.AreEqual(3.0, Number(r, "T09s.fair.ground.softr50.dither_sequence"), "the other variants keep the default (the blue-noise tile)");
+            // The cost windows of the lead's list: soft in six views, softr50 in six, softcut16 at the fair ground, soft100s24 at both grounds; none for the weave variants.
             Func<string, int> begins = name => r.Log.Count(l => l.StartsWith("T09 view begin: ") && l.Contains(" " + name + " 1707x960"));
             Assert.AreEqual(2, begins("fw_soft"));
             Assert.AreEqual(4, begins("k_soft"));
-            Assert.AreEqual(2, begins("fw_softr33"));
-            Assert.AreEqual(4, begins("k_softr33"));
+            Assert.AreEqual(2, begins("fw_softr50"));
+            Assert.AreEqual(4, begins("k_softr50"));
             Assert.AreEqual(1, begins("fw_softcut16"));
-            Assert.AreEqual(1, begins("k_softcut16"));
+            Assert.AreEqual(0, begins("k_softcut16"));
             Assert.AreEqual(1, begins("fw_soft100s24"));
-            Assert.AreEqual(0, begins("k_soft100s24"));
-            foreach (string none in new[] { "softhash", "softacc05", "refsoft", "refsoftr33", "refsofthash", "refsoftacc05" })
+            Assert.AreEqual(1, begins("k_soft100s24"));
+            foreach (string none in new[] { "softhash", "softacc05", "refsoft", "refsofthash", "refsoftacc05" })
                 Assert.AreEqual(0, begins("fw_" + none) + begins("k_" + none), none + " has no cost window");
-            Assert.AreEqual(6 + 6 + 6 + 2 + 1, (int)Number(r, "T09s.cost_windows"), "six baselines, soft and softr33 in six views, softcut16 at two, soft100s24 at one");
+            Assert.AreEqual(6 + 6 + 6 + 1 + 2, (int)Number(r, "T09s.cost_windows"), "six baselines, soft and softr50 in six views, softcut16 at one, soft100s24 at two");
 
             // The extra looks: a baseline frame and the variant soft's three frames, no cost window.
             foreach (string look in new[] { "horizon_fair", "fog_fair", "rain" })

@@ -7,7 +7,7 @@ namespace ReDefinition.Atmospheres
 {
     // Series K-T2, the start soft60 (E40, the clouds' work after start 59; plan and review: .local/work/e40-start60-plan-review.md and e40-start60-review.md). The scenario is soft59's
     // (T09ProbeSoft.cs: both scenes, the baseline and the variants of a table per view) with another table and three additions:
-    //   1. the weave diagnosis: in the fair ground view the variants soft, softr33 and the history / dither candidates read EIGHT consecutive frames (full size), each right after four frames
+    //   1. the weave diagnosis: in the fair ground view the variants soft and the history / dither candidates read EIGHT consecutive frames (full size), each right after four frames
     //      of its own reference ref<name> (a march of 256 steps, read a few seconds before, so that the clouds have not moved between them), the converged picture it is measured against
     //      (tools/weather_metrics/e40s60.py: the static-pattern measure of E1 on game frames);
     //   2. the extra looks: horizon (far view, haze), fog (fair weather, inside the fog deck) and rain (under the deck, the clock scene): one frame set each, with a baseline frame;
@@ -34,9 +34,10 @@ namespace ReDefinition.Atmospheres
 
         // g ground, i inside, a above, s sky3. WeaveFrames: the consecutive frames in the fair ground view (the weave diagnosis: the mean of eight against the converged picture).
         //   soft        the defaults: cost in every view, the grain trio, eight frames in the fair ground view (the weave of the default)
-        //   softr33     recon.resolution 0.33 and cloudSkipEmpty 1 (the cost candidate that came closest to TVC): cost in every view, one frame, eight in the fair ground view
-        //   softcut16   the cut span, 16 points, target 0.33: cost at the fair and the clock ground
-        //   soft100s24  cloudSoftness 1.0, cloudSamples Low (24 points): the owner's second favourite, cost at the fair ground
+        //   softr50     recon.resolution 0.5, the march target of before E40 C1 (the default is 0.33 now): cost in every view, one frame, no weave and no reference: C1's halving in the game on the
+        //               same sky in the same start
+        //   softcut16   the cut span, 16 points, target 0.33: cost at the fair ground
+        //   soft100s24  cloudSoftness 1.0, cloudSamples Low (24 points): the owner's second favourite, cost at the fair and the clock ground (C2: 2.56 ms against TVC's 2.59 in the player)
         //   softhash    layers.ditherSequence 1 (the white hash): the weave check, eight frames, no cost
         //   softacc05   recon.accumulate 0.05 (a history of about 20 frames): the history's share in the static pattern; the history needs frames to settle
         //   ref<name>   layers.gridFine 5.3333 = 256 grid points, four frames, read RIGHT BEFORE the weave variant <name> (a few seconds earlier): the converged picture of the pose at that moment, the reference
@@ -48,10 +49,9 @@ namespace ReDefinition.Atmospheres
         {
             Soft60Reference("soft"),
             Soft60("soft", "ga", "gias", 3).Weave(8),
-            Soft60Reference("softr33"),
-            Soft60("softr33", "ga", "gias", 1, "t:" + OwnCloudOptions.TuneReconResolution + "=0.33", "s:" + AtmospheresSettings.Keys.CloudSkipEmpty + "=1").Weave(8),
-            Soft60("softcut16", "g", "g", 1, "t:" + OwnCloudOptions.TuneSpanTight + "=1", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "g"),
-            Soft60("soft100s24", "g", "", 1, "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0").In("g", "-"),
+            Soft60("softr50", "ga", "gias", 1, "t:" + OwnCloudOptions.TuneReconResolution + "=0.5"),
+            Soft60("softcut16", "g", "", 1, "t:" + OwnCloudOptions.TuneSpanTight + "=1", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "-"),
+            Soft60("soft100s24", "g", "g", 1, "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0").In("g", "g"),
             Soft60Reference("softhash"),
             Soft60("softhash", "", "", 1, "t:" + OwnCloudOptions.TuneDitherSequence + "=1").Weave(8).In("g", "-"),
             Soft60Reference("softacc05"),
@@ -498,6 +498,9 @@ namespace ReDefinition.Atmospheres
             softSections++;
             soft60TypeViews++;
             foreach (ProbeWait w in StableGate(view, "soft")) yield return w;
+            // E40 C2: the maps the pass marches at this place (the type views stand away from the site), for the player (tools/weather_metrics/e40c2.py).
+            OwnCloudModule dumpOwn = OwnCloudModule.Current;
+            if (dumpOwn != null) dumpOwn.DumpMaps(scene + "-" + view.Name + "-u" + ((long)Game.UniversalTime).ToString(CultureInfo.InvariantCulture));
             // The sun at this place: 245 to 300 km from the site it differs by up to 28 degrees of elevation, and the light rows are read against a model that has one sun.
             double sunDeg = Game.SunElevationDeg();
             Emit(head + "sun_elev_deg", sunDeg);

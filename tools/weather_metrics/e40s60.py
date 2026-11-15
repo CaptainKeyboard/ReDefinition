@@ -23,7 +23,7 @@ Tables (the cost, grain, numbers-the-pass-ran-with and sun-colour tables are e40
            over the median power, with its period and angle: a weave is a narrow peak (white noise gives 15 to 20, E1: tools/weather_metrics/e40wv.py);  tstd = the temporal noise over the
            mask. A WEAVE is called where peak is 30 or more AND stat is 0.5 or more.
 Pictures (the lead looks at every one; the numbers say what they cannot):
-  e40-60-<scene>-<view>-sheet.png        ours: soft | softr33 | softcut16 | soft100s24 (those that ran) and, in the clock scene, TVC's frame of start 47
+  e40-60-<scene>-<view>-sheet.png        ours: soft | softr50 | softcut16 | soft100s24 (those that ran) and, in the clock scene, TVC's frame of start 47
   e40-60-<view>-vs-tvc.png               the clock views: soft (ours) | TVC side by side at 854 x 480
   e40-60-fair-ground-weave.png           per weave variant: a crop of frame a, of the mean of the eight, and of the static residual (x 10), 2 x, nearest pixel, the same crop for all
   e40-60-types.png                       the type views: ground | above per target, the type under the centre in the caption
@@ -42,12 +42,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 START = "soft60"
 RES = "1707x960"
 FRAME_LETTERS = "abcdefgh"
-WEAVE_ORDER = ("soft", "softhash", "softacc05", "softr33")
+WEAVE_ORDER = ("soft", "softhash", "softacc05")
 REFERENCE_PREFIX = "ref"
 # Light pass ranges (linear luminance), the ones the model supports and the review states: a cumulus body's top over base 1.6 to 6 (the two-stream model alone gives 2.1; the game's sky light lifts
 # the base and can lower it to about 1.6; the checklist's 2 to 6 has its lower edge here), a deck's median over the baseline's sky behind it 0.15 to 0.8, a base above 0.03.
 LIGHT_RATIO, LIGHT_DECK, LIGHT_BASE_MIN = (1.6, 6.0), (0.15, 0.8), 0.03
-SHEET_ORDER = ("soft", "softr33", "softcut16", "soft100s24")
+SHEET_ORDER = ("soft", "softr50", "softcut16", "soft100s24")
 TYPE_ORDER = ("humilis", "congestus", "cumulonimbus", "cirrus")
 EXTRAS = (("horizon", "fair"), ("fog", "fair"), ("rain", "clock"))
 SIGMA_HP = 3.0
@@ -521,6 +521,57 @@ def make_sheets(pictures, out_dir, tvc_folders=()):
     return written
 
 
+TINT_UPPER = 0.6                  # the upper share of the frame the cloud tint is read in (T1's method: 55 to 70 percent)
+FAR_BAND = (600.0 / 960.0, 740.0 / 960.0)   # the far band of the frame (rows 600 to 740 of 960): the cloud's colour against the baseline sky in the same rows
+
+
+def tint_stats(soft, off):
+    """Colour of the cloud pixels (changed against the baseline by 0.05 or more) of one view: blue / red and (G - R) / (B - R) of their mean colour in the upper TINT_UPPER of the frame
+    (T1: the clouds were lavender, blue / red 1.26 against TVC's 1.18, (G - R) / (B - R) 0.27 against 0.39), and in the far band the cloud's blue / red against the baseline's sky pixels
+    (the unchanged ones) of the same rows. NaN where fewer than 200 pixels qualify."""
+    import numpy as np
+    h = soft.shape[0]
+    changed = np.abs(soft - off).max(axis=2) >= 0.05
+    out = dict(blue_over_red=float("nan"), g_r_over_b_r=float("nan"), cloud_px=0, band_blue_over_red=float("nan"), band_sky_blue_over_red=float("nan"), band_px=0)
+    upper = np.zeros_like(changed)
+    upper[: int(h * TINT_UPPER)] = True
+    sel = changed & upper
+    out["cloud_px"] = int(sel.sum())
+    if sel.sum() >= 200:
+        r, g, b = (float(soft[..., i][sel].mean()) for i in range(3))
+        out["blue_over_red"] = b / r if r > 0 else float("nan")
+        out["g_r_over_b_r"] = (g - r) / (b - r) if abs(b - r) > 1e-6 else float("nan")
+    band = np.zeros_like(changed)
+    band[int(h * FAR_BAND[0]): int(h * FAR_BAND[1])] = True
+    cloud, sky = changed & band, ~changed & band
+    out["band_px"] = int(cloud.sum())
+    if cloud.sum() >= 200 and sky.sum() >= 200:
+        r, b = float(soft[..., 0][cloud].mean()), float(soft[..., 2][cloud].mean())
+        rs, bs = float(off[..., 0][sky].mean()), float(off[..., 2][sky].mean())
+        out["band_blue_over_red"] = b / r if r > 0 else float("nan")
+        out["band_sky_blue_over_red"] = bs / rs if rs > 0 else float("nan")
+    return out
+
+
+def tint_table(index):
+    """(lines, metrics) from the baseline and soft frames of every view: the cloud tint and the far band's colour against the sky (E40 T1 tint, FL far)."""
+    lines = ["TINT (cloud pixels = changed against the baseline by 0.05; upper %.0f percent of the frame; the far band rows %.0f to %.0f of 960; TVC at the ground: blue/red 1.18, (G-R)/(B-R) 0.39)"
+             % (100 * TINT_UPPER, FAR_BAND[0] * 960, FAR_BAND[1] * 960),
+             "  %-18s %9s %12s %9s %12s %12s %9s" % ("view", "blue/red", "(G-R)/(B-R)", "cloud px", "band b/r", "band sky b/r", "band px")]
+    metrics = []
+    for (scene, view), variants in sorted(index.items()):
+        if "off" not in variants or "soft" not in variants or "a" not in variants["off"] or "a" not in variants["soft"]:
+            continue
+        s = tint_stats(load_rgb(variants["soft"]["a"]), load_rgb(variants["off"]["a"]))
+        lines.append("  %-18s %9.3f %12.3f %9d %12.3f %12.3f %9d" % (scene + " " + view, s["blue_over_red"], s["g_r_over_b_r"], s["cloud_px"], s["band_blue_over_red"], s["band_sky_blue_over_red"], s["band_px"]))
+        for key in ("blue_over_red", "g_r_over_b_r", "band_blue_over_red", "band_sky_blue_over_red"):
+            if s[key] == s[key]:
+                metrics.append({"metric": "T09s.tint.%s.%s.%s" % (scene, view, key), "value": round(s[key], 4), "variant": None})
+    if len(lines) == 2:
+        lines.append("  (no view has the baseline and soft frames)")
+    return lines, metrics
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("logs", nargs="*")
@@ -559,6 +610,7 @@ def main(argv):
     index = index_pictures(folder)
     lines, _wm, _data = weave_table(index)
     print("\n".join(lines))
+    print("\n".join(tint_table(index)[0]))
     out = a.out or os.path.join(sf.main_repo(), ".local", "work", "series-pictures", "E40")
     for path in make_sheets(folder, out, [os.path.join(sf.main_repo(), ".local", "work", "series-pictures", "K-T2")]):
         print("wrote " + path)
@@ -594,7 +646,7 @@ def selftest():
             _row("T09s.types.clock.humilis.type", "Cumulus humilis"), _row("T09s.types.clock.cirrus.found", False),
             _row("T09s.clock.ty_humilis_g.placed_ok", True), _row("T09s.clock.ty_humilis_g.vessel_moved_km", 26.2), _row("T09s.clock.ty_humilis_g.cell_dist_km", 32.0), _row("T09s.clock.ty_humilis_g.sun_elev_deg", 41.5),
             _row("T09s.clock.ty_humilis_g.centre_match", True), _row("T09s.clock.ty_humilis_g.centre_types", "Kerbin-cumulus Cumulus humilis cover 0.80"),
-            _row("T09s.plan_estimate_s", 1037.5), _row("T09s.sections", 14), _row("T09s.sections_skipped", 0), _row("T09s.type_views", 8), _row("T09s.types_absent", 0), _row("T09s.frames_read", 21)]
+            _row("T09s.plan_estimate_s", 1020.0), _row("T09s.sections", 14), _row("T09s.sections_skipped", 0), _row("T09s.type_views", 8), _row("T09s.types_absent", 0), _row("T09s.frames_read", 21)]
     text = "\n".join(log)
     out_lines, metrics = tables([text])
     joined = "\n".join(out_lines)
@@ -605,19 +657,19 @@ def selftest():
     assert any(" ground " in l and " clock " in l and l.rstrip().endswith("yes") and "0.40" in l for l in out_lines), joined      # the deck inside 0.15 to 0.8
     assert any(" rain " in l and "no (deck/sky 0.05)" in l for l in out_lines), joined
     assert "humilis" in joined and "cirrus" in joined and "NOT" not in joined and "match" in joined and "sun  41.5 deg" in joined, joined
-    assert "estimate 1038 s" in joined or "estimate 1037 s" in joined, joined
+    assert "estimate 1020 s" in joined, joined
     assert "type views 8" in joined, joined
     assert "MISSES (0" in joined and got["T09s.collector_misses"] == 0, joined
     assert series_results({"soft60": text}) and series_results({"soft59": text}) == [], "only the logs of this start"
     # The misses: no layer drawn in a window, a lost raw read (the warning), frames missing, a view not placed, a weave variant without frames.
     bad = "\n".join([_row("T09s.fair.ground.soft.cost_frames_drawn", 0), _row("T09.warning.noise_read_failed", "ground soft grain c: the read did not finish"), _row("T09s.clock.ty_cirrus_a.placed_ok", False),
                      _row("T09s.fair.ground.soft.frames", 8), _row("T09s.fair.ground.refsoft.frames", 4), _row("T09s.fair.ground.softhash.frames", 8), _row("T09s.fair.ground.soft.light_top", 0.5),
-                     _row("T09s.fair.ground.softr33.frames", 5), _row("T09s.frames_read", 21), _row("T09s.fair.above.soft.frames", 3)])
+                     _row("T09s.fair.ground.softacc05.frames", 5), _row("T09s.frames_read", 21), _row("T09s.fair.above.soft.frames", 3)])
     found = misses(load_sf().parse_rows([bad]), load_sf().num, [bad])
     text_found = "\n".join(found)
     assert "drew no frame" in text_found and "noise_read_failed" in text_found and "ty_cirrus_a: the view was not placed" in text_found, text_found
     assert "frames read 21 against 28" in text_found, text_found
-    assert "softr33: 5 weave frames of 8" in text_found and "softhash: no reference frames" in text_found, text_found
+    assert "softacc05: 5 weave frames of 8" in text_found and "softhash: no reference frames" in text_found, text_found
     assert "fair above: no light rows" in text_found, text_found
     assert "soft: no reference" not in text_found, text_found
     # --- the weave measure: a static diagonal pattern against noise, from synthetic eight-frame sets
@@ -667,9 +719,19 @@ def selftest():
         x, y, cw, ch = body_crop(rgb(body), rgb(off))
         share = float((np.abs(rgb(body) - rgb(off)).max(axis=2)[y:y + ch, x:x + cw] >= 0.05).mean())
         assert 0.3 <= share <= 0.85, (x, y, share)
+        # --- the tint: a grey-lavender cloud in the upper frame and a band cloud against a blue sky
+        sky = np.zeros((h, w, 3))
+        sky[...] = (0.3, 0.5, 0.8)
+        cl = sky.copy()
+        cl[100:500, 200:900] = (0.6, 0.62, 0.72)
+        cl[640:700, 200:900] = (0.55, 0.6, 0.7)
+        t = tint_stats(cl, sky)
+        assert abs(t["blue_over_red"] - 0.72 / 0.6) < 1e-6 and abs(t["g_r_over_b_r"] - 0.02 / 0.12) < 1e-6, t
+        assert abs(t["band_blue_over_red"] - 0.7 / 0.55) < 1e-6 and abs(t["band_sky_blue_over_red"] - 0.8 / 0.3) < 1e-6, t
+        assert tint_stats(sky, sky)["blue_over_red"] != tint_stats(sky, sky)["blue_over_red"], "no cloud pixels: NaN"
         # --- the sheets
         for view in ("ground", "above"):
-            for variant in ("soft", "softr33", "softcut16"):
+            for variant in ("soft", "softr50", "softcut16"):
                 save(view, variant, "a", base)
         save("ground", "off", "a", off)
         for target in TYPE_ORDER[:2]:

@@ -682,6 +682,8 @@ namespace ReDefinition.Atmospheres
             int framesBefore = Game.FrameCount;
             string size = Game.ScreenWidth + "x" + Game.ScreenHeight;
             AtmospheresLog.Say("T09 view begin: " + view.Name + " " + tag + " " + size);
+            // E40 C2: the maps the pass marches in this view (the baseline window of each view: fw_off / k_off), for the player to draw the same sky (tools/weather_metrics/e40c2.py).
+            if (own != null && tag.EndsWith("off", StringComparison.Ordinal)) own.DumpMaps(tag + "-" + view.Name + "-u" + ((long)Game.UniversalTime).ToString(CultureInfo.InvariantCulture));
             double dwelled = 0.0;
             viewPoseOk = true;
             while (dwelled < SoftWindowS - 1e-9)

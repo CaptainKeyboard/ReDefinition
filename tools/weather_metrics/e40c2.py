@@ -1,5 +1,6 @@
 """E40 C2: what the clouds cost in the player on the maps a game start marched (series e40-c2-game-cost).
 
+    python tools/weather_metrics/e40c2.py --prepare-all <series-pictures/maps>        every baseline dump of a soft60 start (fw_off / k_off windows) as a scene of its own view
     python tools/weather_metrics/e40c2.py --prepare-game <dump-folder> [<name>]      copy one dump of the game (OwnCloudModule.DumpMaps) into the player's inputs
     python tools/build_weather_player.py --series e40-c2-game-cost [--no-build]
     python tools/weather_metrics/e40c2.py --selftest
@@ -29,15 +30,33 @@ SCENES_JSON = os.path.join(IN, "game-scenes.json")
 
 
 def scenes():
+    """The scenes of the inputs: name -> the K-T2 view the dump was taken in (None: all four views)."""
     if not os.path.isfile(SCENES_JSON):
-        return []
+        return {}
     with open(SCENES_JSON, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    return data if isinstance(data, dict) else {n: None for n in data}
 
 
-def prepare_game(dump, name=None):
-    """Copies one dump folder (the layers' -cover.u8 and -type.u8 and humidity.u8) as the scene `name` (default: the folder's name without the minus signs)."""
-    name = (name or os.path.basename(os.path.normpath(dump))).replace("-", "")
+def scene_views(scene):
+    view = scenes().get(scene)
+    return [view] if view in c1.VIEWS else list(c1.VIEWS)
+
+
+def prepare_all(maps_folder):
+    """Imports every baseline dump of a start (<maps_folder>/<fw_off|k_off>-<view>-u<ut>, T09ProbeSoft.SoftCostWindow) as a scene drawn in its own view; the type views' dumps stand at other places and are left out."""
+    names = []
+    for entry in sorted(os.listdir(maps_folder)):
+        parts = entry.rsplit("-", 2)
+        if len(parts) != 3 or not parts[0].endswith("off") or parts[1] not in c1.VIEWS or not os.path.isdir(os.path.join(maps_folder, entry)):
+            continue
+        names.append(prepare_game(os.path.join(maps_folder, entry), entry, parts[1]))
+    return names
+
+
+def prepare_game(dump, name=None, view=None):
+    """Copies one dump folder (the layers' -cover.u8 and -type.u8 and humidity.u8) as the scene `name` (default: the folder's name without the minus and underscore signs), drawn in `view` (None: all four)."""
+    name = (name or os.path.basename(os.path.normpath(dump))).replace("-", "").replace("_", "")
     os.makedirs(IN, exist_ok=True)
     for layer in c1.STACK:
         for kind in ("cover", "type"):
@@ -46,9 +65,10 @@ def prepare_game(dump, name=None):
                 raise SystemExit("the dump has no %s" % src)
             shutil.copyfile(src, os.path.join(IN, c1.map_name(name, "cover", layer, kind)))
     shutil.copyfile(os.path.join(dump, "humidity.u8"), os.path.join(IN, "%s-humidity.r8" % name))
-    names = [n for n in scenes() if n != name] + [name]
+    known = scenes()
+    known[name] = view
     with open(SCENES_JSON, "w", encoding="utf-8") as f:
-        json.dump(names, f)
+        json.dump(known, f)
     write_inputs()
     return name
 
@@ -56,7 +76,7 @@ def prepare_game(dump, name=None):
 def jobs():
     out = []
     for scene in scenes():
-        for view in c1.VIEWS:
+        for view in scene_views(scene):
             out.append((scene, c1.build_job(scene, "now", view, "lum", c1.COST_SIZE, "gn-%s-prod-f0" % c1.tag(scene, "now", view))))
     return out
 
@@ -76,7 +96,7 @@ CASES = [c1.BASE, c1.R33, c1.R33 + "+mn150", c1.R33 + "+lp100", c1.R33 + "+lp200
 
 
 def stage_list():
-    views = [c1.tag(s, "now", v) for s in scenes() for v in c1.VIEWS]
+    views = [c1.tag(s, "now", v) for s in scenes() for v in scene_views(s)]
     if not views:
         return []
     write_inputs()
@@ -103,11 +123,20 @@ def selftest():
         with open(os.path.join(dump, "humidity.u8"), "wb") as f:
             f.write(bytes(c1.MAP_W * c1.MAP_H))
         name = prepare_game(dump, "clock-u1686000")
-        assert name == "clocku1686000" and scenes() == [name]
+        assert name == "clocku1686000" and list(scenes()) == [name]
         with open(os.path.join(IN, "jobs.json"), encoding="utf-8") as f:
             listed = json.load(f)["jobs"]
         assert len(listed) == len(c1.VIEWS) and all(j["layers"][0]["coverageMap"].startswith(name) for j in listed)
         assert len(stage_list()) == 1
+        # A start's folder of dumps: the baseline windows' dumps become scenes of their own view, the type views' dumps are left out.
+        maps = tempfile.mkdtemp()
+        for entry in ("fw_off-ground-u1881019", "k_off-sky3-u1686000", "clock-humilis_ground-u1686100"):
+            shutil.copytree(dump, os.path.join(maps, entry))
+        imported = prepare_all(maps)
+        assert imported == ["fwoffgroundu1881019", "koffsky3u1686000"], imported
+        assert scenes()["koffsky3u1686000"] == "sky3" and scene_views("fwoffgroundu1881019") == ["ground"]
+        with open(os.path.join(IN, "jobs.json"), encoding="utf-8") as f:
+            assert len(json.load(f)["jobs"]) == len(c1.VIEWS) + 2
     finally:
         IN, SCENES_JSON = old
     print("selftest passed")
@@ -119,8 +148,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--selftest", action="store_true")
     parser.add_argument("--prepare-game", nargs="+", metavar="DUMP")
+    parser.add_argument("--prepare-all", metavar="MAPS", help="the folder series-pictures/maps of a start: every baseline dump as a scene of its own view")
     a = parser.parse_args()
     if a.selftest:
         selftest()
+    elif a.prepare_all:
+        print("prepared scenes", ", ".join(prepare_all(a.prepare_all)))
     elif a.prepare_game:
         print("prepared scene", prepare_game(a.prepare_game[0], a.prepare_game[1] if len(a.prepare_game) > 1 else None))
