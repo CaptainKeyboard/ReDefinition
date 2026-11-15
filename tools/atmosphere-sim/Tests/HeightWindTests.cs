@@ -169,7 +169,7 @@ namespace AtmoSim.Tests
             Row("E43.golden_hash_round4", 1, "equal on 4 threads", "7CAF7C7A93CDAAB6 (level of the default generator)");
         }
 
-        private static ulong CoreTestsGolden() { return ReconDataTests.GoldenRound5Hash; }
+        private static ulong CoreTestsGolden() { return ReconDataTests.GoldenRound6Hash; }
 
         [TestMethod]
         public void TheSampleStaysCheap()
@@ -586,7 +586,7 @@ namespace AtmoSim.Tests
                 BodyParams p = BodyParams.KerbinLike();
                 p.TropopauseM = troposphereM;
                 var g = new WeatherGenerator(p, 1);
-                gaps += TowerGaps(g, new LayerOptions { Deck = false, Couple = true }, 0, out int c, out double w);
+                gaps += TowerGaps(g, new LayerOptions { Deck = false, Couple = true }, 0, out int c, out double w, 100000);
                 columns += c;
                 worst = Math.Max(worst, w);
             }
@@ -595,9 +595,10 @@ namespace AtmoSim.Tests
             Assert.IsTrue(gaps <= 0.005 * columns && worst <= 800.0, gaps + " of " + columns + " columns with a gap, worst " + worst);
         }
 
-        private static int TowerGaps(WeatherGenerator g, LayerOptions o, int unused, out int columns, out double worstGapM)
+        // queries: the number of random points (the cells' energy term of round 6 weakens some cells, so fewer points have a strength of 0.4; the bodies of other depths take more).
+        private static int TowerGaps(WeatherGenerator g, LayerOptions o, int unused, out int columns, out double worstGapM, int queries = 60000)
         {
-            var q = Timing.Queries(60000, 91, 3.0e7);
+            var q = Timing.Queries(queries, 91, 3.0e7);
             const int nz = 96; const double dz = 200.0;
             var d = new float[nz];
             columns = 0; worstGapM = 0.0;

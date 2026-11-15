@@ -1,7 +1,27 @@
 using System;
+using System.Collections.Generic;
 
 namespace AtmoSim.Core
 {
+    // One convective cell of the generator's lattice at a time (WeatherGenerator.Cells): the numbers the point version draws it from. At distance r from the centre the cell's strength is
+    // Strength exp(-r^2 / RadiusM^2) (the strongest cell wins where footprints overlap).
+    public struct ConvectiveCell
+    {
+        public double LatRad, LonRad;
+        // The e-folding radius of the footprint (m): 3.4 to 6 km on a body with a 15 km lattice.
+        public double RadiusM;
+        // The strength at the centre, 0 to 1: the life envelope times the ramp of the presence margin times the factor of the energy term.
+        public double Strength;
+        // The age as a share of the life (0 birth, 1 death), the life and the age in seconds.
+        public double Phase, LifeS, AgeS;
+        // The draw of the cell's top (0 to 1) and the top it gives (m above the surface; the generator's Weather.CellTopM at the cell).
+        public double Tower, TopM;
+        // The presence probability at the centre and the energy factor there.
+        public double Presence, EnergyFactor;
+        // The convective rain rate at the centre (mm/h, with the body's factor on the bands) and its level on the 0 to 1 scale of the precipitation maps (Level01).
+        public double RainMmH, RainLevel;
+    }
+
     public enum PrecipKind { None = 0, Rain = 1, Sleet = 2, Snow = 3, Dust = 4 }
 
     public enum PrecipLevel { None = 0, Flurries = 1, Light = 2, Moderate = 3, Heavy = 4, Blizzard = 5 }
@@ -20,6 +40,11 @@ namespace AtmoSim.Core
         public double CellPhase, CellLifeS;
         // P1: the factor on the fixed heights of the column (BodyDerived.HeightScale; 0 in a Weather that was not made by Sample reads as 1).
         public double HeightScale;
+        // Round 6 (CELLS): the updraft of a full-strength cell of the body in m/s (WeatherGenerator.CellUpdraftMs; 0 in a Weather that was not made by Sample: no tower updraft).
+        public double CellUpdraftMs;
+        // Round 6 (CELLS): the presence probability of a convective cell at the point (the draw of a lattice cell passes where it exceeds the cell's own number) and the factor of the energy term on
+        // the strength (0 where the probability is below 0.02: no cell is looked for).
+        public double CellPresence, CellEnergyFactor;
         public double WindSpeedMs { get { return WindSpeed; } }
 
         // Cloud density (0..1.5) at an altitude of this column: a stratiform layer with a sin^2 profile plus towering cells.
@@ -82,6 +107,7 @@ namespace AtmoSim.Core
         {
             Body = body; Seed = seed; D = new BodyDerived(body);
             a = body.RadiusM;
+            CellUpdraftMs = body.CellUpdraftScale * DMath.Sqrt(body.CellBuoyancyNumber * body.GravityMs2 * body.TropopauseM);
             Grid = body.Grid ?? MapGen.Continents(180, 90, body.OceanFractionTarget, seed);
             fcrit = 2.0 * body.Omega * 0.20791169081775934; // f at 12 degrees: the Coriolis cap near the equator
             fx0 = fcrit * fcrit;
@@ -679,10 +705,17 @@ namespace AtmoSim.Core
                 trig = free + (1.0 - free) * ft;
                 frontCell = frontN * ft;
             }
-            double pcell = Body.CellsEnabled ? DMath.Clamp(Body.CellFrontTerm * frontCell + trig * 0.9 * DMath.Max(0.0, inst - 0.35) + trig * 0.3 * uplift, 0.0, 0.95) : 0.0;
+            // the three drivers of the presence probability: the front, the buoyancy of the surface air above the trigger threshold, the convergence lift (the sum keeps its order)
+            double cellFront = Body.CellFrontTerm * frontCell, cellBuoyancy = trig * 0.9 * DMath.Max(0.0, inst - 0.35), cellConvergence = trig * 0.3 * uplift;
+            double pcell = Body.CellsEnabled ? DMath.Clamp(cellFront + cellBuoyancy + cellConvergence, 0.0, 0.95) : 0.0;
             double cs = 0.0, tower = 0.0;
             double cellPhase = 0.0, cellLife = 0.0;
-            if (pcell > 0.02) cs = CellStrength(latRad, lonRad, ut, pcell, out tower, out cellPhase, out cellLife);
+            double cellFactor = 0.0;
+            if (pcell > 0.02)
+            {
+                cellFactor = CellEnergyFactor(cellBuoyancy + Body.CellLiftEnergyShare * (cellFront + cellConvergence));
+                cs = CellStrength(latRad, lonRad, ut, pcell, out tower, out cellPhase, out cellLife) * cellFactor;
+            }
 
             double cw = bg + xdyn + 0.7 * cs;
             if (r2itcz && Body.FairWeatherCloud > 0.0)
@@ -831,7 +864,8 @@ namespace AtmoSim.Core
             w.LayerBaseM = zb; w.LayerThicknessM = th2; w.LayerAmount = bg + xdyn; w.CellTopM = top;
             w.Density3D = 0.0;
             w.WindEast = windE; w.WindNorth = windN; w.WindSpeed = wind; w.GustFactor = gust;
-            w.CellPhase = cs > 0.0 ? cellPhase : 0.0; w.CellLifeS = cs > 0.0 ? cellLife : 0.0; w.HeightScale = D.HeightScale;
+            w.CellPhase = cs > 0.0 ? cellPhase : 0.0; w.CellLifeS = cs > 0.0 ? cellLife : 0.0; w.HeightScale = D.HeightScale; w.CellUpdraftMs = CellUpdraftMs;
+            w.CellPresence = pcell; w.CellEnergyFactor = cellFactor;
             w.CellStrength = cs; w.Dust = dust; w.SnowFrac = fs; w.SleetFrac = fl; w.RainFrac = fRain; w.OceanFraction = oc;
             w.Type = kind;
             w.Density3D = w.DensityAt(alt);
@@ -931,6 +965,21 @@ namespace AtmoSim.Core
 
         // ---- convective cells ---------------------------------------------------------------------------------------------
 
+        // The factor of the energy index on a cell's strength (round 5, CellInstabilityWeight): (E / CellEnergyFull)^(w / 2), 1 from CellEnergyFull on. The updraft of a cell is
+        // sqrt(2 CAPE) and the strength stands for the updraft in units of the full cell, so w = 1 is the square root of the energy.
+        public double CellEnergyFactor(double energy)
+        {
+            double weight = Body.CellInstabilityWeight;
+            if (!(weight > 0.0) || !(Body.CellEnergyFull > 0.0)) return 1.0;
+            double x = energy / Body.CellEnergyFull;
+            if (x >= 1.0) return 1.0;
+            if (x <= 0.0) return 0.0;
+            return weight == 1.0 ? DMath.Sqrt(x) : DMath.Pow(x, 0.5 * weight);
+        }
+
+        // The updraft of a full-strength cell of this body in m/s: sqrt(B g H) times the body's multiplier (BodyParams.CellBuoyancyNumber, CellUpdraftScale), made once with the generator.
+        public readonly double CellUpdraftMs;
+
         // Strongest cell influence at a point from the lattice cells around it (3 rows x 3 columns in the frame drifting with
         // the steering wind of the row). Cells live 1-3 hours and have a sin^2 life envelope. Round 5 (StationaryCells): a lattice cell of a 3-hour bucket is born at any time of
         // the bucket and may live on into the next one, so the cells of the bucket before are looked at too; the number of living cells is the same at every time. Round 4: the
@@ -994,6 +1043,71 @@ namespace AtmoSim.Core
             }
             tower = bestTower; phase = bestPhase; life = bestLife;
             return best;
+        }
+
+        // The living convective cells of the whole body at a time (round 6): the lattice cells of CellStrength, one entry each, with their own centre, radius, strength and age. A pure function
+        // of the seed, the body and the time (the same hash draws as the point version), so the list and the point samples describe the same cells. The strength is the cell's at its centre:
+        // life envelope x the ramp of its margin x the factor of the energy term, with the presence taken at the centre (the point version takes it at the sample point; the two differ only
+        // where the presence changes quickly over a cell's width). Cells weaker than minStrength are left out. Returns the number added to `into` (which is not cleared).
+        public int Cells(double ut, List<ConvectiveCell> into, double minStrength = 0.0)
+        {
+            if (!Body.CellsEnabled || into == null) return 0;
+            double lc = D.CellLatticeM;
+            double rowH = lc / a;
+            double bucketF = DMath.Floor(ut / CellHourBucketS);
+            bool stationary = Body.StationaryCells;
+            int added = 0;
+            long jMin = (long)DMath.Floor(-1.40 / rowH) - 1, jMax = (long)DMath.Floor(1.40 / rowH) + 1;
+            for (long j = jMin; j <= jMax; j++)
+            {
+                double latC = (j + 0.5) * rowH;
+                double latAbs = latC < 0 ? -latC : latC;
+                if (latAbs > 1.40) continue;
+                double cosC = DMath.Cos(latC);
+                long nj = (long)DMath.Floor(DMath.TwoPi * cosC / rowH);
+                if (nj < 1) nj = 1;
+                double dlon = DMath.TwoPi / nj;
+                double idx = latAbs * (180.0 / DMath.Pi) * 2.0;
+                int i0t = (int)idx; if (i0t > 179) i0t = 179;
+                double tt = idx - i0t;
+                double steer = D.SteerMs[i0t] * (1.0 - tt) + D.SteerMs[i0t + 1] * tt;
+                double shift = DMath.WrapPi(steer * ut / (a * cosC));
+                for (long ci = 0; ci < nj; ci++)
+                {
+                    for (int back = 0; back < (stationary ? 2 : 1); back++)
+                    {
+                        double bucketStartS = (bucketF - back) * CellHourBucketS;
+                        ulong hc = Hash.Of(Seed ^ 0xC311C311UL, j, ci, (long)(bucketF - back));
+                        double u1 = Hash.Draw(hc, 0);
+                        if (u1 >= 0.95) continue;
+                        double dur = 3600.0 + 7200.0 * Hash.Draw(hc, 1);
+                        double start = (stationary ? CellHourBucketS : CellHourBucketS - dur) * Hash.Draw(hc, 2);
+                        double age = ut - (bucketStartS + start);
+                        if (age <= 0.0 || age >= dur) continue;
+                        double sa = DMath.Sin(DMath.Pi * age / dur);
+                        double env = sa * sa;
+                        double jx = (Hash.Draw(hc, 3) * 2.0 - 1.0) * 0.3, jy = (Hash.Draw(hc, 4) * 2.0 - 1.0) * 0.3;
+                        double rad = 0.3 * lc * (0.75 + 0.5 * Hash.Draw(hc, 5));
+                        double cLat = latC + jy * rowH;
+                        double cLon = DMath.WrapPi(-DMath.Pi + (ci + 0.5 + jx) * dlon + shift);
+                        Weather w;
+                        Sample(cLat, cLon, 0.0, ut, out w);
+                        double margin = w.CellPresence - u1;
+                        if (w.CellPresence <= 0.02 || margin <= 0.0) continue;
+                        double strength = env * DMath.SmoothStep(0.0, 0.1, margin) * w.CellEnergyFactor;
+                        if (!(strength > minStrength) || !(strength > 0.0)) continue;
+                        double rain = strength > Body.CellRainThreshold ? ConvRateMmH * (strength - Body.CellRainThreshold) / (1.0 - Body.CellRainThreshold) * Body.PrecipBodyFactor : 0.0;
+                        into.Add(new ConvectiveCell
+                        {
+                            RainMmH = rain, RainLevel = Level01(rain),
+                            LatRad = cLat, LonRad = cLon, RadiusM = rad, Strength = strength, Phase = age / dur, LifeS = dur, AgeS = age, Tower = Hash.Draw(hc, 6),
+                            TopM = 0.35 * Body.TropopauseM + 0.65 * Body.TropopauseM * Hash.Draw(hc, 6), Presence = w.CellPresence, EnergyFactor = w.CellEnergyFactor
+                        });
+                        added++;
+                    }
+                }
+            }
+            return added;
         }
 
         // ---- levels -------------------------------------------------------------------------------------------------------

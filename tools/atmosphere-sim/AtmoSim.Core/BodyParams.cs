@@ -180,19 +180,47 @@ namespace AtmoSim.Core
         // cells of strength above 0.3 swings with the bucket from 0 at its edges to 2.3 % of the globe in its middle (CbGeneratorMeasure).
         public bool StationaryCells = true;
 
-        // The round-4 generator: every lever of round 5 switched off (20 000-query hash 2D072A29599D4050).
-        public BodyParams Round4()
+        // ---- levers of tuning round 6 (package CELLS, the strength of the convective cells). The values below are the round-6 values; Round5() restores the round-5 generator. ----
+        // R6a: the strength of a cell follows the energy of the air it grows in. The updraft of a convective cell is w = sqrt(2 CAPE) (parcel theory, buoyancy converted to
+        // kinetic energy), so the strength, which stands for the updraft in units of the full-strength cell, goes with the square root of the energy: s = (E / CellEnergyFull)^(w / 2) for E below
+        // CellEnergyFull, 1 above it. E is the energy index of the point on the scale of the presence probability's drivers: the buoyancy of the surface air above the trigger threshold
+        // (0.9 max(0, inst - 0.35), inst = the humidity, warm-anomaly and insolation index of the surface air: land-sea, season and time of day enter through it) plus CellLiftEnergyShare times
+        // the lift term (front term and convergence lift). w = CellInstabilityWeight: 1 = the physical square root, 0 = off (the strength is the footprint times the life, as in round 4), in
+        // between a weaker dependence. A cell over cold sea at night is weak, a cell over warm moist land in the afternoon is full.
+        public double CellInstabilityWeight = 1.0;
+        // The energy at which a cell has its full strength: the buoyancy term of a moist warm surface in the afternoon, 0.9 (0.85 - 0.35) = 0.45 (inst 0.85, the humid tropics at midday).
+        public double CellEnergyFull = 0.45;
+        // The share of the lift term that counts as energy of the cell. Forced ascent at a front releases the energy stored in the air but does not add buoyancy, so a cell that has only the
+        // lift is a shallow one: about a third of the energy of a tropical afternoon cell (literature, unverified: frontal convection CAPE a few hundred J/kg against 1000 to 3000). Tuned
+        // against the rain of the fronts (E40-cells-result.md).
+        public double CellLiftEnergyShare = 0.35;
+        // R6b: the updraft of a full-strength cell in m/s is w = CellUpdraftScale sqrt(CellBuoyancyNumber g H), g the surface gravity and H the troposphere depth of the body (the parcel energy
+        // of a column is g H times the dimensionless buoyancy: w^2 / (g H) = B). CellBuoyancyNumber is that dimensionless number: 6 m/s on a body with g H = 103 005 m2/s2 (9.81 m/s2, 10.5 km)
+        // is B = 3.5e-4; CellUpdraftScale is the body's multiplier (1 = derived). It does not enter the weather (the field's window and the anvil take it, WeatherGenerator.CellUpdraftMs).
+        public double CellBuoyancyNumber = 3.5e-4, CellUpdraftScale = 1.0;
+
+        // The round-5 generator: every lever of round 6 switched off (20 000-query hash 233D55A4D9EE2E43).
+        public BodyParams Round5()
         {
             var p = Clone();
+            p.CellInstabilityWeight = 0.0;
+            return p;
+        }
+
+        // The round-4 generator: every lever of round 5 and 6 switched off (20 000-query hash 2D072A29599D4050).
+        public BodyParams Round4()
+        {
+            var p = Round5();
             p.StationaryCells = false;
             return p;
         }
 
-        // The round-3 generator: every lever of round 4 and 5 switched off (20 000-query hash A3F0491D2808765F).
+        // The round-3 generator: every lever of round 4, 5 and 6 switched off (20 000-query hash A3F0491D2808765F).
         public BodyParams Round3()
         {
             var p = Clone();
             p.StationaryCells = false;
+            p.CellInstabilityWeight = 0.0;
             p.BodyScaledLengths = false;
             p.HeightWind = false;
             p.PrecipTypeLegacy = true;
@@ -204,6 +232,7 @@ namespace AtmoSim.Core
         {
             var p = Clone();
             p.StationaryCells = false;
+            p.CellInstabilityWeight = 0.0;
             p.BodyScaledLengths = false;
             p.HeightWind = false;
             p.PrecipTypeLegacy = true;
