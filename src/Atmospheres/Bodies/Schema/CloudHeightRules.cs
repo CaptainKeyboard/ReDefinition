@@ -31,5 +31,14 @@ namespace ReDefinition.Atmospheres
         internal float RaggedM { get; set; } = DefaultRaggedM;
         internal float RaggedScaleM { get; set; } = DefaultRaggedScaleM;
         internal float MinThicknessM { get; set; } = DefaultMinThicknessM;
+
+        // TOP FROM UPDRAFT: m of top per m/s of updraft above the reference (heightTopGainMPerMs), the reference updraft in m/s at which the top is the type table's (heightReferenceUpdraftMs), the
+        // most the top moves either way in m (heightTopMaxM) and the random share of it in m (heightTopJitterM; a cell is not a formula). A LAYER that names topReach (above 0) takes its own
+        // gain, reference and maximum, relative to its thickness (HeightTuning.ForLayer(CloudLayerDef)); these are the numbers of every layer that does not, and the jitter is the body's for all.
+        internal const float DefaultTopGainMPerMs = 120f, DefaultReferenceUpdraftMs = 1.2f, DefaultTopMaxM = 1200f, DefaultTopJitterM = 40f;
+        internal float TopGainMPerMs { get; set; } = DefaultTopGainMPerMs;
+        internal float ReferenceUpdraftMs { get; set; } = DefaultReferenceUpdraftMs;
+        internal float TopMaxM { get; set; } = DefaultTopMaxM;
+        internal float TopJitterM { get; set; } = DefaultTopJitterM;
     }
 }

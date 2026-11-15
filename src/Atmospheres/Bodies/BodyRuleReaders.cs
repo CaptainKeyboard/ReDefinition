@@ -171,7 +171,11 @@ namespace ReDefinition.Atmospheres
                 SizeRadiusM = r.Float("heightSizeRadiusM", CloudHeightRules.DefaultSizeRadiusM, 100f, 1.0e7f),
                 RaggedM = r.Float("heightRaggedM", CloudHeightRules.DefaultRaggedM, 0f, 2000f),
                 RaggedScaleM = r.Float("heightRaggedScaleM", CloudHeightRules.DefaultRaggedScaleM, 1f, 1.0e6f),
-                MinThicknessM = r.Float("heightMinThicknessM", CloudHeightRules.DefaultMinThicknessM, 1f, 5000f)
+                MinThicknessM = r.Float("heightMinThicknessM", CloudHeightRules.DefaultMinThicknessM, 1f, 5000f),
+                TopGainMPerMs = r.Float("heightTopGainMPerMs", CloudHeightRules.DefaultTopGainMPerMs, 0f, 5000f),
+                ReferenceUpdraftMs = r.Float("heightReferenceUpdraftMs", CloudHeightRules.DefaultReferenceUpdraftMs, -50f, 100f),
+                TopMaxM = r.Float("heightTopMaxM", CloudHeightRules.DefaultTopMaxM, 0f, 50000f),
+                TopJitterM = r.Float("heightTopJitterM", CloudHeightRules.DefaultTopJitterM, 0f, 2000f)
             };
         }
 

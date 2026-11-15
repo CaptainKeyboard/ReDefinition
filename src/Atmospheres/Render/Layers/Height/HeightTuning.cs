@@ -35,7 +35,8 @@ namespace ReDefinition.Atmospheres
 
         // TOP FROM UPDRAFT: m of top per m/s of updraft above the reference, the reference updraft, the most the top moves, the random
         // share of it (a cell is not a formula) and the thinnest a cloud may get.
-        public float TopGainMPerMs = 120f, ReferenceUpdraftMs = 1.2f, TopMaxM = 1200f, TopJitterM = 40f, MinThicknessM = CloudHeightRules.DefaultMinThicknessM;
+        public float TopGainMPerMs = CloudHeightRules.DefaultTopGainMPerMs, ReferenceUpdraftMs = CloudHeightRules.DefaultReferenceUpdraftMs, TopMaxM = CloudHeightRules.DefaultTopMaxM,
+            TopJitterM = CloudHeightRules.DefaultTopJitterM, MinThicknessM = CloudHeightRules.DefaultMinThicknessM;
 
         // The seed of the noise fields (the body's seed).
         public uint Seed = 1u;
@@ -101,6 +102,10 @@ namespace ReDefinition.Atmospheres
             RaggedM = r.RaggedM;
             RaggedScaleM = r.RaggedScaleM;
             MinThicknessM = r.MinThicknessM;
+            TopGainMPerMs = r.TopGainMPerMs;
+            ReferenceUpdraftMs = r.ReferenceUpdraftMs;
+            TopMaxM = r.TopMaxM;
+            TopJitterM = r.TopJitterM;
         }
     }
 }

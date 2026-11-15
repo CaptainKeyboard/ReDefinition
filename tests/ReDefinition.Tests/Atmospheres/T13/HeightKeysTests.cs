@@ -107,6 +107,10 @@ namespace ReDefinition.Tests
             Assert.AreEqual(110f, none.RaggedM);
             Assert.AreEqual(220f, none.RaggedScaleM);
             Assert.AreEqual(120f, none.MinThicknessM);
+            Assert.AreEqual(120f, none.TopGainMPerMs);
+            Assert.AreEqual(1.2f, none.ReferenceUpdraftMs);
+            Assert.AreEqual(1200f, none.TopMaxM);
+            Assert.AreEqual(40f, none.TopJitterM);
             Assert.AreSame(CloudHeightRules.Default, CloudRules.Default.Height);
             // The compiled tuning and the body's tuning are the same numbers, so they build the same bytes.
             var compiled = new HeightTuning();
@@ -121,7 +125,13 @@ namespace ReDefinition.Tests
             Assert.AreEqual(compiled.RaggedM, body.RaggedM);
             Assert.AreEqual(compiled.RaggedScaleM, body.RaggedScaleM);
             Assert.AreEqual(compiled.MinThicknessM, body.MinThicknessM);
+            Assert.AreEqual(compiled.TopGainMPerMs, body.TopGainMPerMs);
+            Assert.AreEqual(compiled.ReferenceUpdraftMs, body.ReferenceUpdraftMs);
+            Assert.AreEqual(compiled.TopMaxM, body.TopMaxM);
+            Assert.AreEqual(compiled.TopJitterM, body.TopJitterM);
             HeightInputs input = MoistAndDry();
+            input.Updraft = new float[W * H];
+            for (int i = 0; i < W * H; i++) input.Updraft[i] = 0.5f + 8f * ((i * 7919) % 1000) / 1000f;
             input.Coverage = new float[W * H];
             for (int i = 0; i < W * H; i++) input.Coverage[i] = (i % W) < W / 3 ? 1f : 0f;
             CollectionAssert.AreEqual(HeightMapBuilder.Build(input, compiled, R, 9u).Bytes, HeightMapBuilder.Build(input, body, R, 9u).Bytes);
@@ -130,7 +140,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheKeysReadFromTheCloudsNodeAndArePassedToTheBodysTuning()
         {
-            CloudHeightRules r = Rules("heightLclMPerK = 100;heightReferenceSpreadK = 3;heightPhysicsMaxM = 300;heightVariationM = 60;heightWavelengthM = 20000;heightSizeTrendM = -80;heightSizeRadiusM = 90000;heightRaggedM = 40;heightRaggedScaleM = 500;heightMinThicknessM = 300;");
+            CloudHeightRules r = Rules("heightLclMPerK = 100;heightReferenceSpreadK = 3;heightPhysicsMaxM = 300;heightVariationM = 60;heightWavelengthM = 20000;heightSizeTrendM = -80;heightSizeRadiusM = 90000;heightRaggedM = 40;heightRaggedScaleM = 500;heightMinThicknessM = 300;heightTopGainMPerMs = 80;heightReferenceUpdraftMs = 2;heightTopMaxM = 700;heightTopJitterM = 15;");
             Assert.AreEqual(100f, r.LclMPerK);
             Assert.AreEqual(3f, r.ReferenceSpreadK);
             Assert.AreEqual(300f, r.PhysicsMaxM);
@@ -141,6 +151,10 @@ namespace ReDefinition.Tests
             Assert.AreEqual(40f, r.RaggedM);
             Assert.AreEqual(500f, r.RaggedScaleM);
             Assert.AreEqual(300f, r.MinThicknessM);
+            Assert.AreEqual(80f, r.TopGainMPerMs);
+            Assert.AreEqual(2f, r.ReferenceUpdraftMs);
+            Assert.AreEqual(700f, r.TopMaxM);
+            Assert.AreEqual(15f, r.TopJitterM);
             HeightTuning t = Tuning(r, true, true, true, true);
             Assert.AreEqual(100f, t.LclMPerK);
             Assert.AreEqual(3f, t.ReferenceSpreadK);
@@ -152,6 +166,10 @@ namespace ReDefinition.Tests
             Assert.AreEqual(40f, t.RaggedM);
             Assert.AreEqual(500f, t.RaggedScaleM);
             Assert.AreEqual(300f, t.MinThicknessM);
+            Assert.AreEqual(80f, t.TopGainMPerMs);
+            Assert.AreEqual(2f, t.ReferenceUpdraftMs);
+            Assert.AreEqual(700f, t.TopMaxM);
+            Assert.AreEqual(15f, t.TopJitterM);
             // The switches are not touched by the numbers.
             Assert.IsFalse(Tuning(r, false, false, false, false).Any);
         }
@@ -160,7 +178,7 @@ namespace ReDefinition.Tests
         public void AKeyThatIsNotANumberOrOutOfRangeIsHeldAndWarnedOnceNamingNodeAndKey()
         {
             IReadOnlyList<string> warnings;
-            CloudHeightRules r = Rules("heightLclMPerK = abc;heightVariationM = -40;heightWavelengthM = 5;heightPhysicsMaxM = 90000;heightSizeTrendM = 1e9;heightRaggedM = 1e6;heightRaggedScaleM = 0;heightMinThicknessM = 0;", out warnings);
+            CloudHeightRules r = Rules("heightLclMPerK = abc;heightVariationM = -40;heightWavelengthM = 5;heightPhysicsMaxM = 90000;heightSizeTrendM = 1e9;heightRaggedM = 1e6;heightRaggedScaleM = 0;heightMinThicknessM = 0;heightTopGainMPerMs = -3;heightReferenceUpdraftMs = 500;heightTopMaxM = 1e9;heightTopJitterM = -1;", out warnings);
             Assert.AreEqual(CloudHeightRules.DefaultLclMPerK, r.LclMPerK, "not a number: the default");
             Assert.AreEqual(0f, r.VariationM, "below the range: its floor");
             Assert.AreEqual(100f, r.WavelengthM);
@@ -169,9 +187,14 @@ namespace ReDefinition.Tests
             Assert.AreEqual(2000f, r.RaggedM);
             Assert.AreEqual(1f, r.RaggedScaleM);
             Assert.AreEqual(1f, r.MinThicknessM);
-            foreach (string key in new[] { "heightLclMPerK", "heightVariationM", "heightWavelengthM", "heightPhysicsMaxM", "heightSizeTrendM", "heightRaggedM", "heightRaggedScaleM", "heightMinThicknessM" })
+            Assert.AreEqual(0f, r.TopGainMPerMs);
+            Assert.AreEqual(100f, r.ReferenceUpdraftMs);
+            Assert.AreEqual(50000f, r.TopMaxM);
+            Assert.AreEqual(0f, r.TopJitterM);
+            foreach (string key in new[] { "heightLclMPerK", "heightVariationM", "heightWavelengthM", "heightPhysicsMaxM", "heightSizeTrendM", "heightRaggedM", "heightRaggedScaleM", "heightMinThicknessM",
+                                           "heightTopGainMPerMs", "heightReferenceUpdraftMs", "heightTopMaxM", "heightTopJitterM" })
                 Assert.AreEqual(1, warnings.Count(w => w.Contains("CLOUDS." + key + ":")), key + " in " + string.Join("; ", warnings));
-            Assert.AreEqual(8, warnings.Count, string.Join("; ", warnings));
+            Assert.AreEqual(12, warnings.Count, string.Join("; ", warnings));
             // A misspelt key is the reader's unknown-key warning, with the key it was meant to be.
             BodyParseResult typo = CloudLayerSchemaTests.Parse("heightVariationm = 3;" + Layer);
             Assert.IsTrue(typo.Warnings.Any(w => w.Contains("heightVariationm") && w.Contains("heightVariationM")), string.Join("; ", typo.Warnings));
@@ -325,6 +348,48 @@ namespace ReDefinition.Tests
             var source = new LayerStackSource(1, R, true);
             source.Add(layer, null, null);
             Assert.AreEqual(5000f, HeightPlan.Make(source, large, 0.0, 3u, W, H).Tunings[0].RaggedScaleM, "the plan's copy carries the body's scale on to the layer pass");
+        }
+
+        [TestMethod]
+        public void TheTopKeysSetTheTopTermOfTheUpdraftAndItsBoundsAndJitter()
+        {
+            var input = new HeightInputs { Width = W, Height = H, Updraft = new float[W * H] };
+            for (int i = 0; i < W * H; i++) input.Updraft[i] = 4f;
+            double[] Top(string keys)
+            {
+                HeightTuning t = Tuning(Rules("heightVariationM = 0;" + keys), false, false, true, false);
+                return Channel(HeightMapBuilder.Build(input, t, R, 3u), 1);
+            }
+            // 4 m/s: the gain times the updraft above the reference (the byte holds the range of heightTopMaxM in 127 steps).
+            Assert.AreEqual(100.0 * (4.0 - 1.0), Top("heightTopJitterM = 0;heightTopMaxM = 500;heightTopGainMPerMs = 100;heightReferenceUpdraftMs = 1;").Average(), 4.0);
+            Assert.AreEqual(120.0 * (4.0 - 1.2), Top("heightTopJitterM = 0;heightTopMaxM = 500;").Average(), 4.0, "the compiled gain and reference");
+            Assert.AreEqual(50.0 * (4.0 - 2.0), Top("heightTopJitterM = 0;heightTopMaxM = 500;heightTopGainMPerMs = 50;heightReferenceUpdraftMs = 2;").Average(), 4.0);
+            Assert.AreEqual(200.0, Top("heightTopJitterM = 0;heightTopMaxM = 200;heightTopGainMPerMs = 100;heightReferenceUpdraftMs = 1;").Average(), 2.0, "held at the key's maximum");
+            Assert.AreEqual(0.0, Top("heightTopJitterM = 0;heightTopMaxM = 500;heightTopGainMPerMs = 100;heightReferenceUpdraftMs = 4;").Max(v => Math.Abs(v)), 1e-9, "at the reference the top is the table's");
+            Assert.AreEqual(0.0, Top("heightTopJitterM = 0;heightTopMaxM = 500;heightTopGainMPerMs = 0;").Max(v => Math.Abs(v)), 1e-9);
+            // The jitter is a field of the key's standard deviation about the term.
+            double[] jittered = Top("heightTopJitterM = 80;heightTopMaxM = 500;heightTopGainMPerMs = 0;");
+            Assert.AreEqual(80.0, Std(jittered), 8.0);
+            Assert.AreEqual(0.0, jittered.Average(), 8.0);
+        }
+
+        [TestMethod]
+        public void ALayerWithTopReachTakesItsOwnTopNumbersAndOtherLayersTheBodys()
+        {
+            HeightTuning body = Tuning(Rules("heightTopGainMPerMs = 80;heightReferenceUpdraftMs = 2;heightTopMaxM = 700;heightTopJitterM = 15;"), true, true, true, true);
+            var types = new List<CloudTypeDef> { new CloudTypeDef("t", 0f, 1f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f }), 0.5f) };
+            var plain = new CloudLayerDef("plain", 1, 1000f, 7000f, types, 0.05f, LayerKind.Weather);
+            var tall = new CloudLayerDef("tall", 1, 1000f, 11000f, types, 0.05f, LayerKind.Weather) { TopReach = 0.09f, TopRefMs = 3f, TopFullMs = 6f };
+            HeightTuning a = body.ForLayer(plain), b = body.ForLayer(tall);
+            Assert.AreEqual(80f, a.TopGainMPerMs);
+            Assert.AreEqual(2f, a.ReferenceUpdraftMs);
+            Assert.AreEqual(700f, a.TopMaxM);
+            Assert.AreEqual(900f, b.TopMaxM, 1e-3f, "0.09 of 10 km: the layer's");
+            Assert.AreEqual(3f, b.ReferenceUpdraftMs);
+            Assert.AreEqual(15f, a.TopJitterM);
+            Assert.AreEqual(15f, b.TopJitterM, "the jitter is the body's for every layer");
+            Assert.AreEqual(900.0, HeightModel.TopTermM(b, 60.0), 1e-3);
+            Assert.AreEqual(80.0 * (5.0 - 2.0), HeightModel.TopTermM(a, 5.0), 1e-3);
         }
 
         [TestMethod]
