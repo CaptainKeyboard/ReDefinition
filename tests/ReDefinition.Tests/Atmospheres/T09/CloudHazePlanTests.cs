@@ -272,6 +272,27 @@ Scatterer_atmosphere
             Assert.AreEqual(radiance.b, off.b, 0f, "the stage off: nothing is divided, nothing is changed");
         }
 
+        // E40 FL far: the horizon of Scatterer's sky in the frame of start 61 without our clouds (the stage's display values at row 740 of 960, the sky just above the horizon) is 0.663 / 0.784 / 0.820;
+        // the Rayleigh power law reaches 0.577 / 0.656 / 0.764 (green 0.13 short), and a far cloud faded into a violet darker than the sky. Kerbin's gain (hazeTintR / G / B 1.35 / 1.48 / 1.17) puts
+        // the colour a far cloud fades into within 0.02 of the sky's, and a gain of one leaves it as it was.
+        [TestMethod]
+        public void TheGainOnTheFarColourPutsItOnTheHorizonOfTheSky()
+        {
+            Color law = CloudHazePlan.ExemptFromWhitePoint(CloudBridgeAir.Inscatter(Start61Sun, Color.black, Color.black, KerbinRayleigh, 0.23f, 0.35f), Start61Tint, 2.2f);
+            Color same = CloudHazePlan.WithTint(law, Vector3.one);
+            Assert.AreEqual(law.g, same.g, 0f, "a gain of one: the law as it was");
+            Color tinted = CloudHazePlan.WithTint(law, new Vector3(1.35f, 1.48f, 1.17f));
+            float[] sky = { 0.663f, 0.784f, 0.820f };
+            float[] shown = { CloudOutputStage.Encode(tinted.r, Start61White, 1f, 1f, 2.2f), CloudOutputStage.Encode(tinted.g, Start61White, 1f, 1f, 2.2f), CloudOutputStage.Encode(tinted.b, Start61White, 1f, 1f, 2.2f) };
+            float[] before = { CloudOutputStage.Encode(law.r, Start61White, 1f, 1f, 2.2f), CloudOutputStage.Encode(law.g, Start61White, 1f, 1f, 2.2f), CloudOutputStage.Encode(law.b, Start61White, 1f, 1f, 2.2f) };
+            for (int i = 0; i < 3; i++)
+            {
+                Assert.AreEqual(sky[i], shown[i], 0.03f, "channel " + i + " with the gain");
+                Assert.IsTrue(Math.Abs(sky[i] - shown[i]) < Math.Abs(sky[i] - before[i]), "channel " + i + " is nearer the sky than the law was");
+            }
+            Assert.IsTrue(sky[1] - before[1] > 0.1f, "the law's green was more than 0.1 short");
+        }
+
         [TestMethod]
         public void TheNearSourceIsGreyAndTheHorizonKeepsItsColour()
         {

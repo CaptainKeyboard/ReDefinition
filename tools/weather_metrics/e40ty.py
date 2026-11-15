@@ -260,6 +260,8 @@ def cb_jobs(layers_by_name, extras):
 HAZE = os.environ.get("E40TY_HAZE")
 # E40TY_HAZE_BLUE=<x>: the body key hazeBlue of the "after" colours (the default is the cfg's 0.35), E40TY_HAZE_NEAR_BLUE=<x>: hazeNearBlue (0).
 HAZE_SHARE, HAZE_BLUE, HAZE_NEAR_BLUE = 0.23, float(os.environ.get("E40TY_HAZE_BLUE", 0.35)), float(os.environ.get("E40TY_HAZE_NEAR_BLUE", 0.0))
+# E40TY_HAZE_TINT=r,g,b: the body keys hazeTintR / G / B (E40 FL far), a gain on the far in-scatter colour of the "after" haze (1,1,1: none).
+HAZE_TINT_GAIN = np.array([float(x) for x in os.environ.get("E40TY_HAZE_TINT", "1,1,1").split(",")])
 SC_RAYLEIGH = (0.0153407799e-3, 0.0357074998e-3, 0.0875488967e-3)
 SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
 
@@ -278,7 +280,7 @@ def haze_block(layer):
         far["inscatter"] = [float(x) for x in inscatter(HAZE_BLUE)]
         return far
     tint = white_tint(layer["inner"] + 0.25 * (layer["outer"] - layer["inner"]))
-    far["inscatter"] = [float(x) for x in inscatter(HAZE_BLUE) * tint]
+    far["inscatter"] = [float(x) for x in inscatter(HAZE_BLUE) * tint * HAZE_TINT_GAIN]
     far["inscatterNear"] = [float(x) for x in inscatter(HAZE_NEAR_BLUE) * tint]
     return far
 

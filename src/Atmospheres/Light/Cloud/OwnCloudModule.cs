@@ -1132,7 +1132,8 @@ namespace ReDefinition.Atmospheres
             int hazeColourSource = (int)Tuning.Get(CloudHazePlan.TuneColour, 0f);
             float hazeShare = Tuning.Get(CloudHazePlan.TuneShare, CloudBridgeAir.HorizonShare);
             f.Far.Inscatter = CloudHazePlan.ExemptFromWhitePoint(
-                CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeBlue),
+                CloudHazePlan.WithTint(CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeBlue),
+                                       hazeColourSource == 1 ? Vector3.one : c.Clouds.HazeTint),   // a display colour the key asks for is not tinted
                 f.OutputWhiteTint, f.OutputGamma);
             f.Far.InscatterNear = CloudHazePlan.ExemptFromWhitePoint(
                 CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeNearBlue),

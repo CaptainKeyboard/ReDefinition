@@ -84,6 +84,13 @@ namespace ReDefinition.Atmospheres
                              premultiplied.b * airTransmittance.z + alpha * b * (1f - airTransmittance.z), premultiplied.a);
         }
 
+        // The body's gain per channel on the colour a far cloud fades into (body keys hazeTintR / G / B, E40 FL far): the Rayleigh power law of hazeBlue is bluer and greener-poor than the horizon of
+        // a sky with aerosols, so the gain moves the law's colour onto the horizon's. The gain multiplies the radiance, so the colour keeps following the sun's colour and height. One: the law as it was.
+        internal static Color WithTint(Color radiance, Vector3 gain)
+        {
+            return new Color(radiance.r * gain.x, radiance.g * gain.y, radiance.b * gain.z, radiance.a);
+        }
+
         // The in-scatter belongs to the air, not to the cloud's light. The output stage divides every channel of the pass by the white point's tint (the adaptation to the sun a cloud gets),
         // and the sky and the sea behind the cloud, which the haze should melt it into, are not divided: with the in-scatter in the stage too, a far cloud faded into a colour 4 to 5 percent
         // bluer than the sky it stands in front of (the tint of Kerbin's sun at a cloud is 1.04 / 0.99 / 0.95; E40 T1 tint). The radiance is multiplied by the tint so that the stage's

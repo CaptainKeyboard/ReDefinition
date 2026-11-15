@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
 using ReDefinition.Tests.Atmospheres.B13;
 using ReDefinition.Tests.Atmospheres.E41;
+using UnityEngine;
 
 namespace ReDefinition.Tests.Atmospheres.T10
 {
@@ -460,6 +461,18 @@ namespace ReDefinition.Tests.Atmospheres.T10
             BodyParseResult wild = Parse("hazeBlue = 7;hazeNearBlue = -2;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
             Assert.AreEqual(1f, wild.Climate.Clouds.HazeBlue, "brought into 0 to 1");
             Assert.AreEqual(0f, wild.Climate.Clouds.HazeNearBlue);
+        }
+
+        // E40 FL far: the gain on the colour a far cloud fades into, per body.
+        [TestMethod]
+        public void TheCloudsNodeCarriesAGainOnTheColourAFarCloudFadesInto()
+        {
+            BodyParseResult none = Parse("LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(Vector3.one, none.Climate.Clouds.HazeTint, "no key: the law as it was");
+            BodyParseResult set = Parse("hazeTintR = 1.35;hazeTintG = 1.48;hazeTintB = 1.17;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(new Vector3(1.35f, 1.48f, 1.17f), set.Climate.Clouds.HazeTint);
+            BodyParseResult wild = Parse("hazeTintR = 70;hazeTintG = -2;hazeTintB = 0;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(new Vector3(4f, 0.1f, 0.1f), wild.Climate.Clouds.HazeTint, "brought into 0.1 to 4");
         }
 
         // E40 L3: the meso-scale cover pattern (node MESO), the type patches (typePatchKm, typePatchBlend) and the types' climate (node CLIMATE with LATITUDE, SURFACE, HUMIDITY, PRECIPITATION).

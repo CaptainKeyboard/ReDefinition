@@ -23,10 +23,11 @@ namespace ReDefinition.Atmospheres
         internal CloudRules(CloudSourceKind? source = null, CloudDiscovery discover = CloudDiscovery.Auto, string baseLayer = "",
             IEnumerable<string> weatherLayers = null, IEnumerable<string> snowTypeNames = null, IEnumerable<string> stratusTypeNames = null,
             IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0, IEnumerable<CloudLayerSpec> layers = null, float sphereScale = 1f,
-            float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue)
+            float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue, Vector3? hazeTint = null)
         {
             Layers = SchemaList.Of(layers);
             SphereScale = sphereScale;
+            HazeTint = hazeTint ?? Vector3.one;
             HazeBlue = hazeBlue;
             HazeNearBlue = hazeNearBlue;
             Source = source;
@@ -64,6 +65,10 @@ namespace ReDefinition.Atmospheres
         // already, so the source of the first kilometres is the sun's grey: 0). The pass blends the two by the blue channel's extinction along the ray (FarView.cginc).
         internal float HazeBlue { get; }
         internal float HazeNearBlue { get; }
+        // Keys hazeTintR, hazeTintG and hazeTintB (E40 FL far): a gain per channel on the colour a far cloud fades into (the far in-scatter, after hazeBlue; the near colour is not touched).
+        // The Rayleigh power law of hazeBlue cannot reach the whitish-cyan horizon of a sky with aerosols: on Kerbin it leaves green 0.09 to 0.13 (display) under Scatterer's horizon, so a cloud 25 km away
+        // fades into a violet and a band of far clouds reads darker than the sky behind it. The gain is the ratio of the sky's horizon radiance to the power law's colour; 1 keeps the law as it was.
+        internal Vector3 HazeTint { get; }
         internal const float DefaultHazeBlue = 0.35f, DefaultHazeNearBlue = 0f;
     }
 
