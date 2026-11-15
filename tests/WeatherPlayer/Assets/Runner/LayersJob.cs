@@ -75,6 +75,12 @@ namespace ReDefinition.WeatherPlayer
         public float typeScale = 1f;
         // The layer's wind in world space (m/s; E40 L5 shape): the fibres lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
         public float[] wind;
+        // E40 PP: the game's height maps of the layer (a raw file of width x height x 3 bytes: root, top, variation, as the probe dumps them), their ranges in m and the ragged seed; empty:
+        // the maps are built from heights.json as before.
+        public string heightMap;
+        public int heightWidth, heightHeight;
+        public float heightRoot, heightTop, heightVariation;
+        public long heightSeed = -1;
     }
 
     [Serializable]
@@ -128,6 +134,8 @@ namespace ReDefinition.WeatherPlayer
         public int width, height;
         // The camera in the planet frame (centre at the origin, z north): position, forward, right and up (unit vectors), the vertical field of view in degrees.
         public float[] position, forward, right, up;
+        // E40 PP: the rotation from these axes into the map frame, three rows (the game's world axes; the noise is looked up in them); empty: the axes are the map frame's.
+        public float[] worldToMap;
         public float fovV;
         public float planetRadius;
         // 1: the body has a surface (the ray ends on the sea-level sphere), 0: a gas giant.

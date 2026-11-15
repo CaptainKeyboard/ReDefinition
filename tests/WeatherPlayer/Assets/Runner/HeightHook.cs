@@ -83,6 +83,19 @@ namespace ReDefinition.WeatherPlayer
             float[] updraft = Load(job, input, spec.updraftMap, spec.width, spec.height, 12f / 255f);
             for (int l = 0; l < source.LayerCount; l++)
             {
+                // E40 PP: the game's own height maps of the layer (the probe's dump), with the body's tuning of the layer.
+                LayersJobLayer dumped = l < job.layers.Length ? job.layers[l] : null;
+                if (dumped != null && !string.IsNullOrEmpty(dumped.heightMap) && dumped.heightWidth >= 2 && dumped.heightHeight >= 2)
+                {
+                    byte[] raw = File.ReadAllBytes(Path.Combine(input, dumped.heightMap));
+                    var maps = new HeightMaps(dumped.heightWidth, dumped.heightHeight, dumped.heightRoot, dumped.heightTop, dumped.heightVariation);
+                    Array.Copy(raw, maps.Bytes, Math.Min(raw.Length, maps.Bytes.Length));
+                    HeightTuning dt = body.ForLayer(source.LayerAt(l));
+                    uint ds = dumped.heightSeed >= 0 ? (uint)dumped.heightSeed : (spec.seed * 0x9E3779B1u + (uint)(l + 1) * 0x85EBCA6Bu) & 0xFFFFFFu;
+                    dt.Seed = ds;
+                    source.SetHeights(l, dt, maps, ds);
+                    continue;
+                }
                 // The maps of a layer depend on the switches and the layer only: the 700-odd jobs of the pop sweep share them.
                 string key = spec.variation + "" + spec.physics + spec.topUpdraft + spec.ragged + "|" + source.LayerAt(l).Name + "|" + spec.seed + "|" + job.planetRadius + "|" + spec.updraftMap + "|" + source.LayerAt(l).TopReach;
                 HeightMaps cachedMaps;

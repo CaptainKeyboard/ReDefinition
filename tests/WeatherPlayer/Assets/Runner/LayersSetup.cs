@@ -128,6 +128,13 @@ namespace ReDefinition.WeatherPlayer
                 AmbientTop = Rgb(job.ambientTop, new Color(0.35f, 0.42f, 0.55f)),
                 AmbientBottom = Rgb(job.ambientBottom, new Color(0.14f, 0.15f, 0.16f))
             };
+            // E40 PP: the game's world axes (a replay of a probe dump keeps them, since the noise is looked up in world axes).
+            if (job.worldToMap != null && job.worldToMap.Length == 9)
+            {
+                var m = Matrix4x4.identity;
+                for (int r = 0; r < 3; r++) m.SetRow(r, new Vector4(job.worldToMap[r * 3], job.worldToMap[r * 3 + 1], job.worldToMap[r * 3 + 2], 0f));
+                frame.WorldToMap = m;
+            }
             // The cost controls keep the product's default (the LayerFrame's) where the job does not name a value.
             frame.CostDebug = job.costDebug;
             if (job.ambientLayerColumn != 0) frame.Light.AmbientColumnToTypeTop = false;

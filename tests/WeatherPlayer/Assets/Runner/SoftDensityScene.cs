@@ -393,6 +393,10 @@ namespace ReDefinition.WeatherPlayer
                                     if (Array.IndexOf(sc.Dump, i) >= 0)
                                     {
                                         Dump(rig.Recon.Output, "gs-" + view + "-" + medium.Name + "-" + sc.Name + "-" + march + "-" + mode + "-f" + i);
+                                        // E40 PP: the uniforms this frame ran with, for the comparison with the game's pass.json (tools/weather_metrics/e40pp.py).
+                                        if (sc.Name == "static")
+                                            File.WriteAllText(Path.Combine(Output, "gs-" + view + "-" + medium.Name + "-" + sc.Name + "-" + march + "-" + mode + "-f" + i + "-uniforms.json"),
+                                                              LayerPassReadout.Uniforms(rig.Renderer.Material));
                                         dumped++;
                                     }
                                     if (i % 8 == 7) yield return null;
