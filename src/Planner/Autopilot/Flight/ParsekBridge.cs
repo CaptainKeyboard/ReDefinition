@@ -21,7 +21,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
             get
             {
                 // The first of the things taken from Parsek that does not hold names the problem; the others fail alone, each to its own fallback.
-                foreach (ForeignAssumption assumption in new[] { PlannerAssumptions.ParsekGhost, PlannerAssumptions.ParsekRecorder, PlannerAssumptions.ParsekStart, PlannerAssumptions.ParsekRecording })
+                foreach (ForeignAssumption assumption in new[] { PlannerAssumptions.ParsekGhost, PlannerAssumptions.ParsekRecorder, PlannerAssumptions.ParsekStart, PlannerAssumptions.ParsekRecordingInstalled })
                 {
                     if (assumption.State == ForeignState.Absent || assumption.Holds) continue;
                     return "Parsek " + assumption.Version + " is not a build the autopilot was checked against (" + assumption.Problem + "): " + assumption.Fallback + ".";

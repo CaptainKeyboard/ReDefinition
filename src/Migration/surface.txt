@@ -35,6 +35,7 @@ foreign.parallax-tessellation = Parallax
 foreign.parsek-ghost = Parsek
 foreign.parsek-recorder = Parsek
 foreign.parsek-recording = Parsek
+foreign.parsek-recording-1 = Parsek
 foreign.parsek-start = Parsek
 foreign.persistentrotation-button = Persistent Rotation
 foreign.scatterer-cloud-atmosphere = Scatterer

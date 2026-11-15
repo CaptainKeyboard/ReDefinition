@@ -133,10 +133,52 @@ namespace ReDefinition.Planner
         // and committed with RecordingStore.CommitTree. Parsek then plays it, and puts the vessel back at its end when the player is not in the flight.
         // Parsek 0.10.6 (source of 0.10.7 read): Recording and TrajectoryPoint and OrbitSegment hold their data in public fields, a terminal orbit is Keplerian
         // elements in degrees and radians, and VesselSpawner.TryBackupSnapshot makes the vessel's snapshot.
-        public static readonly ForeignAssumption ParsekRecording =
-            new ForeignAssumption("parsek-recording", "Parsek", "the route is recorded ahead of the flight, for Parsek to play when the player leaves")
+        public static readonly ForeignAssumption ParsekRecording = RecordingFields(new ForeignAssumption("parsek-recording", "Parsek", "the route is recorded ahead of the flight, for Parsek to play when the player leaves (Parsek 0.10)"))
+                .Type("Parsek.VesselSpawner")
+                .Method("Parsek.RecordingStore", "CommitTree", "Parsek.RecordingTree").Method("Parsek.RecordingStore", "get_CommittedRecordings")
+                .Method("Parsek.RecordingStore", "MarkTreeAsApplied", "Parsek.RecordingTree").Method("Parsek.Recording", "get_StartUT")
+                .Type("Parsek.PlaybackScopeTracker").Method("Parsek.PlaybackScopeTracker", "NotePlayhead", "System.String", "System.Double", "System.Double")
+                .Type("Parsek.LedgerOrchestrator").Method("Parsek.LedgerOrchestrator", "NotifyLedgerTreeCommitted", "Parsek.RecordingTree")
+                .Type("Parsek.ClaimedVesselRemoval").Type("Parsek.LiveClaimedVesselRemovalTarget").Type("Parsek.IClaimedVesselRemovalTarget")
+                .Method("Parsek.ClaimedVesselRemoval", "Remove", "Parsek.IClaimedVesselRemovalTarget", "System.String")
+                .Method("Parsek.VesselSpawner", "TryBackupSnapshot", "Vessel")
+                .Tested("5f90828888ca") // Parsek 0.10.6
+                .TestedVersions("0.10.6.0")
+                .OnChange(WhenChanged.Fallback, "the route is not recorded for Parsek, and the flight stops when the player leaves");
+
+        // The same for Parsek 1.0, which moved two of the calls: RecordingStore.CommitTree is TreeCommitService.CommitTree (Recording/TreeCommitService.cs:74 in v1.0.2)
+        // and VesselSpawner.TryBackupSnapshot is FlightRecorder.TryBackupSnapshot (Recording/FlightRecorder.LiveSnapshot.cs:20). What it relies on is
+        // read in the source of v1.0.2 (ParsekRecording's own lookups take the new place first, then the old one). Its methods are named
+        // only (Calls): no code fingerprint of 1.0.x is recorded until its method bodies have been read against the installed build and checked in the game.
+        public static readonly ForeignAssumption ParsekRecording10 = RecordingFields(new ForeignAssumption("parsek-recording-1", "Parsek", "the route is recorded ahead of the flight, for Parsek to play when the player leaves (Parsek 1.0)"))
+                .Type("Parsek.TreeCommitService").Type("Parsek.FlightRecorder")
+                .Calls("Parsek.TreeCommitService", "CommitTree", "Parsek.RecordingTree").Calls("Parsek.RecordingStore", "get_CommittedRecordings")
+                .Calls("Parsek.RecordingStore", "MarkTreeAsApplied", "Parsek.RecordingTree").Calls("Parsek.Recording", "get_StartUT")
+                .Type("Parsek.PlaybackScopeTracker").Calls("Parsek.PlaybackScopeTracker", "NotePlayhead", "System.String", "System.Double", "System.Double")
+                .Type("Parsek.LedgerOrchestrator").Calls("Parsek.LedgerOrchestrator", "NotifyLedgerTreeCommitted", "Parsek.RecordingTree")
+                .Type("Parsek.ClaimedVesselRemoval").Type("Parsek.LiveClaimedVesselRemovalTarget").Type("Parsek.IClaimedVesselRemovalTarget")
+                .Calls("Parsek.ClaimedVesselRemoval", "Remove", "Parsek.IClaimedVesselRemovalTarget", "System.String")
+                .Calls("Parsek.FlightRecorder", "TryBackupSnapshot", "Vessel")
+                .OnChange(WhenChanged.Fallback, "the route is not recorded for Parsek, and the flight stops when the player leaves");
+
+        // Whether a recording can be made ahead of the flight with the Parsek that is installed: its 1.0 layout or its 0.10 layout.
+        public static bool ParsekRecordingHolds
+        {
+            get { return ParsekRecording10.Holds || ParsekRecording.Holds; }
+        }
+
+        // The entry that says why not, where neither holds: the one of the layout that is installed (1.0 first).
+        public static ForeignAssumption ParsekRecordingInstalled
+        {
+            get { return ParsekRecording.State != ForeignState.Absent && ParsekRecording10.State == ForeignState.Absent ? ParsekRecording : ParsekRecording10; }
+        }
+
+        // The types and fields both layouts have: the recording, its tree, the points and orbit segments, the schema constants.
+        private static ForeignAssumption RecordingFields(ForeignAssumption assumption)
+        {
+            return assumption
                 .Type("Parsek.Recording").Type("Parsek.RecordingTree").Type("Parsek.TrajectoryPoint").Type("Parsek.OrbitSegment")
-                .Type("Parsek.TerminalState").Type("Parsek.RecordingStore").Type("Parsek.VesselSpawner")
+                .Type("Parsek.TerminalState").Type("Parsek.RecordingStore")
                 .Field("Parsek.Recording", "RecordingId").Field("Parsek.Recording", "TreeId").Field("Parsek.Recording", "VesselName")
                 .Field("Parsek.Recording", "VesselPersistentId").Field("Parsek.Recording", "TerminalStateValue")
                 .Field("Parsek.Recording", "TerminalOrbitInclination").Field("Parsek.Recording", "TerminalOrbitEccentricity")
@@ -155,23 +197,14 @@ namespace ReDefinition.Planner
                 .Field("Parsek.OrbitSegment", "longitudeOfAscendingNode").Field("Parsek.OrbitSegment", "argumentOfPeriapsis")
                 .Field("Parsek.OrbitSegment", "meanAnomalyAtEpoch").Field("Parsek.OrbitSegment", "epoch").Field("Parsek.OrbitSegment", "bodyName")
                 .Type("Parsek.RecordingSchema").Field("Parsek.RecordingSchema", "CurrentRecordingFormatVersion")
-                .Field("Parsek.RecordingSchema", "CurrentRecordingSchemaGeneration")
-                .Method("Parsek.RecordingStore", "CommitTree", "Parsek.RecordingTree").Method("Parsek.RecordingStore", "get_CommittedRecordings")
-                .Method("Parsek.RecordingStore", "MarkTreeAsApplied", "Parsek.RecordingTree").Method("Parsek.Recording", "get_StartUT")
-                .Type("Parsek.PlaybackScopeTracker").Method("Parsek.PlaybackScopeTracker", "NotePlayhead", "System.String", "System.Double", "System.Double")
-                .Type("Parsek.LedgerOrchestrator").Method("Parsek.LedgerOrchestrator", "NotifyLedgerTreeCommitted", "Parsek.RecordingTree")
-                .Type("Parsek.ClaimedVesselRemoval").Type("Parsek.LiveClaimedVesselRemovalTarget").Type("Parsek.IClaimedVesselRemovalTarget")
-                .Method("Parsek.ClaimedVesselRemoval", "Remove", "Parsek.IClaimedVesselRemovalTarget", "System.String")
-                .Method("Parsek.VesselSpawner", "TryBackupSnapshot", "Vessel")
-                .Tested("5f90828888ca") // Parsek 0.10.6
-                .TestedVersions("0.10.6.0")
-                .OnChange(WhenChanged.Fallback, "the route is not recorded for Parsek, and the flight stops when the player leaves");
+                .Field("Parsek.RecordingSchema", "CurrentRecordingSchemaGeneration");
+        }
 
         // The entries, in the order the report lists them.
         public static readonly ForeignAssumption[] All =
         {
             MechJebAutopilot, MechJebRendezvous, MechJebActivity, MechJebAscentStaging, MechJebLandingStaging,
-            ParsekGhost, ParsekRecorder, ParsekStart, ParsekRecording,
+            ParsekGhost, ParsekRecorder, ParsekStart, ParsekRecording, ParsekRecording10,
         };
     }
 }

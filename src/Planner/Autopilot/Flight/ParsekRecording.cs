@@ -53,6 +53,33 @@ namespace ReDefinition.Planner.Autopilot.Flight
             return Commit(vessel, legs, deltaV, takeVesselOut);
         }
 
+        // Where Parsek keeps the vessel's snapshot call: FlightRecorder.TryBackupSnapshot(Vessel) since 1.0 (Recording/FlightRecorder.LiveSnapshot.cs),
+        // VesselSpawner.TryBackupSnapshot(Vessel) in 0.10. The newer place is looked at first. Null where neither has it.
+        internal static MethodInfo FindBackupSnapshot(Func<string, Type> find)
+        {
+            foreach (string name in new[] { "Parsek.FlightRecorder", "Parsek.VesselSpawner" })
+            {
+                Type type = find(name);
+                MethodInfo method = type != null ? type.GetMethod("TryBackupSnapshot", TypeLookup.Any, null, new[] { typeof(Vessel) }, null) : null;
+                if (method != null) return method;
+            }
+            return null;
+        }
+
+        // Where Parsek keeps the commit of a tree: TreeCommitService.CommitTree(RecordingTree) since 1.0 (Recording/TreeCommitService.cs),
+        // RecordingStore.CommitTree(RecordingTree) in 0.10. The newer place is looked at first. Null where neither has it.
+        internal static MethodInfo FindCommitTree(Func<string, Type> find, Type treeType)
+        {
+            if (treeType == null) return null;
+            foreach (string name in new[] { "Parsek.TreeCommitService", "Parsek.RecordingStore" })
+            {
+                Type type = find(name);
+                MethodInfo method = type != null ? type.GetMethod("CommitTree", TypeLookup.Any, null, new[] { treeType }, null) : null;
+                if (method != null) return method;
+            }
+            return null;
+        }
+
         // The vessel's name as the player reads it: a stock craft's name is a localization key (#autoLOC_501232), which Parsek would show as it is.
         private static string ShownName(Vessel vessel)
         {
@@ -63,7 +90,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
         // Null where it was committed; else the reason it was not.
         internal static string Commit(Vessel vessel, IList<PlannedLeg> legs, double deltaV, bool takeVesselOut = false)
         {
-            if (!PlannerAssumptions.ParsekRecording.Holds) return "Parsek is not there, or is a build the recording was not checked against.";
+            if (!PlannerAssumptions.ParsekRecordingHolds) return "Parsek is not there, or is a build the recording was not checked against.";
             if (vessel == null || legs == null || legs.Count == 0) return "There is no route to record.";
             try
             {
@@ -79,9 +106,9 @@ namespace ReDefinition.Planner.Autopilot.Flight
                 Type segmentType = TypeLookup.Find("Parsek.OrbitSegment");
                 Type terminalType = TypeLookup.Find("Parsek.TerminalState");
                 Type store = TypeLookup.Find("Parsek.RecordingStore");
-                Type spawner = TypeLookup.Find("Parsek.VesselSpawner");
-                MethodInfo backup = spawner.GetMethod("TryBackupSnapshot", TypeLookup.Any, null, new[] { typeof(Vessel) }, null);
-                MethodInfo commit = store.GetMethod("CommitTree", TypeLookup.Any, null, new[] { treeType }, null);
+                MethodInfo backup = FindBackupSnapshot(TypeLookup.Find);
+                MethodInfo commit = FindCommitTree(TypeLookup.Find, treeType);
+                if (backup == null || commit == null) return "Parsek's snapshot or commit method is not where the recording looks for it in this build.";
                 MethodInfo applied = store.GetMethod("MarkTreeAsApplied", TypeLookup.Any, null, new[] { treeType }, null);
                 Type ledger = TypeLookup.Find("Parsek.LedgerOrchestrator");
                 MethodInfo notify = ledger != null ? ledger.GetMethod("NotifyLedgerTreeCommitted", TypeLookup.Any, null, new[] { treeType }, null) : null;
@@ -185,7 +212,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
         // So every recording made here is told to the scope from its own start, whatever the time is, when it is committed and at each scene's start.
         internal static void KeepInScope()
         {
-            if (!PlannerAssumptions.ParsekRecording.Holds) return;
+            if (!PlannerAssumptions.ParsekRecordingHolds) return;
             try
             {
                 Type store = TypeLookup.Find("Parsek.RecordingStore");
@@ -214,7 +241,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
         internal static double LatestEnd()
         {
             double latest = 0.0;
-            if (!PlannerAssumptions.ParsekRecording.Holds) return latest;
+            if (!PlannerAssumptions.ParsekRecordingHolds) return latest;
             try
             {
                 Type store = TypeLookup.Find("Parsek.RecordingStore");
