@@ -93,6 +93,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdPrevU, previousUp / previousTanY);
             m.SetVector(IdShellR, new Vector4(shell.MiddleRadius, shell.FallbackDistance, 0f, 0f));
             m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
+            renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
             cb.Blit(BuiltinRenderTextureType.None, output, m, 3);
 
             // The state of this frame is the next frame's last.

@@ -292,6 +292,26 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
+        public void TheCloudMotionKeysAreTuningKeysOnByDefaultAndTheLayerSwitchReachesTheReconstruction()
+        {
+            // E40 MVCLOUD: recon.layerMotion (the cloud's place on every layer's sphere, blended; 0 the first layer's sphere), cloud.motionVectors (the pass's handler on the host's hook;
+            // 0 leaves the sky's vector over the clouds), cloud.mvAudit (the log row of the vectors' error, off).
+            Assert.AreEqual("recon.layerMotion", OwnCloudOptions.TuneLayerMotion);
+            Assert.AreEqual("cloud.motionVectors", OwnCloudOptions.TuneMotionVectors);
+            Assert.AreEqual("cloud.mvAudit", OwnCloudOptions.TuneMotionAudit);
+            Assert.IsTrue(OwnCloudOptions.LayerMotionDefault && OwnCloudOptions.MotionVectorsDefault && !OwnCloudOptions.MotionAuditDefault);
+            var recon = new ReconSettings();
+            Tuning.ClearOverrides();
+            NextFrame();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.IsTrue(recon.LayerMotion, "the layers' places are the default");
+            Tuning.SetOverride(OwnCloudOptions.TuneLayerMotion, 0f);
+            NextFrame();
+            OwnCloudOptions.Apply(recon, Defaults());
+            Assert.IsFalse(recon.LayerMotion, "recon.layerMotion 0 takes the first layer's sphere again");
+        }
+
+        [TestMethod]
         public void EveryLevelOfTheSliderHasAStrideThatVisitsAllCells()
         {
             for (int n = 2; n <= ReconPattern.MaxLevel; n++)

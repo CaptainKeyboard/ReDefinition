@@ -51,6 +51,14 @@ namespace ReDefinition.Atmospheres
         internal const string TuneAccumulate = "recon.accumulate";
         internal const float AccumulateDefault = 0.2f;
 
+        // E40 MVCLOUD: recon.layerMotion (default 1): the cloud's place in the previous frame, for the reconstruction's history and for the motion vector the upscalers read, is taken on
+        // every layer's middle sphere and blended by the layers' share of the pixel (LayerMotionModel); 0 takes the first layer's sphere for every pixel (the history as it was, and the
+        // motion vector of the first layer's sphere). cloud.motionVectors (default 1): the pass registers its motion vector handler with the host (Hooks.RegisterMotionVectors), which
+        // runs only while an upscaler or frame generation reads the vectors; 0 leaves the sky's rotation-only vector over the clouds, as before. cloud.mvAudit (default 0): the pass reads
+        // back a few pixels of its vectors and logs their error against the model (CloudMotionAudit).
+        internal const string TuneLayerMotion = "recon.layerMotion", TuneMotionVectors = "cloud.motionVectors", TuneMotionAudit = "cloud.mvAudit";
+        internal const bool LayerMotionDefault = true, MotionVectorsDefault = true, MotionAuditDefault = false;
+
         // E40 ground cost (package L2COST): the size of the history path's march target, so that a march below half size laid up over several frames is a variant of the
         // game start and not only of the player. recon.resolution is the march target's side over the full target's (0.1 to 1; default 0.5, the compiled LayerFrame.Resolution);
         // it acts wherever the reconstructor runs in its mode Low: the history path of level 1 (recon.accumulate above 0) and the mode setting Low. (The key recon.jitter, the
@@ -375,6 +383,7 @@ namespace ReDefinition.Atmospheres
             bool low = (ReconMode)Math.Max(0, Math.Min(2, (int)v(AtmospheresSettings.Keys.CloudReconMode))) == ReconMode.Low;
             s.Mode = low ? ReconMode.Low : (level > 1 ? ReconMode.Block : ReconMode.Full);
             s.Block = Math.Max(2, level);
+            s.LayerMotion = Tuning.Flag(TuneLayerMotion, LayerMotionDefault);
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));

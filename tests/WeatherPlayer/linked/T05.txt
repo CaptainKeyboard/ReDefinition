@@ -3,3 +3,4 @@
 src/Atmospheres/Render/Layers/Temporal/*.cs
 tests/ReDefinition.Tests/Atmospheres/T05/Probe/TemporalScene.cs
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresReconstruct.shader
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresCloudMotion.cginc

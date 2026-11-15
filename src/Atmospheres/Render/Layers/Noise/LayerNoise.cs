@@ -255,6 +255,12 @@ namespace ReDefinition.Atmospheres
             if (layer >= 0 && layer < motion.Length) motion[layer] = value;
         }
 
+        // The drift of a layer's pattern in world space (m/s) as the last SetMotion gave it (zero for a layer that has none).
+        internal Vector3 DriftOf(int layer)
+        {
+            return layer >= 0 && layer < motion.Length ? motion[layer].DriftMs : Vector3.zero;
+        }
+
         // How much longer a layer's noise features are along the body's axis than across it (1 and above; 1: isotropic): the lookup is compressed along the axis by 1 / k. The axis itself is
         // the shader's: the third row of the world-to-map matrix, the body's pole. The uniform holds 1 - 1 / k.
         internal void SetStretch(int layer, double k)

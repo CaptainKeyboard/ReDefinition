@@ -35,6 +35,11 @@ namespace ReDefinition.Atmospheres
         public float FreshWeight = 0.5f, StaleWeight = 0.05f, ClipSigma = 1.0f;
         // The cloud's drift in the planet frame per frame (m): the wind that moves the pattern.
         public Vector3 DriftPerFrame;
+        // E40 MVCLOUD: the cloud's place in the previous frame is taken on every layer's middle sphere and blended by the layers' share of the pixel (history and motion vector;
+        // ReDefinitionAtmospheresCloudMotion.cginc). False: the first layer's middle sphere for every pixel, as before. DriftSeconds: the interval the layers' wind drift is taken over
+        // (the frame's; 0: no drift).
+        public bool LayerMotion = true;
+        public float DriftSeconds;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
@@ -72,6 +77,9 @@ namespace ReDefinition.Atmospheres
             IdEdgeTex = Shader.PropertyToID("_EdgeTex"), IdEdgeTexel = Shader.PropertyToID("_EdgeTex_TexelSize"), IdEdgeK = Shader.PropertyToID("_EdgeK"),
             IdEdgeD = Shader.PropertyToID("_EdgeD"), IdReconE = Shader.PropertyToID("_ReconE");
         internal const string EdgeShaderName = "ReDefinition/AtmospheresEdge";
+        // E40 MVCLOUD: pass 1 of the reconstruction shader draws the cloud's motion vectors; its inputs are the frame's full target and the host's copy of the scene depth.
+        internal const int PassMotion = 1;
+        private static readonly int IdMvCloud = Shader.PropertyToID("_MvCloud"), IdMvDepth = Shader.PropertyToID("_MvDepth");
 
         private Material material;
         // Package T12: the edge shader's material, the layer material's copy for the edge draw, the edge pattern's samples, the mask's state (last
@@ -87,6 +95,9 @@ namespace ReDefinition.Atmospheres
         private Vector3 previousPosition, previousForward, previousRight, previousUp;
         private float previousTanX = 1f, previousTanY = 1f;
         private bool haveHistory, haveLowHistory;
+        // E40 MVCLOUD: a camera of the frame before exists (the previous pose is the one of the last Record, cleared by Reset), and whether the last Record had one (the motion vector of
+        // that frame is drawn only then).
+        private bool havePose, lastPoseValid;
         private int blockIndex;
 
         internal bool Ready { get { return material != null; } }
@@ -133,6 +144,7 @@ namespace ReDefinition.Atmospheres
             haveHistory = false;
             haveLowHistory = false;
             haveEdgeState = false;
+            havePose = false;
             blockIndex = 0;
             edgeIndex = 0;
         }
@@ -255,6 +267,9 @@ namespace ReDefinition.Atmospheres
                 edgeLayers.CopyPropertiesFromMaterial(layers);
             }
 
+            // E40 MVCLOUD: whether the reconstruction material holds the frame's pose and the layers' places after the branch below (the paths that run its pass 0 set them).
+            bool materialBound = false;
+            lastPoseValid = havePose;
             if (markStart != null) markStart(cb);
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
@@ -296,6 +311,8 @@ namespace ReDefinition.Atmospheres
                     a.SetVector(IdPrevU, previousUp / previousTanY);
                     a.SetVector(IdShellR, new Vector4(shell.MiddleRadius, shell.FallbackDistance, 0f, 0f));
                     a.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveLowHistory ? 1f : 0f));
+                    renderer.BindMotion(a, f, s.LayerMotion, havePose, s.DriftSeconds);
+                    materialBound = true;
                     cb.Blit(BuiltinRenderTextureType.None, lowSpare, a, 0);
                     source = lowSpare;
                     lowSpare = lowLatest;
@@ -339,19 +356,76 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdPrevU, previousUp / previousTanY);
                 m.SetVector(IdShellR, new Vector4(info.MiddleRadius, info.FallbackDistance, 0f, 0f));
                 m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
+                renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
+                materialBound = true;
                 cb.Blit(BuiltinRenderTextureType.None, output, m, 0);
                 haveHistory = true;
             }
+            // The paths that do not run pass 0 of this material still give the motion pass (RecordMotion) the camera and the layers.
+            if (!materialBound) BindPose(material, renderer, f, t, tanX, tanY, s);
             // The finished target is the next frame's history.
             spare = latest;
             latest = output;
             if (markEnd != null) markEnd(cb);
+            lastCurrent = PoseOf(t.position - f.PlanetCenter, t.forward, t.right, t.up, tanX, tanY);
+            lastPrevious = PoseOf(previousPosition, previousForward, previousRight, previousUp, previousTanX, previousTanY);
+            havePose = true;
             previousPosition = t.position - f.PlanetCenter;
             previousForward = t.forward;
             previousRight = t.right;
             previousUp = t.up;
             previousTanX = tanX;
             previousTanY = tanY;
+        }
+
+        // E40 MVCLOUD: the cameras of the last Record in the planet frame (the current one and the frame before's) for the audit of the motion vectors; false where the last Record had no
+        // frame before it.
+        internal bool LastPoses(out ReconCamera current, out ReconCamera previous)
+        {
+            current = lastCurrent;
+            previous = lastPrevious;
+            return lastPoseValid;
+        }
+
+        private ReconCamera lastCurrent, lastPrevious;
+
+        private static ReconCamera PoseOf(Vector3 position, Vector3 forward, Vector3 right, Vector3 up, float tanX, float tanY)
+        {
+            return new ReconCamera
+            {
+                Px = position.x, Py = position.y, Pz = position.z, Fx = forward.x, Fy = forward.y, Fz = forward.z,
+                Rx = right.x, Ry = right.y, Rz = right.z, Ux = up.x, Uy = up.y, Uz = up.z, TanX = tanX, TanY = tanY
+            };
+        }
+
+        // The camera, the previous camera and the layers' places in the reconstruction material, for a path that does not run its pass 0 (the motion pass reads them).
+        private void BindPose(Material mat, LayerRenderer renderer, LayerFrame f, Transform t, float tanX, float tanY, ReconSettings s)
+        {
+            CloudLayerFrameInfo shell = renderer.FirstLayerShell();
+            shell.FallbackDistance = 50000f;
+            mat.SetVector(IdCamPos, t.position - f.PlanetCenter);
+            mat.SetVector(IdCamForward, t.forward);
+            mat.SetVector(IdCamRight, t.right * tanX);
+            mat.SetVector(IdCamUp, t.up * tanY);
+            mat.SetVector(IdPrevPos, previousPosition);
+            mat.SetVector(IdPrevF, previousForward);
+            mat.SetVector(IdPrevR, previousRight / previousTanX);
+            mat.SetVector(IdPrevU, previousUp / previousTanY);
+            mat.SetVector(IdShellR, new Vector4(shell.MiddleRadius, shell.FallbackDistance, 0f, 0f));
+            mat.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, havePose ? 1f : 0f));
+            renderer.BindMotion(mat, f, s.LayerMotion, havePose, s.DriftSeconds);
+        }
+
+        // E40 MVCLOUD: records the cloud's motion vectors of the last Record over the host's motion vectors (pass 1 of the reconstruction shader). Each pixel the cloud covers gets the
+        // vector of its place in the frame before, blended by the cloud's alpha where the cloud is in front of the scene depth (a copy of the scene's raw depth at the render size);
+        // the clear sky and the geometry in front keep what the host's vectors hold. False where nothing is recorded: no frame of the pass before it, or no full target.
+        internal bool RecordMotion(CommandBuffer cb, RenderTexture motionVectors, RenderTexture sceneDepth)
+        {
+            if (!Ready || output == null || !lastPoseValid || motionVectors == null || sceneDepth == null) return false;
+            material.SetTexture(IdMvCloud, output);
+            material.SetTexture(IdMvDepth, sceneDepth);
+            cb.Blit(BuiltinRenderTextureType.None, motionVectors, material, PassMotion);
+            return true;
         }
     }
 

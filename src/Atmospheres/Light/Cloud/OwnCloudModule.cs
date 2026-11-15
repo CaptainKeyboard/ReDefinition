@@ -19,7 +19,10 @@ namespace ReDefinition.Atmospheres
     // Otherwise the buffers are off the camera and nothing is allocated per frame.
     //
     // Rendering statement (owner rule: every visual feature states it):
-    //  - motion vectors: none of its own. The pass draws into the camera target before the image effects; the upscaler sees the clouds as part
+    //  - motion vectors (E40 MVCLOUD): the pass writes no depth, so the host's vectors carry the sky's rotation-only motion over a cloud. As the reconstruction it draws the
+    //    cloud's own vector over the host's through Hooks.RegisterMotionVectors (OnMotionVectors, DrawMotion; cloud.motionVectors): each pixel's place in the frame before on the
+    //    layers' middle spheres, blended by the layers' share of the pixel (LayerMotionModel), weighted by the cloud's alpha where the cloud is in front of the scene. The same place is
+    //    the history's lookup (recon.layerMotion). The pass draws into the camera target before the image effects; the upscaler sees the clouds as part
     //    of the colour. With the reconstruction (off by default) the cloud keeps its own history: the block levels of cloudResolution a full-size one, the
     //    half-size march of level 1 one of its own size behind recon.accumulate (E40 grain; default 0.2, 0 = none); the upscaler's jitter is not applied to the rays.
     //  - depth: the camera's depth texture, made linear by ReDefinitionAtmospheresLayerDepth.shader, limits the march and the composite
@@ -61,6 +64,9 @@ namespace ReDefinition.Atmospheres
             // and the forced rounds of a new stack left out. The rows above are the build's own time on the worker (height) and a fetch round's sum (maps).
             public double WorstHeightMainMs, WorstMapMainMs;
             public int BufferAttaches;
+            // E40 MVCLOUD: the frames in which the cloud's motion vectors were drawn into the host's capture, and why they were not in the last frame the host asked for them in ("" while they are).
+            public int MotionFrames;
+            public string MotionNote = "not asked";
             // The frames in which the buffers were moved behind Scatterer's screen-space scattering before the camera rendered (cloud.afterScatterer).
             public int OrderMoves;
             // Whether the light cache is filled and read in the frame just recorded (cloudLightCache on).
@@ -166,6 +172,18 @@ namespace ReDefinition.Atmospheres
         private bool combineRound;
         private LayerRenderer renderer;
         private LayerReconstructDriver driver;
+        // E40 MVCLOUD: the cloud's motion vectors for the upscalers and frame generation. The handler is registered with the host (Hooks.RegisterMotionVectors, through the bridge); the
+        // host calls it as the scene camera culls, before or after this module's pre-cull handler, so the draw waits for both: the host's capture buffer and targets of the frame are
+        // kept, and the draw is recorded into the buffer once the frame's pass is recorded (DrawMotion). lastDt is the interval the layers' drift is taken over.
+        private ApiBridge motionBridge;
+        private Action<CommandBuffer, RenderTexture, RenderTexture, Camera> motionHandler;
+        private bool motionRegistered, motionRefused, motionCameraLogged;
+        private CommandBuffer motionCommands;
+        private RenderTexture motionVectors, motionDepth;
+        private Camera motionCamera;
+        private int motionFrame = -1, recordedFrame = -1, motionDrawnFrame = -1;
+        private CloudMotionAudit motionAudit;
+        private float lastDt;
         private LightCache lightCache;
         // The side of the light cache's box: T14 measured the 32 km box.
         private const float CacheBoxM = 32000f;
@@ -290,6 +308,7 @@ namespace ReDefinition.Atmospheres
 
         private void Run(float dt)
         {
+            lastDt = dt;
             bool flight = HighLogic.LoadedSceneIsFlight && FlightCamera.fetch != null && FlightGlobals.currentMainBody != null;
             CelestialBody b = flight ? FlightGlobals.currentMainBody : null;
             BodyClimate c = b != null ? Bodies.Get(b) : null;
@@ -432,6 +451,8 @@ namespace ReDefinition.Atmospheres
                 FillFrame(cam, pendingBody, pendingClimate, pendingField, pendingUt, pendingNow);
                 FillShadow(pendingBody, frame);
                 Record(cam, pendingBody);
+                recordedFrame = Time.frameCount;
+                if (motionFrame == recordedFrame) DrawMotion();
                 PublishStats(pendingNow);
             }
             catch (Exception e)
@@ -662,6 +683,11 @@ namespace ReDefinition.Atmospheres
             }
             heightJob.Cancel();
             Hide();
+            if (motionBridge != null) motionBridge.UnregisterAll();
+            motionRegistered = false;
+            motionCommands = null;
+            motionVectors = motionDepth = null;
+            motionCamera = null;
             DropStack("shutdown");
             if (shadowRig != null) shadowRig.Stop();
             shadowRig = null;
@@ -1354,6 +1380,7 @@ namespace ReDefinition.Atmospheres
             if (driver != null)
             {
                 OwnCloudOptions.Apply(recon);
+                recon.DriftSeconds = lastDt;
                 reconstruct = driver.Configure(Tuning.Get, recon);
             }
             if (reconstruct)
@@ -1395,11 +1422,98 @@ namespace ReDefinition.Atmospheres
             Stats.NearMarchActive = true;
             Stats.Why = "drawing";
             SetShell(true);
+            EnsureMotionHook();
             if (!depthSeenLogged)
             {
                 depthSeenLogged = true;
                 AtmospheresLog.Say("own clouds: drawing at " + attachedEvent + " on " + cam.name + ", depth target " + depthTarget.width + "x" + depthTarget.height
                                    + ", camera depth mode " + cam.depthTextureMode + ", rendering path " + cam.actualRenderingPath);
+            }
+        }
+
+        // --- The cloud's motion vectors (E40 MVCLOUD) ------------------------------------------------------------------------------------------
+
+        // The handler is on the host's hook while cloud.motionVectors or cloud.mvAudit is on (the audit reads the host's vectors whether or not the pass draws into them). A host without
+        // the hook is noted once and not asked again.
+        private void EnsureMotionHook()
+        {
+            bool want = !motionRefused && (Tuning.Flag(OwnCloudOptions.TuneMotionVectors, OwnCloudOptions.MotionVectorsDefault)
+                                           || Tuning.Flag(OwnCloudOptions.TuneMotionAudit, OwnCloudOptions.MotionAuditDefault));
+            if (want == motionRegistered) return;
+            if (motionBridge == null) motionBridge = new ApiBridge();
+            if (motionHandler == null) motionHandler = OnMotionVectors;
+            if (want)
+            {
+                motionRegistered = motionBridge.RegisterMotionVectors("own clouds", motionHandler);
+                if (!motionRegistered)
+                {
+                    motionRefused = true;
+                    Stats.MotionNote = "the host has no motion vector hook";
+                    AtmospheresLog.Say("own clouds: the host has no motion vector hook (or refused it); the clouds keep the host's vectors");
+                }
+            }
+            else
+            {
+                motionBridge.UnregisterMotionVectors(motionHandler);
+                motionRegistered = false;
+            }
+        }
+
+        // The host's call as the scene camera culls, with the capture buffer and the targets it records into. The draw is recorded now when this frame's pass is, else in OnPreCull once it is.
+        private void OnMotionVectors(CommandBuffer commands, RenderTexture vectors, RenderTexture depth, Camera camera)
+        {
+            motionCommands = commands;
+            motionVectors = vectors;
+            motionDepth = depth;
+            motionCamera = camera;
+            motionFrame = Time.frameCount;
+            if (recordedFrame == motionFrame) DrawMotion();
+        }
+
+        // Once a frame: the cloud's vectors over the host's, and the audit's readbacks behind them. The pass has to have recorded the frame as the reconstruction, from the camera the host's
+        // vectors belong to; otherwise the host's vectors stand and Stats.MotionNote says why.
+        private void DrawMotion()
+        {
+            if (motionDrawnFrame == Time.frameCount) return;
+            motionDrawnFrame = Time.frameCount;
+            bool drawn = false;
+            RenderTexture cloud = null;
+            try
+            {
+                string why = null;
+                if (broken || !buffersOn || driver == null || driver.Player == null || renderer == null || Stats.Mode != "reconstruct") why = "the pass is not drawing as the reconstruction";
+                else if (!ReferenceEquals(motionCamera, attachedCamera)) why = "the host's scene camera is not the cloud camera";
+                if (why != null)
+                {
+                    Stats.MotionNote = why;
+                    if (!motionCameraLogged && why.StartsWith("the host's"))
+                    {
+                        motionCameraLogged = true;
+                        AtmospheresLog.Say("own clouds: motion vectors not drawn: " + why + " (" + (motionCamera != null ? motionCamera.name : "none") + " against "
+                                           + (attachedCamera != null ? attachedCamera.name : "none") + ")");
+                    }
+                    return;
+                }
+                cloud = driver.Player.Output;
+                if (Tuning.Flag(OwnCloudOptions.TuneMotionVectors, OwnCloudOptions.MotionVectorsDefault))
+                {
+                    drawn = driver.Player.RecordMotion(motionCommands, motionVectors, motionDepth);
+                    if (drawn) Stats.MotionFrames++;
+                    Stats.MotionNote = drawn ? "" : "no frame before this one";
+                }
+                else
+                {
+                    Stats.MotionNote = "switched off (cloud.motionVectors)";
+                }
+                if (Tuning.Flag(OwnCloudOptions.TuneMotionAudit, OwnCloudOptions.MotionAuditDefault))
+                {
+                    if (motionAudit == null) motionAudit = new CloudMotionAudit();
+                    motionAudit.Frame(motionCommands, motionVectors, motionDepth, cloud, driver.Player, renderer, lastDt, drawn);
+                }
+            }
+            catch (Exception e)
+            {
+                Fail(e);
             }
         }
 

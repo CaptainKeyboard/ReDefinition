@@ -39,6 +39,8 @@ Shader "ReDefinition/AtmospheresEdge"
         float4 _ShellR;
         float4 _Drift;
 
+        #include "ReDefinitionAtmospheresCloudMotion.cginc"
+
         struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
 
         v2f vert(appdata_img v)
@@ -159,20 +161,31 @@ Shader "ReDefinition/AtmospheresEdge"
 
             float3 o = _CamPos.xyz;
             float3 d = RayDir(i.uv);
-            float b = dot(o, d);
-            float c = dot(o, o) - _ShellR.x * _ShellR.x;
-            float disc = b * b - c;
-            float t = _ShellR.y;
-            if (disc > 0)
+            // The layers' places blended by their share of the pixel (E40 MVCLOUD); where no layer fills it, the first layer's middle sphere.
+            float2 puv;
+            float cloudDepth;
+            bool valid;
+            if (CloudPrevious(o, d, puv, cloudDepth))
             {
-                float sq = sqrt(disc);
-                float t0 = -b - sq, t1 = -b + sq;
-                t = t0 > 0 ? t0 : (t1 > 0 ? t1 : _ShellR.y);
+                valid = _Drift.w > 0.5 && all(puv > 0.0) && all(puv < 1.0);
             }
-            float3 v = o + d * t - _Drift.xyz - _PrevPos.xyz;
-            float f = dot(v, _PrevF.xyz);
-            float2 puv = float2(dot(v, _PrevR.xyz), dot(v, _PrevU.xyz)) / max(f, 1e-3) * 0.5 + 0.5;
-            bool valid = _Drift.w > 0.5 && f > 1e-3 && all(puv > 0.0) && all(puv < 1.0);
+            else
+            {
+                float b = dot(o, d);
+                float c = dot(o, o) - _ShellR.x * _ShellR.x;
+                float disc = b * b - c;
+                float t = _ShellR.y;
+                if (disc > 0)
+                {
+                    float sq = sqrt(disc);
+                    float t0 = -b - sq, t1 = -b + sq;
+                    t = t0 > 0 ? t0 : (t1 > 0 ? t1 : _ShellR.y);
+                }
+                float3 v = o + d * t - _Drift.xyz - _PrevPos.xyz;
+                float f = dot(v, _PrevF.xyz);
+                puv = float2(dot(v, _PrevR.xyz), dot(v, _PrevU.xyz)) / max(f, 1e-3) * 0.5 + 0.5;
+                valid = _Drift.w > 0.5 && f > 1e-3 && all(puv > 0.0) && all(puv < 1.0);
+            }
             if (!valid) return cur;
             float4 h = tex2Dlod(_HistTex, float4(puv, 0, 0));
             if (_ReconP.w > 1.5) return h;

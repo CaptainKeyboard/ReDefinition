@@ -139,6 +139,11 @@ namespace ReDefinition.Atmospheres
         private readonly Vector3[] layerLight = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
         private readonly float[] layerIsotropy = new float[CloudLayerDef.MaxLayers];
         private readonly Vector4[] layerSkyMs = new Vector4[CloudLayerDef.MaxLayers];
+        // The cloud motion's per-layer numbers (E40 MVCLOUD, ReDefinitionAtmospheresCloudMotion.cginc): the vertical optical depth of a full column per layer, and the arrays BindMotion fills.
+        private readonly float[] layerTau = new float[CloudLayerDef.MaxLayers];
+        private readonly Vector4[] motionA = new Vector4[CloudLayerDef.MaxLayers], motionB = new Vector4[CloudLayerDef.MaxLayers], motionD = new Vector4[CloudLayerDef.MaxLayers];
+        private static readonly int IdMvA = Shader.PropertyToID("_MvA"), IdMvB = Shader.PropertyToID("_MvB"), IdMvD = Shader.PropertyToID("_MvD"), IdMvN = Shader.PropertyToID("_MvN"),
+            IdMvMap = Shader.PropertyToID("_MvMap"), IdMvWorldToMap = Shader.PropertyToID("_MvWorldToMap"), IdMvCov = Shader.PropertyToID("_MvCov");
         private RenderTexture target;
         private CommandBuffer commands;
         private Camera attached;
@@ -296,6 +301,9 @@ namespace ReDefinition.Atmospheres
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; }),
                     // y: the soft density's clear-sky K of the map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density).
                     layer.ClearSkyK, layer.EffectiveWaterPower - 1f, 0f);
+                layerTau[l] = (float)CullMath.MeanVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
+                    t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
+                    t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; });
                 float[] density = table.ProfileData, lightData = table.LightData, liftData = table.LiftData;
                 for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
                 {
@@ -513,6 +521,59 @@ namespace ReDefinition.Atmospheres
             var info = new CloudLayerFrameInfo();
             if (layerCount > 0) info.MiddleRadius = (float)radius + 0.5f * (layerA[0].x + layerA[0].y);
             return info;
+        }
+
+        // The planet's radius of the uploaded stack, and the layers of its cloud motion for the CPU model (LayerMotionModel; Presence 1, drift over driftSeconds); the count.
+        internal double PlanetRadiusM { get { return radius; } }
+
+        internal int FillMotionLayers(MotionLayer[] into, float driftSeconds)
+        {
+            int n = Mathf.Min(Mathf.Min(layerCount, CloudLayerDef.MaxLayers), into.Length);
+            for (int l = 0; l < n; l++)
+            {
+                Vector3 drift = Noise.DriftOf(l) * driftSeconds;
+                into[l] = new MotionLayer
+                {
+                    ShellR = radius + 0.5 * (layerA[l].x + layerA[l].y), TauVertical = layerTau[l], DriftX = drift.x, DriftY = drift.y, DriftZ = drift.z, Presence = 1.0
+                };
+            }
+            return n;
+        }
+
+        // The numbers BindMotion last gave the shader for a layer (the player's check of the shader against the CPU model reads them): a = (shell radius, coverage, edge softness, map slice),
+        // b = (column optical depth, map shift in degrees, clear-sky K, 0).
+        internal void MotionParameters(int layer, out Vector4 a, out Vector4 b)
+        {
+            a = motionA[layer];
+            b = motionB[layer];
+        }
+
+        // Writes the layers' places and shares into a material of the reconstruction (ReDefinitionAtmospheresCloudMotion.cginc): the middle sphere, coverage, edge softness, map slice,
+        // map shift, clear-sky rule, column optical depth and drift over driftSeconds of each layer, the planet's radius and the map frame. layers false (or no maps, no layers): the
+        // shader blends nothing and the caller's first layer shell stands. poseValid: a camera of the frame before exists (the motion vector is drawn only then).
+        internal void BindMotion(Material m, LayerFrame f, bool layers, bool poseValid, float driftSeconds)
+        {
+            int n = layers && Maps.Coverage != null ? Mathf.Min(layerCount, CloudLayerDef.MaxLayers) : 0;
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
+            {
+                if (l >= n)
+                {
+                    motionA[l] = new Vector4(0f, 0f, 1f, -1f);
+                    motionB[l] = motionD[l] = Vector4.zero;
+                    continue;
+                }
+                motionA[l] = new Vector4((float)radius + 0.5f * (layerA[l].x + layerA[l].y), layerB[l].y, Mathf.Max(layerB[l].z, 1e-4f), layerC[l].z);
+                motionB[l] = new Vector4(layerTau[l], layerD[l].w, cullL[l].y, 0f);
+                Vector3 drift = Noise.DriftOf(l) * driftSeconds;
+                motionD[l] = new Vector4(drift.x, drift.y, drift.z, 0f);
+            }
+            m.SetVectorArray(IdMvA, motionA);
+            m.SetVectorArray(IdMvB, motionB);
+            m.SetVectorArray(IdMvD, motionD);
+            m.SetVector(IdMvN, new Vector4(n, (float)radius, poseValid ? 1f : 0f, 0f));
+            m.SetVector(IdMvMap, new Vector4(Maps.Width, Maps.Height, 0f, 0f));
+            m.SetMatrix(IdMvWorldToMap, f.WorldToMap);
+            if (Maps.Coverage != null) m.SetTexture(IdMvCov, Maps.Coverage);
         }
 
         // The composite reads the march target's texel size from the material (Unity does not fill it for a texture set globally).
