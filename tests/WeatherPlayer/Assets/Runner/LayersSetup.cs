@@ -43,7 +43,8 @@ namespace ReDefinition.WeatherPlayer
                         BaseAmbient = jt.baseAmbient,
                         HeadAmbient = jt.headAmbient,
                         Lift = jt.lift != null && jt.lift.Length >= 2 ? new Curve(Evenly(jt.lift.Length), jt.lift) : null,
-                        ShapeSmoothing = jt.shapeSmoothing
+                        ShapeSmoothing = jt.shapeSmoothing,
+                        TopClose = jt.topClose >= 0f ? jt.topClose : CloudTypeDef.DefaultTopClose
                     });
                 }
                 var def = new CloudLayerDef(jl.name, 0, jl.inner, jl.outer, types, jl.sigma, (LayerKind)jl.kind)

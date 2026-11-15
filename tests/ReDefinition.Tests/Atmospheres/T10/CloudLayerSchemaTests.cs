@@ -327,6 +327,31 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0f, b.TopReach, "no reach: the body's own numbers in m");
         }
 
+        // E40 CB step 0: a type's topClose reads from its node (default 0.25), and the baked lift (the shader's channel a, headroom units) is at least the closure ramp, 1 at the top.
+        [TestMethod]
+        public void ATypesTopCloseReadsFromItsNodeAndTheBakedLiftClosesTheTop()
+        {
+            string prof = "PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}";
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;"
+                + "TYPE{name = Plain;baseShare = 0;topShare = 1;" + prof + "}"
+                + "TYPE{name = Anvil;baseShare = 0;topShare = 1;topClose = 0.1;" + prof + "LIFT{key0 = 0 0;key1 = 0.5 0.3;key2 = 1 0}}"
+                + "TYPE{name = Cut;baseShare = 0;topShare = 1;topClose = 0;" + prof + "}}");
+            Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
+            CloudLayerSpec a = r.Climate.Clouds.Layers.Single();
+            Assert.AreEqual(CloudTypeDef.DefaultTopClose, a.Types[0].TopClose, 1e-6f);
+            Assert.AreEqual(0.1f, a.Types[1].TopClose, 1e-6f);
+            CloudLayerDef def = a.Build(1);
+            Assert.AreEqual(0.1f, def.Types[1].TopClose, 1e-6f);
+            var table = new LayerTypeTable(def);
+            int top = LayerTypeTable.ProfileSamples - 1;
+            Assert.AreEqual(1f, table.LiftData[top], 1e-6f, "the default closes the top");
+            Assert.AreEqual(0f, table.LiftData[(int)(0.7 * top)], 1e-6f, "and nothing below its last quarter");
+            Assert.AreEqual(1f, table.LiftData[LayerTypeTable.ProfileSamples + top], 1e-6f, "the anvil's top closes too");
+            Assert.AreEqual(0.3f, table.LiftData[LayerTypeTable.ProfileSamples + (int)(0.5 * top)], 0.01f, "its LIFT where the ramp is lower");
+            Assert.AreEqual(0f, table.LiftData[2 * LayerTypeTable.ProfileSamples + top], 1e-6f, "0: no closure");
+            Assert.AreEqual(LayerTypeTable.LiftHeadroom(def), table.LiftOf(0.0, 1.0), 1e-6, "the CPU lift is in map units: the headroom at the top");
+        }
+
         // E40 L6 shape: a type's shapeSmoothing overrides the layer's, a type without one takes the layer's, and the table hands the GPU the interpolated width.
         [TestMethod]
         public void ATypesShapeSmoothingOverridesTheLayersAndATypeWithoutOneTakesIt()

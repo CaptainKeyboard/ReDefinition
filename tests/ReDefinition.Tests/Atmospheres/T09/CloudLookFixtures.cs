@@ -72,11 +72,16 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Light(cumulus.Types[3], 1.25f, 1.5f, 0.8f, 1f);
             Light(cumulus.Types[4], 1.25f, 1.25f, 1f, 1f);
             // The types' height-shaped threshold (cfg node LIFT, E40 L2 D1).
-            cumulus.Types[0].Lift = C(0f, 0f, 0.5f, 0f, 1f, 0.1f);
-            cumulus.Types[1].Lift = C(0f, 0f, 0.3f, 0f, 0.7f, 0.08f, 1f, 0.2f);
-            cumulus.Types[2].Lift = C(0f, 0f, 0.2f, 0f, 0.6f, 0.12f, 1f, 0.3f);
-            cumulus.Types[3].Lift = C(0f, 0f, 0.15f, 0f, 0.5f, 0.17f, 0.8f, 0.33f, 1f, 0.5f);
-            cumulus.Types[4].Lift = C(0f, 0f, 0.4f, 0f, 1f, 0.1f);
+            cumulus.Types[0].Lift = C(0f, 0f, 0.5f, 0f, 1f, 0.084f);
+            cumulus.Types[1].Lift = C(0f, 0f, 0.3f, 0f, 0.7f, 0.067f, 1f, 0.168f);
+            cumulus.Types[2].Lift = C(0f, 0f, 0.2f, 0f, 0.6f, 0.101f, 1f, 0.253f);
+            cumulus.Types[3].Lift = C(0f, 0f, 0.15f, 0f, 0.5f, 0.143f, 0.8f, 0.278f, 1f, 0.421f);
+            cumulus.Types[4].Lift = C(0f, 0f, 0.4f, 0f, 1f, 0.084f);
+            cumulus.Types[0].TopClose = 0.5f;
+            cumulus.Types[1].TopClose = 0.8f;
+            cumulus.Types[2].TopClose = 0.8f;
+            cumulus.Types[3].TopClose = 0.8f;
+            cumulus.Types[4].TopClose = 0.5f;
             cumulus.VerticalScale = 0.35f;
             cumulus.Types[1].ShapeSmoothing = 0.75f;
             cumulus.Types[2].ShapeSmoothing = 1.5f;
@@ -111,8 +116,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Light(cb.Types[0], 1f, 1.2f, 0.7f, 1f);
             Light(cb.Types[1], 1f, 1.15f, 0.7f, 1.05f);
             cb.VerticalScale = 0.6f;
-            cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.09f, 1f, 0.2f);
-            cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.07f, 0.7f, 0.07f, 0.9f, 0f, 1f, 0f);
+            cb.Types[0].Lift = C(0f, 0f, 0.1f, 0f, 0.5f, 0.079f, 1f, 0.175f);
+            cb.Types[1].Lift = C(0f, 0f, 0.1f, 0f, 0.45f, 0.061f, 0.7f, 0.061f, 0.9f, 0f, 1f, 0f);
+            cb.Types[1].TopClose = 0.5f;
+            cb.Types[0].TopClose = 0.8f;
             cb.Meso = new CloudMesoSpec { ScaleDepths = 5.7f, Octaves = 2, Amount = 1f, Edge = 0.3f, Shoulder = 1f, Cells = true, Stretch = 1f, RainKeep = 0.5f, Scatter = 1f, ScatterDepths = 3f };
             cb.ShapeSmoothing = 0.3f;
             cb.TopReach = 0.09f;

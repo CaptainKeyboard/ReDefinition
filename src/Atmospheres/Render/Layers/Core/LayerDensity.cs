@@ -46,8 +46,8 @@ namespace ReDefinition.Atmospheres
                     layer.Types[t].LightFactors(i / (double)(ProfileSamples - 1), out d, out a);
                     light[(t * ProfileSamples + i) * 2] = (float)d;
                     light[(t * ProfileSamples + i) * 2 + 1] = (float)a;
-                    // The height-shaped threshold (E40 L2 D1): the shader's profile texture channel a.
-                    lift[t * ProfileSamples + i] = (float)layer.Types[t].LiftAt(i / (double)(ProfileSamples - 1));
+                    // The height-shaped threshold (E40 L2 D1) with the top's closure, in headroom units: the shader's profile texture channel a.
+                    lift[t * ProfileSamples + i] = (float)layer.Types[t].BakedLiftAt(i / (double)(ProfileSamples - 1));
                 }
         }
 
@@ -70,12 +70,19 @@ namespace ReDefinition.Atmospheres
             return smoothing[a] + (smoothing[c] - smoothing[a]) * f;
         }
 
+        // The layer's headroom in map units: how far the map value must be lowered so that no noise value passes the threshold even at the map's top (map 1): the share
+        // saturate((map + (n - 0.5) A + C - 1) / e + 0.5) is 0 for every n in 0..1 once map + C - 1 + A / 2 + e / 2 <= 0. The shader's _LayerB.y + CoverageNoiseBound + 0.5 _LayerB.z.
+        internal static double LiftHeadroom(CloudLayerDef layer)
+        {
+            return layer.EffectiveCoverage + 0.5 * layer.EffectiveNoiseAmount + 0.5 * Math.Max(layer.EffectiveEdgeSoftness, 1e-4f);
+        }
+
         // The lift of the coverage threshold of all types, sample after sample (the shader's profile texture channel a; 0 where a type has no LIFT).
         internal float[] LiftData { get { return lift; } }
 
         // The lift of the layer's threshold at a type value and a height share of the layer, in map units: the two neighbouring types' lifts at the same height of the interpolated
-        // type, blended (the shader's read of the profile texture's channel a); 0 outside the type. The CPU readers of the density take the column shape and do not call it; the
-        // tests of the shape do.
+        // type, blended (the shader's read of the profile texture's channel a), times the layer's headroom (the shader's coverage + CoverageNoiseBound + 0.5 edge); 0 outside the type.
+        // The CPU readers of the density take the column shape and do not call it; the tests of the shape do.
         internal double LiftOf(double typeValue, double layerShare)
         {
             int a, c;
@@ -84,7 +91,7 @@ namespace ReDefinition.Atmospheres
             InterpolatedHeights(typeValue, out b, out t);
             if (layerShare < b || layerShare > t || !(t > b)) return 0.0;
             double h = (layerShare - b) / (t - b);
-            return LiftSample(a, h) * (1.0 - f) + LiftSample(c, h) * f;
+            return (LiftSample(a, h) * (1.0 - f) + LiftSample(c, h) * f) * LiftHeadroom(layer);
         }
 
         private double LiftSample(int type, double h)

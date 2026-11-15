@@ -26,6 +26,8 @@ namespace ReDefinition.WeatherPlayer
         public float[] lift;
         // The smoothing of the shape noise where the type is drawn, in noise scales (E40 L6 shape; the cfg key shapeSmoothing; below 0: the layer's).
         public float shapeSmoothing = -1f;
+        // The share of the type's height over which its top closes (E40 CB step 0; the cfg key topClose; below 0: the default of CloudTypeDef).
+        public float topClose = -1f;
     }
 
     [Serializable]

@@ -59,6 +59,8 @@ namespace ReDefinition.Atmospheres
         internal CloudClimateSpec Climate { get; set; }
         // The type's own smoothing of the shape noise (cfg key shapeSmoothing; below 0: the layer's): see CloudTypeDef.ShapeSmoothing.
         internal float ShapeSmoothing { get; set; } = -1f;
+        // The share of the type's height over which its top closes (cfg key topClose): see CloudTypeDef.TopClose.
+        internal float TopClose { get; set; } = CloudTypeDef.DefaultTopClose;
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -81,7 +83,7 @@ namespace ReDefinition.Atmospheres
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate,
-                ShapeSmoothing = ShapeSmoothing
+                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose
             };
         }
     }

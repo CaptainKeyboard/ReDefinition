@@ -99,7 +99,7 @@ LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "l
                "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs")
 # E40TY_NOSMOOTH=1: the same pictures without the shape smoothing and the top-from-updraft numbers of the layers (the "before" of E40 L6 shape on the same player), under the tag given.
 NOSMOOTH = os.environ.get("E40TY_NOSMOOTH") == "1"
-TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing")
+TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose")
 
 
 def lift_samples(type_node):

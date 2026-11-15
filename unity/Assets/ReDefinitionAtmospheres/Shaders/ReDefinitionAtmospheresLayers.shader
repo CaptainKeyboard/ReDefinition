@@ -278,12 +278,12 @@ Shader "ReDefinition/AtmospheresLayers"
             float coverage = _LayerB[li].y;
             float edge = max(_LayerB[li].z, 1e-4);
             // E40 L2 D1: the type's height-shaped threshold. The profile texture's channel a (cfg node LIFT of the type, 0 where there is none) lifts the coverage threshold at this height
-            // by up to 1 in map units, so a cloud is narrower where the lift is high: a cumulus dome over a
+            // by up to the layer's headroom, so a cloud is narrower where the lift is high and closed where it is 1 (the top of every type closes, CloudTypeDef.TopClose): a cumulus dome over a
             // flat base, a cumulonimbus tower under a wide anvil. The lift is never negative, so the coverage bounds of above and below stay exact. The technique is the height
             // gradient of Schneider's cloudscapes (SIGGRAPH 2015: the coverage is reduced by the height signal of the cloud type); the code is the project's own.
             float h = (share - b) / (tp - b);
             float4 pf = lerp(TypeProfile4(li, ta, h), TypeProfile4(li, tb, h), f);
-            cov -= pf.a;
+            cov -= pf.a * (coverage + CoverageNoiseBound(li) + 0.5 * edge);   // E40 CB step 0: the lift in units of the layer's headroom (LayerTypeTable.LiftHeadroom), 1 closes every column
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
             if (_CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;

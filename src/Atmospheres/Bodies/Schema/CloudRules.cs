@@ -60,10 +60,19 @@ namespace ReDefinition.Atmospheres
         internal float HeadAmbient { get; set; } = 1f;
 
         // The type's height-shaped threshold (E40 L2 D1; cfg node LIFT { key0 = height lift, ... }, null: none): at the height h of the type (0 base, 1 top) the coverage threshold is lifted by
-        // lift(h) in map units, so the cloud's outline is narrower there than where the lift is 0 (Schneider's height gradient, as data per type). A cumulus lifts towards the top (a dome over
-        // a flat base), a cumulonimbus lifts its middle and lets the top stand wide (the anvil). Never negative: the lift only lowers the map value, so the coverage bounds of the march
-        // and of the span cut (LayerSpanBound.Bound) stay exact. Baked into the type's tabulated profile texture (channel a, LayerTypeTable.LiftData).
+        // lift(h) in units of the layer's headroom (LayerTypeTable.LiftHeadroom: 1 lowers the map so far that no noise value passes even at map 1), so the cloud's outline is narrower there
+        // than where the lift is 0 (Schneider's height gradient, as data per type). A cumulus lifts towards the top (a dome over a flat base), a cumulonimbus lifts its middle and lets the
+        // top stand wide (the anvil). Never negative: the lift only lowers the map value, so the coverage bounds of the march and of the span cut (LayerSpanBound.Bound) stay exact. Baked
+        // into the type's tabulated profile texture (channel a, LayerTypeTable.LiftData) together with the top's closure (TopClose).
         internal Curve Lift { get; set; }
+        // The share of the type's height over which its top closes (E40 CB step 0; cfg key topClose, 0 to 1): the baked lift is at least the ramp (h - (1 - TopClose)) / TopClose, so at the
+        // type's top no column passes the threshold whatever the map and the noise, and each column ends where its own map and noise value meet the rising lift: its height follows its
+        // excess over the threshold, as a convective top follows its parcel's buoyancy. Without it the columns the LIFT cannot close (most of them: the headroom is 1.1 to 2 map units, the
+        // LIFT curves ended at 0.2 to 0.5) stood to the type's top and the profile's last tenth cut them into one flat lid (TopClosureTests: 43 to 73 % of the humilis columns, 75 to 93 %
+        // of the incus columns, all of the decks). A closure over a quarter still left every cumulus top within the upper 300 m (a lid in the player); the convective types close over
+        // 0.8. 0: no closure (the profile alone ends the type).
+        internal const float DefaultTopClose = 0.25f;
+        internal float TopClose { get; set; } = DefaultTopClose;
         // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
         // How far the shape noise is smoothed where this type is drawn (E40 L6 shape; cfg key shapeSmoothing, in noise scales; below 0: the layer's own, 0: not at all): see
@@ -74,6 +83,16 @@ namespace ReDefinition.Atmospheres
         internal double LiftAt(double h)
         {
             return Lift == null ? 0.0 : Lift.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
+        }
+
+        // The lift the shader reads (headroom units): the LIFT curve, at least the top's closure ramp (TopClose).
+        internal double BakedLiftAt(double h)
+        {
+            double lift = LiftAt(h);
+            if (!(TopClose > 0f)) return lift;
+            double x = (h - (1.0 - TopClose)) / TopClose;
+            x = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
+            return Math.Max(lift, x);
         }
 
         // The two factors (direct light, sky fill) at a height share h of the type.

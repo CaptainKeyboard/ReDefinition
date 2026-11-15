@@ -112,6 +112,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.BaseAmbient, f.BaseAmbient, 1e-6f, t + " base ambient");
                 Assert.AreEqual(s.HeadAmbient, f.HeadAmbient, 1e-6f, t + " head ambient");
                 Assert.AreEqual(s.ShapeSmoothing, f.ShapeSmoothing, 1e-6f, t + " shape smoothing");
+                Assert.AreEqual(s.TopClose, f.TopClose, 1e-6f, t + " top closure");
                 Assert.AreEqual(s.Lift == null, f.Lift == null, t + " has a lift curve");
                 if (s.Lift != null)
                 {

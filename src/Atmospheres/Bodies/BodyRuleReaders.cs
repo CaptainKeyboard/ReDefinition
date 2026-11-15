@@ -270,6 +270,7 @@ namespace ReDefinition.Atmospheres
                 HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f),
                 Lift = ProfileCurve(r.Child("LIFT"), "lift"),
                 ShapeSmoothing = r.Float("shapeSmoothing", -1f, -1f, 8f),
+                TopClose = r.Float("topClose", CloudTypeDef.DefaultTopClose, 0f, 1f),
                 Climate = Climate(r.Child("CLIMATE"))
             };
         }
