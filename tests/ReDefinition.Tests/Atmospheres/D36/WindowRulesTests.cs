@@ -740,7 +740,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
         // --- The registration of the Keys tab ---
 
         [TestMethod]
-        public void TheRegistrationHoldsTheForecastKeyWithoutADefault()
+        public void TheRegistrationHoldsTheForecastAndViewerKeysWithoutADefault()
         {
             string path = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Settings", "Atmospheres", "Atmospheres.cfg");
             var problems = new List<string>();
@@ -749,12 +749,19 @@ namespace ReDefinition.Tests.Atmospheres.D36
             Assert.IsNotNull(registration);
             CollectionAssert.AreEqual(new string[0], problems.ToArray(), string.Join("; ", problems));
             Assert.AreEqual("atmospheres", registration.Name);
-            Assert.AreEqual(1, registration.Settings.Count, "only the forecast window has a key");
-            SettingRegistration key = registration.Settings[0];
-            Assert.IsTrue(key.IsBinding);
-            Assert.AreEqual("forecastWindow", key.Name);
-            Assert.AreEqual("None", key.Default);
-            Assert.IsNull(key.Member, "ReDefinition keeps the binding");
+            var names = new List<string>();
+            foreach (SettingRegistration key in registration.Settings)
+            {
+                Assert.IsTrue(key.IsBinding, key.Name);
+                Assert.AreEqual("None", key.Default, key.Name + " must not take a key from anyone");
+                Assert.IsNull(key.Member, "ReDefinition keeps the binding");
+                names.Add(key.Name);
+            }
+            CollectionAssert.AreEqual(new[] { "forecastWindow", "cloudViewer", "cloudViewerFlip", "cloudViewerCapture" }, names);
+            // The ids the add-ons ask ReDefinition.Api.Keys for are the registration's name, a dot and the block's name.
+            Assert.AreEqual("atmospheres." + names[1], ReDefinition.Atmospheres.Viewer.CloudViewerAddon.ToggleKey);
+            Assert.AreEqual("atmospheres." + names[2], ReDefinition.Atmospheres.Viewer.CloudViewerAddon.FlipKey);
+            Assert.AreEqual("atmospheres." + names[3], ReDefinition.Atmospheres.Viewer.CloudViewerAddon.CaptureKey);
         }
     }
 }

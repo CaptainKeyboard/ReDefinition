@@ -16,6 +16,9 @@ namespace ReDefinition.Atmospheres.Forecast
 
         private readonly MethodInfo pressed;
         private readonly Action<string> log;
+        // The argument of the call, made once (the key is asked every frame).
+        private readonly object[] args;
+        private readonly string bindingId;
         private bool failed;
 
         // The game's bridge: the type is found among the loaded assemblies.
@@ -23,10 +26,17 @@ namespace ReDefinition.Atmospheres.Forecast
         {
         }
 
+        // The game's bridge for another binding of the registration (the cloud viewer's keys).
+        internal ForecastKey(string bindingId) : this(TypeLookup.Find(KeysTypeName), null, bindingId)
+        {
+        }
+
         // A bridge to a given type (a test passes one of its own; null stands for an absent main mod).
-        internal ForecastKey(Type keys, Action<string> log = null)
+        internal ForecastKey(Type keys, Action<string> log = null, string bindingId = BindingId)
         {
             this.log = log ?? AtmospheresLog.WarnOnce;
+            this.bindingId = bindingId;
+            args = new object[] { bindingId };
             if (keys == null) return;
             try
             {
@@ -50,12 +60,12 @@ namespace ReDefinition.Atmospheres.Forecast
             if (!Available) return false;
             try
             {
-                return (bool)pressed.Invoke(null, new object[] { BindingId });
+                return (bool)pressed.Invoke(null, args);
             }
             catch (Exception e)
             {
                 failed = true;
-                log("the forecast window key could not be read (" + CompatibilityLog.Reason(e) + ")");
+                log("the key " + bindingId + " could not be read (" + CompatibilityLog.Reason(e) + ")");
                 return false;
             }
         }

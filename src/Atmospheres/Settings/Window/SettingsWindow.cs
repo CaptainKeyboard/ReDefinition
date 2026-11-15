@@ -144,6 +144,7 @@ namespace ReDefinition.Atmospheres
                 new DialogGUIVerticalLayout(Width - 40f, -1f, 4f, new RectOffset(4, 4, 4, 4), TextAnchor.UpperLeft, rows.ToArray()));
             DialogGUIHorizontalLayout buttons = new DialogGUIHorizontalLayout(Width - 20f, 30f, 6f, new RectOffset(), TextAnchor.MiddleCenter,
                 new DialogGUIButton(() => Time.unscaledTime < resetUntil ? "Confirm Reset" : "Reset To Defaults", AskReset, 150f, 26f, false),
+                CloudViewerButton(),
                 new DialogGUIButton("Close", Close, 90f, 26f, false));
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionAtmospheresSettings", "", "Atmospheres Settings", HighLogic.UISkin,
                 Width, list, buttons);
@@ -160,6 +161,15 @@ namespace ReDefinition.Atmospheres
             nextTip = 0f;
             // The tooltips are refreshed from the window's own update, not per element.
             shown.gameObject.AddComponent<TipDriver>().Window = this;
+        }
+
+        // Opens the cloud viewer (flight scene only; elsewhere the button is grey).
+        private static DialogGUIButton CloudViewerButton()
+        {
+            var button = new DialogGUIButton("Cloud Viewer", () => Viewer.CloudViewerWindow.Instance.Show(), 120f, 26f, false);
+            button.OptionInteractableCondition = () => Viewer.CloudViewer.CannotOpen() == null;
+            button.tooltipText = "Cloud Viewer";
+            return button;
         }
 
         private void SaveScroll()
