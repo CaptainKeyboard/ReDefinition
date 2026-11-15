@@ -65,7 +65,8 @@ namespace ReDefinition.Atmospheres
         public float LeapScales;
         // E40 C4 (layers.warpTable): how the untiling warp of the shape lookup gets its lattice values: 0 hashed at every sample (the pass as it was), 1 a table of half floats around the camera
         // (NoiseLattice; the same values inside its window, 84 km at the finest noise), 2 the same table of bytes.
-        public int WarpTable = 1;
+        // Default 0: the table's window steps rewrite and upload 8.5 MB on the main thread (about 8 ms of CPU plus the upload, every few km of camera travel), which is not hitch-free.
+        public int WarpTable;
         // The product's values: the leap and the layer-kind shares are off (they gained nothing on the view table), the sun march is reused
         // below a step weight of 0.05 and between every two lit steps.
         public float EmptyLeap = 1f, LightCutoff = 0.05f, CheapShare = 1f, FogShare = 1f;

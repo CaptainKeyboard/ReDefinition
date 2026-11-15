@@ -32,7 +32,7 @@ namespace ReDefinition.Atmospheres
         public bool FineDetail = true;
         // E40 C4 (layers.warpTable): how the untiling warp gets its lattice values: 0 the shader hashes the corners of its cell at every sample (the model as it was), 1 it reads them from the
         // lattice table of half floats around the viewer (NoiseLattice), 2 from the table of bytes (a quarter of the memory, to 0.004 of a corner value).
-        public int WarpTable = 1;
+        public int WarpTable;
     }
 
     // The motion and the maps of one layer's noise: the drift of the whole noise with the local wind, the rise of the detail (P18), the

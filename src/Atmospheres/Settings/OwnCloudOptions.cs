@@ -34,7 +34,10 @@ namespace ReDefinition.Atmospheres
 
         // E40 C4: layers.warpTable (LayerFrame.WarpTable): the lattice values of the untiling warp from a table of half floats around the camera (1), of bytes (2) or hashed at every sample (0, the pass as it was).
         internal const string TuneWarpTable = "layers.warpTable";
-        internal const int WarpTableDefault = 1;
+        // 0: the table saves 0.45-0.66 ms at the clock's views (series e40-c4-noise) but its window step is not hitch-free (8 ms of main-thread bake plus an 8.5 MB upload every few km of
+        // travel; Unity 2019.4 has no sub-region upload of a 3D texture), and beyond the window (84 km at cumulus) the field is another corner of the noise, with a seam at the window's edge
+        // that was not looked at. Off until the bake runs on a worker and uploads in slices, and the edge is checked.
+        internal const int WarpTableDefault = 0;
 
         // E40 grain: the multiplier of the most grid points of a span (LayerFrame.MaxSteps); 1: the step quality's count.
         internal const string TuneGridFine = "layers.gridFine";

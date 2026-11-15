@@ -38,9 +38,10 @@ COST_JSON = os.path.join(BUILD, "e40c4-cost-results.json")
 SHEET_JSON = os.path.join(BUILD, "e40c4-sheet-results.json")
 PROD = c3.PROD
 HASH = PROD + "+wt0"
+TABLE = PROD + "+wt1"
 BYTES = PROD + "+wt2"
-CASES = [PROD, HASH, BYTES]
-NAMES = {PROD: "table", HASH: "hash", BYTES: "bytes"}
+CASES = [HASH, TABLE, BYTES]
+NAMES = {TABLE: "table", HASH: "hash", BYTES: "bytes"}
 FRAMES = (36, 37, 38, 39)
 LABEL = "e40-c4-noise"
 
@@ -127,7 +128,7 @@ def collect_sheet(ctx):
             ref_l = gn.luma(e40ty.picture(ref, cam, tint))
             mask = np.clip(ref[..., 3], 0.0, 1.0) > 0.03
             last = {}
-            for case in [HASH, PROD, BYTES]:
+            for case in [HASH, TABLE, BYTES]:
                 names = frame_names(key, case)
                 if not os.path.isfile(os.path.join(folder, names[-1] + ".npy")):
                     continue
@@ -137,19 +138,19 @@ def collect_sheet(ctx):
                 if HASH in last and case != HASH:
                     row["xhash"] = rms(ls[-1], last[HASH], mask)
                     row["xhash_max"] = float(np.abs(ls[-1] - last[HASH])[mask].max())
-                if case in (PROD, HASH) and os.path.isfile(os.path.join(BEFORE, frame_names(key, PROD)[-1] + ".npy")):
+                if case in (TABLE, HASH) and os.path.isfile(os.path.join(BEFORE, frame_names(key, PROD)[-1] + ".npy")):
                     old = gn.luma(display(BEFORE, frame_names(key, PROD)[-1], cam, tint))
                     row["xbefore"] = rms(ls[-1], old, mask)
-                    if case == PROD:
+                    if case == TABLE:
                         old_ref = gn.luma(display(BEFORE, ref_name(key), cam, tint))
                         row["xref"] = rms(ref_l, old_ref, mask)
                         row["xref_max"] = float(np.abs(ref_l - old_ref)[mask].max())
                 results["%s|%s" % (view, NAMES[case])] = row
                 lines.append("   %-7s %-6s " % (view, NAMES[case]) + " ".join("%s %.4f" % (k, v) for k, v in row.items() if k != "cloud") + "  cloud %.2f" % row["cloud"])
-            if PROD in last and HASH in last:
-                diff = np.abs(last[PROD] - last[HASH])
+            if TABLE in last and HASH in last:
+                diff = np.abs(last[TABLE] - last[HASH])
                 gn.save_png(os.path.join(out_dir, "e40-c4-%s-diff.png" % view), np.repeat(np.clip(diff * 8.0, 0.0, 1.0)[..., None], 3, axis=2))
-                gn.save_png(os.path.join(out_dir, "e40-c4-%s-table.png" % view), display(folder, frame_names(key, PROD)[-1], cam, tint))
+                gn.save_png(os.path.join(out_dir, "e40-c4-%s-table.png" % view), display(folder, frame_names(key, TABLE)[-1], cam, tint))
                 gn.save_png(os.path.join(out_dir, "e40-c4-%s-hash.png" % view), display(folder, frame_names(key, HASH)[-1], cam, tint))
     with open(SHEET_JSON, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=1)
@@ -173,9 +174,9 @@ def report():
     for scene in c3.scene_names():
         for view in c2.scene_views(scene):
             cells = []
-            for variant, case in (("now", HASH), ("now", PROD), ("now", BYTES), ("nu", PROD)):
+            for variant, case in (("now", HASH), ("now", TABLE), ("now", BYTES), ("nu", PROD)):
                 row = rows.get("%s|pr50|%s" % (c1.tag(scene, variant, view), case))
-                cells.append("%s %s" % ({HASH: "hash", PROD: "table", BYTES: "bytes"}[case] if variant == "now" else "no warp", "%.2f" % row["total"] if row else "-"))
+                cells.append("%s %s" % (NAMES[case] if variant == "now" else "no warp", "%.2f" % row["total"] if row else "-"))
             print("   %-26s %s" % (scene, "   ".join(cells)))
 
 

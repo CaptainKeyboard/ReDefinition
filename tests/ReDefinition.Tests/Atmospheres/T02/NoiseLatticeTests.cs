@@ -107,13 +107,13 @@ namespace ReDefinition.Tests
             Tuning.Instance.BeginFrame(9400001);
             OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
             Assert.AreEqual(OwnCloudOptions.WarpTableDefault, frame.WarpTable);
-            Assert.AreEqual(1, OwnCloudOptions.WarpTableDefault, "the table is on in the product");
-            Tuning.SetOverride(OwnCloudOptions.TuneWarpTable, 0f);
+            Assert.AreEqual(0, OwnCloudOptions.WarpTableDefault, "the warp is hashed in the product until the table's window steps are off the main thread");
+            Tuning.SetOverride(OwnCloudOptions.TuneWarpTable, 1f);
             try
             {
                 Tuning.Instance.BeginFrame(9400002);
                 OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-                Assert.AreEqual(0, frame.WarpTable, "layers.warpTable 0 is the warp hashed at every sample");
+                Assert.AreEqual(1, frame.WarpTable, "layers.warpTable 1 reads the half-float table");
             }
             finally
             {

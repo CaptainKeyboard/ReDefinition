@@ -150,8 +150,8 @@ namespace ReDefinition.WeatherPlayer
             public float Leap100;
             // E40 C3: cg<N> the step growth along a span (cloudStepGrowth) of N / 1000000 per m (cg alone: the switch's own default), eo<N> the march's early-out transmittance N / 1000 (the product's 0.01).
             public int GrowthE6, EarlyOut;
-            // E40 C4: wt<N> layers.warpTable (0 the warp's lattice values hashed at every sample, 1 the table of half floats, 2 the table of bytes; the product 1).
-            public int WarpTable = 1;
+            // E40 C4: wt<N> layers.warpTable (0 the warp's lattice values hashed at every sample, 1 the table of half floats, 2 the table of bytes; the product 0).
+            public int WarpTable;
         }
 
         private static int Number(string token, int prefix)
