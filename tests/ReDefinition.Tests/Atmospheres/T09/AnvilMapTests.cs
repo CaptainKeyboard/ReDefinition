@@ -74,7 +74,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double texel = 2.0 * Math.PI * 600000.0 / W;
             // The sheet: 1.5 to 3 km deep under the tropopause (the layer's top), its base in the WMO's upper troposphere.
             double depth = AnvilMap.SheetDepthM(cb);
-            Assert.IsTrue(depth >= 1500.0 && depth <= 3000.0 && cb.OuterAltitudeM - depth >= 6000.0, "sheet depth " + depth);
+            // E40 CB2: real anvils are 1 to 3 km deep; Kerbin's sheet is 1.5 km under a top 1.4 km below the tower's (the overshooting dome).
+            Assert.IsTrue(depth >= 1000.0 && depth <= 3000.0 && cb.OuterAltitudeM - depth >= 6000.0, "sheet depth " + depth);
             byte[] cover, type;
             AnvilMap.Report strong = Run(cb, 600000.0, 12.0, 1.0, 0.0, out cover, out type);
             Assert.AreEqual(1, strong.TowerRadiusM.Count, "one cell, one source");
@@ -140,19 +141,24 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 cb.TowerScale = (float)scale;
                 byte[] cover, type;
                 AnvilMap.Report r = Run(cb, 600000.0, 30.0, 1.0, 0.0, out cover, out type);
-                int towers = 0, sheet = 0;
-                double outline = AnvilMap.MedianRaw(cb) * 255.0;
-                for (int i = 0; i < cover.Length; i++)
-                {
-                    if (cover[i] < outline) continue;
-                    if (type[i] == anvil) sheet++;
-                    else towers++;
-                }
-                double texelArea = Math.Pow(2.0 * Math.PI * 600000.0 / W, 2.0);
+                // Within the sheet's radius (the law's, from the cell's centre) the cell is sheet but for its core; beyond it the cell's own texels stay towers (flanking towers).
+                int towers = 0, sheet = 0, flank = 0;
+                double outline = AnvilMap.MedianRaw(cb) * 255.0, texel = 2.0 * Math.PI * 600000.0 / W, radius = r.TowerRadiusM[0] + r.ReachM[0];
+                for (int y = 0; y < H; y++)
+                    for (int x = 0; x < W; x++)
+                    {
+                        int i = y * W + x;
+                        if (cover[i] < outline) continue;
+                        double d = texel * Math.Sqrt(Math.Pow(x + 0.5 - W / 2.0, 2.0) + Math.Pow(y + 0.5 - H / 2.0, 2.0));
+                        if (type[i] == anvil) sheet++;
+                        else if (d <= radius) towers++;
+                        else flank++;
+                    }
+                double texelArea = texel * texel;
                 double coreArea = Math.PI * Math.Pow(AnvilMap.CoreRadiusM(cb), 2.0);
-                Console.WriteLine("towerScale " + scale + ": cores " + r.Cores + ", tower texels " + towers + ", sheet texels " + sheet + ", core area " + (coreArea / texelArea).ToString("0.0") + " texels");
+                Console.WriteLine("towerScale " + scale + ": cores " + r.Cores + ", tower texels " + towers + ", sheet texels " + sheet + ", flank texels " + flank + ", core area " + (coreArea / texelArea).ToString("0.0") + " texels, sheet radius " + radius.ToString("0") + " m");
                 Assert.AreEqual(1, r.Cores, "one cell, one core");
-                Assert.IsTrue(sheet > 4 * towers, "the cell's area is its sheet: " + sheet + " against " + towers);
+                Assert.IsTrue(sheet > 4 * towers, "the sheet's area is sheet: " + sheet + " against " + towers);
                 Assert.IsTrue(towers >= 1 && towers <= Math.Max(1.0, 2.0 * coreArea / texelArea), "the tower texels follow the core's area: " + towers);
                 Assert.AreEqual(AnvilMap.CoreRadiusM(cb), r.TowerRadiusM[0], 1e-6, "the outflow law takes the core (the cell is wider than it)");
             }

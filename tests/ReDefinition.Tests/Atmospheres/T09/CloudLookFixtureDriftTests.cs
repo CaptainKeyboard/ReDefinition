@@ -166,10 +166,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             // e40-fn: the towers of the map 0.8 are 14 to 16 km wide at 8000 m (cells of 10 to 30 km); 3000 m gives 7 to 9 km. A change of these two numbers is a new measurement.
             // E40 L2 D1: 5000 m (about 11 km towers by interpolation, not measured at nadir) so that the cloud is separate towers with the cfg's LIFT, not a slab; the amount stays 0.4.
-            // E40 CB2: the towers come from the map (AnvilMap: the updraft core, about 6 km across), so the noise is the tower's texture: 1500 m (bodies of 6 to 12 km, turrets of 1.5 km;
-            // the player series e40-ty, rows cbanvil: 5000 m a smooth column, 2000 m slabs, 1000 m fragments).
+            // E40 CB2: 1500 m gave the updraft-core tower its turrets (player series e40-ty) but cost 1.0 to 1.4 ms more at the clock ground view (e40-c3-cost on the game's maps), 3000 m
+            // 0.4 to 0.8 ms: the tower's texture needs a per-type noise scale, not the layer's.
             CloudLayerSpec cb = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == "Kerbin-cumulonimbus");
-            Assert.AreEqual(1500f, cb.NoiseScaleM, 0f);
+            Assert.AreEqual(5000f, cb.NoiseScaleM, 0f);
             Assert.AreEqual(0.4f, cb.NoiseAmount, 0f);
         }
 

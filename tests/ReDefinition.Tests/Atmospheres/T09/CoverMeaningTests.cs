@@ -112,8 +112,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 errCb += Math.Abs(Closed(CoverMapping.Current, cb, 2, 1u, c, 0.229, 20) - c);
             }
             Assert.IsTrue(errRain / Cs.Length > 0.15, "rain deck mean error " + errRain / Cs.Length);
-            // E40 CB2: 0.23 with the layer's 1500 m noise (0.25 and more with 5000 m: the coarser noise made the step steeper); still a step, not a share.
-            Assert.IsTrue(errCb / Cs.Length > 0.2, "cumulonimbus mean error " + errCb / Cs.Length);
+            Assert.IsTrue(errCb / Cs.Length > 0.25, "cumulonimbus mean error " + errCb / Cs.Length);
         }
 
         // The model's copy of the share (the part this file replaces) is the product's function where it is the shipped mapping, so the numbers above are about the product.

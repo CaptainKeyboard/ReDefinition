@@ -226,13 +226,16 @@ namespace ReDefinition.Atmospheres
                         if (p == c || ex * ex + ey * ey <= coreR * coreR) { core[p] = true; break; }
                     }
                 }
+                // Each core feeds its own sheet: the law takes one core's radius (never more than the source's share per core), so a storm field with many cores is many anvils of a
+                // core's size, not one sheet as wide as the field.
                 double single = Math.Min(coreR, Math.Sqrt(area / Math.PI / centres.Count));
-                double towerR = Math.Min(coreR * Math.Sqrt(centres.Count), Math.Sqrt(area / Math.PI)), updraft = layer.AnvilUpdraftMs * sMax;
+                double towerR = single, updraft = layer.AnvilUpdraftMs * sMax;
                 double reach = towerR * (RadiusRatio(updraft, layer.AnvilSeconds, depth, layer.AnvilScale) - 1.0);
                 if (report != null) { report.TowerRadiusM.Add(towerR); report.ReachM.Add(reach); report.UpdraftMs.Add(updraft); report.Strength.Add(sMax); report.Cores += centres.Count; }
-                if (!(reach > 1.0) || covMax <= medianRaw)
+                // A sheet that reaches less than a texel beyond its tower cannot be drawn by the map (it would be one bilinear blob over the cell): a weak or moderate cell keeps its own
+                // maps, a heap of towers without an anvil (E40 CB2: the game's 112 weak sources under sheets made a deck of grey sheets in the replay).
+                if (!(reach >= dy) || covMax <= medianRaw)
                 {
-                    // No anvil: the whole source stays a tower, as the map has it.
                     foreach (int p in members) core[p] = true;
                     continue;
                 }
@@ -270,18 +273,13 @@ namespace ReDefinition.Atmospheres
                         }
                         double beyond = Math.Max(0.0, Math.Sqrt(best) - single);
                         double v = SheetValue(covMax, medianRaw, visRaw, beyond, reach);
-                        // The cell's own cloud under the sheet (the source and its rim, of a type that belongs to the tower's family: an outflow weight above 0) is the outflow too where the
-                        // sheet is drawn (it reaches a texel or more): the rim of a cell carries calvus-mixed types whose columns stood as a wide box around the core (E40 CB2, player run a),
-                        // and the rim takes the sheet's end and one texel more: a rim texel left beside the sheet passes incus on the bilinear type axis from calvus to the sheet (an open
-                        // ring of tower around the sheet's edge, run b). A weak source's sheet (shorter than a texel) leaves the source and its rim as they are (the game's clock maps:
-                        // 112 weak sources; with the whole source under the sheet's type the replay cost 1 ms more at the ground, e40-c3-cost run new1).
+                        // The cell's own cloud under the sheet (the source and its rim within the sheet's end and one texel more, of a type that belongs to the tower's family: an outflow
+                        // weight above 0) takes the sheet's type at its own value (not carried downwind): the rim of a cell carries calvus-mixed types whose columns stood as a wide box
+                        // around the core (E40 CB2, player run a), and a rim texel left beside the sheet passes incus on the bilinear type axis from calvus to the sheet (an open ring of
+                        // tower around the sheet's edge, run b). Farther out the cell's texels stay towers (flanking towers).
                         double diag = Math.Sqrt(dx * dx + dy * dy);
-                        bool drawn = end >= dy;
-                        if ((label[i] == label[members[0]] && drawn) || (drawn && beyond <= end + diag && OutflowAt(layer, type[i] / 255.0) > 0.0 && cover[i] > 0))
-                        {
-                            v = Math.Max(v, cover[i] / 255.0);
+                        if (beyond <= end + diag && (label[i] == label[members[0]] || (OutflowAt(layer, type[i] / 255.0) > 0.0 && cover[i] > 0)))
                             spread[i] = true;
-                        }
                         if (v > anvil[i]) anvil[i] = (float)v;
                     }
                 }
