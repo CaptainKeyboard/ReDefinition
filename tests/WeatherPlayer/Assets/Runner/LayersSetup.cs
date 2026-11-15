@@ -116,6 +116,7 @@ namespace ReDefinition.WeatherPlayer
             if (job.ambientGain > 0f) frame.Light.AmbientGain = job.ambientGain;
             if (job.productCost != 0) frame.UseProductCost();
             frame.FixedConeRotation = job.fixedCone != 0;
+            frame.LeapScales = Mathf.Max(0f, job.leapScale);
             frame.FrameNumber = job.frameNumber;
             if (job.costBound >= 0) frame.CoverageBound = job.costBound != 0;
             if (job.costLeap >= 0f) frame.EmptyLeap = job.costLeap;

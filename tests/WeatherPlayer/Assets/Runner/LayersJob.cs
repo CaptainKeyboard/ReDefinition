@@ -129,6 +129,8 @@ namespace ReDefinition.WeatherPlayer
         public int aid;
         // 1: the march without the leap over the empty reach of the map (LayerFrame.EmptyReach false; the product leaps).
         public int noReach;
+        // E40 C3: layers.leapScale of the march (LayerFrame.LeapScales; the product's default 1; 0: the pass before E40 C2, which the parity jobs and the older series keep).
+        public float leapScale;
         // The cost controls of the march (LayerFrame): coverage bound, leap, sun cut-off, cheap/fog step shares, lit steps per sun march; a
         // negative value leaves the product's default. resolution < 1 marches into a smaller target and composites up (colour jobs).
         public int costBound = -1, lightStride = -1;

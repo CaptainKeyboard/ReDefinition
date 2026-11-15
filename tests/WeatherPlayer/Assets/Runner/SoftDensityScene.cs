@@ -133,6 +133,8 @@ namespace ReDefinition.WeatherPlayer
             public int Moon, MoonCut;
             public bool Evict;
             public float Leap100;
+            // E40 C3: cg<N> the step growth along a span (cloudStepGrowth) of N / 1000000 per m (cg alone: the switch's own default), eo<N> the march's early-out transmittance N / 1000 (the product's 0.01).
+            public int GrowthE6, EarlyOut;
         }
 
         private static int Number(string token, int prefix)
@@ -155,6 +157,8 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "tl") c.TapLod = true;   // T16 cloudTapLod
                 else if (t == "fm") c.FarMean = true;   // cloudFarShapeMean
                 else if (t == "ev") c.Evict = true;   // E40 C2
+                else if (t.StartsWith("cg") && t.Length > 2) { c.StepGrowth = true; c.GrowthE6 = Number(t, 2); }   // E40 C3
+                else if (t.StartsWith("eo")) c.EarlyOut = Number(t, 2);   // E40 C3
                 else if (t.StartsWith("mn")) c.Moon = Number(t, 2);   // E40 C2
                 else if (t.StartsWith("mc")) c.MoonCut = Number(t, 2);   // E40 C2
                 else if (t.StartsWith("lp")) c.Leap100 = Number(t, 2) / 100f;   // E40 C2
@@ -200,6 +204,8 @@ namespace ReDefinition.WeatherPlayer
             f.Cull.SkipEmpty = c.Skip;
             f.Cull.SkipClosed = c.SkipClosed;
             f.Cull.StepGrowth = c.StepGrowth;
+            f.Cull.StepGrowthPerM = c.GrowthE6 > 0 ? c.GrowthE6 * 1e-6f : new CullSettings().StepGrowthPerM;
+            if (c.EarlyOut > 0) f.EarlyOut = c.EarlyOut / 1000f;   // the march's own value (GrainTable.Apply) otherwise
             f.Cull.TapLod = c.TapLod;
             f.Far.ShapeMean = c.FarMean;
             f.EmptyReach = !c.NoReach;
