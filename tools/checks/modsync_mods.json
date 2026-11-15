@@ -35,8 +35,8 @@
     "StockScattererConfigs": { "label": "StockScattererConfigs", "use": "indirect" },
     "ScattererAtmosphereCache": { "label": "ScattererAtmosphereCache", "use": "indirect" },
     "Parallax_StockPlanetTextures": { "label": "Parallax stock planet textures", "use": "indirect", "no_upstream": true },
-    "Parallax_StockScatterTextures": { "label": "Parallax stock scatter textures", "use": "indirect", "installed_override": { "version": "1.1.1", "evidence": "installed by modsync from release 1.1.1 on 2026-11-15" } },
-    "Parallax_StockTerrainTextures": { "label": "Parallax stock terrain textures", "use": "indirect", "installed_override": { "version": "1.1.1", "evidence": "installed by modsync from release 1.1.1 on 2026-11-15" } },
+    "Parallax_StockScatterTextures": { "label": "Parallax stock scatter textures", "use": "indirect", "no_upstream": true, "installed_override": { "version": "1.1.1", "evidence": "installed by modsync from release 1.1.1 on 2026-11-15" } },
+    "Parallax_StockTerrainTextures": { "label": "Parallax stock terrain textures", "use": "indirect", "no_upstream": true, "installed_override": { "version": "1.1.1", "evidence": "installed by modsync from release 1.1.1 on 2026-11-15" } },
     "Squad": { "label": "Squad", "use": "ours", "note": "the game" },
     "SquadExpansion": { "label": "SquadExpansion", "use": "ours", "note": "the game" },
     "ReDefinition": { "label": "ReDefinition", "use": "ours" }
