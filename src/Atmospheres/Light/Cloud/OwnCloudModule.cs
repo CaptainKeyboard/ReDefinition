@@ -1339,6 +1339,34 @@ namespace ReDefinition.Atmospheres
             depthTarget.Create();
         }
 
+        // E40 C2: the maps the layer pass marches this frame (the coverage and type bytes of each layer as uploaded, and the humidity of the time) as .u8 files in a folder of the series pictures,
+        // so that the weather player can draw the very sky of a game start (tools/weather_metrics/e40c1.py --prepare-game): until then the player's own reproduction of a scene differed from
+        // the game's (cloud share inside 0.34 against 0.71, in sky3 0.87 against 0.67 at the K-T2 clock). Once per tag.
+        private readonly HashSet<string> dumpedMaps = new HashSet<string>();
+
+        internal void DumpMaps(string tag)
+        {
+            if (renderer == null || stack == null || !dumpedMaps.Add(tag)) return;
+            try
+            {
+                string dir = System.IO.Path.Combine(System.IO.Path.Combine(SeriesPictures.Folder, "maps"), tag);
+                System.IO.Directory.CreateDirectory(dir);
+                for (int l = 0; l < stack.LayerCount; l++)
+                {
+                    byte[] cover = renderer.Maps.CoverageBytes(l), type = renderer.Maps.TypeBytes(l);
+                    string name = stack.LayerAt(l).Name;
+                    if (cover != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-cover.u8"), cover);
+                    if (type != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-type.u8"), type);
+                }
+                if (climateHumidity != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "humidity.u8"), climateHumidity);
+                AtmospheresLog.Say("own clouds: dumped the layer maps of " + stack.LayerCount + " layers to " + dir);
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Say("own clouds: the map dump of " + tag + " failed: " + e.Message);
+            }
+        }
+
         private void PublishStats(float now)
         {
             if (now < nextStats) return;

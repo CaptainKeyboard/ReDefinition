@@ -127,6 +127,12 @@ namespace ReDefinition.WeatherPlayer
             // E40 C1: sp<NN> the widest grid spacing of a span in the layer's noise scales, NN / 10 (0: off); spm<N> the fewest grid points such a span keeps
             public float Spacing;
             public int SpacingMin = 20;
+            // E40 C2: mn<N> a moon of N / 10000 of the sun's luminance (the game's moon is lit by any body in the sky, day or night; the player had none), mc<N> the product's light.moonMinShare
+            // N / 1000 (a moon below that share of the sun is left out, OwnCloudOptions.MoonTooFaint), lp<NN> the longest leap over empty grid points in the layer's noise scales, NN / 100
+            // (LayerFrame.LeapScales), ev the GPU's caches flushed before the pass (a copy of 64 MB; the game draws the rest of the frame between two passes, the player's loop only this one).
+            public int Moon, MoonCut;
+            public bool Evict;
+            public float Leap100;
         }
 
         private static int Number(string token, int prefix)
@@ -148,6 +154,10 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "cg") c.StepGrowth = true;   // T16 cloudStepGrowth
                 else if (t == "tl") c.TapLod = true;   // T16 cloudTapLod
                 else if (t == "fm") c.FarMean = true;   // cloudFarShapeMean
+                else if (t == "ev") c.Evict = true;   // E40 C2
+                else if (t.StartsWith("mn")) c.Moon = Number(t, 2);   // E40 C2
+                else if (t.StartsWith("mc")) c.MoonCut = Number(t, 2);   // E40 C2
+                else if (t.StartsWith("lp")) c.Leap100 = Number(t, 2) / 100f;   // E40 C2
                 else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
@@ -195,6 +205,15 @@ namespace ReDefinition.WeatherPlayer
             f.EmptyReach = !c.NoReach;
             f.SpanSpacing = c.Spacing;
             f.SpanSpacingMin = c.SpacingMin;
+            f.LeapScales = c.Leap100;
+            for (int i = 0; i < f.Light.Lights.Length; i++) f.Light.Lights[i] = new CloudLight { Towards = Vector3.up, Colour = Color.black };
+            // The product's light.moonMinShare (OwnCloudOptions.MoonTooFaint, which the player does not link): a moon below that share of the sun is left out.
+            if (c.Moon > 0 && !(c.MoonCut > 0 && c.Moon / 10000f < c.MoonCut / 1000f))
+            {
+                // A moon high in the sky, a little off the sun's direction; its colour is the sun's grey scaled (the cost does not depend on the colour, only on its being above zero).
+                Vector3 towards = (Quaternion.AngleAxis(40f, Vector3.up) * f.TowardsSun).normalized;
+                f.Light.Lights[0] = new CloudLight { Towards = towards, Colour = new Color(1f, 1f, 1f, 1f) * (f.SunColour.grayscale * c.Moon / 10000f) };
+            }
             CloudLightSettings q = c.Quality >= 0 ? CloudLightSettings.ForQuality(c.Quality) : LightDefaults;
             f.Light.SunStepsOverride = q.SunStepsOverride;
             f.Light.MoonSteps = q.MoonSteps;
@@ -393,6 +412,11 @@ namespace ReDefinition.WeatherPlayer
             var rt = new RenderTexture(1707, 960, 24, RenderTextureFormat.DefaultHDR) { name = "soft cost target" };
             rt.Create();
             Cam.targetTexture = rt;
+            // E40 C2 (case ev): two 2048 x 2048 half-float targets, copied into each other before the timed pass: 64 MB through the caches (the L2 of the card is a few MB).
+            var evictA = new RenderTexture(2048, 2048, 0, RenderTextureFormat.ARGBHalf);
+            var evictB = new RenderTexture(2048, 2048, 0, RenderTextureFormat.ARGBHalf);
+            evictA.Create();
+            evictB.Create();
             List<SoftTable.Medium> media = SoftTable.Selected();
             // Two rounds in opposite order, so that a drift of the machine over the run falls on every case alike; the row is the median of both.
             var samples = new Dictionary<string, List<double>[]>();
@@ -430,6 +454,7 @@ namespace ReDefinition.WeatherPlayer
                             {
                                 cb.Clear();
                                 cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), depthId);
+                                if (marchCase.Evict) cb.Blit(evictA, evictB);
                                 rig.Recon.Record(cb, rig.Renderer, rig.Frame, Cam, settings, FrameIndex, mStart, mMarched, mResolved);
                                 rig.Recon.Composite(cb, rig.Renderer, BuiltinRenderTextureType.CameraTarget, mEnd);
                                 yield return Frames(1);
@@ -465,6 +490,8 @@ namespace ReDefinition.WeatherPlayer
             }
             Cam.targetTexture = Target;
             rt.Release();
+            evictA.Release();
+            evictB.Release();
             Cam.RemoveCommandBuffer(CameraEvent.AfterSkybox, cb);
             rig.Dispose();
             Sink.Flag("soft_cost_completed", true);

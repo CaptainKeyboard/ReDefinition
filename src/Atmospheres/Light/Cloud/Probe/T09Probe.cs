@@ -499,6 +499,8 @@ namespace ReDefinition.Atmospheres
             int framesBefore = Game.FrameCount;
             string size = Game.ScreenWidth + "x" + Game.ScreenHeight;
             AtmospheresLog.Say("T09 view begin: " + view.Name + " " + variant + " " + size);
+            // E40 C2: the maps the pass marches in this view, for the player to draw the same sky (OwnCloudModule.DumpMaps).
+            if (own != null) own.DumpMaps(view.Name + "-u" + ((long)Game.UniversalTime).ToString(System.Globalization.CultureInfo.InvariantCulture));
             // The dwell in slices: the pose is read at the end of each (the placement check says only where the vessel stood a few seconds before the dwell; in
             // start 42 it had left the pose within seconds), the first deviation fails the view named and the pictures of it are not taken.
             viewPoseOk = true;

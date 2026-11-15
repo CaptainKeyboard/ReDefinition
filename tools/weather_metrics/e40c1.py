@@ -187,8 +187,13 @@ CASES_A = [BASE, BASE + "+nr", BASE + "+r33", BASE + "+r33+nr", BASE + "+skip"]
 CASES_B = [BASE + "+" + m for m in ("lm1", "lm2", "lm4", "lm8", "dbg1", "dbg2", "dbg3")]
 # Stage C: the owner's 1.0 / 24 setting.
 CASES_C = ["seq1m24+lq2", "seq1m24+lq2+nr", "seq1m24+lq2+r33", "seq1m24+lq2+r25"]
-# Stage D: the candidate fixes are added here by the package (the cases of SoftTable.Case).
-CASES_D = []
+# Stage D (E40 C2, the product's march target r33 as the base): why the game costs more than the player and the candidate fixes.
+#   mn<N>  a moon at N / 100 percent of the sun (the game's moon is lit by any body in the sky; the player had none)     mc<N>  light.moonMinShare N / 1000 (a fainter moon is left out)
+#   ev     the caches flushed before the pass (no effect: 5.03 -> 4.94 at the clock's ground)                           lp<NN>  the longest leap over empty grid points, NN / 100 noise scales
+R33 = BASE + "+r33"
+CASES_D = [R33, R33 + "+mn300", R33 + "+mn150+mc20", R33 + "+lp100", R33 + "+lp200", R33 + "+lp400", R33 + "+lp200+sp10", R33 + "+sp10", R33 + "+mn300+lp200"]
+# The owner's 1.0 / 24 (pr100) with the same levers.
+CASES_E = ["seq1m24+lq2+r33", "seq1m24+lq2+r33+mn300", "seq1m24+lq2+r33+lp100", "seq1m24+lq2+r33+lp200", "seq1m24+lq2+r33+lp400"]
 
 
 def cost_stage(label, views, medium, cases):
@@ -209,7 +214,8 @@ CASES_LEV = [BASE + "+sp10", BASE + "+sp10+spm12", BASE + "+sp10+spm30", BASE + 
              BASE + "+r33+cg", BASE + "+r33+tl", "seq1m24+lq2+r25+sp10"]
 LEVER_STAGES = [("c1-lev", tags(["clock", "fairfb"], ["now"]), "pr50", CASES_LEV)]
 if CASES_D:
-    COST_STAGES.append(("c1-d", tags(variants=["now"]), "pr50", CASES_D))
+    COST_STAGES.append(("c1-d", tags(["clock", "fairfb"], ["now"]), "pr50", CASES_D))
+    COST_STAGES.append(("c1-e2", tags(["clock", "fairfb"], ["now"]), "pr100", CASES_E))
 
 
 def collect_cost(ctx, stages=None, json_path=None):
@@ -360,7 +366,7 @@ def selftest():
 # --------------------------------------------------------------------------------------------------------------------------------
 # The pictures: the pass as the game runs it (history, a still camera, frames 36 to 39), the sky now against the fixes and against the converged picture
 # --------------------------------------------------------------------------------------------------------------------------------
-SHEET_CASES = [BASE, BASE + "+r33", BASE + "+sp10", BASE + "+r33+sp10", BASE + "+r25+sp10"]
+SHEET_CASES = [R33, R33 + "+lp100", R33 + "+lp200", R33 + "+lp400", R33 + "+lp200+sp10", R33 + "+mn300", R33 + "+sp10"]
 SHEET_SCENES = ("clock", "fairfb")
 SHEET_FULL = (1708, 960)
 OUT_PICTURES = os.path.join("E40")
@@ -401,7 +407,7 @@ def collect_sheet(ctx):
                 results["%s.%s" % (key, case)] = dict(err=err, tstd=tstd, cloud=float(mask.mean()))
                 lines.append("   %-26s %-26s err %.4f  tstd %.4f  cloud share %.2f" % (key, case, err, tstd, mask.mean()))
                 metrics.append(Metric.info("e40c1.sheet.%s.%s.err" % (key, case), err))
-                cells.append(e40ty.label(e40ty.box(imgs[-1], tile), "%s %s %s: err %.4f tstd %.4f" % (scene, view, case.replace(BASE, "r50"), err, tstd)))
+                cells.append(e40ty.label(e40ty.box(imgs[-1], tile), "%s %s %s: err %.4f tstd %.4f" % (scene, view, case.replace(R33, "r33"), err, tstd)))
                 gn.save_png(os.path.join(folder, "%s-%s.png" % (key, case.replace("+", "_"))), imgs[-1])
             cells.append(e40ty.label(e40ty.box(ref_img, tile), "%s %s converged" % (scene, view)))
             rows.append(np.concatenate(cells, axis=1))
