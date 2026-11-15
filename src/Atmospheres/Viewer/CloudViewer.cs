@@ -186,6 +186,7 @@ namespace ReDefinition.Atmospheres.Viewer
                     store.SetSetting(AtmospheresSettings.Keys.ForceType, settingsAtOpen[AtmospheresSettings.Keys.ForceType]);
                     foreach (KeyValuePair<string, float> pair in WeatherPresets.Overrides(ViewerWeather.Field, Layers())) Restore(pair.Key);
                     Restore(CloudMotion.TuneScale);
+                    Restore(CloudLookTuning.TuneCoverCombine);
                 }
                 Tuning.Instance.Watch(null);
                 WatchedKey = null;
@@ -395,6 +396,9 @@ namespace ReDefinition.Atmospheres.Viewer
                 if (float.IsNaN(pair.Value)) ResetKey(pair.Key);
                 else SetKey(pair.Key, pair.Value);
             }
+            float combine = WeatherPresets.CombineOverride(weather);
+            if (float.IsNaN(combine)) ResetKey(CloudLookTuning.TuneCoverCombine);
+            else SetKey(CloudLookTuning.TuneCoverCombine, combine);
             double level;
             ForceType type;
             WeatherPresets.Precipitation(weather, out level, out type);

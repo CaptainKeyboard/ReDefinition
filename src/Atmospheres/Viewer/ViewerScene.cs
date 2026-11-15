@@ -106,6 +106,13 @@ namespace ReDefinition.Atmospheres.Viewer
             return list;
         }
 
+        // The cloud.coverCombine value a preset needs: a forced map must stay what it says. The pass scales the layer maps of a round so that their union meets the field's cover
+        // (E40 F1), which would bring a forced Overcast down to the field's cover, and to nothing where the field is clear. NaN (Field): the key's override is removed.
+        internal static float CombineOverride(ViewerWeather weather)
+        {
+            return weather == ViewerWeather.Field ? float.NaN : 0f;
+        }
+
         // The precipitation the preset forces at the camera (settings forceLevel and forceType): a negative level leaves the setting as it was at the viewer's start.
         internal static void Precipitation(ViewerWeather weather, out double level, out ForceType type)
         {

@@ -312,6 +312,20 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             foreach (KeyValuePair<string, float> p in rain) Assert.IsNotNull(CloudKeyRegistry.Find(p.Key), p.Key);
         }
 
+        // The pass brings the layer maps of a round down to the field's cover (cloud.coverCombine, default 1): a forced map would be scaled with them.
+        [TestMethod]
+        public void AForcedWeatherSwitchesTheCombinationToTheFieldsCoverOffAndTheFieldBringsItBack()
+        {
+            Assert.IsTrue(CloudLookTuning.DefaultCoverCombine > 0f, "the default combines, which is why the presets have to switch it off");
+            foreach (ViewerWeather w in Enum.GetValues(typeof(ViewerWeather)))
+            {
+                float combine = WeatherPresets.CombineOverride(w);
+                if (w == ViewerWeather.Field) Assert.IsTrue(float.IsNaN(combine), "the field's own weather: the override is removed");
+                else Assert.AreEqual(0f, combine, w.ToString());
+            }
+            Assert.IsNotNull(CloudKeyRegistry.Find(CloudLookTuning.TuneCoverCombine));
+        }
+
         [TestMethod]
         public void ThePosesTakeTheProbesViewsAndTheStacksHeights()
         {
