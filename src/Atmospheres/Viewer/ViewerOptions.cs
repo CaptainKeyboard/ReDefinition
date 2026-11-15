@@ -49,7 +49,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             float value;
             if (Tuning.Instance.TryGetOverride(key, out value)) return value;
-            return Tuning.Get(key, compiledDefault);
+            return Tuning.Peek(key, compiledDefault);
         }
     }
 

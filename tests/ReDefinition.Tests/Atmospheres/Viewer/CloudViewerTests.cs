@@ -358,5 +358,22 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(3, table.LastWatchedRead);
             table.Watch(null);
         }
+
+        // The viewer's labels and sidecar look at keys every frame or at every picture: that is not the pass reading the key.
+        [TestMethod]
+        public void APeekIsNotAReadOfTheWatchedKey()
+        {
+            var table = new TuningTable();
+            table.SetOverride("b", 3f);
+            table.BeginFrame(1);
+            table.Watch("b");
+            table.BeginFrame(2);
+            Assert.AreEqual(3f, table.Peek("b", 7f));
+            Assert.AreEqual(7f, table.Peek("nothing", 7f));
+            Assert.AreEqual(int.MinValue, table.LastWatchedRead, "only a reader's Get counts");
+            table.Get("b", 0f);
+            Assert.AreEqual(2, table.LastWatchedRead);
+            table.Watch(null);
+        }
     }
 }

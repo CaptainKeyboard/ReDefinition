@@ -35,6 +35,14 @@ namespace ReDefinition.Atmospheres
             return table.TryGetValue(key, out value) ? value : compiledDefault;
         }
 
+        // The value Get would give, without counting as a read of the watched key: the cloud viewer's own displays and sidecars look at keys this way, so that the
+        // read check shows only what the passes read.
+        internal float Peek(string key, float compiledDefault)
+        {
+            float value;
+            return Volatile.Read(ref effective).TryGetValue(key, out value) ? value : compiledDefault;
+        }
+
         private string watched;
         private int watchedReadFrame = int.MinValue;
 
@@ -161,6 +169,12 @@ namespace ReDefinition.Atmospheres
         internal static float Get(string key, float compiledDefault)
         {
             return Table.Get(key, compiledDefault);
+        }
+
+        // The value of a key without counting as a read of the watched key (the viewer's own displays).
+        internal static float Peek(string key, float compiledDefault)
+        {
+            return Table.Peek(key, compiledDefault);
         }
 
         // A switch: a value other than 0 is true.
