@@ -298,8 +298,34 @@ def view_light(log, name, ps):
     return dict(sun=list(info["sun"]), sun_grey=info["sun_grey"], white=white, elev=elev, ambient_top=info["ambient_top"], ambient_bottom=info["ambient_bottom"])
 
 
-def far_block(light):
-    return v1.haze_block(dict(sun=light["sun_grey"], elev=light["elev"]))
+HAZE_TINT_START62 = np.array([1.35, 1.48, 1.17])      # the cfg's hazeTintR / G / B at start 62 (E40 FL far; replaced by E40 H1's horizon sky after it)
+
+
+def far_block(light, state, relative_az):
+    """The far block of the state: start 62's haze (the sun's in-scatter over the horizon's 0.35 blue, times the tint and hazeTint), or today's (e40v1.haze_block, E40 H1's
+    colours from the air along the view ray at the sun's azimuth relative to the view)."""
+    spec = dict(sun=light["sun_grey"], elev=light["elev"], white=light["white"])
+    if state != "start62":
+        return v1.haze_block(spec, v1.HEADING + relative_az)
+    ray = np.array(v1.SC_RAYLEIGH)
+    tint = v1.tint_of(spec)
+
+    def inscatter(exponent):
+        return np.maximum(spec["sun"] * 0.23 * (ray / ray.mean()) ** exponent, np.array(gn.AMBIENT_TOP))
+
+    return dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(v1.SC_RAYLEIGH), mie=v1.SC_MIE, rayleighHeight=v1.SC_HR, mieHeight=v1.SC_HM, hazeStrength=1.0,
+                inscatter=[float(x) for x in inscatter(0.35) * tint * HAZE_TINT_START62], inscatterNear=[float(x) for x in inscatter(0.0) * tint])
+
+
+def sun_relative_azimuth(ps):
+    """The sun's azimuth at the view's place relative to the camera's heading (degrees, 0 to 180)."""
+    up = ps["pos"] / np.linalg.norm(ps["pos"])
+    east = np.cross(np.array([0.0, 0.0, 1.0]), up)
+    east /= np.linalg.norm(east)
+    north = np.cross(up, east)
+    az = math.degrees(math.atan2(float(ps["sun"] @ east), float(ps["sun"] @ north)))
+    rel = abs(az - ps["heading"]) % 360.0
+    return 360.0 - rel if rel > 180.0 else rel
 
 
 def far_from_uniforms(u):
@@ -330,7 +356,7 @@ def build_job(name, log, state, pass_json=None, dump=None):
     light = view_light(log, name, ps)
     cam = pr.Camera(ps["pos"], ps["heading"], ps["pitch"], W, H, log["scenes"][VIEWS[name]["scene"]].get("fov", gn.FOV))
     job = lay.job(jid, "lum", cam, layers, W, H, planet=c1.R, mapWidth=c1.MAP_W, mapHeight=c1.MAP_H, frameNumber=0, soft=0.5, sun=[float(x) for x in ps["sun"]],
-                  sunColour=light["sun"], ambientTop=light["ambient_top"], ambientBottom=light["ambient_bottom"], far=far_block(light), **args)
+                  sunColour=light["sun"], ambientTop=light["ambient_top"], ambientBottom=light["ambient_bottom"], far=far_block(light, state, sun_relative_azimuth(ps)), **args)
     stage = dict(white=light["white"], tint=[float(x) for x in v1.tint_of(dict(elev=light["elev"]))], gamma=e40ty.GAMMA, exposure=1.0, ut=ps["ut"], source="log",
                  sun_elev=light["elev"], alt=ps["alt"])
     return job, stage
