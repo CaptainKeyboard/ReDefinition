@@ -75,6 +75,11 @@ namespace ReDefinition.WeatherPlayer
         public float typeScale = 1f;
         // The layer's wind in world space (m/s; E40 L5 shape): the fibres lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
         public float[] wind;
+        // E40 PP64: the fibre axis the game's layer had in the frame (world space; it turns towards the wind over fibreTurnSeconds, so it is not always the wind's direction): empty: the wind's direction.
+        public float[] axis;
+        // E40 PP64: 1 where the job's maps already hold the anvils the game drew (a probe dump). The setup then keeps anvilType, which the layer's cover threshold reads (the anvil's type is
+        // left out of the water content the cover is calibrated on), and draws no anvil again.
+        public int anvilDrawn;
         // E40 PP: the game's height maps of the layer (a raw file of width x height x 3 bytes: root, top, variation, as the probe dumps them), their ranges in m and the ragged seed; empty:
         // the maps are built from heights.json as before.
         public string heightMap;

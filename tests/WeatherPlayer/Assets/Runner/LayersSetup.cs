@@ -96,7 +96,7 @@ namespace ReDefinition.WeatherPlayer
                     if (jl.typeScale != 1f)
                         for (int i = 0; i < typ.Length; i++) typ[i] = (byte)Mathf.Clamp(Mathf.Round(typ[i] * jl.typeScale), 0f, 255f);
                     // E40 CB: the anvils of the layer's towers, drawn into the maps as the game draws them (OwnCloudModule.DrawAnvil).
-                    if (jl.anvilType >= 0f)
+                    if (jl.anvilType >= 0f && jl.anvilDrawn == 0)
                     {
                         var report = new AnvilMap.Report();
                         AnvilMap.Apply(source.LayerAt(l), cov, typ, new AnvilInputs { Width = job.mapWidth, Height = job.mapHeight, RadiusM = job.planetRadius, ShearRadS = jl.anvilShearRadS }, report);
@@ -201,6 +201,7 @@ namespace ReDefinition.WeatherPlayer
                 noise.SetMotion(l, new LayerNoiseMotion { FlowAmplitudeM = jl.flowAmplitude, FlowLooped = jl.flowLooped != 0, ColourStrength = jl.colourStrength,
                                                           DriftMs = jl.wind != null && jl.wind.Length >= 3 ? V(jl.wind) : Vector3.zero });
                 noise.SnapAxis(l);
+                if (jl.axis != null && jl.axis.Length >= 3) noise.SetAxis(l, V(jl.axis));
                 Vector3 drift = jl.drift != null && jl.drift.Length >= 3 ? V(jl.drift) : Vector3.zero;
                 noise.SetState(l, drift, jl.rise);
             }

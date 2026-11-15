@@ -48,6 +48,24 @@ namespace ReDefinition.WeatherPlayer
         internal static bool DumpLast { get { return WeatherPass.Argument("-dump") == "last"; } }
         internal static bool ProductLightOn { get { return WeatherPass.Argument("-light") == "product"; } }
 
+        // The frames of the still scenario that are written: -dumpframes 1,3,39 (E40 PP64: the frames after a history cut, to find how many frames of history the game's grain corresponds to),
+        // else 39 with -dump last, else 36 to 39.
+        internal static int[] StaticDump()
+        {
+            string arg = WeatherPass.Argument("-dumpframes");
+            if (!string.IsNullOrEmpty(arg))
+            {
+                var frames = new System.Collections.Generic.List<int>();
+                foreach (string part in arg.Split(','))
+                {
+                    int value;
+                    if (int.TryParse(part, out value) && value >= 0 && value < 40) frames.Add(value);
+                }
+                if (frames.Count > 0) return frames.ToArray();
+            }
+            return DumpLast ? new[] { 39 } : new[] { 36, 37, 38, 39 };
+        }
+
         // The marches every medium is drawn with (GrainTable's: the product's grid march with the golden-ratio offset; 32 and 24 grid points at most).
         // -marches a,b,c replaces the list; seq1m<N> is N grid points at most, tseq1m<N> the same on the span cut to the types present (LayerFrame.SpanTight).
         internal static string[] Marches
@@ -275,7 +293,16 @@ namespace ReDefinition.WeatherPlayer
     [WeatherScene("soft-temporal")]
     public sealed class SoftTemporalScene : WeatherSceneBase
     {
-        private const int W = 1708, H = 960, Frames = 40;
+        private const int H = 960, Frames = 40;
+        // The target's width: 1708 as before, or -width N (E40 PP64: the game's frames are 1707 wide and its march target 563, so the parity series asks for 1707).
+        private static int W
+        {
+            get
+            {
+                int width;
+                return int.TryParse(WeatherPass.Argument("-width"), out width) && width >= 64 ? width : 1708;
+            }
+        }
 
         private sealed class Scenario
         {
@@ -287,7 +314,7 @@ namespace ReDefinition.WeatherPlayer
         // GrainTemporalScene's scenarios without the slow turn (the fast one is the harder case of the same motion).
         private static readonly Scenario[] Scenarios =
         {
-            new Scenario { Name = "static", Dump = SoftTable.DumpLast ? new[] { 39 } : new[] { 36, 37, 38, 39 } },
+            new Scenario { Name = "static", Dump = SoftTable.StaticDump() },
             new Scenario { Name = "fly", SidePerFrame = 5f, Dump = new[] { 37, 38 } },
             new Scenario { Name = "turnfast", YawPerFrame = 3f, Dump = new[] { 37, 38 } },
             new Scenario { Name = "flyfast", SidePerFrame = 40f, Dump = new[] { 37, 38 } },

@@ -305,6 +305,15 @@ namespace ReDefinition.Atmospheres
             if (layer >= 0 && layer < axis.Length) axis[layer] = FibreAxis.Target(motion[layer].DriftMs, pole, minWind[layer]);
         }
 
+        // Puts a layer's axis at a given direction (a reading of the game's axis, the player; the game's axis may still be turning towards its wind). The pole counts as known, so the first
+        // SetPole does not put the axis back at the wind's direction.
+        internal void SetAxis(int layer, Vector3 value)
+        {
+            if (layer < 0 || layer >= axis.Length || value.sqrMagnitude < 1e-12f) return;
+            axis[layer] = value.normalized;
+            poleKnown = true;
+        }
+
         // The axis of a layer as the shader gets it.
         internal Vector3 AxisOf(int layer)
         {
