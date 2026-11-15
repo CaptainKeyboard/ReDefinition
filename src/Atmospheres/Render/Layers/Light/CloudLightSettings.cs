@@ -52,7 +52,20 @@ namespace ReDefinition.Atmospheres
         // Per layer (E40 L6 light; the shader's _LightM): x the sky's light inside the clouds (amplitude), y its decay with the optical depth to the cloud's top (the layers' cfg keys
         // ambientMs and ambientDecay, see CloudLayerDef.AmbientMs), z the plateau of a Cheap or Fog layer's phase (cfg key lightPlateau). All zero for a settings object nobody fills:
         // the harness's parity cells have none of the three in their reference.
-        public readonly Vector3[] LayerM = new Vector3[CloudLayerDef.MaxLayers];
+        // w (E40 LM2): the layer's cell width in m (cfg key lightCellWidth; 0: no cell diffusion, the slab-fitted diffusion term below).
+        public readonly Vector4[] LayerM = new Vector4[CloudLayerDef.MaxLayers];
+        // The cell diffusion (E40 LM2; CloudLightMath.CellDiffusion, the shader's _LightW and _LightX) of the layers with a cell width: gain, scaled-depth factor (Beta), extrapolation
+        // length, side-loss strength, the octaves' isotropic share at the reference incidence, the power of the incidence on it, the reference incidence and the incidence's softening
+        // optical depth. Fitted to the photon walks of a sunlit sphere (views 0 to 120 degrees, sun elevations 15 to 90) and slab (sun 15 to 90) with the T03 parity cells held
+        // (tools/weather_metrics/light_mc_cell.py; .local/plans/atmospheres/E40-lm2-light-result.md section 2).
+        public float CellGain = 0.84f, CellBeta = 0.37f, CellExtrapolation = 9.8f, CellSide = 3f, CellOctaves = 0.82f, CellIncidencePower = 0.61f, CellIncidenceRef = 0.707f, CellIncidenceEps = 0.01f;
+
+        // The cell diffusion's numbers for CloudLightMath.CellDiffusion.
+        internal CloudLightMath.CellLight CellLight()
+        {
+            return new CloudLightMath.CellLight { Gain = CellGain, Beta = CellBeta, Extrapolation = CellExtrapolation, Side = CellSide, Octaves = CellOctaves,
+                                                  IncidencePower = CellIncidencePower, IncidenceRef = CellIncidenceRef, IncidenceEps = CellIncidenceEps };
+        }
         // How the occlusion reads what lies above: false (default) from the local density and the layer's remaining height, with no taps; true: UpSteps taps
         // straight up (the earlier path, kept as a switch for the cost table; 0.9 to 2.4 ms more at 1707 x 960).
         public bool AmbientOcclusionTaps;
@@ -118,7 +131,8 @@ namespace ReDefinition.Atmospheres
                 LightR = Shader.PropertyToID("_LightR"), LightS = Shader.PropertyToID("_LightS"), LightT = Shader.PropertyToID("_LightT"),
                 LightL = Shader.PropertyToID("_LightL"), MoonDir = Shader.PropertyToID("_MoonDir"), MoonCol = Shader.PropertyToID("_MoonCol"),
                 BoltPos = Shader.PropertyToID("_BoltPos"), BoltCol = Shader.PropertyToID("_BoltCol"), CellA = Shader.PropertyToID("_CellA"),
-                CellB = Shader.PropertyToID("_CellB"), LightU = Shader.PropertyToID("_LightU"), SunAir = Shader.PropertyToID("_SunAir"), LightV = Shader.PropertyToID("_LightV"), LightM = Shader.PropertyToID("_LightM"), PhaseP = Shader.PropertyToID("_PhaseP");
+                CellB = Shader.PropertyToID("_CellB"), LightU = Shader.PropertyToID("_LightU"), SunAir = Shader.PropertyToID("_SunAir"), LightV = Shader.PropertyToID("_LightV"), LightM = Shader.PropertyToID("_LightM"), PhaseP = Shader.PropertyToID("_PhaseP"),
+                LightW = Shader.PropertyToID("_LightW"), LightX = Shader.PropertyToID("_LightX");
         }
 
         private readonly Vector4[] layerM = new Vector4[CloudLayerDef.MaxLayers];
@@ -158,10 +172,12 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.SunAir, new Vector4(SunAirTau.x, SunAirTau.y, SunAirTau.z, Mathf.Max(SunAirHeightM, 0f)));
             m.SetVector(Ids.LightU, new Vector4(Mathf.Max(Diffusion, 0f), Mathf.Max(DiffusionTau, 0.01f), Mathf.Clamp01(MsIsotropy), SunAirWhiteBalance ? 1f : 0f));
             m.SetVector(Ids.LightV, new Vector4(Mathf.Max(DiffusionDecay, 0f), AmbientColumnToTypeTop ? 1f : 0f, Mathf.Max(SunAirMieTau, 0f), Mathf.Max(SunAirMieHeightM, 1f)));
+            m.SetVector(Ids.LightW, new Vector4(Mathf.Max(CellGain, 0f), Mathf.Max(CellBeta, 1e-3f), Mathf.Max(CellExtrapolation, 1e-3f), Mathf.Max(CellSide, 0f)));
+            m.SetVector(Ids.LightX, new Vector4(Mathf.Max(CellOctaves, 0f), Mathf.Max(CellIncidenceRef, 1e-3f), Mathf.Max(CellIncidencePower, 0f), Mathf.Max(CellIncidenceEps, 1e-4f)));
             for (int i = 0; i < layerM.Length; i++)
             {
-                Vector3 k = i < LayerM.Length ? LayerM[i] : Vector3.zero;
-                layerM[i] = new Vector4(Mathf.Max(k.x, 0f), Mathf.Max(k.y, 0f), Mathf.Max(k.z, 0f), 0f);
+                Vector4 k = i < LayerM.Length ? LayerM[i] : Vector4.zero;
+                layerM[i] = new Vector4(Mathf.Max(k.x, 0f), Mathf.Max(k.y, 0f), Mathf.Max(k.z, 0f), Mathf.Max(k.w, 0f));
             }
             m.SetVectorArray(Ids.LightM, layerM);
             for (int i = 0; i < layerL.Length; i++)

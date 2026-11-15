@@ -50,6 +50,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             rain.TopReach = 0.5714f;
             rain.TopRefMs = 1.2f;
             rain.TopFullMs = 11.2f;
+            rain.LightCellWidth = 20000f;   // E40 LM2: a deck is a slab
             return rain;
         }
 
@@ -65,12 +66,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[1].DensityScale = 0.7f;
             cumulus.Types[2].DensityScale = 0.7f;
             cumulus.Types[4].DensityScale = 0.45f;
-            // E40 ML light: the direct light of the cumulus types is 1.25 times the model's (the cfg's baseLight and headLight).
-            Light(cumulus.Types[0], 1.25f, 1.25f, 0.9f, 1f);
-            Light(cumulus.Types[1], 1.25f, 1.25f, 0.9f, 1f);
-            Light(cumulus.Types[2], 1.25f, 1.25f, 0.85f, 1f);
-            Light(cumulus.Types[3], 1.25f, 1.5f, 0.8f, 1f);
-            Light(cumulus.Types[4], 1.25f, 1.25f, 1f, 1f);
+            // E40 LM2: no factor on the cumulus types' direct light (the cell diffusion has the sun's incidence); only the sky's fill at the base.
+            Light(cumulus.Types[0], 1f, 1f, 0.9f, 1f);
+            Light(cumulus.Types[1], 1f, 1f, 0.9f, 1f);
+            Light(cumulus.Types[2], 1f, 1f, 0.85f, 1f);
+            Light(cumulus.Types[3], 1f, 1f, 0.8f, 1f);
+            Light(cumulus.Types[4], 1f, 1f, 1f, 1f);
+            cumulus.LightCellWidth = 2000f;
             // The types' height-shaped threshold (cfg node LIFT, E40 L2 D1).
             cumulus.Types[0].Lift = C(0f, 0f, 0.5f, 0f, 1f, 0.084f);
             cumulus.Types[1].Lift = C(0f, 0f, 0.3f, 0f, 0.7f, 0.067f, 1f, 0.168f);
@@ -136,6 +138,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cb.TopReach = 0.09f;
             cb.TopRefMs = 1.2f;
             cb.TopFullMs = 6f;
+            cb.LightCellWidth = 12000f;   // E40 LM2: the towers' width
             return cb;
         }
 

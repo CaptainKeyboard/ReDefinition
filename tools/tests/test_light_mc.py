@@ -43,5 +43,32 @@ class PhotonWalk(unittest.TestCase):
         self.assertTrue(np.allclose(mine, theirs, rtol=1e-6, atol=1e-9))
 
 
+class CellDiffusion(unittest.TestCase):
+    """E40 LM2: the cell diffusion (light_cpu.diffusion_terms) against a small photon walk of a thick slab."""
+
+    def test_the_top_of_a_thick_deck_brightens_with_the_sun_as_the_walk_does(self):
+        from weather_metrics import light_mc_cell as M
+        from weather_metrics import light_mc_slab as L
+        k = L.VIEWS.index((53, 0))
+        walk = {sun: L.run(100.0, sun, 20000, seed=7) for sun in (30.0, 70.0)}
+        w = {sun: float(r["L1"][k] + r["L2"][k]) for sun, r in walk.items()}
+        on, off = M.params(), M.params(on=False)
+        model = {sun: M.slab_view(on, 100.0, sun, 53, 0) for sun in w}
+        shipped = {sun: M.slab_view(off, 100.0, sun, 53, 0, width=0.0) for sun in w}
+        walk_ratio = w[70.0] / w[30.0]
+        # the walk: about 2 (the flux through the top); the slab-fitted model of before: about 1.1
+        self.assertGreater(walk_ratio, 1.7)
+        self.assertLess(shipped[70.0] / shipped[30.0], 1.25)
+        self.assertAlmostEqual(model[70.0] / model[30.0] / walk_ratio, 1.0, delta=0.25)
+
+    def test_no_cell_width_is_the_model_of_before(self):
+        from weather_metrics import light_cpu as Cpu
+        p = Cpu.Params()
+        f, d = Cpu.diffusion_terms(p, np.array([3.0, 30.0]), np.array([2.0, 20.0]), 0.05, 1200.0, 0.0, 0.7)
+        self.assertEqual(f, 1.0)
+        ref = p.diffusion / (4.0 * math.pi) * (1.0 - np.exp(-np.array([3.0, 30.0]) / p.diffusionTau)) / (1.0 + p.diffusionDecay * np.array([3.0, 30.0]))
+        self.assertTrue(np.allclose(d, ref))
+
+
 if __name__ == "__main__":
     unittest.main()

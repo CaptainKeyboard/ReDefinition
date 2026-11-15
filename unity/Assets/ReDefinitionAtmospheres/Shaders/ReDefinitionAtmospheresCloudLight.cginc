@@ -27,7 +27,9 @@ float4 _LightT;   // bolt count, sun tap count override (0: the march's own), li
 float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is); the aerosol component is _LightV.zw
 float4 _LightU;   // diffusion share (light that has diffused into the deep core, isotropic, as a share of the sun's isotropic light), its optical depth scale, isotropic share of the octaves above the first
 float4 _LightV;   // diffusion decay with the optical depth towards the light (0: the saturating term), the analytic occlusion's column ends at the cloud type's top (1) or at the layer's outer altitude (0), the sun air's second component (grey extinction along the zenith path at sea level, scale height in m)
-float4 _LightM[4];  // per layer (E40 L6 light): x, y the sky's light inside the clouds (amplitude in shares of the sky's isotropic source at the surface, decay with the optical depth below the top; two-stream: 1 / (1 + decay tau)), z the side and back plateau of a Cheap or Fog layer's phase (ice) in units of the isotropic phase, added to the water drop's lobes
+float4 _LightM[4];  // per layer (E40 L6 light): x, y the sky's light inside the clouds (amplitude in shares of the sky's isotropic source at the surface, decay with the optical depth below the top; two-stream: 1 / (1 + decay tau)), z the side and back plateau of a Cheap or Fog layer's phase (ice) in units of the isotropic phase, added to the water drop's lobes, w the cell width in m of the cell diffusion (E40 LM2; 0: the diffusion term of _LightU / _LightV)
+float4 _LightW;   // the cell diffusion (E40 LM2, CloudLightMath.CellDiffusion): gain, scaled-depth factor, extrapolation length, side-loss strength
+float4 _LightX;   // the cell diffusion: the octaves' isotropic share at the reference incidence, the reference incidence, the power of the incidence on that share, the incidence's softening optical depth
 float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, isotropic share of the Cheap and Fog kinds' single scattering (ice crystals, E40 look round 2)
 float4 _MoonDir[2], _MoonCol[2];   // towards the light; colour times intensity (rgb, 0: off)
 float4 _BoltPos[4], _BoltCol[4];   // planet frame position and range (w); colour times intensity
@@ -208,7 +210,8 @@ float2 CacheFetch(float3 pc, out bool inside)
 
 // ---- the octaves ----
 // sum_n b^n * Phase(mu, c^n) * exp(-tau * a^n); octave 0 is the single scattering, the others carry the multiple scattering brightness.
-float OctaveSum(float mu, float tau, float msBrightness)
+// iso (E40 LM2) scales the octaves' isotropic share: with a layer's cell diffusion it follows the light's incidence, the forward share stays.
+float OctaveSum(float mu, float tau, float msBrightness, float iso)
 {
     int n = (int)clamp(_LightP.x, 1.0, 4.0);
     float sum = 0;
@@ -217,22 +220,35 @@ float OctaveSum(float mu, float tau, float msBrightness)
     {
         // The octaves above the first stand for light that has scattered several times: their directions are more isotropic than the single
         // scattering's, which _LightU.z (the isotropic share) expresses (FX-T03).
-        if (i < n) sum += (i == 0 ? 1.0 : msBrightness) * bn * (i == 0 ? Phase(mu, cn) : lerp(Phase(mu, cn), LIGHT_INV4PI, _LightU.z)) * exp(-tau * an);
+        if (i < n) sum += (i == 0 ? 1.0 : msBrightness) * bn * (i == 0 ? Phase(mu, cn) : lerp(Phase(mu, cn), LIGHT_INV4PI * iso, _LightU.z)) * exp(-tau * an);
         an *= _LightP.y; bn *= _LightP.z; cn *= _LightP.w;
     }
     return sum;
 }
 
 // One light's contribution at a sample: its colour times the octave sum with its own light march. tauIn >= 0 skips the march.
-float3 DirectOfLight(float3 col, float3 ldir, float3 pc, float3 d, int li, int steps, float t, float tauIn, float rot)
+// cell (E40 LM2): x the factor on the octaves' isotropic share, y the cell diffusion's source (below 0: none, the diffusion term below).
+float3 DirectOfLight(float3 col, float3 ldir, float3 pc, float3 d, int li, int steps, float t, float tauIn, float rot, float2 cell)
 {
     if (Luma(col) <= 0) return 0;
     float tau = tauIn >= 0 ? tauIn : LightTau(pc, ldir, li, steps, t, _LightR.x, rot);
     // The octaves thin out with depth (exp(-tau a^n)); deep in a thick core the light that entered has diffused and leaves isotropically, which
     // the octaves cannot reach at tau of tens: a saturating isotropic term takes over there, nothing at the sunlit edge (tau -> 0).
     // T03v2: the term falls off again by 1 / (1 + decay tau) (a conservatively scattering slab's transmission), so that the far side of a thick cloud is dark.
-    float diffuse = _LightU.x * LIGHT_INV4PI * (1.0 - exp(-tau / max(_LightU.y, 1e-3))) / (1.0 + _LightV.x * tau);
-    return col * (OctaveSum(dot(d, ldir), tau, _LightR.w * _LightL[li].x) + diffuse);
+    float diffuse = cell.y >= 0 ? cell.y : _LightU.x * LIGHT_INV4PI * (1.0 - exp(-tau / max(_LightU.y, 1e-3))) / (1.0 + _LightV.x * tau);
+    return col * (OctaveSum(dot(d, ldir), tau, _LightR.w * _LightL[li].x, cell.x) + diffuse);
+}
+
+// E40 LM2, the cell diffusion of the sun's light (CloudLightMath.CellDiffusion is the twin): (the octaves' isotropic factor, the source; (1, -1) where the layer has no cell width).
+// mi the incidence (tau up to the type's top over tau to the sun), tot the optical depth of the chord of an ellipsoid of the type's height and the cell width along the sun, the slab's
+// diffusion profile in the lit surface's coordinates, the side losses, the share that has scattered at all. Computed once per lit sample for the sun; the moons keep the diffusion term.
+float2 CellLight(float3 pc, float dens, float tau, float2 topAlt, float w)
+{
+    float r = length(pc), up = dens * max(topAlt.x - (r - _PlanetR), 0.0), h = max(topAlt.x - topAlt.y, 1.0);
+    float mi = clamp((up + _LightX.w) / (tau + _LightX.w), 0.05, 1.0), se = clamp(abs(dot(pc, _Sun.xyz)) / r, 1e-3, 1.0), bn = _LightW.y * mi;
+    float tot = max(dens * rsqrt(se * se / (h * h) + (1.0 - se * se) / max(w * w, 1.0)), tau);
+    float src = _LightW.x * LIGHT_INV4PI * mi * (_LightW.z + bn * (tot - tau)) / (2.0 * _LightW.z + bn * tot) * exp(-_LightW.w * bn * tau / (_LightW.y * dens * w + 2.0 * _LightW.z)) * (1.0 - exp(-bn * tot));
+    return float2(_LightX.x * pow(mi / _LightX.y, _LightX.z), src);
 }
 
 float3 BoltLight(float3 pc)
@@ -253,8 +269,9 @@ float3 BoltLight(float3 pc)
 // tauReuse >= 0: the optical depth towards the sun of an earlier sample of the span (the cost package's reuse); tauSunOut returns the one used.
 // tauUpReuse >= 0: the optical depth straight up of an earlier sample (the cost package T05's up-tap reuse, UpMode 1); tauUpOut returns the one used.
 // _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
-// topAlt: the altitude of the top of the cloud type at the sample (the march's copy of gTopAlt), the end of the analytic occlusion's column.
-float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float rot, float tauReuse, float tauUpReuse, float topAlt, out float3 dirPart,
+// topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's copy of gTopAlt, gBaseAlt): the end of the analytic occlusion's column and the type's
+// height for the cell diffusion (E40 LM2).
+float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float rot, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
                    out float3 ambPart, out float taps, out float tauSunOut, out float tauUpOut)
 {
     float3 sunDir = _Sun.xyz;
@@ -272,10 +289,12 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     float3 sunCol = _SunColor.rgb * SunAir(pc, sunDir);
     if (tauSun < 0 && Luma(sunCol) > 0) tauSun = LightTau(pc, sunDir, li, steps, t, _LightR.x, rot);
     tauSunOut = max(tauSun, 0.0);
-    float3 direct = DirectOfLight(sunCol, sunDir, pc, d, li, steps, t, max(tauSun, 0.0), rot);
+    float2 cell = float2(1.0, -1.0);
+    [branch] if (_LightM[li].w > 0) cell = CellLight(pc, dens, max(tauSun, 0.0), topAlt, _LightM[li].w);
+    float3 direct = DirectOfLight(sunCol, sunDir, pc, d, li, steps, t, max(tauSun, 0.0), rot, cell);
     [unroll] for (int m = 0; m < 2; m++)
     {
-        direct += DirectOfLight(_MoonCol[m].rgb, _MoonDir[m].xyz, pc, d, li, max(1, (int)_LightS.x), t, -1.0, rot);
+        direct += DirectOfLight(_MoonCol[m].rgb, _MoonDir[m].xyz, pc, d, li, max(1, (int)_LightS.x), t, -1.0, rot, float2(1.0, -1.0));
         if (Luma(_MoonCol[m].rgb) > 0) taps += max(1, (int)_LightS.x);
     }
     float powder = lerp(1.0, 1.0 - exp(-2.0 * dens * _LightQ.y), saturate(_LightQ.x * _LightL[li].y));
@@ -302,7 +321,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
             // far taller than its low types (Kerbin's cumulus layer reaches 7.4 km, its stratocumulus 2.3 km), and to the layer's top the column of a sample at the
             // very top of a low cloud was still 5 km of the local density, which removed the sky's light from every low cloud (E40 lead investigation, series e40-fl).
             // _LightV.y 0 keeps the layer's outer altitude (the earlier behaviour, for the comparison).
-            float columnTop = _LightV.y > 0.5 ? topAlt : _LayerA[li].y;
+            float columnTop = _LightV.y > 0.5 ? topAlt.x : _LayerA[li].y;
             tu = dens * max(columnTop - (length(pc) - _PlanetR), 0.0);
         }
         tauUpOut = tu;

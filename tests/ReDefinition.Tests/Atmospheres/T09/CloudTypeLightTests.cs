@@ -55,10 +55,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.AreEqual(wa, a, 2e-3, cumulus.Types[type].Name + " ambient at " + h);
                 }
             double dBase, aBase, dTop, aTop;
-            // Type 3 is Cumulus congestus (the altocumulus sheet is the last type, E40 L3): the factor 1.25 on the base's direct light (E40 ML light), a brighter head (1.5), a shaded base sky.
+            // Type 3 is Cumulus congestus (the altocumulus sheet is the last type, E40 L3): no factor on the direct light (E40 LM2: the cell diffusion has the incidence), a shaded base sky
+            // under the open sky of the head.
             table.LightAt(3, 0.0, out dBase, out aBase);
             table.LightAt(3, 1.0, out dTop, out aTop);
-            Assert.IsTrue(Math.Abs(dBase - 1.25) < 1e-3 && dTop > dBase && aBase < 1.0, "a congestus has a bright head over its base: " + dBase + " / " + dTop + " / " + aBase);
+            Assert.IsTrue(Math.Abs(dBase - 1.0) < 1e-3 && Math.Abs(dTop - 1.0) < 1e-3 && aBase < aTop, "a congestus has a shaded base sky under its head: " + dBase + " / " + dTop + " / " + aBase + " / " + aTop);
         }
 
         [TestMethod]
@@ -83,7 +84,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheShippedKerbinCumulusTypesCarryTheWhiteFactorAndTheCumulonimbusOnlyTheFactorOfTheirTopDeficit()
+        public void TheShippedKerbinCumulusTypesCarryNoLightFactorAndTheCumulonimbusOnlyTheFactorOfTheirTopDeficit()
         {
             var layers = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers;
             // E40 L4 clean: the diffusion term refitted to the two-stream slab puts every base on the anchor, so the cumulonimbus types shade no base by a factor; their tops stay
@@ -92,14 +93,16 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(1f, layers.SelectMany(l => l.Types).Single(x => x.Name == name).BaseLight, name + " base light");
             foreach (string name in new[] { "Cumulonimbus calvus", "Cumulonimbus incus" })
                 Assert.IsTrue(layers.SelectMany(l => l.Types).Single(x => x.Name == name).HeadLight > 1.1f, name + " has a bright head");
-            // E40 ML light: the model's source function has no dependence on the sun's incidence on a cloud's surface, so a surface facing the sun reads at 0.7 to 0.85 of a photon walk through
-            // a sunlit cell (light_mc_sphere.py); the cumulus layer's types carry 1.25 on the direct light (the head of the thick congestus 1.2 x 1.25).
+            // E40 LM2: the cell diffusion has the sun's incidence on a cloud's surface (light_mc_cell.py), so the cumulus layer's types carry no factor on the direct light any more
+            // (E40 ML light had 1.25, the congestus head 1.5), and every lit layer of Kerbin has a cell width.
             foreach (string name in new[] { "Stratocumulus", "Cumulus humilis", "Cumulus mediocris", "Cumulus congestus", "Altocumulus" })
             {
                 CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
-                Assert.AreEqual(1.25f, t.BaseLight, name + " base light");
-                Assert.AreEqual(name == "Cumulus congestus" ? 1.5f : 1.25f, t.HeadLight, name + " head light");
+                Assert.AreEqual(1f, t.BaseLight, name + " base light");
+                Assert.AreEqual(1f, t.HeadLight, name + " head light");
             }
+            foreach (CloudLayerSpec l in layers.Where(l => l.Kind == LayerKind.Weather))
+                Assert.IsTrue(l.LightCellWidth > 0f, l.Name + " has a cell width");
             // The decks of stratus and nimbostratus (rain and snow) have no factor: their light follows the two-stream anchors without one (E40 look round 2).
             foreach (string name in new[] { "Stratus", "Nimbostratus", "Snow stratus", "Snow nimbus" })
             {

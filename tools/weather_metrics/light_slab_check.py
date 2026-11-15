@@ -88,8 +88,9 @@ def source(p, slab, z, mu0, mu, sun_c, light_ms=1.0, light_ambient=1.0):
     """The shader's LightSource for a grey sun: (direct, ambient) per unit extinction."""
     d = slab.sigma(z)
     tau = sun_tau(slab, z, mu0)
-    diffuse = p.diffusion * INV4PI * (1.0 - math.exp(-tau / p.diffusionTau)) / (1.0 + p.diffusionDecay * tau)
-    direct = sun_c * (octave_sum_ms(p, mu, tau, light_ms) + diffuse)
+    # E40 LM2: the cell diffusion where the layer has a cell width (p.cellWidth), with the analytic optical depth to the type's top that the shader computes (local density x height left)
+    iso, diffuse = C.diffusion_terms(p, tau, d * max(slab.h - z, 0.0), d, slab.h, p.cellWidth, mu0)
+    direct = sun_c * (octave_sum_ms(p, mu, tau, light_ms, float(iso)) + float(diffuse))
     powder = 1.0 + (1.0 - math.exp(-2.0 * d * p.powderLength) - 1.0) * min(1.0, p.powder)
     sky = (AMBIENT_BOTTOM + (AMBIENT_TOP - AMBIENT_BOTTOM) * min(max(z / slab.h, 0.0), 1.0)) * p.ambientGain * light_ambient
     open_up = math.exp(-d * max(slab.h - z, 0.0) * p.ambientOcclusion)
@@ -100,12 +101,12 @@ def source(p, slab, z, mu0, mu, sun_c, light_ms=1.0, light_ambient=1.0):
     return direct * powder * p.albedo, max((sky * open_up + sky_top * ms) * p.albedo, floor)
 
 
-def octave_sum_ms(p, mu, tau, ms_scale):
+def octave_sum_ms(p, mu, tau, ms_scale, iso_factor=1.0):
     s, an, bn, cn = 0.0, 1.0, 1.0, 1.0
     for i in range(int(min(max(p.octaves, 1), 4))):
         ph = C.phase(p, mu, cn)
         if i > 0:
-            ph = ph + (INV4PI - ph) * p.msIsotropy
+            ph = ph + (INV4PI * iso_factor - ph) * p.msIsotropy
         s += (1.0 if i == 0 else p.msBrightness * ms_scale) * bn * ph * math.exp(-tau * an)
         an *= p.octaveA
         bn *= p.octaveB
@@ -150,11 +151,13 @@ def product_params(layer="Kerbin-cumulus"):
         root = e40o.parse_nodes(f.read())
     clouds = e40o.find(root, "CLOUDS")
     node = [c for c in clouds["children"] if c["name"] == "LAYER" and e40o.val(c, "name") == layer][0]
-    return C.Params(ambientMs=float(e40o.val(node, "ambientMs", 3.5)), ambientDecay=float(e40o.val(node, "ambientDecay", 0.11)))
+    return C.Params(ambientMs=float(e40o.val(node, "ambientMs", 3.5)), ambientDecay=float(e40o.val(node, "ambientDecay", 0.11)),
+                    cellWidth=float(e40o.val(node, "lightCellWidth", 0.0)))
 
 
-def uniform_table(taus=(2, 5, 10, 25, 60, 100, 200), height=1200.0):
-    p = product_params()
+def uniform_table(taus=(2, 5, 10, 25, 60, 100, 200), height=1200.0, layer="Kerbin-weather-rain"):
+    # a uniform slab is a deck: the rain deck's numbers (since E40 LM2 its cell width, 20 km, makes the cell diffusion a slab's; the cumulus layer's 2 km would add a cell's side losses)
+    p = product_params(layer)
     mu0 = math.sin(math.radians(SUN_ELEVATION))
     rows = []
     for tau in taus:

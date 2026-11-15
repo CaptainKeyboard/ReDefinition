@@ -230,6 +230,10 @@ namespace ReDefinition.Atmospheres
         internal const float DefaultAmbientMs = 3.5f, DefaultAmbientDecay = 0.11f;
         internal float AmbientMs { get; set; } = DefaultAmbientMs;
         internal float AmbientDecay { get; set; } = DefaultAmbientDecay;
+        // The width of the layer's cloud cells in m for the sun's diffusion in a lit (Weather) layer (cfg key lightCellWidth; E40 LM2, CloudLightMath.CellDiffusion; the shader's _LightM.w):
+        // the light's far depth is the chord of an ellipsoid of the type's height and this width, and a cell loses light through its sides over it. A deck is tens of km wide (its
+        // chord is the slab's height over the sun's sine), a cumulus cell about as wide as high. 0: none (the slab-fitted diffusion term of before).
+        internal float LightCellWidth { get; set; }
         // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
         internal float RainType { get; set; } = 1f;
         // How much longer the layer's noise features are along the planet's axis than across it (cfg key fibreStretch, 1 and above; 1: isotropic): the lookup is compressed along the

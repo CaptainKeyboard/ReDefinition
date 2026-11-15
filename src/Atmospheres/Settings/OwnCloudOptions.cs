@@ -102,6 +102,10 @@ namespace ReDefinition.Atmospheres
             TuneMsBrightness = "light.msBrightness", TuneDiffusion = "light.diffusion", TuneDiffusionTau = "light.diffusionTau",
             TuneMsIsotropy = "light.msIsotropy", TuneAmbientOcclusion = "light.ambientOcclusion", TuneAmbientGain = "light.ambientGain",
             TuneSkyTint = "light.skyTint", TuneAmbientFloor = "light.ambientFloor", TuneAmbientColumnTop = "light.ambientColumnTop";
+        // E40 LM2: the cell diffusion's numbers (CloudLightSettings.Cell*); the per-layer cell width is the cfg key lightCellWidth.
+        internal const string TuneCellGain = "light.cellGain", TuneCellBeta = "light.cellBeta", TuneCellExtrapolation = "light.cellExtrapolation", TuneCellSide = "light.cellSide",
+            TuneCellOctaves = "light.cellOctaves", TuneCellIncidencePower = "light.cellIncidencePower", TuneCellIncidenceRef = "light.cellIncidenceRef",
+            TuneCellIncidenceEps = "light.cellIncidenceEps";
 
         private static readonly CloudLightSettings Compiled = new CloudLightSettings();
         private static readonly LayerFrame CompiledFrame = new LayerFrame();
@@ -282,6 +286,14 @@ namespace ReDefinition.Atmospheres
             s.AmbientFloor = Tuning.Get(TuneAmbientFloor, Compiled.AmbientFloor);
             // light.ambientColumnTop (default 1): the analytic occlusion's column ends at the cloud type's top; 0: at the layer's outer altitude (the earlier behaviour).
             s.AmbientColumnToTypeTop = Tuning.Flag(TuneAmbientColumnTop, Compiled.AmbientColumnToTypeTop);
+            s.CellGain = Tuning.Get(TuneCellGain, Compiled.CellGain);
+            s.CellBeta = Tuning.Get(TuneCellBeta, Compiled.CellBeta);
+            s.CellExtrapolation = Tuning.Get(TuneCellExtrapolation, Compiled.CellExtrapolation);
+            s.CellSide = Tuning.Get(TuneCellSide, Compiled.CellSide);
+            s.CellOctaves = Tuning.Get(TuneCellOctaves, Compiled.CellOctaves);
+            s.CellIncidencePower = Tuning.Get(TuneCellIncidencePower, Compiled.CellIncidencePower);
+            s.CellIncidenceRef = Tuning.Get(TuneCellIncidenceRef, Compiled.CellIncidenceRef);
+            s.CellIncidenceEps = Tuning.Get(TuneCellIncidenceEps, Compiled.CellIncidenceEps);
             LimitMoonLights(s, v);
         }
 

@@ -230,6 +230,42 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheCellDiffusionEqualsTheCpuMirror()
+        {
+            // tools/weather_metrics/light_cpu.diffusion_terms with the default numbers at the same inputs (E40 LM2); the settings are floats, so 1e-6 relative
+            CloudLightMath.CellLight k = new CloudLightSettings().CellLight();
+            double iso;
+            Assert.AreEqual(0.020233961634754292, CloudLightMath.CellDiffusion(10.0, 5.0, 0.05, 1200.0, 2000.0, 0.5, k, out iso), 2e-8);
+            Assert.AreEqual(0.6642082039683284, iso, 1e-6);
+            Assert.AreEqual(0.009620368404836354, CloudLightMath.CellDiffusion(40.0, 60.0, 0.03, 2700.0, 2000.0, 0.26, k, out iso), 1e-8);
+            Assert.AreEqual(1.0131366122525767, iso, 1e-6);
+            Assert.AreEqual(0.02621139489908524, CloudLightMath.CellDiffusion(2.0, 1.4, 0.02, 600.0, 20000.0, 0.7, k, out iso), 3e-8);
+            Assert.AreEqual(0.8160975492390107, iso, 1e-6);
+        }
+
+        [TestMethod]
+        public void TheCellDiffusionFollowsTheIncidenceAndFallsToTheFarSide()
+        {
+            CloudLightMath.CellLight k = new CloudLightSettings().CellLight();
+            double iso, isoLow;
+            // a deck lit from above: the incidence is the sun's elevation sine, so the source near the top grows with the sun as the photon walk's does (0.45 / 0.69 / 1.0 W at 0.5 / 0.7 / 0.94)
+            Assert.AreEqual(0.5, CloudLightMath.CellIncidence(20.0, 10.0, 1e-4), 1e-3);
+            double high = CloudLightMath.CellDiffusion(1.0, 0.94, 0.08, 1200.0, 20000.0, 0.94, k, out iso);
+            double low = CloudLightMath.CellDiffusion(1.0, 0.26, 0.08, 1200.0, 20000.0, 0.26, k, out isoLow);
+            Assert.IsTrue(high > 2.5 * low && iso > isoLow, "high " + high + " low " + low);
+            // deeper towards the far side the source falls
+            double near = CloudLightMath.CellDiffusion(5.0, 3.5, 0.08, 1200.0, 20000.0, 0.7, k, out iso);
+            double far = CloudLightMath.CellDiffusion(120.0, 84.0, 0.08, 1200.0, 20000.0, 0.7, k, out iso);
+            Assert.IsTrue(far < 0.5 * near, "near " + near + " far " + far);
+            // the chord of a deck is its height over the sun's sine, of a cell as wide as high its diameter
+            Assert.AreEqual(1200.0 / 0.5, CloudLightMath.CellChord(0.5, 1200.0, 1.0e7), 1.0);
+            Assert.AreEqual(1600.0, CloudLightMath.CellChord(0.3, 1600.0, 1600.0), 1e-6);
+            // no cell width: nothing, the octaves untouched
+            Assert.AreEqual(0.0, CloudLightMath.CellDiffusion(5.0, 3.5, 0.08, 1200.0, 0.0, 0.7, k, out iso));
+            Assert.AreEqual(1.0, iso);
+        }
+
+        [TestMethod]
         public void TheDefaultLightHasTwoExtraLightsFourBoltsAndNoCache()
         {
             var s = new CloudLightSettings();

@@ -217,6 +217,33 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.IsTrue(light.AmbientColumnToTypeTop);
         }
 
+        // E40 LM2: the cell diffusion's numbers are tuning keys with the compiled values as defaults.
+        [TestMethod]
+        public void TheCellDiffusionNumbersAreTuningKeys()
+        {
+            Tuning.ClearOverrides();
+            Tuning.Instance.BeginFrame(5100011);
+            var light = new CloudLightSettings { CellGain = 9f, CellSide = 9f };
+            OwnCloudOptions.Apply(light, Defaults());
+            var compiled = new CloudLightSettings();
+            Assert.AreEqual(compiled.CellGain, light.CellGain);
+            Assert.AreEqual(compiled.CellSide, light.CellSide);
+            try
+            {
+                Tuning.SetOverride(OwnCloudOptions.TuneCellGain, 2f);
+                Tuning.SetOverride(OwnCloudOptions.TuneCellIncidencePower, 0f);
+                Tuning.Instance.BeginFrame(5100012);
+                OwnCloudOptions.Apply(light, Defaults());
+                Assert.AreEqual(2f, light.CellGain);
+                Assert.AreEqual(0f, light.CellIncidencePower);
+            }
+            finally
+            {
+                Tuning.ClearOverrides();
+                Tuning.Instance.BeginFrame(5100013);
+            }
+        }
+
         [TestMethod]
         public void TheMoonLightsAboveTheCountAreSwitchedOff()
         {

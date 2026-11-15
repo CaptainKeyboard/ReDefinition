@@ -268,7 +268,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         [TestMethod]
         public void TheSkysDiffusionReadsFromTheLayerNodeAndDefaultsToTheTwoStreamValues()
         {
-            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;ambientMs = 2;ambientDecay = 0.2;lightPlateau = 0.6;" + GoodType + "}"
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;ambientMs = 2;ambientDecay = 0.2;lightPlateau = 0.6;lightCellWidth = 1500;" + GoodType + "}"
                 + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
             CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
@@ -282,6 +282,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.6f, a.LightPlateau, 1e-6f);
             Assert.AreEqual(0f, b.LightPlateau);
             Assert.AreEqual(0.6f, built.LightPlateau, 1e-6f);
+            // E40 LM2: the cell width of the sun's diffusion; none (0) where the node has no key.
+            Assert.AreEqual(1500f, built.LightCellWidth, 1e-3f);
+            Assert.AreEqual(0f, b.LightCellWidth);
             // The decay is the two-stream's 0.75 (1 - g) of the droplets' asymmetry g = 0.85.
             Assert.AreEqual(0.75f * (1f - 0.85f), CloudLayerDef.DefaultAmbientDecay, 0.005f);
         }

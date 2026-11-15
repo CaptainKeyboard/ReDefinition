@@ -194,6 +194,8 @@ Shader "ReDefinition/AtmospheresLayers"
         // The altitude of the top of the cloud type at the last point LayerDensity was asked for (the layer's outer altitude where no type was reached, and for the
         // parity cell). The march copies it right after its own density read; the ambient's analytic occlusion measures the cloud above a sample to this top.
         static float gTopAlt = 0;
+        // The altitude of the base of the cloud type at the last point LayerDensity reached the type table (E40 LM2: the type's height for the light's far depth); copied with gTopAlt.
+        static float gBaseAlt = 0;
         // The light factors of the type at the last point LayerDensity was asked for (x direct light, y sky fill; 1: neutral); copied by the march like gTopAlt.
         static float2 gTypeLight = float2(1.0, 1.0);
         // E40 C1: the length along the ray (m) around the last point LayerDensity was asked for within which the layer's map is certainly empty (0: no statement); the march leaps by it.
@@ -215,6 +217,7 @@ Shader "ReDefinition/AtmospheresLayers"
             gEmptyM = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
             gTopAlt = outer;
+            gBaseAlt = inner;
             share = (alt - inner) / (outer - inner);
             // The height variation (T13) lets a base reach below the inner altitude and a top above the outer one, by the layer's reach.
             bool heightOn = _LayerH2[li].y > 0;
@@ -274,6 +277,7 @@ Shader "ReDefinition/AtmospheresLayers"
             }
             if (share < b || share > tp || tp <= b) return 0;
             gTopAlt = inner + tp * (outer - inner);
+            gBaseAlt = inner + b * (outer - inner);
             erosion = erosionType * _LayerD[li].z;
             float coverage = _LayerB[li].y;
             float edge = max(_LayerB[li].z, 1e-4);
@@ -447,7 +451,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     float dtv = _CullC.x > 0.0 ? dt * CullStepScale(t - s0[k]) : dt;
                     if (_CullD.x > 0.5) gNoiseFoot = CullFoot(t, dtv);
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
-                    float topAlt = gTopAlt;   // before the light march asks LayerDensity for other points
+                    float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
                     float2 typeLight = gTypeLight;
                     r.steps += 1;
                     if (dens <= 0)

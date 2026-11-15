@@ -56,6 +56,8 @@ namespace ReDefinition.WeatherPlayer
         public float ambientMs = -1f, ambientDecay = -1f;
         // The side and back plateau of a Cheap or Fog layer's phase (the cfg key lightPlateau; 0: none).
         public float lightPlateau;
+        // The width of the layer's cells for the sun's diffusion (E40 LM2; the cfg key lightCellWidth; 0: none).
+        public float lightCellWidth;
         // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
         public float fibreStretch = 1f;
         // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).

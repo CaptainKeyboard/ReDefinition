@@ -43,15 +43,17 @@ namespace ReDefinition.Atmospheres
 
         // sum over octaves n < count of  (n == 0 ? 1 : msBrightness) * b^n * Phase(mu, c^n) * exp(-tau * a^n).
         // msIsotropy blends the phase of the octaves above the first towards the isotropic 1 / 4 pi (light that scattered several times).
+        // isoFactor (E40 LM2) scales the isotropic share of the octaves above the first: with a layer's cell diffusion (CellDiffusion) that share follows the incidence of the light,
+        // the forward share (the second and third orders' silver lining) stays.
         internal static double OctaveSum(double mu, double tau, int count, double a, double b, double c, double msBrightness,
-                                         double forwardG, double backG, double forwardWeight, double msIsotropy = 0.0)
+                                         double forwardG, double backG, double forwardWeight, double msIsotropy = 0.0, double isoFactor = 1.0)
         {
             double sum = 0, an = 1, bn = 1, cn = 1;
             int n = Math.Max(1, Math.Min(count, 4));
             for (int i = 0; i < n; i++)
             {
                 double p = Phase(mu, forwardG, backG, forwardWeight, cn);
-                if (i > 0) p += (InvFourPi - p) * msIsotropy;
+                if (i > 0) p += (InvFourPi * isoFactor - p) * msIsotropy;
                 sum += (i == 0 ? 1.0 : msBrightness) * bn * p * Math.Exp(-tau * an);
                 an *= a; bn *= b; cn *= c;
             }
@@ -142,6 +144,48 @@ namespace ReDefinition.Atmospheres
         internal static double DiffusionShare(double tau, double tauScale, double decay)
         {
             return (1.0 - Math.Exp(-tau / Math.Max(tauScale, 1e-3))) / (1.0 + Math.Max(decay, 0.0) * tau);
+        }
+
+        // The numbers of the cell diffusion (E40 LM2; CloudLightSettings.Cell*, the shader's _LightW and _LightX).
+        internal struct CellLight
+        {
+            public double Gain, Beta, Extrapolation, Side, Octaves, IncidencePower, IncidenceRef, IncidenceEps;
+        }
+
+        // The incidence of the light on the cloud's lit surface at a sample (E40 LM2): the optical depth straight up to the type's top over the one towards the light, at most 1.
+        // In a deck lit from above it is the light's elevation sine (the flux per unit area through the top); a flank facing a low sun reads 1, a top the sun grazes a small value.
+        internal static double CellIncidence(double tauSun, double tauUp, double eps)
+        {
+            double e = Math.Max(eps, 1e-4);
+            return Math.Max(0.05, Math.Min(1.0, (Math.Max(tauUp, 0.0) + e) / (Math.Max(tauSun, 0.0) + e)));
+        }
+
+        // The chord of an ellipsoid of the type's height and the layer's cell width along a direction of elevation sine sinE (E40 LM2): a deck (width of tens of km) gives height / sinE,
+        // a cell as wide as high its diameter.
+        internal static double CellChord(double sinE, double heightM, double widthM)
+        {
+            double s = Math.Max(1e-3, Math.Min(1.0, Math.Abs(sinE)));
+            double h = Math.Max(heightM, 1.0), w = Math.Max(widthM, 1.0);
+            return 1.0 / Math.Sqrt(s * s / (h * h) + (1.0 - s * s) / (w * w));
+        }
+
+        // The cell diffusion's source per unit light colour (E40 LM2; mirrors DirectOfLight of the shader): the diffusion of a conservatively scattering slab in the lit surface's
+        // coordinates (scaled depth Beta mi tau, extrapolation length z0; Meador and Weaver 1980): (z0 + Beta mi tauFar) / (2 z0 + Beta mi tauTotal), flat at the lit side and linear to the
+        // far side, times the side losses of a cell of finite width (the transverse mode, exp(-Side Beta mi tauSun / (Beta dens width + 2 z0))) and the share of the light that has
+        // scattered at all (1 - exp(-Beta mi tauTotal)), times Gain mi / 4 pi. The photon walk's slab (tools/weather_metrics/light_mc_slab.py) puts the source at the lit surface at
+        // mi times a white card's radiance and its fall with depth on the straight line. widthM <= 0: none (the caller keeps the slab-fitted DiffusionShare).
+        internal static double CellDiffusion(double tauSun, double tauUp, double dens, double heightM, double widthM, double sinE, CellLight k, out double isoFactor)
+        {
+            isoFactor = 1.0;
+            if (widthM <= 0.0) return 0.0;
+            double mi = CellIncidence(tauSun, tauUp, k.IncidenceEps);
+            double total = Math.Max(dens * CellChord(sinE, heightM, widthM), tauSun);
+            double bn = k.Beta * mi;
+            double z0 = Math.Max(k.Extrapolation, 1e-3);
+            double profile = (z0 + bn * (total - tauSun)) / (2.0 * z0 + bn * total);
+            double side = Math.Exp(-k.Side * bn * tauSun / (k.Beta * dens * widthM + 2.0 * z0));
+            isoFactor = k.Octaves * Math.Pow(mi / Math.Max(k.IncidenceRef, 1e-3), k.IncidencePower);
+            return k.Gain * InvFourPi * mi * profile * side * (1.0 - Math.Exp(-bn * total));
         }
 
         // The share of the sky's isotropic source that a sample gets from the sky's light that has diffused into the cloud (E40 L6 light; mirrors LightSource of the shader): the

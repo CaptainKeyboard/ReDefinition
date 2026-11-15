@@ -74,6 +74,7 @@ namespace ReDefinition.WeatherPlayer
                     AnvilScale = jl.anvilScale,
                     LightIsotropy = jl.lightIsotropy,
                     LightPlateau = jl.lightPlateau,
+                    LightCellWidth = jl.lightCellWidth,
                     AmbientMs = jl.ambientMs >= 0f ? jl.ambientMs : CloudLayerDef.DefaultAmbientMs,
                     AmbientDecay = jl.ambientDecay >= 0f ? jl.ambientDecay : CloudLayerDef.DefaultAmbientDecay
                 };

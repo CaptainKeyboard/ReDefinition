@@ -208,6 +208,7 @@ namespace ReDefinition.Atmospheres
                     LightAmbient =r.Float("lightAmbient", 1f, 0f, 4f),
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f), LightPlateau = r.Float("lightPlateau", 0f, 0f, 4f),
                     AmbientMs = r.Float("ambientMs", CloudLayerDef.DefaultAmbientMs, 0f, 20f), AmbientDecay = r.Float("ambientDecay", CloudLayerDef.DefaultAmbientDecay, 0f, 2f),
+                    LightCellWidth = r.Float("lightCellWidth", 0f, 0f, 1.0e6f),
                     RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
                     ShapeSmoothing = r.Float("shapeSmoothing", 0f, 0f, 8f),
                     FibreMinWindMs = r.Float("fibreMinWindMs", FibreAxis.DefaultMinWindMs, 0f, 100f),

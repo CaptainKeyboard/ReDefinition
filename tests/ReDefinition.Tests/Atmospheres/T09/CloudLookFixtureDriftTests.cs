@@ -81,6 +81,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.LightPlateau, fixture.LightPlateau, 1e-6f, n + " light plateau");
             Assert.AreEqual(shipped.AmbientMs, fixture.AmbientMs, 1e-6f, n + " sky diffusion amplitude");
             Assert.AreEqual(shipped.AmbientDecay, fixture.AmbientDecay, 1e-6f, n + " sky diffusion decay");
+            Assert.AreEqual(shipped.LightCellWidth, fixture.LightCellWidth, 1e-3f, n + " cell width");
             Assert.AreEqual(shipped.Group, fixture.Group, n + " group");
             Assert.AreEqual(shipped.Kind, fixture.Kind, n + " kind");
             Assert.AreEqual(shipped.Deck == null, fixture.Deck == null, n + " deck rule present");

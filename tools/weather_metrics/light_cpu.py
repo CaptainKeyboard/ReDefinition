@@ -23,11 +23,48 @@ class Params(object):
     DEFAULTS = dict(forwardG=0.85, backG=-0.3, forwardWeight=0.92, albedo=0.999, octaves=4, octaveA=0.3081, octaveB=0.5482, octaveC=0.898,
                     msBrightness=2.9358, diffusion=2.0, diffusionTau=25.0, powder=0.8075, powderLength=400.0, ambientFloor=0.05,
                     ambientOcclusion=1.2765, skyTint=0.7, ambientGain=0.25, sunSteps=4, tapRatio=2.0, msIsotropy=0.7552, diffusionDecay=0.08,
-                    ambientMs=0.0, ambientDecay=0.11)    # the sky's diffusion in the cloud (E40 L6 light; layer keys ambientMs / ambientDecay): 0 here, the parity cells have none
+                    ambientMs=0.0, ambientDecay=0.11,    # the sky's diffusion in the cloud (E40 L6 light; layer keys ambientMs / ambientDecay): 0 here, the parity cells have none
+                    # E40 LM2: the cell's diffusion (see cell_diffusion). cellWidth is the layer's key lightCellWidth (m; 0: the term is off and the slab-fitted diffusion term of before
+                    # stays); the other numbers are global (CloudLightSettings.Cell*).
+                    cellWidth=0.0, cellGain=0.84, cellBeta=0.37, cellExtrapolation=9.8, cellSide=3.0, cellOctaves=0.82, cellIncidencePower=0.61, cellIncidenceRef=0.707,
+                    cellIncidenceEps=0.01)
 
     def __init__(self, **kw):
         self.__dict__.update(self.DEFAULTS)
         self.__dict__.update(kw)
+
+
+def cell_diffusion(p, tau_sun, tau_up, dens, height, width, sin_e):
+    """E40 LM2: (the factor on the octaves above the first, the diffusion source per unit sun colour) of a sample, from data the light march already has.
+
+    incidence  mi = (tau_up + eps) / (tau_sun + eps), at most 1: the optical depth straight up to the type's top over the one towards the sun. In a deck lit from above it is the sun's
+               elevation sine exactly (the flux per unit area that enters the top); a flank that faces a low sun has a short path to the sun and a long one up (1), a top that the sun grazes the
+               reverse (small). The photon walk's source at the lit surface is proportional to it (light_mc_slab.py: 0.45 / 0.69 / 1.0 W at 0.5 / 0.7 / 0.94).
+    far depth  the optical depth of the cloud behind the sample along the light: the chord of an ellipsoid of the type's height and the layer's cell width along the light, minus tau_sun.
+    diffusion  the two-stream profile of a conservatively scattering slab in the normal's coordinates (scaled optical depth beta mi tau, extrapolation z0):
+               (z0 + beta mi tau_far) / (2 z0 + beta mi (tau_sun + tau_far)): flat at the lit side of a thick cloud, linear to the far side (Meador and Weaver 1980; the walk: 0.67 W at depth 4,
+               0.38 at 46, 0.03 at 96 of a tau-100 slab), times the side losses of a cell of finite width (the diffusion's transverse mode: exp(-side beta mi tau_sun / (beta dens width + 2 z0)))
+               and the share of the light that has scattered at all (1 - exp(-beta mi tau_total)).
+    """
+    if width <= 0.0:
+        return 1.0, None
+    mi = np.clip((tau_up + p.cellIncidenceEps) / (tau_sun + p.cellIncidenceEps), 0.05, 1.0)
+    s = np.clip(np.abs(sin_e), 1e-3, 1.0)
+    chord = 1.0 / np.sqrt((s / max(height, 1.0)) ** 2 + ((1.0 - s * s) / (width * width)))
+    total = np.maximum(dens * chord, tau_sun)
+    bn = p.cellBeta * mi
+    profile = (p.cellExtrapolation + bn * (total - tau_sun)) / (2.0 * p.cellExtrapolation + bn * total)
+    side = np.exp(-p.cellSide * bn * tau_sun / (p.cellBeta * dens * width + 2.0 * p.cellExtrapolation))
+    d = p.cellGain * INV4PI * mi * profile * side * (1.0 - np.exp(-bn * total))
+    return p.cellOctaves * (mi / p.cellIncidenceRef) ** p.cellIncidencePower, d
+
+
+def diffusion_terms(p, tau_sun, tau_up, dens, height, width, sin_e):
+    """(factor on the octaves above the first, the diffusion source): the cell's diffusion of E40 LM2 where the layer has a cell width, the saturating term of FX-T03 / T03v2 otherwise."""
+    f, d = cell_diffusion(p, tau_sun, tau_up, dens, height, width, sin_e)
+    if d is None:
+        d = p.diffusion * INV4PI * (1.0 - np.exp(-tau_sun / max(p.diffusionTau, 1e-3))) / (1.0 + max(p.diffusionDecay, 0.0) * tau_sun)
+    return f, d
 
 
 def hg(mu, g):
@@ -38,13 +75,15 @@ def phase(p, mu, ecc=1.0):
     return p.forwardWeight * hg(mu, p.forwardG * ecc) + (1.0 - p.forwardWeight) * hg(mu, p.backG * ecc)
 
 
-def octave_sum(p, mu, tau):
+def octave_sum(p, mu, tau, iso_factor=1.0):
+    """iso_factor (E40 LM2) scales the isotropic share of the octaves above the first (the share msIsotropy that stands for light which has lost its direction); their forward share
+    (the silver lining of the second and third orders) stays."""
     s = 0.0
     an = bn = cn = 1.0
     for i in range(int(min(max(p.octaves, 1), 4))):
         ph = phase(p, mu, cn)
         if i > 0:
-            ph = ph + (INV4PI - ph) * p.msIsotropy
+            ph = ph + (INV4PI * iso_factor - ph) * p.msIsotropy
         s = s + (1.0 if i == 0 else p.msBrightness) * bn * ph * np.exp(-tau * an)
         an *= p.octaveA
         bn *= p.octaveB
@@ -173,11 +212,13 @@ def render(p, cell, cam, sun, sky_top, sky_bottom, steps=128, sun_col=SUN_E, sun
             share = np.clip((alt - cell.inner) / (cell.outer - cell.inner), 0.0, 1.0)
             tau_sun = light_tau(cell, pc, sun, int(p.sunSteps), p.tapRatio)
             sc = sun_col if sun_air is None else sun_col * sun_air(pc)
-            diffuse = p.diffusion * INV4PI * (1.0 - np.exp(-tau_sun / max(p.diffusionTau, 1e-3))) / (1.0 + max(p.diffusionDecay, 0.0) * tau_sun)
-            direct = sc * (octave_sum(p, mu, tau_sun) + diffuse)
+            tu = dens * np.maximum(cell.outer - alt, 0.0)
+            # E40 LM2: for the parity cell the shader's type top and base are the layer's outer and inner altitudes (LayerDensity returns before the type table)
+            sin_e = (pc / np.linalg.norm(pc, axis=-1, keepdims=True)) @ sun
+            ms_f, diffuse = diffusion_terms(p, tau_sun, tu, dens, cell.outer - cell.inner, p.cellWidth, sin_e)
+            direct = sc * (octave_sum(p, mu, tau_sun, ms_f) + diffuse)
             powder = 1.0 + (1.0 - np.exp(-2.0 * dens * p.powderLength) - 1.0) * min(max(p.powder, 0.0), 1.0)   # lerp(1, 1 - exp(-2 sigma L), strength)
             sky = (sky_bottom + (sky_top - sky_bottom) * share) * p.ambientGain   # grey light: the sky tint changes nothing
-            tu = dens * np.maximum(cell.outer - alt, 0.0)
             open_ = np.exp(-tu * p.ambientOcclusion)
             floor = max(p.ambientFloor, 0.0301) * (sc if np.isscalar(sc) else sc) * INV4PI
             amb = np.maximum((sky * open_ + sky_top * p.ambientGain * p.ambientMs / (1.0 + p.ambientDecay * tu)) * p.albedo, floor)
