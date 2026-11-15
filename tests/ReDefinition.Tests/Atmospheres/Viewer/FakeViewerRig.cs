@@ -10,7 +10,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
     // WeatherPresets, CaptureSchedule, ViewerSidecar, AltitudeScale), and the rest is a small model of what the game does with them: the vessel's placement, the cloud pass
     // reading the tuning table every frame (exposure, noise clock, drift), the map mirror slewing to the forced cover, the files. A fault is a flag that makes one of the
     // viewer's effects not happen, so that the probe has to fail with the named check.
-    internal sealed class FakeViewerRig : IViewerRig
+    internal class FakeViewerRig : IViewerRig
     {
         // The store of the model: the settings and the overrides the game's table would hold.
         internal sealed class Store : IOptionStore
@@ -51,7 +51,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         private readonly CaptureSchedule schedule = new CaptureSchedule(2);
         private readonly Dictionary<string, long> files = new Dictionary<string, long>();
         private readonly Dictionary<string, string> texts = new Dictionary<string, string>();
-        private readonly Dictionary<string, double> openSettings = new Dictionary<string, double>();
+        protected readonly Dictionary<string, double> openSettings = new Dictionary<string, double>();
         private readonly HashSet<string> touched = new HashSet<string>();
         private readonly double[] drift = new double[KerbinLayers.Length * 3];
         private readonly float[] cover = new float[KerbinLayers.Length];
@@ -116,6 +116,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 else if (Options.Effective(CloudLookTuning.TuneCoverCombine, 1f) > 0f) target = Math.Min(target, 0.4f);
                 // The deck's rain floor applies unless the preset switched the deck rule off.
                 if (RainAtPad && l == 0 && Options.Effective(CloudLookTuning.TuneDeckRule + KerbinLayers[l].Name, -1f) != 0f) target = Math.Max(target, 0.6f);
+                target = CoverTarget(l, target);
                 cover[l] += (target - cover[l]) * (float)Math.Min(1.0, dt / 2.0);
             }
         }
@@ -154,7 +155,12 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             texts[Path.ChangeExtension(png, ".txt")] = ViewerSidecar.Format(record, AtmospheresSettings.Definitions, AtmospheresSettings.Number, AtmospheresSettings.Text,
                                                                           CloudKeyRegistry.Expand(LayerNames()), Options);
             lastCapture = pendingName + ".png";
+            OnPicture(lastCapture);
         }
+
+        // Hooks of the solo model: the cover a layer's map slews to at the vessel, and a picture just written.
+        protected virtual float CoverTarget(int layer, float target) { return target; }
+        protected virtual void OnPicture(string name) { }
 
         private static IEnumerable<string> LayerNames()
         {
@@ -174,7 +180,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public int Frame { get { return frame; } }
         public double RealS { get { return real; } }
         public double GameUt { get { return gameUt; } }
-        public double SunElevationDeg { get { return SunStandsStill ? 30.0 : 80.0 * Math.Sin(2.0 * Math.PI * gameUt / 21600.0); } }
+        public virtual double SunElevationDeg { get { return SunStandsStill ? 30.0 : 80.0 * Math.Sin(2.0 * Math.PI * gameUt / 21600.0); } }
         public bool HoldStable { get { return frame - placedFrame >= 30; } }
         public double FlowTimeS { get { return flow; } }
         public IList<double> DriftM { get { return (double[])drift.Clone(); } }
@@ -251,7 +257,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             aimEl = aimAz = 0.0;
         }
 
-        private void Note(string key)
+        protected void Note(string key)
         {
             touched.Add(key);
         }

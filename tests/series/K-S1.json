@@ -1,0 +1,30 @@
+{
+  "$schema": "schema.json",
+  "name": "K-S1",
+  "owner": "SOLOPROBE",
+  "description": "Every cloud type that can be judged alone, drawn alone (src/Atmospheres/Viewer, the cloud viewer's solo control and cloud.soloLayer): one start on the pad with the own cloud pass drawing (Medium, 1707x960, raytracing off, frame generation off, EVE removed). SoloProbe opens the viewer, holds the clouds still, sets the sun's elevation to 45 degrees by the viewer's time offset and freezes the time. Per view (11: a Cb cell near and far, stratocumulus, humilis, mediocris, congestus, altocumulus, cirrus, cirrostratus, stratus, nimbostratus) it places the pose, selects the type alone (one layer, one type, the deck rule and the forced rain off, a cell for the Cb), takes the BASELINE picture (the same solo at strength 0: the sky with every layer empty) and the solo picture with the viewer's own capture, reads back from the game what isolates the thing (the layer mask the pass gave its shader is the layer's bit alone, every other layer's forced map and cover at the vessel read 0, no rain forced, the baseline has every layer empty) and measures the share of the frame the cloud fills and how far it reaches up it (the solo picture against the baseline, colour distance above 0.03, the vessel's box left out) against the band stated for the view. Then the sun must not have moved and the viewer's close must take the solo keys back. Every check logs 'solo: <what>: expected ..., read ... - ok|FAILED' and the probe fails itself. The pictures (series-pictures/K-S1/captures, with sidecars naming the keys) are for a person to judge by the checklists of RE-cloud-types-2026-11-15.md; the probe judges where the object is and that nothing else is, not how it looks. At most 15 minutes of scenario. Rows: tests/series/rows/SOLOPROBE.json.",
+  "profile": "Medium",
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 1,
+  "bundle": true,
+  "settings": [
+    { "file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": { "raytracing": "Off", "frameGeneration": false, "qualityAuto": false, "quality": "NativeAA" } },
+    { "file": "settings.cfg", "set": { "SYNC_VBL": 0, "FRAMERATE_LIMIT": 1000 } }
+  ],
+  "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1, "ownClouds": 1, "cloudSource": "Ours" },
+  "sections": [ { "id": "SOLOPROBE", "package": "SOLOPROBE", "title": "Types drawn alone" } ],
+  "collect": [
+    { "from": "GameData/ReDefinition/Atmospheres/PluginData/CloudViewer/Captures", "to": ".local/work/series-pictures/K-S1/captures", "optional": true }
+  ],
+  "starts": [
+    {
+      "id": "solo",
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } } ],
+      "description": "Eleven views of types drawn alone over a clear sky at a fixed sun (SoloProbe, module order 991). About 5 to 8 minutes after the flight is up.",
+      "disableMods": [ "EVE" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "1707", "-screen-height", "960", "-screen-fullscreen", "0", "-atmoProbe", "SoloProbe" ]
+    }
+  ],
+  "rows": []
+}

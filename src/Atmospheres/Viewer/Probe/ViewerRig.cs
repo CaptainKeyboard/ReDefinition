@@ -95,9 +95,9 @@ namespace ReDefinition.Atmospheres.Viewer
     }
 
     // The game's rig: the viewer's singletons and the own pass.
-    internal sealed class GameViewerRig : IViewerRig
+    internal class GameViewerRig : IViewerRig
     {
-        private readonly CloudViewer viewer = CloudViewer.Instance;
+        protected readonly CloudViewer viewer = CloudViewer.Instance;
         private readonly CloudViewerWindow window = CloudViewerWindow.Instance;
 
         private static LayerStackSource Stack()
