@@ -62,7 +62,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         private ViewerWeather weather = ViewerWeather.Field;
         private string pendingName, lastCapture = "", poseName = "";
         // The vessel.
-        private double agl, wantAgl, pendingAgl = double.NaN, pendingSince, camDist = 100.0, aimAz, aimEl;
+        private double agl, wantAgl, camDist = 100.0, aimAz, aimEl;
         private int aimIn = -1;
         private bool keepAim;
         private double startAsl = 70.0;
@@ -81,11 +81,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             if (session)
             {
                 if (!(FreezeIgnored && clock.Frozen)) gameUt = clock.Step(gameUt);
-                if (!double.IsNaN(pendingAgl) && real - pendingSince >= 0.4)
-                {
-                    Place(pendingAgl, true);
-                    pendingAgl = double.NaN;
-                }
+                double waiting;
+                if (plan.TryTake(real, 0.4, out waiting)) Place(waiting, true);
                 if (aimIn >= 0 && --aimIn < 0)
                 {
                     if (!keepAim)
@@ -125,7 +122,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 
         private void Place(double aglM, bool keep)
         {
-            plan.Want(aglM);
+            plan.Place(aglM);
             wantAgl = aglM;
             agl = SliderPlacesWrong && keep ? aglM + 300.0 : aglM;
             keepAim = keep;
@@ -196,7 +193,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public bool WindowOpen { get { return open; } }
         public bool WindowVisible { get { return open && (WindowStaysVisible || !schedule.Busy); } }
         public bool SessionActive { get { return session; } }
-        public bool PlacementPending { get { return !double.IsNaN(pendingAgl) || aimIn >= 0; } }
+        public bool PlacementPending { get { return plan.Pending || aimIn >= 0; } }
         public int KeyCount { get { return KeysExpected; } }
         public int KeysExpected { get { return CloudKeyRegistry.All.Count + KerbinLayers.Length * CloudKeyRegistry.PerLayer.Count; } }
         public double ClockNatural { get { return clock != null ? clock.Natural : double.NaN; } }
@@ -257,8 +254,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 
         public void RequestAltitude(double aglM)
         {
-            pendingAgl = aglM;
-            pendingSince = real;
+            plan.Request(aglM, real);
         }
 
         public void SetTimeOffset(double seconds)

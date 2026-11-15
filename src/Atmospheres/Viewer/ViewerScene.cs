@@ -234,22 +234,52 @@ namespace ReDefinition.Atmospheres.Viewer
     }
 
     // The height the viewer last placed the vessel at, and what the altitude slider shows for it: a pose button, the slider and the typed height all change the same value,
-    // so the slider follows whichever of them was used last.
+    // so the slider follows whichever of them was used last. The slider moves many times a second: its height waits (Request) until it has stood still and is then taken
+    // (TryTake); a placement made in the meantime (a pose button) is the later word and cancels it (Place).
     internal sealed class AltitudePlan
     {
         // The slider's height before anything was placed.
         internal const double DefaultAglM = 200.0;
 
+        private double pending = double.NaN, pendingSince;
+
         // The height above the ground the vessel was placed at or is to be placed at; NaN before a placement.
         internal double Target { get; private set; } = double.NaN;
 
-        internal void Want(double aglM)
+        // A height is waiting for the slider to stand still.
+        internal bool Pending
         {
+            get { return !double.IsNaN(pending); }
+        }
+
+        // The slider or the typed height asks for a height: it waits, and the slider shows it at once.
+        internal void Request(double aglM, double nowS)
+        {
+            pending = aglM;
+            pendingSince = nowS;
             Target = aglM;
+        }
+
+        // The vessel is placed at this height now (a pose, or a waiting height taken): a height still waiting is not placed afterwards.
+        internal void Place(double aglM)
+        {
+            pending = double.NaN;
+            Target = aglM;
+        }
+
+        // The waiting height once it has waited settleS; false before.
+        internal bool TryTake(double nowS, double settleS, out double aglM)
+        {
+            aglM = 0.0;
+            if (double.IsNaN(pending) || nowS - pendingSince < settleS) return false;
+            aglM = pending;
+            pending = double.NaN;
+            return true;
         }
 
         internal void Clear()
         {
+            pending = double.NaN;
             Target = double.NaN;
         }
 

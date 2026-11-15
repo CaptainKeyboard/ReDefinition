@@ -47,8 +47,6 @@ namespace ReDefinition.Atmospheres.Viewer
         private double aimElevation = double.NaN, aimHeading;
         private bool aimKeep;
         private float keepHeading, keepPitch;
-        private double pendingAgl = double.NaN;
-        private float pendingSince;
         private string pendingCapture;
         private readonly CloudSpeedMemory speedMemory = new CloudSpeedMemory();
 
@@ -265,12 +263,8 @@ namespace ReDefinition.Atmospheres.Viewer
             double observed = Planetarium.GetUniversalTime();
             double next = clock.Step(observed);
             if (next != observed) Planetarium.SetUniversalTime(next);
-            if (!double.IsNaN(pendingAgl) && Time.unscaledTime - pendingSince >= AltitudeSettleS)
-            {
-                double agl = pendingAgl;
-                pendingAgl = double.NaN;
-                PlaceAt(agl, true);
-            }
+            double agl;
+            if (heights.TryTake(Time.unscaledTime, AltitudeSettleS, out agl)) PlaceAt(agl, true);
             if (aimIn >= 0 && --aimIn < 0) Aim();
             if (capture.Step()) TakeCapture();
             bool busy = capture.Busy;
@@ -287,7 +281,7 @@ namespace ReDefinition.Atmospheres.Viewer
         // A placement is under way: an altitude waits for the slider to stand still, or the camera is yet to be aimed.
         internal bool PlacementPending
         {
-            get { return !double.IsNaN(pendingAgl) || aimIn >= 0; }
+            get { return heights.Pending || aimIn >= 0; }
         }
 
         internal KspT09World World
@@ -325,9 +319,7 @@ namespace ReDefinition.Atmospheres.Viewer
         // the placement follows once it has stood still for AltitudeSettleS.
         internal void RequestAltitude(double aglM)
         {
-            pendingAgl = aglM;
-            pendingSince = Time.unscaledTime;
-            heights.Want(aglM);
+            heights.Request(aglM, Time.unscaledTime);
         }
 
         private void PlaceAt(double aglM, bool keepAim)
@@ -346,7 +338,7 @@ namespace ReDefinition.Atmospheres.Viewer
             world.PlaceVessel(SiteLat, SiteLon, altitude);
             world.StartHold();
             placed = true;
-            heights.Want(aglM);
+            heights.Place(aglM);
             aimIn = AimDelayFrames;
             CloudBridgeLights.RequestHistoryReset("cloud viewer placement");
             AtmospheresLog.Say("cloud viewer: vessel placed " + aglM.ToString("0", CultureInfo.InvariantCulture) + " m above the ground (" + altitude.ToString("0", CultureInfo.InvariantCulture)

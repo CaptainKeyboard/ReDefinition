@@ -19,10 +19,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         {
             var plan = new AltitudePlan();
             Assert.AreEqual(AltitudeScale.ToSlider(AltitudePlan.DefaultAglM), plan.SliderValue, 1e-6, "before any placement: the default height");
-            plan.Want(4550.0);
+            plan.Place(4550.0);
             Assert.AreEqual(AltitudeScale.ToSlider(4550.0), plan.SliderValue, 1e-6, "a pose button's height");
-            plan.Want(120.0);
-            Assert.AreEqual(AltitudeScale.ToSlider(120.0), plan.SliderValue, 1e-6, "the next pose");
+            plan.Request(120.0, 0.0);
+            Assert.AreEqual(AltitudeScale.ToSlider(120.0), plan.SliderValue, 1e-6, "a slider move shows at once, before it is placed");
             plan.Clear();
             Assert.AreEqual(AltitudeScale.ToSlider(AltitudePlan.DefaultAglM), plan.SliderValue, 1e-6, "a new session starts at the default again");
         }
@@ -37,6 +37,50 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreNotEqual(AltitudeScale.ToSlider(inside.AglM), rig.AltitudeSlider, 1e-3, "the default is not the pose's height");
             rig.PlacePose(inside);
             Assert.AreEqual(AltitudeScale.ToSlider(inside.AglM), rig.AltitudeSlider, 1e-6);
+        }
+
+        // --- A pose cancels a height still waiting for the slider ---
+
+        [TestMethod]
+        public void AWaitingHeightIsTakenOnceAfterTheSliderStoodStill()
+        {
+            var plan = new AltitudePlan();
+            double agl;
+            plan.Request(900.0, 1.0);
+            Assert.IsTrue(plan.Pending);
+            Assert.IsFalse(plan.TryTake(1.3, 0.4, out agl), "the slider has not stood still yet");
+            plan.Request(1100.0, 1.3);
+            Assert.IsFalse(plan.TryTake(1.6, 0.4, out agl), "moved again: waits from the last move");
+            Assert.IsTrue(plan.TryTake(1.8, 0.4, out agl));
+            Assert.AreEqual(1100.0, agl);
+            Assert.IsFalse(plan.Pending);
+            Assert.IsFalse(plan.TryTake(5.0, 0.4, out agl), "taken once");
+        }
+
+        [TestMethod]
+        public void APoseWithinTheWaitCancelsTheHeightThePoseWouldOtherwiseBeOverriddenBy()
+        {
+            var plan = new AltitudePlan();
+            double agl;
+            plan.Request(900.0, 1.0);
+            plan.Place(200.0);
+            Assert.IsFalse(plan.Pending, "the pose is the later word");
+            Assert.IsFalse(plan.TryTake(2.0, 0.4, out agl), "the slider's height is not placed after the pose");
+            Assert.AreEqual(200.0, plan.Target);
+        }
+
+        [TestMethod]
+        public void APoseButtonWithinTheSliderWaitLeavesTheVesselAtThePosesHeight()
+        {
+            var rig = new FakeViewerRig();
+            rig.ToggleWindow();
+            ViewerPose ground = PosePresets.For(FakeViewerRig.KerbinLayers).First(p => p.Name == "ground");
+            rig.RequestAltitude(5000.0);
+            rig.Advance(0.1);
+            rig.PlacePose(ground);
+            for (int i = 0; i < 200; i++) rig.Advance(0.05);
+            Assert.AreEqual(ground.AglM, rig.Pose.VesselAglM, 1.0, "the pose's height stands, not the slider's");
+            Assert.AreEqual(AltitudeScale.ToSlider(ground.AglM), rig.AltitudeSlider, 1e-6);
         }
 
         // --- A typed height is one placement ---
