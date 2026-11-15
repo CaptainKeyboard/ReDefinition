@@ -55,10 +55,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.AreEqual(wa, a, 2e-3, cumulus.Types[type].Name + " ambient at " + h);
                 }
             double dBase, aBase, dTop, aTop;
-            // Type 3 is Cumulus congestus (the altocumulus sheet is the last type, E40 L3): no factor on the base's direct light (the model's own), a bright head, a shaded base sky.
+            // Type 3 is Cumulus congestus (the altocumulus sheet is the last type, E40 L3): the white factor 1.5 on the base's direct light (E40 V1), a brighter head (1.8), a shaded base sky.
             table.LightAt(3, 0.0, out dBase, out aBase);
             table.LightAt(3, 1.0, out dTop, out aTop);
-            Assert.IsTrue(Math.Abs(dBase - 1.0) < 1e-3 && dTop > 1.0 && aBase < 1.0, "a congestus has a bright head over an unfactored base: " + dBase + " / " + dTop + " / " + aBase);
+            Assert.IsTrue(Math.Abs(dBase - 1.5) < 1e-3 && dTop > dBase && aBase < 1.0, "a congestus has a bright head over its base: " + dBase + " / " + dTop + " / " + aBase);
         }
 
         [TestMethod]
@@ -83,23 +83,23 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheShippedKerbinTypesCarryNoBaseFactorAndTheThickHeadsOnlyTheFactorOfTheirTopDeficit()
+        public void TheShippedKerbinCumulusTypesCarryTheWhiteFactorAndTheCumulonimbusOnlyTheFactorOfTheirTopDeficit()
         {
             var layers = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers;
-            // E40 L4 clean: the diffusion term refitted to the two-stream slab puts every base on the anchor, so no type shades its base by a factor; the thick types' tops stay
+            // E40 L4 clean: the diffusion term refitted to the two-stream slab puts every base on the anchor, so the cumulonimbus types shade no base by a factor; their tops stay
             // 0.8 of their anchor (the octaves), which the head factor takes back.
-            foreach (string name in new[] { "Cumulus humilis", "Cumulus mediocris", "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
+            foreach (string name in new[] { "Cumulonimbus calvus", "Cumulonimbus incus" })
+                Assert.AreEqual(1f, layers.SelectMany(l => l.Types).Single(x => x.Name == name).BaseLight, name + " base light");
+            foreach (string name in new[] { "Cumulonimbus calvus", "Cumulonimbus incus" })
+                Assert.IsTrue(layers.SelectMany(l => l.Types).Single(x => x.Name == name).HeadLight > 1.1f, name + " has a bright head");
+            // E40 V1 white: the model's sunlit side of a cloud is a horizontal white card's (0.72 of the card facing the sun); the cumulus layer's types carry 1.5 on the direct light, the level
+            // of the card facing the sun (the head of the thick congestus 1.2 x 1.5).
+            foreach (string name in new[] { "Stratocumulus", "Cumulus humilis", "Cumulus mediocris", "Cumulus congestus", "Altocumulus" })
             {
                 CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
-                Assert.AreEqual(1f, t.BaseLight, name + " base light");
+                Assert.AreEqual(1.5f, t.BaseLight, name + " base light");
+                Assert.AreEqual(name == "Cumulus congestus" ? 1.8f : 1.5f, t.HeadLight, name + " head light");
             }
-            foreach (string name in new[] { "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
-                Assert.IsTrue(layers.SelectMany(l => l.Types).Single(x => x.Name == name).HeadLight > 1.1f, name + " has a bright head");
-            foreach (string name in new[] { "Cumulus humilis", "Cumulus mediocris" })
-                Assert.AreEqual(1f, layers.SelectMany(l => l.Types).Single(x => x.Name == name).HeadLight, name + " head light");
-            CloudTypeSpec stratocumulus = layers.SelectMany(l => l.Types).Single(x => x.Name == "Stratocumulus");
-            Assert.AreEqual(1f, stratocumulus.BaseLight, "stratocumulus needs no factor on the direct light");
-            Assert.AreEqual(1f, stratocumulus.HeadLight, "stratocumulus needs no factor on the direct light");
             // The decks of stratus and nimbostratus (rain and snow) have no factor: their light follows the two-stream anchors without one (E40 look round 2).
             foreach (string name in new[] { "Stratus", "Nimbostratus", "Snow stratus", "Snow nimbus" })
             {
