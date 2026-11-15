@@ -239,6 +239,29 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(4602.5, clock.Step(4602.5), "it runs on from where it was held");
         }
 
+        // --- Capture ---
+
+        // The screen is read at the end of the frame the picture is asked for in: the window is hidden from the request through that frame and shown in the next.
+        [TestMethod]
+        public void TheWindowStaysHiddenThroughTheFrameThePictureIsAskedFor()
+        {
+            var schedule = new CaptureSchedule(2);
+            Assert.IsFalse(schedule.Busy);
+            Assert.IsFalse(schedule.Step(), "no request: nothing happens");
+            Assert.IsTrue(schedule.Request());
+            Assert.IsFalse(schedule.Request(), "one picture at a time");
+            var hidden = new List<bool>();
+            int askedIn = -1;
+            for (int frame = 1; frame <= 6; frame++)
+            {
+                if (schedule.Step()) askedIn = frame;
+                hidden.Add(schedule.Busy);
+            }
+            Assert.AreEqual(3, askedIn, "asked for after the two hidden frames");
+            CollectionAssert.AreEqual(new[] { true, true, true, false, false, false }, hidden, "hidden in frames 1 to 3, the one the picture is asked for in included");
+            Assert.IsTrue(schedule.Request(), "the next picture can start once the window is back");
+        }
+
         // --- Weather, poses, altitude, speed ---
 
         private static readonly ViewerLayer[] Kerbin =

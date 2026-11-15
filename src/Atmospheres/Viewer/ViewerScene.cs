@@ -226,6 +226,45 @@ namespace ReDefinition.Atmospheres.Viewer
         }
     }
 
+    // The schedule of a picture: the window is hidden for HideFrames frames, the picture is asked for in the frame after, and the window stays hidden through that
+    // frame too (the screen is read at the end of the frame the request is made in), then it is shown again.
+    internal sealed class CaptureSchedule
+    {
+        private readonly int hideFrames;
+        private int hiding = -1, holdAfter;
+
+        internal CaptureSchedule(int hideFrames)
+        {
+            this.hideFrames = hideFrames;
+        }
+
+        // The window must be hidden: from the request until the frame after the picture was asked for.
+        internal bool Busy
+        {
+            get { return hiding >= 0 || holdAfter > 0; }
+        }
+
+        // Starts a picture; false where one is under way.
+        internal bool Request()
+        {
+            if (Busy) return false;
+            hiding = hideFrames;
+            return true;
+        }
+
+        // One frame; true in the frame in which the picture is to be asked for.
+        internal bool Step()
+        {
+            if (holdAfter > 0) holdAfter--;
+            if (hiding >= 0 && --hiding < 0)
+            {
+                holdAfter = 1;
+                return true;
+            }
+            return false;
+        }
+    }
+
     // The game time while the viewer runs. The natural time is the time the game would show without the viewer: it advances by what the game advanced since the
     // viewer last wrote the clock. The clock is written as the natural time plus the player's offset (time of day), or held at one value (Freeze Time).
     // Close gives the natural time back, so the viewer leaves no shift in the game's clock.

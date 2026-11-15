@@ -25,6 +25,7 @@ namespace ReDefinition.Atmospheres.Viewer
         };
 
         private const int AimDelayFrames = 20, RestoreHoldFrames = 90, CaptureHideFrames = 2;
+        private readonly CaptureSchedule capture = new CaptureSchedule(CaptureHideFrames);
         private const double AltitudeSettleS = 0.4;
 
         private readonly IOptionStore store = new GameOptionStore();
@@ -41,7 +42,7 @@ namespace ReDefinition.Atmospheres.Viewer
         private double startLat, startLon, startAlt;
         private float cameraHeading, cameraPitch, cameraDistance;
         private FlightCamera.Modes cameraMode;
-        private int aimIn = -1, restoreIn = -1, captureIn = -1;
+        private int aimIn = -1, restoreIn = -1;
         private double aimElevation = double.NaN, aimHeading;
         private bool aimKeep;
         private float keepHeading, keepPitch;
@@ -266,7 +267,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 PlaceAt(agl, true);
             }
             if (aimIn >= 0 && --aimIn < 0) Aim();
-            if (captureIn >= 0 && --captureIn < 0) TakeCapture();
+            if (capture.Step()) TakeCapture();
         }
 
         // --- Scene ---
@@ -521,15 +522,16 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // --- Capture ---
 
-        // The window is hidden for CaptureHideFrames frames so that the picture shows the scene alone; the picture and its sidecar are then written.
+        // The window is hidden for CaptureHideFrames frames and through the frame the picture is asked for in, so that the picture shows the scene alone; the picture and
+        // its sidecar are then written.
         internal void RequestCapture()
         {
-            if (captureIn >= 0) return;
+            if (!capture.Request()) return;
             pendingCapture = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-            captureIn = CaptureHideFrames;
         }
 
-        internal bool Capturing { get { return captureIn >= 0; } }
+        // The window is to be hidden.
+        internal bool Capturing { get { return capture.Busy; } }
 
         private void TakeCapture()
         {
