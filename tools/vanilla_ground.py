@@ -113,11 +113,14 @@ def join(root, rel):
 #   other-mod-files   ours with the other mods' own files (Scatterer, Parallax, DistantObject, Deferred, TUFX's scene profiles in the save) set back to the originals
 #   ours-hover / vanilla-hover / ours-hover-lowfly   ours and vanilla with the pad vessel lifted and HELD over the pad as K-S2's viewer holds it (ProbeLite's Hover.cs: the far
 #                     poses with the vessel 300 m up, 60 m for lowfly; the ground poses 6.25 m up), because K-S2's grey ground was seen only with the vessel in the air
-VANILLA_VARIANTS = ("vanilla", "vanilla-original", "vanilla-hover")
+#   ours-direct / vanilla-direct   ours and vanilla, but ProbeLite goes from the main menu straight to the flight (no space centre visit), as ReDefinition's own
+#                     scene launcher does with -redefinitionProbe: separates "no space centre visit" from "ReDefinition's probe arguments"
+VANILLA_VARIANTS = ("vanilla", "vanilla-original", "vanilla-hover", "vanilla-direct")
+DIRECT_VARIANTS = ("ours-direct", "vanilla-direct")
 BISECT_VARIANTS = ("no-proxy", "no-atmo", "no-main", "no-patches", "settings-original", "other-mod-files")
 # The height the vessel is held at for the far poses, by variant (metres over the ground; no entry = the vessel stays on the pad).
 HOVER_M = {"ours-hover": 300.0, "vanilla-hover": 300.0, "ours-hover-lowfly": 60.0}
-VARIANTS = VANILLA_VARIANTS + ("ours",) + BISECT_VARIANTS + ("ours-hover", "ours-hover-lowfly", "ours+flags")
+VARIANTS = VANILLA_VARIANTS + ("ours",) + BISECT_VARIANTS + ("ours-hover", "ours-hover-lowfly", "ours+flags", "ours-direct")
 # Launch arguments of a K-S2 start (the 'Args: KSP_x64.exe ...' line of its KSP.log: -popupwindow -atmoSeries K-S2 -atmoStart ground_on -redefinitionProbe
 # -redefinitionProbeStay -redefinitionProbeClouds -screen-width 2560 -screen-height 1440 -screen-fullscreen 0 -atmoProbe SurfaceGroundProbe -atmoSet
 # weatherEffects=1,cloudSource=Ours,ownClouds=1; tests/series/K-S2.json). The window's are always passed. -atmoSeries/-atmoStart/-atmoProbe are not in a preset: they start
@@ -135,7 +138,7 @@ FLAG_ORDER = ("probe", "probe+stay", "probe+stay+clouds", "probe+stay+clouds+atm
 # The K-S2 ground of capture_ab (B, the camera alone, the lower-left box): mean r,g,b as the coordinator read them from the screen picture.
 KS2_GROUND_RGB = (65.7, 71.5, 72.5)
 # The runs the table lists first, in this order.
-TABLE_ORDER = ("ours", "ours-hover", "ours-hover-lowfly", "vanilla", "vanilla-hover", "vanilla-original")
+TABLE_ORDER = ("ours", "ours-direct", "ours-hover", "ours-hover-lowfly", "vanilla", "vanilla-direct", "vanilla-hover", "vanilla-original")
 # The order `bisect` tries them in (the likeliest first): the settings ReDefinition wrote into the game's own settings, the proxy, the patches, Atmospheres, Main, the others' files.
 BISECT_ORDER = ("settings-original", "no-proxy", "no-patches", "no-atmo", "no-main", "other-mod-files")
 # The render settings ReDefinition's profile changed in the game's settings.cfg; bundled.cfg keeps their originals in BEFORE_REDEFINITION. Variants vanilla-original and
@@ -765,6 +768,8 @@ class Run:
         # probe save and start the flight from the main menu; ProbeLite then leaves the loading to it (menuLoad=0, no space centre pictures).
         self.launch_args = list(FLAG_PRESETS.get(flags, [])) + self.extra_args
         self.game_loads = any(a.lower().startswith("-redefinitionprobe") for a in self.launch_args)
+        # No space centre visit: the game's own probe goes straight to the flight, and so does ProbeLite in the direct variants.
+        self.no_space_centre = self.game_loads or variant in DIRECT_VARIANTS
         self.stamp = time.strftime("%Y%m%d-%H%M%S")
 
     def refuse_checks(self):
@@ -861,7 +866,7 @@ class Run:
             shutil.copy2(dll, join(self.ksp, LITE_FOLDER + "/ProbeLite.dll"))
             with open(join(self.ksp, LITE_FOLDER + "/PluginData/config.txt"), "w", encoding="utf-8") as f:
                 f.write("variant=%s\nsaveFolder=%s\nmenuLoad=%d\nspaceCentre=%d\nflight=1\nwatchdogS=%d\nhoverFarM=%g\n"
-                        % (self.label, SAVE_FOLDER, 0 if self.game_loads else 1, 0 if self.game_loads else 1, self.timeout_s - 90, self.hover_m))
+                        % (self.label, SAVE_FOLDER, 0 if self.game_loads else 1, 0 if self.no_space_centre else 1, self.timeout_s - 90, self.hover_m))
             if os.path.isfile(ksp_log):
                 os.remove(ksp_log)
             t0 = time.time()

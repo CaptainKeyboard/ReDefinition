@@ -504,6 +504,23 @@ class FlagVariantTests(Base):
         self.assertIn("waits for the flight", text)
 
 
+class DirectVariantTests(Base):
+    def test_direct_variants_skip_the_space_centre_and_keep_loading_themselves(self):
+        for variant, vanilla in (("ours-direct", False), ("vanilla-direct", True)):
+            with self.subTest(variant=variant):
+                result = self.run_variant(variant)
+                self.assertTrue(result["ok"], (variant, result))
+                self.assertIn("menuLoad=1\n", self.seen["config"])
+                self.assertIn("spaceCentre=0\n", self.seen["config"])
+                self.assertEqual(self.seen["redef"], not vanilla)
+                self.assertTrue(result["pictures"].endswith(variant))
+                self.assertEqual(manifest(self.ksp), self.before, variant)
+
+    def test_the_plain_variants_visit_the_space_centre(self):
+        self.run_variant("ours")
+        self.assertIn("spaceCentre=1\n", self.seen["config"])
+
+
 class BisectCommandTests(Base):
     def setUp(self):
         super().setUp()
