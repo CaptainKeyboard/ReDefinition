@@ -121,6 +121,8 @@ namespace ReDefinition.Atmospheres
                     break;
             }
             ApplyLevers(p, g.Levers, notes);
+            // The cloud viewer's test levers (empty outside the viewer) come after the body's own.
+            GeneratorViewerOverrides.Apply(p);
             return p;
         }
 

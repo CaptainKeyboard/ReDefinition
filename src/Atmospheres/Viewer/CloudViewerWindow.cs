@@ -15,8 +15,8 @@ namespace ReDefinition.Atmospheres.Viewer
         internal static readonly CloudViewerWindow Instance = new CloudViewerWindow();
 
         private const float Width = 640f, PageWidth = 560f, RowHeight = 24f;
-        private const string StatusGroup = "Status", SceneGroup = "Scene", OptionsGroup = "Options", CompareGroup = "Compare", KeysGroup = "All Keys";
-        private static readonly HashSet<string> Open = new HashSet<string> { StatusGroup, SceneGroup };
+        private const string StatusGroup = "Status", SceneGroup = "Scene";
+        private static readonly HashSet<string> Open = new HashSet<string> { StatusGroup, SceneGroup, CostGroup };
 
         private readonly CloudViewer viewer = CloudViewer.Instance;
         private PopupDialog shown;
@@ -110,17 +110,20 @@ namespace ReDefinition.Atmospheres.Viewer
             var rows = new List<DialogGUIBase>
             {
                 Folded(StatusGroup, StatusRows()),
+                Folded(CostGroup, CostRows()),
                 Folded(SceneGroup, SceneRows()),
-                Folded(OptionsGroup, OptionRows()),
-                Folded(CompareGroup, CompareRows()),
-                Folded(KeysGroup, KeyRows())
+                Folded(ModesGroup, ModeRows()),
+                Folded(LabGroup, LabRows()),
+                Folded(PresetsGroup, PresetRows())
             };
+            rows.AddRange(KeySections());
             // The list is as high as the screen leaves room for at KSP's UI scale and scrolls where its content is longer; the title and the buttons stay in view.
             var list = new TabScrollList(new Vector2(Width - 20f, WindowPlacement.ListHeight(Screen.height, GameSettings.UI_SCALE)),
                 new DialogGUIVerticalLayout(Width - 40f, -1f, 4f, new RectOffset(4, 4, 4, 4), TextAnchor.UpperLeft, rows.ToArray()));
             var buttons = new DialogGUIHorizontalLayout(Width - 20f, 30f, 6f, new RectOffset(), TextAnchor.MiddleCenter,
-                Tip(new DialogGUIButton("Capture", viewer.RequestCapture, 110f, 26f, false), "Capture Picture"),
-                Tip(new DialogGUIButton(() => "Flip A/B (" + viewer.Flip.Showing + ")", viewer.FlipAB, 130f, 26f, false), "Flip A And B"),
+                Tip(new DialogGUIButton("Capture", viewer.RequestCapture, 100f, 26f, false), "Capture Picture"),
+                Tip(new DialogGUIButton(() => "Flip A/B (" + viewer.Flip.Showing + ")", viewer.FlipAB, 120f, 26f, false), "Flip A And B"),
+                Tip(new DialogGUIButton(() => WeatherRebuild.Active ? "Rebuilding..." : "Rebuild Weather", () => viewer.RebuildWeather(), 140f, 26f, false), "Rebuild Weather"),
                 new DialogGUIButton("Close", Close, 90f, 26f, false));
             var dialog = new MultiOptionDialog("ReDefinitionCloudViewer", "", "Cloud Viewer", HighLogic.UISkin, Width, list, buttons);
             shown = DialogWindow.Show(PopupDialog.SpawnPopupDialog(new Vector2(0.75f, 0.5f), new Vector2(0.75f, 0.5f), dialog, true, HighLogic.UISkin, true));
@@ -278,115 +281,12 @@ namespace ReDefinition.Atmospheres.Viewer
             return m >= 10000.0 ? (m / 1000.0).ToString("0.0") + " km" : m.ToString("0") + " m";
         }
 
-        // --- Options ---
-
-        private List<DialogGUIBase> OptionRows()
-        {
-            var rows = new List<DialogGUIBase>();
-            foreach (string key in CloudViewer.ShortSettings)
-            {
-                SettingDef def = AtmospheresSettings.Definition(key);
-                if (def != null) rows.Add(SettingRow(def));
-            }
-            return rows;
-        }
-
-        private DialogGUIBase SettingRow(SettingDef def)
-        {
-            var label = Tip(new DialogGUILabel(def.Tooltip, 220f), def.Tooltip);
-            DialogGUIBase control;
-            switch (def.Kind)
-            {
-                case SettingKind.Bool:
-                    control = new DialogGUIToggle(() => viewer.Store.Setting(def.Key) != 0.0, () => viewer.Store.Setting(def.Key) != 0.0 ? "On" : "Off",
-                        on => { if ((viewer.Store.Setting(def.Key) != 0.0) != on) viewer.SetSetting(def.Key, on ? 1.0 : 0.0); }, 220f, RowHeight);
-                    break;
-                case SettingKind.Choice:
-                    // A choice steps to the next name on each click.
-                    control = new DialogGUIButton(() => ValueFormat.ChoiceName(def.Choices[(int)viewer.Store.Setting(def.Key)]) + "   [>]",
-                        () => viewer.SetSetting(def.Key, ((int)viewer.Store.Setting(def.Key) + 1) % def.Choices.Length), 220f, RowHeight, false);
-                    break;
-                default:
-                    control = new DialogGUISlider(() => (float)viewer.Store.Setting(def.Key), (float)def.Min, (float)def.Max, def.Kind == SettingKind.Int, 220f, -1f, f =>
-                    {
-                        float now = (float)viewer.Store.Setting(def.Key);
-                        if (Mathf.Approximately(f, now)) return;
-                        viewer.SetSetting(def.Key, f);
-                    });
-                    break;
-            }
-            control.tooltipText = def.Tooltip;
-            var value = new DialogGUILabel(() => def.Kind == SettingKind.Bool || def.Kind == SettingKind.Choice ? " " : def.Format(viewer.Store.Setting(def.Key)), 90f);
-            return Line(label, control, value);
-        }
-
-        // --- Compare and presets ---
-
-        private List<DialogGUIBase> CompareRows()
-        {
-            var rows = new List<DialogGUIBase>
-            {
-                Line(Tip(new DialogGUIButton("Store As A", viewer.StoreA, 130f, RowHeight, false), "Store Options As A"),
-                     Tip(new DialogGUIButton(() => "Flip A/B (" + viewer.Flip.Showing + ")", viewer.FlipAB, 130f, RowHeight, false), "Flip A And B"),
-                     Tip(new DialogGUIToggle(() => viewer.KeepOptions, "Keep Options On Close", on => viewer.KeepOptions = on, 260f, RowHeight), "Keep Options On Close")),
-                Line(new DialogGUILabel("Preset", 80f),
-                     Tip(new DialogGUITextInput(presetName, false, 40, text => { presetName = text; return text; }, 200f, RowHeight), "Preset Name"),
-                     Tip(new DialogGUIButton("Save", () => { if (viewer.SavePreset(presetName)) Build(); }, 90f, RowHeight, false), "Save Preset"))
-            };
-            var presetButtons = new List<DialogGUIBase>();
-            foreach (string name in CloudViewer.PresetNames())
-            {
-                string n = name;
-                presetButtons.Add(Tip(new DialogGUIButton(n, () => viewer.LoadPreset(n), 134f, RowHeight, false), "Load Preset"));
-            }
-            for (int i = 0; i < presetButtons.Count; i += 4) rows.Add(Line(presetButtons.GetRange(i, Math.Min(4, presetButtons.Count - i)).ToArray()));
-            if (presetButtons.Count == 0) rows.Add(new DialogGUILabel("No preset saved yet.", PageWidth));
-            return rows;
-        }
-
-        // --- All keys ---
-
-        private List<DialogGUIBase> KeyRows()
-        {
-            var rows = new List<DialogGUIBase>
-            {
-                Line(new DialogGUILabel("Search", 80f), Tip(new DialogGUITextInput(search, false, 40, text => { search = text ?? ""; return text; }, 300f, RowHeight), "Search Keys"),
-                     new DialogGUILabel(() => viewer.Keys.Count + " keys", 150f)),
-                new DialogGUILabel("Key, value, default, when it is read; R resets, ? checks the reads.", PageWidth)
-            };
-            foreach (CloudKey key in viewer.Keys) rows.Add(KeyRow(key));
-            return rows;
-        }
-
-        private DialogGUIBase KeyRow(CloudKey key)
-        {
-            string tip = key.Key + (key.Note.Length > 0 ? ": " + key.Note : "");
-            var name = Tip(new DialogGUILabel(() => (Overridden(key) ? "* " : "") + key.Key, 220f), tip);
-            var input = new DialogGUITextInput(Format(viewer.Store.Effective(key.Key, key.Default)), false, 14, text =>
-            {
-                float v;
-                if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out v) && !float.IsNaN(v) && !float.IsInfinity(v)
-                    && v != viewer.Store.Effective(key.Key, key.Default)) viewer.SetKey(key.Key, v);
-                return text;
-            }, 90f, RowHeight);
-            var def = Tip(new DialogGUILabel(Format(key.Default), 70f), "Default");
-            var live = Tip(new DialogGUILabel(Short(key.Liveness), 70f), CloudKeyRegistry.LivenessText(key.Liveness));
-            var reset = Tip(new DialogGUIButton("R", () => { viewer.ResetKey(key.Key); Build(); }, 36f, RowHeight, false), "Reset To Default");
-            var check = Tip(new DialogGUIButton("?", () => viewer.WatchKey(key.Key), 36f, RowHeight, false), "Check Reads");
-            var column = new FoldColumn(PageWidth, 0f, Line(name, input, def, live, reset, check));
-            column.OptionEnabledCondition = () => CloudKeyRegistry.Matches(key, search);
-            return column;
-        }
+        // The modes, the weather lab, the presets and the key table are in CloudViewerWindow.Lab.cs.
 
         private bool Overridden(CloudKey key)
         {
             float v;
             return viewer.Store.TryOverride(key.Key, out v);
-        }
-
-        private static string Short(KeyLiveness liveness)
-        {
-            return liveness == KeyLiveness.FrameHistory ? "history" : liveness == KeyLiveness.Change ? "change" : "frame";
         }
 
         private static string Format(float v)

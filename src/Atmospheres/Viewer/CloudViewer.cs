@@ -201,6 +201,14 @@ namespace ReDefinition.Atmospheres.Viewer
             touched.Clear();
             flip.Clear();
             RefreshKeys();
+            lab.Open();
+            cost.Reset();
+            rebuildRequestsSeen = WeatherRebuild.Requests;
+            rebuildPoked = false;
+            labStack = null;
+            readout.Clear();
+            readoutNote = "Press Refresh Readout";
+            CompareA = CompareB = ViewerPresetBook.TodayName;
             Active = true;
             AtmospheresLog.Say("cloud viewer: opened over " + v.mainBody.name + " at " + startLat.ToString("0.0000", CultureInfo.InvariantCulture) + ", "
                                + startLon.ToString("0.0000", CultureInfo.InvariantCulture) + ", " + startAlt.ToString("0", CultureInfo.InvariantCulture) + " m; UT "
@@ -267,6 +275,8 @@ namespace ReDefinition.Atmospheres.Viewer
             try
             {
                 if (clock != null && HighLogic.LoadedSceneIsFlight) Planetarium.SetUniversalTime(clock.Natural);
+                // The lab's levers and seed go back with the viewer, kept options or not (they are the viewer's test weather); the generator is asked to make its state again.
+                lab.Close();
                 if (!KeepOptions)
                 {
                     foreach (KeyValuePair<string, double> pair in settingsAtOpen) store.SetSetting(pair.Key, pair.Value);
@@ -422,6 +432,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 return;
             }
             if (StackLayerCount() != keyList.LayerCount) EnsureKeys(true);
+            TickLab();
             double observed = Planetarium.GetUniversalTime();
             double next = clock.Step(observed);
             if (next != observed) Planetarium.SetUniversalTime(next);
@@ -653,6 +664,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             if (float.IsNaN(value) || float.IsInfinity(value)) return;
             Note(key);
+            cost.Mark(key);
             store.SetOverride(key, value);
             CloudKey entry = CloudKeyRegistry.Find(key);
             if (entry != null && entry.Liveness == KeyLiveness.FrameHistory) CloudBridgeLights.RequestHistoryReset("cloud viewer " + key);
@@ -662,6 +674,7 @@ namespace ReDefinition.Atmospheres.Viewer
         internal void ResetKey(string key)
         {
             Note(key);
+            cost.Mark(key);
             store.ClearOverride(key);
             CloudKey entry = CloudKeyRegistry.Find(key);
             if (entry != null && entry.Liveness == KeyLiveness.FrameHistory) CloudBridgeLights.RequestHistoryReset("cloud viewer " + key);
@@ -677,7 +690,10 @@ namespace ReDefinition.Atmospheres.Viewer
 
         internal void SetSetting(string key, double value)
         {
+            cost.Mark(key);
             store.SetSetting(key, value);
+            // The reconstruction's history is not valid for another target size or mode; a cloud source or pass switch starts the pass from a clean history as well.
+            if (ViewerModes.Find(key) != null) CloudBridgeLights.RequestHistoryReset("cloud viewer " + key);
         }
 
         // Watches a key's reads (Tuning.Instance.Watch): the window shows how many frames ago it was last read.
@@ -699,7 +715,7 @@ namespace ReDefinition.Atmospheres.Viewer
         internal void StoreA()
         {
             EnsureKeys(true);
-            flip.StoreA(OptionSet.Capture(store, settingKeys, keyNames, Weather));
+            flip.StoreA(OptionSet.Capture(store, settingKeys, keyNames, Weather, lab));
             AtmospheresLog.Say("cloud viewer: options stored as A");
         }
 
@@ -708,9 +724,11 @@ namespace ReDefinition.Atmospheres.Viewer
             EnsureKeys(true);
             foreach (string k in keyNames) Note(k);
             ViewerWeather weather = Weather;
-            if (!flip.Flip(store, settingKeys, keyNames, ref weather)) return;
+            cost.Mark("A/B flip");
+            if (!flip.Flip(store, settingKeys, keyNames, ref weather, lab)) return;
             Weather = weather;
             CloudBridgeLights.RequestHistoryReset("cloud viewer A/B");
+            AutoCommitLab("A/B flip");
             AtmospheresLog.Say("cloud viewer: showing " + flip.Showing);
             if (Changed != null) Changed();
         }
@@ -724,8 +742,14 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             string name = ViewerPresets.SafeName(typed);
             if (name.Length == 0) return false;
+            // The built-in names are not written over (Today and the slots live in code, not in a file).
+            if (ViewerPresetBook.IsReserved(name))
+            {
+                AtmospheresLog.Say("cloud viewer: preset " + name + " not saved: the name is a built-in preset");
+                return false;
+            }
             EnsureKeys(true);
-            OptionSet set = OptionSet.Capture(store, settingKeys, keyNames, Weather);
+            OptionSet set = OptionSet.Capture(store, settingKeys, keyNames, Weather, lab);
             bool ok = ModSettingsFile.Write(PresetPath(name), root =>
             {
                 ConfigNode node = set.ToNode();
@@ -740,14 +764,7 @@ namespace ReDefinition.Atmospheres.Viewer
             string path = PresetPath(ViewerPresets.SafeName(name));
             OptionSet set = ModSettingsFile.Read<OptionSet>(path, OptionSet.FromNode, null);
             if (set == null) return false;
-            EnsureKeys(true);
-            foreach (string k in keyNames) Note(k);
-            set.ApplyTo(store, keyNames);
-            Weather = set.Weather;
-            CloudBridgeLights.RequestHistoryReset("cloud viewer preset");
-            AtmospheresLog.Say("cloud viewer: preset " + name + " loaded (" + set.Settings.Count + " settings, " + set.Overrides.Count + " overrides)");
-            if (Changed != null) Changed();
-            return true;
+            return ApplySet(set, name);
         }
 
         internal static List<string> PresetNames()

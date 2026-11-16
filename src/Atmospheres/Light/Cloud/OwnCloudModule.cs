@@ -762,6 +762,7 @@ namespace ReDefinition.Atmospheres
             if (fetchStep < 0 && OwnCloudPlan.Due(now, nextMaps, OwnCloudPlan.MapIntervalS, forceMaps))
             {
                 nextMaps = now + OwnCloudPlan.MapIntervalS;
+                roundAfterSwap = WeatherRebuild.Phase == RebuildPhase.Fetching;
                 fetchStep = 0;
                 fetchHaveShared = fetchHaveType = false;
                 fetchAll = forceMaps || !mapsPrimed;
@@ -1008,6 +1009,7 @@ namespace ReDefinition.Atmospheres
             fetchStep = -1;
             stepMaps = true;
             Stats.MapFetches++;
+            if (roundAfterSwap) WeatherRebuild.MapsFetched();
         }
 
         // The slices a round's combination of the layer maps to the field's cover is cut into, a slice a frame (the whole map is 100 ms of CPU).
@@ -1041,6 +1043,38 @@ namespace ReDefinition.Atmospheres
             fetchStep = -1;
             stepMaps = true;
             Stats.MapFetches++;
+            if (roundAfterSwap) WeatherRebuild.MapsFetched();
+        }
+
+        // Whether the round in flight began after the generator's states were swapped in (a rebuild waits for such a round: one begun before it holds the old weather).
+        private bool roundAfterSwap;
+
+        // The cloud viewer's Rebuild Weather, once the generator's new state stands: the next frame fetches every map again (not at the map interval) and the maps snap to the new
+        // values instead of sliding there at the slew limit, the height maps are made again and the history is dropped. The maps worker makes the new state's maps first, so the
+        // round that finds none ends at once and the next one is asked for by the caller (CloudViewer) until one has come.
+        internal void RequestWeatherRebuild()
+        {
+            PokeMapFetch();
+            forceHeights = true;
+            CloudBridgeLights.RequestHistoryReset("cloud viewer rebuild weather");
+        }
+
+        // Starts a map round at the next frame, snapping the maps (no history reset, no height rebuild): asked for each frame until a round has found the new maps.
+        internal void PokeMapFetch()
+        {
+            forceMaps = snapMaps = true;
+        }
+
+        // The number of finished map rounds (Stats.MapFetches), for the viewer's wait for the first round after a rebuild.
+        internal int MapRounds
+        {
+            get { return Stats.MapFetches; }
+        }
+
+        // The main-thread milliseconds of the last map round and the worst single frame of a round (the cost the viewer shows next to a rebuild).
+        internal double LastMapRoundMs
+        {
+            get { return Stats.LastMapMs; }
         }
 
         // The inputs of the weather deck rule (WeatherDeckRule) once per round, for every layer that has one: the dew-point spread of the surface air (from the humidity and

@@ -19,12 +19,23 @@ namespace ReDefinition.Atmospheres.Viewer
     internal sealed class CloudKey
     {
         internal CloudKey(string key, float compiledDefault, KeyLiveness liveness, bool flag, string note)
+            : this(key, compiledDefault, liveness, flag, note, KeySection.Other, float.NaN, float.NaN, true, KeyMarker.Live)
+        {
+        }
+
+        internal CloudKey(string key, float compiledDefault, KeyLiveness liveness, bool flag, string note, KeySection section, float min, float max, bool rangeEstimated, KeyMarker marker)
         {
             Key = key;
             Default = compiledDefault;
             Liveness = liveness;
             Flag = flag;
             Note = note ?? "";
+            Section = section;
+            if (float.IsNaN(min) || float.IsNaN(max)) CloudKeyLayout.Range(key, compiledDefault, flag, out min, out max, out rangeEstimated);
+            Min = min;
+            Max = max;
+            RangeEstimated = rangeEstimated;
+            Marker = marker;
         }
 
         internal string Key { get; }
@@ -33,6 +44,13 @@ namespace ReDefinition.Atmospheres.Viewer
         // A switch (Tuning.Flag: other than 0 is on).
         internal bool Flag { get; }
         internal string Note { get; }
+        // The group of the viewer's table, the slider's range (typing a value is never limited to it) and whether the range is estimated from the default (the reader does not clamp).
+        internal KeySection Section { get; }
+        internal float Min { get; }
+        internal float Max { get; }
+        internal bool RangeEstimated { get; }
+        // When a change of the value shows: the next frame, only after Rebuild Weather, only after a scene change.
+        internal KeyMarker Marker { get; }
 
         // The first part of the key (cloud, layers, light, cull, recon, shadow).
         internal string Group
@@ -49,15 +67,125 @@ namespace ReDefinition.Atmospheres.Viewer
     internal sealed class CloudLayerKey
     {
         internal CloudLayerKey(string prefix, float compiledDefault, string note)
+            : this(prefix, "", compiledDefault, note, CloudKeyLayout.SectionOfLayerKey(prefix), KeyLiveness.Change, KeyMarker.Live, false)
+        {
+        }
+
+        // A key whose layer name stands between a prefix and a suffix (cloud.heap.layer.<name>.edgePower): the suffix is empty for the keys that end with the name.
+        internal CloudLayerKey(string prefix, string suffix, float compiledDefault, string note, KeySection section, KeyLiveness liveness, KeyMarker marker, bool flag)
         {
             Prefix = prefix;
+            Suffix = suffix ?? "";
             Default = compiledDefault;
-            Note = note;
+            Note = note ?? "";
+            Section = section;
+            Liveness = liveness;
+            Marker = marker;
+            Flag = flag;
         }
 
         internal string Prefix { get; }
+        internal string Suffix { get; }
         internal float Default { get; }
         internal string Note { get; }
+        internal KeySection Section { get; }
+        internal KeyLiveness Liveness { get; }
+        internal KeyMarker Marker { get; }
+        internal bool Flag { get; }
+
+        // The key of a layer.
+        internal CloudKey For(string layerName)
+        {
+            return new CloudKey(Prefix + layerName + Suffix, Default, Liveness, Flag, Note, Section, float.NaN, float.NaN, true, Marker);
+        }
+
+        // Whether the key is one of this pattern, for any layer name (a name has no dot).
+        internal bool Matches(string key)
+        {
+            if (key.Length <= Prefix.Length + Suffix.Length || !key.StartsWith(Prefix, StringComparison.Ordinal) || !key.EndsWith(Suffix, StringComparison.Ordinal)) return false;
+            return key.IndexOf('.', Prefix.Length, key.Length - Prefix.Length - Suffix.Length) < 0;
+        }
+    }
+
+    // What a package registers for the viewer's key table without editing this file: a static method with this attribute and the signature void (CloudKeyRegistrations) in any class of
+    // the assembly is called once when the registry is made. The keys it lists appear in the table, the key checks, A/B and the presets.
+    [AttributeUsage(AttributeTargets.Method)]
+    internal sealed class CloudKeySourceAttribute : Attribute
+    {
+    }
+
+    // The list a CloudKeySource method fills.
+    internal sealed class CloudKeyRegistrations
+    {
+        internal readonly List<CloudKey> Keys = new List<CloudKey>();
+        internal readonly List<CloudLayerKey> LayerKeys = new List<CloudLayerKey>();
+        internal readonly List<NamedKeyPreset> Presets = new List<NamedKeyPreset>();
+
+        // A number key: its range is stated (min, max) or estimated from the default where both are NaN.
+        internal void Key(string key, float compiledDefault, KeySection section, string note, KeyLiveness liveness = KeyLiveness.Frame, KeyMarker marker = KeyMarker.Live,
+                          float min = float.NaN, float max = float.NaN)
+        {
+            Keys.Add(new CloudKey(key, compiledDefault, liveness, false, note, section, min, max, float.IsNaN(min) || float.IsNaN(max), marker));
+        }
+
+        // A switch.
+        internal void Flag(string key, bool compiledDefault, KeySection section, string note, KeyLiveness liveness = KeyLiveness.Frame, KeyMarker marker = KeyMarker.Live)
+        {
+            Keys.Add(new CloudKey(key, compiledDefault ? 1f : 0f, liveness, true, note, section, 0f, 1f, false, marker));
+        }
+
+        // A key per layer, the layer's name between prefix and suffix.
+        internal void LayerKey(string prefix, string suffix, float compiledDefault, KeySection section, string note, bool flag = false, KeyLiveness liveness = KeyLiveness.Change,
+                               KeyMarker marker = KeyMarker.Live)
+        {
+            LayerKeys.Add(new CloudLayerKey(prefix, suffix, compiledDefault, note, section, liveness, marker, flag));
+        }
+
+        // A built-in preset slot: named values of tuning keys (and settings) the viewer's preset list shows next to Today. Registering a name that an empty slot holds fills the slot.
+        internal void Preset(string name, string note, IDictionary<string, float> keys, IDictionary<string, double> settings = null)
+        {
+            Presets.Add(new NamedKeyPreset(name, note, keys, settings));
+        }
+
+        // The presets with one entry per name: a filled slot replaces an empty one; two filled ones of a name are a conflict (the first stays). Returns the conflicts.
+        internal List<string> MergePresets()
+        {
+            var conflicts = new List<string>();
+            var merged = new List<NamedKeyPreset>();
+            foreach (NamedKeyPreset p in Presets)
+            {
+                int at = merged.FindIndex(m => string.Equals(m.Name, p.Name, StringComparison.OrdinalIgnoreCase));
+                if (at < 0) merged.Add(p);
+                else if (merged[at].IsEmpty) merged[at] = p;
+                else if (!p.IsEmpty) conflicts.Add("preset " + p.Name + " is filled twice");
+            }
+            Presets.Clear();
+            Presets.AddRange(merged);
+            return conflicts;
+        }
+    }
+
+    // A preset that code provides: values of tuning keys and settings. It is never written to a file and never changes a default; loading it sets the viewer's overrides like any preset.
+    internal sealed class NamedKeyPreset
+    {
+        internal NamedKeyPreset(string name, string note, IDictionary<string, float> keys, IDictionary<string, double> settings)
+        {
+            Name = name;
+            Note = note ?? "";
+            Keys = keys == null ? new Dictionary<string, float>() : new Dictionary<string, float>(keys);
+            Settings = settings == null ? new Dictionary<string, double>() : new Dictionary<string, double>(settings);
+        }
+
+        internal string Name { get; }
+        internal string Note { get; }
+        internal Dictionary<string, float> Keys { get; }
+        internal Dictionary<string, double> Settings { get; }
+
+        // A slot that holds nothing yet (a package fills it by registering a preset of the same name that does).
+        internal bool IsEmpty
+        {
+            get { return Keys.Count == 0 && Settings.Count == 0; }
+        }
     }
 
     // Every tuning key of the own cloud pass (cloud.*, layers.*, light.*, cull.*, recon.*, shadow.*), each named by the constant its reader declares and with the
@@ -79,7 +207,8 @@ namespace ReDefinition.Atmospheres.Viewer
             return new CloudKey(key, d ? 1f : 0f, live, true, note);
         }
 
-        internal static readonly IReadOnlyList<CloudKey> All = new List<CloudKey>
+        // The keys of the pass as its readers declare them; All is this list placed in the viewer's groups (CloudKeyLayout) plus what the packages register (CloudKeySource).
+        private static readonly List<CloudKey> Core = new List<CloudKey>
         {
             // The output stage, the sun and the moons (OwnCloudModule.FillFrame).
             N(OwnCloudModule.TuneSunGain, 1f, note: "factor on the pass's sun"),
@@ -193,7 +322,7 @@ namespace ReDefinition.Atmospheres.Viewer
         };
 
         // The keys that exist once per layer (CloudLookTuning; each is read again when the tuning table changes).
-        internal static readonly IReadOnlyList<CloudLayerKey> PerLayer = new List<CloudLayerKey>
+        private static readonly List<CloudLayerKey> CorePerLayer = new List<CloudLayerKey>
         {
             new CloudLayerKey(CloudLookTuning.TuneMapOverride, -1f, "constant map value, -1 the field's"),
             new CloudLayerKey(CloudLookTuning.TuneTypeOverride, -1f, "constant type value, -1 none"),
@@ -207,6 +336,102 @@ namespace ReDefinition.Atmospheres.Viewer
             new CloudLayerKey(CloudLookTuning.TuneNoiseAmount + ".", 1f, "noise amount factor of the layer"),
             new CloudLayerKey(CloudLookTuning.TuneNoiseSize + ".", 1f, "noise size factor of the layer")
         };
+
+        // What the packages register (CloudKeySource methods): collected once. A key named twice, or a key that is a per-layer key of another pattern, is kept once (the first) and listed
+        // in Conflicts, which a test requires to be empty.
+        internal static readonly List<string> Conflicts = new List<string>();
+        private static readonly CloudKeyRegistrations Registered = Collect();
+
+        internal static readonly IReadOnlyList<CloudKey> All = Place();
+        internal static readonly IReadOnlyList<CloudLayerKey> PerLayer = JoinLayers();
+        // The presets the packages provide for the viewer's preset list (the registered slots), in the order they were registered.
+        internal static IReadOnlyList<NamedKeyPreset> Presets
+        {
+            get { return Registered.Presets; }
+        }
+
+        private static CloudKeyRegistrations Collect()
+        {
+            Type[] types;
+            try
+            {
+                types = typeof(CloudKeyRegistry).Assembly.GetTypes();
+            }
+            catch (System.Reflection.ReflectionTypeLoadException e)
+            {
+                types = Array.FindAll(e.Types, t => t != null);
+            }
+            CloudKeyRegistrations found = CollectFrom(types);
+            Conflicts.AddRange(found.MergePresets());
+            return found;
+        }
+
+        // What the CloudKeySource methods of these types register (the registry takes the types of its own assembly; a test passes its own).
+        internal static CloudKeyRegistrations CollectFrom(IEnumerable<Type> types)
+        {
+            var found = new CloudKeyRegistrations();
+            foreach (Type type in types)
+            {
+                foreach (System.Reflection.MethodInfo m in type.GetMethods(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
+                {
+                    if (!Attribute.IsDefined(m, typeof(CloudKeySourceAttribute))) continue;
+                    System.Reflection.ParameterInfo[] ps = m.GetParameters();
+                    if (ps.Length != 1 || ps[0].ParameterType != typeof(CloudKeyRegistrations)) continue;
+                    try
+                    {
+                        m.Invoke(null, new object[] { found });
+                    }
+                    catch (Exception e)
+                    {
+                        AtmospheresLog.Failed("cloud viewer", "the key source " + type.Name + "." + m.Name + " failed", e);
+                    }
+                }
+            }
+            return found;
+        }
+
+        // The core keys placed in their groups, then the registered ones.
+        private static List<CloudKey> Place()
+        {
+            return Place(Core, Registered, Conflicts);
+        }
+
+        // The keys listed in the order: core keys placed in their groups, then the registered ones; a key named twice is a conflict and kept once.
+        internal static List<CloudKey> Place(IEnumerable<CloudKey> core, CloudKeyRegistrations registered, List<string> conflicts)
+        {
+            var placed = new List<CloudKey>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (CloudKey k in core)
+            {
+                KeySection section;
+                if (!CloudKeyLayout.TryGetSection(k.Key, out section)) section = KeySection.Other;
+                placed.Add(new CloudKey(k.Key, k.Default, k.Liveness, k.Flag, k.Note, section, float.NaN, float.NaN, true, KeyMarker.Live));
+                seen.Add(k.Key);
+            }
+            foreach (CloudKey k in registered.Keys)
+            {
+                if (!seen.Add(k.Key)) { conflicts.Add("key " + k.Key + " is registered twice"); continue; }
+                placed.Add(k);
+            }
+            return placed;
+        }
+
+        private static List<CloudLayerKey> JoinLayers()
+        {
+            return JoinLayers(CorePerLayer, Registered, Conflicts);
+        }
+
+        internal static List<CloudLayerKey> JoinLayers(IEnumerable<CloudLayerKey> core, CloudKeyRegistrations registered, List<string> conflicts)
+        {
+            var all = new List<CloudLayerKey>(core);
+            foreach (CloudLayerKey t in registered.LayerKeys)
+            {
+                bool twice = all.Exists(o => o.Prefix == t.Prefix && o.Suffix == t.Suffix);
+                if (twice) conflicts.Add("layer key " + t.Prefix + "<name>" + t.Suffix + " is registered twice");
+                else all.Add(t);
+            }
+            return all;
+        }
 
         private static readonly Dictionary<string, CloudKey> ByKey = Index();
 
@@ -225,8 +450,7 @@ namespace ReDefinition.Atmospheres.Viewer
             if (ByKey.TryGetValue(key, out found)) return found;
             foreach (CloudLayerKey t in PerLayer)
             {
-                if (key.Length > t.Prefix.Length && key.StartsWith(t.Prefix, StringComparison.Ordinal) && key.IndexOf('.', t.Prefix.Length) < 0)
-                    return new CloudKey(key, t.Default, KeyLiveness.Change, false, t.Note);
+                if (t.Matches(key)) return t.For(key.Substring(t.Prefix.Length, key.Length - t.Prefix.Length - t.Suffix.Length));
             }
             return null;
         }
@@ -239,7 +463,7 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (string name in layerNames)
             {
                 if (string.IsNullOrEmpty(name)) continue;
-                foreach (CloudLayerKey t in PerLayer) keys.Add(new CloudKey(t.Prefix + name, t.Default, KeyLiveness.Change, false, t.Note));
+                foreach (CloudLayerKey t in PerLayer) keys.Add(t.For(name));
             }
             return keys;
         }
@@ -254,6 +478,45 @@ namespace ReDefinition.Atmospheres.Viewer
                 if (key.Key.IndexOf(word, StringComparison.OrdinalIgnoreCase) < 0 && key.Note.IndexOf(word, StringComparison.OrdinalIgnoreCase) < 0) return false;
             }
             return true;
+        }
+
+        // The title of a group of the table.
+        internal static string SectionTitle(KeySection section)
+        {
+            switch (section)
+            {
+                case KeySection.Shape: return "Shape";
+                case KeySection.Edge: return "Edge";
+                case KeySection.Light: return "Light";
+                case KeySection.Quality: return "March And Quality";
+                case KeySection.Weather: return "Weather";
+                case KeySection.Modes: return "Modes";
+                default: return "Other";
+            }
+        }
+
+        // The words the viewer shows for when a change of a key shows: a key that is read every frame is live; one that needs a rebuild or a scene change says so.
+        internal static string MarkerText(KeyMarker marker)
+        {
+            switch (marker)
+            {
+                case KeyMarker.Live: return "Live";
+                case KeyMarker.AfterRebuildWeather: return "After Rebuild Weather";
+                case KeyMarker.AfterSceneChange: return "After Scene Change";
+                default: return "Not Checked";
+            }
+        }
+
+        // The short form of the marker for the table's column.
+        internal static string MarkerShort(KeyMarker marker)
+        {
+            switch (marker)
+            {
+                case KeyMarker.Live: return "live";
+                case KeyMarker.AfterRebuildWeather: return "rebuild";
+                case KeyMarker.AfterSceneChange: return "scene";
+                default: return "?";
+            }
         }
 
         // The words the viewer shows for when a key is read.

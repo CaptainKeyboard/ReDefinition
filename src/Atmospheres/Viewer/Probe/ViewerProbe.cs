@@ -20,7 +20,7 @@ namespace ReDefinition.Atmospheres.Viewer
     // What it cannot prove: how the window looks and whether its controls respond to the mouse (one screenshot of the open window is saved for a person to look at), the
     // hotkey (it has no default binding), and the look of the forced weathers or of the picture.
     [AtmospheresModule(992)]
-    internal sealed class ViewerProbe : SeriesProbe
+    internal sealed partial class ViewerProbe : SeriesProbe
     {
         internal const string Series = "K-V1";
         internal const string Prefix = "VIEWER.";
@@ -527,6 +527,9 @@ namespace ReDefinition.Atmospheres.Viewer
             yield return ProbeWait.Frames(1);
             foreach (ProbeWait w in Poll(() => !Rig.Capturing && Rig.LastCapture != picture && Rig.LastCapture.Length > 0 && Rig.FileSize(Rig.CapturePicturePath(Rig.LastCapture)) > MinPictureBytes, 15.0)) yield return w;
             Verdict("capture_second", "a second picture has its own file and the first stays", polled && Rig.FileSize(Rig.CapturePicturePath(picture ?? "")) > MinPictureBytes, "two different files", picture + " and " + Rig.LastCapture);
+
+            // --- The workbench (VIEW3): groups, modes, Rebuild Weather and the seed, readout, presets, A/B, cost ---
+            foreach (ProbeWait w in WorkbenchSection()) yield return w;
 
             // --- The window closed: everything back ---
             // Closed from a dirty state, so that the close has something to undo: a forced weather with forced rain, the other side of the A/B pair, a time offset and the time held.

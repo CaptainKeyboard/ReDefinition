@@ -71,14 +71,17 @@ namespace ReDefinition.Atmospheres.Viewer
     // weather the overrides belong to.
     internal sealed class OptionSet
     {
-        internal const string SettingsNode = "SETTINGS", TuningNode = "TUNING", ViewerNode = "VIEWER", WeatherValue = "weather";
+        internal const string SettingsNode = "SETTINGS", TuningNode = "TUNING", ViewerNode = "VIEWER", LabNode = "LAB", WeatherValue = "weather";
 
         internal readonly Dictionary<string, double> Settings = new Dictionary<string, double>(StringComparer.Ordinal);
         internal readonly Dictionary<string, float> Overrides = new Dictionary<string, float>(StringComparer.Ordinal);
+        // The weather lab's levers and seed ("gen.<field>", "layer.<key>", "seed"); they are staged by ApplyTo and act at the next Rebuild Weather.
+        internal readonly Dictionary<string, double> Extras = new Dictionary<string, double>(StringComparer.Ordinal);
         internal ViewerWeather Weather = ViewerWeather.Field;
 
         // The options as the store holds them now.
-        internal static OptionSet Capture(IOptionStore store, IEnumerable<string> settingKeys, IEnumerable<string> tuningKeys, ViewerWeather weather = ViewerWeather.Field)
+        internal static OptionSet Capture(IOptionStore store, IEnumerable<string> settingKeys, IEnumerable<string> tuningKeys, ViewerWeather weather = ViewerWeather.Field,
+                                          WeatherLab lab = null)
         {
             var set = new OptionSet { Weather = weather };
             foreach (string key in settingKeys) set.Settings[key] = store.Setting(key);
@@ -87,11 +90,12 @@ namespace ReDefinition.Atmospheres.Viewer
                 float value;
                 if (store.TryOverride(key, out value)) set.Overrides[key] = value;
             }
+            if (lab != null) lab.Capture(set.Extras);
             return set;
         }
 
-        // Puts the set into the store: its settings, and for every key of the list its override or none.
-        internal void ApplyTo(IOptionStore store, IEnumerable<string> tuningKeys)
+        // Puts the set into the store: its settings, and for every key of the list its override or none; the lab's levers are staged (a set without any puts them back to the baseline).
+        internal void ApplyTo(IOptionStore store, IEnumerable<string> tuningKeys, WeatherLab lab = null)
         {
             foreach (KeyValuePair<string, double> pair in Settings) store.SetSetting(pair.Key, pair.Value);
             foreach (string key in tuningKeys)
@@ -100,6 +104,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 if (Overrides.TryGetValue(key, out value)) store.SetOverride(key, value);
                 else store.ClearOverride(key);
             }
+            if (lab != null) lab.Stage(Extras);
         }
 
         internal ConfigNode ToNode()
@@ -109,6 +114,8 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (KeyValuePair<string, double> pair in Settings) settings.AddValue(pair.Key, pair.Value.ToString("R", CultureInfo.InvariantCulture));
             ConfigNode tuning = root.AddNode(TuningNode);
             foreach (KeyValuePair<string, float> pair in Overrides) tuning.AddValue(pair.Key, pair.Value.ToString("R", CultureInfo.InvariantCulture));
+            ConfigNode lab = root.AddNode(LabNode);
+            foreach (KeyValuePair<string, double> pair in Extras) lab.AddValue(pair.Key, pair.Value.ToString("R", CultureInfo.InvariantCulture));
             root.AddNode(ViewerNode).AddValue(WeatherValue, Weather.ToString());
             return root;
         }
@@ -131,6 +138,13 @@ namespace ReDefinition.Atmospheres.Viewer
                 {
                     float f;
                     if (float.TryParse(v.value, NumberStyles.Float, CultureInfo.InvariantCulture, out f) && !float.IsNaN(f) && !float.IsInfinity(f)) set.Overrides[v.name] = f;
+                }
+            ConfigNode lab = root.GetNode(LabNode);
+            if (lab != null)
+                foreach (ConfigNode.Value v in lab.values)
+                {
+                    double d;
+                    if (double.TryParse(v.value, NumberStyles.Float, CultureInfo.InvariantCulture, out d) && !double.IsNaN(d) && !double.IsInfinity(d)) set.Extras[v.name] = d;
                 }
             ConfigNode viewer = root.GetNode(ViewerNode);
             ViewerWeather weather;
@@ -166,12 +180,12 @@ namespace ReDefinition.Atmospheres.Viewer
             return Flip(store, settingKeys, tuningKeys, ref weather);
         }
 
-        // Swaps the sides; weather is the forced weather shown now and becomes the one of the side put back.
-        internal bool Flip(IOptionStore store, IEnumerable<string> settingKeys, IList<string> tuningKeys, ref ViewerWeather weather)
+        // Swaps the sides; weather is the forced weather shown now and becomes the one of the side put back; lab holds the weather lab's staged levers, which flip with the rest.
+        internal bool Flip(IOptionStore store, IEnumerable<string> settingKeys, IList<string> tuningKeys, ref ViewerWeather weather, WeatherLab lab = null)
         {
             if (stored == null) return false;
-            OptionSet shown = OptionSet.Capture(store, settingKeys, tuningKeys, weather);
-            stored.ApplyTo(store, tuningKeys);
+            OptionSet shown = OptionSet.Capture(store, settingKeys, tuningKeys, weather, lab);
+            stored.ApplyTo(store, tuningKeys, lab);
             weather = stored.Weather;
             stored = shown;
             Showing = Showing == 'A' ? 'B' : 'A';
