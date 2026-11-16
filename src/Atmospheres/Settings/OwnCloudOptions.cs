@@ -15,6 +15,10 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCoverageBound = "layers.coverageBound", TuneLightStride = "layers.lightStride", TuneLightCutoff = "layers.lightCutoff",
             TuneEmptyLeap = "layers.emptyLeap", TuneCheapShare = "layers.cheapShare", TuneFogShare = "layers.fogShare";
 
+        // layers.costDebug (LayerFrame.CostDebug, 0 to 7, default 0): cost attribution only, the picture is wrong while it is set. Bit 1 skips the light march, bit 2 reads no shape
+        // noise, bit 4 no erosion; the K-T2 perf variants nolight, noshape and noerode set it.
+        internal const string TuneCostDebug = "layers.costDebug";
+
         // E40 C1: layers.emptyReach (LayerFrame.EmptyReach, default 1): the march leaps over the grid points that lie within the empty reach of an empty sample (EmptyReachMaps). The
         // density reads that are left are the same ones, so the picture does not change; 0 is the march as it was.
         internal const string TuneEmptyReach = "layers.emptyReach";
@@ -248,6 +252,7 @@ namespace ReDefinition.Atmospheres
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
+            f.CostDebug = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCostDebug, 0f)), 0, 7);
             f.SpanTight = Tuning.Flag(TuneSpanTight, SpanTightDefault);
             f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 3);
             bool fix = Tuning.Flag(TuneDitherFix, DitherFixDefault);
