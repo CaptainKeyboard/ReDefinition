@@ -67,6 +67,9 @@ namespace ReDefinition.Atmospheres
             layerDefs = new CloudLayerDef[layers];
             tuning = new HeightTuning[layers];
             byType = new float[layers][];
+            ownWeight = new double[layers];
+            ownPowerSum = new double[layers];
+            totalWeight = new double[layers];
             for (int l = 0; l < layers; l++)
             {
                 CloudLayerDef layer = source.LayerAt(l);
@@ -87,6 +90,33 @@ namespace ReDefinition.Atmospheres
                 tuning[l] = t != null && t.Any ? t : null;
             }
             SourceVersion = source.Version;
+        }
+
+        // The exponent of the density rim the ray side applies per layer (the pack has one number per layer, not one per texel): the layer's waterPower where a type has no
+        // edgePower of its own, the types' own exponents where it has. ownShare is the share of the layer's depth (area-weighted over the nodes) that lies in types with an
+        // exponent of their own, ownPower the depth-weighted mean of those exponents; the live exponent is ownShare * ownPower + (1 - ownShare) * the layer's now.
+        private readonly double[] ownWeight, ownPowerSum, totalWeight;
+
+        internal void OwnEdge(int layerIndex, out float ownShare, out float ownPower)
+        {
+            ownShare = totalWeight[layerIndex] > 0.0 ? (float)(ownWeight[layerIndex] / totalWeight[layerIndex]) : 0f;
+            ownPower = ownWeight[layerIndex] > 0.0 ? (float)(ownPowerSum[layerIndex] / ownWeight[layerIndex]) : 1f;
+        }
+
+        // The depth of a node (area weight cos(latitude)) into the sums of the layer's exponents.
+        private void AccumulateEdge(int l, double latDeg, double type, double tau)
+        {
+            double w = tau * Math.Cos(latDeg * Math.PI / 180.0);
+            if (!(w > 0.0)) return;
+            CloudLayerDef layer = layerDefs[l];
+            int a, c;
+            double f;
+            tables[l].Neighbours(type, out a, out c, out f);
+            totalWeight[l] += w;
+            double oa = layer.HasOwnEdgePower(layer.Types[a]) ? 1.0 - f : 0.0, oc = layer.HasOwnEdgePower(layer.Types[c]) ? f : 0.0;
+            if (oa + oc <= 0.0) return;
+            ownWeight[l] += w * (oa + oc);
+            ownPowerSum[l] += w * (oa * layer.EffectiveWaterPowerOf(layer.Types[a]) + oc * layer.EffectiveWaterPowerOf(layer.Types[c]));
         }
 
         internal long SourceVersion { get; }
@@ -190,6 +220,7 @@ namespace ReDefinition.Atmospheres
                 double tauType = byType[l][i] * (1.0 - between) + byType[l][i + 1] * between;
                 double typeBase, typeTop;
                 tables[l].InterpolatedHeights(type, out typeBase, out typeTop);
+                AccumulateEdge(l, lat, type, Math.Min(tauType, RtCloudPackLayout.MaxTau));
                 WriteNode(index, l, tauType, typeBase, typeTop);
                 return;
             }
@@ -221,6 +252,7 @@ namespace ReDefinition.Atmospheres
                 profileSum += table.ProfileAt(a, h) * (1.0 - f) + table.ProfileAt(c, h) * f;
             }
             double tau = sigma[l] * profileSum * (lt - lb) * thickness / steps * shareRatio[l];
+            AccumulateEdge(l, lat, type, Math.Min(tau, RtCloudPackLayout.MaxTau));
             WriteNode(index, l, tau, lb, lt);
         }
 

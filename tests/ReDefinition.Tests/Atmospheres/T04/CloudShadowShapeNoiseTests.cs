@@ -35,6 +35,8 @@ namespace ReDefinition.Tests
             layer.EdgeSoftness = 0.15f;
             layer.NoiseAmount = noiseAmount;
             layer.NoiseScaleM = 500f;
+            // These tests pin the map and the noise alone: no top closure (the lift of CONSIST is tested in CloudShadowMacroShapeTests).
+            layer.Types[0].TopClose = 0f;
             return s;
         }
 

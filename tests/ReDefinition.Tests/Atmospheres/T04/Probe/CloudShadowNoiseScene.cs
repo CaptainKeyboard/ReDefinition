@@ -100,6 +100,84 @@ namespace ReDefinition.WeatherPlayer
             renderer.Dispose();
         }
 
+        // CONSIST: a cumulus-like cloud (600 m thick, the cfg's mediocris LIFT shape and edgePower 0.5, noise amount 1 at 500 m) over the same ground: the shadow without the lift (the
+        // shadow before CONSIST) and with it, the shader against the CPU twin for the lift on. Pictures: shadow-consist-lift0 / lift1.
+        private IEnumerator RunMacroShape()
+        {
+            const double elevation = 45.0;
+            var noise = new LayerNoise();
+            noise.EnsureReady();
+            renderer.Noise = noise;
+            Sink.Flag("noise_volumes_ready", noise.Ready);
+            NaturalMode(false);
+            frame.ShapeNoise = true;
+            frame.DiscTaps = 1;
+            SetMacroCloud();
+            SetSun(elevation);
+            double e = elevation * Math.PI / 180.0;
+            double sx = Math.Sin(e), sy = Math.Cos(e);
+            foreach (int lift in new[] { 0, 1 })
+            {
+                frame.MacroLift = lift == 1;
+                Pose(new CameraPose(new Vector3(-1300f, 1500f, 0f), 0f, 90f));
+                yield return Capture();
+                double[] xs, ratio;
+                RowRatio(out xs, out ratio);
+                var cpu = new CloudShadowField(currentSource, currentSource.Tables()) { StepsPerSpan = frame.StepsPerSpan, StepPolicy = frame.StepPolicy, DiscSamples = 1 };
+                var sn = new CloudShadowShapeNoise();
+                sn.Update(noise, currentSource, new[] { 0f, 1f, 0f, 1f, 0f, 0f, 0f, 0f, 1f }, true);
+                cpu.ShapeNoise = sn;
+                var diffs = new List<double>();
+                double mean = 0.0;
+                int n = 0;
+                for (int i = 0; i < xs.Length; i++)
+                {
+                    if (double.IsNaN(ratio[i]) || xs[i] > -150.0) continue;
+                    double want = cpu.DirectTransmission(R, xs[i], 0.0, sx, sy, 0.0);
+                    diffs.Add(Math.Abs(ratio[i] - want) / Math.Max(want, 1e-4));
+                    mean += ratio[i];
+                    n++;
+                }
+                diffs.Sort();
+                Sink.Info("consist.lift" + lift + ".n", n);
+                Sink.Info("consist.lift" + lift + ".gpu_mean", n > 0 ? mean / n : double.NaN);
+                Sink.Info("consist.lift" + lift + ".parity_median", n > 0 ? diffs[n / 2] : double.NaN);
+                Sink.Info("consist.lift" + lift + ".parity_p90", n > 0 ? diffs[(int)(n * 0.9)] : double.NaN);
+                // Only the lift on is the twin's: the picture without it is the shadow before.
+                if (lift == 1) Sink.AtMost("consist.parity.lift1", n > 0 ? diffs[n / 2] : double.NaN, 0.05);
+                SavePictures("consist-lift" + lift);
+            }
+            rig.Stop();
+            renderer.Dispose();
+        }
+
+        private void SetMacroCloud()
+        {
+            var source = new LayerStackSource(0, R, true);
+            currentSource = source;
+            CloudTypeDef type = CloudTypeDef.Slab("cumulus", 0f, 1f);
+            type.Lift = new Curve(new[] { 0f, 0.3f, 0.7f, 1f }, new[] { 0f, 0f, 0.067f, 0.168f });
+            type.EdgePower = 0.5f;
+            var def = new CloudLayerDef("macro", 0, 2000f, 2600f, new[] { type }, 1f / 600f)
+            {
+                Coverage = 0.35f,
+                EdgeSoftness = 0.15f,
+                NoiseAmount = 1f,
+                NoiseScaleM = 500f
+            };
+            def.CoverageMapHandle = 0;
+            def.TypeMapHandle = 0;
+            var cpuMap = new ReDefinition.Core.WeatherMap();
+            cpuMap.Resize(2, 2);
+            for (int i = 0; i < cpuMap.Values.Length; i++) cpuMap.Values[i] = 170f / 255f;
+            source.Add(def, cpuMap, null);
+            var cov = new byte[MapW * MapH];
+            for (int i = 0; i < cov.Length; i++) cov[i] = 170;
+            maps.SetTargetBytes(0, cov, new byte[MapW * MapH]);
+            maps.Step(0f, MapSlew.DefaultRate, true);
+            renderer.Upload(source, maps);
+        }
+
         private void SetNoiseCloud(float scaleM)
         {
             var source = new LayerStackSource(0, R, true);

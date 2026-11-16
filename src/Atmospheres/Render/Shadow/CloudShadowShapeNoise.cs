@@ -6,8 +6,9 @@ namespace ReDefinition.Atmospheres
     // NoiseShare); a shadow that reads the map alone keeps the map's closed shape under a cell field the picture has broken into cells (the cumulus layer of the shipped
     // cfg, noise amount 1 at 500 m). With this switch on the shadow reads the same share: the shape noise alone, the way the pass's own light march reads it (no erosion:
     // gNoiseLod), from the same volume, scale, offsets and drift (LayerNoise), so that the shader's twin (ReDefinitionAtmospheresCloudShadow.shader includes
-    // ReDefinitionAtmospheresNoise.cginc and calls NoiseShareNear) and this class are one definition. Not mirrored: the flow map of a body that has one, the
-    // types' height-shaped threshold (the LIFT of the cfg), and the height maps' ragged boundary (HeightDensity resolves the type's local base and top as before).
+    // ReDefinitionAtmospheresNoise.cginc and calls NoiseShareNear) and this class are one definition. The types' height-shaped threshold (the LIFT of the cfg), the types'
+    // heap volumes (with the pass's blend) and their edgePower exponents are read as the pass reads them. Not mirrored: the flow map of a body that has one, the type's shapeSmoothing
+    // (the shape volume's mip), and the height maps' ragged boundary (HeightDensity resolves the type's local base and top as before).
     //
     // The switch is the tuning key shadow.shapeNoise (OwnCloudOptions.ShadowShapeNoise): 1 reads the noise, 0 the map alone (the shadow before E40 FL-FIX).
     internal sealed class CloudShadowShapeNoise
@@ -63,16 +64,29 @@ namespace ReDefinition.Atmospheres
         // The same for a type value of the layer's type table (CLOUDR1: the type's heap preset and density exponent; a null table: the layer's, no heap).
         internal double Share(int layerIndex, CloudLayerDef layer, double x, double y, double z, double cov, LayerTypeTable table, double typeValue)
         {
+            return Share(layerIndex, layer, x, y, z, cov, table, typeValue, double.NaN);
+        }
+
+        // The same at a height of the layer (layerShare, 0 to 1 over the layer's thickness): the type's LIFT lowers the map there as the pass does (cov -= lift x the layer's headroom, after
+        // the clear-sky rule), with or without noise in the layer; NaN: no height given, no lift (a null table has none either).
+        internal double Share(int layerIndex, CloudLayerDef layer, double x, double y, double z, double cov, LayerTypeTable table, double typeValue, double layerShare)
+        {
             if (volumes == null || layerIndex < 0 || layerIndex >= layers) return -1.0;
             double amount = layer.EffectiveNoiseAmount;
-            if (!(amount > 0.0) || !(layer.EffectiveNoiseScaleM > 0f)) return -1.0;
+            double lift = table == null || double.IsNaN(layerShare) ? 0.0 : table.LiftOf(typeValue, layerShare);
+            if (!(amount > 0.0) || !(layer.EffectiveNoiseScaleM > 0f))
+            {
+                if (!(lift > 0.0)) return -1.0;
+                double plain = LayerDensity.Shape(layer.ClearSkyMap(cov) - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
+                return CloudWater.Pow(plain, layer.EffectiveWaterPowerAt(table, typeValue));
+            }
             // The lattice is fixed in the world frame: the map frame's point turned back (the transpose of the rotation).
             double wx = worldToMap[0] * x + worldToMap[3] * y + worldToMap[6] * z;
             double wy = worldToMap[1] * x + worldToMap[4] * y + worldToMap[7] * z;
             double wz = worldToMap[2] * x + worldToMap[5] * y + worldToMap[8] * z;
             NoiseLayerParams prm = layerParams[layerIndex];
             prm.HeapPreset = table == null ? 0 : table.HeapAtTypeValue(typeValue);
-            double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, layer.ClearSkyMap(cov), layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
+            double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, layer.ClearSkyMap(cov) - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
             return CloudWater.Pow(share, table == null ? layer.EffectiveWaterPower : layer.EffectiveWaterPowerAt(table, typeValue));
         }
     }

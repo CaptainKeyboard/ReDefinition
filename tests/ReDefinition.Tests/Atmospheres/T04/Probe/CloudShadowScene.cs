@@ -71,6 +71,12 @@ namespace ReDefinition.WeatherPlayer
                 yield return RunShapeNoise();
                 yield break;
             }
+            // -shadownoise 2: the macro shape of a cumulus type (LIFT, edgePower) in the shadow, the lift off (before) and on (after), the shader against its CPU twin (CloudShadowNoiseScene.cs).
+            if (WeatherPass.Argument("-shadownoise") == "2")
+            {
+                yield return RunMacroShape();
+                yield break;
+            }
             // -shadowsteps 1: the step-policy comparison of the shader with its CPU twin (CloudShadowStepsScene.cs) instead of the analytic checks.
             if (WeatherPass.Argument("-shadowsteps") == "1")
             {

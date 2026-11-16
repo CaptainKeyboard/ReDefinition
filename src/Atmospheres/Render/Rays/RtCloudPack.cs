@@ -116,6 +116,9 @@ namespace ReDefinition.Atmospheres
         public float Coverage = 1f, EdgeSoftness = 0.15f;
         // The soft density's two more numbers (E40 soft density): the clear-sky rule's K of the map value (0: off) and the exponent of the share (1: none).
         public float ClearSkyK, WaterPower = 1f;
+        // The types' own edge exponents (edgePower) as the bake found them: the share of the layer's depth in types that have one and their mean; WaterPower is the
+        // layer's exponent where they have none and these where they have (RtCloudPackDriver.Live). 0 and 1: every type follows the layer.
+        public float OwnEdgeShare, OwnEdgePower = 1f;
         // The longitude the layer's maps are turned by against the body's frame now, degrees.
         public float MapShiftDeg;
         // The distance fade of the layer's picture (P64), m from the eye; Infinity: none. A reflection ray applies it, a light ray does not.

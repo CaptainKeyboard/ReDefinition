@@ -37,7 +37,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float4x4 _CsWorldToMap;  // rotation from that space into the map frame (x towards longitude 0, y towards 90 east, z north)
         float4 _CsSun;           // towards the sun (unit), w: metres per unit of the space (1 in the scene, 6000 in scaled space)
         float4 _CsParams;        // steps per span (the per-layer count is in _CsLayerD.x), sun disc taps, floor (share of the direct light that always remains), layer count
-        float4 _CsParams2;       // x: weight of the diffuse floor in the mask (0: the pure direct beam), y: share of the lit colour that is the sun's direct light (forward path)
+        float4 _CsParams2;       // x: weight of the diffuse floor in the mask (0: the pure direct beam), y: share of the lit colour that is the sun's direct light (forward path), z: 1 where the shadow reads the pass's shape (the types' LIFT with the shape noise), 0 for the map alone
         float4 _CsLayerA[4];     // inner altitude, outer altitude, tight inner altitude, tight outer altitude (m)
         float4 _CsLayerB[4];     // sigma per m, coverage, edge softness, shadow strength
         float4 _CsLayerC[4];     // clear-sky K of the map value (0: off), water exponent minus 1, map slice (< 0: no map), type count
@@ -126,11 +126,12 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         #define _PlanetR _CsPlanetR
         #include "ReDefinitionAtmospheresNoise.cginc"
 
-        float TypeProfile(int li, int type, float h)
+        // x the type's density profile at the height share h, y its LIFT (the height-shaped threshold of the type, in units of the layer's headroom; the pass's profile channel a).
+        float2 TypeProfile(int li, int type, float h)
         {
             float u = (saturate(h) * (PROFILE_SAMPLES - 1) + 0.5) / PROFILE_SAMPLES;
             float v = (li * MAXT + type + 0.5) / (MAXL * MAXT);
-            return tex2Dlod(_CsTypeProfile, float4(u, v, 0, 0)).r;
+            return tex2Dlod(_CsTypeProfile, float4(u, v, 0, 0)).rg;
         }
 
         // x base, y top, z the exponent of the type's density rim (0: the layer's; CLOUDR1 P1), w the type's heap preset (CLOUDR1 P2).
@@ -165,14 +166,18 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
             if (share < b || share > tp || tp <= b) return 0;
             float edge = max(_CsLayerB[li].z, 1e-4);
+            // The macro shape as the pass reads it: the type's LIFT lowers the map at this height by its share of the layer's headroom (the pass's cov -= lift * (coverage + noise bound + 0.5 edge);
+            // _CsParams2.z is 1 where the shadow reads the pass's shape, 0 for the map alone).
+            float h = (share - b) / (tp - b);
+            float2 pf = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
+            cov -= _CsParams2.z * pf.y * (_CsLayerB[li].y + 0.5 * _CsNoiseD[li].x + 0.5 * edge);
             // The coverage share: the map's threshold, or the layer pass's shape noise moving it (NoiseShareNear is the threshold itself where the amount is 0 or the volumes are not up).
             float s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);
             if (s <= 0) return 0;
             float pw = 1.0 + _CsLayerC[li].y;   // E40 soft density: the layer's water exponent (stored minus 1: 0 = none)
             pw = lerp(ia.z > 0 ? ia.z : pw, ib.z > 0 ? ib.z : pw, f);   // CLOUDR1 P1: the type's own exponent
             if (pw != 1.0) s = pow(s, pw);
-            float h = (share - b) / (tp - b);
-            return _CsLayerB[li].x * s * lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
+            return _CsLayerB[li].x * s * pf.x;
         }
 
         // The optical depth along the ray o + t d (o relative to the planet's centre, metres) to tmax, all layers, each times its shadow strength.

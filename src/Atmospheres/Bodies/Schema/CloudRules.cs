@@ -336,6 +336,13 @@ namespace ReDefinition.Atmospheres
             return type != null && type.EdgePower > 0f ? type.EdgePower : WaterPower;
         }
 
+        // Whether the type has an exponent of its own (its edgePower or the tuning key's override) in place of the layer's waterPower.
+        internal bool HasOwnEdgePower(CloudTypeDef type)
+        {
+            if (!Soft) return false;
+            return CloudLookTuning.EdgePowerOverrideFor(Name) > 0f || (type != null && type.EdgePower > 0f);
+        }
+
         // The exponent at a type value (the two neighbouring types' blended by the weight of the second, as the shader reads them).
         internal float EffectiveWaterPowerAt(LayerTypeTable table, double typeValue)
         {

@@ -32,6 +32,8 @@ namespace ReDefinition.Atmospheres
         public int Debug;
         // Whether the shader reads the shape noise of the layer pass (CloudShadowShapeNoise; the tuning key shadow.shapeNoise). Needs CloudShadowRenderer.Noise.
         public bool ShapeNoise;
+        // Whether the shader lowers the map by the types' LIFT as the pass does (with ShapeNoise; off only for the before/after pictures of the weather player).
+        public bool MacroLift = true;
     }
 
     // The cloud shadow's drawing (package T04): the material, the type table and map textures it reads, and the command buffers that build the
@@ -98,7 +100,7 @@ namespace ReDefinition.Atmospheres
                 Problem = "the cloud shadow shader does not compile (" + material.passCount + " passes)";
                 return false;
             }
-            profileTexture = new Texture2D(LayerTypeTable.ProfileSamples, CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes, TextureFormat.RFloat, false, true)
+            profileTexture = new Texture2D(LayerTypeTable.ProfileSamples, CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes, TextureFormat.RGFloat, false, true)
             {
                 name = "cloud shadow type profiles",
                 filterMode = FilterMode.Bilinear,
@@ -141,7 +143,8 @@ namespace ReDefinition.Atmospheres
             }
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
-            var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes];
+            // Two channels a sample: the type's density profile (r) and its LIFT (g).
+            var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 2];
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers];
             for (int l = 0; l < layerCount; l++)
             {
@@ -156,7 +159,13 @@ namespace ReDefinition.Atmospheres
                 // The noise numbers as the layer pass has them (LayerRenderer: amount, 1 / scale, erosion, map shift), the erosion 0: the shape alone, as the pass's light march reads it.
                 noiseD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 0f, layer.MapShiftDeg);
                 noiseOff[l] = new Vector4(0f, 0f, 0f, layer.MapShiftDeg);
-                Array.Copy(table.ProfileData, 0, profile, l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples, table.Count * LayerTypeTable.ProfileSamples);
+                float[] density = table.ProfileData, liftData = table.LiftData;
+                for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
+                {
+                    int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 2;
+                    profile[texel] = density[i];
+                    profile[texel + 1] = liftData[i];
+                }
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;
@@ -189,7 +198,7 @@ namespace ReDefinition.Atmospheres
             // The steps of each layer's spans: the policy's count (the CPU twin CloudShadowField takes the same number), read from the layer as it stands.
             for (int l = 0; l < layerCount; l++)
                 layerD[l].x = uploadedSource == null ? steps : CloudShadowStepPolicy.Count(f.StepPolicy, steps, uploadedSource.LayerAt(l));
-            m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), 0f, 0f));
+            m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), f.ShapeNoise && f.MacroLift && Noise != null ? 1f : 0f, 0f));
             m.SetVectorArray(IdLayerA, layerA);
             m.SetVectorArray(IdLayerB, layerB);
             m.SetVectorArray(IdLayerC, layerC);

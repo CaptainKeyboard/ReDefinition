@@ -121,7 +121,7 @@ namespace ReDefinition.Atmospheres
             var baker = new RtCloudTauBaker(source, tables, layers, settings.Width, settings.Height, settings.Steps, settings.DepthStride);
             baker.Step(int.MaxValue);
             var entries = new RtCloudLayerEntry[layers];
-            for (int i = 0; i < layers; i++) entries[i] = EntryFor(source, i);
+            for (int i = 0; i < layers; i++) entries[i] = EntryFor(source, i, baker);
             return new RtCloudPack(source.BodyIndex, source.BodyRadiusM, source.HasSurface, settings.Width, settings.Height, entries, baker.Data, baker.SourceVersion);
         }
 
@@ -129,7 +129,7 @@ namespace ReDefinition.Atmospheres
         private void Publish(ICloudLayerSource source)
         {
             var entries = new RtCloudLayerEntry[bakerLayers];
-            for (int i = 0; i < bakerLayers; i++) entries[i] = EntryFor(source, i);
+            for (int i = 0; i < bakerLayers; i++) entries[i] = EntryFor(source, i, baker);
             var pack = new RtCloudPack(source.BodyIndex, source.BodyRadiusM, source.HasSurface, bakerWidth, bakerHeight, entries, baker.Data, baker.SourceVersion);
             pack.Version = ++counter;
             pack.LiveVersion = pack.Version;
@@ -152,7 +152,7 @@ namespace ReDefinition.Atmospheres
 
         // The entry of layer i: the shell as radii from the body's centre, from the tight interval (the type table's heights widened by the height
         // variation's reach), and the live fields.
-        internal static RtCloudLayerEntry EntryFor(ICloudLayerSource source, int i)
+        internal static RtCloudLayerEntry EntryFor(ICloudLayerSource source, int i, RtCloudTauBaker baked = null)
         {
             CloudLayerDef layer = source.LayerAt(i);
             float inner, outer;
@@ -167,17 +167,20 @@ namespace ReDefinition.Atmospheres
                 HeightDownM = layer.HeightDownM,
                 HeightUpM = layer.HeightUpM
             };
+            if (baked != null) baked.OwnEdge(i, out e.OwnEdgeShare, out e.OwnEdgePower);
             Live(e, layer);
             return e;
         }
 
-        private static void Live(RtCloudLayerEntry e, CloudLayerDef layer)
+        internal static void Live(RtCloudLayerEntry e, CloudLayerDef layer)
         {
             e.ShadowStrength = layer.ShadowStrength;
             e.Coverage = layer.EffectiveCoverage;
             e.EdgeSoftness = layer.EffectiveEdgeSoftness;
             e.ClearSkyK = layer.ClearSkyK;
-            e.WaterPower = layer.EffectiveWaterPower;
+            // The pack holds one exponent per layer: the types' own edgePower weighted by their share of the layer's depth, the layer's waterPower for the rest (the visible pass
+            // and the shadow read the exponent per type).
+            e.WaterPower = e.OwnEdgeShare * e.OwnEdgePower + (1f - e.OwnEdgeShare) * layer.EffectiveWaterPower;
             e.MapShiftDeg = layer.MapShiftDeg;
             e.FadeNearM = layer.EffectiveFadeNearM;
             e.FadeFarM = layer.EffectiveFadeFarM;

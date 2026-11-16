@@ -56,7 +56,7 @@ namespace ReDefinition.Atmospheres
             CloudLayerDef layer = source.LayerAt(layerIndex);
             float cov, typ;
             source.SampleMaps(layerIndex, latDeg, lonDeg, out cov, out typ);
-            double shape = noise.Share(layerIndex, layer, x, y, z, cov, table, typ);
+            double shape = noise.Share(layerIndex, layer, x, y, z, cov, table, typ, (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM);
             var heightSource = source as ICloudHeightSource;
             HeightTuning t = heightSource == null ? null : heightSource.HeightOf(layerIndex);
             if (t == null) return LayerDensity.ExtinctionWithShare(layer, table, altitudeM, cov, typ, shape);
