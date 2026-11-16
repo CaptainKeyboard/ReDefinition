@@ -849,7 +849,8 @@ namespace ReDefinition.Atmospheres
         // A steady-state round (FetchStep from the shared coverage to the last layer's hand-over) runs on one worker thread, started by the main thread when a round is due; every call
         // in it is the thread-safe field's (IWeatherField.ThreadSafe) or pure byte work on buffers only the round touches while it runs (the main thread reads none of them until it
         // has taken the round: roundFinished). The round hands each layer's goal to the store (LayerMapStore.SetTargetBytes, GpuSlew: a copy and a queue entry, any thread) and copies
-        // the CPU mirror's coverage (StackMapMirror.CopyCover); the main thread then attaches the type maps to the stack (StackMapMirror.Attach) and ends the round. The stack, the
+        // the CPU mirror's coverage and type map into back buffers (StackMapMirror.CopyBack); the main thread then swaps the stack's maps for them (StackMapMirror.AttachBack: no reader
+        // ever sees a map being written) and ends the round. The stack, the
         // store's size and the round's buffers do not change under a round: whatever would change them waits for it first (EnsureRoundIdle).
         private bool roundOnWorker;
         private int roundFinished;
@@ -867,6 +868,7 @@ namespace ReDefinition.Atmospheres
 
         private void StartWorkerRound(CelestialBody b, IWeatherField field, double ut)
         {
+            stackMaps.OwnTypeMaps(stack);
             roundOnWorker = true;
             Volatile.Write(ref roundFinished, 0);
             roundDelivered = false;
@@ -942,7 +944,7 @@ namespace ReDefinition.Atmospheres
             }
             if (!roundDelivered) return;
             for (int l = 0; l < stack.LayerCount; l++)
-                if (attachType[l] != null) stackMaps.Attach(stack, l, attachType[l]);
+                if (attachType[l] != null) stackMaps.AttachBack(stack, l);
             stepMaps = true;
             Stats.MapFetches++;
             if (roundAfterSwap) WeatherRebuild.MapsFetched();
@@ -955,7 +957,7 @@ namespace ReDefinition.Atmospheres
             renderer.Maps.SetTargetBytes(l, cover, typeBytes);
             if (roundOnWorker)
             {
-                stackMaps.CopyCover(l, coverSource);
+                stackMaps.CopyBack(l, coverSource, typeForCpu);
                 attachType[l] = typeForCpu;
             }
             else

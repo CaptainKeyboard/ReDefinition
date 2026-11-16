@@ -60,6 +60,13 @@ namespace ReDefinition.Atmospheres
             return at;
         }
 
+        // Replaces the map references of a layer that has maps, without moving the version (the maps' contents are the same kind of data; StackMapMirror.AttachBack).
+        internal void SwapMaps(int index, WeatherMap coverageMap, WeatherMap typeMap)
+        {
+            coverage[index] = coverageMap;
+            types[index] = typeMap;
+        }
+
         // Replaces the maps of a layer (a map update) and moves the version on.
         internal void SetMaps(int index, WeatherMap coverageMap, WeatherMap typeMap)
         {
