@@ -302,9 +302,12 @@ def fnv1a(data):
     return h
 
 
+HEAP_PERIOD_SCALES = 8.0
+
+
 def heap_value(levels, p, scale, preset, lod=0.0):
     """The heap field (0..1) of a preset at lookup points p (M, 3) in m for a layer of noise scale `scale`: the trilinear read of the byte volume at mip level lod (a float: two levels blended)."""
-    u = np.asarray(p, dtype=np.float64) / (16.0 * scale)
+    u = np.asarray(p, dtype=np.float64) / (HEAP_PERIOD_SCALES * scale)
     below = int(math.floor(lod))
     f = lod - below
     a = trilinear(levels[below][..., preset - 1] / 255.0, u)

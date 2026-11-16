@@ -483,6 +483,7 @@ namespace ReDefinition.Atmospheres
                 Seed = NoiseSeeds.LayerSeed(Switches.Seed, layer),
                 SphereScale = vertical[layer] > 0.0 ? vertical[layer] : Switches.SphereScale,
                 ShapeLod = ShapeLodOf(layer),
+                SmoothingScales = smoothing[layer],
                 NoDistanceLod = !Switches.DistanceLod,
                 NoFineDetail = !Switches.FineDetail,
                 DensityRemap = CloudLookTuning.DensityRemap,
@@ -511,7 +512,7 @@ namespace ReDefinition.Atmospheres
             material.SetVector(IdQ, new Vector4(Switches.WarpAmplitude > 0f ? Switches.WarpAmplitude : (float)NoiseModel.WarpAmplitudeScales,
                                                 Switches.WarpCell > 0f ? Switches.WarpCell : (float)NoiseModel.WarpCellScales, (float)NoiseModel.CurlAmplitudeScales,
                                                 (float)((flowTime / FlowLoopSeconds) % 1.0)));
-            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, 0f, 0f));
+            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, (float)HeapModel.PeriodScales, 0f));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
             material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? CloudLookTuning.BillowFine((float)NoiseModel.FineDetailWeight) : 0f,
@@ -519,7 +520,7 @@ namespace ReDefinition.Atmospheres
             // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top, the composite's sharpening).
             material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
             // CLOUDR1: the heap volume (x: it is built, y: bit 0 the march's spacing raises its mip level, bit 1 the heap is read at the lattice's true vertical scale, z: log2 of its voxels per noise scale like _NoiseT.w).
-            material.SetVector(IdHeapP, new Vector4(shapeHasHeap ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), ShapeVoxelsLog2(), ExtrasUsed ? 1f : 0f));
+            material.SetVector(IdHeapP, new Vector4(shapeHasHeap ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), (float)Math.Log(ShapeSize() / HeapModel.PeriodScales, 2.0), ExtrasUsed ? 1f : 0f));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);

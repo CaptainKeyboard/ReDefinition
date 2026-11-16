@@ -41,9 +41,9 @@ class HeapModelTests(unittest.TestCase):
     def test_trilinear_read_golden(self):
         pts = np.array([[1200.3, -800.7, 3400.1], [-5000.0, 2500.5, 17.9], [333.3, 444.4, 555.5]])
         got = nm.heap_value(self.levels, pts, 250.0, 1, 0.0)
-        self.assertTrue(np.allclose(got, [0.507010133615, 0.552574862745, 0.632325261581], atol=1e-9))
+        self.assertTrue(np.allclose(got, [0.247501074448, 0.734921386667, 0.944623093238], atol=1e-9))
         got = nm.heap_value(self.levels, pts, 250.0, 2, 1.5)
-        self.assertTrue(np.allclose(got, [0.268435270754, 0.267516915882, 0.244216577071], atol=1e-9))
+        self.assertTrue(np.allclose(got, [0.477072830918, 0.579381850784, 0.472325712712], atol=1e-9))
 
     def test_rank_uniform(self):
         field = self.levels[0][..., 0].ravel() / 255.0

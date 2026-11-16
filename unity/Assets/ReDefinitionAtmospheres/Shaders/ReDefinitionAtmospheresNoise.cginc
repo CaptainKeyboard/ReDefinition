@@ -32,7 +32,7 @@ sampler3D _NoiseLattice; // the untiling warp's lattice table around the viewer 
 float4 _NoiseL;          // the table: x cells per side, y 1 / that, z slices per layer's slab, w 1 / the slices of the texture
 float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w: the warp reads the lattice table (1) or hashes the corners of its cell (0) (layers.warpTable; the vertical scale of the lattice is per layer, _NoiseStretch.y)
 float4 _NoiseQ;          // warp amplitude, warp cell, curl amplitude (in noise scales), flow phase 0..1
-float4 _NoiseR;          // shape period, detail period (in noise scales)
+float4 _NoiseR;          // shape period, detail period, heap period (in noise scales)
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
 float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y flow looped (1) or one phase (0), z colour map strength, w rise of the detail in m
 
@@ -166,7 +166,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     // march's spacing, whichever is coarser: an octave of the cascade is dropped only where it is below the footprint (HeapVolumes mips hold the octaves a level can resolve).
     [branch] if (gHeapPreset > 0 && _HeapP.x > 0.5)
     {
-        float lodHeap = lodShape;
+        float lodHeap = max(0.0, log2(max(gNoiseSm, 1e-4)) + _HeapP.z);   // the smoothing in this volume's voxels per noise scale
         if (fmod(_HeapP.y, 2.0) > 0.5 && gNoiseFoot > 0) lodHeap = max(lodHeap, log2(max(gNoiseFoot / scale, 1e-4)) + _HeapP.z);
         // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
         // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
@@ -176,7 +176,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
             float rl = max(length(pc), 1.0);
             qh += (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
         }
-        float4 hv = tex3Dlod(_NoiseShape, float4(qh / (_NoiseR.x * scale), lodHeap));
+        float4 hv = tex3Dlod(_NoiseShape, float4(qh / (_NoiseR.z * scale), lodHeap));
         n = gHeapPreset == 1 ? hv.g : hv.b;
         gHeapCav = gHeapPreset == 1 ? hv.a : 1.0;   // the cavity of preset 2 is not on the GPU (one alpha channel)
     }

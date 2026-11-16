@@ -91,19 +91,20 @@ namespace ReDefinition.Tests
             double[][] points = { new[] { 1200.3, -800.7, 3400.1 }, new[] { -5000.0, 2500.5, 17.9 }, new[] { 333.3, 444.4, 555.5 } };
             double[,,] want =
             {
-                { { 0.507010133615, 0.552574862745, 0.632325261581 }, { 0.550623885145, 0.645916498676, 0.580031051524 } },
-                { { 0.504267251023, 0.187853524706, 0.186226906373 }, { 0.268435270754, 0.267516915882, 0.244216577071 } }
+                { { 0.247501074448, 0.734921386667, 0.944623093238 }, { 0.36111119299, 0.720852071765, 0.795775689946 } },
+                { { 0.573980043834, 0.476274898824, 0.847826347389 }, { 0.477072830918, 0.579381850784, 0.472325712712 } }
             };
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
             for (int preset = 1; preset <= 2; preset++)
                 for (int l = 0; l < 2; l++)
                 {
-                    prm.ShapeLod = l == 0 ? 0.0 : 1.5;
+                    // a smoothing of 2^1.5 / 2 noise scales is the mip level 1.5 of a 16-voxel volume (2 voxels per noise scale: the heap's period is 8 scales)
+                    prm.SmoothingScales = l == 0 ? 0.0 : Math.Pow(2.0, 1.5) / 2.0;
                     for (int p = 0; p < 3; p++)
                     {
                         double cavity;
                         double got = CloudShapeModel.HeapAt(Small, ref prm, preset, points[p][0], points[p][1], points[p][2], 0.0, out cavity);
-                        Assert.AreEqual(want[preset - 1, l, p], got, 1e-9, "preset " + preset + " lod " + prm.ShapeLod + " point " + p);
+                        Assert.AreEqual(want[preset - 1, l, p], got, 1e-9, "preset " + preset + " lod " + l + " point " + p);
                         Assert.IsTrue(cavity >= 0.0 && cavity <= 1.0);
                     }
                 }
@@ -116,13 +117,13 @@ namespace ReDefinition.Tests
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
             prm.HeapFootLod = true;
             double cav;
-            double foot = 250.0 * 2.0;   // two noise scales at N = 64: 2 * 64 / 16 = 8 voxels -> level 3
+            double foot = 250.0 * 2.0;   // two noise scales at N = 64 over a period of 8 scales: 2 * 64 / 8 = 16 voxels -> level 4
             double viaFoot = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, foot, out cav);
             prm.HeapFootLod = false;
-            prm.ShapeLod = Math.Log(foot / 250.0 * Medium.N / 16.0, 2.0);
+            prm.SmoothingScales = foot / 250.0;
             double viaLod = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
             Assert.AreEqual(viaLod, viaFoot, 1e-12);
-            prm.ShapeLod = 5.0;
+            prm.SmoothingScales = 5.0 * 8.0 / Medium.N * 4.0;   // 2.5 scales = 20 voxels: coarser than the footprint
             prm.HeapFootLod = true;
             double smoothWins = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, foot, out cav);
             prm.HeapFootLod = false;

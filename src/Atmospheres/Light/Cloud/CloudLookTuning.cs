@@ -131,6 +131,9 @@ namespace ReDefinition.Atmospheres
             changed |= Reread(DeckRuleByName, TuneDeckRule, -1f, -1f, 1f);
             changed |= Reread(DeckPrecipByName, TuneDeckPrecip, -1f, -1f, 1f);
             changed |= Reread(DeckFogByName, TuneDeckFog, -1f, -1f, 1f);
+            changed |= Reread(HeapByName, TuneHeapLayer, -1f, -1f, HeapModel.PresetCount);
+            changed |= Reread(EdgeByName, TuneEdgePowerLayer, 0f, 0f, 6f);
+            changed |= Reread(CavityByName, TuneCavityLayer, -1f, -1f, 1f);
             changed |= Reread(SigmaByName, TuneSigma + ".", 1f, 0.01f, 100f);
             changed |= Reread(SoftnessByName, TuneSoftness + ".", 1f, 0.01f, 100f);
             changed |= Reread(NoiseAmountByName, TuneNoiseAmount + ".", 1f, 0.01f, 100f);
@@ -251,6 +254,30 @@ namespace ReDefinition.Atmospheres
         internal static float FirstHitIterations { get { float v = Clean(Tuning.Get(TuneFirstHit, 0f), 0f, 0f, 8f); return (float)Math.Round(v); } }
         internal static float FirstHitThin { get { return Clean(Tuning.Get(TuneFirstHitThin, 0.25f), 0.25f, 0.02f, 1f); } }
         internal static float FirstHitGrow { get { return Clean(Tuning.Get(TuneFirstHitGrow, 4f), 4f, 0.1f, 50f); } }
+
+        // The same per layer (the layer's name after the prefix): the layer's own value wins over the global key, so a look can be tried on one layer (the cumulus layer) and the decks stay as they were.
+        internal const string TuneHeapLayer = "cloud.heap.layer.", TuneEdgePowerLayer = "cloud.edgePower.layer.", TuneCavityLayer = "cloud.cavity.layer.";
+        private static readonly Dictionary<string, float> HeapByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, float> EdgeByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, float> CavityByName = new Dictionary<string, float>(StringComparer.Ordinal);
+
+        internal static int HeapOverrideFor(string layerName)
+        {
+            float v = Named(HeapByName, TuneHeapLayer, layerName, -1f, -1f, HeapModel.PresetCount);
+            return v >= 0f ? (int)Math.Round(v) : HeapOverride;
+        }
+
+        internal static float EdgePowerOverrideFor(string layerName)
+        {
+            float v = Named(EdgeByName, TuneEdgePowerLayer, layerName, 0f, 0f, 6f);
+            return v > 0f ? v : EdgePowerOverride;
+        }
+
+        internal static float CavityOverrideFor(string layerName)
+        {
+            float v = Named(CavityByName, TuneCavityLayer, layerName, -1f, -1f, 1f);
+            return v >= 0f ? v : CavityOverride;
+        }
 
         internal static int HeapOverride { get { Refresh(); return (int)heapForce; } }
         internal static float EdgePowerOverride { get { Refresh(); return edgeForce; } }

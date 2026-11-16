@@ -331,7 +331,7 @@ namespace ReDefinition.Atmospheres
         internal float EffectiveWaterPowerOf(CloudTypeDef type)
         {
             if (!Soft) return 1f;
-            float forced = CloudLookTuning.EdgePowerOverride;
+            float forced = CloudLookTuning.EdgePowerOverrideFor(Name);
             if (forced > 0f) return forced;
             return type != null && type.EdgePower > 0f ? type.EdgePower : WaterPower;
         }
@@ -354,7 +354,7 @@ namespace ReDefinition.Atmospheres
                 Look();
                 long stamp = CloudCoverShift.Stamp;
                 // The key also holds the numbers a test may change after the first read (the types' data, the exponent).
-                double key = lookSigma + WaterPower * 7.0 + AnvilType * 17.3 + CloudLookTuning.EdgePowerOverride * 19.1;
+                double key = lookSigma + WaterPower * 7.0 + AnvilType * 17.3 + CloudLookTuning.EdgePowerOverrideFor(Name) * 19.1;
                 for (int i = 0; i < Types.Count; i++) key += Types[i].DensityScale * 3.1 + Types[i].BaseGain * 5.3 + Types[i].RiseShare * 11.7 + Types[i].Erosion * 13.9 + Types[i].EdgePower * 23.7;
                 if (closedStamp == stamp && closedKey == key) return closedValue;
                 double sum = 0.0;

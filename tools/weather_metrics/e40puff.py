@@ -136,27 +136,44 @@ RES = "seq1+lq2+r100+jit+acc8+clip1000+lp100"
 LIGHT = "seq1+lq2+clight+r33+lp100"
 MARCH_LABELS = {CEIL: "puff-ceil", STEPS: "puff-steps", RES: "puff-res", LIGHT: "puff-light"}
 
-HEAP1 = [("cloud.heap", 1.0)]
-EDGE = [("cloud.edgePower", 0.5)]
-CAV = [("cloud.cavity", 0.7)]
+# CLOUDR1: the heap, rim exponent and cavity on the cumulus layer only (the per-layer keys cloud.heap.layer.<name>, cloud.edgePower.layer.<name>, cloud.cavity.layer.<name>): the weather
+# decks and the cirrus keep their look, so a ground view inside a deck is not fogged. A (prefix, value) pair; the first hit is a march key and global.
+HEAP1 = [("cloud.heap.layer.", 1.0)]
+EDGE = [("cloud.edgePower.layer.", 0.5)]
+CAV = [("cloud.cavity.layer.", 0.7)]
 FIRSTHIT = [("cloud.firstHit", 3.0)]
+
+
+def tune_cumulus(pairs):
+    """Sets tuning keys: a key ending in a dot is a per-layer prefix and is set for the cumulus layer of the job (the layer whose name ends with cumulus), any other key globally."""
+    def f(job):
+        for k, v in pairs:
+            if k.endswith("."):
+                for layer in job.get("layers", []):
+                    if layer.get("name", "").endswith("cumulus"):
+                        job.setdefault("tuning", []).append({"key": k + layer["name"], "value": float(v)})
+            else:
+                job.setdefault("tuning", []).append({"key": k, "value": float(v)})
+    return f
 
 # name -> (what, the change of the job or None, the case of the march: None = the base's)
 VARIANTS = {
     "base": ("the replay as e40pp makes it", None, None),
     # --- CLOUDR1 (2026-11-16): the model packages P2 (heap volume), P1 (edge exponent), P3 (cavity), P6 (first hit) as the global tuning keys of CloudLookTuning; each also at the ceiling. ---
-    "p2": ("(P2) the heap volume, preset billow, for every type (cloud.heap 1)", tune_dotted(HEAP1), None),
-    "p2r": ("(P2) the heap volume, preset rough (cloud.heap 2)", tune_dotted([("cloud.heap", 2.0)]), None),
-    "p2p1": ("(P2 + P1) heap volume + the rim exponent 0.5 (cloud.edgePower)", tune_dotted(HEAP1 + EDGE), None),
-    "p2p1p3": ("(P2 + P1 + P3) + cavity 0.7", tune_dotted(HEAP1 + EDGE + CAV), None),
-    "p1": ("(P1) the rim exponent 0.5 alone", tune_dotted(EDGE), None),
-    "p6": ("(P6) first hit by bisection (3 evaluations) and thin steps inside", tune_dotted(FIRSTHIT), None),
-    "p2p1p3p6": ("(P2 + P1 + P3 + P6)", tune_dotted(HEAP1 + EDGE + CAV + FIRSTHIT), None),
+    "p2": ("(P2) the heap volume, preset billow, for every type (cloud.heap 1)", tune_cumulus(HEAP1), None),
+    "p2r": ("(P2) the heap volume, preset rough (cloud.heap 2)", tune_cumulus([("cloud.heap.layer.", 2.0)]), None),
+    "p2p1": ("(P2 + P1) heap volume + the rim exponent 0.5 (cloud.edgePower)", tune_cumulus(HEAP1 + EDGE), None),
+    "p2p1p3": ("(P2 + P1 + P3) + cavity 0.7", tune_cumulus(HEAP1 + EDGE + CAV), None),
+    "p1": ("(P1) the rim exponent 0.5 alone", tune_cumulus(EDGE), None),
+    "p6": ("(P6) first hit by bisection (3 evaluations) and thin steps inside", tune_cumulus(FIRSTHIT), None),
+    "p2p1p3p6": ("(P2 + P1 + P3 + P6)", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), None),
     "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),
+    "s_p2p1p3": ("(Phase 0 grid) P2 + P1 + P3 at the ceiling's grid, minimum step, no growth", tune_cumulus(HEAP1 + EDGE + CAV), STEPS),
+    "s_p2p1p3p6": ("(Phase 0 grid) P2 + P1 + P3 + P6 at the ceiling's grid", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), STEPS),
     "ceil": ("(ceiling) the model without the real-time compromises", v_nosmooth, CEIL),
-    "c_p2": ("(ceiling) P2", compose(v_nosmooth, tune_dotted(HEAP1)), CEIL),
-    "c_p2p1": ("(ceiling) P2 + P1", compose(v_nosmooth, tune_dotted(HEAP1 + EDGE)), CEIL),
-    "c_p2p1p3": ("(ceiling) P2 + P1 + P3", compose(v_nosmooth, tune_dotted(HEAP1 + EDGE + CAV)), CEIL),
+    "c_p2": ("(ceiling) P2", compose(v_nosmooth, tune_cumulus(HEAP1)), CEIL),
+    "c_p2p1": ("(ceiling) P2 + P1", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE)), CEIL),
+    "c_p2p1p3": ("(ceiling) P2 + P1 + P3", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV)), CEIL),
     "ero0": ("(a) no erosion (every type's erosion 0): what the erosion contributes now", v_ero0, None),
     "ero2": ("(a) the erosion of every type doubled", v_ero2, None),
     "contrast2": ("(a) the erosion detail's contrast about its mean doubled (cloud.billow.contrast 2)", tune_dotted([("cloud.billow.contrast", 2.0)]), None),

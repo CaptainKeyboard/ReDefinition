@@ -9,6 +9,9 @@ namespace ReDefinition.Atmospheres
     {
         // The cell counts per period of the octaves: FirstCells * 2^k (lacunarity 2, so the cascade is self-similar), up to the octave whose cell is MinOctaveVoxels voxels wide.
         internal const int FirstCells = 2;
+        // The period of the heap volume in noise scales: half the shape volume's (16), so its largest lobe is 4 scales (1 km at a scale of 250 m) and its finest cell, 4 voxels wide at 64 voxels,
+        // half a scale (125 m). A 2 km lobe (the largest cell at the shape volume's period) let the volume's own low frequencies decide where a km-wide patch is cloud: the weather map decides that.
+        internal const double PeriodScales = 8.0;
         internal const int MinOctaveVoxels = 4;
         // The dome radius round a feature point, in cells of the octave, and the width of the polynomial smooth maximum that joins the domes of neighbouring cells (a crease forms
         // between two lobes).

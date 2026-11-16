@@ -76,6 +76,9 @@ namespace ReDefinition.Atmospheres
         internal double SphereScale, ReferenceRadiusM;
         // E40 L6 shape: the mip level of the shape volume the layer reads (LayerNoise.SmoothingLod from the cfg key shapeSmoothing; 0: the volume itself, between two levels the two are blended).
         internal double ShapeLod;
+        // The type's smoothing in noise scales (CloudTypeDef.ShapeSmoothing, else the layer's) as the heap read takes it: the heap volume has its own voxels per noise scale, so the shape's mip level
+        // (ShapeLod) does not carry over. 0: none.
+        internal double SmoothingScales;
         // P18: the distance the detail has risen along the local up (m).
         internal double UpDistanceM;
         // The distance the whole pattern has been carried by the flow map (m); the lookup moves the other way.
@@ -218,12 +221,19 @@ namespace ReDefinition.Atmospheres
         // of the march's spacing footM (m): the level where the volume's voxel equals the spacing. cavity: the cavity channel there (1: none).
         internal static double HeapAt(HeapVolumeSet heap, ref NoiseLayerParams prm, int preset, double qx, double qy, double qz, double footM, out double cavity)
         {
-            double period = NoiseModel.ShapePeriodScales * prm.ScaleM;
+            double period = HeapModel.PeriodScales * prm.ScaleM;
             double ux = qx / period, uy = qy / period, uz = qz / period;
-            double lod = prm.ShapeLod;
+            // The mip level of the type's smoothing (in noise scales) and, with HeapFootLod, of the march's spacing, in this volume's voxels (N over PeriodScales per noise scale).
+            double lod = 0.0;
+            double voxelsPerScale = heap.N / HeapModel.PeriodScales;
+            if (prm.SmoothingScales > 0.0)
+            {
+                double v = prm.SmoothingScales * voxelsPerScale;
+                if (v > 1.0) lod = Math.Log(v, 2.0);
+            }
             if (prm.HeapFootLod && footM > 0.0 && prm.ScaleM > 0.0)
             {
-                double voxels = footM / prm.ScaleM * heap.N / NoiseModel.ShapePeriodScales;
+                double voxels = footM / prm.ScaleM * voxelsPerScale;
                 if (voxels > 1.0) lod = Math.Max(lod, Math.Log(voxels, 2.0));
             }
             lod = Math.Min(lod, heap.Levels.Length - 1);

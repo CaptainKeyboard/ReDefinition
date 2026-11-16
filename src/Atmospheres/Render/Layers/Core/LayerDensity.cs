@@ -59,21 +59,21 @@ namespace ReDefinition.Atmospheres
         // second type info texture holds.
         internal int HeapOfType(int type)
         {
-            int forced = CloudLookTuning.HeapOverride;
+            int forced = CloudLookTuning.HeapOverrideFor(layer.Name);
             return forced >= 0 ? forced : layer.Types[type].Heap;
         }
 
         internal float EdgeOfType(int type)
         {
             if (!layer.Soft) return 0f;
-            float forced = CloudLookTuning.EdgePowerOverride;
+            float forced = CloudLookTuning.EdgePowerOverrideFor(layer.Name);
             return forced > 0f ? forced : layer.Types[type].EdgePower;
         }
 
         internal float CavityOfType(int type)
         {
             if (HeapOfType(type) <= 0) return 0f;
-            float forced = CloudLookTuning.CavityOverride;
+            float forced = CloudLookTuning.CavityOverrideFor(layer.Name);
             return forced >= 0f ? forced : layer.Types[type].Cavity;
         }
 
