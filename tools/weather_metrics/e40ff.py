@@ -67,3 +67,19 @@ def collect_cost(ctx):
 # pass; N1 - N0 at 1707 x 960, one layer, quality 1 (8 steps, 4 taps), looking straight down: between 0.05 and 0.6 ms; the horizon view (half the pixels are sky) about half of it.
 register_series("e40-ffc", [Stage("cost", ["-mode", "scene", "-scene", "cloud-shadow-cost", "-shadownoise", "1"], size=(1280, 720), proxy=True, timeout=2400)],
                 collect_cost, exclusive=True, who="e40-ffc")
+
+
+def collect_consist(ctx):
+    """CONSIST: the shadow of a cumulus-like cloud without (lift0) and with (lift1) the types' LIFT, shader against the CPU twin; pictures shadow-consist-*.png."""
+    folder = ctx.folder("shadow")
+    metrics = [Metric.given(name, value, limit, verdict) for name, (value, limit, verdict) in ctx.player_metrics("shadow").items()]
+    pics = os.path.join(e40o.main_repo(), ".local", "work", "series-pictures", "E40")
+    os.makedirs(pics, exist_ok=True)
+    for name in sorted(os.listdir(folder)):
+        if name.endswith(".png") and "consist" in name:
+            shutil.copyfile(os.path.join(folder, name), os.path.join(pics, name))
+    return metrics
+
+
+register_series("e40-consist", [Stage("shadow", ["-mode", "scene", "-scene", "cloud-shadow", "-shadownoise", "2"], size=(1280, 720), proxy=False, timeout=1800)],
+                collect_consist, exclusive=False, who="e40-consist")

@@ -99,6 +99,32 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheTypesShapeSmoothingMovesTheShadowsShapeLikeThePass()
+        {
+            LayerTypeTable table;
+            CloudLayerDef layer = Layer(1f, 0f, out table);
+            layer.Types[0].Lift = null;
+            layer.Types[0].ShapeSmoothing = 3f;
+            table = new LayerTypeTable(layer);
+            LayerTypeTable sharp;
+            CloudLayerDef plainLayer = Layer(1f, 0f, out sharp);
+            plainLayer.Types[0].Lift = null;
+            sharp = new LayerTypeTable(plainLayer);
+            CloudShadowShapeNoise noise = Noise();
+            double smooth = 0.0, rough = 0.0, diff = 0.0;
+            for (int k = 0; k < 200; k++)
+            {
+                double x = 150.0 * k, y = 41.0 * k, z = 63.0 * k;
+                double a = noise.Share(0, layer, x, y, z, 0.62, table, 0.0, 0.5), b = noise.Share(0, plainLayer, x, y, z, 0.62, sharp, 0.0, 0.5);
+                diff += Math.Abs(a - b);
+                smooth += a;
+                rough += b;
+            }
+            Assert.IsTrue(diff > 1.0, "the smoothed shape differs from the unsmoothed one (" + diff + ")");
+            Assert.AreEqual(3.0, table.SmoothingOf(0.0), 1e-6);
+        }
+
+        [TestMethod]
         public void ALayerWithoutNoiseGetsTheLiftToo()
         {
             LayerTypeTable table;

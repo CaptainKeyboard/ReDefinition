@@ -106,7 +106,8 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
-            infoTexture = new Texture2D(CloudLayerDef.MaxTypes, CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
+            // MaxLayers rows of base, top, edge exponent, heap, then MaxLayers rows of the type's shapeSmoothing (x).
+            infoTexture = new Texture2D(CloudLayerDef.MaxTypes, 2 * CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
             {
                 name = "cloud shadow type info",
                 filterMode = FilterMode.Point,
@@ -145,7 +146,7 @@ namespace ReDefinition.Atmospheres
             layerCount = source.LayerCount;
             // Two channels a sample: the type's density profile (r) and its LIFT (g).
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 2];
-            var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers];
+            var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
             for (int l = 0; l < layerCount; l++)
             {
                 CloudLayerDef layer = source.LayerAt(l);
@@ -174,6 +175,7 @@ namespace ReDefinition.Atmospheres
                     int heap = table.HeapOfType(t);
                     if (heap > 0 && Noise != null) Noise.RequestHeap();
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), heap);
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, 0f);
                 }
             }
             profileTexture.SetPixelData(profile, 0);

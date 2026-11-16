@@ -7,8 +7,8 @@ namespace ReDefinition.Atmospheres
     // cfg, noise amount 1 at 500 m). With this switch on the shadow reads the same share: the shape noise alone, the way the pass's own light march reads it (no erosion:
     // gNoiseLod), from the same volume, scale, offsets and drift (LayerNoise), so that the shader's twin (ReDefinitionAtmospheresCloudShadow.shader includes
     // ReDefinitionAtmospheresNoise.cginc and calls NoiseShareNear) and this class are one definition. The types' height-shaped threshold (the LIFT of the cfg), the types'
-    // heap volumes (with the pass's blend) and their edgePower exponents are read as the pass reads them. Not mirrored: the flow map of a body that has one, the type's shapeSmoothing
-    // (the shape volume's mip), and the height maps' ragged boundary (HeightDensity resolves the type's local base and top as before).
+    // heap volumes (with the pass's blend), their edgePower exponents and their shapeSmoothing (the volume's mip) are read as the pass reads them. Not mirrored: the flow map of a body
+    // that has one, and the height maps' ragged boundary (HeightDensity resolves the type's local base and top as before).
     //
     // The switch is the tuning key shadow.shapeNoise (OwnCloudOptions.ShadowShapeNoise): 1 reads the noise, 0 the map alone (the shadow before E40 FL-FIX).
     internal sealed class CloudShadowShapeNoise
@@ -86,6 +86,12 @@ namespace ReDefinition.Atmospheres
             double wz = worldToMap[2] * x + worldToMap[5] * y + worldToMap[8] * z;
             NoiseLayerParams prm = layerParams[layerIndex];
             prm.HeapPreset = table == null ? 0 : table.HeapAtTypeValue(typeValue);
+            // The type's shapeSmoothing: the mip of the shape volume and the heap read, as the shader's gNoiseSm (the type info's second block) and CloudCoverOracle take it.
+            if (table != null)
+            {
+                prm.SmoothingScales = table.SmoothingOf(typeValue);
+                prm.ShapeLod = CloudShapeModel.SmoothingLod(prm.SmoothingScales, volumes.ShapeN);
+            }
             double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, layer.ClearSkyMap(cov) - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
             return CloudWater.Pow(share, table == null ? layer.EffectiveWaterPower : layer.EffectiveWaterPowerAt(table, typeValue));
         }
