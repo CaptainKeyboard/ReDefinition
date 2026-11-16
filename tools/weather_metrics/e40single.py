@@ -8,8 +8,8 @@ The job is the cumulus layer of the game-start-64 view `tyhumg` (its type table,
 no height variation (the flat base the photograph has), the cover map is one soft disc of the cell's diameter and the type map is one constant (mediocris 128, congestus 191 over the
 layer's five types). The map is finer than the game's (4096 x 2048: a texel of 0.9 km; the game's 512 x 256 texel is 7.4 km, wider than the cell). The layer's coverage threshold is 0.5
 (0.35 in the product) so that the disc's core is solid; the edge of the disc is ragged by the shape noise. The camera stands 30 m over the sea at the stated distance behind the cell, looking at
-it along the ground, pitched so that the horizon lies at 96.5 % of the frame's height as in the photograph, with the vertical field of view of `FOV`; the sun stands 45 degrees to the left of the
-view direction at an elevation of 25 degrees. Below the horizon the picture holds a plain sea, above it a plain blue gradient: only the cloud is rendered.
+it along the ground, pitched so that the horizon lies at 96.5 % of the frame's height as in the photograph, with the vertical field of view of `FOV`; the sun stands behind the camera, 45 degrees to its left (135 degrees from the view direction), at an
+elevation of 25 degrees (front light, as in the photograph); the cells ending in b have the sun ahead to the left (45 degrees from the view direction: back light). Below the horizon the picture holds a plain sea, above it a plain blue gradient: only the cloud is rendered.
 
 Several cells (seeds of the shape noise) and distances are rendered, and all are reported: none is picked for its look. The pictures are the frames at their native size and, next to the
 photograph, 900 x 600 windows at 1:1 of the heads (the top of the cloud), the base and the rim.
@@ -42,9 +42,10 @@ SIZE = puff.SIZE
 FOV = 42.0               # the vertical field of view of the camera, degrees
 CAMERA_ALT = 30.0        # m over the sea
 HORIZON_AT = 0.965       # the horizon's height in the frame, from the top, as in the photograph
-SUN_AZIMUTH = 45.0       # degrees to the left of the view direction
+SUN_AZIMUTH = 135.0      # degrees to the left of the view direction, measured from the direction towards the cloud: 135 = behind the camera to the left (front light, the photograph); 45 = ahead to the left (back light)
 SUN_ELEVATION = 25.0
 COVERAGE = 0.5
+CUMULUS_BASE = 600.0     # m over the sea (1700 in the product's layer); bench only
 MAP_W, MAP_H = 4096, 2048
 TYPE_BYTE = {"m": 128, "c": 191}   # the type axis over the cumulus layer's five types: 0.5 = mediocris, 0.75 = congestus
 
@@ -53,8 +54,10 @@ SCENES = {
     "m1d6": ("m", 1, 6.0, 5.5), "m2d6": ("m", 2, 6.0, 5.5), "m3d6": ("m", 3, 6.0, 5.5),
     "m1d54": ("m", 1, 5.4, 5.5), "m1d8": ("m", 1, 8.0, 5.5),
     "c1d11": ("c", 1, 11.0, 6.0), "c2d11": ("c", 2, 11.0, 6.0), "c3d11": ("c", 3, 11.0, 6.0),
+    # the same cells with the sun ahead to the left (back light), for the comparison with the front light
+    "m1d6b": ("m", 1, 6.0, 5.5, 45.0), "m2d6b": ("m", 2, 6.0, 5.5, 45.0),
 }
-CEILING_SCENES = ("m1d6", "m2d6", "m3d6", "c1d11")
+CEILING_SCENES = ("m1d6", "m2d6", "m3d6", "c1d11", "m1d6b")
 
 # look -> (change of the job or None, march). New packages add their looks here.
 HEAP = puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35)
@@ -63,7 +66,19 @@ LOOKS = {
     "heap": (HEAP, puff.NG96),
     "ceilb": (puff.v_nosmooth, puff.CEIL),
     "ceil": (puff.compose(puff.v_nosmooth, HEAP), puff.CEIL),
+    # the artifact diagnosis (bright ellipses, holes): one factor of the heap look taken away at a time, at the production march with 96 grid points
+    "h_nocav": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE), puff.NG96),
+    "h_noedge": (puff.tune_cumulus(puff.HEAP1 + puff.CAV35), puff.NG96),
+    "h_w0": (puff.compose(HEAP, lambda job: job.setdefault("noise", {}).__setitem__("noUntile", 1)), puff.NG96),
+    "h_wL": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.heap.warp", -1.0)]), puff.NG96),
+    # CLOUDR2 P2: the GPU tile blend (cloud.noise.blend) instead of the untiling displacement, on the heap look and on the shape volume alone
+    "blend": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), puff.NG96),
+    "blendb": (puff.tune_cumulus([("cloud.noise.blend", 1.0)]), e40pp.MARCH),
+    "blendc": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.CEIL),
+    "h_nolod": (puff.compose(HEAP, lambda job: job.setdefault("noise", {}).__setitem__("noLod", 1)), puff.NG96),
+    "h_ero0": (puff.compose(HEAP, puff.v_ero0), puff.NG96),
 }
+LOOK_SCENES = {"blendb": ("m1d6", "m2d6", "m3d6"), "blendc": ("m1d6", "m2d6", "m3d6", "c1d11"),"h_nocav": ("m1d6", "m2d6"), "h_noedge": ("m1d6", "m2d6"), "h_w0": ("m1d6", "m2d6"), "h_wL": ("m1d6", "m2d6"), "h_nolod": ("m1d6", "m2d6"), "h_ero0": ("m1d6", "m2d6")}
 
 
 def unit(v):
@@ -116,8 +131,8 @@ def camera_for(base, distance_km):
     return (pos_dir * (r + CAMERA_ALT), forward, up, right), (c0, heading, np.cross(heading, c0))
 
 
-def sun_vector(c0, heading, left):
-    az, el = np.radians(SUN_AZIMUTH), np.radians(SUN_ELEVATION)
+def sun_vector(c0, heading, left, azimuth=None):
+    az, el = np.radians(SUN_AZIMUTH if azimuth is None else azimuth), np.radians(SUN_ELEVATION)
     return np.cos(el) * (np.cos(az) * heading + np.sin(az) * left) + np.sin(el) * c0
 
 
@@ -141,11 +156,13 @@ def prepare(source=None, map_width=MAP_W):
     cumulus = next(l for l in base["layers"] if l["name"].endswith("cumulus"))
     tint = [float(x) for x in e40v1.tint_of(dict(elev=SUN_ELEVATION))]
     jobs, specs, stages = [], [], {}
-    for scene, (typ, seed, dist, diam) in SCENES.items():
+    for scene, (typ, seed, dist, diam, *az) in SCENES.items():
         cam, (c0, heading, left) = camera_for(base, dist)
-        sun = sun_vector(c0, heading, left)
+        sun = sun_vector(c0, heading, left, az[0] if az else None)
         for look, (change, march) in LOOKS.items():
             if look.startswith("ceil") and scene not in CEILING_SCENES:
+                continue
+            if look in LOOK_SCENES and scene not in LOOK_SCENES[look]:
                 continue
             name = "s_%s_%s" % (scene, look)
             tag = e40pp.view_tag(name)
@@ -155,6 +172,9 @@ def prepare(source=None, map_width=MAP_W):
             job["mapWidth"], job["mapHeight"] = MAP_W, MAP_H
             layer = json.loads(json.dumps(cumulus))
             layer["coverage"] = COVERAGE
+            # the bench's base: the layer lowered as a whole (its thickness stays) so that the cloud's base stands just above the horizon as in the photograph
+            layer["outer"] = CUMULUS_BASE + (layer["outer"] - layer["inner"])
+            layer["inner"] = CUMULUS_BASE
             layer["coverageMap"] = "single-cover-d%g.r8" % diam
             layer["typeMap"] = "single-type-%s.r8" % typ
             for key in ("heightMap", "heightWidth", "heightHeight", "heightRoot", "heightTop", "heightVariation", "heightSeed"):
@@ -193,7 +213,10 @@ def label_of(march):
 
 def stage_list():
     by_march = {}
+    only = [s for s in os.environ.get("ATMO_SINGLE_LOOKS", "").split(",") if s]   # e.g. h_nocav,h_w0: render only these looks
     for name, st in prepared().items():
+        if only and st["variant"] not in only:
+            continue
         by_march.setdefault(st["march"], []).append(name)
     out = []
     for march, names in sorted(by_march.items()):
@@ -278,7 +301,8 @@ def write_all(out, photo=None):
         m = e40ty.load_lum(folder, case)
         job = jobs["gn-%s-prod-f0" % e40pp.view_tag(name)]
         h, w = m.shape[:2]
-        img = e40pp.compose(m, backdrop(job, w, h), st)
+        # the stage's white is the display value of a sunlit white cloud in the game's frame (0.58): the game's own post stage lifts it; the bench divides it out so that a sunlit white reads as 1
+        img = np.clip(e40pp.compose(m, backdrop(job, w, h) * st["white"], st) / st["white"], 0.0, 1.0)
         alpha = np.asarray(m[..., 3], dtype=np.float32)
         win = windows(alpha)
         pic = (np.clip(img, 0, 1) * 255).astype("uint8")
@@ -304,6 +328,54 @@ def collect(ctx):
 register_series("e40-single", stage_list(), collect, exclusive=False, who="e40-single")
 
 
+# ---------------------------------------------------------------------------------------------------------------------------------
+# The light's components (aid picture 4 of the march: the direct light, the ambient light, the alpha), one frame per job, at the product's march
+# ---------------------------------------------------------------------------------------------------------------------------------
+AID_IN = INPUT + "-aid"
+AID_NAMES = ("s_m1d6_base", "s_m1d6_heap", "s_m1d6b_base", "s_m2d6_base")
+
+
+def prepare_aid():
+    import shutil
+    stages = prepared()
+    with open(os.path.join(INPUT, "jobs.json"), encoding="utf-8") as f:
+        jobs = {j["id"]: j for j in json.load(f)["jobs"]}
+    os.makedirs(AID_IN, exist_ok=True)
+    for fn in os.listdir(INPUT):
+        if fn.endswith(".r8"):
+            shutil.copyfile(os.path.join(INPUT, fn), os.path.join(AID_IN, fn))
+    out = []
+    for name in AID_NAMES:
+        job = json.loads(json.dumps(jobs["gn-%s-prod-f0" % e40pp.view_tag(name)]))
+        job["id"] = "aid-" + name
+        job["mode"], job["aid"] = "lum", 4
+        out.append(job)
+    with open(os.path.join(AID_IN, "jobs.json"), "w", encoding="utf-8") as f:
+        json.dump({"jobs": out}, f)
+
+
+def aid_stage_list():
+    return [Stage("single-aid", ["-mode", "scene", "-scene", "layers", "-in", AID_IN, "-width", str(SIZE[0]), "-height", str(SIZE[1])], size=SIZE, proxy=False, timeout=1800)] if os.path.isdir(AID_IN) else []
+
+
+def collect_aid(ctx):
+    folder = ctx.folder("single-aid")
+    lines = ["%-16s %-8s %8s %8s %8s %8s" % ("job", "part", "p5", "p50", "p95", "p95/p5")]
+    for name in AID_NAMES:
+        def plane(k):
+            return np.load(os.path.join(folder, "aid-%s-%s.npy" % (name, k))).astype(np.float64)
+        a, d, amb = plane("a"), plane("r"), plane("b")
+        sel = a > 0.95
+        for part, v in (("direct", d), ("ambient", amb), ("sum", d + amb)):
+            p = np.percentile(v[sel] / a[sel], [5, 50, 95])
+            lines.append("%-16s %-8s %8.3f %8.3f %8.3f %8.1f" % (name, part, p[0], p[1], p[2], p[2] / max(p[0], 1e-6)))
+    print("\n".join(lines))
+    return [Metric.info("e40single.aid.jobs", float(len(AID_NAMES)))]
+
+
+register_series("e40-single-aid", aid_stage_list(), collect_aid, exclusive=False, who="e40-single")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--prepare", action="store_true")
@@ -315,6 +387,7 @@ def main():
     a = p.parse_args()
     if a.prepare:
         prepare(a.source, a.map_width)
+        prepare_aid()
     if a.pictures:
         if a.root:
             os.environ["ATMO_WP_ROOT"] = a.root

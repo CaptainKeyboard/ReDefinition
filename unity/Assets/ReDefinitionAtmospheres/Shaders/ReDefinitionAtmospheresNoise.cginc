@@ -49,6 +49,7 @@ float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its 
 float4 _BillowP;         // billow detail (package PUFF; all 0 = the model as it was): x the billow shading of the direct light (the march scales a sample's direct light by 1 + 2 x (d - mean), d the erosion detail's value there: the bumps catch the light, the crevices between them are shaded; 0: off), y the detail's contrast about
                          // its mean minus 1 (d' = mean + (d - mean) (1 + y)), z the erosion's gain toward the cloud's top (erosion (1 + z h), h the height in the cloud 0..1), w the composite's sharpening 0..1
 
+float4 _BlendP;          // CLOUDR1: x the macro shape (shape and heap volume) hides its tiling by blending instead of the untiling displacement (cloud.noise.blend; 0: the displacement), y the exponent of the blend weights, z the lattice cell in periods
 float4 _HeapP;           // CLOUDR1: x the heap volume is built (0: every type reads the shape volume), y bit 0 the march's spacing raises the heap's mip level (cloud.heap.footLod), bit 1 the heap is read at the lattice's true vertical scale (cloud.heap.iso), z log2 of the heap's voxels per noise scale, w a type has a heap, an edge exponent or a cavity (0: the type info 2 is not read)
 
 // The heap preset (1, 2; 0: the shape volume) of the type at the last point LayerDensity was asked for, and the cavity channel and strength there (the march copies them right after its own density read).
@@ -148,6 +149,69 @@ float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
     return q;
 }
 
+// ---- tiling hidden without distortion (CLOUDR1, moved into the shader by CLOUDR2 P2; Heitz and Neyret, "High-Performance By-Example Noise using a Histogram-Preserving Blending Operator", HPG 2018, and
+// Deliot and Heitz, "Procedural Stochastic Textures by Tiling and Blending", GPU Zen 2019: the method, here in 3D) ----
+// The lookup point is not displaced: a cubic lattice of cells of _BlendP.z periods, each lattice point with a random offset of the volume (a translation, so the local strain is exactly 1), and the
+// four corners of the Kuhn tetrahedron around the point are read at their own offsets and rotations. The reads are turned into Gaussians (the volumes are rank-uniform), blended with the weights w^e normalised
+// to keep the variance, and turned back into a rank, so the result is uniform again (the cover meaning holds) and the volume's tile is not repeated. The probit and the normal distribution use the
+// approximations of Abramowitz and Stegun (26.2.23, 26.2.17).
+float NzProbit(float p)
+{
+    p = clamp(p, 0.002, 0.998);
+    float t = sqrt(-2.0 * log(min(p, 1.0 - p)));
+    float x = t - (2.515517 + 0.802853 * t + 0.010328 * t * t) / (1.0 + 1.432788 * t + 0.189269 * t * t + 0.001308 * t * t * t);
+    return p < 0.5 ? -x : x;
+}
+
+float NzCdf(float x)
+{
+    float t = 1.0 / (1.0 + 0.2316419 * abs(x));
+    float p = 0.3989423 * exp(-0.5 * x * x) * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+    return x > 0.0 ? 1.0 - p : p;
+}
+
+// The blended rank (x) and cavity (y) of the macro shape at the undisplaced lookup point qu: ch 0 the shape volume's red channel, 1 and 2 the heap presets (green, blue; the cavity of preset 1 in alpha).
+float2 NoiseBlend(int li, float3 qu, float periodM, float lod, int ch)
+{
+    float3 u = qu / (periodM * _BlendP.z);
+    float3 fl = floor(u);
+    float3 f = u - fl;
+    int3 i0 = (int3)fl;
+    int3 o1, o2;
+    if (f.x >= f.y)
+    {
+        if (f.y >= f.z) { o1 = int3(1, 0, 0); o2 = int3(1, 1, 0); }
+        else if (f.x >= f.z) { o1 = int3(1, 0, 0); o2 = int3(1, 0, 1); }
+        else { o1 = int3(0, 0, 1); o2 = int3(1, 0, 1); }
+    }
+    else
+    {
+        if (f.y < f.z) { o1 = int3(0, 0, 1); o2 = int3(0, 1, 1); }
+        else if (f.x < f.z) { o1 = int3(0, 1, 0); o2 = int3(0, 1, 1); }
+        else { o1 = int3(0, 1, 0); o2 = int3(1, 1, 0); }
+    }
+    float s0 = max(f.x, max(f.y, f.z)), s2 = min(f.x, min(f.y, f.z)), s1 = f.x + f.y + f.z - s0 - s2;
+    float4 w = pow(max(float4(1.0 - s0, s0 - s1, s1 - s2, s2), 0.0), _BlendP.y);
+    float norm = rsqrt(max(dot(w, w), 1e-12)), wsum = max(w.x + w.y + w.z + w.w, 1e-12);
+    uint seed = (uint)_NoiseOffset[li].w + 5003u;
+    float g = 0.0, cav = 0.0;
+    [loop] for (int k = 0; k < 4; k++)
+    {
+        int3 iv = i0 + (k == 0 ? int3(0, 0, 0) : (k == 1 ? o1 : (k == 2 ? o2 : int3(1, 1, 1))));
+        uint hv = NzHash(iv, seed);
+        float3 off = NzVec(hv) * periodM;
+        // The volume is read rotated by one of the 48 axis permutations and sign flips of the cube (a symmetry of its statistics), so the elongation of its big lobes does not repeat either.
+        uint pr = NzLow(hv ^ 0x1234567u) % 6u, sb = NzLow(hv ^ 0x7654321u);
+        float3 xr = pr == 0u ? qu : (pr == 1u ? qu.xzy : (pr == 2u ? qu.yxz : (pr == 3u ? qu.yzx : (pr == 4u ? qu.zxy : qu.zyx))));
+        xr *= float3((sb & 1u) != 0u ? -1.0 : 1.0, (sb & 2u) != 0u ? -1.0 : 1.0, (sb & 4u) != 0u ? -1.0 : 1.0);
+        float4 t = tex3Dlod(_NoiseShape, float4((xr + off) / periodM, lod));
+        float v = ch == 0 ? t.r : (ch == 1 ? t.g : t.b);
+        g += w[k] * NzProbit(v);
+        cav += w[k] * (ch == 1 ? t.a : 1.0);
+    }
+    return float2(NzCdf(g * norm), cav / wsum);
+}
+
 // The detail at a lookup point; freq 1 the first read, _NoiseT.y the fine octave (the volume's offset decorrelates it).
 float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 {
@@ -167,29 +231,49 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     float n;
     // CLOUDR1 P2: a type with a heap preset reads the macro shape from the heap volume (rank-uniform like the shape volume, so the cover meaning holds). The mip level is the type's smoothing or the
     // march's spacing, whichever is coarser: an octave of the cascade is dropped only where it is below the footprint (HeapVolumes mips hold the octaves a level can resolve).
-    [branch] if (gHeapPreset > 0 && _HeapP.x > 0.5)
+    bool isHeap = gHeapPreset > 0 && _HeapP.x > 0.5;
+    float3 qh = q, qb = q - gNoiseWarp;   // the point the heap is read at (displaced), the undisplaced point the blend takes
+    float lodUse = lodShape, periodUse = _NoiseR.x * scale;
+    int chUse = 0;
+    [branch] if (isHeap)
     {
         float lodHeap = max(0.0, log2(max(gNoiseSm, 1e-4)) + _HeapP.z);   // the smoothing in this volume's voxels per noise scale
         if (fmod(_HeapP.y, 2.0) > 0.5 && gNoiseFoot > 0) lodHeap = max(lodHeap, log2(max(gNoiseFoot / scale, 1e-4)) + _HeapP.z);
         // The levels below 8 voxels are box means that are not rank-uniform (the last is a constant 0.5: a cloud or none), the far view's mean takes over beyond them.
         lodHeap = min(lodHeap, _HeapP.z);
-        // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
-        // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
         // The untiling displacement stretches what it moves: its radial part would draw the heaps as columns, and all of it as worms. The heap lookup drops the radial part and keeps a share
-        // of the horizontal part, which is enough to break the repetition of its small tile (the NumPy and C# twins: HeapLookup).
+        // of the horizontal part (the NumPy and C# twins: HeapLookup); with the blend (cloud.noise.blend) the point is not displaced at all.
         float3 upw = pc / max(length(pc), 1.0);
         float3 wh = gNoiseWarp - upw * dot(gNoiseWarp, upw);
-        float3 qh = _NoiseR.w < 0.0 ? q : q - gNoiseWarp + wh * _NoiseR.w;   // _NoiseR.w < 0: the whole displacement (cloud.heap.warp -1, the lookup the shape volume has)
+        if (_NoiseR.w >= 0.0) qh = q - gNoiseWarp + wh * _NoiseR.w;   // _NoiseR.w < 0: the whole displacement (cloud.heap.warp -1, the lookup the shape volume has)
+        // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
+        // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
         if (_HeapP.y > 1.5)
         {
             float rl = max(length(pc), 1.0);
-            qh += (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
+            float3 isoAdd = (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
+            qh += isoAdd;
+            qb += isoAdd;
         }
-        float4 hv = tex3Dlod(_NoiseShape, float4(qh / (_NoiseR.z * scale), lodHeap));
-        n = gHeapPreset == 1 ? hv.g : hv.b;
-        gHeapCav = gHeapPreset == 1 ? hv.a : 1.0;   // the cavity of preset 2 is not on the GPU (one alpha channel)
+        lodUse = lodHeap;
+        periodUse = _NoiseR.z * scale;
+        chUse = gHeapPreset;
     }
-    else n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), lodShape)).r;
+    // CLOUDR2 P2: the macro shape (shape or heap volume) reads at ONE place; with cloud.noise.blend its taps are a loop over the Kuhn tetrahedron's corners (NoiseBlend: the lookup point is not
+    // displaced, strain 1, the tile not repeated); the compile budget P4 freed is what pays for it.
+    [branch] if (_BlendP.x > 0.5)
+    {
+        float2 bl = NoiseBlend(li, qb, periodUse, lodUse, chUse);
+        n = bl.x;
+        if (isHeap) gHeapCav = chUse == 1 ? bl.y : 1.0;
+    }
+    else if (isHeap)
+    {
+        float4 hv = tex3Dlod(_NoiseShape, float4(qh / periodUse, lodUse));
+        n = chUse == 1 ? hv.g : hv.b;
+        gHeapCav = chUse == 1 ? hv.a : 1.0;   // the cavity of preset 2 is not on the GPU (one alpha channel)
+    }
+    else n = tex3Dlod(_NoiseShape, float4(q / periodUse, lodShape)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
     // _NoiseT.z (layers.densityRemap, default 0): the erosion also thins the interior of a closed deck; 0 leaves the interior at the share 1.
     if (s <= 0 || erosion <= 0 || light != 0) return s;
