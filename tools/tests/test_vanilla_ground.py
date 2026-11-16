@@ -415,6 +415,36 @@ class BisectVariantTests(Base):
         self.assertEqual(manifest(self.ksp), self.before)
 
 
+class HoverVariantTests(Base):
+    def test_hover_variants_run_restore_and_write_the_height(self):
+        for variant, metres, vanilla in (("ours-hover", 300, False), ("vanilla-hover", 300, True), ("ours-hover-lowfly", 60, False)):
+            with self.subTest(variant=variant):
+                result = self.run_variant(variant)
+                self.assertTrue(result["ok"], (variant, result))
+                self.assertIn("hoverFarM=%d" % metres, self.seen["config"])
+                self.assertIn("variant=%s\n" % variant, self.seen["config"])
+                self.assertEqual(self.seen["redef"], not vanilla)
+                self.assertEqual(self.seen["dxgi"], not vanilla)
+                self.assertTrue(result["pictures"].endswith(variant))
+                self.assertEqual(manifest(self.ksp), self.before, variant)
+
+    def test_plain_variants_hold_no_vessel(self):
+        self.run_variant("ours")
+        self.assertIn("hoverFarM=0\n", self.seen["config"])
+
+    def test_hover_m_lifts_any_variant_and_labels_its_folder(self):
+        result = self.run_variant("no-proxy", hover_m=300)
+        self.assertIn("hoverFarM=300", self.seen["config"])
+        self.assertIn("variant=no-proxy+hover300", self.seen["config"])
+        self.assertTrue(result["pictures"].endswith("no-proxy+hover300"))
+        self.assertEqual(manifest(self.ksp), self.before)
+
+    def test_a_hover_variant_is_vanilla_or_ours_by_its_name(self):
+        self.assertTrue(vg.is_vanilla("vanilla-hover"))
+        self.assertFalse(vg.is_vanilla("ours-hover"))
+        self.assertEqual(vg.component_problems("ours-hover", self.tmp), ["assemblies.txt is missing: what loaded is unknown"])
+
+
 class BisectCommandTests(Base):
     def setUp(self):
         super().setUp()
@@ -432,16 +462,17 @@ class BisectCommandTests(Base):
     def put(self, variant, green):
         write(os.path.join(self.base, variant, "shots", "results.tsv"), self.header + "far_p2\tflight\t90\t100\t80\t%s\tok\nsc_default\tspacecentre\t1\t2\t3\t4\tok\n" % green)
 
-    def fake_run(self, ksp, variant, profile="medium", timeout_min=20, extra_args=None, keep_eve=False):
-        self.runs.append(variant)
+    def fake_run(self, ksp, variant, profile="medium", timeout_min=20, extra_args=None, keep_eve=False, hover_m=None):
+        label = variant if hover_m is None or variant in vg.HOVER_M else "%s+hover%g" % (variant, hover_m)
+        self.runs.append(label)
         if variant in self.greens and self.greens[variant] is None:
             return 1, {"pictures": None}
-        self.put(variant, self.greens.get(variant, 5.0))
-        return 0, {"pictures": os.path.join(self.base, variant)}
+        self.put(label, self.greens.get(variant, 5.0))
+        return 0, {"pictures": os.path.join(self.base, label)}
 
     def args(self, **kw):
         import argparse
-        d = dict(ksp=self.ksp, profile="medium", keep_eve=False, timeout_min=20, extra_arg=[], variants=None, keep_going=False)
+        d = dict(ksp=self.ksp, profile="medium", keep_eve=False, timeout_min=20, extra_arg=[], variants=None, keep_going=False, hover_m=None)
         d.update(kw)
         return argparse.Namespace(**d)
 
@@ -491,6 +522,27 @@ class BisectCommandTests(Base):
         self.assertFalse(vg.is_green_again(float("nan"), 20.0, 5.0))
         self.assertTrue(vg.is_green_again(-1.0, 3.0, -10.0))
         self.assertFalse(vg.is_green_again(-9.0, 3.0, -10.0))
+
+    def test_hover_bisect_uses_the_hover_references_and_labels(self):
+        self.put("vanilla-hover", 20.0)
+        self.put("ours-hover", 5.0)
+        self.greens = {"no-proxy": 19.0}
+        self.assertEqual(vg.cmd_bisect(self.args(hover_m=300.0, variants="no-proxy")), 0)
+        self.assertEqual(self.runs, ["no-proxy+hover300"])
+
+    def test_hover_bisect_runs_the_missing_reference_first_and_refuses_other_heights(self):
+        self.put("vanilla-hover", 20.0)
+        self.greens = {"ours-hover": 5.0}
+        vg.cmd_bisect(self.args(hover_m=300.0, variants="no-proxy"))
+        self.assertEqual(self.runs, ["ours-hover", "no-proxy+hover300"])
+        self.assertEqual(vg.cmd_bisect(self.args(hover_m=100.0)), 2)
+
+    def test_the_table_lists_the_hover_runs_in_its_order(self):
+        for v, g in (("vanilla", 20.0), ("ours", 5.0), ("ours-hover", 4.0), ("vanilla-hover", 6.0), ("no-proxy+hover300", 5.0)):
+            self.put(v, g)
+        text = vg.bisect_table(self.main, ["no-proxy+hover300"])
+        order = [l.split()[0] for l in text.splitlines()[1:]]
+        self.assertEqual(order, ["ours", "ours-hover", "vanilla", "vanilla-hover", "no-proxy+hover300"])
 
     def test_the_table_lists_variant_and_ground(self):
         self.put("vanilla", 20.0)

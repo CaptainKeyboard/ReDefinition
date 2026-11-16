@@ -94,11 +94,12 @@ namespace ProbeLite
                     case "spaceCentre": SpaceCentre = value == "1" || value == "true"; break;
                     case "flight": Flight = value == "1" || value == "true"; break;
                     case "watchdogS": if (isNumber) WatchdogS = d; break;
+                    case "hoverFarM": if (isNumber) Hover.FarAglM = d; break;
                     case "padLat": if (isNumber) PadLat = d; break;
                     case "padLon": if (isNumber) PadLon = d; break;
                 }
             }
-            Say("config: variant " + Variant + ", save " + SaveFolder + ", UT " + F(Ut) + ", space centre " + SpaceCentre + ", flight " + Flight);
+            Say("config: variant " + Variant + ", save " + SaveFolder + ", UT " + F(Ut) + ", space centre " + SpaceCentre + ", flight " + Flight + ", hover " + (Hover.Enabled ? F(Hover.FarAglM) + " m for the far poses" : "off"));
         }
 
         // Which assemblies the game loaded: proof of what ran. A line per assembly whose name starts with ReDefinition is also a log line.

@@ -142,9 +142,24 @@ namespace ProbeLite
             StartCoroutine(Lite.Safe(Run(), "flight"));
         }
 
+        private void Update()
+        {
+            Hover.Tick();
+        }
+
+        private void FixedUpdate()
+        {
+            Hover.FixedTick();
+        }
+
         private void LateUpdate()
         {
             if (Rig.Current != null && !Rig.Current.SpaceCentre) Rig.Apply();
+        }
+
+        private void OnDestroy()
+        {
+            Hover.Stop();
         }
 
         private static bool Ready()
@@ -200,6 +215,14 @@ namespace ProbeLite
                     pose.AbsAltM = Shots.LastUnder.AltAsl + 2.0;
                 }
                 Rig.Current = pose;
+                if (Hover.Enabled)
+                {
+                    // The vessel is put at the pose's height over the pad and held, as K-S2's viewer does; the picture waits until the hold is anchored and still.
+                    Hover.Place(Hover.AglFor(pose));
+                    float placed = Time.realtimeSinceStartup;
+                    while (!Hover.Stable && Time.realtimeSinceStartup - placed < 25f) yield return null;
+                    if (!Hover.Stable) Lite.Warn(pose.Name + ": the hold was not stable after 25 s");
+                }
                 foreach (object step in Shots.Take(pose.Name, pose, "flight", first ? Lite.SceneSettleMinS : Lite.MinSettleS, first ? Lite.SceneSettleMaxS : Lite.MaxSettleS)) yield return step;
                 first = false;
                 taken++;

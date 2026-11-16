@@ -7,6 +7,10 @@ once with ours in place, taken by the same small plugin (tools/ProbeLite) at the
   python tools/vanilla_ground.py bisect  [--variants a,b,..] [--keep-going]   (runs the variants that remove ONE component of ours, likeliest first)
   python tools/vanilla_ground.py restore [--ksp <KSP folder>]
   python tools/vanilla_ground.py compare [--vanilla vanilla|vanilla-original]
+  python tools/vanilla_ground.py table                                          (every run's far_p2 ground: ours, ours-hover, vanilla, vanilla-hover, ...)
+
+Hover variants (ours-hover, vanilla-hover, ours-hover-lowfly) and `--hover-m 300` on run/bisect: the pad vessel is lifted and held over the pad as K-S2's viewer holds it
+(far poses 300 m up, 60 m for lowfly; ground poses 6.25 m). `bisect --hover-m 300` bisects ours-hover against vanilla-hover.
 
 Bisect variants (each starts from ours and removes one thing): no-proxy, no-atmo, no-main, no-patches, settings-original, other-mod-files; see VANILLA_VARIANTS and
 BISECT_VARIANTS below. `bisect` needs the results of `vanilla` and `ours`, stops at the first variant whose far_p2 ground (the lowest quarter's green over grey) is
@@ -104,9 +108,15 @@ def join(root, rel):
 #   no-patches        only ReDefinition's ModuleManager patch files (Main/Patches/*.cfg, and any other patch-like cfg of ours) aside
 #   settings-original ours with settings.cfg's render settings pinned to the originals
 #   other-mod-files   ours with the other mods' own files (Scatterer, Parallax, DistantObject, Deferred, TUFX's scene profiles in the save) set back to the originals
-VANILLA_VARIANTS = ("vanilla", "vanilla-original")
+#   ours-hover / vanilla-hover / ours-hover-lowfly   ours and vanilla with the pad vessel lifted and HELD over the pad as K-S2's viewer holds it (ProbeLite's Hover.cs: the far
+#                     poses with the vessel 300 m up, 60 m for lowfly; the ground poses 6.25 m up), because K-S2's grey ground was seen only with the vessel in the air
+VANILLA_VARIANTS = ("vanilla", "vanilla-original", "vanilla-hover")
 BISECT_VARIANTS = ("no-proxy", "no-atmo", "no-main", "no-patches", "settings-original", "other-mod-files")
-VARIANTS = VANILLA_VARIANTS + ("ours",) + BISECT_VARIANTS
+# The height the vessel is held at for the far poses, by variant (metres over the ground; no entry = the vessel stays on the pad).
+HOVER_M = {"ours-hover": 300.0, "vanilla-hover": 300.0, "ours-hover-lowfly": 60.0}
+VARIANTS = VANILLA_VARIANTS + ("ours",) + BISECT_VARIANTS + ("ours-hover", "ours-hover-lowfly")
+# The runs the table lists first, in this order.
+TABLE_ORDER = ("ours", "ours-hover", "ours-hover-lowfly", "vanilla", "vanilla-hover", "vanilla-original")
 # The order `bisect` tries them in (the likeliest first): the settings ReDefinition wrote into the game's own settings, the proxy, the patches, Atmospheres, Main, the others' files.
 BISECT_ORDER = ("settings-original", "no-proxy", "no-patches", "no-atmo", "no-main", "other-mod-files")
 # The render settings ReDefinition's profile changed in the game's settings.cfg; bundled.cfg keeps their originals in BEFORE_REDEFINITION. Variants vanilla-original and
@@ -699,9 +709,12 @@ def build_probelite(repo, ksp, dotnet):
 class Run:
     """One run of one variant. The hooks stand in for the game, the build, the lock and the memory in the tests."""
 
-    def __init__(self, ksp, variant, repo=DEFAULT_REPO, mainrepo=None, hooks=None, log=say, use_profile=True, timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False):
+    def __init__(self, ksp, variant, repo=DEFAULT_REPO, mainrepo=None, hooks=None, log=say, use_profile=True, timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False, hover_m=None):
         self.ksp = ksp
         self.variant = variant
+        # The far poses' vessel height: the variant's own (the hover variants) or hover_m, which lifts any other variant's vessel too (its folder then ends in +hover<m>).
+        self.hover_m = HOVER_M.get(variant, 0.0) if hover_m is None else float(hover_m)
+        self.label = variant if (hover_m is None or variant in HOVER_M or not self.hover_m) else "%s+hover%g" % (variant, self.hover_m)
         self.repo = repo
         self.mainrepo = mainrepo or gpu_lock.main_repo()
         self.log = log
@@ -780,7 +793,7 @@ class Run:
                 shutil.rmtree(archive, ignore_errors=True)
                 raise Refusal("the GPU lock is held: %s" % (gpu_lock.describe(holder) if holder else lock_path))
             lock_info = info
-        journal.data = {"version": 1, "state": "active", "variant": self.variant, "ksp": self.ksp, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "moves": [],
+        journal.data = {"version": 1, "state": "active", "variant": self.label, "ksp": self.ksp, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "moves": [],
                         "collected": False, "snapshot": {"store": store, "dirs": [], "files": [], "manifest": {}}}
         journal.write()
         with open(pointer_path(self.ksp), "w", encoding="utf-8") as f:
@@ -812,7 +825,7 @@ class Run:
             os.makedirs(join(self.ksp, LITE_FOLDER + "/PluginData"), exist_ok=True)
             shutil.copy2(dll, join(self.ksp, LITE_FOLDER + "/ProbeLite.dll"))
             with open(join(self.ksp, LITE_FOLDER + "/PluginData/config.txt"), "w", encoding="utf-8") as f:
-                f.write("variant=%s\nsaveFolder=%s\nspaceCentre=1\nflight=1\nwatchdogS=%d\n" % (self.variant, SAVE_FOLDER, self.timeout_s - 90))
+                f.write("variant=%s\nsaveFolder=%s\nspaceCentre=1\nflight=1\nwatchdogS=%d\nhoverFarM=%g\n" % (self.label, SAVE_FOLDER, self.timeout_s - 90, self.hover_m))
             if os.path.isfile(ksp_log):
                 os.remove(ksp_log)
             t0 = time.time()
@@ -823,7 +836,7 @@ class Run:
             result["done"] = read_done(self.ksp)
             result["ok"] = bool(result["done"]) and result["done"].splitlines()[0].strip() == "ok" and result["how"] == "quit"
             result["warnings"] = done_warnings(result["done"])
-            result["pictures"] = collect_pictures(self.ksp, self.mainrepo, self.variant)
+            result["pictures"] = collect_pictures(self.ksp, self.mainrepo, self.label)
             journal.data["collected"] = True
             journal.write()
             if result["pictures"]:
@@ -962,7 +975,7 @@ def bisect_table(mainrepo, variants):
     base = os.path.join(mainrepo, *PICTURES_REL)
     out = ["%-18s %-26s %-8s %-26s %s" % ("variant", "far_p2 ground mean r,g,b", "green", "sc_default ground r,g,b", "verdicts")]
     seen = set()
-    for v in ["vanilla", "vanilla-original", "ours"] + list(variants):
+    for v in list(TABLE_ORDER) + list(variants):
         if v in seen:
             continue
         seen.add(v)
@@ -984,9 +997,9 @@ def cmd_plan(args):
     return 0
 
 
-def do_run(ksp, variant, profile="medium", timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False):
+def do_run(ksp, variant, profile="medium", timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False, hover_m=None):
     """One run with its report printed. Returns (exit code, result or None): 0 clean, 3 pictures taken with warnings, 1 failed, 2 refused."""
-    run = Run(ksp, variant, use_profile=profile != "none", timeout_min=timeout_min, extra_args=extra_args, keep_eve=keep_eve)
+    run = Run(ksp, variant, use_profile=profile != "none", timeout_min=timeout_min, extra_args=extra_args, keep_eve=keep_eve, hover_m=hover_m)
     try:
         result = run.execute()
     except Refusal as e:
@@ -1013,7 +1026,16 @@ def do_run(ksp, variant, profile="medium", timeout_min=MAX_MINUTES, extra_args=N
 
 
 def cmd_run(args):
-    return do_run(args.ksp or DEFAULT_KSP, args.variant, args.profile, args.timeout_min, args.extra_arg, args.keep_eve)[0]
+    return do_run(args.ksp or DEFAULT_KSP, args.variant, args.profile, args.timeout_min, args.extra_arg, args.keep_eve, args.hover_m)[0]
+
+
+def cmd_table(args):
+    """The table of every run that has results (ours, ours-hover, ours-hover-lowfly, vanilla, vanilla-hover, vanilla-original, then the bisect and +hover runs)."""
+    mainrepo = gpu_lock.main_repo()
+    base = os.path.join(mainrepo, *PICTURES_REL)
+    extra = sorted(n for n in (os.listdir(base) if os.path.isdir(base) else []) if n not in TABLE_ORDER and not n.endswith("-previous") and "-salvage-" not in n)
+    print(bisect_table(mainrepo, extra))
+    return 0
 
 
 def cmd_bisect(args):
@@ -1027,15 +1049,22 @@ def cmd_bisect(args):
     if unknown:
         print("REFUSED: not a bisect variant: %s (one of %s)" % (", ".join(unknown), ", ".join(BISECT_VARIANTS)))
         return 2
-    if ground_row(os.path.join(base, "vanilla")) is None:
-        print("REFUSED: no results of the vanilla variant in %s; run `python tools/vanilla_ground.py run --variant vanilla` first" % base)
+    # With --hover-m 300 the vessel is held over the pad in every run and the references are the hover runs; no other height has references.
+    hover = args.hover_m
+    if hover and hover != HOVER_M["ours-hover"]:
+        print("REFUSED: --hover-m must be %g (the height of the reference runs ours-hover and vanilla-hover)" % HOVER_M["ours-hover"])
         return 2
-    if ground_row(os.path.join(base, "ours")) is None:
-        print("bisect: no results of ours yet; running it first")
-        code, _result = do_run(ksp, "ours", args.profile, args.timeout_min, args.extra_arg, args.keep_eve)
+    ref_vanilla, ref_ours = ("vanilla-hover", "ours-hover") if hover else ("vanilla", "ours")
+    order_labels = ["%s+hover%g" % (v, hover) for v in order] if hover else order
+    if ground_row(os.path.join(base, ref_vanilla)) is None:
+        print("REFUSED: no results of the %s variant in %s; run `python tools/vanilla_ground.py run --variant %s` first" % (ref_vanilla, base, ref_vanilla))
+        return 2
+    if ground_row(os.path.join(base, ref_ours)) is None:
+        print("bisect: no results of %s yet; running it first" % ref_ours)
+        code, _result = do_run(ksp, ref_ours, args.profile, args.timeout_min, args.extra_arg, args.keep_eve)
         if code in (1, 2):
             return code
-    vanilla, ours = ground_green(ground_row(os.path.join(base, "vanilla"))), ground_green(ground_row(os.path.join(base, "ours")))
+    vanilla, ours = ground_green(ground_row(os.path.join(base, ref_vanilla))), ground_green(ground_row(os.path.join(base, ref_ours)))
     if is_green_again(ours, vanilla, ours) or abs(vanilla - ours) < 2.0:
         print("REFUSED: the ground of vanilla (green %.1f) and of ours (green %.1f) do not differ in %s's lowest quarter; there is nothing to bisect" % (vanilla, ours, GROUND_PICTURE))
         return 2
@@ -1043,10 +1072,10 @@ def cmd_bisect(args):
     found = None
     for v in order:
         print("\n===== bisect: %s =====" % v)
-        code, result = do_run(ksp, v, args.profile, args.timeout_min, args.extra_arg, args.keep_eve)
+        code, result = do_run(ksp, v, args.profile, args.timeout_min, args.extra_arg, args.keep_eve, hover)
         if code in (1, 2):
             print("bisect: stopped, %s did not run cleanly" % v)
-            print(bisect_table(mainrepo, order))
+            print(bisect_table(mainrepo, order_labels))
             return code
         value = ground_green(ground_row(result["pictures"]))
         green = is_green_again(value, vanilla, ours)
@@ -1055,7 +1084,7 @@ def cmd_bisect(args):
             found = v
             if not args.keep_going:
                 break
-    print("\n" + bisect_table(mainrepo, order))
+    print("\n" + bisect_table(mainrepo, order_labels))
     if found:
         print("BISECT: removing %s turns the ground green again" % found)
     else:
@@ -1078,7 +1107,7 @@ def cmd_compare(args):
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="command", required=True)
-    for name, fn in (("plan", cmd_plan), ("run", cmd_run), ("bisect", cmd_bisect), ("restore", cmd_restore), ("compare", cmd_compare)):
+    for name, fn in (("plan", cmd_plan), ("run", cmd_run), ("bisect", cmd_bisect), ("restore", cmd_restore), ("compare", cmd_compare), ("table", cmd_table)):
         s = sub.add_parser(name)
         s.set_defaults(fn=fn)
         if name in ("plan", "run", "bisect", "restore"):
@@ -1091,6 +1120,7 @@ def build_parser():
         if name == "compare":
             s.add_argument("--vanilla", choices=["vanilla", "vanilla-original"], default="vanilla")
         if name in ("run", "bisect"):
+            s.add_argument("--hover-m", type=float, default=None, help="hold the vessel this many metres over the pad for the far poses (the hover variants have their own height)")
             s.add_argument("--timeout-min", type=float, default=MAX_MINUTES)
             s.add_argument("--extra-arg", action="append", default=[])
         if name == "bisect":
