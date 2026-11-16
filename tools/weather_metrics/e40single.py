@@ -363,7 +363,7 @@ def prepare_aid():
 
 
 def aid_stage_list():
-    return [Stage("single-aid", ["-mode", "scene", "-scene", "layers", "-in", AID_IN, "-width", str(SIZE[0]), "-height", str(SIZE[1])], size=SIZE, proxy=False, timeout=1800)] if os.path.isdir(AID_IN) else []
+    return [Stage("single-aid", ["-mode", "scene", "-scene", "layers", "-in", AID_IN, "-light", "product", "-width", str(SIZE[0]), "-height", str(SIZE[1])], size=SIZE, proxy=False, timeout=1800)] if os.path.isdir(AID_IN) else []
 
 
 def collect_aid(ctx):

@@ -38,6 +38,8 @@ namespace ReDefinition.WeatherPlayer
             foreach (LayersJob job in file.jobs)
             {
                 LayerFrame frame = LayersSetup.Load(job, input, renderer);
+                // CLOUDR3: -light product gives the frame the product's air light (as the soft scenes do), so that one-frame numbers and the soft-temporal frames are measured under the same light.
+                if (SoftTable.ProductLightOn) SoftTable.ProductLight(frame);
                 if (done == 0)
                 {
                     Sink.Info("noise_generation_ms", renderer.Noise.GenerationMs);

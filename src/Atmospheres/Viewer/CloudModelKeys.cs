@@ -57,6 +57,10 @@ namespace ReDefinition.Atmospheres.Viewer
                 "experimental: distance in m up to which the thin steps are taken, 0 everywhere (the reader clamps to 1e7; the slider stops at 20000)", KeyLiveness.FrameHistory,
                 KeyMarker.Live, 0f, 20000f);
 
+            // CLOUDR3 P7: read every frame (OwnCloudOptions.Apply(ReconSettings) -> LayerReconstructor, _ReconK.w).
+            r.Flag(OwnCloudOptions.TuneCatmull, false, KeySection.Quality,
+                "the reconstruction reads its history with a Catmull-Rom filter instead of the bilinear one (less blur from sub-pixel moves, bounded by the variance clip)", KeyLiveness.FrameHistory);
+
             // The same three per layer (the layer's name after the prefix): the layer's value wins over the global key.
             r.LayerKey(CloudLookTuning.TuneHeapLayer, "", -1f, KeySection.Shape, "heap preset of the layer (-1 the global key, 0 none, 1 billow, 2 rough)",
                 min: -1f, max: presets);

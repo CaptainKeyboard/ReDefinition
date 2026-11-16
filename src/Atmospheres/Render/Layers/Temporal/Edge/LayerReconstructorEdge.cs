@@ -82,7 +82,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdEdgeTexel, new Vector4(1f / edgeLow.width, 1f / edgeLow.height, edgeLow.width, edgeLow.height));
             m.SetVector(IdReconP, new Vector4(EdgeSettings.CoarseBlock, coarseOffset.x, coarseOffset.y, s.Debug));
             m.SetVector(IdReconE, new Vector4(ox, oy, 0f, 0f));
-            m.SetVector(IdReconK, new Vector4(s.FreshWeight, s.StaleWeight, s.ClipSigma, 0f));
+            m.SetVector(IdReconK, new Vector4(s.FreshWeight, s.StaleWeight, s.ClipSigma, s.CatmullHistory ? 1f : 0f));
             m.SetVector(IdCamPos, position);
             m.SetVector(IdCamForward, t.forward);
             m.SetVector(IdCamRight, t.right * tanX);
