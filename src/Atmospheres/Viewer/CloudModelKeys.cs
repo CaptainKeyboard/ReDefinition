@@ -33,12 +33,15 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneHeapWarp, (float)HeapModel.WarpShare, KeySection.Shape,
                 "share of the untiling displacement's horizontal part the heap lookup keeps, 0 to 1; below 0 the whole displacement (the pulled lookup)", KeyLiveness.FrameHistory,
                 KeyMarker.Live, -1f, 1f);
-            // CloudLookTuning.NoiseBlend and the two numbers are read by LayerNoise.LayerParams every frame, which only the CPU twin takes (CloudShadowShapeNoise.Update, the probe): the shader
-            // does not have the blended lookup (it crashed the Unity 2019.4 shader compiler twice). They stay in the table, marked, because the cloud shadow's shape lookup follows them.
+            // CloudLookTuning.NoiseBlend and the two numbers are read by LayerNoise.LayerParams every frame (CLOUDR2: the layer pass has the blended lookup, one call site with a four-tap loop; the CPU
+            // twin follows for the cloud shadow).
             r.Flag(CloudLookTuning.TuneNoiseBlend, false, KeySection.Shape,
-                "CPU twin only: hides the tiling of the shape and heap volumes by blending in the cloud shadow's shape lookup; the drawn clouds do not change (the shader has no blended lookup)");
-            r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "CPU twin only (cloud shadow): exponent of the blend weights", min: 1f, max: 32f);
-            r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "CPU twin only (cloud shadow): blend lattice cell in periods", min: 0.25f, max: 16f);
+                "hides the tiling of the shape and heap volumes by blending four randomly offset and rotated reads per lattice cell (the layer pass and the cloud shadow)");
+            r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
+            r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
+            // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.
+            r.Key(CloudLookTuning.TuneLightErosion, 0f, KeySection.Light,
+                "number of the first taps of the sun's light march that read the eroded density, 0..8, 0 the shape only", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 8f);
             // Read by NoiseVolumeSet.Generate (CloudShapeModel.cs:56) when LayerNoise.StartGeneration makes the volumes: a scene change, a change of cloudNoiseTier or the seed.
             r.Key(CloudLookTuning.TuneHeapDetail, 0f, KeySection.Shape,
                 "Hurst exponent of the erosion detail octaves, 0 the compiled weights; read only when the noise volumes are made (a scene change or a change of Cloud Noise Size)",
