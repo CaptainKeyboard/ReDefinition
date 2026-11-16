@@ -50,17 +50,26 @@ namespace ReDefinition.Atmospheres.Viewer
             return set;
         }
 
-        // The set of a registered slot.
-        internal static OptionSet FromSlot(NamedKeyPreset slot)
+        // The set of a registered slot; layerNames are the layers of the stack that stands (the slot's per-layer values are set on the layers they name).
+        internal static OptionSet FromSlot(NamedKeyPreset slot, IEnumerable<string> layerNames = null)
         {
             var set = new OptionSet();
             foreach (KeyValuePair<string, double> pair in slot.Settings) set.Settings[pair.Key] = pair.Value;
             foreach (KeyValuePair<string, float> pair in slot.Keys) set.Overrides[pair.Key] = pair.Value;
+            if (layerNames != null)
+            {
+                foreach (string name in layerNames)
+                    foreach (PresetLayerValue v in slot.LayerValues)
+                    {
+                        string key = v.KeyFor(name);
+                        if (key != null) set.Overrides[key] = v.Value;
+                    }
+            }
             return set;
         }
 
-        // The built-in entries, in order: Today, then the slots.
-        internal static List<PresetEntry> BuiltIn(IEnumerable<string> settingKeys, Func<string, double?> defaultOf)
+        // The built-in entries, in order: Today, then the slots. layerNames: the layers of the stack that stands, read when a slot is loaded (the slots' per-layer values).
+        internal static List<PresetEntry> BuiltIn(IEnumerable<string> settingKeys, Func<string, double?> defaultOf, IEnumerable<string> layerNames = null)
         {
             var list = new List<PresetEntry>();
             // Which cloud system draws (ownClouds, cloudSource) is not part of a look: Today leaves them as they are, so that loading it never switches the pass off.
@@ -72,7 +81,7 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (NamedKeyPreset slot in CloudKeyRegistry.Presets)
             {
                 NamedKeyPreset s = slot;
-                list.Add(new PresetEntry(s.Name, s.Note, true, () => FromSlot(s)));
+                list.Add(new PresetEntry(s.Name, s.Note, true, () => FromSlot(s, layerNames)));
             }
             return list;
         }

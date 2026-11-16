@@ -128,7 +128,7 @@ namespace ReDefinition.Atmospheres.Viewer
             {
                 SettingDef def = AtmospheresSettings.Definition(key);
                 return def == null || def.Kind == SettingKind.Text ? (double?)null : def.Default;
-            });
+            }, LayerNames());
             presetEntries = ViewerPresetBook.Entries(builtIn, PresetNames(), name => () => ReadPreset(name));
             return presetEntries;
         }

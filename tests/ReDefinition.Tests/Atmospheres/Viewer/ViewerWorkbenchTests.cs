@@ -149,11 +149,13 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         }
 
         [TestMethod]
-        public void TheViewerRegistersTheEmptyNewModelSlotThroughTheSameMechanism()
+        public void TheNewModelSlotOfTheViewerIsFilledByTheCloudModelPackage()
         {
             NamedKeyPreset slot = CloudKeyRegistry.Presets.FirstOrDefault(p => p.Name == ViewerBuiltIns.NewModelSlot);
             Assert.IsNotNull(slot);
-            Assert.IsTrue(slot.IsEmpty);
+            Assert.IsFalse(slot.IsEmpty, "the viewer registers the slot empty, CloudModelKeys fills it");
+            Assert.AreEqual(1, CloudKeyRegistry.Presets.Count(p => p.Name == ViewerBuiltIns.NewModelSlot), "one entry per name");
+            Assert.IsNotNull(CloudKeyRegistry.Presets.FirstOrDefault(p => p.Name == CloudModelKeys.Look128));
             Assert.IsTrue(ViewerPresetBook.IsReserved("new model 96 steps"));
             Assert.IsTrue(ViewerPresetBook.IsReserved("Today"));
             Assert.IsFalse(ViewerPresetBook.IsReserved("my look"));

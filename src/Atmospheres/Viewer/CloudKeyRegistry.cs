@@ -12,7 +12,9 @@ namespace ReDefinition.Atmospheres.Viewer
         FrameHistory,
         // Read again when the tuning table changes (CloudLookTuning, CloudCoverShift, CloudSoftDensity): the layers' numbers are uploaded again and the maps fetched
         // again at once, so the change shows within a frame or a map round.
-        Change
+        Change,
+        // Read only when the noise volumes are generated (LayerNoise.StartGeneration: a scene change, a change of the noise size or the seed); no frame reads it.
+        Volume
     }
 
     // One tuning key of the cloud pass: the key (the constant of the class that reads it), its compiled default, when it is read and a short note.
@@ -71,9 +73,18 @@ namespace ReDefinition.Atmospheres.Viewer
         {
         }
 
-        // A key whose layer name stands between a prefix and a suffix (cloud.heap.layer.<name>.edgePower): the suffix is empty for the keys that end with the name.
-        internal CloudLayerKey(string prefix, string suffix, float compiledDefault, string note, KeySection section, KeyLiveness liveness, KeyMarker marker, bool flag)
+        // The same with the reader's clamp as the slider's range.
+        internal CloudLayerKey(string prefix, float compiledDefault, string note, float min, float max)
+            : this(prefix, "", compiledDefault, note, CloudKeyLayout.SectionOfLayerKey(prefix), KeyLiveness.Change, KeyMarker.Live, false, min, max)
         {
+        }
+
+        // A key whose layer name stands between a prefix and a suffix (cloud.heap.layer.<name>.edgePower): the suffix is empty for the keys that end with the name.
+        internal CloudLayerKey(string prefix, string suffix, float compiledDefault, string note, KeySection section, KeyLiveness liveness, KeyMarker marker, bool flag,
+                               float min = float.NaN, float max = float.NaN)
+        {
+            Min = min;
+            Max = max;
             Prefix = prefix;
             Suffix = suffix ?? "";
             Default = compiledDefault;
@@ -92,11 +103,14 @@ namespace ReDefinition.Atmospheres.Viewer
         internal KeyLiveness Liveness { get; }
         internal KeyMarker Marker { get; }
         internal bool Flag { get; }
+        // The slider's range where the reader's clamp states one (both NaN: estimated from the default).
+        internal float Min { get; }
+        internal float Max { get; }
 
         // The key of a layer.
         internal CloudKey For(string layerName)
         {
-            return new CloudKey(Prefix + layerName + Suffix, Default, Liveness, Flag, Note, Section, float.NaN, float.NaN, true, Marker);
+            return new CloudKey(Prefix + layerName + Suffix, Default, Liveness, Flag, Note, Section, Min, Max, float.IsNaN(Min) || float.IsNaN(Max), Marker);
         }
 
         // Whether the key is one of this pattern, for any layer name (a name has no dot).
@@ -136,15 +150,15 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // A key per layer, the layer's name between prefix and suffix.
         internal void LayerKey(string prefix, string suffix, float compiledDefault, KeySection section, string note, bool flag = false, KeyLiveness liveness = KeyLiveness.Change,
-                               KeyMarker marker = KeyMarker.Live)
+                               KeyMarker marker = KeyMarker.Live, float min = float.NaN, float max = float.NaN)
         {
-            LayerKeys.Add(new CloudLayerKey(prefix, suffix, compiledDefault, note, section, liveness, marker, flag));
+            LayerKeys.Add(new CloudLayerKey(prefix, suffix, compiledDefault, note, section, liveness, marker, flag, min, max));
         }
 
         // A built-in preset slot: named values of tuning keys (and settings) the viewer's preset list shows next to Today. Registering a name that an empty slot holds fills the slot.
-        internal void Preset(string name, string note, IDictionary<string, float> keys, IDictionary<string, double> settings = null)
+        internal void Preset(string name, string note, IDictionary<string, float> keys, IDictionary<string, double> settings = null, IEnumerable<PresetLayerValue> layerValues = null)
         {
-            Presets.Add(new NamedKeyPreset(name, note, keys, settings));
+            Presets.Add(new NamedKeyPreset(name, note, keys, settings, layerValues));
         }
 
         // The presets with one entry per name: a filled slot replaces an empty one; two filled ones of a name are a conflict (the first stays). Returns the conflicts.
@@ -168,23 +182,51 @@ namespace ReDefinition.Atmospheres.Viewer
     // A preset that code provides: values of tuning keys and settings. It is never written to a file and never changes a default; loading it sets the viewer's overrides like any preset.
     internal sealed class NamedKeyPreset
     {
-        internal NamedKeyPreset(string name, string note, IDictionary<string, float> keys, IDictionary<string, double> settings)
+        internal NamedKeyPreset(string name, string note, IDictionary<string, float> keys, IDictionary<string, double> settings, IEnumerable<PresetLayerValue> layerValues = null)
         {
             Name = name;
             Note = note ?? "";
             Keys = keys == null ? new Dictionary<string, float>() : new Dictionary<string, float>(keys);
             Settings = settings == null ? new Dictionary<string, double>() : new Dictionary<string, double>(settings);
+            LayerValues = layerValues == null ? new List<PresetLayerValue>() : new List<PresetLayerValue>(layerValues);
         }
 
         internal string Name { get; }
         internal string Note { get; }
         internal Dictionary<string, float> Keys { get; }
         internal Dictionary<string, double> Settings { get; }
+        // Values of per-layer keys for the layers whose name ends with a given text (the layer names differ by body: Kerbin-cumulus, Laythe-cumulus).
+        internal List<PresetLayerValue> LayerValues { get; }
 
         // A slot that holds nothing yet (a package fills it by registering a preset of the same name that does).
         internal bool IsEmpty
         {
-            get { return Keys.Count == 0 && Settings.Count == 0; }
+            get { return Keys.Count == 0 && Settings.Count == 0 && LayerValues.Count == 0; }
+        }
+    }
+
+    // A per-layer key's value in a preset: the key's prefix (cloud.heap.layer.) and suffix (empty for a key that ends with the name), the end of the names of the layers it is set on
+    // (case ignored; empty: every layer) and the value.
+    internal sealed class PresetLayerValue
+    {
+        internal PresetLayerValue(string prefix, string suffix, string layerEndsWith, float value)
+        {
+            Prefix = prefix;
+            Suffix = suffix ?? "";
+            LayerEndsWith = layerEndsWith ?? "";
+            Value = value;
+        }
+
+        internal string Prefix { get; }
+        internal string Suffix { get; }
+        internal string LayerEndsWith { get; }
+        internal float Value { get; }
+
+        // The key of a layer, or null where the layer's name does not end with the text.
+        internal string KeyFor(string layerName)
+        {
+            if (string.IsNullOrEmpty(layerName) || !layerName.EndsWith(LayerEndsWith, StringComparison.OrdinalIgnoreCase)) return null;
+            return Prefix + layerName + Suffix;
         }
     }
 
@@ -219,7 +261,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudModule.TuneWhiteAltitudeM, -1f, note: "-1: lowest layer"),
             N(OwnCloudModule.TuneMoonGain, 1f),
             F(OwnCloudModule.TuneSunAirWithScatterer, false),
-            F(OwnCloudModule.TuneAfterScatterer, true, note: "read before each render"),
+            F(OwnCloudModule.TuneAfterScatterer, true, note: "read once a second (OwnCloudModule.OnPreRender); the buffers move behind Scatterer's scattering within a second"),
             N(OwnCloudModule.TuneCameraEvent, 0f, note: "0 BeforeForwardAlpha, 1 AfterForwardAlpha, 2 BeforeImageEffects; buffers move"),
             F(OwnCloudModule.TuneReaddEveryFrame, false),
             N(OwnCloudModule.TuneStatsS, 30f, note: "seconds between statistics lines"),
@@ -257,23 +299,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneBillowFine, -1f, KeyLiveness.FrameHistory, "weight of the fine octave, -1 compiled"),
             N(CloudLookTuning.TuneBillowFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
             N(CloudLookTuning.TuneBillowSharpen, 0f, KeyLiveness.FrameHistory, "spline upsampling of the march target, 0 bilinear"),
-            // CLOUDR1 (the new cloud model). Heap, edgePower and cavity are read into the type tables when the layers are uploaded (a change of the tuning table uploads them again within a frame:
-            // Change); the heap volume itself is built on a worker the first time a type asks for it (about one second at Medium; until then every type reads the shape volume). The per-layer
-            // forms are below (PerLayer). Ranges are in the notes.
-            N(CloudLookTuning.TuneHeap, -1f, KeyLiveness.Change, "heap preset for every type, -1..2: -1 each type's cfg key, 0 none (today), 1 billow, 2 rough; builds the volume on first use"),
-            N(CloudLookTuning.TuneEdgePower, 0f, KeyLiveness.Change, "exponent of the density rim for every type of a soft layer, 0..6: 0 each type's key, below 1 a crisper rim"),
-            N(CloudLookTuning.TuneCavity, -1f, KeyLiveness.Change, "cavity strength (darkens the creases between lobes), -1..1: -1 each type's key, 0 off; needs a heap"),
-            F(CloudLookTuning.TuneHeapFootLod, true, KeyLiveness.FrameHistory),
-            F(CloudLookTuning.TuneHeapIso, true, KeyLiveness.FrameHistory),
-            N(CloudLookTuning.TuneHeapWarp, 0.5f, KeyLiveness.FrameHistory, "share of the untiling displacement's horizontal part the heap keeps, 0..1; -1 the whole displacement (the pulled lookup)"),
-            F(CloudLookTuning.TuneNoiseBlend, false, KeyLiveness.FrameHistory),   // CPU twin only today: the GPU path crashes the 2019.4 shader compiler
-            N(CloudLookTuning.TuneNoiseBlendExp, 8f, KeyLiveness.FrameHistory, "exponent of the blend weights, 1..32"),
-            N(CloudLookTuning.TuneNoiseBlendCell, 1f, KeyLiveness.FrameHistory, "blend lattice cell in periods, 0.25..16"),
-            N(CloudLookTuning.TuneHeapDetail, 0f, KeyLiveness.Change, "RELOAD: Hurst exponent of the erosion detail octaves, 0..2, 0 compiled; read only when the volumes are generated (a scene change or a size tier change), not live"),
-            N(CloudLookTuning.TuneFirstHit, 0f, KeyLiveness.FrameHistory, "bisection evaluations on the entered span, 0..8, 0 off (a measured dead end: smooth look, +3.9 ms)"),
-            N(CloudLookTuning.TuneFirstHitThin, 0.25f, KeyLiveness.FrameHistory, "first hit: thin steps as a share of the grid step, 0.02..1"),
-            N(CloudLookTuning.TuneFirstHitShell, 32f, KeyLiveness.FrameHistory, "first hit: thin steps after the entry, 0..512"),
-            N(CloudLookTuning.TuneFirstHitNear, 0f, KeyLiveness.FrameHistory, "first hit: distance in m up to which the thin steps are taken, 0 everywhere"),
+            // The keys of the new cloud model (heap, edgePower, cavity, noise blend, first hit) are registered by CloudModelKeys (a CloudKeySource), not listed here.
             // The march's cost controls (OwnCloudOptions.Apply(LayerFrame)).
             F(OwnCloudOptions.TuneCoverageBound, Frame0.CoverageBound),
             F(OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.EmptyReachDefault),
@@ -286,7 +312,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneEmptyLeap, Frame0.EmptyLeap),
             N(OwnCloudOptions.TuneCheapShare, Frame0.CheapShare),
             N(OwnCloudOptions.TuneFogShare, Frame0.FogShare),
-            N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault),
+            N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "grid points of a span times this, the main quality lever: 1 = 48 points, 2 = 96, 2.6667 = 128, 4 = 192 (reader clamp 0.25 to 8, at most 256 points); cost about +2.5 ms at 96 and +4 ms at 128 at 1080p"),
             F(OwnCloudOptions.TuneSpanTight, OwnCloudOptions.SpanTightDefault),
             N(OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.DitherSequenceDefault, KeyLiveness.FrameHistory, "1 hash, 2 gradient, 3 blue noise"),
             F(OwnCloudOptions.TuneDitherFix, OwnCloudOptions.DitherFixDefault, KeyLiveness.FrameHistory),
@@ -341,16 +367,13 @@ namespace ReDefinition.Atmospheres.Viewer
         // The keys that exist once per layer (CloudLookTuning; each is read again when the tuning table changes).
         private static readonly List<CloudLayerKey> CorePerLayer = new List<CloudLayerKey>
         {
-            new CloudLayerKey(CloudLookTuning.TuneMapOverride, -1f, "constant map value, -1 the field's"),
-            new CloudLayerKey(CloudLookTuning.TuneTypeOverride, -1f, "constant type value, -1 none"),
-            new CloudLayerKey(CloudLookTuning.TuneTypeFair, -1f, "fair-weather type, -1 none"),
-            new CloudLayerKey(CloudLookTuning.TuneDeckRule, -1f, "-1 cfg, 0 off, 1 on"),
-            new CloudLayerKey(CloudLookTuning.TuneDeckPrecip, -1f, "deck rule's precipitation, -1 the field's"),
-            new CloudLayerKey(CloudLookTuning.TuneDeckFog, -1f, "deck rule's fog share, -1 the field's"),
-            new CloudLayerKey(CloudLookTuning.TuneLayerShift, 0f, "coverage shift of the layer"),
-            new CloudLayerKey(CloudLookTuning.TuneHeapLayer, -1f, "heap preset of the layer, -1..2 (-1 the global key, 0 none, 1 billow, 2 rough)"),
-            new CloudLayerKey(CloudLookTuning.TuneEdgePowerLayer, 0f, "rim exponent of the layer, 0..6 (0 the global key; below 1 a crisper rim)"),
-            new CloudLayerKey(CloudLookTuning.TuneCavityLayer, -1f, "cavity strength of the layer, -1..1 (-1 the global key, 0 off)"),
+            new CloudLayerKey(CloudLookTuning.TuneMapOverride, -1f, "constant map value, -1 the field's", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneTypeOverride, -1f, "constant type value, -1 none", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneTypeFair, -1f, "fair-weather type, -1 none", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneDeckRule, -1f, "-1 cfg, 0 off, 1 on", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneDeckPrecip, -1f, "deck rule's precipitation, -1 the field's", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneDeckFog, -1f, "deck rule's fog share, -1 the field's", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneLayerShift, 0f, "coverage shift of the layer", -1f, 1f),
             new CloudLayerKey(CloudLookTuning.TuneSigma + ".", 1f, "sigma factor of the layer"),
             new CloudLayerKey(CloudLookTuning.TuneSoftness + ".", 1f, "softness factor of the layer"),
             new CloudLayerKey(CloudLookTuning.TuneNoiseAmount + ".", 1f, "noise amount factor of the layer"),
@@ -523,6 +546,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 case KeyMarker.Live: return "Live";
                 case KeyMarker.AfterRebuildWeather: return "After Rebuild Weather";
                 case KeyMarker.AfterSceneChange: return "After Scene Change";
+                case KeyMarker.AfterVolumeRebuild: return "After Noise Volume Rebuild (Scene Change Or Noise Size Change)";
                 default: return "Not Checked";
             }
         }
@@ -535,6 +559,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 case KeyMarker.Live: return "live";
                 case KeyMarker.AfterRebuildWeather: return "rebuild";
                 case KeyMarker.AfterSceneChange: return "scene";
+                case KeyMarker.AfterVolumeRebuild: return "volume";
                 default: return "?";
             }
         }
@@ -546,6 +571,7 @@ namespace ReDefinition.Atmospheres.Viewer
             {
                 case KeyLiveness.FrameHistory: return "live, history reset";
                 case KeyLiveness.Change: return "live on change";
+                case KeyLiveness.Volume: return "read when the noise volumes are made";
                 default: return "live every frame";
             }
         }

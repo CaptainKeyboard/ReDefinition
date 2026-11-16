@@ -28,7 +28,9 @@ namespace ReDefinition.Atmospheres.Viewer
         // Only a scene change (a reload of the flight scene) shows it.
         AfterSceneChange = 2,
         // Not read through yet: shown as such, never as live.
-        Unchecked = 3
+        Unchecked = 3,
+        // Only when the noise volumes are made again (a scene change, a change of the noise size or the seed): the generator reads the key, the draw never does.
+        AfterVolumeRebuild = 4
     }
 
     // The group and the slider range of each tuning key of the own cloud pass. The group is stated for every key of CloudKeyRegistry.All (a test fails for a key without one) so that a
@@ -43,7 +45,35 @@ namespace ReDefinition.Atmospheres.Viewer
             { CloudMotion.TuneScale, new[] { 0f, CloudMotion.MaxScale } },
             { OwnCloudOptions.TuneAccumulate, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneReconResolution, new[] { 0.1f, 1f } },
-            { OwnCloudModule.TuneWhitePoint, new[] { 0f, 1f } }
+            { OwnCloudModule.TuneWhitePoint, new[] { 0f, 1f } },
+            // The clamps of the readers (OwnCloudOptions.Apply, CloudLookTuning.Load and the billow getters, CloudCoverShift.Clean, EdgeSettings). layers.gridFine is the main quality lever: the reader
+            // clamps it to 0.25 to 8 (the march is capped at 256 points a span), the slider shows 0.25 to 4, which holds the stops 1 (48 points), 2 (96) and 2.6667 (128) and 4 (192).
+            { OwnCloudOptions.TuneGridFine, new[] { 0.25f, 4f } },
+            { OwnCloudOptions.TuneLightStride, new[] { 1f, 8f } },
+            { OwnCloudOptions.TuneCheapShare, new[] { 0f, 1f } },
+            { OwnCloudOptions.TuneFogShare, new[] { 0f, 1f } },
+            { OwnCloudOptions.TuneSpanSpacingMin, new[] { 1f, 256f } },
+            { OwnCloudOptions.TuneDitherSequence, new[] { 1f, 3f } },
+            { OwnCloudOptions.TuneWarpTable, new[] { 0f, 2f } },
+            { OwnCloudOptions.TuneCutWeight, new[] { 0.001f, 0.5f } },
+            { OwnCloudOptions.TuneTapFactor, new[] { 1f, 8f } },
+            { OwnCloudOptions.TuneFootScale, new[] { 0f, 8f } },
+            { OwnCloudOptions.TuneCapKeep, new[] { 1f, 8f } },
+            { EdgeSettings.TuneDilation, new[] { 0f, (float)EdgeSettings.MaxDilation } },
+            { EdgeSettings.TunePersist, new[] { 1f, 32f } },
+            { CloudLookTuning.TuneDensityRemap, new[] { 0f, 1f } },
+            { CloudLookTuning.TuneCoverCombine, new[] { 0f, 1f } },
+            { CloudLookTuning.TuneFadeNearShare, new[] { 0f, 1f } },
+            { CloudLookTuning.TuneFarHaze, new[] { -1f, 2f } },
+            { CloudLookTuning.TuneCellLat, new[] { -90f, 90f } },
+            { CloudLookTuning.TuneCellLon, new[] { -360f, 360f } },
+            { CloudLookTuning.TuneBillowLight, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBillowContrast, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBillowTop, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBillowSharpen, new[] { 0f, 1f } },
+            { CloudLookTuning.TuneSoloLayer, new[] { 0f, (float)CloudLayerDef.MaxLayers } },
+            { CloudCoverShift.TuneShift, new[] { -1f, 1f } },
+            { CloudCoverShift.TuneShiftRain, new[] { -1f, 1f } }
         };
 
         private static Dictionary<string, KeySection> Build()
