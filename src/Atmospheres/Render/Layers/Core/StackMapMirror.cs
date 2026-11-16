@@ -19,16 +19,36 @@ namespace ReDefinition.Atmospheres
         internal void Set(LayerStackSource stack, int layer, WeatherMap coverageSource, WeatherMap typeMap)
         {
             if (stack == null || coverageSource == null || layer < 0 || layer >= CloudLayerDef.MaxLayers || layer >= stack.LayerCount) return;
-            if (!ReferenceEquals(owner, stack))
-            {
-                owner = stack;
-                Array.Clear(attached, 0, attached.Length);
-                Array.Clear(typeAttached, 0, typeAttached.Length);
-            }
+            ResetOwner(stack);
+            CopyCover(layer, coverageSource);
+            Attach(stack, layer, typeMap);
+        }
+
+        private void ResetOwner(LayerStackSource stack)
+        {
+            if (ReferenceEquals(owner, stack)) return;
+            owner = stack;
+            Array.Clear(attached, 0, attached.Length);
+            Array.Clear(typeAttached, 0, typeAttached.Length);
+        }
+
+        // The copy of a layer's coverage alone (any thread while no other call runs on the same layer: the map round on its worker thread; the stack's readers see the values change).
+        internal void CopyCover(int layer, WeatherMap coverageSource)
+        {
+            if (coverageSource == null || layer < 0 || layer >= CloudLayerDef.MaxLayers) return;
             WeatherMap copy = cover[layer];
             if (copy == null) cover[layer] = copy = new WeatherMap();
             copy.Resize(coverageSource.Width, coverageSource.Height);
             Array.Copy(coverageSource.Values, copy.Values, copy.Values.Length);
+        }
+
+        // Gives the stack the layer's copy and type map (main thread; CopyCover has run for the layer).
+        internal void Attach(LayerStackSource stack, int layer, WeatherMap typeMap)
+        {
+            if (stack == null || layer < 0 || layer >= CloudLayerDef.MaxLayers || layer >= stack.LayerCount) return;
+            WeatherMap copy = cover[layer];
+            if (copy == null) return;
+            ResetOwner(stack);
             // The type map is attached once; a layer whose type map changed to another instance (the look knobs cloud.typeFair / cloud.typeOverride, CloudLookTuning) is attached again.
             if (attached[layer] && ReferenceEquals(typeAttached[layer], typeMap)) return;
             stack.SetMaps(layer, copy, typeMap);

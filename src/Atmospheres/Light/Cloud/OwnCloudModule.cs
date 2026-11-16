@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using ReDefinition.Core;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -360,7 +361,9 @@ namespace ReDefinition.Atmospheres
                 Hide();
                 return;
             }
+            long mapStart = Stopwatch.GetTimestamp();
             FetchMaps(b, field, ut, now, dt);
+            ReportMapTiming((Stopwatch.GetTimestamp() - mapStart) * 1000.0 / Stopwatch.Frequency, now);
             BuildHeights(c, b, field, ut, now);
             // The upload of a new stack and the height slices (one a frame) are timed: the worst frame is a hitch of the pass (the first call, with Mono's
             // JIT in it, is left out of the worst).
@@ -633,9 +636,10 @@ namespace ReDefinition.Atmospheres
             Stats.Layers = stack.LayerCount;
             forceMaps = forceHeights = snapMaps = true;
             mapsPrimed = false;
+            EnsureRoundIdle();
             fetchStep = -1;
             heightJob.Cancel();
-            renderer.Maps.Ensure(MapWidth, MapHeight);
+            renderer.Maps.Ensure(MapWidth, MapHeight, Tuning.Get(TuneMapGpuSlew, 1f) > 0.5f);
             renderer.Noise.Switches.SphereScale = c.Clouds.SphereScale > 0f ? c.Clouds.SphereScale : 1f;
             OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()) { StepPolicy = OwnCloudOptions.ShadowStepPolicy, ShapeNoise = shadowNoise });
             OwnCloudHook.Attach();
@@ -654,6 +658,7 @@ namespace ReDefinition.Atmospheres
         {
             if (stack == null) return;
             heightJob.Cancel();
+            EnsureRoundIdle();
             fetchStep = -1;
             stack = null;
             stackKey = "";
@@ -759,7 +764,20 @@ namespace ReDefinition.Atmospheres
                 if (lookStampSeen >= 0) { forceMaps = true; snapMaps = true; }
                 lookStampSeen = lookStamp;
             }
-            if (fetchStep < 0 && OwnCloudPlan.Due(now, nextMaps, OwnCloudPlan.MapIntervalS, forceMaps))
+            // cloud.mapGpuSlew (default 1): the maps slew on the GPU (LayerMapStore.GpuSlew.cs), 0 the old per-frame step and upload; the mode changes between frames by dropping the
+            // maps and fetching them again with a snap.
+            bool gpuSlew = Tuning.Get(TuneMapGpuSlew, 1f) > 0.5f;
+            if (renderer.Maps.Coverage != null && renderer.Maps.GpuSlew != gpuSlew)
+            {
+                EnsureRoundIdle();
+                fetchStep = -1;
+                renderer.Maps.Ensure(MapWidth, MapHeight, gpuSlew);
+                forceMaps = snapMaps = true;
+                mapsPrimed = false;
+                stepMaps = false;
+            }
+            if (roundOnWorker && Volatile.Read(ref roundFinished) == 1) CompleteWorkerRound();
+            if (!roundOnWorker && fetchStep < 0 && OwnCloudPlan.Due(now, nextMaps, OwnCloudPlan.MapIntervalS, forceMaps))
             {
                 nextMaps = now + OwnCloudPlan.MapIntervalS;
                 roundAfterSwap = WeatherRebuild.Phase == RebuildPhase.Fetching;
@@ -767,9 +785,11 @@ namespace ReDefinition.Atmospheres
                 fetchHaveShared = fetchHaveType = false;
                 fetchAll = forceMaps || !mapsPrimed;
                 fetchRoundMs = 0.0;
+                // cloud.mapWorker (default 1): a steady-state round (no snap, maps primed) runs on a worker thread; the main thread starts it and takes its result (the maps slew on the GPU).
+                if (!fetchAll && !snapMaps && renderer.Maps.GpuSlew && field.ThreadSafe && Tuning.Get(TuneMapWorker, 1f) > 0.5f) StartWorkerRound(b, field, ut);
                 forceMaps = false;
             }
-            if (fetchStep >= 0)
+            if (fetchStep >= 0 && !roundOnWorker)
             {
                 long stepStart = Stopwatch.GetTimestamp();
                 do
@@ -786,13 +806,176 @@ namespace ReDefinition.Atmospheres
                     else Stats.WorstMapMs = Math.Max(Stats.WorstMapMs, Stats.LastMapMs);
                 }
             }
-            if (stepMaps)
+            // With GpuSlew the store's clock runs every frame (the shader's slew is measured against it); the old path steps only while a round's targets are being reached.
+            if (stepMaps || renderer.Maps.GpuSlew)
             {
-                int open = renderer.Maps.Step(dt, MapSlew.DefaultRate, snapMaps);
-                snapMaps = false;
-                mapsPrimed = true;
-                if (open == 0) stepMaps = false;
+                int open = renderer.Maps.Step(dt, MapSlew.DefaultRate, stepMaps && snapMaps);
+                if (stepMaps)
+                {
+                    snapMaps = false;
+                    mapsPrimed = true;
+                    if (open == 0) stepMaps = false;
+                }
             }
+        }
+
+        internal const string TuneMapGpuSlew = "cloud.mapGpuSlew", TuneMapWorker = "cloud.mapWorker";
+
+        // The main-thread time of the map pipeline (FetchMaps: the round's steps, the store's step and its uploads), one line a second, only with -redefinitionGpuProfile.
+        private static bool? mapTimingOn;
+        private static bool MapTimingOn { get { return (mapTimingOn ?? (mapTimingOn = CommandLine.Has("-redefinitionGpuProfile"))).Value; } }
+        private int mapTimeFrames;
+        private double mapTimeSum, mapTimeMax;
+        private float mapTimeSince = -1f;
+
+        private void ReportMapTiming(double ms, float now)
+        {
+            if (!MapTimingOn) return;
+            if (mapTimeSince < 0f) mapTimeSince = now;
+            mapTimeFrames++;
+            mapTimeSum += ms;
+            if (ms > mapTimeMax) mapTimeMax = ms;
+            if (now - mapTimeSince < 1f) return;
+            AtmospheresLog.Say("own clouds: map pipeline main thread (OPT1), last second: " + mapTimeFrames + " frames, mean " + (mapTimeSum / mapTimeFrames).ToString("0.000")
+                               + " ms, max " + mapTimeMax.ToString("0.000") + " ms, mode " + (renderer.Maps.GpuSlew ? "gpu slew" : "cpu step") + (roundOnWorker ? ", round on the worker" : "")
+                               + ", pending uploads " + renderer.Maps.SlewPending + ", rounds " + Stats.MapFetches);
+            mapTimeFrames = 0;
+            mapTimeSum = mapTimeMax = 0.0;
+            mapTimeSince = now;
+        }
+
+        // --- The map round on a worker thread ------------------------------------------------------------------------------------------
+
+        // A steady-state round (FetchStep from the shared coverage to the last layer's hand-over) runs on one worker thread, started by the main thread when a round is due; every call
+        // in it is the thread-safe field's (IWeatherField.ThreadSafe) or pure byte work on buffers only the round touches while it runs (the main thread reads none of them until it
+        // has taken the round: roundFinished). The round hands each layer's goal to the store (LayerMapStore.SetTargetBytes, GpuSlew: a copy and a queue entry, any thread) and copies
+        // the CPU mirror's coverage (StackMapMirror.CopyCover); the main thread then attaches the type maps to the stack (StackMapMirror.Attach) and ends the round. The stack, the
+        // store's size and the round's buffers do not change under a round: whatever would change them waits for it first (EnsureRoundIdle).
+        private bool roundOnWorker;
+        private int roundFinished;
+        private bool roundDelivered;
+        private Exception roundError;
+        private double roundWorkerMs;
+        private CelestialBody roundBody;
+        private IWeatherField roundField;
+        private double roundUt;
+        private Thread roundThread;
+        private readonly object roundGate = new object();
+        private bool roundRequested;
+        private readonly WeatherMap[] attachType = new WeatherMap[CloudLayerDef.MaxLayers];
+        private readonly ManualResetEvent roundIdle = new ManualResetEvent(true);
+
+        private void StartWorkerRound(CelestialBody b, IWeatherField field, double ut)
+        {
+            roundOnWorker = true;
+            Volatile.Write(ref roundFinished, 0);
+            roundDelivered = false;
+            roundError = null;
+            roundBody = b;
+            roundField = field;
+            roundUt = ut;
+            Array.Clear(attachType, 0, attachType.Length);
+            roundIdle.Reset();
+            lock (roundGate)
+            {
+                roundRequested = true;
+                if (roundThread == null)
+                {
+                    roundThread = new Thread(RoundWorker) { IsBackground = true, Name = "ReDefinition cloud map round" };
+                    roundThread.Start();
+                }
+                Monitor.PulseAll(roundGate);
+            }
+        }
+
+        private void RoundWorker()
+        {
+            while (true)
+            {
+                lock (roundGate)
+                {
+                    while (!roundRequested) Monitor.Wait(roundGate);
+                    roundRequested = false;
+                }
+                long start = Stopwatch.GetTimestamp();
+                try
+                {
+                    do
+                    {
+                        FetchStep(roundBody, roundField, roundUt);
+                    } while (fetchStep >= 0);
+                }
+                catch (Exception e)
+                {
+                    roundError = e;
+                    fetchStep = -1;
+                }
+                roundWorkerMs = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+                Volatile.Write(ref roundFinished, 1);
+                roundIdle.Set();
+            }
+        }
+
+        // Blocks until a round in flight has ended and drops its result (a stack change or a mode change is about to replace what it was working on).
+        private void EnsureRoundIdle()
+        {
+            if (!roundOnWorker) return;
+            roundIdle.WaitOne();
+            roundOnWorker = false;
+            roundDelivered = false;
+            fetchStep = -1;
+        }
+
+        // Main thread, the frame after the worker finished: attaches the round's type maps to the stack and ends the round as the main-thread path does.
+        private void CompleteWorkerRound()
+        {
+            roundOnWorker = false;
+            fetchRoundMs = roundWorkerMs;
+            Stats.LastMapMs = roundWorkerMs;
+            if (Stats.MapFetches <= 1 && Stats.FirstMapMs == 0.0) Stats.FirstMapMs = Stats.LastMapMs;
+            else Stats.WorstMapMs = Math.Max(Stats.WorstMapMs, Stats.LastMapMs);
+            if (roundError != null)
+            {
+                AtmospheresLog.Say("own clouds: a map round on the worker failed: " + roundError.Message);
+                fetchStep = -1;
+                return;
+            }
+            if (!roundDelivered) return;
+            for (int l = 0; l < stack.LayerCount; l++)
+                if (attachType[l] != null) stackMaps.Attach(stack, l, attachType[l]);
+            stepMaps = true;
+            Stats.MapFetches++;
+            if (roundAfterSwap) WeatherRebuild.MapsFetched();
+        }
+
+        // Where a layer's goal goes at the end of its step: the store and the CPU mirror. On the worker the mirror's coverage is copied there and the type map attached by the main
+        // thread afterwards.
+        private void PublishLayer(int l, byte[] cover, byte[] typeBytes, WeatherMap coverSource, WeatherMap typeForCpu)
+        {
+            renderer.Maps.SetTargetBytes(l, cover, typeBytes);
+            if (roundOnWorker)
+            {
+                stackMaps.CopyCover(l, coverSource);
+                attachType[l] = typeForCpu;
+            }
+            else
+            {
+                stackMaps.Set(stack, l, coverSource, typeForCpu);
+            }
+        }
+
+        // The end of a round that delivered goals: the main-thread path finishes it here, the worker's round is finished by CompleteWorkerRound.
+        private void EndRound()
+        {
+            fetchStep = -1;
+            if (roundOnWorker)
+            {
+                roundDelivered = true;
+                return;
+            }
+            stepMaps = true;
+            Stats.MapFetches++;
+            if (roundAfterSwap) WeatherRebuild.MapsFetched();
         }
 
         // One step of a fetch round (see FetchMaps). The packing to bytes happens once per map; the store copies the bytes into the layers.
@@ -1002,14 +1185,10 @@ namespace ReDefinition.Atmospheres
             {
                 WeatherMap anvilCoverCpu, anvilTypeCpu;
                 if (DrawAnvil(l, ref cover, ref typeBytes, out anvilCoverCpu, out anvilTypeCpu)) { coverSource = anvilCoverCpu; typeForCpu = anvilTypeCpu; }
-                renderer.Maps.SetTargetBytes(l, cover, typeBytes);
-                stackMaps.Set(stack, l, coverSource, typeForCpu);
+                PublishLayer(l, cover, typeBytes, coverSource, typeForCpu);
             }
             if (l + 1 < stack.LayerCount) return;
-            fetchStep = -1;
-            stepMaps = true;
-            Stats.MapFetches++;
-            if (roundAfterSwap) WeatherRebuild.MapsFetched();
+            EndRound();
         }
 
         // The slices a round's combination of the layer maps to the field's cover is cut into, a slice a frame (the whole map is 100 ms of CPU).
@@ -1037,13 +1216,9 @@ namespace ReDefinition.Atmospheres
                 WeatherMap combined = combinedMaps[k] ?? (combinedMaps[k] = new WeatherMap());
                 combined.Resize(coverageMap.Width, coverageMap.Height);
                 for (int i = 0; i < kc.Length; i++) combined.Values[i] = kc[i] / 255f;
-                renderer.Maps.SetTargetBytes(k, kc, kt);
-                stackMaps.Set(stack, k, combined, anvil ? anvilTypeCpu : pendingTypeMap[k]);
+                PublishLayer(k, kc, kt, combined, anvil ? anvilTypeCpu : pendingTypeMap[k]);
             }
-            fetchStep = -1;
-            stepMaps = true;
-            Stats.MapFetches++;
-            if (roundAfterSwap) WeatherRebuild.MapsFetched();
+            EndRound();
         }
 
         // Whether the round in flight began after the generator's states were swapped in (a rebuild waits for such a round: one begun before it holds the old weather).

@@ -27,6 +27,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
 
         CGINCLUDE
         #include "UnityCG.cginc"
+        #include "MapSlew.cginc"
 
         static const int MAXL = 4;
         static const int MAXT = 8;
@@ -46,6 +47,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         sampler2D _CsTypeInfo;
         UNITY_DECLARE_TEX2DARRAY(_CsCovMaps);
         UNITY_DECLARE_TEX2DARRAY(_CsTypeMaps);
+        float4 _CsReachCov, _CsReachType;   // the maps' slew reach per layer (MapSlew.cginc)
         float4 _CsMapDim;
         float _CsDebug;
 
@@ -158,9 +160,9 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 float2 uv = MapUv(pc, _CsLayerD[li].w);
                 float vMin = 0.5 / _CsMapDim.y;
                 uv.y = clamp(uv.y, vMin, 1.0 - vMin);
-                cov = UNITY_SAMPLE_TEX2DARRAY_LOD(_CsCovMaps, float3(uv, slice), 0).r;
+                cov = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsCovMaps, float3(uv, slice), 0).rg, _CsReachCov, slice);
                 cov = min(cov, 2.0 * cov - _CsLayerC[li].x);   // E40 soft density: the clear-sky rule of the layer pass (K = 0 is off)
-                typeValue = UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).r;
+                typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
             }
             float typeCount = _CsLayerC[li].w;
             float x2 = saturate(typeValue) * (typeCount - 1);

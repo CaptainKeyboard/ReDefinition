@@ -12,6 +12,7 @@ namespace ReDefinition.Atmospheres
         private int mapW, mapH;
         private Color32[] scratchFine, scratchCoarse;
         private readonly byte[] cellMax = new byte[CullMath.FineW * CullMath.FineH], cellMin = new byte[CullMath.FineW * CullMath.FineH];
+        private readonly byte[] cellMaxB = new byte[CullMath.FineW * CullMath.FineH], cellMinB = new byte[CullMath.FineW * CullMath.FineH];
 
         internal Texture2DArray MaxFine { get { return maxFine; } }
         internal Texture2DArray MaxCoarse { get { return maxCoarse; } }
@@ -84,8 +85,19 @@ namespace ReDefinition.Atmospheres
             {
                 long version = maps.CoverageVersion(l);
                 if (built[l] == version) continue;
-                byte[] bytes = maps.CoverageBytes(l);
+                byte[] bytes, other;
+                if (!maps.CoverageBoundPair(l, out bytes, out other)) continue;
                 CullMath.Cells(bytes, mapW, mapH, CullMath.FineW, CullMath.FineH, cellMax, cellMin);
+                // Slewing on the GPU: the shown value lies between the two maps of the pair at every moment, so the bounds take both (maximum of the maxima, minimum of the minima).
+                if (!ReferenceEquals(bytes, other))
+                {
+                    CullMath.Cells(other, mapW, mapH, CullMath.FineW, CullMath.FineH, cellMaxB, cellMinB);
+                    for (int i = 0; i < cellMax.Length; i++)
+                    {
+                        if (cellMaxB[i] > cellMax[i]) cellMax[i] = cellMaxB[i];
+                        if (cellMinB[i] < cellMin[i]) cellMin[i] = cellMinB[i];
+                    }
+                }
                 byte[] coarseMax = CullMath.Coarsen(cellMax, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH, true);
                 byte[] coarseMin = CullMath.Coarsen(cellMin, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH, false);
                 Store(maxFine, l, CullMath.Dilate(cellMax, CullMath.FineW, CullMath.FineH, true), scratchFine);

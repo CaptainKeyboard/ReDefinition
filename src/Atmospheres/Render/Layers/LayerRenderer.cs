@@ -147,7 +147,8 @@ namespace ReDefinition.Atmospheres
         private readonly float[] layerTau = new float[CloudLayerDef.MaxLayers];
         private readonly Vector4[] motionA = new Vector4[CloudLayerDef.MaxLayers], motionB = new Vector4[CloudLayerDef.MaxLayers], motionD = new Vector4[CloudLayerDef.MaxLayers];
         private static readonly int IdMvA = Shader.PropertyToID("_MvA"), IdMvB = Shader.PropertyToID("_MvB"), IdMvD = Shader.PropertyToID("_MvD"), IdMvN = Shader.PropertyToID("_MvN"),
-            IdMvMap = Shader.PropertyToID("_MvMap"), IdMvWorldToMap = Shader.PropertyToID("_MvWorldToMap"), IdMvCov = Shader.PropertyToID("_MvCov");
+            IdMvMap = Shader.PropertyToID("_MvMap"), IdMvWorldToMap = Shader.PropertyToID("_MvWorldToMap"), IdMvCov = Shader.PropertyToID("_MvCov"),
+            IdMvReach = Shader.PropertyToID("_MvReach"), IdMapReachCov = Shader.PropertyToID("_MapReachCov"), IdMapReachType = Shader.PropertyToID("_MapReachType");
         private RenderTexture target;
         private CommandBuffer commands;
         private Camera attached;
@@ -380,6 +381,8 @@ namespace ReDefinition.Atmospheres
             {
                 m.SetTexture(IdCovMaps, Maps.Coverage);
                 m.SetTexture(IdTypeMaps, Maps.Types);
+                m.SetVector(IdMapReachCov, Maps.ReachVector(0));
+                m.SetVector(IdMapReachType, Maps.ReachVector(1));
                 m.SetVector(IdMapDim, new Vector4(Maps.Width, Maps.Height, 0f, 0f));
             }
             else
@@ -474,9 +477,12 @@ namespace ReDefinition.Atmospheres
                                 down += 1f;
                                 up += 1f;
                             }
-                            spanResult[l] = LayerSpanBound.Bound(Maps.CoverageBytes(l), Maps.TypeBytes(l), Maps.Width, Maps.Height, lat, lon, region + 0.25,
+                            byte[] coverA, coverB, typeA, typeB;
+                            Maps.CoverageBoundPair(l, out coverA, out coverB);
+                            Maps.TypeBoundPair(l, out typeA, out typeB);
+                            spanResult[l] = LayerSpanBound.Bound(coverA, typeA, Maps.Width, Maps.Height, lat, lon, region + 0.25,
                                                                  uploadedSource.TableAt(l), uploadedSource.LayerAt(l), layerB[l].y, layerD[l].x, layerB[l].z, table.x, table.y,
-                                                                 down, up);
+                                                                 down, up, ReferenceEquals(coverA, coverB) ? null : coverB, ReferenceEquals(typeA, typeB) ? null : typeB);
                             spanKey[l] = key;
                             spanValid[l] = true;
                         }
@@ -592,6 +598,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdMvMap, new Vector4(Maps.Width, Maps.Height, 0f, 0f));
             m.SetMatrix(IdMvWorldToMap, f.WorldToMap);
             if (Maps.Coverage != null) m.SetTexture(IdMvCov, Maps.Coverage);
+            m.SetVector(IdMvReach, Maps.ReachVector(0));
         }
 
         // The composite reads the march target's texel size from the material (Unity does not fill it for a texture set globally).

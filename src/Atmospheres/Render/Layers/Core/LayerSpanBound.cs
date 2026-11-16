@@ -158,7 +158,7 @@ namespace ReDefinition.Atmospheres
         // the numbers the shader's coverage bound uses (_LayerB.y, _LayerD.x, _LayerB.z). staticInnerM / staticOuterM: the table's tight interval, never left.
         internal static Result Bound(byte[] coverageBytes, byte[] typeBytes, int width, int height, double latDeg, double lonDeg, double regionDeg, LayerTypeTable table,
                                      CloudLayerDef layer, float coverage, float noiseAmount, float edge, float staticInnerM, float staticOuterM,
-                                     float downM = -1f, float upM = -1f)
+                                     float downM = -1f, float upM = -1f, byte[] coverageBytes2 = null, byte[] typeBytes2 = null)
         {
             var r = new Result();
             if (coverageBytes == null || typeBytes == null || width < 2 || height < 2 || table == null || table.Count <= 0 || !(regionDeg >= 0.0)) return r;
@@ -187,6 +187,18 @@ namespace ReDefinition.Atmospheres
                     if (c > covMax) covMax = c;
                     if (t < typeMin) typeMin = t;
                     if (t > typeMax) typeMax = t;
+                    // The maps a slewing layer moves between (the second pair): every value they show lies between the two maps, so the bound takes both.
+                    if (coverageBytes2 != null)
+                    {
+                        c = coverageBytes2[row + x];
+                        if (c > covMax) covMax = c;
+                    }
+                    if (typeBytes2 != null)
+                    {
+                        t = typeBytes2[row + x];
+                        if (t < typeMin) typeMin = t;
+                        if (t > typeMax) typeMax = t;
+                    }
                 }
             }
             r.Texels = rows * columns;

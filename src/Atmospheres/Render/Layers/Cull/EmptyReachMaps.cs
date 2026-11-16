@@ -76,8 +76,8 @@ namespace ReDefinition.Atmospheres
                 var numbers = new Vector4(layerB[l].y, layerD[l].x, layerB[l].z, cullL[l].y);
                 long goal = maps.CoverageGoalVersion(l);
                 if (builtGoal[l] == goal && builtNumbers[l] == numbers) continue;
-                byte[] now = maps.CoverageBytes(l), target = maps.CoverageGoalBytes(l);
-                if (now == null || target == null) continue;
+                byte[] now, target;
+                if (!maps.CoverageReachPair(l, out now, out target) || now == null || target == null) continue;
                 EmptyReachMath.Table(occupied, numbers.x, numbers.y, numbers.z, numbers.w);
                 EmptyReachMath.Build(now, target, mapW, mapH, occupied, reach, work);
                 for (int i = 0; i < reach.Length; i++) scratch[i] = new Color32(reach[i], reach[i], reach[i], 255);

@@ -60,6 +60,7 @@ namespace ReDefinition.Atmospheres
             IdLayerB = Shader.PropertyToID("_CsLayerB"), IdLayerC = Shader.PropertyToID("_CsLayerC"), IdLayerD = Shader.PropertyToID("_CsLayerD"),
             IdTypeProfile = Shader.PropertyToID("_CsTypeProfile"), IdTypeInfo = Shader.PropertyToID("_CsTypeInfo"),
             IdCovMaps = Shader.PropertyToID("_CsCovMaps"), IdTypeMaps = Shader.PropertyToID("_CsTypeMaps"), IdMapDim = Shader.PropertyToID("_CsMapDim"),
+            IdReachCov = Shader.PropertyToID("_CsReachCov"), IdReachType = Shader.PropertyToID("_CsReachType"),
             IdDepthSource = Shader.PropertyToID("_CsDepthSource"), IdDepthHalf = Shader.PropertyToID("_CsDepthHalf"),
             IdShadowHalf = Shader.PropertyToID("_CsShadowHalf"), IdNoiseD = Shader.PropertyToID("_CsNoiseD"), IdPlanetR = Shader.PropertyToID("_CsPlanetR");
 
@@ -136,6 +137,8 @@ namespace ReDefinition.Atmospheres
             {
                 material.SetTexture(IdCovMaps, maps.Coverage);
                 material.SetTexture(IdTypeMaps, maps.Types);
+                material.SetVector(IdReachCov, maps.ReachVector(0));
+                material.SetVector(IdReachType, maps.ReachVector(1));
                 material.SetVector(IdMapDim, new Vector4(maps.Width, maps.Height, 0f, 0f));
             }
             else

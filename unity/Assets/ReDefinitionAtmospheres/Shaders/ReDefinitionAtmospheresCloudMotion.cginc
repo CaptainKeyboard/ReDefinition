@@ -9,12 +9,14 @@
 // The same place serves the history of the reconstruction (the cloud's colour of the last frame) and the motion vector the upscalers and frame generation read for the cloud.
 #ifndef REDEFINITION_ATMOSPHERES_CLOUD_MOTION
 #define REDEFINITION_ATMOSPHERES_CLOUD_MOTION
+#include "MapSlew.cginc"
 
 float4 _MvA[4];      // x: radius of the layer's middle sphere (m from the planet's centre), y: the layer's coverage, z: its edge softness, w: its coverage map slice (< 0: no map, the layer fills the pixel)
 float4 _MvB[4];      // x: vertical optical depth of a full column, y: the map's longitude shift (degrees), z: the clear-sky K of the map value (0: none), w: 0
 float4 _MvD[4];      // xyz: the layer's drift over one frame (m, planet frame), w: 0
 float4 _MvN;         // x: the layers to blend (0: the caller takes the first layer's shell), y: the planet's radius (m), z: the previous camera exists (1) or not (0), w: 0
 float4 _MvMap;       // the coverage maps' width and height
+float4 _MvReach;     // the coverage maps' slew reach per layer (MapSlew.cginc)
 float4x4 _MvWorldToMap;
 UNITY_DECLARE_TEX2DARRAY(_MvCov);
 
@@ -28,7 +30,7 @@ float MvPresence(int l, float3 pc)
     float2 uv = float2((lon * 57.29577951 - _MvB[l].y + 180.0) / 360.0, (90.0 - lat * 57.29577951) / 180.0);
     float vMin = 0.5 / _MvMap.y;
     uv.y = clamp(uv.y, vMin, 1.0 - vMin);
-    float cov = UNITY_SAMPLE_TEX2DARRAY_LOD(_MvCov, float3(uv, slice), 0).r;
+    float cov = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_MvCov, float3(uv, slice), 0).rg, _MvReach, slice);
     cov = min(cov, 2.0 * cov - _MvB[l].z);
     return saturate((cov + _MvA[l].y - 1.0) / max(_MvA[l].z, 1e-4) + 0.5);
 }

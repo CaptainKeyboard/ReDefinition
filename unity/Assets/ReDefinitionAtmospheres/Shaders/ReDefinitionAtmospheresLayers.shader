@@ -31,6 +31,7 @@ Shader "ReDefinition/AtmospheresLayers"
 
         CGINCLUDE
         #include "UnityCG.cginc"
+        #include "MapSlew.cginc"
 
         static const float PI = 3.14159265;
         static const int MAXL = 4;
@@ -51,7 +52,11 @@ Shader "ReDefinition/AtmospheresLayers"
         sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's heap preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
         UNITY_DECLARE_TEX2DARRAY(_TypeMaps);
-        UNITY_DECLARE_TEX2DARRAY(_CovReach);   // E40 C1: per layer and map texel the texels to the nearest texel that can hold cloud, less a margin (EmptyReachMaps.cs; zero: no reach)
+        // The two maps are RG16 arrays: r the value the map showed when its newest goal arrived, g the goal. The shown value is r moved toward g by at most the layer's reach
+        // (x, y, z, w: layers 0 to 3; a share of full scale, the store's rate times the seconds since the goal arrived; LayerMapStore.GpuSlew.cs, MapSlewField.cs is the CPU twin).
+        // The old path uploads the shown map in both channels with a reach of zero.
+        float4 _MapReachCov, _MapReachType;
+        UNITY_DECLARE_TEX2DARRAY(_CovReach);  // E40 C1: per layer and map texel the texels to the nearest texel that can hold cloud, less a margin (EmptyReachMaps.cs; zero: no reach)
         float4 _MapDim;      // map width, map height
         float4 _Sun;         // towards the sun, w: the longest sun march in m
         float4 _SunColor, _AmbientTop, _AmbientBottom;
@@ -256,8 +261,8 @@ Shader "ReDefinition/AtmospheresLayers"
             {
                 float vMin = 0.5 / _MapDim.y;
                 uv.y = clamp(uv.y, vMin, 1.0 - vMin);
-                cov = UNITY_SAMPLE_TEX2DARRAY_LOD(_CovMaps, float3(uv, slice), 0).r;
-                cov = min(cov, 2.0 * cov - _CullL[li].y);   // E40 soft density: the clear-sky rule of the water content (CloudLayerDef.ClearSkyMap); K = 0 is off
+                cov = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CovMaps, float3(uv, slice), 0).rg, _MapReachCov, slice);
+                cov = min(cov, 2.0 * cov - _CullL[li].y);  // E40 soft density: the clear-sky rule of the water content (CloudLayerDef.ClearSkyMap); K = 0 is off
                 // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. the type's lift only
                 // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
                 if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0)
@@ -265,7 +270,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     gEmptyM = EmptyReach(li, uv);
                     return 0;
                 }
-                typeValue = UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).r;
+                typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
             }
             float erosion = 0;
             float typeCount = _LayerC[li].w;
