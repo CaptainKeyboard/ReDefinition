@@ -177,6 +177,8 @@ namespace ReDefinition.WeatherPlayer
             // CLOUDR1 ablation of the ceiling's march group, one lever each: c256 256 grid points, cmin6 a minimum step of 6 m, cng no step and transmittance growth, ceo early-out 0.001,
             // cel no leap over empty grid points; cls every lit step marches to the sun (stride 1, no cutoff) with the product's taps.
             public bool C256, Cmin6, Cng, Ceo, Cel, Cls;
+            // CLOUDR3 P7: chm reads the reconstruction's history with the Catmull-Rom filter (ReconSettings.CatmullHistory).
+            public bool CatmullHistory;
             // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
             public int Grid;
         }
@@ -218,6 +220,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("lp")) c.Leap100 = Number(t, 2) / 100f;   // E40 C2
                 else if (t.StartsWith("wt")) c.WarpTable = Number(t, 2);   // E40 C4
                 else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
+                else if (t == "chm") c.CatmullHistory = true;   // CLOUDR3 P7: the history read with the Catmull-Rom filter
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
                 else if (t.StartsWith("sp")) c.Spacing = Number(t, 2) / 10f;
@@ -322,6 +325,7 @@ namespace ReDefinition.WeatherPlayer
             ReconSettings s = GrainTable.ModeByName(mode).Settings();
             s.Resolution = c.Resolution;
             s.Jitter = c.Jitter;
+            s.CatmullHistory = c.CatmullHistory;
             if (s.Accumulate > 0f) s.Accumulate = c.Accumulate;
             if (c.ClipSigma >= 0f) s.ClipSigma = c.ClipSigma;
             return s;

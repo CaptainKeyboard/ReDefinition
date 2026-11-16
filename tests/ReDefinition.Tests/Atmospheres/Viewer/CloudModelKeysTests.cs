@@ -38,7 +38,11 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 Assert.AreEqual(KeySection.Quality, Key(key).Section, key);
                 StringAssert.Contains(Key(key).Note, "experimental");
             }
-            StringAssert.Contains(Key(CloudLookTuning.TuneNoiseBlend).Note, "CPU twin only");
+            Assert.AreEqual(KeySection.Light, Key(CloudLookTuning.TuneLightErosion).Section);
+            Assert.AreEqual(KeyMarker.Live, Key(CloudLookTuning.TuneLightErosion).Marker);
+            Assert.AreEqual(KeyLiveness.FrameHistory, Key(CloudLookTuning.TuneLightErosion).Liveness);
+            Assert.AreEqual(8f, Key(CloudLookTuning.TuneLightErosion).Max);
+            Assert.AreEqual(KeySection.Quality, Key(OwnCloudOptions.TuneCatmull).Section);
             Assert.AreEqual(KeyMarker.AfterVolumeRebuild, Key(CloudLookTuning.TuneHeapDetail).Marker);
             Assert.AreEqual(KeyLiveness.Volume, Key(CloudLookTuning.TuneHeapDetail).Liveness);
             Assert.AreEqual("volume", CloudKeyRegistry.MarkerShort(KeyMarker.AfterVolumeRebuild));

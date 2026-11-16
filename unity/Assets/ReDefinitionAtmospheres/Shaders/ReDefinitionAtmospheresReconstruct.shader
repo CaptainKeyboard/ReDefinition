@@ -78,6 +78,32 @@ Shader "ReDefinition/AtmospheresReconstruct"
             return tex2Dlod(_CurTex, float4((q + 0.5) * _CurTex_TexelSize.xy, 0, 0));
         }
 
+        // The history with a Catmull-Rom filter in five bilinear taps (the 9-tap filter folded onto the bilinear hardware; Jimenez, "Filmic SMAA: Sharp
+        // morphological and temporal antialiasing", SIGGRAPH 2016). _ReconK.w selects it (CLOUDR3 P7): the bilinear fetch blurs the history a little with every sub-pixel move, which a
+        // history kept over twenty frames adds up. The negative lobes can overshoot; the clip box that follows bounds the result.
+        float4 HistoryCatmull(float2 uv)
+        {
+            float2 size = _ReconD.xy;
+            float2 pos = uv * size;
+            float2 c = floor(pos - 0.5) + 0.5;
+            float2 f = pos - c;
+            float2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+            float2 w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+            float2 w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+            float2 w3 = f * f * (-0.5 + 0.5 * f);
+            float2 w12 = w1 + w2;
+            float2 t0 = (c - 1.0) / size;
+            float2 t3 = (c + 2.0) / size;
+            float2 t12 = (c + w2 / w12) / size;
+            float4 r = tex2Dlod(_HistTex, float4(t12.x, t0.y, 0, 0)) * (w12.x * w0.y)
+                     + tex2Dlod(_HistTex, float4(t0.x, t12.y, 0, 0)) * (w0.x * w12.y)
+                     + tex2Dlod(_HistTex, float4(t12.x, t12.y, 0, 0)) * (w12.x * w12.y)
+                     + tex2Dlod(_HistTex, float4(t3.x, t12.y, 0, 0)) * (w3.x * w12.y)
+                     + tex2Dlod(_HistTex, float4(t12.x, t3.y, 0, 0)) * (w12.x * w3.y);
+            float wsum = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
+            return max(r / wsum, 0.0);
+        }
+
         float4 frag(v2f i) : SV_Target
         {
             float n = max(_ReconP.x, 1.0);
@@ -116,7 +142,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
                 valid = _Drift.w > 0.5 && f > 1e-3 && all(puv > 0.0) && all(puv < 1.0);
             }
             if (!valid) return cur;
-            float4 h = tex2Dlod(_HistTex, float4(puv, 0, 0));
+            float4 h = _ReconK.w > 0.5 ? HistoryCatmull(puv) : tex2Dlod(_HistTex, float4(puv, 0, 0));
             if (_ReconP.w > 1.5) return h;
             float4 lo = m1 - _ReconK.z * sd, hi = m1 + _ReconK.z * sd;
             h = clamp(h, lo, hi);

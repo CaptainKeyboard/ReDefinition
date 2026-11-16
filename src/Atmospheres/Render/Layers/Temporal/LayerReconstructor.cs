@@ -33,6 +33,9 @@ namespace ReDefinition.Atmospheres
         // The weights are the sweep's pick (T05, tools/weather_metrics/temporal.py T05-temporal): 0.05 for the pixels without a new sample
         // gives the lowest shimmer at the 4 x 4 block with no more ghosting than 0.1 on the turns.
         public float FreshWeight = 0.5f, StaleWeight = 0.05f, ClipSigma = 1.0f;
+        // CLOUDR3 (P7): the history is read with a five-tap Catmull-Rom filter instead of the bilinear one, which blurs the history a little with every sub-pixel move (a slow wind, a
+        // turn). Off: bilinear, as before.
+        public bool CatmullHistory;
         // The cloud's drift in the planet frame per frame (m): the wind that moves the pattern.
         public Vector3 DriftPerFrame;
         // E40 MVCLOUD: the cloud's place in the previous frame is taken on every layer's middle sphere and blended by the layers' share of the pixel (history and motion vector;
@@ -300,7 +303,7 @@ namespace ReDefinition.Atmospheres
                     a.SetTexture(IdHistTex, lowLatest);
                     a.SetVector(IdReconP, new Vector4(1f, 0f, 0f, s.Debug));
                     a.SetVector(IdReconD, new Vector4(low.width, low.height, 0f, 0f));
-                    a.SetVector(IdReconK, new Vector4(Mathf.Clamp01(s.Accumulate), Mathf.Clamp01(s.Accumulate), s.ClipSigma, 0f));
+                    a.SetVector(IdReconK, new Vector4(Mathf.Clamp01(s.Accumulate), Mathf.Clamp01(s.Accumulate), s.ClipSigma, s.CatmullHistory ? 1f : 0f));
                     a.SetVector(IdCamPos, t.position - f.PlanetCenter);
                     a.SetVector(IdCamForward, t.forward);
                     a.SetVector(IdCamRight, t.right * tanX);
@@ -345,7 +348,7 @@ namespace ReDefinition.Atmospheres
                 m.SetTexture(IdHistTex, history);
                 m.SetVector(IdReconP, new Vector4(n, offset.x, offset.y, s.Debug));
                 m.SetVector(IdReconD, new Vector4(w, h, 0f, 0f));
-                m.SetVector(Shader.PropertyToID("_ReconK"), new Vector4(s.FreshWeight, s.StaleWeight, s.ClipSigma, 0f));
+                m.SetVector(Shader.PropertyToID("_ReconK"), new Vector4(s.FreshWeight, s.StaleWeight, s.ClipSigma, s.CatmullHistory ? 1f : 0f));
                 m.SetVector(IdCamPos, position);
                 m.SetVector(IdCamForward, t.forward);
                 m.SetVector(IdCamRight, t.right * tanX);
