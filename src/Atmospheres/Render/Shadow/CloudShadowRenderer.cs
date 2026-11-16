@@ -224,7 +224,9 @@ namespace ReDefinition.Atmospheres
             build.Clear();
             RecordShadow(build, width, height);
             display.Clear();
+            Sub(display, "begin");
             display.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, material, PassMask);
+            Sub(display, "sun mask multiply");
             ReleaseShadow(display);
         }
 
@@ -240,6 +242,7 @@ namespace ReDefinition.Atmospheres
             // The blits above left a temporary texture as the render target: back to the camera's.
             cb.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
             cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, material, PassColour);
+            Sub(cb, "forward colour multiply");
             ReleaseShadow(cb);
         }
 
@@ -277,8 +280,17 @@ namespace ReDefinition.Atmospheres
 
         // The shadow at half size from the camera's depth texture (a global texture of Unity's, read by name in the shader: it is not a
         // temporary render texture, so a command buffer cannot bind it by an identifier).
+        // GPU profiler sub-markers (labels "ReDefinition clouds shadow: <part>"); the module sets it to the host's marker seam, null alone.
+        internal static Action<CommandBuffer, string> SubMark;
+
+        private static void Sub(CommandBuffer cb, string part)
+        {
+            if (SubMark != null) SubMark(cb, "ReDefinition clouds shadow: " + part);
+        }
+
         private void RecordShadow(CommandBuffer cb, int fullW, int fullH)
         {
+            Sub(cb, "begin");
             int w = Mathf.Max(1, fullW / 2), h = Mathf.Max(1, fullH / 2);
             int depthId = Shader.PropertyToID(TextureNameDepth), shadowId = Shader.PropertyToID(TextureNameShadows);
             cb.GetTemporaryRT(depthId, w, h, 0, FilterMode.Point, RenderTextureFormat.RFloat);
@@ -286,8 +298,10 @@ namespace ReDefinition.Atmospheres
             // The size the shader divides by is set by hand: a temporary render texture named by an identifier carries no size of its own.
             cb.SetGlobalVector("_CsDepthHalf_TexelSize", new Vector4(1f / w, 1f / h, w, h));
             cb.Blit(BuiltinRenderTextureType.None, depthId, material, PassDownscale);
+            Sub(cb, "depth to half size");
             cb.SetGlobalTexture(IdDepthHalf, depthId);
             cb.Blit(BuiltinRenderTextureType.None, shadowId, material, PassShadow);
+            Sub(cb, "shadow march");
             cb.SetGlobalTexture(IdShadowHalf, shadowId);
         }
     }

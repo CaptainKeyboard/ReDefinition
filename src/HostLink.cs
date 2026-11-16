@@ -65,6 +65,7 @@ namespace ReDefinition
             };
             HostSeams.CloudMoonLight = CloudMoonLight;
             HostSeams.GpuMark = GpuProfiler.Mark;
+            HostSeams.GpuProfileOn = () => GpuProfiler.On;
             HostSeams.SpaceCentreButton = name =>
             {
                 KscButtons.Look held = KscButtons.Get(name);

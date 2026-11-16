@@ -67,6 +67,7 @@ namespace ReDefinition.Atmospheres
             cb.Blit(BuiltinRenderTextureType.None, mask, m, 2);
             cb.SetGlobalTexture(IdEdgeMask, mask);
             if (MarkMask != null) MarkMask(cb);
+            Sub(cb, "edge mask");
 
             // The edge draw: the 2 x 2 pattern, only in the flagged blocks.
             int ox, oy;
@@ -76,6 +77,7 @@ namespace ReDefinition.Atmospheres
             edgeLayers.SetVector(IdEdgeP, new Vector4(1f, EdgeSettings.CoarseBlock, 0f, 0f));
             cb.Blit(BuiltinRenderTextureType.None, edgeLow, edgeLayers, LayerRenderer.PassMarch);
             if (MarkEdge != null) MarkEdge(cb);
+            Sub(cb, "edge march");
 
             // The reconstruction.
             m.SetTexture(IdEdgeTex, edgeLow);

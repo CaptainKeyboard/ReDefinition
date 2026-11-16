@@ -204,7 +204,9 @@ namespace ReDefinition.Atmospheres
                     break;
                 default:
                     // A named set of tuning keys of the starts gt1707 (T09ProbeGt.cs), else the own pass at its defaults (plain, gain).
+                    if (PerfApply(name)) break;
                     if (!GtApply(name)) UseOwn();
+                    PerfRevertForOthers();
                     break;
             }
         }
@@ -411,7 +413,7 @@ namespace ReDefinition.Atmospheres
                     foreach (View view in Views)
                     {
                         if (!Measured(variant, view)) continue;
-                        if (GtStart && view.Name == "orbit_edge") continue;
+                        if ((GtStart || PerfStart) && view.Name == "orbit_edge") continue;
                         if (!IsDiag && view.Name == "orbit_edge" && orbitEdgeFailedIn != null)
                         {
                             // Its placement failed once (4 attempts of about a minute): the later variants do not spend the scenario's minutes on it again.
@@ -426,7 +428,8 @@ namespace ReDefinition.Atmospheres
                             continue;
                         }
                         foreach (ProbeWait w in StableGate(view, variant)) yield return w;
-                        foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
+                        foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, PerfStart ? PerfDwellS : InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
+                        if (PerfStart) continue;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
                         if (GtStart)
                         {

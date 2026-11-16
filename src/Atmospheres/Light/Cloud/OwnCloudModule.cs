@@ -286,6 +286,12 @@ namespace ReDefinition.Atmospheres
         public void Init()
         {
             Current = this;
+            // The GPU profiler's sub-markers are wired only while the profiler runs, so no label is put together without it.
+            if (HostSeams.GpuProfileOn())
+            {
+                LayerReconstructor.SubMark = CloudBridgeLights.Mark;
+                CloudShadowRenderer.SubMark = CloudBridgeLights.Mark;
+            }
         }
 
         public void OnBodyChanged(CelestialBody oldBody, CelestialBody newBody)
@@ -459,14 +465,18 @@ namespace ReDefinition.Atmospheres
         private void OnPreCull(Camera cam)
         {
             if (broken || pendingCamera == null || !ReferenceEquals(cam, pendingCamera) || renderer == null || stack == null) return;
+            long cpuStart = ModuleCpuTiming.Begin();
             try
             {
                 FillFrame(cam, pendingBody, pendingClimate, pendingField, pendingUt, pendingNow);
+                ModuleCpuTiming.End("cloudPass.fill", cpuStart);
+                long cpuFilled = ModuleCpuTiming.Begin();
                 FillShadow(pendingBody, frame);
                 Record(cam, pendingBody);
                 recordedFrame = Time.frameCount;
                 if (motionFrame == recordedFrame) DrawMotion();
                 PublishStats(pendingNow);
+                ModuleCpuTiming.End("cloudPass.shadowRecordMotion", cpuFilled);
             }
             catch (Exception e)
             {
@@ -1633,7 +1643,9 @@ namespace ReDefinition.Atmospheres
                 buffersOn = false;
             }
             depthCommands.Clear();
+            LayerReconstructor.Sub(depthCommands, "before the scene depth copy");
             depthCommands.Blit(BuiltinRenderTextureType.None, depthTarget, depthMaterial);
+            LayerReconstructor.Sub(depthCommands, "scene depth copy");
             if (!buffersOn) cam.AddCommandBuffer(attachedEvent, depthCommands);
 
             renderer.Commands.Clear();
@@ -1651,6 +1663,7 @@ namespace ReDefinition.Atmospheres
                 int scene = (int)HighLogic.LoadedScene * 100000 + b.flightGlobalsIndex;
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkBegin);
                 RecordCacheFill(renderer.Commands);
+                LayerReconstructor.Sub(renderer.Commands, "cache fill");
                 driver.Record(renderer.Commands, renderer, frame, cam, depth, BuiltinRenderTextureType.CameraTarget, Time.frameCount, scene,
                               CloudBridgeLights.ResetRequests, weatherCuts, structureVersion);
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkEnd);
@@ -1666,6 +1679,7 @@ namespace ReDefinition.Atmospheres
                     {
                         CloudBridgeLights.Mark(cb, CloudBridgeLights.MarkBegin);
                         RecordCacheFill(cb);
+                        LayerReconstructor.Sub(cb, "cache fill");
                     };
                     end = cb => CloudBridgeLights.Mark(cb, CloudBridgeLights.MarkEnd);
                 }

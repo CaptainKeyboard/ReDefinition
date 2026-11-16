@@ -44,6 +44,9 @@ namespace ReDefinition.Core
             return false;
         };
 
+        // Whether the GPU profiler switch (-redefinitionGpuProfile) is on; the Atmospheres' CPU timing lines (ModuleCpuTiming) run only then.
+        internal static Func<bool> GpuProfileOn = () => false;
+
         // Puts a GPU profiler marker with that label into a command buffer; does nothing alone.
         internal static Action<UnityEngine.Rendering.CommandBuffer, string> GpuMark = (buffer, label) => { };
     }
