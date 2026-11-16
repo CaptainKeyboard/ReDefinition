@@ -86,6 +86,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         {
             internal FakeHost Host = new FakeHost();
             internal string ScenePath = ScenePathWatcher.SpaceCentre;
+            internal bool Unpacked = true;
             internal Color32 ViewerFileColour = new Color32(90, 102, 81, 255);
             internal readonly List<string> Written = new List<string>();
             internal FakeSoloRig Rig;
@@ -153,6 +154,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             };
             r.Probe.ScenePathReader = () => r.ScenePath;
             r.Probe.VesselDescriber = () => "Kerbal X: 12 parts";
+            r.Probe.VesselUnpacked = () => r.Unpacked;
             r.Host.Rig = r.Rig;
             r.Probe.Host = r.Host;
             r.Probe.PictureReader = path => FakeHost.Shot(r.ViewerFileColour, 0);
@@ -420,6 +422,17 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         }
 
         [TestMethod]
+        public void AVesselThatStaysPackedFailsTheCheckBeforeTheViewerPlacesIt()
+        {
+            Run r = Start(SurfaceGroundProbe.StartOn);
+            r.Unpacked = false;
+            Drive(r);
+            Assert.IsFalse(r.Probe.Passed, Dump(r));
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "vessel_unpacked")), r.Joined);
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("ground: the vessel before the viewer places it: ")), "the vessel is logged before the placement");
+        }
+
+        [TestMethod]
         public void AGreyGroundFailsTheGreenShareAndTheNumberIsEmitted()
         {
             Run r = Start(SurfaceGroundProbe.StartOn);
@@ -464,8 +477,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public void TheGroundLevelPoseStandsTheVesselAtTheHeightThatPutsTheCameraTwoMetresUp()
         {
             Assert.AreEqual(2.0, SurfaceGroundProbe.VesselAglFor(2.0, 0.0, 40.0), 1e-9, "no elevation: the vessel and the camera stand level");
-            double vessel = SurfaceGroundProbe.VesselAglFor(SurfaceGroundProbe.GroundCameraAglM, SurfaceGroundProbe.GroundElevationDeg, SurfaceGroundProbe.GroundCameraDistM);
-            double camera = vessel - SurfaceGroundProbe.GroundCameraDistM * Math.Sin(SurfaceGroundProbe.GroundElevationDeg * Math.PI / 180.0);
+            double vessel = SurfaceGroundProbe.VesselAglFor(SurfaceGroundProbe.GroundCameraAglM, SurfaceGroundProbe.GroundElevationDeg, SurfaceGroundProbe.GroundCameraDistAM);
+            double camera = vessel - SurfaceGroundProbe.GroundCameraDistAM * Math.Sin(SurfaceGroundProbe.GroundElevationDeg * Math.PI / 180.0);
             Assert.AreEqual(SurfaceGroundProbe.GroundCameraAglM, camera, 1e-9);
             Assert.IsTrue(vessel > 7.5 && vessel < 7.6, "about 7.56 m for a camera 90 m behind: " + vessel);
         }

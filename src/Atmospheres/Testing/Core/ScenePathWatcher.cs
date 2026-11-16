@@ -1,3 +1,4 @@
+using System;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -7,8 +8,8 @@ namespace ReDefinition.Atmospheres
     // menu. The KSC ground renders differently on the two ways (green through the space centre, grey-blue straight in: tools/vanilla_ground.py, 2026-11-16), so every series log
     // says which one a start took ('scene path: space centre' or 'scene path: direct') and the ground probe judges it. Only with -atmoSeries on the command line.
     //
-    // GameEvents.onGameSceneLoadRequested does not exist yet when an Instantly add-on wakes (its Add threw a NullReferenceException in the first run, and the path stayed
-    // 'unknown'): the subscription is made in the first Update in which the event exists.
+    // The handler is an instance method: EventData's EvtDelegate reads the handler's Target, which a static method does not have, and throws a NullReferenceException in
+    // EvtDelegate..ctor (the first space-centre run: 'unknown' path; the same fault keeps WindModule's and SolarDimming's static handlers from subscribing).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class ScenePathWatcher : MonoBehaviour
     {
@@ -27,24 +28,31 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             DontDestroyOnLoad(gameObject);
-        }
-
-        private void Update()
-        {
-            if (subscribed || GameEvents.onGameSceneLoadRequested == null) return;
-            GameEvents.onGameSceneLoadRequested.Add(OnSceneLoadRequested);
-            subscribed = true;
-            // The scene the game is in when the watcher starts looking: the space centre counts as seen when the run is already in it.
-            if (HighLogic.LoadedScene == GameScenes.SPACECENTER) spaceCentreSeen = true;
-            if (HighLogic.LoadedScene == GameScenes.FLIGHT && path == null) Record();
+            try
+            {
+                GameEvents.onGameSceneLoadRequested.Add(OnSceneLoadRequested);
+                subscribed = true;
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Say("the scene path watcher could not subscribe (" + e.GetType().Name + " " + e.Message + "); the path stays unknown");
+            }
         }
 
         private void OnDestroy()
         {
-            if (subscribed && GameEvents.onGameSceneLoadRequested != null) GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoadRequested);
+            if (!subscribed) return;
+            try
+            {
+                GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoadRequested);
+            }
+            catch (Exception)
+            {
+                // The game is closing.
+            }
         }
 
-        private static void OnSceneLoadRequested(GameScenes scene)
+        private void OnSceneLoadRequested(GameScenes scene)
         {
             if (scene == GameScenes.SPACECENTER) spaceCentreSeen = true;
             if (scene == GameScenes.FLIGHT && path == null) Record();

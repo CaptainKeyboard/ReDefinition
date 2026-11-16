@@ -17,7 +17,7 @@
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.far_p2_sun_fixed_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as far_p1." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p1_same_aim_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as far_p1 for the ground-level pose (the flight camera alone, 90 m from the pad, 1.5 degrees up, 2 m over the ground collider under it, heading 90)." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p1_camera_height_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the camera stands 1.5 to 15 m over the PQS terrain (the collider under it lies 3.5 to 5.3 m over it near the pad, the camera 2 m above that)." },
-    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p1_clearance_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the ray under the held camera finds the ground collider (the highest within 6 m of the PQS terrain) 1.2 to 3 m below it. Fails: the camera is inside the deck or lawn, or no ground collider is found." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p1_clearance_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the ray under the held camera finds the ground collider (the highest within 6 m of the PQS terrain) 1.7 to 2.3 m below it (2 asked). Fails: the camera is inside the deck or lawn, or no ground collider is found." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p1_sun_fixed_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as far_p1." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p2_same_aim_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as g2_p1 (heading 180)." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p2_camera_height_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as g2_p1." },
@@ -203,6 +203,11 @@
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.far_p1_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.far_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.g2_p1_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
-    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.g2_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." }
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.g2_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the pad vessel is loaded and not packed within 60 s of the flight scene being ready, before the viewer teleports it (a packed pad vessel is snapped 300 m down at its unpacking and breaks up: the first space-centre run)." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." }
   ]
 }

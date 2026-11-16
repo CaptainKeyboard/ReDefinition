@@ -36,15 +36,18 @@ namespace ReDefinition.Atmospheres
         internal const string Prefix = "GRD.";
         // K-S2's pose and time (SurfaceProbe).
         internal const double FarAglM = 300.0, FarElevationDeg = 5.0, FarCameraDistM = 100.0, HeadingToward = 90.0, HeadingAway = 270.0, K1Ut = 1470283.6;
-        // The ground-level pose, as tools/ProbeLite poses its low views: the camera alone (the flight camera's transform, the vessel is not moved), GroundCameraDistM behind the pad
+        // The ground-level pose, as tools/ProbeLite poses its low views: the camera alone (the flight camera's transform, the vessel is not moved), GroundCameraDistAM or GroundCameraDistBM behind the pad
         // along the heading, looking GroundElevationDeg up, GroundOverColliderM above the ground collider found under it. The first hold is at GroundCameraAglM over the PQS terrain;
         // the ray under the camera then gives the collider (the pad's apron and the lawn lie 3.5 to 5.3 m over the PQS terrain there: a height over the PQS terrain put the camera inside
-        // the deck, 0.27 m over it, in the first run) and the camera is held again at its height + GroundOverColliderM. The ground 40 m from the pad is the pad's concrete (green share about 1
-        // in tools/ProbeLite's pictures), 60 m from it lawn (+19): the camera stands 90 m from the pad. Headings 90 and 180 (270 looks along the road to the VAB, concrete).
-        internal const double GroundCameraAglM = 5.2, GroundElevationDeg = 1.5, GroundCameraDistM = 90.0, GroundOverColliderM = 2.0, GroundHeadingA = 90.0, GroundHeadingB = 180.0;
+        // the deck, 0.27 m over it, in the first run) and the camera is held again at its height + GroundOverColliderM. Measured by tools/ProbeLite (green share of the lower-left box):
+        // 40 m from the pad is its concrete (+1.1 to +1.6 at headings 90 and 180); at the space centre 60 m at heading 180 is lawn (+19.4), 60 m at heading 90 concrete (+1.1). So g2_p2 is
+        // heading 180 at 60 m (the one measured lawn); g2_p1 is heading 90 at 90 m, NOT measured: the g2 pictures are information, no check assumes lawn, and the clearance verdict names
+        // the collider under the camera. (270 looks along the road to the VAB, concrete.)
+        internal const double GroundCameraAglM = 5.2, GroundElevationDeg = 1.5, GroundCameraDistAM = 90.0, GroundCameraDistBM = 60.0, GroundOverColliderM = 2.0, GroundHeadingA = 90.0, GroundHeadingB = 180.0;
         // The camera of a ground-level frame is within these metres above the PQS terrain; a far frame within FarAglToleranceM of 290. Its clearance over the collider under it is within
-        // GroundClearMinM and GroundClearMaxM after the second hold: under the lawn or deck is a failed view.
-        internal const double GroundAglMinM = 1.5, GroundAglMaxM = 15.0, GroundClearMinM = 1.2, GroundClearMaxM = 3.0, FarAglToleranceM = 15.0;
+        // GroundClearMinM and GroundClearMaxM after the second hold (2 m asked: the first hold's 5.2 m over the PQS terrain is 2.0 to 2.5 m over the lawn, so the window has to be
+        // narrower than the first hold's error is wide to say anything about the second): under the lawn or deck is a failed view.
+        internal const double GroundAglMinM = 1.5, GroundAglMaxM = 15.0, GroundClearMinM = 1.7, GroundClearMaxM = 2.3, FarAglToleranceM = 15.0;
         internal const double AimToleranceDeg = 0.5, SunDriftDeg = 1.0, PosesApartDeg = 60.0, RayAheadM = 30.0, RayUpM = 20.0, RayLengthM = 450.0;
         internal const double PollPlaceS = 60.0, PollMapS = 20.0, PollPictureS = 15.0, SettleS = 3.0, PollWindowS = 10.0, PollPassS = 40.0, CoverSettleS = 20.0;
         internal const int SettleFrames = 60, AimStillMaxFrames = 80, MinPictureBytes = 1000;
@@ -81,8 +84,8 @@ namespace ReDefinition.Atmospheres
         {
             new Frame { Name = "far_p1", Heading = HeadingToward, AglM = FarAglM, CameraDistM = FarCameraDistM, ElevationDeg = FarElevationDeg, WantedCameraAglM = FarAglM - FarCameraDistM * 0.0871557 },
             new Frame { Name = "far_p2", Heading = HeadingAway, AglM = FarAglM, CameraDistM = FarCameraDistM, ElevationDeg = FarElevationDeg, WantedCameraAglM = FarAglM - FarCameraDistM * 0.0871557 },
-            new Frame { Name = "g2_p1", Heading = GroundHeadingA, AglM = VesselAglFor(GroundCameraAglM, GroundElevationDeg, GroundCameraDistM), CameraDistM = GroundCameraDistM, ElevationDeg = GroundElevationDeg, WantedCameraAglM = GroundCameraAglM, Ground = true },
-            new Frame { Name = "g2_p2", Heading = GroundHeadingB, AglM = VesselAglFor(GroundCameraAglM, GroundElevationDeg, GroundCameraDistM), CameraDistM = GroundCameraDistM, ElevationDeg = GroundElevationDeg, WantedCameraAglM = GroundCameraAglM, Ground = true }
+            new Frame { Name = "g2_p1", Heading = GroundHeadingA, AglM = VesselAglFor(GroundCameraAglM, GroundElevationDeg, GroundCameraDistAM), CameraDistM = GroundCameraDistAM, ElevationDeg = GroundElevationDeg, WantedCameraAglM = GroundCameraAglM, Ground = true },
+            new Frame { Name = "g2_p2", Heading = GroundHeadingB, AglM = VesselAglFor(GroundCameraAglM, GroundElevationDeg, GroundCameraDistBM), CameraDistM = GroundCameraDistBM, ElevationDeg = GroundElevationDeg, WantedCameraAglM = GroundCameraAglM, Ground = true }
         };
 
         private IViewerRig rig;
@@ -249,6 +252,14 @@ namespace ReDefinition.Atmospheres
         // The active vessel and what is left of it, for the log of every frame: the pictures of K-S2 show the pad's clamps and no rocket (the first picture of 2026-11-15 and the one
         // of the first space-centre run), and nothing in the log says where the rocket went.
         internal Func<string> VesselDescriber = ReadVessel;
+        internal Func<bool> VesselUnpacked = ReadUnpacked;
+        internal const double PollUnpackedS = 60.0, UnpackedSettleS = 3.0;
+
+        private static bool ReadUnpacked()
+        {
+            Vessel v = FlightGlobals.ActiveVessel;
+            return v != null && v.loaded && !v.packed;
+        }
 
         private static string ReadVessel()
         {
@@ -411,6 +422,14 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Until(() => Rig.FlightReady, 300, "the flight scene");
             reached = true;
             JudgeScenePath();
+            // The viewer teleports the vessel: a vessel that is still packed (a pad vessel is, for about 6 s after the flight scene is ready: 'landed - waiting for ground contact') is
+            // snapped 300 m down at its unpacking and its parts collide at thousands of m/s (the first space-centre run: 25 debris vessels, parts=2). tools/ProbeLite waits for
+            // loaded and not packed, so does the vessel here, and a few seconds more.
+            LogLine("ground: the vessel at the flight's start: " + VesselDescriber());
+            foreach (ProbeWait w in Poll(() => VesselUnpacked(), PollUnpackedS)) yield return w;
+            Verdict("vessel_unpacked", "the pad vessel is loaded and unpacked before the viewer places it", polled, "loaded and not packed within " + F(PollUnpackedS) + " s", VesselDescriber());
+            yield return ProbeWait.Seconds(UnpackedSettleS);
+            LogLine("ground: the vessel before the viewer places it: " + VesselDescriber());
             yield return ProbeWait.Seconds(3);
             // With the package on the own pass draws; the frames then hold every layer empty as K-S2's baseline does. Off, there is no pass and nothing to hold.
             if (AtmospheresSettings.Enabled)
