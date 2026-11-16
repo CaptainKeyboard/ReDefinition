@@ -204,6 +204,18 @@ namespace ReDefinition.Probe
         internal static double LastFrameMs;
         internal static int FramesRead;
 
+        // The GPU time in milliseconds of the segment that ends at the marker with that label, in the last frame read (the segment between that marker and the one before it);
+        // NaN where the profiler is off, the label was never marked or the frame had no such marker. The cloud viewer reads it by reflection (its cost readout).
+        internal static double SegmentMs(string label)
+        {
+            int id;
+            double ms;
+            if (label == null || !ids.TryGetValue(label, out id)) return double.NaN;
+            lock (lastSegmentMs) return lastSegmentMs.TryGetValue(id, out ms) ? ms : double.NaN;
+        }
+
+        private static readonly Dictionary<int, double> lastSegmentMs = new Dictionary<int, double>();
+
         // The marker id of a label: a new one, handed to the proxy with its label, the first time it is asked for.
         internal static int Id(string label)
         {
@@ -410,6 +422,15 @@ namespace ReDefinition.Probe
                 frameSum += total;
                 if (total > frameMost) frameMost = total;
                 if (spike) spikeParts.Clear();
+                lock (lastSegmentMs)
+                {
+                    lastSegmentMs.Clear();
+                    for (int i = 1; i < count; i++)
+                    {
+                        double segment = readMs[i] - readMs[i - 1];
+                        if (segment >= 0.0) lastSegmentMs[readIds[i]] = segment;
+                    }
+                }
                 for (int i = 1; i < count; i++)
                 {
                     double ms = readMs[i] - readMs[i - 1];

@@ -57,13 +57,15 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             SeriesProbe.ForgetRunningProbes();
         }
 
-        private static Run Start(Action<FakeViewerRig> fault = null)
+        private static Run Start(Action<FakeViewerRig> fault = null, Action<FakeWorkbenchRig> workbenchFault = null)
         {
             var r = new Run { Rig = new FakeViewerRig() };
             if (fault != null) fault(r.Rig);
+            var workbench = new FakeWorkbenchRig(r.Rig);
+            if (workbenchFault != null) workbenchFault(workbench);
             SeriesProbe.LogLine = m => r.Log.Add(m);
             AtmoResult.Sink = r.Rows.Add;
-            r.Probe = new ViewerProbe { Rig = r.Rig, CommandLineOverride = new[] { "KSP_x64.exe", "-atmoSeries", "K-V1", "-atmoStart", "viewer", "-atmoProbe", "ViewerProbe" } };
+            r.Probe = new ViewerProbe { Rig = r.Rig, Workbench = workbench, CommandLineOverride = new[] { "KSP_x64.exe", "-atmoSeries", "K-V1", "-atmoStart", "viewer", "-atmoProbe", "ViewerProbe" } };
             r.Probe.VesselUnpackedReader = () => true;
             r.Probe.VesselCountReader = () => new VesselCount { Valid = true, Parts = 64, Vessels = 1, Name = "Kerbal X" };
             r.Probe.QuitGame = () => r.Quits++;
@@ -434,6 +436,72 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Run dry = Start(rig => { rig.RainAtPad = true; rig.RainUnreadable = true; });
             Drive(dry);
             AssertFailsWith(dry, "weather_fair_cover");
+        }
+
+        // --- The workbench section (VIEW3): one fault for each effect it judges ---
+
+        [TestMethod]
+        public void AKeyThePassDoesNotReadFailsTheWorkbenchGroupCheck()
+        {
+            Run r = Start(null, wb => wb.KeysNotRead = true);
+            Drive(r);
+            AssertFailsWith(r, "wb_keys_read");
+            Assert.IsTrue(Emitted(r).ContainsKey(ViewerProbe.Prefix + "wb_no_save_written_ok"), "the section goes on and returns the other rows");
+        }
+
+        [TestMethod]
+        public void AModeThatDoesNotActLiveFailsTheWorkbench()
+        {
+            Run r = Start(null, wb => wb.OwnCloudsIgnored = true);
+            Drive(r);
+            AssertFailsWith(r, "wb_mode_live");
+        }
+
+        [TestMethod]
+        public void ARebuildThatNeverFinishesFailsAndOneThatFreezesTheMainThreadFails()
+        {
+            Run never = Start(null, wb => wb.RebuildNeverDone = true);
+            Drive(never, 1500.0);
+            AssertFailsWith(never, "wb_rebuild_done");
+            Run slow = Start(null, wb => wb.RebuildOverBudget = true);
+            Drive(slow);
+            AssertFailsWith(slow, "wb_rebuild_budget");
+        }
+
+        [TestMethod]
+        public void ASeedThatDoesNotChangeTheWeatherAndAWeatherThatIsNotAFunctionOfTheSeedBothFail()
+        {
+            Run ignored = Start(null, wb => wb.SeedIgnored = true);
+            Drive(ignored);
+            AssertFailsWith(ignored, "wb_seed_changes_weather");
+            Run impure = Start(null, wb => wb.SeedNotPure = true);
+            Drive(impure);
+            AssertFailsWith(impure, "wb_seed_same_weather");
+        }
+
+        [TestMethod]
+        public void AReadoutThatIsEmptyAPresetThatLosesAValueAndATodayThatKeepsOverridesFail()
+        {
+            Run noReadout = Start(null, wb => wb.NoReadout = true);
+            Drive(noReadout);
+            AssertFailsWith(noReadout, "wb_readout");
+            Run lossy = Start(null, wb => wb.PresetLossy = true);
+            Drive(lossy);
+            AssertFailsWith(lossy, "wb_preset_round_trip");
+            Run today = Start(null, wb => wb.TodayKeepsOverrides = true);
+            Drive(today);
+            AssertFailsWith(today, "wb_today_clears");
+        }
+
+        [TestMethod]
+        public void AFlipThatDoesNothingFailsTheCompareAndAWriteToTheSaveFailsTheNoSaveCheck()
+        {
+            Run flip = Start(null, wb => wb.FlipDoesNothing = true);
+            Drive(flip);
+            AssertFailsWith(flip, "wb_ab_compare");
+            Run write = Start(null, wb => wb.WritesSave = true);
+            Drive(write);
+            AssertFailsWith(write, "wb_no_save_written");
         }
 
         // --- The sidecar's reader ---

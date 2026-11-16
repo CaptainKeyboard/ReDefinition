@@ -118,7 +118,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 drift[l] += 1.5 * dt * scale;
                 drift[l + 1] += 0.5 * dt * scale;
             }
-            if (watched != null && !ReadNotSeen && (watched == "cloud.exposure" || watched == CloudMotion.TuneScale)) watchedRead = frame;
+            if (watched != null && !ReadNotSeen && (watched == "cloud.exposure" || watched == CloudMotion.TuneScale || ReadsAnyKey)) watchedRead = frame;
             // The map mirror slews to the forced cover (or the field's 0.4), the combination scales a forced cover down to the field's.
             for (int l = 0; l < cover.Length; l++)
             {
@@ -185,7 +185,9 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 
         // --- The game ---
         public bool FlightReady { get { return true; } }
-        public bool PassDrawing { get { return true; } }
+        public bool PassDrawing { get { return !PassForcedOff; } }
+        // The workbench section: the own clouds switched off stop the pass; with ReadsAnyKey the pass reads every watched key (the model knows two keys otherwise).
+        internal bool PassForcedOff, ReadsAnyKey;
         public int PassFramesDrawn { get { return frame; } }
         public IList<ViewerLayer> Layers { get { return KerbinLayers; } }
         public int Frame { get { return frame; } }
