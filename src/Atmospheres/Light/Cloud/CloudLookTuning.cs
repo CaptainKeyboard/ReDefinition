@@ -290,7 +290,7 @@ namespace ReDefinition.Atmospheres
         // cloud.heap.warp: the share of the untiling displacement's horizontal part the heap lookup keeps (its radial part is always dropped); the default is HeapModel.WarpShare, -1 reads the heap at the
         // fully displaced point like the shape volume (the lookup that strains it: the diagnosis of the pulled look).
         internal static float HeapWarpShare { get { float v = Tuning.Get(TuneHeapWarp, (float)HeapModel.WarpShare); return float.IsNaN(v) || float.IsInfinity(v) ? (float)HeapModel.WarpShare : v < 0f ? -1f : Math.Min(v, 1f); } }
-        // cloud.noise.blend: 1 hides the tiling of the shape and heap volumes by blending (random offset per lattice cell, variance-preserving, back to a rank: NoiseBlend, the local strain is exactly 1)
+        // cloud.noise.blend (CPU twin only: the GPU path, NoiseBlend in the layer pass, crashed the Unity 2019.4 shader compiler in two builds, 1190 s and 833 s, and is not in the shader): 1 hides the tiling of the shape and heap volumes by blending (random offset per lattice cell, variance-preserving, back to a rank: NoiseBlend, the local strain is exactly 1)
         // instead of the untiling displacement, which pulls the pattern (0, the default: the displacement). cloud.noise.blendExp is the exponent of the weights (8), cloud.noise.blendCell the lattice
         // cell in periods (1). The erosion detail keeps its displacement.
         internal static bool NoiseBlend { get { return Tuning.Get(TuneNoiseBlend, 0f) > 0.5f; } }
