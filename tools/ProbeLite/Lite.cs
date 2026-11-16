@@ -31,7 +31,8 @@ namespace ProbeLite
 
         internal static int PadVesselIndex = -1;
         internal static bool MenuDone, SpaceCentreDone, Finished;
-        internal static double FrozenUt = double.NaN;
+        // The clock is not held: forcing the universal time every frame made the pad vessel slide in K-S2's ground_on start (3.4 m a physics step, destroyed 9 s
+        // in). The flight starts at Ut (set on the loaded game) and runs on; the sun moves about 1 degree in the 4 minutes of the pictures.
         internal static int Warnings;
 
         private static string folder;
@@ -187,11 +188,6 @@ namespace ProbeLite
             {
                 Lite.Finish(false, "watchdog: " + Lite.F(Lite.WatchdogS) + " s are up in scene " + HighLogic.LoadedScene);
                 return;
-            }
-            if (!double.IsNaN(Lite.FrozenUt) && HighLogic.LoadedSceneIsFlight && FlightGlobals.ready)
-            {
-                try { Planetarium.SetUniversalTime(Lite.FrozenUt); }
-                catch (Exception) { /* the clock is not up yet */ }
             }
         }
     }

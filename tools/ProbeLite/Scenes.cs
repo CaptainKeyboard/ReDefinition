@@ -115,8 +115,16 @@ namespace ProbeLite
                 Lite.Finish(true, "space centre pictures taken, warnings " + Lite.Warnings);
                 yield break;
             }
-            Lite.Say("to the flight of the pad vessel");
-            FlightDriver.StartAndFocusVessel(HighLogic.CurrentGame, Lite.PadVesselIndex);
+            // The index is found again: the list may have changed since the menu.
+            Game game = HighLogic.CurrentGame;
+            int index = game.flightState.protoVessels.FindIndex(v => v.situation == Vessel.Situations.PRELAUNCH);
+            if (index < 0)
+            {
+                Lite.Finish(false, "no vessel on the launch pad after the space centre");
+                yield break;
+            }
+            Lite.Say("to the flight of the pad vessel " + game.flightState.protoVessels[index].vesselName);
+            FlightDriver.StartAndFocusVessel(game, index);
         }
     }
 
@@ -162,7 +170,8 @@ namespace ProbeLite
             Rig.SiteLat = v.latitude;
             Rig.SiteLon = v.longitude;
             Lite.Say("flight ready: " + v.vesselName + " at " + Lite.F(v.latitude) + ", " + Lite.F(v.longitude) + ", " + Lite.F(v.altitude) + " m, situation " + v.situation + ", UT " + Lite.F(Planetarium.GetUniversalTime()));
-            Lite.FrozenUt = Lite.Ut;
+            Lite.Say("settings: TERRAIN_SHADER_QUALITY " + GameSettings.TERRAIN_SHADER_QUALITY + ", TEXTURE_QUALITY " + GameSettings.TEXTURE_QUALITY + ", LIGHT_QUALITY "
+                     + GameSettings.LIGHT_QUALITY + ", screen " + Screen.width + "x" + Screen.height + ", fullscreen " + Screen.fullScreen + ", quality level " + QualitySettings.GetQualityLevel());
             GameEvents.onHideUI.Fire();
             FlightCamera.fetch.DeactivateUpdate();
 

@@ -11,6 +11,8 @@ namespace ProbeLite
     internal struct Colours
     {
         internal double AllR, AllG, AllB, LowR, LowG, LowB;
+        // The standard deviation of the luma over the sampled pixels: a black or one-colour picture has none.
+        internal double AllLumaStd;
 
         internal double LowLuma
         {
@@ -28,7 +30,7 @@ namespace ProbeLite
     internal static class Shots
     {
         private const string Header = "name\tscene\theading\televation\tcam_agl_pqs_m\tcam_over_collider_m\tlooks_at_object\tlooks_at_material\tlooks_at_shader\tunder_object\t"
-                                      + "sun_elev_deg\tall_r\tall_g\tall_b\tlow_r\tlow_g\tlow_b\tlow_green\tsettle_s\tsettle\tframes\tfile";
+                                      + "sun_elev_deg\tall_r\tall_g\tall_b\tlow_r\tlow_g\tlow_b\tlow_green\tsettle_s\tsettle\tframes\tsize\tverdict\tfile";
 
         internal static Colours Measure(Texture2D tex)
         {
@@ -36,6 +38,7 @@ namespace ProbeLite
             Color32[] px = tex.GetPixels32();
             double ar = 0, ag = 0, ab = 0, lr = 0, lg = 0, lb = 0;
             long na = 0, nl = 0;
+            double ls = 0, lq = 0;
             int lowRows = h / 4;
             for (int y = 0; y < h; y += 2)
             {
@@ -43,11 +46,17 @@ namespace ProbeLite
                 {
                     Color32 c = px[y * w + x];
                     ar += c.r; ag += c.g; ab += c.b; na++;
+                    double luma = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+                    ls += luma; lq += luma * luma;
                     if (y < lowRows) { lr += c.r; lg += c.g; lb += c.b; nl++; }
                 }
             }
             var m = new Colours();
-            if (na > 0) { m.AllR = ar / na; m.AllG = ag / na; m.AllB = ab / na; }
+            if (na > 0)
+            {
+                m.AllR = ar / na; m.AllG = ag / na; m.AllB = ab / na;
+                m.AllLumaStd = Math.Sqrt(Math.Max(0.0, lq / na - (ls / na) * (ls / na)));
+            }
             if (nl > 0) { m.LowR = lr / nl; m.LowG = lg / nl; m.LowB = lb / nl; }
             return m;
         }
@@ -56,11 +65,14 @@ namespace ProbeLite
         internal static IEnumerable Take(string name, PoseSpec pose, string scene, double minSettleS, double maxSettleS)
         {
             int frames = 0;
+            // The interface away at the start of every picture: a mod's scene arrival may bring it back (ReDefinition's does, a few seconds into the space centre).
+            GameEvents.onHideUI.Fire();
             while (frames < Lite.MinFrames)
             {
                 yield return null;
                 frames++;
             }
+            GameEvents.onHideUI.Fire();
             double t0 = Time.realtimeSinceStartup;
             Texture2D tex = null;
             Colours m = new Colours();
@@ -97,6 +109,10 @@ namespace ProbeLite
                 if (under.Hit) over = alt - under.AltAsl;
                 sun = Lite.SunElevationDeg(camPos, Rig.Home());
             }
+            string size = tex != null ? tex.width + "x" + tex.height : "none";
+            string verdict = "";
+            if (tex == null || tex.width != Screen.width || tex.height != Screen.height) verdict += " WRONG-SIZE(" + size + ", screen " + Screen.width + "x" + Screen.height + ")";
+            if (m.AllLumaStd < 3.0 || (m.AllR + m.AllG + m.AllB) / 3.0 < 6.0) verdict += " BLACK-OR-UNIFORM(luma std " + Lite.F(m.AllLumaStd) + ")";
             string file = name + ".png";
             try
             {
@@ -111,7 +127,7 @@ namespace ProbeLite
             if (tex != null) UnityEngine.Object.Destroy(tex);
 
             // The pose is judged where there is one: the camera stands where it was put, and (low poses) not under the ground.
-            string verdict = "";
+            if (pose != null && !read) verdict += " NO-CAMERA-READBACK";
             if (pose != null && read)
             {
                 double wantAz = pose.HeadingDeg, wantEl = pose.ElevationDeg;
@@ -137,7 +153,7 @@ namespace ProbeLite
                .Append('\t').Append(Lite.F(agl)).Append('\t').Append(Lite.F(over)).Append('\t').Append(ahead.Object).Append('\t').Append(ahead.Material).Append('\t').Append(ahead.Shader)
                .Append('\t').Append(under.Object).Append('\t').Append(Lite.F(sun)).Append('\t').Append(Lite.F(m.AllR)).Append('\t').Append(Lite.F(m.AllG)).Append('\t').Append(Lite.F(m.AllB))
                .Append('\t').Append(Lite.F(m.LowR)).Append('\t').Append(Lite.F(m.LowG)).Append('\t').Append(Lite.F(m.LowB)).Append('\t').Append(Lite.F(m.LowGreen))
-               .Append('\t').Append(Lite.F(settled)).Append('\t').Append(how).Append('\t').Append(frames).Append('\t').AppendLine(file);
+               .Append('\t').Append(Lite.F(settled)).Append('\t').Append(how).Append('\t').Append(frames).Append('\t').Append(size).Append('\t').Append(verdict.Length > 0 ? verdict.Trim() : "ok").Append('\t').AppendLine(file);
             File.AppendAllText(results, row.ToString());
             LastUnder = under;
             LastAltAsl = alt;

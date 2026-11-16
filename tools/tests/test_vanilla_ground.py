@@ -20,7 +20,9 @@ sys.path.insert(0, TOOLS)
 import vanilla_ground as vg  # noqa: E402
 
 SETTINGS = ("GAMESETTINGS\n{\n\tSCREEN_RESOLUTION_WIDTH = 1920\n\tSCREEN_RESOLUTION_HEIGHT = 1080\n\tFULLSCREEN = True\n\tUI_SCALE = 1\n\tSYNC_VBL = 1\n"
-            "\tFRAMERATE_LIMIT = 120\n}\n")
+            "\tFRAMERATE_LIMIT = 120\nTEXTURE_QUALITY = 0\nLIGHT_QUALITY = 8\nTERRAIN_SHADER_QUALITY = 3\n}\n")
+BUNDLED = ("ReDefinition\n{\n\tBEFORE_REDEFINITION\n\t{\n\t\tksp.TEXTURE_QUALITY = 1\n\t\tksp.TERRAIN_SHADER_QUALITY = 0\n\t\ttufx.profileMainMenu = Default-MainMenu\n"
+           "\t\tksp.LIGHT_QUALITY = 8\n\t\tksp.FRAMERATE_LIMIT = 120\n\t}\n}\n")
 MAIN = "ReDefinition\n{\n\traytracing = Light\n\tframeGeneration = True\n\tqualityAuto = True\n\tquality = Quality\n}\n"
 
 
@@ -50,7 +52,8 @@ def make_ksp(root):
         "dxgi.dll": "proxy", "version.dll": "ampere", "dlssg_sm86.ini": "ini", "ReDefinitionProxy.ini": "i", "ReDefinitionProxy.log": "l",
         "ReDefinitionProxy.defaults": "d", "sl.common.dll": "sl", "sl.interposer.dll": "sl2", "nvngx_dlss.dll": "ngx", "amd_fidelityfx_framegeneration_dx12.dll": "amd",
         "dlssg_sm86/runtime/a.bin": "x", "dlssg_sm86/logs/l.txt": "y",
-        "GameData/ReDefinition/Main/PluginData/settings.cfg": MAIN, "GameData/ReDefinition/Main/Plugins/ReDefinition.dll": "dll",
+        "GameData/ReDefinition/Main/PluginData/bundled.cfg": BUNDLED, "GameData/KSPCommunityFixes/PluginData/TextureCache/textureData.json": "index",
+        "GameData/Kopernicus/Cache/k.bin": "k", "GameData/ReDefinition/Main/PluginData/settings.cfg": MAIN,"GameData/ReDefinition/Main/Plugins/ReDefinition.dll": "dll",
         "GameData/ReDefinition/Atmospheres/PluginData/settings.cfg": "atmo", "GameData/ReDefinition/Atmospheres/PluginData/cache.bin": "c",
         "GameData/EnvironmentalVisualEnhancements/a.cfg": "eve", "GameData/StockVolumetricClouds/b.cfg": "svc", "GameData/Squad/x.cfg": "squad",
         "GameData/ModuleManager.ConfigCache": "cache", "GameData/ModuleManager.ConfigSHA": "sha", "GameData/ModuleManager.Physics": "ph", "GameData/ModuleManager.TechTree": "tt",
@@ -117,6 +120,8 @@ class Base(unittest.TestCase):
             write(os.path.join(ksp, "saves", "ReDefinitionProbe", "persistent.sfs"), "autosaved")
             write(os.path.join(ksp, "saves", "ReDefinitionProbe", "Backup", "b2.sfs"), "new backup")
             write(os.path.join(ksp, "PluginData", "New", "n.cfg"), "n")
+            write(os.path.join(ksp, "GameData", "KSPCommunityFixes", "PluginData", "TextureCache", "textureData.json"), "rewritten index")
+            write(os.path.join(ksp, "GameData", "Kopernicus", "Cache", "k.bin"), "rewritten")
             write(os.path.join(ksp, "KSP.log"), "log")
             data = os.path.join(ksp, "GameData", "ProbeLite", "PluginData")
             write(os.path.join(data, "shots", "far_p1.png"), "png")
@@ -202,6 +207,45 @@ class RunTests(Base):
         self.assertTrue(seen_main["profile"])
         self.assertFalse(seen_main["atmo_side"])
         self.assertEqual(manifest(self.ksp), self.before)
+
+    def test_vanilla_original_pins_the_settings_redefinition_remembered(self):
+        result = self.run_variant("vanilla-original")
+        self.assertTrue(result["ok"], result)
+        self.assertIn("TERRAIN_SHADER_QUALITY = 0", self.seen["settings"])
+        self.assertIn("TEXTURE_QUALITY = 1", self.seen["settings"])
+        self.assertIn("LIGHT_QUALITY = 8", self.seen["settings"])
+        self.assertIn("UI_SCALE = 1.5", self.seen["settings"])
+        self.assertFalse(self.seen["redef"])
+        self.assertEqual(manifest(self.ksp), self.before)
+
+    def test_plain_vanilla_keeps_the_values_redefinition_wrote_and_says_so(self):
+        self.run_variant("vanilla")
+        self.assertIn("TERRAIN_SHADER_QUALITY = 3", self.seen["settings"])
+        plan = vg.build_plan(self.ksp, "vanilla", os.path.join(self.main, ".local", "work", "profile-cache"), True)
+        self.assertTrue(any("TERRAIN_SHADER_QUALITY 3" in n and "originally 0" in n for n in plan["notes"]), plan["notes"])
+
+    def test_original_settings_are_read_from_the_before_block_only(self):
+        self.assertEqual(vg.original_ksp_settings(self.ksp), {"TEXTURE_QUALITY": "1", "TERRAIN_SHADER_QUALITY": "0", "LIGHT_QUALITY": "8"})
+
+    def test_the_vm_is_stopped_before_the_memory_is_checked(self):
+        order = []
+        self.vm.begin = lambda: order.append("vm")
+        with self.assertRaises(vg.Refusal):
+            self.run_variant("vanilla", free=lambda: order.append("memory") or 5.0)
+        self.assertEqual(order, ["vm", "memory"])
+
+    def test_warnings_of_the_plugin_are_counted(self):
+        result = self.run_variant("vanilla", game=self.good_game("vanilla", done="ok\nwarnings=3\n6 pictures\n"))
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["warnings"], 3)
+        self.assertEqual(vg.done_warnings("failed\nwarnings=0\nx"), 0)
+        self.assertEqual(vg.done_warnings(None), 0)
+
+    def test_an_unfinished_series_modset_blocks_the_run(self):
+        write(os.path.join(self.ksp, "_atmo_disabled", "journal.json"), "[]")
+        with self.assertRaises(vg.Refusal):
+            self.run_variant("vanilla")
+        shutil.rmtree(os.path.join(self.ksp, "_atmo_disabled"))
 
     def test_keep_eve_leaves_it_in(self):
         self.run_variant("ours", keep_eve=True)

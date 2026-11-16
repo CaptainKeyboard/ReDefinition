@@ -2,10 +2,14 @@
 """The vanilla-ground test: pictures of the KSC ground and the pad's far and ground-level views, once WITHOUT any ReDefinition file in the game and
 once with ours in place, taken by the same small plugin (tools/ProbeLite) at the same poses. Stdlib only (plus tools/atmo_series.py for helpers).
 
-  python tools/vanilla_ground.py plan    [--variant vanilla|ours] [--ksp <KSP folder>]
-  python tools/vanilla_ground.py run     --variant vanilla|ours [--ksp <KSP folder>] [--profile medium|none] [--timeout-min N] [--extra-arg A ...]
+  python tools/vanilla_ground.py plan    --variant vanilla|vanilla-original|ours [--ksp <KSP folder>]
+  python tools/vanilla_ground.py run     --variant vanilla|vanilla-original|ours [--ksp <KSP folder>] [--profile medium|none] [--keep-eve] [--timeout-min N] [--extra-arg A ...]
   python tools/vanilla_ground.py restore [--ksp <KSP folder>]
-  python tools/vanilla_ground.py compare
+  python tools/vanilla_ground.py compare [--vanilla vanilla|vanilla-original]
+
+Variants: vanilla = no ReDefinition file, the render settings ReDefinition wrote into settings.cfg left as they are; vanilla-original = the same with those settings
+pinned back to the originals ReDefinition remembered (bundled.cfg BEFORE_REDEFINITION: TEXTURE_QUALITY, TERRAIN_SHADER_QUALITY, LIGHT_QUALITY); ours = ReDefinition in place.
+Exit codes of run: 0 clean, 3 pictures taken but the plugin or a pose reported warnings, 1 failed, 2 refused.
   python -m unittest tools.tests.test_vanilla_ground
 
 `run` needs KSP closed, no GPU lock held and 12 GB of free memory. Variant vanilla moves everything of ReDefinition out of the install (GameData/ReDefinition,
@@ -16,8 +20,8 @@ script blocks on the game's exit (the plugin quits the game when its last pictur
 table (the ground's mean colour per pose), the plugin's log, the assemblies the game loaded and KSP.log go to .local/work/series-pictures/VANILLA/<variant>/.
 
 The restore is the first-class path: a finally block always runs it, and `restore` runs it after a crash of this script. It removes ProbeLite, puts the moved
-files back, restores every side file the run could touch (settings.cfg, the ModuleManager caches, the probe save's own files, the PluginData folders, the profile's
-files) and then compares SHA-256 hashes of everything it moved with the hashes taken before it moved. The journal stays and the pointer file
+files back, restores the side files the run writes (settings.cfg, the ModuleManager caches, the probe save's own files, every mod's PluginData folder including
+KSPCF's texture cache, Kopernicus' cache, the profile's files; not Logs/, not Parsek's folder in the save, not the Unity PlayerPrefs) and then compares SHA-256 hashes of everything it moved with the hashes taken before it moved. The journal stays and the pointer file
 <KSP>/_vanilla_aside_active.json stays until every hash matches.
 """
 import argparse
@@ -85,11 +89,59 @@ def join(root, rel):
 
 # ---------------------------------------------------------------- the plan
 
+VARIANTS = ("vanilla", "vanilla-original", "ours")
+# The render settings ReDefinition's profile changed in the game's settings.cfg; bundled.cfg keeps their originals in BEFORE_REDEFINITION. Variant vanilla-original
+# pins them back, so that nothing ReDefinition wrote stays behind.
+ORIGINAL_KEYS = ("TEXTURE_QUALITY", "TERRAIN_SHADER_QUALITY", "LIGHT_QUALITY")
+
+
+def is_vanilla(variant):
+    return variant.startswith("vanilla")
+
+
+def original_ksp_settings(ksp):
+    """{key: value} of the render settings ReDefinition remembered in bundled.cfg's BEFORE_REDEFINITION block ('ksp.KEY = value'); empty where there is none."""
+    path = join(ksp, "GameData/ReDefinition/Main/PluginData/bundled.cfg")
+    out = {}
+    if not os.path.isfile(path):
+        return out
+    inside, depth = False, 0
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        for raw in f:
+            line = raw.strip()
+            if line == "BEFORE_REDEFINITION":
+                inside = True
+                continue
+            if inside and line == "{":
+                depth += 1
+            elif inside and line == "}":
+                depth -= 1
+                if depth <= 0:
+                    break
+            elif inside and depth == 1 and line.startswith("ksp.") and "=" in line:
+                key, value = [s.strip() for s in line[4:].split("=", 1)]
+                if key in ORIGINAL_KEYS:
+                    out[key] = value
+    return out
+
+
+def current_ksp_settings(ksp):
+    out = {}
+    path = join(ksp, "settings.cfg")
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                key, _eq, value = line.partition("=")
+                if key.strip() in ORIGINAL_KEYS and _eq:
+                    out[key.strip()] = value.strip()
+    return out
+
+
 def aside_items(ksp, variant="vanilla", keep_eve=False):
     """The things a run moves, as (relative path with forward slashes, kind), in the order they are moved. Only what exists. Variant vanilla moves everything of
     ReDefinition; both variants move EnvironmentalVisualEnhancements and its cloud configs as K-S2's starts do ("disableMods": ["EVE"]), unless keep_eve."""
     items = []
-    if variant == "vanilla":
+    if is_vanilla(variant):
         for pattern in ASIDE_PATTERNS:
             for path in sorted(glob.glob(os.path.join(ksp, pattern))):
                 if os.path.isfile(path):
@@ -130,11 +182,32 @@ def tree_stat(root):
     return out
 
 
-def side_plan(ksp, profile_cache, variant, use_profile):
+EXTRA_FILES = ["GameData/toolbar-settings.dat", "GameData/AtmosphereAutopilot/Global_settings.txt", "GameData/RocketSoundEnhancement/Settings.cfg"]
+
+
+def side_plan(ksp, profile_cache, variant, use_profile, keep_eve=False):
     """What the run snapshots: (files, dirs). The save folder's own files (not Parsek, not Ships: those are 280 MB and the run does not write them) are listed
-    one by one; ReDefinition's PluginData folders only for variant ours (for vanilla the whole folder is moved away and comes back as it was)."""
-    files = list(SIDE_FILES)
+    one by one; every other mod's PluginData folder (KSPCF's texture cache, Scatterer's cache) and Kopernicus' cache are copied; ReDefinition's PluginData folders
+    only for variant ours (the vanilla variants move the whole folder away and it comes back as it was). Not covered: Logs/, Screenshots/, Parsek's folder in the save
+    (changes are counted and reported), the Unity PlayerPrefs of the window size."""
+    files = list(SIDE_FILES) + [f for f in EXTRA_FILES if os.path.isfile(join(ksp, f))]
     dirs = list(SIDE_DIRS)
+    skip = {"redefinition"} | (set() if keep_eve else {f.lower() for f in series.MOD_FOLDERS["EVE"]})
+    gamedata = join(ksp, "GameData")
+    if os.path.isdir(gamedata):
+        for name in sorted(os.listdir(gamedata)):
+            if name.lower() in skip:
+                continue
+            if os.path.isdir(os.path.join(gamedata, name, "PluginData")):
+                dirs.append("GameData/%s/PluginData" % name)
+        if os.path.isdir(os.path.join(gamedata, "Kopernicus", "Cache")):
+            dirs.append("GameData/Kopernicus/Cache")
+    if variant == "ours":
+        for rel in ("ReDefinitionProxy.log",):
+            if os.path.isfile(join(ksp, rel)):
+                files.append(rel)
+        if os.path.isdir(join(ksp, "dlssg_sm86/logs")):
+            dirs.append("dlssg_sm86/logs")
     save = join(ksp, "saves/" + SAVE_FOLDER)
     if os.path.isdir(save):
         for name in sorted(os.listdir(save)):
@@ -150,11 +223,23 @@ def side_plan(ksp, profile_cache, variant, use_profile):
         for rel in series.tree_files(profile_cache):
             if series.is_texture_cache_file(rel):
                 continue
-            if variant == "vanilla" and rel.lower().startswith("gamedata/redefinition/"):
+            if is_vanilla(variant) and rel.lower().startswith("gamedata/redefinition/"):
                 continue
             if rel not in files:
                 files.append(rel)
     return files, dirs
+
+
+def pins_for(ksp, variant):
+    """The pins of a run as [{file, set}]: K-S2's, the main mod's own for ours, ReDefinition's remembered original render settings for vanilla-original.
+    Read before anything is moved (bundled.cfg goes away with GameData/ReDefinition)."""
+    ksp_pins = dict(PINS_KSP)
+    if variant == "vanilla-original":
+        ksp_pins.update(original_ksp_settings(ksp))
+    pins = [{"file": "settings.cfg", "set": ksp_pins}]
+    if variant == "ours":
+        pins.append({"file": MAIN_SETTINGS, "set": dict(PINS_MAIN)})
+    return pins
 
 
 def build_plan(ksp, variant, profile_cache, use_profile, keep_eve=False):
@@ -164,9 +249,13 @@ def build_plan(ksp, variant, profile_cache, use_profile, keep_eve=False):
         path = join(ksp, rel)
         size = os.path.getsize(path) if kind == "file" else sum(os.path.getsize(join(path, f)) for f in series.tree_files(path))
         plan["moves"].append({"rel": rel, "kind": kind, "bytes": size})
-    plan["pins"].append({"file": "settings.cfg", "set": dict(PINS_KSP)})
-    if variant == "ours":
-        plan["pins"].append({"file": MAIN_SETTINGS, "set": dict(PINS_MAIN)})
+    plan["pins"] = pins_for(ksp, variant)
+    original, current = original_ksp_settings(ksp), current_ksp_settings(ksp)
+    changed = ["%s %s (ReDefinition's profile; originally %s)" % (k, current[k], original[k]) for k in ORIGINAL_KEYS if k in original and k in current and original[k] != current[k]]
+    if changed and variant != "vanilla-original":
+        plan["notes"].append("settings.cfg holds values ReDefinition wrote: %s. They stay in this variant (vanilla-original pins the originals)." % "; ".join(changed))
+    if is_vanilla(variant):
+        plan["notes"].append("what ReDefinition saved into other mods' own files (Scatterer, Parallax, TUFX, Deferred, DistantObject configs) stays in place")
     plan["profile"] = "Medium files from %s" % profile_cache if use_profile else "none"
     unity, release = join(ksp, "UnityPlayer.dll"), join(ksp, "UnityPlayer.dll.release")
     if os.path.isfile(unity) and os.path.isfile(release) and series.sha256(unity) != series.sha256(release):
@@ -290,8 +379,11 @@ def restore(ksp, mainrepo, running, journal_path=None, log=say):
                     log("restore: the plugin's files were kept in %s" % folder)
             except OSError as e:
                 problems.append("the plugin's pictures could not be kept: %s" % e)
-        shutil.rmtree(lite, ignore_errors=False)
-        log("restore: %s removed" % LITE_FOLDER)
+        try:
+            shutil.rmtree(lite)
+            log("restore: %s removed" % LITE_FOLDER)
+        except OSError as e:
+            problems.append("%s could not be removed (%s); remove it by hand" % (LITE_FOLDER, e))
 
     # 2. the moved files, last moved first.
     for item in reversed(d.get("moves", [])):
@@ -347,13 +439,24 @@ def apply_profile_filtered(cache, ksp, variant, log=say):
     for rel in series.tree_files(cache):
         if series.is_texture_cache_file(rel):
             continue
-        if variant == "vanilla" and rel.lower().startswith("gamedata/redefinition/"):
+        if is_vanilla(variant) and rel.lower().startswith("gamedata/redefinition/"):
             continue
         dst = join(ksp, rel)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(cache, *rel.split("/")), dst)
         n += 1
     log("profile: %d file(s) applied" % n)
+
+
+def done_warnings(done):
+    """The warnings count on the second line of the plugin's done file (warnings=N); 0 where there is none."""
+    for line in (done or "").splitlines()[1:3]:
+        if line.startswith("warnings="):
+            try:
+                return int(line.split("=", 1)[1])
+            except ValueError:
+                return 0
+    return 0
 
 
 def read_done(ksp):
@@ -432,10 +535,12 @@ class Run:
         self.stamp = time.strftime("%Y%m%d-%H%M%S")
 
     def refuse_checks(self):
-        if self.variant not in ("vanilla", "ours"):
-            raise Refusal("the variant is vanilla or ours")
+        if self.variant not in VARIANTS:
+            raise Refusal("the variant is one of: " + ", ".join(VARIANTS))
         if self.running():
             raise Refusal("KSP_x64 runs: close the game first")
+        if os.path.isfile(os.path.join(self.ksp, series.DISABLED_DIR, "journal.json")):
+            raise Refusal("an earlier series run left mod folders in %s: run `python tools/atmo_series.py modset-restore` first" % series.DISABLED_DIR)
         if os.path.isfile(pointer_path(self.ksp)):
             raise Refusal("an earlier run left its pointer %s in the KSP folder: run `python tools/vanilla_ground.py restore` first" % POINTER)
         if os.path.exists(join(self.ksp, LITE_FOLDER)):
@@ -446,20 +551,29 @@ class Run:
             raise Refusal("the save %s has neither probe.sfs nor persistent.sfs" % SAVE_FOLDER)
         if self.use_profile and not os.path.isdir(self.profile_cache):
             raise Refusal("no profile cache %s (use --profile none)" % self.profile_cache)
-        free = self.free_gb()
-        if free < FREE_GB:
-            raise Refusal("only %.1f GB of memory are free (%d needed); close Rider, OneDrive, Toolbox, Edge" % (free, FREE_GB))
 
     def execute(self):
-        """Runs it. Returns a dict: ok, how, done (the plugin's last file), pictures folder, restore problems. The restore always runs."""
+        """Runs it. Returns a dict: ok, how, done (the plugin's last file), pictures folder, restore problems. The restore always runs. The game-server VM is
+        stopped before the memory is checked and started again after the restore."""
         self.refuse_checks()
         dll = self.build()
+        self.vm.begin()
+        try:
+            free = self.free_gb()
+            if free < FREE_GB:
+                raise Refusal("only %.1f GB of memory are free (%d needed); close Rider, OneDrive, Toolbox, Edge" % (free, FREE_GB))
+            return self._execute(dll)
+        finally:
+            self.vm.end()
+
+    def _execute(self, dll):
         plan = build_plan(self.ksp, self.variant, self.profile_cache, self.use_profile, self.keep_eve)
         self.log(format_plan(plan))
         archive = os.path.join(self.mainrepo, *ASIDE_REL, self.stamp)
         os.makedirs(archive, exist_ok=True)
         journal = Journal(os.path.join(archive, "journal.json"))
-        files, dirs = side_plan(self.ksp, self.profile_cache, self.variant, self.use_profile)
+        files, dirs = side_plan(self.ksp, self.profile_cache, self.variant, self.use_profile, self.keep_eve)
+        pins = pins_for(self.ksp, self.variant)
         store = os.path.join(archive, "snapshot")
         snap = series.Snapshot(self.ksp, store)
         for rel in files:
@@ -467,8 +581,11 @@ class Run:
         for rel in dirs:
             snap.add_dir(rel)
         parsek = join(self.ksp, "saves/%s/Parsek" % SAVE_FOLDER)
-        parsek_before = tree_stat(parsek)
-        result = {"ok": False, "how": None, "done": None, "pictures": None, "problems": [], "parsek_changed": 0}
+        try:
+            parsek_before = tree_stat(parsek)
+        except OSError:
+            parsek_before = {}
+        result = {"ok": False, "how": None, "done": None, "pictures": None, "problems": [], "parsek_changed": 0, "warnings": 0}
         lock_path = lock_info = None
         if self.lock:
             lock_path = gpu_lock.lock_path("gpu")
@@ -499,9 +616,6 @@ class Run:
                 self.log("aside: %s" % m["rel"])
             if self.use_profile:
                 apply_profile_filtered(self.profile_cache, self.ksp, self.variant, self.log)
-            pins = [{"file": "settings.cfg", "set": PINS_KSP}]
-            if self.variant == "ours":
-                pins.append({"file": MAIN_SETTINGS, "set": PINS_MAIN})
             for line in series.apply_settings(self.ksp, pins):
                 self.log("pinned %s" % line)
             if self.variant == "ours":
@@ -513,17 +627,14 @@ class Run:
                 f.write("variant=%s\nsaveFolder=%s\nspaceCentre=1\nflight=1\nwatchdogS=%d\n" % (self.variant, SAVE_FOLDER, self.timeout_s - 90))
             if os.path.isfile(ksp_log):
                 os.remove(ksp_log)
-            self.vm.begin()
-            try:
-                t0 = time.time()
-                self.log("launch: KSP up to %d s; the plugin quits the game when its last picture is written" % self.timeout_s)
-                how, code = self.launch(WINDOW_ARGS + self.extra_args, self.timeout_s)
-                self.log("launch: %s (exit %s) after %.0f s" % (how, code, time.time() - t0))
-                result["how"] = how
-            finally:
-                self.vm.end()
+            t0 = time.time()
+            self.log("launch: KSP up to %d s; the plugin quits the game when its last picture is written" % self.timeout_s)
+            how, code = self.launch(WINDOW_ARGS + self.extra_args, self.timeout_s)
+            self.log("launch: %s (exit %s) after %.0f s" % (how, code, time.time() - t0))
+            result["how"] = how
             result["done"] = read_done(self.ksp)
             result["ok"] = bool(result["done"]) and result["done"].splitlines()[0].strip() == "ok" and result["how"] == "quit"
+            result["warnings"] = done_warnings(result["done"])
             result["pictures"] = collect_pictures(self.ksp, self.mainrepo, self.variant)
             journal.data["collected"] = True
             journal.write()
@@ -534,13 +645,16 @@ class Run:
             self.log("the run stopped: %s" % e)
         finally:
             try:
-                changed = {k for k, v in tree_stat(parsek).items() if parsek_before.get(k) != v} | (set(parsek_before) - set(tree_stat(parsek)))
-                result["parsek_changed"] = len(changed)
                 # The game must be gone before anything is put back.
                 if self.running():
                     self.log("the game still runs; it is ended")
                     subprocess.run(["taskkill", "/T", "/F", "/IM", "KSP_x64.exe"], capture_output=True)
                 result["problems"] += restore(self.ksp, self.mainrepo, self.running, journal.path, self.log)
+                try:
+                    after = tree_stat(parsek)
+                    result["parsek_changed"] = len({k for k, v in after.items() if parsek_before.get(k) != v} | (set(parsek_before) - set(after)))
+                except OSError:
+                    pass
             finally:
                 if lock_info is not None:
                     gpu_lock.release(lock_path, "vanilla-" + self.variant, os.getpid(), lock_info["since"])
@@ -566,10 +680,11 @@ def read_results(folder):
 def summarize(folder):
     """A table of the ground colour per picture, and the proof of what the game loaded."""
     rows = read_results(folder)
-    out = ["%-12s %-12s %7s %9s  %-26s %s" % ("picture", "scene", "camAGL", "overColl", "lowest quarter mean r,g,b (green)", "looks at")]
+    out = ["%-12s %-12s %7s %9s  %-26s %-24s %s" % ("picture", "scene", "camAGL", "overColl", "lowest quarter mean r,g,b (green)", "looks at", "verdict")]
     for r in rows:
-        out.append("%-12s %-12s %7s %9s  %-26s %s / %s" % (r["name"], r["scene"], r["cam_agl_pqs_m"], r["cam_over_collider_m"],
-                                                            "%s,%s,%s (%s)" % (r["low_r"], r["low_g"], r["low_b"], r["low_green"]), r["looks_at_object"], r["looks_at_shader"]))
+        out.append("%-12s %-12s %7s %9s  %-26s %-24s %s" % (r["name"], r["scene"], r["cam_agl_pqs_m"], r["cam_over_collider_m"],
+                                                             "%s,%s,%s (%s)" % (r["low_r"], r["low_g"], r["low_b"], r["low_green"]),
+                                                             "%s / %s" % (r["looks_at_object"], r["looks_at_shader"]), r.get("verdict", "")))
     asm = os.path.join(folder, "assemblies.txt")
     if os.path.isfile(asm):
         with open(asm, "r", encoding="utf-8", errors="replace") as f:
@@ -579,11 +694,20 @@ def summarize(folder):
     return "\n".join(out)
 
 
-def compare_text(mainrepo):
+def vanilla_leak(folder):
+    """The assemblies named ReDefinition* that a vanilla run loaded (there must be none)."""
+    path = os.path.join(folder, "assemblies.txt")
+    if not os.path.isfile(path):
+        return ["(assemblies.txt missing)"]
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        return [line.split(" ")[0] for line in f if line.lower().startswith("redefinition")]
+
+
+def compare_text(mainrepo, vanilla="vanilla"):
     base = os.path.join(mainrepo, *PICTURES_REL)
-    a, b = read_results(os.path.join(base, "vanilla")), read_results(os.path.join(base, "ours"))
+    a, b = read_results(os.path.join(base, vanilla)), read_results(os.path.join(base, "ours"))
     if not a or not b:
-        return "compare needs both runs: %s has %d rows, %s has %d" % ("vanilla", len(a), "ours", len(b))
+        return "compare needs both runs: %s has %d rows, %s has %d" % (vanilla, len(a), "ours", len(b))
     by_b = {r["name"]: r for r in b}
     out = ["%-12s %-22s %-22s %s" % ("picture", "vanilla low r,g,b", "ours low r,g,b", "difference r,g,b")]
     for r in a:
@@ -620,8 +744,17 @@ def cmd_run(args):
     print("done file: %s" % (result["done"].strip().replace("\n", " | ") if result["done"] else "none"))
     for p in result["problems"]:
         print("PROBLEM: " + p)
-    print("RESULT: %s" % ("OK" if result["ok"] else "FAILED"))
-    return 0 if result["ok"] else 1
+    leaked = vanilla_leak(result["pictures"]) if is_vanilla(args.variant) and result["pictures"] else []
+    for name in leaked:
+        print("PROBLEM: the vanilla run loaded an assembly named %s" % name)
+    if not result["ok"] or leaked:
+        print("RESULT: FAILED")
+        return 1
+    if result["warnings"]:
+        print("RESULT: OK WITH %d WARNING(S): see the verdict column and probelite.log in %s" % (result["warnings"], result["pictures"]))
+        return 3
+    print("RESULT: OK")
+    return 0
 
 
 def cmd_restore(args):
@@ -632,7 +765,7 @@ def cmd_restore(args):
 
 
 def cmd_compare(args):
-    print(compare_text(gpu_lock.main_repo()))
+    print(compare_text(gpu_lock.main_repo(), args.vanilla))
     return 0
 
 
@@ -645,9 +778,11 @@ def build_parser():
         if name in ("plan", "run", "restore"):
             s.add_argument("--ksp")
         if name in ("plan", "run"):
-            s.add_argument("--variant", choices=["vanilla", "ours"], required=True)
+            s.add_argument("--variant", choices=list(VARIANTS), required=True)
             s.add_argument("--profile", choices=["medium", "none"], default="medium")
             s.add_argument("--keep-eve", action="store_true", help="leave EnvironmentalVisualEnhancements in (K-S2's starts remove it)")
+        if name == "compare":
+            s.add_argument("--vanilla", choices=["vanilla", "vanilla-original"], default="vanilla")
         if name == "run":
             s.add_argument("--timeout-min", type=float, default=MAX_MINUTES)
             s.add_argument("--extra-arg", action="append", default=[])
