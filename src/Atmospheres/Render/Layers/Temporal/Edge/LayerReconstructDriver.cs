@@ -96,6 +96,7 @@ namespace ReDefinition.Atmospheres
                 CutCount++;
             }
             player.Record(cb, renderer, frame, camera, playerSettings, frameNumber, null, null, null);
+            LayerReconstructor.Sub(cb, "before the composite over the scene");
             player.Composite(cb, renderer, destination, null);
             return true;
         }

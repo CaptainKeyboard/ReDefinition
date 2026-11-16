@@ -125,6 +125,13 @@ namespace ReDefinition.Atmospheres
         internal Action<CommandBuffer> MarkMask, MarkEdge;
         // The timing marks around the culling's tile pass (package T16; the player sets them, the game leaves them null).
         internal Action<CommandBuffer> MarkCull, MarkCullEnd;
+        // GPU profiler sub-markers of the reconstruction (labels "ReDefinition clouds: <part>"); the module sets it to the host's marker seam, null alone (the weather player).
+        internal static Action<CommandBuffer, string> SubMark;
+
+        internal static void Sub(CommandBuffer cb, string part)
+        {
+            if (SubMark != null) SubMark(cb, "ReDefinition clouds: " + part);
+        }
 
         internal bool Init(Shader shader)
         {
@@ -275,11 +282,14 @@ namespace ReDefinition.Atmospheres
             lastPoseValid = havePose;
             if (markStart != null) markStart(cb);
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
+            Sub(cb, "cull tiles");
             cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
+            Sub(cb, "march");
             if (markMarched != null) markMarched(cb);
             if (s.Mode == ReconMode.Full)
             {
                 cb.Blit(low, output);
+                Sub(cb, "copy to full size");
             }
             else if (s.Mode == ReconMode.Low)
             {
@@ -317,6 +327,7 @@ namespace ReDefinition.Atmospheres
                     renderer.BindMotion(a, f, s.LayerMotion, havePose, s.DriftSeconds);
                     materialBound = true;
                     cb.Blit(BuiltinRenderTextureType.None, lowSpare, a, 0);
+                    Sub(cb, "accumulate");
                     source = lowSpare;
                     lowSpare = lowLatest;
                     lowLatest = source;
@@ -331,10 +342,12 @@ namespace ReDefinition.Atmospheres
                 cb.SetRenderTarget(output);
                 cb.ClearRenderTarget(false, true, Color.clear);
                 cb.Blit(source, output, layers, LayerRenderer.PassComposite);
+                Sub(cb, "upsample to full size");
             }
             else if (edgeOn)
             {
                 RecordEdge(cb, renderer, f, camera, s, w, h, offset, history, tanX, tanY);
+                Sub(cb, "edge reconstruction");
                 haveHistory = true;
             }
             else
@@ -362,6 +375,7 @@ namespace ReDefinition.Atmospheres
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;
                 cb.Blit(BuiltinRenderTextureType.None, output, m, 0);
+                Sub(cb, "block reconstruction");
                 haveHistory = true;
             }
             // The paths that do not run pass 0 of this material still give the motion pass (RecordMotion) the camera and the layers.
@@ -428,6 +442,7 @@ namespace ReDefinition.Atmospheres
             material.SetTexture(IdMvCloud, output);
             material.SetTexture(IdMvDepth, sceneDepth);
             cb.Blit(BuiltinRenderTextureType.None, motionVectors, material, PassMotion);
+            Sub(cb, "motion vectors");
             return true;
         }
     }

@@ -156,13 +156,16 @@ namespace ReDefinition.Atmospheres
         // Starts the modules that are waiting and ticks those that run. now is the real time in seconds, dt the frame time.
         internal void Tick(float now, float dt)
         {
+            ModuleCpuTiming.Report();
             foreach (Entry entry in entries)
             {
                 if (entry.State == ModuleState.Waiting) TryInit(entry, now);
                 if (entry.State != ModuleState.Running) continue;
                 try
                 {
+                    long started = ModuleCpuTiming.Begin();
                     entry.Module.Tick(dt);
+                    ModuleCpuTiming.End(entry.Name, started);
                     entry.Streak.Succeeded();
                 }
                 catch (Exception e)

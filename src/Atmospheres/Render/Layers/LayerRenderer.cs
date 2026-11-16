@@ -637,7 +637,9 @@ namespace ReDefinition.Atmospheres
             if (markStart != null) markStart(commands);
             commands.SetGlobalTexture(IdSceneDepth, sceneDepth);
             RecordCull(commands, f, camera.pixelWidth, camera.pixelHeight, null, null);
+            LayerReconstructor.Sub(commands, "cull tiles");
             commands.Blit(BuiltinRenderTextureType.None, target, material, PassMarch);
+            LayerReconstructor.Sub(commands, "march");
             if (markMarched != null) markMarched(commands);
             SetMarchTexel(target);
             commands.SetGlobalTexture(IdMarchTex, target);
