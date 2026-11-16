@@ -85,8 +85,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[3].TopClose = 0.8f;
             cumulus.Types[4].TopClose = 0.5f;
             cumulus.VerticalScale = 0.35f;
-            cumulus.Types[1].ShapeSmoothing = 0.75f;
-            cumulus.Types[2].ShapeSmoothing = 1.5f;
+            cumulus.Types[1].ShapeSmoothing = 0f;
+            cumulus.Types[2].ShapeSmoothing = 0f;
             cumulus.Types[3].ShapeSmoothing = 3f;
             cumulus.TopReach = 0.2105f;
             cumulus.TopRefMs = 1.2f;

@@ -49,8 +49,9 @@ namespace ReDefinition.Atmospheres
         // (the owner delegated the choice): level 1 keeps the reprojected, clipped history and the pass reads "reconstruct"; recon.accumulate 0 is the former plain pass.
         // The finer grid (layers.gridFine, layers.emptyLeap) stays off until its cost with all layers is measured in the game.
         internal const string TuneAccumulate = "recon.accumulate";
-        // CLOUDR3 (P7): recon.catmull 1 reads the reconstruction's history with a Catmull-Rom filter instead of the bilinear one (default 0: bilinear).
+        // CLOUDR3 (P7): recon.catmull 1 reads the reconstruction's history with a Catmull-Rom filter instead of the bilinear one (default 1; 0: bilinear; measured +0.00 ms at 1080p).
         internal const string TuneCatmull = "recon.catmull";
+        internal const bool CatmullDefault = true;
         internal const float AccumulateDefault = 0.2f;
 
         // E40 MVCLOUD: recon.layerMotion (default 1): the cloud's place in the previous frame, for the reconstruction's history and for the motion vector the upscalers read, is taken on
@@ -216,12 +217,6 @@ namespace ReDefinition.Atmospheres
             c.CapKeepSpans = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCapKeep, CompiledCull.CapKeepSpans)), 1, 8);
         }
 
-        // The grid points the cloudSamples choice stands for: Low 24, Medium 32, High 48.
-        internal static int SamplesOf(CloudDetailLevel level)
-        {
-            return level == CloudDetailLevel.Low ? 24 : level == CloudDetailLevel.Medium ? 32 : 48;
-        }
-
         // T01, T01c, T05: the march of a frame.
         internal static void Apply(LayerFrame f, Func<string, double> v)
         {
@@ -232,9 +227,9 @@ namespace ReDefinition.Atmospheres
             // empty samples is as long as the product's grid step at most, so the search is N times finer where the clouds are at about the density reads of before.
             // E40 grain against TVC: the multiplier may be below 1 (down to 0.25): on a span cut to the types present (layers.spanTight) fewer grid points still lie closer
             // than the full count did over the type table's whole interval.
-            // E40 soft density: cloudSamples (Low 24, Medium 32, High 48 of the Medium step quality's 48) scales the count of every step quality by the same share; the
+            // E40 soft density: cloudSamples (24 to 128 grid points, relative to the Medium step quality's 48) scales the count of every step quality by the same share; the
             // owner's softness is read into CloudSoftDensity once a frame (the layers' uploaded numbers follow it).
-            maxSteps = CloudSoftDensity.ScaleSamples(maxSteps, SamplesOf(Level(v, AtmospheresSettings.Keys.CloudSamples)));
+            maxSteps = CloudSoftDensity.ScaleSamples(maxSteps, (int)v(AtmospheresSettings.Keys.CloudSamples));
             CloudSoftDensity.Softness = v(AtmospheresSettings.Keys.CloudSoftness);
             f.MaxSteps = Math.Max(4, Math.Min(256, Mathf.RoundToInt(maxSteps * Mathf.Clamp(Tuning.Get(TuneGridFine, GridFineDefault), 0.25f, 8f))));
             f.SunSteps = sunSteps;
@@ -386,7 +381,7 @@ namespace ReDefinition.Atmospheres
             s.Mode = low ? ReconMode.Low : (level > 1 ? ReconMode.Block : ReconMode.Full);
             s.Block = Math.Max(2, level);
             s.LayerMotion = Tuning.Flag(TuneLayerMotion, LayerMotionDefault);
-            s.CatmullHistory = Tuning.Flag(TuneCatmull, false);
+            s.CatmullHistory = Tuning.Flag(TuneCatmull, CatmullDefault);
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));

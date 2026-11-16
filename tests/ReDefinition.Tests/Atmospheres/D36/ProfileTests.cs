@@ -108,14 +108,14 @@ namespace ReDefinition.Tests.Atmospheres.D36
         [TestMethod]
         public void EveryTierWritesItsRowToTheBudgetKeys()
         {
-            // tier, steps, lamps, grid, orbit map, resolution after the gate
+            // tier, steps, lamps, grid, orbit map, resolution after the gate, cloud grid points
             object[][] table =
             {
-                new object[] { QualityTier.Low, 16, 2, SimGridChoice.Coarse, 1024, 0.25 },
-                new object[] { QualityTier.Medium, 20, 4, SimGridChoice.Normal, 2048, 0.5 },
-                new object[] { QualityTier.High, 28, 8, SimGridChoice.Normal, 4096, 1.0 },
-                new object[] { QualityTier.Ultra, 36, 8, SimGridChoice.Fine, 4096, 1.0 },
-                new object[] { QualityTier.Max, 48, 8, SimGridChoice.Fine, 4096, 1.0 },
+                new object[] { QualityTier.Low, 16, 2, SimGridChoice.Coarse, 1024, 0.25, 48 },
+                new object[] { QualityTier.Medium, 20, 4, SimGridChoice.Normal, 2048, 0.5, 96 },
+                new object[] { QualityTier.High, 28, 8, SimGridChoice.Normal, 4096, 1.0, 128 },
+                new object[] { QualityTier.Ultra, 36, 8, SimGridChoice.Fine, 4096, 1.0, 128 },
+                new object[] { QualityTier.Max, 48, 8, SimGridChoice.Fine, 4096, 1.0, 128 },
             };
             foreach (object[] row in table)
             {
@@ -129,6 +129,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
                     Assert.AreEqual((int)row[2], AtmospheresSettings.LightCount, tier + " lamps");
                     Assert.AreEqual((SimGridChoice)row[3], AtmospheresSettings.SimGrid, tier + " grid");
                     Assert.AreEqual((int)row[4], AtmospheresSettings.OrbitMapWidth, tier + " orbit map");
+                    Assert.AreEqual((int)row[6], AtmospheresSettings.CloudSamples, tier + " cloud grid points");
                     Assert.AreEqual(open ? (float)(double)row[5] : 1f, AtmospheresSettings.VolumeResolution, 1e-6,
                         tier + " resolution, gate " + (open ? "open" : "closed"));
                 }
@@ -181,6 +182,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
                     Check(AtmospheresSettings.Keys.LightCount, row.LightCount);
                     Check(AtmospheresSettings.Keys.SimGrid, (int)row.SimGrid);
                     Check(AtmospheresSettings.Keys.OrbitMapWidth, row.OrbitMapWidth);
+                    Check(AtmospheresSettings.Keys.CloudSamples, row.CloudSamples);
                 }
             }
         }

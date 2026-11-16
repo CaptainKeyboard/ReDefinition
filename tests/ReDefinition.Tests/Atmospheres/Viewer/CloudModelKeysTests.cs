@@ -71,34 +71,51 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(KeySection.Quality, grid.Section);
             Assert.IsFalse(grid.RangeEstimated);
             Assert.AreEqual(0.25f, grid.Min);
-            foreach (float stop in new[] { 1f, 2f, CloudModelKeys.Grid128 }) Assert.IsTrue(grid.Min <= stop && stop <= grid.Max, "stop " + stop);
-            foreach (string text in new[] { "1 = 48", "2 = 96", "2.6667 = 128" }) StringAssert.Contains(grid.Note, text);
-            Assert.AreEqual(128, (int)System.Math.Round(48 * CloudModelKeys.Grid128));
-            Assert.AreEqual(96, (int)System.Math.Round(48 * CloudModelKeys.Grid96));
+            Assert.AreEqual(1f, grid.Default);
+            foreach (float stop in new[] { 0.5f, 1f, 4f / 3f }) Assert.IsTrue(grid.Min <= stop && stop <= grid.Max, "stop " + stop);
+            foreach (string text in new[] { "0.5 = 48", "1.3333 = 128", "96 at Medium" }) StringAssert.Contains(grid.Note, text);
+        }
+
+        [TestMethod]
+        public void TheNewModelIsOnByDefaultAndTheLooksUndoIt()
+        {
+            Assert.AreEqual(1f, Key(CloudLookTuning.TuneNoiseBlend).Default, "the blend hides the tiling by default");
+            Assert.AreEqual(CloudLookTuning.LightErosionDefault, Key(CloudLookTuning.TuneLightErosion).Default);
+            Assert.IsTrue(CloudLookTuning.LightErosionTaps >= 1f, "the first sun taps read the eroded density by default");
+            Assert.IsTrue(CloudLookTuning.NoiseBlend);
+            Assert.AreEqual(1f, Key(OwnCloudOptions.TuneCatmull).Default);
+            Assert.AreEqual(0f, Key(CloudLookTuning.TuneFirstHit).Default, "the first-hit bisection is a measured dead end and stays off");
+            Assert.AreEqual(96, (int)AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default);
         }
 
         [TestMethod]
         public void TheLooksSetTheirKeysOnTheCumulusLayersAndTodayUndoesThem()
         {
-            NamedKeyPreset look96 = CloudKeyRegistry.Presets.First(p => p.Name == "New Model 96 Steps");
-            NamedKeyPreset look128 = CloudKeyRegistry.Presets.First(p => p.Name == "New Model 128 Steps");
-            Assert.AreEqual(2f, look96.Keys[OwnCloudOptions.TuneGridFine]);
-            Assert.AreEqual(CloudModelKeys.Grid128, look128.Keys[OwnCloudOptions.TuneGridFine]);
-            Assert.AreEqual(0, look96.Settings.Count, "a look never touches a setting (ownClouds, cloudSource)");
+            NamedKeyPreset before = CloudKeyRegistry.Presets.First(p => p.Name == CloudModelKeys.LookBefore);
+            NamedKeyPreset look96 = CloudKeyRegistry.Presets.First(p => p.Name == "96 Steps");
+            NamedKeyPreset look128 = CloudKeyRegistry.Presets.First(p => p.Name == "128 Steps");
+            Assert.AreEqual(0f, before.Keys[CloudLookTuning.TuneNoiseBlend]);
+            Assert.AreEqual(0f, before.Keys[CloudLookTuning.TuneLightErosion]);
+            Assert.AreEqual(0f, before.Keys[OwnCloudOptions.TuneCatmull]);
+            Assert.AreEqual(48.0, before.Settings[AtmospheresSettings.Keys.CloudSamples]);
+            Assert.AreEqual(96.0, look96.Settings[AtmospheresSettings.Keys.CloudSamples]);
+            Assert.AreEqual(128.0, look128.Settings[AtmospheresSettings.Keys.CloudSamples]);
+            Assert.IsFalse(before.Settings.ContainsKey(AtmospheresSettings.Keys.OwnClouds), "a look never touches ownClouds or cloudSource");
+            Assert.IsFalse(before.Settings.ContainsKey(AtmospheresSettings.Keys.CloudSource));
 
             var layers = new[] { "Kerbin-weather-rain", "Kerbin-cumulus", "Kerbin-cumulonimbus", "Kerbin-cirrus" };
-            OptionSet set = ViewerPresetBook.FromSlot(look96, layers);
-            Assert.AreEqual(1f, set.Overrides[CloudLookTuning.TuneHeapLayer + "Kerbin-cumulus"]);
-            Assert.AreEqual(0.5f, set.Overrides[CloudLookTuning.TuneEdgePowerLayer + "Kerbin-cumulus"]);
-            Assert.AreEqual(0.35f, set.Overrides[CloudLookTuning.TuneCavityLayer + "Kerbin-cumulus"]);
+            OptionSet set = ViewerPresetBook.FromSlot(before, layers);
+            Assert.AreEqual(0f, set.Overrides[CloudLookTuning.TuneHeapLayer + "Kerbin-cumulus"]);
+            Assert.AreEqual(2f, set.Overrides[CloudLookTuning.TuneEdgePowerLayer + "Kerbin-cumulus"]);
+            Assert.AreEqual(0f, set.Overrides[CloudLookTuning.TuneCavityLayer + "Kerbin-cumulus"]);
             Assert.IsFalse(set.Overrides.ContainsKey(CloudLookTuning.TuneHeapLayer + "Kerbin-cumulonimbus"), "the cumulonimbus layer does not end with cumulus");
-            Assert.AreEqual(4, set.Overrides.Count, "three layer keys and the grid");
+            Assert.AreEqual(6, set.Overrides.Count, "three layer keys and the blend, the erosion and the Catmull key");
 
             // The keys the viewer lists for these layers; loading a look and then Today leaves no override.
             List<string> names = CloudKeyRegistry.Expand(layers).Select(k => k.Key).ToList();
             var store = new FakeViewerRig.Store();
             set.ApplyTo(store, names);
-            Assert.AreEqual(4, store.Overrides.Count);
+            Assert.AreEqual(6, store.Overrides.Count);
             OptionSet today = ViewerPresetBook.BuiltIn(new[] { AtmospheresSettings.Keys.OwnClouds, AtmospheresSettings.Keys.CloudSource, AtmospheresSettings.Keys.CloudSoftness }, k => 0.5, layers)[0].Make();
             today.ApplyTo(store, names);
             Assert.AreEqual(0, store.Overrides.Count, "Today undoes every key of the new model");

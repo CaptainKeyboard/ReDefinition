@@ -97,17 +97,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             T09Probe.SoftExpectation soft = T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == "soft"));
             Assert.AreEqual(0.5, soft.Softness, 1e-9, "soft is the default softness");
-            // The owner's soft48 is the default: cloudSamples High is 48 grid points at the Medium step quality (the Medium tier does not set cloudSamples).
-            Assert.AreEqual(48, soft.Samples);
-            Assert.AreEqual(48, soft.GridPoints);
+            // The default is the Medium profile's 96 grid points at the Medium step quality (cloudSamples, set by the tier row).
+            Assert.AreEqual(96, soft.Samples);
+            Assert.AreEqual(96, soft.GridPoints);
             Assert.AreEqual(AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSoftness).Default, soft.Softness, 1e-9, "soft stands on the settings' defaults");
 
             T09Probe.SoftExpectation hash = T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == "softhash"));
             Assert.AreEqual(soft.GridPoints, hash.GridPoints, "softhash differs by the step offset alone");
             Assert.AreEqual(soft.Softness, hash.Softness, 1e-9);
 
-            // The example of the table's comment: cloudSamples Medium is 32 grid points.
-            T09Probe.SoftExpectation s32 = T09Probe.SoftExpect(new T09Probe.SoftVariant { Name = "soft32", Pairs = new[] { "s:" + AtmospheresSettings.Keys.CloudSamples + "=1" } });
+            // The example of the table's comment: cloudSamples 32 is 32 grid points.
+            T09Probe.SoftExpectation s32 = T09Probe.SoftExpect(new T09Probe.SoftVariant { Name = "soft32", Pairs = new[] { "s:" + AtmospheresSettings.Keys.CloudSamples + "=32" } });
             Assert.AreEqual(32, s32.GridPoints);
             Assert.AreEqual(0.5, s32.Softness, 1e-9);
 
@@ -124,10 +124,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             T09Probe.SoftExpectation r33 = of("softr33");
             Assert.AreEqual(0.33f, r33.Resolution, 1e-6f);
             Assert.IsTrue(r33.SkipEmpty);
-            Assert.AreEqual(48, r33.GridPoints);
+            Assert.AreEqual(96, r33.GridPoints);
             Assert.IsFalse(r33.SpanTight);
             T09Probe.SoftExpectation cut = of("softcut16");
-            Assert.AreEqual(16, cut.GridPoints, "48 points at gridFine 0.3333");
+            Assert.AreEqual(32, cut.GridPoints, "96 points at gridFine 0.3333");
             Assert.IsTrue(cut.SpanTight);
             Assert.AreEqual(0.33f, cut.Resolution, 1e-6f);
             Assert.IsFalse(cut.SkipEmpty);

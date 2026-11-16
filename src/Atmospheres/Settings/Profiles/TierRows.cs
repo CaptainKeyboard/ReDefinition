@@ -15,9 +15,10 @@ namespace ReDefinition.Atmospheres
     internal sealed class TierRow
     {
         internal TierRow(QualityTier tier, int volumeSteps, float volumeResolutionAfterGate, int lightCount, SimGridChoice simGrid,
-            int orbitMapWidth, int particleCap, float coverageResolution, int painterWidth, int mapWidth, float mapUpdateSeconds)
+            int orbitMapWidth, int particleCap, float coverageResolution, int painterWidth, int mapWidth, float mapUpdateSeconds, int cloudSamples)
         {
             Tier = tier;
+            CloudSamples = cloudSamples;
             VolumeSteps = volumeSteps;
             VolumeResolutionAfterGate = volumeResolutionAfterGate;
             LightCount = lightCount;
@@ -31,6 +32,9 @@ namespace ReDefinition.Atmospheres
         }
 
         internal QualityTier Tier { get; }
+        // Key cloudSamples: the most grid points of the cloud march. Measured at 1080p (soft-cost scene, field view, CLOUDR3): 48 points 2.35 ms, 96 3.53, 128 4.10;
+        // the look gains from 48 (large soft lobes, grainy) through 96 (firmer) to 128 (small turrets); a step above 128 is not measured.
+        internal int CloudSamples { get; }
         // Key volumeSteps: the march steps of the volume pass.
         internal int VolumeSteps { get; }
         // Key volumeResolution once the half-resolution look gate has passed (VolumeResolutionGate); full size before.
@@ -63,12 +67,12 @@ namespace ReDefinition.Atmospheres
     {
         internal const int NoLimit = -1;
 
-        private static readonly TierRow Low = new TierRow(QualityTier.Low, 16, 0.25f, 2, SimGridChoice.Coarse, 1024, 6700, 0.5f, 1024, 256, 8f);
-        private static readonly TierRow Medium = new TierRow(QualityTier.Medium, 20, 0.5f, 4, SimGridChoice.Normal, 2048, 14400, 0.5f, 2048, 512, 4f);
-        private static readonly TierRow High = new TierRow(QualityTier.High, 28, 1f, 8, SimGridChoice.Normal, 4096, 20000, 1f, 2048, 512, 3f);
-        private static readonly TierRow Ultra = new TierRow(QualityTier.Ultra, 36, 1f, 8, SimGridChoice.Fine, 4096, 27800, 1f, 4096, 1024, 2f);
+        private static readonly TierRow Low = new TierRow(QualityTier.Low, 16, 0.25f, 2, SimGridChoice.Coarse, 1024, 6700, 0.5f, 1024, 256, 8f, 48);
+        private static readonly TierRow Medium = new TierRow(QualityTier.Medium, 20, 0.5f, 4, SimGridChoice.Normal, 2048, 14400, 0.5f, 2048, 512, 4f, 96);
+        private static readonly TierRow High = new TierRow(QualityTier.High, 28, 1f, 8, SimGridChoice.Normal, 4096, 20000, 1f, 2048, 512, 3f, 128);
+        private static readonly TierRow Ultra = new TierRow(QualityTier.Ultra, 36, 1f, 8, SimGridChoice.Fine, 4096, 27800, 1f, 4096, 1024, 2f, 128);
         // Max has no limit: the most the keys take, and the particle cap off. Its cost is measured, not budgeted.
-        private static readonly TierRow Max = new TierRow(QualityTier.Max, 48, 1f, 8, SimGridChoice.Fine, 4096, NoLimit, 1f, 4096, 1024, 1f);
+        private static readonly TierRow Max = new TierRow(QualityTier.Max, 48, 1f, 8, SimGridChoice.Fine, 4096, NoLimit, 1f, 4096, 1024, 1f, 128);
 
         // The tiers with a row, lowest first.
         internal static readonly QualityTier[] All = { QualityTier.Low, QualityTier.Medium, QualityTier.High, QualityTier.Ultra, QualityTier.Max };
@@ -93,7 +97,8 @@ namespace ReDefinition.Atmospheres
             AtmospheresSettings.Keys.VolumeResolution,
             AtmospheresSettings.Keys.LightCount,
             AtmospheresSettings.Keys.SimGrid,
-            AtmospheresSettings.Keys.OrbitMapWidth
+            AtmospheresSettings.Keys.OrbitMapWidth,
+            AtmospheresSettings.Keys.CloudSamples
         };
 
         // The keys that carry a profile row in the key table (the group they belong to) but that no tier sets, each with the reason: they
@@ -132,7 +137,6 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.Keys.CloudNoiseTier, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
             { AtmospheresSettings.Keys.CloudLightQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
             { AtmospheresSettings.Keys.CloudShadowQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
-            { AtmospheresSettings.Keys.CloudSamples, "fewer grid points are a quality cost the owner picks (24 and 32 against 48); a tier sets it only after the owner agrees to a lower default" },
             { AtmospheresSettings.Keys.CloudResolution, "a level above 1 lowers the cloud picture's resolution; a tier sets it only after the owner agrees to a lower default" },
             { AtmospheresSettings.Keys.CloudSkipEmpty, "starts no ray in tiles the maps prove empty; the bound is conservative but its saving and error are measured, and a tier sets it only after the owner agrees" },
             { AtmospheresSettings.Keys.CloudSkipClosed, "drops the layers above a deck proved closed for a tile; the early-out of the march already does most of this, and a tier sets it only after the owner agrees" },

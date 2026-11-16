@@ -51,7 +51,7 @@ namespace ReDefinition.Atmospheres
             Soft60("soft", "ga", "gias", 3).Weave(8),
             Soft60("softr50", "ga", "gias", 1, "t:" + OwnCloudOptions.TuneReconResolution + "=0.5"),
             Soft60("softcut16", "g", "", 1, "t:" + OwnCloudOptions.TuneSpanTight + "=1", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "-"),
-            Soft60("soft100s24", "g", "g", 1, "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0").In("g", "g"),
+            Soft60("soft100s24", "g", "g", 1, "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=24").In("g", "g"),
             Soft60Reference("softhash"),
             Soft60("softhash", "", "", 1, "t:" + OwnCloudOptions.TuneDitherSequence + "=1").Weave(8).In("g", "-"),
             Soft60Reference("softacc05"),

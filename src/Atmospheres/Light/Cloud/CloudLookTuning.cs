@@ -291,13 +291,15 @@ namespace ReDefinition.Atmospheres
         // fully displaced point like the shape volume (the lookup that strains it: the diagnosis of the pulled look).
         internal static float HeapWarpShare { get { float v = Tuning.Get(TuneHeapWarp, (float)HeapModel.WarpShare); return float.IsNaN(v) || float.IsInfinity(v) ? (float)HeapModel.WarpShare : v < 0f ? -1f : Math.Min(v, 1f); } }
         // cloud.noise.blend (the layer pass reads it since the compile budget package CLOUDR2 P4: the earlier builds with it crashed the Unity 2019.4 shader compiler at 1190 s and 833 s): 1 hides the tiling of the shape and heap volumes by blending (random offset per lattice cell, variance-preserving, back to a rank: NoiseBlend, the local strain is exactly 1)
-        // instead of the untiling displacement, which pulls the pattern (0, the default: the displacement). cloud.noise.blendExp is the exponent of the weights (8), cloud.noise.blendCell the lattice
+        // instead of the untiling displacement, which pulls the pattern (1, the default; 0: the displacement). cloud.noise.blendExp is the exponent of the weights (8), cloud.noise.blendCell the lattice
         // cell in periods (1). The erosion detail keeps its displacement.
-        // cloud.light.erosion (CLOUDR2 P3): how many of the first taps of the sun's light march read the density with its erosion detail (0, the default: the shape only). The eroded taps are what
+        // cloud.light.erosion (CLOUDR2 P3): how many of the first taps of the sun's light march read the density with its erosion detail (2, the default; 0: the shape only). The eroded taps are what
         // makes the lobes shade each other; the tap count is whole.
         internal const string TuneLightErosion = "cloud.light.erosion";
-        internal static float LightErosionTaps { get { float v = Tuning.Get(TuneLightErosion, 0f); return float.IsNaN(v) || float.IsInfinity(v) ? 0f : (float)Math.Floor(Math.Max(0f, Math.Min(v, 8f))); } }
-        internal static bool NoiseBlend { get { return Tuning.Get(TuneNoiseBlend, 0f) > 0.5f; } }
+        internal const float LightErosionDefault = 2f;
+        internal const float NoiseBlendDefault = 1f;
+        internal static float LightErosionTaps { get { float v = Tuning.Get(TuneLightErosion, LightErosionDefault); return float.IsNaN(v) || float.IsInfinity(v) ? LightErosionDefault : (float)Math.Floor(Math.Max(0f, Math.Min(v, 8f))); } }
+        internal static bool NoiseBlend { get { return Tuning.Get(TuneNoiseBlend, NoiseBlendDefault) > 0.5f; } }
         internal static float NoiseBlendExp { get { return Clean(Tuning.Get(TuneNoiseBlendExp, 8f), 8f, 1f, 32f); } }
         internal static float NoiseBlendCell { get { return Clean(Tuning.Get(TuneNoiseBlendCell, 1f), 1f, 0.25f, 16f); } }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }

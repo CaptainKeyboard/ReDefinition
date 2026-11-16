@@ -4,12 +4,12 @@ namespace ReDefinition.Atmospheres.Viewer
     // the same name (see CloudKeyRegistrations.Preset). Nothing here changes a default.
     internal static class ViewerBuiltIns
     {
-        internal const string NewModelSlot = "New Model 96 Steps";
+        internal const string NewModelSlot = "96 Steps";
 
         [CloudKeySource]
         internal static void Register(CloudKeyRegistrations registrations)
         {
-            registrations.Preset(NewModelSlot, "an empty slot: the package of the new cloud model fills it with its keys and a march of 96 steps", null);
+            registrations.Preset(NewModelSlot, "an empty slot: the package of the new cloud model fills it with a march of 96 grid points", null);
         }
     }
 }

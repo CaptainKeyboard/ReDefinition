@@ -125,11 +125,11 @@ namespace ReDefinition.Atmospheres
         //   softcut16  the span cut to the cloud types around the camera (layers.spanTight) with a grid of 16 points (layers.gridFine 0.3333 of 48) at the march target 0.33
         // (softnodrop, layers.dropEmpty 0, is gone with its key: the drop left out 0 of 4 layers in every view of start 59, E40 L4 clean.)
         // Cut for the time (the lead's order): soft100s24's clock window (the test pins the estimate against 1020).
-        // Slots are gone: the table is full. The size of one more candidate is what SoftEstimateS says; an example that costs one window: Soft("soft32", "", "g", "s:" + AtmospheresSettings.Keys.CloudSamples + "=1").
+        // Slots are gone: the table is full. The size of one more candidate is what SoftEstimateS says; an example that costs one window: Soft("soft32", "", "g", "s:" + AtmospheresSettings.Keys.CloudSamples + "=32").
         internal static readonly SoftVariant[] SoftVariants =
         {
             Soft("soft", "ga", "gias"),
-            Soft("soft100s24", "g", "", "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=0"),
+            Soft("soft100s24", "g", "", "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=24"),
             Soft("softhash", "", "", "t:" + OwnCloudOptions.TuneDitherSequence + "=1").In("", "-"),
             Soft("softr33", "ga", "gias", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33", "s:" + AtmospheresSettings.Keys.CloudSkipEmpty + "=1"),
             Soft("softcut16", "g", "g", "t:" + OwnCloudOptions.TuneSpanTight + "=1", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "g")
@@ -231,7 +231,7 @@ namespace ReDefinition.Atmospheres
                 }
             }
             softness = Math.Max(CloudSoftDensity.MinSoftness, Math.Min(CloudSoftDensity.MaxSoftness, softness));
-            int samples = OwnCloudOptions.SamplesOf((CloudDetailLevel)Math.Max(0, Math.Min(2, (int)level)));
+            int samples = Math.Max(24, Math.Min(128, (int)level));
             int baseMax, sun;
             float min;
             LayerSwitches.StepQuality(Math.Max(0, Math.Min(2, (int)AtmospheresSettings.Number(AtmospheresSettings.Keys.LayerStepQuality))), out baseMax, out sun, out min);

@@ -312,7 +312,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneEmptyLeap, Frame0.EmptyLeap),
             N(OwnCloudOptions.TuneCheapShare, Frame0.CheapShare),
             N(OwnCloudOptions.TuneFogShare, Frame0.FogShare),
-            N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "grid points of a span times this, the main quality lever: 1 = 48 points, 2 = 96, 2.6667 = 128, 4 = 192 (reader clamp 0.25 to 8, at most 256 points); cost about +2.5 ms at 96 and +4 ms at 128 at 1080p"),
+            N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
             F(OwnCloudOptions.TuneSpanTight, OwnCloudOptions.SpanTightDefault),
             N(OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.DitherSequenceDefault, KeyLiveness.FrameHistory, "1 hash, 2 gradient, 3 blue noise"),
             F(OwnCloudOptions.TuneDitherFix, OwnCloudOptions.DitherFixDefault, KeyLiveness.FrameHistory),

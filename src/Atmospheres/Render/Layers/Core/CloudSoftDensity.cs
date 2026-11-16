@@ -76,12 +76,12 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The settings' choices of the most grid points of a march: the owner's setting cloudSamples (24, 32 or 48) relative to the Medium step quality's 48.
+        // The most grid points of a march: the setting cloudSamples (24 to 128) relative to the Medium step quality's 48.
         internal const int MediumSamples = 48;
 
         internal static int ScaleSamples(int maxSteps, int samplesSetting)
         {
-            int s = samplesSetting <= 24 ? 24 : samplesSetting <= 32 ? 32 : 48;
+            int s = Math.Max(24, Math.Min(128, samplesSetting));
             return Math.Max(4, (int)Math.Round(maxSteps * (double)s / MediumSamples));
         }
     }

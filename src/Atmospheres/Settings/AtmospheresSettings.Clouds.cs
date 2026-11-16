@@ -93,8 +93,8 @@ namespace ReDefinition.Atmospheres
         internal static bool CloudNoiseDistanceLod => B(Keys.CloudNoiseDistanceLod);
         internal static bool CloudFineDetail => B(Keys.CloudFineDetail);
         internal static float CloudSoftness => F(Keys.CloudSoftness);
-        // Low 24, Medium 32, High 48 grid points at most (relative to the Medium step quality's 48).
-        internal static CloudDetailLevel CloudSamples => E<CloudDetailLevel>(Keys.CloudSamples);
+        // The most grid points of a march (24 to 128), relative to the Medium step quality's 48; the profile sets it (Low 48, Medium 96, High and above 128).
+        internal static int CloudSamples => I(Keys.CloudSamples);
 
         internal static CloudDetailLevel CloudLightQuality => E<CloudDetailLevel>(Keys.CloudLightQuality);
         internal static int CloudLightOctaves => I(Keys.CloudLightOctaves);
@@ -179,9 +179,9 @@ namespace ReDefinition.Atmospheres
                 // ray side is a quality reduction (0 is every layer).
                 SettingDef.Bool("rtOwnClouds", true, CL, "Own Clouds In Ray Tracing", OWN),
                 SettingDef.Int("rtOwnCloudsLayerCap", 0, 0, CloudLayerDef.MaxLayers, CL, "Ray Tracing Cloud Layer Cap", OWN),
-                // E40 soft density: how wide the soft rim of a cloud is (noise rank, 0.3 to 1.0) and how many grid points the march takes at most (Low 24, Medium 32, High 48).
+                // E40 soft density: how wide the soft rim of a cloud is (noise rank, 0.3 to 1.0) and how many grid points the march takes at most (24 to 128; the quality profile sets it: Low 48, Medium 96, High and above 128).
                 SettingDef.Float("cloudSoftness", 0.5, 0.3, 1.0, CL, "Cloud Softness", OWN),
-                SettingDef.Choice("cloudSamples", typeof(CloudDetailLevel), CloudDetailLevel.High, CL, "Cloud Samples", OWN, RV),
+                SettingDef.Int("cloudSamples", 96, 24, 128, CL, "Cloud Samples", OWN, RV),
 
                 // The light (T03)
                 SettingDef.Choice("cloudLightQuality", typeof(CloudDetailLevel), CloudDetailLevel.High, CL, "Cloud Light Quality", OWN, RV),
