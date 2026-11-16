@@ -134,6 +134,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneCavity, -1f, KeyLiveness.FrameHistory, "cavity strength for every heap type, -1 each type's key"),
             F(CloudLookTuning.TuneHeapFootLod, true, KeyLiveness.FrameHistory),
             F(CloudLookTuning.TuneHeapIso, true, KeyLiveness.FrameHistory),
+            N(CloudLookTuning.TuneHeapDetail, 0f, KeyLiveness.Change, "Hurst exponent of the erosion detail octaves, 0 compiled; acts when the volumes are generated"),
             N(CloudLookTuning.TuneFirstHit, 0f, KeyLiveness.FrameHistory, "bisection evaluations on the entered span, 0 off"),
             N(CloudLookTuning.TuneFirstHitThin, 0.25f, KeyLiveness.FrameHistory, "first steps inside as a share of the grid step"),
             N(CloudLookTuning.TuneFirstHitGrow, 4f, KeyLiveness.FrameHistory, "they grow to the grid step by 1 / this of opacity"),

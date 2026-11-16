@@ -53,7 +53,7 @@ namespace ReDefinition.Atmospheres
                 DetailN = sizes.Detail,
                 CurlN = sizes.Curl,
                 Shape = NoiseVolumes.Shape(sizes.Shape, seed + NoiseVolumes.ShapeSeedOffset),
-                Detail = NoiseVolumes.Detail(sizes.Detail, seed + NoiseVolumes.DetailSeedOffset),
+                Detail = NoiseVolumes.Detail(sizes.Detail, seed + NoiseVolumes.DetailSeedOffset, CloudLookTuning.HeapDetailHurst),
                 Curl = NoiseVolumes.Curl(sizes.Curl, seed + NoiseVolumes.CurlSeedOffset)
             };
             set.ShapeMips = NoiseVolumes.ShapeMips(set.Shape, set.ShapeN);

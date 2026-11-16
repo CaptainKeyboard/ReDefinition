@@ -219,6 +219,25 @@ namespace ReDefinition.Tests
             Assert.IsTrue(differ > 1.0, "off the reference radius the isotropic read differs from the compressed one: " + differ);
         }
 
+
+        // cloud.heap.detail: the erosion detail's octaves fall off as 2^(-H k), continuing the heap's cascade; 0 is the compiled volume.
+        [TestMethod]
+        public void TheDetailCascadeWeightsFollowTheHurstExponentAndDefaultToTheCompiledOnes()
+        {
+            Assert.AreSame(NoiseModel.DetailWorleyWeights, NoiseVolumes.DetailWeights(0.0));
+            double[] w = NoiseVolumes.DetailWeights(0.65);
+            Assert.AreEqual(NoiseModel.DetailWorleyCells.Length, w.Length);
+            Assert.AreEqual(1.0, w[0], 0.0);
+            Assert.AreEqual(Math.Pow(2.0, -0.65), w[1] / w[0], 1e-12);
+            Assert.AreEqual(Math.Pow(2.0, -1.3), w[2] / w[0], 1e-12);
+            byte[] compiled = NoiseVolumes.Detail(16, 2u), cascade = NoiseVolumes.Detail(16, 2u, 0.65);
+            CollectionAssert.AreEqual(compiled, NoiseVolumes.Detail(16, 2u, 0.0));
+            CollectionAssert.AreNotEqual(compiled, cascade);
+            double mean = 0.0;
+            foreach (byte b in cascade) mean += b / 255.0;
+            Assert.IsTrue(mean / cascade.Length > 0.2 && mean / cascade.Length < 0.8, "mean " + mean / cascade.Length);
+        }
+
         private static double ShareOf(double n, double cov, double edge)
         {
             double x = (cov + (n - 0.5) + 0.5 - 1.0) / edge + 0.5;

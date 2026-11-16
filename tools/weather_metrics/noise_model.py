@@ -150,8 +150,10 @@ def gen_shape(n, seed=1):
     return equalize(pw).reshape(n, n, n)
 
 
-def gen_detail(n, seed=2):
-    return stretch(worley_fbm(grid_points(n), DETAIL_WORLEY, DETAIL_WORLEY_W, seed)).reshape(n, n, n)
+def gen_detail(n, seed=2, hurst=0.0):
+    """The detail volume; hurst above 0 (CLOUDR1, cloud.heap.detail): the octave weights are 2^(-H k) instead of DETAIL_WORLEY_W."""
+    weights = DETAIL_WORLEY_W if not hurst > 0.0 else tuple(2.0 ** (-hurst * k) for k in range(len(DETAIL_WORLEY)))
+    return stretch(worley_fbm(grid_points(n), DETAIL_WORLEY, weights, seed)).reshape(n, n, n)
 
 
 def gen_curl(n, seed=3):

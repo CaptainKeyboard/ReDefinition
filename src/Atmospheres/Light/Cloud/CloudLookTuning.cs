@@ -244,7 +244,7 @@ namespace ReDefinition.Atmospheres
         //   cloud.cavity          -1: each type's cfg key cavity; 0 to 1: this strength for every type that reads a heap
         //   cloud.heap.iso        1: the heap is read at the lattice's true vertical scale, so a layer's verticalScale does not stretch the rounded heaps into columns; 0: as the shape volume is read
         //   cloud.heap.footLod    1: the march's sample spacing raises the heap volume's mip level (an octave is dropped only where it is below the footprint); 0: only the smoothing does
-        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod", TuneHeapIso = "cloud.heap.iso";
+        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod", TuneHeapIso = "cloud.heap.iso", TuneHeapDetail = "cloud.heap.detail";
 
         // --- CLOUDR1 P6: the first hit of the march by bisection (default off). ---
         //   cloud.firstHit        evaluations of the bisection on the span a ray enters (0: off, the march is as it was; 3 is the default of the experiments)
@@ -283,6 +283,9 @@ namespace ReDefinition.Atmospheres
         internal static float EdgePowerOverride { get { Refresh(); return edgeForce; } }
         internal static float CavityOverride { get { Refresh(); return cavityForce; } }
         internal static bool HeapFootLod { get { Refresh(); return heapFoot > 0.5f; } }
+        // cloud.heap.detail: the Hurst exponent of the erosion detail volume's octaves (2^(-H k): the heap's cascade continued; 0: the compiled weights, whose finest octave is the heaviest). Read when the
+        // volumes are generated (the first frame of a scene), not live.
+        internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
         internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }
 
         // The layer mask of the solo key (cloud.soloLayer): bit n - 1 for a value n from 1 to the largest stack; 0 (every layer) otherwise.

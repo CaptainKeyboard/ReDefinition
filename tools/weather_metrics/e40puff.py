@@ -165,6 +165,7 @@ VARIANTS = {
     "p2p1": ("(P2 + P1) heap volume + the rim exponent 0.5 (cloud.edgePower)", tune_cumulus(HEAP1 + EDGE), None),
     "p2p1p3": ("(P2 + P1 + P3) + cavity 0.7", tune_cumulus(HEAP1 + EDGE + CAV), None),
     "p1": ("(P1) the rim exponent 0.5 alone", tune_cumulus(EDGE), None),
+    "p2p1p3d": ("(P2 + P1 + P3 + detail cascade) the erosion detail's octaves 2^(-0.65 k) (cloud.heap.detail)", tune_cumulus(HEAP1 + EDGE + CAV + [("cloud.heap.detail", 0.65)]), None),
     "p6": ("(P6) first hit by bisection (3 evaluations) and thin steps inside", tune_cumulus(FIRSTHIT), None),
     "p2p1p3p6": ("(P2 + P1 + P3 + P6)", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), None),
     "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),

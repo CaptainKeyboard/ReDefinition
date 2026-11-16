@@ -162,15 +162,26 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The detail volume, n^3 bytes (R8).
-        internal static byte[] Detail(int n, uint seed)
+        // The octave weights of the detail volume for a Hurst exponent: 2^(-H k) for the octave k of doubled frequency (the cascade of the heap volume continued down to the detail's finest cell); 0
+        // (the default): the compiled NoiseModel.DetailWorleyWeights, whose finest octave is the heaviest.
+        internal static double[] DetailWeights(double hurst)
         {
+            if (!(hurst > 0.0)) return NoiseModel.DetailWorleyWeights;
+            var w = new double[NoiseModel.DetailWorleyCells.Length];
+            for (int k = 0; k < w.Length; k++) w[k] = Math.Pow(2.0, -hurst * k);
+            return w;
+        }
+
+        // The detail volume, n^3 bytes (R8). hurst above 0 (cloud.heap.detail): the octaves fall off as 2^(-H k) like the heap's, so the erosion continues the cascade (CLOUDR1).
+        internal static byte[] Detail(int n, uint seed, double hurst = 0.0)
+        {
+            double[] weights = DetailWeights(hurst);
             var v = new double[n * n * n];
             Parallel.For(0, n, z =>
             {
                 for (int y = 0; y < n; y++)
                     for (int x = 0; x < n; x++)
-                        v[(z * n + y) * n + x] = WorleyFbm((x + 0.5) / n, (y + 0.5) / n, (z + 0.5) / n, NoiseModel.DetailWorleyCells, NoiseModel.DetailWorleyWeights, seed);
+                        v[(z * n + y) * n + x] = WorleyFbm((x + 0.5) / n, (y + 0.5) / n, (z + 0.5) / n, NoiseModel.DetailWorleyCells, weights, seed);
             });
             Stretch(v);
             return ToBytes(v);
