@@ -92,6 +92,7 @@ namespace ProbeLite
                 if (control == null) yield return null;
             }
             yield return new WaitForSecondsRealtime(2f);
+            Lite.JumpToUt();
             GameEvents.onHideUI.Fire();
             Rig.SiteLat = Lite.PadLat;
             Rig.SiteLon = Lite.PadLon;
@@ -170,6 +171,7 @@ namespace ProbeLite
             Rig.SiteLat = v.latitude;
             Rig.SiteLon = v.longitude;
             Lite.Say("flight ready: " + v.vesselName + " at " + Lite.F(v.latitude) + ", " + Lite.F(v.longitude) + ", " + Lite.F(v.altitude) + " m, situation " + v.situation + ", UT " + Lite.F(Planetarium.GetUniversalTime()));
+            Lite.JumpToUt();
             Lite.Say("settings: TERRAIN_SHADER_QUALITY " + GameSettings.TERRAIN_SHADER_QUALITY + ", TEXTURE_QUALITY " + GameSettings.TEXTURE_QUALITY + ", LIGHT_QUALITY "
                      + GameSettings.LIGHT_QUALITY + ", screen " + Screen.width + "x" + Screen.height + ", fullscreen " + Screen.fullScreen + ", quality level " + QualitySettings.GetQualityLevel());
             GameEvents.onHideUI.Fire();

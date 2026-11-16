@@ -159,6 +159,23 @@ namespace ProbeLite
             return FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 ? FlightGlobals.Bodies[0] : null;
         }
 
+        // The universal time K-S2's pictures use (the sun about 50 degrees up over the pad), set once per scene: setting it on the loaded game did not take (the vanilla start's
+        // flight began at the save's own UT 1450467, the sun at 19 degrees). Not held: forcing it every frame slid the pad vessel in K-S2's ground_on start.
+        internal static void JumpToUt()
+        {
+            try
+            {
+                double before = Planetarium.GetUniversalTime();
+                Planetarium.SetUniversalTime(Ut);
+                CelestialBody home = FlightGlobals.GetHomeBody();
+                Say("universal time " + F(before) + " set to " + F(Ut) + " in scene " + HighLogic.LoadedScene + (home != null ? ", sun " + F(SunElevationDeg(home.GetWorldSurfacePosition(PadLat, PadLon, 70.0), home)) + " deg over the pad" : ""));
+            }
+            catch (Exception e)
+            {
+                Warn("the universal time could not be set: " + e.GetType().Name + " " + e.Message);
+            }
+        }
+
         // The sun's elevation over the horizon at the camera, degrees.
         internal static double SunElevationDeg(Vector3d at, CelestialBody body)
         {

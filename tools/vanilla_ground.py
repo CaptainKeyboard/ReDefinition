@@ -4,8 +4,13 @@ once with ours in place, taken by the same small plugin (tools/ProbeLite) at the
 
   python tools/vanilla_ground.py plan    --variant vanilla|vanilla-original|ours [--ksp <KSP folder>]
   python tools/vanilla_ground.py run     --variant vanilla|vanilla-original|ours [--ksp <KSP folder>] [--profile medium|none] [--keep-eve] [--timeout-min N] [--extra-arg A ...]
+  python tools/vanilla_ground.py bisect  [--variants a,b,..] [--keep-going]   (runs the variants that remove ONE component of ours, likeliest first)
   python tools/vanilla_ground.py restore [--ksp <KSP folder>]
   python tools/vanilla_ground.py compare [--vanilla vanilla|vanilla-original]
+
+Bisect variants (each starts from ours and removes one thing): no-proxy, no-atmo, no-main, no-patches, settings-original, other-mod-files; see VANILLA_VARIANTS and
+BISECT_VARIANTS below. `bisect` needs the results of `vanilla` and `ours`, stops at the first variant whose far_p2 ground (the lowest quarter's green over grey) is
+nearer to vanilla's than to ours, and prints a table 'variant | far_p2 ground mean r,g,b | green | sc_default ground'.
 
 Variants: vanilla = no ReDefinition file, the render settings ReDefinition wrote into settings.cfg left as they are; vanilla-original = the same with those settings
 pinned back to the originals ReDefinition remembered (bundled.cfg BEFORE_REDEFINITION: TEXTURE_QUALITY, TERRAIN_SHADER_QUALITY, LIGHT_QUALITY); ours = ReDefinition in place.
@@ -28,6 +33,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -54,7 +60,6 @@ LITE_FOLDER = "GameData/ProbeLite"
 # src/ReDefinition.csproj, tools/benchmark_matrix_lib/constants.py and src/Vendor/AmperePackage.cs): the proxy dxgi.dll, its ini, defaults and log, the
 # Streamline interposer and plugins, the NVIDIA and AMD runtimes the player supplies, and the Ampere package (version.dll, dlssg_sm86.ini, the folder).
 ASIDE_PATTERNS = ["dxgi.dll", "version.dll", "dlssg_sm86.ini", "ReDefinitionProxy.*", "sl.*.dll", "nvngx_*.dll", "amd_fidelityfx_*.dll"]
-ASIDE_DIRS = ["GameData/ReDefinition", "dlssg_sm86"]
 # Not moved: UnityPlayer.dll is the game's own, equal to its .release copy unless a profiling build is in (the plan says so then); the licence texts are inert.
 
 # The caches the game's mod loader rewrites when GameData changed; restored byte for byte, so the next normal start finds its cache valid.
@@ -89,39 +94,195 @@ def join(root, rel):
 
 # ---------------------------------------------------------------- the plan
 
-VARIANTS = ("vanilla", "vanilla-original", "ours")
-# The render settings ReDefinition's profile changed in the game's settings.cfg; bundled.cfg keeps their originals in BEFORE_REDEFINITION. Variant vanilla-original
-# pins them back, so that nothing ReDefinition wrote stays behind.
+# The variants. The first three are the plain comparison; the rest remove ONE component of ours from variant ours (the bisect, `bisect` runs them in order):
+#   vanilla           no ReDefinition file (GameData/ReDefinition, the proxy and its DLLs, the Ampere package); what ReDefinition wrote into settings.cfg stays
+#   vanilla-original  as vanilla, with the render settings pinned back to the originals ReDefinition remembered
+#   ours              everything in place
+#   no-proxy          dxgi.dll, version.dll, ReDefinitionProxy.*, sl.*, nvngx*, the FidelityFX DLL and the dlssg_sm86 folder aside; GameData/ReDefinition stays
+#   no-atmo           GameData/ReDefinition/Atmospheres aside
+#   no-main           GameData/ReDefinition/Main aside (the Atmospheres plugin needs only Common; the run checks which assemblies loaded)
+#   no-patches        only ReDefinition's ModuleManager patch files (Main/Patches/*.cfg, and any other patch-like cfg of ours) aside
+#   settings-original ours with settings.cfg's render settings pinned to the originals
+#   other-mod-files   ours with the other mods' own files (Scatterer, Parallax, DistantObject, Deferred, TUFX's scene profiles in the save) set back to the originals
+VANILLA_VARIANTS = ("vanilla", "vanilla-original")
+BISECT_VARIANTS = ("no-proxy", "no-atmo", "no-main", "no-patches", "settings-original", "other-mod-files")
+VARIANTS = VANILLA_VARIANTS + ("ours",) + BISECT_VARIANTS
+# The order `bisect` tries them in (the likeliest first): the settings ReDefinition wrote into the game's own settings, the proxy, the patches, Atmospheres, Main, the others' files.
+BISECT_ORDER = ("settings-original", "no-proxy", "no-patches", "no-atmo", "no-main", "other-mod-files")
+# The render settings ReDefinition's profile changed in the game's settings.cfg; bundled.cfg keeps their originals in BEFORE_REDEFINITION. Variants vanilla-original and
+# settings-original pin them back.
 ORIGINAL_KEYS = ("TEXTURE_QUALITY", "TERRAIN_SHADER_QUALITY", "LIGHT_QUALITY")
+# What each variant keeps of ours: the proxy files, GameData/ReDefinition/<part>, and the pins/edits it applies.
+REDEF_PARTS = ("Atmospheres", "Main")
+# The assemblies a variant must have loaded (and must not have), by their names: ReDefinition = Main, ReDefinition.Atmospheres, ReDefinition.Common.
+ASSEMBLY_MAIN, ASSEMBLY_ATMO = "ReDefinition", "ReDefinition.Atmospheres"
+# Other mods' own files and where each key of the BEFORE_REDEFINITION block lives (the keys the block holds are 'mod.key = value'). Keys not in a file are reported, not invented.
+MOD_FILES = {"parallax": "GameData/ParallaxContinued/Config/ParallaxGlobalSettings.cfg", "scatterer": "GameData/scatterer/config/config.cfg",
+             "distantobject": "GameData/DistantObject/PluginData/Settings.cfg", "deferred": "GameData/zzz_Deferred/Deferred.cfg"}
+# renderMode is a name in the block and a number in the file; eve.* and ksp.* have their own paths (EVE is moved aside, ksp.* are pinned).
+MOD_SKIP = {"distantobject.renderMode": "a name in the block, a number in DistantObject's file"}
+TUFX_SCENE_KEYS = {"profileFlight": "FlightSceneProfile", "profileInternal": "IVAProfile", "profileMap": "MapSceneProfile", "profileEditor": "EditorSceneProfile",
+                   "profileSpaceCenter": "SpaceCenterSceneProfile", "profileTrackingStation": "TrackingStationProfile"}
 
 
 def is_vanilla(variant):
-    return variant.startswith("vanilla")
+    return variant in VANILLA_VARIANTS
 
 
-def original_ksp_settings(ksp):
-    """{key: value} of the render settings ReDefinition remembered in bundled.cfg's BEFORE_REDEFINITION block ('ksp.KEY = value'); empty where there is none."""
-    path = join(ksp, "GameData/ReDefinition/Main/PluginData/bundled.cfg")
-    out = {}
+def keeps_proxy(variant):
+    return not is_vanilla(variant) and variant != "no-proxy"
+
+
+def keeps_part(variant, part):
+    """Whether GameData/ReDefinition/<part> stays in place in a variant."""
+    return not is_vanilla(variant) and variant != {"Atmospheres": "no-atmo", "Main": "no-main"}[part]
+
+
+def keeps_patches(variant):
+    return keeps_part(variant, "Main") and variant != "no-patches"
+
+
+def redef_gone(variant, rel):
+    """Whether a path relative to the KSP folder lies under a part of GameData/ReDefinition that the variant moved away (such a file is not written back by the profile)."""
+    low = rel.replace("\\", "/").lower()
+    if not low.startswith("gamedata/redefinition/"):
+        return False
+    if is_vanilla(variant):
+        return True
+    return any(not keeps_part(variant, part) and low.startswith("gamedata/redefinition/%s/" % part.lower()) for part in REDEF_PARTS)
+
+
+BEFORE_FILE = "GameData/ReDefinition/Main/PluginData/bundled.cfg"
+
+
+def read_before_block(ksp):
+    """(top, saves): the BEFORE_REDEFINITION block of bundled.cfg as {'mod.key': value} and {save name: {'mod.key': value}}; empty where there is none."""
+    path = join(ksp, BEFORE_FILE)
+    top, saves = {}, {}
     if not os.path.isfile(path):
-        return out
-    inside, depth = False, 0
+        return top, saves
+    inside, depth, save = False, 0, None
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         for raw in f:
             line = raw.strip()
             if line == "BEFORE_REDEFINITION":
                 inside = True
                 continue
-            if inside and line == "{":
+            if not inside:
+                continue
+            if line == "{":
                 depth += 1
-            elif inside and line == "}":
+            elif line == "}":
                 depth -= 1
                 if depth <= 0:
                     break
-            elif inside and depth == 1 and line.startswith("ksp.") and "=" in line:
-                key, value = [s.strip() for s in line[4:].split("=", 1)]
-                if key in ORIGINAL_KEYS:
-                    out[key] = value
+                if depth == 1:
+                    save = None
+            elif "=" in line and depth >= 1:
+                key, value = [s.strip() for s in line.split("=", 1)]
+                if depth == 1:
+                    top[key] = value
+                elif depth == 2 and key == "name":
+                    save = value
+                    saves.setdefault(save, {})
+                elif depth == 2 and save is not None:
+                    saves[save][key] = value
+    return top, saves
+
+
+def original_ksp_settings(ksp):
+    """{key: value} of the render settings ReDefinition remembered in bundled.cfg's BEFORE_REDEFINITION block ('ksp.KEY = value'); empty where there is none."""
+    top, _saves = read_before_block(ksp)
+    return {k[4:]: v for k, v in top.items() if k.startswith("ksp.") and k[4:] in ORIGINAL_KEYS}
+
+
+def edit_first_key(text, key, value):
+    """(new text, old value or None): the first 'key = value' line of a cfg text with its value replaced (indent kept); None where the key is not there."""
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        m = re.match(r"^(\s*)%s(\s*)=(\s*)(.*?)(\r?)$" % re.escape(key), line)
+        if m:
+            lines[i] = "%s%s%s=%s%s%s" % (m.group(1), key, m.group(2), m.group(3), value, m.group(5))
+            return "\n".join(lines), m.group(4)
+    return text, None
+
+
+def mod_file_edits(ksp):
+    """The edits of variant other-mod-files as ({file: [(key, original value)]}, [notes of what could not be set back]). Read from the BEFORE block."""
+    top, saves = read_before_block(ksp)
+    edits, notes = {}, []
+    for full, value in top.items():
+        mod, _dot, key = full.partition(".")
+        if mod in ("ksp", "eve"):
+            continue
+        if full in MOD_SKIP:
+            notes.append("%s not set back: %s" % (full, MOD_SKIP[full]))
+        elif mod in MOD_FILES:
+            edits.setdefault(MOD_FILES[mod], []).append((key, value))
+        elif mod == "tufx":
+            notes.append("%s is a scene the menu uses; the probe save holds the scenes' profiles (set back below)" % full)
+        else:
+            notes.append("%s has no file known here" % full)
+    scenes = saves.get(SAVE_FOLDER, {})
+    for full, value in scenes.items():
+        mod, _dot, key = full.partition(".")
+        if mod == "tufx" and key in TUFX_SCENE_KEYS:
+            for name in ("probe.sfs", "persistent.sfs"):
+                edits.setdefault("saves/%s/%s" % (SAVE_FOLDER, name), []).append((TUFX_SCENE_KEYS[key], value))
+        elif full not in MOD_SKIP and not (mod == "distantobject"):
+            notes.append("%s of the save %s is not set back" % (full, SAVE_FOLDER))
+    return edits, notes
+
+
+def apply_mod_file_edits(ksp, edits, log=say):
+    """Writes the originals into the other mods' files; returns the list of 'file: key old -> new' lines and of keys the file does not hold."""
+    lines = []
+    for rel, pairs in edits.items():
+        path = join(ksp, rel)
+        if not os.path.isfile(path):
+            lines.append("%s: file missing, %d key(s) not set" % (rel, len(pairs)))
+            continue
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            original = text = f.read()
+        for key, value in pairs:
+            text, old = edit_first_key(text, key, value)
+            lines.append("%s: %s %s" % (rel, key, "not in the file" if old is None else ("%s (unchanged)" % old if old == value else "%s -> %s" % (old, value))))
+        if text != original:
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write(text)
+    for line in lines:
+        log("other mod files: " + line)
+    return lines
+
+
+def patch_files(ksp):
+    """ReDefinition's ModuleManager patch files that change something of another mod or the game (relative to the KSP folder): everything under Main/Patches, and
+    any other cfg of ours outside PluginData with a top-level patch operation (@NODE, +NODE, !NODE, %NODE, or a :FOR/:NEEDS/:AFTER/:BEFORE/:FINAL pass) on a node that
+    is not ReDefinition's own (REDEFINITION_*, EVE_* are the data Atmospheres reads, not patches of anything else)."""
+    base = join(ksp, "GameData/ReDefinition")
+    out = []
+    if not os.path.isdir(base):
+        return out
+    ops = re.compile(r":(FOR|NEEDS|AFTER|BEFORE|FINAL|LAST)\b|:(FOR|NEEDS|AFTER|BEFORE)\[")
+    for rel in series.tree_files(base):
+        if not rel.lower().endswith(".cfg") or "/PluginData/" in "/" + rel:
+            continue
+        if rel.startswith("Main/Patches/"):
+            out.append("GameData/ReDefinition/" + rel)
+            continue
+        with open(os.path.join(base, *rel.split("/")), "r", encoding="utf-8", errors="replace") as f:
+            lines = [line.strip() for line in f.read().split("\n") if line.strip() and not line.strip().startswith("//")]
+        # Only the lines at depth 0 name a node.
+        depth, hit = 0, False
+        for s in lines:
+            if depth == 0 and s != "{":
+                m = re.match(r"^([@+!%\-]?)(\w+)", s)
+                if m and (m.group(1) or ops.search(s)) and not m.group(2).upper().startswith(("REDEFINITION_", "EVE_")):
+                    hit = True
+                    break
+            depth += s.count("{") - s.count("}")
+        if hit:
+            out.append("GameData/ReDefinition/" + rel)
     return out
 
 
@@ -141,14 +302,22 @@ def aside_items(ksp, variant="vanilla", keep_eve=False):
     """The things a run moves, as (relative path with forward slashes, kind), in the order they are moved. Only what exists. Variant vanilla moves everything of
     ReDefinition; both variants move EnvironmentalVisualEnhancements and its cloud configs as K-S2's starts do ("disableMods": ["EVE"]), unless keep_eve."""
     items = []
-    if is_vanilla(variant):
+    if not keeps_proxy(variant):
         for pattern in ASIDE_PATTERNS:
             for path in sorted(glob.glob(os.path.join(ksp, pattern))):
                 if os.path.isfile(path):
                     items.append((os.path.basename(path), "file"))
-        for rel in ASIDE_DIRS:
-            if os.path.isdir(join(ksp, rel)):
-                items.append((rel, "dir"))
+        if os.path.isdir(join(ksp, "dlssg_sm86")):
+            items.append(("dlssg_sm86", "dir"))
+    if is_vanilla(variant):
+        if os.path.isdir(join(ksp, "GameData/ReDefinition")):
+            items.append(("GameData/ReDefinition", "dir"))
+    else:
+        for part in REDEF_PARTS:
+            if not keeps_part(variant, part) and os.path.isdir(join(ksp, "GameData/ReDefinition/" + part)):
+                items.append(("GameData/ReDefinition/" + part, "dir"))
+        if variant == "no-patches":
+            items += [(rel, "file") for rel in patch_files(ksp)]
     if not keep_eve:
         for folder in series.MOD_FOLDERS["EVE"]:
             if os.path.isdir(join(ksp, "GameData/" + folder)):
@@ -202,28 +371,33 @@ def side_plan(ksp, profile_cache, variant, use_profile, keep_eve=False):
                 dirs.append("GameData/%s/PluginData" % name)
         if os.path.isdir(os.path.join(gamedata, "Kopernicus", "Cache")):
             dirs.append("GameData/Kopernicus/Cache")
-    if variant == "ours":
+    if keeps_proxy(variant):
         for rel in ("ReDefinitionProxy.log",):
             if os.path.isfile(join(ksp, rel)):
                 files.append(rel)
         if os.path.isdir(join(ksp, "dlssg_sm86/logs")):
             dirs.append("dlssg_sm86/logs")
+    if variant == "other-mod-files":
+        for rel in mod_file_edits(ksp)[0]:
+            if rel not in files:
+                files.append(rel)
     save = join(ksp, "saves/" + SAVE_FOLDER)
     if os.path.isdir(save):
         for name in sorted(os.listdir(save)):
             if os.path.isfile(os.path.join(save, name)):
                 files.append("saves/%s/%s" % (SAVE_FOLDER, name))
-    if variant == "ours":
-        gd = join(ksp, "GameData/ReDefinition")
-        if os.path.isdir(gd):
-            for name in sorted(os.listdir(gd)):
-                if os.path.isdir(os.path.join(gd, name, "PluginData")):
-                    dirs.append("GameData/ReDefinition/%s/PluginData" % name)
+    gd = join(ksp, "GameData/ReDefinition")
+    if not is_vanilla(variant) and os.path.isdir(gd):
+        for name in sorted(os.listdir(gd)):
+            if name in REDEF_PARTS and not keeps_part(variant, name):
+                continue
+            if os.path.isdir(os.path.join(gd, name, "PluginData")):
+                dirs.append("GameData/ReDefinition/%s/PluginData" % name)
     if use_profile and os.path.isdir(profile_cache):
         for rel in series.tree_files(profile_cache):
             if series.is_texture_cache_file(rel):
                 continue
-            if is_vanilla(variant) and rel.lower().startswith("gamedata/redefinition/"):
+            if redef_gone(variant, rel):
                 continue
             if rel not in files:
                 files.append(rel)
@@ -234,10 +408,10 @@ def pins_for(ksp, variant):
     """The pins of a run as [{file, set}]: K-S2's, the main mod's own for ours, ReDefinition's remembered original render settings for vanilla-original.
     Read before anything is moved (bundled.cfg goes away with GameData/ReDefinition)."""
     ksp_pins = dict(PINS_KSP)
-    if variant == "vanilla-original":
+    if variant in ("vanilla-original", "settings-original"):
         ksp_pins.update(original_ksp_settings(ksp))
     pins = [{"file": "settings.cfg", "set": ksp_pins}]
-    if variant == "ours":
+    if keeps_part(variant, "Main"):
         pins.append({"file": MAIN_SETTINGS, "set": dict(PINS_MAIN)})
     return pins
 
@@ -252,10 +426,19 @@ def build_plan(ksp, variant, profile_cache, use_profile, keep_eve=False):
     plan["pins"] = pins_for(ksp, variant)
     original, current = original_ksp_settings(ksp), current_ksp_settings(ksp)
     changed = ["%s %s (ReDefinition's profile; originally %s)" % (k, current[k], original[k]) for k in ORIGINAL_KEYS if k in original and k in current and original[k] != current[k]]
-    if changed and variant != "vanilla-original":
-        plan["notes"].append("settings.cfg holds values ReDefinition wrote: %s. They stay in this variant (vanilla-original pins the originals)." % "; ".join(changed))
-    if is_vanilla(variant):
+    if changed and variant not in ("vanilla-original", "settings-original"):
+        plan["notes"].append("settings.cfg holds values ReDefinition wrote: %s. They stay in this variant (vanilla-original and settings-original pin the originals)." % "; ".join(changed))
+    if variant != "other-mod-files":
         plan["notes"].append("what ReDefinition saved into other mods' own files (Scatterer, Parallax, TUFX, Deferred, DistantObject configs) stays in place")
+    else:
+        edits, skipped = mod_file_edits(ksp)
+        plan["edits"] = edits
+        plan["notes"] += ["set back in other mods' files: %s: %s" % (f, ", ".join("%s=%s" % kv for kv in pairs)) for f, pairs in edits.items()]
+        plan["notes"] += ["not set back: " + n for n in skipped]
+    if variant == "no-patches":
+        plan["notes"].append("patch files moved: %s" % (", ".join(r for r, _k in aside_items(ksp, variant, True)) or "none"))
+    if variant == "no-main":
+        plan["notes"].append("without GameData/ReDefinition/Main the main plugin (ReDefinition.dll) does not load; the run checks that ReDefinition.Atmospheres did")
     plan["profile"] = "Medium files from %s" % profile_cache if use_profile else "none"
     unity, release = join(ksp, "UnityPlayer.dll"), join(ksp, "UnityPlayer.dll.release")
     if os.path.isfile(unity) and os.path.isfile(release) and series.sha256(unity) != series.sha256(release):
@@ -267,8 +450,10 @@ def format_plan(plan):
     lines = ["variant %s, KSP %s" % (plan["variant"], plan["ksp"])]
     total = sum(m["bytes"] for m in plan["moves"])
     lines.append("moved aside (%d items, %.1f MB): %s" % (len(plan["moves"]), total / 1048576.0, ", ".join(m["rel"] for m in plan["moves"]) or "nothing"))
-    if plan["variant"] == "ours":
-        lines.append("ReDefinition stays in place")
+    if not is_vanilla(plan["variant"]):
+        lines.append("stays in place: %s" % ", ".join(
+            [p for p, kept in (("the proxy and its DLLs", keeps_proxy(plan["variant"])), ("Atmospheres", keeps_part(plan["variant"], "Atmospheres")),
+                               ("Main", keeps_part(plan["variant"], "Main")), ("the patch files", keeps_patches(plan["variant"]))) if kept] + ["Common, Planner, Dashboard"]))
     for pin in plan["pins"]:
         lines.append("pinned in %s: %s" % (pin["file"], ", ".join("%s = %s" % kv for kv in pin["set"].items())))
     lines.append("profile: %s" % plan["profile"])
@@ -439,7 +624,7 @@ def apply_profile_filtered(cache, ksp, variant, log=say):
     for rel in series.tree_files(cache):
         if series.is_texture_cache_file(rel):
             continue
-        if is_vanilla(variant) and rel.lower().startswith("gamedata/redefinition/"):
+        if redef_gone(variant, rel):
             continue
         dst = join(ksp, rel)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -574,6 +759,7 @@ class Run:
         journal = Journal(os.path.join(archive, "journal.json"))
         files, dirs = side_plan(self.ksp, self.profile_cache, self.variant, self.use_profile, self.keep_eve)
         pins = pins_for(self.ksp, self.variant)
+        mod_edits = mod_file_edits(self.ksp)[0] if self.variant == "other-mod-files" else {}
         store = os.path.join(archive, "snapshot")
         snap = series.Snapshot(self.ksp, store)
         for rel in files:
@@ -618,8 +804,10 @@ class Run:
                 apply_profile_filtered(self.profile_cache, self.ksp, self.variant, self.log)
             for line in series.apply_settings(self.ksp, pins):
                 self.log("pinned %s" % line)
-            if self.variant == "ours":
+            if keeps_part(self.variant, "Atmospheres"):
                 self.log("side files of Atmospheres removed: %d" % series.clean_side_files(self.ksp))
+            if self.variant == "other-mod-files":
+                apply_mod_file_edits(self.ksp, mod_edits, self.log)
             # The plugin and its configuration.
             os.makedirs(join(self.ksp, LITE_FOLDER + "/PluginData"), exist_ok=True)
             shutil.copy2(dll, join(self.ksp, LITE_FOLDER + "/ProbeLite.dll"))
@@ -640,6 +828,9 @@ class Run:
             journal.write()
             if result["pictures"]:
                 self.log("pictures: %s" % result["pictures"])
+                for p in component_problems(self.variant, result["pictures"]):
+                    result["problems"].append(p)
+                    self.log("COMPONENT CHECK: " + p)
         except (Refusal, OSError, ValueError, KeyError) as e:
             result["problems"].append("the run: %s" % e)
             self.log("the run stopped: %s" % e)
@@ -694,6 +885,29 @@ def summarize(folder):
     return "\n".join(out)
 
 
+def loaded_assemblies(folder):
+    """The assembly names the plugin logged as loaded, or None where the list is missing."""
+    path = os.path.join(folder, "assemblies.txt")
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        return [line.split(" ")[0] for line in f if line.strip()]
+
+
+def component_problems(variant, folder):
+    """What the loaded assemblies say about the variant: ReDefinition (Main) loaded exactly where Main stays, ReDefinition.Atmospheres exactly where Atmospheres
+    stays. A mismatch means the variant did not remove (or could not keep) what it says."""
+    names = loaded_assemblies(folder)
+    if names is None:
+        return ["assemblies.txt is missing: what loaded is unknown"]
+    out = []
+    for assembly, part in ((ASSEMBLY_MAIN, "Main"), (ASSEMBLY_ATMO, "Atmospheres")):
+        want, have = keeps_part(variant, part), assembly in names
+        if want != have:
+            out.append("%s %s, but the variant %s %s" % (assembly, "loaded" if have else "did not load", variant, "keeps its folder (%s)" % part if want else "removes its folder (%s)" % part))
+    return out
+
+
 def vanilla_leak(folder):
     """The assemblies named ReDefinition* that a vanilla run loaded (there must be none)."""
     path = os.path.join(folder, "assemblies.txt")
@@ -720,6 +934,47 @@ def compare_text(mainrepo, vanilla="vanilla"):
     return "\n".join(out)
 
 
+GROUND_PICTURE = "far_p2"
+SECOND_PICTURE = "sc_default"
+
+
+def ground_row(folder, name=GROUND_PICTURE):
+    """The results row of one picture of a run's folder (the mean colour of the lowest quarter of the screen is the ground), or None."""
+    for r in read_results(folder):
+        if r.get("name") == name:
+            return r
+    return None
+
+
+def ground_green(row):
+    return float(row["low_green"]) if row else float("nan")
+
+
+def is_green_again(value, vanilla, ours):
+    """Whether a variant's ground (far_p2's lowest quarter, green over grey) is nearer to the vanilla ground than to ours. False where the two do not differ."""
+    if any(v != v for v in (value, vanilla, ours)) or abs(vanilla - ours) < 2.0:
+        return False
+    return abs(value - vanilla) < abs(value - ours)
+
+
+def bisect_table(mainrepo, variants):
+    """'variant | far_p2 ground mean rgb | green | sc_default ground mean rgb' for every variant that has results, vanilla and ours first."""
+    base = os.path.join(mainrepo, *PICTURES_REL)
+    out = ["%-18s %-26s %-8s %-26s %s" % ("variant", "far_p2 ground mean r,g,b", "green", "sc_default ground r,g,b", "verdicts")]
+    seen = set()
+    for v in ["vanilla", "vanilla-original", "ours"] + list(variants):
+        if v in seen:
+            continue
+        seen.add(v)
+        folder = os.path.join(base, v)
+        far, sc = ground_row(folder), ground_row(folder, SECOND_PICTURE)
+        if far is None and sc is None:
+            continue
+        fmt = lambda r: "%s,%s,%s" % (r["low_r"], r["low_g"], r["low_b"]) if r else "-"
+        out.append("%-18s %-26s %-8s %-26s %s" % (v, fmt(far), far["low_green"] if far else "-", fmt(sc), (far or {}).get("verdict", "")))
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------- commands
 
 def cmd_plan(args):
@@ -729,14 +984,14 @@ def cmd_plan(args):
     return 0
 
 
-def cmd_run(args):
-    ksp = args.ksp or DEFAULT_KSP
-    run = Run(ksp, args.variant, use_profile=args.profile != "none", timeout_min=args.timeout_min, extra_args=args.extra_arg, keep_eve=args.keep_eve)
+def do_run(ksp, variant, profile="medium", timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False):
+    """One run with its report printed. Returns (exit code, result or None): 0 clean, 3 pictures taken with warnings, 1 failed, 2 refused."""
+    run = Run(ksp, variant, use_profile=profile != "none", timeout_min=timeout_min, extra_args=extra_args, keep_eve=keep_eve)
     try:
         result = run.execute()
     except Refusal as e:
         print("REFUSED: %s" % e)
-        return 2
+        return 2, None
     if result["pictures"]:
         print(summarize(result["pictures"]))
     if result["parsek_changed"]:
@@ -744,16 +999,67 @@ def cmd_run(args):
     print("done file: %s" % (result["done"].strip().replace("\n", " | ") if result["done"] else "none"))
     for p in result["problems"]:
         print("PROBLEM: " + p)
-    leaked = vanilla_leak(result["pictures"]) if is_vanilla(args.variant) and result["pictures"] else []
+    leaked = vanilla_leak(result["pictures"]) if is_vanilla(variant) and result["pictures"] else []
     for name in leaked:
         print("PROBLEM: the vanilla run loaded an assembly named %s" % name)
     if not result["ok"] or leaked:
         print("RESULT: FAILED")
-        return 1
+        return 1, result
     if result["warnings"]:
         print("RESULT: OK WITH %d WARNING(S): see the verdict column and probelite.log in %s" % (result["warnings"], result["pictures"]))
-        return 3
+        return 3, result
     print("RESULT: OK")
+    return 0, result
+
+
+def cmd_run(args):
+    return do_run(args.ksp or DEFAULT_KSP, args.variant, args.profile, args.timeout_min, args.extra_arg, args.keep_eve)[0]
+
+
+def cmd_bisect(args):
+    """Runs the variants that remove one component of ours, in order of likelihood, and stops at the first whose ground is green again (nearer to vanilla's far_p2
+    than to ours). Needs the results of `vanilla` and `ours` (ours is run first where it has none)."""
+    ksp = args.ksp or DEFAULT_KSP
+    mainrepo = gpu_lock.main_repo()
+    base = os.path.join(mainrepo, *PICTURES_REL)
+    order = [v.strip() for v in args.variants.split(",")] if args.variants else list(BISECT_ORDER)
+    unknown = [v for v in order if v not in BISECT_VARIANTS]
+    if unknown:
+        print("REFUSED: not a bisect variant: %s (one of %s)" % (", ".join(unknown), ", ".join(BISECT_VARIANTS)))
+        return 2
+    if ground_row(os.path.join(base, "vanilla")) is None:
+        print("REFUSED: no results of the vanilla variant in %s; run `python tools/vanilla_ground.py run --variant vanilla` first" % base)
+        return 2
+    if ground_row(os.path.join(base, "ours")) is None:
+        print("bisect: no results of ours yet; running it first")
+        code, _result = do_run(ksp, "ours", args.profile, args.timeout_min, args.extra_arg, args.keep_eve)
+        if code in (1, 2):
+            return code
+    vanilla, ours = ground_green(ground_row(os.path.join(base, "vanilla"))), ground_green(ground_row(os.path.join(base, "ours")))
+    if is_green_again(ours, vanilla, ours) or abs(vanilla - ours) < 2.0:
+        print("REFUSED: the ground of vanilla (green %.1f) and of ours (green %.1f) do not differ in %s's lowest quarter; there is nothing to bisect" % (vanilla, ours, GROUND_PICTURE))
+        return 2
+    print("bisect: %s lowest-quarter green: vanilla %.1f, ours %.1f; a variant is 'green again' when it is nearer to vanilla" % (GROUND_PICTURE, vanilla, ours))
+    found = None
+    for v in order:
+        print("\n===== bisect: %s =====" % v)
+        code, result = do_run(ksp, v, args.profile, args.timeout_min, args.extra_arg, args.keep_eve)
+        if code in (1, 2):
+            print("bisect: stopped, %s did not run cleanly" % v)
+            print(bisect_table(mainrepo, order))
+            return code
+        value = ground_green(ground_row(result["pictures"]))
+        green = is_green_again(value, vanilla, ours)
+        print("bisect: %s: %s green %.1f -> %s" % (v, GROUND_PICTURE, value, "GREEN AGAIN" if green else "still like ours"))
+        if green and found is None:
+            found = v
+            if not args.keep_going:
+                break
+    print("\n" + bisect_table(mainrepo, order))
+    if found:
+        print("BISECT: removing %s turns the ground green again" % found)
+    else:
+        print("BISECT: no single removal turned the ground green; the cause is a combination or something no variant removes")
     return 0
 
 
@@ -772,20 +1078,24 @@ def cmd_compare(args):
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="command", required=True)
-    for name, fn in (("plan", cmd_plan), ("run", cmd_run), ("restore", cmd_restore), ("compare", cmd_compare)):
+    for name, fn in (("plan", cmd_plan), ("run", cmd_run), ("bisect", cmd_bisect), ("restore", cmd_restore), ("compare", cmd_compare)):
         s = sub.add_parser(name)
         s.set_defaults(fn=fn)
-        if name in ("plan", "run", "restore"):
+        if name in ("plan", "run", "bisect", "restore"):
             s.add_argument("--ksp")
         if name in ("plan", "run"):
             s.add_argument("--variant", choices=list(VARIANTS), required=True)
+        if name in ("plan", "run", "bisect"):
             s.add_argument("--profile", choices=["medium", "none"], default="medium")
             s.add_argument("--keep-eve", action="store_true", help="leave EnvironmentalVisualEnhancements in (K-S2's starts remove it)")
         if name == "compare":
             s.add_argument("--vanilla", choices=["vanilla", "vanilla-original"], default="vanilla")
-        if name == "run":
+        if name in ("run", "bisect"):
             s.add_argument("--timeout-min", type=float, default=MAX_MINUTES)
             s.add_argument("--extra-arg", action="append", default=[])
+        if name == "bisect":
+            s.add_argument("--variants", help="comma list of bisect variants, in this order (default: %s)" % ",".join(BISECT_ORDER))
+            s.add_argument("--keep-going", action="store_true", help="run the whole list even after one variant turned the ground green")
     return p
 
 

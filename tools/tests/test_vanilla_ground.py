@@ -22,7 +22,10 @@ import vanilla_ground as vg  # noqa: E402
 SETTINGS = ("GAMESETTINGS\n{\n\tSCREEN_RESOLUTION_WIDTH = 1920\n\tSCREEN_RESOLUTION_HEIGHT = 1080\n\tFULLSCREEN = True\n\tUI_SCALE = 1\n\tSYNC_VBL = 1\n"
             "\tFRAMERATE_LIMIT = 120\nTEXTURE_QUALITY = 0\nLIGHT_QUALITY = 8\nTERRAIN_SHADER_QUALITY = 3\n}\n")
 BUNDLED = ("ReDefinition\n{\n\tBEFORE_REDEFINITION\n\t{\n\t\tksp.TEXTURE_QUALITY = 1\n\t\tksp.TERRAIN_SHADER_QUALITY = 0\n\t\ttufx.profileMainMenu = Default-MainMenu\n"
-           "\t\tksp.LIGHT_QUALITY = 8\n\t\tksp.FRAMERATE_LIMIT = 120\n\t}\n}\n")
+           "\t\tksp.LIGHT_QUALITY = 8\n\t\tksp.FRAMERATE_LIMIT = 120\n\t\tparallax.maxTessellation = 64\n\t\tparallax.noSuchKey = 1\n\t\tscatterer.m_fourierGridSize = 256\n"
+           "\t\tdistantobject.renderVessels = False\n\t\tdistantobject.renderMode = RenderTargetOnly\n\t\tdeferred.useHalfResolutionScreenSpaceReflections = True\n"
+           "\t\tSAVE\n\t\t{\n\t\t\tname = ReDefinitionProbe\n\t\t\ttufx.profileFlight = Default-Flight\n\t\t}\n\t\tSAVE\n\t\t{\n\t\t\tname = Other\n\t\t\ttufx.profileFlight = X\n\t\t}\n\t}\n}\n")
+SFS = "SCENARIO\n{\n\tname = TUFX\n\t\t\tFlightSceneProfile = Blackrack_TUFX\n\t\t\tIVAProfile = Blackrack_TUFX\n}\n"
 MAIN = "ReDefinition\n{\n\traytracing = Light\n\tframeGeneration = True\n\tqualityAuto = True\n\tquality = Quality\n}\n"
 
 
@@ -58,7 +61,13 @@ def make_ksp(root):
         "GameData/EnvironmentalVisualEnhancements/a.cfg": "eve", "GameData/StockVolumetricClouds/b.cfg": "svc", "GameData/Squad/x.cfg": "squad",
         "GameData/ModuleManager.ConfigCache": "cache", "GameData/ModuleManager.ConfigSHA": "sha", "GameData/ModuleManager.Physics": "ph", "GameData/ModuleManager.TechTree": "tt",
         "GameData/BetterTimeWarp/PluginData/BetterTimeWarp.cfg": "old",
-        "PluginData/DistantObject/x.cfg": "do", "saves/ReDefinitionProbe/probe.sfs": "probe", "saves/ReDefinitionProbe/persistent.sfs": "persist",
+        "GameData/ParallaxContinued/Config/ParallaxGlobalSettings.cfg": "terrain\n{\n\t\tmaxTessellation = 32\n}\n",
+        "GameData/scatterer/config/config.cfg": "\tm_fourierGridSize = 128\r\n\tother = 1\r\n", "GameData/DistantObject/PluginData/Settings.cfg": "\trenderVessels = True\n\trenderMode = 0\n",
+        "GameData/zzz_Deferred/Deferred.cfg": "        useHalfResolutionScreenSpaceReflections = False\n",
+        "GameData/ReDefinition/Main/Patches/P.cfg": "@PART[x]:FOR[ReDefinition]\n{\n}\n", "GameData/ReDefinition/Atmospheres/Audio/RSE.cfg": "@RSE_SETTINGS:NEEDS[RocketSoundEnhancement]\n{\n}\n",
+        "GameData/ReDefinition/Atmospheres/Bodies/K.cfg": "@REDEFINITION_BODY[Kerbin]\n{\n}\n", "GameData/ReDefinition/Atmospheres/Clouds/E.cfg": "EVE_CLOUDS:NEEDS[X]\n{\n}\n",
+        "GameData/ReDefinition/Atmospheres/Plugins/ReDefinition.Atmospheres.dll": "adll",
+        "PluginData/DistantObject/x.cfg": "do", "saves/ReDefinitionProbe/probe.sfs": SFS, "saves/ReDefinitionProbe/persistent.sfs": SFS,
         "saves/ReDefinitionProbe/persistent.loadmeta": "meta", "saves/ReDefinitionProbe/Backup/b1.sfs": "b1", "saves/ReDefinitionProbe/Parsek/Recordings/r.txt": "rec",
         "saves/ReDefinitionProbe/Ships/VAB/a.craft": "craft",
     }.items():
@@ -129,7 +138,22 @@ class Base(unittest.TestCase):
                   "name\tscene\theading\televation\tcam_agl_pqs_m\tcam_over_collider_m\tlooks_at_object\tlooks_at_material\tlooks_at_shader\tunder_object\tsun_elev_deg\t"
                   "all_r\tall_g\tall_b\tlow_r\tlow_g\tlow_b\tlow_green\tsettle_s\tsettle\tframes\tfile\n"
                   "far_p1\tflight\t90\t5\t291.28\t-\tPQS\tmat\tParallax/Terrain\tPQS\t45\t1\t2\t3\t100\t110\t90\t15\t5\tstable\t200\tfar_p1.png\n")
-            write(os.path.join(data, "assemblies.txt"), "mscorlib 4.0\nAssembly-CSharp 1.0\n")
+            loaded = "mscorlib 4.0\nAssembly-CSharp 1.0\n"
+            if os.path.exists(os.path.join(ksp, "GameData", "ReDefinition", "Main", "Plugins", "ReDefinition.dll")):
+                loaded += "ReDefinition 0.1\n"
+            if os.path.exists(os.path.join(ksp, "GameData", "ReDefinition", "Atmospheres", "Plugins", "ReDefinition.Atmospheres.dll")):
+                loaded += "ReDefinition.Atmospheres 0.1\n"
+            write(os.path.join(data, "assemblies.txt"), loaded)
+            def slurp(rel):
+                with open(os.path.join(ksp, *rel.split("/")), "r", encoding="utf-8", newline="") as fh:
+                    return fh.read()
+            self.seen["files"] = {k: slurp(k) for k in (
+                "GameData/ParallaxContinued/Config/ParallaxGlobalSettings.cfg", "GameData/scatterer/config/config.cfg", "GameData/DistantObject/PluginData/Settings.cfg",
+                "GameData/zzz_Deferred/Deferred.cfg", "saves/ReDefinitionProbe/probe.sfs")}
+            self.seen["patches"] = [n for n in ("Main/Patches/P.cfg", "Atmospheres/Audio/RSE.cfg", "Atmospheres/Bodies/K.cfg", "Atmospheres/Clouds/E.cfg")
+                                    if os.path.exists(os.path.join(ksp, "GameData", "ReDefinition", *n.split("/")))]
+            self.seen["main"] = os.path.exists(os.path.join(ksp, "GameData", "ReDefinition", "Main"))
+            self.seen["atmo"] = os.path.exists(os.path.join(ksp, "GameData", "ReDefinition", "Atmospheres"))
             write(os.path.join(data, "done"), done)
             return "quit", 0
         return play
@@ -297,6 +321,186 @@ class RunTests(Base):
     def test_the_timeout_is_capped_at_twenty_minutes(self):
         self.run_variant("vanilla", timeout_min=90)
         self.assertEqual(self.seen["timeout"], 20 * 60)
+
+
+class BisectVariantTests(Base):
+    def moved(self, variant):
+        return [rel for rel, _k in vg.aside_items(self.ksp, variant, keep_eve=True)]
+
+    def test_each_variant_moves_only_its_component(self):
+        self.assertEqual(self.moved("ours"), [])
+        proxy = self.moved("no-proxy")
+        self.assertIn("dxgi.dll", proxy)
+        self.assertIn("dlssg_sm86", proxy)
+        self.assertNotIn("GameData/ReDefinition", proxy)
+        self.assertEqual(self.moved("no-atmo"), ["GameData/ReDefinition/Atmospheres"])
+        self.assertEqual(self.moved("no-main"), ["GameData/ReDefinition/Main"])
+        self.assertEqual(self.moved("settings-original"), [])
+        self.assertEqual(self.moved("other-mod-files"), [])
+
+    def test_patch_files_are_the_patches_of_other_things_only(self):
+        self.assertEqual(sorted(vg.patch_files(self.ksp)), ["GameData/ReDefinition/Atmospheres/Audio/RSE.cfg", "GameData/ReDefinition/Main/Patches/P.cfg"])
+        self.assertEqual(sorted(self.moved("no-patches")), sorted(vg.patch_files(self.ksp)))
+
+    def test_every_variant_runs_and_the_install_comes_back(self):
+        for variant in vg.BISECT_VARIANTS:
+            with self.subTest(variant=variant):
+                self.vm.calls = []
+                result = self.run_variant(variant)
+                self.assertTrue(result["ok"], (variant, result))
+                self.assertEqual(manifest(self.ksp), self.before, variant)
+                self.assertFalse(os.path.exists(os.path.join(self.ksp, vg.POINTER)))
+                self.assertEqual((self.seen["dxgi"], self.seen["main"], self.seen["atmo"]),
+                                 (variant != "no-proxy", variant != "no-main", variant != "no-atmo"), variant)
+                self.assertEqual("UI_SCALE = 1.5" in self.seen["settings"], True)
+
+    def test_no_patches_leaves_the_rest_of_ours(self):
+        self.run_variant("no-patches")
+        self.assertEqual(self.seen["patches"], ["Atmospheres/Bodies/K.cfg", "Atmospheres/Clouds/E.cfg"])
+        self.assertTrue(self.seen["redef"] and self.seen["dxgi"])
+
+    def test_settings_original_pins_the_originals_with_ours_in_place(self):
+        self.run_variant("settings-original")
+        self.assertIn("TERRAIN_SHADER_QUALITY = 0", self.seen["settings"])
+        self.assertTrue(self.seen["redef"] and self.seen["dxgi"])
+
+    def test_other_mod_files_are_set_back_and_restored(self):
+        result = self.run_variant("other-mod-files")
+        self.assertTrue(result["ok"], result)
+        files = self.seen["files"]
+        self.assertIn("maxTessellation = 64", files["GameData/ParallaxContinued/Config/ParallaxGlobalSettings.cfg"])
+        self.assertIn("m_fourierGridSize = 256\r\n", files["GameData/scatterer/config/config.cfg"])
+        self.assertIn("other = 1\r\n", files["GameData/scatterer/config/config.cfg"])
+        self.assertIn("renderVessels = False", files["GameData/DistantObject/PluginData/Settings.cfg"])
+        self.assertIn("renderMode = 0", files["GameData/DistantObject/PluginData/Settings.cfg"])
+        self.assertIn("useHalfResolutionScreenSpaceReflections = True", files["GameData/zzz_Deferred/Deferred.cfg"])
+        self.assertIn("FlightSceneProfile = Default-Flight", files["saves/ReDefinitionProbe/probe.sfs"])
+        self.assertIn("IVAProfile = Blackrack_TUFX", files["saves/ReDefinitionProbe/probe.sfs"])
+        self.assertEqual(manifest(self.ksp), self.before)
+
+    def test_the_before_block_is_read_with_its_saves(self):
+        top, saves = vg.read_before_block(self.ksp)
+        self.assertEqual(top["parallax.maxTessellation"], "64")
+        self.assertEqual(saves["ReDefinitionProbe"], {"tufx.profileFlight": "Default-Flight"})
+        edits, notes = vg.mod_file_edits(self.ksp)
+        self.assertNotIn("saves/ReDefinitionProbe/other.sfs", edits)
+        self.assertTrue(any("renderMode" in n for n in notes))
+
+    def test_edit_first_key_keeps_indent_and_line_ends(self):
+        text, old = vg.edit_first_key("a\n\tkey = 1\r\n\tkey = 2\r\n", "key", "9")
+        self.assertEqual((text, old), ("a\n\tkey = 9\r\n\tkey = 2\r\n", "1"))
+        self.assertEqual(vg.edit_first_key("x = 1", "key", "9"), ("x = 1", None))
+
+    def test_the_component_check_reports_a_variant_that_did_not_take(self):
+        folder = os.path.join(self.tmp, "pics")
+        write(os.path.join(folder, "assemblies.txt"), "mscorlib 4\nReDefinition 0.1\nReDefinition.Atmospheres 0.1\n")
+        self.assertEqual(vg.component_problems("ours", folder), [])
+        self.assertEqual(len(vg.component_problems("vanilla", folder)), 2)
+        self.assertEqual(len(vg.component_problems("no-main", folder)), 1)
+        self.assertEqual(len(vg.component_problems("no-atmo", folder)), 1)
+        write(os.path.join(folder, "assemblies.txt"), "mscorlib 4\nReDefinition.Atmospheres 0.1\n")
+        self.assertEqual(vg.component_problems("no-main", folder), [])
+        self.assertTrue(vg.component_problems("ours", folder))
+
+    def test_a_run_whose_component_did_not_load_fails(self):
+        base = self.good_game("no-main")
+
+        def game(args, timeout):
+            base(args, timeout)
+            write(os.path.join(self.ksp, "GameData", "ProbeLite", "PluginData", "assemblies.txt"), "mscorlib 4\n")
+            return "quit", 0
+        result = self.run_variant("no-main", game=game)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("ReDefinition.Atmospheres did not load" in p for p in result["problems"]))
+        self.assertEqual(manifest(self.ksp), self.before)
+
+
+class BisectCommandTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.base = os.path.join(self.main, *vg.PICTURES_REL)
+        self.header = "name\tscene\tlow_r\tlow_g\tlow_b\tlow_green\tverdict\n"
+        self.runs = []
+        self.original = (vg.do_run, vg.gpu_lock.main_repo)
+        vg.gpu_lock.main_repo = lambda: self.main
+        vg.do_run = self.fake_run
+        self.greens = {}
+
+    def tearDown(self):
+        vg.do_run, vg.gpu_lock.main_repo = self.original
+
+    def put(self, variant, green):
+        write(os.path.join(self.base, variant, "shots", "results.tsv"), self.header + "far_p2\tflight\t90\t100\t80\t%s\tok\nsc_default\tspacecentre\t1\t2\t3\t4\tok\n" % green)
+
+    def fake_run(self, ksp, variant, profile="medium", timeout_min=20, extra_args=None, keep_eve=False):
+        self.runs.append(variant)
+        if variant in self.greens and self.greens[variant] is None:
+            return 1, {"pictures": None}
+        self.put(variant, self.greens.get(variant, 5.0))
+        return 0, {"pictures": os.path.join(self.base, variant)}
+
+    def args(self, **kw):
+        import argparse
+        d = dict(ksp=self.ksp, profile="medium", keep_eve=False, timeout_min=20, extra_arg=[], variants=None, keep_going=False)
+        d.update(kw)
+        return argparse.Namespace(**d)
+
+    def test_it_stops_at_the_first_variant_that_turns_green(self):
+        self.put("vanilla", 20.0)
+        self.put("ours", 5.0)
+        self.greens = {"no-atmo": 19.0}
+        self.assertEqual(vg.cmd_bisect(self.args()), 0)
+        self.assertEqual(self.runs, ["settings-original", "no-proxy", "no-patches", "no-atmo"])
+
+    def test_keep_going_runs_the_whole_list(self):
+        self.put("vanilla", 20.0)
+        self.put("ours", 5.0)
+        self.greens = {"no-proxy": 18.0}
+        vg.cmd_bisect(self.args(keep_going=True))
+        self.assertEqual(self.runs, list(vg.BISECT_ORDER))
+
+    def test_ours_is_run_first_where_it_has_no_results(self):
+        self.put("vanilla", 20.0)
+        self.greens = {"ours": 5.0}
+        vg.cmd_bisect(self.args(variants="no-proxy"))
+        self.assertEqual(self.runs, ["ours", "no-proxy"])
+
+    def test_it_refuses_without_vanilla_or_with_equal_grounds(self):
+        self.assertEqual(vg.cmd_bisect(self.args()), 2)
+        self.put("vanilla", 5.0)
+        self.put("ours", 5.5)
+        self.assertEqual(vg.cmd_bisect(self.args()), 2)
+        self.assertEqual(self.runs, [])
+
+    def test_a_failed_run_stops_the_list(self):
+        self.put("vanilla", 20.0)
+        self.put("ours", 5.0)
+        self.greens = {"no-proxy": None}
+        self.assertEqual(vg.cmd_bisect(self.args()), 1)
+        self.assertEqual(self.runs, ["settings-original", "no-proxy"])
+
+    def test_a_non_bisect_variant_is_refused(self):
+        self.put("vanilla", 20.0)
+        self.put("ours", 5.0)
+        self.assertEqual(vg.cmd_bisect(self.args(variants="vanilla")), 2)
+
+    def test_green_again_is_nearer_to_vanilla(self):
+        self.assertTrue(vg.is_green_again(18.0, 20.0, 5.0))
+        self.assertFalse(vg.is_green_again(6.0, 20.0, 5.0))
+        self.assertFalse(vg.is_green_again(5.0, 5.5, 5.0))
+        self.assertFalse(vg.is_green_again(float("nan"), 20.0, 5.0))
+        self.assertTrue(vg.is_green_again(-1.0, 3.0, -10.0))
+        self.assertFalse(vg.is_green_again(-9.0, 3.0, -10.0))
+
+    def test_the_table_lists_variant_and_ground(self):
+        self.put("vanilla", 20.0)
+        self.put("ours", 5.0)
+        self.put("no-proxy", 6.0)
+        text = vg.bisect_table(self.main, ["no-proxy", "no-atmo"])
+        self.assertIn("vanilla", text)
+        self.assertIn("no-proxy", text)
+        self.assertNotIn("no-atmo", text)
+        self.assertIn("90,100,80", text)
 
 
 class CrashTests(Base):

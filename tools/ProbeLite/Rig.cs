@@ -28,7 +28,7 @@ namespace ProbeLite
         internal static PoseSpec Current;
         internal static double SiteLat = double.NaN, SiteLon = double.NaN;
 
-        internal const double RayUpM = 20.0, RayLengthM = 450.0, RayAheadM = 30.0;
+        internal const double RayUpM = 20.0, RayLengthM = 450.0, RayAheadM = 30.0, LawnWindowM = 6.0;
 
         internal static CelestialBody Home()
         {
@@ -118,6 +118,13 @@ namespace ProbeLite
                 Vector3 up = (Vector3)((from - body.position).normalized);
                 RaycastHit[] hits = Physics.RaycastAll((Vector3)from + up * (float)RayUpM, -up, (float)RayLengthM);
                 Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+                // The ground is the highest collider within LawnWindowM of the PQS terrain there (the lawn lies 2.7 to 3.2 m over it, the pad's apron at it); the first
+                // collider from above can be the pad's tower or a building (the vanilla start read the launch pad structure, 17 m up, as the ground). Where none is in the
+                // window the first collider is the answer.
+                double fromLat, fromLon, fromAlt;
+                body.GetLatLonAlt(from, out fromLat, out fromLon, out fromAlt);
+                double terrain = body.TerrainAltitude(fromLat, fromLon, true);
+                GroundReading first = none, lawn = none;
                 foreach (RaycastHit hit in hits)
                 {
                     if (hit.collider == null || hit.collider.GetComponentInParent<Part>() != null) continue;
@@ -125,12 +132,16 @@ namespace ProbeLite
                     Material material = renderer != null ? renderer.sharedMaterial : null;
                     double lat, lon, alt;
                     body.GetLatLonAlt(hit.point, out lat, out lon, out alt);
-                    return new GroundReading
+                    var reading = new GroundReading
                     {
                         Hit = true, Object = hit.collider.gameObject.name, Material = material != null ? material.name : "none",
                         Shader = material != null && material.shader != null ? material.shader.name : "none", AltAsl = alt
                     };
+                    if (!first.Hit) first = reading;
+                    if (alt >= terrain - 1.0 && alt <= terrain + LawnWindowM && (!lawn.Hit || alt > lawn.AltAsl)) lawn = reading;
                 }
+                if (lawn.Hit) return lawn;
+                if (first.Hit) return first;
             }
             catch (Exception e)
             {
