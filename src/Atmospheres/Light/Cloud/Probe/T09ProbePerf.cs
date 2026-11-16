@@ -14,6 +14,10 @@ namespace ReDefinition.Atmospheres
     //   prev       the whole previous look (the viewer's preset "Previous Look": blend 0, erosion 0, Catmull 0, heap 0 / edgePower 2 / cavity 0 on cumulus, 48 points)
     //   noshadow   cloudShadows 0
     //   norays     rtOwnClouds 0 (the ray-side pack; in the K-T2 starts raytracing is Off, so nothing asks for the pack (RtOwnClouds.Tick releases it) and this equals plain: a drift control)
+    //   nolight    layers.costDebug 1 (no light march; cost attribution, the picture is wrong)
+    //   noshape    layers.costDebug 2 (no shape noise read at all)
+    //   noerode    layers.costDebug 4 (no erosion)
+    //   shnoise0   shadow.shapeNoise 0 (the cloud shadow reads no shape noise)
     // The orbit_edge view is not run (its placement costs minutes and the 19-minute limit holds 7 variants x 4 views).
     //   plain2     the same as plain, run last: the drift of the start
     //   res2       recon.resolution 0.5 (the march target's side; plain is 0.33), res4 0.25, res3 0.33 and res3cat (0.33 with the Catmull history forced on) equal plain: controls
@@ -42,6 +46,10 @@ namespace ReDefinition.Atmospheres
                 case "prev":
                 case "noshadow":
                 case "norays":
+                case "nolight":
+                case "noshape":
+                case "noerode":
+                case "shnoise0":
                 case "plain2":
                 case "res2":
                 case "res3":
@@ -111,6 +119,10 @@ namespace ReDefinition.Atmospheres
                 case "res4": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.25f); break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;
+                case "nolight": ForceTuning(OwnCloudOptions.TuneCostDebug, 1f); break;
+                case "noshape": ForceTuning(OwnCloudOptions.TuneCostDebug, 2f); break;
+                case "noerode": ForceTuning(OwnCloudOptions.TuneCostDebug, 4f); break;
+                case "shnoise0": ForceTuning(CloudShadowShapeNoise.TuneKey, 0f); break;
             }
             return true;
         }
