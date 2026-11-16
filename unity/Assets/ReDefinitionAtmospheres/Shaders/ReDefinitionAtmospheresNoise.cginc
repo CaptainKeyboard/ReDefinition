@@ -54,7 +54,7 @@ float4 _HeapP;           // CLOUDR1: x the heap volume is built (0: every type r
 
 // The heap preset (1, 2; 0: the shape volume) of the type at the last point LayerDensity was asked for, and the cavity channel and strength there (the march copies them right after its own density read).
 static int gHeapPreset = 0;
-// The untiling displacement of the last NoiseLookup (m; zero without the warp): the heap read takes its radial part out and keeps a share of the rest.
+// The untiling displacement of the last NoiseShareAt (m; zero without the warp and with the blend, which reads the undisplaced point): the heap read takes its radial part out and keeps a share of the rest.
 static float3 gNoiseWarp = 0;
 static float gHeapCav = 1;
 static float gHeapCavK = 0;
@@ -123,8 +123,8 @@ float4 NoiseLatticeAt(float3 c, float slab)
     return tex3Dlod(_NoiseLattice, float4((t.xy + 0.5) * _NoiseL.y, (slab * _NoiseL.z + z + 0.5) * _NoiseL.w, 0));
 }
 
-// The point the volumes are read at (see the header).
-float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
+// The point the volumes are read at before the untiling displacement (see the header).
+float3 NoiseLookupBase(int li, float3 pc, float scale, float3 flow)
 {
     float3 p = pc;
     if (_NoiseStretch[li].y != 1.0)
@@ -137,16 +137,17 @@ float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
     // E40 L2 D1 (cfg fibreStretch): the lookup is compressed along the layer's axis (E40 L5 shape: its wind; the body's pole, the third row of the world-to-map matrix, where there is none) by 1 - _NoiseStretch[li].x, so the features are longer along it (cirrus fibres).
     float3 ax = _NoiseAxis[li].xyz;
     q -= ax * (dot(q, ax) * _NoiseStretch[li].x);
-    gNoiseWarp = 0;
-    if (_NoiseP.y > 0.5)
-    {
-        float3 wv;
-        [branch] if (_NoiseP.w > 0.5) wv = NoiseLatticeAt(q / (_NoiseQ.y * scale), li).rgb * 2.0 - 1.0;
-        else wv = NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
-        gNoiseWarp = (_NoiseQ.x * scale) * wv;
-        q += gNoiseWarp;
-    }
     return q;
+}
+
+// The untiling displacement at the undisplaced point q (m; zero where the switch is off).
+float3 NoiseWarp(int li, float3 q, float scale)
+{
+    if (_NoiseP.y < 0.5) return 0;
+    float3 wv;
+    [branch] if (_NoiseP.w > 0.5) wv = NoiseLatticeAt(q / (_NoiseQ.y * scale), li).rgb * 2.0 - 1.0;
+    else wv = NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
+    return (_NoiseQ.x * scale) * wv;
 }
 
 // ---- tiling hidden without distortion (CLOUDR1, moved into the shader by CLOUDR2 P2; Heitz and Neyret, "High-Performance By-Example Noise using a Histogram-Preserving Blending Operator", HPG 2018, and
@@ -226,13 +227,20 @@ float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 // The share of the column that is cloud at a point for one flow offset.
 float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float coverage, float edge, float amount, float erosion, int light)
 {
-    float3 q = NoiseLookup(li, pc, scale, flow);
+    // OPT2: the untiling displacement (eight hashed corners at every sample) is worked out only where a read takes it: with the blend (cloud.noise.blend) the shape and heap reads take the
+    // undisplaced point and only the erosion detail of the rim band below takes the displaced one, so the light march, the cloud shadow and every sample outside the rim band skip it. The blend reads
+    // q0 itself instead of (q0 + w) - w, which differs from it by the float rounding of the sum (centimetres at the planet's radius; the CPU twins have q0 exactly).
+    float3 q0 = NoiseLookupBase(li, pc, scale, flow);
+    bool blendOn = _BlendP.x > 0.5;
+    gNoiseWarp = 0;
+    [branch] if (!blendOn) gNoiseWarp = NoiseWarp(li, q0, scale);
+    float3 q = q0 + gNoiseWarp;
     float lodShape = max(0.0, log2(max(gNoiseSm, 1e-4)) + _NoiseT.w);
     float n;
     // CLOUDR1 P2: a type with a heap preset reads the macro shape from the heap volume (rank-uniform like the shape volume, so the cover meaning holds). The mip level is the type's smoothing or the
     // march's spacing, whichever is coarser: an octave of the cascade is dropped only where it is below the footprint (HeapVolumes mips hold the octaves a level can resolve).
     bool isHeap = gHeapPreset > 0 && _HeapP.x > 0.5;
-    float3 qh = q, qb = q - gNoiseWarp;   // the point the heap is read at (displaced), the undisplaced point the blend takes
+    float3 qh = q, qb = q0;   // the point the heap is read at (displaced), the undisplaced point the blend takes
     float lodUse = lodShape, periodUse = _NoiseR.x * scale;
     int chUse = 0;
     [branch] if (isHeap)
@@ -286,6 +294,8 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
         lod = saturate((gNoiseFoot - _NoiseS.y * cell) / max((_NoiseS.z - _NoiseS.y) * cell, 1e-3));
     }
     float d = _NoiseS.w;
+    // OPT2: with the blend the displacement was not worked out above; the detail reads the displaced point as it did (the same sum q0 + w).
+    [branch] if (blendOn) q = q0 + NoiseWarp(li, q0, scale);
     float rl = max(length(pc), 1.0);
     float3 upv = pc / rl;
     // E40 L5 shape: the detail reads the lattice at its true vertical scale (the layer's vertical scale lengthens the shape's features only): the compression of NoiseLookup is taken back.

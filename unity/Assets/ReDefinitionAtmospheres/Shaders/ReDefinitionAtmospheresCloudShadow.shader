@@ -38,7 +38,8 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float4x4 _CsWorldToMap;  // rotation from that space into the map frame (x towards longitude 0, y towards 90 east, z north)
         float4 _CsSun;           // towards the sun (unit), w: metres per unit of the space (1 in the scene, 6000 in scaled space)
         float4 _CsParams;        // steps per span (the per-layer count is in _CsLayerD.x), sun disc taps, floor (share of the direct light that always remains), layer count
-        float4 _CsParams2;       // x: weight of the diffuse floor in the mask (0: the pure direct beam), y: share of the lit colour that is the sun's direct light (forward path), z: 1 where the shadow reads the pass's shape (the types' LIFT with the shape noise), 0 for the map alone
+        float4 _CsParams2;       // x: weight of the diffuse floor in the mask (0: the pure direct beam), y: share of the lit colour that is the sun's direct light (forward path), z: 1 where the shadow reads the pass's shape (the types' LIFT with the shape noise), 0 for the map alone,
+                                 // w: 1 where the march leaps over the empty reach (OPT2: the layer pass's empty-reach maps are bound and the body has a surface), 0 every midpoint is read
         float4 _CsLayerA[4];     // inner altitude, outer altitude, tight inner altitude, tight outer altitude (m)
         float4 _CsLayerB[4];     // sigma per m, coverage, edge softness, shadow strength
         float4 _CsLayerC[4];     // clear-sky K of the map value (0: off), water exponent minus 1, map slice (< 0: no map), type count
@@ -49,6 +50,8 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         UNITY_DECLARE_TEX2DARRAY(_CsTypeMaps);
         float4 _CsReachCov, _CsReachType;   // the maps' slew reach per layer (MapSlew.cginc)
         float4 _CsMapDim;
+        // OPT2: the layer pass's empty-reach maps (EmptyReachMaps: per layer slice, the map's size, a texel the number of texels to the nearest texel that can hold cloud), read by Load (point, no sampler).
+        Texture2DArray<float> _CsCovReach;
         float _CsDebug;
 
         Texture2D _CameraDepthTexture;
@@ -148,13 +151,31 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             return tex2Dlod(_CsTypeInfo, float4((type + 0.5) / MAXT, (li + MAXL + 0.5) / (2.0 * MAXL), 0, 0)).x;
         }
 
-        float LayerExtinction(int li, float3 pc, float alt)
+        // OPT2: the length along any straight line (m) within which the map is empty around a point whose map texel this is: the layer pass's EmptyReach (the same arithmetic as
+        // EmptyReachMath.ReachMetres; the chord at the planet's radius holds because every sample of the shadow lies in a layer's shell, above the surface). 0 where the leap is off.
+        float EmptyReachM(int li, float2 uv)
         {
+            if (_CsParams2.w < 0.5) return 0;
+            int x = (int)floor(frac(uv.x) * _CsMapDim.x);
+            int y = clamp((int)floor(uv.y * _CsMapDim.y), 0, (int)_CsMapDim.y - 1);
+            float e = _CsCovReach.Load(int4(x, y, (int)_CsLayerC[li].z, 0)) * 255.0;
+            float texelLat = 3.14159265 / _CsMapDim.y;
+            float latMax = min(abs(0.5 - uv.y) * 3.14159265 + e * texelLat, 1.5707);
+            return _CsPlanetR * sin(min(e * min(texelLat, 2.0 * 3.14159265 / _CsMapDim.x * cos(latMax)), 1.5707));
+        }
+
+        // reachM: where the coverage bound found the map empty, the empty reach there (the midpoints within it add nothing either); 0 otherwise.
+        float LayerExtinction(int li, float3 pc, float alt, out float reachM)
+        {
+            reachM = 0;
             float inner = _CsLayerA[li].x, outer = _CsLayerA[li].y;
             float share = (alt - inner) / (outer - inner);
             if (share < 0 || share > 1) return 0;
             float slice = _CsLayerC[li].z;
             float cov = 1.0, typeValue = 0.0;
+            float edge = max(_CsLayerB[li].z, 1e-4);
+            // OPT2: the most the shape noise can lift the map (n <= 1 in NoiseShareNear: the volume's value, the blend's normal CDF), the bound of the layer pass (CoverageNoiseBound).
+            float noiseBound = 0.5 * abs(_CsNoiseD[li].x);
             if (slice >= 0)
             {
                 float2 uv = MapUv(pc, _CsLayerD[li].w);
@@ -162,6 +183,13 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 uv.y = clamp(uv.y, vMin, 1.0 - vMin);
                 cov = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsCovMaps, float3(uv, slice), 0).rg, _CsReachCov, slice);
                 cov = min(cov, 2.0 * cov - _CsLayerC[li].x);   // E40 soft density: the clear-sky rule of the layer pass (K = 0 is off)
+                // OPT2: the coverage bound of the layer pass (its COST note in LayerDensityEx): where even the noise's highest value cannot lift the map above the threshold, the share is 0
+                // whatever the type, so the type map, the type tables and the noise are not read. The lift below only lowers the map, so the result is the same.
+                if (cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0)
+                {
+                    reachM = EmptyReachM(li, uv);
+                    return 0;
+                }
                 typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
             }
             float typeCount = _CsLayerC[li].w;
@@ -174,12 +202,13 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             gNoiseSm = lerp(TypeSmoothing(li, ta), TypeSmoothing(li, tb), f);
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
             if (share < b || share > tp || tp <= b) return 0;
-            float edge = max(_CsLayerB[li].z, 1e-4);
             // The macro shape as the pass reads it: the type's LIFT lowers the map at this height by its share of the layer's headroom (the pass's cov -= lift * (coverage + noise bound + 0.5 edge);
             // _CsParams2.z is 1 where the shadow reads the pass's shape, 0 for the map alone).
             float h = (share - b) / (tp - b);
             float2 pf = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
-            cov -= _CsParams2.z * pf.y * (_CsLayerB[li].y + 0.5 * _CsNoiseD[li].x + 0.5 * edge);
+            cov -= _CsParams2.z * pf.y * (_CsLayerB[li].y + noiseBound + 0.5 * edge);
+            // OPT2: the same bound after the lift (the layer pass's second one): no noise read where the lifted map cannot reach the threshold.
+            if (cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0) return 0;
             // The coverage share: the map's threshold, or the layer pass's shape noise moving it (NoiseShareNear is the threshold itself where the amount is 0 or the volumes are not up).
             float s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);
             if (s <= 0) return 0;
@@ -214,7 +243,10 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                     {
                         if (i >= steps) break;
                         float3 q = o + d * (a + dt * (i + 0.5));
-                        layerTau += LayerExtinction(li, q, length(q) - radius) * dt;
+                        float reachM;
+                        layerTau += LayerExtinction(li, q, length(q) - radius, reachM) * dt;
+                        // OPT2: the midpoints within the empty reach of an empty one add nothing: skipped, as the layer pass leaps over its grid points (the sum is the same).
+                        i += (int)floor(reachM / dt);
                     }
                 }
                 tau += layerTau * strength;

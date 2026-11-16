@@ -245,7 +245,7 @@ namespace ReDefinition.Atmospheres
         // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
         internal float RainType { get; set; } = 1f;
         // How much longer the layer's noise features are along the planet's axis than across it (cfg key fibreStretch, 1 and above; 1: isotropic): the lookup is compressed along the
-        // axis by 1 / FibreStretch (E40 L2 D1; Noise.cginc NoiseLookup). Cirrus fibres; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
+        // axis by 1 / FibreStretch (E40 L2 D1; Noise.cginc NoiseLookupBase). Cirrus fibres; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
         // towards the poles (where the stretch then lies in the vertical and does not show in a thin layer).
         internal float FibreStretch { get; set; } = 1f;
         // The vertical scale of the layer's noise lattice (cfg key verticalScale, 0: the body's sphereScale key, 1: the lattice is isotropic): the radial distance from the layer's middle is

@@ -1020,6 +1020,11 @@ class Runner:
                             with open(ksp_log, "r", encoding="utf-8", errors="replace") as f:
                                 text = f.read()
                             shutil.copy2(ksp_log, os.path.join(out_dir, "%s-%s-%s.log" % (name, stamp, st["id"])))
+                        # The D3D12 proxy's own log (frame times, GPU load, device state) is rewritten at every game start: kept next to the KSP.log of the start, so that a
+                        # driver reset during a run can be read on both sides afterwards.
+                        proxy_log = os.path.join(self.ksp, "ReDefinitionProxy.log")
+                        if os.path.exists(proxy_log) and os.path.getmtime(proxy_log) >= t0:
+                            shutil.copy2(proxy_log, os.path.join(out_dir, "%s-%s-%s-proxy.log" % (name, stamp, st["id"])))
                         texts[st["id"]] = text
                         results, warnings, verdict = parse_log(text, name)
                         for r in results:

@@ -610,6 +610,9 @@ namespace ReDefinition.Atmospheres
             s.MetresPerUnit = 1f;
             s.WorldToMap = f.WorldToMap;
             s.TowardsSun = f.TowardsSun;
+            // OPT2: the shadow leaps over the layer pass's empty reach where the pass does (a body with a surface, the maps built for this frame's numbers).
+            s.EmptyReachOn = f.EmptyReach && f.HasSurface;
+            s.EmptyReach = renderer.Reach.Texture(f.EmptyReach);
             OwnCloudOptions.Apply(s, OwnCloudOptions.LiveSettings);
             shadowRenderer.Upload(stack, renderer.Maps);
         }

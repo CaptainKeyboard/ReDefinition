@@ -34,6 +34,10 @@ namespace ReDefinition.Atmospheres
         public bool ShapeNoise;
         // Whether the shader lowers the map by the types' LIFT as the pass does (with ShapeNoise; off only for the before/after pictures of the weather player).
         public bool MacroLift = true;
+        // OPT2: the layer pass's empty-reach maps (LayerRenderer.Reach) and whether the march leaps over them: only on a body with a surface (the chord argument of the reach) and only
+        // where the layer pass has them on (LayerFrame.EmptyReach). The sum is the same with or without: the midpoints skipped add nothing.
+        public Texture EmptyReach;
+        public bool EmptyReachOn;
     }
 
     // The cloud shadow's drawing (package T04): the material, the type table and map textures it reads, and the command buffers that build the
@@ -62,7 +66,8 @@ namespace ReDefinition.Atmospheres
             IdCovMaps = Shader.PropertyToID("_CsCovMaps"), IdTypeMaps = Shader.PropertyToID("_CsTypeMaps"), IdMapDim = Shader.PropertyToID("_CsMapDim"),
             IdReachCov = Shader.PropertyToID("_CsReachCov"), IdReachType = Shader.PropertyToID("_CsReachType"),
             IdDepthSource = Shader.PropertyToID("_CsDepthSource"), IdDepthHalf = Shader.PropertyToID("_CsDepthHalf"),
-            IdShadowHalf = Shader.PropertyToID("_CsShadowHalf"), IdNoiseD = Shader.PropertyToID("_CsNoiseD"), IdPlanetR = Shader.PropertyToID("_CsPlanetR");
+            IdShadowHalf = Shader.PropertyToID("_CsShadowHalf"), IdNoiseD = Shader.PropertyToID("_CsNoiseD"), IdPlanetR = Shader.PropertyToID("_CsPlanetR"),
+            IdCovReach = Shader.PropertyToID("_CsCovReach");
 
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers],
@@ -203,7 +208,9 @@ namespace ReDefinition.Atmospheres
             // The steps of each layer's spans: the policy's count (the CPU twin CloudShadowField takes the same number), read from the layer as it stands.
             for (int l = 0; l < layerCount; l++)
                 layerD[l].x = uploadedSource == null ? steps : CloudShadowStepPolicy.Count(f.StepPolicy, steps, uploadedSource.LayerAt(l));
-            m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), f.ShapeNoise && f.MacroLift && Noise != null ? 1f : 0f, 0f));
+            bool reach = f.EmptyReachOn && f.EmptyReach != null;
+            if (reach) m.SetTexture(IdCovReach, f.EmptyReach);
+            m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), f.ShapeNoise && f.MacroLift && Noise != null ? 1f : 0f, reach ? 1f : 0f));
             m.SetVectorArray(IdLayerA, layerA);
             m.SetVectorArray(IdLayerB, layerB);
             m.SetVectorArray(IdLayerC, layerC);
