@@ -187,7 +187,7 @@ namespace ReDefinition.Atmospheres
             Creating pending;
             if (creating.TryGetValue(index, out pending)) return Finish(index, pending);
             Built b;
-            if (built.TryGetValue(index, out b) && ReferenceEquals(b.Climate, c) && (field.StateOf(index) != null || field.IsBroken(index))) return false;
+            if (built.TryGetValue(index, out b) && IsSettled(ReferenceEquals(b.Climate, c), field.StateOf(index) != null || field.IsBroken(index), WeatherRebuild.IsDue(index))) return false;
             if (b == null || !ReferenceEquals(b.Climate, c))
             {
                 b = new Built { Climate = c };
@@ -275,11 +275,19 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
+        // A body needs no step where its entry is current and a state (or a broken mark) stands, unless a rebuild is due for it: the old state stays in the field while the rebuild's
+        // frames (the sliced thermal table, then the worker) run, so a standing state alone must not end the rebuild's steps.
+        internal static bool IsSettled(bool entryCurrent, bool stateOrBroken, bool rebuildDue)
+        {
+            return entryCurrent && stateOrBroken && !rebuildDue;
+        }
+
         // The state a worker made, swapped in when it is done (the old one served until now); false while it is still being made.
         private bool Finish(int index, Creating made)
         {
             if (!made.Task.IsCompleted) return false;
             creating.Remove(index);
+            if (made.Task.IsFaulted) AtmospheresLog.Warn("generator", made.Climate.Name + ": the worker threw " + made.Task.Exception.GetBaseException());
             GeneratorState state = made.Task.IsFaulted ? null : made.Task.Result;
             foreach (string note in made.Notes) AtmospheresLog.Warn("generator", made.Climate.Name + ": " + note);
             if (state == null)

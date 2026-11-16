@@ -552,5 +552,35 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsNotNull(t.GetMethod(GpuCostSource.Method, any, null, new[] { typeof(string) }, null));
             Assert.IsNotNull(t.GetProperty(GpuCostSource.OnProperty, any));
         }
+
+        // The start of 2026-11-16 (run3): a rebuild stood at Building for 60 s. Frame 1 made the body's entry; the old state stays in the field, so every later frame found the entry current
+        // with a state and stopped before the sliced thermal table could run.
+        [TestMethod]
+        public void ARebuildsFramesAreNotEndedByTheOldStateThatStaysInTheField()
+        {
+            WeatherRebuild.Reset();
+            try
+            {
+                WeatherRebuild.Begin("test", new[] { 3 });
+                int stepsRun = 0;
+                const int slices = 5;
+                // The model of Step's gate: a frame runs unless the settled test says to stop; the rebuild's work ends after the slices and the worker (one more frame).
+                for (int frame = 0; frame < 20 && WeatherRebuild.Phase == RebuildPhase.Building; frame++)
+                {
+                    if (GeneratorModule.IsSettled(true, true, WeatherRebuild.IsDue(3))) continue;
+                    stepsRun++;
+                    if (stepsRun == slices + 2) WeatherRebuild.Finished(3, 1.0, true);
+                }
+                Assert.AreEqual(slices + 2, stepsRun, "the rebuild's frames all ran");
+                Assert.AreEqual(RebuildPhase.Fetching, WeatherRebuild.Phase);
+                Assert.IsTrue(GeneratorModule.IsSettled(true, true, WeatherRebuild.IsDue(3)), "after the rebuild the body is settled again");
+                Assert.IsFalse(GeneratorModule.IsSettled(false, true, false), "a new climate is not settled");
+                Assert.IsFalse(GeneratorModule.IsSettled(true, false, false), "no state is not settled");
+            }
+            finally
+            {
+                WeatherRebuild.Reset();
+            }
+        }
     }
 }
