@@ -127,7 +127,6 @@ float3 SunAir(float3 pc, float3 sunDir)
 float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot)
 {
     float tau = 0;
-    gNoiseLod = 1;   // the light path reads the shape only, not the erosion detail (T02)
     float3 ax = abs(dir.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 u = normalize(cross(dir, ax));
     float3 v = cross(dir, u);
@@ -162,14 +161,13 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
                     q += (u * cos(ang) + v * sin(ang)) * rad;
                 }
                 float qs;
-                acc += LayerDensity(lj, q, length(q) - _PlanetR, t, qs) * (edge - prev);
+                acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, 1, qs) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02)
                 prev = edge;
                 gain *= ratio;
             }
             tau += acc;
         }
     }
-    gNoiseLod = 0;
     return tau;
 }
 
@@ -226,12 +224,11 @@ float OctaveSum(float mu, float tau, float msBrightness, float iso)
     return sum;
 }
 
-// One light's contribution at a sample: its colour times the octave sum with its own light march. tauIn >= 0 skips the march.
+// One light's contribution at a sample: its colour times the octave sum with its optical depth tau (marched by LightSource's one LightTau call site: CLOUDR2 P4).
 // cell (E40 LM2): x the factor on the octaves' isotropic share, y the cell diffusion's source (below 0: none, the diffusion term below).
-float3 DirectOfLight(float3 col, float3 ldir, float3 pc, float3 d, int li, int steps, float t, float tauIn, float rot, float2 cell)
+float3 DirectOfLight(float3 col, float3 ldir, float3 d, int li, float tau, float2 cell)
 {
     if (Luma(col) <= 0) return 0;
-    float tau = tauIn >= 0 ? tauIn : LightTau(pc, ldir, li, steps, t, _LightR.x, rot);
     // The octaves thin out with depth (exp(-tau a^n)); deep in a thick core the light that entered has diffused and leaves isotropically, which
     // the octaves cannot reach at tau of tens: a saturating isotropic term takes over there, nothing at the sunlit edge (tau -> 0).
     // T03v2: the term falls off again by 1 / (1 + decay tau) (a conservatively scattering slab's transmission), so that the far side of a thick cloud is dark.
@@ -287,16 +284,33 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     if (tauReuse >= 0) tauSun = tauReuse;
     taps = tauSun >= 0 ? 0.5 : steps;
     float3 sunCol = _SunColor.rgb * SunAir(pc, sunDir);
-    if (tauSun < 0 && Luma(sunCol) > 0) tauSun = LightTau(pc, sunDir, li, steps, t, _LightR.x, rot);
+    // CLOUDR2 P4: the sun's, both moons' and the up tap's optical depths come from ONE call site of LightTau in a loop (the compiler inlines every call: five copies of the light march, each
+    // with a copy of the density, were what the Unity 2019.4 shader compiler choked on). Slot 0 the sun, 1 and 2 the moons, 3 straight up.
+    int moonSteps = max(1, (int)_LightS.x);
+    float3 tdir[4];
+    int tsteps[4];
+    float tspread[4], trot[4], ttau[4];
+    bool need[4];
+    tdir[0] = sunDir; tsteps[0] = steps; tspread[0] = _LightR.x; trot[0] = rot; need[0] = tauSun < 0 && Luma(sunCol) > 0;
+    tdir[1] = _MoonDir[0].xyz; tsteps[1] = moonSteps; tspread[1] = _LightR.x; trot[1] = rot; need[1] = Luma(_MoonCol[0].rgb) > 0;
+    tdir[2] = _MoonDir[1].xyz; tsteps[2] = moonSteps; tspread[2] = _LightR.x; trot[2] = rot; need[2] = Luma(_MoonCol[1].rgb) > 0;
+    tdir[3] = normalize(pc); tsteps[3] = max(1, (int)_LightS.y); tspread[3] = 0.0; trot[3] = 0.0;
+    need[3] = _LightQ.w > 0 && tauUp < 0 && !(_LightT.w > 1.5 && tauUpReuse >= 0) && _LightT.w > 0.5;
+    [loop] for (int k = 0; k < 4; k++)
+    {
+        ttau[k] = 0.0;
+        if (!need[k]) continue;
+        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k]);
+    }
+    if (need[0]) tauSun = ttau[0];
     tauSunOut = max(tauSun, 0.0);
     float2 cell = float2(1.0, -1.0);
     [branch] if (_LightM[li].w > 0) cell = CellLight(pc, dens, max(tauSun, 0.0), topAlt, _LightM[li].w);
-    float3 direct = DirectOfLight(sunCol, sunDir, pc, d, li, steps, t, max(tauSun, 0.0), rot, cell);
-    [unroll] for (int m = 0; m < 2; m++)
-    {
-        direct += DirectOfLight(_MoonCol[m].rgb, _MoonDir[m].xyz, pc, d, li, max(1, (int)_LightS.x), t, -1.0, rot, float2(1.0, -1.0));
-        if (Luma(_MoonCol[m].rgb) > 0) taps += max(1, (int)_LightS.x);
-    }
+    float3 direct = DirectOfLight(sunCol, sunDir, d, li, max(tauSun, 0.0), cell);
+    direct += DirectOfLight(_MoonCol[0].rgb, _MoonDir[0].xyz, d, li, ttau[1], float2(1.0, -1.0));
+    if (need[1]) taps += moonSteps;
+    direct += DirectOfLight(_MoonCol[1].rgb, _MoonDir[1].xyz, d, li, ttau[2], float2(1.0, -1.0));
+    if (need[2]) taps += moonSteps;
     float powder = lerp(1.0, 1.0 - exp(-2.0 * dens * _LightQ.y), saturate(_LightQ.x * _LightL[li].y));
     // The ambient: the sky from the layer's bottom to its top, tinted, thinned by what lies above, never below the floor.
     float3 sky = lerp(_AmbientBottom.rgb, _AmbientTop.rgb, saturate(share));
@@ -311,7 +325,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
         else if (_LightT.w > 1.5 && tauUpReuse >= 0) tu = tauUpReuse;
         else if (_LightT.w > 0.5)
         {
-            tu = LightTau(pc, normalize(pc), li, max(1, (int)_LightS.y), t, 0, 0);
+            tu = ttau[3];
             taps += max(1, (int)_LightS.y);
         }
         else

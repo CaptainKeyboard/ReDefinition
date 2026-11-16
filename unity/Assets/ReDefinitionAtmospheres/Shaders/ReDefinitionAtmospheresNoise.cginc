@@ -9,7 +9,8 @@
 //   n = shape(q / (16 s));  the coverage threshold moves by (n - 0.5) * amount; the soft edge turns it into the share s0
 //   d = detail((q + curl * A_c s - up * rise) / (4 s));  the share is eaten into by the erosion: c = (s0 - e (1 - d)) / (1 - e (1 - d)),
 //   then hardened by (hb + hg e) and clamped: a ragged type has a hard edge, a smooth one a soft edge.
-// The detail is read only where the share is between 0 and 1 (the edge band) and not on the light path (gNoiseLod).
+// The detail is read only where the share is between 0 and 1 (the edge band) and not on the light path (the `light` argument: a constant 1 at the one call of the light march, so that
+// the compiler drops the detail, the far view and the flow's second phase from the light's copy of the density; CLOUDR2 P4).
 //
 // Techniques (no code taken): Schneider, "The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015 (Perlin-Worley shape,
 // Worley detail, curl distortion, the remap that erodes); the two-phase flow map is the common technique of looped flow maps. The integer
@@ -59,8 +60,6 @@ static float gHeapCavK = 0;
 
 // The erosion detail's value at the last point LayerDensity was asked for (the detail's mean where it was not read; PUFF: the march copies it right after its own density read, like gTopAlt).
 static float gNoiseD = 0.5;
-// 1 on the light path: no erosion there (the light march reads the shape only).
-static int gNoiseLod = 0;
 // The march's sample spacing in m at the current sample (set by the march per layer span; 0: unknown, no distance LOD).
 static float gNoiseFoot = 0;
 // The width in noise scales the shape volume is averaged over at the current sample (the type's shapeSmoothing from the type info texture's alpha, set by LayerDensity; 0: not at all; E40 L6 shape).
@@ -161,7 +160,7 @@ float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 }
 
 // The share of the column that is cloud at a point for one flow offset.
-float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float coverage, float edge, float amount, float erosion)
+float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float coverage, float edge, float amount, float erosion, int light)
 {
     float3 q = NoiseLookup(li, pc, scale, flow);
     float lodShape = max(0.0, log2(max(gNoiseSm, 1e-4)) + _NoiseT.w);
@@ -193,7 +192,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     else n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), lodShape)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
     // _NoiseT.z (layers.densityRemap, default 0): the erosion also thins the interior of a closed deck; 0 leaves the interior at the share 1.
-    if (s <= 0 || erosion <= 0 || gNoiseLod != 0) return s;
+    if (s <= 0 || erosion <= 0 || light != 0) return s;
     if (s >= 1.0 && _NoiseT.z <= 0) return s;
     // The distance LOD: the sample spacing against the detail's finest cell; once the spacing exceeds the cell the detail is dropped (the volume's mean).
     float lod = 0;
@@ -253,22 +252,37 @@ float3 NoiseFlowDir(int li, float3 pc)
 // The share of the column that is cloud at a point of a layer (T01's threshold when the volumes are not ready or the layer has no noise).
 // The single sample; the layer shader calls NoiseShare of ReDefinitionAtmospheresFarView.cginc (package T06), which takes the mean over the noise
 // where the march's spacing is wider than the noise.
-float NoiseShareNear(int li, float3 pc, float cov, float coverage, float edge, float amount, float erosion)
+// CLOUDR2 P4: NoiseShareAt stands at ONE call site, in a loop over the flow's phases (it had three copies in every inlined density).
+float NoiseShareNearEx(int li, float3 pc, float cov, float coverage, float edge, float amount, float erosion, int light)
 {
     float scale = _LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 0;
     if (_NoiseP.x < 0.5 || amount <= 0 || scale <= 0)
         return saturate((cov + coverage - 1.0) / edge + 0.5);
     float amp = _NoiseLayer[li].x;
-    if (amp <= 0)
-        return NoiseShareAt(li, pc, scale, 0, cov, coverage, edge, amount, erosion);
     // The flow map moves the whole lookup; the looped flow blends two phases half a loop apart.
-    float3 dir = NoiseFlowDir(li, pc);
+    float3 dir = 0;
+    int phases = 1;
     float t0 = _NoiseQ.w;
-    float a = NoiseShareAt(li, pc, scale, dir * (amp * t0), cov, coverage, edge, amount, erosion);
-    if (_NoiseLayer[li].y < 0.5) return a;
-    float t1 = frac(t0 + 0.5);
-    float b = NoiseShareAt(li, pc, scale, dir * (amp * t1), cov, coverage, edge, amount, erosion);
-    return lerp(a, b, abs(2.0 * t0 - 1.0));
+    if (amp > 0)
+    {
+        dir = NoiseFlowDir(li, pc);
+        phases = _NoiseLayer[li].y < 0.5 ? 1 : 2;
+    }
+    float a = 0, b = 0;
+    [loop] for (int k = 0; k < 2; k++)
+    {
+        if (k >= phases) break;
+        float ph = k == 0 ? t0 : frac(t0 + 0.5);
+        float v = NoiseShareAt(li, pc, scale, dir * (amp * ph), cov, coverage, edge, amount, erosion, light);
+        if (k == 0) a = v; else b = v;
+    }
+    return phases == 1 ? a : lerp(a, b, abs(2.0 * t0 - 1.0));
+}
+
+// The shadow pass's read (no light-path flag).
+float NoiseShareNear(int li, float3 pc, float cov, float coverage, float edge, float amount, float erosion)
+{
+    return NoiseShareNearEx(li, pc, cov, coverage, edge, amount, erosion, 0);
 }
 
 // The colour a layer's cloud is tinted with at a point (the colour map, 1 = none).

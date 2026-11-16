@@ -217,7 +217,8 @@ Shader "ReDefinition/AtmospheresLayers"
             return _StepP.w * _PlanetR * sin(min(e * min(texelLat, 2.0 * PI / _MapDim.x * cos(latMax)), 1.5707));
         }
 
-        float LayerDensity(int li, float3 pc, float alt, float t, out float share)
+        // light 1: the light march's read (the shape only: no erosion detail, no far-view mean; the inlined copy of the light path is the slim one, CLOUDR2 P4).
+        float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share)
         {
             share = 0;
             gEmptyM = 0;
@@ -316,12 +317,17 @@ Shader "ReDefinition/AtmospheresLayers"
             // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
             erosion *= 1.0 + _BillowP.z * saturate(h);
             // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band).
-            float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion);
+            float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion, light);
             if (s <= 0) return 0;
             float pw = waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             gTypeLight = pf.yz;
             return _LayerB[li].x * s * pf.x * fade;
+        }
+
+        float LayerDensity(int li, float3 pc, float alt, float t, out float share)
+        {
+            return LayerDensityEx(li, pc, alt, t, 0, share);
         }
 
         // ---- light (package T03: the phase, the light march, the octaves, the ambient, the lights, the light cache) ----

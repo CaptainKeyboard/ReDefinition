@@ -92,19 +92,21 @@ float FarShareMean(float cov, float coverage, float edge, float amount, float er
 }
 
 // The share of the column that is cloud at a point: the noise sample where the march's spacing resolves the noise, its mean where it does
-// not, a blend between. Replaces the noise file's NoiseShare (which is renamed NoiseShareNear); the light path (gNoiseLod) keeps the sample.
-float NoiseShare(int li, float3 pc, float cov, float coverage, float edge, float amount, float erosion)
+// not, a blend between. The light path (light 1) keeps the sample. The noise is read at ONE call site (CLOUDR2 P4).
+float NoiseShare(int li, float3 pc, float cov, float coverage, float edge, float amount, float erosion, int light)
 {
     float scale = _LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 0;
-    if (_FarD.x > 0.5 && gNoiseLod == 0 && gNoiseFoot > 0 && scale > 0 && amount > 0 && _NoiseP.x > 0.5)
+    float lod = 0, mean = 0;
+    if (light == 0 && _FarD.x > 0.5 && gNoiseFoot > 0 && scale > 0 && amount > 0 && _NoiseP.x > 0.5)
     {
-        float lod = saturate((gNoiseFoot - _FarD.y * scale) / max((_FarD.z - _FarD.y) * scale, 1e-3));
+        lod = saturate((gNoiseFoot - _FarD.y * scale) / max((_FarD.z - _FarD.y) * scale, 1e-3));
         // layers.densityRemap (_NoiseT.z) thins every share by one factor once the detail is its mean.
         float thin = (_NoiseT.z > 0 && erosion > 0) ? saturate(1.0 - _NoiseT.z * erosion * (1.0 - _NoiseS.w)) : 1.0;
-        if (lod >= 1.0) return FarShareMean(cov, coverage, edge, amount, erosion) * thin;
-        if (lod > 0.0) return lerp(NoiseShareNear(li, pc, cov, coverage, edge, amount, erosion), FarShareMean(cov, coverage, edge, amount, erosion) * thin, lod);
+        mean = FarShareMean(cov, coverage, edge, amount, erosion) * thin;
+        if (lod >= 1.0) return mean;
     }
-    return NoiseShareNear(li, pc, cov, coverage, edge, amount, erosion);
+    float near = NoiseShareNearEx(li, pc, cov, coverage, edge, amount, erosion, light);
+    return lod > 0.0 ? lerp(near, mean, lod) : near;
 }
 
 #endif
