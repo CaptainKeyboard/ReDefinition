@@ -314,7 +314,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneEmptyLeap, Frame0.EmptyLeap),
             N(OwnCloudOptions.TuneCheapShare, Frame0.CheapShare),
             N(OwnCloudOptions.TuneFogShare, Frame0.FogShare),
-            N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion"),
+            N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),
             N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
             F(OwnCloudOptions.TuneSpanTight, OwnCloudOptions.SpanTightDefault),
             N(OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.DitherSequenceDefault, KeyLiveness.FrameHistory, "1 hash, 2 gradient, 3 blue noise"),

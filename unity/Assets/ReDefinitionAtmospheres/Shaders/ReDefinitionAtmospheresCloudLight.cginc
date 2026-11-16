@@ -135,6 +135,8 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
     [loop] for (int lj = 0; lj < MAXL; lj++)
     {
         if (lj >= (int)_LayerCount) break;
+        // Cost attribution only (layers.costDebug bit 8): the march towards a light crosses the sample's own layer alone.
+        if (own >= 0 && lj != own && fmod(floor(_CostP.y * 0.125), 2.0) > 0.5) continue;
         float4 sp;
         LayerSpans(lj, pc, dir, 1e30, sp);
         CellClip(pc, dir, sp);

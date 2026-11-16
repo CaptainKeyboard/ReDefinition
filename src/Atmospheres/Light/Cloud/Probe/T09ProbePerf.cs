@@ -18,6 +18,10 @@ namespace ReDefinition.Atmospheres
     //   noshape    layers.costDebug 2 (no shape noise read at all)
     //   noerode    layers.costDebug 4 (no erosion)
     //   shnoise0   shadow.shapeNoise 0 (the cloud shadow reads no shape noise)
+    //   lightown   layers.costDebug 8 (the light march crosses the sample's own layer alone; cost attribution)
+    //   noragged   baseRagged 0 (the ragged cloud base: no hashed noise per sample; the height maps stay)
+    //   noheight   cloudBaseVariation 0 (the whole height variation off: no height map read, no ragged base)
+    //   bare       layers.costDebug 7 (no light march, no shape noise, no erosion: what the march's own walk, the maps and the type tables cost)
     // The orbit_edge view is not run (its placement costs minutes and the 19-minute limit holds 7 variants x 4 views).
     //   plain2     the same as plain, run last: the drift of the start
     //   res2       recon.resolution 0.5 (the march target's side; plain is 0.33), res4 0.25, res3 0.33 and res3cat (0.33 with the Catmull history forced on) equal plain: controls
@@ -27,7 +31,7 @@ namespace ReDefinition.Atmospheres
         private const double PerfDwellS = 20.0;
 
         // The grid points the start began with (the profile's), read before the first variant changes them.
-        private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN;
+        private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN;
 
         private bool PerfStart
         {
@@ -50,6 +54,10 @@ namespace ReDefinition.Atmospheres
                 case "noshape":
                 case "noerode":
                 case "shnoise0":
+                case "lightown":
+                case "noragged":
+                case "noheight":
+                case "bare":
                 case "plain2":
                 case "res2":
                 case "res3":
@@ -68,6 +76,8 @@ namespace ReDefinition.Atmospheres
             baseSamples = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSamples);
             baseShadows = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudShadows);
             baseRays = AtmospheresSettings.Number(AtmospheresSettings.Keys.RtOwnClouds);
+            baseRagged = AtmospheresSettings.Number(AtmospheresSettings.Keys.BaseRagged);
+            baseVariation = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudBaseVariation);
         }
 
         private void PerfRestoreBase()
@@ -76,6 +86,8 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.CloudSamples, baseSamples);
             SetSetting(AtmospheresSettings.Keys.CloudShadows, baseShadows);
             SetSetting(AtmospheresSettings.Keys.RtOwnClouds, baseRays);
+            SetSetting(AtmospheresSettings.Keys.BaseRagged, baseRagged);
+            SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, baseVariation);
         }
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
@@ -123,6 +135,10 @@ namespace ReDefinition.Atmospheres
                 case "noshape": ForceTuning(OwnCloudOptions.TuneCostDebug, 2f); break;
                 case "noerode": ForceTuning(OwnCloudOptions.TuneCostDebug, 4f); break;
                 case "shnoise0": ForceTuning(CloudShadowShapeNoise.TuneKey, 0f); break;
+                case "lightown": ForceTuning(OwnCloudOptions.TuneCostDebug, 8f); break;
+                case "noragged": SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0); break;
+                case "noheight": SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0); break;
+                case "bare": ForceTuning(OwnCloudOptions.TuneCostDebug, 7f); break;
             }
             return true;
         }

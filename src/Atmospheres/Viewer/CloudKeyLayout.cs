@@ -52,7 +52,7 @@ namespace ReDefinition.Atmospheres.Viewer
             { OwnCloudOptions.TuneLightStride, new[] { 1f, 8f } },
             { OwnCloudOptions.TuneCheapShare, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneFogShare, new[] { 0f, 1f } },
-            { OwnCloudOptions.TuneCostDebug, new[] { 0f, 7f } },
+            { OwnCloudOptions.TuneCostDebug, new[] { 0f, 15f } },
             { OwnCloudOptions.TuneSpanSpacingMin, new[] { 1f, 256f } },
             { OwnCloudOptions.TuneDitherSequence, new[] { 1f, 3f } },
             { OwnCloudOptions.TuneWarpTable, new[] { 0f, 2f } },
