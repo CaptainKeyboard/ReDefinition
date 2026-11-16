@@ -189,7 +189,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | `rtOwnClouds` | on | on / off | Own Clouds In Ray Tracing | needs-own-clouds | - |
 | `rtOwnCloudsLayerCap` | 0 | 0 to 4 | Ray Tracing Cloud Layer Cap | needs-own-clouds | - |
 | `cloudSoftness` | 0.5 | 0.3 to 1 | Cloud Softness | needs-own-clouds | - |
-| `cloudSamples` | High | Low / Medium / High | Cloud Samples | needs-own-clouds | volume |
+| `cloudSamples` | 96 | 24 to 128 | Cloud Samples | needs-own-clouds | volume |
 | `cloudLightQuality` | High | Low / Medium / High | Cloud Light Quality | needs-own-clouds | volume |
 | `cloudLightOctaves` | 4 | 1 to 4 | Cloud Scattering Octaves | needs-own-clouds | - |
 | `cloudPowder` | 0.8075 | 0 to 1 | Cloud Powder Effect | needs-own-clouds | - |
