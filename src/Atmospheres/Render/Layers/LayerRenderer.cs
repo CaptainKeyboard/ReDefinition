@@ -115,7 +115,7 @@ namespace ReDefinition.Atmospheres
             IdCamForward = Shader.PropertyToID("_CamForward"), IdCamRight = Shader.PropertyToID("_CamRight"), IdCamUp = Shader.PropertyToID("_CamUp"),
             IdLayerCount = Shader.PropertyToID("_LayerCount"), IdLayerA = Shader.PropertyToID("_LayerA"), IdLayerB = Shader.PropertyToID("_LayerB"),
             IdLayerC = Shader.PropertyToID("_LayerC"), IdLayerD = Shader.PropertyToID("_LayerD"), IdLayerE = Shader.PropertyToID("_LayerE"),
-            IdTypeProfile = Shader.PropertyToID("_TypeProfile"), IdTypeInfo = Shader.PropertyToID("_TypeInfo"), IdTypeInfo2 = Shader.PropertyToID("_TypeInfo2"),
+            IdTypeProfile = Shader.PropertyToID("_TypeProfile"), IdTypeInfo = Shader.PropertyToID("_TypeInfo"),
             IdCovMaps = Shader.PropertyToID("_CovMaps"), IdTypeMaps = Shader.PropertyToID("_TypeMaps"), IdMapDim = Shader.PropertyToID("_MapDim"),
             IdSun = Shader.PropertyToID("_Sun"), IdSunColor = Shader.PropertyToID("_SunColor"), IdAmbientTop = Shader.PropertyToID("_AmbientTop"),
             IdAmbientBottom = Shader.PropertyToID("_AmbientBottom"), IdMarchP = Shader.PropertyToID("_MarchP"), IdStepP = Shader.PropertyToID("_StepP"),
@@ -138,7 +138,7 @@ namespace ReDefinition.Atmospheres
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
         private Material material;
-        private Texture2D profileTexture, infoTexture, infoTexture2;
+        private Texture2D profileTexture, infoTexture;
         // Each layer's light response (CloudLayerDef.LightAmbient; the shader's _LightL.x and .y stay 1), handed to the light settings of the frame (E40 B3).
         private readonly Vector3[] layerLight = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
         private readonly float[] layerIsotropy = new float[CloudLayerDef.MaxLayers];
@@ -187,20 +187,13 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
-            infoTexture = new Texture2D(CloudLayerDef.MaxTypes, CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
+            // The first MaxLayers rows: base, top, erosion and smoothing of each type; the next MaxLayers rows (CLOUDR1): the heap preset, the exponent of the density rim and the cavity.
+            infoTexture = new Texture2D(CloudLayerDef.MaxTypes, 2 * CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
             {
                 name = "layer type info",
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp
             };
-            // CLOUDR1: the second type info: x the heap preset, y the exponent of the density rim (0: the layer's), z the cavity strength.
-            infoTexture2 = new Texture2D(CloudLayerDef.MaxTypes, CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
-            {
-                name = "layer type info 2",
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
-            };
-            material.SetTexture(IdTypeInfo2, infoTexture2);
             material.SetTexture(IdTypeProfile, profileTexture);
             var blue = new Vector4[DitherMatrix.Count / 4];
             float[] tile = DitherMatrix.Values();
@@ -267,7 +260,6 @@ namespace ReDefinition.Atmospheres
             UnityEngine.Object.Destroy(material);
             UnityEngine.Object.Destroy(profileTexture);
             UnityEngine.Object.Destroy(infoTexture);
-            UnityEngine.Object.Destroy(infoTexture2);
             material = null;
             profileTexture = null;
         }
@@ -283,8 +275,7 @@ namespace ReDefinition.Atmospheres
             // Four channels per sample: r the density profile, g the direct light factor, b the sky-fill factor (E40 B3), a the lift of the coverage threshold (E40 L2 D1, 0: none). Unused rows keep the neutral light factors.
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
             for (int i = 0; i < profile.Length; i += 4) { profile[i + 1] = 1f; profile[i + 2] = 1f; }
-            var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers];
-            var info2 = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers];
+            var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
             bool extras = false;
             for (int l = 0; l < layerCount; l++)
             {
@@ -340,7 +331,7 @@ namespace ReDefinition.Atmospheres
                     int heap = table.HeapOfType(t);
                     if (heap > 0) Noise.RequestHeap();
                     if (heap > 0 || table.EdgeOfType(t) > 0f) extras = true;
-                    info2[l * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), 0f);
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), 0f);
                 }
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++) layerH[l] = layerH2[l] = cullL[l] = Vector4.zero;
@@ -351,8 +342,7 @@ namespace ReDefinition.Atmospheres
             infoTexture.SetPixels(info);
             infoTexture.Apply(false);
             Noise.ExtrasUsed = extras;
-            infoTexture2.SetPixels(info2);
-            infoTexture2.Apply(false);
+
             uploadedSource = source;
             uploadedVersion = source.Version;
             uploadedShift = CloudCoverShift.Stamp;

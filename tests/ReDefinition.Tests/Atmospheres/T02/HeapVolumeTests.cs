@@ -130,6 +130,29 @@ namespace ReDefinition.Tests
         }
 
         // The cover share per type: with the heap the share of the sky a map value covers is the one of the shape volume, within 0.01 (both are rank-uniform), on the voxels themselves.
+        // The shape and the heap share one texture (the pass has no sampler register left): red is the shape volume's own byte at every level, green and blue the two heap presets, alpha the
+        // cavity of the first.
+        [TestMethod]
+        public void TheShapeAndTheHeapShareOneTextureWithTheShapeInRed()
+        {
+            NoiseVolumeSet shape = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(0), 1u);
+            HeapVolumeSet heap = HeapVolumeSet.Generate(shape.ShapeN, 1u);
+            byte[][] merged = HeapVolumes.MergeWithShape(shape.Shape, shape.ShapeMips, heap);
+            Assert.AreEqual(heap.Levels.Length, merged.Length);
+            for (int m = 0; m < merged.Length; m++)
+            {
+                byte[] s = m == 0 ? shape.Shape : shape.ShapeMips[m - 1];
+                Assert.AreEqual(s.Length * 4, merged[m].Length);
+                for (int i = 0; i < s.Length; i += 7)
+                {
+                    Assert.AreEqual(s[i], merged[m][i * 4]);
+                    Assert.AreEqual(heap.Levels[m][i * 4], merged[m][i * 4 + 1]);
+                    Assert.AreEqual(heap.Levels[m][i * 4 + 1], merged[m][i * 4 + 2]);
+                    Assert.AreEqual(heap.Levels[m][i * 4 + 2], merged[m][i * 4 + 3]);
+                }
+            }
+        }
+
         [TestMethod]
         public void TheCoverShareMatchesTheShapeVolumeWithinOnePercent()
         {

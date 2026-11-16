@@ -64,7 +64,7 @@ namespace ReDefinition.Atmospheres
             IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"), IdS = Shader.PropertyToID("_NoiseS"),
             IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer"), IdStretch = Shader.PropertyToID("_NoiseStretch"), IdAxis = Shader.PropertyToID("_NoiseAxis"),
             IdLattice = Shader.PropertyToID("_NoiseLattice"), IdLatticeP = Shader.PropertyToID("_NoiseL"), IdBillow = Shader.PropertyToID("_BillowP"),
-            IdHeap = Shader.PropertyToID("_NoiseHeap"), IdHeapP = Shader.PropertyToID("_HeapP");
+            IdHeapP = Shader.PropertyToID("_HeapP");
 
         // E40 C4: the tables of the untiling warp and the ragged boundary (NoiseLattice), the viewer's place and each layer's scale and reference radius they follow.
         private readonly NoiseLattice lattice = new NoiseLattice();
@@ -95,7 +95,6 @@ namespace ReDefinition.Atmospheres
         private Task<HeapVolumeSet> heapTask;
         private HeapVolumeSet heapSet;
         private bool heapWanted;
-        private Texture3D heapTexture, heapStandIn;
         internal const int HeapSeedOffset = 3;
         private Texture3D shapeTexture, detailTexture, curlTexture;
         private Texture2D flowTexture, colourTexture, defaultFlow, defaultColour;
@@ -163,8 +162,7 @@ namespace ReDefinition.Atmospheres
         {
             heapTask = null;
             heapSet = null;
-            Destroy(heapTexture);
-            heapTexture = null;
+            shapeHasHeap = false;
             if (ShapeVolumes != null) ShapeVolumes.Heap = null;
         }
 
@@ -183,23 +181,34 @@ namespace ReDefinition.Atmospheres
                 heapTask = null;
                 return;
             }
-            heapTexture = MakeHeap3D(heapSet);
-            if (ShapeVolumes != null) ShapeVolumes.Heap = heapSet;
+            if (ShapeVolumes != null)
+            {
+                ShapeVolumes.Heap = heapSet;
+                RebuildShapeTexture();
+            }
         }
 
-        private static Texture3D MakeHeap3D(HeapVolumeSet set)
+        // The shape texture once the heap volume is there: the shape volume's red channel with the heap's two presets and the cavity of the first in green, blue and alpha, the same mip chain
+        // (HeapVolumes.MergeWithShape). Replaces the R8 texture; the shader reads the red channel for a type without a heap, as before.
+        private void RebuildShapeTexture()
         {
-            var texture = new Texture3D(set.N, set.N, set.N, TextureFormat.RGBA32, true)
+            if (heapSet == null || ShapeVolumes == null || ShapeVolumes.Shape == null || ShapeVolumes.ShapeN != heapSet.N) return;
+            Destroy(shapeTexture);
+            byte[][] levels = HeapVolumes.MergeWithShape(ShapeVolumes.Shape, ShapeVolumes.ShapeMips, heapSet);
+            var texture = new Texture3D(heapSet.N, heapSet.N, heapSet.N, TextureFormat.RGBA32, true)
             {
-                name = "cloud noise heap",
+                name = "cloud noise shape + heap",
                 filterMode = FilterMode.Trilinear,
                 wrapMode = TextureWrapMode.Repeat,
                 hideFlags = HideFlags.HideAndDontSave
             };
-            for (int m = 0; m < set.Levels.Length; m++) texture.SetPixelData(set.Levels[m], m);
+            for (int m = 0; m < levels.Length; m++) texture.SetPixelData(levels[m], m);
             texture.Apply(false, true);
-            return texture;
+            shapeTexture = texture;
+            shapeHasHeap = true;
         }
+
+        private bool shapeHasHeap;
 
         // Uploads the volumes when the worker is done (true: ready). wait: blocks until it is (the player's way).
         internal bool Poll(bool wait = false)
@@ -221,7 +230,11 @@ namespace ReDefinition.Atmospheres
             }
             Upload(set);
             Ready = true;
-            if (heapSet != null && ShapeVolumes != null) ShapeVolumes.Heap = heapSet;
+            if (heapSet != null && ShapeVolumes != null)
+            {
+                ShapeVolumes.Heap = heapSet;
+                RebuildShapeTexture();
+            }
             return true;
         }
 
@@ -238,6 +251,7 @@ namespace ReDefinition.Atmospheres
             Destroy(detailTexture);
             Destroy(curlTexture);
             shapeTexture = MakeShape3D(set);
+            shapeHasHeap = false;
             detailTexture = Make3D(set.DetailN, TextureFormat.R8, set.Detail, "cloud noise detail");
             curlTexture = Make3D(set.CurlN, TextureFormat.RGBA32, set.Curl, "cloud noise curl");
             GenerationMs = set.GenerationMs;
@@ -505,8 +519,7 @@ namespace ReDefinition.Atmospheres
             // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top, the composite's sharpening).
             material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
             // CLOUDR1: the heap volume (x: it is built, y: bit 0 the march's spacing raises its mip level, bit 1 the heap is read at the lattice's true vertical scale, z: log2 of its voxels per noise scale like _NoiseT.w).
-            material.SetVector(IdHeapP, new Vector4(heapTexture != null ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), ShapeVoxelsLog2(), ExtrasUsed ? 1f : 0f));
-            material.SetTexture(IdHeap, heapTexture != null ? heapTexture : heapStandIn);
+            material.SetVector(IdHeapP, new Vector4(shapeHasHeap ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), ShapeVoxelsLog2(), ExtrasUsed ? 1f : 0f));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);
@@ -540,7 +553,6 @@ namespace ReDefinition.Atmospheres
                 defaultFlow.SetPixel(0, 0, new Color(0.5f, 0.5f, 0.5f, 1f));
                 defaultFlow.Apply(false);
             }
-            if (heapStandIn == null) heapStandIn = Make3D(1, TextureFormat.RGBA32, new byte[] { 128, 128, 255, 255 }, "cloud noise heap (stand-in)");
             if (defaultColour == null)
             {
                 defaultColour = new Texture2D(1, 1, TextureFormat.RGBA32, false, true) { name = "cloud noise colour default", hideFlags = HideFlags.HideAndDontSave };
@@ -563,9 +575,6 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            Destroy(heapTexture);
-            Destroy(heapStandIn);
-            heapTexture = heapStandIn = null;
             heapTask = null;
             heapSet = null;
             Destroy(shapeTexture);

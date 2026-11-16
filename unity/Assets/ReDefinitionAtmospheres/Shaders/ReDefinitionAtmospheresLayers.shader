@@ -48,8 +48,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _LayerD[4];   // noise amount, noise scale (1 / m), erosion, map shift (degrees)
         float4 _LayerE[4];   // emission colour (kind 3)
         sampler2D _TypeProfile;
-        sampler2D _TypeInfo;
-        sampler2D _TypeInfo2;   // CLOUDR1: x the type's heap preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
+        sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's heap preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
         UNITY_DECLARE_TEX2DARRAY(_TypeMaps);
         UNITY_DECLARE_TEX2DARRAY(_CovReach);   // E40 C1: per layer and map texel the texels to the nearest texel that can hold cloud, less a margin (EmptyReachMaps.cs; zero: no reach)
@@ -188,12 +187,12 @@ Shader "ReDefinition/AtmospheresLayers"
 
         float4 TypeInfo(int li, int type)
         {
-            return tex2Dlod(_TypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / MAXL, 0, 0));
+            return tex2Dlod(_TypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / (2.0 * MAXL), 0, 0));
         }
 
         float4 TypeInfo2(int li, int type)
         {
-            return tex2Dlod(_TypeInfo2, float4((type + 0.5) / MAXT, (li + 0.5) / MAXL, 0, 0));
+            return tex2Dlod(_TypeInfo, float4((type + 0.5) / MAXT, (li + MAXL + 0.5) / (2.0 * MAXL), 0, 0));
         }
 
         // The density of layer li at a point (pc relative to the planet's centre, alt its altitude), distance t along the ray from the camera.

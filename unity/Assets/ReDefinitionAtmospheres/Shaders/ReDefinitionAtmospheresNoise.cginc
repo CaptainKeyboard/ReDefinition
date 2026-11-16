@@ -15,17 +15,17 @@
 // Worley detail, curl distortion, the remap that erodes); the two-phase flow map is the common technique of looped flow maps. The integer
 // hash is lowbias32 (Chris Wellons, public domain).
 //
-// CLOUDR1 (the heap volume, P2/P3): a type with a heap preset reads the macro shape from _NoiseHeap instead of _NoiseShape, a rank-uniform volume of rounded heaps in a cascade of doubled
+// CLOUDR1 (the heap volume, P2/P3): a type with a heap preset reads the macro shape from the green or blue channel of _NoiseShape instead of its red one, a rank-uniform volume of rounded heaps in a cascade of doubled
 // frequencies (HeapVolumes.cs: dome octaves round jittered points, Worley 1996, joined by a polynomial smooth maximum, Quilez; summed with weights 2^(-H k), the spectral synthesis of
 // fractional Brownian fields, Mandelbrot and Van Ness 1968; the shape-by-type volume of Schneider, SIGGRAPH 2015 and "Nubis", SIGGRAPH 2017). Its mip level drops an octave only where the
 // march's footprint exceeds it. Its second half is a baked cavity (ambient occlusion of the heap field) that darkens the creases between lobes. No code of these works is taken.
 #ifndef REDEFINITION_ATMOSPHERES_NOISE
 #define REDEFINITION_ATMOSPHERES_NOISE
 
-sampler3D _NoiseShape;
+sampler3D _NoiseShape;   // the shape volume (R8); once a type asks for a heap preset (CLOUDR1 P2/P3) RGBA8: r the shape, g the heap field of preset 1, b of preset 2, a the cavity of preset 1 (the pass
+                         // has no sampler register left for a texture of its own: ps_4_0 has 16; HeapVolumes.MergeWithShape)
 sampler3D _NoiseDetail;
 sampler3D _NoiseCurl;
-sampler3D _NoiseHeap;    // the heap volume (CLOUDR1 P2/P3; HeapVolumes.cs): RGBA8, r heap field of preset 1, g of preset 2, b cavity of preset 1, a of preset 2; the same period and mip chain as _NoiseShape
 sampler2D _NoiseFlow;
 sampler2D _NoiseColour;
 sampler3D _NoiseLattice; // the untiling warp's lattice table around the viewer (E40 C4; NoiseLattice.cs)
@@ -176,9 +176,9 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
             float rl = max(length(pc), 1.0);
             qh += (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
         }
-        float4 hv = tex3Dlod(_NoiseHeap, float4(qh / (_NoiseR.x * scale), lodHeap));
-        n = gHeapPreset == 1 ? hv.r : hv.g;
-        gHeapCav = gHeapPreset == 1 ? hv.b : hv.a;
+        float4 hv = tex3Dlod(_NoiseShape, float4(qh / (_NoiseR.x * scale), lodHeap));
+        n = gHeapPreset == 1 ? hv.g : hv.b;
+        gHeapCav = gHeapPreset == 1 ? hv.a : 1.0;   // the cavity of preset 2 is not on the GPU (one alpha channel)
     }
     else n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), lodShape)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);

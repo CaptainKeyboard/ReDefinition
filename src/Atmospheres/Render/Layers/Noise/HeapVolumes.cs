@@ -109,6 +109,29 @@ namespace ReDefinition.Atmospheres
             return result;
         }
 
+        // The shape volume's levels with the heap's: RGBA bytes per level, r the shape (level 0 and its re-equalised mips), g the heap field of preset 1, b of preset 2, a the cavity of preset 1.
+        // One texture and one sampler for both, because the layer pass has no sampler register left (ps_4_0 allows 16).
+        internal static byte[][] MergeWithShape(byte[] shape, byte[][] shapeMips, HeapVolumeSet heap)
+        {
+            var levels = new byte[heap.Levels.Length][];
+            for (int m = 0; m < levels.Length; m++)
+            {
+                byte[] s = m == 0 ? shape : shapeMips[m - 1];
+                byte[] h = heap.Levels[m];
+                if (s.Length * 4 != h.Length) throw new ArgumentException("the shape and heap levels differ in size at level " + m);
+                var merged = new byte[h.Length];
+                for (int i = 0; i < s.Length; i++)
+                {
+                    merged[i * 4] = s[i];
+                    merged[i * 4 + 1] = h[i * 4];
+                    merged[i * 4 + 2] = h[i * 4 + 1];
+                    merged[i * 4 + 3] = h[i * 4 + 2];
+                }
+                levels[m] = merged;
+            }
+            return levels;
+        }
+
         private static byte[] Pack(double[][] fields, double[][] cavity)
         {
             int count = fields[0].Length;
