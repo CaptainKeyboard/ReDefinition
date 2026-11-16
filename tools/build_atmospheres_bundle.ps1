@@ -5,7 +5,8 @@
 #
 #   tools\build_atmospheres_bundle.ps1 [-Ksp <KSP folder>] [-Unity <path to Unity.exe>] [-Output <bundle file>]
 #
-# The log is build\atmospheres-bundle.log; shader errors are in it. The exit code is Unity's: 1 where the build fails.
+# The log is build\atmospheres-bundle.log; shader errors are in it. The exit code is Unity's: 1 where the build fails,
+# and 2 where Unity exits 0 but a shader failed to compile (Unity then bundles the shader without a working variant).
 param(
     [string]$Ksp,
     [string]$Unity = 'C:\Program Files\Unity\Editor 2019.4.18f1\Editor\Unity.exe',
@@ -28,4 +29,9 @@ $quoted = ($arguments | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } 
 $process = Start-Process -FilePath $Unity -ArgumentList $quoted -Wait -PassThru
 Get-Content $log | Select-String -Pattern 'ReDefinition Atmospheres:|error CS|Shader error|Compilation failed' | ForEach-Object { $_.Line }
 if ($process.ExitCode -ne 0) { Write-Host "build_atmospheres_bundle: FAILED, exit code $($process.ExitCode); see $log"; exit $process.ExitCode }
+$shaderErrors = @(Get-Content $log | Select-String -Pattern 'Shader error in ')
+if ($shaderErrors.Count -gt 0) {
+    Write-Host "build_atmospheres_bundle: FAILED, $($shaderErrors.Count) shader error(s) although Unity exited 0; see $log"
+    exit 2
+}
 Write-Host "build_atmospheres_bundle: OK, see $log"
