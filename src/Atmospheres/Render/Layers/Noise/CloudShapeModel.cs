@@ -102,6 +102,9 @@ namespace ReDefinition.Atmospheres
         // below the footprint are dropped, never the ones above it). The twin of the shader's gHeapPreset and _HeapP.y.
         internal int HeapPreset;
         internal bool HeapFootLod, HeapIso;
+        // The share of the untiling displacement's horizontal part the heap lookup keeps (below 0: the whole displacement; NaN or 0 from a default-constructed set: HeapModel.WarpShare is used only through
+        // LayerNoise, so a hand-made set keeps 0 = no displacement unless it sets this).
+        internal double HeapWarpShare;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
@@ -191,22 +194,28 @@ namespace ReDefinition.Atmospheres
         internal static void HeapLookup(ref NoiseLayerParams prm, double px, double py, double pz, double qx, double qy, double qz, double dx, double dy, double dz,
                                         out double hx, out double hy, out double hz)
         {
-            double r = Math.Sqrt(px * px + py * py + pz * pz);
-            hx = qx - dx;
-            hy = qy - dy;
-            hz = qz - dz;
-            if (r > 0.0)
+            double r = Math.Sqrt(px * px + py * py + pz * pz), share = prm.HeapWarpShare;
+            hx = qx;
+            hy = qy;
+            hz = qz;
+            if (share >= 0.0)
             {
-                double ux = px / r, uy = py / r, uz = pz / r, along = dx * ux + dy * uy + dz * uz;
-                hx += HeapModel.WarpShare * (dx - ux * along);
-                hy += HeapModel.WarpShare * (dy - uy * along);
-                hz += HeapModel.WarpShare * (dz - uz * along);
-            }
-            else
-            {
-                hx += HeapModel.WarpShare * dx;
-                hy += HeapModel.WarpShare * dy;
-                hz += HeapModel.WarpShare * dz;
+                hx -= dx;
+                hy -= dy;
+                hz -= dz;
+                if (r > 0.0)
+                {
+                    double ux = px / r, uy = py / r, uz = pz / r, along = dx * ux + dy * uy + dz * uz;
+                    hx += share * (dx - ux * along);
+                    hy += share * (dy - uy * along);
+                    hz += share * (dz - uz * along);
+                }
+                else
+                {
+                    hx += share * dx;
+                    hy += share * dy;
+                    hz += share * dz;
+                }
             }
             // The lattice's vertical compression taken back (cloud.heap.iso), as the erosion detail reads it.
             if (prm.HeapIso && prm.SphereScale != 1.0 && prm.SphereScale > 0.0 && r > 0.0)

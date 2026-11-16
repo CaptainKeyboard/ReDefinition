@@ -489,6 +489,7 @@ namespace ReDefinition.Atmospheres
                 DensityRemap = CloudLookTuning.DensityRemap,
                 HeapFootLod = CloudLookTuning.HeapFootLod,
                 HeapIso = CloudLookTuning.HeapIso,
+                HeapWarpShare = CloudLookTuning.HeapWarpShare,
                 BillowContrastDelta = CloudLookTuning.BillowContrast - 1.0,
                 FineWeight = CloudLookTuning.BillowFine(-1f) >= 0f ? CloudLookTuning.BillowFine(-1f) : (double?)null,
                 FineFrequency = CloudLookTuning.BillowFineFreq(0f),
@@ -512,7 +513,7 @@ namespace ReDefinition.Atmospheres
             material.SetVector(IdQ, new Vector4(Switches.WarpAmplitude > 0f ? Switches.WarpAmplitude : (float)NoiseModel.WarpAmplitudeScales,
                                                 Switches.WarpCell > 0f ? Switches.WarpCell : (float)NoiseModel.WarpCellScales, (float)NoiseModel.CurlAmplitudeScales,
                                                 (float)((flowTime / FlowLoopSeconds) % 1.0)));
-            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, (float)HeapModel.PeriodScales, (float)HeapModel.WarpShare));
+            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, (float)HeapModel.PeriodScales, CloudLookTuning.HeapWarpShare));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
             material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? CloudLookTuning.BillowFine((float)NoiseModel.FineDetailWeight) : 0f,

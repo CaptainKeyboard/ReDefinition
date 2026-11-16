@@ -180,7 +180,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
         // of the horizontal part, which is enough to break the repetition of its small tile (the NumPy and C# twins: HeapLookup).
         float3 upw = pc / max(length(pc), 1.0);
         float3 wh = gNoiseWarp - upw * dot(gNoiseWarp, upw);
-        float3 qh = q - gNoiseWarp + wh * _NoiseR.w;
+        float3 qh = _NoiseR.w < 0.0 ? q : q - gNoiseWarp + wh * _NoiseR.w;   // _NoiseR.w < 0: the whole displacement (cloud.heap.warp -1, the lookup the shape volume has)
         if (_HeapP.y > 1.5)
         {
             float rl = max(length(pc), 1.0);

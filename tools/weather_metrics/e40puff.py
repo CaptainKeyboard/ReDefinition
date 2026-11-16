@@ -143,6 +143,7 @@ EDGE = [("cloud.edgePower.layer.", 0.5)]
 CAV = [("cloud.cavity.layer.", 0.7)]
 FIRSTHIT = [("cloud.firstHit", 3.0)]
 CAV35 = [("cloud.cavity.layer.", 0.35)]
+NG96 = "seq1+lq2+ng96+r33+lp100"
 
 
 def shell(n, near=0.0):
@@ -180,6 +181,28 @@ VARIANTS = {
     "r_s32": ("(round 3) r_a + first hit, 32 thin steps", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(32)), None),
     "r_s64": ("(round 3) r_a + first hit, 64 thin steps", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(64)), None),
     "r_s32n": ("(round 3) r_a + first hit, 32 thin steps up to 8 km", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(32, 8000.0)), None),
+    "r_ls": ("(ablation) P6 (32 thin steps) with every lit step marching to the sun (no light reuse)", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(32)), "seq1+lq2+cls+r33+lp100"),
+    "r_ng96": ("(curve) r_a with 96 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+ng96+r33+lp100"),
+    "r_ng128": ("(curve) r_a with 128 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+ng128+r33+lp100"),
+    "r_ng192": ("(curve) r_a with 192 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+ng192+r33+lp100"),
+    # --- CLOUDR1 diagnosis of the pulled ("fun-house") look: the lookup's untiling displacement, the vertical scale, the flow map, straight down and from the side, all at the product's march with 96 grid points ---
+    "fh_legacy": ("(diagnosis) the heap read at the fully displaced point like the shape volume (cloud.heap.warp -1)", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)]), NG96),
+    "fh_w0": ("(diagnosis) no untiling displacement at all", compose(tune_cumulus(HEAP1 + EDGE + CAV35), lambda job: job.setdefault("noise", {}).__setitem__("noUntile", 1)), NG96),
+    "fh_wa2": ("(diagnosis) the displacement's amplitude 2 scales (6.5)", compose(tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)]), lambda job: job.setdefault("noise", {}).__setitem__("warpAmplitude", 2.0)), NG96),
+    "fh_vs1": ("(diagnosis) the cumulus layer's vertical scale 1 (0.35), heap read as in the legacy lookup", compose(tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0), ("cloud.heap.iso", 0.0)]), cumulus_layer(lambda l: l.__setitem__("verticalScale", 1.0))), NG96),
+    "fh_fl0": ("(diagnosis) the flow map off (every layer's flow amplitude 0)", compose(tune_cumulus(HEAP1 + EDGE + CAV35), lambda job: each_layer(job, lambda l: l.__setitem__("flowAmplitude", 0.0))), NG96),
+    "fh_dn": ("(diagnosis) straight down (pitch -90), the keys now", compose(repose(-90.0), tune_cumulus(HEAP1 + EDGE + CAV35)), NG96),
+    "fh_dnL": ("(diagnosis) straight down, the heap read at the fully displaced point", compose(repose(-90.0), tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)])), NG96),
+    "fh_dnB": ("(diagnosis) straight down, production base", repose(-90.0), None),
+    "fh_sd": ("(diagnosis) from the side (3600 m, pitch -4), the keys now", compose(camera_at(3600.0, -4.0), tune_cumulus(HEAP1 + EDGE + CAV35)), NG96),
+    "fh_sdL": ("(diagnosis) from the side, the heap read at the fully displaced point", compose(camera_at(3600.0, -4.0), tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)])), NG96),
+    "fh_c": ("(diagnosis) the ceiling, the keys now", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV35)), CEIL),
+    "fh_cL": ("(diagnosis) the ceiling, the heap read at the fully displaced point", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)])), CEIL),
+    "r_c256": ("(ablation) r_a with 256 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+c256+r33+lp100"),
+    "r_cmin6": ("(ablation) r_a with a minimum step of 6 m", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+cmin6+r33+lp100"),
+    "r_cng": ("(ablation) r_a without step and transmittance growth", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+cng+r33+lp100"),
+    "r_c256m": ("(ablation) r_a with 256 grid points and a 6 m minimum step", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+c256+cmin6+r33+lp100"),
+    "r_c256mg": ("(ablation) r_a with 256 grid points, 6 m minimum, no growth", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+c256+cmin6+cng+r33+lp100"),
     "r_g": ("(round 3) r_a at the Phase 0 grid (the reference look)", tune_cumulus(HEAP1 + EDGE + CAV35), STEPS),
     "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),
     "s_p2p1p3": ("(Phase 0 grid) P2 + P1 + P3 at the ceiling's grid, minimum step, no growth", tune_cumulus(HEAP1 + EDGE + CAV), STEPS),
@@ -324,7 +347,11 @@ def stage_label(march):
     """The label of the stage that draws a march: the base march's stage is puff-a, another is puff-r followed by the resolution case (r50 or r100); another size adds -<width>."""
     if march in MARCH_LABELS:
         return MARCH_LABELS[march] + SUFFIX
-    return (LABEL if march == e40pp.MARCH else "%s-%s" % (LABEL_RES, march.split("+r")[1].split("+")[0])) + SUFFIX
+    if march == e40pp.MARCH:
+        return LABEL + SUFFIX
+    # a march of its own (the ablations): the label carries a short checksum of the march string, so two marches of one resolution case do not share a stage
+    import zlib
+    return "puff-m%08x" % (zlib.crc32(march.encode("ascii")) & 0xFFFFFFFF) + SUFFIX
 
 
 def stage_list():
@@ -446,7 +473,7 @@ def table(rows):
     return "\n".join(lines)
 
 
-MOVED_CAMERA = ("G0", "GN4", "T0", "TN4", "C0", "CN4")
+MOVED_CAMERA = ("G0", "GN4", "T0", "TN4", "C0", "CN4", "dn", "dnS5", "d45", "d45S5", "fh_dn", "fh_dnL", "fh_dnB", "fh_sd", "fh_sdL")
 CROP_W, CROP_H = 900, 600
 
 
@@ -569,11 +596,11 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
-COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil")
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "p2p1p3", "s_p2p1p3")
 
 
 def cost_label(march):
-    return "puffc-" + MARCH_LABELS.get(march, "puff-a")[5:] + SUFFIX
+    return "puffc-" + stage_label(march)[5:]
 
 
 def cost_stage_list():

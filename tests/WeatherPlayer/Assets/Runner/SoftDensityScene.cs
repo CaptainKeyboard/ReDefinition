@@ -174,6 +174,11 @@ namespace ReDefinition.WeatherPlayer
             // transmittance growth, every lit step marches to the sun, no light cutoff, 16 sun taps over 12 km). Used with r100+jit+acc<N>+clip1000: the reconstruction then accumulates jittered full-size frames.
             // cstep alone is the march's group (grid, minimum step, no growth, early-out), clight alone the light's group (stride, cutoff, taps, reach); ceil is both.
             public bool CeilStep, CeilTaps;
+            // CLOUDR1 ablation of the ceiling's march group, one lever each: c256 256 grid points, cmin6 a minimum step of 6 m, cng no step and transmittance growth, ceo early-out 0.001,
+            // cel no leap over empty grid points; cls every lit step marches to the sun (stride 1, no cutoff) with the product's taps.
+            public bool C256, Cmin6, Cng, Ceo, Cel, Cls;
+            // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
+            public int Grid;
         }
 
         private static int Number(string token, int prefix)
@@ -199,6 +204,13 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "ceil") { c.CeilStep = true; c.CeilTaps = true; }   // PUFF ceiling render
                 else if (t == "cstep") c.CeilStep = true;   // PUFF ceiling render: the march's group alone
                 else if (t == "clight") c.CeilTaps = true;   // PUFF ceiling render: the light's group alone
+                else if (t == "c256") c.C256 = true;
+                else if (t.StartsWith("ng") && t.Length > 2) c.Grid = Number(t, 2);
+                else if (t == "cmin6") c.Cmin6 = true;
+                else if (t == "cng") c.Cng = true;
+                else if (t == "ceo") c.Ceo = true;
+                else if (t == "cel") c.Cel = true;
+                else if (t == "cls") c.Cls = true;
                 else if (t.StartsWith("cg") && t.Length > 2) { c.StepGrowth = true; c.GrowthE6 = Number(t, 2); }   // E40 C3
                 else if (t.StartsWith("eo")) c.EarlyOut = Number(t, 2);   // E40 C3
                 else if (t.StartsWith("mn")) c.Moon = Number(t, 2);   // E40 C2
@@ -278,6 +290,21 @@ namespace ReDefinition.WeatherPlayer
                 f.EarlyOut = 0.001f;
                 f.TransmittanceGrowth = 0f;
                 f.EmptyLeap = 1f;
+            }
+            if (c.C256) f.MaxSteps = 256;
+            if (c.Grid > 0) f.MaxSteps = c.Grid;
+            if (c.Cmin6) f.MinStepM = 6f;
+            if (c.Cng)
+            {
+                f.StepGrowth = 0f;
+                f.TransmittanceGrowth = 0f;
+            }
+            if (c.Ceo) f.EarlyOut = 0.001f;
+            if (c.Cel) f.EmptyLeap = 1f;
+            if (c.Cls)
+            {
+                f.LightStride = 1;
+                f.LightCutoff = 0f;
             }
             if (c.CeilTaps)
             {
