@@ -82,11 +82,38 @@ LOOKS = {
     # CLOUDR2 shapes: the types' shape smoothing (1.5 noise scales for mediocris = 375 m, 3 for congestus) is a mip level of the volume, so it removes every head below it; the heap types would
     # not carry it. The same looks with the smoothing 0 at the production march.
     "bns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
+    # CLOUDR3 task 4 (congestus towers): the cavity strength and the rim exponent of the cumulus layer around the bench's (cavity 0.35, edgePower 0.5), on the blended heap look without smoothing
+    "cg_c0": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.0)])), puff.NG96),
+    "cg_c15": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.15)])), puff.NG96),
+    "cg_c70": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.7)])), puff.NG96),
+    "cg_e10": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + [("cloud.edgePower.layer.", 1.0)] + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
+    "cg_e20": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + [("cloud.edgePower.layer.", 2.0)] + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
+    # CLOUDR3 task 3 (warm light): the same look without the pass's distance haze (job far.haze 0), to read the colour of the sun's light on the heads without the blue air between the camera and the cloud
+    "bnh": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), lambda job: job.setdefault("far", {}).__setitem__("haze", 0)), puff.NG96),
     "lns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 2.0)])), puff.NG96),
     "h_nolod": (puff.compose(HEAP, lambda job: job.setdefault("noise", {}).__setitem__("noLod", 1)), puff.NG96),
     "h_ero0": (puff.compose(HEAP, puff.v_ero0), puff.NG96),
 }
-LOOK_SCENES = {"bns": ("m1d6", "m2d6", "m3d6", "c1d11", "c2d11"), "lns": ("m1d6", "m2d6", "m3d6", "c1d11", "c2d11"),"lite1": ("m1d6", "m2d6", "m3d6", "c1d11"), "lite2": ("m1d6", "m2d6", "m3d6", "c1d11"), "lite3": ("m1d6", "m2d6", "m3d6", "c1d11"),"blendb": ("m1d6", "m2d6", "m3d6"), "blendc": ("m1d6", "m2d6", "m3d6", "c1d11"),"h_nocav": ("m1d6", "m2d6"), "h_noedge": ("m1d6", "m2d6"), "h_w0": ("m1d6", "m2d6"), "h_wL": ("m1d6", "m2d6"), "h_nolod": ("m1d6", "m2d6"), "h_ero0": ("m1d6", "m2d6")}
+LOOK_SCENES = {"bnh": ("m1d6", "c1d11"), "cg_c0": ("c1d11", "c2d11"), "cg_c15": ("c1d11", "c2d11"), "cg_c70": ("c1d11", "c2d11"), "cg_e10": ("c1d11", "c2d11"), "cg_e20": ("c1d11", "c2d11"),"bns":("m1d6", "m2d6", "m3d6", "c1d11", "c2d11"), "lns": ("m1d6", "m2d6", "m3d6", "c1d11", "c2d11"),"lite1": ("m1d6", "m2d6", "m3d6", "c1d11"), "lite2": ("m1d6", "m2d6", "m3d6", "c1d11"), "lite3": ("m1d6", "m2d6", "m3d6", "c1d11"),"blendb": ("m1d6", "m2d6", "m3d6"), "blendc": ("m1d6", "m2d6", "m3d6", "c1d11"),"h_nocav": ("m1d6", "m2d6"), "h_noedge": ("m1d6", "m2d6"), "h_w0": ("m1d6", "m2d6"), "h_wL": ("m1d6", "m2d6"), "h_nolod": ("m1d6", "m2d6"), "h_ero0": ("m1d6", "m2d6")}
+
+
+# CLOUDR3 task 2: the real-time options on the blended heap look (cavity 0.35, edgePower 0.5): the march target's size over the frame (r33 .. r100, the reconstruction of the product), the grid
+# points of a span (ng48 is the product's, ng96, ng128), the Catmull-Rom history (chm) and the types' shape smoothing (sm: today's, the others none). One march string per option, so one player
+# start per option. The field view (the game-start view tyhuma with all its layers, the soft-cost scene) is added by prepare() for the same options.
+def rt_option(res, grid, chm=False, smooth=False):
+    heap = puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])
+    march = "seq1+lq2+ng%d+r%d+lp100%s" % (grid, res, "+chm" if chm else "")
+    return (heap if smooth else puff.compose(puff.v_nosmooth, heap)), march
+
+
+RT_OPTIONS = {
+    "rt_r33g48": rt_option(33, 48), "rt_r33g96": rt_option(33, 96), "rt_r33g128": rt_option(33, 128),
+    "rt_r50g96": rt_option(50, 96), "rt_r66g96": rt_option(66, 96), "rt_r100g96": rt_option(100, 96),
+    "rt_r50g128": rt_option(50, 128), "rt_r33g96c": rt_option(33, 96, chm=True), "rt_r50g96c": rt_option(50, 96, chm=True),
+    "rt_r33g96s": rt_option(33, 96, smooth=True), "rt_r50g96s": rt_option(50, 96, smooth=True),
+}
+LOOKS.update(RT_OPTIONS)
+LOOK_SCENES.update({k: ("m1d6", "c1d11") for k in RT_OPTIONS})
 
 
 def unit(v):
@@ -198,6 +225,26 @@ def prepare(source=None, map_width=MAP_W):
             stages[name] = dict(white=base_stage["white"], tint=tint, gamma=base_stage["gamma"], exposure=base_stage.get("exposure", 1.0), view=scene, variant=look, march=march,
                                 scene=scene, type=typ, seed=seed, distance=dist, diameter=diam)
             print("%s: %s seed %d at %.1f km, cell %.1f km, look %s" % (name, "mediocris" if typ == "m" else "congestus", seed, dist, diam, look))
+    # CLOUDR3 task 2: the field view (the game-start view with all its layers, its maps copied from the source) in the real-time options, for the cost series (soft-cost) only
+    import shutil
+    with open(os.path.join(src, "heights.json"), encoding="utf-8") as f:
+        field_spec = next((s for s in json.load(f)["specs"] if s["id"] == SOURCE_JOB), None)
+    prefix = e40pp.view_tag("tyhumg")
+    for fn in os.listdir(src):
+        if fn.startswith(prefix) and not fn.endswith(".json"):
+            shutil.copyfile(os.path.join(src, fn), os.path.join(INPUT, fn))
+    for look in RT_OPTIONS:
+        change, march = LOOKS[look]
+        name = "s_field_%s" % look
+        job = json.loads(json.dumps(base))
+        job["id"] = "gn-%s-prod-f0" % e40pp.view_tag(name)
+        job["width"], job["height"] = SIZE
+        change(job)
+        jobs.append(job)
+        if field_spec is not None:
+            specs.append(dict(field_spec, id=job["id"]))
+        stages[name] = dict(white=base_stage["white"], tint=tint, gamma=base_stage["gamma"], exposure=base_stage.get("exposure", 1.0), view="field", variant=look, march=march,
+                            scene="field", type="m", seed=1, distance=0.0, diameter=0.0, field=True)
     with open(os.path.join(INPUT, "jobs.json"), "w", encoding="utf-8") as f:
         json.dump({"jobs": jobs}, f)
     with open(os.path.join(INPUT, "heights.json"), "w", encoding="utf-8") as f:
@@ -223,7 +270,7 @@ def stage_list():
     by_march = {}
     only = [s for s in os.environ.get("ATMO_SINGLE_LOOKS", "").split(",") if s]   # e.g. h_nocav,h_w0: render only these looks
     for name, st in prepared().items():
-        if only and st["variant"] not in only:
+        if (only and st["variant"] not in only) or st.get("field"):
             continue
         by_march.setdefault(st["march"], []).append(name)
     out = []
@@ -300,7 +347,9 @@ def write_all(out, photo=None):
             Image.fromarray((photo_arr[y:y + CROP_H, x:x + CROP_W] * 255).astype("uint8")).save(os.path.join(out, "crops", "photo-%s.png" % k))
     rows = []
     for name, st in sorted(stages.items()):
-        folder = os.path.join(folder_root, "e40-single-" + label_of(st["march"]))
+        if st.get("field"):
+            continue
+        folder =os.path.join(folder_root, "e40-single-" + label_of(st["march"]))
         case = e40pp.case_file(name, st["march"])
         path = os.path.join(folder, case + ".npy")
         if not os.path.isfile(path):
@@ -385,8 +434,8 @@ register_series("e40-single-aid", aid_stage_list(), collect_aid, exclusive=False
 
 
 # The GPU time of the pass for one cell in several looks (soft-cost scene: march | resolve | composite, median of 40 frames, proxy timestamps; a timing run takes the GPU exclusively).
-COST_LOOKS = ("base", "heap", "blend", "blendb", "lite2", "bns", "lns")
-COST_SCENES = ("m1d6", "c1d11")
+COST_LOOKS = ("base", "heap", "blend", "blendb", "lite2", "bns", "lns") + tuple(RT_OPTIONS)
+COST_SCENES = ("m1d6", "c1d11", "field")
 
 
 def cost_label(march):
@@ -396,7 +445,8 @@ def cost_label(march):
 def cost_stage_list():
     by_march = {}
     for name, st in prepared().items():
-        if st["variant"] in COST_LOOKS and st["scene"] in COST_SCENES:
+        only = [s for s in os.environ.get("ATMO_SINGLE_LOOKS", "").split(",") if s]   # the same filter as the pictures
+        if st["variant"] in COST_LOOKS and st["scene"] in COST_SCENES and (not only or st["variant"] in only):
             by_march.setdefault(st["march"], []).append(name)
     return [Stage(cost_label(march), ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", ",".join(e40pp.view_tag(n) for n in names), "-media", "pr50", "-marches", march,
                                       "-width", str(SIZE[0]), "-height", str(SIZE[1])], size=SIZE, proxy=True, timeout=2400)
