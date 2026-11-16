@@ -29,6 +29,11 @@ namespace ProbeLite
         {
             if (Lite.MenuDone || Lite.Finished) return;
             Lite.MenuDone = true;
+            if (!Lite.MenuLoad)
+            {
+                Lite.Say("main menu reached at " + Lite.F(Time.realtimeSinceStartup) + " s; the scene is loaded by the game's own probe (launch arguments), waiting for the flight");
+                return;
+            }
             StartCoroutine(Lite.Safe(Run(), "menu"));
         }
 

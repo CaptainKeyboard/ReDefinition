@@ -101,6 +101,7 @@ class Base(unittest.TestCase):
         self.seen = {}
 
     def run_variant(self, variant, game=None, running=lambda: False, free=lambda: 40.0, **kw):
+        # (kw: timeout_min, keep_eve, hover_m, flags, extra_args, use_profile)
         def launch(args, timeout):
             self.seen["args"] = args
             self.seen["timeout"] = timeout
@@ -445,11 +446,69 @@ class HoverVariantTests(Base):
         self.assertEqual(vg.component_problems("ours-hover", self.tmp), ["assemblies.txt is missing: what loaded is unknown"])
 
 
+class FlagVariantTests(Base):
+    def test_the_probe_presets_are_the_k_s2_arguments(self):
+        self.assertEqual(vg.FLAG_PRESETS["probe+stay+clouds"], ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"])
+        # the K-S2 start's own line (tests/series/K-S2.json, ground_on): the preset arguments are in it, in the same order
+        path = os.path.join(REPO, "tests", "series", "K-S2.json")
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8") as f:
+                start = [s for s in json.load(f)["starts"] if s["id"] == "ground_on"][0]
+            args = start["probeArgs"]
+            positions = [args.index(a) for a in vg.FLAG_PRESETS["probe+stay+clouds"]]
+            self.assertEqual(positions, sorted(positions))
+            self.assertIn("-atmoSet", args)
+
+    def test_flags_are_passed_to_the_game_and_the_plugin_leaves_the_loading_to_it(self):
+        result = self.run_variant("ours", flags="probe+stay+clouds")
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(self.seen["args"], vg.WINDOW_ARGS + ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"])
+        self.assertIn("menuLoad=0\n", self.seen["config"])
+        self.assertIn("spaceCentre=0\n", self.seen["config"])
+        self.assertIn("variant=ours+probe+stay+clouds\n", self.seen["config"])
+        self.assertTrue(result["pictures"].endswith("ours+probe+stay+clouds"))
+        self.assertEqual(manifest(self.ksp), self.before)
+
+    def test_flags_without_a_probe_argument_leave_the_loading_to_the_plugin(self):
+        self.run_variant("ours", flags="atmoset")
+        self.assertEqual(self.seen["args"], vg.WINDOW_ARGS + ["-atmoSet", "weatherEffects=1,cloudSource=Ours,ownClouds=1"])
+        self.assertIn("menuLoad=1\n", self.seen["config"])
+        self.assertIn("spaceCentre=1\n", self.seen["config"])
+
+    def test_ours_flags_is_ours_with_the_full_preset(self):
+        result = self.run_variant("ours+flags")
+        self.assertTrue(result["pictures"].endswith("ours+probe+stay+clouds"))
+        self.assertTrue(self.seen["redef"] and self.seen["dxgi"])
+
+    def test_custom_flags_need_extra_args_and_extra_args_are_added(self):
+        with self.assertRaises(vg.Refusal):
+            self.run_variant("ours", flags="custom")
+        with self.assertRaises(vg.Refusal):
+            self.run_variant("ours", flags="nonsense")
+        self.run_variant("ours", flags="custom", extra_args=["-atmoSet", "enabled=0"])
+        self.assertEqual(self.seen["args"], vg.WINDOW_ARGS + ["-atmoSet", "enabled=0"])
+        self.assertTrue(os.path.isdir(os.path.join(self.main, *vg.PICTURES_REL, "ours+custom")))
+
+    def test_the_plan_shows_the_flags(self):
+        import argparse
+        out = []
+        original = vg.format_plan
+        try:
+            vg.format_plan = lambda plan: out.append(plan) or "x"
+            vg.cmd_plan(argparse.Namespace(ksp=self.ksp, variant="ours+flags", flags=None, extra_args=None, profile="none", keep_eve=False))
+        finally:
+            vg.format_plan = original
+        self.assertEqual(out[0]["launch_args"], vg.FLAG_PRESETS["probe+stay+clouds"])
+        text = vg.format_plan({"variant": "ours", "ksp": "k", "moves": [], "pins": [], "notes": [], "profile": "none", "launch_args": ["-redefinitionProbe"]})
+        self.assertIn("-redefinitionProbe", text)
+        self.assertIn("waits for the flight", text)
+
+
 class BisectCommandTests(Base):
     def setUp(self):
         super().setUp()
         self.base = os.path.join(self.main, *vg.PICTURES_REL)
-        self.header = "name\tscene\tlow_r\tlow_g\tlow_b\tlow_green\tverdict\n"
+        self.header = "name\tscene\tlow_r\tlow_g\tlow_b\tlow_green\tll_r\tll_g\tll_b\tll_green\thorizon_luma\tground_contrast\tverdict\n"
         self.runs = []
         self.original = (vg.do_run, vg.gpu_lock.main_repo)
         vg.gpu_lock.main_repo = lambda: self.main
@@ -459,20 +518,25 @@ class BisectCommandTests(Base):
     def tearDown(self):
         vg.do_run, vg.gpu_lock.main_repo = self.original
 
-    def put(self, variant, green):
-        write(os.path.join(self.base, variant, "shots", "results.tsv"), self.header + "far_p2\tflight\t90\t100\t80\t%s\tok\nsc_default\tspacecentre\t1\t2\t3\t4\tok\n" % green)
+    def put(self, variant, green, ll=None):
+        box = ("66\t71\t73\t%s" % ll) if ll is not None else "\t\t\t"
+        write(os.path.join(self.base, variant, "shots", "results.tsv"),
+              self.header + "far_p2\tflight\t90\t100\t80\t%s\t%s\t120\t9\tok\nsc_default\tspacecentre\t1\t2\t3\t4\t\t\t\t\t\t\tok\n" % (green, box))
 
-    def fake_run(self, ksp, variant, profile="medium", timeout_min=20, extra_args=None, keep_eve=False, hover_m=None):
+    def fake_run(self, ksp, variant, profile="medium", timeout_min=20, extra_args=None, keep_eve=False, hover_m=None, flags=None):
         label = variant if hover_m is None or variant in vg.HOVER_M else "%s+hover%g" % (variant, hover_m)
+        if flags:
+            label += "+" + flags
+        key = flags or variant
         self.runs.append(label)
-        if variant in self.greens and self.greens[variant] is None:
+        if key in self.greens and self.greens[key] is None:
             return 1, {"pictures": None}
-        self.put(label, self.greens.get(variant, 5.0))
+        self.put(label, self.greens.get(key, 5.0), ll=self.greens.get(key, 5.0) if flags else None)
         return 0, {"pictures": os.path.join(self.base, label)}
 
     def args(self, **kw):
         import argparse
-        d = dict(ksp=self.ksp, profile="medium", keep_eve=False, timeout_min=20, extra_arg=[], variants=None, keep_going=False, hover_m=None)
+        d = dict(ksp=self.ksp, profile="medium", keep_eve=False, timeout_min=20, extra_arg=[], variants=None, keep_going=False, hover_m=None, presets=None)
         d.update(kw)
         return argparse.Namespace(**d)
 
@@ -536,6 +600,39 @@ class BisectCommandTests(Base):
         vg.cmd_bisect(self.args(hover_m=300.0, variants="no-proxy"))
         self.assertEqual(self.runs, ["ours-hover", "no-proxy+hover300"])
         self.assertEqual(vg.cmd_bisect(self.args(hover_m=100.0)), 2)
+
+    def test_flagbisect_stops_at_the_first_preset_whose_ground_is_nearer_to_k_s2(self):
+        # plain ours in the K-S2 box: green 20 (put without a box falls back to the lowest quarter's green); K-S2's capture_ab B: 71.5 - (65.7 + 72.5) / 2 = 2.4
+        self.put("ours", 20.0)
+        self.greens = {"probe": 19.0, "probe+stay": 3.0}
+        self.assertEqual(vg.cmd_flagbisect(self.args()), 0)
+        self.assertEqual(self.runs, ["ours+probe", "ours+probe+stay"])
+
+    def test_flagbisect_keep_going_runs_every_preset_and_skips_failed_runs(self):
+        self.put("ours", 20.0)
+        self.greens = {"probe": None, "probe+stay": 3.0}
+        vg.cmd_flagbisect(self.args(keep_going=True))
+        self.assertEqual(self.runs, ["ours+" + p for p in vg.FLAG_ORDER])
+
+    def test_flagbisect_runs_ours_first_and_refuses_when_ours_is_already_grey(self):
+        self.greens = {"ours": 20.0}
+        vg.cmd_flagbisect(self.args(presets="probe"))
+        self.assertEqual(self.runs, ["ours", "ours+probe"])
+        self.runs = []
+        self.put("ours", 3.0)
+        self.assertEqual(vg.cmd_flagbisect(self.args()), 2)
+        self.assertEqual(self.runs, [])
+        self.assertEqual(vg.cmd_flagbisect(self.args(presets="nonsense")), 2)
+
+    def test_the_table_has_the_k_s2_box_and_the_haze_columns(self):
+        self.put("ours", 20.0, ll=18.5)
+        text = vg.bisect_table(self.main, [])
+        header, row = text.splitlines()[0], text.splitlines()[1]
+        for word in ("K-S2 box", "horizon", "contrast"):
+            self.assertIn(word, header)
+        self.assertIn("66,71,73", row)
+        self.assertIn("18.5", row)
+        self.assertIn("120", row)
 
     def test_the_table_lists_the_hover_runs_in_its_order(self):
         for v, g in (("vanilla", 20.0), ("ours", 5.0), ("ours-hover", 4.0), ("vanilla-hover", 6.0), ("no-proxy+hover300", 5.0)):

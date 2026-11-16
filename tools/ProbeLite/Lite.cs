@@ -19,6 +19,9 @@ namespace ProbeLite
         internal static string Variant = "vanilla";
         internal static string SaveFolder = "ReDefinitionProbe";
         internal static double Ut = 1470283.6;
+        // Whether ProbeLite loads the save and the scene itself. Off where the launch arguments make the game's own probe do it (-redefinitionProbe: ReDefinition's scene
+        // launcher loads the probe save and starts the flight of the pad vessel from the main menu); ProbeLite then waits for the flight.
+        internal static bool MenuLoad = true;
         internal static bool SpaceCentre = true;
         internal static bool Flight = true;
         internal static double WatchdogS = 17 * 60;
@@ -94,6 +97,7 @@ namespace ProbeLite
                     case "spaceCentre": SpaceCentre = value == "1" || value == "true"; break;
                     case "flight": Flight = value == "1" || value == "true"; break;
                     case "watchdogS": if (isNumber) WatchdogS = d; break;
+                    case "menuLoad": MenuLoad = value == "1" || value == "true"; break;
                     case "hoverFarM": if (isNumber) Hover.FarAglM = d; break;
                     case "padLat": if (isNumber) PadLat = d; break;
                     case "padLon": if (isNumber) PadLon = d; break;

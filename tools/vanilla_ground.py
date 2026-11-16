@@ -5,6 +5,8 @@ once with ours in place, taken by the same small plugin (tools/ProbeLite) at the
   python tools/vanilla_ground.py plan    --variant vanilla|vanilla-original|ours [--ksp <KSP folder>]
   python tools/vanilla_ground.py run     --variant vanilla|vanilla-original|ours [--ksp <KSP folder>] [--profile medium|none] [--keep-eve] [--timeout-min N] [--extra-arg A ...]
   python tools/vanilla_ground.py bisect  [--variants a,b,..] [--keep-going]   (runs the variants that remove ONE component of ours, likeliest first)
+  python tools/vanilla_ground.py flagbisect [--presets probe,probe+stay,...] [--keep-going]   (ours + K-S2's launch arguments one preset after the other)
+  python tools/vanilla_ground.py run --variant ours+flags [--flags probe+stay+clouds] [--extra-args "-atmoSet enabled=0"]
   python tools/vanilla_ground.py restore [--ksp <KSP folder>]
   python tools/vanilla_ground.py compare [--vanilla vanilla|vanilla-original]
   python tools/vanilla_ground.py table                                          (every run's far_p2 ground: ours, ours-hover, vanilla, vanilla-hover, ...)
@@ -38,6 +40,7 @@ import glob
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -114,7 +117,23 @@ VANILLA_VARIANTS = ("vanilla", "vanilla-original", "vanilla-hover")
 BISECT_VARIANTS = ("no-proxy", "no-atmo", "no-main", "no-patches", "settings-original", "other-mod-files")
 # The height the vessel is held at for the far poses, by variant (metres over the ground; no entry = the vessel stays on the pad).
 HOVER_M = {"ours-hover": 300.0, "vanilla-hover": 300.0, "ours-hover-lowfly": 60.0}
-VARIANTS = VANILLA_VARIANTS + ("ours",) + BISECT_VARIANTS + ("ours-hover", "ours-hover-lowfly")
+VARIANTS = VANILLA_VARIANTS + ("ours",) + BISECT_VARIANTS + ("ours-hover", "ours-hover-lowfly", "ours+flags")
+# Launch arguments of a K-S2 start (the 'Args: KSP_x64.exe ...' line of its KSP.log: -popupwindow -atmoSeries K-S2 -atmoStart ground_on -redefinitionProbe
+# -redefinitionProbeStay -redefinitionProbeClouds -screen-width 2560 -screen-height 1440 -screen-fullscreen 0 -atmoProbe SurfaceGroundProbe -atmoSet
+# weatherEffects=1,cloudSource=Ours,ownClouds=1; tests/series/K-S2.json). The window's are always passed. -atmoSeries/-atmoStart/-atmoProbe are not in a preset: they start
+# K-S2's own probe, which would drive the scene and the camera against ProbeLite; --extra-args passes them anyway. -redefinitionProbe alone is not the stay mode: ReDefinition's
+# probe then measures a camera path and quits the game when it is done, possibly before ProbeLite's last picture (the pictures taken are kept).
+FLAG_PRESETS = {
+    "probe": ["-redefinitionProbe"],
+    "probe+stay": ["-redefinitionProbe", "-redefinitionProbeStay"],
+    "probe+stay+clouds": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"],
+    "atmoset": ["-atmoSet", "weatherEffects=1,cloudSource=Ours,ownClouds=1"],
+    "probe+stay+clouds+atmoset": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoSet", "weatherEffects=1,cloudSource=Ours,ownClouds=1"],
+}
+# The order `flagbisect` adds the flags in.
+FLAG_ORDER = ("probe", "probe+stay", "probe+stay+clouds", "probe+stay+clouds+atmoset")
+# The K-S2 ground of capture_ab (B, the camera alone, the lower-left box): mean r,g,b as the coordinator read them from the screen picture.
+KS2_GROUND_RGB = (65.7, 71.5, 72.5)
 # The runs the table lists first, in this order.
 TABLE_ORDER = ("ours", "ours-hover", "ours-hover-lowfly", "vanilla", "vanilla-hover", "vanilla-original")
 # The order `bisect` tries them in (the likeliest first): the settings ReDefinition wrote into the game's own settings, the proxy, the patches, Atmospheres, Main, the others' files.
@@ -426,9 +445,9 @@ def pins_for(ksp, variant):
     return pins
 
 
-def build_plan(ksp, variant, profile_cache, use_profile, keep_eve=False):
+def build_plan(ksp, variant, profile_cache, use_profile, keep_eve=False, launch_args=None):
     """The whole plan as plain data (also what `plan` prints and what the tests read)."""
-    plan = {"variant": variant, "ksp": ksp, "moves": [], "pins": [], "launch": None, "notes": []}
+    plan = {"variant": variant, "ksp": ksp, "moves": [], "pins": [], "launch": None, "notes": [], "launch_args": list(launch_args or [])}
     for rel, kind in aside_items(ksp, variant, keep_eve):
         path = join(ksp, rel)
         size = os.path.getsize(path) if kind == "file" else sum(os.path.getsize(join(path, f)) for f in series.tree_files(path))
@@ -468,7 +487,9 @@ def format_plan(plan):
         lines.append("pinned in %s: %s" % (pin["file"], ", ".join("%s = %s" % kv for kv in pin["set"].items())))
     lines.append("profile: %s" % plan["profile"])
     lines.append("plugin: %s in %s, no ReDefinition assembly referenced" % ("ProbeLite.dll", LITE_FOLDER))
-    lines.append("launch: KSP_x64.exe %s" % " ".join(WINDOW_ARGS))
+    lines.append("launch: KSP_x64.exe %s" % " ".join(WINDOW_ARGS + plan.get("launch_args", [])))
+    if any(a.lower().startswith("-redefinitionprobe") for a in plan.get("launch_args", [])):
+        lines.append("the game's own probe loads the scene (ReDefinition's scene launcher); ProbeLite waits for the flight and takes the flight pictures only")
     lines += ["note: " + n for n in plan["notes"]]
     return "\n".join(lines)
 
@@ -709,12 +730,22 @@ def build_probelite(repo, ksp, dotnet):
 class Run:
     """One run of one variant. The hooks stand in for the game, the build, the lock and the memory in the tests."""
 
-    def __init__(self, ksp, variant, repo=DEFAULT_REPO, mainrepo=None, hooks=None, log=say, use_profile=True, timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False, hover_m=None):
+    def __init__(self, ksp, variant, repo=DEFAULT_REPO, mainrepo=None, hooks=None, log=say, use_profile=True, timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False, hover_m=None, flags=None):
         self.ksp = ksp
+        # 'ours+flags' is ours launched with K-S2's arguments (the preset probe+stay+clouds unless flags names another).
+        if variant == "ours+flags":
+            variant, flags = "ours", flags or "probe+stay+clouds"
+        if flags is not None and flags not in FLAG_PRESETS and flags != "custom":
+            raise Refusal("flags is one of: %s, custom (with --extra-args)" % ", ".join(FLAG_PRESETS))
+        self.flags = flags
         self.variant = variant
         # The far poses' vessel height: the variant's own (the hover variants) or hover_m, which lifts any other variant's vessel too (its folder then ends in +hover<m>).
         self.hover_m = HOVER_M.get(variant, 0.0) if hover_m is None else float(hover_m)
         self.label = variant if (hover_m is None or variant in HOVER_M or not self.hover_m) else "%s+hover%g" % (variant, self.hover_m)
+        if flags:
+            self.label += "+" + flags
+        if flags == "custom" and not extra_args:
+            raise Refusal("flags custom needs --extra-args")
         self.repo = repo
         self.mainrepo = mainrepo or gpu_lock.main_repo()
         self.log = log
@@ -730,6 +761,10 @@ class Run:
         self.profile_cache = h.get("profile_cache", os.path.join(self.mainrepo, *series.PROFILE_CACHE_REL))
         self.timeout_s = min(timeout_min, MAX_MINUTES) * 60
         self.extra_args = list(extra_args or [])
+        # The game's launch arguments after the window's: the preset's, then the extra ones. A -redefinitionProbe* argument makes ReDefinition's own scene launcher load the
+        # probe save and start the flight from the main menu; ProbeLite then leaves the loading to it (menuLoad=0, no space centre pictures).
+        self.launch_args = list(FLAG_PRESETS.get(flags, [])) + self.extra_args
+        self.game_loads = any(a.lower().startswith("-redefinitionprobe") for a in self.launch_args)
         self.stamp = time.strftime("%Y%m%d-%H%M%S")
 
     def refuse_checks(self):
@@ -825,12 +860,13 @@ class Run:
             os.makedirs(join(self.ksp, LITE_FOLDER + "/PluginData"), exist_ok=True)
             shutil.copy2(dll, join(self.ksp, LITE_FOLDER + "/ProbeLite.dll"))
             with open(join(self.ksp, LITE_FOLDER + "/PluginData/config.txt"), "w", encoding="utf-8") as f:
-                f.write("variant=%s\nsaveFolder=%s\nspaceCentre=1\nflight=1\nwatchdogS=%d\nhoverFarM=%g\n" % (self.label, SAVE_FOLDER, self.timeout_s - 90, self.hover_m))
+                f.write("variant=%s\nsaveFolder=%s\nmenuLoad=%d\nspaceCentre=%d\nflight=1\nwatchdogS=%d\nhoverFarM=%g\n"
+                        % (self.label, SAVE_FOLDER, 0 if self.game_loads else 1, 0 if self.game_loads else 1, self.timeout_s - 90, self.hover_m))
             if os.path.isfile(ksp_log):
                 os.remove(ksp_log)
             t0 = time.time()
             self.log("launch: KSP up to %d s; the plugin quits the game when its last picture is written" % self.timeout_s)
-            how, code = self.launch(WINDOW_ARGS + self.extra_args, self.timeout_s)
+            how, code = self.launch(WINDOW_ARGS + self.launch_args, self.timeout_s)
             self.log("launch: %s (exit %s) after %.0f s" % (how, code, time.time() - t0))
             result["how"] = how
             result["done"] = read_done(self.ksp)
@@ -973,7 +1009,7 @@ def is_green_again(value, vanilla, ours):
 def bisect_table(mainrepo, variants):
     """'variant | far_p2 ground mean rgb | green | sc_default ground mean rgb' for every variant that has results, vanilla and ours first."""
     base = os.path.join(mainrepo, *PICTURES_REL)
-    out = ["%-18s %-26s %-8s %-26s %s" % ("variant", "far_p2 ground mean r,g,b", "green", "sc_default ground r,g,b", "verdicts")]
+    out = ["%-30s %-22s %-7s %-22s %-7s %-8s %-9s %-22s %s" % ("variant", "far_p2 lowest quarter", "green", "far_p2 K-S2 box (LL)", "green", "horizon", "contrast", "sc_default lowest qtr", "verdicts")]
     seen = set()
     for v in list(TABLE_ORDER) + list(variants):
         if v in seen:
@@ -983,8 +1019,11 @@ def bisect_table(mainrepo, variants):
         far, sc = ground_row(folder), ground_row(folder, SECOND_PICTURE)
         if far is None and sc is None:
             continue
-        fmt = lambda r: "%s,%s,%s" % (r["low_r"], r["low_g"], r["low_b"]) if r else "-"
-        out.append("%-18s %-26s %-8s %-26s %s" % (v, fmt(far), far["low_green"] if far else "-", fmt(sc), (far or {}).get("verdict", "")))
+        low = lambda r: "%s,%s,%s" % (r["low_r"], r["low_g"], r["low_b"]) if r else "-"
+        box = lambda r: "%s,%s,%s" % (r["ll_r"], r["ll_g"], r["ll_b"]) if r and r.get("ll_r") else "-"
+        out.append("%-30s %-22s %-7s %-22s %-7s %-8s %-9s %-22s %s" % (
+            v, low(far), far["low_green"] if far else "-", box(far), far.get("ll_green", "-") if far else "-", far.get("horizon_luma", "-") if far else "-",
+            far.get("ground_contrast", "-") if far else "-", low(sc), (far or {}).get("verdict", "")))
     return "\n".join(out)
 
 
@@ -993,13 +1032,23 @@ def bisect_table(mainrepo, variants):
 def cmd_plan(args):
     ksp = args.ksp or DEFAULT_KSP
     mainrepo = gpu_lock.main_repo()
-    print(format_plan(build_plan(ksp, args.variant, os.path.join(mainrepo, *series.PROFILE_CACHE_REL), args.profile != "none", args.keep_eve)))
+    flags = args.flags or ("probe+stay+clouds" if args.variant == "ours+flags" else None)
+    extra = shlex.split(args.extra_args or "")
+    if flags == "custom" or (flags is None and extra):
+        flags = flags or "custom"
+    launch = list(FLAG_PRESETS.get(flags, [])) + extra
+    print(format_plan(build_plan(ksp, "ours" if args.variant == "ours+flags" else args.variant, os.path.join(mainrepo, *series.PROFILE_CACHE_REL),
+                                 args.profile != "none", args.keep_eve, launch)))
     return 0
 
 
-def do_run(ksp, variant, profile="medium", timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False, hover_m=None):
+def do_run(ksp, variant, profile="medium", timeout_min=MAX_MINUTES, extra_args=None, keep_eve=False, hover_m=None, flags=None):
     """One run with its report printed. Returns (exit code, result or None): 0 clean, 3 pictures taken with warnings, 1 failed, 2 refused."""
-    run = Run(ksp, variant, use_profile=profile != "none", timeout_min=timeout_min, extra_args=extra_args, keep_eve=keep_eve, hover_m=hover_m)
+    try:
+        run = Run(ksp, variant, use_profile=profile != "none", timeout_min=timeout_min, extra_args=extra_args, keep_eve=keep_eve, hover_m=hover_m, flags=flags)
+    except Refusal as e:
+        print("REFUSED: %s" % e)
+        return 2, None
     try:
         result = run.execute()
     except Refusal as e:
@@ -1026,7 +1075,9 @@ def do_run(ksp, variant, profile="medium", timeout_min=MAX_MINUTES, extra_args=N
 
 
 def cmd_run(args):
-    return do_run(args.ksp or DEFAULT_KSP, args.variant, args.profile, args.timeout_min, args.extra_arg, args.keep_eve, args.hover_m)[0]
+    extra = list(args.extra_arg or []) + shlex.split(args.extra_args or "")
+    flags = args.flags or ("custom" if args.extra_args else None)
+    return do_run(args.ksp or DEFAULT_KSP, args.variant, args.profile, args.timeout_min, extra, args.keep_eve, args.hover_m, flags)[0]
 
 
 def cmd_table(args):
@@ -1092,6 +1143,70 @@ def cmd_bisect(args):
     return 0
 
 
+def ll_green(row):
+    """The green over grey of the K-S2 box (lower-left) of a results row; the lowest quarter's where the run has no such column."""
+    if row is None:
+        return float("nan")
+    return float(row.get("ll_green") or row["low_green"])
+
+
+def ks2_green():
+    r, g, b = KS2_GROUND_RGB
+    return g - 0.5 * (r + b)
+
+
+def cmd_flagbisect(args):
+    """Runs ours with K-S2's launch arguments added one preset after the other (probe, probe+stay, probe+stay+clouds, ...) and stops at the first whose far_p2 ground in the
+    K-S2 box (lower-left) is nearer to the K-S2 grey (capture_ab B, KS2_GROUND_RGB) than to plain ours. Prints the table with the haze columns. Needs the results of `ours`
+    (it is run first where it has none). A run that fails (the game's own probe may quit the game before ProbeLite's last picture) is reported and the list goes on."""
+    ksp = args.ksp or DEFAULT_KSP
+    mainrepo = gpu_lock.main_repo()
+    base = os.path.join(mainrepo, *PICTURES_REL)
+    order = [v.strip() for v in args.presets.split(",")] if args.presets else list(FLAG_ORDER)
+    unknown = [v for v in order if v not in FLAG_PRESETS]
+    if unknown:
+        print("REFUSED: not a flag preset: %s (one of %s)" % (", ".join(unknown), ", ".join(FLAG_PRESETS)))
+        return 2
+    if ground_row(os.path.join(base, "ours")) is None:
+        print("flagbisect: no results of ours yet; running it first")
+        code, _result = do_run(ksp, "ours", args.profile, args.timeout_min, [], args.keep_eve)
+        if code in (1, 2):
+            return code
+    ours = ll_green(ground_row(os.path.join(base, "ours")))
+    grey = ks2_green()
+    if abs(ours - grey) < 2.0:
+        print("REFUSED: plain ours (K-S2 box green %.1f) is as grey as K-S2's capture_ab B (green %.1f); there is nothing to bisect" % (ours, grey))
+        return 2
+    print("flagbisect: %s K-S2-box green: ours %.1f, K-S2 capture_ab B %.1f; a run is 'grey' when it is nearer to K-S2" % (GROUND_PICTURE, ours, grey))
+    found, labels = None, []
+    for flags in order:
+        print("\n===== flagbisect: ours + %s =====" % flags)
+        code, result = do_run(ksp, "ours", args.profile, args.timeout_min, [], args.keep_eve, None, flags)
+        if code == 2:
+            print("flagbisect: stopped, refused")
+            return 2
+        labels.append("ours+" + flags)
+        row = ground_row(result["pictures"]) if result and result.get("pictures") else None
+        if row is None:
+            print("flagbisect: ours+%s took no %s picture (exit %s)" % (flags, GROUND_PICTURE, code))
+            continue
+        value = ll_green(row)
+        is_grey = is_green_again(value, grey, ours)
+        print("flagbisect: ours+%s: K-S2-box green %.1f, horizon strip luma %s, ground contrast %s -> %s" % (
+            flags, value, row.get("horizon_luma", "-"), row.get("ground_contrast", "-"), "GREY (like K-S2)" if is_grey else "still green like ours"))
+        if is_grey and found is None:
+            found = flags
+            if not args.keep_going:
+                break
+    print("\n" + bisect_table(mainrepo, labels))
+    print("K-S2 capture_ab B (lower-left, as the coordinator read it): mean r,g,b %s, green %.1f" % (", ".join("%g" % v for v in KS2_GROUND_RGB), grey))
+    if found:
+        print("FLAGBISECT: the launch arguments of preset %s turn the ground grey" % found)
+    else:
+        print("FLAGBISECT: no preset turned the ground grey")
+    return 0
+
+
 def cmd_restore(args):
     ksp = args.ksp or DEFAULT_KSP
     problems = restore(ksp, gpu_lock.main_repo(), series.ksp_running_tasklist)
@@ -1107,18 +1222,25 @@ def cmd_compare(args):
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="command", required=True)
-    for name, fn in (("plan", cmd_plan), ("run", cmd_run), ("bisect", cmd_bisect), ("restore", cmd_restore), ("compare", cmd_compare), ("table", cmd_table)):
+    for name, fn in (("plan", cmd_plan), ("run", cmd_run), ("bisect", cmd_bisect), ("flagbisect", cmd_flagbisect), ("restore", cmd_restore), ("compare", cmd_compare), ("table", cmd_table)):
         s = sub.add_parser(name)
         s.set_defaults(fn=fn)
-        if name in ("plan", "run", "bisect", "restore"):
+        if name in ("plan", "run", "bisect", "flagbisect", "restore"):
             s.add_argument("--ksp")
         if name in ("plan", "run"):
             s.add_argument("--variant", choices=list(VARIANTS), required=True)
-        if name in ("plan", "run", "bisect"):
+            s.add_argument("--flags", choices=list(FLAG_PRESETS) + ["custom"], default=None,
+                           help="launch arguments of a K-S2 start (presets: %s); ours+flags defaults to probe+stay+clouds" % ", ".join(FLAG_PRESETS))
+            s.add_argument("--extra-args", default=None, help='further launch arguments as one string, e.g. "-atmoSet enabled=0" (alone: flags custom)')
+        if name in ("plan", "run", "bisect", "flagbisect"):
             s.add_argument("--profile", choices=["medium", "none"], default="medium")
             s.add_argument("--keep-eve", action="store_true", help="leave EnvironmentalVisualEnhancements in (K-S2's starts remove it)")
         if name == "compare":
             s.add_argument("--vanilla", choices=["vanilla", "vanilla-original"], default="vanilla")
+        if name == "flagbisect":
+            s.add_argument("--presets", help="comma list of flag presets, in this order (default: %s)" % ",".join(FLAG_ORDER))
+            s.add_argument("--keep-going", action="store_true", help="run every preset even after one turned the ground grey")
+            s.add_argument("--timeout-min", type=float, default=MAX_MINUTES)
         if name in ("run", "bisect"):
             s.add_argument("--hover-m", type=float, default=None, help="hold the vessel this many metres over the pad for the far poses (the hover variants have their own height)")
             s.add_argument("--timeout-min", type=float, default=MAX_MINUTES)

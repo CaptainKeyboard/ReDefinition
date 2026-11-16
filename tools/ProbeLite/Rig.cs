@@ -107,6 +107,21 @@ namespace ProbeLite
             return true;
         }
 
+        // Where the horizon stands in the picture, as a fraction of the height from the top: the sea-level horizon's dip below the camera's level (acos(R / (R + altitude))) and
+        // the camera's own elevation against its vertical field of view. NaN where the camera cannot be read or the horizon is outside the picture.
+        internal static double HorizonFromTop()
+        {
+            double az, el, agl, alt;
+            Vector3d pos;
+            Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+            CelestialBody body = Home();
+            if (cam == null || body == null || !ReadBack(out az, out el, out agl, out alt, out pos)) return double.NaN;
+            double dip = Math.Acos(body.Radius / (body.Radius + Math.Max(0.0, alt)));
+            double angle = dip + el * Math.PI / 180.0;
+            double y = 0.5 + 0.5 * Math.Tan(angle) / Math.Tan(cam.fieldOfView * 0.5 * Math.PI / 180.0);
+            return y > 0.05 && y < 0.95 ? y : double.NaN;
+        }
+
         // The first collider (not a vessel part) under a point: a ray straight down from RayUpM above it.
         internal static GroundReading RayDown(Vector3d from)
         {
