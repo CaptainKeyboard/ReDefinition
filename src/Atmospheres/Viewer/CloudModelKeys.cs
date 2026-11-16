@@ -57,6 +57,14 @@ namespace ReDefinition.Atmospheres.Viewer
                 "experimental: distance in m up to which the thin steps are taken, 0 everywhere (the reader clamps to 1e7; the slider stops at 20000)", KeyLiveness.FrameHistory,
                 KeyMarker.Live, 0f, 20000f);
 
+            // OPT1: the map pipeline. cloud.mapGpuSlew is read when the map store is made (OwnCloudModule.cs:642, a stack build) and when a fetch round starts (:769, a change
+            // switches the mode at the next round); cloud.mapWorker is read when each steady-state round starts (:789), so a change acts within about a second.
+            r.Flag(OwnCloudModule.TuneMapGpuSlew, true, KeySection.Quality,
+                "the cloud maps move toward the weather's new maps on the GPU (one upload per new map) instead of a step and an upload of every map on the CPU every frame",
+                KeyLiveness.Second);
+            r.Flag(OwnCloudModule.TuneMapWorker, true, KeySection.Quality,
+                "the preparation of the cloud maps (deck rule, meso stage, anvils) runs on a worker thread instead of the main thread", KeyLiveness.Second);
+
             // CLOUDR3 P7: read every frame (OwnCloudOptions.Apply(ReconSettings) -> LayerReconstructor, _ReconK.w).
             r.Flag(OwnCloudOptions.TuneCatmull, OwnCloudOptions.CatmullDefault, KeySection.Quality,
                 "the reconstruction reads its history with a Catmull-Rom filter instead of the bilinear one (less blur from sub-pixel moves, bounded by the variance clip)", KeyLiveness.FrameHistory);
