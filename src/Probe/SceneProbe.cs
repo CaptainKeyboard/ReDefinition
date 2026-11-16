@@ -61,6 +61,9 @@ namespace ReDefinition.Probe
         // SceneProbeReturn at the space centre.
         internal const string ViaSpaceCentreArgument = "-redefinitionProbeViaSpaceCentre";
         internal static bool ViaPending;
+        // How long the probe stays at the space centre before it flies the pad vessel, in real seconds, and the switch that changes it.
+        internal const string ViaSpaceCentreSecondsArgument = "-redefinitionProbeViaSpaceCentreSeconds";
+        internal const float ViaSpaceCentreDwellSeconds = 45f;
         // -redefinitionProbeCoast, with it: the capsule off the island airfield's shore.
         internal const string CoastArgument = "-redefinitionProbeCoast";
         // -redefinitionProbeGrass: a capsule on a field of Parallax's grass, kilometres from the
@@ -436,7 +439,10 @@ namespace ReDefinition.Probe
                     control = FindObjectOfType<SpaceCenterCamera2>();
                     if (control == null) yield return null;
                 }
-                yield return new WaitForSecondsRealtime(2f);
+                // Every run that gave the green ground (tools/ProbeLite) stayed 45 to 55 s at the space centre; a shorter stay is not known to give it.
+                // -redefinitionProbeViaSpaceCentreSeconds sets it.
+                float dwell = Mathf.Max(2f, CommandLine.Float(SceneProbe.ViaSpaceCentreSecondsArgument, SceneProbe.ViaSpaceCentreDwellSeconds, true));
+                yield return new WaitForSecondsRealtime(dwell);
                 Game pad = HighLogic.CurrentGame;
                 int padIndex = pad != null ? pad.flightState.protoVessels.FindIndex(v => v.situation == Vessel.Situations.PRELAUNCH) : -1;
                 if (padIndex < 0)

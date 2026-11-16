@@ -43,8 +43,9 @@ namespace ReDefinition.Atmospheres
             b = sb / n;
         }
 
-        // How far the ground leans to green over grey, as tools/vanilla_ground.py measures it (its 'low_green'): the lower-left box of the picture (x 0 to 33 percent, the bottom 15
-        // percent), the mean of G - (R + B) / 2 in 0 to 255 units. Through the space centre the KSC ground reads about +11 there, straight from the main menu about +4.
+        // How far the ground leans to green over grey: the lower-left box of the picture (x 0 to 33 percent, the bottom 15 percent), the mean of G - (R + B) / 2 in 0 to 255 units
+        // (the 'G - (R + B) / 2' of tools/vanilla_ground.py's low_green, taken over this box instead of the lowest quarter). Through the space centre the KSC ground reads about +15
+        // there, straight from the main menu about +4.
         internal const double GreenXMax = 0.33, GreenYMax = 0.15;
 
         internal static double GreenShare(Color32[] pixels, int width, int height)

@@ -55,9 +55,11 @@ namespace ReDefinition.Atmospheres
         // least 30 s, and so does B. A settle that ends at maxS has not settled: the log says so.
         internal const double SettleMinS = 6.0, SettleMaxS = 30.0, FirstSettleMinS = 30.0, FirstSettleMaxS = 90.0, SettleLumaStep = 0.6, GrabWaitS = 10.0, CaptureDifferenceMax = 4.0;
         internal const double AimToleranceFarDeg = 2.0, UiLumaFloor = 5.0;
-        // The green share (mean G - (R + B) / 2, lower left) the far_p2 picture has to reach: the ground of a flight reached through the space centre reads about +11 (87.7/98.9/87.8),
-        // the one straight from the main menu about +2 to +4 (77.6/86.4/90.4); the middle of the two.
-        internal const double GroundGreenMin = 7.0;
+        // The green share (mean G - (R + B) / 2 over the lower-left box, x 0-33 %, bottom 15 %) the far_p2 picture has to reach. Measured on the pictures of 2026-11-16 in that box:
+        // the ground of a flight reached through the space centre reads +15.5 (far_p2, tools/ProbeLite) and +17.2 (far_p1), the one straight from the main menu +3.7 (K-S2's far_p2) and
+        // +5.1 (far_p1); the viewer's picture is about 14 % darker than a screen read, which scales the green side down to about +13. The middle of the two, rounded down: 9.
+        // (tools/vanilla_ground.py's low_green is another box, the lowest quarter over the whole width: +11.1 and +2.4.)
+        internal const double GroundGreenMin = 9.0;
 
         internal struct Frame
         {

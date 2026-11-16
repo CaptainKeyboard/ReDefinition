@@ -483,7 +483,7 @@ def pf_product_switches(repo, ksp, defn, st):
 
 # The probe switches that make the launcher take the straight path although the space centre was asked for (src/Probe/SceneProbe.cs: not 'plain').
 DIRECT_ONLY_SWITCHES = ("-redefinitionProbeSea", "-redefinitionProbeGrass", "-redefinitionProbeVessel", "-redefinitionProbeBody", "-redefinitionProbeLaunch",
-                        "-redefinitionProbeScenario", "-redefinitionProbeSpaceCentre")
+                        "-redefinitionProbeScenario", "-redefinitionProbeSpaceCentre", "-redefinitionProbeLand", "-redefinitionProbeOrbit")
 SCENE_PATH_FINDING = ("the KSC ground renders green when the flight is reached through the space centre (lower-left mean 87.7/98.9/87.8, with and without our mod) and grey-blue "
                       "when the save loads straight into the flight (77.6/86.4/90.4; tools/vanilla_ground.py, 2026-11-16)")
 

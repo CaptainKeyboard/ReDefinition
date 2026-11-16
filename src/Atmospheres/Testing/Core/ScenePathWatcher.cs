@@ -16,7 +16,8 @@ namespace ReDefinition.Atmospheres
 
         private void Awake()
         {
-            if (!CommandLine.Has("-atmoSeries", true))
+            // The main mod is required (every add-on of the Atmospheres asks the gate, as CloudViewerAddon does); only a series run needs the watcher.
+            if (!HostGate.Open || !CommandLine.Has("-atmoSeries", true))
             {
                 Destroy(this);
                 return;
