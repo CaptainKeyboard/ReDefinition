@@ -64,7 +64,7 @@ Shader "ReDefinition/AtmospheresLayers"
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
-        float4 _FirstHitP;   // CLOUDR1 P6: x the bisection iterations on the entered span (0: off, the march is as it was), y the first steps inside as a share of the grid step, z how fast they grow with the lost transmittance (full step at 1 / z of opacity)
+        float4 _FirstHitP;   // CLOUDR1 P6: x the bisection iterations on the entered span (0: off, the march is as it was), y the thin steps inside as a share of the grid step, z how many of them follow the entry (the outer shell), w the distance in m up to which they are taken (0: everywhere)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
@@ -466,7 +466,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 // bracket (the same call, no second copy of the density in the shader), keeps the half that holds the entry, and after _FirstHitP.x evaluations goes back to the dense end
                 // and shades from there. The steps right inside are thin (_FirstHitP.y of the grid step) and grow with the lost transmittance, so the rim is resolved where the eye sees it.
                 bool prevDense = false, bisecting = false;
-                float bLo = 0.0, bHi = 0.0, bIter = 0.0;
+                float bLo = 0.0, bHi = 0.0, bIter = 0.0, shell = 0.0;
                 [loop] for (int i = 0; i < 512; i++)
                 {
                     if (t >= tEnd) break;
@@ -489,7 +489,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         if (dens > 0) bHi = t; else bLo = t;
                         bIter += 1.0;
                         if (bIter < _FirstHitP.x) t = 0.5 * (bLo + bHi);
-                        else { bisecting = false; t = bHi; prevDense = true; }
+                        else { bisecting = false; t = bHi; prevDense = true; shell = _FirstHitP.z; }
                         continue;
                     }
                     if (dens <= 0)
@@ -528,7 +528,12 @@ Shader "ReDefinition/AtmospheresLayers"
                     // COST (T05): inside a cloud the step grows with what the ray has already lost (_CostP.w): a ray that is nearly opaque
                     // needs no fine sampling of what lies behind. The sample stands for its whole step, so the optical depth uses it.
                     float thinScale = 1.0;
-                    [branch] if (_FirstHitP.x > 0.5) thinScale = lerp(_FirstHitP.y, 1.0, saturate((1.0 - T) * _FirstHitP.z));   // CLOUDR1 P6: thin steps at the rim
+                    // CLOUDR1 P6: the outer shell, the thin steps after the entry; they stop where the ray has lost its light or the near distance ends, then the grid step takes over.
+                    [branch] if (_FirstHitP.x > 0.5 && shell > 0.5 && (_FirstHitP.w <= 0.0 || t < _FirstHitP.w))
+                    {
+                        thinScale = _FirstHitP.y;
+                        shell -= 1.0;
+                    }
                     float dts = min(dtv * thinScale * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dtv * thinScale));
                     t += dts;
                     if (r.first < 0) r.first = t - dts;

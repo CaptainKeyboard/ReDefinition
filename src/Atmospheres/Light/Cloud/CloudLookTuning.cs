@@ -249,11 +249,13 @@ namespace ReDefinition.Atmospheres
         // --- CLOUDR1 P6: the first hit of the march by bisection (default off). ---
         //   cloud.firstHit        evaluations of the bisection on the span a ray enters (0: off, the march is as it was; 3 is the default of the experiments)
         //   cloud.firstHit.thin   the steps right inside the cloud as a share of the grid step (0.25)
-        //   cloud.firstHit.grow   they grow to the grid step as the ray loses transmittance: full at 1 / this of opacity (4)
-        internal const string TuneFirstHit = "cloud.firstHit", TuneFirstHitThin = "cloud.firstHit.thin", TuneFirstHitGrow = "cloud.firstHit.grow";
+        //   cloud.firstHit.shell  how many thin steps follow the entry, the outer shell of the cloud (32), then the grid step again
+        //   cloud.firstHit.near   the distance in m up to which the thin steps are taken (0: everywhere)
+        internal const string TuneFirstHit = "cloud.firstHit", TuneFirstHitThin = "cloud.firstHit.thin", TuneFirstHitShell = "cloud.firstHit.shell", TuneFirstHitNear = "cloud.firstHit.near";
         internal static float FirstHitIterations { get { float v = Clean(Tuning.Get(TuneFirstHit, 0f), 0f, 0f, 8f); return (float)Math.Round(v); } }
         internal static float FirstHitThin { get { return Clean(Tuning.Get(TuneFirstHitThin, 0.25f), 0.25f, 0.02f, 1f); } }
-        internal static float FirstHitGrow { get { return Clean(Tuning.Get(TuneFirstHitGrow, 4f), 4f, 0.1f, 50f); } }
+        internal static float FirstHitShell { get { return (float)Math.Round(Clean(Tuning.Get(TuneFirstHitShell, 32f), 32f, 0f, 512f)); } }
+        internal static float FirstHitNear { get { return Clean(Tuning.Get(TuneFirstHitNear, 0f), 0f, 0f, 1e7f); } }
 
         // The same per layer (the layer's name after the prefix): the layer's own value wins over the global key, so a look can be tried on one layer (the cumulus layer) and the decks stay as they were.
         internal const string TuneHeapLayer = "cloud.heap.layer.", TuneEdgePowerLayer = "cloud.edgePower.layer.", TuneCavityLayer = "cloud.cavity.layer.";

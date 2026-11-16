@@ -137,7 +137,8 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneHeapDetail, 0f, KeyLiveness.Change, "Hurst exponent of the erosion detail octaves, 0 compiled; acts when the volumes are generated"),
             N(CloudLookTuning.TuneFirstHit, 0f, KeyLiveness.FrameHistory, "bisection evaluations on the entered span, 0 off"),
             N(CloudLookTuning.TuneFirstHitThin, 0.25f, KeyLiveness.FrameHistory, "first steps inside as a share of the grid step"),
-            N(CloudLookTuning.TuneFirstHitGrow, 4f, KeyLiveness.FrameHistory, "they grow to the grid step by 1 / this of opacity"),
+            N(CloudLookTuning.TuneFirstHitShell, 32f, KeyLiveness.FrameHistory, "thin steps after the entry (the outer shell)"),
+            N(CloudLookTuning.TuneFirstHitNear, 0f, KeyLiveness.FrameHistory, "distance in m up to which the thin steps are taken, 0 everywhere"),
             // The march's cost controls (OwnCloudOptions.Apply(LayerFrame)).
             F(OwnCloudOptions.TuneCoverageBound, Frame0.CoverageBound),
             F(OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.EmptyReachDefault),

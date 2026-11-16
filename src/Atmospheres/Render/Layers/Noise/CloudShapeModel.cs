@@ -146,6 +146,14 @@ namespace ReDefinition.Atmospheres
         // distance the flow has carried the pattern, the fibre stretch along the axis, then the untiling displacement.
         internal static void LookupPoint(ref NoiseLayerParams prm, double px, double py, double pz, out double qx, out double qy, out double qz)
         {
+            double dx, dy, dz;
+            LookupPoint(ref prm, px, py, pz, out qx, out qy, out qz, out dx, out dy, out dz);
+        }
+
+        // The same with the untiling displacement that was added to the point (zero without the warp).
+        internal static void LookupPoint(ref NoiseLayerParams prm, double px, double py, double pz, out double qx, out double qy, out double qz, out double dx, out double dy, out double dz)
+        {
+            dx = dy = dz = 0.0;
             if (prm.SphereScale != 1.0 && prm.SphereScale > 0.0)
             {
                 double r = Math.Sqrt(px * px + py * py + pz * pz);
@@ -170,9 +178,44 @@ namespace ReDefinition.Atmospheres
             double cell = (prm.WarpCell > 0.0 ? prm.WarpCell : NoiseModel.WarpCellScales) * prm.ScaleM;
             double wx, wy, wz;
             ValueVec(qx / cell, qy / cell, qz / cell, WarpSeed(prm.Seed), out wx, out wy, out wz);
-            qx += amp * wx;
-            qy += amp * wy;
-            qz += amp * wz;
+            dx = amp * wx;
+            dy = amp * wy;
+            dz = amp * wz;
+            qx += dx;
+            qy += dy;
+            qz += dz;
+        }
+
+        // The point the heap volume is read at: the lookup point with the untiling displacement's radial part taken out and HeapModel.WarpShare of its horizontal part kept, and with
+        // prm.HeapIso the lattice's vertical compression (SphereScale) taken back. p is the planet-centred point, q the lookup point and d the displacement LookupPoint returned.
+        internal static void HeapLookup(ref NoiseLayerParams prm, double px, double py, double pz, double qx, double qy, double qz, double dx, double dy, double dz,
+                                        out double hx, out double hy, out double hz)
+        {
+            double r = Math.Sqrt(px * px + py * py + pz * pz);
+            hx = qx - dx;
+            hy = qy - dy;
+            hz = qz - dz;
+            if (r > 0.0)
+            {
+                double ux = px / r, uy = py / r, uz = pz / r, along = dx * ux + dy * uy + dz * uz;
+                hx += HeapModel.WarpShare * (dx - ux * along);
+                hy += HeapModel.WarpShare * (dy - uy * along);
+                hz += HeapModel.WarpShare * (dz - uz * along);
+            }
+            else
+            {
+                hx += HeapModel.WarpShare * dx;
+                hy += HeapModel.WarpShare * dy;
+                hz += HeapModel.WarpShare * dz;
+            }
+            // The lattice's vertical compression taken back (cloud.heap.iso), as the erosion detail reads it.
+            if (prm.HeapIso && prm.SphereScale != 1.0 && prm.SphereScale > 0.0 && r > 0.0)
+            {
+                double back = (1.0 - prm.SphereScale) * (r - prm.ReferenceRadiusM) / r;
+                hx += px * back;
+                hy += py * back;
+                hz += pz * back;
+            }
         }
 
         // Wrapped trilinear lookup of a byte volume (n^3, `stride` bytes per voxel, channel c) at unit coordinates; 0 to 1.
@@ -236,6 +279,8 @@ namespace ReDefinition.Atmospheres
                 double voxels = footM / prm.ScaleM * voxelsPerScale;
                 if (voxels > 1.0) lod = Math.Max(lod, Math.Log(voxels, 2.0));
             }
+            // The levels below HeapModel.AnalyticLevelMin voxels are box means that are not rank-uniform (the last one is a constant 0.5): the far view's mean takes over beyond the last analytic level.
+            lod = Math.Min(lod, Math.Log(heap.N / (double)HeapModel.AnalyticLevelMin, 2.0));
             lod = Math.Min(lod, heap.Levels.Length - 1);
             int below = (int)Math.Floor(lod);
             double f = lod - below;
@@ -329,24 +374,14 @@ namespace ReDefinition.Atmospheres
                 return plain <= 0.0 ? 0.0 : plain >= 1.0 ? 1.0 : plain;
             }
             double qx, qy, qz;
-            LookupPoint(ref prm, px, py, pz, out qx, out qy, out qz);
+            double wdx, wdy, wdz;
+            LookupPoint(ref prm, px, py, pz, out qx, out qy, out qz, out wdx, out wdy, out wdz);
             double n;
             if (prm.HeapPreset > 0 && set.Heap != null)
             {
                 double cavity;
-                double hx = qx, hy = qy, hz = qz;
-                // cloud.heap.iso: the heap is read at the lattice's true vertical scale (the shader's compression of the shape's lookup is taken back, as for the erosion detail below).
-                if (prm.HeapIso && prm.SphereScale != 1.0 && prm.SphereScale > 0.0)
-                {
-                    double rr = Math.Sqrt(px * px + py * py + pz * pz);
-                    if (rr > 0.0)
-                    {
-                        double back = (1.0 - prm.SphereScale) * (rr - prm.ReferenceRadiusM) / rr;
-                        hx += px * back;
-                        hy += py * back;
-                        hz += pz * back;
-                    }
-                }
+                double hx, hy, hz;
+                HeapLookup(ref prm, px, py, pz, qx, qy, qz, wdx, wdy, wdz, out hx, out hy, out hz);
                 n = HeapAt(set.Heap, ref prm, prm.HeapPreset, hx, hy, hz, footM, out cavity);
             }
             else n = ShapeAt(set, ref prm, qx, qy, qz);

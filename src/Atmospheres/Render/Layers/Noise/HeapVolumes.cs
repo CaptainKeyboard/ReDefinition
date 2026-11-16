@@ -12,6 +12,8 @@ namespace ReDefinition.Atmospheres
         // The period of the heap volume in noise scales: half the shape volume's (16), so its largest lobe is 4 scales (1 km at a scale of 250 m) and its finest cell, 4 voxels wide at 64 voxels,
         // half a scale (125 m). A 2 km lobe (the largest cell at the shape volume's period) let the volume's own low frequencies decide where a km-wide patch is cloud: the weather map decides that.
         internal const double PeriodScales = 8.0;
+        // The share of the untiling displacement's horizontal part the heap lookup keeps (its radial part is dropped): the displacement stretches what it moves, as worms along the ground and as columns.
+        internal const double WarpShare = 0.5;
         internal const int MinOctaveVoxels = 4;
         // The dome radius round a feature point, in cells of the octave, and the width of the polynomial smooth maximum that joins the domes of neighbouring cells (a crease forms
         // between two lobes).

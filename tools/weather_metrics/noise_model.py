@@ -305,11 +305,16 @@ def fnv1a(data):
 
 
 HEAP_PERIOD_SCALES = 8.0
+HEAP_MIN_LEVEL_VOXELS = 8
+HEAP_WARP_SHARE = 0.5
 
 
 def heap_value(levels, p, scale, preset, lod=0.0):
     """The heap field (0..1) of a preset at lookup points p (M, 3) in m for a layer of noise scale `scale`: the trilinear read of the byte volume at mip level lod (a float: two levels blended)."""
     u = np.asarray(p, dtype=np.float64) / (HEAP_PERIOD_SCALES * scale)
+    # beyond the last analytic level (8 voxels) the levels are box means, not rank-uniform: the far view's mean takes over there
+    n = levels[0].shape[0]
+    lod = min(lod, math.log2(n / float(HEAP_MIN_LEVEL_VOXELS)))
     below = int(math.floor(lod))
     f = lod - below
     a = trilinear(levels[below][..., preset - 1] / 255.0, u)

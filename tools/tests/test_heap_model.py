@@ -43,7 +43,7 @@ class HeapModelTests(unittest.TestCase):
         got = nm.heap_value(self.levels, pts, 250.0, 1, 0.0)
         self.assertTrue(np.allclose(got, [0.247501074448, 0.734921386667, 0.944623093238], atol=1e-9))
         got = nm.heap_value(self.levels, pts, 250.0, 2, 1.5)
-        self.assertTrue(np.allclose(got, [0.477072830918, 0.579381850784, 0.472325712712], atol=1e-9))
+        self.assertTrue(np.allclose(got, [0.493901937328, 0.670728404706, 0.526840985866], atol=1e-9))
 
     def test_rank_uniform(self):
         field = self.levels[0][..., 0].ravel() / 255.0

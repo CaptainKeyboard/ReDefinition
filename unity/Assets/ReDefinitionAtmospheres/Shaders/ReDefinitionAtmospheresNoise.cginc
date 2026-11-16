@@ -32,7 +32,7 @@ sampler3D _NoiseLattice; // the untiling warp's lattice table around the viewer 
 float4 _NoiseL;          // the table: x cells per side, y 1 / that, z slices per layer's slab, w 1 / the slices of the texture
 float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w: the warp reads the lattice table (1) or hashes the corners of its cell (0) (layers.warpTable; the vertical scale of the lattice is per layer, _NoiseStretch.y)
 float4 _NoiseQ;          // warp amplitude, warp cell, curl amplitude (in noise scales), flow phase 0..1
-float4 _NoiseR;          // shape period, detail period, heap period (in noise scales)
+float4 _NoiseR;          // shape period, detail period, heap period (in noise scales), w the share of the untiling displacement's horizontal part the heap lookup keeps (HeapModel.WarpShare)
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
 float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y flow looped (1) or one phase (0), z colour map strength, w rise of the detail in m
 
@@ -52,6 +52,8 @@ float4 _HeapP;           // CLOUDR1: x the heap volume is built (0: every type r
 
 // The heap preset (1, 2; 0: the shape volume) of the type at the last point LayerDensity was asked for, and the cavity channel and strength there (the march copies them right after its own density read).
 static int gHeapPreset = 0;
+// The untiling displacement of the last NoiseLookup (m; zero without the warp): the heap read takes its radial part out and keeps a share of the rest.
+static float3 gNoiseWarp = 0;
 static float gHeapCav = 1;
 static float gHeapCavK = 0;
 
@@ -135,12 +137,14 @@ float3 NoiseLookup(int li, float3 pc, float scale, float3 flow)
     // E40 L2 D1 (cfg fibreStretch): the lookup is compressed along the layer's axis (E40 L5 shape: its wind; the body's pole, the third row of the world-to-map matrix, where there is none) by 1 - _NoiseStretch[li].x, so the features are longer along it (cirrus fibres).
     float3 ax = _NoiseAxis[li].xyz;
     q -= ax * (dot(q, ax) * _NoiseStretch[li].x);
+    gNoiseWarp = 0;
     if (_NoiseP.y > 0.5)
     {
         float3 wv;
         [branch] if (_NoiseP.w > 0.5) wv = NoiseLatticeAt(q / (_NoiseQ.y * scale), li).rgb * 2.0 - 1.0;
         else wv = NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
-        q += (_NoiseQ.x * scale) * wv;
+        gNoiseWarp = (_NoiseQ.x * scale) * wv;
+        q += gNoiseWarp;
     }
     return q;
 }
@@ -168,9 +172,15 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     {
         float lodHeap = max(0.0, log2(max(gNoiseSm, 1e-4)) + _HeapP.z);   // the smoothing in this volume's voxels per noise scale
         if (fmod(_HeapP.y, 2.0) > 0.5 && gNoiseFoot > 0) lodHeap = max(lodHeap, log2(max(gNoiseFoot / scale, 1e-4)) + _HeapP.z);
+        // The levels below 8 voxels are box means that are not rank-uniform (the last is a constant 0.5: a cloud or none), the far view's mean takes over beyond them.
+        lodHeap = min(lodHeap, _HeapP.z);
         // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
         // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
-        float3 qh = q;
+        // The untiling displacement stretches what it moves: its radial part would draw the heaps as columns, and all of it as worms. The heap lookup drops the radial part and keeps a share
+        // of the horizontal part, which is enough to break the repetition of its small tile (the NumPy and C# twins: HeapLookup).
+        float3 upw = pc / max(length(pc), 1.0);
+        float3 wh = gNoiseWarp - upw * dot(gNoiseWarp, upw);
+        float3 qh = q - gNoiseWarp + wh * _NoiseR.w;
         if (_HeapP.y > 1.5)
         {
             float rl = max(length(pc), 1.0);

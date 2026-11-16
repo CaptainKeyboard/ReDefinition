@@ -142,6 +142,12 @@ HEAP1 = [("cloud.heap.layer.", 1.0)]
 EDGE = [("cloud.edgePower.layer.", 0.5)]
 CAV = [("cloud.cavity.layer.", 0.7)]
 FIRSTHIT = [("cloud.firstHit", 3.0)]
+CAV35 = [("cloud.cavity.layer.", 0.35)]
+
+
+def shell(n, near=0.0):
+    """The first hit with n thin steps (a quarter of the grid step) after the entry, optionally only up to `near` m."""
+    return [("cloud.firstHit", 3.0), ("cloud.firstHit.thin", 0.25), ("cloud.firstHit.shell", float(n)), ("cloud.firstHit.near", float(near))]
 
 
 def tune_cumulus(pairs):
@@ -168,6 +174,13 @@ VARIANTS = {
     "p2p1p3d": ("(P2 + P1 + P3 + detail cascade) the erosion detail's octaves 2^(-0.65 k) (cloud.heap.detail)", tune_cumulus(HEAP1 + EDGE + CAV + [("cloud.heap.detail", 0.65)]), None),
     "p6": ("(P6) first hit by bisection (3 evaluations) and thin steps inside", tune_cumulus(FIRSTHIT), None),
     "p2p1p3p6": ("(P2 + P1 + P3 + P6)", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), None),
+    # --- CLOUDR1 round 3: P2 + P1 + P3 (cavity 0.35) at the production march, with the outer shell of thin steps after the bisected entry (N of them), and at the Phase 0 grid ---
+    "r_a": ("(round 3) P2 + P1 + P3 (cavity 0.35) at the production march", tune_cumulus(HEAP1 + EDGE + CAV35), None),
+    "r_s16": ("(round 3) r_a + first hit, 16 thin steps after the entry", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(16)), None),
+    "r_s32": ("(round 3) r_a + first hit, 32 thin steps", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(32)), None),
+    "r_s64": ("(round 3) r_a + first hit, 64 thin steps", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(64)), None),
+    "r_s32n": ("(round 3) r_a + first hit, 32 thin steps up to 8 km", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(32, 8000.0)), None),
+    "r_g": ("(round 3) r_a at the Phase 0 grid (the reference look)", tune_cumulus(HEAP1 + EDGE + CAV35), STEPS),
     "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),
     "s_p2p1p3": ("(Phase 0 grid) P2 + P1 + P3 at the ceiling's grid, minimum step, no growth", tune_cumulus(HEAP1 + EDGE + CAV), STEPS),
     "s_p2p1p3p6": ("(Phase 0 grid) P2 + P1 + P3 + P6 at the ceiling's grid", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), STEPS),

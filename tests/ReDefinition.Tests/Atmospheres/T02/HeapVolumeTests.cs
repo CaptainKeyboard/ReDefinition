@@ -91,14 +91,15 @@ namespace ReDefinition.Tests
             double[][] points = { new[] { 1200.3, -800.7, 3400.1 }, new[] { -5000.0, 2500.5, 17.9 }, new[] { 333.3, 444.4, 555.5 } };
             double[,,] want =
             {
-                { { 0.247501074448, 0.734921386667, 0.944623093238 }, { 0.36111119299, 0.720852071765, 0.795775689946 } },
-                { { 0.573980043834, 0.476274898824, 0.847826347389 }, { 0.477072830918, 0.579381850784, 0.472325712712 } }
+                { { 0.247501074448, 0.734921386667, 0.944623093238 }, { 0.37436337646, 0.808261021176, 0.851748392242 } },
+                { { 0.573980043834, 0.476274898824, 0.847826347389 }, { 0.493901937328, 0.670728404706, 0.526840985866 } }
             };
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
             for (int preset = 1; preset <= 2; preset++)
                 for (int l = 0; l < 2; l++)
                 {
-                    // a smoothing of 2^1.5 / 2 noise scales is the mip level 1.5 of a 16-voxel volume (2 voxels per noise scale: the heap's period is 8 scales)
+                    // a smoothing of 2^1.5 / 2 noise scales asks for the mip level 1.5 of a 16-voxel volume (2 voxels per noise scale: the heap's period is 8 scales); the last analytic level
+                    // (8 voxels, level 1) is the coarsest the heap is read at, so the read is at level 1
                     prm.SmoothingScales = l == 0 ? 0.0 : Math.Pow(2.0, 1.5) / 2.0;
                     for (int p = 0; p < 3; p++)
                     {
@@ -152,6 +153,51 @@ namespace ReDefinition.Tests
                     Assert.AreEqual(heap.Levels[m][i * 4 + 2], merged[m][i * 4 + 3]);
                 }
             }
+        }
+
+        // The heap is never read below its last analytic level (8 voxels): the coarser levels are box means, not rank-uniform, and the far view's mean takes over there.
+        [TestMethod]
+        public void TheHeapIsNotReadBelowItsLastAnalyticLevel()
+        {
+            NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
+            double cav;
+            prm.SmoothingScales = 100.0;
+            double coarse = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
+            prm.SmoothingScales = 2.0;   // 2 scales over a period of 8 at 64 voxels = 16 voxels -> level 4... capped at level 3 (8 voxels)
+            double capped = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
+            prm.SmoothingScales = 1.0;   // 8 voxels -> level 3
+            double level3 = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
+            Assert.AreEqual(level3, coarse, 1e-12);
+            Assert.AreEqual(level3, capped, 1e-12);
+        }
+
+        // The heap lookup takes the untiling displacement's radial part out and keeps HeapModel.WarpShare of the rest: the heap read is not stretched into columns.
+        [TestMethod]
+        public void TheHeapLookupKeepsOnlyAShareOfTheHorizontalDisplacement()
+        {
+            NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
+            prm.ReferenceRadiusM = 601000.0;
+            double[] p = { 601500.0, 4000.0, -2500.0 };
+            double qx, qy, qz, dx, dy, dz, hx, hy, hz;
+            CloudShapeModel.LookupPoint(ref prm, p[0], p[1], p[2], out qx, out qy, out qz, out dx, out dy, out dz);
+            Assert.IsTrue(Math.Abs(dx) + Math.Abs(dy) + Math.Abs(dz) > 10.0, "the warp displaces the point");
+            CloudShapeModel.HeapLookup(ref prm, p[0], p[1], p[2], qx, qy, qz, dx, dy, dz, out hx, out hy, out hz);
+            double r = Math.Sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]), ux = p[0] / r, uy = p[1] / r, uz = p[2] / r;
+            // The point without the warp is q - d; the heap's point differs from it by a vector with no radial part and WarpShare of d's horizontal part.
+            double ex = hx - (qx - dx), ey = hy - (qy - dy), ez = hz - (qz - dz);
+            Assert.AreEqual(0.0, ex * ux + ey * uy + ez * uz, 1e-6, "no radial part");
+            double along = dx * ux + dy * uy + dz * uz;
+            Assert.AreEqual(HeapModel.WarpShare * (dx - ux * along), ex, 1e-9);
+            Assert.AreEqual(HeapModel.WarpShare * (dy - uy * along), ey, 1e-9);
+            Assert.AreEqual(HeapModel.WarpShare * (dz - uz * along), ez, 1e-9);
+            // Without the warp the lookup is the plain point.
+            prm.Untile = false;
+            CloudShapeModel.LookupPoint(ref prm, p[0], p[1], p[2], out qx, out qy, out qz, out dx, out dy, out dz);
+            Assert.AreEqual(0.0, dx + dy + dz, 0.0);
+            CloudShapeModel.HeapLookup(ref prm, p[0], p[1], p[2], qx, qy, qz, dx, dy, dz, out hx, out hy, out hz);
+            Assert.AreEqual(qx, hx, 1e-9);
+            Assert.AreEqual(qy, hy, 1e-9);
+            Assert.AreEqual(qz, hz, 1e-9);
         }
 
         [TestMethod]
