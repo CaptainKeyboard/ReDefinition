@@ -63,8 +63,12 @@ namespace ReDefinition.Atmospheres.Viewer
         internal static List<PresetEntry> BuiltIn(IEnumerable<string> settingKeys, Func<string, double?> defaultOf)
         {
             var list = new List<PresetEntry>();
-            var keys = new List<string>(settingKeys);
-            list.Add(new PresetEntry(TodayName, "the shipped defaults: every cloud setting at its default, no tuning override", true, () => Today(keys, defaultOf)));
+            // Which cloud system draws (ownClouds, cloudSource) is not part of a look: Today leaves them as they are, so that loading it never switches the pass off.
+            var keys = new List<string>();
+            foreach (string k in settingKeys)
+                if (k != AtmospheresSettings.Keys.OwnClouds && k != AtmospheresSettings.Keys.CloudSource) keys.Add(k);
+            list.Add(new PresetEntry(TodayName, "the shipped defaults: the cloud look and quality settings at their defaults, no tuning override; the pass and the cloud source stay as they are", true,
+                () => Today(keys, defaultOf)));
             foreach (NamedKeyPreset slot in CloudKeyRegistry.Presets)
             {
                 NamedKeyPreset s = slot;

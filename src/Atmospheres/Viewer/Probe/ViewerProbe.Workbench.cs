@@ -77,7 +77,9 @@ namespace ReDefinition.Atmospheres.Viewer
                "worst frame at most " + F(WeatherRebuild.FreezeBudgetMs) + " ms", F(wb.RebuildWorstFrameMs) + " ms (sum " + F(wb.RebuildMainMs) + " ms)");
             var otherCover = SampleCover(wb, ut);
             int differ = Differing(baseCover, otherCover);
-            Wb("seed_changes_weather", "another seed gives another weather", differ >= SeedDifferMin, "at least " + SeedDifferMin + " of " + wb.Places + " places differ", differ + " differ");
+            int finiteBase = Finite(baseCover), finiteOther = Finite(otherCover);
+            Wb("seed_changes_weather", "another seed gives another weather", differ >= SeedDifferMin && finiteBase >= wb.Places / 2 && finiteOther >= wb.Places / 2,
+               "at least " + SeedDifferMin + " of " + wb.Places + " places differ, at least half of them with a value in both samples", differ + " differ, " + finiteBase + " and " + finiteOther + " places with a value");
             wb.StageSeed(seed0);
             foreach (ProbeWait w in RebuildAndWait(wb)) yield return w;
             var againCover = SampleCover(wb, ut);
@@ -131,9 +133,19 @@ namespace ReDefinition.Atmospheres.Viewer
         // Rebuild Weather and the wait for it: first for the previous rebuild's Done to be left (the module takes the request on its next tick), then for the new Done; polled says whether it came.
         private IEnumerable<ProbeWait> RebuildAndWait(IWorkbenchRig wb)
         {
+            int requests = wb.RebuildRequests;
             wb.RebuildWeather();
-            foreach (ProbeWait w in Poll(() => wb.Phase != RebuildPhase.Done, PollShortS)) yield return w;
+            // The module has taken the request when its count rises (a Done left from the rebuild before is not the answer to this one).
+            foreach (ProbeWait w in Poll(() => wb.RebuildRequests != requests, PollShortS)) yield return w;
+            if (!polled) yield break;
             foreach (ProbeWait w in Poll(() => wb.Phase == RebuildPhase.Done, RebuildWaitS)) yield return w;
+        }
+
+        private static int Finite(double[] a)
+        {
+            int n = 0;
+            foreach (double v in a) if (!double.IsNaN(v)) n++;
+            return n;
         }
 
         private static double[] SampleCover(IWorkbenchRig wb, double ut)

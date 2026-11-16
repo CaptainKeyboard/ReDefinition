@@ -21,6 +21,8 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // The weather: Rebuild Weather, its phase and what it cost, the seed in force and a staged one.
         void RebuildWeather();
+        // The number of rebuilds the generator module has begun (it rises when the module takes a request).
+        int RebuildRequests { get; }
         RebuildPhase Phase { get; }
         double RebuildElapsedMs { get; }
         double RebuildMainMs { get; }
@@ -93,6 +95,7 @@ namespace ReDefinition.Atmospheres.Viewer
         public void SetOwnClouds(bool on) { viewer.SetSetting(AtmospheresSettings.Keys.OwnClouds, on ? 1.0 : 0.0); }
 
         public void RebuildWeather() { viewer.RebuildWeather(); }
+        public int RebuildRequests { get { return WeatherRebuild.Requests; } }
         public RebuildPhase Phase { get { return WeatherRebuild.Phase; } }
         public double RebuildElapsedMs { get { return WeatherRebuild.ElapsedMs; } }
         public double RebuildMainMs { get { return WeatherRebuild.MainMs; } }

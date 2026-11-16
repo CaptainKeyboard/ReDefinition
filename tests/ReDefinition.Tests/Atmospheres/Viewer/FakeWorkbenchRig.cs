@@ -50,7 +50,9 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 
         public void SetOwnClouds(bool on) { if (!OwnCloudsIgnored) rig.PassForcedOff = !on; }
 
-        public void RebuildWeather() { startFrame = rig.Frame; if (WritesSave) stamp++; }
+        private int requests;
+        public int RebuildRequests { get { return requests; } }
+        public void RebuildWeather() { startFrame = rig.Frame; requests++; if (WritesSave) stamp++; }
 
         public RebuildPhase Phase
         {

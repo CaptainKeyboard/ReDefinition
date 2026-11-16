@@ -277,6 +277,11 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         {
             List<PresetEntry> builtIn = ViewerPresetBook.BuiltIn(new[] { AtmospheresSettings.Keys.CloudSoftness }, k => 0.5);
             Assert.AreEqual("Today", builtIn[0].Name);
+            List<PresetEntry> withModes = ViewerPresetBook.BuiltIn(new[] { AtmospheresSettings.Keys.OwnClouds, AtmospheresSettings.Keys.CloudSource, AtmospheresSettings.Keys.CloudSoftness }, k => 0.5);
+            OptionSet today = withModes[0].Make();
+            Assert.IsFalse(today.Settings.ContainsKey(AtmospheresSettings.Keys.OwnClouds), "Today never switches the pass off");
+            Assert.IsFalse(today.Settings.ContainsKey(AtmospheresSettings.Keys.CloudSource));
+            Assert.IsTrue(today.Settings.ContainsKey(AtmospheresSettings.Keys.CloudSoftness));
             Assert.IsTrue(builtIn.Any(e => e.Name == ViewerBuiltIns.NewModelSlot));
             List<PresetEntry> all = ViewerPresetBook.Entries(builtIn, new[] { "mine", "today", "Zed" }, name => () => new OptionSet());
             Assert.AreEqual(builtIn.Count + 2, all.Count, "a saved file named like a built-in one is left out");
