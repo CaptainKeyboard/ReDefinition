@@ -49,6 +49,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _LayerE[4];   // emission colour (kind 3)
         sampler2D _TypeProfile;
         sampler2D _TypeInfo;
+        sampler2D _TypeInfo2;   // CLOUDR1: x the type's heap preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
         UNITY_DECLARE_TEX2DARRAY(_TypeMaps);
         UNITY_DECLARE_TEX2DARRAY(_CovReach);   // E40 C1: per layer and map texel the texels to the nearest texel that can hold cloud, less a margin (EmptyReachMaps.cs; zero: no reach)
@@ -64,6 +65,7 @@ Shader "ReDefinition/AtmospheresLayers"
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
+        float4 _FirstHitP;   // CLOUDR1 P6: x the bisection iterations on the entered span (0: off, the march is as it was), y the first steps inside as a share of the grid step, z how fast they grow with the lost transmittance (full step at 1 / z of opacity)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
@@ -189,6 +191,11 @@ Shader "ReDefinition/AtmospheresLayers"
             return tex2Dlod(_TypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / MAXL, 0, 0));
         }
 
+        float4 TypeInfo2(int li, int type)
+        {
+            return tex2Dlod(_TypeInfo2, float4((type + 0.5) / MAXT, (li + 0.5) / MAXL, 0, 0));
+        }
+
         // The density of layer li at a point (pc relative to the planet's centre, alt its altitude), distance t along the ray from the camera.
         // share: the height share of the layer; erosionOut: the interpolated type's erosion.
         // The altitude of the top of the cloud type at the last point LayerDensity was asked for (the layer's outer altitude where no type was reached, and for the
@@ -216,6 +223,9 @@ Shader "ReDefinition/AtmospheresLayers"
             share = 0;
             gEmptyM = 0;
             gNoiseD = _NoiseS.w;
+            gHeapPreset = 0;
+            gHeapCav = 1;
+            gHeapCavK = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
             gTopAlt = outer;
             gBaseAlt = inner;
@@ -268,6 +278,15 @@ Shader "ReDefinition/AtmospheresLayers"
             float4 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
             gNoiseSm = lerp(ia.w, ib.w, f);
+            // CLOUDR1: the type's heap preset (the nearer of the two types), the exponent of its density rim and its cavity strength; not read where no type has one.
+            float waterPow = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)
+            [branch] if (_HeapP.w > 0.5)
+            {
+                float4 ja = TypeInfo2(li, ta), jb = TypeInfo2(li, tb);
+                gHeapPreset = (int)(f < 0.5 ? ja.x : jb.x);
+                gHeapCavK = lerp(ja.z, jb.z, f);
+                waterPow = lerp(ja.y > 0 ? ja.y : waterPow, jb.y > 0 ? jb.y : waterPow, f);
+            }
             float erosionType = lerp(ia.z, ib.z, f);
             if (heightOn)
             {
@@ -300,7 +319,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band).
             float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion);
             if (s <= 0) return 0;
-            float pw = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)
+            float pw = waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             gTypeLight = pf.yz;
             return _LayerB[li].x * s * pf.x * fade;
@@ -444,6 +463,11 @@ Shader "ReDefinition/AtmospheresLayers"
                 float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
+                // CLOUDR1 P6: the first hit by bisection. When a dense sample follows an empty one, the entry lies between them: the loop below evaluates the density at the middle of the
+                // bracket (the same call, no second copy of the density in the shader), keeps the half that holds the entry, and after _FirstHitP.x evaluations goes back to the dense end
+                // and shades from there. The steps right inside are thin (_FirstHitP.y of the grid step) and grow with the lost transmittance, so the rim is resolved where the eye sees it.
+                bool prevDense = false, bisecting = false;
+                float bLo = 0.0, bHi = 0.0, bIter = 0.0;
                 [loop] for (int i = 0; i < 512; i++)
                 {
                     if (t >= tEnd) break;
@@ -457,9 +481,21 @@ Shader "ReDefinition/AtmospheresLayers"
                     float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
                     float2 typeLight = gTypeLight;
                     float billowD = gNoiseD;
+                    // CLOUDR1 P3: the heap volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
+                    float cavity = 1.0;
+                    [branch] if (gHeapCavK > 0.0) cavity = pow(max(gHeapCav, 0.02), 4.0 * gHeapCavK);
                     r.steps += 1;
+                    [branch] if (bisecting)
+                    {
+                        if (dens > 0) bHi = t; else bLo = t;
+                        bIter += 1.0;
+                        if (bIter < _FirstHitP.x) t = 0.5 * (bLo + bHi);
+                        else { bisecting = false; t = bHi; prevDense = true; }
+                        continue;
+                    }
                     if (dens <= 0)
                     {
+                        prevDense = false;
                         // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (gEmptyM is 0 where no reach was read).
                         float reachSkip = dtv * floor(gEmptyM / dtv);
                         tLast = t + reachSkip;
@@ -475,11 +511,26 @@ Shader "ReDefinition/AtmospheresLayers"
                         arrived = 1.0;
                         continue;
                     }
+                    [branch] if (_FirstHitP.x > 0.5 && !prevDense)
+                    {
+                        bLo = max(tLast, s0[k]);
+                        bHi = t;
+                        if (bHi - bLo > 1e-2)
+                        {
+                            bisecting = true;
+                            bIter = 0.0;
+                            t = 0.5 * (bLo + bHi);
+                            continue;
+                        }
+                    }
+                    prevDense = true;
                     leap = 1.0;
                     tLast = t;
                     // COST (T05): inside a cloud the step grows with what the ray has already lost (_CostP.w): a ray that is nearly opaque
                     // needs no fine sampling of what lies behind. The sample stands for its whole step, so the optical depth uses it.
-                    float dts = min(dtv * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dtv));
+                    float thinScale = 1.0;
+                    [branch] if (_FirstHitP.x > 0.5) thinScale = lerp(_FirstHitP.y, 1.0, saturate((1.0 - T) * _FirstHitP.z));   // CLOUDR1 P6: thin steps at the rim
+                    float dts = min(dtv * thinScale * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dtv * thinScale));
                     t += dts;
                     if (r.first < 0) r.first = t - dts;
                     float dtau = dens * dts;
@@ -530,6 +581,10 @@ Shader "ReDefinition/AtmospheresLayers"
                     src += dirPart * (billowShade - 1.0);
                     dirPart *= billowShade;
                     // The colour map's tint of the layer (P15; one when the layer has none).
+                    // CLOUDR1 P3: the creases between lobes are lit less, by the direct light with its multiple scattering octaves and by the sky's fill (a factor, no extra light path).
+                    src += (dirPart + ambPart) * (cavity - 1.0);
+                    dirPart *= cavity;
+                    ambPart *= cavity;
                     float3 tint = NoiseTint(li, pc);
                     src *= tint;
                     dirPart *= tint;

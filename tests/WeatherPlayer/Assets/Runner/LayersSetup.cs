@@ -205,6 +205,7 @@ namespace ReDefinition.WeatherPlayer
                 Vector3 drift = jl.drift != null && jl.drift.Length >= 3 ? V(jl.drift) : Vector3.zero;
                 noise.SetState(l, drift, jl.rise);
             }
+            noise.BlockOnHeap = true;   // CLOUDR1: a frame is never drawn with the shape volume where the heap volume is asked for
             if (noise.Switches.Enabled) noise.EnsureReady();
         }
 

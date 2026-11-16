@@ -176,6 +176,149 @@ def gen_curl(n, seed=3):
     return c / np.max(np.linalg.norm(c, axis=-1))
 
 
+# --------------------------------------------------------------------------------------------------------------------------------
+# The heap volume (package CLOUDR1 P2/P3): the macro shape of a cumulus as a cascade of heaps on heaps. C#: NoiseVolumes.Heap.
+# --------------------------------------------------------------------------------------------------------------------------------
+# Octave k has HEAP_FIRST_CELLS * 2^k cells per period (lacunarity 2: self-similar, the largest lobe is 8 noise scales, the finest cell 4 voxels
+# wide). Each octave is a field of rounded domes sqrt(1 - (f / R)^2) round jittered points (f the distance to the point in cell units), the
+# domes of the 27 neighbouring cells joined by a polynomial smooth maximum, so a crease forms where two lobes meet. The octaves are summed with
+# the weights 2^(-H k): H is the Hurst exponent of the cascade (the outline of a level set of such a field has the dimension 2 - H). The sum
+# is rank-equalised (a threshold of 0.5 covers half the volume, the cover meaning). Mip level m has the octaves whose cell is at least 4 voxels
+# wide at that level: an octave is dropped only where the level's voxel exceeds a quarter of its cell.
+HEAP_FIRST_CELLS = 2
+HEAP_RADIUS = 0.9
+HEAP_SMOOTH = 0.15
+HEAP_HURST = (0.65, 0.45)          # preset 1 (billow: outline dimension 1.35), preset 2 (rough: 1.55)
+HEAP_CAVITY_GAIN = 3.0
+HEAP_MIN_OCTAVE_VOXELS = 4
+
+
+def heap_octaves(n):
+    """The cells per period of the octaves a volume of n voxels per side holds: 2, 4, ... up to n / 4 (at least one)."""
+    cells, out = HEAP_FIRST_CELLS, []
+    while cells * HEAP_MIN_OCTAVE_VOXELS <= n or not out:
+        out.append(cells)
+        cells *= 2
+    return out
+
+
+def smooth_max(a, b, k):
+    h = np.maximum(k - np.abs(a - b), 0.0) / k
+    return np.maximum(a, b) + h * h * k * 0.25
+
+
+def heap_octave(u, cells, seed):
+    """One octave of domes at points u (M, 3) in unit coordinates of the period: 0..~1."""
+    p = u * cells
+    i0 = np.floor(p).astype(np.int64)
+    acc = None
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                cx, cy, cz = i0[:, 0] + dx, i0[:, 1] + dy, i0[:, 2] + dz
+                fx, fy, fz = hash_vec(hash3(cx % cells, cy % cells, cz % cells, seed))
+                ex, ey, ez = cx + fx - p[:, 0], cy + fy - p[:, 1], cz + fz - p[:, 2]
+                r = np.sqrt(ex * ex + ey * ey + ez * ez) / HEAP_RADIUS
+                dome = np.sqrt(np.maximum(0.0, 1.0 - r * r))
+                acc = dome if acc is None else smooth_max(acc, dome, HEAP_SMOOTH)
+    return acc
+
+
+def equalize_tied(v):
+    """Rank values like equalize, but equal values share the mean of their ranks."""
+    flat = np.asarray(v).ravel()
+    order = np.argsort(flat, kind="stable")
+    sorted_v = flat[order]
+    count = len(flat)
+    ranks = np.empty(count)
+    start = 0
+    while start < count:
+        end = start + 1
+        while end < count and sorted_v[end] == sorted_v[start]:
+            end += 1
+        ranks[order[start:end]] = ((start + end - 1) * 0.5 + 0.5) / count
+        start = end
+    return ranks.reshape(np.shape(v))
+
+
+def heap_field(n, level_size, hurst, seed):
+    """The ranked heap field of a mip level of `level_size` voxels per side, the octaves a level of that size can hold (those of an n-voxel volume at level 0)."""
+    u = grid_points(level_size)
+    total = 0.0
+    for k, cells in enumerate(heap_octaves(level_size)):
+        total = total + (2.0 ** (-hurst * k)) * heap_octave(u, cells, seed + 53 * k)
+    return equalize_tied(total).reshape(level_size, level_size, level_size)
+
+
+def box_blur(v, radius):
+    """Periodic box blur of a (n, n, n) volume over (2 radius + 1)^3 voxels."""
+    out = v.astype(np.float64)
+    for axis in range(3):
+        acc = np.zeros_like(out)
+        for d in range(-radius, radius + 1):
+            acc += np.roll(out, d, axis)
+        out = acc / (2 * radius + 1)
+    return out
+
+
+def heap_cavity(field):
+    """Cavity channel of a level-0 heap field: 1 on tops and flat parts, lower in creases (the field's blur minus the field, times HEAP_CAVITY_GAIN)."""
+    n = field.shape[0]
+    blur = box_blur(field, max(1, n // 32))
+    return np.clip(1.0 - HEAP_CAVITY_GAIN * np.maximum(blur - field, 0.0), 0.0, 1.0)
+
+
+def mean8(v):
+    """The mean of each 2 x 2 x 2 block of a (n, n, n) volume."""
+    n = v.shape[0]
+    return v.reshape(n // 2, 2, n // 2, 2, n // 2, 2).mean(axis=(1, 3, 5))
+
+
+def gen_heap_levels(n, seed=1):
+    """The heap volume's mip chain as C# HeapVolumes.Generate makes it: a list of (size, size, size, 4) uint8 arrays (r heap 1, g heap 2, b cavity 1, a cavity 2)."""
+    fields = [heap_field(n, n, h, seed + 17 * i) for i, h in enumerate(HEAP_HURST)]
+    cavity = [heap_cavity(f) for f in fields]
+    levels = []
+    size = n
+    while True:
+        levels.append(np.stack([to_bytes(fields[0]), to_bytes(fields[1]), to_bytes(cavity[0]), to_bytes(cavity[1])], axis=-1))
+        if size == 1:
+            break
+        half = size // 2
+        nxt = []
+        for i, h in enumerate(HEAP_HURST):
+            nxt.append(heap_field(n, half, h, seed + 17 * i) if half >= 8 else equalize_tied(mean8(fields[i])))
+        cavity = [mean8(c) for c in cavity]
+        fields = nxt
+        size = half
+    return levels
+
+
+def fnv1a(data):
+    """FNV-1a 64 of a byte string (the determinism hash of the tests)."""
+    h = 0xCBF29CE484222325
+    for b in bytes(data):
+        h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+
+def heap_value(levels, p, scale, preset, lod=0.0):
+    """The heap field (0..1) of a preset at lookup points p (M, 3) in m for a layer of noise scale `scale`: the trilinear read of the byte volume at mip level lod (a float: two levels blended)."""
+    u = np.asarray(p, dtype=np.float64) / (16.0 * scale)
+    below = int(math.floor(lod))
+    f = lod - below
+    a = trilinear(levels[below][..., preset - 1] / 255.0, u)
+    if f > 0.0 and below + 1 < len(levels):
+        a = a + (trilinear(levels[below + 1][..., preset - 1] / 255.0, u) - a) * f
+    return a
+
+
+def gen_heap(n, seed=1):
+    """The two presets of the heap volume at level 0: (heap fields, cavity fields), lists of (n, n, n)."""
+    heaps = [heap_field(n, n, h, seed + 17 * i) for i, h in enumerate(HEAP_HURST)]
+    return heaps, [heap_cavity(f) for f in heaps]
+
+
 def to_bytes(v):
     return np.clip(np.rint(v * 255.0), 0, 255).astype(np.uint8)
 
@@ -291,9 +434,11 @@ def lookup_point(p, prm):
     return q
 
 
-def shape_value(vols, p, prm):
-    """The base shape noise at points p (M, 3) in m: 0..1."""
+def shape_value(vols, p, prm, heap_preset=0, heap_lod=0.0):
+    """The base shape noise at points p (M, 3) in m: 0..1. heap_preset 1 or 2 (CLOUDR1 P2): the macro shape of the heap volume vols.heap (gen_heap_levels) at the mip level heap_lod instead."""
     q = lookup_point(p, prm)
+    if heap_preset > 0 and getattr(vols, "heap", None) is not None:
+        return heap_value(vols.heap, q, prm.scale, heap_preset, heap_lod)
     return trilinear(vols.shape, q / prm.shape_period)
 
 

@@ -128,6 +128,14 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneBillowFine, -1f, KeyLiveness.FrameHistory, "weight of the fine octave, -1 compiled"),
             N(CloudLookTuning.TuneBillowFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
             N(CloudLookTuning.TuneBillowSharpen, 0f, KeyLiveness.FrameHistory, "spline upsampling of the march target, 0 bilinear"),
+            // CLOUDR1: the heap volume, the exponent of the density rim and the cavity (CloudLookTuning; the per-type cfg keys heap, edgePower, cavity are overridden for every type), the first hit.
+            N(CloudLookTuning.TuneHeap, -1f, KeyLiveness.FrameHistory, "heap preset for every type: -1 each type's key, 0 none, 1 billow, 2 rough"),
+            N(CloudLookTuning.TuneEdgePower, 0f, KeyLiveness.FrameHistory, "exponent of the density rim for every type, 0 each type's key"),
+            N(CloudLookTuning.TuneCavity, -1f, KeyLiveness.FrameHistory, "cavity strength for every heap type, -1 each type's key"),
+            F(CloudLookTuning.TuneHeapFootLod, true, KeyLiveness.FrameHistory),
+            N(CloudLookTuning.TuneFirstHit, 0f, KeyLiveness.FrameHistory, "bisection evaluations on the entered span, 0 off"),
+            N(CloudLookTuning.TuneFirstHitThin, 0.25f, KeyLiveness.FrameHistory, "first steps inside as a share of the grid step"),
+            N(CloudLookTuning.TuneFirstHitGrow, 4f, KeyLiveness.FrameHistory, "they grow to the grid step by 1 / this of opacity"),
             // The march's cost controls (OwnCloudOptions.Apply(LayerFrame)).
             F(OwnCloudOptions.TuneCoverageBound, Frame0.CoverageBound),
             F(OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.EmptyReachDefault),

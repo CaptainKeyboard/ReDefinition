@@ -55,6 +55,37 @@ namespace ReDefinition.Atmospheres
         // The width in noise scales the shape noise is smoothed over where each type is drawn (E40 L6 shape): the type's own key, the layer's where it has none.
         private readonly float[] smoothing;
 
+        // CLOUDR1: the type's heap preset (0: none), the exponent of its density rim (0: the layer's) and its cavity strength, with the tuning overrides of CloudLookTuning applied: what the shader's
+        // second type info texture holds.
+        internal int HeapOfType(int type)
+        {
+            int forced = CloudLookTuning.HeapOverride;
+            return forced >= 0 ? forced : layer.Types[type].Heap;
+        }
+
+        internal float EdgeOfType(int type)
+        {
+            if (!layer.Soft) return 0f;
+            float forced = CloudLookTuning.EdgePowerOverride;
+            return forced > 0f ? forced : layer.Types[type].EdgePower;
+        }
+
+        internal float CavityOfType(int type)
+        {
+            if (HeapOfType(type) <= 0) return 0f;
+            float forced = CloudLookTuning.CavityOverride;
+            return forced >= 0f ? forced : layer.Types[type].Cavity;
+        }
+
+        // The heap preset at a type value: the nearer of the two neighbouring types (a preset cannot be blended; the shader takes the same one).
+        internal int HeapAtTypeValue(double typeValue)
+        {
+            int a, c;
+            double f;
+            Neighbours(typeValue, out a, out c, out f);
+            return HeapOfType(f < 0.5 ? a : c);
+        }
+
         // The smoothing of a type (noise scales).
         internal float SmoothingOfType(int type)
         {
@@ -220,7 +251,7 @@ namespace ReDefinition.Atmospheres
         {
             double share = (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM;
             if (share < 0.0 || share > 1.0) return 0.0;
-            double s = Share(layer, coverageMap);
+            double s = Share(layer, coverageMap, table, typeMap);
             if (s <= 0.0) return 0.0;
             return layer.EffectiveSigmaPerM * s * table.Profile(typeMap, share);
         }
@@ -231,6 +262,13 @@ namespace ReDefinition.Atmospheres
         {
             double s = Shape(layer.ClearSkyMap(coverageMap), layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
             return CloudWater.Pow(s, layer.EffectiveWaterPower);
+        }
+
+        // The same with the exponent of the type at the type value (CLOUDR1 P1: a type's edgePower replaces the layer's waterPower).
+        internal static double Share(CloudLayerDef layer, double coverageMap, LayerTypeTable table, double typeValue)
+        {
+            double s = Shape(layer.ClearSkyMap(coverageMap), layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
+            return CloudWater.Pow(s, layer.EffectiveWaterPowerAt(table, typeValue));
         }
 
         // The same with the coverage share given (the shape noise's share, CloudShadowShapeNoise) instead of the plain threshold; a share below 0 is not given.

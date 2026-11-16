@@ -65,17 +65,98 @@ def v_nosmooth(job):
     each_type(job, lambda t: t.__setitem__("shapeSmoothing", 0.0))
 
 
+def cumulus_layer(f):
+    """A change of the cumulus layer only."""
+    def g(job):
+        for layer in job.get("layers", []):
+            if layer.get("name", "").endswith("cumulus"):
+                f(layer)
+    return g
+
+
+def compose(*fs):
+    def g(job):
+        for f in fs:
+            f(job)
+    return g
+
+
+def repose(pitch_deg):
+    """The camera of the job turned about its right axis to this pitch over the local horizon (-90: straight down), same position, heading and field of view (the ridge diagnosis)."""
+    def g(job):
+        p = np.array(job["position"], dtype=np.float64)
+        up_local = p / np.linalg.norm(p)
+        f = np.array(job["forward"], dtype=np.float64)
+        h = f - up_local * float(f @ up_local)
+        norm = np.linalg.norm(h)
+        h = h / norm if norm > 1e-9 else np.array(job["right"], dtype=np.float64)
+        a = np.radians(pitch_deg)
+        nf = np.cos(a) * h + np.sin(a) * up_local
+        nu = -np.sin(a) * h + np.cos(a) * up_local
+        job["forward"] = [float(x) for x in nf]
+        job["up"] = [float(x) for x in nu]
+    return g
+
+
+def camera_at(alt_m, pitch_deg):
+    """The job's camera moved along the local up to this altitude over the ground and turned to this pitch (same place, same heading): a ground or a side view of the same cloud field."""
+    def g(job):
+        p = np.array(job["position"], dtype=np.float64)
+        f = np.array(job["forward"], dtype=np.float64)
+        up_local = p / np.linalg.norm(p)
+        h = f - up_local * float(f @ up_local)
+        job["position"] = [float(x) for x in up_local * (float(job["planetRadius"]) + alt_m)]
+        a = np.radians(pitch_deg)
+        h = h / np.linalg.norm(h)
+        job["forward"] = [float(x) for x in np.cos(a) * h + np.sin(a) * up_local]
+        job["up"] = [float(x) for x in -np.sin(a) * h + np.cos(a) * up_local]
+    return g
+
+
+
+
 def v_soft03(job):
     job["soft"] = 0.3
+
+
 
 
 def v_nolod(job):
     job.setdefault("noise", {})["noLod"] = 1
 
 
+# The ceiling march (SoftTable case, tests/WeatherPlayer/Assets/Runner/SoftDensityScene.cs): 256 grid points at 6 m at least, no step or transmittance growth, early-out 0.001, every lit step to
+# the sun, no light cutoff, 16 sun taps over 12 km (ceil); the full-size target with a jittered history of
+# eight percent and no clip (r100+jit+acc8+clip1000), the 40 frames of the replay accumulating 12 or so jittered frames.
+# The light taps read the shape only: a light path that reads the erosion crashes the Unity 2019.4 shader compiler, so the ceiling's light is the shape-only light with 16 taps.
+CEIL = "seq1+lq2+ceil+r100+jit+acc8+clip1000"
+# The ceiling's single changes on top of the product's march (seq1+lq2+r33+lp100): the march's group (steps), the full-size target with the accumulation (res), the light's group (light).
+STEPS = "seq1+lq2+cstep+r33+lp100"
+RES = "seq1+lq2+r100+jit+acc8+clip1000+lp100"
+LIGHT = "seq1+lq2+clight+r33+lp100"
+MARCH_LABELS = {CEIL: "puff-ceil", STEPS: "puff-steps", RES: "puff-res", LIGHT: "puff-light"}
+
+HEAP1 = [("cloud.heap", 1.0)]
+EDGE = [("cloud.edgePower", 0.5)]
+CAV = [("cloud.cavity", 0.7)]
+FIRSTHIT = [("cloud.firstHit", 3.0)]
+
 # name -> (what, the change of the job or None, the case of the march: None = the base's)
 VARIANTS = {
     "base": ("the replay as e40pp makes it", None, None),
+    # --- CLOUDR1 (2026-11-16): the model packages P2 (heap volume), P1 (edge exponent), P3 (cavity), P6 (first hit) as the global tuning keys of CloudLookTuning; each also at the ceiling. ---
+    "p2": ("(P2) the heap volume, preset billow, for every type (cloud.heap 1)", tune_dotted(HEAP1), None),
+    "p2r": ("(P2) the heap volume, preset rough (cloud.heap 2)", tune_dotted([("cloud.heap", 2.0)]), None),
+    "p2p1": ("(P2 + P1) heap volume + the rim exponent 0.5 (cloud.edgePower)", tune_dotted(HEAP1 + EDGE), None),
+    "p2p1p3": ("(P2 + P1 + P3) + cavity 0.7", tune_dotted(HEAP1 + EDGE + CAV), None),
+    "p1": ("(P1) the rim exponent 0.5 alone", tune_dotted(EDGE), None),
+    "p6": ("(P6) first hit by bisection (3 evaluations) and thin steps inside", tune_dotted(FIRSTHIT), None),
+    "p2p1p3p6": ("(P2 + P1 + P3 + P6)", tune_dotted(HEAP1 + EDGE + CAV + FIRSTHIT), None),
+    "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),
+    "ceil": ("(ceiling) the model without the real-time compromises", v_nosmooth, CEIL),
+    "c_p2": ("(ceiling) P2", compose(v_nosmooth, tune_dotted(HEAP1)), CEIL),
+    "c_p2p1": ("(ceiling) P2 + P1", compose(v_nosmooth, tune_dotted(HEAP1 + EDGE)), CEIL),
+    "c_p2p1p3": ("(ceiling) P2 + P1 + P3", compose(v_nosmooth, tune_dotted(HEAP1 + EDGE + CAV)), CEIL),
     "ero0": ("(a) no erosion (every type's erosion 0): what the erosion contributes now", v_ero0, None),
     "ero2": ("(a) the erosion of every type doubled", v_ero2, None),
     "contrast2": ("(a) the erosion detail's contrast about its mean doubled (cloud.billow.contrast 2)", tune_dotted([("cloud.billow.contrast", 2.0)]), None),
@@ -102,6 +183,8 @@ def march_of(case):
     """The march string of a variant's case: the base's with the resolution case replaced."""
     if case is None:
         return e40pp.MARCH
+    if case.startswith("seq"):
+        return case   # a whole march (the ceiling's)
     return e40pp.MARCH.replace("+r33", "+" + case)
 
 
@@ -109,7 +192,8 @@ def tag_of(view, variant):
     return view if variant == "base" else "%s-%s" % (view, variant)
 
 
-def prepare(views, variants):
+def prepare(views, variants, only=None):
+    """only: a set of (view, variant) pairs to prepare out of views x variants (None: all of them)."""
     if not os.path.isfile(os.path.join(e40pp.INPUT, "jobs.json")):
         raise SystemExit("run e40pp.py --prepare first")
     os.makedirs(INPUT, exist_ok=True)
@@ -124,13 +208,22 @@ def prepare(views, variants):
         base_tag = e40pp.view_tag(view)
         base_id = "gn-%s-prod-f0" % base_tag
         for variant in variants:
+            if only is not None and (view, variant) not in only:
+                continue
             name = tag_of(view, variant)
             new_tag = e40pp.view_tag(name)
             for fn in os.listdir(e40pp.INPUT):
                 if fn.startswith(base_tag + "-"):
                     shutil.copyfile(os.path.join(e40pp.INPUT, fn), os.path.join(INPUT, new_tag + fn[len(base_tag):]))
+            if variant.startswith("med"):
+                # mediocris: the cumulus layer's type map is the type value 0.5 everywhere (the type axis is stratocumulus, humilis, mediocris, congestus, altocumulus)
+                path = os.path.join(INPUT, new_tag + "-Kerbin-cumulus-type.r8")
+                size = os.path.getsize(path)
+                with open(path, "wb") as f:
+                    f.write(bytes([128]) * size)
             job = json.loads(json.dumps(jobs[base_id]).replace(base_tag + "-", new_tag + "-"))
             job["id"] = "gn-%s-prod-f0" % new_tag
+            job["width"], job["height"] = SIZE
             change, case = VARIANTS[variant][1], VARIANTS[variant][2]
             if change:
                 change(job)
@@ -161,9 +254,46 @@ def prepared():
     return stages
 
 
+# The size of the player's frames: ATMO_PUFF_SIZE=2560x1440 (1920x1080) renders the pictures at that size; the default is the game's 1707 x 960 that the parity series and the real-photo ranges are
+# stated for. Frames of another size are composed over the game's frame resized to it ("player, not parity checked at this size") and MEASURED after an area downsample to 1707 x 960, so that
+# the pixel-scale measures (2-16 px bands, bumps per 1000 px) keep the px per radian of the real-photo ranges (831 px/rad at a 60 degree vertical field of view).
+REF_W, REF_H = 1707, 960
+
+
+def frame_size():
+    text = os.environ.get("ATMO_PUFF_SIZE", "")
+    if "x" in text:
+        w, h = text.lower().split("x")
+        return int(w), int(h)
+    return REF_W, REF_H
+
+
+SIZE = frame_size()
+SUFFIX = "" if SIZE == (REF_W, REF_H) else "-%d" % SIZE[0]
+
+
+def light_args():
+    """The player's light arguments of e40pp with this size's width and the height."""
+    out = list(e40pp.LIGHT)
+    i = out.index("-width")
+    out[i + 1] = str(SIZE[0])
+    return out + ["-height", str(SIZE[1])]
+
+
+def at_size(img, w, h):
+    """An RGB float picture resized to w x h (area filter when it gets smaller, bilinear when it grows)."""
+    from PIL import Image
+    if img.shape[1] == w and img.shape[0] == h:
+        return img
+    pic = Image.fromarray((np.clip(img, 0, 1) * 255.0 + 0.5).astype("uint8"))
+    return np.asarray(pic.resize((w, h), Image.BOX if w < img.shape[1] else Image.BILINEAR), dtype=np.float64) / 255.0
+
+
 def stage_label(march):
-    """The label of the stage that draws a march: the base march's stage is puff-a, another is puff-r followed by the resolution case (r50 or r100)."""
-    return LABEL if march == e40pp.MARCH else "%s-%s" % (LABEL_RES, march.split("+r")[1].split("+")[0])
+    """The label of the stage that draws a march: the base march's stage is puff-a, another is puff-r followed by the resolution case (r50 or r100); another size adds -<width>."""
+    if march in MARCH_LABELS:
+        return MARCH_LABELS[march] + SUFFIX
+    return (LABEL if march == e40pp.MARCH else "%s-%s" % (LABEL_RES, march.split("+r")[1].split("+")[0])) + SUFFIX
 
 
 def stage_list():
@@ -175,8 +305,8 @@ def stage_list():
         by_march.setdefault(st["march"], []).append(name)
     for march, names in sorted(by_march.items()):
         views = ",".join(e40pp.view_tag(n) for n in names)
-        out.append(Stage(stage_label(march), ["-mode", "scene", "-scene", "soft-temporal", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march] + e40pp.LIGHT,
-                         size=(e40pp.W, e40pp.H), proxy=False, timeout=3400))
+        out.append(Stage(stage_label(march), ["-mode", "scene", "-scene", "soft-temporal", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march] + light_args(),
+                         size=SIZE, proxy=False, timeout=3400 + (3000 if SIZE != (REF_W, REF_H) else 0)))
     return out
 
 
@@ -192,12 +322,86 @@ def measure_all(folder_of):
         if off is None or not os.path.isfile(path):
             continue
         m = e40ty.load_lum(folder, e40pp.case_file(name, st["march"]))
-        img = e40pp.compose(m, off, st)
+        mh, mw = m.shape[0], m.shape[1]
+        # the game's frame without clouds at the frame's size (bilinear where it is another size than the game's)
+        off_native = at_size(off, mw, mh)
+        if st["variant"] in MOVED_CAMERA:
+            # the game's frame is another pose: a clear gradient sky behind the clouds instead (the cloud's own look is what these views are for)
+            ys = np.linspace(0.0, 1.0, mh)[:, None, None]
+            sky = (1.0 - ys) * np.array([0.22, 0.40, 0.76]) + ys * np.array([0.62, 0.76, 0.92])
+            off_native = np.repeat(sky, mw, axis=1)
+        img = e40pp.compose(m, off_native, st)
         ok = e40pp.measure_mask(st["view"], st["alt"], off.shape)
-        r = pf.measure(img, off, None, ok)
-        rows[name] = dict(view=st["view"], variant=st["variant"], full=r, **pf.summary(r))
+        # the measures run on the 1707 x 960 scale (area downsample of the native frame), the pictures stay native
+        img_ref = at_size(img, off.shape[1], off.shape[0])
+        r = pf.measure(img_ref, off, None, ok)
+        rows[name] = dict(view=st["view"], variant=st["variant"], full=r, alpha=np.asarray(m[:, :mw, 3], dtype=np.float32), **pf.summary(r))
         rows[name]["image"] = img
+        rows[name]["ok_ref"] = ok
     return rows
+
+
+REAL_ROOT = os.path.join(e40pp.MAIN, ".local", "work", "real-clouds")
+# the real-photo type each view is compared with (the cumulus layer's mixed views with humilis)
+REAL_TYPE = {"tyhuma": "humilis", "tyhuma_a": "humilis", "tycona": "congestus", "gclock": "humilis", "sclock": "humilis", "ty_humilis_a": "humilis", "ty_congestus_a": "congestus"}
+
+
+def real_ranges(height):
+    """The REALREF ranges re-derived for the frame height (run_real_size.py: the same photographs resized to the px per radian of that height); None where the file is missing."""
+    path = os.path.join(REAL_ROOT, "results", "ranges_%d.json" % height)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)["ranges"]
+
+
+def real_table(rows):
+    """The real-photo method (REALREF's blueness mask, realref.measure_img) on each frame: at its NATIVE size, compared with the ranges derived at that size's px per radian, and, as a labelled
+    cross-check column set, on the frame area-downsampled to 1707 x 960 compared with the 960 ranges. Returns the text."""
+    sys.path.insert(0, os.path.join(REAL_ROOT, "scripts"))
+    try:
+        import realref as rr
+    except ImportError:
+        return "(REALREF scripts not found under %s)" % REAL_ROOT
+    keys = [("D8_64", "box"), ("L4", "edge-len"), ("fine", "2-16px"), ("bumps", "bumps"), ("S4", "S(4)")]
+    lines = ["%-18s %-6s %-11s " % ("view-variant", "size", "mode") + " ".join("%9s" % label for _, label in keys) + "   range (median, min-max) of the real photos at this size"]
+    for name, r in sorted(rows.items(), key=lambda kv: (kv[1]["view"], kv[1]["variant"] != "base", kv[1]["variant"])):
+        img = r["image"]
+        h, w = img.shape[:2]
+        ok_ref = r["ok_ref"]
+        for mode, pic, ok, height in (("native", img, np.asarray(at_size(ok_ref.astype(np.float64)[..., None].repeat(3, axis=2), w, h)[..., 0] > 0.5), h),
+                                      ("downsampled", at_size(img, REF_W, REF_H), ok_ref, REF_H)):
+            if mode == "downsampled" and (w, h) == (REF_W, REF_H):
+                continue
+            res, _, _ = rr.measure_img(pic, ok_in=ok)
+            x = rr.row(res)
+            rng = real_ranges(height)
+            t = REAL_TYPE.get(r["view"])
+            text = ""
+            if rng and t in rng:
+                text = "  ".join("%s %.3f (%.3f-%.3f)" % (lab, rng[t][k][0], rng[t][k][1], rng[t][k][2]) if rng[t].get(k) else "%s -" % lab for k, lab in keys[:4])
+            lines.append("%-18s %-6s %-11s " % (name, "%dx%d" % (w, h) if mode == "native" else "%dx%d" % (REF_W, REF_H), mode)
+                         + " ".join("%9.3f" % x.get(k, float("nan")) for k, _ in keys) + ("   " + text if text else ""))
+    return "\n".join(lines)
+
+
+def scaleinv_table(rows):
+    """CLOUDR1: the multi-band scale-invariance measures (scaleinv.py: outline box-counting dimension D and power-spectrum slope S over 2-8, 8-32, 32-128, 128-512 px) of each frame at its
+    NATIVE size, next to the real photographs' ranges at the same px per radian (results/scaleinv_<height>.json, made by `scaleinv.py real <height>`). Ours is the march's alpha, the photographs'
+    the blueness distance; the luma spectrum is left out for ours (the frame holds the game's ground and sky)."""
+    from weather_metrics import scaleinv as si
+    lines = ["%-18s %-8s " % ("view-variant", "measure") + " ".join("%6s" % ("%d-%d" % b) for b in si.BANDS) + "   real photographs of the type (median, min-max) per band"]
+    for name, r in sorted(rows.items(), key=lambda kv: (kv[1]["view"], kv[1]["variant"] != "base", kv[1]["variant"])):
+        alpha = r["alpha"]
+        res = si.measure(alpha, None, 0.5)
+        ref = None
+        path = os.path.join(REAL_ROOT, "results", "scaleinv_%d.json" % alpha.shape[0])
+        t = REAL_TYPE.get(r["view"])
+        if os.path.isfile(path) and t:
+            with open(path, encoding="utf-8") as f:
+                ref = json.load(f)["ranges"].get(t)
+        lines += si.table_lines(name, res, ref)
+    return "\n".join(lines)
 
 
 KEYS = ["cover", "fine", "D8_64", "L4", "bumps", "S4", "S16"]
@@ -210,9 +414,98 @@ def table(rows):
     return "\n".join(lines)
 
 
+MOVED_CAMERA = ("G0", "GN4", "T0", "TN4", "C0", "CN4")
+CROP_W, CROP_H = 900, 600
+
+
+def crop_windows(alpha):
+    """Three native 900 x 600 windows of a frame, chosen on the BASE frame's alpha and used for every variant of the view: 'rim' (the most pixels of partial opacity, the cloud's edge),
+    'core' (the highest mean opacity), 'near' (the most partial-opacity pixels in the lower half of the frame, where the nearest clouds and the ground are). Returns {name: (x0, y0)}."""
+    a = np.clip(np.asarray(alpha, dtype=np.float32), 0.0, 1.0)
+    h, w = a.shape
+    edge = ((a > 0.2) & (a < 0.8)).astype(np.float32)
+    step = 30
+    best = {"rim": (-1.0, (0, 0)), "core": (-1.0, (0, 0)), "near": (-1.0, (0, h // 2 - 0))}
+    for y in range(0, h - CROP_H + 1, step):
+        for x in range(0, w - CROP_W + 1, step):
+            e = float(edge[y:y + CROP_H:6, x:x + CROP_W:6].sum())
+            c = float(a[y:y + CROP_H:6, x:x + CROP_W:6].mean())
+            if e > best["rim"][0]:
+                best["rim"] = (e, (x, y))
+            if c > best["core"][0]:
+                best["core"] = (c, (x, y))
+            if y >= h - CROP_H - 2 * step and e > best["near"][0]:
+                best["near"] = (e, (x, y))
+    return {k: v[1] for k, v in best.items()}
+
+
+def write_native(out, view, variant, img, windows):
+    """The frame at native size (full/<view>-<variant>.png) and the windows at 1:1 (crops/<view>-<variant>-<rim|core|near>.png), no resize and no label in the pixels; returns the paths."""
+    from PIL import Image
+    os.makedirs(os.path.join(out, "full"), exist_ok=True)
+    os.makedirs(os.path.join(out, "crops"), exist_ok=True)
+    pic = (np.clip(img, 0, 1) * 255).astype("uint8")
+    paths = []
+    p = os.path.join(out, "full", "%s-%s.png" % (view, variant))
+    Image.fromarray(pic).save(p)
+    paths.append(p)
+    for name, (x, y) in windows.items():
+        q = os.path.join(out, "crops", "%s-%s-%s.png" % (view, variant, name))
+        Image.fromarray(pic[y:y + CROP_H, x:x + CROP_W]).save(q)
+        paths.append(q)
+    return paths
+
+
+def native_pictures(items, out, folder_of):
+    """Full and crop pictures for [(view, variant)] straight from the player's frames (no prepared variant inputs needed): the windows come from the view's base frame."""
+    stages = prepared()
+    done = []
+    windows = {}
+    base_m = {}
+    for view, variant in sorted(items, key=lambda t: (t[0], t[1] != "base", t[1])):
+        name = view if variant == "base" else "%s-%s" % (view, variant)
+        st = stages[name]
+        spec = e40pp.VIEWS[name]
+        off = e40pp.game_frame(spec, "off_a", st.get("start", e40pp.GAME_START))
+        # each variant's own march decides its stage folder and its file name; the windows come from the view's base (production) frame
+        folder = folder_of(stage_label(st["march"]))
+        case = e40pp.case_file(name, st["march"])
+        if off is None or not os.path.isfile(os.path.join(folder, case + ".npy")):
+            print("missing frame: %s" % name)
+            continue
+        m = oriented(e40ty.load_lum(folder, case), base_m.get(view))
+        if variant == "base":
+            base_m[view] = m
+        img = e40pp.compose(m, at_size(off, m.shape[1], m.shape[0]), st)
+        if view not in windows:
+            windows[view] = crop_windows(np.asarray(m[:, :m.shape[1], 3], dtype=np.float32))
+        done += write_native(out, view, variant, img, windows[view])
+    return done
+
+
+def oriented(m, base):
+    """The frame the right way up. The player's dump of the ceiling stage came out upside down on every second call (the pixels are the same, 1.0000 correlation after the flip); the
+    production frame of the same view decides which way the frame is: the one whose colour channels follow the base frame's better."""
+    if base is None:
+        return m
+
+    def small(x):
+        h, w = x.shape[0] // 20 * 20, x.shape[1] // 20 * 20
+        return x[:h, :w, :3].sum(axis=2).reshape(h // 20, 20, w // 20, 20).mean(axis=(1, 3)).ravel()
+    same = np.corrcoef(small(m), small(base))[0, 1]
+    flipped = np.corrcoef(small(m[::-1]), small(base))[0, 1]
+    return m[::-1] if flipped > same else m
+
+
 def pictures(rows, out):
     from PIL import Image, ImageDraw
     os.makedirs(out, exist_ok=True)
+    windows = {}
+    for name, r in sorted(rows.items(), key=lambda kv: (kv[1]["view"], kv[1]["variant"] != "base", kv[1]["variant"])):
+        view = r["view"]
+        if view not in windows:
+            windows[view] = crop_windows(r["alpha"])
+        write_native(out, view, r["variant"], r["image"], windows[view])
     by_view = {}
     for name, r in rows.items():
         by_view.setdefault(r["view"], []).append((r["variant"], r["image"]))
@@ -244,6 +537,49 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil")
+
+
+def cost_label(march):
+    return "puffc-" + MARCH_LABELS.get(march, "puff-a")[5:] + SUFFIX
+
+
+def cost_stage_list():
+    """The GPU time of the pass (soft-cost scene: march | resolve | composite, median of 40 frames, proxy timestamps) for the variants named in COST_VARIANTS: one stage per march (a stage
+    runs one march over its views, and a view of a job variant carries that variant's job)."""
+    stages = prepared()
+    by_march = {}
+    for n, st in stages.items():
+        if st["variant"] in COST_VARIANTS:
+            by_march.setdefault(st["march"], []).append(n)
+    out = []
+    for march, names in sorted(by_march.items()):
+        views = ",".join(e40pp.view_tag(n) for n in names)
+        out.append(Stage(cost_label(march), ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march, "-width", str(SIZE[0]), "-height", str(SIZE[1])],
+                         size=SIZE, proxy=True, timeout=2400 + (1500 if SIZE != (REF_W, REF_H) else 0)))
+    return out
+
+
+def collect_cost(ctx):
+    rows = {}
+    for label in sorted({cost_label(st["march"]) for st in prepared().values()}):
+        for k, v in ctx.player_metrics(label).items():
+            if not k.startswith("softcost."):
+                continue
+            _, part, rest = k.split(".", 2)
+            view = rest.split(".", 1)[0]
+            rows.setdefault(view, {})[part] = v[0]
+    metrics, lines = [], ["E40 PUFF: GPU ms of the pass at %d x %d (march | resolve | composite | total)" % SIZE]
+    for view in sorted(rows):
+        r = rows[view]
+        lines.append("   %-34s %7.3f | %7.3f | %7.3f | %7.3f" % (view, r.get("march", float("nan")), r.get("resolve", float("nan")), r.get("composite", float("nan")), r.get("total", float("nan"))))
+        metrics.append(Metric.info("e40puff.cost." + view, r.get("total", float("nan"))))
+    print("\n".join(lines))
+    return metrics
+
+
+register_series("e40-puff-cost", cost_stage_list(), collect_cost, exclusive=True, who="e40-puff")
+
 
 def main():
     p = argparse.ArgumentParser()
@@ -253,13 +589,28 @@ def main():
     p.add_argument("--variants", default=",".join(VARIANTS))
     p.add_argument("--root", help="the player's output folder, default build/WeatherPlayer; a stage's folder is <root>/e40-puff-<label>")
     p.add_argument("--pictures")
+    p.add_argument("--pairs", help="only these view:variant pairs out of --views x --variants, e.g. tyhuma:N1,tycona:C0")
+    p.add_argument("--native", help="folder for the full-size and 1:1 crop pictures of --items straight from the player's frames, e.g. tyhuma:base,tyhuma:S5")
+    p.add_argument("--items", default="")
     a = p.parse_args()
+    if a.native:
+        root = a.root or BUILD.replace("weather-series", "WeatherPlayer")
+        items = [tuple(s.split(":")) for s in a.items.split(",") if s]
+        for path in native_pictures(items, a.native, lambda label: os.path.join(root, "e40-puff-" + label)):
+            print(path)
+        return 0
     if a.prepare:
-        prepare(a.views.split(","), a.variants.split(","))
+        only = set(tuple(s.split(":")) for s in a.pairs.split(",") if s) if a.pairs else None
+        prepare(a.views.split(","), a.variants.split(","), only)
     if a.report:
         root = a.root or BUILD.replace("weather-series", "WeatherPlayer")
         rows = measure_all(lambda label: os.path.join(root, "e40-puff-" + label))
+        print("puffiness.py (red/green gain against the game's frame without clouds; on the frame area-downsampled to 1707 x 960: cross-check):")
         print(table(rows))
+        print()
+        print(real_table(rows))
+        print()
+        print(scaleinv_table(rows))
         if a.pictures:
             pictures(rows, a.pictures)
     return 0

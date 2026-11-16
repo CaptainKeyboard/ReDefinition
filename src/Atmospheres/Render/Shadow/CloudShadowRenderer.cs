@@ -161,7 +161,10 @@ namespace ReDefinition.Atmospheres
                 {
                     float b, top, e;
                     table.Info(t, out b, out top, out e);
-                    info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, e, 0f);
+                    // z: the exponent of the type's density rim (0: the layer's; the shadow reads no erosion, so the erosion channel is free), w: the type's heap preset (CLOUDR1).
+                    int heap = table.HeapOfType(t);
+                    if (heap > 0 && Noise != null) Noise.RequestHeap();
+                    info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), heap);
                 }
             }
             profileTexture.SetPixelData(profile, 0);

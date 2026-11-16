@@ -16,7 +16,7 @@ namespace ReDefinition.Atmospheres
             double thickness = layer.ThicknessM;
             double share = (altitudeM - layer.InnerAltitudeM) / thickness;
             // coverageShare: the shape noise's share of the column (CloudShadowShapeNoise) in place of the plain threshold; below 0 it is not given.
-            double s = coverageShare >= 0.0 ? coverageShare : LayerDensity.Share(layer, coverageMap);
+            double s = coverageShare >= 0.0 ? coverageShare : LayerDensity.Share(layer, coverageMap, table, typeMap);
             if (s <= 0.0) return 0.0;
             int a, c;
             double f, b, top;
@@ -56,7 +56,7 @@ namespace ReDefinition.Atmospheres
             CloudLayerDef layer = source.LayerAt(layerIndex);
             float cov, typ;
             source.SampleMaps(layerIndex, latDeg, lonDeg, out cov, out typ);
-            double shape = noise.Share(layerIndex, layer, x, y, z, cov);
+            double shape = noise.Share(layerIndex, layer, x, y, z, cov, table, typ);
             var heightSource = source as ICloudHeightSource;
             HeightTuning t = heightSource == null ? null : heightSource.HeightOf(layerIndex);
             if (t == null) return LayerDensity.ExtinctionWithShare(layer, table, altitudeM, cov, typ, shape);

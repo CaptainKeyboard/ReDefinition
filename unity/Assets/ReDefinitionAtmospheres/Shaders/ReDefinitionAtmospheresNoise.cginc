@@ -14,12 +14,18 @@
 // Techniques (no code taken): Schneider, "The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015 (Perlin-Worley shape,
 // Worley detail, curl distortion, the remap that erodes); the two-phase flow map is the common technique of looped flow maps. The integer
 // hash is lowbias32 (Chris Wellons, public domain).
+//
+// CLOUDR1 (the heap volume, P2/P3): a type with a heap preset reads the macro shape from _NoiseHeap instead of _NoiseShape, a rank-uniform volume of rounded heaps in a cascade of doubled
+// frequencies (HeapVolumes.cs: dome octaves round jittered points, Worley 1996, joined by a polynomial smooth maximum, Quilez; summed with weights 2^(-H k), the spectral synthesis of
+// fractional Brownian fields, Mandelbrot and Van Ness 1968; the shape-by-type volume of Schneider, SIGGRAPH 2015 and "Nubis", SIGGRAPH 2017). Its mip level drops an octave only where the
+// march's footprint exceeds it. Its second half is a baked cavity (ambient occlusion of the heap field) that darkens the creases between lobes. No code of these works is taken.
 #ifndef REDEFINITION_ATMOSPHERES_NOISE
 #define REDEFINITION_ATMOSPHERES_NOISE
 
 sampler3D _NoiseShape;
 sampler3D _NoiseDetail;
 sampler3D _NoiseCurl;
+sampler3D _NoiseHeap;    // the heap volume (CLOUDR1 P2/P3; HeapVolumes.cs): RGBA8, r heap field of preset 1, g of preset 2, b cavity of preset 1, a of preset 2; the same period and mip chain as _NoiseShape
 sampler2D _NoiseFlow;
 sampler2D _NoiseColour;
 sampler3D _NoiseLattice; // the untiling warp's lattice table around the viewer (E40 C4; NoiseLattice.cs)
@@ -41,6 +47,13 @@ float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its 
 
 float4 _BillowP;         // billow detail (package PUFF; all 0 = the model as it was): x the billow shading of the direct light (the march scales a sample's direct light by 1 + 2 x (d - mean), d the erosion detail's value there: the bumps catch the light, the crevices between them are shaded; 0: off), y the detail's contrast about
                          // its mean minus 1 (d' = mean + (d - mean) (1 + y)), z the erosion's gain toward the cloud's top (erosion (1 + z h), h the height in the cloud 0..1), w the composite's sharpening 0..1
+
+float4 _HeapP;           // CLOUDR1: x the heap volume is built (0: every type reads the shape volume), y the march's spacing raises the heap's mip level (cloud.heap.footLod), z log2 of the heap's voxels per noise scale, w a type has a heap, an edge exponent or a cavity (0: the type info 2 is not read)
+
+// The heap preset (1, 2; 0: the shape volume) of the type at the last point LayerDensity was asked for, and the cavity channel and strength there (the march copies them right after its own density read).
+static int gHeapPreset = 0;
+static float gHeapCav = 1;
+static float gHeapCavK = 0;
 
 // The erosion detail's value at the last point LayerDensity was asked for (the detail's mean where it was not read; PUFF: the march copies it right after its own density read, like gTopAlt).
 static float gNoiseD = 0.5;
@@ -147,7 +160,19 @@ float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float coverage, float edge, float amount, float erosion)
 {
     float3 q = NoiseLookup(li, pc, scale, flow);
-    float n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), max(0.0, log2(max(gNoiseSm, 1e-4)) + _NoiseT.w))).r;
+    float lodShape = max(0.0, log2(max(gNoiseSm, 1e-4)) + _NoiseT.w);
+    float n;
+    // CLOUDR1 P2: a type with a heap preset reads the macro shape from the heap volume (rank-uniform like the shape volume, so the cover meaning holds). The mip level is the type's smoothing or the
+    // march's spacing, whichever is coarser: an octave of the cascade is dropped only where it is below the footprint (HeapVolumes mips hold the octaves a level can resolve).
+    [branch] if (gHeapPreset > 0 && _HeapP.x > 0.5)
+    {
+        float lodHeap = lodShape;
+        if (_HeapP.y > 0.5 && gNoiseFoot > 0) lodHeap = max(lodHeap, log2(max(gNoiseFoot / scale, 1e-4)) + _HeapP.z);
+        float4 hv = tex3Dlod(_NoiseHeap, float4(q / (_NoiseR.x * scale), lodHeap));
+        n = gHeapPreset == 1 ? hv.r : hv.g;
+        gHeapCav = gHeapPreset == 1 ? hv.b : hv.a;
+    }
+    else n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), lodShape)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
     // _NoiseT.z (layers.densityRemap, default 0): the erosion also thins the interior of a closed deck; 0 leaves the interior at the share 1.
     if (s <= 0 || erosion <= 0 || gNoiseLod != 0) return s;

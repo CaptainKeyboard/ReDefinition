@@ -57,6 +57,12 @@ namespace ReDefinition.Atmospheres
         // Below 0: not given (the switch is off, the layer has no noise, or the volume is not ready), the caller uses the plain threshold.
         internal double Share(int layerIndex, CloudLayerDef layer, double x, double y, double z, double cov)
         {
+            return Share(layerIndex, layer, x, y, z, cov, null, 0.0);
+        }
+
+        // The same for a type value of the layer's type table (CLOUDR1: the type's heap preset and density exponent; a null table: the layer's, no heap).
+        internal double Share(int layerIndex, CloudLayerDef layer, double x, double y, double z, double cov, LayerTypeTable table, double typeValue)
+        {
             if (volumes == null || layerIndex < 0 || layerIndex >= layers) return -1.0;
             double amount = layer.EffectiveNoiseAmount;
             if (!(amount > 0.0) || !(layer.EffectiveNoiseScaleM > 0f)) return -1.0;
@@ -65,8 +71,9 @@ namespace ReDefinition.Atmospheres
             double wy = worldToMap[1] * x + worldToMap[4] * y + worldToMap[7] * z;
             double wz = worldToMap[2] * x + worldToMap[5] * y + worldToMap[8] * z;
             NoiseLayerParams prm = layerParams[layerIndex];
+            prm.HeapPreset = table == null ? 0 : table.HeapAtTypeValue(typeValue);
             double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, layer.ClearSkyMap(cov), layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
-            return CloudWater.Pow(share, layer.EffectiveWaterPower);
+            return CloudWater.Pow(share, table == null ? layer.EffectiveWaterPower : layer.EffectiveWaterPowerAt(table, typeValue));
         }
     }
 }

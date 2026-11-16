@@ -37,6 +37,8 @@ namespace ReDefinition.Atmospheres
             while (n > 1) { n >>= 1; levels++; }
             return levels;
         }
+        // The heap volume (CLOUDR1 P2): null where no type asks for a heap preset or it is not built yet.
+        internal HeapVolumeSet Heap;
         // The milliseconds the generation took.
         internal double GenerationMs;
         // The mean of the detail volume (0 to 1): what the erosion reads where the distance LOD has dropped the detail.
@@ -93,6 +95,10 @@ namespace ReDefinition.Atmospheres
         // (0 or less: NoiseModel.FineDetailFrequency). The gain toward the top and the light tap belong to the shader's density and light march and have no twin here.
         internal double BillowContrastDelta, FineFrequency;
         internal double? FineWeight;
+        // CLOUDR1 P2: the heap preset the point's type reads (0: the shape volume; HeapModel.PresetOf) and whether the march's spacing adds to the mip level of the heap read (the octaves
+        // below the footprint are dropped, never the ones above it). The twin of the shader's gHeapPreset and _HeapP.y.
+        internal int HeapPreset;
+        internal bool HeapFootLod;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
@@ -208,6 +214,33 @@ namespace ReDefinition.Atmospheres
             return a + (Trilinear(set.ShapeMips[below], set.ShapeN >> (below + 1), 1, 0, ux, uy, uz) - a) * f;
         }
 
+        // The macro shape of a heap preset (1 or 2) at a lookup point (0 to 1): the heap volume read trilinear at the mip level of the smoothing (prm.ShapeLod) and, with prm.HeapFootLod,
+        // of the march's spacing footM (m): the level where the volume's voxel equals the spacing. cavity: the cavity channel there (1: none).
+        internal static double HeapAt(HeapVolumeSet heap, ref NoiseLayerParams prm, int preset, double qx, double qy, double qz, double footM, out double cavity)
+        {
+            double period = NoiseModel.ShapePeriodScales * prm.ScaleM;
+            double ux = qx / period, uy = qy / period, uz = qz / period;
+            double lod = prm.ShapeLod;
+            if (prm.HeapFootLod && footM > 0.0 && prm.ScaleM > 0.0)
+            {
+                double voxels = footM / prm.ScaleM * heap.N / NoiseModel.ShapePeriodScales;
+                if (voxels > 1.0) lod = Math.Max(lod, Math.Log(voxels, 2.0));
+            }
+            lod = Math.Min(lod, heap.Levels.Length - 1);
+            int below = (int)Math.Floor(lod);
+            double f = lod - below;
+            int channel = preset - 1, cavChannel = 2 + channel;
+            double a = Trilinear(heap.Levels[below], heap.N >> below, 4, channel, ux, uy, uz);
+            double ca = Trilinear(heap.Levels[below], heap.N >> below, 4, cavChannel, ux, uy, uz);
+            if (f > 0.0 && below + 1 < heap.Levels.Length)
+            {
+                a += (Trilinear(heap.Levels[below + 1], heap.N >> (below + 1), 4, channel, ux, uy, uz) - a) * f;
+                ca += (Trilinear(heap.Levels[below + 1], heap.N >> (below + 1), 4, cavChannel, ux, uy, uz) - ca) * f;
+            }
+            cavity = ca;
+            return a;
+        }
+
         // The erosion detail at a lookup point (0 to 1): the curl displaces the lookup, the rise of the detail moves it along the local up
         // (the unit vector nx, ny, nz at the point).
         internal static double DetailAt(NoiseVolumeSet set, ref NoiseLayerParams prm, double qx, double qy, double qz, double nx, double ny, double nz)
@@ -287,7 +320,13 @@ namespace ReDefinition.Atmospheres
             }
             double qx, qy, qz;
             LookupPoint(ref prm, px, py, pz, out qx, out qy, out qz);
-            double n = ShapeAt(set, ref prm, qx, qy, qz);
+            double n;
+            if (prm.HeapPreset > 0 && set.Heap != null)
+            {
+                double cavity;
+                n = HeapAt(set.Heap, ref prm, prm.HeapPreset, qx, qy, qz, footM, out cavity);
+            }
+            else n = ShapeAt(set, ref prm, qx, qy, qz);
             double x = (cov + (n - 0.5) * noiseAmount + coverage - 1.0) / edge + 0.5;
             double s = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
             if (s <= 0.0 || erosion <= 0.0 || !fine) return s;

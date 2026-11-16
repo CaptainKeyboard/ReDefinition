@@ -59,6 +59,10 @@ namespace ReDefinition.Atmospheres
         internal CloudClimateSpec Climate { get; set; }
         // The type's own smoothing of the shape noise (cfg key shapeSmoothing; below 0: the layer's): see CloudTypeDef.ShapeSmoothing.
         internal float ShapeSmoothing { get; set; } = -1f;
+        // CLOUDR1: the heap preset (cfg key heap), the exponent of the density rim (edgePower, 0: the layer's waterPower) and the cavity strength (cavity): see CloudTypeDef.
+        internal int Heap { get; set; }
+        internal float EdgePower { get; set; }
+        internal float Cavity { get; set; }
         // The share of the type's height over which its top closes (cfg key topClose): see CloudTypeDef.TopClose.
         internal float TopClose { get; set; } = CloudTypeDef.DefaultTopClose;
         // How much a tower of this type feeds an anvil (cfg key outflow): see CloudTypeDef.Outflow.
@@ -85,7 +89,7 @@ namespace ReDefinition.Atmospheres
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate,
-                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow
+                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, Heap = Heap, EdgePower = EdgePower, Cavity = Cavity
             };
         }
     }

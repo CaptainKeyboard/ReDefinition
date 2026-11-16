@@ -81,6 +81,13 @@ namespace ReDefinition.Atmospheres
         // CloudLayerDef.ShapeSmoothing. A tall type (congestus) needs it, a flat sheet (stratocumulus) wants the volume's fine octaves for its lumps. The GPU reads it from the type
         // info texture's alpha (LayerTypeTable.SmoothingOf).
         internal float ShapeSmoothing { get; set; } = -1f;
+        // CLOUDR1 P2: the heap preset of the type's macro shape (cfg key heap = billow | rough | none; HeapModel.PresetOf: 0, the shape volume of today). Read by every consumer of the shape.
+        internal int Heap { get; set; }
+        // CLOUDR1 P1: the exponent of the type's density rim (cfg key edgePower; 0: the layer's waterPower). Below 1 the rim turns opaque within a short distance (a crisp outline), above
+        // it the rim is a long translucent ramp. The water content at the outline (CloudLayerDef.SoftClosed) and every reader of the share follow it.
+        internal float EdgePower { get; set; }
+        // CLOUDR1 P3: how strongly the heap volume's cavity channel darkens the creases between lobes (cfg key cavity, 0 to 1; 0: off): the light factors are cavity^(4 x this).
+        internal float Cavity { get; set; }
 
         internal double LiftAt(double h)
         {
@@ -320,6 +327,25 @@ namespace ReDefinition.Atmospheres
         // The exponent a reader applies to the eroded share (1 where the layer keeps the plain soft edge).
         internal float EffectiveWaterPower { get { return Soft ? WaterPower : 1f; } }
 
+        // The same for one type: its edgePower where it sets one (or the tuning key cloud.edgePower forces one), else the layer's.
+        internal float EffectiveWaterPowerOf(CloudTypeDef type)
+        {
+            if (!Soft) return 1f;
+            float forced = CloudLookTuning.EdgePowerOverride;
+            if (forced > 0f) return forced;
+            return type != null && type.EdgePower > 0f ? type.EdgePower : WaterPower;
+        }
+
+        // The exponent at a type value (the two neighbouring types' blended by the weight of the second, as the shader reads them).
+        internal float EffectiveWaterPowerAt(LayerTypeTable table, double typeValue)
+        {
+            int a, c;
+            double f;
+            table.Neighbours(typeValue, out a, out c, out f);
+            float pa = EffectiveWaterPowerOf(Types[a]), pc = EffectiveWaterPowerOf(Types[c]);
+            return (float)(pa + (pc - pa) * f);
+        }
+
         // The water content at the outline: the mean over the layer's types of CloudWater.Closed (the types of one layer differ by under 0.02: MEASURED, E40 step (a)).
         internal double SoftClosed
         {
@@ -328,8 +354,8 @@ namespace ReDefinition.Atmospheres
                 Look();
                 long stamp = CloudCoverShift.Stamp;
                 // The key also holds the numbers a test may change after the first read (the types' data, the exponent).
-                double key = lookSigma + WaterPower * 7.0 + AnvilType * 17.3;
-                for (int i = 0; i < Types.Count; i++) key += Types[i].DensityScale * 3.1 + Types[i].BaseGain * 5.3 + Types[i].RiseShare * 11.7 + Types[i].Erosion * 13.9;
+                double key = lookSigma + WaterPower * 7.0 + AnvilType * 17.3 + CloudLookTuning.EdgePowerOverride * 19.1;
+                for (int i = 0; i < Types.Count; i++) key += Types[i].DensityScale * 3.1 + Types[i].BaseGain * 5.3 + Types[i].RiseShare * 11.7 + Types[i].Erosion * 13.9 + Types[i].EdgePower * 23.7;
                 if (closedStamp == stamp && closedKey == key) return closedValue;
                 double sum = 0.0;
                 // The anvil sheet (E40 CB) is drawn only by its rule, around the towers, and is thin: it is not one of the types the map's cover is calibrated on.
@@ -339,7 +365,7 @@ namespace ReDefinition.Atmospheres
                     if (i == anvil) continue;
                     counted++;
                     CloudTypeDef type = Types[i];
-                    CloudWaterNumbers k = new CloudWaterNumbers { Width = SoftWidth, Power = WaterPower, BaseGain = type.BaseGain, RiseShare = type.RiseShare };
+                    CloudWaterNumbers k = new CloudWaterNumbers { Width = SoftWidth, Power = EffectiveWaterPowerOf(type), BaseGain = type.BaseGain, RiseShare = type.RiseShare };
                     CloudTypeDef t = type;
                     double mean = CloudWater.ColumnMean(h => t.Profile.Evaluate((float)h), k, 128);
                     double tau = EffectiveSigmaPerM * (type.TopShare - type.BaseShare) * ThicknessM * mean * type.DensityScale;

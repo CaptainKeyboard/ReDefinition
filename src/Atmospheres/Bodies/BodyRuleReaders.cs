@@ -323,6 +323,9 @@ namespace ReDefinition.Atmospheres
                 HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f),
                 Lift = ProfileCurve(r.Child("LIFT"), "lift"),
                 ShapeSmoothing = r.Float("shapeSmoothing", -1f, -1f, 8f),
+                Heap = HeapModel.PresetOf(r.String("heap", "none")),
+                EdgePower = r.Float("edgePower", 0f, 0f, 6f),
+                Cavity = r.Float("cavity", 0f, 0f, 1f),
                 TopClose = r.Float("topClose", CloudTypeDef.DefaultTopClose, 0f, 1f),
                 Outflow = r.Float("outflow", 0f, 0f, 1f),
                 Climate = Climate(r.Child("CLIMATE"))

@@ -115,12 +115,12 @@ namespace ReDefinition.Atmospheres
             IdCamForward = Shader.PropertyToID("_CamForward"), IdCamRight = Shader.PropertyToID("_CamRight"), IdCamUp = Shader.PropertyToID("_CamUp"),
             IdLayerCount = Shader.PropertyToID("_LayerCount"), IdLayerA = Shader.PropertyToID("_LayerA"), IdLayerB = Shader.PropertyToID("_LayerB"),
             IdLayerC = Shader.PropertyToID("_LayerC"), IdLayerD = Shader.PropertyToID("_LayerD"), IdLayerE = Shader.PropertyToID("_LayerE"),
-            IdTypeProfile = Shader.PropertyToID("_TypeProfile"), IdTypeInfo = Shader.PropertyToID("_TypeInfo"),
+            IdTypeProfile = Shader.PropertyToID("_TypeProfile"), IdTypeInfo = Shader.PropertyToID("_TypeInfo"), IdTypeInfo2 = Shader.PropertyToID("_TypeInfo2"),
             IdCovMaps = Shader.PropertyToID("_CovMaps"), IdTypeMaps = Shader.PropertyToID("_TypeMaps"), IdMapDim = Shader.PropertyToID("_MapDim"),
             IdSun = Shader.PropertyToID("_Sun"), IdSunColor = Shader.PropertyToID("_SunColor"), IdAmbientTop = Shader.PropertyToID("_AmbientTop"),
             IdAmbientBottom = Shader.PropertyToID("_AmbientBottom"), IdMarchP = Shader.PropertyToID("_MarchP"), IdStepP = Shader.PropertyToID("_StepP"),
             IdLimitP = Shader.PropertyToID("_LimitP"), IdPhaseP = Shader.PropertyToID("_PhaseP"), IdSceneDepth = Shader.PropertyToID("_SceneDepth"),
-            IdMarchTex = Shader.PropertyToID("_MarchTex"), IdSkipP = Shader.PropertyToID("_SkipP"), IdCostP = Shader.PropertyToID("_CostP"),
+            IdMarchTex = Shader.PropertyToID("_MarchTex"), IdSkipP = Shader.PropertyToID("_SkipP"), IdCostP = Shader.PropertyToID("_CostP"), IdFirstHitP = Shader.PropertyToID("_FirstHitP"),
             IdMarchTexel = Shader.PropertyToID("_MarchTex_TexelSize"), IdDitherP = Shader.PropertyToID("_DitherP");
 
         // The height variation (package T13): the maps, and per layer the ranges and the ragged boundary's numbers.
@@ -138,7 +138,7 @@ namespace ReDefinition.Atmospheres
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
         private Material material;
-        private Texture2D profileTexture, infoTexture;
+        private Texture2D profileTexture, infoTexture, infoTexture2;
         // Each layer's light response (CloudLayerDef.LightAmbient; the shader's _LightL.x and .y stay 1), handed to the light settings of the frame (E40 B3).
         private readonly Vector3[] layerLight = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
         private readonly float[] layerIsotropy = new float[CloudLayerDef.MaxLayers];
@@ -193,6 +193,14 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp
             };
+            // CLOUDR1: the second type info: x the heap preset, y the exponent of the density rim (0: the layer's), z the cavity strength.
+            infoTexture2 = new Texture2D(CloudLayerDef.MaxTypes, CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
+            {
+                name = "layer type info 2",
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            material.SetTexture(IdTypeInfo2, infoTexture2);
             material.SetTexture(IdTypeProfile, profileTexture);
             var blue = new Vector4[DitherMatrix.Count / 4];
             float[] tile = DitherMatrix.Values();
@@ -259,6 +267,7 @@ namespace ReDefinition.Atmospheres
             UnityEngine.Object.Destroy(material);
             UnityEngine.Object.Destroy(profileTexture);
             UnityEngine.Object.Destroy(infoTexture);
+            UnityEngine.Object.Destroy(infoTexture2);
             material = null;
             profileTexture = null;
         }
@@ -275,6 +284,8 @@ namespace ReDefinition.Atmospheres
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
             for (int i = 0; i < profile.Length; i += 4) { profile[i + 1] = 1f; profile[i + 2] = 1f; }
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers];
+            var info2 = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers];
+            bool extras = false;
             for (int l = 0; l < layerCount; l++)
             {
                 CloudLayerDef layer = source.LayerAt(l);
@@ -326,6 +337,10 @@ namespace ReDefinition.Atmospheres
                     float b, top, e;
                     table.Info(t, out b, out top, out e);
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, e, table.SmoothingOfType(t));
+                    int heap = table.HeapOfType(t);
+                    if (heap > 0) Noise.RequestHeap();
+                    if (heap > 0 || table.EdgeOfType(t) > 0f) extras = true;
+                    info2[l * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), 0f);
                 }
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++) layerH[l] = layerH2[l] = cullL[l] = Vector4.zero;
@@ -335,6 +350,9 @@ namespace ReDefinition.Atmospheres
             profileTexture.Apply(false);
             infoTexture.SetPixels(info);
             infoTexture.Apply(false);
+            Noise.ExtrasUsed = extras;
+            infoTexture2.SetPixels(info2);
+            infoTexture2.Apply(false);
             uploadedSource = source;
             uploadedVersion = source.Version;
             uploadedShift = CloudCoverShift.Stamp;
@@ -393,6 +411,8 @@ namespace ReDefinition.Atmospheres
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), Mathf.Max(0f, f.LeapScales), 0f));
+            // CLOUDR1 P6: the first hit by bisection and the thin steps inside (cloud.firstHit, cloud.firstHit.thin, cloud.firstHit.grow); 0 iterations: the march as it was.
+            m.SetVector(IdFirstHitP, new Vector4(CloudLookTuning.FirstHitIterations, CloudLookTuning.FirstHitThin, CloudLookTuning.FirstHitGrow, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).

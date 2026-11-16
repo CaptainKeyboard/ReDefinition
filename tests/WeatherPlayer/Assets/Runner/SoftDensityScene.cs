@@ -170,6 +170,10 @@ namespace ReDefinition.WeatherPlayer
             public int GrowthE6, EarlyOut;
             // E40 C4: wt<N> layers.warpTable (0 the warp's lattice values hashed at every sample, 1 the table of half floats, 2 the table of bytes; the product 0).
             public int WarpTable;
+            // PUFF ceiling render: ceil the march and the light without the real-time compromises (256 grid points over the span at 6 m at least, no step growth, early-out 0.001, no
+            // transmittance growth, every lit step marches to the sun, no light cutoff, 16 sun taps over 12 km). Used with r100+jit+acc<N>+clip1000: the reconstruction then accumulates jittered full-size frames.
+            // cstep alone is the march's group (grid, minimum step, no growth, early-out), clight alone the light's group (stride, cutoff, taps, reach); ceil is both.
+            public bool CeilStep, CeilTaps;
         }
 
         private static int Number(string token, int prefix)
@@ -192,6 +196,9 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "tl") c.TapLod = true;   // T16 cloudTapLod
                 else if (t == "fm") c.FarMean = true;   // cloudFarShapeMean
                 else if (t == "ev") c.Evict = true;   // E40 C2
+                else if (t == "ceil") { c.CeilStep = true; c.CeilTaps = true; }   // PUFF ceiling render
+                else if (t == "cstep") c.CeilStep = true;   // PUFF ceiling render: the march's group alone
+                else if (t == "clight") c.CeilTaps = true;   // PUFF ceiling render: the light's group alone
                 else if (t.StartsWith("cg") && t.Length > 2) { c.StepGrowth = true; c.GrowthE6 = Number(t, 2); }   // E40 C3
                 else if (t.StartsWith("eo")) c.EarlyOut = Number(t, 2);   // E40 C3
                 else if (t.StartsWith("mn")) c.Moon = Number(t, 2);   // E40 C2
@@ -262,6 +269,23 @@ namespace ReDefinition.WeatherPlayer
             f.Light.MoonSteps = q.MoonSteps;
             f.Light.UpSteps = q.UpSteps;
             f.Light.Octaves = q.Octaves;
+            f.SunMarchM = FrameDefaults.SunMarchM;
+            if (c.CeilStep)
+            {
+                f.MaxSteps = 256;
+                f.MinStepM = 6f;
+                f.StepGrowth = 0f;
+                f.EarlyOut = 0.001f;
+                f.TransmittanceGrowth = 0f;
+                f.EmptyLeap = 1f;
+            }
+            if (c.CeilTaps)
+            {
+                f.LightStride = 1;
+                f.LightCutoff = 0f;
+                f.SunMarchM = 12000f;
+                f.Light.SunStepsOverride = 16;
+            }
         }
 
         // The reconstruction of a case in a mode of GrainTable (plain: the half-size march alone; acc20: with the history). A block level has its own history and ignores the mode.
@@ -293,7 +317,16 @@ namespace ReDefinition.WeatherPlayer
     [WeatherScene("soft-temporal")]
     public sealed class SoftTemporalScene : WeatherSceneBase
     {
-        private const int H = 960, Frames = 40;
+        private const int Frames = 40;
+        // The target's height: 960 as before, or -height N (PUFF: pictures at 1920 x 1080 and 2560 x 1440).
+        private static int H
+        {
+            get
+            {
+                int height;
+                return int.TryParse(WeatherPass.Argument("-height"), out height) && height >= 64 ? height : 960;
+            }
+        }
         // The target's width: 1708 as before, or -width N (E40 PP64: the game's frames are 1707 wide and its march target 563, so the parity series asks for 1707).
         private static int W
         {
@@ -467,7 +500,11 @@ namespace ReDefinition.WeatherPlayer
                 mMarched = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabMarched),
                 mResolved = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabComposited),
                 mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainEnd);
-            var rt = new RenderTexture(1707, 960, 24, RenderTextureFormat.DefaultHDR) { name = "soft cost target" };
+            int costW, costH;
+            // The cost target's size: 1707 x 960 as before, or -width N -height N (PUFF: the pass cost at 1920 x 1080 and 2560 x 1440).
+            if (!int.TryParse(WeatherPass.Argument("-width"), out costW) || costW < 64) costW = 1707;
+            if (!int.TryParse(WeatherPass.Argument("-height"), out costH) || costH < 64) costH = 960;
+            var rt = new RenderTexture(costW, costH, 24, RenderTextureFormat.DefaultHDR) { name = "soft cost target" };
             rt.Create();
             Cam.targetTexture = rt;
             // E40 C2 (case ev): two 2048 x 2048 half-float targets, copied into each other before the timed pass: 64 MB through the caches (the L2 of the card is a few MB).
