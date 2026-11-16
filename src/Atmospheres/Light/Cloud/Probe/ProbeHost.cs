@@ -86,6 +86,8 @@ namespace ReDefinition.Atmospheres
         // The flight camera is put every frame at the pose; the vessel is not moved. Heading and elevation in degrees, the camera's height over the PQS terrain and its distance
         // behind the vessel's spot.
         void HoldCamera(double headingDeg, double elevationDeg, double distanceM, double cameraAglM);
+        // The same with the camera's height given above sea level (the pose maths of the horizontal place is the same).
+        void HoldCameraAbsolute(double headingDeg, double elevationDeg, double distanceM, double altitudeAslM);
         void ReleaseCamera();
         bool CameraHeld { get; }
         // One line per camera: name, depth, culling mask, target texture, enabled.
@@ -200,8 +202,17 @@ namespace ReDefinition.Atmospheres
             elevation = elevationDeg;
             distance = distanceM;
             cameraAgl = cameraAglM;
+            absoluteAlt = double.NaN;
             held = true;
         }
+
+        public void HoldCameraAbsolute(double headingDeg, double elevationDeg, double distanceM, double altitudeAslM)
+        {
+            HoldCamera(headingDeg, elevationDeg, distanceM, 0.0);
+            absoluteAlt = altitudeAslM;
+        }
+
+        private double absoluteAlt = double.NaN;
 
         public void ReleaseCamera()
         {
@@ -225,7 +236,7 @@ namespace ReDefinition.Atmospheres
                 Vector3d approx = site - horizontal * (distance * Math.Cos(el));
                 double lat, lon, alt;
                 body.GetLatLonAlt(approx, out lat, out lon, out alt);
-                Vector3d position = body.GetWorldSurfacePosition(lat, lon, body.TerrainAltitude(lat, lon, true) + cameraAgl);
+                Vector3d position = body.GetWorldSurfacePosition(lat, lon, double.IsNaN(absoluteAlt) ? body.TerrainAltitude(lat, lon, true) + cameraAgl : absoluteAlt);
                 Vector3d up, north, east;
                 Frame(body, lat, lon, out up, out north, out east);
                 Vector3d forward = (north * Math.Cos(h) + east * Math.Sin(h)) * Math.Cos(el) + up * Math.Sin(el);

@@ -51,6 +51,11 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 CameraHeld = true;
                 Rig.PlacePose(new ViewerPose { Name = "camera only", AglM = cameraAglM + distanceM * Math.Sin(elevationDeg * Math.PI / 180.0), ElevationDeg = elevationDeg, HeadingDeg = headingDeg, CameraDistM = distanceM });
             }
+            public void HoldCameraAbsolute(double headingDeg, double elevationDeg, double distanceM, double altitudeAslM)
+            {
+                CameraHeld = true;
+                Rig.PlacePose(new ViewerPose { Name = "camera only", AglM = altitudeAslM + distanceM * Math.Sin(elevationDeg * Math.PI / 180.0), ElevationDeg = elevationDeg, HeadingDeg = headingDeg, CameraDistM = distanceM });
+            }
             public void ReleaseCamera() { CameraHeld = false; }
             public string DescribeCameras() { return "Camera 00 depth -1 mask 0xffffff screen"; }
 
@@ -142,9 +147,12 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 Rig = r.Rig, CommandLineOverride = args,
                 CoverQuadCount = () => on ? 900 : 0,
                 CoverInstalledCount = () => on ? 3 : 0,
-                GroundReader = () => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "ksc_exterior_terrain_grass_02", Shader = "Custom/ParallaxKSCTerrain", DistanceM = SurfaceGroundProbe.RayUpM + 2.0 }
+                // The collider is at 3 m above sea level (the fake's terrain is at 0); the camera stands over it as the rig's pose says.
+                GroundReader = ahead => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "ksc_exterior_terrain_grass_02", Shader = "Custom/ParallaxKSCTerrain", DistanceM = SurfaceGroundProbe.RayUpM + 2.0,
+                                                           AltAsl = 3.0, CameraOverM = r.Rig.Pose.CameraAglM - 3.0 }
             };
             r.Probe.ScenePathReader = () => r.ScenePath;
+            r.Probe.VesselDescriber = () => "Kerbal X: 12 parts";
             r.Host.Rig = r.Rig;
             r.Probe.Host = r.Host;
             r.Probe.PictureReader = path => FakeHost.Shot(r.ViewerFileColour, 0);
@@ -212,8 +220,9 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 Assert.AreEqual(start == SurfaceGroundProbe.StartOn ? 900.0 : 0.0, double.Parse(rows["GRD.g2_p2_cover_quads"], CultureInfo.InvariantCulture), 0.0, start + ": the cover's records");
                 Assert.AreEqual("1", rows["GRD.g2_p1_ground_is_parallax"], start + ": the shader the ray found is a Parallax one");
                 double ground = double.Parse(rows["GRD.g2_p1_camera_agl_m"], CultureInfo.InvariantCulture);
-                Assert.AreEqual(SurfaceGroundProbe.GroundCameraAglM, ground, 0.01, start + ": the ground-level camera stands about 2 m over the lawn");
-                Assert.AreEqual(5.2, SurfaceGroundProbe.GroundCameraAglM, 0.0, "over the PQS terrain: the lawn lies 2.7 to 3.2 m above it");
+                Assert.AreEqual(3.0 + SurfaceGroundProbe.GroundOverColliderM, ground, 0.01, start + ": the ground-level camera is held 2 m over the collider the ray found (3 m in the fake), not at the first guess");
+                Assert.IsTrue(r.Log.Any(l => l.StartsWith("ground: g2_p1: the camera was ") && l.Contains("held again")), start + ": the second hold is logged");
+                Assert.IsTrue(r.Host.UiShowing && !r.Host.CameraHeld, start + ": the camera and the interface are given back");
                 Assert.AreEqual(291.3, double.Parse(rows["GRD.far_p1_camera_agl_m"], CultureInfo.InvariantCulture), 0.2, start + ": the far camera stands where K-S2's does");
                 Assert.IsTrue(double.Parse(rows["GRD.far_p1_sun_angle_deg"], CultureInfo.InvariantCulture) < 30.0, "heading 90 looks at the sun");
                 Assert.IsTrue(double.Parse(rows["GRD.far_p2_sun_angle_deg"], CultureInfo.InvariantCulture) > 150.0, "heading 270 looks away from it");
@@ -328,7 +337,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public void ACameraUnderTheLawnFailsTheClearanceOfTheGroundFrames()
         {
             Run r = Start(SurfaceGroundProbe.StartOn);
-            r.Probe.GroundReader = () => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "m", Shader = "s", DistanceM = SurfaceGroundProbe.RayUpM - 1.0 };
+            r.Probe.GroundReader = ahead => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "m", Shader = "s", DistanceM = SurfaceGroundProbe.RayUpM - 1.0, AltAsl = 3.0, CameraOverM = 0.3 };
             Drive(r);
             Assert.IsFalse(r.Probe.Passed, Dump(r));
             Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "g2_p1_clearance")), r.Joined);
@@ -351,7 +360,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsFalse(r.Host.CameraHeld, "the camera is let go before the viewer places the vessel");
             Assert.IsTrue(r.Host.UiShownAtRead.Count >= 4 && !r.Host.UiShownAtRead.Any(x => x), "the interface is away at every screen read: " + string.Join(",", r.Host.UiShownAtRead.Select(x => x.ToString()).ToArray()));
             Assert.IsTrue(r.Host.UiShowing, "and back at the end");
-            string bSettle = r.Log.FirstOrDefault(l => l.StartsWith("ground: capture_ab: B settle stable after "));
+            string bSettle = r.Log.FirstOrDefault(l => l.StartsWith("ground: B settle stable after "));
             Assert.IsNotNull(bSettle, "B settles on a stable ground, not at the limit\n" + Dump(r));
             Assert.IsTrue(double.Parse(Regex.Match(bSettle, "after (?<s>[0-9.]+) s").Groups["s"].Value, CultureInfo.InvariantCulture) >= SurfaceGroundProbe.FirstSettleMinS, "B waits as long as ProbeLite's first pose: " + bSettle);
             Assert.IsTrue(r.Written.Any(p => p.EndsWith("capture_ab_B_camera_only.png")) && r.Written.Any(p => p.EndsWith("_screen.png")), string.Join(";", r.Written.ToArray()));
@@ -458,7 +467,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             double vessel = SurfaceGroundProbe.VesselAglFor(SurfaceGroundProbe.GroundCameraAglM, SurfaceGroundProbe.GroundElevationDeg, SurfaceGroundProbe.GroundCameraDistM);
             double camera = vessel - SurfaceGroundProbe.GroundCameraDistM * Math.Sin(SurfaceGroundProbe.GroundElevationDeg * Math.PI / 180.0);
             Assert.AreEqual(SurfaceGroundProbe.GroundCameraAglM, camera, 1e-9);
-            Assert.IsTrue(vessel > 6.1 && vessel < 6.4, "about 6.25 m: " + vessel);
+            Assert.IsTrue(vessel > 7.5 && vessel < 7.6, "about 7.56 m for a camera 90 m behind: " + vessel);
         }
 
         [TestMethod]

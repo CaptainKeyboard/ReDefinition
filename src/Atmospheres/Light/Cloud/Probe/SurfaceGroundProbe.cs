@@ -13,6 +13,8 @@ namespace ReDefinition.Atmospheres
         internal bool Hit;
         internal string Object, Material, Shader;
         internal double DistanceM;
+        // The height of the point the ray hit above sea level, and how far the camera stands over it (NaN where there is no hit).
+        internal double AltAsl, CameraOverM;
     }
 
     // The probe of the starts of K-S2 that load the game with the cover switched off before anything is built (rows tests/series/rows/SURFACEGROUND.json). K-S2's own start
@@ -34,14 +36,15 @@ namespace ReDefinition.Atmospheres
         internal const string Prefix = "GRD.";
         // K-S2's pose and time (SurfaceProbe).
         internal const double FarAglM = 300.0, FarElevationDeg = 5.0, FarCameraDistM = 100.0, HeadingToward = 90.0, HeadingAway = 270.0, K1Ut = 1470283.6;
-        // The ground-level pose: the camera is GroundCameraAglM above the ground, looking GroundElevationDeg up, GroundCameraDistM behind the vessel, which then stands
-        // GroundCameraAglM + GroundCameraDistM * sin(elevation) above the ground (the camera sits below the vessel by that much).
-        // The height is over the PQS terrain (what the viewer places by); the space centre's grass surfaces lie 2.7 to 3.2 m above it (KscGrass.cs), so 5.2 m over the PQS terrain is
-        // about 2 m over the lawn. The headings of the ground frames are 90 and 180 (270 looks along the road to the VAB, which is concrete).
-        internal const double GroundCameraAglM = 5.2, GroundElevationDeg = 1.5, GroundCameraDistM = 40.0, GroundHeadingA = 90.0, GroundHeadingB = 180.0;
-        // The camera of a ground-level frame is within these metres above the PQS terrain (the game may lift it a little over a bump); a far frame within FarAglToleranceM of 290.
-        // Its clearance over the collider the ray finds under the ground it looks at (the lawn or the deck) is within GroundClearMinM and GroundClearMaxM: under the lawn is a failed view.
-        internal const double GroundAglMinM = 3.5, GroundAglMaxM = 8.0, GroundClearMinM = 0.8, GroundClearMaxM = 4.5, FarAglToleranceM = 15.0;
+        // The ground-level pose, as tools/ProbeLite poses its low views: the camera alone (the flight camera's transform, the vessel is not moved), GroundCameraDistM behind the pad
+        // along the heading, looking GroundElevationDeg up, GroundOverColliderM above the ground collider found under it. The first hold is at GroundCameraAglM over the PQS terrain;
+        // the ray under the camera then gives the collider (the pad's apron and the lawn lie 3.5 to 5.3 m over the PQS terrain there: a height over the PQS terrain put the camera inside
+        // the deck, 0.27 m over it, in the first run) and the camera is held again at its height + GroundOverColliderM. The ground 40 m from the pad is the pad's concrete (green share about 1
+        // in tools/ProbeLite's pictures), 60 m from it lawn (+19): the camera stands 90 m from the pad. Headings 90 and 180 (270 looks along the road to the VAB, concrete).
+        internal const double GroundCameraAglM = 5.2, GroundElevationDeg = 1.5, GroundCameraDistM = 90.0, GroundOverColliderM = 2.0, GroundHeadingA = 90.0, GroundHeadingB = 180.0;
+        // The camera of a ground-level frame is within these metres above the PQS terrain; a far frame within FarAglToleranceM of 290. Its clearance over the collider under it is within
+        // GroundClearMinM and GroundClearMaxM after the second hold: under the lawn or deck is a failed view.
+        internal const double GroundAglMinM = 1.5, GroundAglMaxM = 15.0, GroundClearMinM = 1.2, GroundClearMaxM = 3.0, FarAglToleranceM = 15.0;
         internal const double AimToleranceDeg = 0.5, SunDriftDeg = 1.0, PosesApartDeg = 60.0, RayAheadM = 30.0, RayUpM = 20.0, RayLengthM = 450.0;
         internal const double PollPlaceS = 60.0, PollMapS = 20.0, PollPictureS = 15.0, SettleS = 3.0, PollWindowS = 10.0, PollPassS = 40.0, CoverSettleS = 20.0;
         internal const int SettleFrames = 60, AimStillMaxFrames = 80, MinPictureBytes = 1000;
@@ -97,7 +100,7 @@ namespace ReDefinition.Atmospheres
         // What a test replaces: the cover's quad records, the bodies the cover's PQS mod stands in, the ground under the camera, the angle between the camera and the sun.
         internal Func<int> CoverQuadCount = () => CoverQuads.Count;
         internal Func<int> CoverInstalledCount = ReadInstalled;
-        internal Func<GroundReading> GroundReader = ReadGameGround;
+        internal Func<double, GroundReading> GroundReader = ReadGameGround;
         internal Func<double> SunAngleReader = ReadSunAngle;
 
         protected override string SeriesName
@@ -128,10 +131,15 @@ namespace ReDefinition.Atmospheres
             return refresher != null ? refresher.InstalledCount : 0;
         }
 
-        // The ground the camera looks at: a ray straight down from RayUpM over the point RayAheadM ahead of the camera (horizontally), the first hit that is not a vessel part.
-        private static GroundReading ReadGameGround()
+        // The ground under the point aheadM in front of the camera (horizontally; 0: straight under it): a ray straight down from RayUpM over that point. Colliders of vessel parts
+        // and of the scaled space (layer 10) are not ground. The ground is the highest collider within LawnWindowM of the PQS terrain there (the lawn lies 2.7 to 3.2 m over it, the
+        // pad's apron at it; the first collider from above can be the pad's tower or a building, as tools/ProbeLite found); where none is in the window, the first collider.
+        internal const double LawnWindowM = 6.0;
+        private const int ScaledSpaceLayer = 10;
+
+        private static GroundReading ReadGameGround(double aheadM)
         {
-            var none = new GroundReading { Object = "", Material = "", Shader = "", DistanceM = double.NaN };
+            var none = new GroundReading { Object = "", Material = "", Shader = "", DistanceM = double.NaN, AltAsl = double.NaN, CameraOverM = double.NaN };
             try
             {
                 Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
@@ -140,20 +148,30 @@ namespace ReDefinition.Atmospheres
                 Vector3 position = cam.transform.position;
                 Vector3 up = (position - body.position).normalized;
                 Vector3 forward = Vector3.ProjectOnPlane(cam.transform.forward, up).normalized;
-                Vector3 origin = position + forward * (float)RayAheadM + up * (float)RayUpM;
+                Vector3 origin = position + forward * (float)aheadM + up * (float)RayUpM;
+                double camLat, camLon, camAlt, oLat, oLon, oAlt;
+                body.GetLatLonAlt(position, out camLat, out camLon, out camAlt);
+                body.GetLatLonAlt(origin, out oLat, out oLon, out oAlt);
+                double terrain = body.TerrainAltitude(oLat, oLon, true);
                 RaycastHit[] hits = Physics.RaycastAll(origin, -up, (float)RayLengthM);
                 Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+                GroundReading first = none, lawn = none;
                 foreach (RaycastHit hit in hits)
                 {
-                    if (hit.collider == null || hit.collider.GetComponentInParent<Part>() != null) continue;
+                    if (hit.collider == null || hit.collider.gameObject.layer == ScaledSpaceLayer || hit.collider.GetComponentInParent<Part>() != null) continue;
                     Renderer renderer = hit.collider.GetComponent<Renderer>() ?? hit.collider.GetComponentInParent<Renderer>();
                     Material material = renderer != null ? renderer.sharedMaterial : null;
-                    return new GroundReading
+                    double lat, lon, alt;
+                    body.GetLatLonAlt(hit.point, out lat, out lon, out alt);
+                    var reading = new GroundReading
                     {
                         Hit = true, Object = hit.collider.gameObject.name, Material = material != null ? material.name : "none",
-                        Shader = material != null && material.shader != null ? material.shader.name : "none", DistanceM = hit.distance
+                        Shader = material != null && material.shader != null ? material.shader.name : "none", DistanceM = hit.distance, AltAsl = alt, CameraOverM = camAlt - alt
                     };
+                    if (!first.Hit) first = reading;
+                    if (alt >= terrain - 1.0 && alt <= terrain + LawnWindowM && (!lawn.Hit || alt > lawn.AltAsl)) lawn = reading;
                 }
+                return lawn.Hit ? lawn : first;
             }
             catch (Exception)
             {
@@ -228,6 +246,33 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(5);
         }
 
+        // The active vessel and what is left of it, for the log of every frame: the pictures of K-S2 show the pad's clamps and no rocket (the first picture of 2026-11-15 and the one
+        // of the first space-centre run), and nothing in the log says where the rocket went.
+        internal Func<string> VesselDescriber = ReadVessel;
+
+        private static string ReadVessel()
+        {
+            try
+            {
+                Vessel v = FlightGlobals.ActiveVessel;
+                if (v == null) return "no active vessel";
+                int engines = 0, pods = 0, clamps = 0;
+                foreach (Part p in v.parts)
+                {
+                    string name = p.partInfo != null ? p.partInfo.name : p.name;
+                    if (name.IndexOf("clamp", StringComparison.OrdinalIgnoreCase) >= 0) clamps++;
+                    else if (name.IndexOf("pod", StringComparison.OrdinalIgnoreCase) >= 0) pods++;
+                    if (p.FindModuleImplementing<ModuleEngines>() != null) engines++;
+                }
+                return v.vesselName + ": " + v.parts.Count + " parts (" + pods + " pods, " + engines + " engines, " + clamps + " clamps), " + v.situation + ", " + v.altitude.ToString("0.#", CultureInfo.InvariantCulture)
+                       + " m, mass " + v.GetTotalMass().ToString("0.#", CultureInfo.InvariantCulture) + " t, packed " + v.packed + "; vessels in the scene " + FlightGlobals.Vessels.Count;
+            }
+            catch (Exception e)
+            {
+                return "the vessel could not be read (" + e.GetType().Name + ")";
+            }
+        }
+
         // What the cover is in this frame: the records of its quads, the bodies its PQS mod stands in, the switches; the largest of each over the frames is judged at the end.
         private void DescribeCover(string frame, string key, GroundReading ground, double aglCamera, double sunAngle)
         {
@@ -237,7 +282,7 @@ namespace ReDefinition.Atmospheres
             LogLine("ground: " + key + ": cover quads " + quads + ", cover PQS mod in " + installed + " bodies, enabled " + (AtmospheresSettings.Enabled ? "on" : "off") + ", groundCover "
                     + (AtmospheresSettings.GroundCover ? "on" : "off") + ", weatherEffects " + (AtmospheresSettings.WeatherEffects ? "on" : "off") + "; camera " + F(aglCamera) + " m above the ground, "
                     + F(sunAngle) + " deg from the sun; ground " + (ground.Hit ? ground.Object + ", material " + ground.Material + ", shader " + ground.Shader + ", " + F(ground.DistanceM) + " m below the ray" : "no hit")
-                    + "; UT " + F(Rig.GameUt) + ", sun elevation " + F(Rig.SunElevationDeg));
+                    + "; UT " + F(Rig.GameUt) + ", sun elevation " + F(Rig.SunElevationDeg) + "; " + VesselDescriber());
             Emit(Prefix + frame + "_cover_quads", quads);
             Emit(Prefix + frame + "_cover_bodies", installed);
             Emit(Prefix + frame + "_camera_agl_m", aglCamera);
@@ -247,17 +292,43 @@ namespace ReDefinition.Atmospheres
         }
 
         // One frame: the pose, the wait for the hold and the aim, the readings, the picture.
+        // A ground-level pose by the camera alone: held at the first guess, the collider under it read, held again 2 m over that collider, the ground settled with the interface away.
+        private IEnumerable<ProbeWait> PlaceGround(Frame f)
+        {
+            Host.HideUi();
+            Host.HoldCamera(f.Heading, f.ElevationDeg, f.CameraDistM, GroundCameraAglM);
+            yield return ProbeWait.Frames(SettleFrames);
+            yield return ProbeWait.Seconds(SettleS);
+            GroundReading under = GroundReader(0.0);
+            if (under.Hit && !double.IsNaN(under.AltAsl))
+            {
+                Host.HoldCameraAbsolute(f.Heading, f.ElevationDeg, f.CameraDistM, under.AltAsl + GroundOverColliderM);
+                LogLine("ground: " + f.Name + ": the camera was " + F(under.CameraOverM) + " m over " + under.Object + " at the first hold; held again " + F(GroundOverColliderM) + " m over it (" + F(under.AltAsl + GroundOverColliderM) + " m above sea level)");
+                yield return ProbeWait.Frames(SettleFrames);
+            }
+            else LogLine("ground: " + f.Name + ": no collider under the camera at the first hold; the first height stays");
+            foreach (ProbeWait w in SettleScreen(f.Name, SettleMinS, SettleMaxS)) yield return w;
+        }
+
         private IEnumerable<ProbeWait> TakeFrame(Frame f, Dictionary<string, string> pictures, double sun)
         {
-            Rig.PlacePose(new ViewerPose { Name = f.Ground ? "ground" : "cb_far", AglM = f.AglM, ElevationDeg = f.ElevationDeg, HeadingDeg = f.Heading, CameraDistM = f.CameraDistM });
-            yield return ProbeWait.Frames(2);
-            foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
-            yield return ProbeWait.Frames(SettleFrames);
-            foreach (ProbeWait w in StillAim()) yield return w;
-            // The terrain under a pose that was just placed builds and the cover repaints within a budget of a few ms a frame.
-            yield return ProbeWait.Seconds(SettleS);
+            if (f.Ground)
+            {
+                foreach (ProbeWait w in PlaceGround(f)) yield return w;
+            }
+            else
+            {
+                Rig.PlacePose(new ViewerPose { Name = "cb_far", AglM = f.AglM, ElevationDeg = f.ElevationDeg, HeadingDeg = f.Heading, CameraDistM = f.CameraDistM });
+                yield return ProbeWait.Frames(2);
+                foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
+                yield return ProbeWait.Frames(SettleFrames);
+                foreach (ProbeWait w in StillAim()) yield return w;
+                // The terrain under a pose that was just placed builds and the cover repaints within a budget of a few ms a frame.
+                yield return ProbeWait.Seconds(SettleS);
+            }
             ViewerPoseReading aim = Rig.Pose;
-            GroundReading ground = GroundReader();
+            GroundReading ground = GroundReader(RayAheadM);
+            GroundReading under = f.Ground ? GroundReader(0.0) : ground;
             double angle = SunAngleReader();
             DescribeCover(f.Name, "ground_" + f.Name, ground, aim.CameraAglM, angle);
             foreach (ProbeWait w in Take()) yield return w;
@@ -276,13 +347,19 @@ namespace ReDefinition.Atmospheres
             Verdict(f.Name + "_camera_height", f.Name + ": the camera stands at the height of the pose", aim.CameraAglM >= lo && aim.CameraAglM <= hi, F(lo) + " to " + F(hi) + " m above the ground", F(aim.CameraAglM) + " m");
             if (f.Ground)
             {
-                // The ray starts RayUpM over the camera: what it hits lies RayUpM less than its distance below the camera.
-                double clear = ground.Hit ? ground.DistanceM - RayUpM : double.NaN;
-                Verdict(f.Name + "_clearance", f.Name + ": the camera stands over the collider of the ground it looks at", !double.IsNaN(clear) && clear >= GroundClearMinM && clear <= GroundClearMaxM,
-                        F(GroundClearMinM) + " to " + F(GroundClearMaxM) + " m over the ground collider", ground.Hit ? F(clear) + " m over " + ground.Object : "no collider found");
+                // The collider under the camera (the lawn or the pad's apron within 6 m of the PQS terrain), as the ray read it with the camera held.
+                double clear = under.Hit ? under.CameraOverM : double.NaN;
+                Verdict(f.Name + "_clearance", f.Name + ": the camera stands over the ground collider under it", !double.IsNaN(clear) && clear >= GroundClearMinM && clear <= GroundClearMaxM,
+                        F(GroundClearMinM) + " to " + F(GroundClearMaxM) + " m over the ground collider", under.Hit ? F(clear) + " m over " + under.Object : "no collider found");
             }
             double sunEnd = Rig.SunElevationDeg;
             Verdict(f.Name + "_sun_fixed", f.Name + ": the sun did not move", !double.IsNaN(sunEnd) && Math.Abs(sunEnd - sun) <= SunDriftDeg, F(sun) + " +-" + F(SunDriftDeg) + " deg", F(sunEnd) + " deg");
+            if (f.Ground)
+            {
+                // The game's camera and interface are back before the next frame's pose.
+                Host.ReleaseCamera();
+                Host.ShowUi();
+            }
         }
 
         // The cover as the start asks for it: where it is off at load its PQS mod is in no sphere and no quad has a record; where it is on it is in the sphere of Kerbin and has painted.
@@ -507,7 +584,7 @@ namespace ReDefinition.Atmospheres
                 {
                     // The picture that is kept: the last grab, encoded.
                     foreach (ProbeWait w in GrabNow(true)) yield return w;
-                    LogLine("ground: capture_ab: " + label + " settle " + (settled ? "stable" : "LIMIT, not settled") + " after " + F(elapsed) + " s; ground luma per second: " + lumas);
+                    LogLine("ground: " + label + " settle " + (settled ? "stable" : "LIMIT, not settled") + " after " + F(elapsed) + " s; ground luma per second: " + lumas);
                     yield break;
                 }
                 yield return ProbeWait.Seconds(1);
