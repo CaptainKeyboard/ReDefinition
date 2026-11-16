@@ -58,6 +58,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 RefreshReadout();
                 if (Changed != null) Changed();
             }
+            RetryReadout();
             // A stack that was built anew from the specs has its own anvil levers: the committed ones are put on again.
             if (m != null && !ReferenceEquals(m.Stack, labStack))
             {
@@ -67,6 +68,26 @@ namespace ReDefinition.Atmospheres.Viewer
         }
 
         private ICloudLayerSource labStack;
+
+        // The readout found no state, stack or cell list yet: it is tried again every ReadoutRetryS until it has them (the first cell list comes from the worker some time after the state).
+        private bool readoutWaiting;
+        private float nextReadoutTry;
+        internal const float ReadoutRetryS = 0.5f;
+        internal bool ReadoutWaiting { get { return readoutWaiting; } }
+
+        private void WaitForWeather(string note)
+        {
+            readoutWaiting = true;
+            readoutNote = note;
+        }
+
+        private void RetryReadout()
+        {
+            if (!readoutWaiting || Time.realtimeSinceStartup < nextReadoutTry) return;
+            nextReadoutTry = Time.realtimeSinceStartup + ReadoutRetryS;
+            RefreshReadout();
+            if (!readoutWaiting && Changed != null) Changed();
+        }
 
         // The readout of the cells and anvil sources in the field and of the cover and type shares of each layer, for the body the camera is over and the game time now.
         internal void RefreshReadout()
@@ -78,7 +99,7 @@ namespace ReDefinition.Atmospheres.Viewer
             LayerStackSource stack = module == null ? null : module.Stack as LayerStackSource;
             if (gf == null || body == null || stack == null || gf.StateOf(body.flightGlobalsIndex) == null)
             {
-                readoutNote = "No weather state or cloud stack yet";
+                WaitForWeather("Waiting for the weather: no weather state or cloud stack yet");
                 return;
             }
             double ut = Planetarium.GetUniversalTime();
@@ -87,9 +108,10 @@ namespace ReDefinition.Atmospheres.Viewer
             bool have = gf.GetCells(body.flightGlobalsIndex, ut, cells, out snapshotUt);
             if (!have)
             {
-                readoutNote = "The worker has made no cell list yet; press Refresh Readout again";
+                WaitForWeather("Waiting for the weather: the worker has made no cell list yet");
                 return;
             }
+            readoutWaiting = false;
             double radius = body.Radius;
             readout.Add(WeatherReadout.DensityLine("Cells", cells.Count, radius));
             for (int l = 0; l < stack.LayerCount; l++)

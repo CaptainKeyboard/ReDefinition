@@ -450,6 +450,76 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         }
 
         [TestMethod]
+        public void AKeyReadOnceASecondIsWaitedForAndOneThatIsNeverReadStillFails()
+        {
+            Run once = Start(null, wb => wb.SecondKeySample = true);
+            Drive(once);
+            Assert.IsTrue(once.Probe.Passed, Dump(once));
+            Assert.IsTrue(once.Log.Any(l => l.Contains("cloud.afterScatterer (once a second)")), "the log names the key as read once a second\n" + Dump(once));
+            Run never = Start(null, wb => { wb.SecondKeySample = true; wb.SecondKeyNeverRead = true; });
+            Drive(never);
+            AssertFailsWith(never, "wb_keys_read");
+        }
+
+        [TestMethod]
+        public void ASlowPhysicsClockStillGivesTheRatioAndAWindowThatStaysShortIsNamed()
+        {
+            // 0.27 physics seconds per real second: the 3 s window holds 0.8 s, as in the start of 2026-11-16 (0.82 s at 104 ms frames).
+            Run slow = Start(rig => rig.GameSpeed = 0.27);
+            Drive(slow);
+            Assert.IsTrue(slow.Probe.Passed, Dump(slow));
+            Assert.AreEqual("1", Emitted(slow)[ViewerProbe.Prefix + "natural_tracks_physics_ok"]);
+            double ratio = double.Parse(Emitted(slow)[ViewerProbe.Prefix + "natural_per_physics"], System.Globalization.CultureInfo.InvariantCulture);
+            Assert.AreEqual(1.0, ratio, 0.02, "the clock follows the physics time");
+            Run diverges = Start(rig => { rig.GameSpeed = 0.27; rig.ClockDiverges = true; });
+            Drive(diverges);
+            AssertFailsWith(diverges, "natural_tracks_physics");
+        }
+
+        [TestMethod]
+        public void AReadoutThatWaitsForTheFirstCellListIsWaitedFor()
+        {
+            Run late = Start(null, wb => wb.ReadoutDelayFrames = 90);
+            Drive(late);
+            Assert.IsTrue(late.Probe.Passed, Dump(late));
+            Run never = Start(null, wb => wb.NoReadout = true);
+            Drive(never, 1500.0);
+            AssertFailsWith(never, "wb_readout");
+        }
+
+        [TestMethod]
+        public void TheIdleFrameTimeIsMeasuredWithTheViewerClosedAndNamesTheMedian()
+        {
+            Run r = Start();
+            Drive(r);
+            Dictionary<string, string> rows = Emitted(r);
+            Assert.AreEqual("1", rows[ViewerProbe.Prefix + "wb_idle_frame_time_ok"]);
+            double median = double.Parse(rows[ViewerProbe.Prefix + "wb_idle_frame_ms_median"], System.Globalization.CultureInfo.InvariantCulture);
+            Assert.AreEqual(Dt * 1000.0, median, 1.0, "the model's frame is Dt long");
+            int idle = r.Rows.FindIndex(l => l.Contains("wb_idle_frame_time_ok")), opens = r.Rows.FindIndex(l => l.Contains("\"VIEWER.window_opens_ok\""));
+            Assert.IsTrue(idle >= 0 && idle < opens, "measured before the window opens");
+        }
+
+        [TestMethod]
+        public void ThePercentileTakesTheNearestRankAndNaNForNone()
+        {
+            Assert.IsTrue(double.IsNaN(ViewerProbe.Percentile(new double[0], 0.5)));
+            Assert.AreEqual(3.0, ViewerProbe.Percentile(new[] { 5.0, 1.0, 3.0, 2.0, 4.0 }, 0.5));
+            Assert.AreEqual(5.0, ViewerProbe.Percentile(new[] { 5.0, 1.0, 3.0, 2.0, 4.0 }, 0.95));
+            Assert.AreEqual(1.0, ViewerProbe.Percentile(new[] { 5.0, 1.0 }, 0.0));
+        }
+
+        [TestMethod]
+        public void TheRegistryMarksTheOnceASecondKeyAndTheSampleChoiceFollowsTheLiveness()
+        {
+            Assert.AreEqual(KeyLiveness.Second, CloudKeyRegistry.Find(OwnCloudModule.TuneAfterScatterer).Liveness);
+            Assert.IsTrue(GameWorkbenchRig.SampleRank(KeyLiveness.Frame) < GameWorkbenchRig.SampleRank(KeyLiveness.Second));
+            Assert.IsTrue(GameWorkbenchRig.SampleRank(KeyLiveness.Second) < GameWorkbenchRig.SampleRank(KeyLiveness.Change));
+            Assert.IsTrue(GameWorkbenchRig.SampleRank(KeyLiveness.Change) < GameWorkbenchRig.SampleRank(KeyLiveness.Volume));
+            Assert.AreEqual(GameWorkbenchRig.SampleRank(KeyLiveness.Frame), GameWorkbenchRig.SampleRank(KeyLiveness.FrameHistory));
+        }
+
+        [TestMethod]
         public void AModeThatDoesNotActLiveFailsTheWorkbench()
         {
             Run r = Start(null, wb => wb.OwnCloudsIgnored = true);

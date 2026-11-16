@@ -55,6 +55,19 @@ namespace ReDefinition.Atmospheres.Viewer
         private readonly CloudViewer viewer = CloudViewer.Instance;
         private const int PlaceCount = 24;
 
+        // How well a key serves as its group's sample, from the registry's liveness: 0 read in every frame, 1 once a second, 2 on a change of the table, 3 never in a frame.
+        internal static int SampleRank(KeyLiveness liveness)
+        {
+            switch (liveness)
+            {
+                case KeyLiveness.Frame:
+                case KeyLiveness.FrameHistory: return 0;
+                case KeyLiveness.Second: return 1;
+                case KeyLiveness.Change: return 2;
+                default: return 3;
+            }
+        }
+
         public IList<CloudKey> SampleKeys
         {
             get
@@ -67,8 +80,8 @@ namespace ReDefinition.Atmospheres.Viewer
                     foreach (CloudKey k in viewer.Keys)
                     {
                         if (k.Section != section) continue;
-                        if (best == null || best.Liveness == KeyLiveness.Change && k.Liveness != KeyLiveness.Change) best = k;
-                        if (best.Liveness != KeyLiveness.Change) break;
+                        if (best == null || SampleRank(k.Liveness) < SampleRank(best.Liveness)) best = k;
+                        if (SampleRank(best.Liveness) == 0) break;
                     }
                     if (best != null) picked.Add(best);
                 }

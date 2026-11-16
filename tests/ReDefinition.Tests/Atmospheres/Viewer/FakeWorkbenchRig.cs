@@ -18,6 +18,11 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         private long stamp = 123456789L;
         private bool showingB = true;
 
+        private int firstReadoutFrame = -1;
+        internal int ReadoutDelayFrames;
+        // The weather group's sample key is one the pass reads once a second (cloud.afterScatterer, as the registry marks it); never: the pass does not read it at all.
+        internal bool SecondKeySample, SecondKeyNeverRead;
+
         internal bool SeedIgnored, SeedNotPure, RebuildOverBudget, RebuildNeverDone, NoReadout, PresetLossy, WritesSave, TodayKeepsOverrides, FlipDoesNothing, OwnCloudsIgnored, KeysNotRead;
 
         internal FakeWorkbenchRig(FakeViewerRig rig)
@@ -33,6 +38,13 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 var picked = new List<CloudKey>();
                 foreach (KeySection s in new[] { KeySection.Shape, KeySection.Edge, KeySection.Light, KeySection.Quality, KeySection.Weather })
                     picked.Add(CloudKeyRegistry.All.First(k => k.Section == s));
+                if (SecondKeySample)
+                {
+                    CloudKey second = CloudKeyRegistry.Find(OwnCloudModule.TuneAfterScatterer);
+                    picked[picked.Count - 1] = second;
+                    if (!SecondKeyNeverRead) rig.SecondKeys.Add(second.Key);
+                    else rig.NeverReadKeys.Add(second.Key);
+                }
                 return picked;
             }
         }
@@ -85,7 +97,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 
         public IList<string> RefreshReadout()
         {
-            return NoReadout ? new List<string>() : new List<string> { "Cells 412, 91.1 per million km2, above the real band 2 to 5 (26.0 x 3.5)" };
+            if (firstReadoutFrame < 0) firstReadoutFrame = rig.Frame;
+            // The first cell list comes ReadoutDelayFrames after the first ask.
+            if (NoReadout || rig.Frame - firstReadoutFrame < ReadoutDelayFrames) return new List<string>();
+            return new List<string> { "Cells 412, 91.1 per million km2, above the real band 2 to 5 (26.0 x 3.5)" };
         }
 
         public bool SavePreset(string name) { presets[name] = new Dictionary<string, float>(overrides); return true; }

@@ -54,8 +54,20 @@ namespace ReDefinition.Atmospheres
         // The set put into a parameter set (a name that is no field is skipped; the viewer offers only fields of the generator).
         internal static void Apply(BodyParams p)
         {
-            if (p == null || Values.Count == 0) return;
-            GeneratorBodies.ApplyLevers(p, Values, null);
+            Apply(p, Values);
+        }
+
+        // The same from a snapshot (Snapshot), so that a worker thread never reads the set the viewer changes on the main thread.
+        internal static void Apply(BodyParams p, IReadOnlyDictionary<string, double> levers)
+        {
+            if (p == null || levers == null || levers.Count == 0) return;
+            GeneratorBodies.ApplyLevers(p, levers, null);
+        }
+
+        // A copy of the set now (main thread).
+        internal static Dictionary<string, double> Snapshot()
+        {
+            return new Dictionary<string, double>(Values, StringComparer.Ordinal);
         }
 
         // The value of a field of a parameter set as a number (a switch as 0 or 1); NaN for a field that is none of the number types.

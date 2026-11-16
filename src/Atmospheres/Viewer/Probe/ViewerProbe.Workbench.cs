@@ -13,7 +13,8 @@ namespace ReDefinition.Atmospheres.Viewer
         internal const string WorkbenchPrefix = "wb_";
         internal const double CoverEqualEps = 1e-4, RebuildBudgetStartMs = 20.0;
         internal const int SeedPlaces = 24, SeedDifferMin = 3, ReadFrames = 30;
-        internal const double RebuildWaitS = 60.0;
+        // The longest wait for a key read once a second (two intervals and the frames' own slack), for the first cell list of the readout and for the idle frame time's window.
+        internal const double RebuildWaitS = 60.0, SecondKeyWaitS = 3.0, ReadoutWaitS = 30.0, IdleFrameS = 5.0;
         internal const string PresetProbeName = "VIEW3probe";
 
         private IWorkbenchRig workbench;
@@ -44,7 +45,15 @@ namespace ReDefinition.Atmospheres.Viewer
                 wb.Watch(key.Key);
                 yield return ProbeWait.Frames(ReadFrames);
                 if (ReadThisFrame()) continue;
-                if (key.Liveness == KeyLiveness.Change) notEvery.Add(key.Key);
+                if (key.Liveness == KeyLiveness.Second)
+                {
+                    // Read once a second, not in every frame: wait for the key's own interval (a read after the watch began), not for a frame.
+                    foreach (ProbeWait w in Poll(() => Rig.WatchedReadFrame != int.MinValue, SecondKeyWaitS)) yield return w;
+                    if (polled) notEvery.Add(key.Key + " (once a second)");
+                    else unread.Add(key.Key);
+                    continue;
+                }
+                if (key.Liveness == KeyLiveness.Change || key.Liveness == KeyLiveness.Volume) notEvery.Add(key.Key);
                 else unread.Add(key.Key);
             }
             Info(WorkbenchPrefix + "groups_sampled", samples.Count);
@@ -89,7 +98,12 @@ namespace ReDefinition.Atmospheres.Viewer
             Rig.FreezeTime(false);
 
             // 4. The readout counts the cells of the field.
+            // The first cell list comes from the worker some time after the state stands (a rebuild just swapped the state in): wait for the condition, not a time (a refresh with no cell list is cheap).
             IList<string> lines = wb.RefreshReadout();
+            if (lines.Count == 0)
+            {
+                foreach (ProbeWait w in Poll(() => (lines = wb.RefreshReadout()).Count > 0, ReadoutWaitS)) yield return w;
+            }
             Info(WorkbenchPrefix + "readout_lines", lines.Count);
             Wb("readout", "the readout counts the cells and gives their density per million square kilometres", lines.Count > 0 && lines[0].StartsWith("Cells ", StringComparison.Ordinal)
                && lines[0].Contains("per million km2"), "a first line 'Cells <n>, <d> per million km2 ...'", lines.Count == 0 ? "no line" : lines[0]);
@@ -139,6 +153,39 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (ProbeWait w in Poll(() => wb.RebuildRequests != requests, PollShortS)) yield return w;
             if (!polled) yield break;
             foreach (ProbeWait w in Poll(() => wb.Phase == RebuildPhase.Done, RebuildWaitS)) yield return w;
+        }
+
+        // The frame time of the game with the viewer closed and nothing else started: the real time between frames over IdleFrameS seconds, the median and the 95th percentile as
+        // information rows (the K-V1 start's frame time at 104 ms in the workbench section needs this baseline to tell the probe's own load from the build's).
+        private IEnumerable<ProbeWait> IdleFrameTime()
+        {
+            var deltas = new List<double>();
+            double end = Rig.RealS + IdleFrameS, last = Rig.RealS;
+            while (Rig.RealS < end)
+            {
+                yield return ProbeWait.Frames(1);
+                double now = Rig.RealS;
+                deltas.Add((now - last) * 1000.0);
+                last = now;
+            }
+            double median = Percentile(deltas, 0.5), p95 = Percentile(deltas, 0.95);
+            Info(WorkbenchPrefix + "idle_frame_ms_median", median);
+            Info(WorkbenchPrefix + "idle_frame_ms_p95", p95);
+            Info(WorkbenchPrefix + "idle_frames", deltas.Count);
+            Wb("idle_frame_time", "the frame time with the viewer closed and idle was measured", deltas.Count >= IdleFramesMin && median > 0.0, "at least " + IdleFramesMin + " frames in " + F(IdleFrameS) + " s",
+               deltas.Count + " frames, median " + F(median) + " ms, 95th percentile " + F(p95) + " ms");
+        }
+
+        internal const int IdleFramesMin = 10;
+
+        // The p-th quantile (0 to 1) of the values, the nearest rank; NaN for none.
+        internal static double Percentile(IList<double> values, double p)
+        {
+            if (values == null || values.Count == 0) return double.NaN;
+            var sorted = new List<double>(values);
+            sorted.Sort();
+            int rank = (int)Math.Ceiling(p * sorted.Count) - 1;
+            return sorted[Math.Max(0, Math.Min(sorted.Count - 1, rank))];
         }
 
         private static int Finite(double[] a)

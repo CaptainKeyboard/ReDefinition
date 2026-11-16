@@ -36,6 +36,12 @@ namespace ReDefinition.Atmospheres
         // not need it; fit is the fit of the game's temperature curves or null. Notes receive what was taken from where.
         internal static BodyParams Build(BodyClimate c, BodyFacts f, float[] heights, ThermalFit fit, List<string> notes)
         {
+            return Build(c, f, heights, fit, notes, GeneratorViewerOverrides.Snapshot());
+        }
+
+        // The same with the viewer's test levers given (a snapshot taken on the main thread), so that this can run on a worker thread: it touches no game object.
+        internal static BodyParams Build(BodyClimate c, BodyFacts f, float[] heights, ThermalFit fit, List<string> notes, IReadOnlyDictionary<string, double> viewerLevers)
+        {
             GeneratorRules g = c.Generator;
             var p = new BodyParams();
             p.Name = c.Name;
@@ -122,7 +128,7 @@ namespace ReDefinition.Atmospheres
             }
             ApplyLevers(p, g.Levers, notes);
             // The cloud viewer's test levers (empty outside the viewer) come after the body's own.
-            GeneratorViewerOverrides.Apply(p);
+            GeneratorViewerOverrides.Apply(p, viewerLevers);
             return p;
         }
 
