@@ -85,6 +85,31 @@ namespace ReDefinition.Tests.Atmospheres.C25
         }
 
         [TestMethod]
+        public void TheWorkerBuildTakesTheViewersLeversFromTheSnapshotNotFromTheLiveSet()
+        {
+            BodyFacts f = FieldFixture.HomeFacts();
+            BodyClimate c = FieldFixture.Climate(f);
+            GeneratorViewerOverrides.Clear();
+            try
+            {
+                GeneratorViewerOverrides.Replace(new Dictionary<string, double> { { "ItczLift", 0.3 } });
+                Dictionary<string, double> snapshot = GeneratorViewerOverrides.Snapshot();
+                // The viewer changes the live set after the main thread took the snapshot: the build on the worker must not see it.
+                GeneratorViewerOverrides.Replace(new Dictionary<string, double> { { "ItczLift", 0.9 } });
+                BodyParams fromSnapshot = GeneratorBodies.Build(c, f, null, null, new List<string>(), snapshot);
+                Assert.AreEqual(0.3, fromSnapshot.ItczLift);
+                BodyParams live = GeneratorBodies.Build(c, f, null, null, new List<string>());
+                Assert.AreEqual(0.9, live.ItczLift, "the overload without a snapshot takes the set as it is now");
+                BodyParams none = GeneratorBodies.Build(c, f, null, null, new List<string>(), new Dictionary<string, double>());
+                Assert.AreEqual(1.6, none.ItczLift, "an empty snapshot changes nothing");
+            }
+            finally
+            {
+                GeneratorViewerOverrides.Clear();
+            }
+        }
+
+        [TestMethod]
         public void ADustyBodyThinAirAndNoSeasonsGetTheirOwnNumbers()
         {
             BodyFacts f = FieldFixture.HomeFacts("Dry");

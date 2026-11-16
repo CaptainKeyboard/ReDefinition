@@ -27,7 +27,7 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // The tolerances of the checks (they are in tests/series rows' notes and in the start review).
         internal const double AltitudeAbsM = 15.0, AltitudeRel = 0.015, CameraDistRel = 0.25, CameraDistAbsM = 15.0, AimAzimuthDeg = 5.0, AimElevationDeg = 3.0;
-        internal const double PhysicsRatioMin = 0.85, PhysicsRatioMax = 1.15, ResumedShare = 0.5;
+        internal const double PhysicsRatioMin = 0.85, PhysicsRatioMax = 1.15, ResumedShare = 0.5, PhysicsWindowMinS = 1.0;
         internal const double UtAbsS = 2.0, FreezeHeldS = 0.25, SunMovesDeg = 3.0, OffsetSeconds = 5400.0;
         internal const double FlowRateMin = 0.5, FlowRateMax = 1.5, SpeedScale = 4.0, RatioMin = 3.4, RatioMax = 4.6, FrozenFlowS = 0.001;
         internal const double DriftMeasurableM = 0.5, DriftRatioMin = 3.0, DriftRatioMax = 5.0, DriftFrozenShare = 0.1;
@@ -217,6 +217,9 @@ namespace ReDefinition.Atmospheres.Viewer
             double forceLevel0 = Rig.Setting(AtmospheresSettings.Keys.ForceLevel), forceType0 = Rig.Setting(AtmospheresSettings.Keys.ForceType);
             Verdict("closed_at_start", "the viewer is closed before it is opened", !Rig.WindowOpen && !Rig.SessionActive, "no window, no session", "window " + Rig.WindowOpen + ", session " + Rig.SessionActive);
 
+            // --- The game's own frame time with the viewer closed and idle: the baseline of the cost readout's frame time in the workbench section ---
+            foreach (ProbeWait w in IdleFrameTime()) yield return w;
+
             // --- a. The window ---
             Verdict("addon_running", "the viewer's frame addon runs in the flight scene", Rig.AddonRunning, "running", Rig.AddonRunning ? "running" : "not started (no main mod?)");
             Rig.ToggleWindow();
@@ -328,14 +331,17 @@ namespace ReDefinition.Atmospheres.Viewer
             yield return ProbeWait.Frames(3);
             double frozenUt = Rig.ClockFrozenUt, natural0 = Rig.ClockNatural, physF = Rig.PhysicsTimeS;
             yield return ProbeWait.Seconds(MeasureS);
+            // The window is the physics time, not the wall time: at a low frame rate the physics clock runs slower than the wall clock (0.82 s in 3 s at 104 ms frames), so the window is
+            // kept open until it holds PhysicsWindowMinS of physics time (the ratio of a shorter one is not read).
+            foreach (ProbeWait w in Poll(() => Rig.PhysicsTimeS - physF > PhysicsWindowMinS, PollMapS)) yield return w;
             double heldUt = Rig.GameUt, naturalRan = Rig.ClockNatural - natural0, physRan = Rig.PhysicsTimeS - physF;
             Verdict("time_freeze", "Freeze Time holds the game's clock while the natural time runs on", Rig.ClockFrozen && Math.Abs(heldUt - frozenUt) <= FreezeHeldS && Math.Abs(naturalRan - physRan) <= UtAbsS,
                     "clock at " + F(frozenUt) + " +-" + F(FreezeHeldS) + ", natural +" + F(physRan) + " s (the game's physics time)", "clock " + F(heldUt) + ", natural +" + F(naturalRan) + " s, frozen " + Rig.ClockFrozen);
             // The reference of every time row is the physics time: the game's clock must advance with it (measured, not assumed; the viewer's natural time follows the game's clock).
-            double ratio = physRan > 1.0 ? naturalRan / physRan : double.NaN;
+            double ratio = physRan > PhysicsWindowMinS ? naturalRan / physRan : double.NaN;
             Info("natural_per_physics", ratio);
             Verdict("natural_tracks_physics", "the game's clock advances with its physics time (the reference of the time rows)", !double.IsNaN(ratio) && ratio >= PhysicsRatioMin && ratio <= PhysicsRatioMax,
-                    F(PhysicsRatioMin) + " to " + F(PhysicsRatioMax) + " game seconds per physics second", F(naturalRan) + " / " + F(physRan) + " = " + F(ratio));
+                    F(PhysicsRatioMin) + " to " + F(PhysicsRatioMax) + " game seconds per physics second", F(naturalRan) + " / " + F(physRan) + " = " + F(ratio) + (physRan > PhysicsWindowMinS ? "" : " (the window held no more than " + F(PhysicsWindowMinS) + " s of physics time)"));
             Rig.FreezeTime(false);
             double physU = Rig.PhysicsTimeS, heldAt = Rig.GameUt;
             yield return ProbeWait.Seconds(MeasureS);

@@ -22,7 +22,12 @@ namespace ReDefinition.Atmospheres
         {
             internal BodyClimate Climate;
             internal int ThermalTries;
+            // The sliced thermal probe of a rebuild in progress.
+            internal ThermalProbe.Session Thermal;
         }
+
+        // The main-thread time one frame of a rebuild spends asking the game's thermal code.
+        private const double RebuildThermalSliceMs = 4.0;
 
         private GeneratorField field;
         private readonly Dictionary<int, GeneratorRaster> rasters = new Dictionary<int, GeneratorRaster>();
@@ -204,26 +209,44 @@ namespace ReDefinition.Atmospheres
             }
 
             var notes = new List<string>();
-            BodyFacts facts = BodyProbe.Read(body, null, notes);
+            bool rebuild = WeatherRebuild.IsDue(index);
             string thermalNote;
-            ThermalFit fit = ThermalFit.From(ThermalProbe.Read(body, out thermalNote));
+            ThermalFit fit;
+            if (rebuild)
+            {
+                // A rebuild asks the game's thermal code in slices of RebuildThermalSliceMs, one slice per frame, so that no frame of it takes the main thread past the rebuild's budget.
+                if (b.Thermal == null) b.Thermal = new ThermalProbe.Session(body);
+                if (!b.Thermal.Run(RebuildThermalSliceMs)) return true;
+                thermalNote = b.Thermal.Note;
+                fit = ThermalFit.From(b.Thermal.Result);
+                b.Thermal = null;
+            }
+            else
+            {
+                fit = ThermalFit.From(ThermalProbe.Read(body, out thermalNote));
+            }
+            long factsStart = Stopwatch.GetTimestamp();
+            BodyFacts facts = BodyProbe.Read(body, null, notes);
+            if (rebuild) AtmospheresLog.Say("generator: " + c.Name + " rebuild, main thread: facts " + ((Stopwatch.GetTimestamp() - factsStart) * 1000.0 / Stopwatch.Frequency).ToString("0.0") + " ms");
             if (fit == null && ++b.ThermalTries < ThermalTries) return true;
             if (fit == null) notes.Add("temperature fit: " + (thermalNote.Length > 0 ? thermalNote : "the table could not be fitted") + "; the target curve of the body is used");
 
-            BodyParams parameters = GeneratorBodies.Build(c, facts, heights, fit, notes);
-            if (WeatherRebuild.IsDue(index))
+            if (rebuild)
             {
-                // A rebuild: the state is made on a worker (it allocates the generator's grid and checks one sample) and swapped in by a later frame; the main thread has done the parameter set.
+                // A rebuild: the main thread has read the game (the facts, the thermal table, a copy of the viewer's test levers); the parameter set (with the height grid) and the state are made
+                // on a worker (neither touches a game object) and swapped in by a later frame.
                 var made = new Creating { Climate = c, Notes = notes };
                 ulong seed = GeneratorBodies.SeedOf(c);
                 float[] bands = c.Precip.BandRatesStated ? c.Precip.BandRatesMmPerH : null;
                 PrecipType dust = GeneratorBodies.DustType(c);
                 string name = c.Name;
+                Dictionary<string, double> levers = GeneratorViewerOverrides.Snapshot();
                 made.Task = Task.Run(() =>
                 {
                     long t0 = Stopwatch.GetTimestamp();
                     string err;
-                    GeneratorState result = GeneratorState.Create(index, name, parameters, seed, bands, dust, out err);
+                    BodyParams made2 = GeneratorBodies.Build(c, facts, heights, fit, notes, levers);
+                    GeneratorState result = GeneratorState.Create(index, name, made2, seed, bands, dust, out err);
                     made.Error = err;
                     made.WorkerMs = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
                     return result;
@@ -231,6 +254,7 @@ namespace ReDefinition.Atmospheres
                 creating[index] = made;
                 return true;
             }
+            BodyParams parameters = GeneratorBodies.Build(c, facts, heights, fit, notes);
             string error;
             GeneratorState state = GeneratorState.Create(index, c.Name, parameters, GeneratorBodies.SeedOf(c), c.Precip.BandRatesStated ? c.Precip.BandRatesMmPerH : null,
                 GeneratorBodies.DustType(c), out error);

@@ -14,7 +14,9 @@ namespace ReDefinition.Atmospheres.Viewer
         // again at once, so the change shows within a frame or a map round.
         Change,
         // Read only when the noise volumes are generated (LayerNoise.StartGeneration: a scene change, a change of the noise size or the seed); no frame reads it.
-        Volume
+        Volume,
+        // Read once a second (OwnCloudModule.OnPreRender's order check), not in every frame: a change shows within a second.
+        Second
     }
 
     // One tuning key of the cloud pass: the key (the constant of the class that reads it), its compiled default, when it is read and a short note.
@@ -261,7 +263,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudModule.TuneWhiteAltitudeM, -1f, note: "-1: lowest layer"),
             N(OwnCloudModule.TuneMoonGain, 1f),
             F(OwnCloudModule.TuneSunAirWithScatterer, false),
-            F(OwnCloudModule.TuneAfterScatterer, true, note: "read once a second (OwnCloudModule.OnPreRender); the buffers move behind Scatterer's scattering within a second"),
+            F(OwnCloudModule.TuneAfterScatterer, true, KeyLiveness.Second, note: "read once a second (OwnCloudModule.OnPreRender); the buffers move behind Scatterer's scattering within a second"),
             N(OwnCloudModule.TuneCameraEvent, 0f, note: "0 BeforeForwardAlpha, 1 AfterForwardAlpha, 2 BeforeImageEffects; buffers move"),
             F(OwnCloudModule.TuneReaddEveryFrame, false),
             N(OwnCloudModule.TuneStatsS, 30f, note: "seconds between statistics lines"),
@@ -572,6 +574,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 case KeyLiveness.FrameHistory: return "live, history reset";
                 case KeyLiveness.Change: return "live on change";
                 case KeyLiveness.Volume: return "read when the noise volumes are made";
+                case KeyLiveness.Second: return "live within a second";
                 default: return "live every frame";
             }
         }

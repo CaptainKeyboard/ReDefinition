@@ -89,7 +89,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             real += dt;
             frame++;
             // The game's own time: at a low frame rate the physics steps are limited per frame and the game's clock runs slower than the real time (0.4 of it at 10 fps).
-            double game = dt * (SlowGame ? 0.4 : 1.0);
+            double game = dt * (GameSpeed > 0.0 ? GameSpeed : SlowGame ? 0.4 : 1.0);
             gameUt += game * (ClockDiverges ? 0.5 : 1.0);
             physics += game;
             if (session)
@@ -118,7 +118,14 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 drift[l] += 1.5 * dt * scale;
                 drift[l + 1] += 0.5 * dt * scale;
             }
-            if (watched != null && !ReadNotSeen && (watched == "cloud.exposure" || watched == CloudMotion.TuneScale || ReadsAnyKey)) watchedRead = frame;
+            if (watched != null && !ReadNotSeen && (watched == "cloud.exposure" || watched == CloudMotion.TuneScale || ReadsAnyKey))
+            {
+                // A key the pass reads once a second (the order check): read only when a second has passed since its last read.
+                bool onceASecond = SecondKeys.Contains(watched);
+                if (NeverReadKeys.Contains(watched)) { }
+                else if (!onceASecond) watchedRead = frame;
+                else if (real - lastSecondRead >= 1.0) { watchedRead = frame; lastSecondRead = real; }
+            }
             // The map mirror slews to the forced cover (or the field's 0.4), the combination scales a forced cover down to the field's.
             for (int l = 0; l < cover.Length; l++)
             {
@@ -188,6 +195,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public bool PassDrawing { get { return !PassForcedOff; } }
         // The workbench section: the own clouds switched off stop the pass; with ReadsAnyKey the pass reads every watched key (the model knows two keys otherwise).
         internal bool PassForcedOff, ReadsAnyKey;
+        // The keys the model's pass reads once a second, not in every frame; and the game's physics seconds per real second where it is not the default (0 keeps SlowGame's).
+        internal readonly HashSet<string> SecondKeys = new HashSet<string>(), NeverReadKeys = new HashSet<string>();
+        internal double GameSpeed;
+        private double lastSecondRead;
         public int PassFramesDrawn { get { return frame; } }
         public IList<ViewerLayer> Layers { get { return KerbinLayers; } }
         public int Frame { get { return frame; } }
