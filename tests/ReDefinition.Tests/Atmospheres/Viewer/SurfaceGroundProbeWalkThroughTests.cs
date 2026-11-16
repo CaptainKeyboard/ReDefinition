@@ -6,8 +6,10 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
+using ReDefinition.Atmospheres.Viewer;
 using ReDefinition.Core;
 using ReDefinition.Tests.Atmospheres.B09;
+using UnityEngine;
 
 namespace ReDefinition.Tests.Atmospheres.Viewer
 {
@@ -20,9 +22,66 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         private const double Dt = 0.05;
 
         private static readonly string[] Starts = { SurfaceGroundProbe.StartOn, SurfaceGroundProbe.StartOff, SurfaceGroundProbe.StartNoCover };
+        private static readonly string[] AllStarts = { SurfaceGroundProbe.StartOn, SurfaceGroundProbe.StartOff, SurfaceGroundProbe.StartNoCover, SurfaceGroundProbe.StartCaptureAb };
+
+        // The game's host without the game: a screen read at the end of the frame a condition holds in (Pump, called at the end of the test's frame), and a camera that is held or not.
+        private sealed class FakeHost : IProbeHost
+        {
+            private sealed class Pending
+            {
+                internal Func<bool> When;
+                internal Action<ProbeScreen> Done;
+                internal bool Png;
+            }
+
+            private readonly List<Pending> pending = new List<Pending>();
+            internal Color32 HeldColour = new Color32(90, 102, 81, 255), PlacedColour = new Color32(90, 102, 81, 255);
+            internal bool NeverPumps;
+            internal readonly List<bool> UiShownAtRead = new List<bool>();
+            public bool CameraHeld { get; private set; }
+            public void Grab(System.Func<bool> when, System.Action<ProbeScreen> done, bool png) { pending.Add(new Pending { When = when, Done = done, Png = png }); }
+            public bool UiShowing { get; private set; } = true;
+            public bool HideUi() { bool was = UiShowing; UiShowing = false; return was; }
+            public void ShowUi() { UiShowing = true; }
+            internal FakeSoloRig Rig;
+
+            // The camera stands where the pose says: the fake rig's pose is the camera's (its height is the vessel's less distance times the sine of the elevation).
+            public void HoldCamera(double headingDeg, double elevationDeg, double distanceM, double cameraAglM)
+            {
+                CameraHeld = true;
+                Rig.PlacePose(new ViewerPose { Name = "camera only", AglM = cameraAglM + distanceM * Math.Sin(elevationDeg * Math.PI / 180.0), ElevationDeg = elevationDeg, HeadingDeg = headingDeg, CameraDistM = distanceM });
+            }
+            public void ReleaseCamera() { CameraHeld = false; }
+            public string DescribeCameras() { return "Camera 00 depth -1 mask 0xffffff screen"; }
+
+            internal static ProbeScreen Shot(Color32 colour, int frame)
+            {
+                var px = new Color32[64 * 36];
+                for (int i = 0; i < px.Length; i++) px[i] = colour;
+                return new ProbeScreen { Width = 64, Height = 36, Frame = frame, Pixels = px, Png = new byte[] { 1, 2, 3 } };
+            }
+
+            internal void Pump(int frame)
+            {
+                if (NeverPumps) return;
+                for (int i = pending.Count - 1; i >= 0; i--)
+                {
+                    if (!pending[i].When()) continue;
+                    Pending p = pending[i];
+                    pending.RemoveAt(i);
+                    ProbeScreen shot = Shot(CameraHeld ? HeldColour : PlacedColour, frame);
+                    if (!p.Png) shot.Png = null;
+                    UiShownAtRead.Add(UiShowing);
+                    p.Done(shot);
+                }
+            }
+        }
 
         private sealed class Run
         {
+            internal FakeHost Host = new FakeHost();
+            internal Color32 ViewerFileColour = new Color32(90, 102, 81, 255);
+            internal readonly List<string> Written = new List<string>();
             internal FakeSoloRig Rig;
             internal SurfaceGroundProbe Probe;
             internal readonly List<string> Log = new List<string>();
@@ -60,6 +119,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         private static string PairsOf(string start)
         {
             return start == SurfaceGroundProbe.StartOff ? "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1"
+                 : start == SurfaceGroundProbe.StartCaptureAb ? "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1"
                  : start == SurfaceGroundProbe.StartNoCover ? "groundCover=0,weatherEffects=1,cloudSource=Ours,ownClouds=1"
                  : "weatherEffects=1,cloudSource=Ours,ownClouds=1";
         }
@@ -82,6 +142,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 CoverInstalledCount = () => on ? 3 : 0,
                 GroundReader = () => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "ksc_exterior_terrain_grass_02", Shader = "Custom/ParallaxKSCTerrain", DistanceM = SurfaceGroundProbe.RayUpM + 2.0 }
             };
+            r.Host.Rig = r.Rig;
+            r.Probe.Host = r.Host;
+            r.Probe.PictureReader = path => FakeHost.Shot(r.ViewerFileColour, 0);
+            r.Probe.PictureWriter = (path, png) => r.Written.Add(path);
             r.Probe.SunAngleReader = () =>
             {
                 double d = Math.Abs(r.Rig.Pose.AzimuthDeg - 90.0) % 360.0;
@@ -99,6 +163,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             {
                 r.Rig.Advance(Dt);
                 r.Probe.Tick((float)Dt);
+                r.Host.Pump(r.Rig.Frame);
                 elapsed += Dt;
             }
         }
@@ -178,12 +243,12 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 Assert.AreEqual("K-S2", (string)row["series"], (string)row["metric"]);
                 Assert.AreEqual("SURFACEGROUND", (string)row["section"], (string)row["metric"]);
                 string start = (string)row["start"];
-                Assert.IsTrue(Starts.Contains(start), "a start the probe knows: " + start);
+                Assert.IsTrue(AllStarts.Contains(start), "a start the probe knows: " + start);
                 if (!listed.ContainsKey(start)) listed[start] = new Dictionary<string, Dictionary<string, object>>();
                 Assert.IsFalse(listed[start].ContainsKey((string)row["metric"]), "row twice: " + start + " " + (string)row["metric"]);
                 listed[start][(string)row["metric"]] = row;
             }
-            foreach (string start in Starts)
+            foreach (string start in AllStarts)
             {
                 Run r = Start(start);
                 Drive(r);
@@ -207,8 +272,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             string root = RepoRoot.Root("tests", "series", "K-S2.json");
             var file = (Dictionary<string, object>)MiniJson.Parse(File.ReadAllText(Path.Combine(root, "tests", "series", "K-S2.json")));
             var starts = ((List<object>)file["starts"]).Cast<Dictionary<string, object>>().ToDictionary(s => (string)s["id"]);
-            Assert.AreEqual((long)4, Convert.ToInt64(file["plannedStarts"], CultureInfo.InvariantCulture), "the surface start and the three ground starts");
-            foreach (string id in Starts)
+            Assert.AreEqual((long)5, Convert.ToInt64(file["plannedStarts"], CultureInfo.InvariantCulture), "the surface start, the three ground starts and the capture A/B start");
+            foreach (string id in AllStarts)
             {
                 Assert.IsTrue(starts.ContainsKey(id), id);
                 string[] args = ((List<object>)starts[id]["probeArgs"]).Cast<string>().ToArray();
@@ -262,6 +327,70 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsFalse(r.Probe.Passed, Dump(r));
             Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "g2_p1_clearance")), r.Joined);
             Assert.IsFalse(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "far_p1_")), "the far frames have no clearance check: " + r.Joined);
+        }
+
+        [TestMethod]
+        public void TheCaptureABStartTakesBothPicturesInOneFrameAndReportsTheGroundOfEach()
+        {
+            Run r = Start(SurfaceGroundProbe.StartCaptureAb);
+            r.Host.HeldColour = new Color32(60, 70, 60, 255);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Dictionary<string, string> rows = Emitted(r);
+            Func<string, double> v = k => double.Parse(rows["GRD." + k], CultureInfo.InvariantCulture);
+            Assert.AreEqual(0.0, v("A_capture_diff_max"), 0.5, "the viewer's file and the screen read are one picture");
+            Assert.AreEqual(90.0, v("A_screen_ground_r"), 0.01);
+            Assert.AreEqual(60.0, v("B_ground_r"), 0.01, "B was read with the camera held");
+            Assert.AreEqual(32.0, v("A_vs_B_diff_max"), 0.5, "the difference between the placements is reported");
+            Assert.IsFalse(r.Host.CameraHeld, "the camera is let go before the viewer places the vessel");
+            Assert.IsTrue(r.Host.UiShownAtRead.Count >= 4 && !r.Host.UiShownAtRead.Any(x => x), "the interface is away at every screen read: " + string.Join(",", r.Host.UiShownAtRead.Select(x => x.ToString()).ToArray()));
+            Assert.IsTrue(r.Host.UiShowing, "and back at the end");
+            string bSettle = r.Log.FirstOrDefault(l => l.StartsWith("ground: capture_ab: B settle stable after "));
+            Assert.IsNotNull(bSettle, "B settles on a stable ground, not at the limit\n" + Dump(r));
+            Assert.IsTrue(double.Parse(Regex.Match(bSettle, "after (?<s>[0-9.]+) s").Groups["s"].Value, CultureInfo.InvariantCulture) >= SurfaceGroundProbe.FirstSettleMinS, "B waits as long as ProbeLite's first pose: " + bSettle);
+            Assert.IsTrue(r.Written.Any(p => p.EndsWith("capture_ab_B_camera_only.png")) && r.Written.Any(p => p.EndsWith("_screen.png")), string.Join(";", r.Written.ToArray()));
+            int b = r.Log.FindIndex(l => l.StartsWith("ground: capture_ab: B camera alone")), a = r.Log.FindIndex(l => l.StartsWith("ground: capture_ab: A viewer placement"));
+            Assert.IsTrue(b >= 0 && a > b, "B first, then A\n" + Dump(r));
+            Assert.IsTrue(r.Log.Any(l => l.Contains("cameras: Camera 00 depth")), "the cameras are described");
+        }
+
+        [TestMethod]
+        public void ADifferentViewerFileIsReportedNotFailed()
+        {
+            Run r = Start(SurfaceGroundProbe.StartCaptureAb);
+            r.ViewerFileColour = new Color32(60, 70, 120, 255);
+            Drive(r);
+            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            Assert.AreEqual(39.0, double.Parse(Emitted(r)["GRD.A_capture_diff_max"], CultureInfo.InvariantCulture), 0.5);
+            Assert.IsTrue(r.Log.Any(l => l.Contains("DIFFERENT pictures")), Dump(r));
+        }
+
+        [TestMethod]
+        public void AScreenReadThatNeverComesInTheCaptureFrameFailsTheChecks()
+        {
+            Run r = Start(SurfaceGroundProbe.StartCaptureAb);
+            r.Host.NeverPumps = true;
+            Drive(r);
+            Assert.IsFalse(r.Probe.Passed, Dump(r));
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "B_screen_read")), r.Joined);
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "A_screen_read")), r.Joined);
+            Assert.IsFalse(r.Probe.Failures.Any(f => f.StartsWith("exception in the scenario")), r.Joined);
+        }
+
+        [TestMethod]
+        public void TheGroundRegionIsTheLowerLeftOfAnyPictureSize()
+        {
+            var px = new Color32[100 * 100];
+            for (int y = 0; y < 100; y++)
+                for (int x = 0; x < 100; x++) px[y * 100 + x] = x < 27 && y >= 1 && y < 18 ? new Color32(10, 20, 30, 255) : new Color32(200, 200, 200, 255);
+            double r, g, b;
+            GroundRegion.Mean(px, 100, 100, out r, out g, out b);
+            Assert.AreEqual(10.0, r, 0.0);
+            Assert.AreEqual(20.0, g, 0.0);
+            Assert.AreEqual(30.0, b, 0.0);
+            GroundRegion.Mean(null, 100, 100, out r, out g, out b);
+            Assert.IsTrue(double.IsNaN(r));
+            Assert.AreEqual(5.0, GroundRegion.MaxDifference(1, 2, 3, 2, 7, 3), 0.0);
         }
 
         [TestMethod]

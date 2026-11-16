@@ -48,6 +48,13 @@ namespace ReDefinition.Atmospheres
 
         // The start ids this probe knows and what each says of the cover: on (the PQS mod is in the sphere and paints) or off (it is in none).
         internal const string StartOn = "ground_on", StartOff = "ground_off", StartNoCover = "ground_nocover";
+        // The capture A/B start: the package off from load, the far_p2 pose taken three ways at K-S2's time: the camera alone with the vessel on the pad (tools/ProbeLite's way), then
+        // with the viewer's placement (the vessel held at 300 m), the viewer's own picture and a screen read-back in the same frame.
+        internal const string StartCaptureAb = "capture_ab";
+        // A's ground has had minutes to build when it is read (the viewer opens after B); B is the first picture after the scene starts: tools/ProbeLite settles its first flight pose for at
+        // least 30 s, and so does B. A settle that ends at maxS has not settled: the log says so.
+        internal const double SettleMinS = 6.0, SettleMaxS = 30.0, FirstSettleMinS = 30.0, FirstSettleMaxS = 90.0, SettleLumaStep = 0.6, GrabWaitS = 10.0, CaptureDifferenceMax = 4.0;
+        internal const double AimToleranceFarDeg = 2.0, UiLumaFloor = 5.0;
 
         internal struct Frame
         {
@@ -277,6 +284,7 @@ namespace ReDefinition.Atmospheres
                     break;
                 case StartOff:
                 case StartNoCover:
+                case StartCaptureAb:
                     Verdict("cover_state", "the cover is off from load in the " + StartId + " start", maxInstalled == 0 && maxQuads == 0, "its PQS mod in no sphere and no quad records", "bodies " + maxInstalled + ", quads " + maxQuads);
                     break;
                 default:
@@ -289,7 +297,7 @@ namespace ReDefinition.Atmospheres
         private void JudgeLaunchSettings()
         {
             bool enabled = AtmospheresSettings.Enabled, cover = AtmospheresSettings.GroundCover;
-            bool wantEnabled = StartId != StartOff, wantCover = StartId != StartNoCover;
+            bool wantEnabled = StartId != StartOff && StartId != StartCaptureAb, wantCover = StartId != StartNoCover;
             Verdict("launch_pin", "the setting of the command line is in force", enabled == wantEnabled && cover == wantCover && AtmospheresSettings.WeatherEffects,
                     "enabled " + (wantEnabled ? "on" : "off") + ", groundCover " + (wantCover ? "on" : "off") + ", weatherEffects on", "enabled " + (enabled ? "on" : "off") + ", groundCover " + (cover ? "on" : "off")
                     + ", weatherEffects " + (AtmospheresSettings.WeatherEffects ? "on" : "off"));
@@ -305,6 +313,11 @@ namespace ReDefinition.Atmospheres
             if (AtmospheresSettings.Enabled)
                 foreach (ProbeWait w in Poll(() => PassDraws, PollPassS)) yield return w;
             LogLine("ground: the own cloud pass " + (PassDraws ? "draws" : "does not draw") + " in this start");
+
+            // The capture A/B start takes its camera-only picture first, with the vessel on the pad and no viewer session (the way tools/ProbeLite poses its camera).
+            bool ab = StartId == StartCaptureAb;
+            if (ab)
+                foreach (ProbeWait w in CameraOnlyStep()) yield return w;
 
             Rig.ToggleWindow();
             foreach (ProbeWait w in Poll(() => Rig.WindowOpen && Rig.SessionActive, PollWindowS)) yield return w;
@@ -361,6 +374,17 @@ namespace ReDefinition.Atmospheres
 
             // The ground the cover repaints builds up over a few seconds after the first pose: the first frame waits for it.
             yield return ProbeWait.Seconds(CoverSettleS);
+            if (ab)
+            {
+                foreach (ProbeWait w in ViewerAndScreenStep(sun)) yield return w;
+                maxQuads = Math.Max(maxQuads, CoverQuadCount());
+                maxInstalled = Math.Max(maxInstalled, CoverInstalledCount());
+                JudgeCover();
+                Rig.ToggleWindow();
+                foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, PollWindowS)) yield return w;
+                Emit(Prefix + "elapsed_s", Elapsed);
+                yield break;
+            }
             var pictures = new Dictionary<string, string>();
             foreach (Frame f in Frames)
                 foreach (ProbeWait w in TakeFrame(f, pictures, sun)) yield return w;
@@ -375,6 +399,196 @@ namespace ReDefinition.Atmospheres
             Rig.ToggleWindow();
             foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, PollWindowS)) yield return w;
             Emit(Prefix + "elapsed_s", Elapsed);
+        }
+
+        // --- The capture A/B start ---
+
+        private IProbeHost host;
+        private ProbeScreen grabbed;
+
+        internal IProbeHost Host
+        {
+            get { return host ?? (host = GameProbeHost.Get()); }
+            set { host = value; }
+        }
+
+        // What a test replaces: a picture file read as pixels, and a picture written to a file.
+        internal Func<string, ProbeScreen> PictureReader = ReadPicture;
+        internal Action<string, byte[]> PictureWriter = WritePicture;
+
+        private static ProbeScreen ReadPicture(string path)
+        {
+            try
+            {
+                if (!System.IO.File.Exists(path)) return null;
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                try
+                {
+                    if (!tex.LoadImage(System.IO.File.ReadAllBytes(path))) return null;
+                    return new ProbeScreen { Width = tex.width, Height = tex.height, Pixels = tex.GetPixels32() };
+                }
+                finally
+                {
+                    UnityEngine.Object.Destroy(tex);
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static void WritePicture(string path, byte[] png)
+        {
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+            System.IO.File.WriteAllBytes(path, png);
+        }
+
+        // The screen as the game drew it at the end of this frame.
+        private IEnumerable<ProbeWait> GrabNow(bool png)
+        {
+            ProbeScreen got = null;
+            bool done = false;
+            Host.Grab(() => true, s => { got = s; done = true; }, png);
+            foreach (ProbeWait w in Poll(() => done, GrabWaitS)) yield return w;
+            grabbed = done ? got : null;
+        }
+
+        // Screens once a second until the ground's luma stands still (at least minS, at most maxS): what tools/ProbeLite waits for; the last screen is in 'grabbed'.
+        private IEnumerable<ProbeWait> SettleScreen(string label, double minS, double maxS)
+        {
+            double t0 = Rig.RealS, previous = double.NaN;
+            int stable = 0;
+            var lumas = new System.Text.StringBuilder();
+            while (true)
+            {
+                foreach (ProbeWait w in GrabNow(false)) yield return w;
+                ProbeScreen s = grabbed;
+                if (s == null) yield break;
+                double r, g, b;
+                GroundRegion.Mean(s.Pixels, s.Width, s.Height, out r, out g, out b);
+                double luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                double elapsed = Rig.RealS - t0;
+                if (lumas.Length > 0) lumas.Append(' ');
+                lumas.Append(F(luma));
+                stable = elapsed >= minS && !double.IsNaN(previous) && Math.Abs(luma - previous) < SettleLumaStep ? stable + 1 : 0;
+                previous = luma;
+                bool settled = stable >= 2;
+                if (settled || elapsed >= maxS)
+                {
+                    // The picture that is kept: the last grab, encoded.
+                    foreach (ProbeWait w in GrabNow(true)) yield return w;
+                    LogLine("ground: capture_ab: " + label + " settle " + (settled ? "stable" : "LIMIT, not settled") + " after " + F(elapsed) + " s; ground luma per second: " + lumas);
+                    yield break;
+                }
+                yield return ProbeWait.Seconds(1);
+            }
+        }
+
+        private double bR = double.NaN, bG = double.NaN, bB = double.NaN;
+
+        // The far_p2 pose by the camera alone, the vessel on the pad: the universal time is K-S2's, the clouds and the viewer are not touched.
+        private IEnumerable<ProbeWait> CameraOnlyStep()
+        {
+            ForceUniversalTime(K1Ut);
+            yield return ProbeWait.Seconds(1.5);
+            double cameraAgl = FarAglM - FarCameraDistM * Math.Sin(FarElevationDeg * Math.PI / 180.0);
+            // The interface is away as it is for the viewer's capture (the stage stack lies in the measured region).
+            Host.HideUi();
+            Host.HoldCamera(HeadingAway, FarElevationDeg, FarCameraDistM, cameraAgl);
+            yield return ProbeWait.Frames(SettleFrames);
+            foreach (ProbeWait w in SettleScreen("B", FirstSettleMinS, FirstSettleMaxS)) yield return w;
+            ProbeScreen shot = grabbed;
+            ViewerPoseReading pose = Rig.Pose;
+            bool read = shot != null && shot.Pixels != null;
+            double lr = double.NaN, lg = double.NaN, lb = double.NaN;
+            if (read) GroundRegion.Mean(shot.Pixels, shot.Width, shot.Height, out lr, out lg, out lb);
+            bool lit = read && 0.2126 * lr + 0.7152 * lg + 0.0722 * lb > UiLumaFloor;
+            Verdict("B_screen_read", "B (camera alone, vessel on the pad): the screen was read and is not black", lit, "a screen picture with a lit ground region", read ? shot.Width + "x" + shot.Height + ", ground " + F(lr) + " " + F(lg) + " " + F(lb) : "none");
+            Verdict("B_ui_hidden", "B: the game's interface is away", !Host.UiShowing, "no interface showing", Host.UiShowing ? "showing" : "hidden");
+            Verdict("B_aim", "B: the camera looks along the far pose's heading and elevation", Circular(pose.AzimuthDeg, HeadingAway) <= AimToleranceFarDeg && Math.Abs(pose.ElevationDeg - FarElevationDeg) <= AimToleranceFarDeg,
+                    "azimuth " + F(HeadingAway) + " and elevation " + F(FarElevationDeg) + " within " + F(AimToleranceFarDeg) + " deg", "azimuth " + F(pose.AzimuthDeg) + ", elevation " + F(pose.ElevationDeg));
+            Verdict("B_camera_height", "B: the camera stands at the height of the far pose", pose.CameraAglM >= cameraAgl - FarAglToleranceM && pose.CameraAglM <= cameraAgl + FarAglToleranceM,
+                    F(cameraAgl - FarAglToleranceM) + " to " + F(cameraAgl + FarAglToleranceM) + " m above the ground", F(pose.CameraAglM) + " m (vessel " + F(pose.VesselAglM) + " m above the ground)");
+            if (read)
+            {
+                GroundRegion.Mean(shot.Pixels, shot.Width, shot.Height, out bR, out bG, out bB);
+                Emit(Prefix + "B_ground_r", bR);
+                Emit(Prefix + "B_ground_g", bG);
+                Emit(Prefix + "B_ground_b", bB);
+                WriteScreen("capture_ab_B_camera_only", shot);
+            }
+            Emit(Prefix + "B_sun_elevation_deg", Rig.SunElevationDeg);
+            LogLine("ground: capture_ab: B camera alone, vessel " + F(pose.VesselAglM) + " m over the ground, camera " + F(pose.CameraAglM) + " m, azimuth " + F(pose.AzimuthDeg) + ", ground mean " + F(bR) + " " + F(bG) + " " + F(bB)
+                    + ", sun " + F(Rig.SunElevationDeg) + " deg, UT " + F(Rig.GameUt) + "; cameras: " + Host.DescribeCameras());
+            Host.ReleaseCamera();
+            Host.ShowUi();
+            yield return ProbeWait.Seconds(SettleS);
+        }
+
+        private void WriteScreen(string stem, ProbeScreen shot)
+        {
+            if (shot == null || shot.Png == null) return;
+            try
+            {
+                PictureWriter(Rig.CapturePicturePath(stem), shot.Png);
+            }
+            catch (Exception e)
+            {
+                LogLine("ground: the screen picture " + stem + " could not be written (" + e.Message + ")");
+            }
+        }
+
+        // The far_p2 pose with the viewer's placement: the viewer's own capture and the screen read back at the end of the very frame the viewer asked the game for its picture.
+        private IEnumerable<ProbeWait> ViewerAndScreenStep(double sun)
+        {
+            Frame f = Frames[1];
+            Rig.PlacePose(new ViewerPose { Name = "cb_far", AglM = f.AglM, ElevationDeg = f.ElevationDeg, HeadingDeg = f.Heading, CameraDistM = f.CameraDistM });
+            yield return ProbeWait.Frames(2);
+            foreach (ProbeWait w in Poll(() => !Rig.PlacementPending && Rig.HoldStable, PollPlaceS)) yield return w;
+            yield return ProbeWait.Frames(SettleFrames);
+            foreach (ProbeWait w in StillAim()) yield return w;
+            Host.HideUi();
+            foreach (ProbeWait w in SettleScreen("A", SettleMinS, SettleMaxS)) yield return w;
+            ViewerPoseReading pose = Rig.Pose;
+            Verdict("A_aim", "A: the camera looks along the far pose's heading and elevation", Circular(pose.AzimuthDeg, HeadingAway) <= AimToleranceFarDeg && Math.Abs(pose.ElevationDeg - FarElevationDeg) <= AimToleranceFarDeg,
+                    "azimuth " + F(HeadingAway) + " and elevation " + F(FarElevationDeg) + " within " + F(AimToleranceFarDeg) + " deg", "azimuth " + F(pose.AzimuthDeg) + ", elevation " + F(pose.ElevationDeg));
+            double lo = f.WantedCameraAglM - FarAglToleranceM, hi = f.WantedCameraAglM + FarAglToleranceM;
+            Verdict("A_camera_height", "A (the viewer's placement): the camera stands at the height of the far pose", pose.CameraAglM >= lo && pose.CameraAglM <= hi, F(lo) + " to " + F(hi) + " m above the ground", F(pose.CameraAglM) + " m (vessel " + F(pose.VesselAglM) + " m above the ground)");
+
+            // The grab is asked for before the viewer's capture: it fires at the end of the frame in which the viewer called ScreenCapture.CaptureScreenshot.
+            string before = Rig.LastCapture;
+            ProbeScreen screen = null;
+            bool got = false;
+            Host.Grab(() => Rig.CaptureFrame >= 0 && Rig.CaptureFrame == Rig.Frame && Rig.LastCapture != before, s => { screen = s; got = true; }, true);
+            foreach (ProbeWait w in Take()) yield return w;
+            foreach (ProbeWait w in Poll(() => got, GrabWaitS)) yield return w;
+            Host.ShowUi();
+            string name = taken;
+            Verdict("A_viewer_picture", "A: the viewer's picture is written", name != null, "a picture file", name ?? "none");
+            bool read = got && screen != null && screen.Pixels != null;
+            Verdict("A_screen_read", "A: the screen was read in the frame of the viewer's capture", read, "a screen picture", read ? screen.Width + "x" + screen.Height : "none");
+            Verdict("A_same_frame", "A: the screen read and the viewer's capture are one frame", read && screen.Frame == Rig.CaptureFrame, "the viewer's capture frame " + Rig.CaptureFrame, read ? "screen frame " + screen.Frame : "none");
+            ProbeScreen viewer = name != null ? PictureReader(Rig.CapturePicturePath(name)) : null;
+            double vr = double.NaN, vg = double.NaN, vb = double.NaN, sr = double.NaN, sg = double.NaN, sb = double.NaN;
+            if (viewer != null) GroundRegion.Mean(viewer.Pixels, viewer.Width, viewer.Height, out vr, out vg, out vb);
+            if (read) GroundRegion.Mean(screen.Pixels, screen.Width, screen.Height, out sr, out sg, out sb);
+            Verdict("A_picture_sizes", "A: the viewer's picture and the screen read have one size", viewer != null && read && viewer.Width == screen.Width && viewer.Height == screen.Height,
+                    "equal sizes", (viewer != null ? viewer.Width + "x" + viewer.Height : "no viewer picture") + " and " + (read ? screen.Width + "x" + screen.Height : "no screen picture"));
+            double diff = GroundRegion.MaxDifference(vr, vg, vb, sr, sg, sb), against = GroundRegion.MaxDifference(sr, sg, sb, bR, bG, bB);
+            Emit(Prefix + "A_viewer_ground_r", vr);
+            Emit(Prefix + "A_viewer_ground_g", vg);
+            Emit(Prefix + "A_viewer_ground_b", vb);
+            Emit(Prefix + "A_screen_ground_r", sr);
+            Emit(Prefix + "A_screen_ground_g", sg);
+            Emit(Prefix + "A_screen_ground_b", sb);
+            Emit(Prefix + "A_capture_diff_max", diff);
+            Emit(Prefix + "A_vs_B_diff_max", against);
+            if (read && name != null) WriteScreen(System.IO.Path.GetFileNameWithoutExtension(name) + "_screen", screen);
+            LogLine("ground: capture_ab: A viewer placement, vessel " + F(pose.VesselAglM) + " m over the ground, camera " + F(pose.CameraAglM) + " m; ground mean of the viewer's picture " + F(vr) + " " + F(vg) + " " + F(vb)
+                    + ", of the screen read " + F(sr) + " " + F(sg) + " " + F(sb) + " (largest channel difference " + F(diff) + (diff <= CaptureDifferenceMax ? ": the same picture" : ": DIFFERENT pictures")
+                    + "); against B (camera alone) " + F(against) + " (" + (against <= CaptureDifferenceMax ? "the same ground" : "A and B show different ground") + "); sun " + F(Rig.SunElevationDeg) + " deg (set " + F(sun) + "), UT " + F(Rig.GameUt)
+                    + "; cameras: " + Host.DescribeCameras());
         }
 
         private double Emitted(string name)

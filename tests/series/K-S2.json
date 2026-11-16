@@ -6,7 +6,7 @@
   "profile": "Medium",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 4,
+  "plannedStarts": 5,
   "bundle": true,
   "settings": [
     { "file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": { "raytracing": "Off", "frameGeneration": false, "qualityAuto": false, "quality": "NativeAA" } },
@@ -40,6 +40,13 @@
       "id": "ground_off",
       "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
       "description": "As ground_on with Atmospheres' master switch off from load (-atmoSet enabled=0): no module of the package acts, the cover's PQS mod is never put into the ground. The frames of the pad's ground without any of the package.",
+      "disableMods": [ "EVE" ],
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
+    },
+    {
+      "id": "capture_ab",
+      "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
+      "description": "Does the way K-S2's pictures are taken change the ground? The package off from load (-atmoSet enabled=0, as ground_off), K-S2's time, the far_p2 pose three ways in one start: B the camera alone with the vessel on the pad (tools/ProbeLite's way, a screen read at the end of a frame), then A the viewer's placement (the vessel held 300 m over the pad) with the viewer's own picture and a screen read at the end of the very frame the viewer asked for its picture. Logs the ground's mean colour of each and every camera's depth and culling mask. About 3 minutes after the flight is up.",
       "disableMods": [ "EVE" ],
       "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
     },
