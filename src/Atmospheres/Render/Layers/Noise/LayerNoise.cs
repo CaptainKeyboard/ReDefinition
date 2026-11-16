@@ -64,7 +64,7 @@ namespace ReDefinition.Atmospheres
             IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"), IdS = Shader.PropertyToID("_NoiseS"),
             IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer"), IdStretch = Shader.PropertyToID("_NoiseStretch"), IdAxis = Shader.PropertyToID("_NoiseAxis"),
             IdLattice = Shader.PropertyToID("_NoiseLattice"), IdLatticeP = Shader.PropertyToID("_NoiseL"), IdBillow = Shader.PropertyToID("_BillowP"),
-            IdHeapP = Shader.PropertyToID("_HeapP");
+            IdHeapP = Shader.PropertyToID("_HeapP"), IdBlendP = Shader.PropertyToID("_BlendP");
 
         // E40 C4: the tables of the untiling warp and the ragged boundary (NoiseLattice), the viewer's place and each layer's scale and reference radius they follow.
         private readonly NoiseLattice lattice = new NoiseLattice();
@@ -490,6 +490,9 @@ namespace ReDefinition.Atmospheres
                 HeapFootLod = CloudLookTuning.HeapFootLod,
                 HeapIso = CloudLookTuning.HeapIso,
                 HeapWarpShare = CloudLookTuning.HeapWarpShare,
+                Blend = CloudLookTuning.NoiseBlend,
+                BlendExponent = CloudLookTuning.NoiseBlendExp,
+                BlendCell = CloudLookTuning.NoiseBlendCell,
                 BillowContrastDelta = CloudLookTuning.BillowContrast - 1.0,
                 FineWeight = CloudLookTuning.BillowFine(-1f) >= 0f ? CloudLookTuning.BillowFine(-1f) : (double?)null,
                 FineFrequency = CloudLookTuning.BillowFineFreq(0f),
@@ -521,6 +524,7 @@ namespace ReDefinition.Atmospheres
             // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top, the composite's sharpening).
             material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
             // CLOUDR1: the heap volume (x: it is built, y: bit 0 the march's spacing raises its mip level, bit 1 the heap is read at the lattice's true vertical scale, z: log2 of its voxels per noise scale like _NoiseT.w).
+            material.SetVector(IdBlendP, new Vector4(CloudLookTuning.NoiseBlend ? 1f : 0f, CloudLookTuning.NoiseBlendExp, CloudLookTuning.NoiseBlendCell, 0f));
             material.SetVector(IdHeapP, new Vector4(shapeHasHeap ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), (float)Math.Log(ShapeSize() / HeapModel.PeriodScales, 2.0), ExtrasUsed ? 1f : 0f));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);

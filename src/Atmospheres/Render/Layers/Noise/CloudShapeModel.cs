@@ -105,6 +105,10 @@ namespace ReDefinition.Atmospheres
         // The share of the untiling displacement's horizontal part the heap lookup keeps (below 0: the whole displacement; NaN or 0 from a default-constructed set: HeapModel.WarpShare is used only through
         // LayerNoise, so a hand-made set keeps 0 = no displacement unless it sets this).
         internal double HeapWarpShare;
+        // cloud.noise.blend (CLOUDR1): the shape and heap volumes hide their tiling by BlendedMacro instead of the untiling displacement; the exponent of the blend weights and the lattice cell in periods
+        // (0 or less: 8 and 1).
+        internal bool Blend;
+        internal double BlendExponent, BlendCell;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
@@ -187,6 +191,91 @@ namespace ReDefinition.Atmospheres
             qx += dx;
             qy += dy;
             qz += dz;
+        }
+
+        // The Gaussian of a rank (Abramowitz and Stegun 26.2.23, the shader's NzProbit) and the rank of a Gaussian (26.2.17, NzCdf).
+        internal static double Probit(double p)
+        {
+            p = Math.Min(Math.Max(p, 0.002), 0.998);
+            double t = Math.Sqrt(-2.0 * Math.Log(Math.Min(p, 1.0 - p)));
+            double x = t - (2.515517 + 0.802853 * t + 0.010328 * t * t) / (1.0 + 1.432788 * t + 0.189269 * t * t + 0.001308 * t * t * t);
+            return p < 0.5 ? -x : x;
+        }
+
+        internal static double Cdf(double x)
+        {
+            double t = 1.0 / (1.0 + 0.2316419 * Math.Abs(x));
+            double p = 0.3989423 * Math.Exp(-0.5 * x * x) * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+            return x > 0.0 ? 1.0 - p : p;
+        }
+
+        // The macro shape at the UNDISPLACED lookup point (qx, qy, qz) with its tiling hidden (the shader's NoiseBlend): preset 0 the shape volume, 1 and 2 the heap presets. A cubic lattice of
+        // cells of prm.BlendCell periods; each lattice point has a random offset of the volume (a translation: the strain is exactly 1); the four corners of the Kuhn tetrahedron around the point are
+        // read at their offsets, turned into Gaussians, blended with the weights w^e normalised to keep the variance and turned back into a rank (Heitz and Neyret 2018, in 3D). cavity: the cavity
+        // channel blended with the plain weights (1 where the preset has none).
+        internal static double BlendedMacro(NoiseVolumeSet set, ref NoiseLayerParams prm, int preset, double qx, double qy, double qz, double footM, out double cavity)
+        {
+            double periodM = (preset == 0 ? NoiseModel.ShapePeriodScales : HeapModel.PeriodScales) * prm.ScaleM;
+            double cellP = prm.BlendCell > 0.0 ? prm.BlendCell : 1.0, exponent = prm.BlendExponent > 0.0 ? prm.BlendExponent : 8.0;
+            double ux = qx / (periodM * cellP), uy = qy / (periodM * cellP), uz = qz / (periodM * cellP);
+            double fx0 = Math.Floor(ux), fy0 = Math.Floor(uy), fz0 = Math.Floor(uz);
+            double fx = ux - fx0, fy = uy - fy0, fz = uz - fz0;
+            int ix = (int)fx0, iy = (int)fy0, iz = (int)fz0;
+            int[] o1, o2;
+            if (fx >= fy)
+            {
+                if (fy >= fz) { o1 = new[] { 1, 0, 0 }; o2 = new[] { 1, 1, 0 }; }
+                else if (fx >= fz) { o1 = new[] { 1, 0, 0 }; o2 = new[] { 1, 0, 1 }; }
+                else { o1 = new[] { 0, 0, 1 }; o2 = new[] { 1, 0, 1 }; }
+            }
+            else
+            {
+                if (fy < fz) { o1 = new[] { 0, 0, 1 }; o2 = new[] { 0, 1, 1 }; }
+                else if (fx < fz) { o1 = new[] { 0, 1, 0 }; o2 = new[] { 0, 1, 1 }; }
+                else { o1 = new[] { 0, 1, 0 }; o2 = new[] { 1, 1, 0 }; }
+            }
+            double s0 = Math.Max(fx, Math.Max(fy, fz)), s2 = Math.Min(fx, Math.Min(fy, fz)), s1 = fx + fy + fz - s0 - s2;
+            var w = new[] { 1.0 - s0, s0 - s1, s1 - s2, s2 };
+            double norm2 = 0.0, wsum = 0.0;
+            for (int k = 0; k < 4; k++)
+            {
+                w[k] = Math.Pow(Math.Max(w[k], 0.0), exponent);
+                norm2 += w[k] * w[k];
+                wsum += w[k];
+            }
+            double norm = 1.0 / Math.Sqrt(Math.Max(norm2, 1e-12));
+            wsum = Math.Max(wsum, 1e-12);
+            uint seed = prm.Seed + 5003u;
+            double g = 0.0, cav = 0.0;
+            for (int k = 0; k < 4; k++)
+            {
+                int vx = ix + (k == 0 ? 0 : k == 1 ? o1[0] : k == 2 ? o2[0] : 1), vy = iy + (k == 0 ? 0 : k == 1 ? o1[1] : k == 2 ? o2[1] : 1), vz = iz + (k == 0 ? 0 : k == 1 ? o1[2] : k == 2 ? o2[2] : 1);
+                double a, b, c;
+                uint hv = NoiseHash.Hash3(vx, vy, vz, seed);
+                NoiseHash.Vec(hv, out a, out b, out c);
+                // The volume is read rotated by one of the 48 axis permutations and sign flips of the cube.
+                uint pr = NoiseHash.LowBias32(hv ^ 0x1234567u) % 6u, sb = NoiseHash.LowBias32(hv ^ 0x7654321u);
+                double rx, ry, rz;
+                switch (pr)
+                {
+                    case 0u: rx = qx; ry = qy; rz = qz; break;
+                    case 1u: rx = qx; ry = qz; rz = qy; break;
+                    case 2u: rx = qy; ry = qx; rz = qz; break;
+                    case 3u: rx = qy; ry = qz; rz = qx; break;
+                    case 4u: rx = qz; ry = qx; rz = qy; break;
+                    default: rx = qz; ry = qy; rz = qx; break;
+                }
+                if ((sb & 1u) != 0u) rx = -rx;
+                if ((sb & 2u) != 0u) ry = -ry;
+                if ((sb & 4u) != 0u) rz = -rz;
+                double tx = rx + a * periodM, ty = ry + b * periodM, tz = rz + c * periodM, v, cv = 1.0;
+                if (preset == 0) v = ShapeAt(set, ref prm, tx, ty, tz);
+                else v = HeapAt(set.Heap, ref prm, preset, tx, ty, tz, footM, out cv);
+                g += w[k] * Probit(v);
+                cav += w[k] * (preset == 1 ? cv : 1.0);
+            }
+            cavity = cav / wsum;
+            return Cdf(g * norm);
         }
 
         // The point the heap volume is read at: the lookup point with the untiling displacement's radial part taken out and HeapModel.WarpShare of its horizontal part kept, and with
@@ -390,8 +479,24 @@ namespace ReDefinition.Atmospheres
             {
                 double cavity;
                 double hx, hy, hz;
-                HeapLookup(ref prm, px, py, pz, qx, qy, qz, wdx, wdy, wdz, out hx, out hy, out hz);
-                n = HeapAt(set.Heap, ref prm, prm.HeapPreset, hx, hy, hz, footM, out cavity);
+                if (prm.Blend)
+                {
+                    // The undisplaced point (the radial part of the displacement is out too), the vertical scale taken back.
+                    NoiseLayerParams plain = prm;
+                    plain.HeapWarpShare = 0.0;
+                    HeapLookup(ref plain, px, py, pz, qx, qy, qz, wdx, wdy, wdz, out hx, out hy, out hz);
+                    n = BlendedMacro(set, ref prm, prm.HeapPreset, hx, hy, hz, footM, out cavity);
+                }
+                else
+                {
+                    HeapLookup(ref prm, px, py, pz, qx, qy, qz, wdx, wdy, wdz, out hx, out hy, out hz);
+                    n = HeapAt(set.Heap, ref prm, prm.HeapPreset, hx, hy, hz, footM, out cavity);
+                }
+            }
+            else if (prm.Blend)
+            {
+                double cavity;
+                n = BlendedMacro(set, ref prm, 0, qx - wdx, qy - wdy, qz - wdz, footM, out cavity);
             }
             else n = ShapeAt(set, ref prm, qx, qy, qz);
             double x = (cov + (n - 0.5) * noiseAmount + coverage - 1.0) / edge + 0.5;

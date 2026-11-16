@@ -244,7 +244,7 @@ namespace ReDefinition.Atmospheres
         //   cloud.cavity          -1: each type's cfg key cavity; 0 to 1: this strength for every type that reads a heap
         //   cloud.heap.iso        1: the heap is read at the lattice's true vertical scale, so a layer's verticalScale does not stretch the rounded heaps into columns; 0: as the shape volume is read
         //   cloud.heap.footLod    1: the march's sample spacing raises the heap volume's mip level (an octave is dropped only where it is below the footprint); 0: only the smoothing does
-        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod", TuneHeapIso = "cloud.heap.iso", TuneHeapDetail = "cloud.heap.detail", TuneHeapWarp = "cloud.heap.warp";
+        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod", TuneHeapIso = "cloud.heap.iso", TuneHeapDetail = "cloud.heap.detail", TuneHeapWarp = "cloud.heap.warp", TuneNoiseBlend = "cloud.noise.blend", TuneNoiseBlendExp = "cloud.noise.blendExp", TuneNoiseBlendCell = "cloud.noise.blendCell";
 
         // --- CLOUDR1 P6: the first hit of the march by bisection (default off). ---
         //   cloud.firstHit        evaluations of the bisection on the span a ray enters (0: off, the march is as it was; 3 is the default of the experiments)
@@ -290,6 +290,12 @@ namespace ReDefinition.Atmospheres
         // cloud.heap.warp: the share of the untiling displacement's horizontal part the heap lookup keeps (its radial part is always dropped); the default is HeapModel.WarpShare, -1 reads the heap at the
         // fully displaced point like the shape volume (the lookup that strains it: the diagnosis of the pulled look).
         internal static float HeapWarpShare { get { float v = Tuning.Get(TuneHeapWarp, (float)HeapModel.WarpShare); return float.IsNaN(v) || float.IsInfinity(v) ? (float)HeapModel.WarpShare : v < 0f ? -1f : Math.Min(v, 1f); } }
+        // cloud.noise.blend: 1 hides the tiling of the shape and heap volumes by blending (random offset per lattice cell, variance-preserving, back to a rank: NoiseBlend, the local strain is exactly 1)
+        // instead of the untiling displacement, which pulls the pattern (0, the default: the displacement). cloud.noise.blendExp is the exponent of the weights (8), cloud.noise.blendCell the lattice
+        // cell in periods (1). The erosion detail keeps its displacement.
+        internal static bool NoiseBlend { get { return Tuning.Get(TuneNoiseBlend, 0f) > 0.5f; } }
+        internal static float NoiseBlendExp { get { return Clean(Tuning.Get(TuneNoiseBlendExp, 8f), 8f, 1f, 32f); } }
+        internal static float NoiseBlendCell { get { return Clean(Tuning.Get(TuneNoiseBlendCell, 1f), 1f, 0.25f, 16f); } }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
         internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }
 

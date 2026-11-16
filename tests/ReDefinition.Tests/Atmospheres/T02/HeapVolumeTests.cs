@@ -293,6 +293,104 @@ namespace ReDefinition.Tests
             Assert.IsTrue(mean / cascade.Length > 0.2 && mean / cascade.Length < 0.8, "mean " + mean / cascade.Length);
         }
 
+
+        // CLOUDR1: the tiling is hidden by blending (random offset per lattice cell, variance-preserving, back to a rank) instead of the untiling displacement: BlendedMacro matches the NumPy twin.
+        [TestMethod]
+        public void TheBlendedMacroMatchesTheNumPyTwin()
+        {
+            NoiseVolumeSet set = new NoiseVolumeSet { Heap = Small };
+            NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
+            prm.Seed = 3;
+            double[][] pts = { new[] { 1200.3, -800.7, 3400.1 }, new[] { -5000.0, 2500.5, 17.9 }, new[] { 333.3, 444.4, 555.5 }, new[] { 601000.0, 12345.0, -7777.0 } };
+            double[] want = { 0.15001218, 0.3695496616, 0.0144270556, 0.4236702679 };
+            for (int i = 0; i < pts.Length; i++)
+            {
+                double cav;
+                Assert.AreEqual(want[i], CloudShapeModel.BlendedMacro(set, ref prm, 1, pts[i][0], pts[i][1], pts[i][2], 0.0, out cav), 1e-6, "point " + i);
+            }
+        }
+
+        // The blended macro is rank-uniform again (so the cover meaning holds), its tile is not repeated (correlation at one period near the level of an unrelated lag, where the plain read is 1),
+        // and it is continuous across the lattice cells (a translation only: the local strain is 1).
+        [TestMethod]
+        public void TheBlendedMacroIsUniformHidesTheTileAndIsContinuous()
+        {
+            NoiseVolumeSet set = new NoiseVolumeSet { Heap = Medium };
+            NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
+            prm.Seed = 3;
+            double periodM = HeapModel.PeriodScales * prm.ScaleM, cav;
+            const int count = 30000;
+            var rng = new Random(5);
+            var bins = new int[10];
+            var a = new double[count];
+            var shifted = new double[count];
+            var unrelated = new double[count];
+            var plain = new double[count];
+            var plainShifted = new double[count];
+            for (int i = 0; i < count; i++)
+            {
+                double x = rng.NextDouble() * 60000.0, y = rng.NextDouble() * 60000.0, z = 600000.0 + rng.NextDouble() * 5000.0;
+                a[i] = CloudShapeModel.BlendedMacro(set, ref prm, 1, x, y, z, 0.0, out cav);
+                shifted[i] = CloudShapeModel.BlendedMacro(set, ref prm, 1, x + periodM, y, z, 0.0, out cav);
+                unrelated[i] = CloudShapeModel.BlendedMacro(set, ref prm, 1, x + 0.37 * periodM, y, z, 0.0, out cav);
+                plain[i] = CloudShapeModel.HeapAt(Medium, ref prm, 1, x, y, z, 0.0, out cav);
+                plainShifted[i] = CloudShapeModel.HeapAt(Medium, ref prm, 1, x + periodM, y, z, 0.0, out cav);
+                bins[Math.Min(9, (int)(a[i] * 10.0))]++;
+            }
+            for (int b = 0; b < 10; b++) Assert.AreEqual(0.1, bins[b] / (double)count, 0.015, "rank histogram bin " + b);
+            Assert.IsTrue(Correlation(plain, plainShifted) > 0.99, "the plain read repeats at the period");
+            Assert.IsTrue(Math.Abs(Correlation(a, shifted)) < 0.25, "the blended read does not: " + Correlation(a, shifted));
+            Assert.IsTrue(Math.Abs(Correlation(a, unrelated)) < 0.45, "an unrelated lag: " + Correlation(a, unrelated));
+            // Continuity across a lattice cell: points 0.5 m apart straddling the cell boundary differ little.
+            double worst = 0.0;
+            for (int i = 0; i < 400; i++)
+            {
+                double x = periodM * (1 + i % 5) - 0.25, y = rng.NextDouble() * 20000.0, z = 600000.0 + rng.NextDouble() * 3000.0;
+                double v0 = CloudShapeModel.BlendedMacro(set, ref prm, 1, x, y, z, 0.0, out cav), v1 = CloudShapeModel.BlendedMacro(set, ref prm, 1, x + 0.5, y, z, 0.0, out cav);
+                worst = Math.Max(worst, Math.Abs(v0 - v1));
+            }
+            Assert.IsTrue(worst < 0.03, "continuity across the lattice cells: " + worst);
+        }
+
+        // The cover per share: the share of the sky a map value covers with the blended macro is the uniform rank's, within 0.012.
+        [TestMethod]
+        public void TheBlendedMacroKeepsTheCoverShare()
+        {
+            NoiseVolumeSet set = new NoiseVolumeSet { Heap = Medium };
+            NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
+            prm.Seed = 3;
+            double cav;
+            var rng = new Random(11);
+            const int count = 40000;
+            var u = new double[count];
+            for (int i = 0; i < count; i++)
+                u[i] = CloudShapeModel.BlendedMacro(set, ref prm, 1, rng.NextDouble() * 80000.0, rng.NextDouble() * 80000.0, 600000.0 + rng.NextDouble() * 5000.0, 0.0, out cav);
+            foreach (double cover in new[] { 0.2, 0.5, 0.8 })
+            {
+                double sum = 0.0;
+                for (int i = 0; i < count; i++) sum += ShareOf(u[i], cover, 0.15);
+                double expected = 0.0;
+                for (int k = 0; k < 2000; k++) expected += ShareOf((k + 0.5) / 2000.0, cover, 0.15);
+                Assert.AreEqual(expected / 2000.0, sum / count, 0.012, "cover " + cover);
+            }
+        }
+
+        private static double Correlation(double[] a, double[] b)
+        {
+            double ma = 0.0, mb = 0.0;
+            for (int i = 0; i < a.Length; i++) { ma += a[i]; mb += b[i]; }
+            ma /= a.Length;
+            mb /= a.Length;
+            double sab = 0.0, saa = 0.0, sbb = 0.0;
+            for (int i = 0; i < a.Length; i++)
+            {
+                sab += (a[i] - ma) * (b[i] - mb);
+                saa += (a[i] - ma) * (a[i] - ma);
+                sbb += (b[i] - mb) * (b[i] - mb);
+            }
+            return sab / Math.Sqrt(saa * sbb);
+        }
+
         private static double ShareOf(double n, double cov, double edge)
         {
             double x = (cov + (n - 0.5) + 0.5 - 1.0) / edge + 0.5;

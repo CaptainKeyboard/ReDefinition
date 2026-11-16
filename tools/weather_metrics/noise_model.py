@@ -628,3 +628,61 @@ def tune():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "tune":
         tune()
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# Tiling hidden by blending (CLOUDR1; C#: CloudShapeModel.BlendedMacro, HLSL: NoiseBlend). Heitz and Neyret, "High-Performance By-Example Noise using a Histogram-Preserving Blending
+# Operator", HPG 2018, and Deliot and Heitz, "Procedural Stochastic Textures by Tiling and Blending", GPU Zen 2019, as methods, here in 3D.
+# --------------------------------------------------------------------------------------------------------------------------------
+def probit(p):
+    """Gaussian of a rank, Abramowitz and Stegun 26.2.23 (the shader's NzProbit)."""
+    p = np.clip(np.asarray(p, dtype=np.float64), 0.002, 0.998)
+    t = np.sqrt(-2.0 * np.log(np.minimum(p, 1.0 - p)))
+    x = t - (2.515517 + 0.802853 * t + 0.010328 * t * t) / (1.0 + 1.432788 * t + 0.189269 * t * t + 0.001308 * t * t * t)
+    return np.where(p < 0.5, -x, x)
+
+
+def cdf(x):
+    """Rank of a Gaussian, Abramowitz and Stegun 26.2.17 (the shader's NzCdf)."""
+    x = np.asarray(x, dtype=np.float64)
+    t = 1.0 / (1.0 + 0.2316419 * np.abs(x))
+    p = 0.3989423 * np.exp(-0.5 * x * x) * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))))
+    return np.where(x > 0.0, 1.0 - p, p)
+
+
+PERMS = np.array([[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]])
+
+
+def blend_macro(read, q, period, seed, cell=1.0, exponent=8.0):
+    """The macro shape with its tiling hidden. read(points (M, 3)) -> ranks 0..1 of the volume at those lookup points; q (M, 3) the undisplaced lookup points in m; period the volume's period in m;
+    seed the layer's seed + 5003. A cubic lattice of cells of `cell` periods, a random offset of the volume per lattice point, the four corners of the Kuhn tetrahedron around the point read at
+    their offsets, Gaussianised, blended with the weights w^exponent normalised to keep the variance, turned back into a rank."""
+    q = np.asarray(q, dtype=np.float64)
+    u = q / (period * cell)
+    fl = np.floor(u)
+    f = u - fl
+    i0 = fl.astype(np.int64)
+    order = np.argsort(-f, axis=1, kind="stable")
+    fs = np.take_along_axis(f, order, axis=1)
+    w = np.stack([1.0 - fs[:, 0], fs[:, 0] - fs[:, 1], fs[:, 1] - fs[:, 2], fs[:, 2]], axis=1)
+    w = np.maximum(w, 0.0) ** exponent
+    norm = 1.0 / np.sqrt(np.maximum(np.sum(w * w, axis=1), 1e-12))
+    m = len(q)
+    verts = [i0.copy()]
+    v = i0.copy()
+    for k in range(3):
+        e = np.zeros((m, 3), dtype=np.int64)
+        e[np.arange(m), order[:, k]] = 1
+        v = v + e
+        verts.append(v.copy())
+    g = np.zeros(m)
+    for k in range(4):
+        h = hash3(verts[k][:, 0], verts[k][:, 1], verts[k][:, 2], seed)
+        a, b, c = hash_vec(h)
+        off = np.stack([a, b, c], axis=1) * period
+        # the volume is read rotated by one of the 48 axis permutations and sign flips of the cube
+        perm = PERMS[(lowbias32(h ^ U32(0x1234567)) % U32(6)).astype(np.int64)]
+        bits = lowbias32(h ^ U32(0x7654321))
+        sg = np.where(((bits[:, None] >> np.array([0, 1, 2], dtype=np.uint32)) & U32(1)) != 0, -1.0, 1.0)
+        g += w[:, k] * probit(read(np.take_along_axis(q, perm, axis=1) * sg + off))
+    return cdf(g * norm)

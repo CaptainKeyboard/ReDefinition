@@ -186,6 +186,13 @@ VARIANTS = {
     "r_ng128": ("(curve) r_a with 128 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+ng128+r33+lp100"),
     "r_ng192": ("(curve) r_a with 192 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+ng192+r33+lp100"),
     # --- CLOUDR1 diagnosis of the pulled ("fun-house") look: the lookup's untiling displacement, the vertical scale, the flow map, straight down and from the side, all at the product's march with 96 grid points ---
+    # --- CLOUDR1: the tiling hidden by blending (cloud.noise.blend 1: random offset and cube rotation per lattice cell, variance-preserving blend of the Gaussianised ranks) instead of the displacement ---
+    "bl_a": ("(blend) P2 + P1 + P3 with the blended lookup at the production grid, 96 grid points", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), NG96),
+    "bl_base": ("(blend) the base model (no heap) with the shape volume blended instead of displaced", tune_dotted([("cloud.noise.blend", 1.0)]), None),
+    "bl_dn": ("(blend) straight down, the blended lookup", compose(repose(-90.0), tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), NG96),
+    "bl_sd": ("(blend) from the side, the blended lookup", compose(camera_at(3600.0, -4.0), tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), NG96),
+    "bl_c": ("(blend) the ceiling", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), CEIL),
+    "bl_g": ("(blend) the Phase 0 grid", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), STEPS),
     "fh_legacy": ("(diagnosis) the heap read at the fully displaced point like the shape volume (cloud.heap.warp -1)", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)]), NG96),
     "fh_w0": ("(diagnosis) no untiling displacement at all", compose(tune_cumulus(HEAP1 + EDGE + CAV35), lambda job: job.setdefault("noise", {}).__setitem__("noUntile", 1)), NG96),
     "fh_wa2": ("(diagnosis) the displacement's amplitude 2 scales (6.5)", compose(tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)]), lambda job: job.setdefault("noise", {}).__setitem__("warpAmplitude", 2.0)), NG96),
@@ -473,7 +480,7 @@ def table(rows):
     return "\n".join(lines)
 
 
-MOVED_CAMERA = ("G0", "GN4", "T0", "TN4", "C0", "CN4", "dn", "dnS5", "d45", "d45S5", "fh_dn", "fh_dnL", "fh_dnB", "fh_sd", "fh_sdL")
+MOVED_CAMERA = ("G0", "GN4", "T0", "TN4", "C0", "CN4", "dn", "dnS5", "d45", "d45S5", "fh_dn", "fh_dnL", "fh_dnB", "fh_sd", "fh_sdL", "bl_dn", "bl_sd")
 CROP_W, CROP_H = 900, 600
 
 
@@ -596,7 +603,7 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
-COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "p2p1p3", "s_p2p1p3")
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3")
 
 
 def cost_label(march):
