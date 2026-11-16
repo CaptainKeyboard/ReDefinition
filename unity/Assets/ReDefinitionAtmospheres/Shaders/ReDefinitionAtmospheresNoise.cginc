@@ -196,7 +196,7 @@ float2 NoiseBlend(int li, float3 qu, float periodM, float lod, int ch)
     float norm = rsqrt(max(dot(w, w), 1e-12)), wsum = max(w.x + w.y + w.z + w.w, 1e-12);
     uint seed = (uint)_NoiseOffset[li].w + 5003u;
     float g = 0.0, cav = 0.0;
-    [unroll] for (int k = 0; k < 4; k++)
+    [loop] for (int k = 0; k < 4; k++)
     {
         int3 iv = i0 + (k == 0 ? int3(0, 0, 0) : (k == 1 ? o1 : (k == 2 ? o2 : int3(1, 1, 1))));
         uint hv = NzHash(iv, seed);
@@ -232,46 +232,49 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     float n;
     // CLOUDR1 P2: a type with a heap preset reads the macro shape from the heap volume (rank-uniform like the shape volume, so the cover meaning holds). The mip level is the type's smoothing or the
     // march's spacing, whichever is coarser: an octave of the cascade is dropped only where it is below the footprint (HeapVolumes mips hold the octaves a level can resolve).
-    [branch] if (gHeapPreset > 0 && _HeapP.x > 0.5)
+    bool isHeap = gHeapPreset > 0 && _HeapP.x > 0.5;
+    float3 qh = q, qb = q - gNoiseWarp;   // the point the heap is read at (displaced), the undisplaced point the blend takes
+    float lodUse = lodShape, periodUse = _NoiseR.x * scale;
+    int chUse = 0;
+    [branch] if (isHeap)
     {
         float lodHeap = max(0.0, log2(max(gNoiseSm, 1e-4)) + _HeapP.z);   // the smoothing in this volume's voxels per noise scale
         if (fmod(_HeapP.y, 2.0) > 0.5 && gNoiseFoot > 0) lodHeap = max(lodHeap, log2(max(gNoiseFoot / scale, 1e-4)) + _HeapP.z);
         // The levels below 8 voxels are box means that are not rank-uniform (the last is a constant 0.5: a cloud or none), the far view's mean takes over beyond them.
         lodHeap = min(lodHeap, _HeapP.z);
-        // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
-        // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
         // The untiling displacement stretches what it moves: its radial part would draw the heaps as columns, and all of it as worms. The heap lookup drops the radial part and keeps a share
-        // of the horizontal part, which is enough to break the repetition of its small tile (the NumPy and C# twins: HeapLookup).
+        // of the horizontal part (the NumPy and C# twins: HeapLookup); with the blend (cloud.noise.blend) the point is not displaced at all.
         float3 upw = pc / max(length(pc), 1.0);
         float3 wh = gNoiseWarp - upw * dot(gNoiseWarp, upw);
-        float3 qh = _NoiseR.w < 0.0 ? q : q - gNoiseWarp + wh * _NoiseR.w;   // _NoiseR.w < 0: the whole displacement (cloud.heap.warp -1, the lookup the shape volume has)
+        if (_NoiseR.w >= 0.0) qh = q - gNoiseWarp + wh * _NoiseR.w;   // _NoiseR.w < 0: the whole displacement (cloud.heap.warp -1, the lookup the shape volume has)
+        // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
+        // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
         if (_HeapP.y > 1.5)
         {
             float rl = max(length(pc), 1.0);
-            qh += (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
+            float3 isoAdd = (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
+            qh += isoAdd;
+            qb += isoAdd;
         }
-        [branch] if (_BlendP.x > 0.5)
-        {
-            // Tiling hidden by blending (cloud.noise.blend): the undisplaced point, the vertical scale taken back.
-            float3 qb = q - gNoiseWarp;
-            if (_HeapP.y > 1.5)
-            {
-                float rb = max(length(pc), 1.0);
-                qb += (pc / rb) * ((1.0 - _NoiseStretch[li].y) * (rb - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
-            }
-            float2 bl = NoiseBlend(li, qb, _NoiseR.z * scale, lodHeap, gHeapPreset);
-            n = bl.x;
-            gHeapCav = gHeapPreset == 1 ? bl.y : 1.0;
-        }
-        else
-        {
-            float4 hv = tex3Dlod(_NoiseShape, float4(qh / (_NoiseR.z * scale), lodHeap));
-            n = gHeapPreset == 1 ? hv.g : hv.b;
-            gHeapCav = gHeapPreset == 1 ? hv.a : 1.0;   // the cavity of preset 2 is not on the GPU (one alpha channel)
-        }
+        lodUse = lodHeap;
+        periodUse = _NoiseR.z * scale;
+        chUse = gHeapPreset;
     }
-    else if (_BlendP.x > 0.5) n = NoiseBlend(li, q - gNoiseWarp, _NoiseR.x * scale, lodShape, 0).x;
-    else n = tex3Dlod(_NoiseShape, float4(q / (_NoiseR.x * scale), lodShape)).r;
+    // CLOUDR1 P2: a type with a heap preset reads the macro shape from the heap volume (rank-uniform like the shape volume, so the cover meaning holds); the other types the shape volume. With
+    // cloud.noise.blend either hides its tiling by NoiseBlend (one call site: its taps are a loop, an unrolled copy of it in every inlined density crashed the shader compiler).
+    [branch] if (_BlendP.x > 0.5)
+    {
+        float2 bl = NoiseBlend(li, qb, periodUse, lodUse, chUse);
+        n = bl.x;
+        if (isHeap) gHeapCav = chUse == 1 ? bl.y : 1.0;
+    }
+    else if (isHeap)
+    {
+        float4 hv = tex3Dlod(_NoiseShape, float4(qh / periodUse, lodUse));
+        n = chUse == 1 ? hv.g : hv.b;
+        gHeapCav = chUse == 1 ? hv.a : 1.0;   // the cavity of preset 2 is not on the GPU (one alpha channel)
+    }
+    else n = tex3Dlod(_NoiseShape, float4(q / periodUse, lodShape)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
     // _NoiseT.z (layers.densityRemap, default 0): the erosion also thins the interior of a closed deck; 0 leaves the interior at the share 1.
     if (s <= 0 || erosion <= 0 || gNoiseLod != 0) return s;
