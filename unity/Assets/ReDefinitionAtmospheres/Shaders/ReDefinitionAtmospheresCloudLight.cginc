@@ -124,7 +124,8 @@ float3 SunAir(float3 pc, float3 sunDir)
 
 // The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size over at most _Sun.w m,
 // the other layers with half of them (own < 0: all layers with `steps`). The taps may be spread over a cone of tangent `spread`.
-float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot)
+// CLOUDR2 P3: the first `eroded` taps of each span read the density with its erosion detail (the lobes that shade each other are the detail's, not the shape's); the others the shape only.
+float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot, int eroded)
 {
     float tau = 0;
     float3 ax = abs(dir.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0);
@@ -161,7 +162,7 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
                     q += (u * cos(ang) + v * sin(ang)) * rad;
                 }
                 float qs;
-                acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, 1, qs) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02)
+                acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
                 prev = edge;
                 gain *= ratio;
             }
@@ -300,7 +301,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     {
         ttau[k] = 0.0;
         if (!need[k]) continue;
-        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k]);
+        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k], k == 0 ? (int)_BlendP.w : 0);
     }
     if (need[0]) tauSun = ttau[0];
     tauSunOut = max(tauSun, 0.0);

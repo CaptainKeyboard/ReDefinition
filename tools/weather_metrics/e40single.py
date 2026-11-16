@@ -75,10 +75,18 @@ LOOKS = {
     "blend": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), puff.NG96),
     "blendb": (puff.tune_cumulus([("cloud.noise.blend", 1.0)]), e40pp.MARCH),
     "blendc": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.CEIL),
+    # CLOUDR2 P3: the sun march's first taps read the eroded density (cloud.light.erosion), on the blended heap look
+    "lite1": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 1.0)]), puff.NG96),
+    "lite2": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 2.0)]), puff.NG96),
+    "lite3": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 3.0)]), puff.NG96),
+    # CLOUDR2 shapes: the types' shape smoothing (1.5 noise scales for mediocris = 375 m, 3 for congestus) is a mip level of the volume, so it removes every head below it; the heap types would
+    # not carry it. The same looks with the smoothing 0 at the production march.
+    "bns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
+    "lns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 2.0)])), puff.NG96),
     "h_nolod": (puff.compose(HEAP, lambda job: job.setdefault("noise", {}).__setitem__("noLod", 1)), puff.NG96),
     "h_ero0": (puff.compose(HEAP, puff.v_ero0), puff.NG96),
 }
-LOOK_SCENES = {"blendb": ("m1d6", "m2d6", "m3d6"), "blendc": ("m1d6", "m2d6", "m3d6", "c1d11"),"h_nocav": ("m1d6", "m2d6"), "h_noedge": ("m1d6", "m2d6"), "h_w0": ("m1d6", "m2d6"), "h_wL": ("m1d6", "m2d6"), "h_nolod": ("m1d6", "m2d6"), "h_ero0": ("m1d6", "m2d6")}
+LOOK_SCENES = {"bns": ("m1d6", "m2d6", "m3d6", "c1d11", "c2d11"), "lns": ("m1d6", "m2d6", "m3d6", "c1d11", "c2d11"),"lite1": ("m1d6", "m2d6", "m3d6", "c1d11"), "lite2": ("m1d6", "m2d6", "m3d6", "c1d11"), "lite3": ("m1d6", "m2d6", "m3d6", "c1d11"),"blendb": ("m1d6", "m2d6", "m3d6"), "blendc": ("m1d6", "m2d6", "m3d6", "c1d11"),"h_nocav": ("m1d6", "m2d6"), "h_noedge": ("m1d6", "m2d6"), "h_w0": ("m1d6", "m2d6"), "h_wL": ("m1d6", "m2d6"), "h_nolod": ("m1d6", "m2d6"), "h_ero0": ("m1d6", "m2d6")}
 
 
 def unit(v):
@@ -374,6 +382,45 @@ def collect_aid(ctx):
 
 
 register_series("e40-single-aid", aid_stage_list(), collect_aid, exclusive=False, who="e40-single")
+
+
+# The GPU time of the pass for one cell in several looks (soft-cost scene: march | resolve | composite, median of 40 frames, proxy timestamps; a timing run takes the GPU exclusively).
+COST_LOOKS = ("base", "heap", "blend", "blendb", "lite2", "bns", "lns")
+COST_SCENES = ("m1d6", "c1d11")
+
+
+def cost_label(march):
+    return "single-cost-" + label_of(march)[len("single-"):]
+
+
+def cost_stage_list():
+    by_march = {}
+    for name, st in prepared().items():
+        if st["variant"] in COST_LOOKS and st["scene"] in COST_SCENES:
+            by_march.setdefault(st["march"], []).append(name)
+    return [Stage(cost_label(march), ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", ",".join(e40pp.view_tag(n) for n in names), "-media", "pr50", "-marches", march,
+                                      "-width", str(SIZE[0]), "-height", str(SIZE[1])], size=SIZE, proxy=True, timeout=2400)
+            for march, names in sorted(by_march.items())]
+
+
+def collect_cost(ctx):
+    rows = {}
+    for label in sorted({cost_label(st["march"]) for st in prepared().values()}):
+        for k, v in ctx.player_metrics(label).items():
+            if not k.startswith("softcost."):
+                continue
+            _, part, rest = k.split(".", 2)
+            rows.setdefault(rest.split(".", 1)[0], {})[part] = v[0]
+    metrics, lines = [], ["single cloud: GPU ms of the pass at %d x %d (march | resolve | composite | total)" % SIZE]
+    for view in sorted(rows):
+        r = rows[view]
+        lines.append("   %-34s %7.3f | %7.3f | %7.3f | %7.3f" % (view, r.get("march", float("nan")), r.get("resolve", float("nan")), r.get("composite", float("nan")), r.get("total", float("nan"))))
+        metrics.append(Metric.info("e40single.cost." + view, r.get("total", float("nan"))))
+    print("\n".join(lines))
+    return metrics
+
+
+register_series("e40-single-cost", cost_stage_list(), collect_cost, exclusive=True, who="e40-single")
 
 
 def main():

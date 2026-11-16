@@ -137,6 +137,7 @@ namespace ReDefinition.Atmospheres.Viewer
             F(CloudLookTuning.TuneHeapFootLod, true, KeyLiveness.FrameHistory),
             F(CloudLookTuning.TuneHeapIso, true, KeyLiveness.FrameHistory),
             N(CloudLookTuning.TuneHeapWarp, 0.5f, KeyLiveness.FrameHistory, "share of the untiling displacement's horizontal part the heap keeps, 0..1; -1 the whole displacement (the pulled lookup)"),
+            N(CloudLookTuning.TuneLightErosion, 0f, KeyLiveness.FrameHistory, "number of the first taps of the sun's light march that read the eroded density, 0..8, 0 the shape only"),
             F(CloudLookTuning.TuneNoiseBlend, false, KeyLiveness.FrameHistory),            N(CloudLookTuning.TuneNoiseBlendExp, 8f, KeyLiveness.FrameHistory, "exponent of the blend weights, 1..32"),
             N(CloudLookTuning.TuneNoiseBlendCell, 1f, KeyLiveness.FrameHistory, "blend lattice cell in periods, 0.25..16"),
             N(CloudLookTuning.TuneHeapDetail, 0f, KeyLiveness.Change, "RELOAD: Hurst exponent of the erosion detail octaves, 0..2, 0 compiled; read only when the volumes are generated (a scene change or a size tier change), not live"),

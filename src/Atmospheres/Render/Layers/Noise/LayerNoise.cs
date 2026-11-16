@@ -524,7 +524,7 @@ namespace ReDefinition.Atmospheres
             // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top, the composite's sharpening).
             material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
             // CLOUDR1: the heap volume (x: it is built, y: bit 0 the march's spacing raises its mip level, bit 1 the heap is read at the lattice's true vertical scale, z: log2 of its voxels per noise scale like _NoiseT.w).
-            material.SetVector(IdBlendP, new Vector4(CloudLookTuning.NoiseBlend ? 1f : 0f, CloudLookTuning.NoiseBlendExp, CloudLookTuning.NoiseBlendCell, 0f));
+            material.SetVector(IdBlendP, new Vector4(CloudLookTuning.NoiseBlend ? 1f : 0f, CloudLookTuning.NoiseBlendExp, CloudLookTuning.NoiseBlendCell, CloudLookTuning.LightErosionTaps));
             material.SetVector(IdHeapP, new Vector4(shapeHasHeap ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), (float)Math.Log(ShapeSize() / HeapModel.PeriodScales, 2.0), ExtrasUsed ? 1f : 0f));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);

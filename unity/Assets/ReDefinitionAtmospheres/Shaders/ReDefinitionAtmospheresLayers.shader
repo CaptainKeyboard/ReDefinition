@@ -844,8 +844,8 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 if (!read) return float4(0, 0, 0, 0);
                 int steps = max(1, (int)_LightT.z);
-                float tauSun = LightTau(p, _Sun.xyz, -1, steps, 0.0, 0.0, 0.0);
-                float tauUp = LightTau(p, normalize(p), -1, max(1, (int)_LightS.y), 0.0, 0.0, 0.0);
+                float tauSun = LightTau(p, _Sun.xyz, -1, steps, 0.0, 0.0, 0.0, 0);
+                float tauUp = LightTau(p, normalize(p), -1, max(1, (int)_LightS.y), 0.0, 0.0, 0.0, 0);
                 return float4(tauSun, tauUp, 0, 0);
             }
             ENDCG
