@@ -153,6 +153,7 @@
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.views_all_run_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: all 11 views reached their solo picture and its measurement." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.sun_fixed_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the sun's elevation at the end of the series is within 1 degree of the one it was set to (the time stayed frozen; unfrozen the sun moves 1 degree in 60 s)." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.restore_options_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: after the viewer's close no override of cloud.soloLayer, cloud.cellKm, cloud.coverCombine, cloud.motionScale or a layer's map, type or deck rule is left and forceLevel and forceType are as before." },
+    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.vessel_intact_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the vessel has the same parts and no vessel is added to the scene (no debris) after the twelve placements and the viewer's close, counted from the moment the vessel was loaded and unpacked. Fails: a placement tore the vessel apart." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.elapsed_s", "max": 900, "unit": "s", "required": false, "note": "INFORMATION: the scenario's real seconds (the limit of the probe is 900)." }
   ]
 }

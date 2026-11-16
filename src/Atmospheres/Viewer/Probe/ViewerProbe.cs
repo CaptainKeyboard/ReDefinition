@@ -203,7 +203,8 @@ namespace ReDefinition.Atmospheres.Viewer
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
             yield return ProbeWait.Until(() => Rig.FlightReady && Rig.PassDrawing, 300, "the flight scene and the own cloud pass drawing");
             reached = true;
-            yield return ProbeWait.Seconds(3);
+            // The vessel is counted once it is loaded and unpacked (the viewer places nothing before) and again at the end.
+            foreach (ProbeWait w in WaitVesselReady()) yield return w;
             // The reference of restore_time that does not come from the viewer: the game's UT before the viewer opened and the physics time the game lets pass since (Time.fixedTime,
             // not the real time: the game's clock runs slower than the real time wherever the frames are longer than its physics steps allow, 0.4 of it at 10 fps).
             double utStart = Rig.GameUt, realStart = Rig.RealS, physicsStart = Rig.PhysicsTimeS;
@@ -559,6 +560,8 @@ namespace ReDefinition.Atmospheres.Viewer
             Near("restore_vessel", "the vessel is back at its start", startAsl, asl, RestoreVesselM);
             Verdict("pass_kept_drawing", "the own cloud pass kept drawing through the whole run", Rig.PassDrawing && Rig.PassFramesDrawn > drawnAtStart, "drawing, more frames than at the start", "drawing " + Rig.PassDrawing
                     + ", " + (Rig.PassFramesDrawn - drawnAtStart) + " frames since the start");
+            yield return ProbeWait.Seconds(4);
+            JudgeVesselIntact(Prefix);
             Info("elapsed_s", Elapsed);
         }
 

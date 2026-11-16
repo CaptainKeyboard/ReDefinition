@@ -207,6 +207,7 @@ namespace ReDefinition.Atmospheres
             vessel.SetWorldVelocity(body.getRFrmVel(vessel.GetWorldPos3D()));
             CheatOptions.IgnoreMaxTemperature = true;
             CheatOptions.NoCrashDamage = true;
+            FreezeParts(vessel);
             // The hold starts again for this view: it waits until the vessel's centre of mass really stands at the placed point, then anchors there (T09Hold).
             // No engine may push the vessel out of the pose: start 42's vessel climbed from 4.6 km to 23 km in 25 s.
             Hold.Begin(lat, lon, altitude);
@@ -219,6 +220,46 @@ namespace ReDefinition.Atmospheres
                 }
             }
             catch (Exception) { /* a vessel without engines or an input handler that is not there yet: nothing to shut down */ }
+        }
+
+        // The parts of the placed vessel are held kinematic (no forces, no joint loads) for as long as the placement stands, as LandProbe.Hover holds its capsule. A loaded rocket put in
+        // the air and held by repeated SetPosition lost 14 of 64 parts at once in K-T2 (Parsek: radial decoupler, fuel tanks and a landing leg 'JointBreak', 0.1 s after the
+        // placement, the vessel unpacked for 40 s by then); a pad vessel placed while still packed was snapped 308 m down at its unpacking and shed 25 debris vessels (K-V1, K-S1,
+        // K-S2). The key viewer.freezeParts (default on) puts the hold back to the old way. StopHold gives the parts back to the physics.
+        internal const string FreezeKey = "viewer.freezeParts";
+        private readonly System.Collections.Generic.List<Rigidbody> frozen = new System.Collections.Generic.List<Rigidbody>();
+        private static int frozenParts;
+
+        private void FreezeParts(Vessel vessel)
+        {
+            ThawParts();
+            if (!Tuning.Flag(FreezeKey, true)) return;
+            try
+            {
+                foreach (Part part in vessel.parts)
+                {
+                    Rigidbody rb = part.Rigidbody;
+                    if (rb == null || rb.isKinematic) continue;
+                    rb.velocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                    rb.isKinematic = true;
+                    frozen.Add(rb);
+                }
+                frozenParts = frozen.Count;
+                AtmospheresLog.Say("vessel hold: " + frozen.Count + " of " + vessel.parts.Count + " parts of " + vessel.vesselName + " held kinematic while the placement stands");
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Say("vessel hold: the parts could not be held kinematic (" + e.GetType().Name + " " + e.Message + ")");
+            }
+        }
+
+        private void ThawParts()
+        {
+            foreach (Rigidbody rb in frozen)
+                if (rb != null) rb.isKinematic = false;
+            frozen.Clear();
+            frozenParts = 0;
         }
 
         public void StartHold()
@@ -238,6 +279,7 @@ namespace ReDefinition.Atmospheres
                 host.PerFixed.Remove(HoldVesselStep);
             }
             holding = false;
+            ThawParts();
         }
 
         // The hold (T09Hold) on the active vessel: reads its centre of mass, sets its position, keeps the ground's velocity.
@@ -265,6 +307,8 @@ namespace ReDefinition.Atmospheres
             {
                 Vessel v = FlightGlobals.ActiveVessel;
                 try { FlightInputHandler.state.mainThrottle = 0f; } catch (Exception) { /* no input handler */ }
+                // Kinematic parts take no velocity (Unity warns for each); they stand where they were put.
+                if (frozenParts > 0) return;
                 v.SetWorldVelocity(v.mainBody.getRFrmVel(v.GetWorldPos3D()));
                 // No spin either: a part that turns takes the vessel's centre of mass and the camera's anchor with it.
                 try

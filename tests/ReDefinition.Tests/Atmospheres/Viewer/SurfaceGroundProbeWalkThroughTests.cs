@@ -87,6 +87,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             internal FakeHost Host = new FakeHost();
             internal string ScenePath = ScenePathWatcher.SpaceCentre;
             internal bool Unpacked = true;
+            internal VesselCount Counts = new VesselCount { Valid = true, Parts = 64, Vessels = 1, Name = "Kerbal X" };
             internal Color32 ViewerFileColour = new Color32(90, 102, 81, 255);
             internal readonly List<string> Written = new List<string>();
             internal FakeSoloRig Rig;
@@ -154,7 +155,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             };
             r.Probe.ScenePathReader = () => r.ScenePath;
             r.Probe.VesselDescriber = () => "Kerbal X: 12 parts";
-            r.Probe.VesselUnpacked = () => r.Unpacked;
+            r.Probe.VesselUnpackedReader = () => r.Unpacked;
+            r.Probe.VesselCountReader = () => r.Counts;
             r.Host.Rig = r.Rig;
             r.Probe.Host = r.Host;
             r.Probe.PictureReader = path => FakeHost.Shot(r.ViewerFileColour, 0);
@@ -430,6 +432,22 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsFalse(r.Probe.Passed, Dump(r));
             Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "vessel_unpacked")), r.Joined);
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("ground: the vessel before the viewer places it: ")), "the vessel is logged before the placement");
+        }
+
+        [TestMethod]
+        public void AVesselThatLosesPartsOrShedsDebrisFailsTheIntactCheck()
+        {
+            foreach (var after in new[] { new VesselCount { Valid = true, Parts = 50, Vessels = 1, Name = "Kerbal X" }, new VesselCount { Valid = true, Parts = 64, Vessels = 26, Name = "Kerbal X" } })
+            {
+                Run r = Start(SurfaceGroundProbe.StartOn);
+                int reads = 0;
+                VesselCount now = after;
+                r.Probe.VesselCountReader = () => reads++ == 0 ? r.Counts : now;
+                Drive(r);
+                Assert.IsFalse(r.Probe.Passed, Dump(r));
+                Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "vessel_intact")), r.Joined);
+                Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: GRD.vessel intact after the placements: ") && l.EndsWith(" - FAILED")), "the counts are logged");
+            }
         }
 
         [TestMethod]

@@ -64,6 +64,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             SeriesProbe.LogLine = m => r.Log.Add(m);
             AtmoResult.Sink = r.Rows.Add;
             r.Probe = new ViewerProbe { Rig = r.Rig, CommandLineOverride = new[] { "KSP_x64.exe", "-atmoSeries", "K-V1", "-atmoStart", "viewer", "-atmoProbe", "ViewerProbe" } };
+            r.Probe.VesselUnpackedReader = () => true;
+            r.Probe.VesselCountReader = () => new VesselCount { Valid = true, Parts = 64, Vessels = 1, Name = "Kerbal X" };
             r.Probe.QuitGame = () => r.Quits++;
             r.Probe.Init();
             return r;

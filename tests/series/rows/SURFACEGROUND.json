@@ -208,6 +208,11 @@
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the pad vessel is loaded and not packed within 60 s of the flight scene being ready, before the viewer teleports it (a packed pad vessel is snapped 300 m down at its unpacking and breaks up: the first space-centre run)." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
-    { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." }
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.vessel_unpacked_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.vessel_intact_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the vessel has the same parts and no vessel is added to the scene (no debris) after the placements and the viewer's close, counted from the moment it was loaded and unpacked." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.vessel_intact_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.vessel_intact_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.vessel_intact_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." }
   ]
 }

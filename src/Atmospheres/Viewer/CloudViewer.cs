@@ -55,6 +55,33 @@ namespace ReDefinition.Atmospheres.Viewer
         {
         }
 
+        // When the vessel may be moved (PlacementGuard), and the reason the last placement was refused (null where it was not); the window shows it.
+        private readonly PlacementGuard guard = new PlacementGuard();
+        internal string PlacementNote { get; private set; }
+        private float lastRefusalLog = -100f;
+
+        private static bool VesselSettled(Vessel v)
+        {
+            return v != null && v.loaded && !v.packed;
+        }
+
+        // False, with the reason said in the window, the log and a screen message, where the vessel is still loading: nothing of it is moved then.
+        private bool MayPlace()
+        {
+            Vessel v = GameGlobals.ActiveVessel;
+            guard.Observe(Time.unscaledTime, VesselSettled(v));
+            string why = guard.Refusal(Time.unscaledTime, v != null);
+            PlacementNote = why;
+            if (why == null) return true;
+            if (Time.unscaledTime - lastRefusalLog > 5f)
+            {
+                lastRefusalLog = Time.unscaledTime;
+                AtmospheresLog.Say("cloud viewer: the vessel is not placed: " + why.ToLowerInvariant() + " (loaded " + (v != null && v.loaded) + ", packed " + (v != null && v.packed) + ")");
+                ScreenMessages.PostScreenMessage("Cloud viewer: " + why + ".", 4f, ScreenMessageStyle.UPPER_CENTER);
+            }
+            return false;
+        }
+
         internal bool Active { get; private set; }
         internal bool KeepOptions { get; set; }
         internal ViewerWeather Weather { get; private set; }
@@ -272,6 +299,8 @@ namespace ReDefinition.Atmospheres.Viewer
         internal void Tick()
         {
             if (restoreIn >= 0 && --restoreIn < 0) FinishRestore();
+            // The vessel's settling is watched whether the viewer is open or not, so that the first placement after opening it is not refused for a vessel that has long stood.
+            guard.Observe(Time.unscaledTime, VesselSettled(GameGlobals.ActiveVessel));
             if (!Active) return;
             if (!HighLogic.LoadedSceneIsFlight || GameGlobals.ActiveVessel == null)
             {
@@ -329,6 +358,7 @@ namespace ReDefinition.Atmospheres.Viewer
 
         internal void PlacePose(ViewerPose pose)
         {
+            if (!MayPlace()) return;
             PoseName = pose.Name;
             aimHeading = pose.HeadingDeg;
             aimElevation = pose.ElevationDeg;
@@ -349,7 +379,7 @@ namespace ReDefinition.Atmospheres.Viewer
         private void PlaceAt(double aglM, bool keepAim)
         {
             Vessel v = GameGlobals.ActiveVessel;
-            if (v == null) return;
+            if (v == null || !MayPlace()) return;
             tuner = null;
             double terrain = 0.0;
             try { terrain = world.TerrainAltitude(SiteLat, SiteLon); } catch (Exception) { terrain = 0.0; }
@@ -711,6 +741,7 @@ namespace ReDefinition.Atmospheres.Viewer
 
         internal string HoldText()
         {
+            if (PlacementNote != null) return PlacementNote;
             return placed ? "Vessel hold: " + world.HoldStatus : "Vessel where it was (no pose placed)";
         }
 

@@ -126,6 +126,35 @@ namespace ReDefinition.Atmospheres
             return FlightReadyState();
         }
 
+        // The vessel before the viewer's placements and the way a probe says it came out whole ('<prefix>vessel_intact_ok'). The reader and the unpacked test are what a test replaces.
+        internal Func<VesselCount> VesselCountReader = VesselIntegrity.Read;
+        internal Func<bool> VesselUnpackedReader = VesselIntegrity.Unpacked;
+        private VesselCount integrityBefore;
+        private bool integrityBegun;
+
+        // Waits until the active vessel is loaded and unpacked (the viewer places nothing before: PlacementGuard) and three seconds more, then counts it. Call it after the flight
+        // is ready and before the first placement.
+        protected IEnumerable<ProbeWait> WaitVesselReady(double timeoutS = 60.0)
+        {
+            double end = Elapsed + timeoutS;
+            while (!VesselUnpackedReader() && Elapsed < end) yield return ProbeWait.Frames(1);
+            LogLine("Probe: the vessel is " + (VesselUnpackedReader() ? "loaded and unpacked" : "NOT unpacked after " + timeoutS.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " s"));
+            yield return ProbeWait.Seconds(3.5);
+            integrityBefore = VesselCountReader();
+            integrityBegun = true;
+            LogLine("Probe: the vessel before the placements: " + (integrityBefore.Valid ? integrityBefore.Name + ", " + integrityBefore.Parts + " parts, " + integrityBefore.Vessels + " vessels" : "not readable"));
+        }
+
+        // Judges the vessel against the count WaitVesselReady took: the same parts, no vessel more. Writes '<prefix>vessel_intact_ok' and the check.
+        protected void JudgeVesselIntact(string prefix)
+        {
+            string detail = "the vessel was not counted before the placements";
+            bool ok = integrityBegun && VesselIntegrity.Intact(integrityBefore, VesselCountReader(), out detail);
+            LogLine("Probe: " + prefix + "vessel intact after the placements: " + detail + (ok ? " - ok" : " - FAILED"));
+            Emit(prefix + "vessel_intact_ok", ok);
+            Check(prefix + "vessel_intact", ok, ok ? null : detail);
+        }
+
         // A probe that needs the flight returns a reason here once its flight is gone (the scene changed, the vessel was destroyed); the base then
         // ends the scenario with that failure instead of letting the next step throw. Null while all is well, and before the flight was reached.
         protected virtual string LostGround()

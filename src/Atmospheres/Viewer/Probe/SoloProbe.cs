@@ -236,7 +236,8 @@ namespace ReDefinition.Atmospheres.Viewer
             SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0);
             yield return ProbeWait.Until(() => Rig.FlightReady && Rig.PassDrawing, 300, "the flight scene and the own cloud pass drawing");
             reached = true;
-            yield return ProbeWait.Seconds(3);
+            // The vessel is counted once it is loaded and unpacked (the viewer places nothing before) and again at the end.
+            foreach (ProbeWait w in WaitVesselReady()) yield return w;
             IList<ViewerLayer> layers = Rig.Layers;
             Info("layers", layers.Count);
             double forceLevel0 = Rig.Setting(AtmospheresSettings.Keys.ForceLevel), forceType0 = Rig.Setting(AtmospheresSettings.Keys.ForceType);
@@ -296,6 +297,8 @@ namespace ReDefinition.Atmospheres.Viewer
             bool settingsBack = Math.Abs(Rig.Setting(AtmospheresSettings.Keys.ForceLevel) - forceLevel0) < 1e-6 && (int)Rig.Setting(AtmospheresSettings.Keys.ForceType) == (int)forceType0;
             Verdict("restore_options", "the viewer's close takes the solo keys and the forced rain back", polled && gone && settingsBack, "no solo override left, forceLevel " + F(forceLevel0),
                     "window closed " + polled + ", overrides gone " + gone + ", forceLevel " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)));
+            yield return ProbeWait.Seconds(4);
+            JudgeVesselIntact(Prefix);
             Info("elapsed_s", Elapsed);
         }
 

@@ -252,14 +252,6 @@ namespace ReDefinition.Atmospheres
         // The active vessel and what is left of it, for the log of every frame: the pictures of K-S2 show the pad's clamps and no rocket (the first picture of 2026-11-15 and the one
         // of the first space-centre run), and nothing in the log says where the rocket went.
         internal Func<string> VesselDescriber = ReadVessel;
-        internal Func<bool> VesselUnpacked = ReadUnpacked;
-        internal const double PollUnpackedS = 60.0, UnpackedSettleS = 3.0;
-
-        private static bool ReadUnpacked()
-        {
-            Vessel v = FlightGlobals.ActiveVessel;
-            return v != null && v.loaded && !v.packed;
-        }
 
         private static string ReadVessel()
         {
@@ -426,9 +418,8 @@ namespace ReDefinition.Atmospheres
             // snapped 300 m down at its unpacking and its parts collide at thousands of m/s (the first space-centre run: 25 debris vessels, parts=2). tools/ProbeLite waits for
             // loaded and not packed, so does the vessel here, and a few seconds more.
             LogLine("ground: the vessel at the flight's start: " + VesselDescriber());
-            foreach (ProbeWait w in Poll(() => VesselUnpacked(), PollUnpackedS)) yield return w;
-            Verdict("vessel_unpacked", "the pad vessel is loaded and unpacked before the viewer places it", polled, "loaded and not packed within " + F(PollUnpackedS) + " s", VesselDescriber());
-            yield return ProbeWait.Seconds(UnpackedSettleS);
+            foreach (ProbeWait w in WaitVesselReady()) yield return w;
+            Verdict("vessel_unpacked", "the pad vessel is loaded and unpacked before the viewer places it", VesselUnpackedReader(), "loaded and not packed within 60 s", VesselDescriber());
             LogLine("ground: the vessel before the viewer places it: " + VesselDescriber());
             yield return ProbeWait.Seconds(3);
             // With the package on the own pass draws; the frames then hold every layer empty as K-S2's baseline does. Off, there is no pass and nothing to hold.
@@ -504,6 +495,8 @@ namespace ReDefinition.Atmospheres
                 JudgeCover();
                 Rig.ToggleWindow();
                 foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, PollWindowS)) yield return w;
+                yield return ProbeWait.Seconds(IntactWaitS);
+                JudgeVesselIntact(Prefix);
                 Emit(Prefix + "elapsed_s", Elapsed);
                 yield break;
             }
@@ -523,8 +516,13 @@ namespace ReDefinition.Atmospheres
                     "at least " + F(PosesApartDeg) + " deg apart", "far_p1 " + F(a1) + ", far_p2 " + F(a2));
             Rig.ToggleWindow();
             foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, PollWindowS)) yield return w;
+            yield return ProbeWait.Seconds(IntactWaitS);
+            JudgeVesselIntact(Prefix);
             Emit(Prefix + "elapsed_s", Elapsed);
         }
+
+        // The seconds after the viewer is closed (its restore holds the vessel at its start for a few frames) before the vessel is counted again.
+        internal const double IntactWaitS = 4.0;
 
         // --- The capture A/B start ---
 
