@@ -138,12 +138,18 @@ namespace ReDefinition.Atmospheres
         {
             double end = Elapsed + timeoutS;
             while (!VesselUnpackedReader() && Elapsed < end) yield return ProbeWait.Frames(1);
-            LogLine("Probe: the vessel is " + (VesselUnpackedReader() ? "loaded and unpacked" : "NOT unpacked after " + timeoutS.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " s"));
+            bool unpacked = VesselUnpackedReader();
+            LogLine("Probe: the vessel is " + (unpacked ? "loaded and unpacked" : "NOT unpacked after " + timeoutS.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " s"));
+            if (!unpacked) Check("vessel_unpacked", false, "the vessel was not loaded and unpacked within " + timeoutS.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " s: the viewer places nothing");
             yield return ProbeWait.Seconds(3.5);
             integrityBefore = VesselCountReader();
             integrityBegun = true;
             LogLine("Probe: the vessel before the placements: " + (integrityBefore.Valid ? integrityBefore.Name + ", " + integrityBefore.Parts + " parts, " + integrityBefore.Vessels + " vessels" : "not readable"));
         }
+
+        // The seconds a probe waits after it has closed the viewer before it judges the vessel: the viewer's restore holds the parts kinematic for 90 frames (2 to 5 s at the logged frame
+        // rates) and then lets them go; the count is taken after that and a little more.
+        protected const double AfterCloseWaitS = 9.0;
 
         // Judges the vessel against the count WaitVesselReady took: the same parts, no vessel more. Writes '<prefix>vessel_intact_ok' and the check.
         protected void JudgeVesselIntact(string prefix)

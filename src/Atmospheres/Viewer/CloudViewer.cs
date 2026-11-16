@@ -42,6 +42,7 @@ namespace ReDefinition.Atmospheres.Viewer
         private ViewerClock clock;
         private bool ignoreTemperature, noCrashDamage, placed, frozenClouds;
         private double startLat, startLon, startAlt;
+        private KspT09World.RootPose startRoot;
         private float cameraHeading, cameraPitch, cameraDistance;
         private FlightCamera.Modes cameraMode;
         private int aimIn = -1, restoreIn = -1;
@@ -71,6 +72,10 @@ namespace ReDefinition.Atmospheres.Viewer
             Vessel v = GameGlobals.ActiveVessel;
             guard.Observe(Time.unscaledTime, VesselSettled(v));
             string why = guard.Refusal(Time.unscaledTime, v != null);
+            // A vessel that is moving fast, in time warp or a kerbal on EVA is not teleported either: the placement zeroes its velocity, and a vessel warped while held would be packed
+            // as landed and snapped to the ground (the game's own packed-vessel correction).
+            if (why == null && v != null)
+                why = PlacementGuard.StateRefusal(TimeWarp.CurrentRate > 1.0f, v.isEVA, v.srfSpeed);
             PlacementNote = why;
             if (why == null) return true;
             if (Time.unscaledTime - lastRefusalLog > 5f)
@@ -124,6 +129,7 @@ namespace ReDefinition.Atmospheres.Viewer
             Vessel v = GameGlobals.ActiveVessel;
             clock = new ViewerClock(Planetarium.GetUniversalTime());
             v.mainBody.GetLatLonAlt(v.GetWorldPos3D(), out startLat, out startLon, out startAlt);
+            startRoot = KspT09World.ReadRoot(v);
             SiteLat = startLat;
             SiteLon = startLon;
             ignoreTemperature = CheatOptions.IgnoreMaxTemperature;
@@ -240,12 +246,11 @@ namespace ReDefinition.Atmospheres.Viewer
                 world.SetLayerMask(0);
                 CloudBridgeLights.RequestHistoryReset("cloud viewer closed");
                 // The vessel back at its start: held there for a moment, or set there at once where the scene is about to be saved and left.
-                if (placed && GameGlobals.ActiveVessel != null) world.PlaceVessel(startLat, startLon, startAlt);
-                if (placed && !sceneEnding && GameGlobals.ActiveVessel != null)
-                {
-                    world.StartHold();
-                    restoreIn = RestoreHoldFrames;
-                }
+                // The root of the placed vessel goes back exactly where it was (position and rotation), at rest, its parts still held kinematic; a few frames later they are let go
+                // (FinishRestore: StopHold). The hold is not started again: it drives the centre of mass, not the root.
+                bool restored = placed && world.PlacedVessel != null && world.RestoreVessel(startRoot);
+                if (placed && !restored) AtmospheresLog.Say("cloud viewer: the vessel could not be put back exactly (" + (world.PlacedVessel == null ? "none was placed" : startRoot.Valid ? "it is gone" : "its start was not read") + "); it is let go where it stands");
+                if (restored && !sceneEnding) restoreIn = RestoreHoldFrames;
                 else FinishRestore();
                 AtmospheresLog.Say("cloud viewer: closed; UT back to " + (clock != null ? clock.Natural.ToString("0", CultureInfo.InvariantCulture) : "-") + ", "
                                    + (KeepOptions ? "options kept" : "options put back") + (placed ? ", vessel back to its start" : ""));
@@ -301,7 +306,15 @@ namespace ReDefinition.Atmospheres.Viewer
             if (restoreIn >= 0 && --restoreIn < 0) FinishRestore();
             // The vessel's settling is watched whether the viewer is open or not, so that the first placement after opening it is not refused for a vessel that has long stood.
             guard.Observe(Time.unscaledTime, VesselSettled(GameGlobals.ActiveVessel));
+            if (PlacementNote == PlacementGuard.LoadingMessage && guard.Refusal(Time.unscaledTime, GameGlobals.ActiveVessel != null) == null) PlacementNote = null;
             if (!Active) return;
+            // The vessel that was placed is not the active one any more (a switch, an EVA, a staging): the hold has stopped acting on it; the viewer closes and puts it back.
+            if (placed && world.PlacedVesselLost)
+            {
+                AtmospheresLog.Say("cloud viewer: the active vessel is not the one that was placed; the viewer closes and puts the placed vessel back");
+                Close(false);
+                return;
+            }
             if (!HighLogic.LoadedSceneIsFlight || GameGlobals.ActiveVessel == null)
             {
                 Close(true);

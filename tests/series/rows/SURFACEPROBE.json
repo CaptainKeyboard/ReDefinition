@@ -55,6 +55,7 @@
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.p2_no_atmo_fog_density", "min": 0, "unit": "1/m", "required": false, "note": "INFORMATION." },
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.p2_no_atmo_fog_asked", "min": 0, "unit": "1/m", "required": false, "note": "INFORMATION." },
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.p2_no_atmo_level", "min": 0, "max": 1, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.vessel_intact_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the vessel has the same parts and no vessel is added to the scene (no debris) after the placements and the viewer's close, counted from the moment it was loaded and unpacked." },
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.elapsed_s", "min": 0, "max": 900, "unit": "s", "required": false, "note": "INFORMATION: the scenario's length." }
   ]
 }

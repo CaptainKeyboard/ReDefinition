@@ -297,7 +297,7 @@ namespace ReDefinition.Atmospheres.Viewer
             bool settingsBack = Math.Abs(Rig.Setting(AtmospheresSettings.Keys.ForceLevel) - forceLevel0) < 1e-6 && (int)Rig.Setting(AtmospheresSettings.Keys.ForceType) == (int)forceType0;
             Verdict("restore_options", "the viewer's close takes the solo keys and the forced rain back", polled && gone && settingsBack, "no solo override left, forceLevel " + F(forceLevel0),
                     "window closed " + polled + ", overrides gone " + gone + ", forceLevel " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)));
-            yield return ProbeWait.Seconds(4);
+            yield return ProbeWait.Seconds(AfterCloseWaitS);
             JudgeVesselIntact(Prefix);
             Info("elapsed_s", Elapsed);
         }

@@ -522,7 +522,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The seconds after the viewer is closed (its restore holds the vessel at its start for a few frames) before the vessel is counted again.
-        internal const double IntactWaitS = 4.0;
+        internal const double IntactWaitS = AfterCloseWaitS;
 
         // --- The capture A/B start ---
 

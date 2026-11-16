@@ -76,6 +76,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 double d = Math.Abs(r.Rig.Pose.AzimuthDeg - 90.0) % 360.0;
                 return d > 180.0 ? 360.0 - d : d;
             };
+            r.Probe.VesselUnpackedReader = () => true;
+            r.Probe.VesselCountReader = () => new VesselCount { Valid = true, Parts = 64, Vessels = 1, Name = "Kerbal X" };
             r.Probe.QuitGame = () => r.Quits++;
             r.Probe.Init();
             return r;

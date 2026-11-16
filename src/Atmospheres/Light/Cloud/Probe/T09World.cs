@@ -194,9 +194,74 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // The vessel the last placement moved: the hold and the restore act on it and on no other (a switch of the active vessel, an EVA or a staging with the viewer open
+        // must not make the hold teleport another vessel).
+        internal Vessel PlacedVessel { get; private set; }
+
+        // The active vessel is not the one that was placed.
+        internal bool PlacedVesselLost
+        {
+            get { return PlacedVessel != null && (FlightGlobals.ActiveVessel != PlacedVessel || PlacedVessel.state == Vessel.State.DEAD); }
+        }
+
+        // The root of the vessel as Vessel.SetPosition and SetRotation set it (vesselTransform), as a place on its body and a rotation relative to the body's frame: what the restore
+        // puts back exactly. (The hold and PlaceVessel speak of the centre of mass, which lies about 10 m from the root of a rocket: restoring the centre-of-mass altitude through
+        // the root put the vessel 10.6 m low and it broke at the close, K-V1 'wide' of 2026-11-15.)
+        internal struct RootPose
+        {
+            internal bool Valid;
+            internal double Latitude, Longitude, Altitude;
+            internal Quaternion Relative;
+        }
+
+        internal static RootPose ReadRoot(Vessel vessel)
+        {
+            var pose = new RootPose();
+            try
+            {
+                if (vessel == null || vessel.vesselTransform == null || vessel.mainBody == null) return pose;
+                vessel.mainBody.GetLatLonAlt(vessel.vesselTransform.position, out pose.Latitude, out pose.Longitude, out pose.Altitude);
+                pose.Relative = Quaternion.Inverse(vessel.mainBody.bodyTransform.rotation) * vessel.vesselTransform.rotation;
+                pose.Valid = true;
+            }
+            catch (Exception)
+            {
+                pose.Valid = false;
+            }
+            return pose;
+        }
+
+        // Puts the placed vessel's root back where ReadRoot found it, at rest, with its parts still held kinematic: the caller lets them go (StopHold) a few frames later. The hold is
+        // off meanwhile: it drives the centre of mass to a point, and the root is what is put back.
+        internal bool RestoreVessel(RootPose pose)
+        {
+            Vessel vessel = PlacedVessel;
+            RemoveHoldCallbacks();
+            if (vessel == null || vessel.state == Vessel.State.DEAD || !pose.Valid) return false;
+            CelestialBody body = vessel.mainBody;
+            Vector3d place = body.GetWorldSurfacePosition(pose.Latitude, pose.Longitude, pose.Altitude);
+            vessel.SetRotation(body.bodyTransform.rotation * pose.Relative);
+            vessel.SetPosition(place);
+            FloatingOrigin.SetOffset(place);
+            Krakensbane.ResetVelocityFrame(true);
+            vessel.SetWorldVelocity(body.getRFrmVel(vessel.GetWorldPos3D()));
+            return true;
+        }
+
+        private void RemoveHoldCallbacks()
+        {
+            if (host != null)
+            {
+                host.PerFrame.Remove(HoldVessel);
+                host.PerFixed.Remove(HoldVesselStep);
+            }
+            holding = false;
+        }
+
         public void PlaceVessel(double lat, double lon, double altitude)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
+            PlacedVessel = vessel;
             CelestialBody body = vessel.mainBody;
             Vector3d up = body.GetSurfaceNVector(lat, lon);
             Vector3d place = body.GetWorldSurfacePosition(lat, lon, altitude);
@@ -273,13 +338,9 @@ namespace ReDefinition.Atmospheres
 
         public void StopHold()
         {
-            if (host != null)
-            {
-                host.PerFrame.Remove(HoldVessel);
-                host.PerFixed.Remove(HoldVesselStep);
-            }
-            holding = false;
+            RemoveHoldCallbacks();
             ThawParts();
+            PlacedVessel = null;
         }
 
         // The hold (T09Hold) on the active vessel: reads its centre of mass, sets its position, keeps the ground's velocity.
@@ -338,7 +399,7 @@ namespace ReDefinition.Atmospheres
         {
             if (!SeriesProbe.FlightReadyState()) return;
             Vessel v = FlightGlobals.ActiveVessel;
-            if (v == null || v.mainBody == null) return;
+            if (v == null || v.mainBody == null || PlacedVesselLost) return;
             Hold.Tick();
         }
 
@@ -347,7 +408,7 @@ namespace ReDefinition.Atmospheres
         {
             if (!SeriesProbe.FlightReadyState()) return;
             Vessel v = FlightGlobals.ActiveVessel;
-            if (v == null || v.mainBody == null) return;
+            if (v == null || v.mainBody == null || PlacedVesselLost) return;
             Hold.FixedTick();
         }
 

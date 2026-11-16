@@ -560,7 +560,7 @@ namespace ReDefinition.Atmospheres.Viewer
             Near("restore_vessel", "the vessel is back at its start", startAsl, asl, RestoreVesselM);
             Verdict("pass_kept_drawing", "the own cloud pass kept drawing through the whole run", Rig.PassDrawing && Rig.PassFramesDrawn > drawnAtStart, "drawing, more frames than at the start", "drawing " + Rig.PassDrawing
                     + ", " + (Rig.PassFramesDrawn - drawnAtStart) + " frames since the start");
-            yield return ProbeWait.Seconds(4);
+            yield return ProbeWait.Seconds(AfterCloseWaitS);
             JudgeVesselIntact(Prefix);
             Info("elapsed_s", Elapsed);
         }

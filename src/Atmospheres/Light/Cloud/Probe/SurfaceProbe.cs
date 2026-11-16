@@ -299,7 +299,8 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Until(() => Rig.FlightReady && Rig.PassDrawing, 300, "the flight scene and the own cloud pass drawing");
             reached = true;
             groundCover0 = Rig.Setting(AtmospheresSettings.Keys.GroundCover) > 0.5;
-            yield return ProbeWait.Seconds(3);
+            // The vessel is counted once it is loaded and unpacked (the viewer places nothing before) and again at the end.
+            foreach (ProbeWait w in WaitVesselReady()) yield return w;
 
             Rig.ToggleWindow();
             foreach (ProbeWait w in Poll(() => Rig.WindowOpen && Rig.SessionActive, 10.0)) yield return w;
@@ -366,6 +367,8 @@ namespace ReDefinition.Atmospheres
                     "at least " + F(PosesApartDeg) + " deg apart", "p1 " + F(a1) + ", p2 " + F(a2));
             Rig.ToggleWindow();
             foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, 10.0)) yield return w;
+            yield return ProbeWait.Seconds(AfterCloseWaitS);
+            JudgeVesselIntact(Prefix);
             Emit(Prefix + "elapsed_s", Elapsed);
         }
 
