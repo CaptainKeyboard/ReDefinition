@@ -419,6 +419,7 @@ def scaleinv_table(rows):
             with open(path, encoding="utf-8") as f:
                 ref = json.load(f)["ranges"].get(t)
         lines += si.table_lines(name, res, ref)
+        lines.append("%-18s %-8s %6.3f   (share of the frame with alpha above 0.5)" % (name, "cover", float((np.asarray(alpha) > 0.5).mean())))
     return "\n".join(lines)
 
 
