@@ -216,7 +216,12 @@ namespace ReDefinition.Atmospheres
             {
                 // A rebuild asks the game's thermal code in slices of RebuildThermalSliceMs, one slice per frame, so that no frame of it takes the main thread past the rebuild's budget.
                 if (b.Thermal == null) b.Thermal = new ThermalProbe.Session(body);
-                if (!b.Thermal.Run(RebuildThermalSliceMs)) return true;
+                if (!b.Thermal.Done)
+                {
+                    // The frame that finishes the table ends there: the facts and the hand-over to the worker follow in the next frame, so that the two do not stack.
+                    b.Thermal.Run(RebuildThermalSliceMs);
+                    return true;
+                }
                 thermalNote = b.Thermal.Note;
                 fit = ThermalFit.From(b.Thermal.Result);
                 b.Thermal = null;
