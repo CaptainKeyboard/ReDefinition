@@ -1466,7 +1466,9 @@ namespace ReDefinition.Atmospheres
                 buffersOn = false;
             }
             depthCommands.Clear();
+            LayerReconstructor.Sub(depthCommands, "before the scene depth copy");
             depthCommands.Blit(BuiltinRenderTextureType.None, depthTarget, depthMaterial);
+            LayerReconstructor.Sub(depthCommands, "scene depth copy");
             if (!buffersOn) cam.AddCommandBuffer(attachedEvent, depthCommands);
 
             renderer.Commands.Clear();

@@ -16,6 +16,7 @@ namespace ReDefinition.Atmospheres
     //   norays     rtOwnClouds 0 (the ray-side pack; in the K-T2 starts raytracing is Off, so nothing asks for the pack (RtOwnClouds.Tick releases it) and this equals plain: a drift control)
     // The orbit_edge view is not run (its placement costs minutes and the 19-minute limit holds 7 variants x 4 views).
     //   plain2     the same as plain, run last: the drift of the start
+    //   res2       recon.resolution 0.5 (the march target's side; plain is 0.33), res4 0.25, res3 0.33 and res3cat (0.33 with the Catmull history forced on) equal plain: controls
     // Each view holds PerfDwellS seconds (the GPU profiler writes a block every 10 s, so a window of 20 s holds one whole block) and takes no pictures and no noise reading.
     internal sealed partial class T09Probe
     {
@@ -42,6 +43,10 @@ namespace ReDefinition.Atmospheres
                 case "noshadow":
                 case "norays":
                 case "plain2":
+                case "res2":
+                case "res3":
+                case "res3cat":
+                case "res4":
                     return true;
                 default:
                     return false;
@@ -99,6 +104,11 @@ namespace ReDefinition.Atmospheres
                         SetSetting(AtmospheresSettings.Keys.CloudSamples, 48.0);
                         break;
                     }
+                // The march target's side over the full target's in the history path of level 1 (recon.resolution; the default is 0.33, so plain already marches a third).
+                case "res2": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.5f); break;
+                case "res3": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f); break;
+                case "res3cat": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f); ForceTuning(OwnCloudOptions.TuneCatmull, 1f); break;
+                case "res4": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.25f); break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;
             }
