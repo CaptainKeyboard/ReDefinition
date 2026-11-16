@@ -43,11 +43,12 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         [TestMethod]
         public void TimeWarpEvaForAndFastVesselsAreNotPlaced()
         {
-            Assert.AreEqual(PlacementGuard.WarpMessage, PlacementGuard.StateRefusal(true, false, 0.0));
-            Assert.AreEqual(PlacementGuard.EvaMessage, PlacementGuard.StateRefusal(false, true, 0.0));
-            StringAssert.Contains(PlacementGuard.StateRefusal(false, false, 120.0), "120 m/s");
-            Assert.IsNull(PlacementGuard.StateRefusal(false, false, 0.0), "a vessel at rest on the pad");
-            Assert.IsNull(PlacementGuard.StateRefusal(false, false, PlacementGuard.MaxSpeedMs), "the limit itself");
+            Assert.AreEqual(PlacementGuard.WarpMessage, PlacementGuard.StateRefusal(true, false, true, 0.0));
+            Assert.AreEqual(PlacementGuard.EvaMessage, PlacementGuard.StateRefusal(false, true, true, 0.0));
+            Assert.AreEqual(PlacementGuard.NotStandingMessage, PlacementGuard.StateRefusal(false, false, false, 0.0), "an aircraft or a capsule on its parachute: Close would put it back at rest");
+            StringAssert.Contains(PlacementGuard.StateRefusal(false, false, true, 120.0), "120 m/s");
+            Assert.IsNull(PlacementGuard.StateRefusal(false, false, true, 0.0), "a vessel at rest on the pad");
+            Assert.IsNull(PlacementGuard.StateRefusal(false, false, true, PlacementGuard.MaxSpeedMs), "the limit itself");
         }
 
         [TestMethod]

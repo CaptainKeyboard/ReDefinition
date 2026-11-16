@@ -43,6 +43,28 @@ namespace ReDefinition.Atmospheres.Viewer
         private bool ignoreTemperature, noCrashDamage, placed, frozenClouds;
         private double startLat, startLon, startAlt;
         private KspT09World.RootPose startRoot;
+        private Vessel startRootVessel;
+        // The vessel is put back RestoreDelayFrames after Close (the clock was set back in Close; the body's rotation and the floating origin catch up within a few frames), held
+        // kinematic RestoreHoldFrames more, and the game's own protections (no crash damage, no heat limit) stay on CheatsOffFrames after it is let go.
+        private const int RestoreDelayFrames = 6, CheatsOffFrames = 240;
+        private bool restorePending;
+        private int cheatRestoreIn = -1;
+
+        // The switch of the active vessel with the viewer open: the viewer closes and puts the placed vessel back at once, before the game packs or destroys it.
+        private void OnVesselSwitching(Vessel from, Vessel to)
+        {
+            if (!Active) return;
+            AtmospheresLog.Say("cloud viewer: the active vessel is being switched; the viewer closes and puts the placed vessel back");
+            CloudViewerWindow.Instance.Close(true);
+        }
+
+        private void RestoreCheats()
+        {
+            if (cheatRestoreIn < 0) return;
+            cheatRestoreIn = -1;
+            CheatOptions.IgnoreMaxTemperature = ignoreTemperature;
+            CheatOptions.NoCrashDamage = noCrashDamage;
+        }
         private float cameraHeading, cameraPitch, cameraDistance;
         private FlightCamera.Modes cameraMode;
         private int aimIn = -1, restoreIn = -1;
@@ -69,15 +91,25 @@ namespace ReDefinition.Atmospheres.Viewer
         // False, with the reason said in the window, the log and a screen message, where the vessel is still loading: nothing of it is moved then.
         private bool MayPlace()
         {
+            // No placement in a session that is closed (the window is dismissed by its own close; a session the viewer ended itself must not take a pose).
+            if (!Active) return false;
             Vessel v = GameGlobals.ActiveVessel;
             guard.Observe(Time.unscaledTime, VesselSettled(v));
             string why = guard.Refusal(Time.unscaledTime, v != null);
-            // A vessel that is moving fast, in time warp or a kerbal on EVA is not teleported either: the placement zeroes its velocity, and a vessel warped while held would be packed
-            // as landed and snapped to the ground (the game's own packed-vessel correction).
+            // A vessel in time warp, a kerbal on EVA, a vessel that does not stand on the ground or float, or one that moves fast is not teleported either: the placement zeroes its
+            // velocity and Close puts it back at rest, and a vessel warped while held would be packed as landed and snapped to the ground (the game's own packed-vessel
+            // correction). Once the viewer holds the vessel the situation and the speed it reports are the hold's, not the vessel's own.
             if (why == null && v != null)
-                why = PlacementGuard.StateRefusal(TimeWarp.CurrentRate > 1.0f, v.isEVA, v.srfSpeed);
+            {
+                bool standing = v.situation == Vessel.Situations.LANDED || v.situation == Vessel.Situations.PRELAUNCH || v.situation == Vessel.Situations.SPLASHED;
+                why = PlacementGuard.StateRefusal(TimeWarp.CurrentRate > 1.0f, v.isEVA, placed || standing, placed ? 0.0 : v.srfSpeed);
+            }
             PlacementNote = why;
-            if (why == null) return true;
+            if (why == null)
+            {
+                ParsekQuiet.Hold();
+                return true;
+            }
             if (Time.unscaledTime - lastRefusalLog > 5f)
             {
                 lastRefusalLog = Time.unscaledTime;
@@ -125,11 +157,22 @@ namespace ReDefinition.Atmospheres.Viewer
                 ScreenMessages.PostScreenMessage("Cloud viewer: " + why + ".", 4f, ScreenMessageStyle.UPPER_CENTER);
                 return false;
             }
-            if (restoreIn >= 0) FinishRestore();
+            CompleteRestore();
+            RestoreCheats();
             Vessel v = GameGlobals.ActiveVessel;
             clock = new ViewerClock(Planetarium.GetUniversalTime());
             v.mainBody.GetLatLonAlt(v.GetWorldPos3D(), out startLat, out startLon, out startAlt);
-            startRoot = KspT09World.ReadRoot(v);
+            // The root pose that Close puts back is read at the first placement, from the vessel that is placed (not here: another vessel can be switched to before the first pose).
+            startRoot = default(KspT09World.RootPose);
+            startRootVessel = null;
+            try
+            {
+                GameEvents.onVesselSwitching.Add(OnVesselSwitching);
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("cloud viewer", "the vessel switch cannot be watched", e);
+            }
             SiteLat = startLat;
             SiteLon = startLon;
             ignoreTemperature = CheatOptions.IgnoreMaxTemperature;
@@ -218,6 +261,9 @@ namespace ReDefinition.Atmospheres.Viewer
             Active = false;
             tuner = null;
             ShowHud();
+            try { GameEvents.onVesselSwitching.Remove(OnVesselSwitching); } catch (Exception) { /* the game is closing */ }
+            // Whatever fails below, the placed vessel is put back: the restore is its own step, after the clock has been set back and the body has turned (RestoreDelayFrames).
+            restorePending = placed;
             try
             {
                 if (clock != null && HighLogic.LoadedSceneIsFlight) Planetarium.SetUniversalTime(clock.Natural);
@@ -248,25 +294,70 @@ namespace ReDefinition.Atmospheres.Viewer
                 // The vessel back at its start: held there for a moment, or set there at once where the scene is about to be saved and left.
                 // The root of the placed vessel goes back exactly where it was (position and rotation), at rest, its parts still held kinematic; a few frames later they are let go
                 // (FinishRestore: StopHold). The hold is not started again: it drives the centre of mass, not the root.
-                bool restored = placed && world.PlacedVessel != null && world.RestoreVessel(startRoot);
-                if (placed && !restored) AtmospheresLog.Say("cloud viewer: the vessel could not be put back exactly (" + (world.PlacedVessel == null ? "none was placed" : startRoot.Valid ? "it is gone" : "its start was not read") + "); it is let go where it stands");
-                if (restored && !sceneEnding) restoreIn = RestoreHoldFrames;
-                else FinishRestore();
+                ScheduleRestore(sceneEnding);
                 AtmospheresLog.Say("cloud viewer: closed; UT back to " + (clock != null ? clock.Natural.ToString("0", CultureInfo.InvariantCulture) : "-") + ", "
                                    + (KeepOptions ? "options kept" : "options put back") + (placed ? ", vessel back to its start" : ""));
             }
             catch (Exception e)
             {
                 AtmospheresLog.Failed("cloud viewer", "the viewer could not put everything back", e);
+                // The vessel is still put back, whatever failed before: not thawed where it hangs.
+                try { ScheduleRestore(sceneEnding); } catch (Exception e2) { AtmospheresLog.Failed("cloud viewer", "the vessel could not be put back", e2); FinishRestore(); }
+            }
+        }
+
+        // The restore of the placed vessel: at once where the scene is about to be saved and left, else RestoreDelayFrames later (Tick), and in either case let go (FinishRestore) after.
+        private void ScheduleRestore(bool sceneEnding)
+        {
+            if (restoreIn >= 0) return;
+            if (!restorePending)
+            {
+                FinishRestore();
+                return;
+            }
+            if (sceneEnding)
+            {
+                RestoreNow();
                 FinishRestore();
             }
+            else restoreIn = RestoreDelayFrames + RestoreHoldFrames;
+        }
+
+        // Puts the root of the placed vessel back (ReadRoot at its first placement). Where that cannot be done the vessel is let go where it stands, with the game's crash
+        // and heat protections left on for CheatsOffFrames, and the window of the game says so.
+        private bool RestoreNow()
+        {
+            restorePending = false;
+            bool ok = false;
+            try
+            {
+                ok = startRootVessel != null && ReferenceEquals(world.PlacedVessel, startRootVessel) && startRoot.Valid && world.RestoreVessel(startRoot);
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("cloud viewer", "the vessel could not be put back", e);
+            }
+            if (!ok)
+            {
+                AtmospheresLog.Say("cloud viewer: the vessel could not be put back exactly (" + (startRootVessel == null ? "no placement was read" : world.PlacedVessel == null ? "it is gone" : "it is not the vessel that was read") + "); it is let go where it stands");
+                ScreenMessages.PostScreenMessage("Cloud viewer: the vessel could not be put back exactly; it is let go where it stands.", 6f, ScreenMessageStyle.UPPER_CENTER);
+            }
+            return ok;
         }
 
         // The scene ends: the session closes at once and a vessel still held at its start is let go.
         internal void EndScene()
         {
             Close(true);
-            if (restoreIn >= 0) FinishRestore();
+            CompleteRestore();
+        }
+
+        // A restore that is waiting its frames is done now (the vessel put back, then let go): a new session or the end of the scene does not wait for it.
+        private void CompleteRestore()
+        {
+            if (restoreIn < 0) return;
+            if (restorePending) RestoreNow();
+            FinishRestore();
         }
 
         private void Restore(string key)
@@ -295,15 +386,25 @@ namespace ReDefinition.Atmospheres.Viewer
             {
                 AtmospheresLog.Failed("cloud viewer", "the camera could not be put back", e);
             }
-            CheatOptions.IgnoreMaxTemperature = ignoreTemperature;
-            CheatOptions.NoCrashDamage = noCrashDamage;
+            // The game's protections the placement switched on stay on for a while after the parts are let go (a vessel set back at its place settles; one that could not be set
+            // back falls), and are put back by Tick or the next Open.
+            cheatRestoreIn = CheatsOffFrames;
             placed = false;
+            restorePending = false;
         }
 
         // Every frame (CloudViewerAddon). Allocates nothing but where a step runs (a placement, a capture).
         internal void Tick()
         {
-            if (restoreIn >= 0 && --restoreIn < 0) FinishRestore();
+            if (restoreIn >= 0)
+            {
+                restoreIn--;
+                if (restorePending && restoreIn == RestoreHoldFrames) RestoreNow();
+                if (restoreIn < 0) FinishRestore();
+            }
+            if (cheatRestoreIn > 0) cheatRestoreIn--;
+            else if (cheatRestoreIn == 0) RestoreCheats();
+            if (placed || restoreIn >= 0) ParsekQuiet.Hold();
             // The vessel's settling is watched whether the viewer is open or not, so that the first placement after opening it is not refused for a vessel that has long stood.
             guard.Observe(Time.unscaledTime, VesselSettled(GameGlobals.ActiveVessel));
             if (PlacementNote == PlacementGuard.LoadingMessage && guard.Refusal(Time.unscaledTime, GameGlobals.ActiveVessel != null) == null) PlacementNote = null;
@@ -312,7 +413,7 @@ namespace ReDefinition.Atmospheres.Viewer
             if (placed && world.PlacedVesselLost)
             {
                 AtmospheresLog.Say("cloud viewer: the active vessel is not the one that was placed; the viewer closes and puts the placed vessel back");
-                Close(false);
+                CloudViewerWindow.Instance.Close(false);
                 return;
             }
             if (!HighLogic.LoadedSceneIsFlight || GameGlobals.ActiveVessel == null)
@@ -393,6 +494,12 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             Vessel v = GameGlobals.ActiveVessel;
             if (v == null || !MayPlace()) return;
+            if (!placed)
+            {
+                // The first placement of the session: the root of the vessel that is about to be moved is what Close puts back.
+                startRoot = KspT09World.ReadRoot(v);
+                startRootVessel = v;
+            }
             tuner = null;
             double terrain = 0.0;
             try { terrain = world.TerrainAltitude(SiteLat, SiteLon); } catch (Exception) { terrain = 0.0; }

@@ -34,10 +34,13 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // Why a loaded vessel is not teleported whatever its age: time warp (a held vessel warped would be packed as landed and snapped to the ground), a kerbal on EVA, a speed over
         // MaxSpeedMs relative to the surface (the placement stops it dead). Null where none of them.
-        internal static string StateRefusal(bool timeWarp, bool eva, double surfaceSpeedMs)
+        internal const string NotStandingMessage = "Vessel is flying: land it first, the viewer only moves a vessel that stands on the ground or floats";
+
+        internal static string StateRefusal(bool timeWarp, bool eva, bool standingOrHeld, double surfaceSpeedMs)
         {
             if (timeWarp) return WarpMessage;
             if (eva) return EvaMessage;
+            if (!standingOrHeld) return NotStandingMessage;
             if (surfaceSpeedMs > MaxSpeedMs) return "Vessel is moving at " + surfaceSpeedMs.ToString("0") + " m/s, slow down first";
             return null;
         }

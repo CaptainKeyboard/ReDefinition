@@ -109,6 +109,7 @@
     { "series": "K-V1", "section": "VPROBE", "start": "wide", "metric": "VIEWERWIN.placed_y_max_px", "unit": "px", "required": false, "note": "INFORMATION: its top edge." },
     { "series": "K-V1", "section": "VPROBE", "start": "wide", "metric": "VIEWERWIN.window_screenshot_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the screenshot of the open window (series-pictures/viewer-window-wide.png) is written, more than 1000 bytes. For a person to look at." },
     { "series": "K-V1", "section": "VPROBE", "start": "wide", "metric": "VIEWERWIN.window_closes_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: a second Toggle closes the window and ends the session within 10 s." },
+    { "series": "K-V1", "section": "VPROBE", "start": "wide", "metric": "VIEWERWIN.vessel_intact_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the vessel has the same parts and no vessel is added to the scene (no debris) after the ground pose and the viewer's close, counted from the moment it was loaded and unpacked. The start that broke the pad vessel at its close on 2026-11-15." },
     { "series": "K-V1", "section": "VPROBE", "start": "wide", "metric": "VIEWERWIN.elapsed_s", "max": 180, "unit": "s", "required": false, "note": "INFORMATION: the scenario's real seconds (the limit of the probe is 180)." }
   ]
 }

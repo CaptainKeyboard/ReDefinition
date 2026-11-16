@@ -114,7 +114,8 @@ namespace ReDefinition.Atmospheres.Viewer
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
             yield return ProbeWait.Until(() => Rig.FlightReady && Rig.PassDrawing, 300, "the flight scene and the own cloud pass drawing");
             reached = true;
-            yield return ProbeWait.Seconds(3);
+            // The vessel is counted once it is loaded and unpacked (the viewer places nothing before) and again at the end.
+            foreach (ProbeWait w in WaitVesselReady()) yield return w;
             Info("screen_width_px", Rig.ScreenWidth);
             Info("screen_height_px", Rig.ScreenHeight);
             Info("ui_scale", Rig.UiScale);
@@ -142,6 +143,8 @@ namespace ReDefinition.Atmospheres.Viewer
             Rig.ToggleWindow();
             foreach (ProbeWait w in Poll(() => !Rig.WindowOpen && !Rig.SessionActive, 10.0)) yield return w;
             Verdict("window_closes", "a second Toggle closes the window and ends the session", polled, "no window, no session", "window " + Rig.WindowOpen + ", session " + Rig.SessionActive);
+            yield return ProbeWait.Seconds(AfterCloseWaitS);
+            JudgeVesselIntact(Prefix);
             Info("elapsed_s", Elapsed);
         }
     }

@@ -201,7 +201,12 @@ namespace ReDefinition.Atmospheres
         // The active vessel is not the one that was placed.
         internal bool PlacedVesselLost
         {
-            get { return PlacedVessel != null && (FlightGlobals.ActiveVessel != PlacedVessel || PlacedVessel.state == Vessel.State.DEAD); }
+            // The null of the C# reference, not Unity's: a vessel the game destroyed after the placement compares equal to null in Unity and is still the vessel that was placed.
+            get
+            {
+                if (ReferenceEquals(PlacedVessel, null)) return false;
+                return PlacedVessel == null || FlightGlobals.ActiveVessel != PlacedVessel || PlacedVessel.state == Vessel.State.DEAD;
+            }
         }
 
         // The root of the vessel as Vessel.SetPosition and SetRotation set it (vesselTransform), as a place on its body and a rotation relative to the body's frame: what the restore
@@ -303,12 +308,14 @@ namespace ReDefinition.Atmospheres
             {
                 foreach (Part part in vessel.parts)
                 {
-                    Rigidbody rb = part.Rigidbody;
-                    if (rb == null || rb.isKinematic) continue;
-                    rb.velocity = Vector3.zero;
-                    rb.angularVelocity = Vector3.zero;
-                    rb.isKinematic = true;
-                    frozen.Add(rb);
+                    foreach (Rigidbody rb in new[] { part.Rigidbody, part.servoRb })
+                    {
+                        if (rb == null || rb.isKinematic) continue;
+                        rb.velocity = Vector3.zero;
+                        rb.angularVelocity = Vector3.zero;
+                        rb.isKinematic = true;
+                        frozen.Add(rb);
+                    }
                 }
                 frozenParts = frozen.Count;
                 AtmospheresLog.Say("vessel hold: " + frozen.Count + " of " + vessel.parts.Count + " parts of " + vessel.vesselName + " held kinematic while the placement stands");
@@ -368,7 +375,7 @@ namespace ReDefinition.Atmospheres
             {
                 Vessel v = FlightGlobals.ActiveVessel;
                 try { FlightInputHandler.state.mainThrottle = 0f; } catch (Exception) { /* no input handler */ }
-                // Kinematic parts take no velocity (Unity warns for each); they stand where they were put.
+                // Kinematic parts take no velocity; they stand where they were put.
                 if (frozenParts > 0) return;
                 v.SetWorldVelocity(v.mainBody.getRFrmVel(v.GetWorldPos3D()));
                 // No spin either: a part that turns takes the vessel's centre of mass and the camera's anchor with it.
