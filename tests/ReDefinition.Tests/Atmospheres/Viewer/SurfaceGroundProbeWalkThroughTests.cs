@@ -80,6 +80,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         private sealed class Run
         {
             internal FakeHost Host = new FakeHost();
+            internal string ScenePath = ScenePathWatcher.SpaceCentre;
             internal Color32 ViewerFileColour = new Color32(90, 102, 81, 255);
             internal readonly List<string> Written = new List<string>();
             internal FakeSoloRig Rig;
@@ -131,7 +132,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             if (fault != null) fault(r.Rig);
             SeriesProbe.LogLine = m => r.Log.Add(m);
             AtmoResult.Sink = r.Rows.Add;
-            string[] args = { "KSP_x64.exe", "-atmoSeries", "K-S2", "-atmoStart", start, "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", PairsOf(start) };
+            // The runner adds the space-centre switch for a series that says viaSpaceCentre (tools/atmo_series.py plan_args).
+            string[] args = { "KSP_x64.exe", "-atmoSeries", "K-S2", "-atmoStart", start, "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", PairsOf(start), "-redefinitionProbeViaSpaceCentre" };
             AtmospheresSettings.ResetToDefaults();
             if (applyPins) AtmospheresSettings.ApplyLaunchPins(args);
             bool on = coverOn != null ? coverOn(start) : start == SurfaceGroundProbe.StartOn;
@@ -142,6 +144,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 CoverInstalledCount = () => on ? 3 : 0,
                 GroundReader = () => new GroundReading { Hit = true, Object = "ksc_terrain", Material = "ksc_exterior_terrain_grass_02", Shader = "Custom/ParallaxKSCTerrain", DistanceM = SurfaceGroundProbe.RayUpM + 2.0 }
             };
+            r.Probe.ScenePathReader = () => r.ScenePath;
             r.Host.Rig = r.Rig;
             r.Probe.Host = r.Host;
             r.Probe.PictureReader = path => FakeHost.Shot(r.ViewerFileColour, 0);
@@ -284,6 +287,9 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             }
             Assert.IsTrue(((List<object>)file["sections"]).Cast<Dictionary<string, object>>().Any(s => (string)s["id"] == "SURFACEGROUND"));
             Assert.IsFalse(file.ContainsKey("productSwitches"), "the switches moved to the surface start");
+            Assert.AreEqual(true, file["judgesGround"], "K-S2 judges the ground");
+            Assert.AreEqual(true, file["viaSpaceCentre"], "and reaches the flight through the space centre, as every start of it does");
+            foreach (Dictionary<string, object> s in starts.Values) Assert.IsFalse(s.ContainsKey("viaSpaceCentre") && (bool)s["viaSpaceCentre"] == false, "no start of K-S2 takes the straight path: " + (string)s["id"]);
         }
 
         [TestMethod]
@@ -391,6 +397,39 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             GroundRegion.Mean(null, 100, 100, out r, out g, out b);
             Assert.IsTrue(double.IsNaN(r));
             Assert.AreEqual(5.0, GroundRegion.MaxDifference(1, 2, 3, 2, 7, 3), 0.0);
+        }
+
+        [TestMethod]
+        public void AFlightReachedStraightFromTheMainMenuFailsTheScenePathWhereTheSpaceCentreWasAskedFor()
+        {
+            Run r = Start(SurfaceGroundProbe.StartOn);
+            r.ScenePath = ScenePathWatcher.Direct;
+            Drive(r);
+            Assert.IsFalse(r.Probe.Passed, Dump(r));
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "scene_path")), r.Joined);
+            Assert.IsTrue(r.Log.Any(l => l == "ground: scene path: direct"), "the path is logged");
+        }
+
+        [TestMethod]
+        public void AGreyGroundFailsTheGreenShareAndTheNumberIsEmitted()
+        {
+            Run r = Start(SurfaceGroundProbe.StartOn);
+            r.ViewerFileColour = new Color32(77, 86, 90, 255);
+            Drive(r);
+            Assert.IsFalse(r.Probe.Passed, Dump(r));
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.StartsWith(SurfaceGroundProbe.Prefix + "ground_green")), r.Joined);
+            Assert.AreEqual(2.5, double.Parse(Emitted(r)["GRD.green_share"], CultureInfo.InvariantCulture), 0.01, "G - (R + B) / 2 of the grey-blue ground");
+        }
+
+        [TestMethod]
+        public void TheGreenShareIsTheLowerLeftBoxAsVanillaGroundMeasuresIt()
+        {
+            var px = new Color32[100 * 100];
+            for (int y = 0; y < 100; y++)
+                for (int x = 0; x < 100; x++) px[y * 100 + x] = x < 33 && y < 15 ? new Color32(88, 99, 88, 255) : new Color32(255, 0, 255, 255);
+            Assert.AreEqual(11.0, GroundRegion.GreenShare(px, 100, 100), 1e-9);
+            Assert.IsTrue(double.IsNaN(GroundRegion.GreenShare(null, 100, 100)));
+            Assert.AreEqual(ScenePathWatcher.Unknown, ScenePathWatcher.Current, "no flight was asked for in the test host");
         }
 
         [TestMethod]

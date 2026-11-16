@@ -180,6 +180,29 @@
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.A_screen_ground_g", "min": 0, "max": 255, "required": false, "note": "INFORMATION." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.A_screen_ground_b", "min": 0, "max": 255, "required": false, "note": "INFORMATION." },
     { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.A_capture_diff_max", "min": 0, "max": 255, "required": false, "note": "INFORMATION: the largest channel difference between the viewer's picture and the screen read. Over 4: the capture path differs." },
-    { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.A_vs_B_diff_max", "min": 0, "max": 255, "required": false, "note": "INFORMATION: the largest channel difference between A's screen read (vessel held at 300 m) and B's (vessel on the pad). Over 4: the placement changes what the game draws." }
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.A_vs_B_diff_max", "min": 0, "max": 255, "required": false, "note": "INFORMATION: the largest channel difference between A's screen read (vessel held at 300 m) and B's (vessel on the pad). Over 4: the placement changes what the game draws." },
+
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "capture_ab", "metric": "GRD.scene_path_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the flight was reached through the space centre (the series' viaSpaceCentre): the log says 'scene path: space centre'." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.scene_path_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the flight was reached through the space centre, as a player's is: the log says 'scene path: space centre'. Straight from the main menu the KSC ground is a different (grey-blue) one." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.scene_path_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.scene_path_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.ground_green_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the green share of the far_p2 picture (mean G - (R + B) / 2 over the lower left, x 0-33 %, bottom 15 %) is at least 7: through the space centre it reads about +11, straight from the main menu about +2 to +4. Fails: the ground of the series is not the one a player sees." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.ground_green_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.ground_green_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as ground_on." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION: the green share of the far_p2 picture (the number tools/vanilla_ground.py calls low_green)." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.far_p1_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION: the green share of each frame's picture." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.far_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p1_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_on", "metric": "GRD.g2_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.far_p1_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.far_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.g2_p1_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_off", "metric": "GRD.g2_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.far_p1_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.far_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.g2_p1_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." },
+    { "series": "K-S2", "section": "SURFACEGROUND", "start": "ground_nocover", "metric": "GRD.g2_p2_green_share", "min": -50, "max": 100, "required": false, "note": "INFORMATION." }
   ]
 }

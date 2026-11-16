@@ -7,6 +7,7 @@
   "maxMinutes": 20,
   "freeMemoryGb": 12,
   "plannedStarts": 2,
+  "judgesGround": false,
   "bundle": true,
   "settings": [
     { "file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": { "raytracing": "Off", "frameGeneration": false, "qualityAuto": false, "quality": "NativeAA" } },

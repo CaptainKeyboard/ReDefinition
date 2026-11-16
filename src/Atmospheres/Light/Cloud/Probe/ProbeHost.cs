@@ -43,6 +43,26 @@ namespace ReDefinition.Atmospheres
             b = sb / n;
         }
 
+        // How far the ground leans to green over grey, as tools/vanilla_ground.py measures it (its 'low_green'): the lower-left box of the picture (x 0 to 33 percent, the bottom 15
+        // percent), the mean of G - (R + B) / 2 in 0 to 255 units. Through the space centre the KSC ground reads about +11 there, straight from the main menu about +4.
+        internal const double GreenXMax = 0.33, GreenYMax = 0.15;
+
+        internal static double GreenShare(Color32[] pixels, int width, int height)
+        {
+            if (pixels == null || width <= 0 || height <= 0 || pixels.Length < width * height) return double.NaN;
+            int x1 = Math.Max(1, (int)(width * GreenXMax)), y1 = Math.Max(1, (int)(height * GreenYMax));
+            double sum = 0;
+            long n = 0;
+            for (int y = 0; y < y1; y++)
+                for (int x = 0; x < x1; x++)
+                {
+                    Color32 c = pixels[y * width + x];
+                    sum += c.g - 0.5 * (c.r + c.b);
+                    n++;
+                }
+            return n == 0 ? double.NaN : sum / n;
+        }
+
         // The largest difference of a channel between two means (NaN where either is not there).
         internal static double MaxDifference(double r1, double g1, double b1, double r2, double g2, double b2)
         {

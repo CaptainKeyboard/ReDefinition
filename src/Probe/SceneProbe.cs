@@ -55,6 +55,12 @@ namespace ReDefinition.Probe
         internal const string SeaArgument = "-redefinitionProbeSea";
         // -redefinitionProbeSpaceCentre: stay at the space centre instead of flying the vessel.
         internal const string SpaceCentreArgument = "-redefinitionProbeSpaceCentre";
+        // -redefinitionProbeViaSpaceCentre: the save loaded into the space centre scene and the flight of the pad vessel started from there, as a player's flight is reached
+        // (the KSC ground renders green that way and grey-blue when the save loads straight into the flight: tools/vanilla_ground.py, 2026-11-16). Only for the plain pad flight:
+        // with a sea, grass, land, orbit, vessel, scenario or launch switch the probe goes straight to the flight and says so. ViaPending is set by the launcher and taken by
+        // SceneProbeReturn at the space centre.
+        internal const string ViaSpaceCentreArgument = "-redefinitionProbeViaSpaceCentre";
+        internal static bool ViaPending;
         // -redefinitionProbeCoast, with it: the capsule off the island airfield's shore.
         internal const string CoastArgument = "-redefinitionProbeCoast";
         // -redefinitionProbeGrass: a capsule on a field of Parallax's grass, kilometres from the
@@ -242,7 +248,20 @@ namespace ReDefinition.Probe
                 HighLogic.LoadScene(GameScenes.SPACECENTER);
                 yield break;
             }
-            Debug.Log(Log.Tag + " Probe: flight of " + game.flightState.protoVessels[index].vesselName + ".");
+            if (CommandLine.Has(SceneProbe.ViaSpaceCentreArgument, true))
+            {
+                bool plain = SceneProbe.VesselName == null && !CommandLine.Has(SceneProbe.SeaArgument) && !CommandLine.Has(SceneProbe.GrassArgument)
+                             && LandProbe.OrbitBodyName == null && LandProbe.BodyName == null;
+                if (plain)
+                {
+                    SceneProbe.ViaPending = true;
+                    Debug.Log(Log.Tag + " Probe: scene path: space centre (the save's pad vessel " + game.flightState.protoVessels[index].vesselName + " is flown from the space centre).");
+                    HighLogic.LoadScene(GameScenes.SPACECENTER);
+                    yield break;
+                }
+                Debug.LogWarning(Log.Tag + " Probe: " + SceneProbe.ViaSpaceCentreArgument + " does not combine with the sea, grass, land, orbit or vessel switches: the flight starts straight from the main menu.");
+            }
+            Debug.Log(Log.Tag + " Probe: scene path: direct (the flight of " + game.flightState.protoVessels[index].vesselName + " straight from the main menu).");
             FlightDriver.StartAndFocusVessel(game, index);
         }
 
@@ -404,6 +423,30 @@ namespace ReDefinition.Probe
                 }
                 StagingProbe.Pending = false;
                 if (!StagingProbe.Launch(HighLogic.CurrentGame)) Application.Quit();
+                yield break;
+            }
+            // The flight of the pad vessel, started from the space centre the way a player's is (-redefinitionProbeViaSpaceCentre). The space centre's own camera is found and
+            // two more seconds pass before the flight starts, as tools/ProbeLite waits.
+            if (SceneProbe.Requested && SceneProbe.ViaPending)
+            {
+                SceneProbe.ViaPending = false;
+                SpaceCenterCamera2 control = null;
+                for (int i = 0; i < 600 && control == null; i++)
+                {
+                    control = FindObjectOfType<SpaceCenterCamera2>();
+                    if (control == null) yield return null;
+                }
+                yield return new WaitForSecondsRealtime(2f);
+                Game pad = HighLogic.CurrentGame;
+                int padIndex = pad != null ? pad.flightState.protoVessels.FindIndex(v => v.situation == Vessel.Situations.PRELAUNCH) : -1;
+                if (padIndex < 0)
+                {
+                    ProbeSteps.Failed("no vessel on the launch pad at the space centre");
+                    Application.Quit();
+                    yield break;
+                }
+                Debug.Log(Log.Tag + " Probe: the space centre stands (camera " + (control != null) + "); to the flight of " + pad.flightState.protoVessels[padIndex].vesselName + ".");
+                FlightDriver.StartAndFocusVessel(pad, padIndex);
                 yield break;
             }
             if (!SceneProbe.Requested || SceneProbe.ScenesLeft < 0 || HighLogic.SaveFolder != SceneProbe.SaveFolder)

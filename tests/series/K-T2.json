@@ -14,6 +14,7 @@
   "maxMinutes": 20,
   "freeMemoryGb": 12,
   "plannedStarts": 4,
+  "judgesGround": false,
   "bundle": true,
   "metrics": [
     { "script": "tools/weather_metrics/kt2.py" },

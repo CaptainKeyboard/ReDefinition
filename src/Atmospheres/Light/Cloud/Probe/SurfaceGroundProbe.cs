@@ -55,6 +55,9 @@ namespace ReDefinition.Atmospheres
         // least 30 s, and so does B. A settle that ends at maxS has not settled: the log says so.
         internal const double SettleMinS = 6.0, SettleMaxS = 30.0, FirstSettleMinS = 30.0, FirstSettleMaxS = 90.0, SettleLumaStep = 0.6, GrabWaitS = 10.0, CaptureDifferenceMax = 4.0;
         internal const double AimToleranceFarDeg = 2.0, UiLumaFloor = 5.0;
+        // The green share (mean G - (R + B) / 2, lower left) the far_p2 picture has to reach: the ground of a flight reached through the space centre reads about +11 (87.7/98.9/87.8),
+        // the one straight from the main menu about +2 to +4 (77.6/86.4/90.4); the middle of the two.
+        internal const double GroundGreenMin = 7.0;
 
         internal struct Frame
         {
@@ -257,6 +260,12 @@ namespace ReDefinition.Atmospheres
             DescribeCover(f.Name, "ground_" + f.Name, ground, aim.CameraAglM, angle);
             foreach (ProbeWait w in Take()) yield return w;
             pictures[f.Name] = taken;
+            // How green the ground of the picture the viewer wrote is (the number tools/vanilla_ground.py reads): the series shows by itself when the ground is the wrong one.
+            ProbeScreen written = taken != null ? PictureReader(Rig.CapturePicturePath(taken)) : null;
+            double green = written != null ? GroundRegion.GreenShare(written.Pixels, written.Width, written.Height) : double.NaN;
+            Emit(Prefix + f.Name + "_green_share", green);
+            if (f.Name == "far_p2") Emit(Prefix + "green_share", green);
+            LogLine("ground: " + f.Name + ": green share " + F(green) + " (mean G - (R + B) / 2 over the lower left, x 0-33 %, bottom 15 %)");
             LogLine("ground: " + f.Name + ": picture " + (taken ?? "none"));
             ViewerPoseReading end = Rig.Pose;
             Verdict(f.Name + "_same_aim", f.Name + ": the camera did not move while the picture was taken", Circular(end.AzimuthDeg, aim.AzimuthDeg) <= AimToleranceDeg && Math.Abs(end.ElevationDeg - aim.ElevationDeg) <= AimToleranceDeg,
@@ -293,6 +302,20 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // The way the flight was reached: where the command line asks for the space centre the run went through it, else straight from the main menu. The ground of the KSC is
+        // judged only on the way a player's flight is reached.
+        internal const string ViaSpaceCentreSwitch = "-redefinitionProbeViaSpaceCentre";
+        internal Func<string> ScenePathReader = () => ScenePathWatcher.Current;
+
+        private void JudgeScenePath()
+        {
+            bool asked = CommandLine.Has(Args(), ViaSpaceCentreSwitch, true);
+            string path = ScenePathReader();
+            LogLine("ground: scene path: " + path);
+            Verdict("scene_path", "the flight was reached the way the start asks for", path == (asked ? ScenePathWatcher.SpaceCentre : ScenePathWatcher.Direct),
+                    asked ? "space centre" : "direct", path);
+        }
+
         // The setting the start carries on its command line took effect before the scene: read here, in the flight, as the game holds it.
         private void JudgeLaunchSettings()
         {
@@ -308,6 +331,7 @@ namespace ReDefinition.Atmospheres
             JudgeLaunchSettings();
             yield return ProbeWait.Until(() => Rig.FlightReady, 300, "the flight scene");
             reached = true;
+            JudgeScenePath();
             yield return ProbeWait.Seconds(3);
             // With the package on the own pass draws; the frames then hold every layer empty as K-S2's baseline does. Off, there is no pass and nothing to hold.
             if (AtmospheresSettings.Enabled)
@@ -390,6 +414,9 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in TakeFrame(f, pictures, sun)) yield return w;
 
             JudgeCover();
+            double greenFar = Emitted("far_p2_green_share");
+            Verdict("ground_green", "the ground of the far_p2 picture reads green (the ground a player's flight shows)", !double.IsNaN(greenFar) && greenFar >= GroundGreenMin,
+                    "green share at least " + F(GroundGreenMin), F(greenFar));
             int written = 0;
             foreach (KeyValuePair<string, string> pair in pictures) if (pair.Value != null) written++;
             Verdict("pictures", "every frame's picture is written", written == Frames.Length, Frames.Length + " pictures", written + " pictures");

@@ -481,6 +481,38 @@ def pf_product_switches(repo, ksp, defn, st):
     return out
 
 
+# The probe switches that make the launcher take the straight path although the space centre was asked for (src/Probe/SceneProbe.cs: not 'plain').
+DIRECT_ONLY_SWITCHES = ("-redefinitionProbeSea", "-redefinitionProbeGrass", "-redefinitionProbeVessel", "-redefinitionProbeBody", "-redefinitionProbeLaunch",
+                        "-redefinitionProbeScenario", "-redefinitionProbeSpaceCentre")
+SCENE_PATH_FINDING = ("the KSC ground renders green when the flight is reached through the space centre (lower-left mean 87.7/98.9/87.8, with and without our mod) and grey-blue "
+                      "when the save loads straight into the flight (77.6/86.4/90.4; tools/vanilla_ground.py, 2026-11-16)")
+
+
+def pf_scene_path(defn, st):
+    """The way the start reaches its flight. A start that judges the ground (pictures of the KSC ground, surface cover, ice, snow) must go through the space centre
+    ('viaSpaceCentre'): straight from the main menu the ground is a different one, so the verdict would be about a ground no player sees. A series that collects pictures
+    makes each of its starts say whether it judges the ground ('judgesGround', here or in the series) so that the question is never skipped. Starts that do not judge the
+    ground keep the straight path (about a minute faster)."""
+    sid = st["id"]
+    judges, via = st.get("judgesGround"), st.get("viaSpaceCentre")
+    pictures = any("series-pictures" in c.get("from", "") or "Captures" in c.get("from", "") for c in defn.get("collect", []))
+    args = st.get("probeArgs", [])
+    if judges is None:
+        if pictures:
+            return [(FAIL, "scene path [%s]" % sid, "the series collects pictures and this start does not say whether it judges the ground: set judgesGround true (and "
+                     "viaSpaceCentre true) or false; %s" % SCENE_PATH_FINDING)]
+        return [(PASS, "scene path [%s]" % sid, "no pictures collected, not asked")]
+    if not judges:
+        return [(PASS, "scene path [%s]" % sid, "does not judge the ground: %s" % ("through the space centre" if via else "straight from the main menu"))]
+    if not via:
+        return [(FAIL, "scene path [%s]" % sid, "the start judges the ground and loads straight into the flight; set viaSpaceCentre true: %s" % SCENE_PATH_FINDING)]
+    clash = [a for a in args if a in DIRECT_ONLY_SWITCHES]
+    if clash:
+        return [(FAIL, "scene path [%s]" % sid, "viaSpaceCentre with %s: the launcher takes the straight path for these switches, and the start judges the ground: %s"
+                 % (", ".join(clash), SCENE_PATH_FINDING))]
+    return [(PASS, "scene path [%s]" % sid, "judges the ground, through the space centre")]
+
+
 PICTURES_NEED_BYTES = 300 * 1024 * 1024
 
 
@@ -567,6 +599,7 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
     results += pf_profile_cache(profile_cache)
     results += pf_pictures(repo, ksp, mainrepo, defn, h.get("free_bytes"))
     for st in starts:
+        results += pf_scene_path(defn, st)
         results += pf_product_switches(repo, ksp, defn, st)
         results += pf_probe_files(ksp, st.get("probeArgs", []))
         results += pf_scene_guard(repo, st.get("probeArgs", []))
@@ -628,6 +661,22 @@ def selftest(check):
                      "command line") == FAIL)
         none = {"id": "n"}
         check("preflight command line: the default is used when the start names none", status(pf_args(plan_args("K-x", none), none), "command line") == PASS)
+
+        # scene path
+        pic = {"collect": [{"from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures", "to": "x"}]}
+        check("preflight scene path: a start that judges the ground and loads straight in FAILs with the finding",
+              status(pf_scene_path(pic, {"id": "s", "judgesGround": True}), "scene path") == FAIL and "grey-blue" in pf_scene_path(pic, {"id": "s", "judgesGround": True})[0][2])
+        check("preflight scene path: a start that judges the ground through the space centre PASSes",
+              status(pf_scene_path(pic, {"id": "s", "judgesGround": True, "viaSpaceCentre": True}), "scene path") == PASS)
+        check("preflight scene path: through the space centre with a switch that forces the straight path FAILs",
+              status(pf_scene_path(pic, {"id": "s", "judgesGround": True, "viaSpaceCentre": True, "probeArgs": ["-redefinitionProbeSea"]}), "scene path") == FAIL)
+        check("preflight scene path: a picture-taking start that does not say FAILs",
+              status(pf_scene_path(pic, {"id": "s"}), "scene path") == FAIL)
+        check("preflight scene path: a start that says it does not judge the ground PASSes on the straight path",
+              status(pf_scene_path(pic, {"id": "s", "judgesGround": False}), "scene path") == PASS)
+        check("preflight scene path: a series without pictures is not asked", status(pf_scene_path({}, {"id": "s"}), "scene path") == PASS)
+        check("preflight scene path: the series' keys reach the command line",
+              "-redefinitionProbeViaSpaceCentre" in plan_args("K-x", {"id": "s", "viaSpaceCentre": True}) and "-redefinitionProbeViaSpaceCentre" not in plan_args("K-x", {"id": "s"}))
 
         # pins
         ksp = os.path.join(root, "Kerbal Space Program")

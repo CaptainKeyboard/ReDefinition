@@ -60,6 +60,10 @@ DEFAULT_DOTNET = os.path.join(os.path.expanduser("~"), ".dotnet", "dotnet.exe")
 RUN_CAP = 20
 MAX_MINUTES = 20
 PROFILE_CACHE_REL = (".local", "work", "profile-cache")
+# A start that judges the ground loads the save into the space centre and flies the pad vessel from there (src/Probe/SceneProbe.cs): the KSC ground renders green that way and
+# grey-blue when the save loads straight into the flight. The series' keys are the defaults of their starts.
+SCENE_PATH_KEYS = ("viaSpaceCentre", "judgesGround")
+VIA_SPACE_CENTRE_ARG = "-redefinitionProbeViaSpaceCentre"
 STARTS_LOG_REL = (".local", "work", "atmo-series-starts.jsonl")
 DISABLED_DIR = "_atmo_disabled"
 PROBE_GRACE_SECONDS = 90
@@ -273,6 +277,11 @@ def load_series(repo, name):
         if "section" not in row:
             row["section"] = row.get("package") if row.get("package") in sections else (sections[0] if sections else "main")
     errors += check_definition(defn, None, schema)
+    # The scene-path keys of the series are the defaults of its starts (a start's own key wins).
+    for key in SCENE_PATH_KEYS:
+        if key in defn:
+            for st in defn.get("starts", []):
+                st.setdefault(key, defn[key])
     return defn, errors
 
 
@@ -835,6 +844,8 @@ def plan_args(name, st):
     if st.get("variants"):
         args += ["-atmoVariants", ",".join(st["variants"])]
     args += st.get("probeArgs", [])
+    if st.get("viaSpaceCentre") and VIA_SPACE_CENTRE_ARG not in args:
+        args.append(VIA_SPACE_CENTRE_ARG)
     return args
 
 

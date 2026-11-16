@@ -8,13 +8,14 @@
   "maxMinutes": 20,
   "freeMemoryGb": 12,
   "plannedStarts": 6,
+  "judgesGround": false,
   "bundle": true,
   "starts": [
     { "id": "lamp", "description": "lamp scatter (D32): forced snow field, beam geometry, lamp off control, DLSS turn", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "LampProbe"] },
     { "id": "frost", "description": "camera frost (D37): shader and atlas, chain order, exposure growth, IVA A/B", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "CameraFrostProbe"] },
     { "id": "model", "description": "aurora state (D38): shader, Auto rules, body rule, pole axis", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D38Probe"] },
     { "id": "aurora", "description": "aurora in the real sky with the full mod set (Scatterer, EVE, TUFX, Parallax): draw order, terrain occlusion, lid / drip / band, with a picture sheet of the natural and the aid view", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D38Probe"] },
-    { "id": "cover", "description": "surface cover (D34): ground cover from the field, vehicle shells, tracks, orbit overlay host, switch cycle; needs a rover (wheels) on the ground", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "CoverProbe"] },
+    { "id": "cover", "judgesGround": true, "viaSpaceCentre": true, "description": "surface cover (D34): ground cover from the field, vehicle shells, tracks, orbit overlay host, switch cycle; needs a rover (wheels) on the ground", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "CoverProbe"] },
     { "id": "ice", "description": "sea ice (D35): shaders, hash and noise values, coverage against the field, orbit picture, near-ground sheet at 50 m, 500 m and 5 km, switch cycle; the capsule is afloat on the home body's sea (-redefinitionProbeSea)", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeSea", "-redefinitionProbeClouds", "-atmoProbe", "IceProbe"] }
   ],
   "sections": [
