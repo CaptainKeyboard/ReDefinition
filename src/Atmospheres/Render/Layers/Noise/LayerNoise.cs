@@ -473,6 +473,7 @@ namespace ReDefinition.Atmospheres
                 NoFineDetail = !Switches.FineDetail,
                 DensityRemap = CloudLookTuning.DensityRemap,
                 HeapFootLod = CloudLookTuning.HeapFootLod,
+                HeapIso = CloudLookTuning.HeapIso,
                 BillowContrastDelta = CloudLookTuning.BillowContrast - 1.0,
                 FineWeight = CloudLookTuning.BillowFine(-1f) >= 0f ? CloudLookTuning.BillowFine(-1f) : (double?)null,
                 FineFrequency = CloudLookTuning.BillowFineFreq(0f),
@@ -503,8 +504,8 @@ namespace ReDefinition.Atmospheres
                                                                            CloudLookTuning.BillowFineFreq((float)NoiseModel.FineDetailFrequency), CloudLookTuning.DensityRemap, ShapeVoxelsLog2()));
             // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top, the composite's sharpening).
             material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
-            // CLOUDR1: the heap volume (x: it is built, y: the march's spacing raises its mip level, z: log2 of its voxels per noise scale like _NoiseT.w).
-            material.SetVector(IdHeapP, new Vector4(heapTexture != null ? 1f : 0f, CloudLookTuning.HeapFootLod ? 1f : 0f, ShapeVoxelsLog2(), ExtrasUsed ? 1f : 0f));
+            // CLOUDR1: the heap volume (x: it is built, y: bit 0 the march's spacing raises its mip level, bit 1 the heap is read at the lattice's true vertical scale, z: log2 of its voxels per noise scale like _NoiseT.w).
+            material.SetVector(IdHeapP, new Vector4(heapTexture != null ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), ShapeVoxelsLog2(), ExtrasUsed ? 1f : 0f));
             material.SetTexture(IdHeap, heapTexture != null ? heapTexture : heapStandIn);
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);

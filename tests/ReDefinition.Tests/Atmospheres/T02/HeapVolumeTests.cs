@@ -163,6 +163,38 @@ namespace ReDefinition.Tests
             Assert.AreEqual(a / samples, b / samples, 0.03, "scattered points (finite sample, the lookup is smooth)");
         }
 
+
+        // cloud.heap.iso: with a layer's vertical scale below 1 the heap is read at the lattice's true vertical scale (the shape volume's compression is taken back), so the heaps are not
+        // stretched into columns; without a vertical scale nothing changes, and at the layer's reference radius the compression is the identity.
+        [TestMethod]
+        public void TheIsotropicHeapReadTakesTheVerticalScaleBack()
+        {
+            NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), 1u);
+            set.Heap = Medium;
+            double r0 = 600000.0, ref0 = r0 + 1000.0;
+            NoiseLayerParams flat = NoiseLayerParams.Default(250.0);
+            flat.Untile = false;
+            flat.HeapPreset = 1;
+            flat.ReferenceRadiusM = ref0;
+            NoiseLayerParams vertical = flat;
+            vertical.SphereScale = 0.35;
+            NoiseLayerParams verticalIso = vertical;
+            verticalIso.HeapIso = true;
+            double differ = 0.0;
+            for (int i = 0; i < 200; i++)
+            {
+                double y = i % 7 == 0 ? 0.0 : i * 37.0, z = i % 7 == 0 ? 0.0 : i * 11.0, x = ref0 + (i % 7) * 400.0;
+                double a = CloudShapeModel.Share(set, ref flat, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false);
+                flat.HeapIso = true;
+                Assert.AreEqual(a, CloudShapeModel.Share(set, ref flat, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false), 1e-12, "no vertical scale: no change");
+                flat.HeapIso = false;
+                double plain = CloudShapeModel.Share(set, ref vertical, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false), iso = CloudShapeModel.Share(set, ref verticalIso, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false);
+                if (i % 7 == 0) Assert.AreEqual(plain, iso, 1e-6, "at the reference radius the compression is the identity");
+                differ += Math.Abs(plain - iso);
+            }
+            Assert.IsTrue(differ > 1.0, "off the reference radius the isotropic read differs from the compressed one: " + differ);
+        }
+
         private static double ShareOf(double n, double cov, double edge)
         {
             double x = (cov + (n - 0.5) + 0.5 - 1.0) / edge + 0.5;

@@ -18,7 +18,7 @@ namespace ReDefinition.Atmospheres
         {
             "_PlanetCenter", "_CamPos", "_CamForward", "_CamRight", "_CamUp", "_MapDim", "_Sun", "_SunColor", "_AmbientTop", "_AmbientBottom", "_MarchP", "_StepP", "_LimitP",
             "_PhaseP", "_OutP", "_OutW", "_SkipP", "_SpacingP", "_CostP", "_DitherP", "_ReconP", "_ReconD", "_MarchTex_TexelSize",
-            "_NoiseL", "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BillowP",
+            "_NoiseL", "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BillowP", "_HeapP", "_FirstHitP",
             "_LightP", "_LightQ", "_LightR", "_LightS", "_LightT", "_SunAir", "_LightU", "_LightV", "_LightW", "_LightX", "_CellA", "_CellB", "_CacheA", "_CacheB",
             "_FarA", "_FarB", "_FarC", "_FarE", "_FarD", "_CullA", "_CullB", "_CullC", "_CullD", "_CullT", "_EdgeP"
         };
@@ -31,7 +31,7 @@ namespace ReDefinition.Atmospheres
 
         internal static readonly string[] Textures =
         {
-            "_TypeProfile", "_TypeInfo", "_CovMaps", "_TypeMaps", "_CovReach", "_SceneDepth", "_MarchTex", "_NoiseShape", "_NoiseDetail", "_NoiseCurl", "_NoiseFlow",
+            "_TypeProfile", "_TypeInfo", "_TypeInfo2", "_CovMaps", "_TypeMaps", "_CovReach", "_SceneDepth", "_MarchTex", "_NoiseShape", "_NoiseHeap", "_NoiseDetail", "_NoiseCurl", "_NoiseFlow",
             "_NoiseColour", "_NoiseLattice", "_LightCache", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_CullMin0", "_CullMin1", "_EdgeMask"
         };
 

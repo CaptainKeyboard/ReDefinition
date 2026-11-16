@@ -98,7 +98,7 @@ namespace ReDefinition.Atmospheres
         // CLOUDR1 P2: the heap preset the point's type reads (0: the shape volume; HeapModel.PresetOf) and whether the march's spacing adds to the mip level of the heap read (the octaves
         // below the footprint are dropped, never the ones above it). The twin of the shader's gHeapPreset and _HeapP.y.
         internal int HeapPreset;
-        internal bool HeapFootLod;
+        internal bool HeapFootLod, HeapIso;
 
         internal static NoiseLayerParams Default(double scaleM)
         {
@@ -324,7 +324,20 @@ namespace ReDefinition.Atmospheres
             if (prm.HeapPreset > 0 && set.Heap != null)
             {
                 double cavity;
-                n = HeapAt(set.Heap, ref prm, prm.HeapPreset, qx, qy, qz, footM, out cavity);
+                double hx = qx, hy = qy, hz = qz;
+                // cloud.heap.iso: the heap is read at the lattice's true vertical scale (the shader's compression of the shape's lookup is taken back, as for the erosion detail below).
+                if (prm.HeapIso && prm.SphereScale != 1.0 && prm.SphereScale > 0.0)
+                {
+                    double rr = Math.Sqrt(px * px + py * py + pz * pz);
+                    if (rr > 0.0)
+                    {
+                        double back = (1.0 - prm.SphereScale) * (rr - prm.ReferenceRadiusM) / rr;
+                        hx += px * back;
+                        hy += py * back;
+                        hz += pz * back;
+                    }
+                }
+                n = HeapAt(set.Heap, ref prm, prm.HeapPreset, hx, hy, hz, footM, out cavity);
             }
             else n = ShapeAt(set, ref prm, qx, qy, qz);
             double x = (cov + (n - 0.5) * noiseAmount + coverage - 1.0) / edge + 0.5;

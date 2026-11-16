@@ -48,7 +48,7 @@ float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its 
 float4 _BillowP;         // billow detail (package PUFF; all 0 = the model as it was): x the billow shading of the direct light (the march scales a sample's direct light by 1 + 2 x (d - mean), d the erosion detail's value there: the bumps catch the light, the crevices between them are shaded; 0: off), y the detail's contrast about
                          // its mean minus 1 (d' = mean + (d - mean) (1 + y)), z the erosion's gain toward the cloud's top (erosion (1 + z h), h the height in the cloud 0..1), w the composite's sharpening 0..1
 
-float4 _HeapP;           // CLOUDR1: x the heap volume is built (0: every type reads the shape volume), y the march's spacing raises the heap's mip level (cloud.heap.footLod), z log2 of the heap's voxels per noise scale, w a type has a heap, an edge exponent or a cavity (0: the type info 2 is not read)
+float4 _HeapP;           // CLOUDR1: x the heap volume is built (0: every type reads the shape volume), y bit 0 the march's spacing raises the heap's mip level (cloud.heap.footLod), bit 1 the heap is read at the lattice's true vertical scale (cloud.heap.iso), z log2 of the heap's voxels per noise scale, w a type has a heap, an edge exponent or a cavity (0: the type info 2 is not read)
 
 // The heap preset (1, 2; 0: the shape volume) of the type at the last point LayerDensity was asked for, and the cavity channel and strength there (the march copies them right after its own density read).
 static int gHeapPreset = 0;
@@ -167,8 +167,16 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     [branch] if (gHeapPreset > 0 && _HeapP.x > 0.5)
     {
         float lodHeap = lodShape;
-        if (_HeapP.y > 0.5 && gNoiseFoot > 0) lodHeap = max(lodHeap, log2(max(gNoiseFoot / scale, 1e-4)) + _HeapP.z);
-        float4 hv = tex3Dlod(_NoiseHeap, float4(q / (_NoiseR.x * scale), lodHeap));
+        if (fmod(_HeapP.y, 2.0) > 0.5 && gNoiseFoot > 0) lodHeap = max(lodHeap, log2(max(gNoiseFoot / scale, 1e-4)) + _HeapP.z);
+        // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
+        // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
+        float3 qh = q;
+        if (_HeapP.y > 1.5)
+        {
+            float rl = max(length(pc), 1.0);
+            qh += (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
+        }
+        float4 hv = tex3Dlod(_NoiseHeap, float4(qh / (_NoiseR.x * scale), lodHeap));
         n = gHeapPreset == 1 ? hv.r : hv.g;
         gHeapCav = gHeapPreset == 1 ? hv.b : hv.a;
     }

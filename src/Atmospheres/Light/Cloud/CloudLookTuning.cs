@@ -49,7 +49,7 @@ namespace ReDefinition.Atmospheres
         private static long seenVersion = -1;
         private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
         private static float cellKm, cellLat, cellLon;
-        private static float heapForce = -1f, edgeForce, cavityForce = -1f, heapFoot = 1f;
+        private static float heapForce = -1f, edgeForce, cavityForce = -1f, heapFoot = 1f, heapIso = 1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -100,9 +100,10 @@ namespace ReDefinition.Atmospheres
             float hs = Clean(Tuning.Get(TuneHazeStrength, 1f), 1f, 0f, 100f);
             float ck = Clean(Tuning.Get(TuneCellKm, 0f), 0f, 0f, 1e5f), cla = Clean(Tuning.Get(TuneCellLat, 0f), 0f, -90f, 90f), clo = Clean(Tuning.Get(TuneCellLon, 0f), 0f, -360f, 360f);
             float hf = Clean(Tuning.Get(TuneHeap, -1f), -1f, -1f, HeapModel.PresetCount), ef = Clean(Tuning.Get(TuneEdgePower, 0f), 0f, 0f, 6f);
-            float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneHeapFootLod, 1f), 1f, 0f, 1f);
+            float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneHeapFootLod, 1f), 1f, 0f, 1f), hi = Clean(Tuning.Get(TuneHeapIso, 1f), 1f, 0f, 1f);
             hf = hf < 0f ? -1f : (float)Math.Round(hf);
-            bool changed = hf != heapForce || ef != edgeForce || cf != cavityForce || ft != heapFoot;
+            bool changed = hf != heapForce || ef != edgeForce || cf != cavityForce || ft != heapFoot || hi != heapIso;
+            heapIso = hi;
             heapForce = hf;
             edgeForce = ef;
             cavityForce = cf;
@@ -238,8 +239,9 @@ namespace ReDefinition.Atmospheres
         //   cloud.heap            -1: each type's cfg key heap; 0: no heap anywhere (the shape volume of today); 1, 2: that preset for every type
         //   cloud.edgePower       0: each type's cfg key edgePower (else the layer's waterPower); above 0: this exponent of the density rim for every type of a soft layer
         //   cloud.cavity          -1: each type's cfg key cavity; 0 to 1: this strength for every type that reads a heap
+        //   cloud.heap.iso        1: the heap is read at the lattice's true vertical scale, so a layer's verticalScale does not stretch the rounded heaps into columns; 0: as the shape volume is read
         //   cloud.heap.footLod    1: the march's sample spacing raises the heap volume's mip level (an octave is dropped only where it is below the footprint); 0: only the smoothing does
-        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod";
+        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod", TuneHeapIso = "cloud.heap.iso";
 
         // --- CLOUDR1 P6: the first hit of the march by bisection (default off). ---
         //   cloud.firstHit        evaluations of the bisection on the span a ray enters (0: off, the march is as it was; 3 is the default of the experiments)
@@ -254,6 +256,7 @@ namespace ReDefinition.Atmospheres
         internal static float EdgePowerOverride { get { Refresh(); return edgeForce; } }
         internal static float CavityOverride { get { Refresh(); return cavityForce; } }
         internal static bool HeapFootLod { get { Refresh(); return heapFoot > 0.5f; } }
+        internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }
 
         // The layer mask of the solo key (cloud.soloLayer): bit n - 1 for a value n from 1 to the largest stack; 0 (every layer) otherwise.
         internal static int SoloMask()
