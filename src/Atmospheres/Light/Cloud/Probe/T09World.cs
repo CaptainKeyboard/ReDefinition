@@ -62,6 +62,8 @@ namespace ReDefinition.Atmospheres
         int VSyncCount { get; set; }
         int TargetFrameRate { get; set; }
         int FrameCount { get; }
+        // The last frame's real duration in milliseconds (Time.unscaledDeltaTime).
+        double LastFrameMs { get; }
         double UniversalTime { get; set; }
 
         // TVC (EVE's layers).
@@ -524,6 +526,8 @@ namespace ReDefinition.Atmospheres
         }
 
         public int FrameCount { get { return Time.frameCount; } }
+
+        public double LastFrameMs { get { return Time.unscaledDeltaTime * 1000.0; } }
 
         public double UniversalTime
         {
