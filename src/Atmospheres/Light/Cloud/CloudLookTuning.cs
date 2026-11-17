@@ -312,6 +312,23 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCellNoise = "cloud.cellNoise";
         internal const float CellNoiseDefault = 1f;
         internal static float CellNoise { get { return Clean(Tuning.Get(TuneCellNoise, CellNoiseDefault), CellNoiseDefault, 0f, 1f); } }
+        // cloud.cellEnvelope: 1 draws a single cloud as its envelope (a half ellipsoid over the type's base, eroded from outside by the billow noise: CloudCells.cginc CellEnvelope, after
+        // Nubis); cloud.cellBillow: the billows' depth of erosion (0: the bare envelope, 1: the billows reach the core). Read every frame (_CellN.y, z).
+        internal const string TuneCellEnvelope = "cloud.cellEnvelope", TuneCellBillow = "cloud.cellBillow", TuneCellBand = "cloud.cellBand";
+        internal const float CellEnvelopeDefault = 0f, CellBillowDefault = 0.5f, CellBandDefault = 30f;
+        internal static bool CellEnvelope { get { return Tuning.Get(TuneCellEnvelope, CellEnvelopeDefault) > 0.5f; } }
+        // cloud.cellBillow: how far the billows move the envelope's surface, as a share of the cloud's shorter semi-axis (0 the bare ellipsoid); cloud.cellBand: the width in m over which
+        // the share rises at the surface (Nubis: 35 m).
+        internal static float CellBillow { get { return Clean(Tuning.Get(TuneCellBillow, CellBillowDefault), CellBillowDefault, 0f, 2f); } }
+        internal static float CellBand { get { return Clean(Tuning.Get(TuneCellBand, CellBandDefault), CellBandDefault, 1f, 1000f); } }
+        // cloud.cellDetail: how far the erosion detail (125 m and 53 m cells) moves the envelope's surface, in m: the small heads on the billows (0: not read).
+        internal const string TuneCellDetail = "cloud.cellDetail";
+        internal const float CellDetailDefault = 0f;
+        internal static float CellDetail { get { return Clean(Tuning.Get(TuneCellDetail, CellDetailDefault), CellDetailDefault, 0f, 500f); } }
+        // cloud.cellFine: the gain of the finer billow octaves on a single cloud's envelope (the heap field at 0.37 and 0.137 of its period; 0: not read).
+        internal const string TuneCellFine = "cloud.cellFine";
+        internal const float CellFineDefault = 0f;
+        internal static float CellFine { get { return Clean(Tuning.Get(TuneCellFine, CellFineDefault), CellFineDefault, 0f, 4f); } }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
         internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }
 

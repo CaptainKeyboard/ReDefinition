@@ -12,8 +12,11 @@
 #define REDEFINITION_CLOUD_CELLS
 
 // x: the share of the layer's noise swing a single cloud keeps (cloud.cellNoise; 1: the noise's full swing, below 1 the disc and the type's lift are the cloud's envelope and the noise
-// works its surface).
+// works its surface); y: 1 where the envelope model draws the single clouds (cloud.cellEnvelope, CellEnvelope); z: the billows' reach as a share of the cloud's shorter semi-axis
+// (cloud.cellBillow); w: the width in m of the band the share rises over at the surface (cloud.cellBand).
 float4 _CellN;
+// x: how far the erosion detail moves the envelope's surface, in m (cloud.cellDetail; 0: not read); y: the gain of the finer billow octaves (cloud.cellFine; 0: not read).
+float4 _CellD;
 
 // The lattice: a centre lies anywhere in its cell (CELL_JITTER 1: the rows and columns do not show), a disc's size is 1 +- CELL_SIGMA of the share's radius, the share f / CELL_ALIVE_F0 of the
 // cells is alive and never more than CELL_ALIVE_MAX (few clouds of their own size in a fair sky, not many small ones; never every cell, which would show the lattice). The profile is 0.5 at
@@ -70,10 +73,12 @@ float CellUnit(uint h)
 // The profile (0..1) of the nearest disc at the map place uv (u: longitude with the layer's shift, any value; v: 0 north to 1 south), for the pitch (m), the radius of the layer's middle rm (m),
 // the share f and the layer's seed. size: the size factor of that disc's cell (1 where there is none). reachM: a distance in m over which no disc begins (0 inside one; the march leaps over it,
 // as over the map's empty reach).
-float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out float size, out float reachM)
+float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out float size, out float reachM, out float xBest, out float rBest)
 {
     reachM = 0.0;
     size = 1.0;
+    xBest = 1e9;
+    rBest = 0.0;
     float alive = min(CELL_ALIVE_MAX, f / CELL_ALIVE_F0);
     float rProf = CellVisibleRadius(f) / CELL_EDGE_X * pitch;
     float rCap = CELL_R_MAX * pitch;
@@ -112,26 +117,56 @@ float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out floa
             float d = sqrt(dx * dx + dy * dy);
             float r = min(rProf * s, rCap);
             float x = d / r;
-            if (x < best) { best = x; size = s; }
+            if (x < best) { best = x; size = s; rBest = r; }
             reach = min(reach, d - r);
         }
     }
     reachM = max(min(reach, outerM - rCap), 0.0);
+    xBest = best;
     return 1.0 - smoothstep(0.45, 1.0, best);
+}
+
+// The envelope of a single cloud (cloud.cellEnvelope, after Schneider's Nubis: the cloud is a body with a sharp surface, its share rising from 0 to 1 within a thin band (Nubis: 35 m) inside it,
+// and the billow noise moves that surface). The body is a half ellipsoid over the type's flat base: horizontal semi-axis the disc's visible radius (CELL_EDGE_X of its profile radius rM, where
+// the radius table puts the edge), vertical the cloud's own height (top of the type's height typeHeightM; the core strength: the wide and strongly convecting clouds are the tall ones).
+// q: the depth below the body's surface in m, approximated as (1 - the ellipsoid's radial coordinate) times the shorter semi-axis. The billows (the noise's rank, 0..1) move the surface by
+// up to k of that semi-axis, out where the noise is high and in where it is low, so the round heaps of the noise become the cloud's lobes; the share rises over bandM.
+// detail: the erosion detail's value at the point (its mean detailMean where it was not read) moves the surface by up to detailM m: the small heads on the big billows.
+// fine: the finer billow octaves (CellFineBillows: the heap field read at 0.37 and 0.137 of its period, each centred on 0), scaled like the first by k x the semi-axis and by their own
+// size, so the heads on the heads are smaller in the same proportion (the cumulus's fractal surface); fineGain 0 leaves them out.
+float CellEnvelope(float x, float h, float core, float billow, float k, float rM, float typeHeightM, float bandM, float detail, float detailMean, float detailM, float2 fine, float fineGain)
+{
+    float top = clamp(core / 0.5, 0.15, 1.0);
+    float semiH = max(top * typeHeightM, 1.0), semiR = max(CELL_EDGE_X * rM, 1.0);
+    float xv = x / CELL_EDGE_X, hv = h / top;
+    float axis = min(semiR, semiH);
+    float q = (1.0 - sqrt(xv * xv + hv * hv)) * axis + k * axis * (billow - 0.5) + 2.0 * detailM * (detail - detailMean)
+              + fineGain * k * axis * (0.37 * fine.x + 0.137 * fine.y);
+    return saturate(q / max(bandM, 1.0) + 0.5);
 }
 
 // The layer map's value at a point with the cells. The disc's profile p is placed on the layer's threshold as the bench's disc map was on its own (p 0.5 at the threshold, 0 half a unit below it),
 // and inside the disc it rises to the cloud's core strength: the map's excess over the threshold (how much the region convects: a fair sky's clouds stay low, a stormy region's grow) times the
 // cell's size factor (the wide clouds are the tall ones; a field holds many low clouds and a few towers). wMap: the share of the map's own value (a closed deck above a share of 0.8, where the
 // discs merge; and the far view, where the march's spacing passes a quarter of the pitch: the cells would alias, the map's value has their mean).
+// The nearest disc's distance over its profile radius and the cloud's core strength at the last CellCover (gCellX below 0: no disc read), for the envelope (CellEnvelope).
+static float gCellX = -1.0;
+static float gCellCore = 0.0;
+static float gCellW = 1.0;   // the share of the map's own value there (CellCover's wMap)
+static float gCellR = 0.0;   // the nearest disc's profile radius in m
+
 float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, out float reachM, out float wMap)
 {
     float f = CellShare(cov, coverage, edge, amount);
-    float size;
-    float p = CellProfile(uv, pitch, rm, f, seed, size, reachM);
+    float size, xBest, rBest;
+    float p = CellProfile(uv, pitch, rm, f, seed, size, reachM, xBest, rBest);
+    gCellX = xBest;
+    gCellR = rBest;
     float core = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * size;
+    gCellCore = core;
     float e = p > 0.5 ? (2.0 * p - 1.0) * core : p - 0.5;
     wMap = max(saturate((f - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * pitch) / (0.5 * pitch)) : 0.0);
+    gCellW = wMap;
     return lerp(1.0 - coverage + e, cov, wMap);
 }
 

@@ -224,11 +224,27 @@ Shader "ReDefinition/AtmospheresLayers"
             return _StepP.w * _PlanetR * sin(min(e * min(texelLat, 2.0 * PI / _MapDim.x * cos(latMax)), 1.5707));
         }
 
+        // CELLS: the finer billow octaves of a single cloud's envelope (CellEnvelope): the heap field (the shape volume's green channel, preset billow) read at 0.37 and 0.137 of its period at
+        // the lattice's true vertical scale (as the heap lookup, so the heads are round), each centred on 0. The reads are straight (no blend), offset from each other and from the first octave.
+        float2 CellFineBillows(int li, float3 pc)
+        {
+            float scale = _LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 250.0;
+            float3 q = NoiseLookupBase(li, pc, scale, 0);
+            float rl = max(length(pc), 1.0);
+            q += (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
+            float period = _NoiseR.z * scale;
+            float b2 = tex3Dlod(_NoiseShape, float4(q / (0.37 * period) + float3(0.31, 0.57, 0.83), 0)).g;
+            float b3 = tex3Dlod(_NoiseShape, float4(q / (0.137 * period) + float3(0.71, 0.13, 0.47), 0)).g;
+            return float2(b2 - 0.5, b3 - 0.5);
+        }
+
         // light 1: the light march's read (the shape only: no erosion detail, no far-view mean; the inlined copy of the light path is the slim one, CLOUDR2 P4).
         float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share)
         {
             share = 0;
             gEmptyM = 0;
+            gCellX = -1.0;
+            gCellW = 1.0;
             gNoiseD = _NoiseS.w;
             gHeapPreset = 0;
             gHeapCav = 1;
@@ -334,16 +350,34 @@ Shader "ReDefinition/AtmospheresLayers"
             float h = (share - b) / (tp - b);
             float4 pf = lerp(TypeProfile4(li, ta, h), TypeProfile4(li, tb, h), f);
             cov -= pf.a * (coverage + CoverageNoiseBound(li) + 0.5 * edge);   // E40 CB step 0: the lift in units of the layer's headroom (LayerTypeTable.LiftHeadroom), 1 closes every column
+            // CELLS: the envelope of a single cloud (cloud.cellEnvelope, CellEnvelope) where the cells alone draw (not where the map's own value takes part): its own height shape
+            // replaces the type's lift, so the lift's bound below is not asked; outside the envelope the profile is 0 and the share with it.
+            bool envelope = _CellN.y > 0.5 && gCellX >= 0.0 && gCellW <= 0.0;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
-            if (_CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
+            if (!envelope && _CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
             // The cost debug bits switch the shape noise (2) and the erosion (4) off.
             float noiseAmount = fmod(floor(_CostP.y * 0.5), 2.0) < 0.5 ? _LayerD[li].x * cellNoise : 0.0;
             if (fmod(floor(_CostP.y * 0.25), 2.0) >= 0.5) erosion = 0;
             // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
             erosion *= 1.0 + _BillowP.z * saturate(h);
-            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band).
-            float s = NoiseShare(li, pc, cov, coverage, edge, noiseAmount, erosion, light);
+            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band). The envelope reads the billow noise itself through the
+            // same call (the threshold at the noise's mean, a unit edge, the full swing, no erosion: the share is the noise's rank), so the noise keeps ONE call site (CLOUDR2 P4).
+            float covN = cov, edgeN = edge, amountN = noiseAmount, erosionN = erosion;
+            if (envelope)
+            {
+                covN = 1.0 - coverage;
+                edgeN = 1.0;
+                amountN = 1.0;
+                // A token erosion makes the call read the erosion detail (gNoiseD) for the small heads without changing the share it returns (the billows' rank).
+                erosionN = _CellD.x > 0.0 ? 1e-4 : 0.0;
+            }
+            float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
+            [branch] if (envelope)
+            {
+                float2 fine = _CellD.y > 0.0 ? CellFineBillows(li, pc) : float2(0.0, 0.0);
+                s = CellEnvelope(gCellX, h, gCellCore, s, _CellN.z, gCellR, (tp - b) * (outer - inner), _CellN.w, gNoiseD, _NoiseS.w, _CellD.x, fine, _CellD.y);
+            }
             if (s <= 0) return 0;
             float pw = waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
