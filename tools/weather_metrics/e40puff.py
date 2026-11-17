@@ -221,6 +221,9 @@ VARIANTS = {
     # the soft water content's rim width is softness (the owner's setting, 0.5) x the layer's softnessScale (cumulus 1) in units of the noise's swing: 0.5 of it fades every cloud over hundreds of metres
     "c_ss03": ("(CELLS) c_on, the cumulus layer's softnessScale 0.3 (rim width 0.15)", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softnessScale", 0.3))), NG96),
     "c_ss05": ("(CELLS) c_on, the cumulus layer's softnessScale 0.5 (rim width 0.25)", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softnessScale", 0.5))), NG96),
+    # the owner's photograph's framing (one cumulus seen from the side over the sea): the camera 30 m over the sea looking east from the K-T2 site, 8 degrees up, the sun behind it
+    "c_side": ("(CELLS) the photograph's framing: 30 m over the sea, 8 degrees up, cells on", compose(camera_at(30.0, 8.0), tune_dotted([("cloud.cells", 1.0)])), NG96),
+    "c_side_off": ("(CELLS) the photograph's framing, cells off (the game before CELLS)", compose(camera_at(30.0, 8.0), tune_dotted([("cloud.cells", 0.0)])), NG96),
     "c_ero50": ("(CELLS) c_on, the types' erosion halved", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5))), NG96),
     "c_edge08": ("(CELLS) c_on, the cumulus layer's edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softness", 0.08))), NG96),
     "c_both": ("(CELLS) c_on, erosion halved and edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5)),

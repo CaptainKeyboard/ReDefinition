@@ -8,7 +8,8 @@ namespace ReDefinition.Atmospheres
     // after the variant off (the own pass off, every view visited) had been followed by plain; 240 plain jumps between the same two views did not. This scenario replays a sequence of
     // variant switches and placements, so that the step that makes the reset can be found by leaving steps out. The id after "hang_" is the sequence, one letter a step:
     //   o: the variant off, p: the variant plain (each followed by 4 s and, for plain, the pass's steady frames);
-    //   G, I, A, S: the placement to the ground, inside, above, sky3 view (each held HangHoldS after its stable gate).
+    //   G, I, A, S: the placement to the ground, inside, above, sky3 view (each held HangHoldS after its stable gate);
+    //   n, s, c: the light march, the cloud shadow, the single clouds switched off from that step on (to find the part of the pass that hangs).
     // After every step the device is read back (GpuDeviceAlive); the first loss fails the start with the step's number and letter, and the scenario ends. Log, one line per step:
     // "Probe: hang step <i> <letter> ok|lost real <clock> worst_frame_ms <longest frame of the step>".
     internal sealed partial class T09Probe
@@ -41,7 +42,15 @@ namespace ReDefinition.Atmospheres
                 string clock = DateTime.Now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
                 jumpWorstMs = 0.0;
                 jumpSampling = true;
-                if (c == 'o' || c == 'p')
+                // Parts of the pass switched off for the rest of the start: n the light march (layers.costDebug 1), s the cloud shadow (cloudShadows 0), c the single clouds (cloud.cells 0).
+                if (c == 'n' || c == 's' || c == 'c')
+                {
+                    if (c == 'n') ForceTuning(OwnCloudOptions.TuneCostDebug, 1f);
+                    else if (c == 's') SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0);
+                    else ForceTuning(CloudLookTuning.TuneCells, 0f);
+                    yield return ProbeWait.Seconds(2);
+                }
+                else if (c == 'o' || c == 'p')
                 {
                     variant = c == 'o' ? "off" : "plain";
                     BeginVariant(variant);
