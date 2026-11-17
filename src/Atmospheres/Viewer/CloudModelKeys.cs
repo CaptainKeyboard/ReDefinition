@@ -41,19 +41,12 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Flag(CloudLookTuning.TuneCells, CloudLookTuning.CellsDefault > 0.5f, KeySection.Shape,
                 "single clouds: the map's cloud share is put down as single clouds on the lattice of each layer's cellPitch (the cumulus layer); off: the map's smoothed texels are the clouds",
                 KeyLiveness.FrameHistory);
-            r.Key(CloudLookTuning.TuneCellNoise, CloudLookTuning.CellNoiseDefault, KeySection.Shape,
-                "share of the noise's swing a single cloud keeps: 1 the cloud is the noise inside its disc, lower the disc and the type's height shape are the cloud and the noise works its surface",
-                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
-            r.Flag(CloudLookTuning.TuneCellEnvelope, CloudLookTuning.CellEnvelopeDefault > 0.5f, KeySection.Shape,
-                "a single cloud is its envelope (a half ellipsoid over the type's base, its height from its size and the map) eroded from outside by the billow noise", KeyLiveness.FrameHistory);
-            r.Key(CloudLookTuning.TuneCellBillow, CloudLookTuning.CellBillowDefault, KeySection.Shape,
-                "how far the billows move the envelope's surface, as a share of the cloud's shorter semi-axis (0 the bare envelope)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 2f);
-            r.Key(CloudLookTuning.TuneCellBand, CloudLookTuning.CellBandDefault, KeySection.Shape,
-                "width in m over which a single cloud's share rises at its surface (Nubis: 35 m); narrow is a sharp outline", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 300f);
-            r.Key(CloudLookTuning.TuneCellDetail, CloudLookTuning.CellDetailDefault, KeySection.Shape,
-                "how far the erosion detail moves a single cloud's surface, in m: the small heads on the billows (0 off)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 300f);
-            r.Key(CloudLookTuning.TuneCellFine, CloudLookTuning.CellFineDefault, KeySection.Shape,
-                "gain of a single cloud's finer billow octaves (heads on heads at 0.37 and 0.137 of the billows' size; 0 off)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 4f);
+            r.Key(CloudLookTuning.TuneCellBillow, -1f, KeySection.Shape,
+                "how far the billows move a single cloud's surface, as a share of its shorter semi-axis (0 the bare body; below 0 each layer's cellBillow)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 2f);
+            r.Key(CloudLookTuning.TuneCellBand, -1f, KeySection.Shape,
+                "width in m over which a single cloud's share rises at its surface, narrow is a sharp outline (below 0 each layer's cellBand)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 300f);
+            r.Key(CloudLookTuning.TuneCellFine, -1f, KeySection.Shape,
+                "gain of a single cloud's finer billows, the heads on the heads (0 off; below 0 each layer's cellFine)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 4f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.

@@ -129,10 +129,13 @@ namespace ReDefinition.Atmospheres
         private readonly Vector4[] layerH = new Vector4[CloudLayerDef.MaxLayers], layerH2 = new Vector4[CloudLayerDef.MaxLayers];
         // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the least vertical optical depth (x; closure test).
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
-        private static readonly int IdCellN = Shader.PropertyToID("_CellN"), IdCellD = Shader.PropertyToID("_CellD");
+        internal static readonly int IdCellE = Shader.PropertyToID("_CellE");
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
-        // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on.
+        // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on. cellLayer: the layers, whose single cloud's body
+        // (_CellE, CloudLookTuning.CellBodyVector) is written each frame with the viewer's overrides.
         private readonly float[] cellPitch = new float[CloudLayerDef.MaxLayers];
+        private readonly CloudLayerDef[] cellLayer = new CloudLayerDef[CloudLayerDef.MaxLayers];
+        private readonly Vector4[] cellE = new Vector4[CloudLayerDef.MaxLayers];
         internal CullBounds Bounds { get; } = new CullBounds();
         // The empty-reach maps of the march (E40 C1): the distance from a texel of a layer's coverage map to the nearest texel that can hold cloud, which the march leaps over.
         internal EmptyReachMaps Reach { get; } = new EmptyReachMaps();
@@ -313,6 +316,7 @@ namespace ReDefinition.Atmospheres
                     // w: the pitch of the layer's cloud cells in m (0: none; CELLS), written by Apply every frame from cellPitch and cloud.cells.
                     layer.ClearSkyK, layer.EffectiveWaterPower - 1f, 0f);
                 cellPitch[l] = layer.CellPitchM;
+                cellLayer[l] = layer;
                 layerTau[l] = (float)CullMath.MeanVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; });
@@ -432,8 +436,8 @@ namespace ReDefinition.Atmospheres
             bool cells = CloudLookTuning.Cells;
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cullL[l].w = cells ? cellPitch[l] : 0f;
             m.SetVectorArray(IdCullL, cullL);
-            m.SetVector(IdCellN, new Vector4(CloudLookTuning.CellNoise, CloudLookTuning.CellEnvelope ? 1f : 0f, CloudLookTuning.CellBillow, CloudLookTuning.CellBand));
-            m.SetVector(IdCellD, new Vector4(CloudLookTuning.CellDetail, CloudLookTuning.CellFine, 0f, 0f));
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
+            m.SetVectorArray(IdCellE, cellE);
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));

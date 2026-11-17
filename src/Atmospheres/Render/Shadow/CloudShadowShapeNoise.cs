@@ -77,7 +77,10 @@ namespace ReDefinition.Atmospheres
             // The map value after the clear-sky rule, and with the cells (CELLS: the layer pass's single clouds from the map's share, CloudCells.CoverAt) where the layer has a pitch.
             double covMap = layer.ClearSkyMap(cov);
             bool cells = layer.CellPitchM > 0f && CloudLookTuning.Cells;
-            if (cells) covMap = CloudCells.CoverAt(covMap, x, y, z, layer, layerParams[layerIndex].ReferenceRadiusM, layerParams[layerIndex].Seed);
+            CloudCells.CellRead read = default(CloudCells.CellRead);
+            if (cells) covMap = CloudCells.CoverAt(covMap, x, y, z, layer, layerParams[layerIndex].ReferenceRadiusM, layerParams[layerIndex].Seed, out read);
+            // CELLS: the single cloud's body where the cells alone draw and a height is given (the shader's LayerExtinction: it replaces the type's lift).
+            if (cells && read.Body && table != null && !double.IsNaN(layerShare)) return BodyShare(layerIndex, layer, x, y, z, table, typeValue, layerShare, amount, ref read);
             if (!(amount > 0.0) || !(layer.EffectiveNoiseScaleM > 0f))
             {
                 if (!(lift > 0.0) && !cells) return -1.0;
@@ -88,16 +91,68 @@ namespace ReDefinition.Atmospheres
             double wx = worldToMap[0] * x + worldToMap[3] * y + worldToMap[6] * z;
             double wy = worldToMap[1] * x + worldToMap[4] * y + worldToMap[7] * z;
             double wz = worldToMap[2] * x + worldToMap[5] * y + worldToMap[8] * z;
+            NoiseLayerParams prm = TypeParams(layerIndex, table, typeValue);
+            double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, covMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
+            return CloudWater.Pow(share, table == null ? layer.EffectiveWaterPower : layer.EffectiveWaterPowerAt(table, typeValue));
+        }
+
+        // The layer's noise parameters for a type value: its heap preset and the type's shapeSmoothing (the mip of the shape volume and the heap read), as the shader's gHeapPreset and gNoiseSm
+        // and CloudCoverOracle take them.
+        private NoiseLayerParams TypeParams(int layerIndex, LayerTypeTable table, double typeValue)
+        {
             NoiseLayerParams prm = layerParams[layerIndex];
             prm.HeapPreset = table == null ? 0 : table.HeapAtTypeValue(typeValue);
-            // The type's shapeSmoothing: the mip of the shape volume and the heap read, as the shader's gNoiseSm (the type info's second block) and CloudCoverOracle take it.
             if (table != null)
             {
                 prm.SmoothingScales = table.SmoothingOf(typeValue);
                 prm.ShapeLod = CloudShapeModel.SmoothingLod(prm.SmoothingScales, volumes.ShapeN);
             }
-            double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, covMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
-            return CloudWater.Pow(share, table == null ? layer.EffectiveWaterPower : layer.EffectiveWaterPowerAt(table, typeValue));
+            return prm;
+        }
+
+        // The share of a single cloud's body at a height of the layer, as the shader's LayerExtinction takes it where the cells alone draw: CellBody on the billows' rank (the threshold at the
+        // noise's mean, a unit edge, the full swing: the share with cov 1 - coverage), the type's lift not asked. 0 outside the type's height. The type's density profile (pf.x) is not applied,
+        // as in the other branches of Share.
+        private double BodyShare(int layerIndex, CloudLayerDef layer, double x, double y, double z, LayerTypeTable table, double typeValue, double layerShare, double amount, ref CloudCells.CellRead read)
+        {
+            double b, tp;
+            table.InterpolatedHeights(typeValue, out b, out tp);
+            if (layerShare < b || layerShare > tp || !(tp > b)) return 0.0;
+            double h = (layerShare - b) / (tp - b);
+            double wx = worldToMap[0] * x + worldToMap[3] * y + worldToMap[6] * z;
+            double wy = worldToMap[1] * x + worldToMap[4] * y + worldToMap[7] * z;
+            double wz = worldToMap[2] * x + worldToMap[5] * y + worldToMap[8] * z;
+            NoiseLayerParams prm = TypeParams(layerIndex, table, typeValue);
+            double coverage = layer.EffectiveCoverage;
+            bool noise = amount > 0.0 && layer.EffectiveNoiseScaleM > 0f;
+            double rank = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, 1.0 - coverage, coverage, 1.0, noise ? amount : 0.0, 0.0, false);
+            double billow = CloudLookTuning.CellBillowFor(layer), band = CloudLookTuning.CellBandFor(layer), gain = CloudLookTuning.CellFineFor(layer);
+            double fineX = 0.0, fineY = 0.0;
+            if (gain > 0.0 && layer.EffectiveNoiseScaleM > 0f) FineBillows(volumes.Heap, prm, wx, wy, wz, out fineX, out fineY);
+            double s = CloudCells.CellBody(read, h, rank, fineX, fineY, (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), billow, band, gain);
+            if (s <= 0.0) return 0.0;
+            return CloudWater.Pow(s, layer.EffectiveWaterPowerAt(table, typeValue));
+        }
+
+        // The finer billow octaves of a single cloud's body (the shader's CellFineBillows): the heap field of preset 1 (the shape volume's green channel on the GPU) read straight at 0.37 and 0.137
+        // of its period, at the lattice's true vertical scale, each centred on 0. No heap volume (no type asked for a heap preset): both 0.
+        private static void FineBillows(HeapVolumeSet heap, NoiseLayerParams prm, double px, double py, double pz, out double fine1, out double fine2)
+        {
+            fine1 = fine2 = 0.0;
+            if (heap == null || heap.Levels == null || heap.Levels.Length == 0) return;
+            prm.Untile = false;
+            prm.FlowX = prm.FlowY = prm.FlowZ = 0.0;
+            double qx, qy, qz;
+            CloudShapeModel.LookupPoint(ref prm, px, py, pz, out qx, out qy, out qz);
+            double rl = Math.Max(Math.Sqrt(px * px + py * py + pz * pz), 1.0);
+            double iso = prm.SphereScale > 0.0 ? (1.0 - prm.SphereScale) * (rl - prm.ReferenceRadiusM) / rl : 0.0;
+            qx += px * iso;
+            qy += py * iso;
+            qz += pz * iso;
+            double period = HeapModel.PeriodScales * prm.ScaleM;
+            double p1 = 0.37 * period, p2 = 0.137 * period;
+            fine1 = CloudShapeModel.Trilinear(heap.Levels[0], heap.N, 4, 0, qx / p1 + 0.31, qy / p1 + 0.57, qz / p1 + 0.83) - 0.5;
+            fine2 = CloudShapeModel.Trilinear(heap.Levels[0], heap.N, 4, 0, qx / p2 + 0.71, qy / p2 + 0.13, qz / p2 + 0.47) - 0.5;
         }
     }
 }

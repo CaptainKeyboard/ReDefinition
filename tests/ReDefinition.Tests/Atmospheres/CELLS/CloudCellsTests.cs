@@ -94,5 +94,44 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
             Assert.AreEqual(1.0, wMap, 1e-9);
             Assert.AreEqual(1.0, c, 1e-9);
         }
+
+        private static CloudCells.CellRead Disc(double xBest)
+        {
+            CloudCells.CellRead read;
+            read.XBest = xBest;
+            read.RBest = 1000.0;
+            read.Core = 0.5;
+            read.WMap = 0.0;
+            return read;
+        }
+
+        [TestMethod]
+        public void TheBodyIsOutsideInsideAndHalfOnTheBareSurface()
+        {
+            // Well outside the disc (1.5 of its profile radius), at the base: nothing.
+            Assert.AreEqual(0.0, CloudCells.CellBody(Disc(1.5), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
+            // At the centre, on the base, the depth is the shorter semi-axis (725 m) over a band of 10 m: fully inside.
+            Assert.AreEqual(1.0, CloudCells.CellBody(Disc(0.0), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
+            // On the ellipsoid's surface (x at the visible radius, h 0) with the billow rank at its mean and no fine octaves: the depth is 0, the share half.
+            Assert.AreEqual(0.5, CloudCells.CellBody(Disc(CloudCells.EdgeX), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
+            // A rank above the mean moves the surface out: the same point is inside.
+            Assert.IsTrue(CloudCells.CellBody(Disc(CloudCells.EdgeX), 0.0, 1.0, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0) > 0.5);
+        }
+
+        [TestMethod]
+        public void TheProfilesNearestDiscIsReturnedWithItsDistance()
+        {
+            for (int k = 0; k < 200; k++)
+            {
+                double u = 0.3 + k * 0.00003, v = 0.5 + (k % 7) * 0.00002;
+                double size, reach, x, r;
+                double p = CloudCells.Profile(u, v, Pitch, Rm, 0.3, Seed, out size, out reach, out x, out r);
+                double t = Math.Min(Math.Max((x - 0.45) / 0.55, 0.0), 1.0);
+                Assert.AreEqual(1.0 - t * t * (3.0 - 2.0 * t), p, 1e-12, "k " + k);
+                Assert.IsTrue(x >= 0.0 && r > 0.0 && r <= CloudCells.RMax * Pitch + 1e-9, "k " + k + " x " + x + " r " + r);
+                double p0 = CloudCells.Profile(u, v, Pitch, Rm, 0.3, Seed, out size, out reach);
+                Assert.AreEqual(p0, p, 0.0);
+            }
+        }
     }
 }

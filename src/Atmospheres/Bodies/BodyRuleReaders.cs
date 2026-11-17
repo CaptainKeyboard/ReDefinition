@@ -258,6 +258,8 @@ namespace ReDefinition.Atmospheres
                     RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
                     ShapeSmoothing = r.Float("shapeSmoothing", 0f, 0f, 8f),
                     CellPitchM = (float)Length(r, "cellPitch", "cellPitchDepths", depthM, 0.0, 0.0, 1.0e6),
+                    CellBillow = r.Float("cellBillow", CloudLayerDef.DefaultCellBillow, 0f, 2f), CellBandM = r.Float("cellBand", CloudLayerDef.DefaultCellBandM, 1f, 1000f),
+                    CellFine = r.Float("cellFine", CloudLayerDef.DefaultCellFine, 0f, 4f),
                     FibreMinWindMs = r.Float("fibreMinWindMs", FibreAxis.DefaultMinWindMs, 0f, 100f),
                     FibreTurnSeconds = r.Float("fibreTurnSeconds", FibreAxis.DefaultTurnSeconds, 0f, 3600f),
                     TopReach = r.Float("topReach", 0f, 0f, 1f),

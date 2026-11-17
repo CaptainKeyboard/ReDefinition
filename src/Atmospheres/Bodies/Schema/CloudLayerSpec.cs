@@ -157,6 +157,10 @@ namespace ReDefinition.Atmospheres
         internal float FibreStretch { get; set; } = 1f;
         // The pitch of the layer's cloud cells in m (cfg key cellPitch; 0: no cells): see CloudLayerDef.CellPitchM.
         internal float CellPitchM { get; set; }
+        // The body of a single cloud (cfg keys cellBillow, cellBand, cellFine): see CloudLayerDef.CellBillow.
+        internal float CellBillow { get; set; } = CloudLayerDef.DefaultCellBillow;
+        internal float CellBandM { get; set; } = CloudLayerDef.DefaultCellBandM;
+        internal float CellFine { get; set; } = CloudLayerDef.DefaultCellFine;
         // The vertical scale of the layer's noise lattice (cfg key verticalScale; 0: the body's sphereScale): see CloudLayerDef.VerticalScale.
         internal float VerticalScale { get; set; }
         // The smoothing of the layer's shape noise in noise scales (cfg key shapeSmoothing; 0: none): see CloudLayerDef.ShapeSmoothing.
@@ -235,6 +239,9 @@ namespace ReDefinition.Atmospheres
                 RainType = RainType,
                 FibreStretch = FibreStretch,
                 CellPitchM = CellPitchM,
+                CellBillow = CellBillow,
+                CellBandM = CellBandM,
+                CellFine = CellFine,
                 VerticalScale = VerticalScale,
                 ShapeSmoothing = ShapeSmoothing,
                 FibreMinWindMs = FibreMinWindMs,

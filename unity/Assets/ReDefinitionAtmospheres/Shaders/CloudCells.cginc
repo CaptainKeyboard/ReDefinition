@@ -1,22 +1,20 @@
-// CELLS (owner order 2026-11-17): single clouds from the layer map's cloud share.
+// CELLS (owner order 2026-11-17): single clouds from the layer map's cloud share, each drawn as the body of a cumulus.
 //
 // The layer map of a body is coarse (Kerbin: 512 x 256, a texel of 7.4 km), a fair-weather cumulus is 0.5 to 5 km wide: the map cannot place single clouds, read as it is it draws its smoothed
 // texels as the clouds. The cells keep the map for what it can say, how much of a region is cloud (the share), and put that share down as single clouds: a jittered lattice of the layer's pitch on
 // the sphere (rows of constant height along the meridian, each row with as many columns as its circumference holds, so there is no seam and no stretching), each cell alive with a probability and a
-// disc whose radius follows the share (CellVisibleRadius: a table from a Monte Carlo of this very lattice, so the discs cover the share). A disc's profile is the single-cloud bench's
-// (tools/weather_metrics/e40single.py disc_map: 1 in the inner 0.45 of the radius, a smoothstep to 0 at the edge), so the layer pass, its type lift and its noise build on each cell the cloud
-// the bench built on its one disc.
+// disc whose radius follows the share (CellVisibleRadius: a table from a Monte Carlo of this very lattice, so the discs cover the share).
+//
+// Each disc is a cloud's body (CellEnvelope), drawn as Schneider draws his clouds in Nubis (SIGGRAPH 2022 and 2023: a body with a sharp surface, its share rising within a thin band inside it,
+// the billows moving that surface): a half ellipsoid over the type's flat base whose depth in metres the billow noise moves in three sizes, the heads on the heads in the same proportion.
 //
 // The code is the project's own. A jittered lattice for cell placement is the common Worley construction (S. Worley, "A Cellular Texture Basis Function", SIGGRAPH 1996).
 #ifndef REDEFINITION_CLOUD_CELLS
 #define REDEFINITION_CLOUD_CELLS
 
-// x: the share of the layer's noise swing a single cloud keeps (cloud.cellNoise; 1: the noise's full swing, below 1 the disc and the type's lift are the cloud's envelope and the noise
-// works its surface); y: 1 where the envelope model draws the single clouds (cloud.cellEnvelope, CellEnvelope); z: the billows' reach as a share of the cloud's shorter semi-axis
-// (cloud.cellBillow); w: the width in m of the band the share rises over at the surface (cloud.cellBand).
-float4 _CellN;
-// x: how far the erosion detail moves the envelope's surface, in m (cloud.cellDetail; 0: not read); y: the gain of the finer billow octaves (cloud.cellFine; 0: not read).
-float4 _CellD;
+// The body of a single cloud per layer (CloudLayerDef's cell keys, the viewer's overrides through CloudLookTuning): x how far the billows move the body's surface, as a share of its shorter
+// semi-axis (cfg cellBillow); y the width in m of the band the share rises over at the surface (cellBand); z the gain of the finer billow octaves (cellFine; 0: not read); w unused.
+float4 _CellE[4];
 
 // The lattice: a centre lies anywhere in its cell (CELL_JITTER 1: the rows and columns do not show), a disc's size is 1 +- CELL_SIGMA of the share's radius, the share f / CELL_ALIVE_F0 of the
 // cells is alive and never more than CELL_ALIVE_MAX (few clouds of their own size in a fair sky, not many small ones; never every cell, which would show the lattice). The profile is 0.5 at
@@ -71,8 +69,8 @@ float CellUnit(uint h)
 }
 
 // The profile (0..1) of the nearest disc at the map place uv (u: longitude with the layer's shift, any value; v: 0 north to 1 south), for the pitch (m), the radius of the layer's middle rm (m),
-// the share f and the layer's seed. size: the size factor of that disc's cell (1 where there is none). reachM: a distance in m over which no disc begins (0 inside one; the march leaps over it,
-// as over the map's empty reach).
+// the share f and the layer's seed. size: the size factor of that disc's cell (1 where there is none); xBest: the distance to its centre over its profile radius rBest (m). reachM: a distance in
+// m over which no disc begins (0 inside one; the march leaps over it, as over the map's empty reach).
 float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out float size, out float reachM, out float xBest, out float rBest)
 {
     reachM = 0.0;
@@ -126,48 +124,60 @@ float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out floa
     return 1.0 - smoothstep(0.45, 1.0, best);
 }
 
-// The envelope of a single cloud (cloud.cellEnvelope, after Schneider's Nubis: the cloud is a body with a sharp surface, its share rising from 0 to 1 within a thin band (Nubis: 35 m) inside it,
-// and the billow noise moves that surface). The body is a half ellipsoid over the type's flat base: horizontal semi-axis the disc's visible radius (CELL_EDGE_X of its profile radius rM, where
-// the radius table puts the edge), vertical the cloud's own height (top of the type's height typeHeightM; the core strength: the wide and strongly convecting clouds are the tall ones).
-// q: the depth below the body's surface in m, approximated as (1 - the ellipsoid's radial coordinate) times the shorter semi-axis. The billows (the noise's rank, 0..1) move the surface by
-// up to k of that semi-axis, out where the noise is high and in where it is low, so the round heaps of the noise become the cloud's lobes; the share rises over bandM.
-// detail: the erosion detail's value at the point (its mean detailMean where it was not read) moves the surface by up to detailM m: the small heads on the big billows.
-// fine: the finer billow octaves (CellFineBillows: the heap field read at 0.37 and 0.137 of its period, each centred on 0), scaled like the first by k x the semi-axis and by their own
-// size, so the heads on the heads are smaller in the same proportion (the cumulus's fractal surface); fineGain 0 leaves them out.
-float CellEnvelope(float x, float h, float core, float billow, float k, float rM, float typeHeightM, float bandM, float detail, float detailMean, float detailM, float2 fine, float fineGain)
-{
-    float top = clamp(core / 0.5, 0.15, 1.0);
-    float semiH = max(top * typeHeightM, 1.0), semiR = max(CELL_EDGE_X * rM, 1.0);
-    float xv = x / CELL_EDGE_X, hv = h / top;
-    float axis = min(semiR, semiH);
-    float q = (1.0 - sqrt(xv * xv + hv * hv)) * axis + k * axis * (billow - 0.5) + 2.0 * detailM * (detail - detailMean)
-              + fineGain * k * axis * (0.37 * fine.x + 0.137 * fine.y);
-    return saturate(q / max(bandM, 1.0) + 0.5);
-}
-
-// The layer map's value at a point with the cells. The disc's profile p is placed on the layer's threshold as the bench's disc map was on its own (p 0.5 at the threshold, 0 half a unit below it),
-// and inside the disc it rises to the cloud's core strength: the map's excess over the threshold (how much the region convects: a fair sky's clouds stay low, a stormy region's grow) times the
-// cell's size factor (the wide clouds are the tall ones; a field holds many low clouds and a few towers). wMap: the share of the map's own value (a closed deck above a share of 0.8, where the
-// discs merge; and the far view, where the march's spacing passes a quarter of the pitch: the cells would alias, the map's value has their mean).
-// The nearest disc's distance over its profile radius and the cloud's core strength at the last CellCover (gCellX below 0: no disc read), for the envelope (CellEnvelope).
+// The nearest disc of the last CellCover (gCellX below 0: none read): its distance over its profile radius, the cloud's core strength, the share of the map's own value there (wMap) and the
+// profile radius in m. The body (CellBody) reads them.
 static float gCellX = -1.0;
 static float gCellCore = 0.0;
-static float gCellW = 1.0;   // the share of the map's own value there (CellCover's wMap)
-static float gCellR = 0.0;   // the nearest disc's profile radius in m
+static float gCellW = 1.0;
+static float gCellR = 0.0;
 
+// The layer map's value at a point with the cells, for the coverage bounds and the far view. The disc's profile p is placed on the layer's threshold (p 0.5 at the threshold, 0 half a unit below
+// it), and inside the disc it rises to the cloud's core strength: the map's excess over the threshold (how much the region convects: a fair sky's clouds stay low, a stormy region's grow) times
+// the cell's size factor (the wide clouds are the tall ones; a field holds many low clouds and a few towers). wMap: the share of the map's own value (a closed deck above a share of 0.8, where
+// the discs merge; and the far view, where the march's spacing passes a quarter of the pitch: the cells would alias, the map's value has their mean).
 float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, out float reachM, out float wMap)
 {
     float f = CellShare(cov, coverage, edge, amount);
     float size, xBest, rBest;
     float p = CellProfile(uv, pitch, rm, f, seed, size, reachM, xBest, rBest);
-    gCellX = xBest;
-    gCellR = rBest;
     float core = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * size;
-    gCellCore = core;
     float e = p > 0.5 ? (2.0 * p - 1.0) * core : p - 0.5;
     wMap = max(saturate((f - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * pitch) / (0.5 * pitch)) : 0.0);
+    gCellX = xBest;
+    gCellR = rBest;
+    gCellCore = core;
     gCellW = wMap;
     return lerp(1.0 - coverage + e, cov, wMap);
+}
+
+// The finer billow octaves of a single cloud's body: the heap field (the shape volume's green channel, preset billow) read at 0.37 and 0.137 of its period at the lattice's true vertical scale
+// (as the heap lookup, so the heads are round), each centred on 0. The reads are straight (no blend), offset from each other and from the first octave. Needs the noise include's lookup.
+float2 CellFineBillows(int li, float3 pc)
+{
+    float scale = _LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 250.0;
+    float3 q = NoiseLookupBase(li, pc, scale, 0);
+    float rl = max(length(pc), 1.0);
+    q += (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
+    float period = _NoiseR.z * scale;
+    float b2 = tex3Dlod(_NoiseShape, float4(q / (0.37 * period) + float3(0.31, 0.57, 0.83), 0)).g;
+    float b3 = tex3Dlod(_NoiseShape, float4(q / (0.137 * period) + float3(0.71, 0.13, 0.47), 0)).g;
+    return float2(b2 - 0.5, b3 - 0.5);
+}
+
+// The body of a single cloud at a point: its share, 0 outside and 1 inside, rising over the band at its surface. The body is a half ellipsoid over the type's flat base: horizontal semi-axis the
+// disc's visible radius (CELL_EDGE_X of its profile radius gCellR, where the radius table puts the edge), vertical the cloud's own height (a share of the type's height typeHeightM from the core
+// strength). Its depth below the surface in m, approximated as (1 - the ellipsoid's radial coordinate) times the shorter semi-axis, is moved by the billows: the first octave (billow: the
+// layer's blended noise rank, 0..1) by up to _CellE.x of that semi-axis, the finer ones (fine, centred on 0) in proportion to their size, so the heads on the heads are smaller in the same
+// ratio (the cumulus's fractal surface). h: the height share of the type at the point.
+float CellBody(int li, float h, float billow, float2 fine, float typeHeightM)
+{
+    float4 e = _CellE[li];
+    float top = clamp(gCellCore / 0.5, 0.15, 1.0);
+    float semiH = max(top * typeHeightM, 1.0), semiR = max(CELL_EDGE_X * gCellR, 1.0);
+    float xv = gCellX / CELL_EDGE_X, hv = h / top;
+    float axis = min(semiR, semiH);
+    float q = (1.0 - sqrt(xv * xv + hv * hv)) * axis + e.x * axis * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
+    return saturate(q / max(e.y, 1.0) + 0.5);
 }
 
 #endif

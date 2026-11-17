@@ -169,6 +169,8 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float LayerExtinction(int li, float3 pc, float alt, out float reachM)
         {
             reachM = 0;
+            gCellX = -1.0;
+            gCellW = 1.0;
             float inner = _CsLayerA[li].x, outer = _CsLayerA[li].y;
             float share = (alt - inner) / (outer - inner);
             if (share < 0 || share > 1) return 0;
@@ -222,10 +224,20 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float h = (share - b) / (tp - b);
             float2 pf = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
             cov -= _CsParams2.z * pf.y * (_CsLayerB[li].y + noiseBound + 0.5 * edge);
+            // CELLS: the single cloud's body where the cells alone draw, as the layer pass draws it (CellBody on the billows' rank: the threshold at the noise's mean, a unit edge, the
+            // full swing); it replaces the type's lift, so the lift's bound is not asked.
+            bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // OPT2: the same bound after the lift (the layer pass's second one): no noise read where the lifted map cannot reach the threshold.
-            if (cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0) return 0;
+            if (!body && cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0) return 0;
             // The coverage share: the map's threshold, or the layer pass's shape noise moving it (NoiseShareNear is the threshold itself where the amount is 0 or the volumes are not up).
-            float s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);
+            float s;
+            [branch] if (body)
+            {
+                float rank = NoiseShareNear(li, pc, 1.0 - _CsLayerB[li].y, _CsLayerB[li].y, 1.0, _CsNoiseD[li].x > 0.0 ? 1.0 : 0.0, 0.0);
+                float2 fine = _CellE[li].z > 0.0 ? CellFineBillows(li, pc) : float2(0.0, 0.0);
+                s = CellBody(li, h, rank, fine, (tp - b) * (outer - inner));
+            }
+            else s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);
             if (s <= 0) return 0;
             float pw = 1.0 + _CsLayerC[li].y;   // E40 soft density: the layer's water exponent (stored minus 1: 0 = none)
             pw = lerp(ia.z > 0 ? ia.z : pw, ib.z > 0 ? ib.z : pw, f);   // CLOUDR1 P1: the type's own exponent

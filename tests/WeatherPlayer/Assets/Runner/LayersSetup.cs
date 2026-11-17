@@ -79,6 +79,9 @@ namespace ReDefinition.WeatherPlayer
                     LightPlateau = jl.lightPlateau,
                     LightCellWidth = jl.lightCellWidth,
                     CellPitchM = jl.cellPitch,
+                    CellBillow = jl.cellBillow >= 0f ? jl.cellBillow : CloudLayerDef.DefaultCellBillow,
+                    CellBandM = jl.cellBand >= 0f ? jl.cellBand : CloudLayerDef.DefaultCellBandM,
+                    CellFine = jl.cellFine >= 0f ? jl.cellFine : CloudLayerDef.DefaultCellFine,
                     AmbientMs = jl.ambientMs >= 0f ? jl.ambientMs : CloudLayerDef.DefaultAmbientMs,
                     AmbientDecay = jl.ambientDecay >= 0f ? jl.ambientDecay : CloudLayerDef.DefaultAmbientDecay
                 };

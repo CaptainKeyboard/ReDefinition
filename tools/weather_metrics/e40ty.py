@@ -96,7 +96,8 @@ NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE
 WIND_EN = {"cirrus": (17.7, 17.7), "cirrostratus": (17.7, 17.7)}
 
 LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing", "fibreMinWindMs",
-               "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs", "anvilType", "anvilSeconds", "anvilUpdraftMs", "anvilScale", "lightCellWidth", "cellPitch")
+               "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs", "anvilType", "anvilSeconds", "anvilUpdraftMs", "anvilScale", "lightCellWidth", "cellPitch",
+               "cellBillow", "cellBand", "cellFine")
 # E40TY_NOSMOOTH=1: the same pictures without the shape smoothing and the top-from-updraft numbers of the layers (the "before" of E40 L6 shape on the same player), under the tag given.
 NOSMOOTH = os.environ.get("E40TY_NOSMOOTH") == "1"
 TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose", "outflow")

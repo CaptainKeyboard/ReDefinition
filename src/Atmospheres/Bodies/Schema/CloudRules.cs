@@ -251,6 +251,14 @@ namespace ReDefinition.Atmospheres
         // The pitch of the layer's cloud cells in m (cfg key cellPitch, 0: none; CELLS, owner order 2026-11-17). The layer map (a texel of 7.4 km on Kerbin) says how much of a region
         // is cloud; the cells put that share down as single clouds: a jittered lattice of this pitch on the sphere, each cell a disc whose radius follows the map's cloud share (CloudCells.cginc).
         internal float CellPitchM { get; set; }
+        // The body of each single cloud (CloudCells.cginc CellBody, after Schneider's Nubis: a half ellipsoid over the type's flat base with a sharp surface that the billow noise moves).
+        // CellBillow (cfg key cellBillow): how far the billows move the surface, as a share of the body's shorter semi-axis (0: the bare ellipsoid). CellBandM (cellBand): the width in m over
+        // which the share rises at the surface (Nubis: 35 m; the narrower, the crisper the outline). CellFine (cellFine): the gain of the two finer billow octaves (0.37 and 0.137 of the
+        // first's size), the heads on the heads (0: not read). The defaults are the look the owner chose on 2026-11-17 (the player's photo framing, c_pv_f1).
+        internal float CellBillow { get; set; } = DefaultCellBillow;
+        internal float CellBandM { get; set; } = DefaultCellBandM;
+        internal float CellFine { get; set; } = DefaultCellFine;
+        internal const float DefaultCellBillow = 0.5f, DefaultCellBandM = 10f, DefaultCellFine = 1f;
         // The vertical scale of the layer's noise lattice (cfg key verticalScale, 0: the body's sphereScale key, 1: the lattice is isotropic): the radial distance from the layer's middle is
         // multiplied by it before the volumes are read, so below 1 the features are 1 / VerticalScale times longer in the vertical than across. A convective cloud is a column: the air that
         // rises in a cell is the same over the depth of the cloud, so the noise that decides where it stands must not change over that depth, or the bodies float at different heights and

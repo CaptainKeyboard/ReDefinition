@@ -307,28 +307,25 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCells = "cloud.cells";
         internal const float CellsDefault = 1f;
         internal static bool Cells { get { return Tuning.Get(TuneCells, CellsDefault) > 0.5f; } }
-        // cloud.cellNoise: the share of the layer's noise swing a single cloud keeps (1: the full swing, the cloud is the noise bounded by its disc; below 1 the disc and the type's lift are
-        // the envelope and the noise erodes its surface, after Schneider's Nubis). Read every frame (LayerRenderer.Apply, _CellN.x).
-        internal const string TuneCellNoise = "cloud.cellNoise";
-        internal const float CellNoiseDefault = 1f;
-        internal static float CellNoise { get { return Clean(Tuning.Get(TuneCellNoise, CellNoiseDefault), CellNoiseDefault, 0f, 1f); } }
-        // cloud.cellEnvelope: 1 draws a single cloud as its envelope (a half ellipsoid over the type's base, eroded from outside by the billow noise: CloudCells.cginc CellEnvelope, after
-        // Nubis); cloud.cellBillow: the billows' depth of erosion (0: the bare envelope, 1: the billows reach the core). Read every frame (_CellN.y, z).
-        internal const string TuneCellEnvelope = "cloud.cellEnvelope", TuneCellBillow = "cloud.cellBillow", TuneCellBand = "cloud.cellBand";
-        internal const float CellEnvelopeDefault = 0f, CellBillowDefault = 0.5f, CellBandDefault = 30f;
-        internal static bool CellEnvelope { get { return Tuning.Get(TuneCellEnvelope, CellEnvelopeDefault) > 0.5f; } }
-        // cloud.cellBillow: how far the billows move the envelope's surface, as a share of the cloud's shorter semi-axis (0 the bare ellipsoid); cloud.cellBand: the width in m over which
-        // the share rises at the surface (Nubis: 35 m).
-        internal static float CellBillow { get { return Clean(Tuning.Get(TuneCellBillow, CellBillowDefault), CellBillowDefault, 0f, 2f); } }
-        internal static float CellBand { get { return Clean(Tuning.Get(TuneCellBand, CellBandDefault), CellBandDefault, 1f, 1000f); } }
-        // cloud.cellDetail: how far the erosion detail (125 m and 53 m cells) moves the envelope's surface, in m: the small heads on the billows (0: not read).
-        internal const string TuneCellDetail = "cloud.cellDetail";
-        internal const float CellDetailDefault = 0f;
-        internal static float CellDetail { get { return Clean(Tuning.Get(TuneCellDetail, CellDetailDefault), CellDetailDefault, 0f, 500f); } }
-        // cloud.cellFine: the gain of the finer billow octaves on a single cloud's envelope (the heap field at 0.37 and 0.137 of its period; 0: not read).
-        internal const string TuneCellFine = "cloud.cellFine";
-        internal const float CellFineDefault = 0f;
-        internal static float CellFine { get { return Clean(Tuning.Get(TuneCellFine, CellFineDefault), CellFineDefault, 0f, 4f); } }
+        // The body of a single cloud in the viewer (CloudLayerDef.CellBillow, CellBandM, CellFine): cloud.cellBillow, cloud.cellBand and cloud.cellFine set it on every layer with cells where
+        // they are set (below 0, the default: each layer's own). Read every frame (LayerRenderer.Apply and CloudShadowRenderer, _CellE).
+        internal const string TuneCellBillow = "cloud.cellBillow", TuneCellBand = "cloud.cellBand", TuneCellFine = "cloud.cellFine";
+        internal static float CellBillowFor(CloudLayerDef layer) { return Layered(TuneCellBillow, layer.CellBillow, 2f); }
+        internal static float CellBandFor(CloudLayerDef layer) { return Math.Max(Layered(TuneCellBand, layer.CellBandM, 1000f), 1f); }
+        internal static float CellFineFor(CloudLayerDef layer) { return Layered(TuneCellFine, layer.CellFine, 4f); }
+
+        private static float Layered(string key, float own, float max)
+        {
+            float v = Tuning.Get(key, -1f);
+            return float.IsNaN(v) || float.IsInfinity(v) || v < 0f ? own : Math.Min(v, max);
+        }
+
+        // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain.
+        internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)
+        {
+            return layer == null ? new UnityEngine.Vector4(CloudLayerDef.DefaultCellBillow, CloudLayerDef.DefaultCellBandM, CloudLayerDef.DefaultCellFine, 0f)
+                                 : new UnityEngine.Vector4(CellBillowFor(layer), CellBandFor(layer), CellFineFor(layer), 0f);
+        }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
         internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }
 

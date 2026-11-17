@@ -242,26 +242,19 @@ VARIANTS = {
     "c_photo_off": ("(CELLS) as c_photo, cells off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), NG96),
     # the look without a cost limit (owner 2026-11-17: first the photograph's look whatever it costs, then the performance): c_photo at the ceiling march
     "c_photo_ceil": ("(CELLS) c_photo at the ceiling march (256 grid points, 6 m minimum step, every lit step to the sun with 16 taps, full size)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0)])), CEIL),
-    # the envelope (cloud.cellNoise: the disc and the type's lift are the cloud, the noise works its surface, after Nubis) and a sharper rim (the cumulus types' edgePower 0.3), at the ceiling
-    "c_pc_n05": ("(CELLS) c_photo_ceil, cloud.cellNoise 0.5", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellNoise", 0.5)])), CEIL),
-    "c_pc_n03": ("(CELLS) c_photo_ceil, cloud.cellNoise 0.3", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellNoise", 0.3)])), CEIL),
-    "c_pc_n03e": ("(CELLS) c_photo_ceil, cloud.cellNoise 0.3 and the cumulus layer's rim exponent 0.3", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellNoise", 0.3)]),
-                                                                                                              tune_cumulus([("cloud.edgePower.layer.", 0.3)])), CEIL),
-    # the envelope model (cloud.cellEnvelope: a half ellipsoid eroded from outside by the billows, after Nubis) at the ceiling, the photograph's framing
-    "c_pe_b05": ("(CELLS) envelope, billow depth 0.5, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.5)])), CEIL),
-    "c_pe_b07": ("(CELLS) envelope, billow depth 0.7, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.7)])), CEIL),
-    "c_pe_b05e": ("(CELLS) envelope, billow depth 0.5, rim exponent 0.3, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.5)]),
-                                                                                       tune_cumulus([("cloud.edgePower.layer.", 0.3)])), CEIL),
-    # the envelope with a metric surface (CellEnvelope: the half ellipsoid's depth in m moved by the billows, the share rising over cloud.cellBand m), at the ceiling
-    "c_pv_k05": ("(CELLS) metric envelope, billows 0.5 of the semi-axis, band 30 m, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.5), ("cloud.cellBand", 30.0)])), CEIL),
-    "c_pv_k08": ("(CELLS) metric envelope, billows 0.8, band 30 m, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.8), ("cloud.cellBand", 30.0)])), CEIL),
-    "c_pv_k05b10": ("(CELLS) metric envelope, billows 0.5, band 10 m, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.5), ("cloud.cellBand", 10.0)])), CEIL),
-    # the small heads: the erosion detail moves the envelope's surface by cloud.cellDetail m, on c_pv_k05b10
-    "c_pv_d40": ("(CELLS) metric envelope (billows 0.5, band 10 m) with the detail's heads 40 m, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.5), ("cloud.cellBand", 10.0), ("cloud.cellDetail", 40.0)])), CEIL),
-    "c_pv_d80": ("(CELLS) metric envelope (billows 0.5, band 10 m) with the detail's heads 80 m, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.5), ("cloud.cellBand", 10.0), ("cloud.cellDetail", 80.0)])), CEIL),
-    # the heads on the heads: the finer billow octaves (cloud.cellFine) on c_pv_k05b10
-    "c_pv_f1": ("(CELLS) metric envelope (billows 0.5, band 10 m) with the finer billow octaves, gain 1, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.5), ("cloud.cellBand", 10.0), ("cloud.cellFine", 1.0)])), CEIL),
-    "c_pv_f3": ("(CELLS) metric envelope (billows 0.5, band 10 m) with the finer billow octaves, gain 3, ceiling", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellEnvelope", 1.0), ("cloud.cellBillow", 0.5), ("cloud.cellBand", 10.0), ("cloud.cellFine", 3.0)])), CEIL),
+    # The single cloud's body (CloudCells.cginc CellBody) as the cfg sets it (the cumulus layer's cellBillow 0.5, cellBand 10 m, cellFine 1: the look the owner chose on 2026-11-17),
+    # in the photograph's framing and light. b_ceil at the ceiling march is the chosen look; b_prod is what the product's march of Medium draws of it; b_fh adds the first hit by
+    # bisection with 32 thin steps after it (the surface found to the band's width), b_fh50 that at half the size; b_f0 and b_f3 the finer billows off and three times as strong.
+    "b_ceil": ("(BODY) the cfg's single clouds at the ceiling march", compose(camera_at(30.0, 4.0), sun_behind(25.0)), CEIL),
+    "b_f0": ("(BODY) b_ceil without the finer billows (cloud.cellFine 0)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 0.0)])), CEIL),
+    "b_f3": ("(BODY) b_ceil with the finer billows three times as strong (cloud.cellFine 3)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 3.0)])), CEIL),
+    "b_prod": ("(BODY) the cfg's single clouds at the product march (Medium)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), NG96),
+    "b_fh": ("(BODY) b_prod with the first hit and 32 thin steps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted(shell(32))), NG96),
+    "b_fh50": ("(BODY) b_fh at half the size (r50)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted(shell(32))), "seq1+lq2+ng96+r50+lp100"),
+    # which group of the ceiling makes its look: the product's march with only the ceiling's steps, only its full-size target, only its light
+    "b_steps": ("(BODY) the product's march with the ceiling's steps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
+    "b_res": ("(BODY) the product's march with the ceiling's full-size target", compose(camera_at(30.0, 4.0), sun_behind(25.0)), RES),
+    "b_light": ("(BODY) the product's march with the ceiling's light", compose(camera_at(30.0, 4.0), sun_behind(25.0)), LIGHT),
     "c_ero50": ("(CELLS) c_on, the types' erosion halved", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5))), NG96),
     "c_edge08": ("(CELLS) c_on, the cumulus layer's edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softness", 0.08))), NG96),
     "c_both": ("(CELLS) c_on, erosion halved and edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5)),
