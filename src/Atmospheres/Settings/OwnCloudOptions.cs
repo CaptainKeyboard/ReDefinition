@@ -332,9 +332,14 @@ namespace ReDefinition.Atmospheres
             get { return Tuning.Get(CloudShadowShapeNoise.TuneKey, CloudShadowShapeNoise.Default ? 1f : 0f) >= 0.5f; }
         }
 
+        // OPT4: shadow.resolution, the divisor of the size the cloud shadow is marched at (CloudShadowFrame.Divisor; 2 half size, the default, up to 4).
+        internal const string TuneShadowResolution = "shadow.resolution";
+        internal const float ShadowResolutionDefault = 2f;
+
         // T04: the cloud shadow's numbers of a frame.
         internal static void Apply(CloudShadowFrame f, Func<string, double> v)
         {
+            f.Divisor = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowResolution, ShadowResolutionDefault)), 2, 4);
             int steps, taps;
             CloudShadowSwitches.Quality((int)Level(v, AtmospheresSettings.Keys.CloudShadowQuality), out steps, out taps);
             f.StepsPerSpan = steps;

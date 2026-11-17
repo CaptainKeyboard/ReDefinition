@@ -52,7 +52,7 @@ namespace ReDefinition.Atmospheres
         private readonly Func<Camera, CloudShadowRole> classify;
         private readonly Func<Light> sun;
         private CommandBuffer maskBuffer, maskDisplayBuffer, forwardBuffer, discBuffer;
-        private int recordedWidth, recordedHeight, recordedMode;
+        private int recordedWidth, recordedHeight, recordedMode, recordedDivisor;
         private Light attachedLight;
         private Camera attachedCamera;
         private CameraEvent attachedEvent;
@@ -133,13 +133,14 @@ namespace ReDefinition.Atmospheres
             if (!deferred && AutoForwardShare) Frame.ForwardDirectShare = ForwardShare(camera);
             renderer.Apply(Frame);
             int mode = deferred ? 1 : 2;
-            if (recordedWidth != w || recordedHeight != h || recordedMode != mode)
+            if (recordedWidth != w || recordedHeight != h || recordedMode != mode || recordedDivisor != Frame.Divisor)
             {
-                if (deferred) renderer.RecordSunBuffer(maskBuffer, maskDisplayBuffer, w, h);
-                else renderer.RecordForwardBuffer(forwardBuffer, w, h);
+                if (deferred) renderer.RecordSunBuffer(maskBuffer, maskDisplayBuffer, w, h, Frame.Divisor);
+                else renderer.RecordForwardBuffer(forwardBuffer, w, h, null, null, Frame.Divisor);
                 recordedWidth = w;
                 recordedHeight = h;
                 recordedMode = mode;
+                recordedDivisor = Frame.Divisor;
             }
             if (deferred)
             {

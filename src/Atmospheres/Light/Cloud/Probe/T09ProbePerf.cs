@@ -21,6 +21,7 @@ namespace ReDefinition.Atmospheres
     //   lightown   layers.costDebug 8 (the light march crosses the sample's own layer alone; cost attribution)
     //   noragged   baseRagged 0 (the ragged cloud base: no hashed noise per sample; the height maps stay)
     //   noheight   cloudBaseVariation 0 (the whole height variation off: no height map read, no ragged base)
+    //   shq3       shadow.resolution 3 (the cloud shadow marched at a third of the camera's size; OPT4), shq4 at a quarter
     //   bare       layers.costDebug 7 (no light march, no shape noise, no erosion: what the march's own walk, the maps and the type tables cost)
     // The orbit_edge view is not run (its placement costs minutes and the 19-minute limit holds 7 variants x 4 views).
     //   plain2     the same as plain, run last: the drift of the start
@@ -36,6 +37,13 @@ namespace ReDefinition.Atmospheres
         private bool PerfStart
         {
             get { return StartId != null && StartId.StartsWith("perf", StringComparison.Ordinal); }
+        }
+
+        // A perf start whose id holds "pic" also saves the full-size pictures of each view (no noise reading), so that a lever's cost and its picture come from one run; the cloud field
+        // moves on between the variants (a variant's four views take about two minutes), which the pictures' labels say.
+        private bool PerfPictures
+        {
+            get { return PerfStart && StartId.IndexOf("pic", StringComparison.Ordinal) >= 0; }
         }
 
         private static bool IsPerfVariant(string name)
@@ -58,6 +66,8 @@ namespace ReDefinition.Atmospheres
                 case "noragged":
                 case "noheight":
                 case "bare":
+                case "shq3":
+                case "shq4":
                 case "plain2":
                 case "res2":
                 case "res3":
@@ -139,6 +149,8 @@ namespace ReDefinition.Atmospheres
                 case "noragged": SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0); break;
                 case "noheight": SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0); break;
                 case "bare": ForceTuning(OwnCloudOptions.TuneCostDebug, 7f); break;
+                case "shq3": ForceTuning(OwnCloudOptions.TuneShadowResolution, 3f); break;
+                case "shq4": ForceTuning(OwnCloudOptions.TuneShadowResolution, 4f); break;
             }
             return true;
         }

@@ -38,6 +38,8 @@ namespace ReDefinition.Atmospheres
         // where the layer pass has them on (LayerFrame.EmptyReach). The sum is the same with or without: the midpoints skipped add nothing.
         public Texture EmptyReach;
         public bool EmptyReachOn;
+        // OPT4: the shadow is marched at the camera's size over this (2: half size, the shadow as it was; 3, 4 a third, a quarter); the depth-aware upsample takes it back to full size.
+        public int Divisor = 2;
     }
 
     // The cloud shadow's drawing (package T04): the material, the type table and map textures it reads, and the command buffers that build the
@@ -226,10 +228,10 @@ namespace ReDefinition.Atmospheres
         // The sun's buffer for a camera of that size (deferred rendering): the depth to half size, the shadow at half size, and the multiply into
         // the sun's shadow mask. Two buffers on the sun light at LightEvent.AfterScreenspaceMask, in this order: the build (it changes the
         // render target) and the display (CurrentActive is then the mask again, as EVE's two buffers do it).
-        internal void RecordSunBuffer(CommandBuffer build, CommandBuffer display, int width, int height)
+        internal void RecordSunBuffer(CommandBuffer build, CommandBuffer display, int width, int height, int divisor = 2)
         {
             build.Clear();
-            RecordShadow(build, width, height);
+            RecordShadow(build, width, height, divisor);
             display.Clear();
             Sub(display, "begin");
             display.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, material, PassMask);
@@ -240,11 +242,11 @@ namespace ReDefinition.Atmospheres
         // The camera's buffer for forward rendering: the same shadow multiplied into the colour (the sun's share of it only,
         // CloudShadowFrame.ForwardDirectShare). Goes on the camera at AfterForwardOpaque. afterShadow runs between the shadow and the
         // multiply, beforeShadow at the start (the cost scene puts its GPU timestamps there).
-        internal void RecordForwardBuffer(CommandBuffer cb, int width, int height, Action<CommandBuffer> beforeShadow = null, Action<CommandBuffer> afterShadow = null)
+        internal void RecordForwardBuffer(CommandBuffer cb, int width, int height, Action<CommandBuffer> beforeShadow = null, Action<CommandBuffer> afterShadow = null, int divisor = 2)
         {
             cb.Clear();
             if (beforeShadow != null) beforeShadow(cb);
-            RecordShadow(cb, width, height);
+            RecordShadow(cb, width, height, divisor);
             if (afterShadow != null) afterShadow(cb);
             // The blits above left a temporary texture as the render target: back to the camera's.
             cb.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
@@ -295,10 +297,11 @@ namespace ReDefinition.Atmospheres
             if (SubMark != null) SubMark(cb, "ReDefinition clouds shadow: " + part);
         }
 
-        private void RecordShadow(CommandBuffer cb, int fullW, int fullH)
+        private void RecordShadow(CommandBuffer cb, int fullW, int fullH, int divisor)
         {
             Sub(cb, "begin");
-            int w = Mathf.Max(1, fullW / 2), h = Mathf.Max(1, fullH / 2);
+            int k = Mathf.Clamp(divisor, 2, 4);
+            int w = Mathf.Max(1, fullW / k), h = Mathf.Max(1, fullH / k);
             int depthId = Shader.PropertyToID(TextureNameDepth), shadowId = Shader.PropertyToID(TextureNameShadows);
             cb.GetTemporaryRT(depthId, w, h, 0, FilterMode.Point, RenderTextureFormat.RFloat);
             cb.GetTemporaryRT(shadowId, w, h, 0, FilterMode.Bilinear, ShadowFormat);

@@ -50,6 +50,7 @@ namespace ReDefinition.Atmospheres.Viewer
             // clamps it to 0.25 to 8 (the march is capped at 256 points a span), the slider shows 0.25 to 4, which holds the stops 1 (48 points), 2 (96) and 2.6667 (128) and 4 (192).
             { OwnCloudOptions.TuneGridFine, new[] { 0.25f, 4f } },
             { OwnCloudOptions.TuneLightStride, new[] { 1f, 8f } },
+            { OwnCloudOptions.TuneShadowResolution, new[] { 2f, 4f } },
             { OwnCloudOptions.TuneCheapShare, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneFogShare, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneCostDebug, new[] { 0f, 15f } },
@@ -97,7 +98,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 OwnCloudOptions.TuneSkyTint, OwnCloudOptions.TuneAmbientFloor, OwnCloudOptions.TuneAmbientColumnTop, OwnCloudOptions.TuneCellGain, OwnCloudOptions.TuneCellBeta,
                 OwnCloudOptions.TuneCellExtrapolation, OwnCloudOptions.TuneCellSide, OwnCloudOptions.TuneCellOctaves, OwnCloudOptions.TuneCellIncidencePower,
                 OwnCloudOptions.TuneCellIncidenceRef, OwnCloudOptions.TuneCellIncidenceEps, LightWriter.TuneSunDimWeight, LightWriter.TuneSunDimWeightEve,
-                CloudShadowStepPolicy.TuneKey, CloudShadowShapeNoise.TuneKey);
+                CloudShadowStepPolicy.TuneKey, CloudShadowShapeNoise.TuneKey, OwnCloudOptions.TuneShadowResolution);
             Put(map, KeySection.Quality,
                 OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent, OwnCloudModule.TuneReaddEveryFrame, OwnCloudModule.TuneStatsS,
                 OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.TuneSpanSpacing, OwnCloudOptions.TuneSpanSpacingMin, OwnCloudOptions.TuneLeapScale,

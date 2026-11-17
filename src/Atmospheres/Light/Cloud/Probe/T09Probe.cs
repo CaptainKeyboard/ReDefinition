@@ -429,8 +429,9 @@ namespace ReDefinition.Atmospheres
                         }
                         foreach (ProbeWait w in StableGate(view, variant)) yield return w;
                         foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, PerfStart ? PerfDwellS : InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
-                        if (PerfStart) continue;
+                        if (PerfStart && !PerfPictures) continue;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
+                        if (PerfStart) continue;
                         if (GtStart)
                         {
                             foreach (ProbeWait w in GtGrainRead(view, variant)) yield return w;

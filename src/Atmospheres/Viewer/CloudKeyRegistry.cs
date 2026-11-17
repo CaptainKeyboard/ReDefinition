@@ -364,7 +364,8 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneCapKeep, Cull.CapKeepSpans),
             // The cloud shadow (OwnCloudOptions.Apply(CloudShadowFrame)).
             N(CloudShadowStepPolicy.TuneKey, (float)CloudShadowStepPolicy.Default, note: "the CPU twin takes it at the next stack build"),
-            F(CloudShadowShapeNoise.TuneKey, CloudShadowShapeNoise.Default)
+            F(CloudShadowShapeNoise.TuneKey, CloudShadowShapeNoise.Default),
+            N(OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.ShadowResolutionDefault, KeyLiveness.Frame, "the shadow is marched at the camera's size over this: 2 half size, 3 a third, 4 a quarter")
         };
 
         // The keys that exist once per layer (CloudLookTuning; each is read again when the tuning table changes).
