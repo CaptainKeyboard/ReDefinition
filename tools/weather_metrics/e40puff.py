@@ -257,6 +257,16 @@ VARIANTS = {
     "b_light": ("(BODY) the product's march with the ceiling's light", compose(camera_at(30.0, 4.0), sun_behind(25.0)), LIGHT),
     # b_steps makes the look: its levers one at a time on the product's march (256 grid points, a 6 m minimum step, no step or transmittance growth, early-out 0.001, no leap, every lit step to the sun)
     "b_c256": ("(BODY) the product's march with 256 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+r33+lp100"),
+    # the cause check (2026-11-17): 96 grid points with the heap field's spacing LOD off (cloud.heap.footLod 0: the billows' mip no longer follows the march spacing)
+    # which part completes the ceiling's shading (the owner saw b_c256/b_steps blotchy against b_ceil): the steps with the light, the steps with the full size
+    "b_steps_light": ("(BODY) the ceiling's steps and light at a third of the size", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+cstep+clight+r33+lp100"),
+    "b_steps_res": ("(BODY) the ceiling's steps and full-size target, the product's light", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+cstep+r100+jit+acc8+clip1000+lp100"),
+    # the sun taps jittered in their segments (CloudLight.cginc LightTau, 2026-11-17): b_steps again with the product's light, to set against b_ceil and b_steps_light
+    "b_steps_jit": ("(BODY) the ceiling's steps, the product's light with jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
+    # the sun taps read filtered to their segments with a near point tap (gLightFoot, 2026-11-17): at the ceiling's steps and at the product's march
+    "b_steps_filt": ("(BODY) the ceiling's steps, the product's light with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
+    "b_prod_filt": ("(BODY) the product's march (96 grid points) with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 1.0)])), "seq1+lq2+ng96+r33+lp100"),
+    "b_ng96_nofoot": ("(BODY) the product's march with 96 grid points, the heap's spacing LOD off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 0.0)])), "seq1+lq2+ng96+r33+lp100"),
     "b_ng128": ("(BODY) the product's march with 128 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng128+r33+lp100"),
     "b_ng160": ("(BODY) the product's march with 160 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng160+r33+lp100"),
     "b_ng192": ("(BODY) the product's march with 192 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng192+r33+lp100"),
