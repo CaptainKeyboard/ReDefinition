@@ -139,6 +139,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 x.Probe.SetsProductSwitches = probeSetsSwitches;
                 x.Probe.Soft60ExpectedUt = 1000800.0 + 5 * 3600.0;
+                // A start with the upscaler on Quality ("dlssq") renders two thirds of the window.
+                if (s.Id.Contains("dlssq")) { x.World.RenderWidth = 1138; x.World.RenderHeight = 640; }
             }, "1707", s.Id);
             Drive(r, 0.1, 3600.0, rr =>
             {
@@ -169,7 +171,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void K_T2_GateAudit_EveryGateOfTheChainIsOpenForEveryStartWithTheStartStateOfTheSettings()
         {
             List<StartDef> starts = KT2Starts();
-            Assert.AreEqual(22, starts.Count, "the starts of K-T2.json were read");
+            Assert.AreEqual(23, starts.Count, "the starts of K-T2.json were read");
             foreach (StartDef s in starts)
             {
                 Assert.IsTrue(s.Switches.ContainsKey("weatherEffects") && s.Switches.ContainsKey("genEnabled") && s.Switches.ContainsKey("enabled") && s.Switches.ContainsKey("cloudSource"),

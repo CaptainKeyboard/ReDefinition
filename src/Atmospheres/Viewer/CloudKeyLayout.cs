@@ -51,6 +51,7 @@ namespace ReDefinition.Atmospheres.Viewer
             { OwnCloudOptions.TuneGridFine, new[] { 0.25f, 4f } },
             { OwnCloudOptions.TuneLightStride, new[] { 1f, 8f } },
             { OwnCloudOptions.TuneShadowResolution, new[] { 2f, 4f } },
+            { OwnCloudOptions.TuneShadowTaps, new[] { 0f, 8f } },
             { OwnCloudOptions.TuneCheapShare, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneFogShare, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneCostDebug, new[] { 0f, 15f } },
@@ -98,7 +99,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 OwnCloudOptions.TuneSkyTint, OwnCloudOptions.TuneAmbientFloor, OwnCloudOptions.TuneAmbientColumnTop, OwnCloudOptions.TuneCellGain, OwnCloudOptions.TuneCellBeta,
                 OwnCloudOptions.TuneCellExtrapolation, OwnCloudOptions.TuneCellSide, OwnCloudOptions.TuneCellOctaves, OwnCloudOptions.TuneCellIncidencePower,
                 OwnCloudOptions.TuneCellIncidenceRef, OwnCloudOptions.TuneCellIncidenceEps, LightWriter.TuneSunDimWeight, LightWriter.TuneSunDimWeightEve,
-                CloudShadowStepPolicy.TuneKey, CloudShadowShapeNoise.TuneKey, OwnCloudOptions.TuneShadowResolution);
+                CloudShadowStepPolicy.TuneKey, CloudShadowShapeNoise.TuneKey, OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.TuneShadowTaps);
             Put(map, KeySection.Quality,
                 OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent, OwnCloudModule.TuneReaddEveryFrame, OwnCloudModule.TuneStatsS,
                 OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.TuneSpanSpacing, OwnCloudOptions.TuneSpanSpacingMin, OwnCloudOptions.TuneLeapScale,

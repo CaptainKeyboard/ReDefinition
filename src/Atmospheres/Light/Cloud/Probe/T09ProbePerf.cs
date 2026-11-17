@@ -68,6 +68,7 @@ namespace ReDefinition.Atmospheres
                 case "bare":
                 case "shq3":
                 case "shq4":
+                case "shtap1":
                 case "plain2":
                 case "res2":
                 case "res3":
@@ -151,6 +152,7 @@ namespace ReDefinition.Atmospheres
                 case "bare": ForceTuning(OwnCloudOptions.TuneCostDebug, 7f); break;
                 case "shq3": ForceTuning(OwnCloudOptions.TuneShadowResolution, 3f); break;
                 case "shq4": ForceTuning(OwnCloudOptions.TuneShadowResolution, 4f); break;
+                case "shtap1": ForceTuning(OwnCloudOptions.TuneShadowTaps, 1f); break;
             }
             return true;
         }

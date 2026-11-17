@@ -336,12 +336,18 @@ namespace ReDefinition.Atmospheres
         internal const string TuneShadowResolution = "shadow.resolution";
         internal const float ShadowResolutionDefault = 2f;
 
+        // OPT5: shadow.taps, the directions across the sun's disc of the cloud shadow (0: the quality level's own number, CloudShadowSwitches.Quality; 1 to 8 replace it).
+        internal const string TuneShadowTaps = "shadow.taps";
+        internal const float ShadowTapsDefault = 0f;
+
         // T04: the cloud shadow's numbers of a frame.
         internal static void Apply(CloudShadowFrame f, Func<string, double> v)
         {
             f.Divisor = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowResolution, ShadowResolutionDefault)), 2, 4);
             int steps, taps;
             CloudShadowSwitches.Quality((int)Level(v, AtmospheresSettings.Keys.CloudShadowQuality), out steps, out taps);
+            int tapsKey = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowTaps, ShadowTapsDefault)), 0, 8);
+            if (tapsKey > 0) taps = tapsKey;
             f.StepsPerSpan = steps;
             f.StepPolicy = ShadowStepPolicy;
             f.ShapeNoise = ShadowShapeNoise;

@@ -100,6 +100,11 @@ namespace ReDefinition.Atmospheres
                               + " worst_frame_ms " + jumpWorstMs.ToString("0.0", CultureInfo.InvariantCulture) + (ok ? "" : " (placement failed)");
                 LogLine("Probe: " + line);
                 AtmospheresLog.Say("T09 " + line);
+                if (!Game.GpuDeviceAlive())
+                {
+                    Fail("the graphics device was removed (driver reset) at jump " + i + " " + from.Name + "->" + to.Name + " (real " + clock + ")");
+                    break;
+                }
                 double rest = JumpHoldS - (Elapsed - atJump);
                 // The hold is counted from the end of the placement; the watch window is part of it.
                 if (rest > 0.0) yield return ProbeWait.Seconds(rest);

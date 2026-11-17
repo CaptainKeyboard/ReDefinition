@@ -492,8 +492,22 @@ namespace ReDefinition.Atmospheres
             EmitText(prefix + "render_size", w + "x" + h);
             Emit(prefix + "render_width", w);
             Emit(prefix + "render_height", h);
+            if (UpscaledStart)
+            {
+                // The start pins the upscaler on Quality: the render size is the window's over 1.5 (the upscaler rounds, so one pixel either way).
+                int ew = (int)Math.Round(Game.ScreenWidth / 1.5), eh = (int)Math.Round(Game.ScreenHeight / 1.5);
+                Check("the scene renders at two thirds of the window in the " + view.Name + " view (" + variant + ")", Math.Abs(w - ew) <= 1 && Math.Abs(h - eh) <= 1,
+                      "render " + w + "x" + h + ", expected " + ew + "x" + eh + " of the window " + Game.ScreenWidth + "x" + Game.ScreenHeight + " (the start pins quality Quality)");
+                return;
+            }
             Check("the scene renders at the window size in the " + view.Name + " view (" + variant + ")", w == Game.ScreenWidth && h == Game.ScreenHeight,
                   "render " + w + "x" + h + ", window " + Game.ScreenWidth + "x" + Game.ScreenHeight + " (the series pins quality NativeAA)");
+        }
+
+        // A start whose id holds "dlssq" runs with the upscaler on Quality (K-T2 perfQpic2560dlssq: the owner's configuration), the others at NativeAA.
+        private bool UpscaledStart
+        {
+            get { return StartId != null && StartId.IndexOf("dlssq", StringComparison.Ordinal) >= 0; }
         }
 
         private IEnumerable<ProbeWait> Dwell(double lat, double lon, View view, string variant, double seconds)
@@ -526,6 +540,9 @@ namespace ReDefinition.Atmospheres
             Emit(prefix + "frames", frames);
             Emit(prefix + "fps", frames / Math.Max(0.001, seconds));
             Check("no frame cap in the " + view.Name + " view (" + variant + ")", NoFrameCap(), "targetFrameRate " + Game.TargetFrameRate + ", vSyncCount " + Game.VSyncCount);
+            // A driver reset (K-T2 2026-11-16/17: three, each at the placement from the ground view to the inside view) leaves the game running on a removed device: the
+            // frames after it draw nothing and are fast, so a view's rows would read as a gain. The view fails by name and its rows are void.
+            Check("the graphics device lived through the " + view.Name + " view (" + variant + ")", Game.GpuDeviceAlive(), "a 4x4 render texture could not be made: the device was removed (driver reset); this view's and every later row are void");
             CheckRenderSize(view, variant);
             if (variant == "tvc")
             {

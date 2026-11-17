@@ -468,6 +468,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public int TargetFrameRate { get { return FrameRateCap; } set { if (!CapSticks) FrameRateCap = value; } }
         public int FrameCount { get { return Frames; } }
         public double LastFrameMs { get { return 16.0; } }
+        public bool DeviceAlive = true;
+        public bool GpuDeviceAlive() { return DeviceAlive; }
         public double UniversalTime { get { return Ut; } set { Ut = value; } }
 
         public bool ScattererLoaded { get { return Scatterer; } }

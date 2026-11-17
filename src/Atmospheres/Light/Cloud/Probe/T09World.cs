@@ -64,6 +64,9 @@ namespace ReDefinition.Atmospheres
         int FrameCount { get; }
         // The last frame's real duration in milliseconds (Time.unscaledDeltaTime).
         double LastFrameMs { get; }
+        // False once the graphics device is gone (a driver reset, DXGI_ERROR_DEVICE_REMOVED): a 4x4 render texture can no longer be made. Every frame after that draws
+        // nothing, so its timings and pictures are void.
+        bool GpuDeviceAlive();
         double UniversalTime { get; set; }
 
         // TVC (EVE's layers).
@@ -528,6 +531,15 @@ namespace ReDefinition.Atmospheres
         public int FrameCount { get { return Time.frameCount; } }
 
         public double LastFrameMs { get { return Time.unscaledDeltaTime * 1000.0; } }
+
+        public bool GpuDeviceAlive()
+        {
+            var rt = new RenderTexture(4, 4, 0, RenderTextureFormat.ARGB32) { hideFlags = HideFlags.HideAndDontSave };
+            bool made = rt.Create();
+            rt.Release();
+            UnityEngine.Object.Destroy(rt);
+            return made;
+        }
 
         public double UniversalTime
         {
