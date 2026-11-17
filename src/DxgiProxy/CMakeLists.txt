@@ -123,6 +123,8 @@ add_library(ReDefinitionProxy SHARED
     FrameGeneration/FrameGenerationRate.cpp
     Latency/CpuSampler.cpp
     Latency/CpuSampler.h
+    Diagnostics/GpuCrashDump.cpp
+    Diagnostics/GpuCrashDump.h
     Diagnostics/GpuProfiler.cpp
     Diagnostics/GpuProfiler.h
     Latency/LoadMonitor.cpp
@@ -186,6 +188,20 @@ target_include_directories(ReDefinitionProxy PRIVATE ${REDEFINITION_SOURCE_DIRS}
 # NVIDIA's Streamline headers, MIT (extern/Streamline/license.txt), for DLSS frame
 # generation. NVIDIA's DLLs are loaded at run time.
 target_include_directories(ReDefinitionProxy PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern/Streamline/include")
+
+# NVIDIA's Nsight Aftermath SDK, for test runs only (Diagnostics/GpuCrashDump.h): with
+# -DREDEFINITION_AFTERMATH_SDK=<the unpacked SDK> the proxy is built against its headers
+# and its DLL is copied beside the game; without it GpuCrashDump does nothing. The SDK
+# is NVIDIA's (its LICENSE) and is neither in the repository nor in a release.
+set(REDEFINITION_AFTERMATH_SDK "" CACHE PATH "Nsight Aftermath SDK folder for test builds (empty: built without)")
+if(REDEFINITION_AFTERMATH_SDK)
+    if(NOT EXISTS "${REDEFINITION_AFTERMATH_SDK}/include/GFSDK_Aftermath.h")
+        message(FATAL_ERROR "No include/GFSDK_Aftermath.h in REDEFINITION_AFTERMATH_SDK=${REDEFINITION_AFTERMATH_SDK}")
+    endif()
+    target_include_directories(ReDefinitionProxy PRIVATE "${REDEFINITION_AFTERMATH_SDK}/include")
+    target_compile_definitions(ReDefinitionProxy PRIVATE REDEFINITION_AFTERMATH)
+    message(STATUS "dxgi.dll is built with GPU crash dumps (Nsight Aftermath SDK in ${REDEFINITION_AFTERMATH_SDK})")
+endif()
 
 # The file is called dxgi.dll: Windows searches the application directory before
 # system32, so it is loaded in place of the system's.
@@ -262,6 +278,13 @@ if(EXISTS "${KSP_DIR}")
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:ReDefinitionProxy>" "${KSP_DIR}/dxgi.dll"
         COMMENT "dxgi.dll copied to ${KSP_DIR}")
+
+    if(REDEFINITION_AFTERMATH_SDK)
+        add_custom_command(TARGET ReDefinitionProxy POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${REDEFINITION_AFTERMATH_SDK}/lib/x64/GFSDK_Aftermath_Lib.x64.dll" "${KSP_DIR}/GFSDK_Aftermath_Lib.x64.dll"
+            COMMENT "GFSDK_Aftermath_Lib.x64.dll copied to ${KSP_DIR} (test build)")
+    endif()
 
     # Only when it is not there yet: copy_if_different would put the defaults back
     # at every build, over what is set in the game folder.

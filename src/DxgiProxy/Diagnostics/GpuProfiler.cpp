@@ -1,5 +1,6 @@
 #include "GpuProfiler.h"
 
+#include "GpuCrashDump.h"
 #include "Log.h"
 
 #include <string>
@@ -150,11 +151,15 @@ namespace redefinition
         frame.ids[frame.used] = id;
         context->End(frame.stamps[frame.used].Get());
         ++frame.used;
+        // The same point as an Aftermath event marker, for a test run's GPU crash dump (GpuCrashDump.h).
+        GpuCrashDump::Get().Marker(id);
         if (annotation && annotation->GetStatus())
         {
-            std::lock_guard<std::mutex> labelLock(labelMutex);
-            if (id >= 0 && id < static_cast<int>(labels.size()) && !labels[id].empty())
-                annotation->SetMarker(labels[id].c_str());
+            // The label copied out first: the D3D call is not made under labelMutex, which a GPU crash dump's
+            // callback takes on the driver's thread (GpuCrashDump.cpp).
+            const std::wstring label = Label(id);
+            if (!label.empty())
+                annotation->SetMarker(label.c_str());
         }
     }
 
@@ -204,6 +209,25 @@ namespace redefinition
         if (static_cast<int>(labels.size()) <= id)
             labels.resize(id + 1);
         labels[id] = label;
+    }
+
+    std::wstring GpuProfiler::Label(int id)
+    {
+        std::lock_guard<std::mutex> lock(labelMutex);
+        if (id < 0 || id >= static_cast<int>(labels.size()))
+            return std::wstring();
+        return labels[id];
+    }
+
+    int GpuProfiler::NextAfter(int id)
+    {
+        std::lock_guard<std::mutex> lock(resultMutex);
+        for (size_t i = 0; i + 1 < resultIds.size(); ++i)
+        {
+            if (resultIds[i] == id)
+                return resultIds[i + 1];
+        }
+        return -1;
     }
 
     int GpuProfiler::Read(int* ids, float* ms, int capacity, int* frameNumber)

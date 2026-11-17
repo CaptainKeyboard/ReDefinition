@@ -11,6 +11,7 @@
 
 #include "LoadMonitor.h"
 #include "Config.h"
+#include "GpuCrashDump.h"
 #include "Log.h"
 #include "NvidiaGpu.h"
 #include "SwapChainProxy.h"
@@ -246,9 +247,11 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved)
     return TRUE;
 }
 
-// The system's factory, its CreateSwapChainForHwnd hooked on the way out (HookIfFactory).
+// The system's factory, its CreateSwapChainForHwnd hooked on the way out (HookIfFactory). The first call of any
+// CreateDXGIFactory* comes before Unity's device: a test run's GPU crash dumps are enabled there (GpuCrashDump.h).
 extern "C" HRESULT WINAPI CreateDXGIFactory(REFIID riid, void** factory)
 {
+    redefinition::GpuCrashDump::Get().EnableEarly();
     using Fn = HRESULT(WINAPI*)(REFIID, void**);
     const auto real = RealProc<Fn>("CreateDXGIFactory");
     if (real == nullptr)
@@ -264,6 +267,7 @@ extern "C" HRESULT WINAPI CreateDXGIFactory(REFIID riid, void** factory)
 // The system's factory, its CreateSwapChainForHwnd hooked on the way out (HookIfFactory).
 extern "C" HRESULT WINAPI CreateDXGIFactory1(REFIID riid, void** factory)
 {
+    redefinition::GpuCrashDump::Get().EnableEarly();
     using Fn = HRESULT(WINAPI*)(REFIID, void**);
     const auto real = RealProc<Fn>("CreateDXGIFactory1");
     if (real == nullptr)
@@ -279,6 +283,7 @@ extern "C" HRESULT WINAPI CreateDXGIFactory1(REFIID riid, void** factory)
 // The system's factory, its CreateSwapChainForHwnd hooked on the way out (HookIfFactory).
 extern "C" HRESULT WINAPI CreateDXGIFactory2(UINT flags, REFIID riid, void** factory)
 {
+    redefinition::GpuCrashDump::Get().EnableEarly();
     using Fn = HRESULT(WINAPI*)(UINT, REFIID, void**);
     const auto real = RealProc<Fn>("CreateDXGIFactory2");
     if (real == nullptr)

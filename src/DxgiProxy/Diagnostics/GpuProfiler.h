@@ -62,6 +62,10 @@ namespace redefinition
 
         // The label a marker's annotation carries, set by the mod from any thread.
         void SetLabel(int id, const wchar_t* label);
+        // A marker's label (the work before it), or empty; from any thread.
+        std::wstring Label(int id);
+        // The marker after the first id in the last complete frame, or -1: where the work after id ends.
+        int NextAfter(int id);
 
         // The last complete frame: marker ids and their times in ms after the frame's
         // start (the Present before), at most capacity of them; the frame's number in
