@@ -367,6 +367,9 @@ namespace ReDefinition.Probe
         // profiler's on it leaves the probe out (the raytracing's self-check: "missing the sky's probe"),
         // and the raytraced scene is dark with it.
         private static readonly bool CameraMarkers = !CommandLine.Has("-redefinitionGpuProfileNoCameras");
+        // -redefinitionGpuProfileNoLights keeps the cameras' markers and puts none on the lights' shadow and mask events (the driver reset of 2026-11-17 needed the camera and light
+        // markers: without both, none; this splits the two).
+        private static readonly bool LightMarkers = !CommandLine.Has("-redefinitionGpuProfileNoLights");
 
         // Once a second: markers on the cameras and lights that came since (unless switched off), and the camera
         // event handlers added since patched.
@@ -382,9 +385,10 @@ namespace ReDefinition.Probe
                 if (camera != null && camera.gameObject.scene.IsValid())
                     if (camera.cameraType != CameraType.Reflection)
                         LayOutCamera(camera);
-            foreach (Light light in Resources.FindObjectsOfTypeAll<Light>())
-                if (light != null && light.gameObject.scene.IsValid() && (light.type == LightType.Directional || light.shadows != LightShadows.None))
-                    LayOutLight(light);
+            if (LightMarkers)
+                foreach (Light light in Resources.FindObjectsOfTypeAll<Light>())
+                    if (light != null && light.gameObject.scene.IsValid() && (light.type == LightType.Directional || light.shadows != LightShadows.None))
+                        LayOutLight(light);
             int handlers = PatchCameraHandlers();
             if (handlers > 0) Debug.Log(Log.Tag + " GPU profiler: " + handlers + " more camera event handlers marked.");
         }
