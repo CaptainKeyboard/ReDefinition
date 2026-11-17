@@ -2,3 +2,5 @@
 # shape and erosion, the layer binder (volumes, switches, flow and colour maps) and the shader's include (the shader itself is T01's manifest).
 src/Atmospheres/Render/Layers/Noise/*.cs
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresNoise.cginc
+# CELLS: the single clouds from the map's share, included by the layer shader after the noise include.
+unity/Assets/ReDefinitionAtmospheres/**/CloudCells.cginc

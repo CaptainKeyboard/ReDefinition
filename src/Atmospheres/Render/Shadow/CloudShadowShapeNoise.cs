@@ -74,10 +74,14 @@ namespace ReDefinition.Atmospheres
             if (volumes == null || layerIndex < 0 || layerIndex >= layers) return -1.0;
             double amount = layer.EffectiveNoiseAmount;
             double lift = table == null || double.IsNaN(layerShare) ? 0.0 : table.LiftOf(typeValue, layerShare);
+            // The map value after the clear-sky rule, and with the cells (CELLS: the layer pass's single clouds from the map's share, CloudCells.CoverAt) where the layer has a pitch.
+            double covMap = layer.ClearSkyMap(cov);
+            bool cells = layer.CellPitchM > 0f && CloudLookTuning.Cells;
+            if (cells) covMap = CloudCells.CoverAt(covMap, x, y, z, layer, layerParams[layerIndex].ReferenceRadiusM, layerParams[layerIndex].Seed);
             if (!(amount > 0.0) || !(layer.EffectiveNoiseScaleM > 0f))
             {
-                if (!(lift > 0.0)) return -1.0;
-                double plain = LayerDensity.Shape(layer.ClearSkyMap(cov) - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
+                if (!(lift > 0.0) && !cells) return -1.0;
+                double plain = LayerDensity.Shape(covMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
                 return CloudWater.Pow(plain, layer.EffectiveWaterPowerAt(table, typeValue));
             }
             // The lattice is fixed in the world frame: the map frame's point turned back (the transpose of the rotation).
@@ -92,7 +96,7 @@ namespace ReDefinition.Atmospheres
                 prm.SmoothingScales = table.SmoothingOf(typeValue);
                 prm.ShapeLod = CloudShapeModel.SmoothingLod(prm.SmoothingScales, volumes.ShapeN);
             }
-            double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, layer.ClearSkyMap(cov) - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
+            double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, covMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
             return CloudWater.Pow(share, table == null ? layer.EffectiveWaterPower : layer.EffectiveWaterPowerAt(table, typeValue));
         }
     }

@@ -85,7 +85,10 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.5f, layer.EffectiveWaterPowerAt(table, v1), 1e-6f);
             Assert.AreEqual(0.5 * (0.5 + layer.EffectiveWaterPower), layer.EffectiveWaterPowerAt(table, 0.5 * (v1 + v2)), 1e-6);
             // The share at a map value is the share to the type's exponent: a smaller exponent makes the rim opaque sooner.
-            double plain = LayerDensity.Share(layer, 0.4, table, v2), crisp = LayerDensity.Share(layer, 0.4, table, v1);
+            // A map value inside the rim band (its width follows the layer's softnessScale, so it is searched, not fixed).
+            double m = 0.0;
+            while (m < 1.0 && !(LayerDensity.Share(layer, m, table, v2) > 0.05 && LayerDensity.Share(layer, m, table, v2) < 0.95)) m += 0.001;
+            double plain = LayerDensity.Share(layer, m, table, v2), crisp = LayerDensity.Share(layer, m, table, v1);
             Assert.IsTrue(plain > 0.0 && plain < 1.0);
             Assert.AreEqual(Math.Pow(Math.Pow(plain, 1.0 / layer.EffectiveWaterPower), 0.5), crisp, 1e-9);
             Assert.IsTrue(crisp > plain);

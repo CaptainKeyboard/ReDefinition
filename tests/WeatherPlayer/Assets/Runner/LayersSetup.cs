@@ -45,7 +45,10 @@ namespace ReDefinition.WeatherPlayer
                         Lift = jt.lift != null && jt.lift.Length >= 2 ? new Curve(Evenly(jt.lift.Length), jt.lift) : null,
                         ShapeSmoothing = jt.shapeSmoothing,
                         TopClose = jt.topClose >= 0f ? jt.topClose : CloudTypeDef.DefaultTopClose,
-                        Outflow = jt.outflow
+                        Outflow = jt.outflow,
+                        Heap = HeapModel.PresetOf(string.IsNullOrEmpty(jt.heap) ? "none" : jt.heap),
+                        EdgePower = jt.edgePower,
+                        Cavity = jt.cavity
                     });
                 }
                 var def = new CloudLayerDef(jl.name, 0, jl.inner, jl.outer, types, jl.sigma, (LayerKind)jl.kind)
@@ -75,6 +78,7 @@ namespace ReDefinition.WeatherPlayer
                     LightIsotropy = jl.lightIsotropy,
                     LightPlateau = jl.lightPlateau,
                     LightCellWidth = jl.lightCellWidth,
+                    CellPitchM = jl.cellPitch,
                     AmbientMs = jl.ambientMs >= 0f ? jl.ambientMs : CloudLayerDef.DefaultAmbientMs,
                     AmbientDecay = jl.ambientDecay >= 0f ? jl.ambientDecay : CloudLayerDef.DefaultAmbientDecay
                 };

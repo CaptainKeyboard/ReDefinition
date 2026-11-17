@@ -302,6 +302,11 @@ namespace ReDefinition.Atmospheres
         internal static bool NoiseBlend { get { return Tuning.Get(TuneNoiseBlend, NoiseBlendDefault) > 0.5f; } }
         internal static float NoiseBlendExp { get { return Clean(Tuning.Get(TuneNoiseBlendExp, 8f), 8f, 1f, 32f); } }
         internal static float NoiseBlendCell { get { return Clean(Tuning.Get(TuneNoiseBlendCell, 1f), 1f, 0.25f, 16f); } }
+        // cloud.cells (CELLS, owner order 2026-11-17): 1 puts the map's cloud share down as single clouds on the layers with a cellPitch (CloudLayerDef.CellPitchM, CloudCells.cginc); 0 reads the map
+        // as it is (the clouds are the map's smoothed texels moved by the noise).
+        internal const string TuneCells = "cloud.cells";
+        internal const float CellsDefault = 1f;
+        internal static bool Cells { get { return Tuning.Get(TuneCells, CellsDefault) > 0.5f; } }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
         internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }
 

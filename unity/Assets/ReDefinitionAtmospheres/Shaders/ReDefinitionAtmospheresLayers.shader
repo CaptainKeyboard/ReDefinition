@@ -161,6 +161,8 @@ Shader "ReDefinition/AtmospheresLayers"
 
         // ---- shape and erosion (package T02) ----
         #include "ReDefinitionAtmospheresNoise.cginc"
+        // ---- single clouds from the map's share (CELLS) ----
+        #include "CloudCells.cginc"
         // ---- far view (package T06: aerial perspective, the shape's mean over the noise at wide spacing) ----
         #include "ReDefinitionAtmospheresFarView.cginc"
         // ---- height variation (package T13: base and top vary over the sky) ----
@@ -269,6 +271,20 @@ Shader "ReDefinition/AtmospheresLayers"
                 {
                     gEmptyM = EmptyReach(li, uv);
                     return 0;
+                }
+                // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
+                // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
+                [branch] if (_CullL[li].w > 0.0)
+                {
+                    float cellReach, wMap;
+                    float edgeC = max(_LayerB[li].z, 1e-4);
+                    cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
+                                    (uint)_NoiseOffset[li].w, cellReach, wMap);
+                    if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
+                    {
+                        gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
+                        return 0;
+                    }
                 }
                 typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
             }
@@ -438,7 +454,10 @@ Shader "ReDefinition/AtmospheresLayers"
             [loop] for (int k = 0; k < 8; k++)
             {
                 if (k >= n) break;
-                if (T < _MarchP.w) break;
+                // TDR (K-T2 2026-11-16/17: the driver reset at the first frames inside the deck): every stop is written so that a value that is not a number stops the ray. A NaN fails
+                // every comparison, so "T < threshold" never ended a ray whose transmittance was NaN, and "t >= end" never ended one whose position was: it ran all 8 x 512 steps with a
+                // light march at each, seconds per frame.
+                if (!(T >= _MarchP.w)) break;
                 int li = sl[k];
                 // T16: the distance cut and the layer cap thin a span by a smooth factor and drop it where the factor is zero.
                 float spanF = 1.0;
@@ -480,7 +499,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float bLo = 0.0, bHi = 0.0, bIter = 0.0, shell = 0.0;
                 [loop] for (int i = 0; i < 512; i++)
                 {
-                    if (t >= tEnd) break;
+                    if (!(t < tEnd)) break;
                     float3 pc = o + d * t;
                     float alt = length(pc) - _PlanetR;
                     float share;
@@ -503,7 +522,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         else { bisecting = false; t = bHi; prevDense = true; shell = _FirstHitP.z; }
                         continue;
                     }
-                    if (dens <= 0)
+                    if (!(dens > 0))
                     {
                         prevDense = false;
                         // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (gEmptyM is 0 where no reach was read).
@@ -613,7 +632,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     r.tau += dtau;
                     tauSince += dtau;
                     r.tauLayer += dtau * float4(li == 0, li == 1, li == 2, li == 3);
-                    if (T < _MarchP.w) break;
+                    if (!(T >= _MarchP.w)) break;
                 }
             }
             // A ray that ended on the early-out is opaque: the remaining transmittance (up to the threshold, 1 %) would show a bright background (the

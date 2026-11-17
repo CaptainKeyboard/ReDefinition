@@ -130,6 +130,8 @@ namespace ReDefinition.Atmospheres
         // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the least vertical optical depth (x; closure test).
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
+        // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on.
+        private readonly float[] cellPitch = new float[CloudLayerDef.MaxLayers];
         internal CullBounds Bounds { get; } = new CullBounds();
         // The empty-reach maps of the march (E40 C1): the distance from a texel of a layer's coverage map to the nearest texel that can hold cloud, which the march leaps over.
         internal EmptyReachMaps Reach { get; } = new EmptyReachMaps();
@@ -306,8 +308,10 @@ namespace ReDefinition.Atmospheres
                 cullL[l] = new Vector4(layerH2[l].y > 0f ? 0f : (float)CullMath.MinVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; }),
-                    // y: the soft density's clear-sky K of the map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density).
+                    // y: the soft density's clear-sky K of the map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density);
+                    // w: the pitch of the layer's cloud cells in m (0: none; CELLS), written by Apply every frame from cellPitch and cloud.cells.
                     layer.ClearSkyK, layer.EffectiveWaterPower - 1f, 0f);
+                cellPitch[l] = layer.CellPitchM;
                 layerTau[l] = (float)CullMath.MeanVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; });
@@ -335,7 +339,11 @@ namespace ReDefinition.Atmospheres
                     info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), 0f);
                 }
             }
-            for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++) layerH[l] = layerH2[l] = cullL[l] = Vector4.zero;
+            for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++)
+            {
+                layerH[l] = layerH2[l] = cullL[l] = Vector4.zero;
+                cellPitch[l] = 0f;
+            }
             if (SpreadHeights) Heights.Queue(source.Heights, layerCount);
             else Heights.Upload(source.Heights, layerCount);
             profileTexture.SetPixelData(profile, 0);
@@ -420,6 +428,8 @@ namespace ReDefinition.Atmospheres
             }
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);
+            bool cells = CloudLookTuning.Cells;
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cullL[l].w = cells ? cellPitch[l] : 0f;
             m.SetVectorArray(IdCullL, cullL);
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));

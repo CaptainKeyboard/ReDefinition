@@ -542,7 +542,9 @@ namespace ReDefinition.Atmospheres
             Check("no frame cap in the " + view.Name + " view (" + variant + ")", NoFrameCap(), "targetFrameRate " + Game.TargetFrameRate + ", vSyncCount " + Game.VSyncCount);
             // A driver reset (K-T2 2026-11-16/17: three, each at the placement from the ground view to the inside view) leaves the game running on a removed device: the
             // frames after it draw nothing and are fast, so a view's rows would read as a gain. The view fails by name and its rows are void.
-            Check("the graphics device lived through the " + view.Name + " view (" + variant + ")", Game.GpuDeviceAlive(), "a 4x4 render texture could not be made: the device was removed (driver reset); this view's and every later row are void");
+            bool alive = Game.GpuDeviceAlive();
+            Check("the graphics device lived through the " + view.Name + " view (" + variant + ")", alive,
+                  alive ? "a 4x4 readback came back" : "a 4x4 readback failed: the device was removed (driver reset); this view's and every later row are void");
             CheckRenderSize(view, variant);
             if (variant == "tvc")
             {

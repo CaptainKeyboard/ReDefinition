@@ -30,6 +30,10 @@ namespace ReDefinition.WeatherPlayer
         public float topClose = -1f;
         // How much a tower of the type feeds an anvil (E40 CB; the cfg key outflow).
         public float outflow;
+        // The type's heap volume, rim exponent and cavity (CLOUDR1; the cfg keys heap, edgePower, cavity): as the game's type has them, so the replay draws the types the game draws
+        // (before CELLS the jobs set them for a whole layer through the tuning keys cloud.heap.layer.<name>, which also gave stratocumulus and altocumulus the heap).
+        public string heap = "none";
+        public float edgePower, cavity;
     }
 
     [Serializable]
@@ -58,6 +62,8 @@ namespace ReDefinition.WeatherPlayer
         public float lightPlateau;
         // The width of the layer's cells for the sun's diffusion (E40 LM2; the cfg key lightCellWidth; 0: none).
         public float lightCellWidth;
+        // The pitch of the layer's cloud cells in m (CELLS; the cfg key cellPitch; 0: none).
+        public float cellPitch;
         // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
         public float fibreStretch = 1f;
         // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).

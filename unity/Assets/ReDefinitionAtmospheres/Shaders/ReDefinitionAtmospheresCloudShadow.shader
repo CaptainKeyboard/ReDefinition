@@ -43,7 +43,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float4 _CsLayerA[4];     // inner altitude, outer altitude, tight inner altitude, tight outer altitude (m)
         float4 _CsLayerB[4];     // sigma per m, coverage, edge softness, shadow strength
         float4 _CsLayerC[4];     // clear-sky K of the map value (0: off), water exponent minus 1, map slice (< 0: no map), type count
-        float4 _CsLayerD[4];     // steps per span of the layer, -, -, map shift (degrees)
+        float4 _CsLayerD[4];     // steps per span of the layer, the pitch of its cloud cells (m; 0: none; CELLS), the layer's seed (the layer pass's _NoiseOffset.w), map shift (degrees)
         sampler2D _CsTypeProfile;
         sampler2D _CsTypeInfo;
         UNITY_DECLARE_TEX2DARRAY(_CsCovMaps);
@@ -130,6 +130,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         #define _WorldToMap _CsWorldToMap
         #define _PlanetR _CsPlanetR
         #include "ReDefinitionAtmospheresNoise.cginc"
+        #include "CloudCells.cginc"
 
         // x the type's density profile at the height share h, y its LIFT (the height-shaped threshold of the type, in units of the layer's headroom; the pass's profile channel a).
         float2 TypeProfile(int li, int type, float h)
@@ -179,6 +180,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             if (slice >= 0)
             {
                 float2 uv = MapUv(pc, _CsLayerD[li].w);
+                float2 uvRaw = uv;
                 float vMin = 0.5 / _CsMapDim.y;
                 uv.y = clamp(uv.y, vMin, 1.0 - vMin);
                 cov = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsCovMaps, float3(uv, slice), 0).rg, _CsReachCov, slice);
@@ -189,6 +191,19 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 {
                     reachM = EmptyReachM(li, uv);
                     return 0;
+                }
+                // CELLS: the single clouds of the layer pass (CloudCells.cginc; _CsLayerD[li].y the pitch, 0: none). The shadow's points are on the ground, far from the march's spacing, so the
+                // cells are read without the far view's blend; the discs' own empty reach is the leap.
+                [branch] if (_CsLayerD[li].y > 0.0)
+                {
+                    float cellReach, wMap;
+                    cov = CellCover(cov, uvRaw, _CsLayerD[li].y, _CsPlanetR + 0.5 * (_CsLayerA[li].x + _CsLayerA[li].y), _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0,
+                                    (uint)_CsLayerD[li].z, cellReach, wMap);
+                    if (cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0)
+                    {
+                        reachM = _CsParams2.w > 0.5 && wMap <= 0.0 ? 0.7 * cellReach : 0.0;
+                        return 0;
+                    }
                 }
                 typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
             }
@@ -246,7 +261,8 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                         float reachM;
                         layerTau += LayerExtinction(li, q, length(q) - radius, reachM) * dt;
                         // OPT2: the midpoints within the empty reach of an empty one add nothing: skipped, as the layer pass leaps over its grid points (the sum is the same).
-                        i += (int)floor(reachM / dt);
+                        // A reach that is not a number (or one beyond the span) must not throw the counter: NaN cast to int is undefined and could set it far below 0.
+                        if (reachM > 0.0) i += (int)min(floor(reachM / dt), (float)MAXSTEPS);
                     }
                 }
                 tau += layerTau * strength;

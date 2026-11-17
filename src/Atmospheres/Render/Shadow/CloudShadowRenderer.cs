@@ -208,8 +208,15 @@ namespace ReDefinition.Atmospheres
             int steps = Mathf.Clamp(f.StepsPerSpan, 1, 24);
             m.SetVector(IdParams, new Vector4(steps, Mathf.Clamp(f.DiscTaps, 1, 8), Mathf.Clamp01(f.Floor), layerCount));
             // The steps of each layer's spans: the policy's count (the CPU twin CloudShadowField takes the same number), read from the layer as it stands.
+            // y: the pitch of the layer's cloud cells (CELLS; 0 while cloud.cells is off), z: the layer's seed, both as the layer pass has them (the seed is the pass's _NoiseOffset.w, which
+            // this material holds only while the shape noise is bound; a 24-bit number, exact as a float).
+            bool cells = CloudLookTuning.Cells && Noise != null;
             for (int l = 0; l < layerCount; l++)
+            {
                 layerD[l].x = uploadedSource == null ? steps : CloudShadowStepPolicy.Count(f.StepPolicy, steps, uploadedSource.LayerAt(l));
+                layerD[l].y = cells && uploadedSource != null ? uploadedSource.LayerAt(l).CellPitchM : 0f;
+                layerD[l].z = Noise != null ? NoiseSeeds.LayerSeed(Noise.Switches.Seed, l) : 0f;
+            }
             bool reach = f.EmptyReachOn && f.EmptyReach != null;
             if (reach) m.SetTexture(IdCovReach, f.EmptyReach);
             m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), f.ShapeNoise && f.MacroLift && Noise != null ? 1f : 0f, reach ? 1f : 0f));

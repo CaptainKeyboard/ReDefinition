@@ -64,7 +64,7 @@ namespace ReDefinition.Atmospheres
         int FrameCount { get; }
         // The last frame's real duration in milliseconds (Time.unscaledDeltaTime).
         double LastFrameMs { get; }
-        // False once the graphics device is gone (a driver reset, DXGI_ERROR_DEVICE_REMOVED): a 4x4 render texture can no longer be made. Every frame after that draws
+        // False once the graphics device is gone (a driver reset, DXGI_ERROR_DEVICE_REMOVED): a readback of a 4x4 render texture fails. Every frame after that draws
         // nothing, so its timings and pictures are void.
         bool GpuDeviceAlive();
         double UniversalTime { get; set; }
@@ -532,13 +532,24 @@ namespace ReDefinition.Atmospheres
 
         public double LastFrameMs { get { return Time.unscaledDeltaTime * 1000.0; } }
 
+        // A readback of a 4x4 render texture the GPU has just filled: after DXGI_ERROR_DEVICE_REMOVED it ends with an error (Parallax's scatter readbacks failed so in every K-T2 start
+        // with a reset), while RenderTexture.Create still reports success (perfQpic2560dlssq, 2026-11-17: the reset at 05:20:09 and Create true for every view after it).
         public bool GpuDeviceAlive()
         {
             var rt = new RenderTexture(4, 4, 0, RenderTextureFormat.ARGB32) { hideFlags = HideFlags.HideAndDontSave };
-            bool made = rt.Create();
-            rt.Release();
-            UnityEngine.Object.Destroy(rt);
-            return made;
+            try
+            {
+                if (!rt.Create()) return false;
+                Graphics.Blit(Texture2D.whiteTexture, rt);
+                UnityEngine.Rendering.AsyncGPUReadbackRequest req = UnityEngine.Rendering.AsyncGPUReadback.Request(rt);
+                req.WaitForCompletion();
+                return req.done && !req.hasError;
+            }
+            finally
+            {
+                rt.Release();
+                UnityEngine.Object.Destroy(rt);
+            }
         }
 
         public double UniversalTime

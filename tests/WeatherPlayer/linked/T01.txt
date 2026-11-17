@@ -10,6 +10,8 @@ src/Atmospheres/Render/Layers/Core/LayerStackSource.cs
 src/Atmospheres/Render/Layers/Core/LayerSpanBound.cs
 src/Atmospheres/Render/Layers/Core/CloudWater.cs
 src/Atmospheres/Render/Layers/Core/CloudSoftDensity.cs
+# CELLS: the single clouds' C# twin (the cloud shadow's CPU field reads the map value through it).
+src/Atmospheres/Render/Layers/Core/CloudCells.cs
 src/Atmospheres/Render/Layers/LayerMapStore.cs
 src/Atmospheres/Render/Layers/LayerMapStore.GpuSlew.cs
 src/Atmospheres/Render/Layers/MapSlewField.cs

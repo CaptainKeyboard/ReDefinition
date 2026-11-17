@@ -214,6 +214,17 @@ VARIANTS = {
     # --- OPT4 (2026-11-17): the march target at a quarter of the full size (recon.resolution 0.25) against today's third, on today's look (heap, rim 0.5, cavity 0.35, blend, 96 points) ---
     "o4_now": ("(OPT4) today's look, the march target a third of the full size", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), NG96),
     "o4_r25": ("(OPT4) today's look, the march target a quarter of the full size", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), "seq1+lq2+ng96+r25+lp100"),
+    # --- CELLS (2026-11-17): the jobs as e40pp --prepare --state now makes them carry today's cfg (the types' heap, rim and cavity, the cumulus layer's cellPitch); the product march of Medium ---
+    "c_off": ("(CELLS) the game today: the map's texels as the clouds (cloud.cells 0)", tune_dotted([("cloud.cells", 0.0)]), NG96),
+    "c_on": ("(CELLS) single clouds from the map's share on the cumulus layer's 3 km lattice (cloud.cells 1)", tune_dotted([("cloud.cells", 1.0)]), NG96),
+    # the soft rim seen from below: the erosion in the rim band (types' erosion halved), the edge band (the cumulus layer's edge softness 0.08 instead of 0.15), both
+    # the soft water content's rim width is softness (the owner's setting, 0.5) x the layer's softnessScale (cumulus 1) in units of the noise's swing: 0.5 of it fades every cloud over hundreds of metres
+    "c_ss03": ("(CELLS) c_on, the cumulus layer's softnessScale 0.3 (rim width 0.15)", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softnessScale", 0.3))), NG96),
+    "c_ss05": ("(CELLS) c_on, the cumulus layer's softnessScale 0.5 (rim width 0.25)", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softnessScale", 0.5))), NG96),
+    "c_ero50": ("(CELLS) c_on, the types' erosion halved", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5))), NG96),
+    "c_edge08": ("(CELLS) c_on, the cumulus layer's edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softness", 0.08))), NG96),
+    "c_both": ("(CELLS) c_on, erosion halved and edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5)),
+                                                                               cumulus_layer(lambda l: l.__setitem__("softness", 0.08))), NG96),
     "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),
     "s_p2p1p3": ("(Phase 0 grid) P2 + P1 + P3 at the ceiling's grid, minimum step, no growth", tune_cumulus(HEAP1 + EDGE + CAV), STEPS),
     "s_p2p1p3p6": ("(Phase 0 grid) P2 + P1 + P3 + P6 at the ceiling's grid", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), STEPS),
