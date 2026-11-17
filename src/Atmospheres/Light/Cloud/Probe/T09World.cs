@@ -537,10 +537,13 @@ namespace ReDefinition.Atmospheres
         public bool GpuDeviceAlive()
         {
             var rt = new RenderTexture(4, 4, 0, RenderTextureFormat.ARGB32) { hideFlags = HideFlags.HideAndDontSave };
+            RenderTexture before = RenderTexture.active;
             try
             {
                 if (!rt.Create()) return false;
                 Graphics.Blit(Texture2D.whiteTexture, rt);
+                // Blit leaves the target active; the texture is released below, and Unity warns on releasing the active one.
+                RenderTexture.active = before;
                 UnityEngine.Rendering.AsyncGPUReadbackRequest req = UnityEngine.Rendering.AsyncGPUReadback.Request(rt);
                 req.WaitForCompletion();
                 return req.done && !req.hasError;
