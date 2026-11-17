@@ -14,7 +14,10 @@ namespace ReDefinition.Atmospheres
     // "Probe: hang step <i> <letter> ok|lost real <clock> worst_frame_ms <longest frame of the step>".
     internal sealed partial class T09Probe
     {
-        private const double HangHoldS = 10.0;
+        // The reset came in the first frames after a placement (a 3 s frame), so a step holds 2 s; a variant switch waits 1 s and 30 frames of the pass, the maps 5 s (owner 2026-11-17: the pauses
+        // between the steps were too long).
+        private const double HangHoldS = 2.0, HangSwitchS = 1.0, HangMapSettleS = 5.0;
+        private const int HangSteadyFrames = 30;
 
         private bool HangStart
         {
@@ -33,8 +36,11 @@ namespace ReDefinition.Atmospheres
                 yield break;
             }
             Emit("T09.ut", utChosen);
-            yield return ProbeWait.Seconds(MapSettleS);
+            yield return ProbeWait.Seconds(HangMapSettleS);
+            // The steps end at a second underscore: what follows names a variant of the start's arguments (hang_oGpGI_noprof: without the GPU profiler).
             string steps = StartId.Substring("hang_".Length);
+            int tail = steps.IndexOf('_');
+            if (tail >= 0) steps = steps.Substring(0, tail);
             string variant = "off";
             for (int i = 0; i < steps.Length; i++)
             {
@@ -48,13 +54,13 @@ namespace ReDefinition.Atmospheres
                     if (c == 'n') ForceTuning(OwnCloudOptions.TuneCostDebug, 1f);
                     else if (c == 's') SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0);
                     else ForceTuning(CloudLookTuning.TuneCells, 0f);
-                    yield return ProbeWait.Seconds(2);
+                    yield return ProbeWait.Seconds(HangSwitchS);
                 }
                 else if (c == 'o' || c == 'p')
                 {
                     variant = c == 'o' ? "off" : "plain";
                     BeginVariant(variant);
-                    yield return ProbeWait.Seconds(4);
+                    yield return ProbeWait.Seconds(HangSwitchS);
                     if (IsOwn(variant))
                     {
                         OwnCloudModule m = OwnCloudModule.Current;
@@ -62,7 +68,7 @@ namespace ReDefinition.Atmospheres
                         yield return ProbeWait.Until(() =>
                         {
                             OwnCloudModule o = OwnCloudModule.Current;
-                            return o != null && o.Stats.Mode != "off" && o.Stats.FramesDrawn - drawnFrom > SteadyFrames;
+                            return o != null && o.Stats.Mode != "off" && o.Stats.FramesDrawn - drawnFrom > HangSteadyFrames;
                         }, 150, "the own pass to draw a steady stretch (" + variant + ")");
                     }
                 }

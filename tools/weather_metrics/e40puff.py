@@ -115,6 +115,19 @@ def camera_at(alt_m, pitch_deg):
 
 
 
+def sun_behind(elev_deg):
+    """The sun moved behind the camera (opposite its heading) at this elevation over the camera's horizon: the front light of the owner's photograph."""
+    def g(job):
+        p = np.array(job["position"], dtype=np.float64)
+        up_local = p / np.linalg.norm(p)
+        f = np.array(job["forward"], dtype=np.float64)
+        h = f - up_local * float(f @ up_local)
+        h = h / np.linalg.norm(h)
+        a = np.radians(elev_deg)
+        job["sun"] = [float(x) for x in -np.cos(a) * h + np.sin(a) * up_local]
+    return g
+
+
 def v_soft03(job):
     job["soft"] = 0.3
 
@@ -224,6 +237,16 @@ VARIANTS = {
     # the owner's photograph's framing (one cumulus seen from the side over the sea): the camera 30 m over the sea looking east from the K-T2 site, 8 degrees up, the sun behind it
     "c_side": ("(CELLS) the photograph's framing: 30 m over the sea, 8 degrees up, cells on", compose(camera_at(30.0, 8.0), tune_dotted([("cloud.cells", 1.0)])), NG96),
     "c_side_off": ("(CELLS) the photograph's framing, cells off (the game before CELLS)", compose(camera_at(30.0, 8.0), tune_dotted([("cloud.cells", 0.0)])), NG96),
+    # the photograph's light too: the sun 25 degrees up behind the camera, the camera 4 degrees up (the far clouds in the frame)
+    "c_photo": ("(CELLS) the photograph's framing and light: 30 m, 4 degrees up, the sun 25 degrees up behind the camera, cells on", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0)])), NG96),
+    "c_photo_off": ("(CELLS) as c_photo, cells off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), NG96),
+    # the look without a cost limit (owner 2026-11-17: first the photograph's look whatever it costs, then the performance): c_photo at the ceiling march
+    "c_photo_ceil": ("(CELLS) c_photo at the ceiling march (256 grid points, 6 m minimum step, every lit step to the sun with 16 taps, full size)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0)])), CEIL),
+    # the envelope (cloud.cellNoise: the disc and the type's lift are the cloud, the noise works its surface, after Nubis) and a sharper rim (the cumulus types' edgePower 0.3), at the ceiling
+    "c_pc_n05": ("(CELLS) c_photo_ceil, cloud.cellNoise 0.5", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellNoise", 0.5)])), CEIL),
+    "c_pc_n03": ("(CELLS) c_photo_ceil, cloud.cellNoise 0.3", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellNoise", 0.3)])), CEIL),
+    "c_pc_n03e": ("(CELLS) c_photo_ceil, cloud.cellNoise 0.3 and the cumulus layer's rim exponent 0.3", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0), ("cloud.cellNoise", 0.3)]),
+                                                                                                              tune_cumulus([("cloud.edgePower.layer.", 0.3)])), CEIL),
     "c_ero50": ("(CELLS) c_on, the types' erosion halved", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5))), NG96),
     "c_edge08": ("(CELLS) c_on, the cumulus layer's edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softness", 0.08))), NG96),
     "c_both": ("(CELLS) c_on, erosion halved and edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5)),

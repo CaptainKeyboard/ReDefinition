@@ -129,6 +129,7 @@ namespace ReDefinition.Atmospheres
         private readonly Vector4[] layerH = new Vector4[CloudLayerDef.MaxLayers], layerH2 = new Vector4[CloudLayerDef.MaxLayers];
         // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the least vertical optical depth (x; closure test).
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
+        private static readonly int IdCellN = Shader.PropertyToID("_CellN");
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
         // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on.
         private readonly float[] cellPitch = new float[CloudLayerDef.MaxLayers];
@@ -431,6 +432,7 @@ namespace ReDefinition.Atmospheres
             bool cells = CloudLookTuning.Cells;
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cullL[l].w = cells ? cellPitch[l] : 0f;
             m.SetVectorArray(IdCullL, cullL);
+            m.SetVector(IdCellN, new Vector4(CloudLookTuning.CellNoise, 0f, 0f, 0f));
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));

@@ -11,6 +11,10 @@
 #ifndef REDEFINITION_CLOUD_CELLS
 #define REDEFINITION_CLOUD_CELLS
 
+// x: the share of the layer's noise swing a single cloud keeps (cloud.cellNoise; 1: the noise's full swing, below 1 the disc and the type's lift are the cloud's envelope and the noise
+// works its surface).
+float4 _CellN;
+
 // The lattice: a centre lies anywhere in its cell (CELL_JITTER 1: the rows and columns do not show), a disc's size is 1 +- CELL_SIGMA of the share's radius, the share f / CELL_ALIVE_F0 of the
 // cells is alive and never more than CELL_ALIVE_MAX (few clouds of their own size in a fair sky, not many small ones; never every cell, which would show the lattice). The profile is 0.5 at
 // CELL_EDGE_X of its radius, and a profile radius is at most CELL_R_MAX pitches: no disc of a cell outside the 3 x 3 around a point reaches it (such a centre is at least a pitch away), and the

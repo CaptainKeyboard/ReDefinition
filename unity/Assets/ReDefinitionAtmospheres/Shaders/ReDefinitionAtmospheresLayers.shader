@@ -254,6 +254,8 @@ Shader "ReDefinition/AtmospheresLayers"
             float slice = _LayerC[li].z;
             float cov = 1.0, typeValue = 0.0;
             float2 uv = 0, uvRaw = 0;
+            // CELLS: the share of the noise's swing a single cloud keeps (1 where there are no cells or the map's own value takes over; _CellN.x where the disc is the cloud's envelope).
+            float cellNoise = 1.0;
             if (slice >= 0 || heightOn)
             {
                 uv = MapUv(pc, _LayerD[li].w);
@@ -285,8 +287,11 @@ Shader "ReDefinition/AtmospheresLayers"
                         gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
                         return 0;
                     }
+                    // The envelope (cloud.cellNoise, after Schneider's Nubis: the density is the cloud's profile eroded by the noise, not the noise bounded by a profile): with less
+                    // swing the disc and the type's lift are the cloud's shape and the noise only works its surface. The coverage bounds keep the layer's full swing, so they stay exact.
+                    cellNoise = lerp(_CellN.x, 1.0, wMap);
                 }
-                typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
+                typeValue =SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
             }
             float erosion = 0;
             float typeCount = _LayerC[li].w;
@@ -333,7 +338,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
             if (_CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
             // The cost debug bits switch the shape noise (2) and the erosion (4) off.
-            float noiseAmount = fmod(floor(_CostP.y * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
+            float noiseAmount = fmod(floor(_CostP.y * 0.5), 2.0) < 0.5 ? _LayerD[li].x * cellNoise : 0.0;
             if (fmod(floor(_CostP.y * 0.25), 2.0) >= 0.5) erosion = 0;
             // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
             erosion *= 1.0 + _BillowP.z * saturate(h);

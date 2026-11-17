@@ -307,6 +307,11 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCells = "cloud.cells";
         internal const float CellsDefault = 1f;
         internal static bool Cells { get { return Tuning.Get(TuneCells, CellsDefault) > 0.5f; } }
+        // cloud.cellNoise: the share of the layer's noise swing a single cloud keeps (1: the full swing, the cloud is the noise bounded by its disc; below 1 the disc and the type's lift are
+        // the envelope and the noise erodes its surface, after Schneider's Nubis). Read every frame (LayerRenderer.Apply, _CellN.x).
+        internal const string TuneCellNoise = "cloud.cellNoise";
+        internal const float CellNoiseDefault = 1f;
+        internal static float CellNoise { get { return Clean(Tuning.Get(TuneCellNoise, CellNoiseDefault), CellNoiseDefault, 0f, 1f); } }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
         internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }
 

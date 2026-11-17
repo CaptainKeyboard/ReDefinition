@@ -41,6 +41,9 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Flag(CloudLookTuning.TuneCells, CloudLookTuning.CellsDefault > 0.5f, KeySection.Shape,
                 "single clouds: the map's cloud share is put down as single clouds on the lattice of each layer's cellPitch (the cumulus layer); off: the map's smoothed texels are the clouds",
                 KeyLiveness.FrameHistory);
+            r.Key(CloudLookTuning.TuneCellNoise, CloudLookTuning.CellNoiseDefault, KeySection.Shape,
+                "share of the noise's swing a single cloud keeps: 1 the cloud is the noise inside its disc, lower the disc and the type's height shape are the cloud and the noise works its surface",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.

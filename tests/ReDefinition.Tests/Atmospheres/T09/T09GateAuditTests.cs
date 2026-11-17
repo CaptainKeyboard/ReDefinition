@@ -171,7 +171,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void K_T2_GateAudit_EveryGateOfTheChainIsOpenForEveryStartWithTheStartStateOfTheSettings()
         {
             List<StartDef> starts = KT2Starts();
-            Assert.AreEqual(30, starts.Count, "the starts of K-T2.json were read");
+            Assert.AreEqual(31, starts.Count, "the starts of K-T2.json were read");
             foreach (StartDef s in starts)
             {
                 Assert.IsTrue(s.Switches.ContainsKey("weatherEffects") && s.Switches.ContainsKey("genEnabled") && s.Switches.ContainsKey("enabled") && s.Switches.ContainsKey("cloudSource"),
@@ -222,7 +222,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(text.Contains(pin), "pinned: " + pin);
             foreach (StartDef s in KT2Starts())
             {
-                Assert.IsTrue(s.Args.Contains("\"-redefinitionGpuProfile\""), s.Id + ": the GPU profiler is on");
+                // A start whose id ends in "_noprof" leaves the profiler out on purpose (the driver reset's diagnosis: whether the profiler's timestamp queries are part of it).
+                if (!s.Id.EndsWith("_noprof", StringComparison.Ordinal))
+                    Assert.IsTrue(s.Args.Contains("\"-redefinitionGpuProfile\""), s.Id + ": the GPU profiler is on");
                 Assert.IsTrue(s.Args.Contains("\"-atmoProbe\", \"T09Probe\""), s.Id + ": the probe is named");
                 Assert.IsTrue(s.Args.Contains("\"-redefinitionProbeClouds\""), s.Id + ": the probe's clouds switch is on");
             }

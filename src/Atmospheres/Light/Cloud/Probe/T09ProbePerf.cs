@@ -29,7 +29,8 @@ namespace ReDefinition.Atmospheres
     // Each view holds PerfDwellS seconds (the GPU profiler writes a block every 10 s, so a window of 20 s holds one whole block) and takes no pictures and no noise reading.
     internal sealed partial class T09Probe
     {
-        private const double PerfDwellS = 20.0;
+        // 8 s a view: some 400 frames at 50 fps, enough for the timing rows (owner 2026-11-17: the pauses were too long; it was 20 s).
+        private const double PerfDwellS = 8.0;
 
         // The grid points the start began with (the profile's), read before the first variant changes them.
         private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN;
