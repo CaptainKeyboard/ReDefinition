@@ -290,7 +290,7 @@ namespace ReDefinition.Atmospheres
 
         protected override IEnumerator<ProbeWait> Scenario()
         {
-            return IsDiag ? DiagScenario() : IsK3 ? K3Scenario() : SoftStart ? SoftScenario(Soft60Start) : StandardScenario();
+            return IsDiag ? DiagScenario() : IsK3 ? K3Scenario() : SoftStart ? SoftScenario(Soft60Start) : JumpStart ? JumpScenario() : StandardScenario();
         }
 
         // False after a Prelude that ended the scenario (no atmosphere, a window of another size): the scenario returns without more.
@@ -928,7 +928,16 @@ namespace ReDefinition.Atmospheres
             wantedAltitude = Math.Max(0.0, terrain) + view.AglM;
             Game.PlaceVessel(lat, lon, wantedAltitude);
             Game.StartHold();
-            yield return ProbeWait.Frames(20);
+            // 20 frames, one wait each only in the jump start (it reads the longest frame of the placement; the others wait 20 frames at once).
+            if (jumpSampling)
+            {
+                for (int i = 0; i < 20; i++)
+                {
+                    JumpSample();
+                    yield return ProbeWait.Frames(1);
+                }
+            }
+            else yield return ProbeWait.Frames(20);
             // The game applies the placement and refreshes the vessel's centre of mass a physics step later: the hold anchors only once the vessel stands at the placed point
             // (start 43 anchored the old position, 85 m). At most 150 more frames; the pose check that follows names a vessel that did not arrive.
             // A far view (HeldToleranceM above 0) that has not anchored after 60 frames does not anchor later: start 60's far placements stood 100 to 370 m off for all 150 frames, and

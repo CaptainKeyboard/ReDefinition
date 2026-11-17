@@ -467,6 +467,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public int VSyncCount { get { return Vsync; } set { if (!VsyncSticks) Vsync = value; } }
         public int TargetFrameRate { get { return FrameRateCap; } set { if (!CapSticks) FrameRateCap = value; } }
         public int FrameCount { get { return Frames; } }
+        public double LastFrameMs { get { return 16.0; } }
         public double UniversalTime { get { return Ut; } set { Ut = value; } }
 
         public bool ScattererLoaded { get { return Scatterer; } }
