@@ -153,9 +153,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(21, CloudSoftDensity.ScaleSamples(32, 32));
             Assert.AreEqual(96, CloudSoftDensity.ScaleSamples(48, 96));
             Assert.AreEqual(128, CloudSoftDensity.ScaleSamples(48, 128));
-            Assert.AreEqual(128, CloudSoftDensity.ScaleSamples(48, 400), "the setting is clamped to 128");
+            Assert.AreEqual(256, CloudSoftDensity.ScaleSamples(48, 256));
+            Assert.AreEqual(256, CloudSoftDensity.ScaleSamples(48, 400), "the setting is clamped to 256");
             Assert.AreEqual(24, CloudSoftDensity.ScaleSamples(48, 1), "and to 24");
-            Assert.AreEqual(96, (int)AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default, "the Medium profile's 96 points are the default");
+            Assert.AreEqual(256, (int)AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default, "the Medium profile's 256 points are the default");
         }
 
         [TestMethod]
@@ -164,7 +165,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Func<string, double> v = key => AtmospheresSettings.Definition(key).Default;
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, v);
-            Assert.AreEqual(96, frame.MaxSteps, "the starting values: softness 0.5 with 96 points (the Medium profile)");
+            Assert.AreEqual(256, frame.MaxSteps, "the starting values: softness 0.5 with 256 points (the Medium profile)");
             Assert.AreEqual(0.5, CloudSoftDensity.Softness, 1e-9);
             Func<string, double> low = key => key == "cloudSoftness" ? 1.0 : key == "cloudSamples" ? 24.0 : v(key);
             OwnCloudOptions.Apply(frame, low);

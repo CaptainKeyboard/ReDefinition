@@ -231,7 +231,7 @@ namespace ReDefinition.Atmospheres
                 }
             }
             softness = Math.Max(CloudSoftDensity.MinSoftness, Math.Min(CloudSoftDensity.MaxSoftness, softness));
-            int samples = Math.Max(24, Math.Min(128, (int)level));
+            int samples = Math.Max(24, Math.Min(CloudSoftDensity.MostSamples, (int)level));
             int baseMax, sun;
             float min;
             LayerSwitches.StepQuality(Math.Max(0, Math.Min(2, (int)AtmospheresSettings.Number(AtmospheresSettings.Keys.LayerStepQuality))), out baseMax, out sun, out min);

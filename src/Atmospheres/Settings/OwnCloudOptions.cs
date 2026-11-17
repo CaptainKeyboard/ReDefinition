@@ -231,7 +231,7 @@ namespace ReDefinition.Atmospheres
             // empty samples is as long as the product's grid step at most, so the search is N times finer where the clouds are at about the density reads of before.
             // E40 grain against TVC: the multiplier may be below 1 (down to 0.25): on a span cut to the types present (layers.spanTight) fewer grid points still lie closer
             // than the full count did over the type table's whole interval.
-            // E40 soft density: cloudSamples (24 to 128 grid points, relative to the Medium step quality's 48) scales the count of every step quality by the same share; the
+            // E40 soft density: cloudSamples (24 to 256 grid points, relative to the Medium step quality's 48) scales the count of every step quality by the same share; the
             // owner's softness is read into CloudSoftDensity once a frame (the layers' uploaded numbers follow it).
             maxSteps = CloudSoftDensity.ScaleSamples(maxSteps, (int)v(AtmospheresSettings.Keys.CloudSamples));
             CloudSoftDensity.Softness = v(AtmospheresSettings.Keys.CloudSoftness);

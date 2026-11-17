@@ -85,7 +85,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsTrue(CloudLookTuning.NoiseBlend);
             Assert.AreEqual(1f, Key(OwnCloudOptions.TuneCatmull).Default);
             Assert.AreEqual(0f, Key(CloudLookTuning.TuneFirstHit).Default, "the first-hit bisection is a measured dead end and stays off");
-            Assert.AreEqual(96, (int)AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default);
+            Assert.AreEqual(256, (int)AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default);
         }
 
         [TestMethod]

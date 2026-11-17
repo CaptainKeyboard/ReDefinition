@@ -33,7 +33,9 @@ namespace ReDefinition.Atmospheres
 
         internal QualityTier Tier { get; }
         // Key cloudSamples: the most grid points of the cloud march. Measured at 1080p (soft-cost scene, field view, CLOUDR3): 48 points 2.35 ms, 96 3.53, 128 4.10;
-        // the look gains from 48 (large soft lobes, grainy) through 96 (firmer) to 128 (small turrets); a step above 128 is not measured.
+        // the look gains from 48 (large soft lobes, grainy) through 96 (firmer) to 128 (small turrets). The single clouds' body (CELLS, a 10 m surface band) needs 256 for the look the owner
+        // chose on 2026-11-17: in the player's photo framing the cloud converges steadily from 96 (wider, soft) over 160 and 192 to 256, which matches the ceiling march (b_ng*, b_c256).
+        // Low keeps 48 (its tier is the cost); 256's cost in the game is measured after the look (owner order 2026-11-17: the look first, then the performance).
         internal int CloudSamples { get; }
         // Key volumeSteps: the march steps of the volume pass.
         internal int VolumeSteps { get; }
@@ -68,11 +70,11 @@ namespace ReDefinition.Atmospheres
         internal const int NoLimit = -1;
 
         private static readonly TierRow Low = new TierRow(QualityTier.Low, 16, 0.25f, 2, SimGridChoice.Coarse, 1024, 6700, 0.5f, 1024, 256, 8f, 48);
-        private static readonly TierRow Medium = new TierRow(QualityTier.Medium, 20, 0.5f, 4, SimGridChoice.Normal, 2048, 14400, 0.5f, 2048, 512, 4f, 96);
-        private static readonly TierRow High = new TierRow(QualityTier.High, 28, 1f, 8, SimGridChoice.Normal, 4096, 20000, 1f, 2048, 512, 3f, 128);
-        private static readonly TierRow Ultra = new TierRow(QualityTier.Ultra, 36, 1f, 8, SimGridChoice.Fine, 4096, 27800, 1f, 4096, 1024, 2f, 128);
+        private static readonly TierRow Medium = new TierRow(QualityTier.Medium, 20, 0.5f, 4, SimGridChoice.Normal, 2048, 14400, 0.5f, 2048, 512, 4f, 256);
+        private static readonly TierRow High = new TierRow(QualityTier.High, 28, 1f, 8, SimGridChoice.Normal, 4096, 20000, 1f, 2048, 512, 3f, 256);
+        private static readonly TierRow Ultra = new TierRow(QualityTier.Ultra, 36, 1f, 8, SimGridChoice.Fine, 4096, 27800, 1f, 4096, 1024, 2f, 256);
         // Max has no limit: the most the keys take, and the particle cap off. Its cost is measured, not budgeted.
-        private static readonly TierRow Max = new TierRow(QualityTier.Max, 48, 1f, 8, SimGridChoice.Fine, 4096, NoLimit, 1f, 4096, 1024, 1f, 128);
+        private static readonly TierRow Max = new TierRow(QualityTier.Max, 48, 1f, 8, SimGridChoice.Fine, 4096, NoLimit, 1f, 4096, 1024, 1f, 256);
 
         // The tiers with a row, lowest first.
         internal static readonly QualityTier[] All = { QualityTier.Low, QualityTier.Medium, QualityTier.High, QualityTier.Ultra, QualityTier.Max };

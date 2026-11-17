@@ -122,7 +122,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(256, of(r).GridPoints, r + " marches 256 grid points");
                 Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, of(r).Resolution, 1e-6f, r + " is the converged picture at the default target");
             }
-            Assert.AreEqual(96, soft.GridPoints);
+            Assert.AreEqual(256, soft.GridPoints);
             Assert.AreEqual(0.5f, of("softr50").Resolution, 1e-6f, "softr50 is the march target of before C1");
             Assert.IsFalse(of("softr50").SkipEmpty, "softr50 differs from soft by the target alone");
             Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, of("softacc05").Resolution, 1e-6f, "the history variants keep the default target");

@@ -156,7 +156,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
 
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, v);
-            Assert.AreEqual(Math.Round(64 * OwnCloudOptions.GridFineDefault), frame.MaxSteps, "the Low step quality's 32 points at the Medium profile's 96 of 48");
+            Assert.AreEqual(Math.Round(171 * OwnCloudOptions.GridFineDefault), frame.MaxSteps, "the Low step quality's 32 points at the Medium profile's 256 of 48");
             Assert.AreEqual(2, frame.SunSteps);
             Assert.AreEqual(40f, frame.MinStepM);
             Assert.AreEqual(0.5f, frame.TransmittanceGrowth);
@@ -428,7 +428,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(Math.Round(96 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
+            Assert.AreEqual(Math.Round(256 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Defaults());
             // The default is the history of weight 0.2 (the owner delegated the choice after the E40 grain measurement); the finer grid stays off.
@@ -436,11 +436,11 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(ReconMode.Low, recon.Mode);
             Assert.AreEqual(0.2f, recon.Accumulate);
 
-            Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 2f);
+            Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 0.75f);
             Tuning.SetOverride(OwnCloudOptions.TuneAccumulate, 0.2f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(192, frame.MaxSteps, "twice the Medium profile's 96 points");
+            Assert.AreEqual(192, frame.MaxSteps, "three quarters of the Medium profile's 256 points");
             // The history belongs to level 1: it runs the half-size march through the mode Low; the block levels keep their own.
             OwnCloudOptions.Apply(recon, Defaults());
             Assert.AreEqual(ReconMode.Low, recon.Mode);
@@ -530,23 +530,23 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.IsFalse(frame.SpanTight);
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(OwnCloudOptions.SpanTightDefault, frame.SpanTight);
-            Assert.AreEqual(Math.Round(96 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
+            Assert.AreEqual(Math.Round(256 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
 
             Tuning.SetOverride(OwnCloudOptions.TuneSpanTight, 1f);
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 1f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.IsTrue(frame.SpanTight);
-            Assert.AreEqual(96, frame.MaxSteps);
+            Assert.AreEqual(256, frame.MaxSteps);
 
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 0.5f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(48, frame.MaxSteps);
+            Assert.AreEqual(128, frame.MaxSteps);
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 0.01f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(24, frame.MaxSteps, "the lever clamps at a quarter");
+            Assert.AreEqual(64, frame.MaxSteps, "the lever clamps at a quarter");
             Tuning.ClearOverrides();
             NextFrame();
         }

@@ -97,9 +97,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             T09Probe.SoftExpectation soft = T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == "soft"));
             Assert.AreEqual(0.5, soft.Softness, 1e-9, "soft is the default softness");
-            // The default is the Medium profile's 96 grid points at the Medium step quality (cloudSamples, set by the tier row).
-            Assert.AreEqual(96, soft.Samples);
-            Assert.AreEqual(96, soft.GridPoints);
+            // The default is the Medium profile's 256 grid points at the Medium step quality (cloudSamples, set by the tier row).
+            Assert.AreEqual(256, soft.Samples);
+            Assert.AreEqual(256, soft.GridPoints);
             Assert.AreEqual(AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSoftness).Default, soft.Softness, 1e-9, "soft stands on the settings' defaults");
 
             T09Probe.SoftExpectation hash = T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == "softhash"));
@@ -124,10 +124,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             T09Probe.SoftExpectation r33 = of("softr33");
             Assert.AreEqual(0.33f, r33.Resolution, 1e-6f);
             Assert.IsTrue(r33.SkipEmpty);
-            Assert.AreEqual(96, r33.GridPoints);
+            Assert.AreEqual(256, r33.GridPoints);
             Assert.IsFalse(r33.SpanTight);
             T09Probe.SoftExpectation cut = of("softcut16");
-            Assert.AreEqual(32, cut.GridPoints, "96 points at gridFine 0.3333");
+            Assert.AreEqual(85, cut.GridPoints, "256 points at gridFine 0.3333");
             Assert.IsTrue(cut.SpanTight);
             Assert.AreEqual(0.33f, cut.Resolution, 1e-6f);
             Assert.IsFalse(cut.SkipEmpty);
