@@ -53,7 +53,8 @@ float HeightReachUp(int li) { return _LayerH[li].x + _LayerH[li].z + _LayerH[li]
 // share: the height share of the point in the layer. The function returns false, with lb and lt unset, where the point lies outside the cloud whatever the ragged
 // boundary's noise is (COST, E40 grain against TVC: the noise is 16 integer hashes, and most samples of a march lie above the tops or below the bases; the test
 // uses the noise's bounds -1 and 1, so a point that passes gets exactly the base and top of before).
-bool HeightLocalBaseTop(int li, float3 pc, float2 uv, float b, float tp, float erosion, float thickness, float share, out float lb, out float lt)
+// ragged: false leaves the ragged boundary's noise out (OPT3: the light path with light.raggedTaps 0); the bound below stays the one with the noise, so it holds either way.
+bool HeightLocalBaseTop(int li, float3 pc, float2 uv, float b, float tp, float erosion, float thickness, float share, bool ragged, out float lb, out float lt)
 {
     lb = 0;
     lt = 0;
@@ -70,7 +71,7 @@ bool HeightLocalBaseTop(int li, float3 pc, float2 uv, float b, float tp, float e
     float ltMost = max(tp + topOffsetEarly / thickness, b + (smoothOffset + raggedMost) / thickness + _LayerH2[li].y / thickness) + liftMost;
     // 1e-4 of the layer's thickness of slack for the rounding of the two ways the same sums are formed.
     if (share < lbLeast - 1e-4 || share > ltMost + 1e-4) return false;
-    if (_LayerH[li].w > 0)
+    if (_LayerH[li].w > 0 && ragged)
     {
         float k = (_PlanetR + _LayerA[li].x) / max(length(pc), 1.0) * _LayerH2[li].x;
         baseOffset += HeightRagged(pc * k, (uint)_LayerH2[li].z) * _LayerH[li].w * (erosion / 0.5);

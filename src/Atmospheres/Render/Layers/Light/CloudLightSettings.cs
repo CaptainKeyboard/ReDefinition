@@ -104,6 +104,20 @@ namespace ReDefinition.Atmospheres
         public int SunStepsOverride;
         public float ConeSpread, TapRatio = 2f;
         public int MoonSteps = 2, UpSteps = 2;
+        // OPT3 (cost, the defaults are the march as it was): the sun march crosses the other layers at every OtherStride-th march of a span and keeps their optical depth in between,
+        // and RaggedInLightPath false lets the light path read the smooth base instead of the ragged one (the march's own density keeps it). Measured in K-T2 perfE at 2560x1440: the
+        // other layers' taps 1.3 to 3.3 ms, the ragged base 0.8 to 1.8 ms of the march (main and light path together).
+        public int OtherStride = 1;
+        public bool RaggedInLightPath = true;
+
+        // The tuning keys of the two (the game reads them through OwnCloudOptions.Apply, the weather player's scenes directly).
+        internal const string TuneOtherStride = "light.otherStride", TuneRaggedTaps = "light.raggedTaps";
+
+        internal void ReadCostKeys()
+        {
+            OtherStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneOtherStride, 1f)), 1, 8);
+            RaggedInLightPath = Tuning.Flag(TuneRaggedTaps, true);
+        }
         // With AmbientOcclusionTaps (package T05): 0 the taps march at every lit sample, 1 the optical depth of the last march of the span is
         // reused with the sun march's reuse, 2 it is reused and moved by what the ray has crossed since (look against the per-sample taps: mean
         // tone-mapped difference at most 0.0091 with the step growth, 0.0071 alone, on the six views of the table).
@@ -132,7 +146,7 @@ namespace ReDefinition.Atmospheres
                 LightL = Shader.PropertyToID("_LightL"), MoonDir = Shader.PropertyToID("_MoonDir"), MoonCol = Shader.PropertyToID("_MoonCol"),
                 BoltPos = Shader.PropertyToID("_BoltPos"), BoltCol = Shader.PropertyToID("_BoltCol"), CellA = Shader.PropertyToID("_CellA"),
                 CellB = Shader.PropertyToID("_CellB"), LightU = Shader.PropertyToID("_LightU"), SunAir = Shader.PropertyToID("_SunAir"), LightV = Shader.PropertyToID("_LightV"), LightM = Shader.PropertyToID("_LightM"), PhaseP = Shader.PropertyToID("_PhaseP"),
-                LightW = Shader.PropertyToID("_LightW"), LightX = Shader.PropertyToID("_LightX");
+                LightW = Shader.PropertyToID("_LightW"), LightX = Shader.PropertyToID("_LightX"), LightY = Shader.PropertyToID("_LightY");
         }
 
         private readonly Vector4[] layerM = new Vector4[CloudLayerDef.MaxLayers];
@@ -174,6 +188,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.LightV, new Vector4(Mathf.Max(DiffusionDecay, 0f), AmbientColumnToTypeTop ? 1f : 0f, Mathf.Max(SunAirMieTau, 0f), Mathf.Max(SunAirMieHeightM, 1f)));
             m.SetVector(Ids.LightW, new Vector4(Mathf.Max(CellGain, 0f), Mathf.Max(CellBeta, 1e-3f), Mathf.Max(CellExtrapolation, 1e-3f), Mathf.Max(CellSide, 0f)));
             m.SetVector(Ids.LightX, new Vector4(Mathf.Max(CellOctaves, 0f), Mathf.Max(CellIncidenceRef, 1e-3f), Mathf.Max(CellIncidencePower, 0f), Mathf.Max(CellIncidenceEps, 1e-4f)));
+            m.SetVector(Ids.LightY, new Vector4(Mathf.Clamp(OtherStride, 1, 8), RaggedInLightPath ? 0f : 1f, 0f, 0f));
             for (int i = 0; i < layerM.Length; i++)
             {
                 Vector4 k = i < LayerM.Length ? LayerM[i] : Vector4.zero;

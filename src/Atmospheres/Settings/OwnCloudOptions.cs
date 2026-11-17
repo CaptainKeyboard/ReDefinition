@@ -122,6 +122,10 @@ namespace ReDefinition.Atmospheres
             TuneCellOctaves = "light.cellOctaves", TuneCellIncidencePower = "light.cellIncidencePower", TuneCellIncidenceRef = "light.cellIncidenceRef",
             TuneCellIncidenceEps = "light.cellIncidenceEps";
 
+        // OPT3: light.otherStride (CloudLightSettings.OtherStride, 1 to 8, default 1) and light.raggedTaps (RaggedInLightPath, default 1): the cost levers of the light march; the
+        // defaults are the march as it was. CloudLightSettings.ReadCostKeys reads them (the weather player calls it too).
+        internal const string TuneOtherStride = CloudLightSettings.TuneOtherStride, TuneRaggedTaps = CloudLightSettings.TuneRaggedTaps;
+
         private static readonly CloudLightSettings Compiled = new CloudLightSettings();
         private static readonly LayerFrame CompiledFrame = new LayerFrame();
 
@@ -304,6 +308,7 @@ namespace ReDefinition.Atmospheres
             s.CellIncidencePower = Tuning.Get(TuneCellIncidencePower, Compiled.CellIncidencePower);
             s.CellIncidenceRef = Tuning.Get(TuneCellIncidenceRef, Compiled.CellIncidenceRef);
             s.CellIncidenceEps = Tuning.Get(TuneCellIncidenceEps, Compiled.CellIncidenceEps);
+            s.ReadCostKeys();
             LimitMoonLights(s, v);
         }
 

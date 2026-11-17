@@ -50,6 +50,7 @@ namespace ReDefinition.Atmospheres.Viewer
             // clamps it to 0.25 to 8 (the march is capped at 256 points a span), the slider shows 0.25 to 4, which holds the stops 1 (48 points), 2 (96) and 2.6667 (128) and 4 (192).
             { OwnCloudOptions.TuneGridFine, new[] { 0.25f, 4f } },
             { OwnCloudOptions.TuneLightStride, new[] { 1f, 8f } },
+            { OwnCloudOptions.TuneOtherStride, new[] { 1f, 8f } },
             { OwnCloudOptions.TuneCheapShare, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneFogShare, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneCostDebug, new[] { 0f, 15f } },
@@ -101,7 +102,8 @@ namespace ReDefinition.Atmospheres.Viewer
             Put(map, KeySection.Quality,
                 OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent, OwnCloudModule.TuneReaddEveryFrame, OwnCloudModule.TuneStatsS,
                 OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.TuneSpanSpacing, OwnCloudOptions.TuneSpanSpacingMin, OwnCloudOptions.TuneLeapScale,
-                OwnCloudOptions.TuneWarpTable, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneCheapShare,
+                OwnCloudOptions.TuneWarpTable, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneOtherStride, OwnCloudOptions.TuneRaggedTaps,
+                OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneCheapShare,
                 OwnCloudOptions.TuneFogShare, OwnCloudOptions.TuneCostDebug, OwnCloudOptions.TuneGridFine,OwnCloudOptions.TuneSpanTight, OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.TuneDitherFix,
                 OwnCloudOptions.TuneAccumulate, OwnCloudOptions.TuneReconResolution, OwnCloudOptions.TuneLayerMotion, OwnCloudOptions.TuneMotionVectors,
                 OwnCloudOptions.TuneMotionAudit, EdgeSettings.TuneReconstructor, EdgeSettings.TuneEdgeAdaptive, EdgeSettings.TuneThreshold, EdgeSettings.TuneDilation,
