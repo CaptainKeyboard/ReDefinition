@@ -311,8 +311,6 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneWarpTable, OwnCloudOptions.WarpTableDefault, note: "a table bake follows"),
             N(OwnCloudOptions.TuneLightStride, Frame0.LightStride),
             N(OwnCloudOptions.TuneLightCutoff, Frame0.LightCutoff),
-            N(OwnCloudOptions.TuneOtherStride, Light.OtherStride, KeyLiveness.FrameHistory, "the sun march crosses the other layers at every Nth march of a span and keeps their optical depth in between; 1 every march"),
-            F(OwnCloudOptions.TuneRaggedTaps, Light.RaggedInLightPath, KeyLiveness.FrameHistory, "the light path reads the ragged cloud base; off: the smooth base (the march keeps the ragged one)"),
             N(OwnCloudOptions.TuneEmptyLeap, Frame0.EmptyLeap),
             N(OwnCloudOptions.TuneCheapShare, Frame0.CheapShare),
             N(OwnCloudOptions.TuneFogShare, Frame0.FogShare),

@@ -284,8 +284,6 @@ namespace ReDefinition.WeatherPlayer
             f.Light.MoonSteps = q.MoonSteps;
             f.Light.UpSteps = q.UpSteps;
             f.Light.Octaves = q.Octaves;
-            // OPT3: the light march's cost keys (light.otherStride, light.raggedTaps) as the game reads them (the job's tuning keys).
-            f.Light.ReadCostKeys();
             f.SunMarchM = FrameDefaults.SunMarchM;
             if (c.CeilStep)
             {

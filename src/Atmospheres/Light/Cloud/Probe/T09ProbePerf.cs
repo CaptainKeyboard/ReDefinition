@@ -21,9 +21,6 @@ namespace ReDefinition.Atmospheres
     //   lightown   layers.costDebug 8 (the light march crosses the sample's own layer alone; cost attribution)
     //   noragged   baseRagged 0 (the ragged cloud base: no hashed noise per sample; the height maps stay)
     //   noheight   cloudBaseVariation 0 (the whole height variation off: no height map read, no ragged base)
-    //   ostride2   light.otherStride 2 (the sun march crosses the other layers at every second march of a span; OPT3), ostride4 at every fourth
-    //   noragtaps  light.raggedTaps 0 (the light path reads the smooth base; OPT3)
-    //   olite      light.otherStride 2 and light.raggedTaps 0 together
     //   bare       layers.costDebug 7 (no light march, no shape noise, no erosion: what the march's own walk, the maps and the type tables cost)
     // The orbit_edge view is not run (its placement costs minutes and the 19-minute limit holds 7 variants x 4 views).
     //   plain2     the same as plain, run last: the drift of the start
@@ -61,10 +58,6 @@ namespace ReDefinition.Atmospheres
                 case "noragged":
                 case "noheight":
                 case "bare":
-                case "ostride2":
-                case "ostride4":
-                case "noragtaps":
-                case "olite":
                 case "plain2":
                 case "res2":
                 case "res3":
@@ -146,10 +139,6 @@ namespace ReDefinition.Atmospheres
                 case "noragged": SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0); break;
                 case "noheight": SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0); break;
                 case "bare": ForceTuning(OwnCloudOptions.TuneCostDebug, 7f); break;
-                case "ostride2": ForceTuning(OwnCloudOptions.TuneOtherStride, 2f); break;
-                case "ostride4": ForceTuning(OwnCloudOptions.TuneOtherStride, 4f); break;
-                case "noragtaps": ForceTuning(OwnCloudOptions.TuneRaggedTaps, 0f); break;
-                case "olite": ForceTuning(OwnCloudOptions.TuneOtherStride, 2f); ForceTuning(OwnCloudOptions.TuneRaggedTaps, 0f); break;
             }
             return true;
         }

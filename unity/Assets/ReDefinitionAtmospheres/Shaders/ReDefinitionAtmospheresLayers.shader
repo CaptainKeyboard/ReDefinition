@@ -296,7 +296,7 @@ Shader "ReDefinition/AtmospheresLayers"
             if (heightOn)
             {
                 float localBase, localTop;
-                if (!HeightLocalBaseTop(li, pc, uvRaw, b, tp, erosionType, outer - inner, share, light == 0 || _LightY.y < 0.5, localBase, localTop)) return 0;
+                if (!HeightLocalBaseTop(li, pc, uvRaw, b, tp, erosionType, outer - inner, share, localBase, localTop)) return 0;
                 b = localBase;
                 tp = localTop;
             }
@@ -473,8 +473,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
-                // OPT3 (light.otherStride): the other layers' optical depth towards the sun of the last march that crossed them, and the sun marches since.
-                float othersTau = -1.0, othersSince = 0.0;
                 // CLOUDR1 P6: the first hit by bisection. When a dense sample follows an empty one, the entry lies between them: the loop below evaluates the density at the middle of the
                 // bracket (the same call, no second copy of the density in the shader), keeps the half that holds the entry, and after _FirstHitP.x evaluations goes back to the dense end
                 // and shades from there. The steps right inside are thin (_FirstHitP.y of the grid step) and grow with the lost transmittance, so the rim is resolved where the eye sees it.
@@ -575,20 +573,8 @@ Shader "ReDefinition/AtmospheresLayers"
                             if (_LightT.w > 2.5) upReuse = max(upTau - dot(d, normalize(pc)) * tauSince, 0.0);
                         }
                         // The cone's rotation advances by the golden angle from one lit sample to the next, so that the per-pixel pattern averages out along the ray (FX-T03).
-                        // OPT3: a sun march within _LightY.x marches of the one that crossed the other layers keeps their optical depth (1: every march crosses them).
-                        float othersKeep = (othersTau >= 0.0 && othersSince + 1.0 < _LightY.x) ? othersTau : -1.0;
-                        float othersUsed;
-                        src = LightSource(pc, d, dens, share, li, t - dts, rot + r.steps * 2.3999632, reuse, upReuse, topAlt, othersKeep, dirPart, ambPart, taps, tauUsed, upUsed, othersUsed);
-                        if (reuse < 0.0)
-                        {
-                            sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0;
-                            // Only a march that crossed the sun's path updates the kept value (othersUsed is -1 where the sun was not marched).
-                            if (othersUsed >= 0.0)
-                            {
-                                if (othersKeep < 0.0) { othersTau = othersUsed; othersSince = 0.0; }
-                                else othersSince += 1.0;
-                            }
-                        }
+                        src = LightSource(pc, d, dens, share, li, t - dts, rot + r.steps * 2.3999632, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
+                        if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                         r.lightTaps += taps;
                     }
                     else
@@ -863,9 +849,8 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 if (!read) return float4(0, 0, 0, 0);
                 int steps = max(1, (int)_LightT.z);
-                float othersUnused;
-                float tauSun = LightTau(p, _Sun.xyz, -1, steps, 0.0, 0.0, 0.0, 0, -1.0, othersUnused);
-                float tauUp = LightTau(p, normalize(p), -1, max(1, (int)_LightS.y), 0.0, 0.0, 0.0, 0, -1.0, othersUnused);
+                float tauSun = LightTau(p, _Sun.xyz, -1, steps, 0.0, 0.0, 0.0, 0);
+                float tauUp = LightTau(p, normalize(p), -1, max(1, (int)_LightS.y), 0.0, 0.0, 0.0, 0);
                 return float4(tauSun, tauUp, 0, 0);
             }
             ENDCG

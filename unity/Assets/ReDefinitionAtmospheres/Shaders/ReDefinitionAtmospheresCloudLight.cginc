@@ -30,8 +30,6 @@ float4 _LightV;   // diffusion decay with the optical depth towards the light (0
 float4 _LightM[4];  // per layer (E40 L6 light): x, y the sky's light inside the clouds (amplitude in shares of the sky's isotropic source at the surface, decay with the optical depth below the top; two-stream: 1 / (1 + decay tau)), z the side and back plateau of a Cheap or Fog layer's phase (ice) in units of the isotropic phase, added to the water drop's lobes, w the cell width in m of the cell diffusion (E40 LM2; 0: the diffusion term of _LightU / _LightV)
 float4 _LightW;   // the cell diffusion (E40 LM2, CloudLightMath.CellDiffusion): gain, scaled-depth factor, extrapolation length, side-loss strength
 float4 _LightX;   // the cell diffusion: the octaves' isotropic share at the reference incidence, the reference incidence, the power of the incidence on that share, the incidence's softening optical depth
-float4 _LightY;   // OPT3: x the sun march crosses the other layers at every Nth march of a span and keeps their optical depth in between (0 or 1: every march), y 1 the light path leaves the
-                  // ragged base out (the smooth base of the height maps), 0 it reads it as the march does. All 0 (unset) is the pass as it was.
 float4 _LightL[4];  // per layer: multiple scattering brightness, powder scale, ambient scale, isotropic share of the Cheap and Fog kinds' single scattering (ice crystals, E40 look round 2)
 float4 _MoonDir[2], _MoonCol[2];   // towards the light; colour times intensity (rgb, 0: off)
 float4 _BoltPos[4], _BoltCol[4];   // planet frame position and range (w); colour times intensity
@@ -127,13 +125,9 @@ float3 SunAir(float3 pc, float3 sunDir)
 // The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size over at most _Sun.w m,
 // the other layers with half of them (own < 0: all layers with `steps`). The taps may be spread over a cone of tangent `spread`.
 // CLOUDR2 P3: the first `eroded` taps of each span read the density with its erosion detail (the lobes that shade each other are the detail's, not the shape's); the others the shape only.
-// OPT3: othersReuse >= 0 (with own >= 0) is the optical depth of the other layers kept from an earlier march of the span: they are not crossed again and it is added as it is;
-// othersTau returns the other layers' part of the result (the kept value, or what this march crossed).
-float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot, int eroded, float othersReuse, out float othersTau)
+float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot, int eroded)
 {
     float tau = 0;
-    othersTau = 0;
-    bool keepOthers = own >= 0 && othersReuse >= 0;
     float3 ax = abs(dir.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 u = normalize(cross(dir, ax));
     float3 v = cross(dir, u);
@@ -141,10 +135,8 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
     [loop] for (int lj = 0; lj < MAXL; lj++)
     {
         if (lj >= (int)_LayerCount) break;
-        bool other = own >= 0 && lj != own;
-        if (other && keepOthers) continue;
         // Cost attribution only (layers.costDebug bit 8): the march towards a light crosses the sample's own layer alone.
-        if (other && fmod(floor(_CostP.y * 0.125), 2.0) > 0.5) continue;
+        if (own >= 0 && lj != own && fmod(floor(_CostP.y * 0.125), 2.0) > 0.5) continue;
         float4 sp;
         LayerSpans(lj, pc, dir, 1e30, sp);
         CellClip(pc, dir, sp);
@@ -177,13 +169,7 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
                 gain *= ratio;
             }
             tau += acc;
-            if (other) othersTau += acc;
         }
-    }
-    if (keepOthers)
-    {
-        othersTau = othersReuse;
-        tau += othersReuse;
     }
     return tau;
 }
@@ -285,12 +271,9 @@ float3 BoltLight(float3 pc)
 // _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
 // topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's copy of gTopAlt, gBaseAlt): the end of the analytic occlusion's column and the type's
 // height for the cell diffusion (E40 LM2).
-// OPT3: othersReuse >= 0 is the other layers' optical depth towards the sun kept from an earlier march of the span (LightTau); othersOut returns the other layers' part of
-// this sample's sun march, -1 where the sun was not marched (a cache hit, a reused or a dark sun): the march keeps nothing then.
-float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float rot, float tauReuse, float tauUpReuse, float2 topAlt, float othersReuse, out float3 dirPart,
-                   out float3 ambPart, out float taps, out float tauSunOut, out float tauUpOut, out float othersOut)
+float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float rot, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
+                   out float3 ambPart, out float taps, out float tauSunOut, out float tauUpOut)
 {
-    othersOut = -1.0;
     float3 sunDir = _Sun.xyz;
     int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
     taps = 0;
@@ -320,9 +303,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     {
         ttau[k] = 0.0;
         if (!need[k]) continue;
-        float othersK;
-        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k], k == 0 ? (int)_BlendP.w : 0, k == 0 ? othersReuse : -1.0, othersK);
-        if (k == 0) othersOut = othersK;
+        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k], k == 0 ? (int)_BlendP.w : 0);
     }
     if (need[0]) tauSun = ttau[0];
     tauSunOut = max(tauSun, 0.0);
