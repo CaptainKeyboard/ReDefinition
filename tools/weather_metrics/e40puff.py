@@ -211,6 +211,9 @@ VARIANTS = {
     "r_c256m": ("(ablation) r_a with 256 grid points and a 6 m minimum step", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+c256+cmin6+r33+lp100"),
     "r_c256mg": ("(ablation) r_a with 256 grid points, 6 m minimum, no growth", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+c256+cmin6+cng+r33+lp100"),
     "r_g": ("(round 3) r_a at the Phase 0 grid (the reference look)", tune_cumulus(HEAP1 + EDGE + CAV35), STEPS),
+    # --- OPT4 (2026-11-17): the march target at a quarter of the full size (recon.resolution 0.25) against today's third, on today's look (heap, rim 0.5, cavity 0.35, blend, 96 points) ---
+    "o4_now": ("(OPT4) today's look, the march target a third of the full size", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), NG96),
+    "o4_r25": ("(OPT4) today's look, the march target a quarter of the full size", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), "seq1+lq2+ng96+r25+lp100"),
     "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),
     "s_p2p1p3": ("(Phase 0 grid) P2 + P1 + P3 at the ceiling's grid, minimum step, no growth", tune_cumulus(HEAP1 + EDGE + CAV), STEPS),
     "s_p2p1p3p6": ("(Phase 0 grid) P2 + P1 + P3 + P6 at the ceiling's grid", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), STEPS),

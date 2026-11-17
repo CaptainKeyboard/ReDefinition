@@ -11,6 +11,10 @@ src/Atmospheres/Render/Layers/Core/LayerSpanBound.cs
 src/Atmospheres/Render/Layers/Core/CloudWater.cs
 src/Atmospheres/Render/Layers/Core/CloudSoftDensity.cs
 src/Atmospheres/Render/Layers/LayerMapStore.cs
+src/Atmospheres/Render/Layers/LayerMapStore.GpuSlew.cs
+src/Atmospheres/Render/Layers/MapSlewField.cs
+# OPT1: the layer maps' GPU slew, included by the layer shader, the cloud shadow and the cloud motion include.
+unity/Assets/ReDefinitionAtmospheres/**/MapSlew.cginc
 src/Atmospheres/Render/Layers/LayerRenderer.cs
 src/Atmospheres/Render/Layers/StepPhase.cs
 src/Atmospheres/Render/Layers/DitherMatrix.cs

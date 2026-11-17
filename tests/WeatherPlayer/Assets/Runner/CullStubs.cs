@@ -41,4 +41,14 @@ namespace ReDefinition.Atmospheres
             version++;
         }
     }
+
+    // The log of the atmospheres for the map store's GPU slew (LayerMapStore.GpuSlew.cs, OPT1), which the player links with the store: the game's AtmospheresLog needs the main mod's
+    // Log and CompatibilityLog, which the player does not have. A line goes to the player's log.
+    internal static class AtmospheresLog
+    {
+        internal static void Say(string message)
+        {
+            UnityEngine.Debug.Log("[ReDefinition] Atmospheres: " + message);
+        }
+    }
 }
