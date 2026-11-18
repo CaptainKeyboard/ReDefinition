@@ -231,6 +231,7 @@ Shader "ReDefinition/AtmospheresLayers"
             gEmptyM = 0;
             gCellX = -1.0;
             gCellW = 1.0;
+            gBodyL = 0.0;
             gNoiseD = _NoiseS.w;
             gHeapPreset = 0;
             gHeapCav = 1;
@@ -280,6 +281,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 {
                     float cellReach, wMap;
                     float edgeC = max(_LayerB[li].z, 1e-4);
+                    gCellBodyX = CellBodyReachX(li);
                     cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
                                     (uint)_NoiseOffset[li].w, cellReach, wMap);
                     if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
@@ -526,6 +528,18 @@ Shader "ReDefinition/AtmospheresLayers"
                     float dtv = _CullC.x > 0.0 ? dt * CullStepScale(t - s0[k]) : dt;
                     if (_CullD.x > 0.5) gNoiseFoot = CullFoot(t, dtv);
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
+                    // A4 (owner audit 2026-11-17: the body's thin surface was found by sampling it on a grid fine enough not to miss it): outside a single cloud's body the march steps by the
+                    // distance within which its surface cannot lie (CellBodyGap: the depth over the slope bound, sphere tracing on a body of bounded displacement), and the bisection below
+                    // finds the entry exactly, whatever the grid. Only the nearest disc's body is known: where another disc's body may begin nearer (gCellOther, less the band's widest
+                    // reach), the step goes up to there and never below the grid step, as before. Inside the band, where no body was read and with cloud.cellTrace 0 the grid stays.
+                    float traceGap = -1.0;
+                    [branch] if (_CellE[li].w > 0.0 && gBodyL > 0.0 && gBodyQ < -0.5 * max(_CellE[li].y, 1.0))
+                    {
+                        float band = max(_CellE[li].y, 1.0);
+                        float self = CellBodyGap(li);
+                        float other = gCellOther - 4.0 * band;
+                        traceGap = self <= other ? max(self, band) : max(other, dtv);
+                    }
                     float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
                     float2 typeLight = gTypeLight;
                     float billowD = gNoiseD;
@@ -539,6 +553,16 @@ Shader "ReDefinition/AtmospheresLayers"
                         bIter += 1.0;
                         if (bIter < _FirstHitP.x) t = 0.5 * (bLo + bHi);
                         else { bisecting = false; t = bHi; prevDense = true; shell = _FirstHitP.z; }
+                        continue;
+                    }
+                    if (!(dens > 0) && traceGap > 0.0)
+                    {
+                        // A4: off the grid by the body's gap; a step that lands on cloud is bracketed from here by the bisection (no step back to the grid).
+                        prevDense = false;
+                        tLast = t;
+                        arrived = 1.0;
+                        leap = 1.0;
+                        t += traceGap;
                         continue;
                     }
                     if (!(dens > 0))

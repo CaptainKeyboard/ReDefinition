@@ -13,7 +13,8 @@
 #define REDEFINITION_CLOUD_CELLS
 
 // The body of a single cloud per layer (CloudLayerDef's cell keys, the viewer's overrides through CloudLookTuning): x how far the billows move the body's surface, as a share of its shorter
-// semi-axis (cfg cellBillow); y the width in m of the band the share rises over at the surface (cellBand); z the gain of the finer billow octaves (cellFine; 0: not read); w unused.
+// semi-axis (cfg cellBillow); y the width in m of the band the share rises over at the surface (cellBand); z the gain of the finer billow octaves (cellFine; 0: not read); w the billows' steepest
+// change per noise scale, the bound the march steps by outside a body (CellBodyGap; 0 with cloud.cellTrace off: the march keeps its grid).
 float4 _CellE[4];
 
 // The lattice: a centre lies anywhere in its cell (CELL_JITTER 1: the rows and columns do not show), a disc's size is 1 +- CELL_SIGMA of the share's radius, the share f / CELL_ALIVE_F0 of the
@@ -71,8 +72,15 @@ float CellUnit(uint h)
 // The profile (0..1) of the nearest disc at the map place uv (u: longitude with the layer's shift, any value; v: 0 north to 1 south), for the pitch (m), the radius of the layer's middle rm (m),
 // the share f and the layer's seed. size: the size factor of that disc's cell (1 where there is none); xBest: the distance to its centre over its profile radius rBest (m). reachM: a distance in
 // m over which no disc begins (0 inside one; the march leaps over it, as over the map's empty reach).
+// gCellBodyX (set by the caller, 0: not asked): the widest a body reaches from its centre in profile radii (CELL_EDGE_X times 1 plus the billows' swing); gCellOther returns the least horizontal
+// distance in m from the point to where the body of a disc other than the nearest one can begin (the march's cap on CellBodyGap; the twin does not need it, it is not an output of the profile).
+static float gCellBodyX = 0.0;
+static float gCellOther = 1e9;
+
 float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out float size, out float reachM, out float xBest, out float rBest)
 {
+    gCellOther = 1e9;
+    float bestGap = 1e9;
     reachM = 0.0;
     size = 1.0;
     xBest = 1e9;
@@ -115,10 +123,13 @@ float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out floa
             float d = sqrt(dx * dx + dy * dy);
             float r = min(rProf * s, rCap);
             float x = d / r;
-            if (x < best) { best = x; size = s; rBest = r; }
+            float gap = d - gCellBodyX * r;
+            if (x < best) { best = x; size = s; rBest = r; gCellOther = min(gCellOther, bestGap); bestGap = gap; }
+            else gCellOther = min(gCellOther, gap);
             reach = min(reach, d - r);
         }
     }
+    gCellOther = min(gCellOther, outerM - gCellBodyX * rCap);
     reachM = max(min(reach, outerM - rCap), 0.0);
     xBest = best;
     return 1.0 - smoothstep(0.45, 1.0, best);
@@ -130,6 +141,12 @@ static float gCellX = -1.0;
 static float gCellCore = 0.0;
 static float gCellW = 1.0;
 static float gCellR = 0.0;
+// The body's depth below its surface at the last CellBody (m, negative outside) and a bound on how fast it changes along any line (m per m), so that |gBodyQ| / gBodyL is a distance within which the
+// surface cannot lie (CellBodyGap). gBodyL is 0 where no body was read (the caller resets it).
+static float gBodyQ = 0.0;
+static float gBodyL = 0.0;
+// The same depth below the outer side of the shell the billows can move the surface within (m, negative outside the shell): it changes by at most 1 per m.
+static float gBodyFar = 0.0;
 
 // The layer map's value at a point with the cells, for the coverage bounds and the far view. The disc's profile p is placed on the layer's threshold (p 0.5 at the threshold, 0 half a unit below
 // it), and inside the disc it rises to the cloud's core strength: the map's excess over the threshold (how much the region convects: a fair sky's clouds stay low, a stormy region's grow) times
@@ -176,8 +193,32 @@ float CellBody(int li, float h, float billow, float2 fine, float typeHeightM)
     float semiH = max(top * typeHeightM, 1.0), semiR = max(CELL_EDGE_X * gCellR, 1.0);
     float xv = gCellX / CELL_EDGE_X, hv = h / top;
     float axis = min(semiR, semiH);
-    float q = (1.0 - sqrt(xv * xv + hv * hv)) * axis + e.x * axis * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
+    float qBase = (1.0 - sqrt(xv * xv + hv * hv)) * axis;
+    float q = qBase + e.x * axis * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
+    // The bound of the slope: the ellipsoid's radial coordinate changes by at most 1 / axis per m, so its term by at most 1; the billows' term e.x axis times their steepest change per noise scale
+    // (_CellE.w, the measured slopes of the rank and of the finer octaves weighted by their gain, CloudCells.cs) over the scale in m. And the shell: the billows move the surface by at most
+    // e.x axis (0.5 + 0.5 e.z (0.37 + 0.137)) outwards, so beyond that the body's own term alone (slope 1) bounds the distance (gBodyFar, the depth below the shell's outer side).
+    gBodyQ = q;
+    gBodyL = 1.0 + e.x * axis * e.w * max(_LayerD[li].y, 1e-4);
+    gBodyFar = qBase + e.x * axis * (0.5 + 0.5 * e.z * (0.37 + 0.137));
     return saturate(q / max(e.y, 1.0) + 0.5);
+}
+
+// The distance along any line from the point of the last CellBody within which the body's surface band cannot begin (m, 0 inside it or where no body was read): the depth outside the band over the
+// slope bound. Only the nearest disc's body is known, so the caller caps it below the reach of a neighbour's body.
+float CellBodyGap(int li)
+{
+    if (gBodyL <= 0.0) return 0.0;
+    float half = 0.5 * max(_CellE[li].y, 1.0);
+    return max(max(-gBodyQ - half, 0.0) / gBodyL, -gBodyFar - half);
+}
+
+// The widest reach of a body from its disc's centre in profile radii for the layer (gCellBodyX): the horizontal semi-axis CELL_EDGE_X times the radial coordinate where the billows' largest outward
+// swing still reaches the band, e.x (0.5 + e.z (0.37 + 0.137) / 2) of the shorter semi-axis, bounded by the horizontal one; the band's half width is the caller's.
+float CellBodyReachX(int li)
+{
+    float4 e = _CellE[li];
+    return CELL_EDGE_X * (1.0 + e.x * (0.5 + 0.5 * e.z * (0.37 + 0.137)));
 }
 
 #endif

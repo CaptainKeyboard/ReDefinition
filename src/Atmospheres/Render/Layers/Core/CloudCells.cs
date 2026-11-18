@@ -11,6 +11,12 @@ namespace ReDefinition.Atmospheres
     {
         internal const double Jitter = 1.0, Sigma = 0.5, AliveF0 = 0.25, AliveMax = 0.85, EdgeX = 0.725, RMax = 0.8;
 
+        // A4: the steepest change per noise scale of the body's first billow octave (its rank) and of the finer octaves together, the bounds the march's step outside a body stands on
+        // (CloudCells.cginc CellBodyGap; _CellE.w = TraceRankSlope + cellFine x TraceFineSlope). Measured on the volumes by CellTraceSlopeTests (the rank with a margin of a quarter, the fine
+        // octaves exactly from the voxels).
+        // Measured 2026-11-17 over the Medium and High volumes, seeds 1 and 7: the rank 5.07, the finer octaves 20.21 per noise scale.
+        internal const double TraceRankSlope = 6.5, TraceFineSlope = 20.5;
+
         // The visible radius of a disc in pitches for the share f = 0, 1/16 .. 1: the Monte Carlo of the lattice (CloudCellsTests measures it again against this table).
         internal static readonly double[] RadiusTable =
             { 0.0, 0.2712, 0.2728, 0.2741, 0.2994, 0.3377, 0.3747, 0.4106, 0.4462, 0.4826, 0.5209, 0.5612, 0.6061, 0.6595, 0.7262, 0.8257, 1.2573 };

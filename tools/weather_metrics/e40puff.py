@@ -267,6 +267,12 @@ VARIANTS = {
     "b_steps_filt": ("(BODY) the ceiling's steps, the product's light with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
     "b_prod_filt": ("(BODY) the product's march (96 grid points) with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 1.0)])), "seq1+lq2+ng96+r33+lp100"),
     "b_ng96_nofoot": ("(BODY) the product's march with 96 grid points, the heap's spacing LOD off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 0.0)])), "seq1+lq2+ng96+r33+lp100"),
+    # A4 (owner audit 2026-11-17): outside a body the march steps by the distance within which its surface cannot lie and finds the entry by bisection (cloud.cellTrace 1, the default);
+    # the outline should no longer hang on the grid points: the chosen look and the product's march of Medium with the trace on and off
+    "t_ceil": ("(TRACE) b_ceil with the body trace", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), CEIL),
+    "t_ceil_off": ("(TRACE) b_ceil without the body trace (the chosen look as it was)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), CEIL),
+    "t_prod": ("(TRACE) the product's march (96 grid points) with the body trace", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), NG96),
+    "t_prod_off": ("(TRACE) the product's march (96 grid points) without the body trace", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), NG96),
     "b_ng128": ("(BODY) the product's march with 128 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng128+r33+lp100"),
     "b_ng160": ("(BODY) the product's march with 160 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng160+r33+lp100"),
     "b_ng192": ("(BODY) the product's march with 192 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng192+r33+lp100"),
