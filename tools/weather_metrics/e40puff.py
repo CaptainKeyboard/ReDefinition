@@ -285,7 +285,34 @@ VARIANTS = {
     # product's grid of 256 and 96 points at the ceiling's full size and accumulation).
     "k_ceil_r33": ("(SPLIT) the ceiling march at the product's third of the size and its reconstruction", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ceil+r33+lp100"),
     "k_ceil_rec": ("(SPLIT) the ceiling march at full size with the product's reconstruction (no accumulation)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ceil+r100+lp100"),
-    "k_ng256_full": ("(SPLIT) 256 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r100+jit+acc8+clip1000+lp100"),
+    # Round 1 of the cheaper way (owner 2026-11-18: the look costs ten times the frame, the size of the march target four of those): the ceiling march at a half and two thirds of the size.
+    "k_ceil_r50": ("(SEARCH 1) the ceiling march at half the size with the product's reconstruction", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ceil+r50+lp100"),
+    "k_ceil_r66": ("(SEARCH 1) the ceiling march at two thirds of the size with the product's reconstruction", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ceil+r66+lp100"),
+    # Round 2 (owner 2026-11-18: r66 passable but visibly different; first save where clouds are hidden or contribute little): at full size, the ceiling's march and light built from
+    # their parts (k_vis_parts must equal k_ceil_rec), then one visibility saving of the product back at a time, then all three.
+    "k_vis_parts": ("(SEARCH 2) the ceiling built from its parts (control: equal to k_ceil_rec)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cng+ceo+cel+ctaps+cls+r100+lp100"),
+    "k_vis_eo": ("(SEARCH 2) the ceiling with the product's early out (a ray ends at 1 % of its light left)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cng+cel+ctaps+cls+r100+lp100"),
+    "k_vis_tg": ("(SEARCH 2) the ceiling with the product's step growth with the lost transmittance", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+ceo+cel+ctaps+cls+r100+lp100"),
+    "k_vis_cut": ("(SEARCH 2) the ceiling with the product's light cutoff (a step that weighs little reuses the last sun march)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cng+ceo+cel+ctaps+cst1+r100+lp100"),
+    # Round 3 (owner 2026-11-18: the three visibility savings are equal; in the game they gave 1.5x, the look still ~6x the product): from k_vis_all, one of the remaining big
+    # levers back at a time: the product's leap over empty samples, a 12 m shortest step, 8 sun taps; then all three.
+    "k3_leap": ("(SEARCH 3) k_vis_all with the product's leap over empty samples", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+ctaps+cst1+r100+lp100"),
+    "k3_min12": ("(SEARCH 3) k_vis_all with a 12 m shortest step", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cms12+cnsg+cel+ctaps+cst1+r100+lp100"),
+    "k3_taps8": ("(SEARCH 3) k_vis_all with 8 sun taps over the 12 km", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+cst1+r100+lp100"),
+    "k3_all": ("(SEARCH 3) k_vis_all with the leap, a 12 m shortest step and 8 sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cms12+cnsg+ctap8+cst1+r100+lp100"),
+    # Round 4 (owner 2026-11-18: 8 sun taps are equal; the leap and a 12 m shortest step changed no pixel, the 256 grid points set the step): from k3_taps8, one more light or
+    # step lever back to the product's at a time: 4 sun taps, a 9 km sun march, the step growth along the ray, the light march every second lit step.
+    "k4_taps4": ("(SEARCH 4) k3_taps8 with 4 sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap4+cst1+r100+lp100"),
+    "k4_sm9": ("(SEARCH 4) k3_taps8 with a 9 km sun march", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+csm9+cst1+r100+lp100"),
+    "k4_grow": ("(SEARCH 4) k3_taps8 with the product's step growth along the ray", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cel+ctap8+cst1+r100+lp100"),
+    "k4_stride": ("(SEARCH 4) k3_taps8 with the light march every second lit step (the product's stride)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
+    # Round 5 (owner 2026-11-18: the light march every second lit step is equal; 4 taps and a 9 km march are not): the accepted look (k4_stride) at a smaller march size, the
+    # missing pixels taken from the jittered history (the target t_ceil_off accumulated jittered frames too). Static camera: one that passes is checked in motion next.
+    "k5_r66acc": ("(SEARCH 5) k4_stride at two thirds of the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r66+jit+acc8+clip1000+lp100"),
+    "k5_r50acc": ("(SEARCH 5) k4_stride at half the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r50+jit+acc8+clip1000+lp100"),
+    "k5_r33acc": ("(SEARCH 5) k4_stride at a third of the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r33+jit+acc8+clip1000+lp100"),
+    "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
+    "k_ng256_full":("(SPLIT) 256 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r100+jit+acc8+clip1000+lp100"),
     "k_ng96_full": ("(SPLIT) 96 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+r100+jit+acc8+clip1000+lp100"),
     "f_ng96_only":("(FOOT) 96 grid points with the footprint filter alone (no shell leap)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0), ("cloud.cellFoot", 1.0)])), NG96),
     "f_ng128":("(FOOT) 128 grid points with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), "seq1+lq2+ng128+r33+lp100"),

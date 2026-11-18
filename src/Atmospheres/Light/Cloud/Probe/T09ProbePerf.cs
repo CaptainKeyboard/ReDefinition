@@ -76,6 +76,8 @@ namespace ReDefinition.Atmospheres
                 case "leapshell":
                 case "ceil":
                 case "ceilr33":
+                case "ceilvis":
+                case "ceilvis8":
                 case "nolayers":
                 case "plain2":
                 case "res2":
@@ -176,18 +178,25 @@ namespace ReDefinition.Atmospheres
                 // size of the camera; ceilr33: the same march at the product's reconstruction size (the owner saw the third of the size as a visible loss).
                 case "ceil":
                 case "ceilr33":
-                    SetSetting(AtmospheresSettings.Keys.CloudSamples, 256.0);
-                    SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, 0.0);
-                    ForceTuning(OwnCloudOptions.TuneMinStepM, 6f);
-                    ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 0f);
-                    ForceTuning(OwnCloudOptions.TuneEarlyOut, 0.001f);
-                    ForceTuning(OwnCloudOptions.TuneEmptyLeap, 1f);
-                    ForceTuning(OwnCloudOptions.TuneLightStride, 1f);
-                    ForceTuning(OwnCloudOptions.TuneLightCutoff, 0f);
-                    ForceTuning(OwnCloudOptions.TuneSunMarchM, 12000f);
-                    ForceTuning(OwnCloudOptions.TuneSunSteps, 16f);
-                    if (name == "ceil") ForceTuning(OwnCloudOptions.TuneReconResolution, 1f);
-                    break;
+                case "ceilvis":
+                case "ceilvis8":
+                    {
+                        // ceilvis (search round 2, owner 2026-11-18): the ceiling with the product's three savings where a cloud is hidden or adds little, which the owner judged
+                        // equal (e40puff k_vis_all): the early out at 1 % of the light, the step growth with the lost transmittance, the light cutoff. ceilvis8 (round 3): with 8 sun taps.
+                        bool vis = name == "ceilvis" || name == "ceilvis8";
+                        SetSetting(AtmospheresSettings.Keys.CloudSamples, 256.0);
+                        if (!vis) SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, 0.0);
+                        ForceTuning(OwnCloudOptions.TuneMinStepM, 6f);
+                        ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 0f);
+                        if (!vis) ForceTuning(OwnCloudOptions.TuneEarlyOut, 0.001f);
+                        ForceTuning(OwnCloudOptions.TuneEmptyLeap, 1f);
+                        ForceTuning(OwnCloudOptions.TuneLightStride, 1f);
+                        if (!vis) ForceTuning(OwnCloudOptions.TuneLightCutoff, 0f);
+                        ForceTuning(OwnCloudOptions.TuneSunMarchM, 12000f);
+                        ForceTuning(OwnCloudOptions.TuneSunSteps, name == "ceilvis8" ? 8f : 16f);
+                        if (name != "ceilr33") ForceTuning(OwnCloudOptions.TuneReconResolution, 1f);
+                        break;
+                    }
                 // The same fault: the pass with all its targets, maps and passes, but no layer drawn (the baseline mask), so a run tells the clouds' content from the pass's resources.
                 case "nolayers": Game.SetLayerMask(NoLayersMask); break;
             }

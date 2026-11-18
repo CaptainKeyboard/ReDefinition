@@ -177,6 +177,11 @@ namespace ReDefinition.WeatherPlayer
             // CLOUDR1 ablation of the ceiling's march group, one lever each: c256 256 grid points, cmin6 a minimum step of 6 m, cng no step and transmittance growth, ceo early-out 0.001,
             // cel no leap over empty grid points; cls every lit step marches to the sun (stride 1, no cutoff) with the product's taps.
             public bool C256, Cmin6, Cng, Ceo, Cel, Cls;
+            // A4 search round 2 (owner 2026-11-18: save where clouds are hidden or contribute little, before the size): ctaps the ceiling's sun taps alone (16 over 12 km, the product's
+            // stride and cutoff); cnsg no step growth along the ray but the product's growth with the lost transmittance; cst1 every lit step marches (stride 1) with the product's cutoff.
+            public bool Ctaps, Cnsg, Cst1;
+            // Round 3: cms<N> the shortest step in m; ctap<N> the sun taps (with ctaps' 12 km march). Round 4: csm<N> the sun march in km (with ctaps or ctap<N>).
+            public int MinStepOverride, SunTaps, SunMarchKm;
             // CLOUDR3 P7: chm reads the reconstruction's history with the Catmull-Rom filter (ReconSettings.CatmullHistory).
             public bool CatmullHistory;
             // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
@@ -213,6 +218,12 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "ceo") c.Ceo = true;
                 else if (t == "cel") c.Cel = true;
                 else if (t == "cls") c.Cls = true;
+                else if (t == "ctaps") c.Ctaps = true;
+                else if (t.StartsWith("cms") && t.Length > 3) c.MinStepOverride = Number(t, 3);
+                else if (t.StartsWith("csm") && t.Length > 3) c.SunMarchKm = Number(t, 3);
+                else if (t.StartsWith("ctap") && t.Length > 4) { c.Ctaps = true; c.SunTaps = Number(t, 4); }
+                else if (t == "cnsg") c.Cnsg = true;
+                else if (t == "cst1") c.Cst1 = true;
                 else if (t.StartsWith("cg") && t.Length > 2) { c.StepGrowth = true; c.GrowthE6 = Number(t, 2); }   // E40 C3
                 else if (t.StartsWith("eo")) c.EarlyOut = Number(t, 2);   // E40 C3
                 else if (t.StartsWith("mn")) c.Moon = Number(t, 2);   // E40 C2
@@ -309,6 +320,14 @@ namespace ReDefinition.WeatherPlayer
                 f.LightStride = 1;
                 f.LightCutoff = 0f;
             }
+            if (c.Cnsg) f.StepGrowth = 0f;
+            if (c.Cst1) f.LightStride = 1;
+            if (c.Ctaps)
+            {
+                f.SunMarchM = c.SunMarchKm > 0 ? c.SunMarchKm * 1000f : 12000f;
+                f.Light.SunStepsOverride = c.SunTaps > 0 ? c.SunTaps : 16;
+            }
+            if (c.MinStepOverride > 0) f.MinStepM = c.MinStepOverride;
             if (c.CeilTaps)
             {
                 f.LightStride = 1;
