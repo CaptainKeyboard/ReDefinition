@@ -55,7 +55,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
         }
 
         // The previous place of the cloud on the first layer's middle sphere (the sample distance where the ray misses it). Out: the distance along the ray, and the depth of the
-        // point in front of the previous camera (1e-3 or less: it was behind it).
+        // point in front of the previous camera (0 where the previous camera did not see it, PrevSees: behind it, beside it, or far outside its view).
         float2 FirstShellPrevious(float3 o, float3 d, out float t, out float f)
         {
             float b = dot(o, d);
@@ -69,7 +69,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
                 t = t0 > 0 ? t0 : (t1 > 0 ? t1 : _ShellR.y);
             }
             float3 v = o + d * t - _Drift.xyz - _PrevPos.xyz;
-            f = dot(v, _PrevF.xyz);
+            f = PrevSees(v) ? dot(v, _PrevF.xyz) : 0.0;
             return float2(dot(v, _PrevR.xyz), dot(v, _PrevU.xyz)) / max(f, 1e-3) * 0.5 + 0.5;
         }
 

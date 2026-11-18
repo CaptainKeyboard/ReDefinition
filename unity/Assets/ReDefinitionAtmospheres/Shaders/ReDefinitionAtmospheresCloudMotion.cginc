@@ -20,6 +20,17 @@ float4 _MvReach;     // the coverage maps' slew reach per layer (MapSlew.cginc)
 float4x4 _MvWorldToMap;
 UNITY_DECLARE_TEX2DARRAY(_MvCov);
 
+// Whether the previous camera saw the point at v (relative to it): in front of it and within its view, widened by half a picture on every side (the previous place between -0.5 and 1.5 of the
+// picture). Only such a point has a previous place. The test is made without the division: a point beside or behind the previous camera has no finite projection, and its place in RGHalf
+// overflowed to Inf, the blend's 0 x Inf to NaN, which the upscaler read. A value that is not a number fails it. (Not the cause of DLSS's GPU page faults after a teleport, which K-T2 2026-11-18
+// put inside NGX's D3D11 evaluation with finite inputs: DlssD3d12.h.)
+bool PrevSees(float3 v)
+{
+    float f = dot(v, _PrevF.xyz);
+    float x = dot(v, _PrevR.xyz), y = dot(v, _PrevU.xyz);
+    return f > 1e-3 && abs(x) <= 2.0 * f && abs(y) <= 2.0 * f;
+}
+
 float MvPresence(int l, float3 pc)
 {
     float slice = _MvA[l].w;
@@ -70,7 +81,7 @@ bool CloudPrevious(float3 o, float3 d, out float2 puv, out float depth)
         a[l] = 1.0 - exp(-_MvB[l].x / max(abs(dot(d, pc)) / r, 0.05));
         float3 v = pc - _MvD[l].xyz - _PrevPos.xyz;
         float f = dot(v, _PrevF.xyz);
-        fv[l] = f;
+        fv[l] = PrevSees(v) ? f : 0.0;   // only a place the previous camera saw counts (PrevSees)
         pu[l] = float2(dot(v, _PrevR.xyz), dot(v, _PrevU.xyz)) / max(f, 1e-3) * 0.5 + 0.5;
     }
     float sum = 0, seen = 0, td = 0;

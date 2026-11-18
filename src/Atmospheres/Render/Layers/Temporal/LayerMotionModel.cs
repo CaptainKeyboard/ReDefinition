@@ -86,10 +86,12 @@ namespace ReDefinition.Atmospheres
                 a[l] = Opacity(layers[l].TauVertical, cosine);
                 double wx = qx - layers[l].DriftX - prev.Px, wy = qy - layers[l].DriftY - prev.Py, wz = qz - layers[l].DriftZ - prev.Pz;
                 double f = wx * prev.Fx + wy * prev.Fy + wz * prev.Fz;
-                front[l] = f > 1e-3;
+                double x = (wx * prev.Rx + wy * prev.Ry + wz * prev.Rz) / prev.TanX, y = (wx * prev.Ux + wy * prev.Uy + wz * prev.Uz) / prev.TanY;
+                // Only a place the previous camera saw counts: in front of it and within its view widened by half a picture (the shader's PrevSees, tested without the division).
+                front[l] = f > 1e-3 && Math.Abs(x) <= 2.0 * f && Math.Abs(y) <= 2.0 * f;
                 if (!front[l]) continue;
-                puv[l * 2] = (wx * prev.Rx + wy * prev.Ry + wz * prev.Rz) / (f * prev.TanX) * 0.5 + 0.5;
-                puv[l * 2 + 1] = (wx * prev.Ux + wy * prev.Uy + wz * prev.Uz) / (f * prev.TanY) * 0.5 + 0.5;
+                puv[l * 2] = x / f * 0.5 + 0.5;
+                puv[l * 2 + 1] = y / f * 0.5 + 0.5;
             }
 
             double sum = 0, seen = 0, td = 0, su = 0, sv = 0;
