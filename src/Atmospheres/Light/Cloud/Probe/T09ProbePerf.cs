@@ -33,7 +33,8 @@ namespace ReDefinition.Atmospheres
         private const double PerfDwellS = 8.0;
 
         // The grid points the start began with (the profile's), read before the first variant changes them.
-        private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN;
+        private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN,
+            baseStepGrowth = double.NaN;
 
         private bool PerfStart
         {
@@ -73,6 +74,8 @@ namespace ReDefinition.Atmospheres
                 case "nomv":
                 case "leap":
                 case "leapshell":
+                case "ceil":
+                case "ceilr33":
                 case "nolayers":
                 case "plain2":
                 case "res2":
@@ -94,6 +97,7 @@ namespace ReDefinition.Atmospheres
             baseRays = AtmospheresSettings.Number(AtmospheresSettings.Keys.RtOwnClouds);
             baseRagged = AtmospheresSettings.Number(AtmospheresSettings.Keys.BaseRagged);
             baseVariation = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudBaseVariation);
+            baseStepGrowth = AtmospheresSettings.Number(AtmospheresSettings.Keys.LayerStepGrowth);
         }
 
         private void PerfRestoreBase()
@@ -105,6 +109,7 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.RtOwnClouds, baseRays);
             SetSetting(AtmospheresSettings.Keys.BaseRagged, baseRagged);
             SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, baseVariation);
+            SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, baseStepGrowth);
         }
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
@@ -166,6 +171,22 @@ namespace ReDefinition.Atmospheres
                 case "leapshell":
                     ForceTuning(CloudLookTuning.TuneCellTrace, 1f);
                     ForceTuning(CloudLookTuning.TuneCellShell, 1f);
+                    break;
+                // A4 2026-11-18: the owner chose the player's ceiling march at full size (e40puff k_ceil_rec) as the look; its cost in the game. ceil: that march at the full
+                // size of the camera; ceilr33: the same march at the product's reconstruction size (the owner saw the third of the size as a visible loss).
+                case "ceil":
+                case "ceilr33":
+                    SetSetting(AtmospheresSettings.Keys.CloudSamples, 256.0);
+                    SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, 0.0);
+                    ForceTuning(OwnCloudOptions.TuneMinStepM, 6f);
+                    ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 0f);
+                    ForceTuning(OwnCloudOptions.TuneEarlyOut, 0.001f);
+                    ForceTuning(OwnCloudOptions.TuneEmptyLeap, 1f);
+                    ForceTuning(OwnCloudOptions.TuneLightStride, 1f);
+                    ForceTuning(OwnCloudOptions.TuneLightCutoff, 0f);
+                    ForceTuning(OwnCloudOptions.TuneSunMarchM, 12000f);
+                    ForceTuning(OwnCloudOptions.TuneSunSteps, 16f);
+                    if (name == "ceil") ForceTuning(OwnCloudOptions.TuneReconResolution, 1f);
                     break;
                 // The same fault: the pass with all its targets, maps and passes, but no layer drawn (the baseline mask), so a run tells the clouds' content from the pass's resources.
                 case "nolayers": Game.SetLayerMask(NoLayersMask); break;

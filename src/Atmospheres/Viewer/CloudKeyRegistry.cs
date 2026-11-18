@@ -314,6 +314,12 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneEmptyLeap, Frame0.EmptyLeap),
             N(OwnCloudOptions.TuneCheapShare, Frame0.CheapShare),
             N(OwnCloudOptions.TuneFogShare, Frame0.FogShare),
+            // A4 (2026-11-18): the player's ceiling march in the game, the look the owner chose (at or below 0: the product's value).
+            N(OwnCloudOptions.TuneMinStepM, 0f, note: "shortest step in m, the ceiling march 6; 0 the step quality's"),
+            N(OwnCloudOptions.TuneFrameStepGrowth, -1f, note: "the step's growth per m along the ray, the ceiling march 0; below 0 the product's"),
+            N(OwnCloudOptions.TuneEarlyOut, 0f, note: "the transmittance a ray ends at, the ceiling march 0.001; 0 the product's"),
+            N(OwnCloudOptions.TuneSunMarchM, 0f, note: "the length of the march towards the sun in m, the ceiling march 12000; 0 the setting's"),
+            N(OwnCloudOptions.TuneSunSteps, 0f, note: "taps towards the sun, the ceiling march 16; 0 the light quality's"),
             N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),
             N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
             F(OwnCloudOptions.TuneSpanTight, OwnCloudOptions.SpanTightDefault),

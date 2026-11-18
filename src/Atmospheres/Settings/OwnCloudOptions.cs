@@ -14,6 +14,9 @@ namespace ReDefinition.Atmospheres
         // are the compiled defaults of LayerFrame.
         internal const string TuneCoverageBound = "layers.coverageBound", TuneLightStride = "layers.lightStride", TuneLightCutoff = "layers.lightCutoff",
             TuneEmptyLeap = "layers.emptyLeap", TuneCheapShare = "layers.cheapShare", TuneFogShare = "layers.fogShare";
+        // A4 test keys: the player's ceiling march in the game (Apply).
+        internal const string TuneMinStepM = "layers.minStepM", TuneFrameStepGrowth = "layers.stepGrowth", TuneEarlyOut = "layers.earlyOut", TuneSunMarchM = "layers.sunMarchM",
+            TuneSunSteps = "layers.sunSteps";
 
         // layers.costDebug (LayerFrame.CostDebug, 0 to 15, default 0): cost attribution only, the picture is wrong while it is set. Bit 1 skips the light march, bit 2 reads no shape
         // noise, bit 4 no erosion, bit 8 the light march crosses the sample's own layer alone; the K-T2 perf variants nolight, noshape, noerode and lightown set it.
@@ -240,6 +243,17 @@ namespace ReDefinition.Atmospheres
             f.MinStepM = minStep;
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
             f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
+            // A4 test keys (2026-11-18): the march of the player's ceiling look in the game, to measure its cost (the owner chose that look, e40puff k_ceil_rec). Each one at or below
+            // 0 (the default) keeps the product's value: layers.minStepM the shortest step in m (ceiling 6), layers.stepGrowth the step's growth per m along the ray (ceiling 0, below 0 off),
+            // layers.earlyOut the transmittance a ray ends at (ceiling 0.001), layers.sunMarchM the length of the march towards the sun in m (ceiling 12000).
+            float minStepKey = Tuning.Get(TuneMinStepM, 0f);
+            if (minStepKey > 0f) f.MinStepM = minStepKey;
+            float growthKey = Tuning.Get(TuneFrameStepGrowth, -1f);
+            if (growthKey >= 0f) f.StepGrowth = growthKey;
+            float earlyKey = Tuning.Get(TuneEarlyOut, 0f);
+            if (earlyKey > 0f) f.EarlyOut = earlyKey;
+            float sunMarchKey = Tuning.Get(TuneSunMarchM, 0f);
+            if (sunMarchKey > 0f) f.SunMarchM = sunMarchKey;
             // The cost controls: tuning keys with the compiled values of the frame.
             f.CoverageBound = Tuning.Flag(TuneCoverageBound, CompiledFrame.CoverageBound);
             f.EmptyReach = Tuning.Flag(TuneEmptyReach, EmptyReachDefault);
@@ -272,6 +286,9 @@ namespace ReDefinition.Atmospheres
         {
             CloudLightSettings q = CloudLightSettings.ForQuality((int)Level(v, AtmospheresSettings.Keys.CloudLightQuality));
             s.SunStepsOverride = q.SunStepsOverride;
+            // A4 test key (layers.sunSteps, 2026-11-18): the taps towards the sun, as the player's ceiling march sets them (16); 0 keeps the quality level's.
+            int sunSteps = Mathf.RoundToInt(Tuning.Get(TuneSunSteps, 0f));
+            if (sunSteps > 0) s.SunStepsOverride = Math.Min(sunSteps, 64);
             s.MoonSteps = q.MoonSteps;
             s.UpSteps = q.UpSteps;
             s.Octaves = Math.Max(1, Math.Min(q.Octaves, (int)v(AtmospheresSettings.Keys.CloudLightOctaves)));

@@ -62,6 +62,11 @@ namespace ReDefinition.Atmospheres.Viewer
             { OwnCloudOptions.TuneTapFactor, new[] { 1f, 8f } },
             { OwnCloudOptions.TuneFootScale, new[] { 0f, 8f } },
             { OwnCloudOptions.TuneCapKeep, new[] { 1f, 8f } },
+            { OwnCloudOptions.TuneMinStepM, new[] { 0f, 100f } },
+            { OwnCloudOptions.TuneFrameStepGrowth, new[] { -1f, 0.001f } },
+            { OwnCloudOptions.TuneEarlyOut, new[] { 0f, 0.05f } },
+            { OwnCloudOptions.TuneSunMarchM, new[] { 0f, 20000f } },
+            { OwnCloudOptions.TuneSunSteps, new[] { 0f, 32f } },
             { EdgeSettings.TuneDilation, new[] { 0f, (float)EdgeSettings.MaxDilation } },
             { EdgeSettings.TunePersist, new[] { 1f, 32f } },
             { CloudLookTuning.TuneDensityRemap, new[] { 0f, 1f } },
@@ -109,7 +114,8 @@ namespace ReDefinition.Atmospheres.Viewer
                 OwnCloudOptions.TuneMotionAudit, EdgeSettings.TuneReconstructor, EdgeSettings.TuneEdgeAdaptive, EdgeSettings.TuneThreshold, EdgeSettings.TuneDilation,
                 EdgeSettings.TunePersist,
                 OwnCloudOptions.TuneCutWeight, OwnCloudOptions.TuneStepGrowth, OwnCloudOptions.TuneTapStart, OwnCloudOptions.TuneTapEnd, OwnCloudOptions.TuneTapFactor,
-                OwnCloudOptions.TuneFootScale, OwnCloudOptions.TuneCapKeep);
+                OwnCloudOptions.TuneFootScale, OwnCloudOptions.TuneCapKeep,
+                OwnCloudOptions.TuneMinStepM, OwnCloudOptions.TuneFrameStepGrowth, OwnCloudOptions.TuneEarlyOut, OwnCloudOptions.TuneSunMarchM, OwnCloudOptions.TuneSunSteps);
             Put(map, KeySection.Weather,
                 CloudMotion.TuneScale, CloudCoverShift.TuneShift, CloudCoverShift.TuneShiftRain, CloudLookTuning.TuneCoverCombine, CloudLookTuning.TuneSoloLayer,
                 CloudLookTuning.TuneCellKm, CloudLookTuning.TuneCellLat, CloudLookTuning.TuneCellLon);
