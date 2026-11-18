@@ -267,12 +267,30 @@ VARIANTS = {
     "b_steps_filt": ("(BODY) the ceiling's steps, the product's light with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
     "b_prod_filt": ("(BODY) the product's march (96 grid points) with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 1.0)])), "seq1+lq2+ng96+r33+lp100"),
     "b_ng96_nofoot": ("(BODY) the product's march with 96 grid points, the heap's spacing LOD off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 0.0)])), "seq1+lq2+ng96+r33+lp100"),
-    # A4 (owner audit 2026-11-17): outside a body the march steps by the distance within which its surface cannot lie and finds the entry by bisection (cloud.cellTrace 1, the default);
-    # the outline should no longer hang on the grid points: the chosen look and the product's march of Medium with the trace on and off
-    "t_ceil": ("(TRACE) b_ceil with the body trace", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), CEIL),
-    "t_ceil_off": ("(TRACE) b_ceil without the body trace (the chosen look as it was)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), CEIL),
-    "t_prod": ("(TRACE) the product's march (96 grid points) with the body trace", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), NG96),
-    "t_prod_off": ("(TRACE) the product's march (96 grid points) without the body trace", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), NG96),
+    # A4 (owner audit 2026-11-17): cloud.cellTrace leaps the grid points beyond the reach of a body's billows (the picture should be the grid march's: cover and look equal on and off);
+    # cloud.cellFoot filters the body by the sample's footprint (finer billows fade once the sample is wider than them, the band at least a pixel): the product's march with fewer grid points
+    # should come close to the chosen look (t_ceil_off) where the grid alone needed 256.
+    "t_ceil": ("(TRACE) b_ceil with the shell leap", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), CEIL),
+    "t_ceil_off": ("(TRACE) b_ceil without the shell leap (the chosen look as it was)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), CEIL),
+    "t_prod": ("(TRACE) the product's march (96 grid points) with the shell leap", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), NG96),
+    "t_prod_off": ("(TRACE) the product's march (96 grid points) without the shell leap", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), NG96),
+    "f_ceil": ("(FOOT) b_ceil with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), CEIL),
+    "f_ng96": ("(FOOT) 96 grid points with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), NG96),
+    # cloud.cellShell: fine steps inside a body's shell (the pixel's size, at least 6 m, at most the grid step), with the leap outside; fewer grid points should reach the ceiling's look.
+    "s_ng64": ("(SHELL) 64 grid points with the shell leap and fine steps in the shell", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellShell", 1.0)])), "seq1+lq2+ng64+r33+lp100"),
+    "s_ng96": ("(SHELL) 96 grid points with the shell leap and fine steps in the shell", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellShell", 1.0)])), NG96),
+    "s_ng128": ("(SHELL) 128 grid points with the shell leap and fine steps in the shell", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellShell", 1.0)])), "seq1+lq2+ng128+r33+lp100"),
+    # A4 2026-11-18: the owner's verdict: t_ceil_off is the finest picture, every cheaper one loses visibly. Which of the ceiling's factors makes it, one at a time from the ceiling:
+    # the march target's size (r33, the product's), the temporal stage (the product's reconstruction instead of the jittered accumulation), the light taps (b_steps_res), the step (the
+    # product's grid of 256 and 96 points at the ceiling's full size and accumulation).
+    "k_ceil_r33": ("(SPLIT) the ceiling march at the product's third of the size and its reconstruction", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ceil+r33+lp100"),
+    "k_ceil_rec": ("(SPLIT) the ceiling march at full size with the product's reconstruction (no accumulation)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ceil+r100+lp100"),
+    "k_ng256_full": ("(SPLIT) 256 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r100+jit+acc8+clip1000+lp100"),
+    "k_ng96_full": ("(SPLIT) 96 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+r100+jit+acc8+clip1000+lp100"),
+    "f_ng96_only":("(FOOT) 96 grid points with the footprint filter alone (no shell leap)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0), ("cloud.cellFoot", 1.0)])), NG96),
+    "f_ng128":("(FOOT) 128 grid points with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), "seq1+lq2+ng128+r33+lp100"),
+    "f_ng256": ("(FOOT) 256 grid points with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), "seq1+lq2+ng256+r33+lp100"),
+    "b_ng256": ("(BODY) the product's march with 256 grid points (the product since ffd10f37)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r33+lp100"),
     "b_ng128": ("(BODY) the product's march with 128 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng128+r33+lp100"),
     "b_ng160": ("(BODY) the product's march with 160 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng160+r33+lp100"),
     "b_ng192": ("(BODY) the product's march with 192 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng192+r33+lp100"),

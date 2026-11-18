@@ -231,7 +231,7 @@ Shader "ReDefinition/AtmospheresLayers"
             gEmptyM = 0;
             gCellX = -1.0;
             gCellW = 1.0;
-            gBodyL = 0.0;
+            gBodyRead = false;
             gNoiseD = _NoiseS.w;
             gHeapPreset = 0;
             gHeapCav = 1;
@@ -518,6 +518,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 // and shades from there. The steps right inside are thin (_FirstHitP.y of the grid step) and grow with the lost transmittance, so the rim is resolved where the eye sees it.
                 bool prevDense = false, bisecting = false;
                 float bLo = 0.0, bHi = 0.0, bIter = 0.0, shell = 0.0;
+                float shellLeft = (float)count;   // A4: the fine steps a span may take inside bodies' shells (cloud.cellShell)
                 [loop] for (int i = 0; i < 512; i++)
                 {
                     if (!(t < tEnd)) break;
@@ -527,18 +528,20 @@ Shader "ReDefinition/AtmospheresLayers"
                     // T16: the step grows along the span; the detail's footprint is the pixel's size at the distance.
                     float dtv = _CullC.x > 0.0 ? dt * CullStepScale(t - s0[k]) : dt;
                     if (_CullD.x > 0.5) gNoiseFoot = CullFoot(t, dtv);
+                    // A4 (cloud.cellFoot): the pixel's size at the sample, the narrowest band the body is drawn with (CellBody).
+                    gBodyFoot = _CullD.x > 0.5 ? _CullD.y * t : 0.0;
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
-                    // A4 (owner audit 2026-11-17: the body's thin surface was found by sampling it on a grid fine enough not to miss it): outside a single cloud's body the march steps by the
-                    // distance within which its surface cannot lie (CellBodyGap: the depth over the slope bound, sphere tracing on a body of bounded displacement), and the bisection below
-                    // finds the entry exactly, whatever the grid. Only the nearest disc's body is known: where another disc's body may begin nearer (gCellOther, less the band's widest
-                    // reach), the step goes up to there and never below the grid step, as before. Inside the band, where no body was read and with cloud.cellTrace 0 the grid stays.
+                    // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's billows the body's depth changes by at most 1 per m, so no surface lies within that
+                    // depth (CellShellGap) nor within the reach of a neighbour's body (gCellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
+                    // jitter, which spreads the entry over the frames) is kept and the picture is the grid march's, only cheaper; the entry is then found as before. A sphere trace on the
+                    // billows' slope bound (about 55 m per m for a 1 km body) crept up to every cloud over hundreds of steps and ran out of its loop (the ceiling march lost 80 % of its cover).
                     float traceGap = -1.0;
-                    [branch] if (_CellE[li].w > 0.0 && gBodyL > 0.0 && gBodyQ < -0.5 * max(_CellE[li].y, 1.0))
+                    [branch] if (fmod(_CellE[li].w, 2.0) > 0.5 && gBodyRead && !(dens > 0))
                     {
-                        float band = max(_CellE[li].y, 1.0);
-                        float self = CellBodyGap(li);
-                        float other = gCellOther - 4.0 * band;
-                        traceGap = self <= other ? max(self, band) : max(other, dtv);
+                        float band = CellBand(li);
+                        float gap = min(CellShellGap(li), gCellOther - 4.0 * band);
+                        // Only where it leaps further than the empty reach of the coverage (the grid's own skip below) would.
+                        if (gap >= 2.0 * dtv && floor(gap / dtv) > floor(gEmptyM / dtv)) traceGap = dtv * floor(gap / dtv);
                     }
                     float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
                     float2 typeLight = gTypeLight;
@@ -555,11 +558,34 @@ Shader "ReDefinition/AtmospheresLayers"
                         else { bisecting = false; t = bHi; prevDense = true; shell = _FirstHitP.z; }
                         continue;
                     }
-                    if (!(dens > 0) && traceGap > 0.0)
+                    // A4 (cloud.cellShell): within the billows' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
+                    // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap
+                    // above saves them elsewhere. A span takes at most as many fine steps as it has grid points (a grazing ray runs kilometres in a shell), then the grid takes over.
+                    // The fine samples follow the jittered grid point they start from, so the entry still spreads over the frames; one that lands on cloud is bracketed by the bisection.
+                    float shellStep = -1.0;
+                    [branch] if (fmod(floor(_CellE[li].w * 0.25), 2.0) > 0.5 && gBodyRead && !(dens > 0) && traceGap <= 0.0 && shellLeft > 0.0 && CellShellGap(li) <= 0.0)
                     {
-                        // A4: off the grid by the body's gap; a step that lands on cloud is bracketed from here by the bisection (no step back to the grid).
+                        float fine = clamp(_CullD.y * t, CELL_SHELL_STEP_MIN, dtv);
+                        if (fine < dtv)
+                        {
+                            shellStep = fine;
+                            shellLeft -= 1.0;
+                        }
+                    }
+                    if (shellStep > 0.0)
+                    {
                         prevDense = false;
                         tLast = t;
+                        arrived = 1.0;
+                        leap = 1.0;
+                        t += shellStep;
+                        continue;
+                    }
+                    if (traceGap > 0.0)
+                    {
+                        // A4: the grid points within the gap are empty; the last of them is where an entry after the leap is bracketed from (as the reach skip below).
+                        prevDense = false;
+                        tLast = t + traceGap - dtv;
                         arrived = 1.0;
                         leap = 1.0;
                         t += traceGap;

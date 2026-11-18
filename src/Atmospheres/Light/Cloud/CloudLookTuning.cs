@@ -320,23 +320,35 @@ namespace ReDefinition.Atmospheres
             return float.IsNaN(v) || float.IsInfinity(v) || v < 0f ? own : Math.Min(v, max);
         }
 
-        // cloud.cellTrace (A4, owner audit 2026-11-17): 1 lets the march step outside a single cloud's body by the distance within which its surface cannot lie and find the entry by bisection, so
-        // the outline does not hang on the grid's spacing; 0 keeps the grid. Off by default until its open faults are fixed (player 2026-11-17: at the ceiling march (6 m minimum step, no growth,
-        // no leap) the picture had NaN in it; at the product's march the outline came close to the chosen look, but the exact entry is no longer spread over the frames, so the edges stair-step at
-        // a third of the size and the shading is blotchy).
+        // cloud.cellTrace (A4, owner audit 2026-11-17): 1 lets the march leap the grid points beyond the reach of a single cloud's billows, where the body's depth bounds the distance to its
+        // surface (CloudCells.cginc CellShellGap); the grid's phase is kept, so the picture is the grid march's. The first form, a sphere trace on the billows' slope bound, ran out of its loop
+        // (player 2026-11-18, ceiling march: cover 0.065 against 0.318). On: the player's cover and spectra are equal on and off (gclock, sclock; ceiling and product marches), and K-T2
+        // perfN2560dlssqleap (2026-11-18, 2560x1440, DLSS Quality) gained 2 to 11 % fps per view (ground 37.6 to 38.4, inside 29.8 to 31.1, above 25.8 to 26.5, sky3 43.0 to 47.9).
         internal const string TuneCellTrace = "cloud.cellTrace";
-        internal const float CellTraceDefault = 0f;
+        internal const float CellTraceDefault = 1f;
         internal static bool CellTrace { get { return Tuning.Get(TuneCellTrace, CellTraceDefault) > 0.5f; } }
 
-        // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the billows' steepest change per noise scale for the march's step outside a body
-        // (CloudCells.TraceRankSlope plus the gain times TraceFineSlope; 0 with cloud.cellTrace off).
+        // cloud.cellFoot (A4): 1 filters a single cloud's body by the view sample's footprint, as the erosion detail's distance LOD does: the finer billow octaves fade out once the sample is
+        // wider than their cells, and the surface band is at least a pixel wide (CloudCells.cginc CellBody). Off: in the player it changed next to nothing (sclock ng96 S_alpha -5.41 to -5.37).
+        internal const string TuneCellFoot = "cloud.cellFoot";
+        internal const float CellFootDefault = 0f;
+        internal static bool CellFoot { get { return Tuning.Get(TuneCellFoot, CellFootDefault) > 0.5f; } }
+
+        // cloud.cellShell (A4): 1 lets the march step finely inside a body's shell, where its surface can lie (the pixel's size there, at least the chosen look's 6 m, at most the grid step;
+        // CloudCells.cginc CELL_SHELL_STEP_MIN), so heads smaller than the grid step are not missed between two grid points. Off: the cover and the outline came back (player, sclock 0.296
+        // against the ceiling's 0.292), but the owner saw visible losses against the ceiling's picture, and it cost up to a fifth of the fps (K-T2 perfN2560dlssqleap: ground 37.6 to 29.9).
+        internal const string TuneCellShell = "cloud.cellShell";
+        internal const float CellShellDefault = 0f;
+        internal static bool CellShell { get { return Tuning.Get(TuneCellShell, CellShellDefault) > 0.5f; } }
+
+        // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)
         {
             float billow = layer == null ? CloudLayerDef.DefaultCellBillow : CellBillowFor(layer);
             float band = layer == null ? CloudLayerDef.DefaultCellBandM : CellBandFor(layer);
             float fine = layer == null ? CloudLayerDef.DefaultCellFine : CellFineFor(layer);
-            float slope = CellTrace ? (float)(CloudCells.TraceRankSlope + fine * CloudCells.TraceFineSlope) : 0f;
-            return new UnityEngine.Vector4(billow, band, fine, slope);
+            float flags = (CellTrace ? 1f : 0f) + (CellFoot ? 2f : 0f) + (CellShell ? 4f : 0f);
+            return new UnityEngine.Vector4(billow, band, fine, flags);
         }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
         internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }

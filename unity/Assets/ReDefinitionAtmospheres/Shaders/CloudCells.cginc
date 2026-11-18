@@ -13,9 +13,29 @@
 #define REDEFINITION_CLOUD_CELLS
 
 // The body of a single cloud per layer (CloudLayerDef's cell keys, the viewer's overrides through CloudLookTuning): x how far the billows move the body's surface, as a share of its shorter
-// semi-axis (cfg cellBillow); y the width in m of the band the share rises over at the surface (cellBand); z the gain of the finer billow octaves (cellFine; 0: not read); w the billows' steepest
-// change per noise scale, the bound the march steps by outside a body (CellBodyGap; 0 with cloud.cellTrace off: the march keeps its grid).
+// semi-axis (cfg cellBillow); y the width in m of the band the share rises over at the surface (cellBand); z the gain of the finer billow octaves (cellFine; 0: not read); w flags: 1 the march
+// leaps over the space beyond the billows' reach (CellShellGap, cloud.cellTrace), 2 the body is filtered by the view sample's footprint (CellBody, cloud.cellFoot), 4 the march steps finely
+// inside that reach, where the surface can lie (cloud.cellShell, CELL_SHELL_STEP_MIN).
 float4 _CellE[4];
+// The finest step inside a body's shell in m: the minimum step of the march the owner chose the single clouds' look with (e40puff CEIL, 2026-11-17: 6 m).
+#define CELL_SHELL_STEP_MIN 6.0
+// The view sample's pixel footprint in m, set by the view march before each read of the density (0 where the pixel's footprint is off, cloudDetailLod): the band at the surface is never
+// narrower than a pixel there (cloud.cellFoot). -1 outside the view march: the shadow keeps the body as it is (its CPU twin, CloudCells.CellBody, has no footprint). The light march's reads
+// keep the value of the view sample they light (as gNoiseFoot), so the light sees the same filtered body.
+static float gBodyFoot = -1.0;
+
+// Whether the body is filtered by the footprint: cloud.cellFoot on, the distance LOD of the noise on (_NoiseS.z > 0, Switches.DistanceLod, as for the erosion detail) and the view march.
+bool CellFootOn(int li)
+{
+    return fmod(floor(_CellE[li].w * 0.5), 2.0) > 0.5 && _NoiseS.z > 0.0 && gBodyFoot >= 0.0;
+}
+
+// The width in m of the band the share rises over at the surface: the layer's, at least a pixel where the body is filtered and the pixel's footprint is on.
+float CellBand(int li)
+{
+    float band = max(_CellE[li].y, 1.0);
+    return CellFootOn(li) ? max(band, gBodyFoot) : band;
+}
 
 // The lattice: a centre lies anywhere in its cell (CELL_JITTER 1: the rows and columns do not show), a disc's size is 1 +- CELL_SIGMA of the share's radius, the share f / CELL_ALIVE_F0 of the
 // cells is alive and never more than CELL_ALIVE_MAX (few clouds of their own size in a fair sky, not many small ones; never every cell, which would show the lattice). The profile is 0.5 at
@@ -73,7 +93,7 @@ float CellUnit(uint h)
 // the share f and the layer's seed. size: the size factor of that disc's cell (1 where there is none); xBest: the distance to its centre over its profile radius rBest (m). reachM: a distance in
 // m over which no disc begins (0 inside one; the march leaps over it, as over the map's empty reach).
 // gCellBodyX (set by the caller, 0: not asked): the widest a body reaches from its centre in profile radii (CELL_EDGE_X times 1 plus the billows' swing); gCellOther returns the least horizontal
-// distance in m from the point to where the body of a disc other than the nearest one can begin (the march's cap on CellBodyGap; the twin does not need it, it is not an output of the profile).
+// distance in m from the point to where the body of a disc other than the nearest one can begin (the march's cap on CellShellGap; the twin does not need it, it is not an output of the profile).
 static float gCellBodyX = 0.0;
 static float gCellOther = 1e9;
 
@@ -141,12 +161,10 @@ static float gCellX = -1.0;
 static float gCellCore = 0.0;
 static float gCellW = 1.0;
 static float gCellR = 0.0;
-// The body's depth below its surface at the last CellBody (m, negative outside) and a bound on how fast it changes along any line (m per m), so that |gBodyQ| / gBodyL is a distance within which the
-// surface cannot lie (CellBodyGap). gBodyL is 0 where no body was read (the caller resets it).
-static float gBodyQ = 0.0;
-static float gBodyL = 0.0;
-// The same depth below the outer side of the shell the billows can move the surface within (m, negative outside the shell): it changes by at most 1 per m.
+// The depth of the last CellBody's point below the outer side of the shell the billows can move the surface within (m, negative outside the shell; it changes by at most 1 per m), and whether a
+// body was read there (the caller resets it).
 static float gBodyFar = 0.0;
+static bool gBodyRead = false;
 
 // The layer map's value at a point with the cells, for the coverage bounds and the far view. The disc's profile p is placed on the layer's threshold (p 0.5 at the threshold, 0 half a unit below
 // it), and inside the disc it rises to the cloud's core strength: the map's excess over the threshold (how much the region convects: a fair sky's clouds stay low, a stormy region's grow) times
@@ -194,23 +212,32 @@ float CellBody(int li, float h, float billow, float2 fine, float typeHeightM)
     float xv = gCellX / CELL_EDGE_X, hv = h / top;
     float axis = min(semiR, semiH);
     float qBase = (1.0 - sqrt(xv * xv + hv * hv)) * axis;
+    float band = CellBand(li);
+    // A4 (cloud.cellFoot): the body filtered by the view sample's footprint, as the erosion detail is (its distance LOD, NoiseShareAt): a finer octave fades out while the sample's footprint
+    // (gNoiseFoot, the march's spacing, or the pixel's size there where that is larger and on) grows from one to two of its cells (the heap field's strongest octave has two cells per period, so
+    // a cell is half the octave's period, 0.37 and 0.137 of the heap period), and the surface band is at least a pixel wide (gBodyFoot, CellBand). The octaves are centred on 0, so the body's mean
+    // stays; finer than the sample, they could only be missed or flicker.
+    [branch] if (CellFootOn(li) && gNoiseFoot > 0.0)
+    {
+        float cell = 0.5 * _NoiseR.z * (_LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 250.0);
+        float full = _NoiseS.y, off = max(_NoiseS.z, full + 1e-3);
+        fine.x *= 1.0 - saturate((gNoiseFoot - full * 0.37 * cell) / ((off - full) * 0.37 * cell));
+        fine.y *= 1.0 - saturate((gNoiseFoot - full * 0.137 * cell) / ((off - full) * 0.137 * cell));
+    }
     float q = qBase + e.x * axis * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
-    // The bound of the slope: the ellipsoid's radial coordinate changes by at most 1 / axis per m, so its term by at most 1; the billows' term e.x axis times their steepest change per noise scale
-    // (_CellE.w, the measured slopes of the rank and of the finer octaves weighted by their gain, CloudCells.cs) over the scale in m. And the shell: the billows move the surface by at most
-    // e.x axis (0.5 + 0.5 e.z (0.37 + 0.137)) outwards, so beyond that the body's own term alone (slope 1) bounds the distance (gBodyFar, the depth below the shell's outer side).
-    gBodyQ = q;
-    gBodyL = 1.0 + e.x * axis * e.w * max(_LayerD[li].y, 1e-4);
+    // The shell: the billows move the surface by at most e.x axis (0.5 + 0.5 e.z (0.37 + 0.137)) outwards, so beyond that the body's own term alone bounds the distance to it: the ellipsoid's
+    // radial coordinate changes by at most 1 / axis per m, so its term by at most 1 (gBodyFar, the depth below the shell's outer side).
     gBodyFar = qBase + e.x * axis * (0.5 + 0.5 * e.z * (0.37 + 0.137));
-    return saturate(q / max(e.y, 1.0) + 0.5);
+    gBodyRead = true;
+    return saturate(q / band + 0.5);
 }
 
-// The distance along any line from the point of the last CellBody within which the body's surface band cannot begin (m, 0 inside it or where no body was read): the depth outside the band over the
-// slope bound. Only the nearest disc's body is known, so the caller caps it below the reach of a neighbour's body.
-float CellBodyGap(int li)
+// The distance along any line from the point of the last CellBody within which the body's surface band cannot begin (m, 0 inside the shell or where no body was read): the depth below the shell's
+// outer side, less the band's half (slope 1). Only the nearest disc's body is known, so the caller caps it below the reach of a neighbour's body (gCellOther).
+float CellShellGap(int li)
 {
-    if (gBodyL <= 0.0) return 0.0;
-    float half = 0.5 * max(_CellE[li].y, 1.0);
-    return max(max(-gBodyQ - half, 0.0) / gBodyL, -gBodyFar - half);
+    if (!gBodyRead) return 0.0;
+    return max(-gBodyFar - 0.5 * CellBand(li), 0.0);
 }
 
 // The widest reach of a body from its disc's centre in profile radii for the layer (gCellBodyX): the horizontal semi-axis CELL_EDGE_X times the radial coordinate where the billows' largest outward

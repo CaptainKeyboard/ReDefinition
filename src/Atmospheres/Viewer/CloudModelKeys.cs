@@ -48,8 +48,11 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneCellFine, -1f, KeySection.Shape,
                 "gain of a single cloud's finer billows, the heads on the heads (0 off; below 0 each layer's cellFine)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 4f);
             r.Flag(CloudLookTuning.TuneCellTrace, CloudLookTuning.CellTraceDefault > 0.5f, KeySection.Shape,
-                "single clouds: outside a body the march steps by the distance within which its surface cannot lie and finds the entry by bisection; off: the grid's spacing decides the outline",
-                KeyLiveness.FrameHistory);
+                "single clouds: the march leaps the grid points beyond the reach of a body's billows (the same picture, fewer samples)", KeyLiveness.FrameHistory);
+            r.Flag(CloudLookTuning.TuneCellFoot, CloudLookTuning.CellFootDefault > 0.5f, KeySection.Shape,
+                "single clouds: the body filtered by the sample's footprint (finer billows fade once the sample is wider than them, the surface band at least a pixel)", KeyLiveness.FrameHistory);
+            r.Flag(CloudLookTuning.TuneCellShell, CloudLookTuning.CellShellDefault > 0.5f, KeySection.Shape,
+                "single clouds: fine steps inside a body's shell, where its surface can lie (heads smaller than the grid step are not missed)", KeyLiveness.FrameHistory);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.

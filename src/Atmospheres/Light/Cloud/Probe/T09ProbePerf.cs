@@ -71,6 +71,8 @@ namespace ReDefinition.Atmospheres
                 case "shq4":
                 case "shtap1":
                 case "nomv":
+                case "leap":
+                case "leapshell":
                 case "nolayers":
                 case "plain2":
                 case "res2":
@@ -159,6 +161,12 @@ namespace ReDefinition.Atmospheres
                 case "shtap1": ForceTuning(OwnCloudOptions.TuneShadowTaps, 1f); break;
                 // K-T2 2026-11-18: the page fault with DLSS after a placement; the clouds' motion vectors left out of the upscaler's (the host's stand).
                 case "nomv": ForceTuning(OwnCloudOptions.TuneMotionVectors, 0f); break;
+                // A4 2026-11-18: the shell leap alone (look-neutral in the player: cover and spectra equal) and with the fine steps in the shell, against plain for the cost.
+                case "leap": ForceTuning(CloudLookTuning.TuneCellTrace, 1f); break;
+                case "leapshell":
+                    ForceTuning(CloudLookTuning.TuneCellTrace, 1f);
+                    ForceTuning(CloudLookTuning.TuneCellShell, 1f);
+                    break;
                 // The same fault: the pass with all its targets, maps and passes, but no layer drawn (the baseline mask), so a run tells the clouds' content from the pass's resources.
                 case "nolayers": Game.SetLayerMask(NoLayersMask); break;
             }
