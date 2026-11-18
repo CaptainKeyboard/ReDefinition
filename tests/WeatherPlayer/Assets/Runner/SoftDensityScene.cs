@@ -155,7 +155,7 @@ namespace ReDefinition.WeatherPlayer
         {
             public string Name, Base = "seq1";
             public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f;
-            public bool Jitter, Skip, SkipClosed, OldGrid, NoReach, StepGrowth, TapLod, FarMean;
+            public bool Jitter, Skip, SkipClosed, OldGrid, NoReach, StepGrowth, TapLod, FarMean, DetailLod;
             public int ConePattern = -1, Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
             // E40 C1: sp<NN> the widest grid spacing of a span in the layer's noise scales, NN / 10 (0: off); spm<N> the fewest grid points such a span keeps
             public float Spacing;
@@ -207,6 +207,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "cg") c.StepGrowth = true;   // T16 cloudStepGrowth
                 else if (t == "tl") c.TapLod = true;   // T16 cloudTapLod
                 else if (t == "fm") c.FarMean = true;   // cloudFarShapeMean
+                else if (t == "dlod") c.DetailLod = true;   // cloudDetailLod (A4 perf program point 6, 2026-11-18)
                 else if (t == "ev") c.Evict = true;   // E40 C2
                 else if (t == "ceil") { c.CeilStep = true; c.CeilTaps = true; }   // PUFF ceiling render
                 else if (t == "cstep") c.CeilStep = true;   // PUFF ceiling render: the march's group alone
@@ -277,6 +278,12 @@ namespace ReDefinition.WeatherPlayer
             if (c.EarlyOut > 0) f.EarlyOut = c.EarlyOut / 1000f;   // the march's own value (GrainTable.Apply) otherwise
             f.Cull.TapLod = c.TapLod;
             f.Far.ShapeMean = c.FarMean;
+            // dlod: the setting cloudDetailLod, which in the game also switches the far shape mean on (OwnCloudOptions).
+            if (c.DetailLod)
+            {
+                f.Cull.DetailLod = true;
+                f.Far.ShapeMean = true;
+            }
             f.EmptyReach = !c.NoReach;
             f.SpanSpacing = c.Spacing;
             f.SpanSpacingMin = c.SpacingMin;

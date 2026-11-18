@@ -34,7 +34,7 @@ namespace ReDefinition.Atmospheres
 
         // The grid points the start began with (the profile's), read before the first variant changes them.
         private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN,
-            baseStepGrowth = double.NaN;
+            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseDetailLod = double.NaN;
 
         private bool PerfStart
         {
@@ -78,6 +78,13 @@ namespace ReDefinition.Atmospheres
                 case "ceilr33":
                 case "ceilvis":
                 case "ceilvis8":
+                case "ceilvis8s2":
+                case "ceilvis8nl":
+                case "ceilvis8sd":
+                case "ceilvis8c2":
+                case "ceilvis8c4":
+                case "ceilvis8c6":
+                case "ceilvis8c7":
                 case "nolayers":
                 case "plain2":
                 case "res2":
@@ -100,6 +107,8 @@ namespace ReDefinition.Atmospheres
             baseRagged = AtmospheresSettings.Number(AtmospheresSettings.Keys.BaseRagged);
             baseVariation = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudBaseVariation);
             baseStepGrowth = AtmospheresSettings.Number(AtmospheresSettings.Keys.LayerStepGrowth);
+            baseSkipEmpty = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSkipEmpty);
+            baseDetailLod = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudDetailLod);
         }
 
         private void PerfRestoreBase()
@@ -112,6 +121,8 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.BaseRagged, baseRagged);
             SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, baseVariation);
             SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, baseStepGrowth);
+            SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, baseSkipEmpty);
+            SetSetting(AtmospheresSettings.Keys.CloudDetailLod, baseDetailLod);
         }
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
@@ -180,20 +191,41 @@ namespace ReDefinition.Atmospheres
                 case "ceilr33":
                 case "ceilvis":
                 case "ceilvis8":
+                case "ceilvis8s2":
+                case "ceilvis8nl":
+                case "ceilvis8sd":
+                case "ceilvis8c2":
+                case "ceilvis8c4":
+                case "ceilvis8c6":
+                case "ceilvis8c7":
                     {
                         // ceilvis (search round 2, owner 2026-11-18): the ceiling with the product's three savings where a cloud is hidden or adds little, which the owner judged
                         // equal (e40puff k_vis_all): the early out at 1 % of the light, the step growth with the lost transmittance, the light cutoff. ceilvis8 (round 3): with 8 sun taps.
-                        bool vis = name == "ceilvis" || name == "ceilvis8";
+                        // ceilvis8s2 (round 4): with the product's light stride 2, the owner's accepted look; ceilvis8nl: the same without any light march (the cost debug bit 1, the
+                        // picture is wrong), so the light's share of the accepted look's cost is measured.
+                        bool vis = name.StartsWith("ceilvis", StringComparison.Ordinal);
+                        bool eight = name.StartsWith("ceilvis8", StringComparison.Ordinal);
                         SetSetting(AtmospheresSettings.Keys.CloudSamples, 256.0);
                         if (!vis) SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, 0.0);
                         ForceTuning(OwnCloudOptions.TuneMinStepM, 6f);
                         ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 0f);
                         if (!vis) ForceTuning(OwnCloudOptions.TuneEarlyOut, 0.001f);
                         ForceTuning(OwnCloudOptions.TuneEmptyLeap, 1f);
-                        ForceTuning(OwnCloudOptions.TuneLightStride, 1f);
+                        // The accepted look's light stride 2 for every variant from round 4 on (s2, nl, sd and the cost split c<N>).
+                        if (name == "ceil" || name == "ceilr33" || name == "ceilvis" || name == "ceilvis8") ForceTuning(OwnCloudOptions.TuneLightStride, 1f);
+                        // ceilvis8c<N> (2026-11-18, where the accepted look's time goes): the cost debug bits N (1 no light march, 2 no shape noise, 4 no erosion); the picture is wrong.
+                        if (name.StartsWith("ceilvis8c", StringComparison.Ordinal))
+                            ForceTuning(OwnCloudOptions.TuneCostDebug, float.Parse(name.Substring("ceilvis8c".Length), System.Globalization.CultureInfo.InvariantCulture));
+                        // ceilvis8sd (the owner's perf program, points 2 and 6, both judged equal in the player): with the tile pass's skip of empty tiles and the detail dropped below a pixel.
+                        if (name == "ceilvis8sd")
+                        {
+                            SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, 1.0);
+                            SetSetting(AtmospheresSettings.Keys.CloudDetailLod, 1.0);
+                        }
                         if (!vis) ForceTuning(OwnCloudOptions.TuneLightCutoff, 0f);
                         ForceTuning(OwnCloudOptions.TuneSunMarchM, 12000f);
-                        ForceTuning(OwnCloudOptions.TuneSunSteps, name == "ceilvis8" ? 8f : 16f);
+                        ForceTuning(OwnCloudOptions.TuneSunSteps, eight ? 8f : 16f);
+                        if (name == "ceilvis8nl") ForceTuning(OwnCloudOptions.TuneCostDebug, 1f);
                         if (name != "ceilr33") ForceTuning(OwnCloudOptions.TuneReconResolution, 1f);
                         break;
                     }

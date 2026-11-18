@@ -311,6 +311,10 @@ VARIANTS = {
     "k5_r66acc": ("(SEARCH 5) k4_stride at two thirds of the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r66+jit+acc8+clip1000+lp100"),
     "k5_r50acc": ("(SEARCH 5) k4_stride at half the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r50+jit+acc8+clip1000+lp100"),
     "k5_r33acc": ("(SEARCH 5) k4_stride at a third of the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r33+jit+acc8+clip1000+lp100"),
+    # The owner's perf program (2026-11-18): point 2, the tile pass that starts no ray where the maps prove the tile empty (cloudSkipEmpty; must leave the picture as it is),
+    # and point 6, the noise detail dropped where a pixel cannot resolve it (cloudDetailLod with the far shape mean; the owner judges).
+    "p2_skip": ("(PERF 2) the accepted look with the tile pass's skip of empty tiles", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+skip+r100+lp100"),
+    "p6_dlod": ("(PERF 6) the accepted look with the detail dropped below a pixel", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dlod+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
     "k_ng256_full":("(SPLIT) 256 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r100+jit+acc8+clip1000+lp100"),
     "k_ng96_full": ("(SPLIT) 96 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+r100+jit+acc8+clip1000+lp100"),
