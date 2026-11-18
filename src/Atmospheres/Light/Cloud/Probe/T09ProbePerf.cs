@@ -70,6 +70,8 @@ namespace ReDefinition.Atmospheres
                 case "shq3":
                 case "shq4":
                 case "shtap1":
+                case "nomv":
+                case "nolayers":
                 case "plain2":
                 case "res2":
                 case "res3":
@@ -94,6 +96,7 @@ namespace ReDefinition.Atmospheres
 
         private void PerfRestoreBase()
         {
+            Game.SetLayerMask(0);
             if (double.IsNaN(baseSamples)) return;
             SetSetting(AtmospheresSettings.Keys.CloudSamples, baseSamples);
             SetSetting(AtmospheresSettings.Keys.CloudShadows, baseShadows);
@@ -154,6 +157,10 @@ namespace ReDefinition.Atmospheres
                 case "shq3": ForceTuning(OwnCloudOptions.TuneShadowResolution, 3f); break;
                 case "shq4": ForceTuning(OwnCloudOptions.TuneShadowResolution, 4f); break;
                 case "shtap1": ForceTuning(OwnCloudOptions.TuneShadowTaps, 1f); break;
+                // K-T2 2026-11-18: the page fault with DLSS after a placement; the clouds' motion vectors left out of the upscaler's (the host's stand).
+                case "nomv": ForceTuning(OwnCloudOptions.TuneMotionVectors, 0f); break;
+                // The same fault: the pass with all its targets, maps and passes, but no layer drawn (the baseline mask), so a run tells the clouds' content from the pass's resources.
+                case "nolayers": Game.SetLayerMask(NoLayersMask); break;
             }
             return true;
         }

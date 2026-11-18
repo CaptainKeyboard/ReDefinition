@@ -907,6 +907,7 @@ namespace ReDefinition.Upscaler
             if (late != null)
                 Debug.Log(Log.Tag + " History reset while the frame rendered: " + late + ".");
             bool cut = SharedFrame.RigResetReason != null || late != null;
+            UpscalerInputScan.Observe(textures.LowRes, textures.MotionVectors, cut);
             dispatch.Reset = resetHistory || cut;
             resetHistory = false;
 

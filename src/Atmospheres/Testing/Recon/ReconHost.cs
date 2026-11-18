@@ -130,16 +130,44 @@ namespace ReDefinition.Atmospheres
             StartCoroutine(ReadRoutine());
         }
 
+        // A test start's switch (-reconAsyncRead; K-T2 2026-11-18: the GPU page fault with DLSS came within a second of a capture, never without one): the camera's
+        // target is read without stalling the frame (AsyncGPUReadback) instead of ReadPixels, which waits for the GPU at the end of the frame.
+        private static readonly bool AsyncRead = Array.IndexOf(Environment.GetCommandLineArgs(), "-reconAsyncRead") >= 0;
+
         private IEnumerator ReadRoutine()
         {
             yield return new WaitForEndOfFrame();
+            Color[] asyncPixels = null;
+            int asyncWidth = 0, asyncHeight = 0;
+            if (AsyncRead)
+            {
+                Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+                RenderTexture rt = cam != null && !UseScreen ? cam.targetTexture : null;
+                if (rt != null)
+                {
+                    UnityEngine.Rendering.AsyncGPUReadbackRequest request = UnityEngine.Rendering.AsyncGPUReadback.Request(rt, 0, TextureFormat.RGBAFloat);
+                    while (!request.done) yield return null;
+                    if (!request.hasError)
+                    {
+                        asyncPixels = request.GetData<Color>().ToArray();
+                        asyncWidth = rt.width;
+                        asyncHeight = rt.height;
+                    }
+                }
+            }
             try
             {
                 Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
                 RenderTexture target = camera != null && !UseScreen ? camera.targetTexture : null;
                 Color[] pixels;
                 int width, height;
-                if (target != null)
+                if (asyncPixels != null)
+                {
+                    pixels = asyncPixels;
+                    width = asyncWidth;
+                    height = asyncHeight;
+                }
+                else if (target != null)
                 {
                     RenderTexture active = RenderTexture.active;
                     RenderTexture.active = target;

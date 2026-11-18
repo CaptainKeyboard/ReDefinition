@@ -104,6 +104,8 @@ add_library(ReDefinitionProxy SHARED
     Common/D3d12Util.h
     Upscalers/Dlss.cpp
     Upscalers/Dlss.h
+    Upscalers/DlssD3d12.cpp
+    Upscalers/DlssD3d12.h
     Upscalers/DlssRayReconstruction.cpp
     Upscalers/DlssRayReconstruction.h
     Common/FileUtil.cpp
@@ -123,6 +125,8 @@ add_library(ReDefinitionProxy SHARED
     FrameGeneration/FrameGenerationRate.cpp
     Latency/CpuSampler.cpp
     Latency/CpuSampler.h
+    Diagnostics/GpuAddressBook.cpp
+    Diagnostics/GpuAddressBook.h
     Diagnostics/GpuCrashDump.cpp
     Diagnostics/GpuCrashDump.h
     Diagnostics/GpuProfiler.cpp

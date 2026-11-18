@@ -82,6 +82,8 @@ namespace redefinition
         bool EnsureFenceLocked();
         // The four shared textures, made again where the frame's differ in size or format.
         bool EnsureTexturesLocked(const AmdUpscalerPacket& packet);
+        // The same for Unity's four textures as ID3D11Resource pointers (DLSS's packet carries them in another order).
+        bool EnsureTexturesLocked(void* colourTexture, void* depthTexture, void* motionTexture, void* outputTexture);
         // Blocks until the queue has finished every list handed to it.
         void WaitForListsLocked();
         // The four shared textures released.

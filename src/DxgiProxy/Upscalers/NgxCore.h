@@ -8,9 +8,11 @@
 #include <string>
 #include <vector>
 
-// Only as pointer types in NGX's parameter map.
+// Only as pointer types in NGX's parameter map and the D3D12 exports.
 struct ID3D11Resource;
 struct ID3D12Resource;
+struct ID3D12Device;
+struct ID3D12GraphicsCommandList;
 
 namespace redefinition
 {
@@ -116,6 +118,47 @@ namespace redefinition
     // The function a map holds under DLSSOptimalSettingsCallback: the render sizes for the output size and
     // quality.
     using NgxOptimalSettingsFn = uint32_t (*)(NgxParameters* parameters);
+
+    // The driver's D3D12 exports (NVSDK_NGX_D3D12_* in nvsdk_ngx.h), with Init_ProjectID's arguments in the order
+    // of D3D11's (Dlss.cpp). Shared by Ray Reconstruction (DlssRayReconstruction.cpp) and Super Resolution on
+    // Direct3D 12 (DlssD3d12.cpp).
+    struct NgxD3d12Api
+    {
+        using InitProjectIdFn = uint32_t (*)(const char* projectId, int engineType, const char* engineVersion,
+                                             const wchar_t* dataPath, ID3D12Device* device, int sdkVersion,
+                                             const NgxCommonInfo* info);
+        using CreateFeatureFn = uint32_t (*)(ID3D12GraphicsCommandList* list, int feature, NgxParameters* parameters,
+                                             void** handle);
+        using EvaluateFeatureFn = uint32_t (*)(ID3D12GraphicsCommandList* list, const void* handle,
+                                               const NgxParameters* parameters, void* progress);
+        // NVSDK_NGX_D3D12_Shutdown, not Shutdown1 (DlssRayReconstruction.cpp says why): it shuts NGX down on
+        // every D3D12 device of the process.
+        using ShutdownFn = uint32_t (*)();
+
+        InitProjectIdFn initProjectId = nullptr;
+        NgxGetParametersFn getCapabilityParameters = nullptr;
+        NgxGetParametersFn getParameters = nullptr;
+        NgxDestroyParametersFn destroyParameters = nullptr;
+        CreateFeatureFn createFeature = nullptr;
+        EvaluateFeatureFn evaluateFeature = nullptr;
+        NgxReleaseFeatureFn releaseFeature = nullptr;
+        ShutdownFn shutdown = nullptr;
+
+        // Whether every export a feature needs is there (getParameters is the older drivers' fallback).
+        bool Complete() const
+        {
+            return initProjectId != nullptr && getCapabilityParameters != nullptr && destroyParameters != nullptr
+                   && createFeature != nullptr && evaluateFeature != nullptr && releaseFeature != nullptr && shutdown != nullptr;
+        }
+    };
+
+    // The D3D12 exports of the driver's core (NgxCoreModule), resolved on every call.
+    NgxD3d12Api NgxD3d12Exports(HMODULE core);
+
+    // Super Resolution on Direct3D 12 keeps NGX running on its own device for the rest of the process
+    // (DlssD3d12.h): from then on nothing calls NVSDK_NGX_D3D12_Shutdown, which would end it too.
+    void NgxD3d12KeepRunning();
+    bool NgxD3d12KeptRunning();
 
     // "The NGX API is not thread safe. The client application must ensure that
     // thread safety is enforced as needed" (DLSS Programming Guide 5.2.4). One lock

@@ -34,15 +34,7 @@ namespace redefinition
         constexpr unsigned int kNgxRoughnessModePacked = 1;
         constexpr unsigned int kNgxDepthTypeHardware = 1;
 
-        // The driver's D3D12 exports (NVSDK_NGX_D3D12_* in nvsdk_ngx.h), with
-        // Init_ProjectID's arguments in the order of D3D11's (Dlss.cpp).
-        using InitProjectIdFn = uint32_t (*)(const char* projectId, int engineType, const char* engineVersion,
-                                             const wchar_t* dataPath, ID3D12Device* device, int sdkVersion,
-                                             const NgxCommonInfo* info);
-        using CreateFeatureFn = uint32_t (*)(ID3D12GraphicsCommandList* list, int feature, NgxParameters* parameters,
-                                             void** handle);
-        using EvaluateFeatureFn = uint32_t (*)(ID3D12GraphicsCommandList* list, const void* handle,
-                                               const NgxParameters* parameters, void* progress);
+        // The driver's D3D12 exports (NgxCore.h), resolved once from the driver's core. Shutdown is
         // NVSDK_NGX_D3D12_Shutdown, not Shutdown1. The driver's Shutdown1 export ends the process with
         // an access violation inside _nvngx.dll once a feature was created and released on the
         // device, with the device or nullptr. This was measured with driver 597.16 in a program of
@@ -50,24 +42,7 @@ namespace redefinition
         // Shutdown1). Shutdown returns success there. The legacy call "does not have device pointer
         // - so it will shut down NGX on ALL devices" (DLSS Programming Guide 5.7).
         // DlssRayReconstruction.h says what it leaves running and which other callers it affects.
-        using ShutdownFn = uint32_t (*)();
-
-        // The driver's D3D12 exports the proxy calls.
-        struct NgxD3d12
-        {
-            // Init, the capability and parameter maps, the feature's creation, evaluation and release, shutdown.
-            InitProjectIdFn initProjectId = nullptr;
-            NgxGetParametersFn getCapabilityParameters = nullptr;
-            NgxGetParametersFn getParameters = nullptr;
-            NgxDestroyParametersFn destroyParameters = nullptr;
-            CreateFeatureFn createFeature = nullptr;
-            EvaluateFeatureFn evaluateFeature = nullptr;
-            NgxReleaseFeatureFn releaseFeature = nullptr;
-            ShutdownFn shutdown = nullptr;
-        };
-
-        // The exports, resolved once from the driver's core.
-        NgxD3d12 g_ngx;
+        NgxD3d12Api g_ngx;
 
         // The folder without trailing separators.
         std::wstring Folder(std::wstring folder)
@@ -248,23 +223,8 @@ namespace redefinition
         if (core == nullptr)
             return stable ? failStable(error) : fail(error);
         if (g_ngx.initProjectId == nullptr)
-        {
-            g_ngx.initProjectId = reinterpret_cast<InitProjectIdFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_Init_ProjectID"));
-            g_ngx.getCapabilityParameters = reinterpret_cast<NgxGetParametersFn>(
-                GetProcAddress(core, "NVSDK_NGX_D3D12_GetCapabilityParameters"));
-            g_ngx.getParameters = reinterpret_cast<NgxGetParametersFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_GetParameters"));
-            g_ngx.destroyParameters = reinterpret_cast<NgxDestroyParametersFn>(
-                GetProcAddress(core, "NVSDK_NGX_D3D12_DestroyParameters"));
-            g_ngx.createFeature = reinterpret_cast<CreateFeatureFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_CreateFeature"));
-            g_ngx.evaluateFeature = reinterpret_cast<EvaluateFeatureFn>(
-                GetProcAddress(core, "NVSDK_NGX_D3D12_EvaluateFeature"));
-            g_ngx.releaseFeature = reinterpret_cast<NgxReleaseFeatureFn>(
-                GetProcAddress(core, "NVSDK_NGX_D3D12_ReleaseFeature"));
-            g_ngx.shutdown = reinterpret_cast<ShutdownFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_Shutdown"));
-        }
-        if (g_ngx.initProjectId == nullptr || g_ngx.getCapabilityParameters == nullptr
-            || g_ngx.destroyParameters == nullptr || g_ngx.createFeature == nullptr || g_ngx.evaluateFeature == nullptr
-            || g_ngx.releaseFeature == nullptr || g_ngx.shutdown == nullptr)
+            g_ngx = NgxD3d12Exports(core);
+        if (!g_ngx.Complete())
             return failStable("the driver's NGX core lacks a D3D12 function Ray Reconstruction needs -- driver too old?");
 
         search.Set(SearchFolders());
@@ -288,7 +248,8 @@ namespace redefinition
             result = g_ngx.getParameters(&map);
         if (NgxFailed(result) || map == nullptr)
         {
-            g_ngx.shutdown();
+            if (!NgxD3d12KeptRunning())
+                g_ngx.shutdown();
             return fail("NGX gave no parameter map (" + NgxHex(result) + ")");
         }
         parameters = map;
@@ -478,7 +439,9 @@ namespace redefinition
             g_ngx.destroyParameters(parameters);
         parameters = nullptr;
         parametersOwned = false;
-        if (device != nullptr)
+        // Not where Super Resolution keeps NGX running on its own device (NgxD3d12KeepRunning): the call ends NGX on
+        // every D3D12 device. NGX then stays started on this one; a later start on it is a second Init on the device.
+        if (device != nullptr && !NgxD3d12KeptRunning())
             g_ngx.shutdown();
         device.Reset();
     }

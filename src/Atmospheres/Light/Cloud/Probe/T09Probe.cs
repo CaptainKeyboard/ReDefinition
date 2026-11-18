@@ -429,6 +429,13 @@ namespace ReDefinition.Atmospheres
                         }
                         foreach (ProbeWait w in StableGate(view, variant)) yield return w;
                         foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, PerfStart ? PerfDwellS : InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
+                        if (deviceLost)
+                        {
+                            // Every later view would run on the removed device and its rows are void (Dwell's check names the view): the start ends here.
+                            LogLine("Probe: the graphics device was removed in the " + view.Name + " view (" + variant + "); the start ends");
+                            Game.StopHold();
+                            yield break;
+                        }
                         if (PerfStart && !PerfPictures) continue;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
                         if (PerfStart) continue;
@@ -524,12 +531,20 @@ namespace ReDefinition.Atmospheres
             viewPoseOk = true;
             viewWorstDriftM = 0.0;
             double dwelled = 0.0;
+            // -t09ExtraResets (K-T2 2026-11-18): a history reset every 2 s of the dwell with the camera standing still. The DLSS page fault came in the frame of the
+            // second reset (the placement into the inside view); this tells a second reset as such from what the frame after the jump holds.
+            bool extraResets = CommandLine.Has(Args(), "-t09ExtraResets", true);
             while (dwelled < seconds - 1e-9)
             {
-                double slice = Math.Min(HeldSliceS, seconds - dwelled);
+                double slice = Math.Min(extraResets ? ExtraResetS : HeldSliceS, seconds - dwelled);
                 yield return ProbeWait.Seconds(slice);
                 dwelled += slice;
                 CheckHeld(view, variant, dwelled);
+                if (extraResets)
+                {
+                    if (extraResetBridge == null) extraResetBridge = new ApiBridge();
+                    extraResetBridge.RequestHistoryReset("probe test reset in the " + view.Name + " view at " + dwelled.ToString("0") + " s");
+                }
             }
             Emit("T09.view." + view.Name + ".hold_corrections", Game.HoldCorrections);
             Emit("T09.view." + view.Name + ".hold_worst_drift_m", Math.Max(viewWorstDriftM, Game.HoldWorstDriftM));
@@ -543,6 +558,7 @@ namespace ReDefinition.Atmospheres
             // A driver reset (K-T2 2026-11-16/17: three, each at the placement from the ground view to the inside view) leaves the game running on a removed device: the
             // frames after it draw nothing and are fast, so a view's rows would read as a gain. The view fails by name and its rows are void.
             bool alive = Game.GpuDeviceAlive();
+            if (!alive) deviceLost = true;
             Check("the graphics device lived through the " + view.Name + " view (" + variant + ")", alive,
                   alive ? "a 4x4 readback came back" : "a 4x4 readback failed: the device was removed (driver reset); this view's and every later row are void");
             CheckRenderSize(view, variant);
@@ -594,6 +610,10 @@ namespace ReDefinition.Atmospheres
         private const double PlacedDriftToleranceM = 20.0, DiagDriftToleranceM = 20.0;
         private const double HeldSliceS = 10.0, DriftToleranceM = 100.0, DistanceToleranceFraction = 0.25, DistanceToleranceMinM = 10.0, HeadingToleranceDeg = 15.0;
         private bool viewPoseOk;
+        // A view's end found the graphics device removed (a driver reset): the start ends after that view.
+        private bool deviceLost;
+        private ApiBridge extraResetBridge;
+        private const double ExtraResetS = 2.0;
         private double viewWorstDriftM;
 
         // What deviates from the view's target in this pose (null where nothing does): the vessel's height over sea level against the one asked for, the camera's
@@ -691,7 +711,25 @@ namespace ReDefinition.Atmospheres
             AtmospheresLog.Say("T09 capture begin: " + view.Name + " " + variant + " " + size);
             naturalPixels = null;
             foreach (ProbeWait w in Shoot(view, variant, T09Pictures.Natural)) yield return w;
-            if (T09Pictures.HasAid(variant) && !picturesStopped)
+            // -t09Screen (K-T2 2026-11-18): the screen as the player sees it besides, at the display size: the natural picture is the camera's target at the
+            // render size, before the upscaler, so only this one shows what DLSS on Direct3D 12 hands back.
+            if (CommandLine.Has(Args(), "-t09Screen", true) && !picturesStopped)
+            {
+                string screenName = T09Pictures.Name(StartId, view.Name, variant, Game.ScreenWidth, Game.ScreenHeight, "screen", false);
+                try
+                {
+                    System.IO.Directory.CreateDirectory(SeriesPictures.Folder);
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(SeriesPictures.Folder, screenName));
+                }
+                catch (Exception e)
+                {
+                    Warn("screen_picture_fault", screenName + ": " + e.GetType().Name + " " + e.Message);
+                }
+                // CaptureScreenshot writes at the end of the frame; two frames let it land before the next picture.
+                yield return ProbeWait.Frames(2);
+            }
+            // -t09NoAid (K-T2 2026-11-18): the natural picture alone, the pass not switched into its aid mode; the DLSS page fault came within a second of a capture.
+            if (T09Pictures.HasAid(variant) && !picturesStopped && !CommandLine.Has(Args(), "-t09NoAid", true))
             {
                 foreach (ProbeWait w in Shoot(view, variant, T09Pictures.AidKind)) yield return w;
             }

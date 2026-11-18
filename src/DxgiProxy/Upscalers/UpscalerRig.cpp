@@ -159,9 +159,14 @@ namespace redefinition
 
     bool UpscalerRig::EnsureTexturesLocked(const AmdUpscalerPacket& packet)
     {
+        return EnsureTexturesLocked(packet.colour, packet.depth, packet.motionVectors, packet.output);
+    }
+
+    bool UpscalerRig::EnsureTexturesLocked(void* colourTexture, void* depthTexture, void* motionTexture, void* outputTexture)
+    {
         D3D11_TEXTURE2D_DESC colourDesc = {}, depthDesc = {}, motionDesc = {}, outputDesc = {};
-        if (!TextureDesc(packet.colour, colourDesc) || !TextureDesc(packet.depth, depthDesc)
-            || !TextureDesc(packet.motionVectors, motionDesc) || !TextureDesc(packet.output, outputDesc))
+        if (!TextureDesc(colourTexture, colourDesc) || !TextureDesc(depthTexture, depthDesc)
+            || !TextureDesc(motionTexture, motionDesc) || !TextureDesc(outputTexture, outputDesc))
         {
             SetStatus(-1, "a texture of the frame is not a 2D texture");
             return false;

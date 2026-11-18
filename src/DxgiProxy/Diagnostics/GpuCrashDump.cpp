@@ -1,6 +1,7 @@
 #include "GpuCrashDump.h"
 
 #include "FileUtil.h"
+#include "GpuAddressBook.h"
 #include "GpuProfiler.h"
 #include "Log.h"
 
@@ -254,8 +255,12 @@ namespace redefinition
     {
         if (!active.load())
             return;
-        // Markers and the resources a page fault lands in; no call stacks (their CPU cost is in every draw).
-        const uint32_t flags = GFSDK_Aftermath_FeatureFlags_EnableMarkers | GFSDK_Aftermath_FeatureFlags_EnableResourceTracking;
+        // Markers, the resources a page fault lands in and the shader errors the GPU can report (no cost); call stacks only with -redefinitionGpuCrashDumpStacks (their CPU
+        // cost is in every draw: a marker with the CPU's call stack at each draw and dispatch, which names the call that faulted).
+        const wchar_t* line = GetCommandLineW();
+        const bool stacks = line != nullptr && wcsstr(line, L"-redefinitionGpuCrashDumpStacks") != nullptr;
+        const uint32_t flags = GFSDK_Aftermath_FeatureFlags_EnableMarkers | GFSDK_Aftermath_FeatureFlags_EnableResourceTracking
+                               | GFSDK_Aftermath_FeatureFlags_EnableShaderErrorReporting | (stacks ? GFSDK_Aftermath_FeatureFlags_CallStackCapturing : 0u);
         if (device != nullptr)
         {
             const GFSDK_Aftermath_Result result = g_api.dx11Initialize(GFSDK_Aftermath_Version_API, flags, device);
@@ -270,7 +275,7 @@ namespace redefinition
                     markersOn.store(true);
                 }
                 LogLine("GPU crash dumps: Direct3D 11 device initialised (" + ResultText(result) + "), markers "
-                        + (markersOn.load() ? "on" : "off (" + ResultText(made) + ")"));
+                        + (markersOn.load() ? "on" : "off (" + ResultText(made) + ")") + (stacks ? ", call stacks on" : ""));
             }
             else
                 LogLine("GPU crash dumps: DX11_Initialize failed (" + ResultText(result) + ")");
@@ -323,6 +328,7 @@ namespace redefinition
             FormatTo(text, "GPU crash dumps: page fault at GPU address 0x%016llX, %u resource(s) there",
                      static_cast<unsigned long long>(fault.faultingGpuVA), fault.resourceInfoCount);
             LogLine(text);
+            GpuAddressBook::Explain(fault.faultingGpuVA);
         }
 
         // The last marker the GPU passed on each context, and the profiler's next one after it in the last

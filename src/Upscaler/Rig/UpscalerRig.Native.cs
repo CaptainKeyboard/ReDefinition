@@ -128,12 +128,16 @@ namespace ReDefinition.Upscaler
             return nativeShown;
         }
 
-        // NativeUpscalerLink's flags for this frame: HDR, inverted depth, auto exposure (always for DLSS) and reset.
+        // A test start's switch (-redefinitionDlssFixedExposure, with autoExposure False in the settings; K-T2 2026-11-18: the GPU page fault inside DLSS with the own clouds, never
+        // with FSR at the same size): DLSS without its auto exposure, at the fixed exposure 1 the packet gives, so a run tells whether the fault is in that part of DLSS.
+        private static readonly bool DlssFixedExposureTest = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionDlssFixedExposure") >= 0;
+
+        // NativeUpscalerLink's flags for this frame: HDR, inverted depth, auto exposure (always for DLSS outside that test) and reset.
         private uint NativeFlags()
         {
             return (EffectiveHdr ? NativeUpscalerLink.FlagHdr : 0u)
                    | (SystemInfo.usesReversedZBuffer ? NativeUpscalerLink.FlagDepthInverted : 0u)
-                   | (Backend == UpscalerBackend.Dlss || AutoExposure ? NativeUpscalerLink.FlagAutoExposure : 0u)
+                   | ((Backend == UpscalerBackend.Dlss && !DlssFixedExposureTest) || AutoExposure ? NativeUpscalerLink.FlagAutoExposure : 0u)
                    | (dispatch.Reset ? NativeUpscalerLink.FlagReset : 0u);
         }
 

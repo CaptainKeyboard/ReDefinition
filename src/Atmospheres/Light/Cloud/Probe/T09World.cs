@@ -268,6 +268,9 @@ namespace ReDefinition.Atmospheres
             holding = false;
         }
 
+        // The main mod's interface, through which the placement reports its cut (Frame.RequestHistoryReset).
+        private ApiBridge resetBridge;
+
         public void PlaceVessel(double lat, double lon, double altitude)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
@@ -276,6 +279,10 @@ namespace ReDefinition.Atmospheres
             Vector3d up = body.GetSurfaceNVector(lat, lon);
             Vector3d place = body.GetWorldSurfacePosition(lat, lon, altitude);
             vessel.SetPosition(place);
+            // The placement is a jump of the camera that keeps its target and parent, which the camera cuts do not see (CameraCuts): reported as a mod reports its cut, so the upscaler,
+            // frame generation and the cloud history begin anew instead of carrying a history from another place across it.
+            if (resetBridge == null) resetBridge = new ApiBridge();
+            resetBridge.RequestHistoryReset("probe placement");
             vessel.SetRotation(Quaternion.FromToRotation(Vector3.up, (Vector3)up));
             FloatingOrigin.SetOffset(place);
             Krakensbane.ResetVelocityFrame(true);

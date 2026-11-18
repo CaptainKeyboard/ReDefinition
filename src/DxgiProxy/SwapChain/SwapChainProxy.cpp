@@ -14,6 +14,7 @@
 #include "Raytracing.h"
 #include "FidelityFx.h"
 #include "FrameGeneration.h"
+#include "GpuAddressBook.h"
 #include "GpuCrashDump.h"
 #include "GpuProfiler.h"
 #include "Log.h"
@@ -443,6 +444,7 @@ namespace redefinition
         Raytracing::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
         GpuProfiler::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get());
         GpuCrashDump::Get().Attach(d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get());
+        GpuAddressBook::Attach(d3d11Device.Get());
         FrameGeneration::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(),
                                       description.Width, description.Height, desc.Format);
         if (streamlineSwapChain && Streamline::Get().FrameGenerationAvailable())

@@ -38,6 +38,37 @@ namespace redefinition
         }
     }
 
+    NgxD3d12Api NgxD3d12Exports(HMODULE core)
+    {
+        NgxD3d12Api api;
+        if (core == nullptr)
+            return api;
+        api.initProjectId = reinterpret_cast<NgxD3d12Api::InitProjectIdFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_Init_ProjectID"));
+        api.getCapabilityParameters = reinterpret_cast<NgxGetParametersFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_GetCapabilityParameters"));
+        api.getParameters = reinterpret_cast<NgxGetParametersFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_GetParameters"));
+        api.destroyParameters = reinterpret_cast<NgxDestroyParametersFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_DestroyParameters"));
+        api.createFeature = reinterpret_cast<NgxD3d12Api::CreateFeatureFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_CreateFeature"));
+        api.evaluateFeature = reinterpret_cast<NgxD3d12Api::EvaluateFeatureFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_EvaluateFeature"));
+        api.releaseFeature = reinterpret_cast<NgxReleaseFeatureFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_ReleaseFeature"));
+        api.shutdown = reinterpret_cast<NgxD3d12Api::ShutdownFn>(GetProcAddress(core, "NVSDK_NGX_D3D12_Shutdown"));
+        return api;
+    }
+
+    namespace
+    {
+        std::atomic<bool> g_d3d12KeptRunning{ false };
+    }
+
+    void NgxD3d12KeepRunning()
+    {
+        g_d3d12KeptRunning = true;
+    }
+
+    bool NgxD3d12KeptRunning()
+    {
+        return g_d3d12KeptRunning.load();
+    }
+
     std::mutex& NgxMutex()
     {
         // Never destroyed, like the classes that take it.

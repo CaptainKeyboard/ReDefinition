@@ -84,7 +84,10 @@ namespace redefinition
     static_assert(offsetof(DlssSizeQuery, texture) == 8, "DlssSizeQuery layout changed");
     static_assert(offsetof(DlssSizeQuery, outputWidth) == 16, "DlssSizeQuery layout changed");
 
-    // DLSS Super Resolution through NVIDIA's NGX, on Unity's D3D11 device.
+    // DLSS Super Resolution through NVIDIA's NGX. The frames, the release and the size queries go to DlssD3d12,
+    // which runs it on a Direct3D 12 device of its own: NGX's D3D11 evaluation page-faulted the GPU (DlssD3d12.h).
+    // A test start's -redefinitionDlssD3d11 keeps it on Unity's D3D11 device, as described below, with the
+    // diagnostics of that fault.
     //
     // NGX's core is part of the NVIDIA driver; the DLSS network is
     // nvngx_dlss.dll, which the player downloads from NVIDIA's release
@@ -161,6 +164,8 @@ namespace redefinition
         void Shutdown();
         // The state and text Status reports, under mutex; a stop is logged where it changes.
         void SetStatus(int state, const std::string& text);
+        // The same, taken from DlssD3d12, which logged it already.
+        void MirrorStatus(int state, const std::string& text);
 
         // The driver's NGX core, and the device NGX was started on.
         HMODULE core = nullptr;

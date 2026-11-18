@@ -1,4 +1,5 @@
 #include "Dlss.h"
+#include "DlssD3d12.h"
 
 #include "Config.h"
 #include "FileUtil.h"
@@ -6,6 +7,7 @@
 #include "NgxCore.h"
 #include "ProjectIdentity.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
@@ -108,6 +110,314 @@ namespace redefinition
         {
             return static_cast<NgxParameters*>(parameters);
         }
+
+        // A test start's watch on DLSS's four textures (-redefinitionUpscalerScan; K-T2 2026-11-18: a GPU page fault inside DLSS, a write to an address with no resource, with the
+        // own clouds only and never with FSR at the same size). Each texture DLSS is given is marked with a serial in its private data; the log names every change of a slot,
+        // and a texture at the same address as before that carries no mark (or another serial) is a new one in the old one's place.
+        const bool kWatchInputs = [] {
+            const wchar_t* line = GetCommandLineW();
+            return line != nullptr && wcsstr(line, L"-redefinitionUpscalerScan") != nullptr;
+        }();
+        // {6C1F0B57-3E2A-4D7B-9B52-1A0E5D2C7F31}
+        const GUID kWatchSerial = { 0x6c1f0b57, 0x3e2a, 0x4d7b, { 0x9b, 0x52, 0x1a, 0x0e, 0x5d, 0x2c, 0x7f, 0x31 } };
+        uint32_t g_nextSerial = 1;
+        struct WatchedSlot
+        {
+            void* pointer = nullptr;
+            uint32_t serial = 0;
+        };
+        WatchedSlot g_watched[4];
+        uint64_t g_watchFrame = 0;
+
+        std::string DescribeTexture(ID3D11Resource* resource)
+        {
+            ComPtr<ID3D11Texture2D> texture;
+            if (resource == nullptr || FAILED(resource->QueryInterface(IID_PPV_ARGS(&texture))))
+                return "not a 2D texture";
+            D3D11_TEXTURE2D_DESC desc = {};
+            texture->GetDesc(&desc);
+            char text[200];
+            sprintf_s(text, "%ux%u format %u mips %u array %u samples %u/%u usage %u bind 0x%X misc 0x%X", desc.Width, desc.Height,
+                      static_cast<unsigned>(desc.Format), desc.MipLevels, desc.ArraySize, desc.SampleDesc.Count, desc.SampleDesc.Quality,
+                      static_cast<unsigned>(desc.Usage), desc.BindFlags, desc.MiscFlags);
+            return text;
+        }
+
+        // A test start's control (-redefinitionDlssPrivateCopies; the same K-T2 fault): NGX is handed textures of the proxy's own, made once with
+        // the descriptions of Unity's, which the frame's inputs are copied into and its output out of. If the fault goes, it lies in how Unity's
+        // textures live (aliasing, lifetime); if it stays, inside NGX.
+        const bool kPrivateCopies = [] {
+            const wchar_t* line = GetCommandLineW();
+            return line != nullptr && wcsstr(line, L"-redefinitionDlssPrivateCopies") != nullptr;
+        }();
+        // A test start's control (-redefinitionDlssFence; the same K-T2 fault, always within half a second of the probe's placement): the GPU's
+        // work is waited for right before NGX's evaluation and right after it, and the device's state is read each time. A device removed after
+        // the evaluation but not before it puts the fault inside NGX's own work; removed before it, in the frame's other work.
+        const bool kFence = [] {
+            const wchar_t* line = GetCommandLineW();
+            return line != nullptr && wcsstr(line, L"-redefinitionDlssFence") != nullptr;
+        }();
+        uint64_t g_fenceFrame = 0;
+        bool g_fenceReported = false;
+        int g_fenceSinceReset = 1000;
+
+        // The last frames' packets under the fence, written out when the device is lost in NGX's own work: what NGX was handed then.
+        constexpr int kFenceRing = 12;
+        DlssPacket g_fenceRing[kFenceRing] = {};
+        uint64_t g_fenceRingFrame[kFenceRing] = {};
+        // Each frame's four textures as width x height (colour, output, depth, motion vectors): a size change at the cut shows.
+        uint32_t g_fenceRingSizes[kFenceRing][8] = {};
+
+        void TextureSize(void* resource, uint32_t& width, uint32_t& height)
+        {
+            ComPtr<ID3D11Texture2D> texture;
+            width = height = 0;
+            if (resource == nullptr || FAILED(static_cast<ID3D11Resource*>(resource)->QueryInterface(IID_PPV_ARGS(&texture))))
+                return;
+            D3D11_TEXTURE2D_DESC desc = {};
+            texture->GetDesc(&desc);
+            width = desc.Width;
+            height = desc.Height;
+        }
+
+        float HalfValue(uint16_t h)
+        {
+            const int exponent = (h >> 10) & 0x1F;
+            const int mantissa = h & 0x3FF;
+            const float magnitude = exponent == 0 ? mantissa / 1024.0f / 16384.0f : (1.0f + mantissa / 1024.0f) * ldexpf(1.0f, exponent - 15);
+            return (h & 0x8000) != 0 ? -magnitude : magnitude;
+        }
+
+        // The values a texture of NGX's inputs holds, read back synchronously (only under the fence, in the frames of a reset and the few after it): the
+        // values that are not finite, the largest magnitude, and for depth the range and the values outside 0..1. K-T2 2026-11-18: the fault came in the
+        // evaluation of the first frames after the jump into the inside view, never at a reset with the camera still; the asynchronous scan never got
+        // those frames back.
+        // Read within the render rectangle (DLSS reads only that), motion vectors in pixels (times the packet's scale).
+        std::string FenceScan(ID3D11Device* device, ID3D11DeviceContext* context, void* resource, const char* name, const DlssPacket& packet)
+        {
+            ComPtr<ID3D11Texture2D> texture;
+            if (resource == nullptr || FAILED(static_cast<ID3D11Resource*>(resource)->QueryInterface(IID_PPV_ARGS(&texture))))
+                return std::string(name) + ": not a 2D texture";
+            D3D11_TEXTURE2D_DESC desc = {};
+            texture->GetDesc(&desc);
+            const DXGI_FORMAT format = desc.Format;
+            const bool half4 = format == DXGI_FORMAT_R16G16B16A16_TYPELESS || format == DXGI_FORMAT_R16G16B16A16_FLOAT;
+            const bool half2 = format == DXGI_FORMAT_R16G16_TYPELESS || format == DXGI_FORMAT_R16G16_FLOAT;
+            const bool float1 = format == DXGI_FORMAT_R32_TYPELESS || format == DXGI_FORMAT_R32_FLOAT || format == DXGI_FORMAT_D32_FLOAT;
+            if (!half4 && !half2 && !float1)
+                return std::string(name) + ": format " + std::to_string(static_cast<unsigned>(format)) + " not read";
+            D3D11_TEXTURE2D_DESC staging = desc;
+            staging.MipLevels = 1;
+            staging.ArraySize = 1;
+            staging.Usage = D3D11_USAGE_STAGING;
+            staging.BindFlags = 0;
+            staging.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            staging.MiscFlags = 0;
+            ComPtr<ID3D11Texture2D> copy;
+            if (FAILED(device->CreateTexture2D(&staging, nullptr, &copy)))
+                return std::string(name) + ": no staging texture";
+            // The first mip of the first slice: the staging copy has one of each, whatever the source has.
+            context->CopySubresourceRegion(copy.Get(), 0, 0, 0, 0, texture.Get(), 0, nullptr);
+            D3D11_MAPPED_SUBRESOURCE mapped = {};
+            const HRESULT mappedResult = context->Map(copy.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+            if (FAILED(mappedResult))
+            {
+                char failed[120];
+                sprintf_s(failed, "%s: not mapped (0x%08lX)", name, static_cast<unsigned long>(mappedResult));
+                return failed;
+            }
+            const int channels = half4 ? 4 : half2 ? 2 : 1;
+            const UINT width = packet.renderWidth < desc.Width ? packet.renderWidth : desc.Width;
+            const UINT height = packet.renderHeight < desc.Height ? packet.renderHeight : desc.Height;
+            uint64_t notFinite = 0, aboveOne = 0, outside = 0;
+            float largest = 0.0f, lowest = 3.4e38f, highest = -3.4e38f;
+            for (UINT y = 0; y < height; ++y)
+            {
+                const uint8_t* row = static_cast<const uint8_t*>(mapped.pData) + static_cast<size_t>(y) * mapped.RowPitch;
+                for (UINT x = 0; x < width; ++x)
+                {
+                    for (int c = 0; c < channels; ++c)
+                    {
+                        float v;
+                        if (float1)
+                        {
+                            memcpy(&v, row + x * 4, 4);
+                        }
+                        else
+                        {
+                            uint16_t h;
+                            memcpy(&h, row + (static_cast<size_t>(x) * channels + c) * 2, 2);
+                            if ((h & 0x7C00) == 0x7C00)
+                            {
+                                ++notFinite;
+                                continue;
+                            }
+                            v = HalfValue(h);
+                        }
+                        if (!std::isfinite(v))
+                        {
+                            ++notFinite;
+                            continue;
+                        }
+                        // Motion vectors in pixels; one longer than the render size in its axis counts.
+                        const float a = half2 ? fabsf(v * (c == 0 ? packet.motionVectorScaleX : packet.motionVectorScaleY)) : fabsf(v);
+                        if (a > largest)
+                            largest = a;
+                        if (half2 ? a > static_cast<float>(c == 0 ? packet.renderWidth : packet.renderHeight) : a > 1.0f)
+                            ++aboveOne;
+                        if (float1)
+                        {
+                            lowest = v < lowest ? v : lowest;
+                            highest = v > highest ? v : highest;
+                            if (v < 0.0f || v > 1.0f)
+                                ++outside;
+                        }
+                    }
+                }
+            }
+            context->Unmap(copy.Get(), 0);
+            char text[360];
+            if (float1)
+                sprintf_s(text, "%s %ux%u (mips %u array %u samples %u, read %ux%u): %llu not finite, range %.6g..%.6g, %llu outside 0..1", name, desc.Width,
+                          desc.Height, desc.MipLevels, desc.ArraySize, desc.SampleDesc.Count, width, height, static_cast<unsigned long long>(notFinite), lowest,
+                          highest, static_cast<unsigned long long>(outside));
+            else if (half2)
+                sprintf_s(text, "%s %ux%u (mips %u array %u samples %u, read %ux%u): %llu not finite, longest %.6g px, %llu longer than the render size",
+                          name, desc.Width, desc.Height, desc.MipLevels, desc.ArraySize, desc.SampleDesc.Count, width, height,
+                          static_cast<unsigned long long>(notFinite), largest, static_cast<unsigned long long>(aboveOne));
+            else
+                sprintf_s(text, "%s %ux%u (mips %u array %u samples %u, read %ux%u): %llu not finite, largest %.6g", name, desc.Width, desc.Height,
+                          desc.MipLevels, desc.ArraySize, desc.SampleDesc.Count, width, height, static_cast<unsigned long long>(notFinite), largest);
+            return text;
+        }
+
+        std::string PacketLine(const DlssPacket& p, uint64_t frame, const uint32_t (&sizes)[8])
+        {
+            char text[360];
+            sprintf_s(text, "frame %llu: flags 0x%X%s, jitter %.6g %.6g, motion vector scale %.6g %.6g, render %ux%u, output %ux%u, quality %d, preset %u; "
+                            "textures colour %ux%u output %ux%u depth %ux%u motion %ux%u",
+                      static_cast<unsigned long long>(frame), p.flags, (p.flags & kDlssReset) != 0 ? " (reset)" : "", p.jitterX, p.jitterY,
+                      p.motionVectorScaleX, p.motionVectorScaleY, p.renderWidth, p.renderHeight, p.outputWidth, p.outputHeight, p.quality, p.preset,
+                      sizes[0], sizes[1], sizes[2], sizes[3], sizes[4], sizes[5], sizes[6], sizes[7]);
+            return text;
+        }
+
+        // Waits until the GPU has done all work handed to the context so far; false where the device was removed (the reason is logged once).
+        bool FenceAlive(ID3D11Device* device, ID3D11DeviceContext* context, const char* where)
+        {
+            if (g_fenceReported)
+                return false;
+            // Made once per device and never released: at process exit a static destructor would release it after d3d11.dll may be gone.
+            static ID3D11Query* query = nullptr;
+            static ID3D11Device* queryDevice = nullptr;
+            HRESULT reason = device->GetDeviceRemovedReason();
+            HRESULT data = S_OK;
+            if (reason == S_OK && (query == nullptr || queryDevice != device))
+            {
+                D3D11_QUERY_DESC desc = { D3D11_QUERY_EVENT, 0 };
+                if (query != nullptr)
+                    query->Release();
+                query = nullptr;
+                queryDevice = device;
+                const HRESULT made = device->CreateQuery(&desc, &query);
+                if (FAILED(made))
+                {
+                    g_fenceReported = true;
+                    char text[120];
+                    sprintf_s(text, "DLSS fence: no event query could be made (0x%08lX); the fence is off", static_cast<unsigned long>(made));
+                    LogLine(text);
+                    return false;
+                }
+            }
+            bool timedOut = false;
+            if (reason == S_OK)
+            {
+                context->End(query);
+                BOOL done = FALSE;
+                // GetData flushes the context; the loop ends with the work, with the device, or after 5 s (a GPU that hangs without a reset).
+                const ULONGLONG start = GetTickCount64();
+                while ((data = context->GetData(query, &done, sizeof(done), 0)) == S_FALSE)
+                {
+                    reason = device->GetDeviceRemovedReason();
+                    if (reason != S_OK)
+                        break;
+                    if (GetTickCount64() - start > 5000)
+                    {
+                        timedOut = true;
+                        break;
+                    }
+                    YieldProcessor();
+                }
+                // A query that failed is the device's end before the device reports it: its reason is read for up to 200 ms, so the removal is
+                // put on this check and not on the next one.
+                const ULONGLONG failedAt = GetTickCount64();
+                do
+                    reason = device->GetDeviceRemovedReason();
+                while (reason == S_OK && FAILED(data) && GetTickCount64() - failedAt < 200);
+            }
+            if (reason == S_OK && SUCCEEDED(data) && !timedOut)
+                return true;
+            g_fenceReported = true;
+            char text[260];
+            sprintf_s(text, "DLSS fence: %s (reason 0x%08lX, query 0x%08lX), seen %s, frame %llu",
+                      timedOut ? "the GPU did not finish within 5 s" : "the device was removed", static_cast<unsigned long>(reason),
+                      static_cast<unsigned long>(data), where, static_cast<unsigned long long>(g_fenceFrame));
+            LogLine(text);
+            return false;
+        }
+
+        ComPtr<ID3D11Texture2D> g_private[4];
+        D3D11_TEXTURE2D_DESC g_privateDesc[4] = {};
+
+        // The private texture for a slot with the description of Unity's (made again where that changes); null where it cannot be made.
+        ID3D11Resource* PrivateFor(ID3D11Device* device, int slot, void* unity)
+        {
+            ComPtr<ID3D11Texture2D> source;
+            if (unity == nullptr || FAILED(static_cast<ID3D11Resource*>(unity)->QueryInterface(IID_PPV_ARGS(&source))))
+                return nullptr;
+            D3D11_TEXTURE2D_DESC desc = {};
+            source->GetDesc(&desc);
+            if (g_private[slot] == nullptr || memcmp(&desc, &g_privateDesc[slot], sizeof(desc)) != 0)
+            {
+                g_private[slot].Reset();
+                if (FAILED(device->CreateTexture2D(&desc, nullptr, &g_private[slot])))
+                    return nullptr;
+                g_privateDesc[slot] = desc;
+                LogLine("DLSS private copies: slot " + std::to_string(slot) + " made, " + std::to_string(desc.Width) + "x" + std::to_string(desc.Height)
+                        + " format " + std::to_string(static_cast<unsigned>(desc.Format)));
+            }
+            return g_private[slot].Get();
+        }
+
+        void WatchInputs(const DlssPacket& packet)
+        {
+            if (!kWatchInputs)
+                return;
+            ++g_watchFrame;
+            void* const slots[4] = { packet.colour, packet.output, packet.depth, packet.motionVectors };
+            const char* const names[4] = { "colour", "output", "depth", "motion vectors" };
+            for (int i = 0; i < 4; ++i)
+            {
+                ID3D11Resource* resource = static_cast<ID3D11Resource*>(slots[i]);
+                uint32_t serial = 0;
+                UINT size = sizeof(serial);
+                const bool marked = resource != nullptr && SUCCEEDED(resource->GetPrivateData(kWatchSerial, &size, &serial)) && size == sizeof(serial);
+                if (marked && slots[i] == g_watched[i].pointer && serial == g_watched[i].serial)
+                    continue;
+                if (!marked && resource != nullptr)
+                {
+                    serial = g_nextSerial++;
+                    resource->SetPrivateData(kWatchSerial, sizeof(serial), &serial);
+                }
+                char head[200];
+                sprintf_s(head, "DLSS input watch: frame %llu, %s %s %p (serial %u, before %p serial %u): ", static_cast<unsigned long long>(g_watchFrame), names[i],
+                          slots[i] == g_watched[i].pointer ? "NEW OBJECT AT THE SAME ADDRESS" : "changed to", slots[i], serial, g_watched[i].pointer,
+                          g_watched[i].serial);
+                LogLine(std::string(head) + DescribeTexture(resource));
+                g_watched[i].pointer = slots[i];
+                g_watched[i].serial = serial;
+            }
+        }
     }
 
     // Never destroyed: at process exit a static destructor would release Unity's
@@ -192,6 +502,18 @@ namespace redefinition
             return;
         }
 
+        // On a Direct3D 12 device of its own (DlssD3d12.h says why); its status is this class's, which the
+        // managed side reads.
+        if (DlssD3d12::On())
+        {
+            DlssD3d12& d3d12 = DlssD3d12::Get();
+            d3d12.OnPacket(*packet);
+            char text[256] = {};
+            const int reported = d3d12.Status(text, sizeof(text));
+            MirrorStatus(reported, text);
+            return;
+        }
+
         ComPtr<ID3D11Device> textureDevice;
         static_cast<ID3D11Resource*>(packet->colour)->GetDevice(&textureDevice);
         std::lock_guard<std::mutex> ngx(NgxMutex());
@@ -203,11 +525,88 @@ namespace redefinition
         if (!EnsureFeature(context.Get(), *packet))
             return;
 
+        WatchInputs(*packet);
+        if (kPrivateCopies)
+        {
+            DlssPacket copy = *packet;
+            void* const unity[4] = { packet->colour, packet->output, packet->depth, packet->motionVectors };
+            ID3D11Resource* mine[4] = {};
+            for (int i = 0; i < 4; ++i)
+                mine[i] = PrivateFor(textureDevice.Get(), i, unity[i]);
+            if (mine[0] != nullptr && mine[1] != nullptr && mine[2] != nullptr && mine[3] != nullptr)
+            {
+                context->CopyResource(mine[0], static_cast<ID3D11Resource*>(unity[0]));
+                context->CopyResource(mine[2], static_cast<ID3D11Resource*>(unity[2]));
+                context->CopyResource(mine[3], static_cast<ID3D11Resource*>(unity[3]));
+                copy.colour = mine[0];
+                copy.output = mine[1];
+                copy.depth = mine[2];
+                copy.motionVectors = mine[3];
+                if (Evaluate(context.Get(), copy))
+                    context->CopyResource(static_cast<ID3D11Resource*>(unity[1]), mine[1]);
+                return;
+            }
+        }
+        if (kFence)
+        {
+            ++g_fenceFrame;
+            g_fenceRing[g_fenceFrame % kFenceRing] = *packet;
+            g_fenceRingFrame[g_fenceFrame % kFenceRing] = g_fenceFrame;
+            uint32_t* ringSizes = g_fenceRingSizes[g_fenceFrame % kFenceRing];
+            void* const textures[4] = { packet->colour, packet->output, packet->depth, packet->motionVectors };
+            for (int i = 0; i < 4; ++i)
+                TextureSize(textures[i], ringSizes[2 * i], ringSizes[2 * i + 1]);
+            const bool aliveBefore = FenceAlive(textureDevice.Get(), context.Get(), "before NGX's evaluation (the frame's work up to it)");
+            if ((packet->flags & kDlssReset) != 0)
+                g_fenceSinceReset = 0;
+            else if (g_fenceSinceReset < 1000)
+                ++g_fenceSinceReset;
+            if (aliveBefore && g_fenceSinceReset <= 3)
+            {
+                char head[80];
+                sprintf_s(head, "DLSS fence: frame %llu, %d after a reset, NGX's inputs: ", static_cast<unsigned long long>(g_fenceFrame), g_fenceSinceReset);
+                LogLine(std::string(head) + FenceScan(textureDevice.Get(), context.Get(), packet->colour, "colour", *packet) + "; "
+                        + FenceScan(textureDevice.Get(), context.Get(), packet->depth, "depth", *packet) + "; "
+                        + FenceScan(textureDevice.Get(), context.Get(), packet->motionVectors, "motion vectors", *packet));
+            }
+        }
         Evaluate(context.Get(), *packet);
+        if (kFence && !g_fenceReported && !FenceAlive(textureDevice.Get(), context.Get(), "right after NGX's evaluation (its own work)"))
+        {
+            LogLine("DLSS fence: the packets of the last frames, oldest first:");
+            for (int i = 1; i <= kFenceRing; ++i)
+            {
+                const int slot = static_cast<int>((g_fenceFrame + i) % kFenceRing);
+                if (g_fenceRingFrame[slot] != 0)
+                    LogLine("  " + PacketLine(g_fenceRing[slot], g_fenceRingFrame[slot], g_fenceRingSizes[slot]));
+            }
+            LogLine("DLSS fence: the feature was created for " + std::to_string(created.renderWidth) + "x" + std::to_string(created.renderHeight) + " to "
+                    + std::to_string(created.outputWidth) + "x" + std::to_string(created.outputHeight) + ", flags " + Hex(created.flags)
+                    + ", quality " + std::to_string(created.quality));
+            void* const slots[4] = { packet->colour, packet->output, packet->depth, packet->motionVectors };
+            const char* const names[4] = { "colour", "output", "depth", "motion vectors" };
+            for (int i = 0; i < 4; ++i)
+                LogLine(std::string("  ") + names[i] + ": " + DescribeTexture(static_cast<ID3D11Resource*>(slots[i])));
+        }
+    }
+
+    void Dlss::MirrorStatus(int newState, const std::string& text)
+    {
+        renderState = newState;
+        std::lock_guard<std::mutex> lock(mutex);
+        state = newState;
+        statusText = text;
+        stableSearch = newState == -2 ? SearchSignature() : std::wstring();
     }
 
     void Dlss::OnRelease()
     {
+        if (DlssD3d12::On())
+        {
+            DlssD3d12::Get().OnRelease();
+            MirrorStatus(0, "DLSS feature released, no DLSS frame since");
+            return;
+        }
         std::lock_guard<std::mutex> ngx(NgxMutex());
         ReleaseFeature();
         hasFailed = false;
@@ -392,6 +791,35 @@ namespace redefinition
 
         ComPtr<ID3D11Device> textureDevice;
         static_cast<ID3D11Resource*>(query->texture)->GetDevice(&textureDevice);
+
+        // Asked of NGX on DLSS's Direct3D 12 device, so NGX never starts on Unity's D3D11 device (DlssD3d12.h).
+        if (DlssD3d12::On())
+        {
+            for (const int quality : { 0, 1, 2, 3, kNgxQualityDlaa })
+            {
+                RenderSizeEntry entry = {};
+                if (RenderSizes(query->outputWidth, query->outputHeight, quality, entry.optimal, entry.minimum, entry.maximum))
+                    continue;
+                std::string error;
+                if (DlssD3d12::Get().RenderSize(textureDevice.Get(), query->outputWidth, query->outputHeight, quality, entry.optimal,
+                                                entry.minimum, entry.maximum, error))
+                {
+                    entry.outputWidth = query->outputWidth;
+                    entry.outputHeight = query->outputHeight;
+                    entry.quality = quality;
+                    StoreRenderSize(entry);
+                }
+                else
+                    LogLine("DLSS: no render size for quality " + std::to_string(quality) + " at "
+                            + Size(query->outputWidth, query->outputHeight) + ": " + error);
+            }
+            char text[256] = {};
+            const int reported = DlssD3d12::Get().Status(text, sizeof(text));
+            if (reported < 0)
+                MirrorStatus(reported, text);
+            return;
+        }
+
         std::lock_guard<std::mutex> ngx(NgxMutex());
         // A failure that need not stand is not kept for the rig's first frame to
         // meet: no release runs between a query and the rig after it.
