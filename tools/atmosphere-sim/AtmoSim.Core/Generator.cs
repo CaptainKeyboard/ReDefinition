@@ -20,8 +20,9 @@ namespace AtmoSim.Core
         public double Presence, EnergyFactor;
         // The convective rain rate at the centre (mm/h, with the body's factor on the bands) and its level on the 0 to 1 scale of the precipitation maps (Level01).
         public double RainMmH, RainLevel;
-        // B (the new sky): the cell's energy as a share of a full cell (at the centre), and the top of its tower from the field: base (SkyColumn.BaseM at the centre) plus the depth to
-        // the tropopause times the energy share and the life stage (SkyColumn.CellTopShare), as a share of the troposphere and in m. TopM above stays the random draw it was.
+        // B (the new sky; only from Cells(..., sky: true), else 0): the cell's energy as a share of a full cell (at the centre), and the top of its tower from the field: base
+        // (SkyColumn at the centre) plus the depth to the tropopause times the energy share and the life stage (SkyColumn.CellTopShare), as a share of the troposphere and in m.
+        // TopM above stays the random draw it was.
         public double Energy01, TopShare, TopPhysM;
     }
 
@@ -48,15 +49,21 @@ namespace AtmoSim.Core
         // Round 6 (CELLS): the presence probability of a convective cell at the point (the draw of a lattice cell passes where it exceeds the cell's own number) and the factor of the energy term on
         // the strength (0 where the probability is below 0.02: no cell is looked for).
         public double CellPresence, CellEnergyFactor;
-        // B (the new sky): the raw inputs of SkyColumn.Derive, stored by Sample. No existing output reads them.
-        // The nearest front of the strongest temperature envelope at the point: +1 warm, -1 cold, 0 none; the signed distance in m along its normal (positive ahead: the systems move
-        // east, along the gradient of the front's phase); the envelope's amplitude as a share of the body's front amplitude (0 to 1); the quarter wavelength across the front (m).
-        public double FrontSign, FrontDistanceM, FrontAmp01, FrontQuarterM;
-        // Descent01: large-scale descent 0 to 1 (high pressure, the subtropical descent, the dry slot); Heating01: the surface forcing of the mixed layer 0 to 1 (the sea share plus the land
-        // share times the generator's own lagged day term); LiftSat01: how far the dynamic cloud driver is toward the stratiform rain onset (1 = saturated deck); RelHumidity: the
-        // relative-humidity proxy Hrel of the moisture source, clamped to 0 to 1 (Humidity above is h_T Hrel, an amount of water, not a relative humidity); CellEnergy01: the cell energy over CellEnergyFull (0 where no cell is looked for); CellReach01: that energy times the largest
-        // life stage x footprint of the cells around (SkyColumn.CellStage; the share of the depth from base to tropopause the tallest tower reaches at the point).
-        public double Descent01, Heating01, LiftSat01, RelHumidity, CellEnergy01, CellReach01;
+        // B (the new sky): the raw inputs of SkyColumn.Derive, filled by Sample(..., sky: true) only (0 otherwise). No existing output reads them.
+        // The fronts, continuous in space and time (blended over the systems by their temperature envelopes, WeatherGenerator.FrontTerm): WarmFront01 / ColdFront01 the nearness to a
+        // warm / cold front (the envelope's amplitude as a share of the body's front amplitude, times 1 at the front falling to 0 at the warm-sector centre and the cold-air centre);
+        // FrontAmp01 the envelopes' amplitude; FrontSurfaceShare the height of the frontal surface over the point as a share of the troposphere (0 at the front and in the warm air, rising
+        // to 1 over the quarter wavelength into the cold air: ahead of a warm front, behind a cold front).
+        public double WarmFront01, ColdFront01, FrontAmp01, FrontSurfaceShare;
+        // Descent01: large-scale descent 0 to 1 (high pressure, the subtropical descent, the dry slot); Heating01: the forcing of the mixed layer's top 0 to 1 (1 over sea, the noon sun
+        // over land); LiftSat01: how far the dynamic cloud driver is toward the stratiform rain onset (1 = saturated deck); MoistureIndex: Hrel, the generator's moisture index (the moisture
+        // source times the belt's moistening times the subtropical drying; above 1 in the moist belt: an index, not a relative humidity; Humidity above is h_T Hrel); MoistureSource: its
+        // first factor, the surface's supply of water (0.04 dry land to 1 sea); CellEnergy01: the cell energy over CellEnergyFull (0 where no cell is looked for); CellReach01: that energy
+        // times the largest life stage x footprint of the cells around (SkyColumn.CellStage; the share of the depth from base to tropopause the tallest tower reaches at the point).
+        public double Descent01, Heating01, LiftSat01, MoistureIndex, MoistureSource, CellEnergy01, CellReach01;
+        // The parts of CloudWater before its cap at 1.5: the humidity background (bg), the dynamic lift and fronts (stratiform, the deck), the convective cells (0.7 x strength) plus the
+        // trade-wind cumulus. CloudWater = min(1.5, sum).
+        public double CloudBackground, CloudDynamic, CloudConvective;
         public double WindSpeedMs { get { return WindSpeed; } }
 
         // Cloud density (0..1.5) at an altitude of this column: a stratiform layer with a sin^2 profile plus towering cells.
@@ -338,6 +345,26 @@ namespace AtmoSim.Core
             if (h == 0) f.Ready0 = true; else f.Ready1 = true;
         }
 
+        // B: one system's front at a point, added to the blends of Sample (sky only). amp: the system's temperature envelope (K); q: its front phase, the front lies where sin(q) = 0.
+        // The phase distance to the nearest zero, |d| / (pi / 2) = u, runs 0 at the front to 1 at the warm-sector centre and the cold-air centre, where the nearest zero changes from one
+        // front to the other: every blended term is built so that it is the same on both sides there (nearness 1 - u is 0, the frontal surface u is 1), so nothing jumps.
+        // n even: the anomaly rises along the gradient of q, i.e. eastward, the direction the systems move, so cold air follows: a cold front, the cold side behind it (d < 0);
+        // n odd: a warm front, the cold side ahead of it (d > 0). The frontal surface rises over the cold side from the ground at the front to the troposphere's top at the
+        // cold-air centre [PROPOSAL: the field's own geometry, no slope constant].
+        private static void FrontTerm(double amp, double q, ref double warm, ref double cold, ref double surface, ref double ampSum)
+        {
+            if (!(amp > 0.0)) return;
+            double nf = DMath.Floor(q / DMath.Pi + 0.5);
+            double d = q - nf * DMath.Pi;
+            double u = (d < 0.0 ? -d : d) / DMath.HalfPi;
+            if (u > 1.0) u = 1.0;
+            bool coldFront = (((long)nf) & 1L) == 0L;
+            if (coldFront) cold += amp * (1.0 - u); else warm += amp * (1.0 - u);
+            bool coldSide = coldFront ? d < 0.0 : d > 0.0;
+            if (coldSide) surface += amp * u;
+            ampSum += amp;
+        }
+
         // Cheap deterministic arc tangent (five-term minimax polynomial, error 1e-5 rad) and cosine (series to r^10, error below 1e-4) for the look of the mature structure,
         // which needs neither full precision nor the 16-term series of DMath; only + - * / and Floor, so the result is the same on every platform.
         private static double FastAtan2(double y, double x)
@@ -475,7 +502,8 @@ namespace AtmoSim.Core
 
         // ---- the point evaluation ---------------------------------------------------------------------------------------
 
-        public void Sample(double latRad, double lonRad, double altM, double ut, out Weather w)
+        // sky: also fill the raw inputs of the new sky (the B fields of Weather; SkyColumn.Derive). Without it those fields are 0 and the sample costs what it did.
+        public void Sample(double latRad, double lonRad, double altM, double ut, out Weather w, bool sky = false)
         {
             Frame f = GetFrame(ut);
             int h = latRad >= 0.0 ? 0 : 1;
@@ -492,8 +520,8 @@ namespace AtmoSim.Core
 
             // wave systems of this hemisphere
             double p = 0, tAnom = 0, fr = 0, dpdx = 0, dpdy = 0, spiral = 0, drySlot = 0;
-            // B: the front of the strongest temperature envelope (its amplitude, phase and phase gradient)
-            double fAmp = 0, fQ = 0, fG = 0;
+            // B (only with sky): the fronts, blended over the systems by their temperature envelopes (FrontTerm)
+            double fWarm = 0, fCold = 0, fSurf = 0, fAmp = 0;
             int baseIdx = h * MaxSlots;
             for (int j = 0; j < MaxSlots; j++)
             {
@@ -543,8 +571,7 @@ namespace AtmoSim.Core
                         double thT = DMath.TanhFast(FrontSharp * sqT);
                         tAnom += s.Bk * sumTr * thT;
                         fr += s.Bk * sumTr * FrontSharp * (1.0 - thT * thT) * DMath.Abs(cqT) * gnT;
-                        double ampT = s.Bk * sumTr;
-                        if (ampT > fAmp) { fAmp = ampT; fQ = qT; fG = gnT; }
+                        if (sky) FrontTerm(s.Bk * sumTr, qT, ref fWarm, ref fCold, ref fSurf, ref fAmp);
                         }
                     }
                     else
@@ -552,8 +579,7 @@ namespace AtmoSim.Core
                         double thr = DMath.TanhFast(FrontSharp * sqr);
                         tAnom += s.Bk * sumTr * thr;
                         fr += s.Bk * sumTr * FrontSharp * (1.0 - thr * thr) * DMath.Abs(cqr) * gn;
-                        double ampR = s.Bk * sumTr;
-                        if (ampR > fAmp) { fAmp = ampR; fQ = qr; fG = gn; }
+                        if (sky) FrontTerm(s.Bk * sumTr, qr, ref fWarm, ref fCold, ref fSurf, ref fAmp);
                     }
                     dpdx += s.Amp * (2.0 * s.InvLx2 * sumExr * cqr + sumEr * s.K * sqr);
                     dpdy += aeR * (2.0 * y * invLy * cqr + qy * sqr);
@@ -581,8 +607,7 @@ namespace AtmoSim.Core
                     double thp = DMath.TanhFast(FrontSharp * sqp);
                     tAnom += s.Bk * sumT * thp;
                     fr += s.Bk * sumT * FrontSharp * s.K * (1.0 - thp * thp) * DMath.Abs(cqp) * TiltNorm;
-                    double ampP = s.Bk * sumT;
-                    if (ampP > fAmp) { fAmp = ampP; fQ = qp; fG = s.K * TiltNorm; }
+                    if (sky) FrontTerm(s.Bk * sumT, qp, ref fWarm, ref fCold, ref fSurf, ref fAmp);
                     dpdx += s.Amp * (2.0 * s.InvLx2 * sumEx * cqp + sumE * s.K * sqp);
                     dpdy += aeP * (2.0 * y * s.InvLy2 * cqp + s.K * s.Tilt * sqp);
                     continue;
@@ -597,8 +622,7 @@ namespace AtmoSim.Core
                 double exT = DMath.Exp(-(x * x * s.InvLxT2 + y * y * s.InvLyT2));
                 tAnom += s.Bk * exT * th;
                 fr += s.Bk * exT * FrontSharp * s.K * (1.0 - th * th) * DMath.Abs(cq) * TiltNorm;
-                double ampE = s.Bk * exT;
-                if (ampE > fAmp) { fAmp = ampE; fQ = q; fG = s.K * TiltNorm; }
+                if (sky) FrontTerm(s.Bk * exT, q, ref fWarm, ref fCold, ref fSurf, ref fAmp);
                 dpdx += ae * (2.0 * x * s.InvLx2 * cq + s.K * sq);
                 dpdy += ae * (2.0 * y * s.InvLy2 * cq + s.K * s.Tilt * sq);
             }
@@ -739,13 +763,18 @@ namespace AtmoSim.Core
                 double energy = cellBuoyancy + Body.CellLiftEnergyShare * (cellFront + cellConvergence);
                 cellFactor = CellEnergyFactor(energy);
                 double towerReach;
-                cs = CellStrength(latRad, lonRad, ut, pcell, out tower, out cellPhase, out cellLife, out towerReach) * cellFactor;
-                // B: the energy as a share of a full cell, and the share of the base-to-tropopause depth the tallest tower reaches here (SkyColumn)
-                cellEnergy01 = Body.CellEnergyFull > 0.0 ? DMath.Clamp(energy / Body.CellEnergyFull, 0.0, 1.0) : (energy > 0.0 ? 1.0 : 0.0);
-                cellReach = cellEnergy01 * towerReach;
+                cs = CellStrength(latRad, lonRad, ut, pcell, sky, out tower, out cellPhase, out cellLife, out towerReach) * cellFactor;
+                if (sky)
+                {
+                    // B: the energy as a share of a full cell, and the share of the base-to-tropopause depth the tallest tower reaches here (SkyColumn)
+                    cellEnergy01 = Body.CellEnergyFull > 0.0 ? DMath.Clamp(energy / Body.CellEnergyFull, 0.0, 1.0) : (energy > 0.0 ? 1.0 : 0.0);
+                    cellReach = cellEnergy01 * towerReach;
+                }
             }
 
             double cw = bg + xdyn + 0.7 * cs;
+            // B: the trade-wind cumulus water added below (a heap cloud)
+            double cuAdded = 0.0;
             if (r2itcz && Body.FairWeatherCloud > 0.0)
             {
                 // trade-wind cumulus: a patchy field (value noise on a lattice of about 8 degrees, drifting west with the trades) that is strongest in the subtropical dry zone and
@@ -757,7 +786,8 @@ namespace AtmoSim.Core
                     double lonD = DMath.WrapPi(lonRad + D.TradeDriftMs * ut / (a * 0.9));
                     double nz = 0.5 * (LatticeNoise(latRad, lonD, D.TradePatchRad1, Seed ^ 0xFA17C0DEUL) + LatticeNoise(latRad + 0.031, DMath.WrapPi(lonD + 0.7), D.TradePatchRad2, Seed ^ 0x51DE0A11UL));
                     double cu = amp * DMath.SmoothStep(0.25, 0.80, nz);
-                    cw += cu * (1.0 - DMath.Min(1.0, cw / 0.25));
+                    cuAdded = cu * (1.0 - DMath.Min(1.0, cw / 0.25));
+                    cw += cuAdded;
                 }
             }
             if (cw > 1.5) cw = 1.5;
@@ -897,30 +927,40 @@ namespace AtmoSim.Core
             w.CellStrength = cs; w.Dust = dust; w.SnowFrac = fs; w.SleetFrac = fl; w.RainFrac = fRain; w.OceanFraction = oc;
             w.Type = kind;
 
-            // B (the new sky): the raw inputs of SkyColumn.Derive. Nothing else reads them.
-            fAmp *= eqw;
-            if (fAmp > 0.0 && fG > 0.0)
+            // B (the new sky): the raw inputs of SkyColumn.Derive, only when asked for (sky); otherwise zero, and the sample costs what it did.
+            if (sky)
             {
-                double nf = DMath.Floor(fQ / DMath.Pi + 0.5);
-                long ni = (long)nf;
-                // the zero of sin(q) nearest to the point is the front; n even: the anomaly rises along the gradient, so the cold air follows (cold front)
-                w.FrontSign = (ni & 1L) == 0L ? -1.0 : 1.0;
-                w.FrontDistanceM = (fQ - nf * DMath.Pi) / fG;
-                w.FrontAmp01 = D.FrontAmpK > 0.0 ? DMath.Min(1.0, fAmp / D.FrontAmpK) : 0.0;
-                w.FrontQuarterM = DMath.HalfPi / fG;
+                double fn = D.FrontAmpK > 0.0 ? eqw / D.FrontAmpK : 0.0;
+                w.WarmFront01 = DMath.Min(1.0, fWarm * fn);
+                w.ColdFront01 = DMath.Min(1.0, fCold * fn);
+                w.FrontAmp01 = DMath.Min(1.0, fAmp * fn);
+                w.FrontSurfaceShare = fAmp > 0.0 ? fSurf / fAmp : 0.0;
+                double highP = p > 0.0 ? DMath.Min(1.0, p / aref) : 0.0;
+                double desc = highP > sub ? highP : sub;
+                if (drySlot > desc) desc = drySlot;
+                w.Descent01 = desc > 1.0 ? 1.0 : desc;
+                // the forcing of the mixed layer's top: the sea's steady supply by the sea share, over land the day's peak insolation (the sine of the noon sun), not the hour:
+                // the inversion a convective day leaves stays as the cap of the residual layer through the night (over land the daytime layer is never in a steady state,
+                // Bretherton lecture 16); the hour of the day enters the cumulus through the instability. The sea share is the field's regional one (moist, 30 degrees of arc), as
+                // for the land-sea contrast of the temperature: the point's own share (oc) put a step of half the layer's depth at every coast.
+                double noon = sinLat * sinDs + cosLat * cosDs;
+                w.Heating01 = moist + (1.0 - moist) * (noon > 0.0 ? noon : 0.0);
+                double satDen = Body.StratThreshold + Body.RainSoftness;
+                w.LiftSat01 = satDen > 0.0 ? DMath.Clamp(xdyn / satDen, 0.0, 1.0) : (xdyn > 0.0 ? 1.0 : 0.0);
+                w.MoistureIndex = ha * hb * hc;
+                w.MoistureSource = ha;
+                w.CellEnergy01 = cellEnergy01;
+                w.CellReach01 = cellReach;
+                w.CloudBackground = bg;
+                w.CloudDynamic = xdyn;
+                w.CloudConvective = 0.7 * cs + cuAdded;
             }
-            else { w.FrontSign = 0.0; w.FrontDistanceM = 0.0; w.FrontAmp01 = 0.0; w.FrontQuarterM = 0.0; }
-            double highP = p > 0.0 ? DMath.Min(1.0, p / aref) : 0.0;
-            double desc = highP > sub ? highP : sub;
-            if (drySlot > desc) desc = drySlot;
-            w.Descent01 = desc > 1.0 ? 1.0 : desc;
-            w.Heating01 = moist + (1.0 - moist) * (hour > 0.0 ? (hour > 1.0 ? 1.0 : hour) : 0.0);
-            double satDen = Body.StratThreshold + Body.RainSoftness;
-            w.LiftSat01 = satDen > 0.0 ? DMath.Clamp(xdyn / satDen, 0.0, 1.0) : (xdyn > 0.0 ? 1.0 : 0.0);
-            double hRel = ha * hb * hc;
-            w.RelHumidity = hRel > 1.0 ? 1.0 : (hRel < 0.0 ? 0.0 : hRel);
-            w.CellEnergy01 = cellEnergy01;
-            w.CellReach01 = cellReach;
+            else
+            {
+                w.WarmFront01 = 0.0; w.ColdFront01 = 0.0; w.FrontAmp01 = 0.0; w.FrontSurfaceShare = 0.0;
+                w.Descent01 = 0.0; w.Heating01 = 0.0; w.LiftSat01 = 0.0; w.MoistureIndex = 0.0; w.MoistureSource = 0.0; w.CellEnergy01 = 0.0; w.CellReach01 = 0.0;
+                w.CloudBackground = 0.0; w.CloudDynamic = 0.0; w.CloudConvective = 0.0;
+            }
             // last: DensityAt needs every field assigned (it reads only the layer and cell fields above)
             w.Density3D = w.DensityAt(alt);
         }
@@ -1038,14 +1078,14 @@ namespace AtmoSim.Core
         // the steering wind of the row). Cells live 1-3 hours and have a sin^2 life envelope. Round 5 (StationaryCells): a lattice cell of a 3-hour bucket is born at any time of
         // the bucket and may live on into the next one, so the cells of the bucket before are looked at too; the number of living cells is the same at every time. Round 4: the
         // cell lives wholly inside its bucket (born in the first part, so that it dies before the bucket ends), and no cell is alive at the edges of a bucket.
-        private double CellStrength(double lat, double lon, double ut, double pcell, out double tower, out double phase, out double life, out double towerReach)
+        private double CellStrength(double lat, double lon, double ut, double pcell, bool sky, out double tower, out double phase, out double life, out double towerReach)
         {
             double lc = D.CellLatticeM;
             double rowH = lc / a;
             double bucketF = DMath.Floor(ut / CellHourBucketS);
             long j0 = (long)DMath.Floor(lat / rowH);
             bool stationary = Body.StationaryCells;
-            double best = 0.0, bestTower = 0.0, bestPhase = 0.0, bestLife = 0.0, bestReach = 0.0;
+            double best = 0.0, bestTower = 0.0, bestPhase = 0.0, bestLife = 0.0, bestReach2 = 0.0;
             for (int dj = -1; dj <= 1; dj++)
             {
                 long j = j0 + dj;
@@ -1093,13 +1133,17 @@ namespace AtmoSim.Core
                         double ex = DMath.Exp(-r2), ramp = DMath.SmoothStep(0.0, 0.1, margin);
                         double c = env * ex * ramp;
                         if (c > best) { best = c; bestTower = Hash.Draw(hc, 6); bestPhase = age / dur; bestLife = dur; }
-                        // B: the reach of the tallest tower over all cells here (a maximum of continuous terms, so it does not jump where the strongest cell changes)
-                        double reach = SkyColumn.CellStage(env) * ex * ramp;
-                        if (reach > bestReach) bestReach = reach;
+                        if (sky)
+                        {
+                            // B: the reach of the tallest tower over all cells here, sqrt(env) ex ramp (SkyColumn.CellStage), kept squared so the root is taken once (a maximum of
+                            // continuous terms, so it does not jump where the strongest cell changes)
+                            double er = ex * ramp, reach2 = env * er * er;
+                            if (reach2 > bestReach2) bestReach2 = reach2;
+                        }
                     }
                 }
             }
-            tower = bestTower; phase = bestPhase; life = bestLife; towerReach = bestReach;
+            tower = bestTower; phase = bestPhase; life = bestLife; towerReach = sky && bestReach2 > 0.0 ? DMath.Sqrt(bestReach2) : 0.0;
             return best;
         }
 
@@ -1107,7 +1151,8 @@ namespace AtmoSim.Core
         // of the seed, the body and the time (the same hash draws as the point version), so the list and the point samples describe the same cells. The strength is the cell's at its centre:
         // life envelope x the ramp of its margin x the factor of the energy term, with the presence taken at the centre (the point version takes it at the sample point; the two differ only
         // where the presence changes quickly over a cell's width). Cells weaker than minStrength are left out. Returns the number added to `into` (which is not cleared).
-        public int Cells(double ut, List<ConvectiveCell> into, double minStrength = 0.0)
+        // sky: also fill the cells' B fields (Energy01, TopShare, TopPhysM); without it they are 0 and the list costs what it did.
+        public int Cells(double ut, List<ConvectiveCell> into, double minStrength = 0.0, bool sky = false)
         {
             if (!Body.CellsEnabled || into == null) return 0;
             double lc = D.CellLatticeM;
@@ -1149,20 +1194,25 @@ namespace AtmoSim.Core
                         double cLat = latC + jy * rowH;
                         double cLon = DMath.WrapPi(-DMath.Pi + (ci + 0.5 + jx) * dlon + shift);
                         Weather w;
-                        Sample(cLat, cLon, 0.0, ut, out w);
+                        Sample(cLat, cLon, 0.0, ut, out w, sky);
                         double margin = w.CellPresence - u1;
                         if (w.CellPresence <= 0.02 || margin <= 0.0) continue;
                         double strength = env * DMath.SmoothStep(0.0, 0.1, margin) * w.CellEnergyFactor;
                         if (!(strength > minStrength) || !(strength > 0.0)) continue;
                         double rain = strength > Body.CellRainThreshold ? ConvRateMmH * (strength - Body.CellRainThreshold) / (1.0 - Body.CellRainThreshold) * Body.PrecipBodyFactor : 0.0;
-                        double baseShare = SkyColumn.ConvectiveBaseM(Body, w.SurfaceTempK, MoistAir.DewPointK(w.SurfaceTempK, w.RelHumidity)) / Body.TropopauseM;
-                        double topShare = SkyColumn.CellTopShare(baseShare, w.CellEnergy01, SkyColumn.CellStage(env));
+                        double topShare = 0.0;
+                        if (sky)
+                        {
+                            SkyColumn column;
+                            SkyColumn.Derive(Body, ref w, out column);
+                            topShare = SkyColumn.CellTopShare(column.BaseShare, w.CellEnergy01, SkyColumn.CellStage(env));
+                        }
                         into.Add(new ConvectiveCell
                         {
                             RainMmH = rain, RainLevel = Level01(rain),
                             LatRad = cLat, LonRad = cLon, RadiusM = rad, Strength = strength, Phase = age / dur, LifeS = dur, AgeS = age, Tower = Hash.Draw(hc, 6),
                             TopM = 0.35 * Body.TropopauseM + 0.65 * Body.TropopauseM * Hash.Draw(hc, 6), Presence = w.CellPresence, EnergyFactor = w.CellEnergyFactor,
-                            Energy01 = w.CellEnergy01, TopShare = topShare, TopPhysM = topShare * Body.TropopauseM
+                            Energy01 = sky ? w.CellEnergy01 : 0.0, TopShare = topShare, TopPhysM = topShare * Body.TropopauseM
                         });
                         added++;
                     }

@@ -200,15 +200,26 @@ namespace AtmoSim.Core
         public double CellBuoyancyNumber = 3.5e-4, CellUpdraftScale = 1.0;
 
         // B (the new sky, SkyColumn): read only by SkyColumn.Derive; no existing output depends on them. All shares of the troposphere (TropopauseM).
-        // SkyStableShare [TUNING]: the stable layer's share at the reference state (no net descent, full surface forcing): 0.18 = 2 km of an 11 km troposphere, the top of the WMO low
-        // etage (surface to 2 km in all regions, ICA Table 6) taken as the typical top of the boundary layer's clouds [derived, not a measured BL depth].
+        // Every one is a per-body lever (cfg GENERATOR { LEVERS { } }); the defaults are Earth-derived and written into Kerbin's cfg as well.
+        // SkyStableShare [TUNING, per body]: the stable layer's share at the reference state (no net descent, full surface forcing): 0.18 = 2 km of an 11 km troposphere, the top of the
+        // WMO low etage (surface to 2 km in all regions, ICA Table 6) taken as the typical top of the boundary layer's clouds [derived from an Earth etage, not a measured BL depth].
         // SkyDescentGain [TUNING]: the divergence at full descent over that at the reference, minus 1: 1 = doubled, Bretherton's typical range 3 to 6e-6 1/s (Atm S 547 lecture 16).
         // SkyInversionGain [TUNING]: the same for the inversion jump (descent warms the air above the layer); 1 = doubled at full descent, no source for the size.
-        // SkyStableShareMin [TUNING]: the floor (a night-time surface inversion over land): 0.02 of the troposphere, about 200 m on an 11 km troposphere; no source.
+        // SkyStableShareMin [TUNING, per body]: the floor (a surface inversion where the ground is not heated, e.g. polar night over land): 0.02 of the troposphere; no source.
         public double SkyStableShare = 0.18, SkyDescentGain = 1.0, SkyInversionGain = 1.0, SkyStableShareMin = 0.02;
-        // The low, middle and high level of the humidity profile [TUNING, derived]: the middles of the WMO etages in the temperate zone (low 0 to 2 km, middle 2 to 7 km, high 5 to 13 km,
-        // ICA Table 6) over the top of the high etage (13 km): 1/13, 4.5/13, 9/13.
+        // SkyEntrainmentShare: the share of the mixed layer's air that is entrained free-tropospheric air in its steady state, lambda = w_e / (w_e + C_T V) "~ 0.3 for w_e = 0.5 cm/s and
+        // C_T V = 1 cm/s" (Bretherton, Atm S 547 lecture 16, eqs. 16.37, 16.38b); the rest is air last in contact with the surface. It sets the surface air's relative humidity.
+        public double SkyEntrainmentShare = 0.3;
+        // SkyInversionWidth [TUNING]: the depth of the transition at the top of the mixed layer and at the edges of the convective layer, as a share of that layer's depth (the shallow
+        // cumulus ramp and the humidity blends); no source. SkyFrontSurfaceWidth [TUNING]: the depth, as a share of the troposphere, over which a level passes from below to above the
+        // frontal surface; no source.
+        public double SkyInversionWidth = 0.2, SkyFrontSurfaceWidth = 0.08;
+        // The low, middle and high level of the humidity profile [TUNING, per body; derived from Earth]: the middles of the WMO etages in the temperate zone (low 0 to 2 km, middle 2 to
+        // 7 km, high 5 to 13 km, ICA Table 6) over the top of the high etage (13 km): 1/13, 4.5/13, 9/13.
         public double SkyLevelLowShare = 1.0 / 13.0, SkyLevelMidShare = 4.5 / 13.0, SkyLevelHighShare = 9.0 / 13.0;
+        // The Magnus constants of the substance that condenses in the body's air (e_s = e0 exp(a t / (b + t)), t in C): water by default, as the WMO CIMO Guide (2008) gives them. A body
+        // whose clouds are of another substance states its own pair (and the temperature its t is counted from, CondensateZeroK).
+        public double CondensateMagnusA = MoistAir.MagnusA, CondensateMagnusB = MoistAir.MagnusB, CondensateZeroK = MoistAir.ZeroCelsiusK;
 
         // The round-5 generator: every lever of round 6 switched off (20 000-query hash 233D55A4D9EE2E43).
         public BodyParams Round5()

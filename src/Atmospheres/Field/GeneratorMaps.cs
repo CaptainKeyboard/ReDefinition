@@ -44,8 +44,9 @@ namespace ReDefinition.Atmospheres
             internal readonly float[] SurfaceTemperature = new float[Width * Height];
             internal readonly float[] WindSpeed = new float[Width * Height];
             // The maps of the new sky (package B, SkyColumn): null until a reader asked for one of their kinds (IsSkyKind), so a body nobody asks them for renders as before.
-            // Amount 0 to 1, base and top as shares of the troposphere, instability 0 to 1, uplift 0 to 1.4; all continuous in the UT, so the painters' slew limit applies as to coverage.
-            internal float[] ConvectiveAmount, ConvectiveBase, ConvectiveTop, Instability, Uplift;
+            // The heap family's and the sheets' sky shares (SkyColumn.HeapAmount, SheetAmount; their sum is the Coverage map), base and top as shares of the troposphere, instability
+            // 0 to 1, uplift 0 to 1.4; all continuous in the UT, so the painters' slew limit applies as to coverage.
+            internal float[] ConvectiveAmount, StratiformAmount, ConvectiveBase, ConvectiveTop, Instability, Uplift;
 
             internal bool HasSky
             {
@@ -59,6 +60,7 @@ namespace ReDefinition.Atmospheres
                 ConvectiveTop = new float[Width * Height];
                 Instability = new float[Width * Height];
                 Uplift = new float[Width * Height];
+                StratiformAmount = new float[Width * Height];
                 ConvectiveAmount = new float[Width * Height];
             }
         }
@@ -66,7 +68,7 @@ namespace ReDefinition.Atmospheres
         // The kinds of the new sky's maps (made only once one of them was asked for).
         internal static bool IsSkyKind(WeatherMapKind kind)
         {
-            return kind == WeatherMapKind.ConvectiveAmount || kind == WeatherMapKind.ConvectiveBase || kind == WeatherMapKind.ConvectiveTop
+            return kind == WeatherMapKind.ConvectiveAmount || kind == WeatherMapKind.StratiformAmount || kind == WeatherMapKind.ConvectiveBase || kind == WeatherMapKind.ConvectiveTop
                 || kind == WeatherMapKind.Instability || kind == WeatherMapKind.Uplift;
         }
 
@@ -227,6 +229,7 @@ namespace ReDefinition.Atmospheres
                     case WeatherMapKind.SurfaceTemperature: values = w.SurfaceTemperature; break;
                     case WeatherMapKind.WindSpeed: values = w.WindSpeed; break;
                     case WeatherMapKind.ConvectiveAmount: values = w.ConvectiveAmount; break;
+                    case WeatherMapKind.StratiformAmount: values = w.StratiformAmount; break;
                     case WeatherMapKind.ConvectiveBase: values = w.ConvectiveBase; break;
                     case WeatherMapKind.ConvectiveTop: values = w.ConvectiveTop; break;
                     case WeatherMapKind.Instability: values = w.Instability; break;
@@ -612,7 +615,7 @@ namespace ReDefinition.Atmospheres
                 for (int i = 0; i < Width; i++)
                 {
                     double lon = (-180.0 + (i + 0.5) * 360.0 / Width) * (Math.PI / 180.0);
-                    g.Sample(lat, lon, 0.0, ut, out w);
+                    g.Sample(lat, lon, 0.0, ut, out w, sky);
                     if (!GeneratorState.Finite(ref w))
                     {
                         s.Trip();
@@ -628,12 +631,13 @@ namespace ReDefinition.Atmospheres
                     into.WindSpeed[k] = (float)w.WindSpeed;
                     if (!sky) continue;
                     SkyColumn.Derive(g.Body, ref w, out column);
-                    if (!IsFinite(column.ConvectiveAmount) || !IsFinite(column.BaseShare) || !IsFinite(column.TopShare))
+                    if (!IsFinite(column.HeapAmount) || !IsFinite(column.SheetAmount) || !IsFinite(column.BaseShare) || !IsFinite(column.TopShare))
                     {
                         s.Trip();
                         return false;
                     }
-                    into.ConvectiveAmount[k] = (float)column.ConvectiveAmount;
+                    into.ConvectiveAmount[k] = (float)column.HeapAmount;
+                    into.StratiformAmount[k] = (float)column.SheetAmount;
                     into.ConvectiveBase[k] = (float)column.BaseShare;
                     into.ConvectiveTop[k] = (float)column.TopShare;
                     into.Instability[k] = (float)w.Instability;
