@@ -175,12 +175,19 @@ namespace ReDefinition.Atmospheres
             phase = 2;
         }
 
+        // The time of the field's maps the reading took (NaN: none). The field hands the last map its worker finished, which may be of an earlier time than the
+        // one asked (GeneratorMaps renders the asked time at most every MinIntervalMs); the updraft samples are always of the time asked. The pinned capture
+        // waits for a build whose maps are of its own time (OwnCloudModule.PinSettled).
+        internal double MapsUt { get; private set; } = double.NaN;
+
         private float[] Fetch(WeatherMapKind kind)
         {
             var map = new WeatherMap();
             map.Resize(width, height);
             map.Kind = kind;
-            return field.GetMap(bodyIndex, kind, ut, map) && map.Values.Length == width * height ? map.Values : null;
+            if (!field.GetMap(bodyIndex, kind, ut, map) || map.Values.Length != width * height) return null;
+            if (double.IsNaN(MapsUt) || map.Ut < MapsUt) MapsUt = map.Ut;
+            return map.Values;
         }
     }
 }

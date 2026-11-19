@@ -479,6 +479,7 @@ namespace ReDefinition.Atmospheres
                 long cpuFilled = ModuleCpuTiming.Begin();
                 FillShadow(pendingBody, frame);
                 Record(cam, pendingBody);
+                if (FrameOrigin != 0) PinLogFrame(cam);
                 recordedFrame = Time.frameCount;
                 if (motionFrame == recordedFrame) DrawMotion();
                 PublishStats(pendingNow);
@@ -1338,6 +1339,8 @@ namespace ReDefinition.Atmospheres
             if (take == HeightTake.Ready && ReferenceEquals(done.Source, stack))
             {
                 done.ApplyTo(stack);
+                lastHeightPlanUt = done.PlanUt;
+                lastHeightMapsUt = done.MapsUt;
                 Stats.HeightBuilds++;
                 Stats.LastHeightMs = done.ElapsedMs;
                 if (Stats.HeightBuilds <= 1 && Stats.FirstHeightMs == 0.0) Stats.FirstHeightMs = Stats.LastHeightMs;

@@ -28,6 +28,9 @@ namespace ReDefinition.Atmospheres
         private const int PinSettledRounds = 2;
         // The longest wait for the hold's frames (64 frames at the lowest frame rate a K-T2 start has logged, about 5 fps, are 13 s) and for the capture's reads.
         private const double PinHoldTimeoutS = 30.0, PinReadTimeoutS = 30.0;
+        // The longest wait for the first phase of the host's jitter (a sequence of 8 to 32 phases: Fsr3Upscaler.GetJitterPhaseCount for render scales 1 to 2; 10 s is
+        // dozens of sequences even at the lowest frame rate).
+        private const double PinJitterTimeoutS = 10.0;
 
         private bool PinStart
         {
@@ -148,7 +151,15 @@ namespace ReDefinition.Atmospheres
             if (!PinStep("settled", settled, settled ? "maps at their goal and a height build done, held " + holdS.ToString("0.0") + " s (" + settledFrames + " frames)"
                                                      : why + " after " + PinSettleTimeoutS.ToString("0") + " s")) yield break;
 
-            // 3. The frame origin and the cut, in this frame (the pass records after the probe's tick).
+            // 3. The frame origin and the cut, in this frame (the pass records after the probe's tick), in the frame after one at the first phase of the host's jitter.
+            double jitterGiveUp = Elapsed + PinJitterTimeoutS;
+            int jitterFrames = 0;
+            while (!OwnCloudModule.HostJitterAtFirstPhase() && Elapsed < jitterGiveUp)
+            {
+                yield return ProbeWait.Frames(1);
+                jitterFrames++;
+            }
+            if (!PinStep("jitter_phase", OwnCloudModule.HostJitterAtFirstPhase(), "the host's jitter at its first phase after " + jitterFrames + " frames")) yield break;
             own.PinNoise();
             int cutsBefore = own.HistoryCuts;
             own.FrameOrigin = Game.FrameCount;

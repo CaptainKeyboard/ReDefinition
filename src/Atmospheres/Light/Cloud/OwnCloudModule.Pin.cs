@@ -48,6 +48,15 @@ namespace ReDefinition.Atmospheres
 
         internal int HeightBuildsDone { get { return Stats.HeightBuilds; } }
 
+        // The time the last applied height build asked for and the time of the field's maps it read (NaN: none read; BuildHeights sets both).
+        private double lastHeightPlanUt = double.NaN, lastHeightMapsUt = double.NaN;
+
+        // Whether the last applied height build read maps of its own time (true where it read none: nothing of another time went in).
+        internal bool HeightMapsCurrent
+        {
+            get { return double.IsNaN(lastHeightMapsUt) || lastHeightMapsUt == lastHeightPlanUt; }
+        }
+
         // Whether the maps and the heights have settled: the maps primed, no height build or upload waiting, at least one height build finished after buildsBefore (the one
         // PinRefetch asked for), and every layer's shown maps equal their goal. A map round that runs meanwhile is not a reason: at the pinned time it fetches the same maps,
         // and the probe holds the settled state over two rounds (T09ProbePin). why names the first thing that has not settled.
@@ -59,6 +68,15 @@ namespace ReDefinition.Atmospheres
             if (heightJob.Busy) { why = "a height build is under way"; return false; }
             if (renderer.Heights.Pending) { why = "height slices wait for their upload"; return false; }
             if (Stats.HeightBuilds <= buildsBefore) { why = "no height build has finished since the clock was pinned"; return false; }
+            // The field hands the last weather maps its worker finished: a build begun right after the pin reads the maps of a time before it (the bases from humidity and
+            // temperature then differ from start to start by the wall clock, while the tops, sampled at the asked time, agree). Such a build is not the pinned state: another is asked for.
+            if (!HeightMapsCurrent)
+            {
+                why = "the last height build read the field's maps of ut " + lastHeightMapsUt.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ", not of its own "
+                      + lastHeightPlanUt.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                forceHeights = true;
+                return false;
+            }
             for (int l = 0; l < stack.LayerCount; l++)
             {
                 int c = Differing(renderer.Maps.CoverageBytes(l), renderer.Maps.CoverageGoalBytes(l)), t = Differing(renderer.Maps.TypeBytes(l), renderer.Maps.TypeGoalBytes(l));
@@ -118,6 +136,75 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
+        // The records since the last history cut while a probe has set the frame origin (OwnCloudModule.FrameOrigin != 0): per record the camera as the march took it, the
+        // reconstruction's poses, the frame number, the block index and offset, the planet's centre, the map frame, the sun and the time. PinRoutine writes them as frames.json
+        // beside the capture, so that two starts can be compared frame by frame and not only in the last one. Nothing is logged while the origin is 0 (no probe).
+        private readonly List<string> pinFrames = new List<string>();
+
+        // The host's frame jitter (ReDefinition.Api.Frame, SharedFrame: x, y the offset in render pixels, z, w in NDC; zero without an upscaler's jitter), decided before
+        // the frame's first scene camera culls: the scene and its depth render offset by it, the clouds' march does not.
+        private const string HostJitter = "_ReDefinition_Jitter";
+
+        // Whether the host's jitter global is off or at the first phase of its sequence (the upscaler's Halton index 1: x 0, y 1/3 - 0.5; Fsr3Upscaler.GetJitterOffset,
+        // index Time.frameCount modulo the phase count). Read in a probe's Update it is the frame before's (ReDefinition.Api.Frame): the pinned capture cuts in the frame
+        // after one at the first phase, so every start replays the same jitter sequence and the depth the march reads moves the same way from frame to frame.
+        internal static bool HostJitterAtFirstPhase()
+        {
+            Vector4 j = Shader.GetGlobalVector(HostJitter);
+            if (j.x == 0f && j.y == 0f) return true;
+            return Mathf.Abs(j.x) < 1e-6f && Mathf.Abs(j.y - (1f / 3f - 0.5f)) < 1e-5f;
+        }
+
+        private void PinLogFrame(Camera cam)
+        {
+            if (driver == null || driver.Player == null || cam == null) return;
+            if (driver.FramesSinceCut <= 1) pinFrames.Clear();
+            LayerReconstructor p = driver.Player;
+            Transform t = cam.transform;
+            ReconCamera now, before;
+            bool hasBefore = p.LastPoses(out now, out before);
+            var s = new StringBuilder(1024);
+            s.Append("{\"frameCount\": ").Append(Time.frameCount).Append(", \"frameNumber\": ").Append(frame.FrameNumber).Append(", \"framesSinceCut\": ").Append(driver.FramesSinceCut)
+             .Append(", \"blockIndex\": ").Append(p.BlockIndex).Append(", \"offset\": ").Append(PinVec(p.LastOffset)).Append(", \"ut\": ").Append(LayerPassReadout.Num(pendingUt))
+             .Append(", \"dt\": ").Append(LayerPassReadout.Num(lastDt)).Append(", \"driftSeconds\": ").Append(LayerPassReadout.Num(recon.DriftSeconds))
+             .Append(",\n  \"cameraWorld\": ").Append(PinVec(t.position)).Append(", \"rotation\": ").Append(PinVec(new Vector4(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w)))
+             .Append(", \"fov\": ").Append(LayerPassReadout.Num(cam.fieldOfView)).Append(", \"size\": [").Append(cam.pixelWidth).Append(", ").Append(cam.pixelHeight).Append(']')
+             .Append(",\n  \"planetCenter\": ").Append(PinVec(frame.PlanetCenter)).Append(", \"towardsSun\": ").Append(PinVec(frame.TowardsSun))
+             .Append(", \"worldToMap\": [").Append(PinVec(frame.WorldToMap.GetRow(0))).Append(", ").Append(PinVec(frame.WorldToMap.GetRow(1))).Append(", ")
+             .Append(PinVec(frame.WorldToMap.GetRow(2))).Append(']')
+             .Append(",\n  \"jitter\": ").Append(PinVec(Shader.GetGlobalVector(HostJitter)))
+             .Append(",\n  \"reconNow\": ").Append(PinPose(now)).Append(", \"reconBefore\": ").Append(hasBefore ? PinPose(before) : "null").Append('}');
+            pinFrames.Add(s.ToString());
+        }
+
+        private static string PinVec(Vector4 v)
+        {
+            return "[" + LayerPassReadout.Num(v.x) + ", " + LayerPassReadout.Num(v.y) + ", " + LayerPassReadout.Num(v.z) + ", " + LayerPassReadout.Num(v.w) + "]";
+        }
+
+        private static string PinVec(Vector3 v)
+        {
+            return "[" + LayerPassReadout.Num(v.x) + ", " + LayerPassReadout.Num(v.y) + ", " + LayerPassReadout.Num(v.z) + "]";
+        }
+
+        private static string PinVec(Vector2 v)
+        {
+            return "[" + LayerPassReadout.Num(v.x) + ", " + LayerPassReadout.Num(v.y) + "]";
+        }
+
+        private static string PinPose(ReconCamera c)
+        {
+            return "{\"p\": [" + LayerPassReadout.Num(c.Px) + ", " + LayerPassReadout.Num(c.Py) + ", " + LayerPassReadout.Num(c.Pz) + "], \"f\": [" + LayerPassReadout.Num(c.Fx) + ", "
+                   + LayerPassReadout.Num(c.Fy) + ", " + LayerPassReadout.Num(c.Fz) + "], \"r\": [" + LayerPassReadout.Num(c.Rx) + ", " + LayerPassReadout.Num(c.Ry) + ", "
+                   + LayerPassReadout.Num(c.Rz) + "], \"u\": [" + LayerPassReadout.Num(c.Ux) + ", " + LayerPassReadout.Num(c.Uy) + ", " + LayerPassReadout.Num(c.Uz) + "], \"tan\": ["
+                   + LayerPassReadout.Num(c.TanX) + ", " + LayerPassReadout.Num(c.TanY) + "]}";
+        }
+
+        private void WritePinFrames(string dir)
+        {
+            File.WriteAllText(Path.Combine(dir, "frames.json"), "[" + string.Join(",\n ", pinFrames.ToArray()) + "]\n");
+        }
+
         // The universal time the module's last tick read (the maps, the heights and the frame it filled took it).
         internal double FrameUt { get { return pendingUt; } }
 
@@ -154,6 +241,7 @@ namespace ReDefinition.Atmospheres
                 if (depthTarget == null) job.Fail("the pass has no scene depth target");
                 else PinRead(job, depthTarget, TextureFormat.RFloat, 1, Path.Combine(job.Dir, "depth.npy"), false);
                 job.DumpWritten = WriteDump(job.Dir, job.Tag);
+                WritePinFrames(job.Dir);
                 if (!job.DumpWritten) job.Fail("the maps and pass.json were not written");
             }
             catch (Exception e)

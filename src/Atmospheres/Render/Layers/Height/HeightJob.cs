@@ -56,7 +56,7 @@ namespace ReDefinition.Atmospheres
         // The maps of every layer from a finished reading. cancelled is polled between layers (null: never); the bytes for the GPU are made too.
         internal HeightResult Build(HeightGather gather, HeightNoiseCache cache, Func<bool> cancelled)
         {
-            var result = new HeightResult { Count = Count, Tunings = Tunings, Seeds = Seeds, Maps = new HeightMaps[Count] };
+            var result = new HeightResult { Count = Count, Tunings = Tunings, Seeds = Seeds, Maps = new HeightMaps[Count], PlanUt = Ut, MapsUt = gather.MapsUt };
             for (int l = 0; l < Count; l++)
             {
                 if (Tunings[l] == null) continue;
@@ -80,6 +80,8 @@ namespace ReDefinition.Atmospheres
         internal LayerStackSource Source;
         // Milliseconds from Begin to the finished maps (worker time and the waiting of the main-thread reading together).
         internal double ElapsedMs;
+        // The time the plan asked for, and the time of the field's maps the reading got (HeightGather.MapsUt; NaN: no map was read).
+        internal double PlanUt, MapsUt = double.NaN;
 
         // Gives every layer its maps (null maps clear the layer, as the one-shot build does). Cheap: a version bump per layer.
         internal void ApplyTo(LayerStackSource source)

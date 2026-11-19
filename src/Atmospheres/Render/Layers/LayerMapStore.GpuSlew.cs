@@ -34,8 +34,13 @@ namespace ReDefinition.Atmospheres
         // Zero without GpuSlew (the arrays then hold the shown value in both channels).
         internal Vector4 ReachVector(int kind)
         {
+            if (ReachPinned != null) return ReachPinned[kind == 0 ? 0 : 1];
             return engine != null ? engine.Reach(kind) : Vector4.zero;
         }
+
+        // The weather player's replay of a pinned capture: the game's reach of the coverage (0) and type (1) arrays, handed to the shader as the game's frame had them. The
+        // player's maps hold the shown value in both channels, so the shown value does not depend on it; null (the game, every other scene): the store's own.
+        internal Vector4[] ReachPinned;
 
         // A store of the GpuSlew mode without textures (the tests): the uploads go to the hook, which gets the slot (kind * MaxLayers + layer) and the RG16 pairs and must copy them.
         internal static LayerMapStore ForTest(int width, int height, Action<int, byte[]> uploadHook)
