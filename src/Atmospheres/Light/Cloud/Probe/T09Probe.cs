@@ -594,8 +594,8 @@ namespace ReDefinition.Atmospheres
             }
             else
             {
-                // The variants that switch the light cache on: cache, and the perf variant ceilvis8lc (the accepted look with the cache).
-                bool cacheWanted = variant == "cache" || variant == "ceilvis8lc";
+                // The variants that switch the light cache on: cache, and the perf variants ceilvis8lc and ceilvis8lcrot (the accepted look with the cache).
+                bool cacheWanted = variant == "cache" || variant == "ceilvis8lc" || variant == "ceilvis8lcrot";
                 Check("the light cache is " + (cacheWanted ? "filled" : "off") + " in the " + view.Name + " view (" + variant + ")", cacheOn == cacheWanted, "cache on: " + cacheOn);
                 Check("the pass ran as " + ExpectedMode(variant) + " in the " + view.Name + " view (" + variant + ")", mode == ExpectedMode(variant), mode);
             }

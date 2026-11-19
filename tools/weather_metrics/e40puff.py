@@ -332,6 +332,20 @@ VARIANTS = {
     "lc_fill12": ("(CACHE) lc_3 with 12 fill taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache3+lcgrid256+lcfill12+r100+lp100"),
     "lc_g128": ("(CACHE) the light cache's default, 128 x 128 x 32 voxels", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache3+lcgrid128+r100+lp100"),
     "lc_g128f12": ("(CACHE) lc_g128 with 12 fill taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache3+lcgrid128+lcfill12+r100+lp100"),
+    # The owner's perf program point 5 (2026-11-19): the accepted look as a pixel-exact rotation, every full-size pixel marched every 4 (rot2) or 9 (rot3) frames and replaced whole,
+    # the others the reprojected history alone (bilinear; rot2c Catmull-Rom). Judged in motion (ATMO_PUFF_MOTION=1, scenarios fly and turnfast) against k4_stride.
+    "rot2": ("(ROTATION) k4_stride, each pixel marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bexact+lp100"),
+    "rot2c": ("(ROTATION) rot2 with the Catmull-Rom history", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bexact+chm+lp100"),
+    "rot3": ("(ROTATION) k4_stride, each pixel marched every 9th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk3+bexact+lp100"),
+    # rot2/rot3 replaced each pixel by one raw sample: grainy even with a still camera (k4_stride smooths its march noise over frames, 20 % a frame). rot2a/rot3a keep that
+    # smoothing (the fresh sample blended in at 0.2, the others the clipped history). far5/far10 (the owner's question): only pixels whose ray enters the clouds beyond
+    # 5 or 10 km rotate (every 4th frame), the nearer ones are marched every frame as in k4_stride.
+    "rot2a": ("(ROTATION) rot2 with the look's smoothing", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+lp100"),
+    "rot3a": ("(ROTATION) rot3 with the look's smoothing", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk3+bacc+lp100"),
+    # Owner 2026-11-19: rot2a is a little softer in motion (turn, fly): the kept pixels' history is re-read bilinearly every frame for three frames; rot2ac reads it with Catmull-Rom.
+    "rot2ac": ("(ROTATION) rot2a with the Catmull-Rom history", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
+    "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
+    "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
     "k_ng256_full":("(SPLIT) 256 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r100+jit+acc8+clip1000+lp100"),
     "k_ng96_full": ("(SPLIT) 96 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+r100+jit+acc8+clip1000+lp100"),
@@ -471,6 +485,9 @@ def frame_size():
 
 SIZE = frame_size()
 SUFFIX = "" if SIZE == (REF_W, REF_H) else "-%d" % SIZE[0]
+# ATMO_PUFF_MOTION=1: every march also in the player's moving scenarios (fly, turnfast, flyfast), for the reconstructions that need motion to be judged; --scenario and
+# --frame of --native pick such a frame (the clouds are composed over the game's still frame, so the ground behind a turned camera is the still view's).
+MOTION = os.environ.get("ATMO_PUFF_MOTION", "") == "1"
 
 
 def light_args():
@@ -478,6 +495,10 @@ def light_args():
     out = list(e40pp.LIGHT)
     i = out.index("-width")
     out[i + 1] = str(SIZE[0])
+    # -dump last keeps the player to the still scenario; the moving ones need it gone (the still frames stay those of -dumpframes).
+    if MOTION and "-dump" in out:
+        j = out.index("-dump")
+        del out[j:j + 2]
     return out + ["-height", str(SIZE[1])]
 
 
@@ -510,7 +531,8 @@ def stage_list():
         by_march.setdefault(st["march"], []).append(name)
     for march, names in sorted(by_march.items()):
         views = ",".join(e40pp.view_tag(n) for n in names)
-        out.append(Stage(stage_label(march), ["-mode", "scene", "-scene", "soft-temporal", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march] + light_args(),
+        out.append(Stage(stage_label(march), ["-mode", "scene", "-scene", "soft-temporal", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march] + light_args()
+                         + (["-motion", "all"] if MOTION else []),
                          size=SIZE, proxy=False, timeout=3400 + (3000 if SIZE != (REF_W, REF_H) else 0)))
     return out
 
@@ -662,8 +684,9 @@ def write_native(out, view, variant, img, windows):
     return paths
 
 
-def native_pictures(items, out, folder_of):
-    """Full and crop pictures for [(view, variant)] straight from the player's frames (no prepared variant inputs needed): the windows come from the view's base frame."""
+def native_pictures(items, out, folder_of, scenario="static", frame=39):
+    """Full and crop pictures for [(view, variant)] straight from the player's frames (no prepared variant inputs needed): the windows come from the view's base frame.
+    scenario and frame pick a moving scenario's frame (ATMO_PUFF_MOTION)."""
     stages = prepared()
     done = []
     windows = {}
@@ -675,9 +698,9 @@ def native_pictures(items, out, folder_of):
         off = e40pp.game_frame(spec, "off_a", st.get("start", e40pp.GAME_START))
         # each variant's own march decides its stage folder and its file name; the windows come from the view's base (production) frame
         folder = folder_of(stage_label(st["march"]))
-        case = e40pp.case_file(name, st["march"])
+        case = e40pp.case_file(name, st["march"], frame).replace("-static-", "-%s-" % scenario)
         if off is None or not os.path.isfile(os.path.join(folder, case + ".npy")):
-            print("missing frame: %s" % name)
+            print("missing frame: %s (%s)" % (name, case))
             continue
         m = oriented(e40ty.load_lum(folder, case), base_m.get(view))
         if variant == "base":
@@ -743,7 +766,7 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
-COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12")
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10")
 
 
 def cost_label(march):
@@ -798,11 +821,13 @@ def main():
     p.add_argument("--pairs", help="only these view:variant pairs out of --views x --variants, e.g. tyhuma:N1,tycona:C0")
     p.add_argument("--native", help="folder for the full-size and 1:1 crop pictures of --items straight from the player's frames, e.g. tyhuma:base,tyhuma:S5")
     p.add_argument("--items", default="")
+    p.add_argument("--scenario", default="static", help="with --native: the player's scenario of the frame (static, fly, turnfast, flyfast; the moving ones need ATMO_PUFF_MOTION=1)")
+    p.add_argument("--frame", type=int, default=39, help="with --native: the frame number (the moving scenarios dump 37 and 38)")
     a = p.parse_args()
     if a.native:
         root = a.root or BUILD.replace("weather-series", "WeatherPlayer")
         items = [tuple(s.split(":")) for s in a.items.split(",") if s]
-        for path in native_pictures(items, a.native, lambda label: os.path.join(root, "e40-puff-" + label)):
+        for path in native_pictures(items, a.native, lambda label: os.path.join(root, "e40-puff-" + label), a.scenario, a.frame):
             print(path)
         return 0
     if a.prepare:

@@ -81,6 +81,8 @@ Shader "ReDefinition/AtmospheresLayers"
         // The temporal reconstruction (package T05): the march target holds one pixel of every N x N block of the full target.
         float4 _ReconP;      // block size N (1: the target is the full target), the block offset x and y in full pixels, 0
         float4 _ReconD;      // the full target's width and height in pixels, the march target's width and height in pixels
+        float4 _FarRot;      // the far rotation (Pass0): the distance in m beyond which a pixel is marched once a block, the block side, this frame's offset in the block (x 0: off)
+        Texture2D<float> _FarDepth;   // the far rotation: the distance to the cloud each pixel saw in the last frame (the reconstruction's pass 2); read with Load, no sampler (the pass is at its 16)
         sampler2D_float _SceneDepth;
         sampler2D _MarchTex;
         float4 _MarchTex_TexelSize;
@@ -756,6 +758,15 @@ Shader "ReDefinition/AtmospheresLayers"
             float3 d = RayDir(i.uv);
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
             float tmax = SceneDistance(i.uv, d);
+            // The far rotation (_FarRot: x the distance in m, y the block side, z, w this frame's offset in the block; x 0: off): a pixel whose cloud lay beyond x in the last
+            // frame (_FarDepth, the reconstruction's CloudDepth) is marched only when its place in the block is this frame's; the others write the marker alpha -1 and the
+            // reconstruction keeps their reprojected history.
+            [branch] if (_FarRot.x > 0.0 && _ReconP.x < 1.5)
+            {
+                float2 fpx = floor(i.uv * _ReconD.zw);
+                bool turn = all(abs(fmod(fpx, _FarRot.y) - _FarRot.zw) < 0.5);
+                if (!turn && _FarDepth.Load(int3(fpx, 0)) > _FarRot.x) return float4(0, 0, 0, -1);
+            }
             float2 pixel = i.uv * (_ReconP.x < 1.5 ? (_DitherP.w > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : _ScreenParams.xy) : _ReconD.xy);
             MarchOut r = March(o, d, tmax, pixel);
             if (_LimitP.y > 1.5 && _LimitP.y < 2.5)

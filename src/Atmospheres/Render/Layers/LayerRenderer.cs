@@ -110,6 +110,7 @@ namespace ReDefinition.Atmospheres
         internal const string ShaderName = "ReDefinition/AtmospheresLayers";
         internal const int PassMarch = 0, PassComposite = 1, PassAux = 2, PassCompositeOut = 4, PassCullTile = 5;
 
+        private static readonly int IdFarRot = Shader.PropertyToID("_FarRot");
         private static readonly int IdPlanetR = Shader.PropertyToID("_PlanetR"), IdPlanetCenter = Shader.PropertyToID("_PlanetCenter"),
             IdWorldToMap = Shader.PropertyToID("_WorldToMap"), IdCamPos = Shader.PropertyToID("_CamPos"),
             IdCamForward = Shader.PropertyToID("_CamForward"), IdCamRight = Shader.PropertyToID("_CamRight"), IdCamUp = Shader.PropertyToID("_CamUp"),
@@ -657,6 +658,8 @@ namespace ReDefinition.Atmospheres
                       new Vector2(0f, 0f));
             f.Cull.PixelAngleRad = 2f * tanY / target.height;
             Apply(f);
+            // The direct path has no history: the reconstruction's far rotation (LayerReconstructor) must not mark any of its pixels.
+            material.SetVector(IdFarRot, Vector4.zero);
             commands.Clear();
             if (markStart != null) markStart(commands);
             commands.SetGlobalTexture(IdSceneDepth, sceneDepth);

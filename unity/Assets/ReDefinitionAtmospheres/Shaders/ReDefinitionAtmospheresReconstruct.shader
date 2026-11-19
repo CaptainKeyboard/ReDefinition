@@ -111,19 +111,25 @@ Shader "ReDefinition/AtmospheresReconstruct"
             float2 q = (pix - _ReconP.yz) / n;          // the pixel's place among the new samples (a sample stands at every whole number)
             bool fresh = all(abs(fmod(pix, n) - _ReconP.yz) < 0.5);
             float4 cur = Low(q);
+            // The far rotation's marker (alpha -1, the layer shader's Pass0): this pixel was not marched this frame, its history stands alone.
+            bool kept = cur.a < -0.5;
+            if (kept) { fresh = false; cur = 0; }
             if (_ReconP.w > 0.5 && _ReconP.w < 1.5) return cur;
 
-            // The 3 x 3 new samples around the pixel: the clip box of the history.
+            // The 3 x 3 new samples around the pixel: the clip box of the history (the marked ones left out).
             float2 q0 = floor(q + 0.5);
             float4 m1 = 0, m2 = 0;
+            float count = 0;
             [unroll] for (int k = 0; k < 9; k++)
             {
                 float4 s = Low(q0 + float2(k % 3 - 1, k / 3 - 1));
+                if (s.a < -0.5) continue;
                 m1 += s;
                 m2 += s * s;
+                count += 1.0;
             }
-            m1 /= 9.0;
-            float4 sd = sqrt(max(m2 / 9.0 - m1 * m1, 0.0));
+            m1 /= max(count, 1.0);
+            float4 sd = sqrt(max(m2 / max(count, 1.0) - m1 * m1, 0.0));
 
             // The previous place of this pixel's cloud.
             float3 o = _CamPos.xyz;
@@ -141,11 +147,13 @@ Shader "ReDefinition/AtmospheresReconstruct"
                 puv = FirstShellPrevious(o, d, depth, f);
                 valid = _Drift.w > 0.5 && f > 1e-3 && all(puv > 0.0) && all(puv < 1.0);
             }
-            if (!valid) return cur;
+            // A kept pixel without a history (the screen's edge after a turn, the first frames) takes the mean of the marched pixels around it (one of each block always is).
+            if (!valid) return kept ? m1 : cur;
             float4 h = _ReconK.w > 0.5 ? HistoryCatmull(puv) : tex2Dlod(_HistTex, float4(puv, 0, 0));
-            if (_ReconP.w > 1.5) return h;
-            float4 lo = m1 - _ReconK.z * sd, hi = m1 + _ReconK.z * sd;
-            h = clamp(h, lo, hi);
+            if (_ReconP.w > 1.5 || kept) return h;
+            // A clip width of 999 or more is no clip at all (a pixel-exact rotation keeps its history as it is; where the nine new samples are equal, sd = 0 would still pull it to them).
+            // Fewer than three new samples around (a far rotation's marched pixel among kept ones) give no spread to clip by: the clip would pull the history onto the one sample.
+            if (_ReconK.z < 999.0 && count > 2.5) h = clamp(h, m1 - _ReconK.z * sd, m1 + _ReconK.z * sd);
             return lerp(h, cur, fresh ? _ReconK.x : _ReconK.y);
         }
 
@@ -203,6 +211,17 @@ Shader "ReDefinition/AtmospheresReconstruct"
             #pragma vertex vert
             #pragma fragment fragMotion
             #pragma target 3.5
+            ENDCG
+        }
+
+        // Pass 2: the distance to the cloud each pixel sees (CloudDepth), for the far rotation of the next frame's march.
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment fragDepth
+            #pragma target 3.5
+            float4 fragDepth(v2f i) : SV_Target { return CloudDepth(_CamPos.xyz, RayDir(i.uv)); }
             ENDCG
         }
     }

@@ -80,6 +80,8 @@ namespace ReDefinition.Atmospheres
                 case "ceilvis8":
                 case "ceilvis8s2":
                 case "ceilvis8lc":
+                case "ceilvis8rot":
+                case "ceilvis8lcrot":
                 case "ceilvis8nl":
                 case "ceilvis8sd":
                 case "ceilvis8c2":
@@ -196,6 +198,8 @@ namespace ReDefinition.Atmospheres
                 case "ceilvis8":
                 case "ceilvis8s2":
                 case "ceilvis8lc":
+                case "ceilvis8rot":
+                case "ceilvis8lcrot":
                 case "ceilvis8nl":
                 case "ceilvis8sd":
                 case "ceilvis8c2":
@@ -227,7 +231,10 @@ namespace ReDefinition.Atmospheres
                             SetSetting(AtmospheresSettings.Keys.CloudDetailLod, 1.0);
                         }
                         // ceilvis8lc (2026-11-19, the owner judged the player's lc_g128 equal): the accepted look with the light cache (3 near sun taps, 128 x 128 x 32 voxels).
-                        if (name == "ceilvis8lc") SetSetting(AtmospheresSettings.Keys.CloudLightCache, 1.0);
+                        if (name == "ceilvis8lc" || name == "ceilvis8lcrot") SetSetting(AtmospheresSettings.Keys.CloudLightCache, 1.0);
+                        // ceilvis8rot (2026-11-19, the owner judged the player's rot2ac equal still, turning and flying): the accepted look as a rotation over 2 x 2 blocks
+                        // (recon.rotate 2); ceilvis8lcrot the same with the light cache.
+                        if (name.EndsWith("rot", StringComparison.Ordinal)) ForceTuning(OwnCloudOptions.TuneReconRotate, 2f);
                         if (!vis) ForceTuning(OwnCloudOptions.TuneLightCutoff, 0f);
                         ForceTuning(OwnCloudOptions.TuneSunMarchM, 12000f);
                         ForceTuning(OwnCloudOptions.TuneSunSteps, eight ? 8f : 16f);

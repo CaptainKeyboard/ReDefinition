@@ -203,6 +203,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | `cloudShadowFloor` | 0 | 0 to 1 | Cloud Shadow Floor | needs-cloud-shadows | - |
 | `cloudReconMode` | Full | Full / Block / Low | Cloud Reconstruction | needs-own-clouds | - |
 | `cloudResolution` | 1 | 1 to 4 | Cloud Resolution | needs-own-clouds | volume |
+| `cloudRotation` | off | on / off | Cloud Rotation | needs-own-clouds | - |
 | `cloudSunMarchLong` | off | on / off | Cloud Long Sun March | needs-own-clouds | - |
 | `cloudSunWhiteBalance` | off | on / off | Cloud Sun White Balance | needs-own-clouds | - |
 | `cloudDiffusionDecay` | 0.08 | 0 to 0.2 | Cloud Diffusion Decay | needs-own-clouds | - |

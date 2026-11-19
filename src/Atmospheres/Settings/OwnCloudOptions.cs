@@ -78,6 +78,10 @@ namespace ReDefinition.Atmospheres
         // frame against the converged picture is the same at 0.33 as at 0.5 (0.0208 against 0.0207 at the clock's ground, 0.0328 / 0.0328 from above) and the temporal noise 0.0001 to
         // 0.0002 higher; the pass costs about half of what it did (series e40-c1-cost). The tuning key recon.resolution 0.5 gives the march as it was.
         internal const float ReconResolutionDefault = 0.33f;
+        // recon.rotate N (2 to 4; default 0, off): with the march at full size (recon.resolution 1) and a history (recon.accumulate above 0), each frame marches one pixel of every N x N
+        // block, at full size, and blends it into that pixel's history with the accumulation weight; the other pixels keep their reprojected history (Catmull-Rom) alone. The owner judged
+        // N = 2 equal to the full march in the weather player still, turning and flying (2026-11-19, e40puff rot2ac against k4_stride); the march costs a third (33 against 97 ms).
+        internal const string TuneReconRotate = "recon.rotate";
 
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
         // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
@@ -429,6 +433,22 @@ namespace ReDefinition.Atmospheres
             {
                 s.Resolution = Mathf.Clamp(Tuning.Get(TuneReconResolution, ReconResolutionDefault), 0.1f, 1f);
                 s.Accumulate = accumulate;
+            }
+            // recon.rotate: the full-size march with a history as a rotation over N x N blocks (the block mode with the history's own weights).
+            var defaults = new ReconSettings();
+            s.FreshWeight = defaults.FreshWeight;
+            s.StaleWeight = defaults.StaleWeight;
+            s.Rotation = false;
+            // The switch cloudRotation is 2 x 2; the tuning key recon.rotate, where set, names the block side.
+            int rotate = (int)Tuning.Get(TuneReconRotate, v(AtmospheresSettings.Keys.CloudRotation) > 0.5 ? 2f : 0f);
+            if (rotate >= 2 && s.Mode == ReconMode.Low && s.Accumulate > 0f && s.Resolution > 0.99f)
+            {
+                s.Rotation = true;
+                s.Mode = ReconMode.Block;
+                s.Block = Math.Min(rotate, 4);
+                s.FreshWeight = s.Accumulate;
+                s.StaleWeight = 0f;
+                s.CatmullHistory = true;
             }
         }
 

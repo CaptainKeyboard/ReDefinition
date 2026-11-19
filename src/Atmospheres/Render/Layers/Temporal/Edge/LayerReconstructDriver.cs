@@ -57,7 +57,7 @@ namespace ReDefinition.Atmospheres
                 playerSettings.Mode = ReconMode.Block;
                 playerSettings.Block = EdgeSettings.CoarseBlock;
             }
-            playerSettings.Edge = EdgeSettings.From(tuning);
+            playerSettings.Edge = options.Rotation ? null : EdgeSettings.From(tuning);
             return true;
         }
 

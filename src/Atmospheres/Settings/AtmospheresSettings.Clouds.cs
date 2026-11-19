@@ -53,6 +53,7 @@ namespace ReDefinition.Atmospheres
             // Own clouds: the temporal reconstruction (T05)
             internal const string CloudReconMode = "cloudReconMode";
             internal const string CloudResolution = "cloudResolution";
+            internal const string CloudRotation = "cloudRotation";
             // Own clouds: the visibility culling and the distance LOD (T16)
             internal const string CloudSkipEmpty = "cloudSkipEmpty";
             internal const string CloudSkipClosed = "cloudSkipClosed";
@@ -111,6 +112,7 @@ namespace ReDefinition.Atmospheres
 
         internal static ReconMode CloudReconMode => E<ReconMode>(Keys.CloudReconMode);
         internal static int CloudResolution => I(Keys.CloudResolution);
+        internal static bool CloudRotation => B(Keys.CloudRotation);
         internal static bool CloudSkipEmpty => B(Keys.CloudSkipEmpty);
         internal static bool CloudSkipClosed => B(Keys.CloudSkipClosed);
         internal static bool CloudLayerDistanceCut => B(Keys.CloudLayerDistanceCut);
@@ -205,6 +207,9 @@ namespace ReDefinition.Atmospheres
                 // overrides the slider. The tier mapping is open for the owner (TierRows.NotSet).
                 SettingDef.Choice("cloudReconMode", typeof(ReconMode), ReconMode.Full, CL, "Cloud Reconstruction", OWN),
                 SettingDef.Int("cloudResolution", 1, 1, 4, CL, "Cloud Resolution", OWN, RV),
+                // The rotation (owner 2026-11-19): with the march at full size and a history, one pixel of every 2 x 2 block is marched per frame and blended into its history;
+                // OwnCloudOptions.Apply(ReconSettings), recon.rotate for other block sides.
+                SettingDef.Bool("cloudRotation", false, CL, "Cloud Rotation", OWN),
 
                 // The sun march and the look fixes of T03v2: the short march (4 km) is what the parity rows measured; the white balance and the decay are the
                 // fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)

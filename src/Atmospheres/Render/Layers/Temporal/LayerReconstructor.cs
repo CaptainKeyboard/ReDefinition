@@ -43,6 +43,12 @@ namespace ReDefinition.Atmospheres
         // (the frame's; 0: no drift).
         public bool LayerMotion = true;
         public float DriftSeconds;
+        // The far rotation (Low mode with Accumulate above 0; the owner's question 2026-11-19, a test): a pixel whose ray enters the first layer beyond FarRotateM (0: off) is marched
+        // once in FarRotateBlock^2 frames and keeps its reprojected history in between; the nearer pixels are marched every frame.
+        public float FarRotateM;
+        public int FarRotateBlock = 2;
+        // The block mode as the full-size march's rotation (recon.rotate): the history's own weights, never the edge pattern.
+        public bool Rotation;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
@@ -69,6 +75,7 @@ namespace ReDefinition.Atmospheres
     {
         internal const string ShaderName = "ReDefinition/AtmospheresReconstruct";
 
+        private static readonly int IdFarRot = Shader.PropertyToID("_FarRot");
         private static readonly int IdReconP = Shader.PropertyToID("_ReconP"), IdReconD = Shader.PropertyToID("_ReconD"),
             IdReconK = Shader.PropertyToID("_ReconK"), IdCurTex = Shader.PropertyToID("_CurTex"), IdCurTexel = Shader.PropertyToID("_CurTex_TexelSize"),
             IdHistTex = Shader.PropertyToID("_HistTex"), IdCamPos = Shader.PropertyToID("_CamPos"), IdCamForward = Shader.PropertyToID("_CamForward"),
@@ -82,6 +89,11 @@ namespace ReDefinition.Atmospheres
         internal const string EdgeShaderName = "ReDefinition/AtmospheresEdge";
         // E40 MVCLOUD: pass 1 of the reconstruction shader draws the cloud's motion vectors; its inputs are the frame's full target and the host's copy of the scene depth.
         internal const int PassMotion = 1;
+        // The far rotation (ReconSettings.FarRotateM): pass 2 writes the distance to each pixel's cloud, which the next frame's march reads.
+        internal const int PassDepth = 2;
+        private static readonly int IdFarDepth = Shader.PropertyToID("_FarDepth");
+        private RenderTexture farDepth;
+        private bool haveFarDepth;
         private static readonly int IdMvCloud = Shader.PropertyToID("_MvCloud"), IdMvDepth = Shader.PropertyToID("_MvDepth");
 
         private Material material;
@@ -153,6 +165,7 @@ namespace ReDefinition.Atmospheres
         {
             haveHistory = false;
             haveLowHistory = false;
+            haveFarDepth = false;
             haveEdgeState = false;
             havePose = false;
             blockIndex = 0;
@@ -161,9 +174,9 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare })
+            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, farDepth })
                 RenderTargets.Dispose(rt);
-            lowLatest = lowSpare = null;
+            lowLatest = lowSpare = farDepth = null;
             if (material != null) UnityEngine.Object.Destroy(material);
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
             if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
@@ -274,6 +287,18 @@ namespace ReDefinition.Atmospheres
             {
                 layers.SetVector(IdReconP, new Vector4(1f, 0f, 0f, 0f));
             }
+            // The far rotation (Low mode with a history only): beyond FarRotateM a pixel is marched once a block of FarRotateBlock frames squared, at this frame's offset.
+            // The distance of each pixel's cloud comes from the last frame (farDepth, the reconstruction's PassDepth): without it the frame marches every pixel.
+            Vector4 farRot = Vector4.zero;
+            bool farOn = s.Mode == ReconMode.Low && s.Accumulate > 0f && s.FarRotateM > 0f;
+            if (farOn && haveFarDepth && Fits(farDepth, low.width, low.height))
+            {
+                int fb = Mathf.Clamp(s.FarRotateBlock, 2, 4), fx, fy;
+                ReconPattern.BlockOffset(fb, blockIndex++, out fx, out fy);
+                farRot = new Vector4(s.FarRotateM, fb, fx, fy);
+                layers.SetTexture(IdFarDepth, farDepth);
+            }
+            layers.SetVector(IdFarRot, farRot);
             layers.SetVector(IdReconD, new Vector4(w, h, low.width, low.height));
             LastOffset = offset;
             layers.SetVector(IdEdgeP, new Vector4(0f, EdgeSettings.CoarseBlock, 0f, 0f));
@@ -340,6 +365,27 @@ namespace ReDefinition.Atmospheres
                     materialBound = true;
                     cb.Blit(BuiltinRenderTextureType.None, lowSpare, a, 0);
                     Sub(cb, "accumulate");
+                    if (farOn)
+                    {
+                        if (!Fits(farDepth, low.width, low.height))
+                        {
+                            RenderTargets.Dispose(farDepth);
+                            farDepth = new RenderTexture(low.width, low.height, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear)
+                            {
+                                name = "layer far depth",
+                                filterMode = FilterMode.Point,
+                                wrapMode = TextureWrapMode.Clamp
+                            };
+                            farDepth.Create();
+                        }
+                        cb.Blit(BuiltinRenderTextureType.None, farDepth, a, PassDepth);
+                        Sub(cb, "far depth");
+                        haveFarDepth = true;
+                    }
+                    else
+                    {
+                        haveFarDepth = false;
+                    }
                     source = lowSpare;
                     lowSpare = lowLatest;
                     lowLatest = source;

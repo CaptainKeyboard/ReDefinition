@@ -184,6 +184,10 @@ namespace ReDefinition.WeatherPlayer
             public int MinStepOverride, SunTaps, SunMarchKm;
             // CLOUDR3 P7: chm reads the reconstruction's history with the Catmull-Rom filter (ReconSettings.CatmullHistory).
             public bool CatmullHistory;
+            // bexact: the block mode as a pixel-exact rotation (Settings); bacc: the same with the case's accumulation on the fresh sample.
+            public bool BlockExact, BlockAcc;
+            // far<km>: the far rotation beyond that distance (ReconSettings.FarRotateM); farb<N> its block side (2: every 4th frame).
+            public int FarKm, FarBlock;
             // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
             public int Grid;
             // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
@@ -263,6 +267,10 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
                 else if (t.StartsWith("sp")) c.Spacing = Number(t, 2) / 10f;
                 else if (t.StartsWith("cr")) c.ConePattern = Number(t, 2);   // E40 F2: the light cone's rotation pattern (LayerFrame.ConePattern)
+                else if (t == "bexact") c.BlockExact = true;
+                else if (t == "bacc") c.BlockAcc = true;
+                else if (t.StartsWith("farb")) c.FarBlock = Number(t, 4);
+                else if (t.StartsWith("far")) c.FarKm = Number(t, 3);
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
@@ -393,13 +401,35 @@ namespace ReDefinition.WeatherPlayer
         // The reconstruction of a case in a mode of GrainTable (plain: the half-size march alone; acc20: with the history). A block level has its own history and ignores the mode.
         internal static ReconSettings Settings(Case c, string mode)
         {
-            if (c.Block > 0) return new ReconSettings { Mode = ReconMode.Block, Block = c.Block };
+            if (c.Block > 0)
+            {
+                var b = new ReconSettings { Mode = ReconMode.Block, Block = c.Block, CatmullHistory = c.CatmullHistory };
+                // bexact (the owner's perf program point 5, 2026-11-19): every pixel marched every block^2 frames and replaced whole; the others the reprojected history alone (no
+                // blend with the new samples, no clip to them).
+                if (c.BlockExact)
+                {
+                    b.FreshWeight = 1f;
+                    b.StaleWeight = 0f;
+                    b.ClipSigma = 1000f;
+                }
+                // bacc: the same rotation with the accepted look's own smoothing, the fresh sample blended into the pixel's history by the case's accumulation (acc20: 0.2), the
+                // others the clipped history alone.
+                if (c.BlockAcc)
+                {
+                    b.FreshWeight = c.Accumulate;
+                    b.StaleWeight = 0f;
+                    if (c.ClipSigma >= 0f) b.ClipSigma = c.ClipSigma;
+                }
+                return b;
+            }
             ReconSettings s = GrainTable.ModeByName(mode).Settings();
             s.Resolution = c.Resolution;
             s.Jitter = c.Jitter;
             s.CatmullHistory = c.CatmullHistory;
             if (s.Accumulate > 0f) s.Accumulate = c.Accumulate;
             if (c.ClipSigma >= 0f) s.ClipSigma = c.ClipSigma;
+            s.FarRotateM = c.FarKm * 1000f;
+            if (c.FarBlock > 0) s.FarRotateBlock = c.FarBlock;
             return s;
         }
 
@@ -444,6 +474,7 @@ namespace ReDefinition.WeatherPlayer
         {
             public string Name;
             public float YawPerFrame, SidePerFrame;
+            public int ArriveAt;
             public int[] Dump;
         }
 
@@ -453,6 +484,7 @@ namespace ReDefinition.WeatherPlayer
             new Scenario { Name = "static", Dump = SoftTable.StaticDump() },
             new Scenario { Name = "fly", SidePerFrame = 5f, Dump = new[] { 37, 38 } },
             new Scenario { Name = "turnfast", YawPerFrame = 3f, Dump = new[] { 37, 38 } },
+            new Scenario { Name = "turnin", YawPerFrame = 3f, ArriveAt = 38, Dump = new[] { 37, 38 } },
             new Scenario { Name = "flyfast", SidePerFrame = 40f, Dump = new[] { 37, 38 } },
             new Scenario { Name = "cut", Dump = new[] { 0, 2, 5, 10 } },
         };
@@ -490,6 +522,8 @@ namespace ReDefinition.WeatherPlayer
 
         private static float Yaw(Scenario sc, int i)
         {
+            // ArriveAt: the turn ends its frames looking along the still view (the owner compares a turn with the still and the flown pictures of the same view, 2026-11-19).
+            if (sc.ArriveAt > 0) return sc.YawPerFrame * (i - sc.ArriveAt);
             return sc.YawPerFrame * Mathf.Max(i - 6, 0);
         }
 
