@@ -480,10 +480,16 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run r = Start(new[] { "plain" }, x => x.World.RealisticHold = true);
             Drive(r, RealDt);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            int clock = r.Log.FindIndex(l => l.StartsWith("T09 clock: ut ") && l.Contains("waiting 20 s for the maps"));
+            // wolken-m1-fakten.md H.4: the maps are waited for with the variant's cloud source on, on the condition (every layer on its own map at its goal), not a fixed 20 s before it.
+            int clock = r.Log.FindIndex(l => l.StartsWith("T09 clock: ut ") && l.Contains("the maps are waited for with each variant's cloud source on"));
+            int on = r.Log.FindIndex(l => l == "Probe: variant plain on");
+            int settled = r.Log.FindIndex(l => l.StartsWith("T09 maps settled (plain) after "));
             int firstWindow = r.Log.FindIndex(l => l.StartsWith("T09 view begin: "));
-            Assert.IsTrue(clock >= 0 && firstWindow > clock, "the clock line names the wait and comes before the first window\n" + Dump(r));
-            Assert.IsTrue(r.LogFrames[firstWindow] - r.LogFrames[clock] >= 20.0 / RealDt, "at least 20 s between the clock and the first window");
+            Assert.IsTrue(clock >= 0 && on > clock && settled > on && firstWindow > settled, "clock, variant on, maps settled, first window, in this order\n" + Dump(r));
+            Assert.AreEqual(1.0, Number(r, "T09.maps_settled", "plain"));
+            Assert.IsTrue(Number(r, "T09.maps_settle_s", "plain") < 20.0, "the wait ends on the condition, not the timeout");
+            Assert.IsTrue(r.World.SnapRequests >= 2, "the maps were snapped to the clock's time");
+            Assert.IsFalse(r.Log.Any(l => l.Contains("waiting 20 s for the maps")), "no fixed wait before the variant");
             // Every window starts with the hold stable (the gate waited for it) and the row says so.
             foreach (T09Probe.View view in T09Probe.Views) Assert.AreEqual(1.0, Number(r, "T09.view." + view.Name + ".hold_stable", "plain"), view.Name);
         }

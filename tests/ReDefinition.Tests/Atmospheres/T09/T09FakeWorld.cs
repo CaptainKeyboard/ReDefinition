@@ -247,6 +247,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             if (CapSticks) FrameRateCap = 60;
             if (VsyncSticks) Vsync = 1;
             if (Frames > 0 && Module != null && FlightReady) UpdateModule();
+            StepMaps();
             if (RealisticHold && FlightReady) StepRealisticHold(dt);
             if (FlightReady) StepCamera(dt);
             Tuning.Instance.BeginFrame(Frames);
@@ -418,6 +419,102 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public double SunElevationDeg() { RequireFlight(); return Sun(Ut); }
         // EVE's own cover over the site: the fake has TVC's sky covered wherever EVE is there.
         public double EveCoverOver(double lat, double lon) { RequireFlight(); return Eve ? 0.65 : -1.0; }
+
+        // --- -t09DrawnCover -----------------------------------------------------------------------------------------------------------
+        // The own pass's layers (Kerbin's four at their middle heights over sea level) and what they draw: OwnCoverAt(layer, lat, lon, ut) is the cover the maps hold once they were
+        // made for ut; ForecastCoverAt (null: OwnCoverAt) is what the generator's lookup forecasts for ut. The pass's maps: the field makes the maps for a new clock FieldLagFrames
+        // after a jump of the clock (or after the pass came on); a round of the pass (every second, or at once when snapped) takes the maps the field has; a round before the field
+        // made them leaves the layers on the shared cover; a round that does not snap reaches its goal SlewS later. EveCoverAt(layer, lat, lon, ut) is EVE's own cover at the clock.
+        internal T09DrawnLayer[] OwnLayerDefs =
+        {
+            new T09DrawnLayer { Name = "rain", MidM = 1400.0 }, new T09DrawnLayer { Name = "cumulus", MidM = 2600.0 },
+            new T09DrawnLayer { Name = "cumulonimbus", MidM = 6000.0 }, new T09DrawnLayer { Name = "cirrus", MidM = 9500.0 }
+        };
+        internal T09DrawnLayer[] EveLayerDefs =
+        {
+            new T09DrawnLayer { Name = "Kerbin-cumulus", MidM = 2500.0 }, new T09DrawnLayer { Name = "Kerbin-cirrus", MidM = 8000.0 }
+        };
+        internal Func<int, double, double, double, double> OwnCoverAt = (l, lat, lon, ut) => 0.65;
+        internal Func<int, double, double, double, double> ForecastCoverAt;
+        internal Func<int, double, double, double, double> EveCoverAt = (l, lat, lon, ut) => 0.65;
+        internal int FieldLagFrames = 20;
+        internal double SlewS = 12.0;
+        internal int MapRoundsDone, SnapRequests;
+        private int fieldMadeFrame;
+        private bool ownWasOn, snapAsked, mapsShared = true;
+        private double mapsUt = double.NaN, mapsAtGoalAtS = double.PositiveInfinity, nextRoundAtS;
+        // The frame and the clock at which the field's maps were last asked to follow a jump.
+        private double fieldUt = double.NaN;
+
+        private bool OwnOn { get { return Module != null && CloudGates.OwnPassSwitches(AtmospheresSettings.Number, false) && !(WeatherHub.Field is NullField); } }
+
+        // One frame of the pass's maps (Advance).
+        private void StepMaps()
+        {
+            if (double.IsNaN(fieldUt) || Math.Abs(Ut - fieldUt) > 600.0)
+            {
+                fieldUt = Ut;
+                fieldMadeFrame = Frames + FieldLagFrames;
+            }
+            bool on = OwnOn && FlightReady;
+            if (!on)
+            {
+                ownWasOn = false;
+                return;
+            }
+            bool snap = snapAsked;
+            if (!ownWasOn)
+            {
+                // A new stack: the field makes the layer maps from the first request on, the first round snaps.
+                ownWasOn = true;
+                fieldMadeFrame = Math.Max(fieldMadeFrame, Frames + FieldLagFrames);
+                mapsShared = true;
+                mapsUt = double.NaN;
+                snap = true;
+                nextRoundAtS = RealS;
+            }
+            if (!snap && RealS < nextRoundAtS) return;
+            snapAsked = false;
+            nextRoundAtS = RealS + 1.0;
+            MapRoundsDone++;
+            bool made = Frames >= fieldMadeFrame;
+            mapsShared = !made;
+            if (made) mapsUt = Ut;
+            mapsAtGoalAtS = snap ? RealS : RealS + SlewS;
+        }
+
+        public IList<T09DrawnLayer> OwnDrawnLayers() { RequireFlight(); return OwnOn ? OwnLayerDefs : new T09DrawnLayer[0]; }
+
+        public double ForecastLayerCover(int layer, double latDeg, double lonDeg, double ut)
+        {
+            RequireFlight();
+            return (ForecastCoverAt ?? OwnCoverAt)(layer, latDeg, lonDeg, ut);
+        }
+
+        public double DrawnLayerCover(int layer, double latDeg, double lonDeg)
+        {
+            RequireFlight();
+            if (!OwnOn || double.IsNaN(mapsUt)) return double.NaN;
+            return mapsShared ? 0.0 : OwnCoverAt(layer, latDeg, lonDeg, mapsUt);
+        }
+
+        public bool FieldMapsAtClock(out string why)
+        {
+            why = !OwnOn ? "the own pass has no stack" : Frames < fieldMadeFrame ? "the layer maps are not made for the clock's time yet" : null;
+            return why == null;
+        }
+
+        public bool OwnMapsAtGoal(out string why)
+        {
+            why = !OwnOn ? "no own pass" : mapsShared ? "layer rain is on the field's shared cover" : double.IsNaN(mapsUt) || Math.Abs(mapsUt - Ut) > 600.0 ? "the maps are another time's"
+                : RealS < mapsAtGoalAtS ? "layer rain's maps differ from their goal" : null;
+            return why == null;
+        }
+
+        public void RequestMapSnap() { SnapRequests++; snapAsked = true; }
+        public int OwnMapRounds { get { return OwnOn ? MapRoundsDone : -1; } }
+        public IList<T09DrawnLayer> EveDrawnLayers() { RequireFlight(); return Eve ? EveLayerDefs : new T09DrawnLayer[0]; }
+        public double EveLayerCover(int layer, double latDeg, double lonDeg) { RequireFlight(); return Eve ? EveCoverAt(layer, latDeg, lonDeg, Ut) : double.NaN; }
 
         private static double Wrap(double d)
         {

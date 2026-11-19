@@ -366,12 +366,24 @@ namespace ReDefinition.Atmospheres
             Emit("T09.cover", coverChosen);
             Emit("T09.sun_elev_deg", sunChosen);
             Emit("T09.sun_band_narrow", utNarrow);
-            Check("the sky is covered at the chosen time", coverChosen >= MinCover, coverChosen.ToString("0.00"));
+            bool drawnCover = DrawnCoverStart;
+            if (drawnCover)
+            {
+                // -t09DrawnCover: what the views draw decides (T09ProbeDrawn.cs); the column cover is a row only (wolken-m1-fakten.md H.1: a ceiling, not the drawn share).
+                EmitDrawn();
+                Check("the views show cloud at the chosen time and heading (drawn cover)", drawnOk, drawnDetail);
+                // A reused time (-t09Ut) whose views show no cloud would give pictures nobody can compare: the start ends before the first view.
+                if (!drawnOk) yield break;
+            }
+            else Check("the sky is covered at the chosen time", coverChosen >= MinCover, coverChosen.ToString("0.00"));
             Check("the sun stands in the band at the chosen time", sunChosen >= SunMinDeg && sunChosen <= SunMaxDeg, sunChosen.ToString("0.0") + " degrees");
-            // The maps follow a clock jump at the slew limit (0.08 a second): the same wait as K-T2d's before its first view.
+            if (!drawnCover && headingOffset != 0.0) Emit("T09.heading_offset_deg", headingOffset);
+            // The maps follow a clock jump: each variant waits for them with its own cloud source on (wolken-m1-fakten.md H.4: the fixed wait before the first variant ran with
+            // the source still Eve, and three layers drew the field's shared cover in the first view). The own variants wait on the condition (SettleOwnMaps), TVC its fixed time.
             AtmospheresLog.Say("T09 clock: ut " + utChosen.ToString("0") + ", cover " + coverChosen.ToString("0.00") + ", sun " + sunChosen.ToString("0.0") + " degrees ("
-                               + (utNarrow ? "narrow" : "wide") + " band)" + (double.IsNaN(tvcCoverChosen) ? "" : ", TVC's own cover " + tvcCoverChosen.ToString("0.00")) + "; waiting " + MapSettleS.ToString("0") + " s for the maps");
-            yield return ProbeWait.Seconds(MapSettleS);
+                               + (utNarrow ? "narrow" : "wide") + " band)" + (double.IsNaN(tvcCoverChosen) ? "" : ", TVC's own cover " + tvcCoverChosen.ToString("0.00"))
+                               + (headingOffset != 0.0 || drawnCover ? ", views turned by +" + headingOffset.ToString("0") + " degrees" : "") + (drawnCover ? ", drawn " + drawnDetail : "")
+                               + "; the maps are waited for with each variant's cloud source on");
             CheckPicturesFolder();
 
             foreach (string variant in Variants)
@@ -402,6 +414,13 @@ namespace ReDefinition.Atmospheres
                     Emit("T09.tvc.layers_bound", Game.EveLayersBound);
                     Check("TVC draws: EVE's renderer is ready and a layer is bound", Game.EveRendererReady && Game.EveLayersBound > 0,
                           Game.EveStatusText + ", bound " + Game.EveLayersBound);
+                    // EVE's painter follows the clock's maps at the slew limit and says nothing of where it stands: the fixed wait, now with the source Eve on.
+                    if (!tvcMapsWaited)
+                    {
+                        tvcMapsWaited = true;
+                        AtmospheresLog.Say("T09 maps (tvc): waiting " + MapSettleS.ToString("0") + " s for the painter's maps with the source Eve on");
+                        yield return ProbeWait.Seconds(MapSettleS);
+                    }
                 }
                 else if (IsOwn(variant))
                 {
@@ -414,6 +433,8 @@ namespace ReDefinition.Atmospheres
                         OwnCloudModule o = OwnCloudModule.Current;
                         return o != null && o.Stats.Mode != "off" && o.Stats.FramesDrawn - drawnFrom > SteadyFrames;
                     }, 150, "the own pass to draw a steady stretch (" + variant + ")");
+                    // The maps at the clock's time with this variant's source on: no layer on the field's shared cover in the first view (wolken-m1-fakten.md H.4).
+                    foreach (ProbeWait w in SettleOwnMaps(variant, MapSettleS, true)) yield return w;
                 }
 
                 if (variant == "gain")
@@ -422,8 +443,10 @@ namespace ReDefinition.Atmospheres
                 }
                 else
                 {
-                    foreach (View view in Views)
+                    foreach (View baseView in Views)
                     {
+                        // -t09HeadingOffset / the drawn choice's heading turns every view (the orbit view looks at the limb whatever the heading).
+                        View view = Turned(baseView);
                         if (!Measured(variant, view)) continue;
                         if ((GtStart || PerfStart) && view.Name == "orbit_edge") continue;
                         if (!IsDiag && view.Name == "orbit_edge" && orbitEdgeFailedIn != null)
@@ -450,6 +473,10 @@ namespace ReDefinition.Atmospheres
                         }
                         if (PerfStart && !PerfPictures) continue;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
+                        if (drawnCover && DrawnIndex(view.Name) >= 0)
+                        {
+                            foreach (ProbeWait w in PictureShare(view, variant)) yield return w;
+                        }
                         if (PerfStart) continue;
                         if (GtStart)
                         {
@@ -889,6 +916,7 @@ namespace ReDefinition.Atmospheres
         private double tvcCoverChosen = double.NaN, tvcCoverBest = double.NaN;
         private int tvcCoverTooLow;
         private const int TvcCoverSettleFrames = 12;
+        private bool tvcMapsWaited;
 
         // One universal time for every variant and view, chosen as K-T2d chooses its picks: the candidates are the hours from the fixed base (the next full hour of the clock at
         // the start) and a far window up to 10 days (SampleCoverCandidates), the field is asked at the site and 3 km without moving the clock, and the candidate whose cover is
@@ -901,10 +929,20 @@ namespace ReDefinition.Atmospheres
             utFailure = null;
             double start = Game.UniversalTime;
             bool tvcCover = CommandLine.Has(Args(), "-t09TvcCover", true);
+            bool drawnCover = DrawnCoverStart;
             tvcCoverChosen = double.NaN;
             tvcCoverBest = double.NaN;
             tvcCoverTooLow = 0;
-            if (tvcCover)
+            ReadHeadingOffset();
+            drawnOwn = drawnFraction = drawnTvc = drawnForecast = null;
+            drawnOk = false;
+            if (drawnCover)
+            {
+                // -t09DrawnCover (T09ProbeDrawn.cs): the own pass on for the choice (its maps are what is drawn); EVE's own layers are read beside it with -t09TvcCover
+                // (nothing of ours is bound to EVE with the source Ours either).
+                foreach (ProbeWait w in DrawnPrepare()) yield return w;
+            }
+            else if (tvcCover)
             {
                 // The start's cloud source (None) is otherwise set with its first variant, after the clock: EVE's sky is read with nothing of ours bound to it.
                 SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.None);
@@ -929,9 +967,20 @@ namespace ReDefinition.Atmospheres
                     tvcCoverChosen = Game.EveCoverOver(lat, lon);
                     Emit("T09.tvc_cover." + ((long)fixedUt).ToString(CultureInfo.InvariantCulture), tvcCoverChosen);
                 }
+                if (drawnCover)
+                {
+                    foreach (ProbeWait w in DrawnAtFixed(lat, lon, tvcCover)) yield return w;
+                }
                 utNarrow = sunChosen >= NarrowSunMinDeg && sunChosen <= NarrowSunMaxDeg;
                 utOk = true;
                 Emit("T09.ut_jump_s", fixedUt - start);
+                yield break;
+            }
+            if (drawnCover)
+            {
+                Emit("T09.candidates", coverCandidates.Count);
+                Emit("T09.candidates_far", candFarAnswered);
+                foreach (ProbeWait w in ChooseDrawn(lat, lon, start, tvcCover)) yield return w;
                 yield break;
             }
             Emit("T09.candidates", coverCandidates.Count);

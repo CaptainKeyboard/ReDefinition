@@ -35,6 +35,27 @@ namespace ReDefinition.Atmospheres
         // The cover of EVE's own volumetric layers (True Volumetric Clouds as shipped) over the site at the clock's time, 0 to 1; below 0 where EVE cannot be read.
         double EveCoverOver(double lat, double lon);
 
+        // -t09DrawnCover (T09ProbeDrawn.cs): what the clouds draw over the fan of a view. The own pass's layers (name, the height over sea level at which the field is asked for
+        // the layer's map); empty where the pass has no stack.
+        System.Collections.Generic.IList<T09DrawnLayer> OwnDrawnLayers();
+        // Own layer l's coverage at a place for a universal time the clock need not stand at: the generator's own layer lookup (LayerCoupling.Coverage at the layer's height,
+        // the function the layer maps are made of), a deck layer (the weather deck rule) only where precipitation falls, at most the column's cover (the combination scales
+        // the layers down to it). Without the meso pattern, the cells and the fog rule: a forecast to rank times by, not what is drawn. NaN where the field cannot answer.
+        double ForecastLayerCover(int layer, double latDeg, double lonDeg, double ut);
+        // Own layer l's coverage at a place as the pass holds it now (the CPU mirror of the maps it draws, every rule applied); NaN where there is no stack.
+        double DrawnLayerCover(int layer, double latDeg, double lonDeg);
+        // Whether the field's maps the pass fetches (the shared cover, the precipitation, each layer's map) were made for the clock's time; why names the first that was not.
+        bool FieldMapsAtClock(out string why);
+        // Whether the pass's maps stand: every layer on its own map and the shown maps at their goal (OwnCloudModule.ProbeMapsAtGoal).
+        bool OwnMapsAtGoal(out string why);
+        // Asks the pass for a map round that snaps the shown maps to their goal (OwnCloudModule.PokeMapFetch), and the rounds it finished (-1: no pass).
+        void RequestMapSnap();
+        int OwnMapRounds { get; }
+        // EVE's volumetric layers of the body (the pack's sky, not the painter's layer), heights over sea level at the middle of the shell; empty where EVE cannot be read.
+        System.Collections.Generic.IList<T09DrawnLayer> EveDrawnLayers();
+        // EVE layer l's coverage at a place at the clock's time (the densest of a quarter, half and three quarters of its shell, as EveCoverOver reads it); NaN where it cannot.
+        double EveLayerCover(int layer, double latDeg, double lonDeg);
+
         // Where the vessel and the flight camera are now, all in one read (the camera the pass draws into and the picture is read from): used at the
         // end of every dwell and around every capture, because the placement check alone says only where the vessel stood a few seconds earlier.
         T09Pose ReadPose();
@@ -118,6 +139,13 @@ namespace ReDefinition.Atmospheres
         System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> EnvironmentLines();
         // Writes the picture as a PNG named name, scaled down by the whole factor; returns the size of the file, throws where it cannot write.
         long SavePicture(string name, T09Image image, int factor);
+    }
+
+    // A layer the drawn-cover estimate crosses (T09DrawnCover): its name and the height over sea level of its middle.
+    internal sealed class T09DrawnLayer
+    {
+        internal string Name = "";
+        internal double MidM;
     }
 
     // The pose of the vessel and the flight camera at one moment. Heights are metres over sea level and over the terrain below the point (the ocean counts
@@ -539,6 +567,151 @@ namespace ReDefinition.Atmospheres
                 best = Math.Max(best, sum / (EveCoverRingPoints + 1));
             }
             return best;
+        }
+
+        // --- -t09DrawnCover ----------------------------------------------------------------------------------------------------------
+
+        private static LayerStackSource OwnStack()
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            LayerStackSource stack = m == null ? null : m.Stack as LayerStackSource;
+            return stack == null || stack.LayerCount == 0 ? null : stack;
+        }
+
+        public System.Collections.Generic.IList<T09DrawnLayer> OwnDrawnLayers()
+        {
+            var list = new System.Collections.Generic.List<T09DrawnLayer>();
+            LayerStackSource stack = OwnStack();
+            if (stack == null) return list;
+            for (int l = 0; l < stack.LayerCount; l++)
+            {
+                CloudLayerDef def = stack.LayerAt(l);
+                list.Add(new T09DrawnLayer { Name = def.Name, MidM = CloudBridgeStack.MidHeightM(def) });
+            }
+            return list;
+        }
+
+        public double ForecastLayerCover(int layer, double latDeg, double lonDeg, double ut)
+        {
+            LayerStackSource stack = OwnStack();
+            GeneratorField gf = GeneratorModule.Current;
+            CelestialBody body = FlightGlobals.currentMainBody;
+            if (stack == null || gf == null || body == null || layer < 0 || layer >= stack.LayerCount) return double.NaN;
+            GeneratorState s = gf.StateOf(body.flightGlobalsIndex);
+            if (s == null || s.Broken) return double.NaN;
+            CloudLayerDef def = stack.LayerAt(layer);
+            double cover = AtmoSim.Core.LayerCoupling.Coverage(s.Generator, latDeg * Math.PI / 180.0, lonDeg * Math.PI / 180.0, ut, CloudBridgeStack.MidHeightM(def), LayerWindOptions.Layers());
+            WeatherSample column;
+            if (!WeatherHub.Sample(body.flightGlobalsIndex, latDeg, lonDeg, 0.0, ut, out column)) return double.NaN;
+            if (CloudLookTuning.DeckRuleOf(def.Name, def.Deck) != null && column.Level01 <= 0f) return 0.0;
+            return Math.Min(cover, column.CloudCover01);
+        }
+
+        public double DrawnLayerCover(int layer, double latDeg, double lonDeg)
+        {
+            LayerStackSource stack = OwnStack();
+            if (stack == null || layer < 0 || layer >= stack.LayerCount) return double.NaN;
+            float c, t;
+            stack.SampleMaps(layer, latDeg, lonDeg, out c, out t);
+            return c;
+        }
+
+        // A map made for a time this far from the clock's is another weather (the candidate times are an hour or more apart; the clock runs on while the probe waits).
+        private const double FreshMapS = 600.0;
+        private readonly WeatherMap freshProbe = new WeatherMap();
+
+        public bool FieldMapsAtClock(out string why)
+        {
+            why = null;
+            GeneratorField gf = GeneratorModule.Current;
+            CelestialBody body = FlightGlobals.currentMainBody;
+            LayerStackSource stack = OwnStack();
+            if (gf == null || body == null || stack == null) { why = gf == null ? "no generator field" : "the own pass has no stack"; return false; }
+            double ut = Planetarium.GetUniversalTime();
+            int b = body.flightGlobalsIndex;
+            // The same requests the pass makes (the times are the clock's, so they only confirm what the pass asked for).
+            if (!gf.GetMap(b, WeatherMapKind.Coverage, ut, freshProbe) || Math.Abs(freshProbe.Ut - ut) > FreshMapS) { why = "the shared cover map is not made for the clock's time yet"; return false; }
+            if (!gf.GetMap(b, WeatherMapKind.Precipitation, ut, freshProbe) || Math.Abs(freshProbe.Ut - ut) > FreshMapS) { why = "the precipitation map is not made for the clock's time yet"; return false; }
+            for (int l = 0; l < stack.LayerCount; l++)
+            {
+                CloudLayerDef def = stack.LayerAt(l);
+                if (!gf.GetLayerCoverage(b, ut, CloudBridgeStack.MidHeightM(def), freshProbe) || Math.Abs(freshProbe.Ut - ut) > FreshMapS)
+                {
+                    why = "layer " + def.Name + "'s map is not made for the clock's time yet";
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public bool OwnMapsAtGoal(out string why)
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            if (m == null) { why = "no own cloud module"; return false; }
+            return m.ProbeMapsAtGoal(out why);
+        }
+
+        public void RequestMapSnap()
+        {
+            OwnCloudModule m = OwnCloudModule.Current;
+            if (m != null) m.PokeMapFetch();
+        }
+
+        public int OwnMapRounds
+        {
+            get
+            {
+                OwnCloudModule m = OwnCloudModule.Current;
+                return m != null ? m.MapRounds : -1;
+            }
+        }
+
+        private System.Collections.Generic.List<EveLayer> eveLayers = new System.Collections.Generic.List<EveLayer>();
+
+        public System.Collections.Generic.IList<T09DrawnLayer> EveDrawnLayers()
+        {
+            var list = new System.Collections.Generic.List<T09DrawnLayer>();
+            eveLayers = new System.Collections.Generic.List<EveLayer>();
+            CelestialBody body = FlightGlobals.currentMainBody;
+            if (body == null || !EveLayerAccess.Available) return list;
+            System.Collections.Generic.List<EveLayer> scanned;
+            try { scanned = EveLayerAccess.Scan(body.bodyName, null, 0, null); }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("t09-eve-drawn-scan", "scanning EVE's layers for the drawn cover failed", e);
+                return list;
+            }
+            if (scanned == null) return list;
+            foreach (EveLayer layer in scanned)
+            {
+                if (layer.Name != null && layer.Name.StartsWith("ReDefinition-Atmospheres-", StringComparison.Ordinal)) continue;
+                eveLayers.Add(layer);
+                list.Add(new T09DrawnLayer { Name = layer.Name ?? "", MidM = 0.5 * (layer.InnerRadiusM + layer.OuterRadiusM) - body.Radius });
+            }
+            return list;
+        }
+
+        public double EveLayerCover(int layer, double latDeg, double lonDeg)
+        {
+            CelestialBody body = FlightGlobals.currentMainBody;
+            if (body == null || layer < 0 || layer >= eveLayers.Count) return double.NaN;
+            EveLayer h = eveLayers[layer];
+            double densest = 0.0;
+            for (int k = 1; k <= 3; k++)
+            {
+                double altitude = h.InnerRadiusM + (h.OuterRadiusM - h.InnerRadiusM) * k * 0.25 - body.Radius;
+                float type;
+                try
+                {
+                    densest = Math.Max(densest, Mathf.Clamp01(EveLayerAccess.SampleCoverage(h, body.GetWorldSurfacePosition(latDeg, lonDeg, altitude), out type)));
+                }
+                catch (Exception e)
+                {
+                    AtmospheresLog.Failed("t09-eve-drawn", "reading EVE's coverage for the drawn cover failed", e);
+                    return double.NaN;
+                }
+            }
+            return densest;
         }
 
         public void CameraAim(out double azimuthDeg, out double elevationDeg)

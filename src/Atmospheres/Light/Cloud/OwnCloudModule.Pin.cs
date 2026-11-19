@@ -71,6 +71,30 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
+        // The T09 probe's wait for the maps (T09ProbeDrawn.cs, wolken-m1-fakten.md H.4): the maps primed, every layer of the body on its own layer map (none on the field's
+        // shared cover, the fallback of a layer whose map the generator has not made yet), and every layer's shown maps equal to their goal. why names the first that is not.
+        // Reads only; the probe asks for a snapping round through PokeMapFetch.
+        internal bool ProbeMapsAtGoal(out string why)
+        {
+            why = null;
+            if (renderer == null || stack == null || body == null) { why = "the pass has no renderer, stack or body"; return false; }
+            if (!mapsPrimed) { why = "the maps are not primed"; return false; }
+            for (int l = 0; l < stack.LayerCount; l++)
+            {
+                string name = stack.LayerAt(l).Name;
+                bool shared;
+                if (!sharedCoverState.TryGetValue(body.bodyName + "/" + name, out shared)) { why = "layer " + name + " has not been fetched"; return false; }
+                if (shared) { why = "layer " + name + " is on the field's shared cover"; return false; }
+                int c = Differing(renderer.Maps.CoverageBytes(l), renderer.Maps.CoverageGoalBytes(l)), t = Differing(renderer.Maps.TypeBytes(l), renderer.Maps.TypeGoalBytes(l));
+                if (c != 0 || t != 0)
+                {
+                    why = "layer " + name + "'s maps differ from their goal (" + c + " cover, " + t + " type texels)";
+                    return false;
+                }
+            }
+            return true;
+        }
+
         // Texels that differ; -1 where one side is missing or the sizes differ.
         private static int Differing(byte[] a, byte[] b)
         {
