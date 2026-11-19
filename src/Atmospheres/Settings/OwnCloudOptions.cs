@@ -70,14 +70,17 @@ namespace ReDefinition.Atmospheres
         internal const bool LayerMotionDefault = true, MotionVectorsDefault = true, MotionAuditDefault = false;
 
         // E40 ground cost (package L2COST): the size of the history path's march target, so that a march below half size laid up over several frames is a variant of the
-        // game start and not only of the player. recon.resolution is the march target's side over the full target's (0.1 to 1; default 0.5, the compiled LayerFrame.Resolution);
+        // game start and not only of the player. recon.resolution is the march target's side over the full target's (0.1 to 1; default ReconResolutionDefault);
         // it acts wherever the reconstructor runs in its mode Low: the history path of level 1 (recon.accumulate above 0) and the mode setting Low. (The key recon.jitter, the
         // 16-phase Halton offset of the march rays, is gone: it was never on and the static pictures were worse with it; ReconSettings.Jitter stays for the temporal probe.)
         internal const string TuneReconResolution = "recon.resolution";
-        // E40 C1: the default of recon.resolution is a third (it was a half). Measured in the player on the game's real maps at the four K-T2 views (series e40-c1-sheet): the error of a
-        // frame against the converged picture is the same at 0.33 as at 0.5 (0.0208 against 0.0207 at the clock's ground, 0.0328 / 0.0328 from above) and the temporal noise 0.0001 to
-        // 0.0002 higher; the pass costs about half of what it did (series e40-c1-cost). The tuning key recon.resolution 0.5 gives the march as it was.
-        internal const float ReconResolutionDefault = 0.33f;
+        // The owner's look (2026-11-19): the march at the camera's full size, laid up by the rotation (cloudRotation). recon.resolution 0.33 is the third-size march with
+        // its history (E40 C1, series e40-c1-sheet and e40-c1-cost), whose loss the owner saw (2026-11-18).
+        internal const float ReconResolutionDefault = 1f;
+        // The owner's look (2026-11-19, made the default): e40puff k4_stride's march (shortest step 6 m, no step growth, 8 taps over a 12 km march towards the sun), at
+        // the full size (ReconResolutionDefault) with the rotation (cloudRotation on). Game, K-T2 perfN2560dlssqceil (A4500 2560x1440 DLSS Q): 21.4 fps at the ground.
+        internal const float LookMinStepM = 6f, LookStepGrowth = 0f, LookSunMarchM = 12000f;
+        internal const int LookSunSteps = 8;
         // recon.rotate N (2 to 4; default 0, off): with the march at full size (recon.resolution 1) and a history (recon.accumulate above 0), each frame marches one pixel of every N x N
         // block, at full size, and blends it into that pixel's history with the accumulation weight; the other pixels keep their reprojected history (Catmull-Rom) alone. The owner judged
         // N = 2 equal to the full march in the weather player still, turning and flying (2026-11-19, e40puff rot2ac against k4_stride); the march costs a third (33 against 97 ms).
@@ -250,16 +253,16 @@ namespace ReDefinition.Atmospheres
             f.MinStepM = minStep;
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
             f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
-            // A4 test keys (2026-11-18): the march of the player's ceiling look in the game, to measure its cost (the owner chose that look, e40puff k_ceil_rec). Each one at or below
-            // 0 (the default) keeps the product's value: layers.minStepM the shortest step in m (ceiling 6), layers.stepGrowth the step's growth per m along the ray (ceiling 0, below 0 off),
-            // layers.earlyOut the transmittance a ray ends at (ceiling 0.001), layers.sunMarchM the length of the march towards the sun in m (ceiling 12000).
-            float minStepKey = Tuning.Get(TuneMinStepM, 0f);
+            // The owner's look (2026-11-19, the default; e40puff k4_stride, judged in the player 2026-11-18): the shortest step LookMinStepM, no step growth along the ray, the march
+            // towards the sun LookSunMarchM long. A key at or below 0 gives the step quality's value instead (layers.minStepM, layers.sunMarchM; layers.stepGrowth below 0);
+            // layers.earlyOut above 0 replaces the frame's early out.
+            float minStepKey = Tuning.Get(TuneMinStepM, LookMinStepM);
             if (minStepKey > 0f) f.MinStepM = minStepKey;
-            float growthKey = Tuning.Get(TuneFrameStepGrowth, -1f);
+            float growthKey = Tuning.Get(TuneFrameStepGrowth, LookStepGrowth);
             if (growthKey >= 0f) f.StepGrowth = growthKey;
             float earlyKey = Tuning.Get(TuneEarlyOut, 0f);
             if (earlyKey > 0f) f.EarlyOut = earlyKey;
-            float sunMarchKey = Tuning.Get(TuneSunMarchM, 0f);
+            float sunMarchKey = Tuning.Get(TuneSunMarchM, LookSunMarchM);
             if (sunMarchKey > 0f) f.SunMarchM = sunMarchKey;
             // The cost controls: tuning keys with the compiled values of the frame.
             f.CoverageBound = Tuning.Flag(TuneCoverageBound, CompiledFrame.CoverageBound);
@@ -294,8 +297,8 @@ namespace ReDefinition.Atmospheres
         {
             CloudLightSettings q = CloudLightSettings.ForQuality((int)Level(v, AtmospheresSettings.Keys.CloudLightQuality));
             s.SunStepsOverride = q.SunStepsOverride;
-            // A4 test key (layers.sunSteps, 2026-11-18): the taps towards the sun, as the player's ceiling march sets them (16); 0 keeps the quality level's.
-            int sunSteps = Mathf.RoundToInt(Tuning.Get(TuneSunSteps, 0f));
+            // The owner's look: LookSunSteps taps towards the sun (layers.sunSteps; 0 keeps the light quality level's).
+            int sunSteps = Mathf.RoundToInt(Tuning.Get(TuneSunSteps, LookSunSteps));
             if (sunSteps > 0) s.SunStepsOverride = Math.Min(sunSteps, 64);
             s.MoonSteps = q.MoonSteps;
             s.UpSteps = q.UpSteps;
@@ -445,7 +448,8 @@ namespace ReDefinition.Atmospheres
             s.Rotation = false;
             // The switch cloudRotation is 2 x 2; the tuning key recon.rotate, where set, names the block side.
             int rotate = (int)Tuning.Get(TuneReconRotate, v(AtmospheresSettings.Keys.CloudRotation) > 0.5 ? 2f : 0f);
-            if (rotate >= 2 && s.Mode == ReconMode.Low && s.Accumulate > 0f && s.Resolution > 0.99f)
+            // Only the history path of level 1: the mode setting Low (prototype B) stays as the player chose it.
+            if (rotate >= 2 && !low && s.Mode == ReconMode.Low && s.Accumulate > 0f && s.Resolution > 0.99f)
             {
                 s.Rotation = true;
                 s.Mode = ReconMode.Block;

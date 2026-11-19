@@ -91,6 +91,7 @@ namespace ReDefinition.Atmospheres
                 case "ceilvis8c7":
                 case "nolayers":
                 case "plain2":
+                case "res66":
                 case "res2":
                 case "res3":
                 case "res3cat":
@@ -168,6 +169,8 @@ namespace ReDefinition.Atmospheres
                         break;
                     }
                 // The march target's side over the full target's in the history path of level 1 (recon.resolution; the default is 0.33, so plain already marches a third).
+                // res66 (2026-11-19, the owner's comparison of the cloud resolutions with TVC): two thirds of the render size.
+                case "res66": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.66f); break;
                 case "res2": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.5f); break;
                 case "res3": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f); break;
                 case "res3cat": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f); ForceTuning(OwnCloudOptions.TuneCatmull, 1f); break;

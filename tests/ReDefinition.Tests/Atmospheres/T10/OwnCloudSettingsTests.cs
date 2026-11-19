@@ -94,7 +94,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
             double samplesShare = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default / 48.0;
             Assert.AreEqual(Math.Round(Math.Round(expected.MaxSteps * samplesShare) * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             Assert.AreEqual(expected.SunSteps, frame.SunSteps);
-            Assert.AreEqual(expected.MinStepM, frame.MinStepM);
+            Assert.AreEqual(OwnCloudOptions.LookMinStepM, frame.MinStepM, "the owner's look (the default since 2026-11-19)");
+            Assert.AreEqual(OwnCloudOptions.LookStepGrowth, frame.StepGrowth, "the owner's look: no step growth along the ray");
+            Assert.AreEqual(OwnCloudOptions.LookSunMarchM, frame.SunMarchM, "the owner's look: a 12 km march towards the sun");
             Assert.AreEqual(expected.TransmittanceGrowth, frame.TransmittanceGrowth, "the product's step growth");
             Assert.AreEqual(expected.CoverageBound, frame.CoverageBound);
             Assert.AreEqual(expected.LightStride, frame.LightStride);
@@ -114,7 +116,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(lightExpected.OctaveA, light.OctaveA);
             Assert.AreEqual(lightExpected.MsBrightness, light.MsBrightness);
             Assert.AreEqual(lightExpected.AmbientGain, light.AmbientGain);
-            Assert.AreEqual(4, light.SunStepsOverride, "High: 4 taps towards the sun");
+            Assert.AreEqual(OwnCloudOptions.LookSunSteps, light.SunStepsOverride, "the owner's look: 8 taps towards the sun");
 
             var shadow = new CloudShadowFrame();
             OwnCloudOptions.Apply(shadow, Defaults());
@@ -154,6 +156,10 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.IsFalse(noise.Enabled || noise.Untile || noise.Curl || noise.DistanceLod || noise.FineDetail);
             Assert.AreEqual(0, noise.SizeLevel);
 
+            // The owner's look sets the shortest step and the taps towards the sun (OwnCloudOptions.Look*); with its keys at 0 the step and light quality's values reach the structs.
+            Tuning.SetOverride(OwnCloudOptions.TuneMinStepM, 0f);
+            Tuning.SetOverride(OwnCloudOptions.TuneSunSteps, 0f);
+            NextFrame();
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, v);
             Assert.AreEqual(Math.Round(171 * OwnCloudOptions.GridFineDefault), frame.MaxSteps, "the Low step quality's 32 points at the Medium profile's 256 of 48");
@@ -180,6 +186,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             OwnCloudOptions.Apply(recon, v);
             Assert.AreEqual(ReconMode.Block, recon.Mode);
             Assert.AreEqual(3, recon.Block);
+            Tuning.ClearOverrides();
+            NextFrame();
         }
 
         [TestMethod]
@@ -267,9 +275,15 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var recon = new ReconSettings();
             Tuning.ClearOverrides();
             NextFrame();
-            // Level 1 runs the half-size march with the history of recon.accumulate (the default 0.2) through the mode Low; at 0 it is the plain pass (ReconMode.Full).
+            // Level 1 runs the full-size march with the history of recon.accumulate (the default 0.2) as the rotation over 2 x 2 blocks (cloudRotation on, the owner's look);
+            // without the rotation through the mode Low; at accumulate 0 it is the plain pass (ReconMode.Full).
             OwnCloudOptions.Apply(recon, Defaults());
+            Assert.AreEqual(ReconMode.Block, recon.Mode);
+            Assert.IsTrue(recon.Rotation);
+            Assert.AreEqual(2, recon.Block);
+            OwnCloudOptions.Apply(recon, Defaults("cloudRotation", 0));
             Assert.AreEqual(ReconMode.Low, recon.Mode);
+            Assert.IsFalse(recon.Rotation);
             Tuning.SetOverride(OwnCloudOptions.TuneAccumulate, 0f);
             NextFrame();
             OwnCloudOptions.Apply(recon, Defaults());
@@ -385,10 +399,10 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Tuning.ClearOverrides();
             NextFrame();
             var recon = new ReconSettings();
-            OwnCloudOptions.Apply(recon, Defaults());
+            OwnCloudOptions.Apply(recon, Defaults("cloudRotation", 0));
             Assert.AreEqual(ReconMode.Low, recon.Mode);
             Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, recon.Resolution);
-            Assert.AreEqual(0.33f, recon.Resolution);
+            Assert.AreEqual(1f, recon.Resolution, "the owner's look: the march at full size");
             Assert.IsFalse(recon.Jitter);
             Tuning.SetOverride(OwnCloudOptions.TuneReconResolution, 0.4f);
             NextFrame();
@@ -430,7 +444,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(Math.Round(256 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             var recon = new ReconSettings();
-            OwnCloudOptions.Apply(recon, Defaults());
+            OwnCloudOptions.Apply(recon, Defaults("cloudRotation", 0));
             // The default is the history of weight 0.2 (the owner delegated the choice after the E40 grain measurement); the finer grid stays off.
             Assert.AreEqual(0.2f, OwnCloudOptions.AccumulateDefault);
             Assert.AreEqual(ReconMode.Low, recon.Mode);
@@ -441,8 +455,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
             Assert.AreEqual(192, frame.MaxSteps, "three quarters of the Medium profile's 256 points");
-            // The history belongs to level 1: it runs the half-size march through the mode Low; the block levels keep their own.
-            OwnCloudOptions.Apply(recon, Defaults());
+            // The history belongs to level 1: it runs the march through the mode Low (the rotation off); the block levels keep their own.
+            OwnCloudOptions.Apply(recon, Defaults("cloudRotation", 0));
             Assert.AreEqual(ReconMode.Low, recon.Mode);
             Assert.AreEqual(0.2f, recon.Accumulate);
             Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, recon.Resolution);

@@ -211,7 +211,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Int("cloudResolution", 1, 1, 4, CL, "Cloud Resolution", OWN, RV),
                 // The rotation (owner 2026-11-19): with the march at full size and a history, one pixel of every 2 x 2 block is marched per frame and blended into its history;
                 // OwnCloudOptions.Apply(ReconSettings), recon.rotate for other block sides.
-                SettingDef.Bool("cloudRotation", false, CL, "Cloud Rotation", OWN),
+                SettingDef.Bool("cloudRotation", true, CL, "Cloud Rotation", OWN),
                 // The scene's white balance (owner 2026-11-19, audit A2): the whole picture balanced after the upscaler by the sun's tint raised to this strength
                 // (0 none, 1 the full tint), in place of the clouds' own white point (SceneWhiteBalance). The owner found the full balance too strong on every body.
                 SettingDef.Float("sceneWhiteBalance", 0.25, 0.0, 1.0, CL, "Scene White Balance", OWN),

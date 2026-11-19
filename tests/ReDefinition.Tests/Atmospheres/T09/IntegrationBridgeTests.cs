@@ -246,12 +246,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheDefaultsKeepTheBlockReconstructionAndTheEdgeModeOffAndTheLightningOff()
         {
-            // The block levels, the mode Low and the edge mode are off; level 1 runs the half-size march with the history of recon.accumulate (0.2, the owner delegated
-            // the choice after the E40 grain measurement), which goes through the reconstructor's mode Low.
+            // The block levels, the mode Low and the edge mode are off; level 1 runs the full-size march with the history of recon.accumulate (0.2, the owner delegated
+            // the choice after the E40 grain measurement) as the 2 x 2 rotation (cloudRotation on, the owner's look since 2026-11-19), the block mode with the history's weights.
             Assert.AreEqual(0.2f, OwnCloudOptions.AccumulateDefault);
             Assert.AreEqual(1.0, AtmospheresSettings.Definition("cloudResolution").Default);
             Assert.AreEqual((double)(int)ReconMode.Full, AtmospheresSettings.Definition("cloudReconMode").Default);
-            Assert.AreEqual(ReconMode.Low, OwnCloudOptions_ReconModeDefault());
+            Assert.AreEqual(ReconMode.Block, OwnCloudOptions_ReconModeDefault());
             Assert.IsFalse(EdgeSettings.AdaptiveDefault);
             Assert.IsFalse(EdgeSettings.ReconstructorDefault);
             Assert.IsFalse(LightningSwitches.EnabledDefault);

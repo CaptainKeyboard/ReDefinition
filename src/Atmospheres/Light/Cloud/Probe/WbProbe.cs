@@ -9,7 +9,7 @@ namespace ReDefinition.Atmospheres
 {
     // Series K-WB (audit A2, owner 2026-11-19: the scene's white balance must hold on every body with clouds, not only on Kerbin): the main mod's probe sets the
     // command pod down on the body the start names (-redefinitionProbeLand <body>). This probe opens the weather field's and the own pass's switches (as
-    // T09Probe does), picks the time with the most cloud cover at the pod among those with the sun 25 to 45 degrees up (a clear sky compares nothing), sets the
+    // T09Probe does), picks the time whose cloud cover at the pod is nearest one half among those with the sun 25 to 45 degrees up (a clear sky compares nothing, a closed deck shows no heaps), sets the
     // pod down 40 m above the ground and holds it (the camera stands above grass and scatter), waits for the pass and saves the screen without the UI as the
     // player sees it from two camera poses, each at the slider's strengths 0, 0.25, 0.5 and 1.
     // Pictures: wb-<body>-p<pose>-s<strength in percent>.png in the series picture folder. Rows: WB.body, WB.cover, WB.sun_elev_deg, WB.tint_r/g/b, WB.pictures.
@@ -20,7 +20,7 @@ namespace ReDefinition.Atmospheres
         private static readonly double[][] Poses = { new[] { -20.0, 12.0, 0.0 }, new[] { -6.0, 12.0, 60.0 } };
         // The strengths of the slider sceneWhiteBalance each pose is shot at.
         private static readonly double[] Strengths = { 0.0, 0.25, 0.5, 1.0 };
-        private const double SunLowDeg = 25.0, SunHighDeg = 45.0, SettleS = 4.0, PassWaitS = 120.0, MapSettleS = 20.0, FieldWaitS = 90.0, PodAboveGroundM = 40.0;
+        private const double SunLowDeg = 25.0, SunHighDeg = 45.0, SettleS = 4.0, PassWaitS = 120.0, MapSettleS = 20.0, FieldWaitS = 90.0, PodAboveGroundM = 40.0, TargetCover = 0.5;
 
         private readonly KspT09World game = new KspT09World();
         private int pictures;
@@ -62,7 +62,7 @@ namespace ReDefinition.Atmospheres
             EmitText("WB.body", body.bodyName);
 
             // The time: over two of the body's days in steps of 1/96 of a day, among the candidates with the sun 25 to 45 degrees up at the pod, the one whose cloud
-            // cover at 3 km there is highest (the weather field's answer, WeatherHub.Sample, as T09Probe.ChooseUt reads it). The field may need some seconds after
+            // cover at 3 km there is nearest TargetCover (the weather field's answer, WeatherHub.Sample, as T09Probe.ChooseUt reads it). The field may need some seconds after
             // the start to answer; up to FieldWaitS are given to it. The sun's height of a candidate is computed from the body's turn, not by setting the clock.
             Vessel pod = FlightGlobals.ActiveVessel;
             double podLat = pod.latitude, podLon = pod.longitude;
@@ -86,7 +86,8 @@ namespace ReDefinition.Atmospheres
                     WeatherSample ws;
                     if (!WeatherHub.Sample(bodyIndex, podLat, podLon, 3000.0, t, out ws)) continue;
                     answered++;
-                    if (ws.CloudCover01 > bestCover)
+                    // The cover nearest TargetCover: single heaps with sky between them (the owner, 2026-11-19: a closed deck shows no puffs and no detail).
+                    if (bestCover < 0.0 || Math.Abs(ws.CloudCover01 - TargetCover) < Math.Abs(bestCover - TargetCover))
                     {
                         bestCover = ws.CloudCover01;
                         bestUt = t;
