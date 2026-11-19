@@ -96,6 +96,10 @@ namespace ReDefinition.Atmospheres
                 case "res3":
                 case "res3cat":
                 case "res4":
+                case "cut5":
+                case "cut10":
+                case "cut20":
+                case "cells":
                     return true;
                 default:
                     return false;
@@ -175,6 +179,13 @@ namespace ReDefinition.Atmospheres
                 case "res3": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f); break;
                 case "res3cat": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f); ForceTuning(OwnCloudOptions.TuneCatmull, 1f); break;
                 case "res4": ForceTuning(OwnCloudOptions.TuneReconResolution, 0.25f); break;
+                // The 48 fps plan (2026-11-19): what the clouds beyond 5, 10 and 20 km cost (layers.costCutM; cost attribution, the picture is wrong).
+                case "cut5": ForceTuning(OwnCloudOptions.TuneCostCutM, 5000f); break;
+                case "cut10": ForceTuning(OwnCloudOptions.TuneCostCutM, 10000f); break;
+                case "cut20": ForceTuning(OwnCloudOptions.TuneCostCutM, 20000f); break;
+                // The owner's question 2026-11-19 (a field of equal cotton balls from above): the same views with the single-cloud lattice (cloud.cells 1, the default 11-17 to 11-19; now a
+                // shape-test tool, the weather map decides the clouds).
+                case "cells": ForceTuning(CloudLookTuning.TuneCells, 1f); break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;
                 case "nolight": ForceTuning(OwnCloudOptions.TuneCostDebug, 1f); break;

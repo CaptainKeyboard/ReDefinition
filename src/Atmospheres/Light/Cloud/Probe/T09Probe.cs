@@ -175,6 +175,14 @@ namespace ReDefinition.Atmospheres
                 case "off":
                     SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.None);
                     SetSetting(AtmospheresSettings.Keys.OwnClouds, 0.0);
+                    // -t09TvcAsShipped (the owner's comparison 2026-11-19): True Volumetric Clouds as Blackrack ships them, so our weather's sky dimming, precipitation and fog
+                    // stay out of the picture too (the install has no Atmospheres settings file to pin them in).
+                    if (CommandLine.Has(Args(), "-t09TvcAsShipped", true))
+                    {
+                        SetSetting(AtmospheresSettings.Keys.SkyDimming, 0.0);
+                        SetSetting(AtmospheresSettings.Keys.PrecipDensity, 0.0);
+                        SetSetting(AtmospheresSettings.Keys.FogBrightness, 0.0);
+                    }
                     break;
                 case "recon2":
                 case "recon3":
@@ -718,6 +726,15 @@ namespace ReDefinition.Atmospheres
             if (CommandLine.Has(Args(), "-t09Screen", true) && !picturesStopped)
             {
                 string screenName = T09Pictures.Name(StartId, view.Name, variant, Game.ScreenWidth, Game.ScreenHeight, "screen", false);
+                // -t09HideUi (the owner's cloud comparison 2026-11-19): the flight UI is hidden for the screen picture (navball and stage stack would cover the clouds).
+                bool hideUi = CommandLine.Has(Args(), "-t09HideUi", true);
+                KSP.UI.UIMasterController ui = hideUi ? KSP.UI.UIMasterController.Instance : null;
+                bool hid = ui != null && ui.IsUIShowing;
+                if (hid)
+                {
+                    ui.HideUI();
+                    yield return ProbeWait.Frames(2);
+                }
                 try
                 {
                     System.IO.Directory.CreateDirectory(SeriesPictures.Folder);
@@ -729,6 +746,7 @@ namespace ReDefinition.Atmospheres
                 }
                 // CaptureScreenshot writes at the end of the frame; two frames let it land before the next picture.
                 yield return ProbeWait.Frames(2);
+                if (hid && KSP.UI.UIMasterController.Instance != null) KSP.UI.UIMasterController.Instance.ShowUI();
             }
             // -t09NoAid (K-T2 2026-11-18): the natural picture alone, the pass not switched into its aid mode; the DLSS page fault came within a second of a capture.
             if (T09Pictures.HasAid(variant) && !picturesStopped && !CommandLine.Has(Args(), "-t09NoAid", true))
