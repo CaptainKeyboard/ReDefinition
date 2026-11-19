@@ -339,6 +339,9 @@ namespace ReDefinition.WeatherPlayer
                     bool posed = job.recordCamera != null && job.recordCamera.Length == 3 * job.frames && job.recordRotation != null && job.recordRotation.Length == 4 * job.frames
                                  && job.recordPlanetCenter != null && job.recordPlanetCenter.Length == 3 * job.frames;
                     bool jittered = job.hostJitter != null && job.hostJitter.Length == 2 * job.frames && DiagInt("-pinJitter", 1) != 0;
+                    // -pinRayJitter (-1 by default: as the capture's Recon.HostJitter; 0 off, 1 on): the A/B of the march's rays following the jitter of the depth.
+                    int rayJitterArg = DiagInt("-pinRayJitter", -1);
+                    if (rayJitterArg >= 0) recon.HostJitter = rayJitterArg != 0;
                     Cam.fieldOfView = job.fovV;
                     Cam.transform.position = LayersSetup.V(job.worldCamera);
                     Cam.transform.rotation = new Quaternion(job.worldRotation[0], job.worldRotation[1], job.worldRotation[2], job.worldRotation[3]);
@@ -373,10 +376,14 @@ namespace ReDefinition.WeatherPlayer
                                                      -DiagInt("-pinJitterSignY", 1) * (job.hostJitter[2 * k + 1] - job.hostJitter[2 * last + 1]) / job.height);
                             Graphics.Blit(depth, ShiftedDepth(job.width, job.height), Vector2.one, offset);
                             cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), shiftedDepth);
+                            // The host's jitter of record k as the game published it (_ReDefinition_Jitter z, w: 2 j / size), with the same sign switches as the depth's shift.
+                            recon.HostJitterNdc = new Vector2(DiagInt("-pinJitterSignX", 1) * 2f * job.hostJitter[2 * k] / job.width,
+                                                              DiagInt("-pinJitterSignY", 1) * 2f * job.hostJitter[2 * k + 1] / job.height);
                         }
                         else
                         {
                             cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), depth);
+                            recon.HostJitterNdc = Vector2.zero;
                         }
                         rig.Recon.Record(cb, rig.Renderer, rig.Frame, Cam, recon, job.firstFrame + k, null, null, null);
                         Graphics.ExecuteCommandBuffer(cb);

@@ -143,7 +143,7 @@ namespace ReDefinition.Atmospheres
         private readonly List<string> pinFrames = new List<string>();
 
         // The host's frame jitter (ReDefinition.Api.Frame, SharedFrame: x, y the offset in render pixels, z, w in NDC; zero without an upscaler's jitter), decided before
-        // the frame's first scene camera culls: the scene and its depth render offset by it, the clouds' march does not.
+        // the frame's first scene camera culls: the scene and its depth render offset by it, the clouds' march with recon.hostJitter too (ReconSettings.HostJitter).
         private const string HostJitter = "_ReDefinition_Jitter";
 
         // Whether the host's jitter global is off or at the first phase of its sequence (the upscaler's Halton index 1: x 0, y 1/3 - 0.5; Fsr3Upscaler.GetJitterOffset,

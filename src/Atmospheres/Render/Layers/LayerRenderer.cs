@@ -378,7 +378,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The camera for a pass: its position and basis in world space; right and up are scaled by the tangent of the half field of
-        // view, and jitter is the upscaler's jitter in render pixels (it moves the rays, not the picture).
+        // view, and jitterNdc is added to each pixel's ndc before the ray is built (it moves the rays, not the picture; ReconSettings.RayJitter for the upscaler's).
         internal void SetCamera(Vector3 position, Vector3 forward, Vector3 right, Vector3 up, Vector2 jitterNdc)
         {
             cameraPosition = position;
@@ -662,17 +662,17 @@ namespace ReDefinition.Atmospheres
         }
 
         // Records the march and the depth-aware composite into the command buffer for a camera. markStart/markMarched/markEnd (may be
-        // null) are called around the passes so that the player can time them. sceneDepth is the linear eye depth of the opaque scene.
+        // null) are called around the passes so that the player can time them. sceneDepth is the linear eye depth of the opaque scene. rayJitter is the offset of the
+        // rays in ndc that matches the projection the depth was rendered with (ReconSettings.RayJitter; zero: the unjittered rays).
         internal void Prepare(Camera camera, LayerFrame f, RenderTargetIdentifier sceneDepth, Action<CommandBuffer> markStart,
-                              Action<CommandBuffer> markMarched, Action<CommandBuffer> markEnd)
+                              Action<CommandBuffer> markMarched, Action<CommandBuffer> markEnd, Vector2 rayJitter = default(Vector2))
         {
             if (!Ready) return;
             EnsureTarget(camera, f.Resolution);
             float tanY = Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
             float tanX = tanY * camera.aspect;
             Transform t = camera.transform;
-            SetCamera(t.position, t.forward, t.right * tanX, t.up * tanY,
-                      new Vector2(0f, 0f));
+            SetCamera(t.position, t.forward, t.right * tanX, t.up * tanY, rayJitter);
             f.Cull.PixelAngleRad = 2f * tanY / target.height;
             Apply(f);
             // The direct path has no history: the reconstruction's far rotation (LayerReconstructor) must not mark any of its pixels.
