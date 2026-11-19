@@ -859,6 +859,14 @@ def prepare_pin(captures, out=PIN_INPUT, standin=False):
                    worldToMap=[float(x) for row in pj["worldToMap"] for x in row])
         noise = pj.get("noise", {})
         job["noise"] = dict(seed=int(noise.get("seed", 1)), flowTime=float(noise.get("flowTime", 0.0)))
+        # The noise switches as the game had them (the settings' Noise.*), so that the replay's load builds the same volumes and its later loads do not build them again
+        # (a new volume sets the soft density's detail mean after the stack was uploaded).
+        sw = {s_["path"][len("Noise."):]: s_["values"][0] for s_ in settings if s_["path"].startswith("Noise.")}
+        if sw:
+            job["noise"].update(seed=int(sw.get("Seed", job["noise"]["seed"])), sizeLevel=int(sw.get("SizeLevel", 1)), disabled=1 - int(sw.get("Enabled", "1")),
+                                noUntile=1 - int(sw.get("Untile", "1")), noCurl=1 - int(sw.get("Curl", "1")), noLod=1 - int(sw.get("DistanceLod", "1")),
+                                noFine=1 - int(sw.get("FineDetail", "1")), warpAmplitude=float(sw.get("WarpAmplitude", 0.0)), warpCell=float(sw.get("WarpCell", 0.0)),
+                                sphere=float(sw.get("SphereScale", 1.0)))
         job["tuning"] = [dict(key=k, value=float(v)) for k, v in sorted(pj.get("tuning", {}).items()) if v is not None]
         job["settings"] = settings
         job.update(depthFile=depth or "", worldCamera=[float(x) for x in world["camera"]], worldRotation=[float(x) for x in world["rotation"]],

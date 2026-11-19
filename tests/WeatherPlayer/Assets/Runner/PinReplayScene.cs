@@ -113,10 +113,17 @@ namespace ReDefinition.WeatherPlayer
                 {
                     rig.Load(job, input);
                     var recon = new ReconSettings();
-                    List<string> problems = LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip);
-                    // The noise volumes follow the game's size level and seed; the soft density's detail mean is the volume's, so the settings are set again after it.
+                    LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip);
+                    // The noise volumes follow the game's size level and seed; a new volume sets the soft density's detail mean, which the stack's uploaded thresholds read
+                    // (the first replay of a run drew with the thresholds of the mean before it: _LayerB.y 0.3911 against the game's 0.3929). So: the volumes, the game's
+                    // statics again, then the stack loaded and uploaded once more with them, and the settings onto that load's frame.
                     rig.Renderer.Noise.EnsureReady();
-                    problems.AddRange(LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip));
+                    LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip);
+                    rig.Load(job, input);
+                    recon = new ReconSettings();
+                    List<string> problems = LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip);
+                    // A load that had to build the volumes again (the job's noise switches are not the game's) leaves the thresholds stale: named, not hidden.
+                    if (!rig.Renderer.Noise.Ready) problems.Add("the noise volumes are not ready after the second load");
                     Cam.fieldOfView = job.fovV;
                     Cam.transform.position = LayersSetup.V(job.worldCamera);
                     Cam.transform.rotation = new Quaternion(job.worldRotation[0], job.worldRotation[1], job.worldRotation[2], job.worldRotation[3]);
