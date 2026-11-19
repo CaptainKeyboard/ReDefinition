@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System;
+using ReDefinition.Migration;
 using ReDefinition.Settings;
 
 namespace ReDefinition.Tests
@@ -116,10 +117,14 @@ namespace ReDefinition.Tests
         public readonly List<string> Warnings = new List<string>();
         public int FileWrites;
         public bool FileWriteFails;
+        // The changes added to the update's notice, and what the read of bundled.cfg puts into the state, where a test gives it.
+        public readonly List<SettingsChange> Noticed = new List<SettingsChange>();
+        public Action<BundledState> ReadWith;
 
-        // Reads nothing: the store starts from an empty bundled.cfg.
+        // Reads nothing but what ReadWith gives: the store starts from an empty bundled.cfg.
         public void Read(BundledLedger ledger, BundledState state)
         {
+            if (ReadWith != null) ReadWith(state);
         }
 
         // Counts the write instead of writing bundled.cfg, or fails where FileWriteFails says so.
@@ -189,6 +194,12 @@ namespace ReDefinition.Tests
         public void Warn(string kind, string message)
         {
             Warnings.Add(message);
+        }
+
+        // Collects the changes for the update's notice, for the test to look into.
+        public void Notice(string from, List<SettingsChange> changes)
+        {
+            Noticed.AddRange(changes);
         }
     }
 }

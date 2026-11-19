@@ -30,6 +30,13 @@ namespace ReDefinition.Migration
             Text = text;
         }
 
+        // Whether the step acts on the values of the file. One that acts on a mod's own value (ChangedDefaultInModFiles) is left
+        // out of SettingsMigration.Run: the store runs it once the mod can be read, and notes it done then.
+        public virtual bool OnFile
+        {
+            get { return true; }
+        }
+
         // Carries the step out on the values of a file, key to text, and notes each change.
         public abstract void Apply(IDictionary<string, string> values, List<SettingsChange> changes);
     }
@@ -98,6 +105,34 @@ namespace ReDefinition.Migration
             if (!values.TryGetValue(key, out before) || before != oldDefault) return;
             values[key] = newDefault;
             changes.Add(new SettingsChange(key, before, newDefault, Text));
+        }
+    }
+
+    // A new standard value of a bundled setting whose mod keeps it in its own files (saving = InModFiles). bundled.cfg holds no
+    // value for it once the mod has saved it, so the step acts on the mod's own value (BundledStore.RunModSteps): where the mod
+    // holds the old standard, the new one is set as the window sets a value -- into the running mod, its node and its own save --
+    // and the player is told. A mod without the setting, a build that lacks it among them, is left alone. As with
+    // ChangedDefault, a player's own choice that is the old standard cannot be told apart.
+    internal sealed class ChangedDefaultInModFiles : SettingsStep
+    {
+        // The setting's key ("<mod>.<setting>"), and its old and new standard.
+        public readonly string Key, OldDefault, NewDefault;
+
+        public ChangedDefaultInModFiles(string id, string key, string oldDefault, string newDefault, string text) : base(id, text)
+        {
+            Key = key;
+            OldDefault = oldDefault;
+            NewDefault = newDefault;
+        }
+
+        public override bool OnFile
+        {
+            get { return false; }
+        }
+
+        // The file holds nothing of it: the store carries it out on the mod.
+        public override void Apply(IDictionary<string, string> values, List<SettingsChange> changes)
+        {
         }
     }
 

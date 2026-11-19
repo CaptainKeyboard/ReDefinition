@@ -98,6 +98,24 @@ namespace ReDefinition.Tests
             Assert.AreEqual("9", values["a"]);
         }
 
+        // A step that acts on a mod's own value is left out of the run on the file: it stays due until it is noted done, and a
+        // fresh file takes it as done.
+        [TestMethod]
+        public void AStepOnTheModWaitsUntilItIsNotedDone()
+        {
+            var steps = new SettingsStep[] { new ChangedDefaultInModFiles("on-mod", "mod.a", "False", "True", "t") };
+            var values = File3("mod.a", "False");
+            Assert.AreEqual(0, SettingsMigration.Run(values, steps, "0.2.0").Count);
+            Assert.AreEqual("False", values["mod.a"], "the file is not the step's");
+            Assert.AreEqual(1, SettingsMigration.Due(values, steps).Count);
+            SettingsMigration.Done(values, "on-mod");
+            Assert.AreEqual(0, SettingsMigration.Due(values, steps).Count);
+            Assert.AreEqual("on-mod", values[SettingsMigration.AppliedKey]);
+            var fresh = new Dictionary<string, string>();
+            SettingsMigration.Fresh(fresh, steps, "0.2.0");
+            Assert.AreEqual(0, SettingsMigration.Due(fresh, steps).Count);
+        }
+
         // A fresh file takes the steps as done: they are for files from before.
         [TestMethod]
         public void AFreshFileHasNoStepToRun()

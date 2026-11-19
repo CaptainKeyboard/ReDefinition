@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReDefinition.Core;
+using ReDefinition.Migration;
 
 namespace ReDefinition.Settings
 {
@@ -428,6 +429,7 @@ namespace ReDefinition.Settings
         {
             Load();
             ContinueRestore(when, only, sceneChange);
+            RunModSteps(when, only);
 
             int handed = 0;
             if (state.Enabled)
@@ -656,6 +658,56 @@ namespace ReDefinition.Settings
 
             if (restored > 0)
                 host.Info("Bundled settings: " + restored + " put back to what their mods had before ReDefinition (" + when + ").");
+        }
+
+        // The migration steps that act on a mod's own value (ChangedDefaultInModFiles), each once the mod can be read: where the
+        // mod holds the old standard, the new one is set as the window sets a value -- into the running mod, kept until the mod's
+        // own save has it, its value from before kept for Restore -- and the change joins the update's notice. With the bundling
+        // off, or with the mod installed in a build without the setting, the step is done without a change; while the mod is not
+        // installed (or the mods not yet built) it waits. Each is noted done in bundled.cfg's stamp, which the caller's save writes.
+        private void RunModSteps(string when, IBundledMod only)
+        {
+            if (state.ModSteps.Count == 0) return;
+            List<SettingsChange> changes = new List<SettingsChange>();
+            foreach (ChangedDefaultInModFiles step in state.ModSteps.ToArray())
+            {
+                BundledSetting setting = null;
+                if (state.Enabled)
+                {
+                    if (!Installed(step.Key)) continue;
+                    setting = host.Find(step.Key);
+                }
+                if (setting != null)
+                {
+                    if (only != null && setting.Owner != only) continue;
+                    if (!SafeApplicable(setting))
+                    {
+                        waiting.Add(setting.Owner);
+                        continue;
+                    }
+                    string now = SafeRead(setting);
+                    if (now == null) continue;
+                    if (SettingValues.Same(now, step.OldDefault))
+                    {
+                        Set(setting, step.NewDefault, false);
+                        changes.Add(new SettingsChange(step.Key, now, step.NewDefault, step.Text));
+                        host.Info("Settings migration " + step.Id + ": " + setting.Owner.ModName + ", " + setting.Title + " held the old"
+                                  + " standard " + now + " and is handed " + step.NewDefault + " (" + when + ").");
+                    }
+                }
+                state.ModSteps.Remove(step);
+                SettingsMigration.Done(state.Stamp, step.Id);
+                ledger.Dirty = true;
+            }
+            if (changes.Count > 0) host.Notice(state.MigratedFrom, changes);
+        }
+
+        // Whether the mod a setting's key ("<mod>.<setting>") names is installed.
+        private bool Installed(string key)
+        {
+            foreach (IBundledMod mod in host.Installed())
+                if (key.StartsWith(mod.Id + ".", StringComparison.Ordinal)) return true;
+            return false;
         }
 
         // Done once the mod has saved -- at once for a mod set at every start.

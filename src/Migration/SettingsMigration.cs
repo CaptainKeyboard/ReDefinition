@@ -49,20 +49,36 @@ namespace ReDefinition.Migration
         }
 
         // Runs the steps the values have not been through, in order, and notes them as done; the changes they made, in order. The
-        // values then carry this release and the list of steps done.
+        // values then carry this release and the list of steps done. A step that acts on a mod rather than the file
+        // (SettingsStep.OnFile) is left for Due and Done.
         internal static List<SettingsChange> Run(IDictionary<string, string> values, IEnumerable<SettingsStep> steps, string version)
         {
             HashSet<string> applied = Applied(values);
             var changes = new List<SettingsChange>();
             foreach (SettingsStep step in steps)
             {
-                if (applied.Contains(step.Id)) continue;
+                if (applied.Contains(step.Id) || !step.OnFile) continue;
                 step.Apply(values, changes);
                 applied.Add(step.Id);
             }
             values[AppliedKey] = string.Join(",", applied.OrderBy(id => id, StringComparer.Ordinal));
             values[VersionKey] = version;
             return changes;
+        }
+
+        // The steps that act on a mod (SettingsStep.OnFile false) which the values have not been through, in order.
+        internal static List<SettingsStep> Due(IDictionary<string, string> values, IEnumerable<SettingsStep> steps)
+        {
+            HashSet<string> applied = Applied(values);
+            return steps.Where(step => !step.OnFile && !applied.Contains(step.Id)).ToList();
+        }
+
+        // A step noted as done in the values, once it has been carried out on its mod.
+        internal static void Done(IDictionary<string, string> values, string id)
+        {
+            HashSet<string> applied = Applied(values);
+            applied.Add(id);
+            values[AppliedKey] = string.Join(",", applied.OrderBy(step => step, StringComparer.Ordinal));
         }
 
         // The values of a fresh file, which no step is for: it holds this release and all the steps as done.

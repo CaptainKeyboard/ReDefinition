@@ -32,6 +32,11 @@ namespace ReDefinition.Settings
         // those of a fresh file until Read finds another.
         public readonly Dictionary<string, string> Stamp = FreshStamp();
 
+        // The migration steps that act on a mod's own value (ChangedDefaultInModFiles) which the file has not been through, for
+        // the store to carry out once the mod can be read; and the release the file came from, for the notice.
+        public readonly List<ChangedDefaultInModFiles> ModSteps = new List<ChangedDefaultInModFiles>();
+        public string MigratedFrom = SettingsMigration.FirstRelease;
+
         private static Dictionary<string, string> FreshStamp()
         {
             var stamp = new Dictionary<string, string>();
@@ -73,6 +78,9 @@ namespace ReDefinition.Settings
         void Warning(string message);
         // A warning of its kind, said a few times at most.
         void Warn(string kind, string message);
+
+        // What a migration step changed in a mod, added to the update's notice for the player (MigrationNotice).
+        void Notice(string from, List<SettingsChange> changes);
     }
 
     // ReDefinition's file GameData/ReDefinition/Main/PluginData/bundled.cfg: the state,
@@ -194,6 +202,12 @@ namespace ReDefinition.Settings
             {
                 SettingsMigration.Backup(path, from);
                 MigrationNotice.Append(NoticePath(), from, changes);
+            }
+            state.MigratedFrom = from;
+            foreach (SettingsStep step in SettingsMigration.Due(kept, steps))
+            {
+                var onMod = step as ChangedDefaultInModFiles;
+                if (onMod != null) state.ModSteps.Add(onMod);
             }
             state.Stamp[versionKey] = kept[versionKey];
             state.Stamp[appliedKey] = kept[appliedKey];

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System;
 using ReDefinition.Core;
+using ReDefinition.Migration;
 using UnityEngine;
 
 namespace ReDefinition.Settings
@@ -401,6 +402,12 @@ namespace ReDefinition.Settings
             public void Warn(string kind, string message)
             {
                 CompatibilityLog.Warn(kind, message);
+            }
+
+            // The changes added to the notice next to bundled.cfg (MigrationNotice.Append).
+            public void Notice(string from, List<SettingsChange> changes)
+            {
+                MigrationNotice.Append(BundledFile.NoticePath(), from, changes);
             }
         }
     }

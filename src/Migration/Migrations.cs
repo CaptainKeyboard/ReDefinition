@@ -43,9 +43,10 @@ namespace ReDefinition.Migration
         {
             // unreleased-bundled-begin
             // Scatterer's light shafts through clouds were off as the standard and in the Low and Medium profiles; they are on in every tier now, as Volumetric
-            // Clouds ships them (off, EVE logged an error for every cloud layer in every frame). A file that holds the old standard takes the new one; that
-            // cannot be told from a player's own "off", who switches it off again in the settings.
-            new ChangedDefault("scatterer-cloud-light-shafts-on", "scatterer.useRaymarchedCloudGodrays", "False", "True",
+            // Clouds ships them (off, EVE logged an error for every cloud layer in every frame). Scatterer keeps the value in its own config, not
+            // bundled.cfg, so the step acts on Scatterer's value: where it holds the old standard it takes the new one; that cannot be told from a
+            // player's own "off", who switches it off again in the settings.
+            new ChangedDefaultInModFiles("scatterer-cloud-light-shafts-on", "scatterer.useRaymarchedCloudGodrays", "False", "True",
                 "Light shafts through clouds are on now, as Volumetric Clouds ships them. Switch them off again under Scatterer if you had chosen that."),
             // unreleased-bundled-end
         };

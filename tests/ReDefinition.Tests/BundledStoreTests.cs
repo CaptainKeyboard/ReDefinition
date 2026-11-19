@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Migration;
 using ReDefinition.Settings;
 
 namespace ReDefinition.Tests
@@ -615,6 +616,97 @@ namespace ReDefinition.Tests
                 foreach (KeyValuePair<string, string> value in mod.Values) lines.Add(mod.Id + "." + value.Key + "=" + value.Value);
             fileWrites = host.FileWrites;
             return string.Join("\n", lines.ToArray());
+        }
+
+        // A changed standard of a setting its mod keeps in its own files, as a bundled.cfg from before it brings the step.
+        private static readonly ChangedDefaultInModFiles ShaftsOn = new ChangedDefaultInModFiles("shafts-on",
+            "scatterer.useRaymarchedCloudGodrays", "False", "True", "Light shafts through clouds are on now.");
+
+        // The state bundled.cfg was read into, once the store has read it.
+        private BundledState readState;
+
+        // bundled.cfg from a release before the step: it is not yet done.
+        private void FileBeforeTheStep()
+        {
+            host.ReadWith = state =>
+            {
+                readState = state;
+                state.ModSteps.Add(ShaftsOn);
+                state.MigratedFrom = "0.1.3";
+            };
+        }
+
+        // Whether bundled.cfg's stamp lists the step as done.
+        private bool Done()
+        {
+            return SettingsMigration.Applied(readState.Stamp).Contains(ShaftsOn.Id);
+        }
+
+        // The mod holding the old standard takes the new one through the store's own path: into the mod, saved by its own
+        // routine, its value from before kept for Restore, the player told; the step is done.
+        [TestMethod]
+        public void TheOldStandardInTheModsFilesTakesTheNewOne()
+        {
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            BundledSetting shafts = scatterer.Add("useRaymarchedCloudGodrays", "False");
+            FileBeforeTheStep();
+
+            store.ReapplyStored("main menu loaded", null, false);
+            Assert.AreEqual("True", scatterer.Values["useRaymarchedCloudGodrays"]);
+            Assert.AreEqual(1, scatterer.Saves, "saved through the mod's own routine");
+            Assert.IsFalse(store.Ledger.Contains(shafts.Key), "saved in the mod, it is no longer kept here");
+            Assert.AreEqual("False", store.BeforeReDefinition(shafts), "Restore puts the old value back");
+            Assert.AreEqual(1, host.Noticed.Count);
+            Assert.AreEqual("False", host.Noticed[0].Before);
+            Assert.AreEqual("True", host.Noticed[0].After);
+            Assert.IsTrue(host.Lines.Exists(line => line.Contains("shafts-on")), "the hand-over is logged");
+            Assert.IsTrue(Done());
+            Assert.IsTrue(host.FileWrites > 0, "the stamp is written");
+        }
+
+        // A mod that holds the new standard already is left alone, and the step is done.
+        [TestMethod]
+        public void TheNewStandardInTheModsFilesIsLeftAlone()
+        {
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            scatterer.Add("useRaymarchedCloudGodrays", "True");
+            FileBeforeTheStep();
+
+            store.ReapplyStored("main menu loaded", null, false);
+            Assert.AreEqual(0, scatterer.WritesOf("useRaymarchedCloudGodrays"));
+            Assert.AreEqual(0, host.Noticed.Count);
+            Assert.IsTrue(Done());
+        }
+
+        // A build of the mod without the setting is left alone, and the step is done; while the mod is not installed, it waits.
+        [TestMethod]
+        public void ABuildWithoutTheSettingIsLeftAlone()
+        {
+            FileBeforeTheStep();
+            store.ReapplyStored("main menu loaded", null, false);
+            Assert.IsFalse(Done(), "waits for the mod");
+
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            scatterer.Add("useOceanShaders", "True");
+            store.ReapplyStored("main menu loaded", null, false);
+            Assert.AreEqual(0, host.Noticed.Count);
+            Assert.AreEqual(0, scatterer.Saves);
+            Assert.IsTrue(Done());
+        }
+
+        // The step runs once: the player's own "off" afterwards stays.
+        [TestMethod]
+        public void TheStepOnTheModRunsOnce()
+        {
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            scatterer.Add("useRaymarchedCloudGodrays", "False");
+            FileBeforeTheStep();
+
+            store.ReapplyStored("main menu loaded", null, false);
+            scatterer.Values["useRaymarchedCloudGodrays"] = "False";
+            store.ReapplyStored("FLIGHT loaded", null, true);
+            Assert.AreEqual("False", scatterer.Values["useRaymarchedCloudGodrays"]);
+            Assert.AreEqual(1, host.Noticed.Count);
         }
     }
 }
