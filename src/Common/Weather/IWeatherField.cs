@@ -37,7 +37,15 @@ namespace ReDefinition.Core
         // The wind speed near the surface in m/s.
         WindSpeed = 8,
         // What the ground is under the sky (E40 L3): 0 over open sea, 0.5 over lowland, up to 1 over high ground (terrain 3000 m and more above the sea). Static per body.
-        Surface = 9
+        Surface = 9,
+        // The new sky (package B; no reader yet). The share of the sky covered by convective cloud, 0 to 1 (part of Coverage).
+        ConvectiveAmount = 10,
+        // The convective base (lifting condensation level) and the convective top, as shares of the body's troposphere, 0 to 1.
+        ConvectiveBase = 11,
+        ConvectiveTop = 12,
+        // The generator's instability index, 0 to 1, and its large-scale uplift, 0 to 1.4.
+        Instability = 13,
+        Uplift = 14
     }
 
     // A provider of weather at a place, besides the field: another mod's weather or a test source. Providers are asked in the

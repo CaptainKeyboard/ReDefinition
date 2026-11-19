@@ -9,7 +9,9 @@ namespace ReDefinition.Atmospheres
     {
         // The Magnus constants for the saturation vapour pressure over water as the WMO CIMO Guide (2008) gives them, ew = 6.112 exp(17.62 t / (243.12 + t)); a dimensionless and b in C.
         // Alduchov and Eskridge (1996) eq. 21 and Lawrence (2005) use 17.625 and 243.04; the dew point differs by under 0.02 K between the two sets (computed over -40 to 50 C, RH 10 to 100 %).
-        private const double MagnusA = 17.62, MagnusB = 243.12;
+        // One definition with the weather generator (AtmoSim.Core.MoistAir, whose DewPointK is this function in DMath; the convective base of the new sky uses it). This class keeps
+        // Math.Log so its maps stay bit for bit what they were.
+        private const double MagnusA = AtmoSim.Core.MoistAir.MagnusA, MagnusB = AtmoSim.Core.MoistAir.MagnusB;
 
         // The dew point in kelvin of air at a temperature and a relative humidity from 0 to 1 (clamped to 0.01 to 1, where the formula holds).
         internal static double DewPointK(double temperatureK, double humidity01)

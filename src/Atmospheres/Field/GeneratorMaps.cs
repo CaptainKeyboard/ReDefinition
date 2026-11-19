@@ -43,6 +43,31 @@ namespace ReDefinition.Atmospheres
             internal readonly float[] Humidity = new float[Width * Height];
             internal readonly float[] SurfaceTemperature = new float[Width * Height];
             internal readonly float[] WindSpeed = new float[Width * Height];
+            // The maps of the new sky (package B, SkyColumn): null until a reader asked for one of their kinds (IsSkyKind), so a body nobody asks them for renders as before.
+            // Amount 0 to 1, base and top as shares of the troposphere, instability 0 to 1, uplift 0 to 1.4; all continuous in the UT, so the painters' slew limit applies as to coverage.
+            internal float[] ConvectiveAmount, ConvectiveBase, ConvectiveTop, Instability, Uplift;
+
+            internal bool HasSky
+            {
+                get { return ConvectiveAmount != null; }
+            }
+
+            internal void EnsureSky()
+            {
+                if (HasSky) return;
+                ConvectiveBase = new float[Width * Height];
+                ConvectiveTop = new float[Width * Height];
+                Instability = new float[Width * Height];
+                Uplift = new float[Width * Height];
+                ConvectiveAmount = new float[Width * Height];
+            }
+        }
+
+        // The kinds of the new sky's maps (made only once one of them was asked for).
+        internal static bool IsSkyKind(WeatherMapKind kind)
+        {
+            return kind == WeatherMapKind.ConvectiveAmount || kind == WeatherMapKind.ConvectiveBase || kind == WeatherMapKind.ConvectiveTop
+                || kind == WeatherMapKind.Instability || kind == WeatherMapKind.Uplift;
         }
 
         internal sealed class Cover2D
@@ -94,6 +119,8 @@ namespace ReDefinition.Atmospheres
             internal Cover2D CoverCurrent, CoverSpare = new Cover2D();
             internal double WantedUt = double.NaN;
             internal bool WantsCover;
+            // Set by the first read of a map of the new sky; from then on the weather render fills those maps too.
+            internal bool WantsSky;
             internal long LastAskedMs, LastWeatherMs = long.MinValue / 2, LastCoverMs = long.MinValue / 2;
             internal SurfaceSite[] Sites;
             internal bool[] SiteSea;
@@ -154,6 +181,7 @@ namespace ReDefinition.Atmospheres
             GeneratorState state = field.StateOf(bodyIndex);
             if (state == null || state.Broken || double.IsNaN(ut) || double.IsInfinity(ut)) return false;
             bool surfaceMap = kind == WeatherMapKind.SnowCover || kind == WeatherMapKind.IceFraction || kind == WeatherMapKind.IceThickness;
+            bool sky = IsSkyKind(kind);
             Body b = BodyOf(bodyIndex);
             if (kind == WeatherMapKind.Surface)
             {
@@ -169,9 +197,10 @@ namespace ReDefinition.Atmospheres
                 b.WantedUt = ut;
                 b.LastAskedMs = clock.ElapsedMilliseconds;
                 if (surfaceMap) b.WantsCover = true;
+                if (sky) b.WantsSky = true;
             }
             wake.Set();
-            if (Synchronous && (surfaceMap ? b.CoverCurrent == null : b.Current == null))
+            if (Synchronous && (surfaceMap ? b.CoverCurrent == null : (b.Current == null || (sky && !b.Current.HasSky))))
             {
                 if (surfaceMap) RenderCoverNow(bodyIndex, ut);
                 else RenderNow(bodyIndex, ut);
@@ -197,8 +226,15 @@ namespace ReDefinition.Atmospheres
                     case WeatherMapKind.Humidity: values = w.Humidity; break;
                     case WeatherMapKind.SurfaceTemperature: values = w.SurfaceTemperature; break;
                     case WeatherMapKind.WindSpeed: values = w.WindSpeed; break;
+                    case WeatherMapKind.ConvectiveAmount: values = w.ConvectiveAmount; break;
+                    case WeatherMapKind.ConvectiveBase: values = w.ConvectiveBase; break;
+                    case WeatherMapKind.ConvectiveTop: values = w.ConvectiveTop; break;
+                    case WeatherMapKind.Instability: values = w.Instability; break;
+                    case WeatherMapKind.Uplift: values = w.Uplift; break;
                     default: return false;
                 }
+                // a map of the new sky before the first render that makes it
+                if (values == null) return false;
                 Hand(target, kind, bodyIndex, w.Ut, w.Version, Width, Height, values);
                 return true;
             }
@@ -454,7 +490,7 @@ namespace ReDefinition.Atmospheres
             {
                 Body b;
                 double ut;
-                bool cover;
+                bool cover, sky;
                 long now = clock.ElapsedMilliseconds;
                 lock (gate)
                 {
@@ -464,9 +500,10 @@ namespace ReDefinition.Atmospheres
                 {
                     ut = b.WantedUt;
                     cover = b.WantsCover;
+                    sky = b.WantsSky;
                     if (double.IsNaN(ut) || now - b.LastAskedMs > IdleMs) continue;
                 }
-                bool weatherDue = now - b.LastWeatherMs >= MinIntervalMs && (b.Current == null || b.Current.Ut != ut);
+                bool weatherDue = now - b.LastWeatherMs >= MinIntervalMs && (b.Current == null || b.Current.Ut != ut || (sky && !b.Current.HasSky));
                 if (weatherDue) RenderNow(index, ut);
                 bool coverDue = cover && (b.CoverCurrent == null || now - b.LastCoverMs >= CoverIntervalMs || Math.Abs(ut - b.CoverCurrent.Ut) > CoverJumpS);
                 if (coverDue) RenderCoverNow(index, ut);
@@ -539,12 +576,15 @@ namespace ReDefinition.Atmospheres
             lock (b.WeatherRender)
             {
                 Weather2D target;
+                bool sky;
                 lock (b.Lock)
                 {
                     target = b.Spare;
+                    sky = b.WantsSky;
                 }
                 lock (target)
                 {
+                    if (sky) target.EnsureSky();
                     if (!RenderWeather(s, ut, target)) return false;
                     target.Version = field.Version;
                 }
@@ -564,6 +604,8 @@ namespace ReDefinition.Atmospheres
             WeatherGenerator g = s.Generator;
             float[] bands = s.Bands;
             Weather w;
+            bool sky = into.HasSky;
+            SkyColumn column;
             for (int j = 0; j < Height; j++)
             {
                 double lat = (90.0 - (j + 0.5) * 180.0 / Height) * (Math.PI / 180.0);
@@ -584,6 +626,18 @@ namespace ReDefinition.Atmospheres
                     into.Humidity[k] = (float)w.Humidity;
                     into.SurfaceTemperature[k] = (float)w.SurfaceTempK;
                     into.WindSpeed[k] = (float)w.WindSpeed;
+                    if (!sky) continue;
+                    SkyColumn.Derive(g.Body, ref w, out column);
+                    if (!IsFinite(column.ConvectiveAmount) || !IsFinite(column.BaseShare) || !IsFinite(column.TopShare))
+                    {
+                        s.Trip();
+                        return false;
+                    }
+                    into.ConvectiveAmount[k] = (float)column.ConvectiveAmount;
+                    into.ConvectiveBase[k] = (float)column.BaseShare;
+                    into.ConvectiveTop[k] = (float)column.TopShare;
+                    into.Instability[k] = (float)w.Instability;
+                    into.Uplift[k] = (float)w.Uplift;
                 }
             }
             into.Ut = ut;

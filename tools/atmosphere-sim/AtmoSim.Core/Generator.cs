@@ -20,6 +20,9 @@ namespace AtmoSim.Core
         public double Presence, EnergyFactor;
         // The convective rain rate at the centre (mm/h, with the body's factor on the bands) and its level on the 0 to 1 scale of the precipitation maps (Level01).
         public double RainMmH, RainLevel;
+        // B (the new sky): the cell's energy as a share of a full cell (at the centre), and the top of its tower from the field: base (SkyColumn.BaseM at the centre) plus the depth to
+        // the tropopause times the energy share and the life stage (SkyColumn.CellTopShare), as a share of the troposphere and in m. TopM above stays the random draw it was.
+        public double Energy01, TopShare, TopPhysM;
     }
 
     public enum PrecipKind { None = 0, Rain = 1, Sleet = 2, Snow = 3, Dust = 4 }
@@ -45,6 +48,15 @@ namespace AtmoSim.Core
         // Round 6 (CELLS): the presence probability of a convective cell at the point (the draw of a lattice cell passes where it exceeds the cell's own number) and the factor of the energy term on
         // the strength (0 where the probability is below 0.02: no cell is looked for).
         public double CellPresence, CellEnergyFactor;
+        // B (the new sky): the raw inputs of SkyColumn.Derive, stored by Sample. No existing output reads them.
+        // The nearest front of the strongest temperature envelope at the point: +1 warm, -1 cold, 0 none; the signed distance in m along its normal (positive ahead: the systems move
+        // east, along the gradient of the front's phase); the envelope's amplitude as a share of the body's front amplitude (0 to 1); the quarter wavelength across the front (m).
+        public double FrontSign, FrontDistanceM, FrontAmp01, FrontQuarterM;
+        // Descent01: large-scale descent 0 to 1 (high pressure, the subtropical descent, the dry slot); Heating01: the surface forcing of the mixed layer 0 to 1 (the sea share plus the land
+        // share times the generator's own lagged day term); LiftSat01: how far the dynamic cloud driver is toward the stratiform rain onset (1 = saturated deck); RelHumidity: the
+        // relative-humidity proxy Hrel of the moisture source, clamped to 0 to 1 (Humidity above is h_T Hrel, an amount of water, not a relative humidity); CellEnergy01: the cell energy over CellEnergyFull (0 where no cell is looked for); CellReach01: that energy times the largest
+        // life stage x footprint of the cells around (SkyColumn.CellStage; the share of the depth from base to tropopause the tallest tower reaches at the point).
+        public double Descent01, Heating01, LiftSat01, RelHumidity, CellEnergy01, CellReach01;
         public double WindSpeedMs { get { return WindSpeed; } }
 
         // Cloud density (0..1.5) at an altitude of this column: a stratiform layer with a sin^2 profile plus towering cells.
@@ -480,6 +492,8 @@ namespace AtmoSim.Core
 
             // wave systems of this hemisphere
             double p = 0, tAnom = 0, fr = 0, dpdx = 0, dpdy = 0, spiral = 0, drySlot = 0;
+            // B: the front of the strongest temperature envelope (its amplitude, phase and phase gradient)
+            double fAmp = 0, fQ = 0, fG = 0;
             int baseIdx = h * MaxSlots;
             for (int j = 0; j < MaxSlots; j++)
             {
@@ -529,6 +543,8 @@ namespace AtmoSim.Core
                         double thT = DMath.TanhFast(FrontSharp * sqT);
                         tAnom += s.Bk * sumTr * thT;
                         fr += s.Bk * sumTr * FrontSharp * (1.0 - thT * thT) * DMath.Abs(cqT) * gnT;
+                        double ampT = s.Bk * sumTr;
+                        if (ampT > fAmp) { fAmp = ampT; fQ = qT; fG = gnT; }
                         }
                     }
                     else
@@ -536,6 +552,8 @@ namespace AtmoSim.Core
                         double thr = DMath.TanhFast(FrontSharp * sqr);
                         tAnom += s.Bk * sumTr * thr;
                         fr += s.Bk * sumTr * FrontSharp * (1.0 - thr * thr) * DMath.Abs(cqr) * gn;
+                        double ampR = s.Bk * sumTr;
+                        if (ampR > fAmp) { fAmp = ampR; fQ = qr; fG = gn; }
                     }
                     dpdx += s.Amp * (2.0 * s.InvLx2 * sumExr * cqr + sumEr * s.K * sqr);
                     dpdy += aeR * (2.0 * y * invLy * cqr + qy * sqr);
@@ -563,6 +581,8 @@ namespace AtmoSim.Core
                     double thp = DMath.TanhFast(FrontSharp * sqp);
                     tAnom += s.Bk * sumT * thp;
                     fr += s.Bk * sumT * FrontSharp * s.K * (1.0 - thp * thp) * DMath.Abs(cqp) * TiltNorm;
+                    double ampP = s.Bk * sumT;
+                    if (ampP > fAmp) { fAmp = ampP; fQ = qp; fG = s.K * TiltNorm; }
                     dpdx += s.Amp * (2.0 * s.InvLx2 * sumEx * cqp + sumE * s.K * sqp);
                     dpdy += aeP * (2.0 * y * s.InvLy2 * cqp + s.K * s.Tilt * sqp);
                     continue;
@@ -577,6 +597,8 @@ namespace AtmoSim.Core
                 double exT = DMath.Exp(-(x * x * s.InvLxT2 + y * y * s.InvLyT2));
                 tAnom += s.Bk * exT * th;
                 fr += s.Bk * exT * FrontSharp * s.K * (1.0 - th * th) * DMath.Abs(cq) * TiltNorm;
+                double ampE = s.Bk * exT;
+                if (ampE > fAmp) { fAmp = ampE; fQ = q; fG = s.K * TiltNorm; }
                 dpdx += ae * (2.0 * x * s.InvLx2 * cq + s.K * sq);
                 dpdy += ae * (2.0 * y * s.InvLy2 * cq + s.K * s.Tilt * sq);
             }
@@ -711,10 +733,16 @@ namespace AtmoSim.Core
             double cs = 0.0, tower = 0.0;
             double cellPhase = 0.0, cellLife = 0.0;
             double cellFactor = 0.0;
+            double cellEnergy01 = 0.0, cellReach = 0.0;
             if (pcell > 0.02)
             {
-                cellFactor = CellEnergyFactor(cellBuoyancy + Body.CellLiftEnergyShare * (cellFront + cellConvergence));
-                cs = CellStrength(latRad, lonRad, ut, pcell, out tower, out cellPhase, out cellLife) * cellFactor;
+                double energy = cellBuoyancy + Body.CellLiftEnergyShare * (cellFront + cellConvergence);
+                cellFactor = CellEnergyFactor(energy);
+                double towerReach;
+                cs = CellStrength(latRad, lonRad, ut, pcell, out tower, out cellPhase, out cellLife, out towerReach) * cellFactor;
+                // B: the energy as a share of a full cell, and the share of the base-to-tropopause depth the tallest tower reaches here (SkyColumn)
+                cellEnergy01 = Body.CellEnergyFull > 0.0 ? DMath.Clamp(energy / Body.CellEnergyFull, 0.0, 1.0) : (energy > 0.0 ? 1.0 : 0.0);
+                cellReach = cellEnergy01 * towerReach;
             }
 
             double cw = bg + xdyn + 0.7 * cs;
@@ -868,6 +896,32 @@ namespace AtmoSim.Core
             w.CellPresence = pcell; w.CellEnergyFactor = cellFactor;
             w.CellStrength = cs; w.Dust = dust; w.SnowFrac = fs; w.SleetFrac = fl; w.RainFrac = fRain; w.OceanFraction = oc;
             w.Type = kind;
+
+            // B (the new sky): the raw inputs of SkyColumn.Derive. Nothing else reads them.
+            fAmp *= eqw;
+            if (fAmp > 0.0 && fG > 0.0)
+            {
+                double nf = DMath.Floor(fQ / DMath.Pi + 0.5);
+                long ni = (long)nf;
+                // the zero of sin(q) nearest to the point is the front; n even: the anomaly rises along the gradient, so the cold air follows (cold front)
+                w.FrontSign = (ni & 1L) == 0L ? -1.0 : 1.0;
+                w.FrontDistanceM = (fQ - nf * DMath.Pi) / fG;
+                w.FrontAmp01 = D.FrontAmpK > 0.0 ? DMath.Min(1.0, fAmp / D.FrontAmpK) : 0.0;
+                w.FrontQuarterM = DMath.HalfPi / fG;
+            }
+            else { w.FrontSign = 0.0; w.FrontDistanceM = 0.0; w.FrontAmp01 = 0.0; w.FrontQuarterM = 0.0; }
+            double highP = p > 0.0 ? DMath.Min(1.0, p / aref) : 0.0;
+            double desc = highP > sub ? highP : sub;
+            if (drySlot > desc) desc = drySlot;
+            w.Descent01 = desc > 1.0 ? 1.0 : desc;
+            w.Heating01 = moist + (1.0 - moist) * (hour > 0.0 ? (hour > 1.0 ? 1.0 : hour) : 0.0);
+            double satDen = Body.StratThreshold + Body.RainSoftness;
+            w.LiftSat01 = satDen > 0.0 ? DMath.Clamp(xdyn / satDen, 0.0, 1.0) : (xdyn > 0.0 ? 1.0 : 0.0);
+            double hRel = ha * hb * hc;
+            w.RelHumidity = hRel > 1.0 ? 1.0 : (hRel < 0.0 ? 0.0 : hRel);
+            w.CellEnergy01 = cellEnergy01;
+            w.CellReach01 = cellReach;
+            // last: DensityAt needs every field assigned (it reads only the layer and cell fields above)
             w.Density3D = w.DensityAt(alt);
         }
 
@@ -984,14 +1038,14 @@ namespace AtmoSim.Core
         // the steering wind of the row). Cells live 1-3 hours and have a sin^2 life envelope. Round 5 (StationaryCells): a lattice cell of a 3-hour bucket is born at any time of
         // the bucket and may live on into the next one, so the cells of the bucket before are looked at too; the number of living cells is the same at every time. Round 4: the
         // cell lives wholly inside its bucket (born in the first part, so that it dies before the bucket ends), and no cell is alive at the edges of a bucket.
-        private double CellStrength(double lat, double lon, double ut, double pcell, out double tower, out double phase, out double life)
+        private double CellStrength(double lat, double lon, double ut, double pcell, out double tower, out double phase, out double life, out double towerReach)
         {
             double lc = D.CellLatticeM;
             double rowH = lc / a;
             double bucketF = DMath.Floor(ut / CellHourBucketS);
             long j0 = (long)DMath.Floor(lat / rowH);
             bool stationary = Body.StationaryCells;
-            double best = 0.0, bestTower = 0.0, bestPhase = 0.0, bestLife = 0.0;
+            double best = 0.0, bestTower = 0.0, bestPhase = 0.0, bestLife = 0.0, bestReach = 0.0;
             for (int dj = -1; dj <= 1; dj++)
             {
                 long j = j0 + dj;
@@ -1036,12 +1090,16 @@ namespace AtmoSim.Core
                         double dy = a * (lat - cLat);
                         double r2 = (dx * dx + dy * dy) / (rad * rad);
                         if (r2 > 9.0) continue;
-                        double c = env * DMath.Exp(-r2) * DMath.SmoothStep(0.0, 0.1, margin);
+                        double ex = DMath.Exp(-r2), ramp = DMath.SmoothStep(0.0, 0.1, margin);
+                        double c = env * ex * ramp;
                         if (c > best) { best = c; bestTower = Hash.Draw(hc, 6); bestPhase = age / dur; bestLife = dur; }
+                        // B: the reach of the tallest tower over all cells here (a maximum of continuous terms, so it does not jump where the strongest cell changes)
+                        double reach = SkyColumn.CellStage(env) * ex * ramp;
+                        if (reach > bestReach) bestReach = reach;
                     }
                 }
             }
-            tower = bestTower; phase = bestPhase; life = bestLife;
+            tower = bestTower; phase = bestPhase; life = bestLife; towerReach = bestReach;
             return best;
         }
 
@@ -1097,11 +1155,14 @@ namespace AtmoSim.Core
                         double strength = env * DMath.SmoothStep(0.0, 0.1, margin) * w.CellEnergyFactor;
                         if (!(strength > minStrength) || !(strength > 0.0)) continue;
                         double rain = strength > Body.CellRainThreshold ? ConvRateMmH * (strength - Body.CellRainThreshold) / (1.0 - Body.CellRainThreshold) * Body.PrecipBodyFactor : 0.0;
+                        double baseShare = SkyColumn.ConvectiveBaseM(Body, w.SurfaceTempK, MoistAir.DewPointK(w.SurfaceTempK, w.RelHumidity)) / Body.TropopauseM;
+                        double topShare = SkyColumn.CellTopShare(baseShare, w.CellEnergy01, SkyColumn.CellStage(env));
                         into.Add(new ConvectiveCell
                         {
                             RainMmH = rain, RainLevel = Level01(rain),
                             LatRad = cLat, LonRad = cLon, RadiusM = rad, Strength = strength, Phase = age / dur, LifeS = dur, AgeS = age, Tower = Hash.Draw(hc, 6),
-                            TopM = 0.35 * Body.TropopauseM + 0.65 * Body.TropopauseM * Hash.Draw(hc, 6), Presence = w.CellPresence, EnergyFactor = w.CellEnergyFactor
+                            TopM = 0.35 * Body.TropopauseM + 0.65 * Body.TropopauseM * Hash.Draw(hc, 6), Presence = w.CellPresence, EnergyFactor = w.CellEnergyFactor,
+                            Energy01 = w.CellEnergy01, TopShare = topShare, TopPhysM = topShare * Body.TropopauseM
                         });
                         added++;
                     }

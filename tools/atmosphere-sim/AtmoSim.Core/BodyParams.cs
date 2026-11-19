@@ -199,6 +199,17 @@ namespace AtmoSim.Core
         // is B = 3.5e-4; CellUpdraftScale is the body's multiplier (1 = derived). It does not enter the weather (the field's window and the anvil take it, WeatherGenerator.CellUpdraftMs).
         public double CellBuoyancyNumber = 3.5e-4, CellUpdraftScale = 1.0;
 
+        // B (the new sky, SkyColumn): read only by SkyColumn.Derive; no existing output depends on them. All shares of the troposphere (TropopauseM).
+        // SkyStableShare [TUNING]: the stable layer's share at the reference state (no net descent, full surface forcing): 0.18 = 2 km of an 11 km troposphere, the top of the WMO low
+        // etage (surface to 2 km in all regions, ICA Table 6) taken as the typical top of the boundary layer's clouds [derived, not a measured BL depth].
+        // SkyDescentGain [TUNING]: the divergence at full descent over that at the reference, minus 1: 1 = doubled, Bretherton's typical range 3 to 6e-6 1/s (Atm S 547 lecture 16).
+        // SkyInversionGain [TUNING]: the same for the inversion jump (descent warms the air above the layer); 1 = doubled at full descent, no source for the size.
+        // SkyStableShareMin [TUNING]: the floor (a night-time surface inversion over land): 0.02 of the troposphere, about 200 m on an 11 km troposphere; no source.
+        public double SkyStableShare = 0.18, SkyDescentGain = 1.0, SkyInversionGain = 1.0, SkyStableShareMin = 0.02;
+        // The low, middle and high level of the humidity profile [TUNING, derived]: the middles of the WMO etages in the temperate zone (low 0 to 2 km, middle 2 to 7 km, high 5 to 13 km,
+        // ICA Table 6) over the top of the high etage (13 km): 1/13, 4.5/13, 9/13.
+        public double SkyLevelLowShare = 1.0 / 13.0, SkyLevelMidShare = 4.5 / 13.0, SkyLevelHighShare = 9.0 / 13.0;
+
         // The round-5 generator: every lever of round 6 switched off (20 000-query hash 233D55A4D9EE2E43).
         public BodyParams Round5()
         {
