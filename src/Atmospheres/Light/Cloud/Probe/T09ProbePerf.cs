@@ -34,7 +34,7 @@ namespace ReDefinition.Atmospheres
 
         // The grid points the start began with (the profile's), read before the first variant changes them.
         private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN,
-            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseDetailLod = double.NaN;
+            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseDetailLod = double.NaN, baseLightCache = double.NaN;
 
         private bool PerfStart
         {
@@ -79,6 +79,7 @@ namespace ReDefinition.Atmospheres
                 case "ceilvis":
                 case "ceilvis8":
                 case "ceilvis8s2":
+                case "ceilvis8lc":
                 case "ceilvis8nl":
                 case "ceilvis8sd":
                 case "ceilvis8c2":
@@ -109,6 +110,7 @@ namespace ReDefinition.Atmospheres
             baseStepGrowth = AtmospheresSettings.Number(AtmospheresSettings.Keys.LayerStepGrowth);
             baseSkipEmpty = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSkipEmpty);
             baseDetailLod = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudDetailLod);
+            baseLightCache = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudLightCache);
         }
 
         private void PerfRestoreBase()
@@ -123,6 +125,7 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, baseStepGrowth);
             SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, baseSkipEmpty);
             SetSetting(AtmospheresSettings.Keys.CloudDetailLod, baseDetailLod);
+            SetSetting(AtmospheresSettings.Keys.CloudLightCache, baseLightCache);
         }
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
@@ -192,6 +195,7 @@ namespace ReDefinition.Atmospheres
                 case "ceilvis":
                 case "ceilvis8":
                 case "ceilvis8s2":
+                case "ceilvis8lc":
                 case "ceilvis8nl":
                 case "ceilvis8sd":
                 case "ceilvis8c2":
@@ -222,6 +226,8 @@ namespace ReDefinition.Atmospheres
                             SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, 1.0);
                             SetSetting(AtmospheresSettings.Keys.CloudDetailLod, 1.0);
                         }
+                        // ceilvis8lc (2026-11-19, the owner judged the player's lc_g128 equal): the accepted look with the light cache (3 near sun taps, 128 x 128 x 32 voxels).
+                        if (name == "ceilvis8lc") SetSetting(AtmospheresSettings.Keys.CloudLightCache, 1.0);
                         if (!vis) ForceTuning(OwnCloudOptions.TuneLightCutoff, 0f);
                         ForceTuning(OwnCloudOptions.TuneSunMarchM, 12000f);
                         ForceTuning(OwnCloudOptions.TuneSunSteps, eight ? 8f : 16f);

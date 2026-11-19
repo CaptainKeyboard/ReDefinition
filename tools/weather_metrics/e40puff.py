@@ -315,6 +315,23 @@ VARIANTS = {
     # and point 6, the noise detail dropped where a pixel cannot resolve it (cloudDetailLod with the far shape mean; the owner judges).
     "p2_skip": ("(PERF 2) the accepted look with the tile pass's skip of empty tiles", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+skip+r100+lp100"),
     "p6_dlod": ("(PERF 6) the accepted look with the detail dropped below a pixel", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dlod+r100+lp100"),
+    # Timing split of the accepted look in the player's soft-cost scene (2026-11-18, the GPU timestamps of the march, a few minutes a run; the cost debug bits make the picture
+    # wrong on purpose): no light march (dbg1), no shape noise (dbg2), neither and no erosion (dbg7), the map alone without the single clouds, no finer billows.
+    "tc_base": ("(TIME) the accepted look", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
+    "tc_d1": ("(TIME) the accepted look without the light march", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg1+r100+lp100"),
+    "tc_d2": ("(TIME) the accepted look without the shape noise", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg2+r100+lp100"),
+    "tc_d7": ("(TIME) the accepted look without light, noise and erosion", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg7+r100+lp100"),
+    "tc_nocells": ("(TIME) the accepted look with the map alone (no single clouds)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
+    "tc_nofine": ("(TIME) the accepted look without the finer billows", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
+    # The light cache (2026-11-19): the accepted look with its first three sun taps marched (47/94/188 m) and the rest of the way to the sun from the cache (40 km box,
+    # 24 fill taps unless named). lc_g128 the default 128 x 128 x 32 voxels (owner: equal to k4_stride; player 86 against 97 ms); the others at 256 x 256 x 64:
+    # lc_3 (125 ms, the fill costs more than it saves), lc_box80 a box of 80 km, lc_near4 four near taps, lc_fill12 12 fill taps.
+    "lc_3": ("(CACHE) the accepted look, the sun's light beyond 330 m from the light cache (256 voxels across)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache3+lcgrid256+r100+lp100"),
+    "lc_box80": ("(CACHE) lc_3 with an 80 km box", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache3+lcgrid256+lcbox80+r100+lp100"),
+    "lc_near4": ("(CACHE) lc_3 with four near taps (to 700 m)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache4+lcgrid256+r100+lp100"),
+    "lc_fill12": ("(CACHE) lc_3 with 12 fill taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache3+lcgrid256+lcfill12+r100+lp100"),
+    "lc_g128": ("(CACHE) the light cache's default, 128 x 128 x 32 voxels", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache3+lcgrid128+r100+lp100"),
+    "lc_g128f12": ("(CACHE) lc_g128 with 12 fill taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+lcache3+lcgrid128+lcfill12+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
     "k_ng256_full":("(SPLIT) 256 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r100+jit+acc8+clip1000+lp100"),
     "k_ng96_full": ("(SPLIT) 96 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+r100+jit+acc8+clip1000+lp100"),
@@ -726,7 +743,7 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
-COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3")
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12")
 
 
 def cost_label(march):

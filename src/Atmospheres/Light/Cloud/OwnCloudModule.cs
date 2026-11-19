@@ -194,7 +194,6 @@ namespace ReDefinition.Atmospheres
         private float lastDt;
         private LightCache lightCache;
         // The side of the light cache's box: T14 measured the 32 km box.
-        private const float CacheBoxM = 32000f;
         private CloudShadowRenderer shadowRenderer;
         private CloudShadowRig shadowRig;
         // The pass's shape noise for the CPU readers of the stack (the hook's field: sun dimming, the weather driver): updated every frame in FillShadow.
@@ -1367,8 +1366,8 @@ namespace ReDefinition.Atmospheres
             // light settings so that the shader reads it only while Enabled (OwnCloudOptions.Apply sets that from the key).
             if (lightCache == null && AtmospheresSettings.CloudLightCache)
             {
-                lightCache = new LightCache { Size = new Vector3(CacheBoxM, CacheBoxM, CacheBoxM) };
-                AtmospheresLog.Say("own clouds: light cache made (" + LightCache.GridN + " x " + LightCache.GridN + " x " + LightCache.GridNz + " voxels over " + CacheBoxM + " m)");
+                lightCache = new LightCache();
+                AtmospheresLog.Say("own clouds: light cache made (" + lightCache.GridN + " x " + lightCache.GridN + " x " + lightCache.GridNz + " voxels over " + lightCache.SizeM + " m)");
             }
             f.Light.Cache = lightCache;
             OwnCloudOptions.Apply(f.Light);
@@ -1381,8 +1380,6 @@ namespace ReDefinition.Atmospheres
 
             // The light: the sun's direction and colour, the scene's ambient light, the moons, the lightning.
             Vector3 camPos = cam.transform.position;
-            // The cache's box (planet frame) follows the camera, its corner snapped to whole voxels.
-            if (lightCache != null && lightCache.Enabled) lightCache.Follow(camPos - f.PlanetCenter);
             CelestialBody sunBody = GameGlobals.Sun;
             Vector3 toSun = sunBody != null ? (Vector3)sunBody.position - camPos : ((Vector3)b.position - camPos) + Vector3.up * 1e9f;
             f.TowardsSun = toSun.sqrMagnitude > 1f ? toSun.normalized : Vector3.up;
@@ -1665,8 +1662,8 @@ namespace ReDefinition.Atmospheres
                 driver.PlayerCamera = cam;
                 int scene = (int)HighLogic.LoadedScene * 100000 + b.flightGlobalsIndex;
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkBegin);
-                RecordCacheFill(renderer.Commands);
-                LayerReconstructor.Sub(renderer.Commands, "cache fill");
+                // The light cache is filled by the reconstruction's record, at the head of the march (LayerReconstructor.Record).
+                Stats.LightCacheOn = lightCache != null && lightCache.Enabled;
                 driver.Record(renderer.Commands, renderer, frame, cam, depth, BuiltinRenderTextureType.CameraTarget, Time.frameCount, scene,
                               CloudBridgeLights.ResetRequests, weatherCuts, structureVersion);
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkEnd);
@@ -1681,11 +1678,12 @@ namespace ReDefinition.Atmospheres
                     begin = cb =>
                     {
                         CloudBridgeLights.Mark(cb, CloudBridgeLights.MarkBegin);
-                        RecordCacheFill(cb);
-                        LayerReconstructor.Sub(cb, "cache fill");
                     };
                     end = cb => CloudBridgeLights.Mark(cb, CloudBridgeLights.MarkEnd);
                 }
+                // The plain path does not fill the light cache: the march marches the whole way to the sun.
+                if (lightCache != null) lightCache.Enabled = false;
+                Stats.LightCacheOn = false;
                 renderer.Prepare(cam, frame, depth, begin, null, end);
                 Stats.PlainFrames++;
                 Stats.Mode = "plain";
@@ -1794,17 +1792,6 @@ namespace ReDefinition.Atmospheres
             {
                 Fail(e);
             }
-        }
-
-        // The fill of the light cache (pass 3 of the layer shader, the whole atlas) at the head of the pass's buffer, with the material state of this
-        // frame's Apply; nothing while the cache is off. [VERIFY] in the game: the reconstruction's own Apply calls leave the lighting numbers as they are.
-        private void RecordCacheFill(CommandBuffer cb)
-        {
-            bool on = lightCache != null && lightCache.Enabled && renderer != null && renderer.Ready;
-            Stats.LightCacheOn = on;
-            if (!on) return;
-            lightCache.Ensure();
-            cb.Blit(BuiltinRenderTextureType.None, lightCache.Atlas, renderer.Material, LightCache.PassFill);
         }
 
         private void EnsureDepthTarget(Camera cam)

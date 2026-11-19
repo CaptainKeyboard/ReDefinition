@@ -594,7 +594,9 @@ namespace ReDefinition.Atmospheres
             }
             else
             {
-                Check("the light cache is " + (variant == "cache" ? "filled" : "off") + " in the " + view.Name + " view (" + variant + ")", cacheOn == (variant == "cache"), "cache on: " + cacheOn);
+                // The variants that switch the light cache on: cache, and the perf variant ceilvis8lc (the accepted look with the cache).
+                bool cacheWanted = variant == "cache" || variant == "ceilvis8lc";
+                Check("the light cache is " + (cacheWanted ? "filled" : "off") + " in the " + view.Name + " view (" + variant + ")", cacheOn == cacheWanted, "cache on: " + cacheOn);
                 Check("the pass ran as " + ExpectedMode(variant) + " in the " + view.Name + " view (" + variant + ")", mode == ExpectedMode(variant), mode);
             }
             double altitude = Math.Min(20000.0, view.AglM);

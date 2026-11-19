@@ -255,6 +255,13 @@ namespace ReDefinition.Atmospheres
             f.Cull.PixelAngleRad = 2f * tanY / (s.Mode == ReconMode.Low ? low.height : h);   // T16: the pixel the detail LOD resolves
             renderer.Apply(f);
             Material layers = renderer.Material;
+            // The light cache's box follows the camera (the body's radius is the renderer's after Apply); bound again with the box's new place.
+            LightCache cache = f.Light.Cache != null && f.Light.Cache.Enabled ? f.Light.Cache : null;
+            if (cache != null)
+            {
+                cache.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM);
+                cache.Bind(layers);
+            }
             Vector2 offset = Vector2.zero;
             if (s.Mode == ReconMode.Block)
             {
@@ -281,6 +288,11 @@ namespace ReDefinition.Atmospheres
             bool materialBound = false;
             lastPoseValid = havePose;
             if (markStart != null) markStart(cb);
+            if (cache != null)
+            {
+                cache.Record(cb, layers);
+                Sub(cb, "light cache");
+            }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");
             cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);

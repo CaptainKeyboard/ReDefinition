@@ -186,6 +186,32 @@ namespace ReDefinition.WeatherPlayer
             public bool CatmullHistory;
             // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
             public int Grid;
+            // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
+            // lcgrid<N> its voxels across (the voxels up are a quarter of them).
+            public int CacheNear, CacheFill, CacheKm, CacheGrid;
+        }
+
+        private static LightCache cache;
+
+        // Diagnosis of the light cache: the largest and the mean value of its texture, read back from the GPU (nothing while the cache is off).
+        internal static void ReportCache(MetricSink sink, string key)
+        {
+            if (cache == null || !cache.Enabled || cache.Volume == null) return;
+            RenderTexture v = cache.Volume;
+            AsyncGPUReadbackRequest r = AsyncGPUReadback.Request(v, 0, 0, v.width, 0, v.height, 0, v.volumeDepth, TextureFormat.RFloat);
+            r.WaitForCompletion();
+            if (r.hasError) { sink.Info(key + ".readback_error", 1); return; }
+            float max = 0f;
+            double sum = 0;
+            long n = 0;
+            for (int layer = 0; layer < r.layerCount; layer++)
+            {
+                Unity.Collections.NativeArray<float> d = r.GetData<float>(layer);
+                for (int i = 0; i < d.Length; i++) { max = Mathf.Max(max, d[i]); sum += d[i]; n++; }
+            }
+            sink.Info(key + ".max", max);
+            sink.Info(key + ".mean", n > 0 ? sum / n : 0.0);
+            sink.Info(key + ".layers", r.layerCount);
         }
 
         private static int Number(string token, int prefix)
@@ -240,6 +266,10 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
+                else if (t.StartsWith("lcache")) c.CacheNear = Number(t, 6);
+                else if (t.StartsWith("lcfill")) c.CacheFill = Number(t, 6);
+                else if (t.StartsWith("lcbox")) c.CacheKm = Number(t, 5);
+                else if (t.StartsWith("lcgrid")) c.CacheGrid = Number(t, 6);
                 else if (t.StartsWith("lc")) c.Cutoff = Number(t, 2) / 1000f;
                 else if (t.StartsWith("lq")) c.Quality = Number(t, 2);
                 else if (t.StartsWith("ls")) c.Stride = Number(t, 2);
@@ -335,6 +365,22 @@ namespace ReDefinition.WeatherPlayer
                 f.Light.SunStepsOverride = c.SunTaps > 0 ? c.SunTaps : 16;
             }
             if (c.MinStepOverride > 0) f.MinStepM = c.MinStepOverride;
+            if (c.CacheNear > 0)
+            {
+                if (cache == null) cache = new LightCache();
+                cache.Enabled = true;
+                cache.NearTaps = c.CacheNear;
+                cache.SizeM = c.CacheKm > 0 ? c.CacheKm * 1000f : new LightCache().SizeM;
+                cache.GridN = c.CacheGrid > 0 ? c.CacheGrid : new LightCache().GridN;
+                cache.GridNz = Mathf.Max(cache.GridN / 4, 8);
+                f.Light.CacheFillSteps = c.CacheFill > 0 ? c.CacheFill : LightDefaults.CacheFillSteps;
+                f.Light.Cache = cache;
+            }
+            else
+            {
+                if (cache != null) cache.Enabled = false;
+                f.Light.Cache = null;
+            }
             if (c.CeilTaps)
             {
                 f.LightStride = 1;
@@ -515,6 +561,7 @@ namespace ReDefinition.WeatherPlayer
                                             File.WriteAllText(Path.Combine(Output, "gs-" + view + "-" + medium.Name + "-" + sc.Name + "-" + march + "-" + mode + "-f" + i + "-uniforms.json"),
                                                               LayerPassReadout.Uniforms(rig.Renderer.Material));
                                         dumped++;
+                                        SoftTable.ReportCache(Sink, "lightcache." + view + "." + march);
                                     }
                                     if (i % 8 == 7) yield return null;
                                 }

@@ -35,11 +35,12 @@ float4 _MoonDir[2], _MoonCol[2];   // towards the light; colour times intensity 
 float4 _BoltPos[4], _BoltCol[4];   // planet frame position and range (w); colour times intensity
 float4 _CellA;    // parity test cell: centre (planet frame) and horizontal radius (w > 0: the cell replaces the layers' density)
 float4 _CellB;    // vertical radius, edge softness, flat base (1), extinction
-float4 _CacheA;   // light cache box: minimum corner (planet frame)
-float4 _CacheB;   // light cache box: size in m; w: tiles per row of the atlas
-sampler2D _LightCache;
-static const int CACHE_N = 64;
-static const int CACHE_NZ = 32;
+// The light cache (LightCache.cs): a texture array (one slice per voxel layer) of the optical depth towards the sun over a box in a local frame of the planet; x, y, z of the box are its three
+// edge vectors (planet frame, length the edge in m; w 1 / the edge squared), _CacheA its corner (w 1 while the march reads it).
+float4 _CacheA, _CacheX, _CacheY, _CacheZ;
+float4 _CacheH;   // x the near taps of the sun march (the march's own layout over the first taps), y the growth of each of the fill's taps (_LightT.z) over the one before, z the slices
+float4 _CacheSlice;   // the fill (a global, never on the material): x the slice being filled, y the slices, z, w the voxels across
+UNITY_DECLARE_TEX2DARRAY(_LightCache);
 
 // The cell's bounding sphere along a ray: false where the ray misses it.
 bool CellHit(float3 o, float3 d, out float t0, out float t1)
@@ -122,16 +123,16 @@ float3 SunAir(float3 pc, float3 sunDir)
     return exp(-tau * m) * smoothstep(-0.02, 0.0, s);
 }
 
-// The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size over at most _Sun.w m,
+// The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size (each `ratio` times the one before) over at most `range` m (below 0: up to -range m from pc),
 // the other layers with half of them (own < 0: all layers with `steps`). The taps may be spread over a cone of tangent `spread`.
 // CLOUDR2 P3: the first `eroded` taps of each span read the density with its erosion detail (the lobes that shade each other are the detail's, not the shape's); the others the shape only.
-float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot, int eroded)
+float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot, int eroded, float range, float ratioIn)
 {
     float tau = 0;
     float3 ax = abs(dir.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 u = normalize(cross(dir, ax));
     float3 v = cross(dir, u);
-    float ratio = max(_LightR.y, 1.0);
+    float ratio = max(ratioIn, 1.0);
     [loop] for (int lj = 0; lj < MAXL; lj++)
     {
         if (lj >= (int)_LayerCount) break;
@@ -144,8 +145,9 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
         [loop] for (int k = 0; k < 2; k++)
         {
             float a = k == 0 ? sp.x : sp.z, b = k == 0 ? sp.y : sp.w;
+            // range > 0: at most that far from the span's start; range < 0: no farther than -range from pc (the light cache's near taps, whose far part the cache holds).
+            b = range < 0 ? min(b, -range) : min(b, a + range);
             if (b <= a) continue;
-            b = min(b, a + _Sun.w);
             float norm = ratio == 1.0 ? (float)n : (pow(ratio, (float)n) - 1.0) / (ratio - 1.0);
             float prev = a;
             float gain = 1.0;
@@ -175,38 +177,23 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
 }
 
 // ---- the light cache ----
-// The atlas pixel of a voxel, and back. CACHE_N x CACHE_N voxels per tile, CACHE_NZ tiles, _CacheB.w tiles per row.
-float3 CacheVoxelCentre(float2 pixel)
+// The optical depth towards the sun at a point from the cache (bilinear in each slice, linear between the two slices); inside is false outside the box.
+float CacheFetch(float3 pc, out bool inside)
 {
-    int tilesX = (int)_CacheB.w;
-    int tx = (int)floor(pixel.x / CACHE_N), ty = (int)floor(pixel.y / CACHE_N);
-    int iz = ty * tilesX + tx;
-    float3 f = float3(fmod(pixel.x, (float)CACHE_N), fmod(pixel.y, (float)CACHE_N), (float)iz) + 0.5;
-    return _CacheA.xyz + f / float3(CACHE_N, CACHE_N, CACHE_NZ) * _CacheB.xyz;
+    float3 f = pc - _CacheA.xyz;
+    float3 uvw = float3(dot(f, _CacheX.xyz) * _CacheX.w, dot(f, _CacheY.xyz) * _CacheY.w, dot(f, _CacheZ.xyz) * _CacheZ.w);
+    inside = all(uvw >= 0.0) && all(uvw <= 1.0);
+    float z = clamp(uvw.z * _CacheH.z - 0.5, 0.0, _CacheH.z - 1.0);
+    float z0 = floor(z);
+    float a = UNITY_SAMPLE_TEX2DARRAY_LOD(_LightCache, float3(uvw.xy, z0), 0).r;
+    float b = UNITY_SAMPLE_TEX2DARRAY_LOD(_LightCache, float3(uvw.xy, min(z0 + 1.0, _CacheH.z - 1.0)), 0).r;
+    return lerp(a, b, z - z0);
 }
 
-float4 CacheTexel(int ix, int iy, int iz)
+// The share of the sun march's length that its first `near` taps cover (the layout of LightTau: each tap `ratio` times the one before).
+float NearShare(int near, int steps, float ratio)
 {
-    int tilesX = (int)_CacheB.w;
-    float2 px = float2((iz % tilesX) * CACHE_N + ix, (iz / tilesX) * CACHE_N + iy) + 0.5;
-    int rows = (CACHE_NZ + tilesX - 1) / tilesX;
-    return tex2Dlod(_LightCache, float4(px / float2(tilesX * CACHE_N, rows * CACHE_N), 0, 0));
-}
-
-// Trilinear read of (tau towards the sun, tau straight up) from the atlas; inside is false outside the box.
-float2 CacheFetch(float3 pc, out bool inside)
-{
-    float3 f = (pc - _CacheA.xyz) / _CacheB.xyz * float3(CACHE_N, CACHE_N, CACHE_NZ) - 0.5;
-    inside = all(f > -0.5) && f.x < CACHE_N - 0.5 && f.y < CACHE_N - 0.5 && f.z < CACHE_NZ - 0.5;
-    float3 fc = clamp(f, 0.0, float3(CACHE_N - 1, CACHE_N - 1, CACHE_NZ - 1));
-    int3 i0 = (int3)floor(fc);
-    int3 i1 = min(i0 + 1, int3(CACHE_N - 1, CACHE_N - 1, CACHE_NZ - 1));
-    float3 w = fc - i0;
-    float2 c00 = lerp(CacheTexel(i0.x, i0.y, i0.z).xy, CacheTexel(i1.x, i0.y, i0.z).xy, w.x);
-    float2 c10 = lerp(CacheTexel(i0.x, i1.y, i0.z).xy, CacheTexel(i1.x, i1.y, i0.z).xy, w.x);
-    float2 c01 = lerp(CacheTexel(i0.x, i0.y, i1.z).xy, CacheTexel(i1.x, i0.y, i1.z).xy, w.x);
-    float2 c11 = lerp(CacheTexel(i0.x, i1.y, i1.z).xy, CacheTexel(i1.x, i1.y, i1.z).xy, w.x);
-    return lerp(lerp(c00, c10, w.y), lerp(c01, c11, w.y), w.z);
+    return ratio <= 1.0 ? (float)near / steps : (pow(ratio, (float)near) - 1.0) / (pow(ratio, (float)steps) - 1.0);
 }
 
 // ---- the octaves ----
@@ -278,23 +265,29 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
     taps = 0;
     float tauSun = -1, tauUp = -1;
-    if (_LightS.w > 0.5)
+    // The light cache: the march's own first _CacheH.x taps over the distance they cover in a 12 km span (where a span is that long, their places are unchanged), the rest
+    // of the way to the sun from the cache at that distance; every layer's near taps stop there, so nothing is counted twice.
+    float sunRange = _Sun.w, farTau = 0.0;
+    int sunSteps = steps;
+    [branch] if (_LightS.w > 0.5 && tauReuse < 0 && (int)_CacheH.x < steps)
     {
+        float near = _Sun.w * NearShare((int)_CacheH.x, steps, max(_LightR.y, 1.0));
         bool inside;
-        float2 c = CacheFetch(pc, inside);
-        if (inside) { tauSun = c.x; tauUp = c.y; }
+        float c = CacheFetch(pc + sunDir * near, inside);
+        if (inside) { sunRange = -near; sunSteps = max(1, (int)_CacheH.x); farTau = c; }
     }
     if (tauReuse >= 0) tauSun = tauReuse;
-    taps = tauSun >= 0 ? 0.5 : steps;
+    taps = tauSun >= 0 ? 0.5 : sunSteps;
     float3 sunCol = _SunColor.rgb * SunAir(pc, sunDir);
     // CLOUDR2 P4: the sun's, both moons' and the up tap's optical depths come from ONE call site of LightTau in a loop (the compiler inlines every call: five copies of the light march, each
     // with a copy of the density, were what the Unity 2019.4 shader compiler choked on). Slot 0 the sun, 1 and 2 the moons, 3 straight up.
     int moonSteps = max(1, (int)_LightS.x);
     float3 tdir[4];
     int tsteps[4];
-    float tspread[4], trot[4], ttau[4];
+    float tspread[4], trot[4], ttau[4], trange[4];
     bool need[4];
-    tdir[0] = sunDir; tsteps[0] = steps; tspread[0] = _LightR.x; trot[0] = rot; need[0] = tauSun < 0 && Luma(sunCol) > 0;
+    tdir[0] = sunDir; tsteps[0] = sunSteps; tspread[0] = _LightR.x; trot[0] = rot; need[0] = tauSun < 0 && Luma(sunCol) > 0;
+    trange[0] = sunRange; trange[1] = _Sun.w; trange[2] = _Sun.w; trange[3] = _Sun.w;
     tdir[1] = _MoonDir[0].xyz; tsteps[1] = moonSteps; tspread[1] = _LightR.x; trot[1] = rot; need[1] = Luma(_MoonCol[0].rgb) > 0;
     tdir[2] = _MoonDir[1].xyz; tsteps[2] = moonSteps; tspread[2] = _LightR.x; trot[2] = rot; need[2] = Luma(_MoonCol[1].rgb) > 0;
     tdir[3] = normalize(pc); tsteps[3] = max(1, (int)_LightS.y); tspread[3] = 0.0; trot[3] = 0.0;
@@ -303,9 +296,9 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     {
         ttau[k] = 0.0;
         if (!need[k]) continue;
-        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k], k == 0 ? (int)_BlendP.w : 0);
+        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k], k == 0 ? (int)_BlendP.w : 0, trange[k], _LightR.y);
     }
-    if (need[0]) tauSun = ttau[0];
+    if (need[0]) tauSun = ttau[0] + farTau;
     tauSunOut = max(tauSun, 0.0);
     float2 cell = float2(1.0, -1.0);
     [branch] if (_LightM[li].w > 0) cell = CellLight(pc, dens, max(tauSun, 0.0), topAlt, _LightM[li].w);

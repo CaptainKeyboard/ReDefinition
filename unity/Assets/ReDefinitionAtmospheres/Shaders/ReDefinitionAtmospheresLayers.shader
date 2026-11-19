@@ -908,7 +908,7 @@ Shader "ReDefinition/AtmospheresLayers"
             ENDCG
         }
 
-        // Pass 3 (T03, light cache prototype): fills the atlas with the optical depth towards the sun (r) and straight up (g) at the voxel centres.
+        // Pass 3: fills one slice (_CacheSlice.x) of the light cache with the optical depth towards the sun at the voxel centres (LightCache.cs).
         Pass
         {
             CGPROGRAM
@@ -917,15 +917,14 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma target 3.5
             float4 frag(v2f i) : SV_Target
             {
-                int tilesX = (int)_CacheB.w;
-                int rows = (CACHE_NZ + tilesX - 1) / tilesX;
-                float2 pixel = floor(i.uv * float2(tilesX * CACHE_N, rows * CACHE_N));
-                float3 p = CacheVoxelCentre(pixel);
-                // The march reads a voxel only through the trilinear fetch at a sample inside a layer's shell (LayerSpans: _LayerA.z to .w above the surface), and such a
-                // sample lies within one voxel diagonal of every voxel centre the fetch reads. A voxel farther than that from every shell is never read: K-T2 start 46 filled
-                // all 131072 voxels of the 32 km box every frame, most of them in clear air or under the ground, and the cache saved nothing (1.03 of plain).
+                float3 uvw = float3(i.uv, (_CacheSlice.x + 0.5) / max(_CacheSlice.y, 1.0));
+                float3 p = _CacheA.xyz + uvw.x * _CacheX.xyz + uvw.y * _CacheY.xyz + uvw.z * _CacheZ.xyz;
+                // The march reads the cache only at the end of its near taps (at most one sun march's near length from a sample inside a layer's shell), through the
+                // trilinear fetch (one voxel diagonal): a voxel farther than both from every shell is never read and stays empty.
+                int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
                 float alt = length(p) - _PlanetR;
-                float reach = length(_CacheB.xyz / float3(CACHE_N, CACHE_N, CACHE_NZ));
+                float reach = length(float3(length(_CacheX.xyz), length(_CacheY.xyz), length(_CacheZ.xyz)) / float3(_CacheSlice.zw, _CacheSlice.y))
+                    + _Sun.w * NearShare((int)_CacheH.x, steps, max(_LightR.y, 1.0));
                 bool read = false;
                 [loop] for (int lj = 0; lj < MAXL; lj++)
                 {
@@ -936,10 +935,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
                 if (!read) return float4(0, 0, 0, 0);
-                int steps = max(1, (int)_LightT.z);
-                float tauSun = LightTau(p, _Sun.xyz, -1, steps, 0.0, 0.0, 0.0, 0);
-                float tauUp = LightTau(p, normalize(p), -1, max(1, (int)_LightS.y), 0.0, 0.0, 0.0, 0);
-                return float4(tauSun, tauUp, 0, 0);
+                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LightT.z), 0.0, 0.0, 0.0, 0, _Sun.w, _CacheH.y), 0, 0, 0);
             }
             ENDCG
         }

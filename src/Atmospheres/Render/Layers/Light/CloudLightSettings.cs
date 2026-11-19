@@ -118,7 +118,7 @@ namespace ReDefinition.Atmospheres
         public int BoltCount;
         // The light cache (prototype B): the atlas to read and the steps its fill uses; null or Cache.Enabled false: per-sample marches.
         public LightCache Cache;
-        public int CacheFillSteps = 12;
+        public int CacheFillSteps = 24;
         // The test cell of the parity harness: centre in the planet frame, horizontal and vertical radius, extinction (radius 0: off).
         public Vector3 CellCentre;
         public float CellRadiusM, CellVerticalM, CellSigma, CellEdge = 0.35f;

@@ -60,8 +60,7 @@ namespace ReDefinition.WeatherPlayer
                 }
                 if (job.cache != 0)
                 {
-                    cache.Min = LayersSetup.V(job.cacheMin);
-                    cache.Size = LayersSetup.V(job.cacheSize);
+                    cache.Place(LayersSetup.V(job.cacheMin), LayersSetup.V(job.cacheSize));
                     cache.Enabled = false;
                     frame.Light.Cache = cache;
                     renderer.Apply(frame);

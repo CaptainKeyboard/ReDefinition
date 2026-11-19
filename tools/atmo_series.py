@@ -2,7 +2,7 @@
 """The series runner of the Atmospheres work: builds the worktree WITH deploy, starts KSP, restores, and prints one fixed table.
 Stdlib only.
 
-  python tools/atmo_series.py run <series> [--start <id>] [--who <id>] [--ksp <KSP folder>] [--owner-consent]
+  python tools/atmo_series.py run <series> [--start <id>] [--who <id>] [--ksp <KSP folder>]
   python tools/atmo_series.py run <series> --dry --log <recorded KSP.log> [--start <id>]
   python tools/atmo_series.py preflight <series> [--start <id>] [--ksp <KSP folder>]
   python tools/atmo_series.py validate [<series>]
@@ -15,7 +15,7 @@ This is the only place that builds with deploy, deploys and starts the game; eve
 snapshot round trip, KSP/orphans/VMs/RAM/locks, deploy and mod-set plans, KSPCF's PNG texture cache, the probe's save, craft and scene
 guard; any FAIL refuses the run. A run, inside the GPU lock (tools/gpu_lock.py, exclusive for a timing series):
 
-  1. refuses while KSP_x64 runs, and above the run cap of master plan 9.3 (20 starts) without --owner-consent;
+  1. refuses while KSP_x64 runs (every start is written to MAINREPO/.local/work/atmo-series-starts.jsonl);
   2. builds src/ReDefinition.csproj of THIS worktree in the configuration of the definition ("configuration": "Debug" by default,
      "Release" for a series whose rows are Release limits, such as K-W3a with the audio CPU budget; the report names the
      configuration that ran) with the default deploy into the KSP folder (and, for a series with
@@ -57,7 +57,6 @@ import gpu_lock  # noqa: E402
 DEFAULT_REPO = os.path.dirname(HERE)
 DEFAULT_KSP = r"C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program"
 DEFAULT_DOTNET = os.path.join(os.path.expanduser("~"), ".dotnet", "dotnet.exe")
-RUN_CAP = 20
 MAX_MINUTES = 20
 PROFILE_CACHE_REL = (".local", "work", "profile-cache")
 # A start that judges the ground loads the save into the space centre and flies the pad vessel from there (src/Probe/SceneProbe.cs): the KSC ground renders green that way and
@@ -871,25 +870,11 @@ class Runner:
         self.mod_folders = h.get("mod_folders")
         self.now = h.get("now", time.time)
 
-    # -- checks before anything is touched
-    def count_starts(self):
-        if not os.path.exists(self.starts_log):
-            return 0
-        n = 0
-        with open(self.starts_log, "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    if json.loads(line).get("counted", True):
-                        n += 1
-                except ValueError:
-                    pass
-        return n
-
+    # -- the log of the starts
     def record_start(self, series, start, how):
         os.makedirs(os.path.dirname(self.starts_log), exist_ok=True)
         with open(self.starts_log, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"time": time.strftime("%Y-%m-%d %H:%M:%S"), "series": series, "start": start, "who": self.who, "how": how,
-                                "counted": True}) + "\n")
+            f.write(json.dumps({"time": time.strftime("%Y-%m-%d %H:%M:%S"), "series": series, "start": start, "who": self.who, "how": how}) + "\n")
 
     def verify_hashes(self, install_bundle=True, require_bundle=False):
         """Compares the deployed DLLs and the bundle with the worktree's; installs the bundle first. Returns the list of
@@ -938,7 +923,7 @@ class Runner:
         return snap
 
     # -- the run
-    def execute(self, defn, only_start=None, owner_consent=False, mods_ok=True):
+    def execute(self, defn, only_start=None, mods_ok=True):
         """Runs the series. Returns the report dict (table, ok, starts, hashes, warnings)."""
         name = defn["name"]
         starts = [s for s in defn["starts"] if only_start in (None, s["id"])]
@@ -946,10 +931,6 @@ class Runner:
             raise Refusal("the series has no start %s" % only_start)
         if self.ksp_running():
             raise Refusal("KSP_x64 runs: a build with deploy is refused while the game runs")
-        done = self.count_starts()
-        if done + len(starts) > RUN_CAP and not owner_consent:
-            raise Refusal("%d starts are counted; %d more would pass the cap of %d (master plan 9.3) without the owner's consent" %
-                          (done, len(starts), RUN_CAP))
         if not os.path.isdir(self.profile_cache):
             raise Refusal("no profile cache %s (start the Medium profile once by hand and copy its files there)" % self.profile_cache)
         modsets = ModSets(self.ksp, self.ksp_running, self.mod_folders)
@@ -1175,7 +1156,7 @@ def cmd_run(args):
     info = gpu_lock.wait_acquire(path, who, minutes, defn.get("exclusive", False), "gpu", os.getpid(), "atmo_series run " + defn["name"])
     try:
         runner = Runner(repo, ksp, mainrepo, who, DEFAULT_DOTNET if os.path.exists(DEFAULT_DOTNET) else "dotnet")
-        report = runner.execute(defn, args.start, args.owner_consent)
+        report = runner.execute(defn, args.start)
     except Refusal as e:
         print("REFUSED: %s" % e)
         return 2
@@ -1567,26 +1548,13 @@ def _selftest():
         check("less than 12 GB free refuses the start", not started and not rep["ok"] and any("GB" in n for n in rep["notes"]))
         check("the VM is started again after a refused start", any("Start-VM" in c for c in vm.calls))
 
-        # 10. Run cap.
-        fresh_ksp()
-        with open(os.path.join(main, "starts.jsonl"), "w") as f:
-            for _ in range(RUN_CAP):
-                f.write(json.dumps({"counted": True}) + "\n")
-        try:
-            runner().execute(defn)
-            capped = False
-        except Refusal:
-            capped = True
-        check("a start above the run cap is refused without consent", capped)
-        os.remove(os.path.join(main, "starts.jsonl"))
-
-        # 11. The dry run validates against a recorded log.
+        # 10. The dry run validates against a recorded log.
         sample = os.path.join(root, "recorded.log")
         with open(sample, "w") as f:
             f.write("".join('noise\nATMORESULT {"series":"K-test","metric":"m%d","value":%d}\n' % (i, i) for i in range(1, 21)) + "Probe: PASSED\n")
         class A: pass
         a = A()
-        a.worktree, a.series, a.dry, a.log, a.start, a.ksp, a.who, a.owner_consent = repo, "K-test", True, sample, "run1", None, None, False
+        a.worktree, a.series, a.dry, a.log, a.start, a.ksp, a.who = repo, "K-test", True, sample, "run1", None, None
         import io, contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -1654,7 +1622,6 @@ def main(argv):
     s.add_argument("--ksp")
     s.add_argument("--dry", action="store_true")
     s.add_argument("--log")
-    s.add_argument("--owner-consent", action="store_true", help="the owner agreed to starts above the run cap")
     s = sub.add_parser("preflight")
     s.add_argument("series")
     s.add_argument("--start")

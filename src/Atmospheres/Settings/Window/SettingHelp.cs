@@ -61,7 +61,7 @@ namespace ReDefinition.Atmospheres
                 { "cloudMoonLights", "The most moons and planets that light the clouds at night. 0 leaves the night clouds to the sky alone." },
                 { "cloudAmbientTaps", "Darkens the underside of a cloud by marching straight up through the cloud above it. Off, a cheaper estimate from the local density is used." },
                 { "cloudAmbientReuse", "With Cloud Ambient Taps: 0 marches up at every lit step, 1 reuses the sun march's result, 2 reuses it and moves it by the ray's progress. Higher is cheaper." },
-                { "cloudLightCache", "Keeps the light of the clouds in a small 3D cache around the camera, refilled every frame, instead of marching to the sun at every step. Saves frame time; the look stays close to the default. Off by default." },
+                { "cloudLightCache", "Keeps the sunlight reaching the clouds in a cache around the camera, refilled every frame: each step marches only the first few hundred metres towards the sun and reads the rest from the cache. Saves frame time; the look stays close to the default. Off by default." },
                 { "cloudShadows", "Lets the own clouds shade the ground, the vessels and the sea." },
                 { "cloudShadowQuality", "How finely the cloud shadow is made: Low takes 4 steps and 1 direction across the sun's disc, Medium 8 and 4, High 12 and 6. More gives softer shadow edges." },
                 { "cloudShadowFloor", "The share of the direct sunlight that always remains under a cloud. 0 gives the full cloud shadow, 1 no shadow." },

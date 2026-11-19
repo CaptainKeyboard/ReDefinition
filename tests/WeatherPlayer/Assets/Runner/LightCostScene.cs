@@ -60,8 +60,7 @@ namespace ReDefinition.WeatherPlayer
                 Cam.transform.rotation = Quaternion.LookRotation(LayersSetup.V(lj.forward), LayersSetup.V(lj.up));
                 if (job.cache != 0)
                 {
-                    cache.Min = LayersSetup.V(job.cacheMin);
-                    cache.Size = LayersSetup.V(job.cacheSize);
+                    cache.Place(LayersSetup.V(job.cacheMin), LayersSetup.V(job.cacheSize));
                     cache.Enabled = false;
                     frame.Light.Cache = cache;
                     renderer.SetCamera(Cam.transform.position, Cam.transform.forward, Cam.transform.right, Cam.transform.up, Vector2.zero);
@@ -107,13 +106,13 @@ namespace ReDefinition.WeatherPlayer
                     var fills = new List<double>();
                     renderer.Detach();
                     Cam.AddCommandBuffer(CameraEvent.AfterSkybox, fill);
-                    cache.Ensure();
+                    cache.Bind(renderer.Material);
                     int g2 = 0;
                     while (fills.Count < 60 && g2++ < 1200)
                     {
                         fill.Clear();
                         WeatherGpuTimer.Mark(fill, WeatherGpuTimer.SlabStart);
-                        fill.Blit(BuiltinRenderTextureType.None, cache.Atlas, renderer.Material, LightCache.PassFill);
+                        cache.Record(fill, renderer.Material);
                         WeatherGpuTimer.Mark(fill, WeatherGpuTimer.SlabMarched);
                         WeatherGpuTimer.Mark(fill, WeatherGpuTimer.SlabComposited);
                         yield return Frames(1);
