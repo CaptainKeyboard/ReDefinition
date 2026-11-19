@@ -86,6 +86,14 @@ namespace ReDefinition.Atmospheres
             return Math.Abs(ut - lastUt) > allowed;
         }
 
+        // The frame number the pass marches with (LayerFrame.FrameNumber: the step dither's phase, the light cone's rotation, the Halton phase of the low mode): Unity's
+        // frame count less the origin a probe set (the pinned capture, master plan phase 0 item 3; 0 by default, so the number is the frame count as before). A count
+        // below the origin (an origin set ahead) gives 0, the phase StepPhase.Of gives a negative number anyway.
+        internal static int FrameNumber(int frameCount, int origin)
+        {
+            return Math.Max(0, frameCount - origin);
+        }
+
         // The brightness of the flash as the layer light takes it: the sun's brightness in the frame's units over the harness's sun (3.0), the
         // unit the lightning peak is given in (LightningModule.FillBolts peakScale).
         internal static float FlashPeakScale(float sunLuminance)

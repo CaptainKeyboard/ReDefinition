@@ -70,6 +70,10 @@ namespace ReDefinition.Atmospheres
         // nothing, so its timings and pictures are void.
         bool GpuDeviceAlive();
         double UniversalTime { get; set; }
+        // The pinned capture (-t09Pin, T09ProbePin.cs): holds the universal time at ut before every physics step and every frame's end, until a call with NaN lets it run again.
+        void PinClock(double ut);
+        // The host the end-of-frame reads of the pinned capture run on (the probe's ReconHost); null where the world has none (the tests).
+        MonoBehaviour EndOfFrameHost { get; }
 
         // TVC (EVE's layers).
         bool ScattererLoaded { get; }
@@ -625,6 +629,30 @@ namespace ReDefinition.Atmospheres
             get { return Planetarium.GetUniversalTime(); }
             set { Planetarium.SetUniversalTime(value); }
         }
+
+        // The pinned clock: set before every physics step (the hold's hook, ReconHost.PerFixed) and in every LateUpdate (ReconHost.PerFrame), so that what the frame's modules
+        // and the render read is the pinned time, or the pinned time plus the physics steps that ran after the hook in the same frame (the hooks' order against Planetarium's
+        // own FixedUpdate is Unity's script order, the same in every start).
+        private double pinnedUt = double.NaN;
+
+        public void PinClock(double ut)
+        {
+            ReconHost h = ReconHost.Get();
+            h.PerFixed.Remove(PinClockStep);
+            h.PerFrame.Remove(PinClockStep);
+            pinnedUt = ut;
+            if (double.IsNaN(ut)) return;
+            Planetarium.SetUniversalTime(ut);
+            h.PerFixed.Add(PinClockStep);
+            h.PerFrame.Add(PinClockStep);
+        }
+
+        private void PinClockStep()
+        {
+            if (!double.IsNaN(pinnedUt)) Planetarium.SetUniversalTime(pinnedUt);
+        }
+
+        public MonoBehaviour EndOfFrameHost { get { return ReconHost.Get(); } }
 
         public bool ScattererLoaded { get { return EveRenderCompat.ScattererLoaded; } }
         public bool EveAvailable { get { return EveLayerAccess.Available; } }

@@ -21,6 +21,8 @@ src/Atmospheres/Render/Layers/LayerRenderer.cs
 src/Atmospheres/Render/Layers/StepPhase.cs
 src/Atmospheres/Render/Layers/DitherMatrix.cs
 src/Atmospheres/Render/Layers/LayerPassReadout.cs
+# The pinned capture's settings (master plan phase 0 item 3): the game's march and temporal settings set onto the replay's frame (scene pin-replay).
+src/Atmospheres/Render/Layers/LayerPassSettings.cs
 src/Atmospheres/Eve/MapSlew.cs
 src/Common/**/WeatherMap.cs
 src/Common/**/IWeatherField.cs

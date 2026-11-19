@@ -40,7 +40,7 @@ namespace ReDefinition.Atmospheres
     //    is encoded relative to the sun's display value at the final composite (CloudOutputStage: cloud.exposure, cloud.outputGamma 2.2), so the clouds
     //    sit in the display units of the Gamma-space target that holds the sky and the sea; TUFX and the auto exposure then tone-map all of it together.
     [AtmospheresModule(61)]
-    internal sealed class OwnCloudModule : IAtmospheresModule
+    internal sealed partial class OwnCloudModule : IAtmospheresModule
     {
         // The tuning keys of this module (ATMO_TUNING { key = value }, or a matrix row atmo.<key>).
         internal const string TuneCameraEvent = "cloud.cameraEvent", TuneSunGain = "cloud.sunGain", TuneSunAirWithScatterer = "cloud.sunAirWithScatterer",
@@ -267,6 +267,9 @@ namespace ReDefinition.Atmospheres
         internal CameraEvent AttachedEvent { get { return attachedEvent; } }
         internal LayerReconstructDriver Driver { get { return driver; } }
         internal LayerFrame Frame { get { return frame; } }
+        // The origin of the frame number (OwnCloudPlan.FrameNumber): 0 by default; the pinned capture (T09ProbePin.cs, -t09Pin) sets it so that the step dither, the light
+        // cone's rotation and, with a history cut, the rotation's block index start from a known state.
+        internal int FrameOrigin;
 
         // The sun colour of the last frame the pass filled, as the probe logs it (E40 soft density start 59, T09ProbeSoft.cs): the colour read in the render (Scatterer's, modulated), the
         // one read in the tick (restored, the cap), the one the pass took, and what the air division used. FrameNumber 0: no frame filled yet.
@@ -1381,7 +1384,7 @@ namespace ReDefinition.Atmospheres
             OwnCloudOptions.Apply(f.Light);
             OwnCloudOptions.Apply(f.Far);
             f.HasSurface = b.hasSolidSurface;
-            f.FrameNumber = Time.frameCount;
+            f.FrameNumber = OwnCloudPlan.FrameNumber(Time.frameCount, FrameOrigin);
             f.UseSceneDepth = true;
             f.PlanetCenter = (Vector3)b.position;
             f.WorldToMap = MapFrame(b);
@@ -1673,7 +1676,9 @@ namespace ReDefinition.Atmospheres
             if (driver != null)
             {
                 OwnCloudOptions.Apply(recon);
-                recon.DriftSeconds = lastDt;
+                // The history is carried by the wind over the frame's time, scaled as the noise's drift is (cloud.motionScale, default 1: the frame's time as before; 0 holds the
+                // pattern still, and the history then stays where the pattern stands instead of following a wind that moves nothing).
+                recon.DriftSeconds = lastDt * CloudMotion.Scale;
                 reconstruct = driver.Configure(Tuning.Get, recon);
             }
             if (reconstruct)
@@ -1683,7 +1688,7 @@ namespace ReDefinition.Atmospheres
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkBegin);
                 // The light cache is filled by the reconstruction's record, at the head of the march (LayerReconstructor.Record).
                 Stats.LightCacheOn = lightCache != null && lightCache.Enabled;
-                driver.Record(renderer.Commands, renderer, frame, cam, depth, BuiltinRenderTextureType.CameraTarget, Time.frameCount, scene,
+                driver.Record(renderer.Commands, renderer, frame, cam, depth, BuiltinRenderTextureType.CameraTarget, OwnCloudPlan.FrameNumber(Time.frameCount, FrameOrigin), scene,
                               CloudBridgeLights.ResetRequests, weatherCuts, structureVersion);
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkEnd);
                 Stats.ReconFrames++;
@@ -1838,9 +1843,15 @@ namespace ReDefinition.Atmospheres
         internal void DumpMaps(string tag)
         {
             if (renderer == null || stack == null || !dumpedMaps.Add(tag)) return;
+            WriteDump(System.IO.Path.Combine(System.IO.Path.Combine(SeriesPictures.Folder, "maps"), tag), tag);
+        }
+
+        // The maps and pass.json into a folder (DumpMaps; the pinned capture writes them into its own folder in the frame of its readbacks). False where it failed.
+        private bool WriteDump(string dir, string tag)
+        {
+            if (renderer == null || stack == null) return false;
             try
             {
-                string dir = System.IO.Path.Combine(System.IO.Path.Combine(SeriesPictures.Folder, "maps"), tag);
                 System.IO.Directory.CreateDirectory(dir);
                 for (int l = 0; l < stack.LayerCount; l++)
                 {
@@ -1858,10 +1869,12 @@ namespace ReDefinition.Atmospheres
                 if (climateHumidity != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "humidity.u8"), climateHumidity);
                 System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "pass.json"), PassJson(tag));
                 AtmospheresLog.Say("own clouds: dumped the layer maps of " + stack.LayerCount + " layers and the pass's numbers (pass.json) to " + dir);
+                return true;
             }
             catch (Exception e)
             {
                 AtmospheresLog.Say("own clouds: the map dump of " + tag + " failed: " + e.Message);
+                return false;
             }
         }
 
@@ -1950,7 +1963,10 @@ namespace ReDefinition.Atmospheres
                      .Append(", \"top\": ").Append(LayerPassReadout.Num(h.TopRangeM)).Append(", \"variation\": ").Append(LayerPassReadout.Num(h.VariationRangeM)).Append('}');
                 s.Append('}');
             }
-            s.Append("],\n \"uniforms\": ").Append(LayerPassReadout.Uniforms(renderer.Material)).Append("}\n");
+            s.Append(']');
+            // The pinned capture's numbers (OwnCloudModule.Pin.cs): the frame numbers and the history, the tuning keys in force, the march and temporal settings, the type table's hash.
+            s.Append(PinJsonNow());
+            s.Append(",\n \"uniforms\": ").Append(LayerPassReadout.Uniforms(renderer.Material)).Append("}\n");
             return s.ToString();
         }
 

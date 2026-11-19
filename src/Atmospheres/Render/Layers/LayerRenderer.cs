@@ -218,6 +218,16 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
+        // The pinned capture (master plan phase 0 item 3): a hash of the type table textures as uploaded (the profile, then the info texture; their CPU copies stay
+        // readable, Apply(false)), so that pass.json and the player's replay can say whether both drew with the same table. "none" before Init.
+        internal string TypeTableHash()
+        {
+            if (profileTexture == null || infoTexture == null) return "none";
+            ulong h = LayerPassSettings.Fnv1a64(profileTexture.GetRawTextureData());
+            h = LayerPassSettings.Fnv1a64(infoTexture.GetRawTextureData(), h);
+            return LayerPassSettings.Hex(h);
+        }
+
         // True makes Upload queue the height maps and StepHeights write them one slice a frame (the game); false writes them at once in Upload
         // (the weather player and the tests, which read the result in the same frame).
         internal bool SpreadHeights;

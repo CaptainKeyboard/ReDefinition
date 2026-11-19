@@ -223,7 +223,8 @@ def cfg_for(state):
     return path
 
 
-def job_layers(name, state, pass_json):
+def job_layers(name, state, pass_json, input_dir=None):
+    input_dir = input_dir or INPUT
     cfg = cfg_for(state)
     old = e40ty.CFG_PATH
     e40ty.CFG_PATH = cfg
@@ -252,11 +253,11 @@ def job_layers(name, state, pass_json):
         elif lk.get("anvilType", -1.0) >= 0.0:
             # a dump from before E40 CB holds the precipitation level as the cumulonimbus type (e40c1.old_dump_type_scale)
             rain = c1.layer_rain_type(layer)
-            path = os.path.join(INPUT, map_name(name, layer, "type"))
+            path = os.path.join(input_dir, map_name(name, layer, "type"))
             if rain < 1.0 and os.path.isfile(path) and int(np.fromfile(path, dtype=np.uint8).max()) > rain * 255.0 + 2.0:
                 jl["typeScale"] = rain
         d = dumped.get(layer)
-        if d and d.get("height") and os.path.isfile(os.path.join(INPUT, "%s-%s-height.u8" % (view_tag(name), layer))):
+        if d and d.get("height") and os.path.isfile(os.path.join(input_dir, "%s-%s-height.u8" % (view_tag(name), layer))):
             h = d["height"]
             jl.update(heightMap="%s-%s-height.u8" % (view_tag(name), layer), heightWidth=h["width"], heightHeight=h["height"], heightRoot=h["root"], heightTop=h["top"],
                       heightVariation=h["variation"], heightSeed=int(d.get("heightSeed", -1)))
@@ -762,6 +763,221 @@ register_series("e40-pp", stage_list(), collect, exclusive=False, who="e40-pp")
 
 
 # --------------------------------------------------------------------------------------------------------------------------------
+# M0 parity: the replay of the game's pinned capture (master plan phase 0 item 3; T09ProbePin.cs, scene pin-replay)
+# --------------------------------------------------------------------------------------------------------------------------------
+#   python tools/weather_metrics/e40pp.py --pin-prepare CAPTURE [CAPTURE ...]     the captures (series-pictures/K-T2/maps/pin-*) as replay jobs
+#   python tools/build_weather_player.py --series m0-pin                          the replay, twice per job (-repeat 2), and the player's own run-to-run difference
+#   python tools/weather_metrics/m0parity.py CAPTURE build/WeatherPlayer/m0-pin-pin/<job>-r0-cloud.npy --base CAPTURE1 CAPTURE2 --out DIR
+# Everything the replay marches with comes from the capture's pass.json: the settings (every field of the game's frame, reconstruction and noise switches), every tuning key
+# in force, the camera and the planet's centre in the game's world space, the frame numbers from the history's cut; nothing from the march table of e40gn.py. The layer stack
+# is still the tree's cfg (job_layers): pass.json's typeTableHash against the replay's <job>-r<k>-replay.json says whether the tables are the same.
+PIN_INPUT = os.path.join(BUILD, "m0pin-in")
+PIN_LABEL = "pin"
+PIN_REPEAT = int(os.environ.get("M0PIN_REPEAT", "2"))
+
+
+def _quaternion(right, up, forward):
+    """The rotation whose columns are right, up and forward (Unity's axes x, y, z), as (x, y, z, w)."""
+    m = np.array([right, up, forward], dtype=np.float64).T
+    t = m[0, 0] + m[1, 1] + m[2, 2]
+    if t > 0.0:
+        s = math.sqrt(t + 1.0) * 2.0
+        return [(m[2, 1] - m[1, 2]) / s, (m[0, 2] - m[2, 0]) / s, (m[1, 0] - m[0, 1]) / s, 0.25 * s]
+    i = int(np.argmax([m[0, 0], m[1, 1], m[2, 2]]))
+    j, k = (i + 1) % 3, (i + 2) % 3
+    s = math.sqrt(1.0 + m[i, i] - m[j, j] - m[k, k]) * 2.0
+    q = [0.0, 0.0, 0.0, (m[k, j] - m[j, k]) / s]
+    q[i] = 0.25 * s
+    q[j] = (m[j, i] + m[i, j]) / s
+    q[k] = (m[k, i] + m[i, k]) / s
+    return q
+
+
+def selftest_standin(pass_json):
+    """The pin block and a few settings for a dump from before the pinned capture (no "pin", no "settings"): ONLY for the player's self-parity (the same job replayed twice must
+    give the same buffer), which tests the replay's determinism, not the game's numbers. Each value is read from the old pass.json (recon, uniforms) where it has one."""
+    u = pass_json["uniforms"]
+    centre = [float(x) for x in u["vectors"]["_PlanetCenter"][:3]]
+    cam = pass_json["camera"]
+    world_cam = [centre[i] + float(cam["position"][i]) for i in range(3)]
+    recon = pass_json.get("recon", {})
+    rotation = recon.get("setting") == "Block" and float(recon.get("resolution", 0.0)) > 0.99
+    acc = float(recon.get("accumulate", 0.2))
+
+    def s(path, value):
+        return dict(path=path, values=[repr(float(value)) if isinstance(value, float) else str(value)])
+
+    settings = [s("Frame.UseSceneDepth", 1), s("Frame.MaxSteps", int(recon.get("maxSteps", 48))), s("Frame.DitherSequence", int(recon.get("dither", 3))),
+                s("Frame.MinStepM", float(u["vectors"]["_StepP"][0])), s("Frame.PlanetCenter.x", centre[0]), s("Frame.PlanetCenter.y", centre[1]), s("Frame.PlanetCenter.z", centre[2])]
+    if rotation:
+        # ReconMode.Block is 1 (LayerReconstructor.cs: Full, Block, Low); the rotation's weights as OwnCloudOptions.Apply sets them.
+        settings += [s("Recon.Mode", 1), s("Recon.Block", 2), s("Recon.Rotation", 1), s("Recon.FreshWeight", acc), s("Recon.StaleWeight", 0.0), s("Recon.CatmullHistory", 1),
+                     s("Recon.Resolution", 1.0), s("Recon.Accumulate", acc)]
+    pin = dict(frameOrigin=0, frameNumber=PIN_FRAMES - 1, framesSinceCut=PIN_FRAMES, firstFrameNumber=0, standin=True,
+               world=dict(camera=world_cam, rotation=_quaternion(cam["right"], cam["up"], cam["forward"]), planetCenter=centre, fov=cam["fov"], width=cam["width"], height=cam["height"]))
+    return pin, settings
+
+
+# T09Probe.PinFrames: the records from the cut to the capture.
+PIN_FRAMES = 64
+
+
+def prepare_pin(captures, out=PIN_INPUT, standin=False):
+    """Writes the replay jobs of the captures (pin-<n>) into out: the maps and heights copied, the game's depth, jobs.json and heights.json. standin: a dump from before the
+    pinned capture is accepted with selftest_standin's block (the self-parity only)."""
+    os.makedirs(out, exist_ok=True)
+    jobs, specs, index = [], [], []
+    for n, cap in enumerate(captures):
+        with open(os.path.join(cap, "pass.json"), encoding="utf-8") as f:
+            pj = json.load(f)
+        if "settings" in pj and "pin" in pj:
+            pin, settings = pj["pin"], pj["settings"]
+        elif standin:
+            pin, settings = selftest_standin(pj)
+        else:
+            raise SystemExit("%s: pass.json has no pin block and no settings (not a pinned capture); --pin-standin is for the player's self-parity only" % cap)
+        name = "pin%d" % n
+        tag = view_tag(name)
+        for layer in c1.STACK:
+            for kind in ("cover", "type"):
+                shutil.copyfile(os.path.join(cap, "%s-%s.u8" % (layer, kind)), os.path.join(out, map_name(name, layer, kind)))
+            hsrc = os.path.join(cap, "%s-height.u8" % layer)
+            if os.path.isfile(hsrc):
+                shutil.copyfile(hsrc, os.path.join(out, "%s-%s-height.u8" % (tag, layer)))
+        shutil.copyfile(os.path.join(cap, "humidity.u8"), os.path.join(out, "%s-humidity.r8" % tag))
+        depth = None
+        if os.path.isfile(os.path.join(cap, "depth.npy")):
+            depth = "%s-depth.npy" % tag
+            shutil.copyfile(os.path.join(cap, "depth.npy"), os.path.join(out, depth))
+        layers = job_layers(name, "now", pj, out)
+        cam, u, world = pj["camera"], pj["uniforms"], pin["world"]
+        w, h = int(world["width"]), int(world["height"])
+        jid = "pin-" + name
+        job = lay.job(jid, "lum", pr.Camera(np.array(cam["position"]), 0.0, 0.0, w, h, world["fov"]), layers, w, h, planet=pj["planetRadius"], mapWidth=c1.MAP_W, mapHeight=c1.MAP_H,
+                      sun=pj["sun"]["towards"], sunColour=pj["sun"]["colour"], ambientTop=pj["ambientTop"], ambientBottom=pj["ambientBottom"], far=far_from_uniforms(u))
+        job.update(position=cam["position"], forward=cam["forward"], right=cam["right"], up=cam["up"], fovV=world["fov"],
+                   worldToMap=[float(x) for row in pj["worldToMap"] for x in row])
+        noise = pj.get("noise", {})
+        job["noise"] = dict(seed=int(noise.get("seed", 1)), flowTime=float(noise.get("flowTime", 0.0)))
+        job["tuning"] = [dict(key=k, value=float(v)) for k, v in sorted(pj.get("tuning", {}).items()) if v is not None]
+        job["settings"] = settings
+        job.update(depthFile=depth or "", worldCamera=[float(x) for x in world["camera"]], worldRotation=[float(x) for x in world["rotation"]],
+                   firstFrame=int(pin["firstFrameNumber"]), frames=int(pin["framesSinceCut"]))
+        jobs.append(job)
+        specs.append(dict(id=jid, variation=1, physics=1, topUpdraft=1, ragged=1, humidityMap="%s-humidity.r8" % tag, updraftMap="", seed=664216370 & 0xFFFFFF))
+        index.append(dict(job=jid, capture=os.path.abspath(cap), standin=bool(pin.get("standin")), typeTableHash=pj.get("typeTableHash"), width=w, height=h,
+                          firstFrame=job["firstFrame"], frames=job["frames"], settings=len(settings)))
+        print("%s <- %s (%d settings, frames %d from %d, %dx%d%s)" % (jid, cap, len(settings), job["frames"], job["firstFrame"], w, h, ", self-parity stand-in" if pin.get("standin") else ""))
+    with open(os.path.join(out, "jobs.json"), "w", encoding="utf-8") as f:
+        json.dump({"jobs": jobs}, f)
+    with open(os.path.join(out, "heights.json"), "w", encoding="utf-8") as f:
+        json.dump({"specs": specs}, f)
+    with open(os.path.join(out, "pin-index.json"), "w", encoding="utf-8") as f:
+        json.dump(index, f, indent=1)
+    return jobs
+
+
+def pin_index():
+    path = os.path.join(PIN_INPUT, "pin-index.json")
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def pin_stage_list():
+    index = pin_index()
+    if not index:
+        return []
+    return [Stage(PIN_LABEL, ["-mode", "scene", "-scene", "pin-replay", "-in", PIN_INPUT, "-repeat", str(PIN_REPEAT)], size=(index[0]["width"], index[0]["height"]), proxy=False,
+                  timeout=1800)]
+
+
+def pin_collect(ctx):
+    """Per job: the player's own run-to-run difference (r0 against r1, m0parity) and, where the capture has the game's cloud.npy, game against player (r0); the type table's
+    hash of both; the uniforms that differ (uniform_diff)."""
+    from weather_metrics import m0parity
+    folder = ctx.folder(PIN_LABEL)
+    metrics = []
+    for item in pin_index():
+        jid = item["job"]
+        r0, r1 = os.path.join(folder, jid + "-r0-cloud.npy"), os.path.join(folder, jid + "-r1-cloud.npy")
+        if not os.path.isfile(r0):
+            metrics.append(Metric.flag("m0pin.%s.replayed" % jid, False))
+            continue
+        with open(os.path.join(folder, jid + "-r0-replay.json"), encoding="utf-8") as f:
+            replay = json.load(f)
+        metrics.append(Metric.flag("m0pin.%s.settings_all_set" % jid, not replay["problems"]))
+        if item.get("typeTableHash"):
+            metrics.append(Metric.flag("m0pin.%s.type_table_equal" % jid, replay["typeTableHash"] == item["typeTableHash"]))
+        if os.path.isfile(r1):
+            s, text = m0parity.compare(r0, r1, os.path.join(BUILD, "m0pin-self-" + jid), label_a="player r0", label_b="player r1")
+            print(text)
+            metrics.append(Metric.info("m0pin.%s.self_max_colour" % jid, s["whole"]["max_colour"]))
+            metrics.append(Metric.info("m0pin.%s.self_max_alpha" % jid, s["whole"]["max_alpha"]))
+            metrics.append(Metric.info("m0pin.%s.self_beyond_half_step" % jid, s["whole"]["beyond_half_step"]))
+        game = os.path.join(item["capture"], "cloud.npy")
+        if os.path.isfile(game) and not item.get("standin"):
+            s, text = m0parity.compare(game, r0, os.path.join(BUILD, "m0pin-game-" + jid), label_a="game", label_b="player")
+            print(text)
+            metrics.append(Metric.info("m0pin.%s.game_max_colour" % jid, s["whole"]["max_colour"]))
+            metrics.append(Metric.info("m0pin.%s.game_mean_colour" % jid, s["whole"]["mean_colour"]))
+        uni = os.path.join(folder, jid + "-r0-uniforms.json")
+        with open(os.path.join(item["capture"], "pass.json"), encoding="utf-8") as f:
+            pj = json.load(f)
+        if os.path.isfile(uni):
+            with open(uni, encoding="utf-8") as f:
+                diff = uniform_diff(pj, json.load(f))
+            for k, v in diff:
+                print("  %s uniform %s: %s" % (jid, k, v))
+            metrics.append(Metric.info("m0pin.%s.uniforms_differing" % jid, len(diff)))
+    return metrics
+
+
+register_series("m0-pin", pin_stage_list(), pin_collect, exclusive=False, who="m0-pin")
+
+
+def pin_run(no_build=False, who="m0-pin"):
+    """The series m0-pin without the registry of every series (build_weather_player.py --series imports all modules of weather_metrics, and one of them needs files a fresh
+    work tree does not have): the build in the Unity lock, the replay and the collection in the GPU lock, as run_series does."""
+    import build_weather_player as bwp
+    if not no_build:
+        code = bwp.under_lock("unity", who, 20, False, [sys.executable, bwp.__file__, "--stage", "build"])
+        if code != 0:
+            return code
+    return bwp.under_lock("gpu", who, 20, False, [sys.executable, os.path.abspath(__file__), "--pin-run-inner"])
+
+
+def pin_run_inner():
+    import build_weather_player as bwp
+    from weather_metrics import table
+    stages = pin_stage_list()
+    if not stages:
+        raise SystemExit("no prepared pin jobs (%s); run --pin-prepare first" % PIN_INPUT)
+    exe = os.path.join(bwp.OUTPUT, "WeatherPlayer.exe")
+    if not os.path.exists(exe):
+        raise SystemExit("the player is not built (%s)" % exe)
+    bwp.write_ini()
+    beside = os.path.join(bwp.OUTPUT, "dxgi.dll")
+    if os.path.exists(beside):
+        os.remove(beside)
+    st = stages[0]
+    label = "m0-pin-" + st.label
+    folder = bwp.fresh(label)
+    lines = bwp.run_lines(exe, label, ["-out", folder] + st.extra, st.size, st.timeout)
+    print("\n".join(lines or ["(the player wrote no lines)"]))
+
+    class _Ctx(object):
+        def folder(self, _label):
+            return folder
+
+    metrics = pin_collect(_Ctx())
+    metrics.append(Metric.flag("stage." + st.label, lines is not None and any(line == "all checks passed" for line in lines)))
+    print(table(metrics))
+    return 0 if all(m.passed() for m in metrics) else 1
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
 def selftest():
     # the destination: 245 km due south of the equator is 23.4 degrees of latitude on Kerbin
     la, lo = destination(0.0, -74.5, 180.0, 245.0)
@@ -842,8 +1058,19 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=int, default=GAME_START, help="the game start the frames are of")
     parser.add_argument("--report", action="store_true")
     parser.add_argument("--collect", action="store_true", help="measure the last run's frames again (build/WeatherPlayer/e40-pp-pp-b) without running the player")
+    parser.add_argument("--pin-prepare", nargs="+", metavar="CAPTURE", help="the pinned captures (folders with pass.json, maps, depth.npy) as replay jobs for the series m0-pin")
+    parser.add_argument("--pin-standin", action="store_true", help="accept a dump from before the pinned capture (the player's self-parity only)")
+    parser.add_argument("--pin-run", action="store_true", help="build the player and replay the prepared pin jobs under the locks (the series m0-pin)")
+    parser.add_argument("--no-build", action="store_true", help="with --pin-run: the player as it is built")
+    parser.add_argument("--pin-run-inner", action="store_true", help=argparse.SUPPRESS)
     a = parser.parse_args()
-    if a.selftest:
+    if a.pin_prepare:
+        prepare_pin(a.pin_prepare, standin=a.pin_standin)
+    elif a.pin_run:
+        sys.exit(pin_run(a.no_build))
+    elif a.pin_run_inner:
+        sys.exit(pin_run_inner())
+    elif a.selftest:
         selftest()
     elif a.collect:
         class _Ctx(object):

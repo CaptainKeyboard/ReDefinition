@@ -243,7 +243,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             NoteTuningChange();
             RealS += dt;
             Frames++;
-            Ut += dt * TimeScale;
+            Ut = double.IsNaN(PinnedUt) ? Ut + dt * TimeScale : PinnedUt;
             if (CapSticks) FrameRateCap = 60;
             if (VsyncSticks) Vsync = 1;
             if (Frames > 0 && Module != null && FlightReady) UpdateModule();
@@ -473,6 +473,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public bool DeviceAlive = true;
         public bool GpuDeviceAlive() { return DeviceAlive; }
         public double UniversalTime { get { return Ut; } set { Ut = value; } }
+        // The pinned capture: the clock the probe pinned (NaN: none); the fake clock is set to it and Advance leaves it there.
+        public double PinnedUt = double.NaN;
+        public void PinClock(double ut) { PinnedUt = ut; if (!double.IsNaN(ut)) Ut = ut; }
+        public MonoBehaviour EndOfFrameHost { get { return null; } }
 
         public bool ScattererLoaded { get { return Scatterer; } }
         public bool EveAvailable { get { return Eve; } }

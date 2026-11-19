@@ -66,6 +66,17 @@ namespace ReDefinition.Atmospheres
             get { return Volatile.Read(ref frame); }
         }
 
+        // Every key the table in force names (from the nodes or an override; a key not named is at its compiled default), sorted by key, and whether the value is an
+        // override. The pinned capture writes them into pass.json so that the weather player sets the same keys.
+        internal List<KeyValuePair<string, float>> Snapshot(out HashSet<string> overridden)
+        {
+            Dictionary<string, float> table = Volatile.Read(ref effective);
+            var list = new List<KeyValuePair<string, float>>(table);
+            list.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
+            lock (gate) overridden = new HashSet<string>(overrides.Keys, StringComparer.Ordinal);
+            return list;
+        }
+
         // The override of a key, where one is set (the value takes effect at the next BeginFrame).
         internal bool TryGetOverride(string key, out float value)
         {
@@ -196,6 +207,12 @@ namespace ReDefinition.Atmospheres
         internal static void ClearOverride(string key)
         {
             Table.ClearOverride(key);
+        }
+
+        // The keys in force (TuningTable.Snapshot).
+        internal static List<KeyValuePair<string, float>> Snapshot(out HashSet<string> overridden)
+        {
+            return Table.Snapshot(out overridden);
         }
 
         // Rises each time the table changed.

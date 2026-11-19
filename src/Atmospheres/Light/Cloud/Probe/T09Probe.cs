@@ -299,6 +299,8 @@ namespace ReDefinition.Atmospheres
 
         protected override IEnumerator<ProbeWait> Scenario()
         {
+            // -t09Pin (T09ProbePin.cs): the pinned capture of one view instead of the timing windows.
+            if (PinStart && !IsDiag && !IsK3) return PinScenario();
             return IsDiag ? DiagScenario() : IsK3 ? K3Scenario() : SoftStart ? SoftScenario(Soft60Start) : JumpStart ? JumpScenario() : HangStart ? HangScenario() : StandardScenario();
         }
 

@@ -26,6 +26,10 @@ namespace ReDefinition.Atmospheres
         // The reason of the last reset of the player's history (for the log and the tests).
         internal string LastCutReason { get; private set; }
         internal int CutCount { get; private set; }
+        // The player's view's records since its history was last cut (the cut's frame counts as the first): the pinned capture holds a known number of them.
+        internal int FramesSinceCut { get; private set; }
+        // The settings the player's view recorded with in its last Record (Configure's clone of the options; the pinned capture writes them into pass.json).
+        internal ReconSettings Settings { get { return playerSettings; } }
 
         internal LayerReconstructor Player { get { return player; } }
 
@@ -65,6 +69,7 @@ namespace ReDefinition.Atmospheres
         internal void Reset(string reason)
         {
             if (player != null) player.Reset();
+            FramesSinceCut = 0;
             cuts.Forget();
             LastCutReason = reason;
             CutCount++;
@@ -94,8 +99,10 @@ namespace ReDefinition.Atmospheres
                 player.Reset();
                 LastCutReason = reason;
                 CutCount++;
+                FramesSinceCut = 0;
             }
             player.Record(cb, renderer, frame, camera, playerSettings, frameNumber, null, null, null);
+            FramesSinceCut++;
             LayerReconstructor.Sub(cb, "before the composite over the scene");
             player.Composite(cb, renderer, destination, null);
             return true;

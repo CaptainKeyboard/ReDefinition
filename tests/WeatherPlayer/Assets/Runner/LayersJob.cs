@@ -200,5 +200,19 @@ namespace ReDefinition.WeatherPlayer
         public float discGain, aureole, stars;
         // The product's soft water content (E40 soft density) with this softness (the owner's setting, 0.3 to 1; 0: the job runs as the generic layer scene has).
         public float soft;
+        // The pinned capture's replay (scene pin-replay; tools/weather_metrics/e40pp.py --pin-prepare from the game's pass.json): every field of the game's frame, reconstruction
+        // and noise switches (LayerPassSettings), the scene depth the game's pass read (float32 .npy next to jobs.json), the camera and the planet's centre in the game's world
+        // space (the same floats the game's shader got), and the frame numbers of the game's history from its cut (firstFrame, frames records).
+        public LayersJobSetting[] settings;
+        public string depthFile;
+        public float[] worldCamera, worldRotation;
+        public int firstFrame, frames;
+    }
+
+    [Serializable]
+    public sealed class LayersJobSetting
+    {
+        public string path;
+        public string[] values;
     }
 }

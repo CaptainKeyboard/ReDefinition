@@ -117,6 +117,9 @@ namespace ReDefinition.Atmospheres
 
         internal bool Ready { get { return material != null; } }
 
+        // The rotation's block counter (0 after Reset, one step per Block or far-rotation frame): the pinned capture writes it into pass.json.
+        internal int BlockIndex { get { return blockIndex; } }
+
         // The full target of the last Record (valid until the next one).
         internal RenderTexture Output { get { return output; } }
 
