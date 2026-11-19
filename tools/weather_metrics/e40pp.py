@@ -822,6 +822,52 @@ def selftest_standin(pass_json):
 PIN_FRAMES = 64
 
 
+def _halton32(index, base):
+    """Fsr3Upscaler.Halton in float32 (src/Fsr3/Fsr3Upscaler.cs)."""
+    f, result, i = np.float32(1.0), np.float32(0.0), index
+    while i > 0:
+        f = np.float32(f / np.float32(base))
+        result = np.float32(result + f * np.float32(i % base))
+        i = i // base
+    return result
+
+
+def pin_poses(cap, frames):
+    """The game's camera position, rotation and planet centre of each record from the capture's frames.json (OwnCloudModule.PinLogFrame), flattened; None without it."""
+    path = os.path.join(cap, "frames.json")
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        recs = json.load(f)
+    if len(recs) != frames:
+        return None
+    return ([float(x) for r in recs for x in r["cameraWorld"][:3]], [float(x) for r in recs for x in r["rotation"][:4]],
+            [float(x) for r in recs for x in r["planetCenter"][:3]])
+
+
+def pin_jitter(cap, pass_json, pin, frames):
+    """The host's jitter of each record from the cut (render pixels), or (None, why). frames.json of the capture (OwnCloudModule.PinLogFrame, the global _ReDefinition_Jitter
+    of each record) where it exists; else the upscaler's own sequence (UpscalerRig.ChooseJitter: Fsr3Upscaler.GetJitterOffset at Time.frameCount with GetJitterPhaseCount)
+    from the frame numbers of pass.json, the render width and the display width the start's tag names (perfNpic<width>...), for captures from before the frame log."""
+    path = os.path.join(cap, "frames.json")
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            recs = json.load(f)
+        if len(recs) != frames:
+            return None, "frames.json holds %d records, the capture %d" % (len(recs), frames)
+        return [(float(r["jitter"][0]), float(r["jitter"][1])) for r in recs], "frames.json"
+    m = re.search(r"pic(\d+)dlss", os.path.basename(os.path.normpath(cap)))
+    if not m or "frameOrigin" not in pin or pin.get("standin"):
+        return None, "no frames.json and no display width in the tag"
+    render, display = int(pass_json["camera"]["width"]), int(m.group(1))
+    phases = int(np.float32(8.0) * np.float32(np.float32(display) / np.float32(render)) ** 2)
+    out = []
+    for k in range(frames):
+        i = (int(pin["frameOrigin"]) + k) % phases + 1
+        out.append((float(_halton32(i, 2) - np.float32(0.5)), float(_halton32(i, 3) - np.float32(0.5))))
+    return out, "the upscaler's sequence: %d phases for %d -> %d, from frame %d" % (phases, render, display, int(pin["frameOrigin"]))
+
+
 def prepare_pin(captures, out=PIN_INPUT, standin=False):
     """Writes the replay jobs of the captures (pin-<n>) into out: the maps and heights copied, the game's depth, jobs.json and heights.json. standin: a dump from before the
     pinned capture is accepted with selftest_standin's block (the self-parity only)."""
@@ -879,6 +925,22 @@ def prepare_pin(captures, out=PIN_INPUT, standin=False):
             print("%s: NOT REPLAYABLE: %s" % (cap, text))
         job.update(depthFile=depth or "", worldCamera=[float(x) for x in world["camera"]], worldRotation=[float(x) for x in world["rotation"]],
                    firstFrame=int(pin["firstFrameNumber"]), frames=int(pin["framesSinceCut"]))
+        vec = u.get("vectors", {})
+        if "_MapReachCov" in vec and "_MapReachType" in vec:
+            job.update(reachCov=[float(x) for x in vec["_MapReachCov"][:4]], reachType=[float(x) for x in vec["_MapReachType"][:4]])
+        job["typeTableHash"] = pj.get("typeTableHash") or ""
+        jitter, source = pin_jitter(cap, pj, pin, job["frames"])
+        if jitter is not None:
+            job["hostJitter"] = [float(x) for xy in jitter for x in xy]
+            print("%s: the depth follows the host's jitter per record (%s)" % (jid, source))
+        elif not pin.get("standin"):
+            print("%s: no per-record jitter (%s); the depth of the last record is used for every record" % (jid, source))
+        poses = pin_poses(cap, job["frames"])
+        if poses is not None:
+            job.update(recordCamera=poses[0], recordRotation=poses[1], recordPlanetCenter=poses[2])
+            print("%s: the camera follows the game's pose per record (frames.json)" % jid)
+        elif not pin.get("standin"):
+            print("%s: no per-record pose (no frames.json); the capture frame's camera is used for every record" % jid)
         jobs.append(job)
         specs.append(dict(id=jid, variation=1, physics=1, topUpdraft=1, ragged=1, humidityMap="%s-humidity.r8" % tag, updraftMap="", seed=664216370 & 0xFFFFFF))
         index.append(dict(job=jid, capture=os.path.abspath(cap), standin=bool(pin.get("standin")), typeTableHash=pj.get("typeTableHash"), width=w, height=h,
@@ -905,7 +967,7 @@ def pin_stage_list():
     index = pin_index()
     if not index:
         return []
-    return [Stage(PIN_LABEL, ["-mode", "scene", "-scene", "pin-replay", "-in", PIN_INPUT, "-repeat", str(PIN_REPEAT), "-freshRecon", os.environ.get("M0PIN_FRESH_RECON", "0")], size=(index[0]["width"], index[0]["height"]), proxy=False,
+    return [Stage(PIN_LABEL, ["-mode", "scene", "-scene", "pin-replay", "-in", PIN_INPUT, "-repeat", str(PIN_REPEAT), "-freshRecon", os.environ.get("M0PIN_FRESH_RECON", "0")] + os.environ.get("M0PIN_EXTRA", "").split(), size=(index[0]["width"], index[0]["height"]), proxy=False,
                   timeout=1800)]
 
 

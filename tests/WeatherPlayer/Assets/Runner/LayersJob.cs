@@ -24,6 +24,9 @@ namespace ReDefinition.WeatherPlayer
         public float baseLight = 1f, headLight = 1f, baseAmbient = 1f, headAmbient = 1f;
         // The type's height-shaped threshold (E40 L2 D1; the cfg node LIFT) sampled evenly over the type's height, at least two values; none: no lift.
         public float[] lift;
+        // The cfg's own keys of PROFILE and LIFT (height, value; empty: none): where given, the curves are built from them as the game builds them (BodyRuleReaders.ProfileCurve),
+        // and the evenly sampled profile and lift above are not used.
+        public float[] profileX, profileY, liftX, liftY;
         // The smoothing of the shape noise where the type is drawn, in noise scales (E40 L6 shape; the cfg key shapeSmoothing; below 0: the layer's).
         public float shapeSmoothing = -1f;
         // The share of the type's height over which its top closes (E40 CB step 0; the cfg key topClose; below 0: the default of CloudTypeDef).
@@ -209,6 +212,16 @@ namespace ReDefinition.WeatherPlayer
         public int firstFrame, frames;
         // What the preparation found it cannot replay (a layer without the game's height map, a game setting the walk could not carry): problems of the replay.
         public string[] unsupported;
+        // The host's jitter of each record from the cut (x, y in render pixels, record after record; empty: none). The game's scene and its depth render offset by it, the
+        // march does not; the replay shifts the captured depth (of the last record) by each record's offset against the last one's.
+        public float[] hostJitter;
+        // The camera of each record from the cut in the game's world space (position x, y, z; rotation x, y, z, w; the planet's centre x, y, z; record after record; empty: the
+        // capture frame's camera for every record): the game's camera moves a little during the hold, and a pose 0.013 degrees off changes a quarter of the cloud's pixels.
+        public float[] recordCamera, recordRotation, recordPlanetCenter;
+        // The game's map slew reach of the coverage and type arrays (the uniforms _MapReachCov and _MapReachType of the capture frame; empty: none).
+        public float[] reachCov, reachType;
+        // The type table's hash of the game's pass (pass.json typeTableHash; empty: not known), checked against the replay's.
+        public string typeTableHash;
     }
 
     [Serializable]

@@ -55,6 +55,19 @@ namespace ReDefinition.WeatherPlayer
         }
 
         private Texture2D readback;
+        private RenderTexture shiftedDepth;
+
+        private RenderTexture ShiftedDepth(int width, int height)
+        {
+            if (shiftedDepth != null && shiftedDepth.width == width && shiftedDepth.height == height) return shiftedDepth;
+            if (shiftedDepth != null) { shiftedDepth.Release(); UnityEngine.Object.Destroy(shiftedDepth); }
+            shiftedDepth = new RenderTexture(width, height, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear)
+            {
+                name = "pin replay depth of the record", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp
+            };
+            shiftedDepth.Create();
+            return shiftedDepth;
+        }
 
         private void WriteCloud(RenderTexture rt, string path)
         {
@@ -67,6 +80,122 @@ namespace ReDefinition.WeatherPlayer
             var values = new float[raw.Length / 4];
             Buffer.BlockCopy(raw, 0, values, 0, raw.Length);
             PinFiles.WriteFloat32(path, rt.height, rt.width, 4, values);
+        }
+
+        // The switches of the replay's pacing and its diagnosis (e40pp.py passes them through M0PIN_EXTRA): -pinSync / -pinSleepMs (1 / 30: each record finished
+        // and the GPU idle before the next), -pinYieldEvery (records per player frame, 8), -pinJitter (1: the depth follows the game's jitter), -pinHashFrames (hashes
+        // of the march target and the output per record), -pinDiagState (GPU hashes of every texture the march reads and of both materials' uniforms),
+        // -pinMarchCompare (later replays' march targets against the first, texel by texel), -pinDumpFrom / -pinDumpTo (the march and output of those records).
+        private static int DiagInt(string name, int fallback)
+        {
+            int n;
+            return int.TryParse(WeatherPass.Argument(name), out n) ? n : fallback;
+        }
+
+        private Texture2D hashReadback;
+
+        private string Hash(RenderTexture rt)
+        {
+            if (hashReadback == null || hashReadback.width != rt.width || hashReadback.height != rt.height)
+                hashReadback = new Texture2D(rt.width, rt.height, TextureFormat.RGBAHalf, false, true);
+            RenderTexture.active = rt;
+            hashReadback.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
+            RenderTexture.active = null;
+            return LayerPassSettings.Hex(LayerPassSettings.Fnv1a64(hashReadback.GetRawTextureData()));
+        }
+
+        // The march target of every frame of the first replay of a job, to compare later replays texel by texel (diagnosis).
+        private readonly List<byte[]> marchFirst = new List<byte[]>();
+
+        private string MarchCompare(RenderTexture rt, int rep, int k)
+        {
+            if (hashReadback == null || hashReadback.width != rt.width || hashReadback.height != rt.height)
+                hashReadback = new Texture2D(rt.width, rt.height, TextureFormat.RGBAHalf, false, true);
+            RenderTexture.active = rt;
+            hashReadback.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
+            RenderTexture.active = null;
+            byte[] raw = hashReadback.GetRawTextureData();
+            if (rep == 0)
+            {
+                if (k == 0) marchFirst.Clear();
+                marchFirst.Add(raw);
+                return "";
+            }
+            byte[] first = marchFirst[k];
+            int n = 0;
+            var b = new StringBuilder();
+            for (int i = 0; i < raw.Length; i += 8)
+            {
+                bool same = true;
+                for (int c = 0; c < 8; c++) if (raw[i + c] != first[i + c]) { same = false; break; }
+                if (same) continue;
+                n++;
+                if (n <= 12)
+                {
+                    int texel = i / 8;
+                    b.Append(" (").Append(texel % rt.width).Append(',').Append(texel / rt.width);
+                    for (int c = 0; c < 4; c++)
+                        b.Append(' ').Append(Mathf.HalfToFloat(BitConverter.ToUInt16(first, i + 2 * c)).ToString("R")).Append('/')
+                         .Append(Mathf.HalfToFloat(BitConverter.ToUInt16(raw, i + 2 * c)).ToString("R"));
+                    b.Append(')');
+                }
+            }
+            return n == 0 ? "" : " marchDiff=" + n + b;
+        }
+
+        private static readonly string[] DiagTextures =
+        {
+            "_CovMaps", "_TypeMaps", "_HeightMaps", "_CovReach", "_TypeProfile", "_TypeInfo", "_TypeInfo2", "_NoiseShape", "_NoiseDetail", "_NoiseCurl", "_NoiseFlow",
+            "_NoiseColour", "_NoiseLattice", "_CullTiles", "_CullMax0", "_CullMax1", "_CullMin0", "_CullMin1", "_LightCache", "_FarDepth", "_SceneDepth"
+        };
+
+        private static readonly string[] DiagReconVectors =
+        {
+            "_ReconP", "_ReconD", "_ReconK", "_CamPos", "_CamForward", "_CamRight", "_CamUp", "_PrevPos", "_PrevF", "_PrevR", "_PrevU", "_ShellR", "_Drift", "_MvN", "_MvMap",
+            "_MvReach", "_CurTex_TexelSize"
+        };
+
+        // The GPU contents of a texture (mip 0, every slice), hashed; "-" where none is bound or the read fails.
+        private static string GpuHash(Texture t)
+        {
+            if (t == null) return "-";
+            int depth = t is Texture3D ? ((Texture3D)t).depth : t is Texture2DArray ? ((Texture2DArray)t).depth : 1;
+            AsyncGPUReadbackRequest req = AsyncGPUReadback.Request(t, 0, 0, t.width, 0, t.height, 0, depth, null);
+            req.WaitForCompletion();
+            if (req.hasError) return "err";
+            ulong h = 0xcbf29ce484222325UL;
+            for (int l = 0; l < req.layerCount; l++) h = LayerPassSettings.Fnv1a64(req.GetData<byte>(l).ToArray(), h);
+            return LayerPassSettings.Hex(h);
+        }
+
+        // Per frame: every texture the march reads (GPU contents), the layer material's uniforms and the reconstruction material's.
+        private static string DiagState(TemporalRig rig)
+        {
+            var b = new StringBuilder();
+            Material layers = rig.Renderer.Material;
+            foreach (string name in DiagTextures)
+            {
+                Texture t = layers.HasProperty(name) ? layers.GetTexture(name) : Shader.GetGlobalTexture(name);
+                b.Append(' ').Append(name).Append('=').Append(GpuHash(t));
+            }
+            b.Append(" layersU=").Append(LayerPassSettings.Hex(LayerPassSettings.Fnv1a64(Encoding.UTF8.GetBytes(LayerPassReadout.Uniforms(layers)))));
+            var recon = (Material)typeof(LayerReconstructor).GetField("material", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(rig.Recon);
+            var r = new StringBuilder();
+            foreach (string name in DiagReconVectors) r.Append(recon.GetVector(name).ToString("R")).Append(';');
+            foreach (string name in new[] { "_MvA", "_MvB", "_MvD" })
+            {
+                Vector4[] a = recon.GetVectorArray(name);
+                if (a != null) foreach (Vector4 v in a) r.Append(v.ToString("R")).Append(';');
+            }
+            r.Append(recon.GetMatrix("_MvWorldToMap").ToString("R"));
+            foreach (string name in new[] { "_CurTex", "_HistTex", "_MvCov" })
+            {
+                Texture t = recon.GetTexture(name);
+                r.Append(';').Append(name).Append(t != null ? t.GetInstanceID() : 0);
+            }
+            b.Append(" reconU=").Append(LayerPassSettings.Hex(LayerPassSettings.Fnv1a64(Encoding.UTF8.GetBytes(r.ToString()))));
+            b.Append(" mvcov=").Append(GpuHash(recon.GetTexture("_MvCov")));
+            return b.ToString();
         }
 
         public override IEnumerator Run()
@@ -128,6 +257,17 @@ namespace ReDefinition.WeatherPlayer
                     foreach (LayersJobLayer jl in job.layers)
                         if (string.IsNullOrEmpty(jl.heightMap)) problems.Add("layer " + jl.name + " has no height map of the game; the heights would be built, not the game's");
                     if (job.unsupported != null) problems.AddRange(job.unsupported);
+                    // The type table is built from the tree's cfg (job_layers), the game's from the deployed one: a different hash is a replay of other tables.
+                    string tableHash = rig.Renderer.TypeTableHash();
+                    if (!string.IsNullOrEmpty(job.typeTableHash) && job.typeTableHash != tableHash)
+                        problems.Add("the type table's hash " + tableHash + " is not the game's " + job.typeTableHash);
+                    // The game's slew reach (the player's maps hold the shown value in both channels, so it is the uniform only).
+                    rig.Renderer.Maps.ReachPinned = job.reachCov != null && job.reachCov.Length == 4 && job.reachType != null && job.reachType.Length == 4
+                        ? new[] { new Vector4(job.reachCov[0], job.reachCov[1], job.reachCov[2], job.reachCov[3]), new Vector4(job.reachType[0], job.reachType[1], job.reachType[2], job.reachType[3]) }
+                        : null;
+                    bool posed = job.recordCamera != null && job.recordCamera.Length == 3 * job.frames && job.recordRotation != null && job.recordRotation.Length == 4 * job.frames
+                                 && job.recordPlanetCenter != null && job.recordPlanetCenter.Length == 3 * job.frames;
+                    bool jittered = job.hostJitter != null && job.hostJitter.Length == 2 * job.frames && DiagInt("-pinJitter", 1) != 0;
                     Cam.fieldOfView = job.fovV;
                     Cam.transform.position = LayersSetup.V(job.worldCamera);
                     Cam.transform.rotation = new Quaternion(job.worldRotation[0], job.worldRotation[1], job.worldRotation[2], job.worldRotation[3]);
@@ -139,15 +279,57 @@ namespace ReDefinition.WeatherPlayer
                         rig.Recon.Init(Shader.Find(LayerReconstructor.ShaderName));
                     }
                     rig.Recon.Reset();
+                    int yieldEvery = DiagInt("-pinYieldEvery", 8);
+                    bool hashFrames = DiagInt("-pinHashFrames", 0) != 0;
+                    var hashes = new StringBuilder();
                     for (int k = 0; k < job.frames; k++)
                     {
+                        if (posed)
+                        {
+                            // The game's camera and planet centre of this record (frames.json); the history reprojects between them as the game's did.
+                            Cam.transform.position = new Vector3(job.recordCamera[3 * k], job.recordCamera[3 * k + 1], job.recordCamera[3 * k + 2]);
+                            Cam.transform.rotation = new Quaternion(job.recordRotation[4 * k], job.recordRotation[4 * k + 1], job.recordRotation[4 * k + 2], job.recordRotation[4 * k + 3]);
+                            rig.Frame.PlanetCenter = new Vector3(job.recordPlanetCenter[3 * k], job.recordPlanetCenter[3 * k + 1], job.recordPlanetCenter[3 * k + 2]);
+                        }
                         var cb = new CommandBuffer { name = "pin replay" };
-                        cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), depth);
+                        if (jittered)
+                        {
+                            // The game rendered record k's depth offset by its jitter j_k; the captured depth is the last record's. Point sampling the capture at
+                            // uv - (j_k - j_last) / size gives the depth record k saw (to the nearest pixel: a silhouette crosses a pixel where the game's raster did).
+                            int last = job.frames - 1;
+                            var offset = new Vector2(-(job.hostJitter[2 * k] - job.hostJitter[2 * last]) / job.width, -(job.hostJitter[2 * k + 1] - job.hostJitter[2 * last + 1]) / job.height);
+                            Graphics.Blit(depth, ShiftedDepth(job.width, job.height), Vector2.one, offset);
+                            cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), shiftedDepth);
+                        }
+                        else
+                        {
+                            cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), depth);
+                        }
                         rig.Recon.Record(cb, rig.Renderer, rig.Frame, Cam, recon, job.firstFrame + k, null, null, null);
                         Graphics.ExecuteCommandBuffer(cb);
                         cb.Release();
-                        if (k % 8 == 7) yield return null;
+                        // Each record finishes on the GPU (a one-texel read of the output waits for it) and the GPU then idles before the next one. Measured on the
+                        // RTX A4500 (2026-11-19, stand-in and real capture, four replays each): back to back, the replays of one job differed in 0.06 to 1.5 % of the
+                        // pixels although every input texture's GPU contents and every uniform were equal per record and the first difference appeared in the march
+                        // target itself; the sync alone did not change that, the sync with 30 ms of idle made all replays bit-identical. Neither the record order nor the
+                        // inputs depend on it, so the GPU computes the march differently under sustained load: -pinSync 0 / -pinSleepMs 0 bring the old pacing back.
+                        if (DiagInt("-pinSync", 1) != 0) AsyncGPUReadback.Request(rig.Recon.Output, 0, 0, 1, 0, 1, 0, 1, null).WaitForCompletion();
+                        if (DiagInt("-pinSleepMs", 30) > 0) System.Threading.Thread.Sleep(DiagInt("-pinSleepMs", 30));
+                        if (hashFrames)
+                        {
+                            hashes.Append(k).Append(' ').Append(Hash(rig.Recon.March)).Append(' ').Append(Hash(rig.Recon.Output));
+                            if (DiagInt("-pinDiagState", 0) != 0) hashes.Append(DiagState(rig));
+                            if (DiagInt("-pinMarchCompare", 0) != 0) hashes.Append(MarchCompare(rig.Recon.March, rep, k));
+                            hashes.Append('\n');
+                        }
+                        if (DiagInt("-pinDumpFrom", 999) <= k && k <= DiagInt("-pinDumpTo", -1))
+                        {
+                            WriteCloud(rig.Recon.March, Path.Combine(Output, job.id + "-r" + rep + "-f" + k + "-march.npy"));
+                            WriteCloud(rig.Recon.Output, Path.Combine(Output, job.id + "-r" + rep + "-f" + k + "-out.npy"));
+                        }
+                        if (yieldEvery > 0 && k % yieldEvery == yieldEvery - 1) yield return null;
                     }
+                    if (hashFrames) File.WriteAllText(Path.Combine(Output, job.id + "-r" + rep + "-hashes.txt"), hashes.ToString());
                     string stem = job.id + "-r" + rep;
                     WriteCloud(rig.Recon.Output, Path.Combine(Output, stem + "-cloud.npy"));
                     // The depth the replay read, from the texture it bound and in the rows' order of the cloud file (m0parity's orientation check).
@@ -157,7 +339,8 @@ namespace ReDefinition.WeatherPlayer
                     PinFiles.WriteFloat32(Path.Combine(Output, stem + "-depth.npy"), job.height, job.width, 1, depthValues);
                     File.WriteAllText(Path.Combine(Output, stem + "-uniforms.json"), LayerPassReadout.Uniforms(rig.Renderer.Material));
                     var report = new StringBuilder();
-                    report.Append("{\"typeTableHash\": ").Append(LayerPassReadout.Str(rig.Renderer.TypeTableHash())).Append(", \"firstFrame\": ").Append(job.firstFrame)
+                    report.Append("{\"typeTableHash\": ").Append(LayerPassReadout.Str(tableHash)).Append(", \"jitter\": ").Append(jittered ? "true" : "false").Append(", \"posed\": ").Append(posed ? "true" : "false")
+                          .Append(", \"firstFrame\": ").Append(job.firstFrame)
                           .Append(", \"frames\": ").Append(job.frames).Append(", \"blockIndex\": ").Append(rig.Recon.BlockIndex).Append(", \"problems\": [");
                     for (int i = 0; i < problems.Count; i++) report.Append(i > 0 ? ", " : "").Append(LayerPassReadout.Str(problems[i]));
                     report.Append("]}\n");

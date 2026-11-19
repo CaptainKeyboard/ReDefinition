@@ -112,6 +112,14 @@ def lift_samples(type_node):
     return None
 
 
+def lift_keys(type_node):
+    """The type's LIFT keys as the cfg gives them (height, lift); the player builds the game's curve from them."""
+    for c in type_node["children"]:
+        if c["name"] == "LIFT":
+            return [tuple(float(x) for x in v.split()[:2]) for _, v in c["values"]]
+    return []
+
+
 def cfg_extras():
     """{layer: ({key: float}, {type name: {key: float, 'lift': [128 floats]}})} of the soft, light and shape keys of the shipped Clouds-Kerbin.cfg."""
     with open(CFG_PATH, encoding="utf-8") as f:
@@ -126,6 +134,9 @@ def cfg_extras():
             lift = lift_samples(t)
             if lift is not None:
                 tk[e40o.val(t, "name")]["lift"] = lift
+                keys = lift_keys(t)
+                tk[e40o.val(t, "name")]["liftX"] = [k[0] for k in keys]
+                tk[e40o.val(t, "name")]["liftY"] = [k[1] for k in keys]
             # CLOUDR1: the type's heap preset (a name), rim exponent and cavity, as the game's type reads them (LayersJobType.heap, edgePower, cavity)
             if e40o.val(t, "heap") is not None:
                 tk[e40o.val(t, "name")]["heap"] = str(e40o.val(t, "heap")).strip()

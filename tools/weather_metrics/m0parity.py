@@ -29,6 +29,18 @@ GAIN = 16.0
 # The cloud buffer is a half float target (ARGBHalf): two values within one half-float step of the larger are the same number in the game's buffer. 2**-14 is the smallest
 # normal half; below it the step is constant.
 HALF_MIN_NORMAL = 2.0 ** -14
+# Terrain silhouette: sky pixels within this many pixels (square neighbourhood) of a terrain pixel. The cloud buffer there blends the terrain edge, not cloud, and differs by far
+# more than the clouds do (the pinned analysis: 547 pixels carrying 7 % of the squared difference).
+SILHOUETTE_PX = 2
+# Noise-only tile: the mean colour difference stays within this factor of the base pair's in the same tile, and the mean absolute value of the 5 x 5 box blurred signed
+# luminance difference stays within the same factor of the base's. Per pixel noise averages out under the blur (signed, so opposite signs cancel); a structural change
+# (a shifted or reshaped cloud) keeps its sign over the box and survives it. 1.5 leaves room for the base pair's own run to run spread.
+NOISE_FACTOR = 1.5
+# The blurred difference of pure noise is a small number that varies a lot from one draw to the next (a tile is 4096 pixels, an edge tile far fewer), so it gets a wider bar.
+BLUR_FACTOR = 2.5
+# An edge tile smaller than a quarter of a full tile has too few pixels for the blurred mean to mean anything; it is judged by the colour criterion alone.
+BLUR_PX = 5
+BLUR_FLOOR = 1e-6
 
 
 def load(path):
@@ -76,6 +88,54 @@ def tiles(dc, da, beyond, tile):
 def whole(dc, da, beyond):
     return dict(mean_colour=float(dc.mean()), max_colour=float(dc.max()), p99_colour=float(np.percentile(dc, 99.0)), mean_alpha=float(da.mean()), max_alpha=float(da.max()),
                 p99_alpha=float(np.percentile(da, 99.0)), beyond_half_step=float(beyond.mean()))
+
+
+def load_depth(path):
+    """A depth.npy as H x W float32 with row 0 at the top (the same flip as the buffers); non finite values become 0 (sky)."""
+    d = np.load(path).astype(np.float32)
+    if d.ndim == 3:
+        d = d[..., 0]
+    d = d[::-1]
+    return np.where(np.isfinite(d), d, 0.0).astype(np.float32)
+
+
+def silhouette_mask(depth, px=SILHOUETTE_PX):
+    """Sky pixels (depth 0 or not finite) with a terrain pixel (depth > 0) within px pixels (square neighbourhood); True where silhouette."""
+    terrain = np.isfinite(depth) & (depth > 0.0)
+    h, w = terrain.shape
+    pad = np.pad(terrain, px)
+    near = np.zeros_like(terrain)
+    for dy in range(2 * px + 1):
+        for dx in range(2 * px + 1):
+            near |= pad[dy:dy + h, dx:dx + w]
+    return near & ~terrain
+
+
+def box_blur(x, size=BLUR_PX):
+    """Mean over a size x size box (edge pixels repeated), via a summed area table."""
+    r = size // 2
+    h, w = x.shape
+    p = np.pad(x.astype(np.float64), r, mode="edge")
+    c = np.pad(p.cumsum(axis=0).cumsum(axis=1), ((1, 0), (1, 0)))
+    return ((c[size:size + h, size:size + w] - c[:h, size:size + w] - c[size:size + h, :w] + c[:h, :w]) / float(size * size)).astype(np.float32)
+
+
+def signed_luminance_difference(a, b):
+    return (a[..., :3].mean(axis=-1) - b[..., :3].mean(axis=-1)).astype(np.float32)
+
+
+def tile_means(x, tile):
+    """Mean of x per tile, in the order tiles() lists them."""
+    h, w = x.shape
+    return [float(x[y0:y0 + tile, x0:x0 + tile].mean()) for y0 in range(0, h, tile) for x0 in range(0, w, tile)]
+
+
+def silhouette_report(a, b, dc, mask):
+    """The silhouette pixels on their own: count, mean colour difference, mean alpha of each side."""
+    n = int(mask.sum())
+    if n == 0:
+        return dict(count=0, mean_colour=0.0, mean_alpha_a=0.0, mean_alpha_b=0.0)
+    return dict(count=n, mean_colour=float(dc[mask].mean()), mean_alpha_a=float(a[..., 3][mask].mean()), mean_alpha_b=float(b[..., 3][mask].mean()))
 
 
 def display(img):
@@ -149,15 +209,29 @@ def compare(path_a, path_b, out, base=None, tile=TILE, gain=GAIN, label_a="A", l
     oriented = orientation(path_a, path_b, depth_a, depth_b) if check_orientation else "not checked"
     a, b = load(path_a), load(path_b)
     dc, da, beyond = differences(a, b)
-    rows = tiles(dc, da, beyond, tile)
+    # The terrain silhouette (union of the two sides' masks) is reported on its own and left out of the tile verdict (its pixels count as zero difference in the tiles).
+    mask, silhouette = None, None
+    paths = [d for d in (depth_a or depth_of(path_a), depth_b or depth_of(path_b)) if d]
+    if paths:
+        mask = np.zeros(dc.shape, bool)
+        for d in paths:
+            m = silhouette_mask(load_depth(d))
+            if m.shape != mask.shape:
+                raise ValueError("the depth %s differs in size from the picture: %s against %s" % (d, m.shape, mask.shape))
+            mask |= m
+        silhouette = silhouette_report(a, b, dc, mask)
+    keep = ~mask if mask is not None else np.ones(dc.shape, bool)
+    rows = tiles(dc * keep, da * keep, beyond & keep, tile)
     summary = dict(a=os.path.abspath(path_a), b=os.path.abspath(path_b), label_a=label_a, label_b=label_b, size=[int(a.shape[1]), int(a.shape[0])], tile=tile, gain=gain,
-                   whole=whole(dc, da, beyond), orientation=oriented)
+                   whole=whole(dc, da, beyond), orientation=oriented, silhouette=silhouette, silhouette_excluded=int(mask.sum()) if mask is not None else None)
     base_rows = None
     if base:
         ba, bb = load(base[0]), load(base[1])
         bdc, bda, bbeyond = differences(ba, bb)
-        base_rows = tiles(bdc, bda, bbeyond, tile)
+        base_rows = tiles(bdc * keep, bda * keep, bbeyond & keep, tile)
         summary["base"] = dict(a=os.path.abspath(base[0]), b=os.path.abspath(base[1]), whole=whole(bdc, bda, bbeyond))
+        blur_means = tile_means(np.abs(box_blur(signed_luminance_difference(a, b) * keep)), tile)
+        bblur_means = tile_means(np.abs(box_blur(signed_luminance_difference(ba, bb) * keep)), tile)
     os.makedirs(out, exist_ok=True)
     exceeding = []
     for i, t in enumerate(rows):
@@ -169,6 +243,10 @@ def compare(path_a, path_b, out, base=None, tile=TILE, gain=GAIN, label_a="A", l
         # step somewhere in the tile (two equal buffers' noise in the last bit is not a region).
         above = (t["mean_colour"] > bt["mean_colour"] or t["mean_alpha"] > bt["mean_alpha"] or t["max_colour"] > bt["max_colour"] or t["max_alpha"] > bt["max_alpha"])
         t["exceeds"] = int(above and t["beyond"] > 0.0)
+        t["blur_lum"], t["base_blur_lum"] = blur_means[i], bblur_means[i]
+        # Noise only: the colour difference and the blurred luminance difference both within NOISE_FACTOR of the base pair's in this tile.
+        t["noise_only"] = int(t["exceeds"] and t["mean_colour"] <= NOISE_FACTOR * bt["mean_colour"] + BLUR_FLOOR
+                              and (t["h"] * t["w"] < tile * tile // 4 or t["blur_lum"] <= BLUR_FACTOR * t["base_blur_lum"] + BLUR_FLOOR))
         if t["exceeds"]:
             exceeding.append(t)
     with open(os.path.join(out, "tiles.csv"), "w", newline="", encoding="utf-8") as f:
@@ -186,6 +264,8 @@ def compare(path_a, path_b, out, base=None, tile=TILE, gain=GAIN, label_a="A", l
                     % (label_a, label_b, gain, t["row"], t["col"], t["x0"], t["y0"], t["mean_colour"], t["base_mean_colour"], t["mean_alpha"], t["base_mean_alpha"]))
             crop_triple(a, b, dc, da, t, gain, os.path.join(out, "crops", name), text)
             crops.append(name)
+    summary["tiles_noise_only"] = sum(t["noise_only"] for t in exceeding) if base_rows is not None else None
+    summary["tiles_structural"] = len(exceeding) - summary["tiles_noise_only"] if base_rows is not None else None
     summary["crops"] = crops
     with open(os.path.join(out, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=1)
@@ -204,8 +284,16 @@ def report(s):
     if "base" in s:
         lines.append(line("base pair", s["base"]["whole"]))
         lines.append("  tiles above the base: %d of %d (crops: %d)" % (s["tiles_exceeding_base"], s["tiles"], len(s["crops"])))
-        lines.append("VERDICT %s against %s: %d of %d tiles (%.1f %%) above the base pair's difference (mean or max, colour or alpha)" % (
-            s["label_a"], s["label_b"], s["tiles_exceeding_base"], s["tiles"], 100.0 * s["tiles_exceeding_base"] / max(s["tiles"], 1)))
+        lines.append("  of those: %d structural, %d noise-only (mean colour and 5 x 5 blurred luminance difference within %.1f x / %.1f x the base's)" % (
+            s["tiles_structural"], s["tiles_noise_only"], NOISE_FACTOR, BLUR_FACTOR))
+        lines.append("VERDICT %s against %s: %d of %d tiles (%.1f %%) structurally above the base pair's difference; %d more above it by noise only (mean or max, colour or alpha)" % (
+            s["label_a"], s["label_b"], s["tiles_structural"], s["tiles"], 100.0 * s["tiles_structural"] / max(s["tiles"], 1), s["tiles_noise_only"]))
+    sil = s.get("silhouette")
+    if sil is not None:
+        lines.append("  terrain silhouette (sky within %d px of terrain), %d pixels excluded from the tile verdict: colour diff mean %.6f, alpha mean %.4f (%s) / %.4f (%s)" % (
+            SILHOUETTE_PX, sil["count"], sil["mean_colour"], sil["mean_alpha_a"], s["label_a"], sil["mean_alpha_b"], s["label_b"]))
+    else:
+        lines.append("  terrain silhouette: not masked (no depth)")
     if "orientation" in s:
         lines.append("  orientation: " + s["orientation"])
     return "\n".join(lines)
@@ -251,7 +339,8 @@ def selftest():
     from PIL import Image
     crop = Image.open(os.path.join(folder, "diff", "crops", "tile-r01-c02.png"))
     assert crop.size == (3 * 64 + 8, 64), crop.size
-    assert "VERDICT game against player: 1 of 12 tiles (8.3 %)" in text and "sky top / top" in s["orientation"], text
+    assert "VERDICT game against player: 1 of 12 tiles (8.3 %) structurally" in text and "sky top / top" in s["orientation"], text
+    assert s["tiles_structural"] == 1 and s["tiles_noise_only"] == 0, s
     # One pixel off in a tile moves its max, not much its mean: still a tile above the base.
     d = a.copy()
     d[h - 1, 0, 1] += 0.5
@@ -260,6 +349,27 @@ def selftest():
     np.save(os.path.join(folder, "d-depth.npy"), depth)
     s, _ = compare(pa, pd, os.path.join(folder, "pixel"), base=(pa, pc))
     assert s["tiles_exceeding_base"] == 1, s
+    # The silhouette: the sky rows 63 and 64 (from the top) touch the ground below; a large change there is reported, counted (2 x 200 pixels) and left out of the tiles.
+    e = a.copy()
+    e[h - 65:h - 63, :, :] += 0.5
+    pe = os.path.join(folder, "e-cloud.npy")
+    np.save(pe, e)
+    np.save(os.path.join(folder, "e-depth.npy"), depth)
+    s, text = compare(pa, pe, os.path.join(folder, "sil"), base=(pa, pc))
+    assert s["silhouette"]["count"] == 400 and abs(s["silhouette"]["mean_colour"] - 0.5) < 1e-6 and s["tiles_exceeding_base"] == 0, s
+    assert "400 pixels excluded" in text, text
+    # Without a depth there is no mask.
+    pf = os.path.join(folder, "nodepth", "f-cloud.npy")
+    os.makedirs(os.path.dirname(pf))
+    np.save(pf, a)
+    s, text = compare(pf, pf, os.path.join(folder, "nodepth-out"), check_orientation=False)
+    assert s["silhouette"] is None and "not masked (no depth)" in text, text
+    # Noise only: independent draws of the same per pixel noise on the pair and on the base are above the base somewhere but not structural.
+    for stem in ("n1", "n2"):
+        np.save(os.path.join(folder, stem + "-cloud.npy"), a + rng.normal(0.0, 0.02, size=a.shape).astype(np.float32))
+        np.save(os.path.join(folder, stem + "-depth.npy"), depth)
+    s, _ = compare(pa, os.path.join(folder, "n1-cloud.npy"), os.path.join(folder, "noise"), base=(pa, os.path.join(folder, "n2-cloud.npy")))
+    assert s["tiles_noise_only"] >= 1 and s["tiles_structural"] == 0, s
     # A base within one half step counts nothing as beyond.
     s, _ = compare(pa, pc, os.path.join(folder, "base"))
     assert s["whole"]["beyond_half_step"] == 0.0, s

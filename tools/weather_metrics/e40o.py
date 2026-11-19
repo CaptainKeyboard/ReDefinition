@@ -121,7 +121,11 @@ def kerbin_layers(cfg=CFG):
             xs = [k[0] for k in keys]
             ys = [k[1] for k in keys]
             profile = list(np.interp(np.linspace(0.0, 1.0, 128), xs, ys))
-            types.append(lay.slab_type(val(t, "name"), float(val(t, "baseShare")), float(val(t, "topShare")), profile, float(val(t, "erosion", 0.3))))
+            ty = lay.slab_type(val(t, "name"), float(val(t, "baseShare")), float(val(t, "topShare")), profile, float(val(t, "erosion", 0.3)))
+            # The cfg's own keys as well: the player builds the type's curve from them as the game does (BodyRuleReaders.ProfileCurve), so the type table it bakes is the
+            # game's to the last bit (the 128 samples above give a curve of other keys, whose float32 evaluation differs in the last bit: another type table hash).
+            ty.update(profileX=[float(x) for x in xs], profileY=[float(y) for y in ys])
+            types.append(ty)
         kind = {"Weather": 0, "Cheap": 1, "Fog": 2, "Emissive": 3}[val(layer, "kind", "Weather")]
         out.append(dict(name=val(layer, "name"), group=val(layer, "group", ""), inner=float(val(layer, "innerAltitudeM")), outer=float(val(layer, "outerAltitudeM")),
                         sigma=float(val(layer, "sigmaPerM")), coverage=float(val(layer, "coverage")), softness=float(val(layer, "edgeSoftness")),

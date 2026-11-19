@@ -33,7 +33,10 @@ namespace ReDefinition.WeatherPlayer
                 {
                     var xs = new float[jt.profile.Length];
                     for (int i = 0; i < xs.Length; i++) xs[i] = i / (float)(xs.Length - 1);
-                    types.Add(new CloudTypeDef(jt.name, jt.baseShare, jt.topShare, new Curve(xs, jt.profile), jt.erosion)
+                    bool rawProfile = jt.profileX != null && jt.profileY != null && jt.profileX.Length >= 2 && jt.profileX.Length == jt.profileY.Length;
+                    bool rawLift = jt.liftX != null && jt.liftY != null && jt.liftX.Length >= 2 && jt.liftX.Length == jt.liftY.Length;
+                    Curve lift = rawLift ? new Curve(jt.liftX, jt.liftY) : jt.lift != null && jt.lift.Length >= 2 ? new Curve(Evenly(jt.lift.Length), jt.lift) : null;
+                    types.Add(new CloudTypeDef(jt.name, jt.baseShare, jt.topShare, rawProfile ? new Curve(jt.profileX, jt.profileY) : new Curve(xs, jt.profile), jt.erosion)
                     {
                         BaseGain = jt.baseGain,
                         RiseShare = jt.riseShare,
@@ -42,7 +45,7 @@ namespace ReDefinition.WeatherPlayer
                         HeadLight = jt.headLight,
                         BaseAmbient = jt.baseAmbient,
                         HeadAmbient = jt.headAmbient,
-                        Lift = jt.lift != null && jt.lift.Length >= 2 ? new Curve(Evenly(jt.lift.Length), jt.lift) : null,
+                        Lift = lift,
                         ShapeSmoothing = jt.shapeSmoothing,
                         TopClose = jt.topClose >= 0f ? jt.topClose : CloudTypeDef.DefaultTopClose,
                         Outflow = jt.outflow,
