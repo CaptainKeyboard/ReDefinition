@@ -303,10 +303,10 @@ namespace ReDefinition.Atmospheres
         internal static float NoiseBlendExp { get { return Clean(Tuning.Get(TuneNoiseBlendExp, 8f), 8f, 1f, 32f); } }
         internal static float NoiseBlendCell { get { return Clean(Tuning.Get(TuneNoiseBlendCell, 1f), 1f, 0.25f, 16f); } }
         // cloud.cells (CELLS, 2026-11-17): 1 puts the map's cloud share down as single clouds on the layers with a cellPitch (CloudLayerDef.CellPitchM, CloudCells.cginc); 0 reads the map
-        // as it is (the clouds are the map's smoothed texels moved by the noise). Off by default (owner 2026-11-19: the weather map decides the clouds; the lattice of equal clouds every
-        // 3 km is a tool to test a single cloud's form, which the player's puff jobs switch on).
+        // as it is (the clouds are the map's smoothed texels moved by the noise). On by default: the owner's clouds are the single-cloud bodies (CellBody); the map's texels without
+        // them were rejected (owner 2026-11-19: "ICH WILL DIE RAUS HABEN"). The lattice's even arrangement is to be replaced by a realistic one from the weather map (plan: CLOUD FIELD).
         internal const string TuneCells = "cloud.cells";
-        internal const float CellsDefault = 0f;
+        internal const float CellsDefault = 1f;
         internal static bool Cells { get { return Tuning.Get(TuneCells, CellsDefault) > 0.5f; } }
         // The body of a single cloud in the viewer (CloudLayerDef.CellBillow, CellBandM, CellFine): cloud.cellBillow, cloud.cellBand and cloud.cellFine set it on every layer with cells where
         // they are set (below 0, the default: each layer's own). Read every frame (LayerRenderer.Apply and CloudShadowRenderer, _CellE).
