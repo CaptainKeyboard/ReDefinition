@@ -1,0 +1,146 @@
+{
+  "$schema": "schema.json",
+  "name": "K-WB",
+  "owner": "A2",
+  "description": "Audit A2 (owner 2026-11-19): the scene's white balance (sceneWhiteBalance) on every body with own clouds. Per start the main mod's probe sets the command pod down on one body (-redefinitionProbeLand); WbProbe opens the weather field's and the own pass's switches, picks the time with the most cloud cover at the pod among those with the sun 25 to 45 degrees up, sets the pod down 40 m above the ground and holds it, waits for the pass and saves the screen without the UI from two camera poses at the slider's strengths 0, 0.25, 0.5 and 1 (wb-<body>-p<pose>-s<percent>.png), with the sun not hidden behind another body. The owner judges the pictures; the rows only say that each start produced them. Jool is not in the series: it has no own clouds (Jool.cfg, status Auto -> off for a body without a surface), so nothing balances there.",
+  "profile": "Medium",
+  "configuration": "Release",
+  "maxMinutes": 20,
+  "freeMemoryGb": 12,
+  "plannedStarts": 4,
+  "bundle": true,
+  "settings": [
+    {
+      "file": "settings.cfg",
+      "set": {
+        "SCREEN_RESOLUTION_WIDTH": 2560,
+        "SCREEN_RESOLUTION_HEIGHT": 1440,
+        "FULLSCREEN": false
+      }
+    },
+    {
+      "file": "GameData/ReDefinition/Main/PluginData/settings.cfg",
+      "set": {
+        "quality": "Quality",
+        "qualityAuto": false
+      }
+    }
+  ],
+  "productSwitches": {
+    "ownClouds": 1,
+    "cloudSource": "Ours"
+  },
+  "starts": [
+    {
+      "id": "wbduna",
+      "description": "the pod on Duna's ground",
+      "disableMods": [
+        "EVE",
+        "Trajectories"
+      ],
+      "probeArgs": [
+        "-redefinitionProbe",
+        "-redefinitionProbeStay",
+        "-redefinitionProbeClouds",
+        "-screen-width",
+        "2560",
+        "-screen-height",
+        "1440",
+        "-screen-fullscreen",
+        "0",
+        "-atmoProbe",
+        "WbProbe",
+        "-redefinitionProbeLand",
+        "Duna"
+      ],
+      "judgesGround": false
+    },
+    {
+      "id": "wbeve",
+      "description": "the pod on Eve's ground",
+      "disableMods": [
+        "EVE",
+        "Trajectories"
+      ],
+      "probeArgs": [
+        "-redefinitionProbe",
+        "-redefinitionProbeStay",
+        "-redefinitionProbeClouds",
+        "-screen-width",
+        "2560",
+        "-screen-height",
+        "1440",
+        "-screen-fullscreen",
+        "0",
+        "-atmoProbe",
+        "WbProbe",
+        "-redefinitionProbeLand",
+        "Eve"
+      ],
+      "judgesGround": false
+    },
+    {
+      "id": "wblaythe",
+      "description": "the pod on Laythe's ground",
+      "disableMods": [
+        "EVE",
+        "Trajectories"
+      ],
+      "probeArgs": [
+        "-redefinitionProbe",
+        "-redefinitionProbeStay",
+        "-redefinitionProbeClouds",
+        "-screen-width",
+        "2560",
+        "-screen-height",
+        "1440",
+        "-screen-fullscreen",
+        "0",
+        "-atmoProbe",
+        "WbProbe",
+        "-redefinitionProbeLand",
+        "Laythe"
+      ],
+      "judgesGround": false
+    },
+    {
+      "id": "wbkerbin",
+      "description": "the pod on Kerbin's ground, for the comparison with the other bodies",
+      "disableMods": [
+        "EVE",
+        "Trajectories"
+      ],
+      "probeArgs": [
+        "-redefinitionProbe",
+        "-redefinitionProbeStay",
+        "-redefinitionProbeClouds",
+        "-screen-width",
+        "2560",
+        "-screen-height",
+        "1440",
+        "-screen-fullscreen",
+        "0",
+        "-atmoProbe",
+        "WbProbe",
+        "-redefinitionProbeLand",
+        "Kerbin"
+      ],
+      "judgesGround": false
+    }
+  ],
+  "sections": [
+    {
+      "id": "A2",
+      "package": "A2",
+      "title": "Scene white balance on every body"
+    }
+  ],
+  "collect": [
+    {
+      "from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures",
+      "to": ".local/work/series-pictures/K-WB",
+      "optional": true
+    }
+  ],
+  "rows": []
+}

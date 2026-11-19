@@ -72,6 +72,10 @@ namespace ReDefinition.Atmospheres
             public int OrderMoves;
             // Whether the light cache is filled and read in the frame just recorded (cloudLightCache on).
             public bool LightCacheOn;
+            // Whether the scene's white balance took the picture in the frame just recorded (sceneWhiteBalance, the host's hook alive).
+            public bool SceneWhiteBalance;
+            // The sun's tint the frame was balanced by (the scene or the clouds alone; white where nothing was balanced).
+            public Color SceneTint = Color.white;
             // E40 C2: the extra lights' luminance over the sun's in the frame just recorded, and whether one was left out as too faint (light.moonMinShare); what a game start reads of why the pass costs what it does.
             public float MoonOverSun;
             public bool MoonDropped;
@@ -193,7 +197,7 @@ namespace ReDefinition.Atmospheres
         private CloudMotionAudit motionAudit;
         private float lastDt;
         private LightCache lightCache;
-        // The side of the light cache's box: T14 measured the 32 km box.
+        private readonly SceneWhiteBalance sceneWhiteBalance = new SceneWhiteBalance();
         private CloudShadowRenderer shadowRenderer;
         private CloudShadowRig shadowRig;
         // The pass's shape noise for the CPU readers of the stack (the hook's field: sun dimming, the weather driver): updated every frame in FillShadow.
@@ -689,6 +693,9 @@ namespace ReDefinition.Atmospheres
             Stats.NearMarchActive = false;
             Stats.ShadowOn = false;
             if (shadowRig != null) shadowRig.Enabled = false;
+            // The scene's white balance follows the pass: with no cloud frame there is no tint of this frame to balance by.
+            sceneWhiteBalance.Clear();
+            Stats.SceneWhiteBalance = false;
             pendingCamera = null;
             SetShell(false);
             Detach();
@@ -724,6 +731,7 @@ namespace ReDefinition.Atmospheres
             driver = null;
             frame.Light.Cache = null;
             if (lightCache != null) lightCache.Dispose();
+            sceneWhiteBalance.Dispose();
             lightCache = null;
             if (renderer != null) renderer.Dispose();
             renderer = null;
@@ -1445,6 +1453,17 @@ namespace ReDefinition.Atmospheres
                 Color cloudSun = CloudSunAir.AtAltitude(passSun, whiteSin, whiteAltitude, f.Light);
                 f.OutputWhiteTint = CloudOutputStage.WhiteTint(cloudSun, CloudOutputStage.WhiteShare(whiteSin, Tuning.Get(TuneWhitePoint, 1f)));
             }
+            // The scene's white balance (sceneWhiteBalance, audit A2): where the host's hook balances the whole picture by the same tint this frame, the clouds and
+            // their haze leave it out (the haze's exemption is then the identity); otherwise the clouds keep their own white point.
+            // The slider's strength s raises the tint to s (0: none, 1: the full tint); without the host's hook the clouds take that partial tint alone, as before.
+            float strength = Mathf.Clamp01(AtmospheresSettings.SceneWhiteBalance);
+            Color partial = SceneWhiteBalance.Partial(f.OutputWhiteTint, strength);
+            bool sceneWanted = strength > 0.001f;
+            bool sceneTakes = sceneWhiteBalance.Takes(sceneWanted);
+            sceneWhiteBalance.Update(sceneWanted, partial, sceneTakes);
+            Stats.SceneWhiteBalance = sceneTakes;
+            Stats.SceneTint = f.OutputWhiteTint;
+            f.OutputWhiteTint = sceneTakes ? Color.white : partial;
             Color ambientTop, ambientBottom;
             if (RenderSettings.ambientMode == AmbientMode.Trilight)
             {

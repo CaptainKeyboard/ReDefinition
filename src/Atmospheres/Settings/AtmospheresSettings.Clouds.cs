@@ -54,6 +54,7 @@ namespace ReDefinition.Atmospheres
             internal const string CloudReconMode = "cloudReconMode";
             internal const string CloudResolution = "cloudResolution";
             internal const string CloudRotation = "cloudRotation";
+            internal const string SceneWhiteBalance = "sceneWhiteBalance";
             // Own clouds: the visibility culling and the distance LOD (T16)
             internal const string CloudSkipEmpty = "cloudSkipEmpty";
             internal const string CloudSkipClosed = "cloudSkipClosed";
@@ -113,6 +114,7 @@ namespace ReDefinition.Atmospheres
         internal static ReconMode CloudReconMode => E<ReconMode>(Keys.CloudReconMode);
         internal static int CloudResolution => I(Keys.CloudResolution);
         internal static bool CloudRotation => B(Keys.CloudRotation);
+        internal static float SceneWhiteBalance => F(Keys.SceneWhiteBalance);
         internal static bool CloudSkipEmpty => B(Keys.CloudSkipEmpty);
         internal static bool CloudSkipClosed => B(Keys.CloudSkipClosed);
         internal static bool CloudLayerDistanceCut => B(Keys.CloudLayerDistanceCut);
@@ -210,6 +212,9 @@ namespace ReDefinition.Atmospheres
                 // The rotation (owner 2026-11-19): with the march at full size and a history, one pixel of every 2 x 2 block is marched per frame and blended into its history;
                 // OwnCloudOptions.Apply(ReconSettings), recon.rotate for other block sides.
                 SettingDef.Bool("cloudRotation", false, CL, "Cloud Rotation", OWN),
+                // The scene's white balance (owner 2026-11-19, audit A2): the whole picture balanced after the upscaler by the sun's tint raised to this strength
+                // (0 none, 1 the full tint), in place of the clouds' own white point (SceneWhiteBalance). The owner found the full balance too strong on every body.
+                SettingDef.Float("sceneWhiteBalance", 0.25, 0.0, 1.0, CL, "Scene White Balance", OWN),
 
                 // The sun march and the look fixes of T03v2: the short march (4 km) is what the parity rows measured; the white balance and the decay are the
                 // fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)

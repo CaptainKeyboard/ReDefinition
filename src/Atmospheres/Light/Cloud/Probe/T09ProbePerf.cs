@@ -34,7 +34,7 @@ namespace ReDefinition.Atmospheres
 
         // The grid points the start began with (the profile's), read before the first variant changes them.
         private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN,
-            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseDetailLod = double.NaN, baseLightCache = double.NaN;
+            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseDetailLod = double.NaN, baseLightCache = double.NaN, baseSceneWb = double.NaN;
 
         private bool PerfStart
         {
@@ -72,6 +72,7 @@ namespace ReDefinition.Atmospheres
                 case "shq4":
                 case "shtap1":
                 case "nomv":
+                case "nowb":
                 case "leap":
                 case "leapshell":
                 case "ceil":
@@ -113,6 +114,7 @@ namespace ReDefinition.Atmospheres
             baseSkipEmpty = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSkipEmpty);
             baseDetailLod = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudDetailLod);
             baseLightCache = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudLightCache);
+            baseSceneWb = AtmospheresSettings.Number(AtmospheresSettings.Keys.SceneWhiteBalance);
         }
 
         private void PerfRestoreBase()
@@ -128,6 +130,7 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, baseSkipEmpty);
             SetSetting(AtmospheresSettings.Keys.CloudDetailLod, baseDetailLod);
             SetSetting(AtmospheresSettings.Keys.CloudLightCache, baseLightCache);
+            SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, baseSceneWb);
         }
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
@@ -184,6 +187,8 @@ namespace ReDefinition.Atmospheres
                 case "shtap1": ForceTuning(OwnCloudOptions.TuneShadowTaps, 1f); break;
                 // K-T2 2026-11-18: the page fault with DLSS after a placement; the clouds' motion vectors left out of the upscaler's (the host's stand).
                 case "nomv": ForceTuning(OwnCloudOptions.TuneMotionVectors, 0f); break;
+                // nowb (audit A2, 2026-11-19): the scene's white balance off, the clouds' own white point as before; plain has it on (the default).
+                case "nowb": SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, 0.0); break;
                 // A4 2026-11-18: the shell leap alone (look-neutral in the player: cover and spectra equal) and with the fine steps in the shell, against plain for the cost.
                 case "leap": ForceTuning(CloudLookTuning.TuneCellTrace, 1f); break;
                 case "leapshell":
