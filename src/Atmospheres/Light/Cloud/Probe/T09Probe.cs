@@ -435,6 +435,21 @@ namespace ReDefinition.Atmospheres
                     }, 150, "the own pass to draw a steady stretch (" + variant + ")");
                     // The maps at the clock's time with this variant's source on: no layer on the field's shared cover in the first view (wolken-m1-fakten.md H.4).
                     foreach (ProbeWait w in SettleOwnMaps(variant, MapSettleS, true)) yield return w;
+                    // The first own variant's pictures of unsettled maps compare nothing: the start ends (a later variant's runs on with the warning).
+                    if (!mapsSettled && !ownVariantSeen)
+                    {
+                        Fail("the maps did not settle for the first own variant (" + variant + ") within " + MapSettleS.ToString("0") + " s: " + mapsWhy);
+                        Game.StopHold();
+                        yield break;
+                    }
+                    ownVariantSeen = true;
+                }
+                else if (IsOffVariant(variant) && CommandLine.Has(Args(), "-t09TvcAsShipped", true) && Game.EveAvailable)
+                {
+                    // TVC as shipped draws in the off variant: after the source went back to None (the drawn choice ran with Ours), EVE's renderer and its own layers must stand
+                    // before the first view; a condition with the maps' timeout, not a fixed time.
+                    yield return ProbeWait.Until(() => Game.EveRendererReady && Game.EveDrawnLayers().Count > 0, MapSettleS, "EVE's renderer to be ready with its own layers (off, TVC as shipped)");
+                    AtmospheresLog.Say("T09 maps (off): EVE's renderer ready with " + Game.EveDrawnLayers().Count + " layers of its own");
                 }
 
                 if (variant == "gain")
@@ -916,7 +931,7 @@ namespace ReDefinition.Atmospheres
         private double tvcCoverChosen = double.NaN, tvcCoverBest = double.NaN;
         private int tvcCoverTooLow;
         private const int TvcCoverSettleFrames = 12;
-        private bool tvcMapsWaited;
+        private bool tvcMapsWaited, ownVariantSeen;
 
         // One universal time for every variant and view, chosen as K-T2d chooses its picks: the candidates are the hours from the fixed base (the next full hour of the clock at
         // the start) and a far window up to 10 days (SampleCoverCandidates), the field is asked at the site and 3 km without moving the clock, and the candidate whose cover is

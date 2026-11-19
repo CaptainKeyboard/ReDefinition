@@ -8,7 +8,7 @@ namespace ReDefinition.Atmospheres
     //   - the view's frame is cut into a grid of rays (columns x rows, the centres of equal cells of the picture plane: a pinhole camera of the view's heading, pitch,
     //     vertical field of view and aspect), so each ray stands for the same share of the picture;
     //   - each ray is followed over the sphere to every layer it meets before the ground (CrossingM: the layer's middle height as a shell), and the layer's map is read
-    //     where the ray meets it; a layer the camera sits in is read where the ray leaves the camera (distance 0);
+    //     where the ray meets it; a layer the camera sits in (between its bottom and top, T09DrawnLayer) is read at the camera's place (distance 0) by every ray;
     //   - the ray's cloud is the union of the layers it meets (1 - the product of the clear shares); rays that meet no layer (the ground or the sea below the horizon
     //     with no layer between) are not sky and are left out.
     // Cover = the mean over the rays that meet a layer (the share of the view's sky that is cloud); LayerFraction = those rays' share of the picture, so Cover x LayerFraction
@@ -106,7 +106,9 @@ namespace ReDefinition.Atmospheres
                 bool met = false;
                 for (int l = 0; l < layers.Count; l++)
                 {
-                    double d = CrossingM(radiusM, heightM, layers[l].MidM, ray.ElevationDeg);
+                    // The camera inside the layer: every ray starts in it, read at the camera's place.
+                    bool inside = layers[l].TopM > layers[l].BottomM && heightM >= layers[l].BottomM && heightM <= layers[l].TopM;
+                    double d = inside ? 0.0 : CrossingM(radiusM, heightM, layers[l].MidM, ray.ElevationDeg);
                     if (double.IsNaN(d)) continue;
                     double lat2, lon2;
                     Destination(latDeg, lonDeg, ray.AzimuthDeg, d, radiusM, out lat2, out lon2);

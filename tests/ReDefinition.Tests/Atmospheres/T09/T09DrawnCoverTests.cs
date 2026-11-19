@@ -49,6 +49,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(1000800.0 + 5 * 3600.0, Number(r, "T09.ut"), 1e-6, "the next time with the sun in the band and clouds in view");
             Assert.AreEqual(1.0, Number(r, "T09.drawn.ok"));
             Assert.AreEqual(0.0, Number(r, "T09.heading_offset_deg"));
+            // The search stops after three qualifying times at the latest (every confirmation costs a clock jump and a map settle).
+            Assert.IsTrue(Number(r, "T09.drawn.passes") <= 3.0 && Number(r, "T09.drawn.confirmed") <= 4.0, Dump(r));
             foreach (string view in new[] { "ground", "inside", "above", "sky3" })
             {
                 double cover = Number(r, "T09.drawn." + view + ".cover");
@@ -118,6 +120,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(Number(r, "T09.drawn." + view + ".tvc_cover") >= 0.5, view + " TVC");
                 Assert.IsTrue(Number(r, "T09.drawn." + view + ".cover") >= 0.5, view + " own");
             }
+            // The off variant (TVC as shipped) waits for EVE's renderer and its own layers after the source went back to None, on the condition.
+            int off = r.Log.FindIndex(l => l == "Probe: variant off on"), ready = r.Log.FindIndex(l => l.StartsWith("T09 maps (off): EVE's renderer ready with 2 layers of its own"));
+            Assert.IsTrue(off >= 0 && ready > off && r.Log.FindIndex(l => l.StartsWith("T09 view begin: ")) > ready, Dump(r));
             // The off variant (TVC as shipped) has no baseline for the picture's share and says so.
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 picture share: ground off: not measured")), Dump(r));
         }
@@ -127,7 +132,30 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             Run r = StartDrawn(new[] { "plain" }, new[] { "-t09DrawnCover" }, x => x.World.OwnCoverAt = (l, lat, lon, ut) => 0.05);
             Drive(r, 0.1);
-            AssertNamedFailure(r, "no universal time and heading has the clouds drawn in every required view (-t09DrawnCover: own at least 0.50; 8 times confirmed");
+            AssertNamedFailure(r, "no universal time and heading has the clouds drawn in every required view (-t09DrawnCover: own at least 0.50, layer share at least 0.50; 8 times confirmed");
+            Assert.AreEqual(0, r.Log.Count(l => l.StartsWith("T09 view begin")));
+            // The failure names the best three confirmed times with their numbers, not only the last rejection.
+            string failure = r.Probe.Failures.First(f => f.Contains("no universal time and heading"));
+            Assert.AreEqual(3, failure.Split('|').Length, failure);
+            Assert.IsTrue(failure.Contains("the best: ut ") && failure.Contains(": own ground "), failure);
+        }
+
+        [TestMethod]
+        public void DrawnCover_AViewWithTooFewRaysOnALayerDoesNotPassOnItsSkyRays()
+        {
+            // The ground view has 7 of its 9 rows on a layer (0.78): a minimum share of 0.9 rejects it whatever its cover, and the failure says why.
+            Run r = StartDrawn(new[] { "plain" }, new[] { "-t09DrawnCover", "-t09DrawnHeadings", "0", "-t09DrawnMinLayerShare", "0.9" }, null);
+            Drive(r, 0.1);
+            AssertNamedFailure(r, "layer share at least 0.90");
+            Assert.IsTrue(r.Probe.Failures.Any(f => f.Contains("own ground layer share 0.78 below 0.90")), r.Joined);
+        }
+
+        [TestMethod]
+        public void MapsThatNeverSettleFailTheFirstOwnVariantBeforeAnyView()
+        {
+            Run r = Start(new[] { "plain" }, x => x.World.FieldLagFrames = 10000000);
+            Drive(r, 0.1);
+            AssertNamedFailure(r, "the maps did not settle for the first own variant (plain) within 20 s: the layer maps are not made for the clock's time yet");
             Assert.AreEqual(0, r.Log.Count(l => l.StartsWith("T09 view begin")));
         }
 
@@ -156,6 +184,18 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.5, T09DrawnCover.Of(0.0, 0.0, 200.0, R, up, one, (l, a, b) => 0.5).Cover, 1e-9);
             Assert.AreEqual(0.75, T09DrawnCover.Of(0.0, 0.0, 200.0, R, up, two, (l, a, b) => 0.5).Cover, 1e-9);
             Assert.AreEqual(1.0, T09DrawnCover.Of(0.0, 0.0, 200.0, R, up, two, (l, a, b) => 0.5).LayerFraction, 1e-9);
+            // A camera inside a layer (between its bottom and top) reads it at its own place with every ray, also the rays that look down or along the layer.
+            var band = new[] { new T09DrawnLayer { MidM = 4600.0, BottomM = 4000.0, TopM = 5200.0 } };
+            var level = T09DrawnCover.Rays(90.0, 0.0, 60.0, 16.0 / 9.0, 7, 9);
+            int places = 0;
+            var inside = T09DrawnCover.Of(0.0, 0.0, 4550.0, R, level, band, (l, a, b) => { places += Math.Abs(a) < 1e-9 && Math.Abs(b) < 1e-9 ? 1 : 0; return 0.6; });
+            Assert.AreEqual(1.0, inside.LayerFraction, 1e-9);
+            Assert.AreEqual(0.6, inside.Cover, 1e-9);
+            Assert.AreEqual(63, places, "every ray read the layer at the camera's place");
+            // Rays that all meet the sea and no layer: nothing counts.
+            var sea = T09DrawnCover.Of(0.0, 0.0, 200.0, R, T09DrawnCover.Rays(0.0, -60.0, 30.0, 1.0, 3, 3), one, (l, a, b) => 1.0);
+            Assert.AreEqual(0.0, sea.LayerFraction, 1e-9);
+            Assert.IsTrue(double.IsNaN(sea.Cover));
         }
     }
 }

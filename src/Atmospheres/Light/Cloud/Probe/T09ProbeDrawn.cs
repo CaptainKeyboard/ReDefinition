@@ -15,15 +15,24 @@ namespace ReDefinition.Atmospheres
     //      (SettleOwnMaps: the field's maps made for the time, every layer on its own map, a snapping round), and the views' share is read from the maps the pass draws
     //      (IT09World.DrawnLayerCover) for every heading offset; with -t09TvcCover also from EVE's own layers over the same rays. A time and heading is taken where every
     //      required view (-t09DrawnViews, default ground,inside,above,sky3) shows at least -t09DrawnMin (default 0.5) of cloud on our side and, with -t09TvcCover, at least
-    //      -t09TvcDrawnMin (default the same) on TVC's; of those the one nearest -t09DrawnTarget (default 0.65: a sky clearly cloudy and not closed).
+    //      -t09TvcDrawnMin (default the same) on TVC's, each with at least -t09DrawnMinLayerShare of its rays on a layer; of those the one nearest -t09DrawnTarget (default
+    //      0.65: a sky clearly cloudy and not closed). The search stops at a qualifying one within DrawnGoodEnough of the target or after DrawnEnoughPasses qualifying times;
+    //      a failure names the best three confirmed times with their numbers.
     //   4. With -t09Ut (a time found once) the same estimates are read at that time and the heading -t09HeadingOffset, emitted and checked.
     // Rows: T09.heading_offset_deg; per view T09.drawn.<view>.cover / layer_fraction / picture_share / forecast / tvc_cover; T09.drawn.ok, T09.drawn.confirmed; after the pictures of
     // an own variant T09.view.<view>.picture_cloud_share (the measured share, PictureShare).
     internal sealed partial class T09Probe
     {
         private const int DrawnConfirmTries = 8, DrawnSunTries = 48;
-        // A confirmed time whose required views all lie this close to the target on average ends the search.
-        private const double DrawnGoodEnough = 0.1;
+        // The search ends at the first time and heading that qualifies (both sides) with its required views this close to the target on average, and in any case after
+        // DrawnEnoughPasses confirmed times that qualify (the best of them is taken): every confirmation costs a clock jump and a map settle.
+        private const double DrawnGoodEnough = 0.15;
+        private const int DrawnEnoughPasses = 3;
+        // -t09DrawnMinLayerShare: the share of a view's rays that must meet a layer (T09DrawnCover.Estimate.LayerFraction) for its cover to count. Every K-T2 view has at least
+        // 7 of its 9 rows on a layer (the ground view, 18 degrees up with a 60 degree field from 270 m: its two lowest rows meet the sea), so 0.5 keeps them all and rejects a
+        // view that is mostly ground and would pass on a high cover of its few sky rays.
+        private const double DrawnMinLayerShareDefault = 0.5;
+        private double drawnMinLayerShare = DrawnMinLayerShareDefault;
         private static readonly string[] DrawnViewNames = { "ground", "inside", "above", "sky3" };
 
         private bool DrawnCoverStart
@@ -66,6 +75,7 @@ namespace ReDefinition.Atmospheres
             drawnTarget = NumberArg("-t09DrawnTarget", CoverTarget);
             drawnMin = NumberArg("-t09DrawnMin", MinCover);
             tvcDrawnMin = NumberArg("-t09TvcDrawnMin", drawnMin);
+            drawnMinLayerShare = NumberArg("-t09DrawnMinLayerShare", DrawnMinLayerShareDefault);
             string views = CommandLine.After(Args(), "-t09DrawnViews", true);
             drawnRequired = new bool[DrawnViewNames.Length];
             for (int k = 0; k < DrawnViewNames.Length; k++)
@@ -131,12 +141,34 @@ namespace ReDefinition.Atmospheres
             return string.Join(", ", parts.ToArray());
         }
 
-        // What keeps a set of covers from qualifying (null where it does).
-        private string Shortfall(double[] covers, double min, string side)
+        // How far the required views miss the minimum, summed (a view not read counts as missing it fully).
+        private double Deficit(double[] covers, double min)
+        {
+            double sum = 0.0;
+            for (int k = 0; k < covers.Length; k++)
+                if (drawnRequired[k]) sum += double.IsNaN(covers[k]) ? min : Math.Max(0.0, min - covers[k]);
+            return sum;
+        }
+
+        private static double[] Fractions(T09DrawnCover.Estimate[] e)
+        {
+            var f = new double[e.Length];
+            for (int k = 0; k < e.Length; k++) f[k] = e[k].LayerFraction;
+            return f;
+        }
+
+        // What keeps a set of covers from qualifying (null where it does): a required view below the minimum cover, or with too few of its rays on a layer (a view that is
+        // mostly ground does not pass on the cover of its few sky rays; fractions null: not checked).
+        private string Shortfall(double[] covers, double[] fractions, double min, string side)
         {
             var parts = new List<string>();
             for (int k = 0; k < covers.Length; k++)
-                if (drawnRequired[k] && !(covers[k] >= min)) parts.Add(side + " " + DrawnViewNames[k] + " " + (double.IsNaN(covers[k]) ? "not read" : covers[k].ToString("0.00", CultureInfo.InvariantCulture)) + " below " + min.ToString("0.00", CultureInfo.InvariantCulture));
+            {
+                if (!drawnRequired[k]) continue;
+                if (!(covers[k] >= min)) parts.Add(side + " " + DrawnViewNames[k] + " " + (double.IsNaN(covers[k]) ? "not read" : covers[k].ToString("0.00", CultureInfo.InvariantCulture)) + " below " + min.ToString("0.00", CultureInfo.InvariantCulture));
+                else if (fractions != null && !(fractions[k] >= drawnMinLayerShare))
+                    parts.Add(side + " " + DrawnViewNames[k] + " layer share " + fractions[k].ToString("0.00", CultureInfo.InvariantCulture) + " below " + drawnMinLayerShare.ToString("0.00", CultureInfo.InvariantCulture));
+            }
             return parts.Count == 0 ? null : string.Join(", ", parts.ToArray());
         }
 
@@ -147,7 +179,8 @@ namespace ReDefinition.Atmospheres
 
         // Waits until the own pass's maps stand at the clock's time (wolken-m1-fakten.md H.4: no layer on the field's shared cover in the first view): the field's maps made for
         // the clock's time (IT09World.FieldMapsAtClock), then snapping map rounds (the pass fetches them and shows them at once, no slew) until every layer is on its own map at its
-        // goal after two of them. At most timeoutS; a wait that runs out is a named warning (maps_not_settled) and the start goes on.
+        // goal after two of them. At most timeoutS; a wait that runs out is a named warning (maps_not_settled), and for the first own variant a failure of the start
+        // (StandardScenario).
         private IEnumerable<ProbeWait> SettleOwnMaps(string label, double timeoutS, bool warn)
         {
             double began = Elapsed, giveUp = Elapsed + timeoutS;
@@ -251,9 +284,10 @@ namespace ReDefinition.Atmospheres
             // 3. Confirmation at the clock.
             var sunAt = new Dictionary<double, double>();
             var confirmedUts = new HashSet<double>();
+            // Per confirmed time its best heading (the qualifying one nearest the target, else the one nearest to qualifying), for the failure text.
+            var tried = new List<KeyValuePair<double, string>>();
             DrawnPick pick = new DrawnPick();
-            int confirmed = 0, sunTries = 0;
-            string lastReject = "no candidate confirmed";
+            int confirmed = 0, sunTries = 0, passes = 0;
             bool done = false;
             for (int band = 0; band < 2 && !done && !pick.Found; band++)
             {
@@ -285,8 +319,9 @@ namespace ReDefinition.Atmospheres
                     string utText = c.Ut.ToString("0", CultureInfo.InvariantCulture);
                     if (!mapsSettled)
                     {
-                        lastReject = "ut " + utText + ": the maps did not settle (" + mapsWhy + ")";
-                        AtmospheresLog.Say("T09 drawn: " + lastReject);
+                        string unsettled = "ut " + utText + ": the maps did not settle (" + mapsWhy + ")";
+                        AtmospheresLog.Say("T09 drawn: " + unsettled);
+                        tried.Add(new KeyValuePair<double, string>(double.PositiveInfinity, unsettled));
                         continue;
                     }
                     IList<T09DrawnLayer> eve = null;
@@ -296,38 +331,56 @@ namespace ReDefinition.Atmospheres
                         eve = Game.EveDrawnLayers();
                     }
                     own = Game.OwnDrawnLayers();
+                    double bestScore = double.PositiveInfinity;
+                    string bestText = null;
+                    bool passed = false;
                     foreach (double offset in drawnHeadings)
                     {
                         T09DrawnCover.Estimate[] ownEst = EstimateViews(lat, lon, terrain, offset, own, Game.DrawnLayerCover, T09DrawnCover.Columns, T09DrawnCover.Rows);
-                        double[] ownCov = Covers(ownEst);
-                        double[] tvcCov = null;
-                        if (tvcCover) tvcCov = Covers(EstimateViews(lat, lon, terrain, offset, eve, Game.EveLayerCover, T09DrawnCover.Columns, T09DrawnCover.Rows));
-                        string shortOwn = Shortfall(ownCov, drawnMin, "own"), shortTvc = tvcCover ? Shortfall(tvcCov, tvcDrawnMin, "TVC") : null;
+                        double[] ownCov = Covers(ownEst), ownFrac = Fractions(ownEst);
+                        double[] tvcCov = null, tvcFrac = null;
+                        if (tvcCover)
+                        {
+                            T09DrawnCover.Estimate[] tvcEst = EstimateViews(lat, lon, terrain, offset, eve, Game.EveLayerCover, T09DrawnCover.Columns, T09DrawnCover.Rows);
+                            tvcCov = Covers(tvcEst);
+                            tvcFrac = Fractions(tvcEst);
+                        }
+                        string shortOwn = Shortfall(ownCov, ownFrac, drawnMin, "own"), shortTvc = tvcCover ? Shortfall(tvcCov, tvcFrac, tvcDrawnMin, "TVC") : null;
                         double distance = T09DrawnCover.Distance(ownCov, drawnRequired, drawnTarget, drawnMin);
                         bool ok = shortOwn == null && shortTvc == null;
                         string head = "ut " + utText + " heading +" + offset.ToString("0", CultureInfo.InvariantCulture);
-                        AtmospheresLog.Say("T09 drawn: " + head + ", sun " + elevation.ToString("0.0", CultureInfo.InvariantCulture) + ": own " + Describe(ownCov)
-                                           + (tvcCover ? "; TVC " + Describe(tvcCov) : "") + (ok ? " (qualifies, distance to " + drawnTarget.ToString("0.00", CultureInfo.InvariantCulture) + ": "
-                                           + distance.ToString("0.000", CultureInfo.InvariantCulture) + ")" : " (rejected: " + (shortOwn ?? shortTvc) + (shortOwn != null && shortTvc != null ? ", " + shortTvc : "") + ")"));
-                        if (!ok)
+                        string numbers = head + ", sun " + elevation.ToString("0.0", CultureInfo.InvariantCulture) + ": own " + Describe(ownCov) + (tvcCover ? "; TVC " + Describe(tvcCov) : "");
+                        string why = shortOwn != null && shortTvc != null ? shortOwn + ", " + shortTvc : shortOwn ?? shortTvc;
+                        AtmospheresLog.Say("T09 drawn: " + numbers + (ok ? " (qualifies, distance to " + drawnTarget.ToString("0.00", CultureInfo.InvariantCulture) + ": "
+                                           + distance.ToString("0.000", CultureInfo.InvariantCulture) + ")" : " (rejected: " + why + ")"));
+                        // The order of the failure text: what qualifies first, then by how far the two sides miss their minimum, then by the distance to the target.
+                        double score = (ok ? 0.0 : 10.0 + Deficit(ownCov, drawnMin) + (tvcCover ? Deficit(tvcCov, tvcDrawnMin) : 0.0)) + (double.IsInfinity(distance) ? 5.0 : distance);
+                        if (score < bestScore)
                         {
-                            lastReject = head + ": " + (shortOwn ?? shortTvc);
-                            continue;
+                            bestScore = score;
+                            bestText = numbers + (ok ? " (qualifies)" : " (" + why + ")");
                         }
+                        if (!ok) continue;
+                        passed = true;
                         if (pick.Found && distance >= pick.Distance) continue;
-                        var fraction = new double[ownEst.Length];
-                        for (int k = 0; k < ownEst.Length; k++) fraction[k] = ownEst[k].LayerFraction;
-                        pick = new DrawnPick { Found = true, Ut = c.Ut, Cover = c.Cover, Sun = elevation, Offset = offset, Distance = distance, Narrow = band == 0, Own = ownCov, Fraction = fraction, Tvc = tvcCov };
+                        pick = new DrawnPick { Found = true, Ut = c.Ut, Cover = c.Cover, Sun = elevation, Offset = offset, Distance = distance, Narrow = band == 0, Own = ownCov, Fraction = ownFrac, Tvc = tvcCov };
                     }
-                    if (pick.Found && pick.Distance <= DrawnGoodEnough) done = true;
+                    tried.Add(new KeyValuePair<double, string>(bestScore, bestText));
+                    if (passed) passes++;
+                    if (pick.Found && (pick.Distance <= DrawnGoodEnough || passes >= DrawnEnoughPasses)) done = true;
                 }
             }
             Emit("T09.drawn.confirmed", confirmed);
+            Emit("T09.drawn.passes", passes);
             if (!pick.Found)
             {
+                tried.Sort((a, b) => a.Key.CompareTo(b.Key));
+                var best = new List<string>();
+                for (int i = 0; i < tried.Count && i < 3; i++) best.Add(tried[i].Value);
                 utFailure = "no universal time and heading has the clouds drawn in every required view (-t09DrawnCover: own at least " + drawnMin.ToString("0.00", CultureInfo.InvariantCulture)
-                            + (tvcCover ? ", TVC at least " + tvcDrawnMin.ToString("0.00", CultureInfo.InvariantCulture) : "") + "; " + confirmed + " times confirmed of " + ranked.Count
-                            + " ranked, " + sunTries + " sun checks; the last rejected: " + lastReject + ")";
+                            + (tvcCover ? ", TVC at least " + tvcDrawnMin.ToString("0.00", CultureInfo.InvariantCulture) : "") + ", layer share at least " + drawnMinLayerShare.ToString("0.00", CultureInfo.InvariantCulture)
+                            + "; " + confirmed + " times confirmed of " + ranked.Count + " ranked, " + sunTries + " sun checks; the best: "
+                            + (best.Count > 0 ? string.Join(" | ", best.ToArray()) : "none confirmed") + ")";
                 yield break;
             }
             // The clock at the chosen time, the maps settled there (the variants start from them).
@@ -363,17 +416,19 @@ namespace ReDefinition.Atmospheres
             IList<T09DrawnLayer> own = Game.OwnDrawnLayers();
             T09DrawnCover.Estimate[] ownEst = EstimateViews(lat, lon, terrain, headingOffset, own, Game.DrawnLayerCover, T09DrawnCover.Columns, T09DrawnCover.Rows);
             drawnOwn = Covers(ownEst);
-            drawnFraction = new double[ownEst.Length];
-            for (int k = 0; k < ownEst.Length; k++) drawnFraction[k] = ownEst[k].LayerFraction;
+            drawnFraction = Fractions(ownEst);
+            double[] tvcFrac = null;
             double ut = Game.UniversalTime;
             drawnForecast = Covers(EstimateViews(lat, lon, terrain, headingOffset, own, (l, la, lo) => Game.ForecastLayerCover(l, la, lo, ut), T09DrawnCover.ForecastColumns, T09DrawnCover.ForecastRows));
             drawnTvc = null;
             if (tvcCover)
             {
                 IList<T09DrawnLayer> eve = Game.EveDrawnLayers();
-                drawnTvc = Covers(EstimateViews(lat, lon, terrain, headingOffset, eve, Game.EveLayerCover, T09DrawnCover.Columns, T09DrawnCover.Rows));
+                T09DrawnCover.Estimate[] tvcEst = EstimateViews(lat, lon, terrain, headingOffset, eve, Game.EveLayerCover, T09DrawnCover.Columns, T09DrawnCover.Rows);
+                drawnTvc = Covers(tvcEst);
+                tvcFrac = Fractions(tvcEst);
             }
-            string shortOwn = Shortfall(drawnOwn, drawnMin, "own"), shortTvc = drawnTvc != null ? Shortfall(drawnTvc, tvcDrawnMin, "TVC") : null;
+            string shortOwn = Shortfall(drawnOwn, drawnFraction, drawnMin, "own"), shortTvc = drawnTvc != null ? Shortfall(drawnTvc, tvcFrac, tvcDrawnMin, "TVC") : null;
             drawnOk = mapsSettled && shortOwn == null && shortTvc == null;
             drawnDetail = "own " + Describe(drawnOwn) + (drawnTvc != null ? "; TVC " + Describe(drawnTvc) : "") + " at heading +" + headingOffset.ToString("0", CultureInfo.InvariantCulture)
                           + (mapsSettled ? "" : "; the maps did not settle: " + mapsWhy) + (shortOwn != null ? "; " + shortOwn : "") + (shortTvc != null ? "; " + shortTvc : "");

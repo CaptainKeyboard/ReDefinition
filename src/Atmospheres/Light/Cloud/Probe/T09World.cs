@@ -141,11 +141,12 @@ namespace ReDefinition.Atmospheres
         long SavePicture(string name, T09Image image, int factor);
     }
 
-    // A layer the drawn-cover estimate crosses (T09DrawnCover): its name and the height over sea level of its middle.
+    // A layer the drawn-cover estimate crosses (T09DrawnCover): its name, the height over sea level of its middle, and of its bottom and top (a camera between them sits in
+    // the layer; equal: not known, the layer is a shell at its middle).
     internal sealed class T09DrawnLayer
     {
         internal string Name = "";
-        internal double MidM;
+        internal double MidM, BottomM, TopM;
     }
 
     // The pose of the vessel and the flight camera at one moment. Heights are metres over sea level and over the terrain below the point (the ocean counts
@@ -586,7 +587,9 @@ namespace ReDefinition.Atmospheres
             for (int l = 0; l < stack.LayerCount; l++)
             {
                 CloudLayerDef def = stack.LayerAt(l);
-                list.Add(new T09DrawnLayer { Name = def.Name, MidM = CloudBridgeStack.MidHeightM(def) });
+                float inner, outer;
+                def.TightAltitudes(out inner, out outer);
+                list.Add(new T09DrawnLayer { Name = def.Name, MidM = CloudBridgeStack.MidHeightM(def), BottomM = inner, TopM = outer });
             }
             return list;
         }
@@ -686,7 +689,7 @@ namespace ReDefinition.Atmospheres
             {
                 if (layer.Name != null && layer.Name.StartsWith("ReDefinition-Atmospheres-", StringComparison.Ordinal)) continue;
                 eveLayers.Add(layer);
-                list.Add(new T09DrawnLayer { Name = layer.Name ?? "", MidM = 0.5 * (layer.InnerRadiusM + layer.OuterRadiusM) - body.Radius });
+                list.Add(new T09DrawnLayer { Name = layer.Name ?? "", MidM = 0.5 * (layer.InnerRadiusM + layer.OuterRadiusM) - body.Radius, BottomM = layer.InnerRadiusM - body.Radius, TopM = layer.OuterRadiusM - body.Radius });
             }
             return list;
         }

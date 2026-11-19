@@ -427,12 +427,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // made them leaves the layers on the shared cover; a round that does not snap reaches its goal SlewS later. EveCoverAt(layer, lat, lon, ut) is EVE's own cover at the clock.
         internal T09DrawnLayer[] OwnLayerDefs =
         {
-            new T09DrawnLayer { Name = "rain", MidM = 1400.0 }, new T09DrawnLayer { Name = "cumulus", MidM = 2600.0 },
-            new T09DrawnLayer { Name = "cumulonimbus", MidM = 6000.0 }, new T09DrawnLayer { Name = "cirrus", MidM = 9500.0 }
+            new T09DrawnLayer { Name = "rain", MidM = 1400.0, BottomM = 1000.0, TopM = 1800.0 }, new T09DrawnLayer { Name = "cumulus", MidM = 2600.0, BottomM = 2000.0, TopM = 3200.0 },
+            new T09DrawnLayer { Name = "cumulonimbus", MidM = 6000.0, BottomM = 5500.0, TopM = 6500.0 }, new T09DrawnLayer { Name = "cirrus", MidM = 9500.0, BottomM = 9000.0, TopM = 10000.0 }
         };
         internal T09DrawnLayer[] EveLayerDefs =
         {
-            new T09DrawnLayer { Name = "Kerbin-cumulus", MidM = 2500.0 }, new T09DrawnLayer { Name = "Kerbin-cirrus", MidM = 8000.0 }
+            new T09DrawnLayer { Name = "Kerbin-cumulus", MidM = 2500.0, BottomM = 2000.0, TopM = 3000.0 }, new T09DrawnLayer { Name = "Kerbin-cirrus", MidM = 8000.0, BottomM = 7500.0, TopM = 8500.0 }
         };
         internal Func<int, double, double, double, double> OwnCoverAt = (l, lat, lon, ut) => 0.65;
         internal Func<int, double, double, double, double> ForecastCoverAt;
