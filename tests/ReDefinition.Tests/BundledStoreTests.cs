@@ -694,6 +694,83 @@ namespace ReDefinition.Tests
             Assert.IsTrue(Done());
         }
 
+        // With the bundling off the mod is its own window's: the step is done without a change.
+        [TestMethod]
+        public void WithTheBundlingOffTheStepIsDoneWithoutAChange()
+        {
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            scatterer.Add("useRaymarchedCloudGodrays", "False");
+            FileBeforeTheStep();
+            store.SetEnabled(false);
+
+            store.ReapplyStored("main menu loaded", null, false);
+            Assert.AreEqual("False", scatterer.Values["useRaymarchedCloudGodrays"]);
+            Assert.AreEqual(0, host.Noticed.Count);
+            Assert.IsTrue(Done());
+        }
+
+        // A mod that cannot take a value yet keeps the step waiting; once it can, the step is carried out.
+        [TestMethod]
+        public void TheStepWaitsForTheModToTakeAValue()
+        {
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            BundledSetting shafts = scatterer.Add("useRaymarchedCloudGodrays", "False");
+            bool ready = false;
+            shafts.Applicable = () => ready;
+            FileBeforeTheStep();
+
+            store.ReapplyStored("main menu loaded", null, false);
+            Assert.AreEqual("False", scatterer.Values["useRaymarchedCloudGodrays"]);
+            Assert.IsFalse(Done());
+
+            ready = true;
+            store.ReapplyWaiting("now that its mod can take it");
+            Assert.AreEqual("True", scatterer.Values["useRaymarchedCloudGodrays"]);
+            Assert.AreEqual(1, host.Noticed.Count);
+            Assert.IsTrue(Done());
+        }
+
+        // A value that cannot be read keeps the step waiting.
+        [TestMethod]
+        public void TheStepWaitsWhileTheValueCannotBeRead()
+        {
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            BundledSetting shafts = scatterer.Add("useRaymarchedCloudGodrays", "False");
+            Func<string> read = shafts.Read;
+            shafts.Read = () => null;
+            FileBeforeTheStep();
+
+            store.ReapplyStored("main menu loaded", null, false);
+            Assert.IsFalse(Done());
+            Assert.AreEqual(0, scatterer.WritesOf("useRaymarchedCloudGodrays"));
+
+            shafts.Read = read;
+            store.ReapplyStored("FLIGHT loaded", null, false);
+            Assert.AreEqual("True", scatterer.Values["useRaymarchedCloudGodrays"]);
+            Assert.IsTrue(Done());
+        }
+
+        // A value from before ReDefinition marked to be put back goes first: the step waits and does not set over it.
+        [TestMethod]
+        public void TheStepWaitsForAValueToBePutBack()
+        {
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            BundledSetting shafts = scatterer.Add("useRaymarchedCloudGodrays", "True");
+            FileBeforeTheStep();
+            store.Set(shafts, "False", false);
+            store.SaveNow();
+            bool ready = false;
+            shafts.Applicable = () => ready;
+            store.RestoreBackup();
+            Assert.IsTrue(store.Ledger.AnyMarked(), "the restore waits for the mod");
+
+            ready = true;
+            store.ReapplyStored("main menu loaded", null, false);
+            Assert.AreEqual("True", scatterer.Values["useRaymarchedCloudGodrays"], "put back, not set over");
+            Assert.IsFalse(Done(), "the step waits while the restore is marked");
+            Assert.AreEqual(0, host.Noticed.Count);
+        }
+
         // The step runs once: the player's own "off" afterwards stays.
         [TestMethod]
         public void TheStepOnTheModRunsOnce()

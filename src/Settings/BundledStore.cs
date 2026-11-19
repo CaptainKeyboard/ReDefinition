@@ -664,13 +664,16 @@ namespace ReDefinition.Settings
         // mod holds the old standard, the new one is set as the window sets a value -- into the running mod, kept until the mod's
         // own save has it, its value from before kept for Restore -- and the change joins the update's notice. With the bundling
         // off, or with the mod installed in a build without the setting, the step is done without a change; while the mod is not
-        // installed (or the mods not yet built) it waits. Each is noted done in bundled.cfg's stamp, which the caller's save writes.
+        // installed (or the mods not yet built), cannot take a value yet, cannot be read, or has a value from before ReDefinition
+        // marked to be put back, it waits. Each is noted done in bundled.cfg's stamp, which the caller's save writes.
         private void RunModSteps(string when, IBundledMod only)
         {
             if (state.ModSteps.Count == 0) return;
             List<SettingsChange> changes = new List<SettingsChange>();
             foreach (ChangedDefaultInModFiles step in state.ModSteps.ToArray())
             {
+                // A value from before ReDefinition still to be put back goes first: the step waits until it is.
+                if (ledger.AnyMarked() && ledger.MarkedKeys().Contains(step.Key)) continue;
                 BundledSetting setting = null;
                 if (state.Enabled)
                 {
