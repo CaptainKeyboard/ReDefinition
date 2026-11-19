@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -366,7 +367,7 @@ namespace ReDefinition.Atmospheres
             Check("the sun stands in the band at the chosen time", sunChosen >= SunMinDeg && sunChosen <= SunMaxDeg, sunChosen.ToString("0.0") + " degrees");
             // The maps follow a clock jump at the slew limit (0.08 a second): the same wait as K-T2d's before its first view.
             AtmospheresLog.Say("T09 clock: ut " + utChosen.ToString("0") + ", cover " + coverChosen.ToString("0.00") + ", sun " + sunChosen.ToString("0.0") + " degrees ("
-                               + (utNarrow ? "narrow" : "wide") + " band); waiting " + MapSettleS.ToString("0") + " s for the maps");
+                               + (utNarrow ? "narrow" : "wide") + " band)" + (double.IsNaN(tvcCoverChosen) ? "" : ", TVC's own cover " + tvcCoverChosen.ToString("0.00")) + "; waiting " + MapSettleS.ToString("0") + " s for the maps");
             yield return ProbeWait.Seconds(MapSettleS);
             CheckPicturesFolder();
 
@@ -881,6 +882,10 @@ namespace ReDefinition.Atmospheres
         // The cover the clock aims at (the field's at 3 km): a covered sky that is not a closed sheet either (K-T2d start 45: 0.67 gave discrete cumulus, 0.47 a closed deck).
         private const double CoverTarget = 0.65;
         private bool utNarrow;
+        // -t09TvcCover: TVC's own cover over the site at the chosen time (NaN where not asked for), and the frames EVE's layers get to follow a jump of the clock.
+        private double tvcCoverChosen = double.NaN, tvcCoverBest = double.NaN;
+        private int tvcCoverTooLow;
+        private const int TvcCoverSettleFrames = 12;
 
         // One universal time for every variant and view, chosen as K-T2d chooses its picks: the candidates are the hours from the fixed base (the next full hour of the clock at
         // the start) and a far window up to 10 days (SampleCoverCandidates), the field is asked at the site and 3 km without moving the clock, and the candidate whose cover is
@@ -892,7 +897,40 @@ namespace ReDefinition.Atmospheres
             utOk = false;
             utFailure = null;
             double start = Game.UniversalTime;
+            bool tvcCover = CommandLine.Has(Args(), "-t09TvcCover", true);
+            tvcCoverChosen = double.NaN;
+            tvcCoverBest = double.NaN;
+            tvcCoverTooLow = 0;
+            if (tvcCover)
+            {
+                // The start's cloud source (None) is otherwise set with its first variant, after the clock: EVE's sky is read with nothing of ours bound to it.
+                SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.None);
+                SetSetting(AtmospheresSettings.Keys.OwnClouds, 0.0);
+                yield return ProbeWait.Frames(TvcCoverSettleFrames);
+            }
             foreach (ProbeWait w in SampleCoverCandidates(bodyIndex, lat, lon)) yield return w;
+            // -t09Ut <seconds> (master plan phase 0.1): the time found once is reused unchanged by every later measurement; the field's cover and, with -t09TvcCover,
+            // TVC's cover at it are still read and emitted.
+            string fixedText = CommandLine.After(Args(), "-t09Ut", true);
+            double fixedUt;
+            if (!string.IsNullOrEmpty(fixedText) && double.TryParse(fixedText, NumberStyles.Float, CultureInfo.InvariantCulture, out fixedUt) && fixedUt > 0.0)
+            {
+                ForceUniversalTime(fixedUt);
+                yield return ProbeWait.Frames(6 + (tvcCover ? TvcCoverSettleFrames : 0));
+                WeatherSample fixedSample;
+                utChosen = fixedUt;
+                coverChosen = WeatherHub.Sample(bodyIndex, lat, lon, 3000.0, fixedUt, out fixedSample) ? fixedSample.CloudCover01 : 0.0;
+                sunChosen = Game.SunElevationDeg();
+                if (tvcCover)
+                {
+                    tvcCoverChosen = Game.EveCoverOver(lat, lon);
+                    Emit("T09.tvc_cover." + ((long)fixedUt).ToString(CultureInfo.InvariantCulture), tvcCoverChosen);
+                }
+                utNarrow = sunChosen >= NarrowSunMinDeg && sunChosen <= NarrowSunMaxDeg;
+                utOk = true;
+                Emit("T09.ut_jump_s", fixedUt - start);
+                yield break;
+            }
             Emit("T09.candidates", coverCandidates.Count);
             Emit("T09.candidates_far", candFarAnswered);
             var order = new List<CoverCandidate>();
@@ -913,11 +951,27 @@ namespace ReDefinition.Atmospheres
                 int tried = 0;
                 foreach (CoverCandidate c in order)
                 {
-                    if (tried++ >= MaxClockTries) break;
+                    // With TVC's cover as a third condition every covered candidate may be tried (a try is a few frames).
+                    if (!tvcCover && tried++ >= MaxClockTries) break;
                     ForceUniversalTime(c.Ut);
                     yield return ProbeWait.Frames(6);
                     double elevation = Game.SunElevationDeg();
                     if (elevation < sunMin || elevation > sunMax) continue;
+                    // -t09TvcCover (master plan phase 0.1): the time must also have True Volumetric Clouds' own sky covered over the site (EVE's layers at the clock's
+                    // time, read after the layers followed the jump), so that TVC as shipped and the own clouds are measured under clouds at one place and time.
+                    if (tvcCover)
+                    {
+                        yield return ProbeWait.Frames(TvcCoverSettleFrames);
+                        double eve = Game.EveCoverOver(lat, lon);
+                        Emit("T09.tvc_cover." + ((long)c.Ut).ToString(CultureInfo.InvariantCulture), eve);
+                        if (double.IsNaN(tvcCoverBest) || eve > tvcCoverBest) tvcCoverBest = eve;
+                        if (eve < MinCover)
+                        {
+                            tvcCoverTooLow++;
+                            continue;
+                        }
+                        tvcCoverChosen = eve;
+                    }
                     utChosen = c.Ut;
                     coverChosen = c.Cover;
                     sunChosen = elevation;
@@ -933,7 +987,14 @@ namespace ReDefinition.Atmospheres
                 yield break;
             }
             AtmospheresLog.Say("T09 clock: no candidate (" + candUnsampled + " not sampled, " + covered + " covered but not in the sun band, " + candPasses + " passes)");
-            if (candUnsampled > 0)
+            if (tvcCover && (tvcCoverTooLow > 0 || covered > 0))
+            {
+                utFailure = "no universal time with the own field's cover of at least " + MinCover + " and the sun " + SunMinDeg + " to " + SunMaxDeg
+                            + " degrees up also has True Volumetric Clouds' own layers covering the site by at least " + MinCover + " (-t09TvcCover: " + covered + " candidates had the own cover, "
+                            + tvcCoverTooLow + " of them stood in the sun band with too little of TVC's cover, the most " + (double.IsNaN(tvcCoverBest) ? "not read" : tvcCoverBest.ToString("0.00"))
+                            + "; below 0 means EVE's layers could not be read)";
+            }
+            else if (candUnsampled > 0)
             {
                 IWeatherField field = WeatherHub.Field;
                 utFailure = "the weather field did not answer at the site for " + candUnsampled + " of " + Candidates + " candidate times within " + FieldWaitS.ToString("0")

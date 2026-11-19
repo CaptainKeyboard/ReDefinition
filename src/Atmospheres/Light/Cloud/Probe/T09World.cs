@@ -32,6 +32,8 @@ namespace ReDefinition.Atmospheres
         void StopHold();
         // The sun's elevation over the vessel's horizon in degrees.
         double SunElevationDeg();
+        // The cover of EVE's own volumetric layers (True Volumetric Clouds as shipped) over the site at the clock's time, 0 to 1; below 0 where EVE cannot be read.
+        double EveCoverOver(double lat, double lon);
 
         // Where the vessel and the flight camera are now, all in one read (the camera the pass draws into and the picture is read from): used at the
         // end of every dwell and around every capture, because the placement check alone says only where the vessel stood a few seconds earlier.
@@ -475,6 +477,62 @@ namespace ReDefinition.Atmospheres
             Vector3d toSun = (sun.position - v.GetWorldPos3D()).normalized;
             Vector3d up = (v.GetWorldPos3D() - v.mainBody.position).normalized;
             return Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(toSun, up)))) * 180.0 / Math.PI;
+        }
+
+        // EVE's coverage read over the site and on a ring of EveCoverRingM around it, in each volumetric layer at a quarter, half and three quarters of its shell
+        // (EVE's own CPU sample at the layer's rotation of this frame, which holds the type's height curve): per place the densest of the heights, per layer the
+        // mean of the places, of the layers the most covered.
+        private const double EveCoverRingM = 10000.0;
+        private const int EveCoverRingPoints = 8;
+
+        public double EveCoverOver(double lat, double lon)
+        {
+            CelestialBody body = FlightGlobals.currentMainBody;
+            if (body == null || !EveLayerAccess.Available) return -1.0;
+            System.Collections.Generic.List<EveLayer> layers;
+            try
+            {
+                layers = EveLayerAccess.Scan(body.bodyName, null, 0, null);
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("t09-eve-cover-scan", "scanning EVE's layers for the cover over the site failed", e);
+                return -1.0;
+            }
+            if (layers == null || layers.Count == 0) return -1.0;
+            double ringDeg = EveCoverRingM / (Math.PI * body.Radius / 180.0);
+            double cosLat = Math.Max(0.05, Math.Cos(lat * Math.PI / 180.0));
+            double best = 0.0;
+            foreach (EveLayer layer in layers)
+            {
+                // The layer our own configs add for the painter (Clouds-<body>.cfg, ReDefinition-Atmospheres-<body>) is not the pack's sky.
+                if (layer.Name != null && layer.Name.StartsWith("ReDefinition-Atmospheres-", StringComparison.Ordinal)) continue;
+                double sum = 0.0;
+                for (int i = 0; i <= EveCoverRingPoints; i++)
+                {
+                    double a = i * 2.0 * Math.PI / EveCoverRingPoints;
+                    double pLat = i == EveCoverRingPoints ? lat : lat + ringDeg * Math.Cos(a);
+                    double pLon = i == EveCoverRingPoints ? lon : lon + ringDeg * Math.Sin(a) / cosLat;
+                    double densest = 0.0;
+                    for (int h = 1; h <= 3; h++)
+                    {
+                        double altitude = layer.InnerRadiusM + (layer.OuterRadiusM - layer.InnerRadiusM) * h * 0.25 - body.Radius;
+                        float type;
+                        try
+                        {
+                            densest = Math.Max(densest, Mathf.Clamp01(EveLayerAccess.SampleCoverage(layer, body.GetWorldSurfacePosition(pLat, pLon, altitude), out type)));
+                        }
+                        catch (Exception e)
+                        {
+                            AtmospheresLog.Failed("t09-eve-cover", "reading EVE's coverage over the site failed", e);
+                            return -1.0;
+                        }
+                    }
+                    sum += densest;
+                }
+                best = Math.Max(best, sum / (EveCoverRingPoints + 1));
+            }
+            return best;
         }
 
         public void CameraAim(out double azimuthDeg, out double elevationDeg)

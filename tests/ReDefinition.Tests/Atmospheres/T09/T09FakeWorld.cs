@@ -416,6 +416,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void StartHold() { RequireFlight(); if (!Held) { Held = true; HoldStartedAtS = RealS; } }
         public void StopHold() { Held = false; }
         public double SunElevationDeg() { RequireFlight(); return Sun(Ut); }
+        // EVE's own cover over the site: the fake has TVC's sky covered wherever EVE is there.
+        public double EveCoverOver(double lat, double lon) { RequireFlight(); return Eve ? 0.65 : -1.0; }
 
         private static double Wrap(double d)
         {

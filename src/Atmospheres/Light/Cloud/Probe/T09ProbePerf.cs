@@ -34,7 +34,7 @@ namespace ReDefinition.Atmospheres
 
         // The grid points the start began with (the profile's), read before the first variant changes them.
         private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN,
-            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseDetailLod = double.NaN, baseLightCache = double.NaN, baseSceneWb = double.NaN;
+            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseDetailLod = double.NaN, baseTapLod = double.NaN,baseLightCache = double.NaN, baseSceneWb = double.NaN;
 
         private bool PerfStart
         {
@@ -100,6 +100,9 @@ namespace ReDefinition.Atmospheres
                 case "cut10":
                 case "cut20":
                 case "cells":
+                case "grow1":
+                case "grow2":
+                case "grow2lod":
                     return true;
                 default:
                     return false;
@@ -118,6 +121,7 @@ namespace ReDefinition.Atmospheres
             baseStepGrowth = AtmospheresSettings.Number(AtmospheresSettings.Keys.LayerStepGrowth);
             baseSkipEmpty = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSkipEmpty);
             baseDetailLod = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudDetailLod);
+            baseTapLod = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudTapLod);
             baseLightCache = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudLightCache);
             baseSceneWb = AtmospheresSettings.Number(AtmospheresSettings.Keys.SceneWhiteBalance);
         }
@@ -134,6 +138,7 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, baseStepGrowth);
             SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, baseSkipEmpty);
             SetSetting(AtmospheresSettings.Keys.CloudDetailLod, baseDetailLod);
+            SetSetting(AtmospheresSettings.Keys.CloudTapLod, baseTapLod);
             SetSetting(AtmospheresSettings.Keys.CloudLightCache, baseLightCache);
             SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, baseSceneWb);
         }
@@ -186,6 +191,15 @@ namespace ReDefinition.Atmospheres
                 // The owner's question 2026-11-19 (a field of equal cotton balls from above): the same views with the single-cloud lattice (cloud.cells 1, the default 11-17 to 11-19; now a
                 // shape-test tool, the weather map decides the clouds).
                 case "cells": ForceTuning(CloudLookTuning.TuneCells, 1f); break;
+                // The 48 fps plan, lever 1a (2026-11-19): the look marches far spans in its 6 m steps (layers.stepGrowth 0); the step grows with the span's distance
+                // again (1e-4 / 2e-4 per m, 2e-4 the frame's value before the look: a 3x step at 10 km), near clouds unchanged; grow2lod adds the T16 distance LODs.
+                case "grow1": ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 1e-4f); break;
+                case "grow2": ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 2e-4f); break;
+                case "grow2lod":
+                    ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 2e-4f);
+                    SetSetting(AtmospheresSettings.Keys.CloudTapLod, 1.0);
+                    SetSetting(AtmospheresSettings.Keys.CloudDetailLod, 1.0);
+                    break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;
                 case "nolight": ForceTuning(OwnCloudOptions.TuneCostDebug, 1f); break;
