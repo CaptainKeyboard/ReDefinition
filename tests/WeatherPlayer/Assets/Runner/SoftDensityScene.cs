@@ -188,6 +188,8 @@ namespace ReDefinition.WeatherPlayer
             public bool BlockExact, BlockAcc;
             // far<km>: the far rotation beyond that distance (ReconSettings.FarRotateM); farb<N> its block side (2: every 4th frame).
             public int FarKm, FarBlock;
+            // lrm: the reused sun optical depth moved by the ray's progress (LayerFrame.LightReuseMove).
+            public bool ReuseMove;
             // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
             public int Grid;
             // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
@@ -269,6 +271,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("cr")) c.ConePattern = Number(t, 2);   // E40 F2: the light cone's rotation pattern (LayerFrame.ConePattern)
                 else if (t == "bexact") c.BlockExact = true;
                 else if (t == "bacc") c.BlockAcc = true;
+                else if (t == "lrm") c.ReuseMove = true;
                 else if (t.StartsWith("farb")) c.FarBlock = Number(t, 4);
                 else if (t.StartsWith("far")) c.FarKm = Number(t, 3);
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
@@ -300,6 +303,7 @@ namespace ReDefinition.WeatherPlayer
         {
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
+            f.LightReuseMove = c.ReuseMove;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
             f.DitherSequence = c.Dither >= 0 ? c.Dither : FrameDefaults.DitherSequence;
             f.DitherOwnGrid = !c.OldGrid;

@@ -82,6 +82,9 @@ namespace ReDefinition.Atmospheres
         // block, at full size, and blends it into that pixel's history with the accumulation weight; the other pixels keep their reprojected history (Catmull-Rom) alone. The owner judged
         // N = 2 equal to the full march in the weather player still, turning and flying (2026-11-19, e40puff rot2ac against k4_stride); the march costs a third (33 against 97 ms).
         internal const string TuneReconRotate = "recon.rotate";
+        // layers.lightReuseMove 1 (default 0): a lit step that reuses the last sun march moves its optical depth by what the ray crossed since, projected on the sun's direction
+        // (LayerFrame.LightReuseMove); a test for a longer layers.lightStride.
+        internal const string TuneLightReuseMove = "layers.lightReuseMove";
 
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
         // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
@@ -266,6 +269,7 @@ namespace ReDefinition.Atmospheres
             f.LeapScales = Mathf.Max(0f, Tuning.Get(TuneLeapScale, LeapScaleDefault));
             f.WarpTable = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneWarpTable, WarpTableDefault)), 0, 2);
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
+            f.LightReuseMove = Tuning.Get(TuneLightReuseMove, 0f) > 0.5f;
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));

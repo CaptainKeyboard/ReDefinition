@@ -349,6 +349,13 @@ VARIANTS = {
     "tr_d2": ("(TIME) tr_base without the shape noise", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+dbg2+lp100"),
     "tr_d7": ("(TIME) tr_base without light, noise and erosion", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+dbg7+lp100"),
     "tr_nocells": ("(TIME) tr_base with the map alone (no single clouds)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
+    # The light stride with the rotation (2026-11-19, owner: continue the cloud optimisation): ls3/ls4 the sun march every 3rd/4th lit step, m the reused depth
+    # moved by the ray's progress (lrm); against rot2ac (stride 2, the accepted look with the rotation) and tr_s1 (every lit step).
+    "tr_s1": ("(STRIDE) rot2ac with the sun march at every lit step", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+cst1+lp100"),
+    "tr_s2m": ("(STRIDE) rot2ac with the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lrm+lp100"),
+    "tr_s3": ("(STRIDE) rot2ac, the sun march every 3rd lit step", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls3+lp100"),
+    "tr_s3m": ("(STRIDE) tr_s3 with the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls3+lrm+lp100"),
+    "tr_s4m": ("(STRIDE) the sun march every 4th lit step, the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls4+lrm+lp100"),
     "rot2ac": ("(ROTATION) rot2a with the Catmull-Rom history", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
     "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
     "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
@@ -772,7 +779,7 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
-COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10", "tr_base", "tr_d1", "tr_d2", "tr_d7", "tr_nocells")
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10", "tr_base", "tr_d1", "tr_d2", "tr_d7", "tr_nocells", "tr_s1", "tr_s2m", "tr_s3", "tr_s3m", "tr_s4m", "rot2ac")
 
 
 def cost_label(march):

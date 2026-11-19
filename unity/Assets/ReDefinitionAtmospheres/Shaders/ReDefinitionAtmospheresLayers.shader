@@ -70,6 +70,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
         float4 _FirstHitP;   // CLOUDR1 P6: x the bisection iterations on the entered span (0: off, the march is as it was), y the thin steps inside as a share of the grid step, z how many of them follow the entry (the outer shell), w the distance in m up to which they are taken (0: everywhere)
+        float4 _ReuseP;      // x: the reused sun optical depth is moved by the ray's progress (1) or kept (0, layers.lightReuseMove)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
@@ -652,7 +653,13 @@ Shader "ReDefinition/AtmospheresLayers"
                         float reuse = -1.0;
                         float tapK = CullTapFactor(t);
                         if (noLight) reuse = 0.0;
-                        else if (haveSun && !(T * ext >= lightCut * tapK && sinceLight + 1.0 >= _CostP.z * tapK)) { reuse = sunTau; sinceLight += 1.0; }
+                        else if (haveSun && !(T * ext >= lightCut * tapK && sinceLight + 1.0 >= _CostP.z * tapK))
+                        {
+                            // _ReuseP.x (layers.lightReuseMove): the reused optical depth towards the sun is moved by what the ray crossed since, projected on the sun's
+                            // direction (exact along it; the sideways shift of the sun's path stays unmodelled, as in the plain reuse).
+                            reuse = _ReuseP.x > 0.5 ? max(sunTau - dot(d, _Sun.xyz) * tauSince, 0.0) : sunTau;
+                            sinceLight += 1.0;
+                        }
                         float taps, tauUsed, upUsed;
                         // Up mode 3 moves the reused optical depth straight up by what the ray has crossed since: the column above a point that is lower
                         // by h holds the density integral over h more, which along the ray is the optical depth since times the ray's vertical share.
