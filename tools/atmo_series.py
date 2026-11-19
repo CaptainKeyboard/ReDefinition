@@ -66,6 +66,9 @@ VIA_SPACE_CENTRE_ARG = "-redefinitionProbeViaSpaceCentre"
 STARTS_LOG_REL = (".local", "work", "atmo-series-starts.jsonl")
 DISABLED_DIR = "_atmo_disabled"
 PROBE_GRACE_SECONDS = 90
+# A bundle build whose wall time exceeds, by more than this many seconds, the time Unity's own log says the build took is flagged as idle.
+# The margin is a judgement value: Unity's start and quit overhead and the log's last write differ by a few seconds on a healthy build.
+BUNDLE_IDLE_MARGIN_SECONDS = 30
 
 # The mods the mod-set manager can move away: logical name -> the GameData folders (or files) that belong to it. [VERIFY] against the
 # installed GameData: StockVolumetricClouds, ScattererAtmosphereCache, StockScattererConfigs and the Parallax_Stock* folders are taken
@@ -289,6 +292,9 @@ def load_series(repo, name):
 RESULT_RE = re.compile(r"ATMORESULT\s*(\{.*\})\s*$")
 PROBE_RE = re.compile(r"Probe:\s*(PASSED|FAILED)")
 # A fault of a side task of the probe (the pictures of K-T2) that does not fail the series: "Probe: warning <name>: <detail>".
+# The marks of a start's log that the phase timing looks for: the scene change into the flight, the probe's own lines.
+FLIGHT_RE = re.compile(r"Probe: in flight|Scene Change\s*:.*->\s*FLIGHT")
+PROBE_LINE_RE = re.compile(r"Probe: ")
 PROBE_WARNING_RE = re.compile(r"Probe: warning (\S+): (.*)$")
 
 
@@ -739,6 +745,80 @@ class VmControl:
         self.stopped = False
 
 
+# ---------------------------------------------------------------- phase timing
+
+def format_phases(phases, title="phases"):
+    """The compact table of the phases of a start: name and seconds, with the total."""
+    rows = [(n, "%.1f" % sec) for n, sec in phases] + [("total", "%.1f" % sum(sec for _n, sec in phases))]
+    width = max(len(n) for n, _s in rows)
+    return "\n".join([title] + ["  %-*s %8s s" % (width, n, v) for n, v in rows])
+
+
+def idle_warning(wall_seconds, unity_seconds, margin=BUNDLE_IDLE_MARGIN_SECONDS):
+    """The WARN line when the bundle build's wall time exceeds, by more than the margin, the time Unity's log says the build took; None else."""
+    if unity_seconds is None or wall_seconds - unity_seconds <= margin:
+        return None
+    return "WARN: the bundle build took %.0f s of wall time but Unity's log ends after %.0f s: about %.0f s idle (lock wait, a slow start of powershell or Unity, or a hung quit)" % (
+        wall_seconds, unity_seconds, wall_seconds - unity_seconds)
+
+
+class LogMarks(threading.Thread):
+    """Watches the log of a running start and records, with the clock, when it first had a line, the flight scene, a probe line and the
+    probe's verdict. Reads only what was appended."""
+
+    def __init__(self, path, clock=time.time, poll=0.5):
+        super().__init__(daemon=True)
+        self.path, self.clock, self.poll = path, clock, poll
+        self.marks = {}
+        self.stop_event = threading.Event()
+        self.offset = 0
+        self.rest = ""
+
+    def step(self):
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(self.offset)
+                data = f.read()
+        except OSError:
+            return
+        if not data:
+            return
+        self.offset += len(data)
+        now = self.clock()
+        self.marks.setdefault("first", now)
+        lines = (self.rest + data.decode("utf-8", errors="replace")).split("\n")
+        self.rest = lines.pop()
+        for line in lines:
+            for key, rx in (("flight", FLIGHT_RE), ("probe", PROBE_LINE_RE), ("verdict", PROBE_RE)):
+                if key not in self.marks and rx.search(line):
+                    self.marks[key] = now
+
+    def run(self):
+        while not self.stop_event.is_set():
+            self.step()
+            self.stop_event.wait(self.poll)
+
+    def finish(self):
+        self.stop_event.set()
+        self.join(5)
+        self.step()
+
+
+def launch_phases(t0, marks, end):
+    """The game's phases of one start from the clock readings: launch to the first log line, game start to the flight scene (only where
+    the log shows it), the probe from its first line to the verdict, the game's exit from the verdict to the end of the launch call."""
+    out = []
+    first, flight, probe, verdict = (marks.get(k) for k in ("first", "flight", "probe", "verdict"))
+    out.append(("game launch to first log line", (first if first is not None else end) - t0))
+    if first is not None and flight is not None:
+        out.append(("game start to FLIGHT", flight - first))
+    if probe is not None and verdict is not None:
+        out.append(("probe", verdict - probe))
+    if verdict is not None:
+        out.append(("game exit", end - verdict))
+    return out
+
+
 # ---------------------------------------------------------------- build and launch
 
 def build_command(repo, ksp, dotnet, configuration="Debug"):
@@ -869,6 +949,11 @@ class Runner:
         self.starts_log = h.get("starts_log", os.path.join(mainrepo, *STARTS_LOG_REL))
         self.mod_folders = h.get("mod_folders")
         self.now = h.get("now", time.time)
+        # The clock of the phase timing, and the log Unity writes the bundle build into.
+        self.clock = h.get("clock", time.time)
+        self.bundle_log = h.get("bundle_log", os.path.join(repo, "build", "atmospheres-bundle.log"))
+        # The phases before the runner (lock wait, preflight), set by cmd_run: seconds each.
+        self.lead_phases = []
 
     # -- the log of the starts
     def record_start(self, series, start, how):
@@ -942,21 +1027,41 @@ class Runner:
         os.makedirs(out_dir, exist_ok=True)
         self.configuration = defn.get("configuration", "Debug")
         self.log("build: configuration %s" % self.configuration)
+        # The run's phases before the first game start; the first start's record carries them, so that its table is the whole story.
+        run_phases = list(self.lead_phases)
+        idle_warnings = []
+        t = self.clock()
         code = self.build()
+        run_phases.append(("build", self.clock() - t))
         if code != 0:
             raise Refusal("the %s build with deploy failed (exit %s)" % (self.configuration, code))
         if defn.get("bundle"):
+            t, wall0 = self.clock(), time.time()
             code = self.build_bundle()
+            wall = self.clock() - t
+            run_phases.append(("bundle build", wall))
+            try:
+                unity = os.path.getmtime(self.bundle_log) - wall0
+            except OSError:
+                unity = None
+            if unity is not None and unity < 0:
+                unity = None  # the log is older than this build: Unity wrote nothing
+            warn = idle_warning(wall, unity)
+            if warn:
+                self.log(warn)
+                idle_warnings.append(warn)
             if code != 0:
                 raise Refusal("the shader bundle build failed (exit %s); see build/atmospheres-bundle.log" % code)
         store = tempfile.mkdtemp(prefix="atmo-snap-")
         snap = self.snapshot_plan(store)
         snap.take()
         report = {"series": name, "time": stamp, "configuration": self.configuration, "starts": [], "warnings": [], "hashes": [],
-                  "restore_mismatches": [], "notes": []}
+                  "restore_mismatches": [], "notes": [], "phase_warnings": idle_warnings}
         all_results, verdicts, failures, texts = [], {}, [], {}
         try:
+            t = self.clock()
             report["hashes"] = self.verify_hashes(require_bundle=bool(defn.get("bundle")))
+            run_phases.append(("hash verify / install", self.clock() - t))
             apply_profile(self.profile_cache, self.ksp)
             for line in apply_settings(self.ksp, defn.get("settings")):
                 self.log("pinned %s" % line)
@@ -974,6 +1079,9 @@ class Runner:
                 for st in starts:
                     info = {"id": st["id"], "how": None, "exit": None, "seconds": None}
                     report["starts"].append(info)
+                    phases, run_phases = run_phases, []
+                    c1 = None
+                    info["phases"] = phases
                     try:
                         for rel, data in base_files.items():
                             with open(os.path.join(self.ksp, *rel.split("/")), "wb") as f:
@@ -994,7 +1102,15 @@ class Runner:
                         self.record_start(name, st["id"], "series")
                         t0 = time.time()
                         self.log("start %s: %d side files removed; KSP up to %d s" % (st["id"], removed, timeout))
-                        how, exit_code = self.launch(args, timeout, ksp_log)
+                        c0 = self.clock()
+                        watch = LogMarks(ksp_log, self.clock)
+                        watch.start()
+                        try:
+                            how, exit_code = self.launch(args, timeout, ksp_log)
+                        finally:
+                            c1 = self.clock()
+                            watch.finish()
+                        phases += launch_phases(c0, watch.marks, c1)
                         info.update({"how": how, "exit": exit_code, "seconds": round(time.time() - t0, 1)})
                         text = ""
                         if os.path.exists(ksp_log):
@@ -1017,12 +1133,19 @@ class Runner:
                             failures.append(("start@" + st["id"], how))
                         self.collect(defn, report)
                     finally:
+                        if c1 is not None:
+                            phases.append(("collect / report", self.clock() - c1))
+                        self.log(format_phases(phases, "start %s phases" % st["id"]))
+                        info["phases"] = [{"phase": n, "seconds": round(sec, 1)} for n, sec in phases]
                         modsets.restore()
             finally:
                 self.vm.end()
         except Refusal as e:
             failures.append(("run", str(e).splitlines()[0]))
             report["notes"].append(str(e))
+            if not report["starts"] and run_phases:
+                report["run_phases"] = run_phases
+                self.log(format_phases(run_phases, "run phases before the refusal"))
         finally:
             try:
                 modsets.restore()  # before the side files, so that nothing is written into a folder that is still away
@@ -1145,7 +1268,9 @@ def cmd_run(args):
     who = args.who or "series-" + defn["name"]
     # Before anything is touched (lock, build, deploy): the offline preflight; any FAIL refuses the run.
     import atmo_preflight
+    t = time.time()
     results = atmo_preflight.run_preflight(repo, defn["name"], args.start, ksp, mainrepo, who, dotnet=_dotnet())
+    preflight_seconds = time.time() - t
     if not atmo_preflight.preflight_ok(results):
         print(atmo_preflight.format_preflight(defn["name"], results))
         print("REFUSED: the preflight has FAIL(s); nothing was touched")
@@ -1153,9 +1278,12 @@ def cmd_run(args):
     print(atmo_preflight.format_preflight(defn["name"], results))
     minutes = min(defn.get("maxMinutes", MAX_MINUTES), MAX_MINUTES) * len([s for s in defn["starts"] if args.start in (None, s["id"])]) + 15
     path = gpu_lock.lock_path("gpu")
+    t = time.time()
     info = gpu_lock.wait_acquire(path, who, minutes, defn.get("exclusive", False), "gpu", os.getpid(), "atmo_series run " + defn["name"])
+    lock_seconds = time.time() - t
     try:
         runner = Runner(repo, ksp, mainrepo, who, DEFAULT_DOTNET if os.path.exists(DEFAULT_DOTNET) else "dotnet")
+        runner.lead_phases = [("lock wait", lock_seconds), ("preflight", preflight_seconds)]
         report = runner.execute(defn, args.start)
     except Refusal as e:
         print("REFUSED: %s" % e)
@@ -1460,6 +1588,45 @@ def _selftest():
         built = []
         rep = runner(build_bundle=lambda: built.append(1) or 0).execute(d5)
         check("a bundle series calls the bundle build once after the build", len(built) == 1 and rep["ok"])
+
+        # 5c. Phase timing: the marks of a log, the phases of a start, the idle warning of the bundle build.
+        ticks = [0.0]
+        def tick():
+            ticks[0] += 40.0
+            return ticks[0]
+        fresh_ksp()
+        def quick_bundle():
+            with open(os.path.join(repo, "build", "atmospheres-bundle.log"), "w") as f:
+                f.write("Unity says it was quick\n")
+            return 0
+        logged = []
+        timed = Runner(repo, ksp, main, "selftest", log=logged.append, hooks={
+            "ksp_running": lambda: False, "build": fake_build(), "launch": launcher("pass"), "vm": VmControl("gameserver", FakeVm(), log=lambda s: None),
+            "free_gb": lambda: 40.0, "starts_log": os.path.join(main, "starts.jsonl"), "profile_cache": cache, "build_bundle": quick_bundle, "clock": tick})
+        timed.lead_phases = [("lock wait", 1.0), ("preflight", 2.0)]
+        rep = timed.execute(d5)
+        names = [p["phase"] for p in rep["starts"][0]["phases"]]
+        check("the first start's phases carry the run's phases in order", names[:5] == ["lock wait", "preflight", "build", "bundle build", "hash verify / install"]
+              and names[-1] == "collect / report" and "game launch to first log line" in names, str(names))
+        check("the phases are written into the run's JSON record", any(
+            f.startswith("K-test-") and f.endswith(".json") and "phases" in read_json(os.path.join(repo, "build", "atmo-series", f))["starts"][0]
+            for f in os.listdir(os.path.join(repo, "build", "atmo-series"))))
+        check("the table of a start is printed with a total", any("phases" in line and "total" in line for line in logged))
+        check("a bundle build much longer than Unity's log says is flagged as idle", any(line.startswith("WARN: the bundle build") for line in logged)
+              and len(rep["phase_warnings"]) == 1)
+        check("a bundle build within the margin is not flagged", idle_warning(100.0, 80.0) is None and idle_warning(100.0, 60.0) is not None
+              and idle_warning(10.0, None) is None)
+        marks_file = os.path.join(root, "marks.log")
+        write(marks_file, "[LOG] boot\n[LOG] [ReDefinition] Probe: in flight with Kerbal X.\n[LOG] [ReDefinition] Probe: PASSED\n")
+        clock = iter([10.0])
+        watch = LogMarks(marks_file, lambda: next(clock))
+        watch.step()
+        check("the log marks find the first line, the flight, the probe and the verdict at the poll that saw them", watch.marks == {"first": 10.0, "flight": 10.0, "probe": 10.0, "verdict": 10.0}, str(watch.marks))
+        check("the game's phases come from the marks and leave out a flight the log does not show",
+              launch_phases(0.0, {"first": 5.0, "flight": 20.0, "probe": 20.0, "verdict": 50.0}, 60.0) == [
+                  ("game launch to first log line", 5.0), ("game start to FLIGHT", 15.0), ("probe", 30.0), ("game exit", 10.0)]
+              and [n for n, _s in launch_phases(0.0, {"first": 5.0, "probe": 20.0, "verdict": 50.0}, 60.0)] == [
+                  "game launch to first log line", "probe", "game exit"])
         fresh_ksp()
         started = []
         refused = ""

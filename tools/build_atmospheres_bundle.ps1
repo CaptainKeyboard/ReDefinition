@@ -26,7 +26,12 @@ $arguments = @('-batchmode', '-quit', '-projectPath', (Join-Path $repo 'unity'),
     '-kspRoot', $Ksp, '-logFile', $log)
 if ($Output) { $arguments += @('-output', $Output) }
 $quoted = ($arguments | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
-$process = Start-Process -FilePath $Unity -ArgumentList $quoted -Wait -PassThru
+# Wait for Unity itself only. Start-Process -Wait also waits for every descendant, and Unity leaves its C# compiler server (VBCSCompiler.exe) behind, which idles
+# for about ten minutes before it exits: every series run stood that long between the build and the game's start (seen 2026-11-19, 20:52 to 21:02).
+$process = Start-Process -FilePath $Unity -ArgumentList $quoted -PassThru
+# Reading the handle keeps the exit code readable after the process has ended (without it ExitCode is empty in Windows PowerShell).
+$null = $process.Handle
+$process.WaitForExit()
 Get-Content $log | Select-String -Pattern 'ReDefinition Atmospheres:|error CS|Shader error|Compilation failed' | ForEach-Object { $_.Line }
 if ($process.ExitCode -ne 0) { Write-Host "build_atmospheres_bundle: FAILED, exit code $($process.ExitCode); see $log"; exit $process.ExitCode }
 $shaderErrors = @(Get-Content $log | Select-String -Pattern 'Shader error in ')
