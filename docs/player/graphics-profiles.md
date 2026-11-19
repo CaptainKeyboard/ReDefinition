@@ -137,7 +137,7 @@ The scatter stays off, and stays off with Parallax.
 | Ocean mesh resolution (lower is finer) | 8 | 6 d | · | 4 | 4 | the shipped presets |
 | Ocean transparency and refraction (Volumetric Clouds' build) | off | on d | · | · | · | off in *Very low* |
 | Ocean screen-space reflections (Volumetric Clouds' build) | off | off | on d | · | · | a screen-space trace on the ocean |
-| Light shafts through clouds (Volumetric Clouds' build) | off | off | on d | · | · | on from *Optimal* |
+| Light shafts through clouds (Volumetric Clouds' build) | on d | · | · | · | · | on as Volumetric Clouds ships them |
 | Terrain light shafts (Volumetric Clouds' build) | off d | · | · | on | on | on in *High* and *Very High* |
 | Long-distance terrain shadows | off d | · | · | on | on | on in *High* and *Very High* |
 | Terrain shadow distance, resolution | 50 000, 8192 d | · | · | 25 000, 4096 | 50 000, 8192 | Ultra takes Scatterer's *High* preset, which is shorter and coarser than Scatterer's own default. Max keeps that default |
