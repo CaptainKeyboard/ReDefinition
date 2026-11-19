@@ -78,14 +78,15 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
-        public void TheSunMarchIsTheMeasuredFourKilometresUntilTheSwitchIsOn()
+        public void TheSunMarchIsTheLooksTwelveKilometresWhateverTheSwitch()
         {
-            Assert.AreEqual(4000f, new LayerFrame().SunMarchM, "the shipped march is the one the parity rows measured");
+            Assert.AreEqual(4000f, new LayerFrame().SunMarchM, "the frame's own default is the one the parity rows measured");
+            // The owner's look (2026-11-19, OwnCloudOptions.LookSunMarchM) sets the march towards the sun over the switch cloudSunMarchLong.
             var f = new LayerFrame();
             OwnCloudOptions.Apply(f, Defaults());
-            Assert.AreEqual(LayerFrame.SunMarchShortM, f.SunMarchM);
+            Assert.AreEqual(OwnCloudOptions.LookSunMarchM, f.SunMarchM);
             OwnCloudOptions.Apply(f, Defaults("cloudSunMarchLong", 1));
-            Assert.AreEqual(LayerFrame.SunMarchLongM, f.SunMarchM);
+            Assert.AreEqual(OwnCloudOptions.LookSunMarchM, f.SunMarchM);
         }
 
         [TestMethod]

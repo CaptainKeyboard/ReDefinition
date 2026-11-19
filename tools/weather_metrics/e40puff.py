@@ -453,6 +453,9 @@ def prepare(views, variants, only=None):
             job["id"] = "gn-%s-prod-f0" % new_tag
             job["width"], job["height"] = SIZE
             change, case = VARIANTS[variant][1], VARIANTS[variant][2]
+            # The single-cloud lattice is the shape test's tool (owner 2026-11-19): on in every puff job unless the variant sets cloud.cells itself (its entry comes later and wins);
+            # the game's default is off, the weather map decides the clouds.
+            job.setdefault("tuning", []).insert(0, {"key": "cloud.cells", "value": 1.0})
             if change:
                 change(job)
             spec = json.loads(json.dumps(specs[base_id]).replace(base_tag + "-", new_tag + "-"))
