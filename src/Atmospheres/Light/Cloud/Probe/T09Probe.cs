@@ -268,6 +268,7 @@ namespace ReDefinition.Atmospheres
 
         protected override void RevertVariant(string name)
         {
+            PinCleanup();
             ClearForced();
             if (IsK3) K3Storm(false);
             try { Game.AidOff(); } catch (Exception) { /* the aid view is a picture aid; the game may be gone */ }

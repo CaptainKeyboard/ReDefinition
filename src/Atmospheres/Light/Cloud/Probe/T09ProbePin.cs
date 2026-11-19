@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using ReDefinition.Core;
+using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
@@ -31,6 +32,19 @@ namespace ReDefinition.Atmospheres
         private bool PinStart
         {
             get { return CommandLine.Has(Args(), "-t09Pin", true); }
+        }
+
+        private bool pinActive;
+
+        // The clock runs again and the frame origin is 0 again: at the end of the capture, and from RevertVariant when the probe ends otherwise (a failed step, a timeout,
+        // a lost scene), so the pass never keeps the probe's origin.
+        private void PinCleanup()
+        {
+            if (!pinActive) return;
+            pinActive = false;
+            try { Game.PinClock(double.NaN); } catch (Exception) { /* the game may be gone */ }
+            OwnCloudModule own = OwnCloudModule.Current;
+            if (own != null) own.FrameOrigin = 0;
         }
 
         // A step of the pinned capture: a row and a check; false ends the capture (the check has failed the start).
@@ -88,8 +102,9 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
             if (!PinStep("placed", placeOk, "the " + view.Name + " view")) yield break;
             foreach (ProbeWait w in StableGate(view, variant)) yield return w;
+            pinActive = true;
             foreach (ProbeWait w in PinCaptureSteps(view, variant)) yield return w;
-            try { Game.PinClock(double.NaN); } catch (Exception) { /* the game may be gone */ }
+            PinCleanup();
             EndVariant();
             Game.StopHold();
         }
@@ -147,10 +162,28 @@ namespace ReDefinition.Atmospheres
             int cutsAfter = own.HistoryCuts;
 
             // 4. The hold: the probe ticks before the frame's record, so at PinFrames - 1 the record of this frame is the PinFrames-th.
+            // Each tick reads what the frame before it filled: the time the module's tick took, the sun's direction and the planet's centre of its record.
             giveUp = Elapsed + PinHoldTimeoutS;
-            while (own.HistoryFramesSinceCut < PinFrames - 1 && own.HistoryCuts == cutsAfter && Elapsed < giveUp) yield return ProbeWait.Frames(1);
+            double utMin = double.MaxValue, utMax = double.MinValue, sunSpreadDeg = 0.0, centreSpreadM = 0.0;
+            Vector3 sun0 = own.Frame.TowardsSun, centre0 = own.Frame.PlanetCenter;
+            while (own.HistoryFramesSinceCut < PinFrames - 1 && own.HistoryCuts == cutsAfter && Elapsed < giveUp)
+            {
+                yield return ProbeWait.Frames(1);
+                utMin = Math.Min(utMin, own.FrameUt);
+                utMax = Math.Max(utMax, own.FrameUt);
+                sunSpreadDeg = Math.Max(sunSpreadDeg, Vector3.Angle(sun0, own.Frame.TowardsSun));
+                centreSpreadM = Math.Max(centreSpreadM, (own.Frame.PlanetCenter - centre0).magnitude);
+            }
             if (!PinStep("hold", own.HistoryFramesSinceCut == PinFrames - 1 && own.HistoryCuts == cutsAfter,
                          "frames since the cut " + own.HistoryFramesSinceCut + " (wanted " + (PinFrames - 1) + " before the capture frame), cuts " + cutsAfter + " -> " + own.HistoryCuts)) yield break;
+            double utSpread = utMax >= utMin ? utMax - utMin : double.NaN, step = Game.PhysicsStepS;
+            Emit("T09.pin.ut_spread_s", utSpread);
+            Emit("T09.pin.sun_spread_deg", sunSpreadDeg);
+            Emit("T09.pin.centre_spread_m", centreSpreadM);
+            // The planet's centre moves with the floating origin and the hold; it is written into pass.json and the replay takes the capture frame's, so it is a row, not a check.
+            if (!PinStep("ut_spread", utSpread <= step, "the time the module read over the hold spread " + utSpread.ToString("0.0000", CultureInfo.InvariantCulture) + " s, one physics step "
+                                                         + step.ToString("0.0000", CultureInfo.InvariantCulture) + " s; the sun's direction " + sunSpreadDeg.ToString("0.00000", CultureInfo.InvariantCulture)
+                                                         + " degrees, the planet's centre " + centreSpreadM.ToString("0.000", CultureInfo.InvariantCulture) + " m")) yield break;
 
             // 5. The capture, all at this frame's end.
             string tag = "pin-" + view.Name + "-u" + ((long)utChosen).ToString(CultureInfo.InvariantCulture) + "-" + (StartId ?? "nostart") + "-"
@@ -179,6 +212,8 @@ namespace ReDefinition.Atmospheres
                                + (job.Problems.Count > 0 ? "; problems: " + string.Join("; ", job.Problems.ToArray()) : ""));
             PinStep("reads_done", job.Done, job.Done ? "" : "the reads did not finish in " + PinReadTimeoutS.ToString("0") + " s");
             PinStep("frames_since_cut", job.FramesSinceCut == PinFrames, job.FramesSinceCut + " records since the cut in the capture frame, wanted " + PinFrames);
+            // The origin and the record in step: the cut's frame was number 0, so the PinFrames-th record is PinFrames - 1.
+            PinStep("frame_number", job.FrameNumber == PinFrames - 1, "frame number " + job.FrameNumber + " in the capture frame, wanted " + (PinFrames - 1));
             PinStep("cloud_buffer", job.CloudWritten, job.CloudWritten ? "cloud.npy " + job.CloudWidth + "x" + job.CloudHeight : string.Join("; ", job.Problems.ToArray()));
             PinStep("depth", job.DepthWritten, job.DepthWritten ? "depth.npy " + job.DepthWidth + "x" + job.DepthHeight : string.Join("; ", job.Problems.ToArray()));
             PinStep("maps_pass_json", job.DumpWritten, job.DumpWritten ? "maps and pass.json" : string.Join("; ", job.Problems.ToArray()));

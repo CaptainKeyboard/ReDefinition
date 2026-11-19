@@ -124,9 +124,20 @@ namespace ReDefinition.WeatherPlayer
                     List<string> problems = LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip);
                     // A load that had to build the volumes again (the job's noise switches are not the game's) leaves the thresholds stale: named, not hidden.
                     if (!rig.Renderer.Noise.Ready) problems.Add("the noise volumes are not ready after the second load");
+                    // Nothing is filled in silently: a layer without the game's height map would get heights.json's built ones (HeightHook), and what the preparation named.
+                    foreach (LayersJobLayer jl in job.layers)
+                        if (string.IsNullOrEmpty(jl.heightMap)) problems.Add("layer " + jl.name + " has no height map of the game; the heights would be built, not the game's");
+                    if (job.unsupported != null) problems.AddRange(job.unsupported);
                     Cam.fieldOfView = job.fovV;
                     Cam.transform.position = LayersSetup.V(job.worldCamera);
                     Cam.transform.rotation = new Quaternion(job.worldRotation[0], job.worldRotation[1], job.worldRotation[2], job.worldRotation[3]);
+                    // A fresh reconstructor for every replay (-freshRecon, a diagnosis of the self-parity residual): no target or pose of the replay before it.
+                    if (WeatherPass.Argument("-freshRecon") == "1")
+                    {
+                        rig.Recon.Dispose();
+                        rig.Recon = new LayerReconstructor();
+                        rig.Recon.Init(Shader.Find(LayerReconstructor.ShaderName));
+                    }
                     rig.Recon.Reset();
                     for (int k = 0; k < job.frames; k++)
                     {
@@ -139,6 +150,11 @@ namespace ReDefinition.WeatherPlayer
                     }
                     string stem = job.id + "-r" + rep;
                     WriteCloud(rig.Recon.Output, Path.Combine(Output, stem + "-cloud.npy"));
+                    // The depth the replay read, from the texture it bound and in the rows' order of the cloud file (m0parity's orientation check).
+                    byte[] depthRaw = depth.GetRawTextureData();
+                    var depthValues = new float[depthRaw.Length / 4];
+                    Buffer.BlockCopy(depthRaw, 0, depthValues, 0, depthRaw.Length);
+                    PinFiles.WriteFloat32(Path.Combine(Output, stem + "-depth.npy"), job.height, job.width, 1, depthValues);
                     File.WriteAllText(Path.Combine(Output, stem + "-uniforms.json"), LayerPassReadout.Uniforms(rig.Renderer.Material));
                     var report = new StringBuilder();
                     report.Append("{\"typeTableHash\": ").Append(LayerPassReadout.Str(rig.Renderer.TypeTableHash())).Append(", \"firstFrame\": ").Append(job.firstFrame)

@@ -850,6 +850,11 @@ def prepare_pin(captures, out=PIN_INPUT, standin=False):
             depth = "%s-depth.npy" % tag
             shutil.copyfile(os.path.join(cap, "depth.npy"), os.path.join(out, depth))
         layers = job_layers(name, "now", pj, out)
+        # What the replay cannot take from the capture is named, never filled in: a layer without the game's height map (the player would build one from heights.json's
+        # stand-in numbers), and a setting the walk left out that is not at its default (a light cache that is on).
+        unsupported = ["layer %s: the capture has no height map (%s-height.u8); the replay would build its own" % (jl["name"], jl["name"])
+                       for jl in layers if not jl.get("heightMap")]
+        unsupported += ["the game's %s is set; the replay cannot set it" % p for p in pj.get("settingsNotDefault", [])]
         cam, u, world = pj["camera"], pj["uniforms"], pin["world"]
         w, h = int(world["width"]), int(world["height"])
         jid = "pin-" + name
@@ -869,6 +874,9 @@ def prepare_pin(captures, out=PIN_INPUT, standin=False):
                                 sphere=float(sw.get("SphereScale", 1.0)))
         job["tuning"] = [dict(key=k, value=float(v)) for k, v in sorted(pj.get("tuning", {}).items()) if v is not None]
         job["settings"] = settings
+        job["unsupported"] = unsupported
+        for text in unsupported:
+            print("%s: NOT REPLAYABLE: %s" % (cap, text))
         job.update(depthFile=depth or "", worldCamera=[float(x) for x in world["camera"]], worldRotation=[float(x) for x in world["rotation"]],
                    firstFrame=int(pin["firstFrameNumber"]), frames=int(pin["framesSinceCut"]))
         jobs.append(job)
@@ -897,7 +905,7 @@ def pin_stage_list():
     index = pin_index()
     if not index:
         return []
-    return [Stage(PIN_LABEL, ["-mode", "scene", "-scene", "pin-replay", "-in", PIN_INPUT, "-repeat", str(PIN_REPEAT)], size=(index[0]["width"], index[0]["height"]), proxy=False,
+    return [Stage(PIN_LABEL, ["-mode", "scene", "-scene", "pin-replay", "-in", PIN_INPUT, "-repeat", str(PIN_REPEAT), "-freshRecon", os.environ.get("M0PIN_FRESH_RECON", "0")], size=(index[0]["width"], index[0]["height"]), proxy=False,
                   timeout=1800)]
 
 
@@ -924,9 +932,32 @@ def pin_collect(ctx):
             metrics.append(Metric.info("m0pin.%s.self_max_colour" % jid, s["whole"]["max_colour"]))
             metrics.append(Metric.info("m0pin.%s.self_max_alpha" % jid, s["whole"]["max_alpha"]))
             metrics.append(Metric.info("m0pin.%s.self_beyond_half_step" % jid, s["whole"]["beyond_half_step"]))
+            u0, u1 = os.path.join(folder, jid + "-r0-uniforms.json"), os.path.join(folder, jid + "-r1-uniforms.json")
+            if os.path.isfile(u0) and os.path.isfile(u1):
+                with open(u0, encoding="utf-8") as f:
+                    a0 = json.load(f)
+                with open(u1, encoding="utf-8") as f:
+                    a1 = json.load(f)
+                differ = ["%s.%s" % (g, k) for g in a0 for k in a0[g] if a0[g][k] != a1.get(g, {}).get(k)]
+                print("  %s uniforms r0 against r1: %s" % (jid, ", ".join(differ) if differ else "all equal"))
+                metrics.append(Metric.info("m0pin.%s.self_uniforms_differing" % jid, len(differ)))
+            # Every further replay against the one before it (-repeat 3: whether r1 equals r2 while r0 differs, i.e. state the first replay carries over).
+            k = 2
+            while os.path.isfile(os.path.join(folder, "%s-r%d-cloud.npy" % (jid, k))):
+                prev, cur = os.path.join(folder, "%s-r%d-cloud.npy" % (jid, k - 1)), os.path.join(folder, "%s-r%d-cloud.npy" % (jid, k))
+                s, text = m0parity.compare(prev, cur, os.path.join(BUILD, "m0pin-self%d-%s" % (k, jid)), label_a="player r%d" % (k - 1), label_b="player r%d" % k)
+                print(text)
+                metrics.append(Metric.info("m0pin.%s.self%d_max_colour" % (jid, k), s["whole"]["max_colour"]))
+                metrics.append(Metric.info("m0pin.%s.self%d_beyond_half_step" % (jid, k), s["whole"]["beyond_half_step"]))
+                k += 1
         game = os.path.join(item["capture"], "cloud.npy")
         if os.path.isfile(game) and not item.get("standin"):
-            s, text = m0parity.compare(game, r0, os.path.join(BUILD, "m0pin-game-" + jid), label_a="game", label_b="player")
+            try:
+                s, text = m0parity.compare(game, r0, os.path.join(BUILD, "m0pin-game-" + jid), label_a="game", label_b="player")
+            except m0parity.OrientationError as e:
+                print("ORIENTATION FAILED: %s" % e)
+                metrics.append(Metric.flag("m0pin.%s.orientation" % jid, False))
+                continue
             print(text)
             metrics.append(Metric.info("m0pin.%s.game_max_colour" % jid, s["whole"]["max_colour"]))
             metrics.append(Metric.info("m0pin.%s.game_mean_colour" % jid, s["whole"]["mean_colour"]))

@@ -477,6 +477,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public double PinnedUt = double.NaN;
         public void PinClock(double ut) { PinnedUt = ut; if (!double.IsNaN(ut)) Ut = ut; }
         public MonoBehaviour EndOfFrameHost { get { return null; } }
+        public double PhysicsStepS { get { return 0.02; } }
 
         public bool ScattererLoaded { get { return Scatterer; } }
         public bool EveAvailable { get { return Eve; } }

@@ -94,6 +94,9 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
+        // The universal time the module's last tick read (the maps, the heights and the frame it filled took it).
+        internal double FrameUt { get { return pendingUt; } }
+
         internal int HistoryFramesSinceCut { get { return driver != null ? driver.FramesSinceCut : -1; } }
         internal int HistoryCuts { get { return driver != null ? driver.CutCount : -1; } }
 
@@ -228,6 +231,12 @@ namespace ReDefinition.Atmospheres
             {
                 if (i > 0) s.Append(", ");
                 s.Append(LayerPassReadout.Str(settings.Skipped[i]));
+            }
+            s.Append("],\n \"settingsNotDefault\": [");
+            for (int i = 0; i < settings.NotDefault.Count; i++)
+            {
+                if (i > 0) s.Append(", ");
+                s.Append(LayerPassReadout.Str(settings.NotDefault[i]));
             }
             s.Append("],\n \"typeTableHash\": ").Append(LayerPassReadout.Str(tableHash));
             return s.ToString();

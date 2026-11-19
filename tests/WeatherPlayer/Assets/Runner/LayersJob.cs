@@ -207,6 +207,8 @@ namespace ReDefinition.WeatherPlayer
         public string depthFile;
         public float[] worldCamera, worldRotation;
         public int firstFrame, frames;
+        // What the preparation found it cannot replay (a layer without the game's height map, a game setting the walk could not carry): problems of the replay.
+        public string[] unsupported;
     }
 
     [Serializable]

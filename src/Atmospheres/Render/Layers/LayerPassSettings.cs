@@ -33,6 +33,9 @@ namespace ReDefinition.Atmospheres
         {
             internal readonly List<LayerPassSetting> Settings = new List<LayerPassSetting>();
             internal readonly List<string> Skipped = new List<string>();
+            // The skipped references that hold something (a reference's default is null, so these are not at their default: a light cache that is on): the replay cannot
+            // set them, so a replay of such a pass is not the game's and names them as problems.
+            internal readonly List<string> NotDefault = new List<string>();
         }
 
         internal static Result Collect(LayerFrame frame, ReconSettings recon, NoiseSwitches noise)
@@ -117,7 +120,8 @@ namespace ReDefinition.Atmospheres
                 else Walk(value, value.GetType(), p, r, depth);
                 return;
             }
-            r.Skipped.Add(p + " (" + t.Name + ")");
+            r.Skipped.Add(p + " (" + t.Name + (value == null ? ", null" : ", set") + ")");
+            if (value != null) r.NotDefault.Add(p + " (" + t.Name + ")");
         }
 
         internal static string Text(object value)

@@ -72,6 +72,8 @@ namespace ReDefinition.Atmospheres
         double UniversalTime { get; set; }
         // The pinned capture (-t09Pin, T09ProbePin.cs): holds the universal time at ut before every physics step and every frame's end, until a call with NaN lets it run again.
         void PinClock(double ut);
+        // The game time one physics step covers (the fixed step times the warp): the most a pinned clock may move within a frame.
+        double PhysicsStepS { get; }
         // The host the end-of-frame reads of the pinned capture run on (the probe's ReconHost); null where the world has none (the tests).
         MonoBehaviour EndOfFrameHost { get; }
 
@@ -630,10 +632,11 @@ namespace ReDefinition.Atmospheres
             set { Planetarium.SetUniversalTime(value); }
         }
 
-        // The pinned clock: set before every physics step (the hold's hook, ReconHost.PerFixed) and in every LateUpdate (ReconHost.PerFrame), so that what the frame's modules
-        // and the render read is the pinned time, or the pinned time plus the physics steps that ran after the hook in the same frame (the hooks' order against Planetarium's
-        // own FixedUpdate is Unity's script order, the same in every start).
+        // The pinned clock: set before every physics step (the hold's hook, ReconHost.PerFixed), at the start of every Update before any other script (PinClockEarly, the
+        // earliest script execution order, after the frame's physics steps), and in every LateUpdate (ReconHost.PerFrame). The modules' ticks and the render then read the
+        // pinned time; the bodies' positions are those of the last physics step, which the probe measures (T09.pin.sun_spread_deg, T09.pin.centre_spread_m).
         private double pinnedUt = double.NaN;
+        private GameObject pinEarly;
 
         public void PinClock(double ut)
         {
@@ -641,11 +644,25 @@ namespace ReDefinition.Atmospheres
             h.PerFixed.Remove(PinClockStep);
             h.PerFrame.Remove(PinClockStep);
             pinnedUt = ut;
-            if (double.IsNaN(ut)) return;
+            PinClockEarly.Ut = ut;
+            if (double.IsNaN(ut))
+            {
+                if (pinEarly != null) UnityEngine.Object.Destroy(pinEarly);
+                pinEarly = null;
+                return;
+            }
             Planetarium.SetUniversalTime(ut);
             h.PerFixed.Add(PinClockStep);
             h.PerFrame.Add(PinClockStep);
+            if (pinEarly == null)
+            {
+                pinEarly = new GameObject("ReDefinition pinned clock");
+                UnityEngine.Object.DontDestroyOnLoad(pinEarly);
+                pinEarly.AddComponent<PinClockEarly>();
+            }
         }
+
+        public double PhysicsStepS { get { return Time.fixedDeltaTime * TimeWarp.CurrentRate; } }
 
         private void PinClockStep()
         {
@@ -858,6 +875,19 @@ namespace ReDefinition.Atmospheres
         public long SavePicture(string name, T09Image image, int factor)
         {
             return SeriesPictures.SaveImage(name, image.Pixels, image.Width, image.Height, factor);
+        }
+    }
+
+    // The pinned clock's first hook of a frame (KspT09World.PinClock): its Update runs before every other script's (the lowest execution order Unity takes), after the
+    // frame's physics steps, so the Update of every module sees the pinned time. NaN: nothing set.
+    [DefaultExecutionOrder(-32000)]
+    internal sealed class PinClockEarly : MonoBehaviour
+    {
+        internal static double Ut = double.NaN;
+
+        private void Update()
+        {
+            if (!double.IsNaN(Ut)) Planetarium.SetUniversalTime(Ut);
         }
     }
 }

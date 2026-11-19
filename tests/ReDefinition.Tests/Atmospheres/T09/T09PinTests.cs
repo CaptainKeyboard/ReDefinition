@@ -134,6 +134,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                      })
                 Assert.IsTrue(paths.Contains(p), p + " is carried");
             Assert.IsFalse(paths.Any(p => p == "Frame.Light.Cache" || p.StartsWith("Frame.Light.Cache.", StringComparison.Ordinal)), "the light cache is a GPU resource, not a setting");
+            LayerPassSettings.Result r = LayerPassSettings.Collect(new LayerFrame(), new ReconSettings(), new NoiseSwitches());
+            CollectionAssert.Contains(r.Skipped, "Frame.Light.Cache (LightCache, null)", "the skipped reference is named with its state");
+            Assert.AreEqual(0, r.NotDefault.Count, "a cache that is off (null) is at its default: " + string.Join(", ", r.NotDefault.ToArray()));
         }
 
         [TestMethod]
@@ -284,6 +287,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: check T09.pin.placed: ok")), Dump(r));
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: check T09.pin.clock: ok (ut 1018800.000 against the pinned 1018800.000)")), "the clock was pinned at the asked time\n" + Dump(r));
             Assert.IsTrue(double.IsNaN(r.World.PinnedUt), "the clock runs again after the capture");
+            Assert.AreEqual(0, r.World.Module.FrameOrigin, "the frame origin is 0 again after a failed capture");
             Assert.AreEqual(0, r.Log.Count(l => l.StartsWith("T09 view begin")), "no timing window");
         }
     }
