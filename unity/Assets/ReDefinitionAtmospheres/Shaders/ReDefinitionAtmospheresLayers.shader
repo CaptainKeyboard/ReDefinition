@@ -775,7 +775,11 @@ Shader "ReDefinition/AtmospheresLayers"
                 bool turn = all(abs(fmod(fpx, _FarRot.y) - _FarRot.zw) < 0.5);
                 if (!turn && _FarDepth.Load(int3(fpx, 0)) > _FarRot.x) return float4(0, 0, 0, -1);
             }
-            float2 pixel = i.uv * (_ReconP.x < 1.5 ? (_DitherP.w > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : _ScreenParams.xy) : _ReconD.xy);
+            // The pixel grid of the dither: the pass's own sizes (_ReconD: the full target x, y and the march target z, w; the direct path sets x, y to the camera's
+            // pixels and z, w to 0). Unity's _ScreenParams only where no caller set them (0, the weather player's own scenes): a command buffer executed outside a
+            // camera's render (the pinned replay) does not have the camera's size in it.
+            float2 grid = _ReconD.x > 0.5 ? _ReconD.xy : _ScreenParams.xy;
+            float2 pixel = i.uv * (_ReconP.x < 1.5 ? (_DitherP.w > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : grid) : _ReconD.xy);
             MarchOut r = March(o, d, tmax, pixel);
             if (_LimitP.y > 1.5 && _LimitP.y < 2.5)
             {

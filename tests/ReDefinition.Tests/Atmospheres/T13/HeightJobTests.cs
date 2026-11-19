@@ -37,6 +37,46 @@ namespace ReDefinition.Tests
             public FieldReadiness Readiness { get { return inner.Readiness; } }
         }
 
+        // The field with the time of every map it hands replaced (the time of a map the worker finished earlier, or none).
+        private sealed class MapTimeField : IWeatherField
+        {
+            private readonly IWeatherField inner;
+            private readonly double mapUt;
+            internal MapTimeField(IWeatherField inner, double mapUt) { this.inner = inner; this.mapUt = mapUt; }
+            public bool Sample(int b, double lat, double lon, double alt, double ut, out WeatherSample s) { return inner.Sample(b, lat, lon, alt, ut, out s); }
+            public bool GetMap(int b, WeatherMapKind k, double ut, WeatherMap t)
+            {
+                bool ok = inner.GetMap(b, k, ut, t);
+                t.Ut = mapUt;
+                return ok;
+            }
+            public bool FillWindow(int b, double a, double c, double r, double ut, WeatherWindow w) { return inner.FillWindow(b, a, c, r, ut, w); }
+            public void Advance(double ms) { inner.Advance(ms); }
+            public long Version { get { return inner.Version; } }
+            public long DefinitionId { get { return inner.DefinitionId; } }
+            public bool ThreadSafe { get { return inner.ThreadSafe; } }
+            public double StepSeconds { get { return inner.StepSeconds; } }
+            public FieldReadiness Readiness { get { return inner.Readiness; } }
+        }
+
+        [TestMethod]
+        public void TheGatherNamesTheTimeOfTheMapsItReadAndAMapWithoutATimeIsNeverOfTheAskedTime()
+        {
+            GeneratorField field = FieldFixture.Field();
+            LayerStackSource s = Stack();
+            HeightPlan plan = HeightPlan.Make(s, new HeightTuning(), Ut, BodySeed, W, H);
+            foreach (double mapUt in new[] { Ut, Ut - 3.0, double.NaN })
+            {
+                HeightGather gather = plan.Gather(new MapTimeField(field, mapUt));
+                gather.Step(0.0);
+                Assert.AreEqual(3, gather.MapsRead, "coverage, humidity and temperature were read");
+                HeightResult r = plan.Build(gather, new HeightNoiseCache(16), null);
+                Assert.AreEqual(Ut, r.PlanUt);
+                if (double.IsNaN(mapUt)) Assert.IsTrue(double.IsNaN(r.MapsUt) && r.MapsRead == 3 && !(r.MapsUt == r.PlanUt), "a map without a time is not of the asked time");
+                else Assert.AreEqual(mapUt, r.MapsUt, "the time of the maps read");
+            }
+        }
+
         private sealed class ThrowingField : IWeatherField
         {
             public bool Sample(int b, double lat, double lon, double alt, double ut, out WeatherSample s) { throw new InvalidOperationException("boom"); }

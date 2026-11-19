@@ -431,6 +431,8 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSkipP, new Vector4(Mathf.Max(1f, f.EmptyLeap), Mathf.Max(0f, f.LightCutoff), Mathf.Clamp01(f.CheapShare), Mathf.Clamp01(f.FogShare)));
             // The block sampling of the temporal reconstruction is switched on by its own Record after this call, never left over.
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
+            // Its sizes too (Record and Prepare set them after this call; 0: a caller that sets none, the shader then reads Unity's _ScreenParams as before).
+            m.SetVector(Shader.PropertyToID("_ReconD"), Vector4.zero);
             m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), Mathf.Max(0f, f.LeapScales), 0f));
             // CLOUDR1 P6: the first hit by bisection and the thin steps inside (cloud.firstHit, cloud.firstHit.thin, cloud.firstHit.grow); 0 iterations: the march as it was.
             m.SetVector(IdFirstHitP, new Vector4(CloudLookTuning.FirstHitIterations, CloudLookTuning.FirstHitThin, CloudLookTuning.FirstHitShell, CloudLookTuning.FirstHitNear));
@@ -675,6 +677,8 @@ namespace ReDefinition.Atmospheres
             Apply(f);
             // The direct path has no history: the reconstruction's far rotation (LayerReconstructor) must not mark any of its pixels.
             material.SetVector(IdFarRot, Vector4.zero);
+            // The camera's pixels as the march's pixel grid: the values _ScreenParams has in the camera's render, which the shader read here before.
+            material.SetVector(Shader.PropertyToID("_ReconD"), new Vector4(camera.pixelWidth, camera.pixelHeight, 0f, 0f));
             commands.Clear();
             if (markStart != null) markStart(commands);
             commands.SetGlobalTexture(IdSceneDepth, sceneDepth);

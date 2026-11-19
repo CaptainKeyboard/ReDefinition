@@ -50,11 +50,12 @@ namespace ReDefinition.Atmospheres
 
         // The time the last applied height build asked for and the time of the field's maps it read (NaN: none read; BuildHeights sets both).
         private double lastHeightPlanUt = double.NaN, lastHeightMapsUt = double.NaN;
+        private int lastHeightMapsRead;
 
         // Whether the last applied height build read maps of its own time (true where it read none: nothing of another time went in).
         internal bool HeightMapsCurrent
         {
-            get { return double.IsNaN(lastHeightMapsUt) || lastHeightMapsUt == lastHeightPlanUt; }
+            get { return lastHeightMapsRead == 0 || lastHeightMapsUt == lastHeightPlanUt; }
         }
 
         // Whether the maps and the heights have settled: the maps primed, no height build or upload waiting, at least one height build finished after buildsBefore (the one
@@ -150,9 +151,15 @@ namespace ReDefinition.Atmospheres
         // after one at the first phase, so every start replays the same jitter sequence and the depth the march reads moves the same way from frame to frame.
         internal static bool HostJitterAtFirstPhase()
         {
-            Vector4 j = Shader.GetGlobalVector(HostJitter);
+            return JitterAtFirstPhase(Shader.GetGlobalVector(HostJitter));
+        }
+
+        // The rule on the global's value (x, y the offset in render pixels): no jitter, or the offset of the sequence's first phase. Of the Halton indices 1 to the
+        // phase count (8 to 32), only index 1 has x = 0.5 - 0.5 (Halton base 2 is 1/2 only at index 1), so the rule picks one frame of each sequence.
+        internal static bool JitterAtFirstPhase(Vector4 j)
+        {
             if (j.x == 0f && j.y == 0f) return true;
-            return Mathf.Abs(j.x) < 1e-6f && Mathf.Abs(j.y - (1f / 3f - 0.5f)) < 1e-5f;
+            return Math.Abs(j.x) < 1e-6f && Math.Abs(j.y - (1f / 3f - 0.5f)) < 1e-5f;
         }
 
         private void PinLogFrame(Camera cam)

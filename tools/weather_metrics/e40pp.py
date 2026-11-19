@@ -1012,6 +1012,19 @@ def pin_collect(ctx):
                 metrics.append(Metric.info("m0pin.%s.self%d_max_colour" % (jid, k), s["whole"]["max_colour"]))
                 metrics.append(Metric.info("m0pin.%s.self%d_beyond_half_step" % (jid, k), s["whole"]["beyond_half_step"]))
                 k += 1
+            # The replay's own repeats must be bit-identical: any difference is a named problem with its numbers (the stage fails on it).
+            first = np.load(r0)
+            problems = []
+            k = 1
+            while os.path.isfile(os.path.join(folder, "%s-r%d-cloud.npy" % (jid, k))):
+                other = np.load(os.path.join(folder, "%s-r%d-cloud.npy" % (jid, k)))
+                d = np.abs(other.astype(np.float64) - first)
+                if d.max() > 0.0:
+                    problems.append("r%d differs from r0 in %.4f %% of the pixels, max %.6f" % (k, 100.0 * float((d > 0).any(axis=-1).mean()), float(d.max())))
+                k += 1
+            for text in problems:
+                print("PROBLEM %s: the replay is not repeatable: %s" % (jid, text))
+            metrics.append(Metric.flag("m0pin.%s.self_identical" % jid, not problems))
         game = os.path.join(item["capture"], "cloud.npy")
         if os.path.isfile(game) and not item.get("standin"):
             try:

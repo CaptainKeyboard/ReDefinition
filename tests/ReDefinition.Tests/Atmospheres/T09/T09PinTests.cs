@@ -25,6 +25,30 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
+        public void TheJitterCutTakesExactlyTheFirstPhaseOfTheUpscalersSequence()
+        {
+            // The upscaler's own sequence (UpscalerRig.ChooseJitter: Fsr3Upscaler.GetJitterOffset at Time.frameCount) for render scales 1 to 2 and the sizes K-T2 uses.
+            foreach (int[] size in new[] { new[] { 2560, 2560 }, new[] { 1707, 2560 }, new[] { 1506, 2560 }, new[] { 1280, 2560 } })
+            {
+                int phases = FidelityFX.FSR3.Fsr3Upscaler.GetJitterPhaseCount(size[0], size[1]);
+                Assert.IsTrue(phases >= 8 && phases <= 32, "phase count " + phases);
+                foreach (int start in new[] { 0, 4722, 4856, 100003 })
+                {
+                    var hits = new List<int>();
+                    for (int frame = start; frame < start + 3 * phases; frame++)
+                    {
+                        float x, y;
+                        FidelityFX.FSR3.Fsr3Upscaler.GetJitterOffset(out x, out y, frame, phases);
+                        if (OwnCloudModule.JitterAtFirstPhase(new Vector4(x, y, 2f * x / size[0], 2f * y / size[0]))) hits.Add(frame);
+                    }
+                    Assert.AreEqual(3, hits.Count, "one frame per sequence (" + phases + " phases from " + start + ")");
+                    foreach (int h in hits) Assert.AreEqual(0, h % phases, "the first phase: frame " + h + " of " + phases);
+                }
+            }
+            Assert.IsTrue(OwnCloudModule.JitterAtFirstPhase(Vector4.zero), "no jitter: the cut does not wait");
+        }
+
+        [TestMethod]
         public void TheModulesFrameOriginIsZeroByDefault()
         {
             Assert.AreEqual(0, new OwnCloudModule().FrameOrigin);

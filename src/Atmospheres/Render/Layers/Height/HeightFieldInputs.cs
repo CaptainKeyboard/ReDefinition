@@ -178,7 +178,9 @@ namespace ReDefinition.Atmospheres
         // The time of the field's maps the reading took (NaN: none). The field hands the last map its worker finished, which may be of an earlier time than the
         // one asked (GeneratorMaps renders the asked time at most every MinIntervalMs); the updraft samples are always of the time asked. The pinned capture
         // waits for a build whose maps are of its own time (OwnCloudModule.PinSettled).
+        // NaN with MapsRead 0: no map was read; NaN with maps read: a map gave no time (never "of the asked time").
         internal double MapsUt { get; private set; } = double.NaN;
+        internal int MapsRead { get; private set; }
 
         private float[] Fetch(WeatherMapKind kind)
         {
@@ -186,7 +188,10 @@ namespace ReDefinition.Atmospheres
             map.Resize(width, height);
             map.Kind = kind;
             if (!field.GetMap(bodyIndex, kind, ut, map) || map.Values.Length != width * height) return null;
-            if (double.IsNaN(MapsUt) || map.Ut < MapsUt) MapsUt = map.Ut;
+            // The stalest time of the maps read; a map without a time (NaN) leaves NaN for good.
+            bool timeless = MapsRead > 0 && double.IsNaN(MapsUt);
+            if (!timeless && (MapsRead == 0 || double.IsNaN(map.Ut) || map.Ut < MapsUt)) MapsUt = map.Ut;
+            MapsRead++;
             return map.Values;
         }
     }

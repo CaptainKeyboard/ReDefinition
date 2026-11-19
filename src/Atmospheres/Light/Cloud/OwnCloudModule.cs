@@ -1341,6 +1341,7 @@ namespace ReDefinition.Atmospheres
                 done.ApplyTo(stack);
                 lastHeightPlanUt = done.PlanUt;
                 lastHeightMapsUt = done.MapsUt;
+                lastHeightMapsRead = done.MapsRead;
                 Stats.HeightBuilds++;
                 Stats.LastHeightMs = done.ElapsedMs;
                 if (Stats.HeightBuilds <= 1 && Stats.FirstHeightMs == 0.0) Stats.FirstHeightMs = Stats.LastHeightMs;

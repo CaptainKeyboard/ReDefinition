@@ -82,8 +82,8 @@ namespace ReDefinition.WeatherPlayer
             PinFiles.WriteFloat32(path, rt.height, rt.width, 4, values);
         }
 
-        // The switches of the replay's pacing and its diagnosis (e40pp.py passes them through M0PIN_EXTRA): -pinSync / -pinSleepMs (1 / 30: each record finished
-        // and the GPU idle before the next), -pinYieldEvery (records per player frame, 8), -pinJitter (1: the depth follows the game's jitter), -pinHashFrames (hashes
+        // The switches of the replay's pacing and its diagnosis (e40pp.py passes them through M0PIN_EXTRA): -pinSync / -pinSleepMs (opt-in, 0 by default: they hide an
+        // unexplained nondeterminism, not a fix), -pinYieldEvery (records per player frame, 8), -pinJitter (1: the depth follows the game's jitter), -pinHashFrames (hashes
         // of the march target and the output per record), -pinDiagState (GPU hashes of every texture the march reads and of both materials' uniforms),
         // -pinMarchCompare (later replays' march targets against the first, texel by texel), -pinDumpFrom / -pinDumpTo (the march and output of those records).
         private static int DiagInt(string name, int fallback)
@@ -198,6 +198,71 @@ namespace ReDefinition.WeatherPlayer
             return b.ToString();
         }
 
+        // The discriminating experiment of the self-parity hunt (-pinStatic N): ONE fixed record (the capture frame's number, the Full mode: no block, no history, no
+        // reconstruction) marched N times back to back, without a sync or idle; each march target is read back asynchronously (ten records per player frame, so the
+        // reads in flight stay small) and hashed. Writes <job>-static.txt (record, hash) and, for the first record and up to three that differ from it, the march target.
+        private IEnumerator StaticMarch(TemporalRig rig, LayersJob job, string input, List<LayerPassSetting> settings, Texture depth, int count)
+        {
+            rig.Load(job, input);
+            var recon = new ReconSettings();
+            LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip);
+            rig.Renderer.Noise.EnsureReady();
+            LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip);
+            rig.Load(job, input);
+            recon = new ReconSettings();
+            LayerPassSettings.Apply(settings, rig.Frame, recon, rig.Renderer.Noise.Switches, Skip);
+            recon.Mode = ReconMode.Full;
+            Cam.fieldOfView = job.fovV;
+            Cam.transform.position = LayersSetup.V(job.worldCamera);
+            Cam.transform.rotation = new Quaternion(job.worldRotation[0], job.worldRotation[1], job.worldRotation[2], job.worldRotation[3]);
+            var hashes = new string[count];
+            var kept = new Dictionary<int, byte[]>();
+            int done = 0, width = 0, height = 0;
+            for (int i = 0; i < count; i++)
+            {
+                rig.Recon.Reset();
+                var cb = new CommandBuffer { name = "pin static march" };
+                cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), depth);
+                rig.Recon.Record(cb, rig.Renderer, rig.Frame, Cam, recon, job.firstFrame + job.frames - 1, null, null, null);
+                Graphics.ExecuteCommandBuffer(cb);
+                cb.Release();
+                int index = i;
+                width = rig.Recon.March.width;
+                height = rig.Recon.March.height;
+                AsyncGPUReadback.Request(rig.Recon.March, 0, r =>
+                {
+                    if (r.hasError) hashes[index] = "error";
+                    else
+                    {
+                        byte[] raw = r.GetData<byte>().ToArray();
+                        hashes[index] = LayerPassSettings.Hex(LayerPassSettings.Fnv1a64(raw));
+                        if (index == 0 || (hashes[0] != null && hashes[index] != hashes[0] && kept.Count < 4)) kept[index] = raw;
+                    }
+                    done++;
+                });
+                if (i % 10 == 9) yield return null;
+            }
+            while (done < count) yield return null;
+            var text = new StringBuilder();
+            int differ = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (hashes[i] != hashes[0]) differ++;
+                text.Append(i).Append(' ').Append(hashes[i]).Append('\n');
+            }
+            File.WriteAllText(Path.Combine(Output, job.id + "-static.txt"), text.ToString());
+            int saved = 0;
+            foreach (KeyValuePair<int, byte[]> kv in kept)
+            {
+                if (kv.Key != 0 && ++saved > 3) break;
+                var halves = new float[kv.Value.Length / 2];
+                for (int h = 0; h < halves.Length; h++) halves[h] = Mathf.HalfToFloat(BitConverter.ToUInt16(kv.Value, 2 * h));
+                PinFiles.WriteFloat32(Path.Combine(Output, job.id + "-static-" + kv.Key + ".npy"), height, width, 4, halves);
+            }
+            Sink.Info("pin_static_differing." + job.id, differ);
+            Debug.Log("[WeatherPlayer] pin static march " + job.id + ": " + count + " records, " + differ + " differ from the first");
+        }
+
         public override IEnumerator Run()
         {
             string input = WeatherPass.Argument("-in");
@@ -238,6 +303,12 @@ namespace ReDefinition.WeatherPlayer
                 }
                 depth.Apply(false);
                 Sink.Flag("pin_depth." + job.id, depthOk);
+                int staticCount = DiagInt("-pinStatic", 0);
+                if (staticCount > 0 && depthOk)
+                {
+                    IEnumerator s = StaticMarch(rig, job, input, settings, depth, staticCount);
+                    while (s.MoveNext()) yield return s.Current;
+                }
                 for (int rep = 0; rep < Repeats && depthOk; rep++)
                 {
                     rig.Load(job, input);
@@ -297,7 +368,9 @@ namespace ReDefinition.WeatherPlayer
                             // The game rendered record k's depth offset by its jitter j_k; the captured depth is the last record's. Point sampling the capture at
                             // uv - (j_k - j_last) / size gives the depth record k saw (to the nearest pixel: a silhouette crosses a pixel where the game's raster did).
                             int last = job.frames - 1;
-                            var offset = new Vector2(-(job.hostJitter[2 * k] - job.hostJitter[2 * last]) / job.width, -(job.hostJitter[2 * k + 1] - job.hostJitter[2 * last + 1]) / job.height);
+                            // -pinJitterSignX / -pinJitterSignY (1 by default; -1 flips that axis): the A/B of the shift's direction.
+                            var offset = new Vector2(-DiagInt("-pinJitterSignX", 1) * (job.hostJitter[2 * k] - job.hostJitter[2 * last]) / job.width,
+                                                     -DiagInt("-pinJitterSignY", 1) * (job.hostJitter[2 * k + 1] - job.hostJitter[2 * last + 1]) / job.height);
                             Graphics.Blit(depth, ShiftedDepth(job.width, job.height), Vector2.one, offset);
                             cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), shiftedDepth);
                         }
@@ -308,13 +381,10 @@ namespace ReDefinition.WeatherPlayer
                         rig.Recon.Record(cb, rig.Renderer, rig.Frame, Cam, recon, job.firstFrame + k, null, null, null);
                         Graphics.ExecuteCommandBuffer(cb);
                         cb.Release();
-                        // Each record finishes on the GPU (a one-texel read of the output waits for it) and the GPU then idles before the next one. Measured on the
-                        // RTX A4500 (2026-11-19, stand-in and real capture, four replays each): back to back, the replays of one job differed in 0.06 to 1.5 % of the
-                        // pixels although every input texture's GPU contents and every uniform were equal per record and the first difference appeared in the march
-                        // target itself; the sync alone did not change that, the sync with 30 ms of idle made all replays bit-identical. Neither the record order nor the
-                        // inputs depend on it, so the GPU computes the march differently under sustained load: -pinSync 0 / -pinSleepMs 0 bring the old pacing back.
-                        if (DiagInt("-pinSync", 1) != 0) AsyncGPUReadback.Request(rig.Recon.Output, 0, 0, 1, 0, 1, 0, 1, null).WaitForCompletion();
-                        if (DiagInt("-pinSleepMs", 30) > 0) System.Threading.Thread.Sleep(DiagInt("-pinSleepMs", 30));
+                        // Opt-in diagnosis, off by default: -pinSync 1 waits for each record on the GPU (a one-texel read of the output), -pinSleepMs N then idles.
+                        // Together (1 / 30) they made the repeats bit-identical in the runs of 2026-11-19: that hides an unexplained nondeterminism, it is not a fix.
+                        if (DiagInt("-pinSync", 0) != 0) AsyncGPUReadback.Request(rig.Recon.Output, 0, 0, 1, 0, 1, 0, 1, null).WaitForCompletion();
+                        if (DiagInt("-pinSleepMs", 0) > 0) System.Threading.Thread.Sleep(DiagInt("-pinSleepMs", 0));
                         if (hashFrames)
                         {
                             hashes.Append(k).Append(' ').Append(Hash(rig.Recon.March)).Append(' ').Append(Hash(rig.Recon.Output));
