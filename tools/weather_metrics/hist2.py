@@ -53,6 +53,8 @@ VIEWS = [
 # wind: the game's per-layer wind times this factor (0: the pinned time's frozen pattern); depth 0: no scene depth (rays to the planet).
 CASES = {
     "still": dict(view="ground"),
+    "stillinside": dict(view="inside"),
+    "stillabove": dict(view="above"),
     "fwd50": dict(view="ground", vel=(50, 0, 0)),
     "fwd150": dict(view="inside", vel=(150, 0, 0)),
     "fwd300": dict(view="inside", vel=(300, 0, 0)),
@@ -423,6 +425,10 @@ def main():
         q.add_argument("--out", default=OUT_DEFAULT)
         q.add_argument("--no-build", action="store_true")
     a = p.parse_args()
+    # A pause file (another agent's quiet-machine block): the outer commands that take a lock do not start.
+    if a.cmd in ("motion", "cost") and os.path.exists(os.path.join(MAIN, ".local", "work", "hist2.pause")):
+        print("hist2: paused (%s exists); nothing started" % os.path.join(MAIN, ".local", "work", "hist2.pause"))
+        return 3
     return {"prepare": cmd_prepare, "motion": cmd_motion, "motion-inner": cmd_motion_inner, "cost": cmd_cost, "cost-inner": cmd_cost_inner}[a.cmd](a)
 
 
