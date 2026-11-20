@@ -7,15 +7,23 @@ using UnityEngine;
 namespace ReDefinition.Atmospheres
 {
     // Series K-T2, the pinned capture (-t09Pin with -t09Ut <seconds>; master plan phase 0 item 3, .local/plans/wolken-m1-fakten.md section F): one own variant, the ground view
-    // only, and instead of the timing window a capture in a state that a second start of the same commit and the weather player can reproduce:
+    // (or each view -t09PinViews names, e.g. ground,inside,above,sky3: the M0 views, placed as the fps runs place them, turned by -t09HeadingOffset), and instead of the timing
+    // window a capture in a state that a second start of the same commit and the weather player can reproduce:
     //   1. the universal time is pinned at the -t09Ut value (IT09World.PinClock: before every physics step and at every frame's end), cloud.motionScale 0 holds the noise,
     //      and its drift, rise and flow clock are set to 0 (OwnCloudModule.PinNoise);
     //   2. a map round with a snap and a height build are asked for at the pinned time, and the probe waits until the maps equal their goal and a height build finished;
     //   3. the frame origin is set to this frame and the history is cut in it (the clouds' reset counter, CloudBridgeLights, which the pass reads in this frame's record;
     //      ApiBridge.RequestHistoryReset besides, so that the upscaler's history starts with it);
     //   4. the pass records PinFrames frames from the cut; in the frame of the last one the clouds' own output before the composite (cloud.npy, linear float32), the scene
-    //      depth the pass read (depth.npy), the natural picture (natural.npy, linear, and the PNG) and the maps with pass.json are taken at that frame's end.
-    // Every step is a row T09.pin.<step> and a check; a step that cannot be done fails the start by name. The files land in series-pictures/maps/<tag> (tag pin-ground-u<ut>-<start>-<time>).
+    //      depth the pass read (depth.npy), the camera target before the clouds' composite (scene.npy: the game's frame without our clouds, the background of the player's
+    //      replay) and after it (composed.npy), both at the render size before Scatterer's later passes, the upscaler and the post-processing, the natural picture
+    //      (natural.npy, linear, and the PNG), the screen at the display size (the PNG t09-<start>-<view>-<variant>-<w>x<h>-pinscreen.png, UI hidden with -t09HideUi) and the
+    //      maps with pass.json are taken at that frame's end.
+    //   5. -t09PinLimits <name=kind:key:value+...;...> (ground view only, master plan section 29, the straight line before the horizon): after the plain capture, each named set of
+    //      switches is applied, the history cut again, and the same capture taken under the tag pin-ground-<name>-...; kinds t (a tuning key forced), s (a setting set, put back
+    //      after), p (a probe switch: surface 0 = OwnCloudModule.ProbeNoSurface, scenedepth 0 = ProbeNoSceneDepth, maxsteps N = LayerProbeSwitches.MaxSteps).
+    // Every step is a row T09.pin.<view>[-<limit>].<step> and a check; a step that cannot be done fails the start by name and the next view is taken. The files land in
+    // series-pictures/maps/<tag> (tag pin-<view>[-<limit>]-u<ut>-<start>-<time>).
     internal sealed partial class T09Probe
     {
         // The frames from the cut to the capture (the history's own reach is a few dozen frames at the accumulation weight 0.2: 0.8^64 is 6e-7 of the cut frame left).
@@ -48,14 +56,149 @@ namespace ReDefinition.Atmospheres
             try { Game.PinClock(double.NaN); } catch (Exception) { /* the game may be gone */ }
             OwnCloudModule own = OwnCloudModule.Current;
             if (own != null) own.FrameOrigin = 0;
+            PinLimitSwitchesOff();
         }
+
+        // The probe-only switches of -t09PinLimits back at their defaults.
+        private static void PinLimitSwitchesOff()
+        {
+            OwnCloudModule.ProbeNoSurface = false;
+            OwnCloudModule.ProbeNoSceneDepth = false;
+            LayerProbeSwitches.MaxSteps = 0;
+        }
+
+        // The view (and limit set) the steps of the pinned capture belong to: the rows read T09.pin.<label>.<step>.
+        private string pinLabel = "ground";
 
         // A step of the pinned capture: a row and a check; false ends the capture (the check has failed the start).
         private bool PinStep(string name, bool ok, string detail)
         {
-            Emit("T09.pin." + name, ok);
-            Check("T09.pin." + name, ok, detail);
+            Emit("T09.pin." + pinLabel + "." + name, ok);
+            Check("T09.pin." + pinLabel + "." + name, ok, detail);
             return ok;
+        }
+
+        private void PinEmit(string name, double value)
+        {
+            Emit("T09.pin." + pinLabel + "." + name, value);
+        }
+
+        // -t09PinViews: the views of the pinned capture by name (Views: ground, inside, above, sky3, ...), turned by -t09HeadingOffset; the ground view alone without it.
+        private List<View> PinViews(out string problem)
+        {
+            problem = null;
+            var list = new List<View>();
+            string text = CommandLine.After(Args(), "-t09PinViews", true);
+            foreach (string name in (string.IsNullOrEmpty(text) ? "ground" : text).Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                View found = default(View);
+                bool known = false;
+                foreach (View v in Views)
+                    if (v.Name == name.Trim()) { found = v; known = true; }
+                if (!known || found.Name == "orbit_edge")
+                {
+                    problem = "-t09PinViews names '" + name + "', which is not a pinned view (ground, inside, above, sky3)";
+                    return list;
+                }
+                list.Add(Turned(found));
+            }
+            return list;
+        }
+
+        // One switch of a -t09PinLimits set.
+        private sealed class PinSwitch
+        {
+            internal char Kind;
+            internal string Key;
+            internal float Value;
+        }
+
+        private sealed class PinLimit
+        {
+            internal string Name;
+            internal readonly List<PinSwitch> Switches = new List<PinSwitch>();
+        }
+
+        // -t09PinLimits name=kind:key:value+kind:key:value;name2=...  (kinds t, s, p; see the file's head).
+        private List<PinLimit> PinLimits(out string problem)
+        {
+            problem = null;
+            var list = new List<PinLimit>();
+            string text = CommandLine.After(Args(), "-t09PinLimits", true);
+            if (string.IsNullOrEmpty(text)) return list;
+            foreach (string entry in text.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int eq = entry.IndexOf('=');
+                var limit = new PinLimit { Name = eq > 0 ? entry.Substring(0, eq).Trim() : "" };
+                if (limit.Name.Length == 0)
+                {
+                    problem = "-t09PinLimits entry '" + entry + "' has no name=";
+                    return list;
+                }
+                foreach (string part in entry.Substring(eq + 1).Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string[] f = part.Split(':');
+                    float value;
+                    if (f.Length != 3 || f[0].Length != 1 || "tsp".IndexOf(f[0][0]) < 0 || !float.TryParse(f[2], NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                        || (f[0][0] == 'p' && f[1] != "surface" && f[1] != "scenedepth" && f[1] != "maxsteps"))
+                    {
+                        problem = "-t09PinLimits switch '" + part + "' of " + limit.Name + " is not kind:key:value (kinds t, s, p; probe switches surface, scenedepth, maxsteps)";
+                        return list;
+                    }
+                    limit.Switches.Add(new PinSwitch { Kind = f[0][0], Key = f[1], Value = value });
+                }
+                list.Add(limit);
+            }
+            return list;
+        }
+
+        // Applies a limit set; the settings it changes are remembered in restore (key, value before).
+        private void PinLimitApply(PinLimit limit, List<KeyValuePair<string, double>> restore)
+        {
+            foreach (PinSwitch s in limit.Switches)
+            {
+                if (s.Kind == 't') ForceTuning(s.Key, s.Value);
+                else if (s.Kind == 's')
+                {
+                    restore.Add(new KeyValuePair<string, double>(s.Key, AtmospheresSettings.Number(s.Key)));
+                    SetSetting(s.Key, s.Value);
+                }
+                else if (s.Key == "surface") OwnCloudModule.ProbeNoSurface = s.Value == 0f;
+                else if (s.Key == "scenedepth") OwnCloudModule.ProbeNoSceneDepth = s.Value == 0f;
+                else LayerProbeSwitches.MaxSteps = (int)s.Value;
+                AtmospheresLog.Say("T09 pin limit " + limit.Name + ": " + s.Kind + " " + s.Key + " = " + s.Value.ToString("R", CultureInfo.InvariantCulture));
+            }
+        }
+
+        // Undoes a limit set: the forced tuning keys go (cloud.motionScale 0 is forced again), the settings come back, the probe switches are off.
+        private void PinLimitRevert(List<KeyValuePair<string, double>> restore)
+        {
+            ClearForced();
+            ForceTuning(CloudMotion.TuneScale, 0f);
+            foreach (KeyValuePair<string, double> kv in restore) SetSetting(kv.Key, kv.Value);
+            restore.Clear();
+            PinLimitSwitchesOff();
+        }
+
+        // -t09HideUi: the stock UI and every mod that follows the game's hide event (F2: MechJeb, the toolbars) hidden for the pinned capture.
+        private bool pinUiHidden;
+
+        private void PinHideUi()
+        {
+            if (pinUiHidden || !CommandLine.Has(Args(), "-t09HideUi", true)) return;
+            pinUiHidden = true;
+            try { GameEvents.onHideUI.Fire(); } catch (Exception e) { AtmospheresLog.Say("T09 pin: onHideUI threw " + e.GetType().Name + " " + e.Message); }
+            KSP.UI.UIMasterController ui = KSP.UI.UIMasterController.Instance;
+            if (ui != null && ui.IsUIShowing) ui.HideUI();
+        }
+
+        private void PinShowUi()
+        {
+            if (!pinUiHidden) return;
+            pinUiHidden = false;
+            try { GameEvents.onShowUI.Fire(); } catch (Exception) { /* the game may be gone */ }
+            KSP.UI.UIMasterController ui = KSP.UI.UIMasterController.Instance;
+            if (ui != null && !ui.IsUIShowing) ui.ShowUI();
         }
 
         private IEnumerator<ProbeWait> PinScenario()
@@ -101,19 +244,70 @@ namespace ReDefinition.Atmospheres
                 return o != null && o.Stats.Mode != "off" && o.Stats.FramesDrawn - drawnFrom > SteadyFrames;
             }, 150, "the own pass to draw a steady stretch (" + variant + ")");
 
-            View view = Views[0];
-            foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
-            if (!PinStep("placed", placeOk, "the " + view.Name + " view")) yield break;
-            foreach (ProbeWait w in StableGate(view, variant)) yield return w;
-            pinActive = true;
-            foreach (ProbeWait w in PinCaptureSteps(view, variant)) yield return w;
-            PinCleanup();
+            ReadHeadingOffset();
+            string problem;
+            List<View> views = PinViews(out problem);
+            if (problem != null)
+            {
+                Fail("T09.pin.views: " + problem);
+                yield break;
+            }
+            List<PinLimit> limits = PinLimits(out problem);
+            if (problem != null)
+            {
+                Fail("T09.pin.limits: " + problem);
+                yield break;
+            }
+            Emit("T09.pin.views", views.Count);
+            Emit("T09.pin.limits", limits.Count);
+            var restore = new List<KeyValuePair<string, double>>();
+            foreach (View view in views)
+            {
+                pinLabel = view.Name;
+                foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
+                if (!PinStep("placed", placeOk, "the " + view.Name + " view")) continue;
+                foreach (ProbeWait w in StableGate(view, variant)) yield return w;
+                pinActive = true;
+                PinHideUi();
+                foreach (ProbeWait w in PinSettleSteps(view)) yield return w;
+                if (!pinSettledOk)
+                {
+                    PinShowUi();
+                    PinCleanup();
+                    continue;
+                }
+                if (PinSeriesFrames > 0)
+                {
+                    foreach (ProbeWait w in PinSeriesAims(view, variant, OwnCloudModule.Current)) yield return w;
+                    yield break;
+                }
+                foreach (ProbeWait w in PinCutHoldCapture(view, variant, null)) yield return w;
+                if (view.Name == "ground")
+                {
+                    foreach (PinLimit limit in limits)
+                    {
+                        pinLabel = view.Name + "-" + limit.Name;
+                        PinLimitApply(limit, restore);
+                        // Two frames for the switches to reach the frame's record (a tuning override is read at the next frame).
+                        yield return ProbeWait.Frames(2);
+                        foreach (ProbeWait w in PinCutHoldCapture(view, variant, limit.Name)) yield return w;
+                        PinLimitRevert(restore);
+                    }
+                }
+                PinShowUi();
+                PinCleanup();
+            }
+            pinLabel = "ground";
             EndVariant();
             Game.StopHold();
         }
 
-        private IEnumerable<ProbeWait> PinCaptureSteps(View view, string variant)
+        // Set by PinSettleSteps: the clock, the noise, the maps and the heights stand at the pinned time.
+        private bool pinSettledOk;
+
+        private IEnumerable<ProbeWait> PinSettleSteps(View view)
         {
+            pinSettledOk = false;
             // 1. The clock and the noise.
             Game.PinClock(utChosen);
             ForceTuning(CloudMotion.TuneScale, 0f);
@@ -150,11 +344,14 @@ namespace ReDefinition.Atmospheres
             }
             if (!PinStep("settled", settled, settled ? "maps at their goal and a height build done, held " + holdS.ToString("0.0") + " s (" + settledFrames + " frames)"
                                                      : why + " after " + PinSettleTimeoutS.ToString("0") + " s")) yield break;
-            if (PinSeriesFrames > 0)
-            {
-                foreach (ProbeWait w in PinSeriesAims(view, variant, own)) yield return w;
-                yield break;
-            }
+            pinSettledOk = true;
+        }
+
+        // Steps 3 to 5 in the settled state: the cut, the hold, the capture; limit names the -t09PinLimits set in force (null: the plain capture).
+        private IEnumerable<ProbeWait> PinCutHoldCapture(View view, string variant, string limit)
+        {
+            OwnCloudModule own = OwnCloudModule.Current;
+            if (!PinStep("module_held", own != null && own.Driver != null && own.Renderer != null, "the own pass is gone or has no reconstruction")) yield break;
 
             // 3. The frame origin and the cut, in this frame (the pass records after the probe's tick), in the frame after one at the first phase of the host's jitter.
             double jitterGiveUp = Elapsed + PinJitterTimeoutS;
@@ -171,7 +368,7 @@ namespace ReDefinition.Atmospheres
             CloudBridgeLights.RequestHistoryReset("pinned capture");
             try { new ApiBridge().RequestHistoryReset("ReDefinition pinned capture"); }
             catch (Exception e) { AtmospheresLog.Say("T09 pin: the host's history reset threw " + e.GetType().Name + " " + e.Message); }
-            Emit("T09.pin.frame_origin", own.FrameOrigin);
+            PinEmit("frame_origin", own.FrameOrigin);
             yield return ProbeWait.Frames(1);
             if (!PinStep("history_cut", own.HistoryCuts > cutsBefore && own.HistoryFramesSinceCut == 1,
                          "cuts " + cutsBefore + " -> " + own.HistoryCuts + ", frames since the cut " + own.HistoryFramesSinceCut)) yield break;
@@ -179,7 +376,7 @@ namespace ReDefinition.Atmospheres
 
             // 4. The hold: the probe ticks before the frame's record, so at PinFrames - 1 the record of this frame is the PinFrames-th.
             // Each tick reads what the frame before it filled: the time the module's tick took, the sun's direction and the planet's centre of its record.
-            giveUp = Elapsed + PinHoldTimeoutS;
+            double giveUp = Elapsed + PinHoldTimeoutS;
             double utMin = double.MaxValue, utMax = double.MinValue, sunSpreadDeg = 0.0, centreSpreadM = 0.0;
             Vector3 sun0 = own.Frame.TowardsSun, centre0 = own.Frame.PlanetCenter;
             while (own.HistoryFramesSinceCut < PinFrames - 1 && own.HistoryCuts == cutsAfter && Elapsed < giveUp)
@@ -193,21 +390,26 @@ namespace ReDefinition.Atmospheres
             if (!PinStep("hold", own.HistoryFramesSinceCut == PinFrames - 1 && own.HistoryCuts == cutsAfter,
                          "frames since the cut " + own.HistoryFramesSinceCut + " (wanted " + (PinFrames - 1) + " before the capture frame), cuts " + cutsAfter + " -> " + own.HistoryCuts)) yield break;
             double utSpread = utMax >= utMin ? utMax - utMin : double.NaN, step = Game.PhysicsStepS;
-            Emit("T09.pin.ut_spread_s", utSpread);
-            Emit("T09.pin.sun_spread_deg", sunSpreadDeg);
-            Emit("T09.pin.centre_spread_m", centreSpreadM);
+            PinEmit("ut_spread_s", utSpread);
+            PinEmit("sun_spread_deg", sunSpreadDeg);
+            PinEmit("centre_spread_m", centreSpreadM);
             // The planet's centre moves with the floating origin and the hold; it is written into pass.json and the replay takes the capture frame's, so it is a row, not a check.
             if (!PinStep("ut_spread", utSpread <= step, "the time the module read over the hold spread " + utSpread.ToString("0.0000", CultureInfo.InvariantCulture) + " s, one physics step "
                                                          + step.ToString("0.0000", CultureInfo.InvariantCulture) + " s; the sun's direction " + sunSpreadDeg.ToString("0.00000", CultureInfo.InvariantCulture)
                                                          + " degrees, the planet's centre " + centreSpreadM.ToString("0.000", CultureInfo.InvariantCulture) + " m")) yield break;
 
             // 5. The capture, all at this frame's end.
-            string tag = "pin-" + view.Name + "-u" + ((long)utChosen).ToString(CultureInfo.InvariantCulture) + "-" + (StartId ?? "nostart") + "-"
+            string label = view.Name + (limit != null ? "-" + limit : "");
+            string pictureVariant = variant + (limit != null ? "-" + limit : "");
+            string tag = "pin-" + label + "-u" + ((long)utChosen).ToString(CultureInfo.InvariantCulture) + "-" + (StartId ?? "nostart") + "-"
                          + DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
             string dir = null;
             OwnCloudModule.PinCapture job = null;
             bool natural = false;
-            string fault = null;
+            string fault = null, screenFault = null;
+            string screenName = T09Pictures.Name(StartId, view.Name, pictureVariant, Game.ScreenWidth, Game.ScreenHeight, "pinscreen", false);
+            if (!screenName.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) screenName += ".png";
+            string screenPath = System.IO.Path.Combine(SeriesPictures.Folder, screenName);
             try
             {
                 dir = System.IO.Path.Combine(System.IO.Path.Combine(SeriesPictures.Folder, "maps"), tag);
@@ -218,13 +420,24 @@ namespace ReDefinition.Atmospheres
             {
                 fault = e.GetType().Name + " " + e.Message;
             }
+            // The screen as the player sees it (after the upscaler, Scatterer and the post-processing), at the display size, written at this frame's end.
+            try
+            {
+                System.IO.Directory.CreateDirectory(SeriesPictures.Folder);
+                ScreenCapture.CaptureScreenshot(screenPath);
+            }
+            catch (Exception e)
+            {
+                screenFault = e.GetType().Name + " " + e.Message;
+            }
             if (!PinStep("capture_started", fault == null && job != null && natural, fault ?? (natural ? "" : "the natural picture's read could not start"))) yield break;
-            giveUp = Elapsed + PinReadTimeoutS;
-            while ((!job.Done || CaptureBusy(ref fault)) && Elapsed < giveUp) yield return ProbeWait.Frames(1);
-            Emit("T09.pin.frames_since_cut", job.FramesSinceCut);
-            Emit("T09.pin.frame_number", job.FrameNumber);
-            EmitText("T09.pin.folder", dir);
-            AtmospheresLog.Say("T09 pin: capture of " + view.Name + " " + variant + " in " + dir + ": frame number " + job.FrameNumber + ", " + job.FramesSinceCut + " frames since the cut"
+            double readGiveUp = Elapsed + PinReadTimeoutS;
+            while ((!job.Done || CaptureBusy(ref fault) || (screenFault == null && !System.IO.File.Exists(screenPath))) && Elapsed < readGiveUp) yield return ProbeWait.Frames(1);
+            PinStep("screen_picture", screenFault == null && System.IO.File.Exists(screenPath), screenFault ?? screenName);
+            PinEmit("frames_since_cut", job.FramesSinceCut);
+            PinEmit("frame_number", job.FrameNumber);
+            EmitText("T09.pin." + pinLabel + ".folder", dir);
+            AtmospheresLog.Say("T09 pin: capture of " + label + " " + variant + " in " + dir + ": frame number " + job.FrameNumber + ", " + job.FramesSinceCut + " frames since the cut"
                                + (job.Problems.Count > 0 ? "; problems: " + string.Join("; ", job.Problems.ToArray()) : ""));
             PinStep("reads_done", job.Done, job.Done ? "" : "the reads did not finish in " + PinReadTimeoutS.ToString("0") + " s");
             PinStep("frames_since_cut", job.FramesSinceCut == PinFrames, job.FramesSinceCut + " records since the cut in the capture frame, wanted " + PinFrames);
@@ -233,6 +446,8 @@ namespace ReDefinition.Atmospheres
             PinStep("cloud_buffer", job.CloudWritten, job.CloudWritten ? "cloud.npy " + job.CloudWidth + "x" + job.CloudHeight : string.Join("; ", job.Problems.ToArray()));
             PinStep("depth", job.DepthWritten, job.DepthWritten ? "depth.npy " + job.DepthWidth + "x" + job.DepthHeight : string.Join("; ", job.Problems.ToArray()));
             PinStep("maps_pass_json", job.DumpWritten, job.DumpWritten ? "maps and pass.json" : string.Join("; ", job.Problems.ToArray()));
+            PinStep("scene_before", job.SceneWritten, job.SceneWritten ? "scene.npy (the camera target before the clouds' composite)" : string.Join("; ", job.Problems.ToArray()));
+            PinStep("scene_after", job.ComposedWritten, job.ComposedWritten ? "composed.npy (the camera target after the clouds' composite)" : string.Join("; ", job.Problems.ToArray()));
             T09Image image = null;
             if (fault == null)
             {
@@ -253,7 +468,7 @@ namespace ReDefinition.Atmospheres
                         rgba[i * 4 + 3] = image.Pixels[i].a;
                     }
                     PinFiles.WriteFloat32(System.IO.Path.Combine(dir, "natural.npy"), image.Height, image.Width, 4, rgba);
-                    Game.SavePicture(T09Pictures.Name(StartId, view.Name, variant, Game.ScreenWidth, Game.ScreenHeight, "pin", false), image, 1);
+                    Game.SavePicture(T09Pictures.Name(StartId, view.Name, pictureVariant, Game.ScreenWidth, Game.ScreenHeight, "pin", false), image, 1);
                 }
                 catch (Exception e)
                 {
