@@ -177,18 +177,17 @@ namespace ReDefinition.Atmospheres
         // The pinned capture's map patches: the field's cover, heap and sheet amounts and the base, top and cells' reach as bytes (0..1 of their range) into the dump folder.
         private void WriteMapSkyDump(string dir)
         {
-            if (mapSkyParts == null) return;
+            // Only the published parts and the map copies they hold: the fetch buffers may be refilled by a round in flight.
+            MapSkyRegions.Parts p = mapSkyParts;
+            if (p == null) return;
             try
             {
-                WriteScaled(dir, "wms-cover.u8", coverageMap.Values, 1f);
-                for (int k = 0; k < MapSkyKinds.Length; k++)
-                {
-                    if (mapSkyMaps[k] == null || mapSkyMaps[k].Values == null) continue;
-                    float scale = MapSkyKinds[k] == WeatherMapKind.SurfaceTemperature ? 1f / 400f : MapSkyKinds[k] == WeatherMapKind.Uplift ? 1f / 1.4f : 1f;
-                    WriteScaled(dir, "wms-" + MapSkyKinds[k] + ".u8", mapSkyMaps[k].Values, scale);
-                }
-                MapSkyRegions.Parts p = mapSkyParts;
-                if (p != null)
+                if (p.MapCover != null) WriteScaled(dir, "wms-cover.u8", p.MapCover, 1f);
+                if (p.MapHeap != null) WriteScaled(dir, "wms-ConvectiveAmount.u8", p.MapHeap, 1f);
+                if (p.MapSheet != null) WriteScaled(dir, "wms-StratiformAmount.u8", p.MapSheet, 1f);
+                if (p.MapBase != null) WriteScaled(dir, "wms-ConvectiveBase.u8", p.MapBase, 1f);
+                if (p.MapTop != null) WriteScaled(dir, "wms-ConvectiveTop.u8", p.MapTop, 1f);
+                if (p.MapReach != null) WriteScaled(dir, "wms-CellReach.u8", p.MapReach, 1f);
                 {
                     WriteScaled(dir, "wms-part-lattice.u8", p.Lattice, 1f);
                     WriteScaled(dir, "wms-part-tall.u8", p.Tall, 1f);
@@ -197,9 +196,10 @@ namespace ReDefinition.Atmospheres
                     WriteScaled(dir, "wms-part-low.u8", p.Low, 1f);
                     WriteScaled(dir, "wms-part-high.u8", p.High, 1f);
                     WriteScaled(dir, "wms-part-depth.u8", p.DepthM, 1f / 12000f);
-                    System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "wms.json"), "{\"ut\": " + mapSkyUt.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
+                    System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "wms.json"), "{\"ut\": " + p.Ut.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
                         + ", \"sheetRule\": " + p.SheetRule + ", \"depthRule\": " + p.DepthRule + ", \"tropopauseM\": "
-                        + mapSkyInputs.TropopauseM.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ", \"depthScaleM\": 12000, \"temperatureScaleK\": 400, \"upliftScale\": 1.4}\n");
+                        + p.TropopauseM.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ", \"depthScaleM\": 12000, \"lastRound\": " + LastRoundMapSky
+                        + ", \"rounds\": " + MapSkyRounds + "}\n");
                 }
             }
             catch (Exception e)

@@ -135,6 +135,13 @@ namespace ReDefinition.Atmospheres
                     problem = "-t09PinLimits entry '" + entry + "' has no name=";
                     return list;
                 }
+                // The names become file names (screenshots, capture folders), which NTFS compares without case.
+                foreach (PinLimit other in list)
+                    if (string.Equals(other.Name, limit.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        problem = "-t09PinLimits names " + other.Name + " and " + limit.Name + ", which are the same file name without case";
+                        return list;
+                    }
                 foreach (string part in entry.Substring(eq + 1).Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     string[] f = part.Split(':');
@@ -304,7 +311,12 @@ namespace ReDefinition.Atmospheres
                         bool mapsChange = PinLimitChangesMaps(limit);
                         if (mapsChange)
                         {
+                            // The settle's rows read T09.pin.<view>-<set>-apply.<step>.
+                            pinLabel = view.Name + "-" + limit.Name + "-apply";
+                            double settleFrom = Elapsed;
                             foreach (ProbeWait w in PinSettleSteps(view)) yield return w;
+                            PinEmit("settle_s", Elapsed - settleFrom);
+                            pinLabel = view.Name + "-" + limit.Name;
                             if (!pinSettledOk)
                             {
                                 PinLimitRevert(restore);
@@ -316,7 +328,16 @@ namespace ReDefinition.Atmospheres
                         if (mapsChange)
                         {
                             yield return ProbeWait.Frames(2);
+                            pinLabel = view.Name + "-" + limit.Name + "-revert";
+                            double settleFrom = Elapsed;
                             foreach (ProbeWait w in PinSettleSteps(view)) yield return w;
+                            PinEmit("settle_s", Elapsed - settleFrom);
+                            // The sky did not come back to the plain state: nothing more of this view is captured (its settle step has failed the start by name).
+                            if (!pinSettledOk)
+                            {
+                                AtmospheresLog.Say("T09 pin: the sky did not settle back after " + limit.Name + " in the " + view.Name + " view; the rest of this view is skipped");
+                                break;
+                            }
                         }
                     }
                 }

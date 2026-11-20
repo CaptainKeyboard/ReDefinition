@@ -69,6 +69,18 @@ namespace ReDefinition.Atmospheres
             internal bool[] Nimbo;
             // The rules in force when the parts were made.
             internal int SheetRule, DepthRule;
+            // Copies of the maps the parts were made from, for the pinned capture's map patches (a dump never reads the fetch buffers a later round refills): cover, heap,
+            // sheet, base and top shares, the cells' reach; and the time.
+            internal float[] MapCover, MapHeap, MapSheet, MapBase, MapTop, MapReach;
+            internal double Ut, TropopauseM;
+        }
+
+        private static float[] CopyOf(float[] source, float[] spare)
+        {
+            if (source == null) return null;
+            float[] c = spare != null && spare.Length == source.Length ? spare : new float[source.Length];
+            Array.Copy(source, c, source.Length);
+            return c;
         }
 
         // The type value (0..1) of a layer's type index.
@@ -123,6 +135,14 @@ namespace ReDefinition.Atmospheres
             };
             p.SheetRule = sheetRule;
             p.DepthRule = depthRule;
+            p.MapCover = CopyOf(m.Cover, p.MapCover);
+            p.MapHeap = CopyOf(m.Heap, p.MapHeap);
+            p.MapSheet = CopyOf(m.Sheet, p.MapSheet);
+            p.MapBase = CopyOf(m.BaseShare, p.MapBase);
+            p.MapTop = CopyOf(m.TopShare, p.MapTop);
+            p.MapReach = CopyOf(m.Reach, p.MapReach);
+            p.Ut = m.Ut;
+            p.TropopauseM = m.TropopauseM;
             double h = m.TropopauseM;
             // The heap's hand-over from the heap layer to the tall one: from congestus' thickness to calvus' (the cfg's type heights).
             double congM = heap != null ? ThickM(heap, HeapLast(heap)) : 0.0;
