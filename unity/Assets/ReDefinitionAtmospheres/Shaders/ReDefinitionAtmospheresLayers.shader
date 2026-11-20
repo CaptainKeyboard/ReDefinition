@@ -305,7 +305,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     float hK = (share - bK) / max(tpK - bK, 1e-6);
                     cov = CellCoverBodiesK(li, cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
-                                           (uint)_NoiseOffset[li].w, hK, (tpK - bK) * (outer - inner), cellReach, wMap);
+                                           (uint)_NoiseOffset[li].w, hK, (tpK - bK) * (outer - inner), _CullL[li].y, cellReach, wMap);
 #elif defined(CLOUD_BODIES)
                     cov = CellCoverBodies(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
                                           (uint)_NoiseOffset[li].w, cellReach, wMap);
@@ -936,8 +936,8 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
-            // P0 cost prototype (CloudCells.cginc, cloud.bodies 7, 13 and 14 .. 16); no keyword: the accepted lattice.
-            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4
+            // P0 cost prototype (CloudCells.cginc, cloud.bodies 13, 16 and 17); no keyword: the accepted lattice.
+            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4 _BODIES_K4W
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -1028,7 +1028,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 5.0
             #pragma multi_compile_local _BODIES_COUNT
-            #pragma multi_compile_local _BODIES_K4
+            #pragma multi_compile_local _BODIES_V13 _BODIES_K4
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }

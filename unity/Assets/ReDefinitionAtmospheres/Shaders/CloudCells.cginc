@@ -100,7 +100,8 @@ static float gCellOther = 1e9;
 // P0b-0 (CloudCells' prototype section below): x a share forced on every sample that has one (0: the map's own), for the cost at fixed shares; read only by the prototype's
 // keywords (_BODIES_V13 for the accepted lattice). _BODIES_COUNT (layer pass 6, a debug copy of the march at shader model 5): counters of the density calls in a UAV.
 #if defined(_BODIES_V1) || defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V4) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V7) || defined(_BODIES_V8) \
-    || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12) || defined(_BODIES_V13) || defined(_BODIES_K2) || defined(_BODIES_K3) || defined(_BODIES_K4)
+    || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12) || defined(_BODIES_V13) || defined(_BODIES_K2) || defined(_BODIES_K3) || defined(_BODIES_K4) \
+    || defined(_BODIES_K4W)
 float4 _BodiesP;
 #endif
 #ifdef _BODIES_COUNT
@@ -309,6 +310,12 @@ float CellBodyReachX(int li)
 // the height share h) BEFORE the search, so the one search computes every candidate's exact body term below the billows (qb, its axis) and its exact shell depth
 // (qb + axis x swing, which bounds its share from above); it keeps the K with the largest bound, takes the shell depth's maximum and the leaps' minima over ALL of them
 // (the leaps are V7's). The body pass is the maximum over the K slots with the shared billow value. Every early exit of the march stays where V7 has it.
+// P0d: _BODIES_K4W (cloud.bodies 17) is K4 with a 4 x 4 search in every class (one more cell on each side, its leap bounds widened to match): whether a body
+// is cut at the border of the 2 x 2 search (the straight-edged body of the P0c crop).
+#if defined(_BODIES_K4W)
+#define _BODIES_K4 1
+#define BODIES_WIDE 1
+#endif
 #if defined(_BODIES_K2) || defined(_BODIES_K3) || defined(_BODIES_K4)
 #define BODIES_KSLOTS 1
 #define BODIES_CHEAP_HASH 1
@@ -345,8 +352,8 @@ float CellBodyReachX(int li)
 #if defined(_BODIES_V6)
 #define BODIES_BRUTE 1
 #endif
-#if defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V8)
-#define BODIES_CELL_LOOP [loop]
+#if defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V8) || defined(BODIES_WIDE)
+#define BODIES_CELL_LOOP [loop]   // the wide search (K4W) unrolled took fxc 41 minutes
 #else
 #define BODIES_CELL_LOOP [unroll]
 #endif
@@ -390,6 +397,8 @@ static const float BodyA[3] = { 0.4096, 0.64, 0.5 };
 #define BODY_NBMAX 2
 #ifdef BODIES_BRUTE
 #define BODIES_ROWS_MAX (BODY_SMAX + 4)
+#elif defined(BODIES_WIDE)
+#define BODIES_ROWS_MAX (BODY_SMAX + 2)
 #else
 #define BODIES_ROWS_MAX BODY_SMAX
 #endif
@@ -422,6 +431,12 @@ static float gKQ0 = -1e9, gKQ1 = -1e9, gKQ2 = -1e9, gKQ3 = -1e9;
 static float gKA0 = 0.0, gKA1 = 0.0, gKA2 = 0.0, gKA3 = 0.0;
 static float gKDrop = -1e9;
 static float gKFar = -1e9;
+// P0d: the largest share and core strength within the leap's reach (from _BodiesCovMax) and whether that bound is used.
+static float gBodFLoc = 1.0, gBodCoreLoc = 0.5;
+static bool gBodLocalOn = false;
+// P0d: the coverage map's largest value over the neighbourhood a leap can reach around each texel (built on the CPU, LayerRenderer.BodiesCovMax; read with Load).
+// _BodiesP.z 1 where it is bound, _BodiesP.w the leap's largest length in m that its window covers (the march's leaps are clamped to it).
+Texture2D<float> _BodiesCovMax;
 // One step of the insertion: the candidate (tu, tq, ta) passes slot i, the larger bound stays, the smaller goes on (selects, no branch).
 #define BODY_KSWAP(i) { bool sw_ = tu > gKU##i; float x_ = gKU##i; gKU##i = sw_ ? tu : x_; tu = sw_ ? x_ : tu; \
                         x_ = gKQ##i; gKQ##i = sw_ ? tq : x_; tq = sw_ ? x_ : tq; x_ = gKA##i; gKA##i = sw_ ? ta : x_; ta = sw_ ? x_ : ta; }
@@ -491,6 +506,9 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
         float J = BodyJ[k];
         float rCap = BodyR[k] * pk;
         int nb = BodyNB[k];
+#ifdef BODIES_KSLOTS
+        if (fmod(floor(_BodiesP.y * 0.015625), 2.0) >= 1.0) nb = 1;   // P0d debug bit 64: no second body in the largest class
+#endif
         float alive = min(1.0, f / CELL_ALIVE_F0 * BodyA[k]);
         float u = frac(u0 + 0.3819660 * (k + 1));
         uint seedK = (seed * 0xC2B2AE35u) ^ ((uint)(k + 1) * 0x27D4EB2Fu);
@@ -503,13 +521,20 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
         float ys = yRow - sh;
         float fs = ys - floor(ys);
         float j0 = floor(ys) - (S == 3 ? 1.0 : 0.0);
-        float outerM = (0.5 * S - J + min(fs, 1.0 - fs)) * rowH;
+#ifdef BODIES_WIDE
+        float wideM = 1.0;   // the wide search: one more cell on each side, so a cell outside it is one pitch further
+        j0 -= 1.0;
+        int rowsN = S + 2;
+#else
+        float wideM = 0.0;
 #ifdef BODIES_BRUTE
         j0 -= 2.0;
         int rowsN = S + 4;
 #else
         int rowsN = S;
 #endif
+#endif
+        float outerM = (0.5 * S + wideM - J + min(fs, 1.0 - fs)) * rowH;
         BODIES_CELL_LOOP for (int dr = 0; dr < BODIES_ROWS_MAX; dr++)
         {
             if (dr >= rowsN) break;
@@ -520,9 +545,12 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
             float xs = u * cols - sh;
             float fx = xs - floor(xs);
             float c0 = floor(xs) - (S == 3 ? 1.0 : 0.0);
-            outerM = min(outerM, (0.5 * S - J + min(fx, 1.0 - fx)) * 6.2831853 * rm * coslat / cols);
+            outerM = min(outerM, (0.5 * S + wideM - J + min(fx, 1.0 - fx)) * 6.2831853 * rm * coslat / cols);
 #ifdef BODIES_BRUTE
             c0 -= 2.0;
+#endif
+#ifdef BODIES_WIDE
+            c0 -= 1.0;
 #endif
             BODIES_CELL_LOOP for (int dc = 0; dc < BODIES_ROWS_MAX; dc++)
             {
@@ -553,13 +581,21 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
                         // changes along the ray, so a body dead or small here can be alive and larger a few hundred m on, inside the leap. The leaps' bounds (the reach
                         // and the shell depth) are taken over every body of the search as large as it can get at any share: alive, radius at g(1), top 1 (the type's full
                         // height). The share itself stays exact (the slots hold the live bodies as they are here).
+                        // P0d: with the local bound (the default where its map is bound) the largest form is the one at the largest share within the leap's reach
+                        // (gBodFLoc, gBodCoreLoc from the max-filtered coverage map): alive with that share, its radius and its top. Debug bit 32: the global largest (P0c).
                         if (mode == 2 && rowOk && fmod(floor(_BodiesP.y * 0.0625), 2.0) < 1.0)
                         {
-                            float rM = min(gMax * s * unitM / CELL_EDGE_X, rCap);
-                            a.reach = min(a.reach, d - rM);
-                            float axisM = min(max(CELL_EDGE_X * rM, 1.0), max(typeHeightM, 1.0));
-                            float xvM = d / rM / CELL_EDGE_X;
-                            a.far = max(a.far, (1.0 - sqrt(xvM * xvM + h * h)) * axisM + axisM * sw);
+                            bool localB = gBodLocalOn;
+                            bool aliveB = localB ? CellUnit(hb) < min(1.0, gBodFLoc / CELL_ALIVE_F0 * BodyA[k]) : true;
+                            if (aliveB)
+                            {
+                                float rM = min((localB ? BodyVisibleG(gBodFLoc) : gMax) * s * unitM / CELL_EDGE_X, rCap);
+                                float topM = localB ? clamp(gBodCoreLoc * sAbs / 0.5, 0.15, 1.0) : 1.0;
+                                a.reach = min(a.reach, d - rM);
+                                float axisM = min(max(CELL_EDGE_X * rM, 1.0), max(topM * typeHeightM, 1.0));
+                                float xvM = d / rM / CELL_EDGE_X, hvM = h / topM;
+                                a.far = max(a.far, (1.0 - sqrt(xvM * xvM + hvM * hvM)) * axisM + axisM * sw);
+                            }
                         }
 #endif
                         if (live)
@@ -664,13 +700,26 @@ float CellCoverBodies(float cov, float2 uv, float pitch, float rm, float coverag
 #ifdef BODIES_KSLOTS
 // The K-slot search (P0b-1): as CellCoverBodies, with the height share h and the type's height in m of the sample known, so that the search keeps the K best bodies.
 float CellCoverBodiesK(int li, float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, float h, float typeHeightM,
-                       out float reachM, out float wMap)
+                       float clearK, out float reachM, out float wMap)
 {
     float4 ce = _CellE[li];
     float sw = ce.x * (0.5 + 0.5 * ce.z * (0.37 + 0.137));
     float f = CellShare(cov, coverage, edge, amount);
     if (_BodiesP.x > 0.0 && f > 0.0) f = _BodiesP.x;
     float coreBase = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5);
+    // P0d: the largest share within the leap's reach. The map's largest value over the texel's neighbourhood (its window holds every texel the bilinear read of any
+    // point within _BodiesP.w m can touch) goes through the same steps as the sample's value (the clear-sky rule, CellShare, the core strength), each monotone in it.
+    gBodLocalOn = _BodiesP.z > 0.5 && fmod(floor(_BodiesP.y * 0.03125), 2.0) < 1.0;
+    [branch] if (gBodLocalOn)
+    {
+        uint mw, mh;
+        _BodiesCovMax.GetDimensions(mw, mh);
+        int tx = (int)floor(frac(uv.x) * mw) % (int)mw, ty = clamp((int)floor(saturate(uv.y) * mh), 0, (int)mh - 1);
+        float cm = _BodiesCovMax.Load(int3(tx, ty, 0));
+        cm = min(cm, 2.0 * cm - clearK);
+        gBodFLoc = _BodiesP.x > 0.0 ? max(_BodiesP.x, f) : max(CellShare(cm, coverage, edge, amount), f);
+        gBodCoreLoc = max(clamp(0.5 * (cm + coverage - 1.0) + 0.35, 0.15, 0.5), coreBase);
+    }
     BodiesAcc a = BodiesRun(2, uv, pitch, rm, f, seed, coreBase, h, typeHeightM, 0.0, sw);
 #ifdef _BODIES_COUNT
     InterlockedAdd(_BodyCount[gBodCountLight != 0 ? 1 : 0], 1u);
@@ -685,6 +734,12 @@ float CellCoverBodiesK(int li, float cov, float2 uv, float pitch, float rm, floa
     gKFar = a.far;
     gCellOther = a.other;
     reachM = max(a.reach, 0.0);
+    // P0d: no leap reaches beyond the window the local maximum was taken over (the shell leap is capped by gCellOther, the reach leap by reachM).
+    if (gBodLocalOn)
+    {
+        gCellOther = min(gCellOther, _BodiesP.w);
+        reachM = min(reachM, _BodiesP.w);
+    }
     // P0c diagnosis (cloud.bodies.debug, _BodiesP.y): bit 1 no leap over the reach (the empty discs), bit 2 no shell leap (the bodies' shells), bit 4 the body is today's
     // single nearest disc (CellBody) instead of the union.
     float dbgK = _BodiesP.y;

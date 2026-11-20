@@ -353,7 +353,8 @@ namespace ReDefinition.Atmospheres
         internal const float BodiesDefault = 0f;
         // P0b-1: 14, 15, 16 the union over the 2, 3, 4 best candidates in register slots (_BODIES_K2 .. K4). Compiled now: 7, 13, 14, 15, 16 (10 .. 12 are measured, their code stays).
         // P0c: compiled now 13 and 16 only (the march, the cache fill; the counting pass with 16); the others are measured, their code stays.
-        internal static readonly string[] BodiesKeywords = { null, null, null, null, null, null, null, null, null, null, null, null, null, "_BODIES_V13", null, null, "_BODIES_K4" };
+        // P0d: 17 K4 with a 4 x 4 search (_BODIES_K4W, the diagnosis of the straight-edged body).
+        internal static readonly string[] BodiesKeywords = { null, null, null, null, null, null, null, null, null, null, null, null, null, "_BODIES_V13", null, null, "_BODIES_K4", "_BODIES_K4W" };
         internal static int Bodies
         {
             get
@@ -366,10 +367,11 @@ namespace ReDefinition.Atmospheres
         }
         internal static float BodiesShare { get { return Clean(Tuning.Get(TuneBodiesShare, 0f), 0f, 0f, 1f); } }
         // cloud.bodies.debug (P0c diagnosis, 16 only): bit 1 no reach leap, bit 2 no room to bodies outside the search, bit 4 the nearest body alone, bit 8 no shell
-        // depth of the searched bodies, bit 16 the leaps' bounds from the bodies as they are at the sample's share (P0b, before the fix).
+        // depth of the searched bodies, bit 16 the leaps' bounds from the bodies as they are at the sample's share (P0b, before the fix), bit 32 the bounds from the
+        // largest form at any share (P0c) instead of the largest share near the ray (P0d), bit 64 no second body in the largest class.
         internal const string TuneBodiesDebug = "cloud.bodies.debug";
-        internal static float BodiesDebug { get { return Clean(Tuning.Get(TuneBodiesDebug, 0f), 0f, 0f, 31f); } }
-        internal static bool BodiesCount { get { int b = Bodies; return Tuning.Get(TuneBodiesCount, 0f) > 0.5f && (b == 7 || b == 13 || b >= 14); } }
+        internal static float BodiesDebug { get { return Clean(Tuning.Get(TuneBodiesDebug, 0f), 0f, 0f, 127f); } }
+        internal static bool BodiesCount { get { int b = Bodies; return Tuning.Get(TuneBodiesCount, 0f) > 0.5f && (b == 13 || b == 16); } }
 
         // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)

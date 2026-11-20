@@ -410,6 +410,22 @@ VARIANTS = {
                                           tune_dotted([("cloud.bodies", 16.0), ("cloud.bodies.share", s / 100.0), ("cloud.cellTrace", float(t))])),
                                   "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
        for s in (25, 40) for t in (0, 1)},
+    # P0d: the local leap bound (the largest share near the ray): its validity (shell leap on / off at the map's share and at forced shares), and the diagnosis of the
+    # straight-edged body (17 the 4 x 4 search, debug 64 no second body in the largest class, a forced share against the share map's texel edges).
+    **{"p0d_val_s%02d_t%d" % (s, t): ("(P0d) ground, K4 local bound, share %s, cloud.cellTrace %d" % ("the map's" if s == 0 else "%.2f" % (s / 100.0), t),
+                                      compose(camera_at(30.0, 4.0), sun_behind(25.0),
+                                              tune_dotted([("cloud.bodies", 16.0), ("cloud.bodies.share", s / 100.0), ("cloud.cellTrace", float(t))])),
+                                      "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for s in (0, 25, 50) for t in (0, 1)},
+    **{"p0d_body_%s" % k: ("(P0d) ground, %s" % what, compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted(keys)),
+                           "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for k, what, keys in (("k4", "K4", [("cloud.bodies", 16.0)]), ("k4w", "K4 with a 4 x 4 search", [("cloud.bodies", 17.0)]),
+                             ("nb1", "K4 without the second body of the largest class", [("cloud.bodies", 16.0), ("cloud.bodies.debug", 64.0)]),
+                             ("f35", "K4 at a forced share 0.35", [("cloud.bodies", 16.0), ("cloud.bodies.share", 0.35)]),
+                             ("today", "today's lattice", [("cloud.bodies", 0.0)]))},
+    **{"p0d_dn_%s" % k: ("(P0d) straight down from 15 km, sun 45, %s" % what, compose(camera_at(15000.0, -90.0), sun_behind(45.0), tune_dotted(keys)),
+                         "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for k, what, keys in (("k4", "K4 local bound", [("cloud.bodies", 16.0)]), ("today", "today's lattice", [("cloud.bodies", 0.0)]))},
     "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
     "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),

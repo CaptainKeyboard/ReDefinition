@@ -115,7 +115,58 @@ namespace ReDefinition.Atmospheres
         internal const int PassMarch = 0, PassComposite = 1, PassAux = 2, PassCompositeOut = 4, PassCullTile = 5;
         // P0b-0: the march with the density call counters (cloud.bodies.count, CloudCells.cginc _BodyCount; a debug pass at shader model 5).
         internal const int PassMarchCount = 6;
-        private static readonly int IdBodiesP = Shader.PropertyToID("_BodiesP");
+        private static readonly int IdBodiesP = Shader.PropertyToID("_BodiesP"), IdBodiesCovMax = Shader.PropertyToID("_BodiesCovMax");
+
+        // P0d: the coverage map's largest value over the neighbourhood a leap of the size-class bodies can reach (cloud.bodies 16, 17). A leap is at most the room
+        // to a body outside the smallest class's search (about 1.05 x 0.8 pitch less 0.5 x 0.8 pitch, 1.3 km at a 3 km pitch) and the shader caps every leap at
+        // BodiesLeapWindowM; each texel holds the largest of both slew maps (every moment of the slew lies between them) over every texel the bilinear read of any
+        // point within that distance can touch. Rebuilt when the maps or the layer change.
+        internal const float BodiesLeapWindowM = 1500f;
+        private Texture2D bodiesCovMax;
+        private long bodiesCovMaxKey = long.MinValue;
+
+        private bool RefreshBodiesCovMax()
+        {
+            int l = -1;
+            for (int i = 0; i < layerCount; i++) if (cullL[i].w > 0f) { l = i; break; }
+            if (l < 0 || Maps.Width <= 0) return false;
+            byte[] a, b;
+            if (!Maps.CoverageBoundPair(l, out a, out b)) return false;
+            int w = Maps.Width, h = Maps.Height;
+            double rm = radius + 0.5 * (layerA[l].x + layerA[l].y);
+            long key = Maps.CoverageVersion(l) * 1000003L + Maps.CoverageGoalVersion(l) * 7919L + l * 31L + (long)Math.Round(rm) + uploadedVersion * 15485863L;
+            if (bodiesCovMax != null && key == bodiesCovMaxKey && bodiesCovMax.width == w && bodiesCovMax.height == h) return true;
+            double texH = Math.PI * rm / h, texW = 2.0 * Math.PI * rm / w;
+            int wy = 2 + (int)Math.Ceiling(BodiesLeapWindowM / texH);
+            var src = new float[w * h];
+            for (int i = 0; i < src.Length; i++) src[i] = Math.Max(a[i], b[i]) / 255f;
+            var dst = new float[w * h];
+            for (int y = 0; y < h; y++)
+            {
+                int y0 = Math.Max(0, y - wy), y1 = Math.Min(h - 1, y + wy);
+                // The narrowest texel of the window's rows (the most poleward edge) sets how many columns the leap can cross.
+                double latEdge = Math.Max(Math.Abs(90.0 - 180.0 * y0 / h), Math.Abs(90.0 - 180.0 * (y1 + 1) / h));
+                double cosEdge = Math.Cos(Math.Min(latEdge, 89.999) * Math.PI / 180.0);
+                int wx = (int)Math.Min(w / 2, 2 + Math.Ceiling(BodiesLeapWindowM / Math.Max(texW * cosEdge, 1.0)));
+                for (int x = 0; x < w; x++)
+                {
+                    float v = 0f;
+                    for (int yy = y0; yy <= y1; yy++)
+                        for (int dx = -wx; dx <= wx; dx++)
+                            v = Math.Max(v, src[yy * w + ((x + dx) % w + w) % w]);
+                    dst[y * w + x] = v;
+                }
+            }
+            if (bodiesCovMax == null || bodiesCovMax.width != w || bodiesCovMax.height != h)
+            {
+                if (bodiesCovMax != null) UnityEngine.Object.Destroy(bodiesCovMax);
+                bodiesCovMax = new Texture2D(w, h, TextureFormat.RFloat, false, true) { name = "bodies coverage max", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            }
+            bodiesCovMax.SetPixelData(dst, 0);
+            bodiesCovMax.Apply(false);
+            bodiesCovMaxKey = key;
+            return true;
+        }
         // The counters' buffer (eight uints) and the sums since the last ResetBodyCounts: bound as UAV 1 around the counting march, read back after each frame.
         private static ComputeBuffer bodyCountBuffer;
         private static readonly uint[] bodyCountFrame = new uint[8];
@@ -498,7 +549,9 @@ namespace ReDefinition.Atmospheres
                 if (v == bodies) m.EnableKeyword(CloudLookTuning.BodiesKeywords[v]);
                 else m.DisableKeyword(CloudLookTuning.BodiesKeywords[v]);
             }
-            m.SetVector(IdBodiesP, new Vector4(CloudLookTuning.BodiesShare, CloudLookTuning.BodiesDebug, 0f, 0f));
+            bool covMax = bodies >= 16 && RefreshBodiesCovMax();
+            if (covMax) m.SetTexture(IdBodiesCovMax, bodiesCovMax);
+            m.SetVector(IdBodiesP, new Vector4(CloudLookTuning.BodiesShare, CloudLookTuning.BodiesDebug, covMax ? 1f : 0f, BodiesLeapWindowM));
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));

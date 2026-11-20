@@ -196,7 +196,7 @@ namespace ReDefinition.WeatherPlayer
             // lcgrid<N> its voxels across (the voxels up are a quarter of them).
             public int CacheNear, CacheFill, CacheKm, CacheGrid;
             // M2a P0b-0: bv<N> cloud.bodies, bs<NN> its forced share in hundredths, bcnt the counting march; set as tuning overrides by ApplyCase (-1: the job's).
-            public int BodiesV = -1, BodiesShare = -1;
+            public int BodiesV = -1, BodiesShare = -1, BodiesDebug = -1;
             public bool BodiesCount;
         }
 
@@ -275,6 +275,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("bv")) c.BodiesV = Number(t, 2);   // M2a P0b-0: cloud.bodies
                 else if (t.StartsWith("bs")) c.BodiesShare = Number(t, 2);   // M2a P0b-0: cloud.bodies.share in hundredths (0: the map's)
                 else if (t == "bcnt") c.BodiesCount = true;   // M2a P0b-0: cloud.bodies.count (the counting march)
+                else if (t.StartsWith("bd")) c.BodiesDebug = Number(t, 2);   // M2a P0d: cloud.bodies.debug
                 else if (t == "bexact") c.BlockExact = true;
                 else if (t == "bacc") c.BlockAcc = true;
                 else if (t == "lrm") c.ReuseMove = true;
@@ -310,6 +311,7 @@ namespace ReDefinition.WeatherPlayer
             if (c.BodiesV >= 0) Tuning.SetOverride(CloudLookTuning.TuneBodies, c.BodiesV);
             if (c.BodiesShare >= 0) Tuning.SetOverride(CloudLookTuning.TuneBodiesShare, c.BodiesShare / 100f);
             if (c.BodiesV >= 0) Tuning.SetOverride(CloudLookTuning.TuneBodiesCount, c.BodiesCount ? 1f : 0f);
+            if (c.BodiesV >= 0) Tuning.SetOverride(CloudLookTuning.TuneBodiesDebug, c.BodiesDebug >= 0 ? c.BodiesDebug : 0f);
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.LightReuseMove = c.ReuseMove;
