@@ -67,7 +67,32 @@ namespace ReDefinition.Atmospheres
         internal int LastFilled { get; private set; }
         internal bool LastWasLay { get; private set; }
         internal int Lays { get; private set; }
+        // The Records since the last lay (0: the lay's own frame recorded nothing yet), and the slice fills since it (a slice refilled counts again).
+        internal int RecordsSinceLay { get; private set; }
+        internal int FilledSinceLay { get; private set; }
         internal RenderTexture Volume { get { return volume; } }
+
+        // The state the pinned capture writes into pass.json: the lays, what the last Record filled, the Records and slices since the lay, how many slices of each cascade hold
+        // a window stamp (not the not-filled marker), the textures, and the switches the fill and the read ran with.
+        internal string StateJson()
+        {
+            int near = 0, far = 0;
+            for (int z = 0; z < GridNz && z < sliceO.Length; z++)
+            {
+                if (sliceO[z].x != LightVolumeMath.NotFilled) near++;
+                if (sliceO[z].z != LightVolumeMath.NotFilled) far++;
+            }
+            System.Globalization.CultureInfo inv = System.Globalization.CultureInfo.InvariantCulture;
+            var s = new System.Text.StringBuilder(512);
+            s.Append("{\"lays\": ").Append(Lays).Append(", \"lastFilled\": ").Append(LastFilled).Append(", \"lastWasLay\": ").Append(LastWasLay ? "true" : "false")
+             .Append(", \"recordsSinceLay\": ").Append(RecordsSinceLay).Append(", \"filledSinceLay\": ").Append(FilledSinceLay).Append(", \"slicesPerCascade\": ").Append(GridNz)
+             .Append(", \"stampedNear\": ").Append(near).Append(", \"stampedFar\": ").Append(Cascades > 1 ? far : 0).Append(", \"cascades\": ").Append(Cascades)
+             .Append(", \"volumeCreated\": ").Append(volume != null && volume.IsCreated() ? "true" : "false").Append(", \"spreadCopy\": ").Append(spread != null ? "true" : "false")
+             .Append(", \"handOverM\": ").Append(HandOverM.ToString("R", inv)).Append(", \"voxelM\": ").Append(VoxelM.ToString("R", inv)).Append(", \"fill\": ").Append(Fill)
+             .Append(", \"storeK\": ").Append(StoreK.ToString("R", inv)).Append(", \"spread\": ").Append(Spread).Append(", \"timeWarpRate\": ").Append(TimeWarpRate.ToString("R", inv))
+             .Append(", \"warpAllows\": ").Append(WarpAllows ? "true" : "false").Append('}');
+            return s.ToString();
+        }
         // Whether the far path may read the volume this frame (the time warp's rate at most WarpLimit).
         internal bool WarpAllows { get { return TimeWarpRate <= WarpLimit; } }
 
@@ -216,6 +241,8 @@ namespace ReDefinition.Atmospheres
                 laid = true;
                 fillAll = true;
                 Lays++;
+                RecordsSinceLay = 0;
+                FilledSinceLay = 0;
                 if (Say != null)
                     Say("light volume laid anew (" + Lays + "): " + GridN + " x " + GridN + " x " + GridNz + " voxels, " + Cascades + " cascades of " + VoxelM + " m and "
                         + VoxelM * FarScale + " m, altitude " + alt.x.ToString("0") + " to " + alt.y.ToString("0") + " m, fill " + Fill + "; every slice refilled this frame");
@@ -282,6 +309,7 @@ namespace ReDefinition.Atmospheres
             Ensure();
             LastFilled = 0;
             LastWasLay = false;
+            RecordsSinceLay++;
             if (!fillAll && Vector3.Dot(towardsSun.normalized, up) < -0.26f) return;
             int total = TotalSlices;
             float rate = Mathf.Max(Warp * Mathf.Max(TimeWarpRate, 1f), 1f);
@@ -318,6 +346,7 @@ namespace ReDefinition.Atmospheres
                 sliceO[z] = v;
             }
             LastFilled = count;
+            FilledSinceLay = Math.Min(FilledSinceLay + count, 1 << 20);
             layerMaterial.SetVectorArray(Ids.O, sliceO);
         }
 

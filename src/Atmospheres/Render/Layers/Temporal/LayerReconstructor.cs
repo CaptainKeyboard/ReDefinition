@@ -148,6 +148,9 @@ namespace ReDefinition.Atmospheres
         // Whether this reconstruction may use the light volume: the player's view does; a probe camera's (reset every frame, LayerReconstructDriver.ProbeFor) does not, since
         // each reset would lay and fill its own volume completely every frame. It marches with today's light.
         internal bool LightVolumeAllowed = true;
+        // Whether the layer material had the light volume's keyword (LightVolume.Keyword) right after this reconstruction's last Record bound or unbound it: the pinned capture
+        // writes it into pass.json (another camera's Record may change the shared material's keyword before the frame's end).
+        internal bool LightVolumeKeywordAtRecord { get; private set; }
         // GPU profiler sub-markers of the reconstruction (labels "ReDefinition clouds: <part>"); the module sets it to the host's marker seam, null alone (the weather player).
         internal static Action<CommandBuffer, string> SubMark;
 
@@ -308,6 +311,7 @@ namespace ReDefinition.Atmospheres
                 LightVolume.Unbind(layers);
                 if (lightVolume != null) lightVolume.Dispose();
             }
+            LightVolumeKeywordAtRecord = layers.IsKeywordEnabled(LightVolume.Keyword);
             if (cache != null)
             {
                 cache.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM);

@@ -36,6 +36,9 @@ namespace ReDefinition.Atmospheres
             "_NoiseColour", "_NoiseLattice", "_LightCache", "_LightVolume", "_LvBlurSrc", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_CullMin0", "_CullMin1", "_EdgeMask"
         };
 
+        // The local keywords the layer shader declares (multi_compile_local; LightVolume.Keyword): the readout says for each whether the material has it on.
+        internal static readonly string[] Keywords = { "CLOUD_LIGHTVOL" };
+
         // Where the numbers come from: a material in the game and in the player, a stand-in in the tests.
         internal interface ISource
         {
@@ -45,6 +48,9 @@ namespace ReDefinition.Atmospheres
             Matrix4x4 Matrix(string name);
             // "<width>x<height>[x<depth>]" of the texture bound, or null for none
             string Texture(string name);
+            bool KeywordOn(string name);
+            // Every keyword the material has on (null: not known)
+            string[] KeywordsOn();
         }
 
         private sealed class MaterialSource : ISource
@@ -60,6 +66,8 @@ namespace ReDefinition.Atmospheres
             public Vector4 Vector(string name) { return m.GetVector(name); }
             public Vector4[] Array(string name) { return m.GetVectorArray(name); }
             public Matrix4x4 Matrix(string name) { return m.GetMatrix(name); }
+            public bool KeywordOn(string name) { return m.IsKeywordEnabled(name); }
+            public string[] KeywordsOn() { return m.shaderKeywords; }
 
             public string Texture(string name)
             {
@@ -76,9 +84,12 @@ namespace ReDefinition.Atmospheres
             return material == null ? "{}" : Uniforms(new MaterialSource(material));
         }
 
-        // {"floats": {...}, "vectors": {...}, "arrays": {...}, "matrices": {...}, "textures": {...}}; a vector array the material does not hold is null.
+        // {"floats": {...}, "vectors": {...}, "arrays": {...}, "matrices": {...}, "textures": {...}, "keywords": {...}, "keywordsOn": [...], "readFailures": [...]}; a vector
+        // array the material does not hold is null. A read that throws (a vector array never set on the material, where the engine throws instead of returning null) is null
+        // too and named in readFailures with the exception's message, so a capture cannot fail on it.
         internal static string Uniforms(ISource s)
         {
+            var failures = new System.Collections.Generic.List<string>();
             var b = new StringBuilder(16384);
             b.Append("{\"floats\": {");
             for (int i = 0; i < Floats.Length; i++)
@@ -98,7 +109,16 @@ namespace ReDefinition.Atmospheres
             {
                 if (i > 0) b.Append(",\n  ");
                 b.Append('"').Append(Arrays[i]).Append("\": ");
-                Vector4[] a = s.Array(Arrays[i]);
+                Vector4[] a;
+                try
+                {
+                    a = s.Array(Arrays[i]);
+                }
+                catch (Exception e)
+                {
+                    a = null;
+                    failures.Add(Arrays[i] + ": " + e.GetType().Name + ": " + e.Message);
+                }
                 if (a == null) { b.Append("null"); continue; }
                 b.Append('[');
                 for (int k = 0; k < a.Length; k++)
@@ -128,7 +148,42 @@ namespace ReDefinition.Atmospheres
                 string t = s.Texture(Textures[i]);
                 b.Append('"').Append(Textures[i]).Append("\": ").Append(t == null ? "null" : "\"" + t + "\"");
             }
-            b.Append("}}");
+            b.Append("},\n \"keywords\": {");
+            for (int i = 0; i < Keywords.Length; i++)
+            {
+                if (i > 0) b.Append(", ");
+                string on;
+                try
+                {
+                    on = s.KeywordOn(Keywords[i]) ? "true" : "false";
+                }
+                catch (Exception e)
+                {
+                    on = "null";
+                    failures.Add(Keywords[i] + ": " + e.GetType().Name + ": " + e.Message);
+                }
+                b.Append('"').Append(Keywords[i]).Append("\": ").Append(on);
+            }
+            b.Append("},\n \"keywordsOn\": ");
+            string[] all = null;
+            try
+            {
+                all = s.KeywordsOn();
+            }
+            catch (Exception e)
+            {
+                failures.Add("shaderKeywords: " + e.GetType().Name + ": " + e.Message);
+            }
+            if (all == null) b.Append("null");
+            else
+            {
+                b.Append('[');
+                for (int i = 0; i < all.Length; i++) b.Append(i > 0 ? ", " : "").Append(Str(all[i]));
+                b.Append(']');
+            }
+            b.Append(",\n \"readFailures\": [");
+            for (int i = 0; i < failures.Count; i++) b.Append(i > 0 ? ", " : "").Append(Str(failures[i]));
+            b.Append("]}");
             return b.ToString();
         }
 
