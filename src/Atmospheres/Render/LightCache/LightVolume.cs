@@ -22,9 +22,13 @@ namespace ReDefinition.Atmospheres
         private const int MaxSlices = 64;
         private const float NotFilled = -1e8f;
 
-        private static readonly int IdVolume = Shader.PropertyToID("_LightVolume"), IdA = Shader.PropertyToID("_LvA"), IdU = Shader.PropertyToID("_LvU"),
-            IdE = Shader.PropertyToID("_LvE"), IdN = Shader.PropertyToID("_LvN"), IdZ = Shader.PropertyToID("_LvZ"), IdC = Shader.PropertyToID("_LvC"),
-            IdF = Shader.PropertyToID("_LvF"), IdO = Shader.PropertyToID("_LvO"), IdSlice = Shader.PropertyToID("_LvSlice");
+        // The shader property ids, read on the first bind (a static field of this class would need Unity's native code when the module only sets Say: the T09 tests).
+        private static class Ids
+        {
+            internal static readonly int Volume = Shader.PropertyToID("_LightVolume"), A = Shader.PropertyToID("_LvA"), U = Shader.PropertyToID("_LvU"),
+                E = Shader.PropertyToID("_LvE"), N = Shader.PropertyToID("_LvN"), Z = Shader.PropertyToID("_LvZ"), C = Shader.PropertyToID("_LvC"),
+                F = Shader.PropertyToID("_LvF"), O = Shader.PropertyToID("_LvO"), Slice = Shader.PropertyToID("_LvSlice");
+        }
 
         // Called with a line when the volume is laid anew (the module points it at its log; null: silent).
         internal static Action<string> Say;
@@ -155,15 +159,15 @@ namespace ReDefinition.Atmospheres
         {
             Ensure();
             m.EnableKeyword(Keyword);
-            m.SetTexture(IdVolume, volume);
-            m.SetVector(IdA, new Vector4(HandOverM, Mathf.Max(BandShare * Mathf.Max(HandOverM, 0f), 1f), Mathf.Clamp(FarTaps, 0, 3), PixelAngleRad));
-            m.SetVector(IdU, up);
-            m.SetVector(IdE, east);
-            m.SetVector(IdN, north);
-            m.SetVector(IdZ, new Vector4(laidAlt.x, laidAlt.y, GridNz, FadeVoxels));
-            m.SetVector(IdC, new Vector4(VoxelM, VoxelM * FarScale, GridN, Cascades));
-            m.SetVector(IdF, new Vector4(FillTaps, FillRatio, 0f, 0f));
-            m.SetVectorArray(IdO, sliceO);
+            m.SetTexture(Ids.Volume, volume);
+            m.SetVector(Ids.A, new Vector4(HandOverM, Mathf.Max(BandShare * Mathf.Max(HandOverM, 0f), 1f), Mathf.Clamp(FarTaps, 0, 3), PixelAngleRad));
+            m.SetVector(Ids.U, up);
+            m.SetVector(Ids.E, east);
+            m.SetVector(Ids.N, north);
+            m.SetVector(Ids.Z, new Vector4(laidAlt.x, laidAlt.y, GridNz, FadeVoxels));
+            m.SetVector(Ids.C, new Vector4(VoxelM, VoxelM * FarScale, GridN, Cascades));
+            m.SetVector(Ids.F, new Vector4(FillTaps, FillRatio, 0f, 0f));
+            m.SetVectorArray(Ids.O, sliceO);
         }
 
         // The next Follow lays the volume anew (the reconstruction's Reset: a teleport, a scene change, a changed layer stack).
@@ -193,7 +197,7 @@ namespace ReDefinition.Atmospheres
                 cursor = (cursor + 1) % total;
                 int ci = s % Cascades, z = s / Cascades;
                 Vector2 o = window[ci];
-                cb.SetGlobalVector(IdSlice, new Vector4(z, ci, o.x, o.y));
+                cb.SetGlobalVector(Ids.Slice, new Vector4(z, ci, o.x, o.y));
                 cb.SetRenderTarget(new RenderTargetIdentifier(volume), 0, CubemapFace.Unknown, ci * GridNz + z);
                 cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, layerMaterial, PassFill);
                 Vector4 v = sliceO[z];
@@ -202,7 +206,7 @@ namespace ReDefinition.Atmospheres
                 sliceO[z] = v;
             }
             LastFilled = count;
-            layerMaterial.SetVectorArray(IdO, sliceO);
+            layerMaterial.SetVectorArray(Ids.O, sliceO);
         }
 
         internal void Dispose()
