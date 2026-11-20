@@ -76,12 +76,8 @@ namespace ReDefinition.Atmospheres
         // a window stamp (not the not-filled marker), the textures, and the switches the fill and the read ran with.
         internal string StateJson()
         {
-            int near = 0, far = 0;
-            for (int z = 0; z < GridNz && z < sliceO.Length; z++)
-            {
-                if (sliceO[z].x != LightVolumeMath.NotFilled) near++;
-                if (sliceO[z].z != LightVolumeMath.NotFilled) far++;
-            }
+            int near, far;
+            Stamped(out near, out far);
             System.Globalization.CultureInfo inv = System.Globalization.CultureInfo.InvariantCulture;
             var s = new System.Text.StringBuilder(512);
             s.Append("{\"lays\": ").Append(Lays).Append(", \"lastFilled\": ").Append(LastFilled).Append(", \"lastWasLay\": ").Append(LastWasLay ? "true" : "false")
@@ -93,6 +89,21 @@ namespace ReDefinition.Atmospheres
              .Append(", \"warpAllows\": ").Append(WarpAllows ? "true" : "false").Append('}');
             return s.ToString();
         }
+
+        // The slices of each cascade that hold a window stamp (not the not-filled marker).
+        internal void Stamped(out int near, out int far)
+        {
+            near = 0;
+            far = 0;
+            for (int z = 0; z < GridNz && z < sliceO.Length; z++)
+            {
+                if (sliceO[z].x != LightVolumeMath.NotFilled) near++;
+                if (sliceO[z].z != LightVolumeMath.NotFilled) far++;
+            }
+        }
+
+        // Whether the volume's textures exist (false after Dispose: the key is off or the warp is above the limit).
+        internal bool Created { get { return volume != null && volume.IsCreated(); } }
         // Whether the far path may read the volume this frame (the time warp's rate at most WarpLimit).
         internal bool WarpAllows { get { return TimeWarpRate <= WarpLimit; } }
 

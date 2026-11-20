@@ -579,7 +579,8 @@ namespace ReDefinition.Atmospheres
             string size = Game.ScreenWidth + "x" + Game.ScreenHeight;
             AtmospheresLog.Say("T09 view begin: " + view.Name + " " + variant + " " + size);
             // E40 C2: the maps the pass marches in this view, for the player to draw the same sky (OwnCloudModule.DumpMaps).
-            if (own != null) own.DumpMaps(view.Name + "-u" + ((long)Game.UniversalTime).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // The variant's name at the end keeps each variant's dump (a tag already dumped is skipped).
+            if (own != null) own.DumpMaps(view.Name + "-u" + ((long)Game.UniversalTime).ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + variant);
             // The dwell in slices: the pose is read at the end of each (the placement check says only where the vessel stood a few seconds before the dwell; in
             // start 42 it had left the pose within seconds), the first deviation fails the view named and the pictures of it are not taken.
             viewPoseOk = true;
@@ -608,6 +609,7 @@ namespace ReDefinition.Atmospheres
             string prefix = "T09.view." + view.Name + ".";
             Emit(prefix + "frames", frames);
             Emit(prefix + "fps", frames / Math.Max(0.001, seconds));
+            if (PerfStart) EmitLightVolumeState(own, prefix);
             Check("no frame cap in the " + view.Name + " view (" + variant + ")", NoFrameCap(), "targetFrameRate " + Game.TargetFrameRate + ", vSyncCount " + Game.VSyncCount);
             // A driver reset (K-T2 2026-11-16/17: three, each at the placement from the ground view to the inside view) leaves the game running on a removed device: the
             // frames after it draw nothing and are fast, so a view's rows would read as a gain. The view fails by name and its rows are void.
@@ -656,6 +658,25 @@ namespace ReDefinition.Atmospheres
             double altitude = Math.Min(20000.0, view.AglM);
             WeatherSample s;
             if (WeatherHub.Sample(Game.BodyIndex, lat, lon, altitude, Game.UniversalTime, out s)) Emit(prefix + "cover_at_view_height", s.CloudCover01);
+        }
+
+        // LV3: the light volume of the player's view at the end of a perf view's dwell: whether its last Record left the march's keyword on (lv_keyword), and while the volume's
+        // textures exist its lays so far and the near cascade's stamped slices; "none" where no volume exists (plain, plain2: the key off frees the textures).
+        private void EmitLightVolumeState(OwnCloudModule own, string prefix)
+        {
+            LayerReconstructor player = own != null && own.Driver != null ? own.Driver.Player : null;
+            LightVolume lv = player != null ? player.CurrentLightVolume : null;
+            EmitText(prefix + "lv_keyword", player == null ? "none" : player.LightVolumeKeywordAtRecord ? "true" : "false");
+            if (lv == null || !lv.Created)
+            {
+                EmitText(prefix + "lv_lays", "none");
+                EmitText(prefix + "lv_stamped_near", "none");
+                return;
+            }
+            int near, far;
+            lv.Stamped(out near, out far);
+            Emit(prefix + "lv_lays", lv.Lays);
+            Emit(prefix + "lv_stamped_near", near);
         }
 
         // --- The pose at the end of a dwell and around a capture ---------------------------------------------------------------------------
