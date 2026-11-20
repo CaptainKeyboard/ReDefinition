@@ -415,13 +415,26 @@ static float gBodTop[BODY_N];
 #endif
 static int gBodN = BODY_N;   // V12: the live candidates in the arrays
 #ifdef BODIES_KSLOTS
-// The K slots (constant indices only, so they stay registers): the bound qb + axis x swing (sorted, largest first), qb and the axis; the largest bound of a candidate
-// not kept; the shell depth's maximum over every candidate.
-static float gKU[BODY_KS];
-static float gKQ[BODY_KS];
-static float gKA[BODY_KS];
+// The K slots as separate scalars (fxc made static arrays indexable even with constant indices): the bound qb + axis x swing (sorted, largest first), qb and the axis;
+// the largest bound of a candidate not kept; the shell depth's maximum over every candidate.
+static float gKU0 = -1e9, gKU1 = -1e9, gKU2 = -1e9, gKU3 = -1e9;
+static float gKQ0 = -1e9, gKQ1 = -1e9, gKQ2 = -1e9, gKQ3 = -1e9;
+static float gKA0 = 0.0, gKA1 = 0.0, gKA2 = 0.0, gKA3 = 0.0;
 static float gKDrop = -1e9;
 static float gKFar = -1e9;
+// One step of the insertion: the candidate (tu, tq, ta) passes slot i, the larger bound stays, the smaller goes on (selects, no branch).
+#define BODY_KSWAP(i) { bool sw_ = tu > gKU##i; float x_ = gKU##i; gKU##i = sw_ ? tu : x_; tu = sw_ ? x_ : tu; \
+                        x_ = gKQ##i; gKQ##i = sw_ ? tq : x_; tq = sw_ ? x_ : tq; x_ = gKA##i; gKA##i = sw_ ? ta : x_; ta = sw_ ? x_ : ta; }
+#if BODY_KS == 2
+#define BODY_KINSERT BODY_KSWAP(0) BODY_KSWAP(1)
+#define BODY_KMAX(bt) max(gKQ0 + gKA0 * (bt), gKQ1 + gKA1 * (bt))
+#elif BODY_KS == 3
+#define BODY_KINSERT BODY_KSWAP(0) BODY_KSWAP(1) BODY_KSWAP(2)
+#define BODY_KMAX(bt) max(max(gKQ0 + gKA0 * (bt), gKQ1 + gKA1 * (bt)), gKQ2 + gKA2 * (bt))
+#else
+#define BODY_KINSERT BODY_KSWAP(0) BODY_KSWAP(1) BODY_KSWAP(2) BODY_KSWAP(3)
+#define BODY_KMAX(bt) max(max(gKQ0 + gKA0 * (bt), gKQ1 + gKA1 * (bt)), max(gKQ2 + gKA2 * (bt), gKQ3 + gKA3 * (bt)))
+#endif
 #endif
 
 // The one source of a body's jitter and size from its hash.
@@ -458,7 +471,9 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
 #ifdef BODIES_KSLOTS
     if (mode == 2)
     {
-        [unroll] for (int ks = 0; ks < BODY_KS; ks++) { gKU[ks] = -1e9; gKQ[ks] = -1e9; gKA[ks] = 0.0; }
+        gKU0 = -1e9; gKU1 = -1e9; gKU2 = -1e9; gKU3 = -1e9;
+        gKQ0 = -1e9; gKQ1 = -1e9; gKQ2 = -1e9; gKQ3 = -1e9;
+        gKA0 = 0.0; gKA1 = 0.0; gKA2 = 0.0; gKA3 = 0.0;
         gKDrop = -1e9;
     }
 #endif
@@ -545,23 +560,9 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
                             float qbK = (1.0 - sqrt(xvK * xvK + hvK * hvK)) * axisK;
                             float uK = qbK + axisK * sw;
                             a.far = max(a.far, uK);
-                            [branch] if (uK > gKU[BODY_KS - 1])
-                            {
-                                gKDrop = max(gKDrop, gKU[BODY_KS - 1]);
-                                gKU[BODY_KS - 1] = uK;
-                                gKQ[BODY_KS - 1] = qbK;
-                                gKA[BODY_KS - 1] = axisK;
-                                [unroll] for (int ks = BODY_KS - 1; ks > 0; ks--)
-                                {
-                                    if (gKU[ks] > gKU[ks - 1])
-                                    {
-                                        float tu = gKU[ks], tq = gKQ[ks], ta = gKA[ks];
-                                        gKU[ks] = gKU[ks - 1]; gKQ[ks] = gKQ[ks - 1]; gKA[ks] = gKA[ks - 1];
-                                        gKU[ks - 1] = tu; gKQ[ks - 1] = tq; gKA[ks - 1] = ta;
-                                    }
-                                }
-                            }
-                            else gKDrop = max(gKDrop, uK);
+                            float tu = uK, tq = qbK, ta = axisK;
+                            BODY_KINSERT
+                            gKDrop = max(gKDrop, tu);
 #endif
                         }
 #ifdef BODIES_ARRAYS
@@ -696,16 +697,14 @@ float CellBodyBodies(int li, float h, float billow, float2 fine, float typeHeigh
     float bt = e.x * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
     float sw = e.x * (0.5 + 0.5 * e.z * (0.37 + 0.137));
 #if defined(BODIES_KSLOTS)
-    float q = -1e9;
-    [unroll] for (int ks = 0; ks < BODY_KS; ks++) q = max(q, gKQ[ks] + gKA[ks] * bt);
+    float q = BODY_KMAX(bt);
     float far = gKFar;
 #ifdef _BODIES_COUNT
-    // [6]: a candidate not kept bounds the share above what the kept ones give and above the band's lower edge (it could have changed the share).
+    // [6]: a candidate not kept bounds the share above what the kept ones give and above the band's lower edge (it could have changed the share). Its bound is its exact shell
+    // depth (qb + axis x swing, at least its term for any billow value), so 0 here means the K slots give V7's share exactly. ([7], a second full search, did not compile
+    // inside the light march's loop; it is not needed while [6] is 0.)
     InterlockedAdd(_BodyCount[3], 1u);
     InterlockedAdd(_BodyCount[6], gKDrop > max(q, -0.5 * band) ? 1u : 0u);
-    // [7]: the share over every candidate (V5's second search) against the kept ones'.
-    BodiesAcc full = BodiesRun(1, gBodUv, gBodPitch, gBodRm, gBodF, gBodSeed, gBodCore, h, typeHeightM, bt, sw);
-    InterlockedAdd(_BodyCount[7], saturate(full.q / band + 0.5) != saturate(q / band + 0.5) ? 1u : 0u);
 #endif
 #elif defined(BODIES_ARRAYS)
     float q = -1e9, far = -1e9;

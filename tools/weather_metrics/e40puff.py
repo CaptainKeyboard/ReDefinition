@@ -373,6 +373,13 @@ VARIANTS = {
     **{"p0b_%s%d" % (v, n): ("(P0b-0) %s, cloud.bodies %d" % (what, n), compose(pose, tune_dotted([("cloud.bodies", float(n))])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
        for v, what, pose in (("g", "ground", compose(camera_at(30.0, 4.0), sun_behind(25.0))), ("dn", "straight down from 15 km", compose(camera_at(15000.0, -90.0), sun_behind(45.0))))
        for n in (0, 7, 12)},
+    # P0b-1: the K slots (14 .. 16) against 7 and today, at the map's share and at forced shares (s<NN>: cloud.bodies.share NN / 100), for the pictures and the alphas of
+    # the matched-cover search.
+    **{"p0b_%s%ds%02d" % (v, n, s): ("(P0b-1) %s, cloud.bodies %d, share %s" % (what, n, "the map's" if s == 0 else "%.2f" % (s / 100.0)),
+                                     compose(pose, tune_dotted([("cloud.bodies", float(n)), ("cloud.bodies.share", s / 100.0)])),
+                                     "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for v, what, pose in (("g", "ground", compose(camera_at(30.0, 4.0), sun_behind(25.0))), ("dn", "straight down from 15 km", compose(camera_at(15000.0, -90.0), sun_behind(45.0))))
+       for n in (0, 7, 13, 14, 15, 16) for s in (0, 10, 15, 20, 25, 30, 35, 40, 50, 60, 75)},
     "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
     "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
