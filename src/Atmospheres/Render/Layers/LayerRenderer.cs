@@ -114,6 +114,10 @@ namespace ReDefinition.Atmospheres
         internal const string ShaderName = "ReDefinition/AtmospheresLayers";
         internal const int PassMarch = 0, PassComposite = 1, PassAux = 2, PassCompositeOut = 4, PassCullTile = 5;
 
+        // Probe only (T09ProbePin -t09PinLimits, the straight line before the horizon): the grid points per span in place of the frame's, up to the shader's 512 iterations
+        // a span (the frame's own are capped at 256). 0, the default: the frame's. Kept outside this class: its static ids need Unity (the probe's tests reset it).
+        private static int ProbeMaxSteps { get { return LayerProbeSwitches.MaxSteps; } }
+
         private static readonly int IdFarRot = Shader.PropertyToID("_FarRot"), IdReuseP = Shader.PropertyToID("_ReuseP");
         private static readonly int IdPlanetR = Shader.PropertyToID("_PlanetR"), IdPlanetCenter = Shader.PropertyToID("_PlanetCenter"),
             IdWorldToMap = Shader.PropertyToID("_WorldToMap"), IdCamPos = Shader.PropertyToID("_CamPos"),
@@ -421,7 +425,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSunColor, f.SunColour);
             m.SetVector(IdAmbientTop, f.AmbientTop);
             m.SetVector(IdAmbientBottom, f.AmbientBottom);
-            m.SetVector(IdMarchP, new Vector4(Mathf.Clamp(f.MaxSteps, 1, 256), Mathf.Clamp(f.SunSteps, 1, 8), f.StepGrowth, f.EarlyOut));
+            m.SetVector(IdMarchP, new Vector4(Mathf.Clamp(ProbeMaxSteps > 0 ? ProbeMaxSteps : f.MaxSteps, 1, ProbeMaxSteps > 0 ? 512 : 256),Mathf.Clamp(f.SunSteps, 1, 8), f.StepGrowth, f.EarlyOut));
             m.SetVector(IdStepP, new Vector4(f.MinStepM, f.Jitter, f.FrameNumber, f.HasSurface ? 1f : 0f));
             UploadedLayerMask = f.DrawnMask;
             m.SetVector(IdLimitP, new Vector4(f.RayLimitM, f.AidMode, UploadedLayerMask, f.UseSceneDepth ? 1f : 0f));
@@ -709,5 +713,12 @@ namespace ReDefinition.Atmospheres
             commands.Blit(target, BuiltinRenderTextureType.CameraTarget, material, PassCompositeOut);
             if (markEnd != null) markEnd(commands);
         }
+    }
+
+    // The probe-only switches of the layer pass (LayerRenderer.ProbeMaxSteps reads them); a class of their own, so that a probe sets them without LayerRenderer's static ids,
+    // which need Unity.
+    internal static class LayerProbeSwitches
+    {
+        internal static int MaxSteps;
     }
 }

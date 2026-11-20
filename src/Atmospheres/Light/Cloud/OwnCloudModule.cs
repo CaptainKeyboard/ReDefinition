@@ -745,6 +745,7 @@ namespace ReDefinition.Atmospheres
             depthCommands = null;
             if (depthTarget != null) { depthTarget.Release(); UnityEngine.Object.Destroy(depthTarget); }
             depthTarget = null;
+            PinSceneRelease();
             if (depthMaterial != null) UnityEngine.Object.Destroy(depthMaterial);
             depthMaterial = null;
         }
@@ -1389,9 +1390,10 @@ namespace ReDefinition.Atmospheres
             f.Light.Cache = lightCache;
             OwnCloudOptions.Apply(f.Light);
             OwnCloudOptions.Apply(f.Far);
-            f.HasSurface = b.hasSolidSurface;
+            // ProbeNoSurface / ProbeNoSceneDepth: the pinned capture's distance-limit look (T09ProbePin -t09PinLimits); false unless a probe sets them.
+            f.HasSurface = b.hasSolidSurface && !ProbeNoSurface;
             f.FrameNumber = OwnCloudPlan.FrameNumber(Time.frameCount, FrameOrigin);
-            f.UseSceneDepth = true;
+            f.UseSceneDepth = !ProbeNoSceneDepth;
             f.PlanetCenter = (Vector3)b.position;
             f.WorldToMap = MapFrame(b);
 
@@ -1674,6 +1676,8 @@ namespace ReDefinition.Atmospheres
             LayerReconstructor.Sub(depthCommands, "before the scene depth copy");
             depthCommands.Blit(BuiltinRenderTextureType.None, depthTarget, depthMaterial);
             LayerReconstructor.Sub(depthCommands, "scene depth copy");
+            // The pinned capture's scene before the clouds (OwnCloudModule.Pin.cs); nothing unless a probe armed it for this frame.
+            PinSceneCopy(depthCommands, true);
             if (!buffersOn) cam.AddCommandBuffer(attachedEvent, depthCommands);
 
             renderer.Commands.Clear();
@@ -1718,6 +1722,8 @@ namespace ReDefinition.Atmospheres
                 Stats.PlainFrames++;
                 Stats.Mode = "plain";
             }
+            // The pinned capture's scene after the clouds' composite, at the end of the pass's own buffer (OwnCloudModule.Pin.cs).
+            PinSceneCopy(renderer.Commands, false);
             if (!buffersOn)
             {
                 renderer.Attach(cam, attachedEvent);
