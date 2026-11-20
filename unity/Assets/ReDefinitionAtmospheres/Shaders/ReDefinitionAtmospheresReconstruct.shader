@@ -36,6 +36,9 @@ Shader "ReDefinition/AtmospheresReconstruct"
         float4 _ShellR;      // radius of the middle sphere of the first layer, the sample distance when the ray misses it, 0, 0
         float4 _Drift;       // the cloud's drift over one frame in the planet frame (m), w: the history is valid (1) or not (0)
 
+        sampler2D_float _DistTex;   // the march's second target (the layer shader's pass 6): the mean distance of each new sample's cloud along its ray (m), 0 where it holds none
+        float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0)
+
         #include "ReDefinitionAtmospheresCloudMotion.cginc"
 
         struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -71,6 +74,44 @@ Shader "ReDefinition/AtmospheresReconstruct"
             float3 v = o + d * t - _Drift.xyz - _PrevPos.xyz;
             f = PrevSees(v) ? dot(v, _PrevF.xyz) : 0.0;
             return float2(dot(v, _PrevR.xyz), dot(v, _PrevU.xyz)) / max(f, 1e-3) * 0.5 + 0.5;
+        }
+
+        // The previous place of the cloud the pixel shows, from the distance the march measured (recon.trueDistance). The middle spheres of CloudPrevious place a cloud at the
+        // layer's middle height; a cumulus seen at a shallow angle, or a cloud beside the camera, lies kilometres from there along the ray, and under a translating camera the
+        // history is then moved by the wrong parallax. The distance is the nearest of the 3 x 3 new samples around the pixel that hold cloud (the nearest one's motion is the
+        // edge's, as the dilated motion vectors of temporal antialiasing: Karis, "High Quality Temporal Supersampling", SIGGRAPH 2014), the drift the one of the layer whose
+        // middle sphere is nearest to the point. False where no sample around holds cloud (the caller's model then places the pixel); a place the previous camera did not see
+        // comes back outside the picture.
+        bool TruePrevious(float3 o, float3 d, float2 q0, out float2 puv, out float dist)
+        {
+            puv = -1.0;
+            dist = 1e30;
+            [unroll] for (int k = 0; k < 9; k++)
+            {
+                float s = tex2Dlod(_DistTex, float4((q0 + float2(k % 3 - 1, k / 3 - 1) + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
+                if (s > 0.0) dist = min(dist, s);
+            }
+            if (dist > 1e29)
+            {
+                dist = 0.0;
+                return false;
+            }
+            float3 pc = o + d * dist;
+            float3 drift = _Drift.xyz;
+            float rp = length(pc), best = 1e30;
+            [unroll] for (int l = 0; l < 4; l++)
+            {
+                float e = abs(rp - _MvA[l].x);
+                if (l < (int)_MvN.x && e < best)
+                {
+                    best = e;
+                    drift = _MvD[l].xyz;
+                }
+            }
+            float3 v = pc - drift - _PrevPos.xyz;
+            if (!PrevSees(v)) return true;
+            puv = float2(dot(v, _PrevR.xyz), dot(v, _PrevU.xyz)) / dot(v, _PrevF.xyz) * 0.5 + 0.5;
+            return true;
         }
 
         float4 Low(float2 q)
@@ -137,7 +178,13 @@ Shader "ReDefinition/AtmospheresReconstruct"
             float2 puv;
             float depth;
             bool valid;
-            if (CloudPrevious(o, d, puv, depth))
+            bool measured = false;
+            [branch] if (_ReconT.x > 0.5) measured = TruePrevious(o, d, q0, puv, depth);
+            if (measured)
+            {
+                valid = _Drift.w > 0.5 && all(puv > 0.0) && all(puv < 1.0);
+            }
+            else if (CloudPrevious(o, d, puv, depth))
             {
                 valid = _Drift.w > 0.5 && all(puv > 0.0) && all(puv < 1.0);
             }

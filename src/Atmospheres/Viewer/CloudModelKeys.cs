@@ -85,6 +85,10 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Flag(OwnCloudOptions.TuneCatmull, OwnCloudOptions.CatmullDefault, KeySection.Quality,
                 "the reconstruction reads its history with a Catmull-Rom filter instead of the bilinear one (less blur from sub-pixel moves, bounded by the variance clip)", KeyLiveness.FrameHistory);
 
+            // Read every frame (OwnCloudOptions.Apply(ReconSettings) -> LayerReconstructor, _ReconT.x).
+            r.Flag(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault, KeySection.Quality,
+                "the block reconstruction moves its history by the distance the march measured for each pixel's cloud instead of by the layers' middle spheres", KeyLiveness.FrameHistory);
+
             // The same three per layer (the layer's name after the prefix): the layer's value wins over the global key.
             r.LayerKey(CloudLookTuning.TuneHeapLayer, "", -1f, KeySection.Shape, "heap preset of the layer (-1 the global key, 0 none, 1 billow, 2 rough)",
                 min: -1f, max: presets);

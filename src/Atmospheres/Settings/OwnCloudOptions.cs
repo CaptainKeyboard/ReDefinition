@@ -59,6 +59,10 @@ namespace ReDefinition.Atmospheres
         // CLOUDR3 (P7): recon.catmull 1 reads the reconstruction's history with a Catmull-Rom filter instead of the bilinear one (default 1; 0: bilinear; measured +0.00 ms at 1080p).
         internal const string TuneCatmull = "recon.catmull";
         internal const bool CatmullDefault = true;
+        // recon.trueDistance 1: the block reconstruction moves its history by the distance the march measured for each pixel's cloud instead of by the layers' middle spheres
+        // (ReconSettings.TrueDistance; default 0: the middle spheres).
+        internal const string TuneTrueDistance = "recon.trueDistance";
+        internal const bool TrueDistanceDefault = false;
         internal const float AccumulateDefault = 0.2f;
 
         // E40 MVCLOUD: recon.layerMotion (default 1): the cloud's place in the previous frame, for the reconstruction's history and for the motion vector the upscalers read, is taken on
@@ -431,6 +435,7 @@ namespace ReDefinition.Atmospheres
             s.Block = Math.Max(2, level);
             s.LayerMotion = Tuning.Flag(TuneLayerMotion, LayerMotionDefault);
             s.CatmullHistory = Tuning.Flag(TuneCatmull, CatmullDefault);
+            s.TrueDistance = Tuning.Flag(TuneTrueDistance, TrueDistanceDefault);
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));

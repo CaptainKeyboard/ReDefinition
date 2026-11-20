@@ -49,6 +49,9 @@ namespace ReDefinition.Atmospheres
         public int FarRotateBlock = 2;
         // The block mode as the full-size march's rotation (recon.rotate): the history's own weights, never the edge pattern.
         public bool Rotation;
+        // recon.trueDistance (Block mode without the edge pattern): the march writes the mean distance of each pixel's cloud into a second target and the history is moved by it
+        // instead of by the layers' middle spheres (ReDefinitionAtmospheresReconstruct.shader, TruePrevious). False: the middle spheres, as before.
+        public bool TrueDistance;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
@@ -92,6 +95,11 @@ namespace ReDefinition.Atmospheres
         // The far rotation (ReconSettings.FarRotateM): pass 2 writes the distance to each pixel's cloud, which the next frame's march reads.
         internal const int PassDepth = 2;
         private static readonly int IdFarDepth = Shader.PropertyToID("_FarDepth");
+        // recon.trueDistance: the layer shader's pass 6 (the march into two targets), the second target and the pair the command buffer binds.
+        internal const int PassMarchDistance = 6;
+        private static readonly int IdDistTex = Shader.PropertyToID("_DistTex"), IdReconT = Shader.PropertyToID("_ReconT");
+        private RenderTexture lowDistance;
+        private RenderTargetIdentifier[] marchTargets;
         private RenderTexture farDepth;
         private bool haveFarDepth;
         private static readonly int IdMvCloud = Shader.PropertyToID("_MvCloud"), IdMvDepth = Shader.PropertyToID("_MvDepth");
@@ -177,9 +185,10 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, farDepth })
+            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, farDepth, lowDistance })
                 RenderTargets.Dispose(rt);
-            lowLatest = lowSpare = farDepth = null;
+            lowLatest = lowSpare = farDepth = lowDistance = null;
+            marchTargets = null;
             if (material != null) UnityEngine.Object.Destroy(material);
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
             if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
@@ -255,6 +264,24 @@ namespace ReDefinition.Atmospheres
             {
                 RenderTargets.Dispose(low);
                 low = Make("layer march", lw, lh, s.Mode == ReconMode.Block ? FilterMode.Bilinear : FilterMode.Point);
+                marchTargets = null;
+            }
+            // recon.trueDistance: the second target of the march, one distance per new sample.
+            bool distanceOn = s.TrueDistance && s.Mode == ReconMode.Block && !edgeOn;
+            if (distanceOn && (!Fits(lowDistance, lw, lh) || marchTargets == null))
+            {
+                if (!Fits(lowDistance, lw, lh))
+                {
+                    RenderTargets.Dispose(lowDistance);
+                    lowDistance = new RenderTexture(Mathf.Max(lw, 2), Mathf.Max(lh, 2), 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear)
+                    {
+                        name = "layer march distance",
+                        filterMode = FilterMode.Point,
+                        wrapMode = TextureWrapMode.Clamp
+                    };
+                    lowDistance.Create();
+                }
+                marchTargets = new[] { new RenderTargetIdentifier(low.colorBuffer), new RenderTargetIdentifier(lowDistance.colorBuffer) };
             }
 
             float tanY = Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
@@ -323,7 +350,15 @@ namespace ReDefinition.Atmospheres
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");
-            cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
+            if (distanceOn)
+            {
+                cb.SetRenderTarget(marchTargets, low.depthBuffer);
+                cb.DrawProcedural(Matrix4x4.identity, layers, PassMarchDistance, MeshTopology.Triangles, 3, 1);
+            }
+            else
+            {
+                cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
+            }
             Sub(cb, "march");
             if (markMarched != null) markMarched(cb);
             if (s.Mode == ReconMode.Full)
@@ -364,6 +399,7 @@ namespace ReDefinition.Atmospheres
                     a.SetVector(IdPrevU, previousUp / previousTanY);
                     a.SetVector(IdShellR, new Vector4(shell.MiddleRadius, shell.FallbackDistance, 0f, 0f));
                     a.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveLowHistory ? 1f : 0f));
+                    a.SetVector(IdReconT, Vector4.zero);
                     renderer.BindMotion(a, f, s.LayerMotion, havePose, s.DriftSeconds);
                     materialBound = true;
                     cb.Blit(BuiltinRenderTextureType.None, lowSpare, a, 0);
@@ -433,6 +469,8 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdPrevU, previousUp / previousTanY);
                 m.SetVector(IdShellR, new Vector4(info.MiddleRadius, info.FallbackDistance, 0f, 0f));
                 m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
+                m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, 0f, 0f, 0f));
+                if (distanceOn) m.SetTexture(IdDistTex, lowDistance);
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;
                 cb.Blit(BuiltinRenderTextureType.None, output, m, 0);
