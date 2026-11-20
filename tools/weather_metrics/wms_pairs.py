@@ -102,37 +102,47 @@ def main():
             maps_folder = c
             break
     heading = HEADINGS.get(a.view, 0.0)
-    rows = len(shots)
+    # Per row: the plain picture beside the map's amounts; a map-sky picture beside the parts its own capture drew. Without a plain row the amounts get a row of their own.
+    amounts_row = "plain" not in sets and maps_folder is not None
+    rows = len(shots) + (1 if amounts_row else 0)
     fig = plt.figure(figsize=(30, 8.6 * rows + 1.2), dpi=100)
     gs = fig.add_gridspec(rows, 4, width_ratios=[3.2, 1, 1, 1])
+    amounts = [("wms-cover.u8", "Bedeckung (Karte)"), ("wms-ConvectiveAmount.u8", "Haufenwolken-Anteil (Karte)"), ("wms-StratiformAmount.u8", "Schichtwolken-Anteil (Karte)")]
+    parts = [("wms-part-lattice.u8", "gezeichnet: Cumulus als Einzelwolken"), ("SHEET", "gezeichnet: zusammenhaengende Schicht (Sc + Ac)"), ("wms-part-tall.u8", "gezeichnet: Turm-Anteil (Cb)")]
+
+    def panels_row(r, folder, which, suffix=""):
+        for c, (name, title) in enumerate(which):
+            ax = fig.add_subplot(gs[r, c + 1])
+            if name == "SHEET":
+                sc, ac = u8(folder, "wms-part-sc.u8"), u8(folder, "wms-part-ac.u8")
+                f = None if sc is None or ac is None else 1.0 - (1.0 - sc) * (1.0 - ac)
+            else:
+                f = u8(folder, name)
+            if f is None:
+                ax.axis("off")
+                continue
+            draw_patch(ax, f, title + suffix, a.radius_km, heading)
+
     for r, (s, path) in enumerate(shots):
         ax = fig.add_subplot(gs[r, 0])
         if path:
             ax.imshow(Image.open(path).convert("RGB"))
         ax.set_title("Spiel, Sicht %s, %s" % (a.view, "heute (Schalter aus)" if s == "plain" else "aus der Wetterkarte: " + s), fontsize=13)
         ax.axis("off")
+        if s == "plain":
+            if maps_folder:
+                panels_row(r, maps_folder, amounts)
+        else:
+            own = capture(a.maps, a.view, s, a.start)
+            if own and os.path.isfile(os.path.join(own, "wms-part-sc.u8")):
+                panels_row(r, own, parts, " [%s]" % s)
+    if amounts_row:
+        panels_row(rows - 1, maps_folder, amounts)
     if maps_folder:
         meta = {}
         mp = os.path.join(maps_folder, "wms.json")
         if os.path.isfile(mp):
             meta = json.load(open(mp))
-        panels = [
-            ("wms-cover.u8", "Bedeckung (Karte)"), ("wms-ConvectiveAmount.u8", "Haufenwolken-Anteil (Karte)"), ("wms-StratiformAmount.u8", "Schichtwolken-Anteil (Karte)"),
-            ("wms-part-lattice.u8", "gezeichnet: Cumulus als Einzelwolken"), ("SHEET", "gezeichnet: zusammenhaengende Schicht (Sc + Ac)"), ("wms-part-tall.u8", "gezeichnet: Turm-Anteil (Cb)"),
-        ]
-        cells = [(r, c) for r in range(rows) for c in (1, 2, 3)]
-        for k, (name, title) in enumerate(panels[:len(cells)]):
-            r, c = cells[k]
-            ax = fig.add_subplot(gs[r, c])
-            if name == "SHEET":
-                sc, ac = u8(maps_folder, "wms-part-sc.u8"), u8(maps_folder, "wms-part-ac.u8")
-                f = None if sc is None or ac is None else 1.0 - (1.0 - sc) * (1.0 - ac)
-            else:
-                f = u8(maps_folder, name)
-            if f is None:
-                ax.axis("off")
-                continue
-            draw_patch(ax, f, title, a.radius_km, heading)
         note = "Karte: Paket-B-Felder des Generators, ut %s, Regeln: Schicht %s, Tiefe %s; Kreuz KSC, Pfeil Blickrichtung, Kreise 10/30/60 km, Texel 7,4 km" % (
             meta.get("ut", "?"), meta.get("sheetRule", "?"), meta.get("depthRule", "?"))
         fig.text(0.5, 0.005, note, ha="center", fontsize=11)

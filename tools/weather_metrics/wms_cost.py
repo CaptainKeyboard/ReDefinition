@@ -30,12 +30,12 @@ ROUNDS = int(os.environ.get("WMS_ROUNDS", "2") or 2)
 TAG = re.compile(r"^pin-(?P<view>ground|inside|above|sky3)(?:-(?P<set>[A-Za-z0-9]+))?-u(?P<ut>\d+)-(?P<start>[^-]+)-(?P<utc>\d{14})$")
 
 
-def prepare(pattern):
+def prepare(pattern, sets=("plain", "wms")):
     from weather_metrics import e40pp
     caps = {}
     for path in sorted(glob.glob(pattern)):
         m = TAG.match(os.path.basename(os.path.normpath(path)))
-        if m and os.path.isfile(os.path.join(path, "pass.json")):
+        if m and os.path.isfile(os.path.join(path, "pass.json")) and (m.group("set") or "plain") in sets:
             caps[(m.group("ut"), m.group("view"), m.group("set") or "plain")] = path
     if not caps:
         raise SystemExit("no captures match " + pattern)
@@ -89,10 +89,11 @@ def report():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--prepare", metavar="GLOB")
+    ap.add_argument("--sets", default="plain,wms", help="the capture sets that become jobs (plain = today)")
     ap.add_argument("--report", action="store_true")
     a = ap.parse_args()
     if a.prepare:
-        prepare(a.prepare)
+        prepare(a.prepare, tuple(a.sets.split(",")))
     if a.report:
         report()
 
