@@ -103,6 +103,10 @@ namespace ReDefinition.Atmospheres
                 case "grow1":
                 case "grow2":
                 case "grow2lod":
+                case "tri":
+                case "r3":
+                case "r3n":
+                case "r4n":
                     return true;
                 default:
                     return false;
@@ -199,6 +203,20 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 2e-4f);
                     SetSetting(AtmospheresSettings.Keys.CloudTapLod, 1.0);
                     SetSetting(AtmospheresSettings.Keys.CloudDetailLod, 1.0);
+                    break;
+                // HIST fps (2026-11-20, the history work's variants in the game): tri the march as one procedural triangle (today's 2 x 2 otherwise); r3 the rotation over
+                // 3 x 3 blocks with today's history; r3n / r4n the rotation over 3 x 3 / 4 x 4 with the new history (the march's own distance, the sample count, the drop
+                // by distance at 0.3 octaves, the clip at 2 sigma; with the distance target the march draws pass 6, so the triangle key does not act there).
+                case "tri": ForceTuning(OwnCloudOptions.TuneMarchTriangle, 1f); break;
+                case "r3": ForceTuning(OwnCloudOptions.TuneReconRotate, 3f); break;
+                case "r3n":
+                case "r4n":
+                    ForceTuning(OwnCloudOptions.TuneReconRotate, name == "r3n" ? 3f : 4f);
+                    ForceTuning(OwnCloudOptions.TuneMarchTriangle, 1f);
+                    ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    ForceTuning(OwnCloudOptions.TuneAge, 1f);
+                    ForceTuning(OwnCloudOptions.TuneDistanceReject, 0.3f);
+                    ForceTuning(OwnCloudOptions.TuneClipSigma, 2f);
                     break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;

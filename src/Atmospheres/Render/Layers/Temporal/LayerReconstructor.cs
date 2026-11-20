@@ -118,6 +118,13 @@ namespace ReDefinition.Atmospheres
         // recon.age: the reconstruction shader's pass 3 (pass 0 into two targets), the sample counts of the two full targets (ageA with the one named "a", ageB with "b")
         // and the two pairs the command buffer binds.
         internal const int PassReconstructAge = 3;
+        // What the last Record ran (the perf starts' rows, T09.view.<view>.recon_*): the mode, the block side (1 outside the block mode), whether the edge pattern drew, the layer
+        // shader's pass the march drew with (0 the Blit, 6 the march with its distance target, 7 the procedural triangle), and whether the count targets were bound (pass 3).
+        internal ReconMode LastMode { get; private set; }
+        internal int LastBlock { get; private set; }
+        internal bool LastEdge { get; private set; }
+        internal int LastMarchPass { get; private set; }
+        internal bool LastCountTarget { get; private set; }
         private static readonly int IdAgeTex = Shader.PropertyToID("_AgeTex");
         private RenderTexture fullA, ageA, ageB;
         private RenderTargetIdentifier[] targetsA, targetsB;
@@ -308,6 +315,10 @@ namespace ReDefinition.Atmospheres
             output = spare;
             bool edgeOn = s.Mode == ReconMode.Block && s.Edge != null && s.Edge.Enabled && edgeMaterial != null;
             int n = edgeOn ? EdgeSettings.CoarseBlock : (s.Mode == ReconMode.Block ? Mathf.Clamp(s.Block, 2, 4) : 1);
+            LastMode = s.Mode;
+            LastBlock = n;
+            LastEdge = edgeOn;
+            LastCountTarget = false;
             float scale = s.Mode == ReconMode.Low ? Mathf.Clamp(s.Resolution, 0.1f, 1f) : (s.Mode == ReconMode.Full ? 1f : 1f / n);
             int lw = s.Mode == ReconMode.Block ? (w + n - 1) / n : Mathf.RoundToInt(w * scale);
             int lh = s.Mode == ReconMode.Block ? (h + n - 1) / n : Mathf.RoundToInt(h * scale);
@@ -401,6 +412,7 @@ namespace ReDefinition.Atmospheres
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");
+            LastMarchPass = distanceOn ? PassMarchDistance : s.ProcMarch ? PassMarchTriangle : LayerRenderer.PassMarch;
             if (distanceOn)
             {
                 cb.SetRenderTarget(marchTargets, low.depthBuffer);
@@ -538,6 +550,7 @@ namespace ReDefinition.Atmospheres
                     m.SetTexture(IdAgeTex, outputIsA ? ageB : ageA);
                     cb.SetRenderTarget(outputIsA ? targetsA : targetsB, output.depthBuffer);
                     cb.DrawProcedural(Matrix4x4.identity, m, PassReconstructAge, MeshTopology.Triangles, 3, 1);
+                    LastCountTarget = true;
                 }
                 else
                 cb.Blit(BuiltinRenderTextureType.None, output, m, 0);
