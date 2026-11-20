@@ -67,6 +67,18 @@ CASES = {
     "still_back": dict(view="groundback"),
 }
 FPS = 50.0
+# A run does not start (and a series stops before its next case) while C: has less free space than this. One case's frame dumps are (variants + 1) x --dump x 13 MB
+# (1707x960 half floats) and are deleted before the next case starts; pictures: the reference and FULL_FRAMES' variants per dumped frame (~5 MB), strips and one error picture.
+MIN_FREE_GB = 40
+
+
+def disk_ok():
+    free = shutil.disk_usage(os.path.splitdrive(REPO)[0] + os.sep).free / 1e9
+    if free < MIN_FREE_GB:
+        print("hist2: C: has %.1f GB free, under %d GB: nothing started" % (free, MIN_FREE_GB))
+        return False
+    return True
+
 # The variants whose every frame is written as a picture (None: all); the others keep the strip's frames only (--full-frames).
 FULL_FRAMES = None
 
@@ -290,11 +302,14 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
     kept = {}
     last = {}
     stripset = set(frames[::max(1, len(frames) // 8)][:8])
+    mem = {}
     for i, k in enumerate(frames):
         ref = load_half(os.path.join(folder, "%s-ref-f%d.npy" % (job, k)))
         ref_disp = composite_display(ref, scene, pj)
         ref8 = upscale(ref_disp)
         save(ref8, os.path.join(base, "ref", "%s-%s-ref-f%02d-2560x1440.png" % (case, view, i)))
+        if k in stripset:
+            mem[("ref", k)] = ref8
         for n in names:
             if n == "ref":
                 continue
@@ -304,9 +319,11 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
             img = load_half(p)
             disp = composite_display(img, scene, pj)
             img8 = upscale(disp)
-            # Every frame for the variants named in FULL_FRAMES (disk), the strip's frames for the others.
-            if FULL_FRAMES is None or n in FULL_FRAMES or k in stripset:
+            # Every dumped frame as a picture for the variants named in FULL_FRAMES (None: all); the strips are cut from memory.
+            if FULL_FRAMES is None or n in FULL_FRAMES:
                 save(img8, os.path.join(base, n, "%s-%s-%s-f%02d-2560x1440.png" % (case, view, n, i)))
+            if k in stripset:
+                mem[(n, k)] = img8
             e = np.abs(img8.astype(np.int16) - ref8.astype(np.int16)).max(axis=-1)
             mask = np.maximum(ref[..., 3], img[..., 3]) > 0.02
             diff = (disp - ref_disp) * 255.0
@@ -317,7 +334,7 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
                 kept.setdefault(n, [0.0, 0.0])
                 kept[n][0] += float((fc * fr).sum())
                 kept[n][1] += float((fr * fr).sum())
-            if i % keep_every_err == 0 or i == len(frames) - 1:
+            if i == len(frames) - 1:
                 save(np.clip(e * 4, 0, 255).astype(np.uint8)[..., None].repeat(3, axis=-1),
                      os.path.join(base, n + "-error-x4", "%s-%s-%s-error-x4-f%02d-2560x1440.png" % (case, view, n, i)))
             last[n] = (img8, e, upscale(np.repeat(np.maximum(ref[..., 3:4], img[..., 3:4]), 3, axis=-1))[..., 0] / 255.0)
@@ -338,9 +355,7 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
         for n in order:
             row = []
             for k in stripframes:
-                p = os.path.join(base, n, "%s-%s-%s-f%02d-2560x1440.png" % (case, view, n, frames.index(k)))
-                from PIL import Image
-                row.append(np.asarray(Image.open(p))[y:y + tile, x:x + tile])
+                row.append(mem[(n, k)][y:y + tile, x:x + tile])
             rows.append(row)
         label_strip(rows, order, ["frame %d" % frames.index(k) for k in stripframes], tile,
                     os.path.join(base, "%s-%s-strip%d-y%d-x%d-1to1.png" % (case, view, wi, y, x)))
@@ -396,6 +411,9 @@ def cmd_motion_inner(a):
         jobs = {j["id"]: j for j in json.load(f)["jobs"]}
     texts = []
     for case in a.cases.split(","):
+        if not disk_ok():
+            texts.append("%s: not run, C: has under %d GB free" % (case, MIN_FREE_GB))
+            break
         s = CASES[case]
         j = jobs[job_of(s["view"])]
         lines, folder = player("hist2-" + case, motion_extra(case, variants, a.ref_frames, a.warm, a.dump, a.dump_march), (j["width"], j["height"]), 3000, False)
@@ -479,9 +497,9 @@ def main():
         q.add_argument("--out", default=OUT_DEFAULT)
         q.add_argument("--ref-frames", type=int, default=16)
         q.add_argument("--warm", type=int, default=40)
-        q.add_argument("--dump", type=int, default=24)
+        q.add_argument("--dump", type=int, default=8)
         q.add_argument("--dump-march", action="store_true", help="also the march targets, compared variant against the first")
-        q.add_argument("--full-frames", default="", help="variants whose every frame is written (default: all); the others keep the strip's frames")
+        q.add_argument("--full-frames", default="rot2", help="variants whose every frame is written (default: all); the others keep the strip's frames")
         q.add_argument("--no-build", action="store_true")
     for name in ("cost", "cost-inner"):
         q = sub.add_parser(name)
@@ -492,6 +510,8 @@ def main():
         q.add_argument("--out", default=OUT_DEFAULT)
         q.add_argument("--no-build", action="store_true")
     a = p.parse_args()
+    if a.cmd in ("motion", "cost") and not disk_ok():
+        return 4
     # A pause file (another agent's quiet-machine block): the outer commands that take a lock do not start.
     if a.cmd in ("motion", "cost") and os.path.exists(os.path.join(MAIN, ".local", "work", "hist2.pause")):
         print("hist2: paused (%s exists); nothing started" % os.path.join(MAIN, ".local", "work", "hist2.pause"))
