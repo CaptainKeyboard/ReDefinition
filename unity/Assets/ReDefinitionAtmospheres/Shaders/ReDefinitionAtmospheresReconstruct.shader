@@ -14,7 +14,9 @@
 // follows Schneider, "The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015, and Hillaire, "Physically Based Sky,
 // Atmosphere and Cloud Rendering in Frostbite", 2016 (the cloud-only history keyed to the camera).
 //
-// Passes: 0 reconstruct into the new history, 1 the cloud's motion vector over the host's motion vectors (E40 MVCLOUD), blended by the cloud's alpha;
+// Passes: 0 reconstruct into the new history, 1 the cloud's motion vector over the host's motion vectors (E40 MVCLOUD), blended by the cloud's alpha,
+// 2 the distance to the cloud each pixel sees (for the far rotation), 3 pass 0 with the sample count and the cloud's distance in a second target
+// (recon.age, recon.distanceReject), drawn as one procedural triangle;
 // the depth-aware composite of the full target over the camera target is the layer shader's pass 1.
 Shader "ReDefinition/AtmospheresReconstruct"
 {

@@ -22,7 +22,9 @@
 // cheap-sample march (SIGGRAPH 2015, same reference); the coverage bound lets the noise run only where the map can reach the threshold.
 //
 // Passes: 0 march into a premultiplied (radiance, alpha) target, 1 depth-aware composite over the camera target, 2 aux output
-// (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures, 3 light cache fill (T03).
+// (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures, 3 light cache fill (T03), 4 the final composite with the
+// display stage, 5 the culling's tile map (T16), 6 the march with the cloud's distance in a second target (recon.trueDistance), 7 the march
+// drawn as one procedural triangle (recon.marchTriangle).
 Shader "ReDefinition/AtmospheresLayers"
 {
     SubShader

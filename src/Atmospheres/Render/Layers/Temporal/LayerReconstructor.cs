@@ -62,8 +62,8 @@ namespace ReDefinition.Atmospheres
         // the agreement of the scene's depth at their pixel with the depth at the pixel it builds (the upsample and the clip box) and drops a history whose cloud lies
         // behind the pixel's scene. False: the scene's depth takes no part, as before.
         public bool SceneDepth;
-        // Test switch (HIST2, the replay's settings only; not a tuning key): the march without TrueDistance is drawn as one procedural triangle (the layer shader's pass 7) instead of
-        // the Blit's quad, to time the draw path. False: the Blit, as before.
+        // recon.marchTriangle: the march without TrueDistance is drawn as one procedural triangle (the layer shader's pass 7) instead of the Blit's quad. False: the Blit,
+        // as before.
         public bool ProcMarch;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
@@ -120,6 +120,7 @@ namespace ReDefinition.Atmospheres
         internal const int PassReconstructAge = 3;
         private static readonly int IdAgeTex = Shader.PropertyToID("_AgeTex");
         private RenderTexture fullA, ageA, ageB;
+        private bool ageWasOn;   // the count targets were written last frame: a frame that turns them on again finds counts and distances of an older picture in them
         private RenderTargetIdentifier[] targetsA, targetsB;
         private RenderTexture farDepth;
         private bool haveFarDepth;
@@ -290,6 +291,10 @@ namespace ReDefinition.Atmospheres
             }
             // recon.age: one sample count per full target, made with the first frame that asks for it. A count made anew holds no history: the frame runs as after a cut.
             bool ageOn = (s.Age || (s.TrueDistance && s.DistanceReject > 0f)) && s.Mode == ReconMode.Block && !(s.Edge != null && s.Edge.Enabled && edgeMaterial != null);
+            // Turned on again after frames without it (the key, the edge mode, another size in between): the targets still fit but hold the counts and distances of the
+            // picture they were last written for. The frame runs as after a cut, which writes them anew.
+            if (ageOn && !ageWasOn) haveHistory = false;
+            ageWasOn = ageOn;
             if (ageOn && (!Fits(ageA, w, h) || targetsA == null))
             {
                 if (!Fits(ageA, w, h))

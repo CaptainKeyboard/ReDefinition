@@ -74,11 +74,11 @@ namespace ReDefinition.Atmospheres
         // recon.clipSigma X: the width of the history's colour clip in standard deviations of the new samples around the pixel (ReconSettings.ClipSigma; default 1, 999: none).
         internal const string TuneClipSigma = "recon.clipSigma";
         internal const float ClipSigmaDefault = 1f;   // ReconSettings.ClipSigma's own default (the T05 sweep's pick)
-        // recon.marchTriangle 1: the reconstructor draws the march as one procedural triangle instead of the Blit's quad (ReconSettings.ProcMarch): the same target bit for
-        // bit, 5-7 % less march time in the player (2026-11-20). Default 0 until it is measured in the game.
         // recon.sceneDepth 1: the block reconstruction takes the scene's depth into its upsample, its clip box and its history test (ReconSettings.SceneDepth; default 0).
         internal const string TuneSceneDepth = "recon.sceneDepth";
         internal const bool SceneDepthDefault = false;
+        // recon.marchTriangle 1: the reconstructor draws the march as one procedural triangle instead of the Blit's quad (ReconSettings.ProcMarch): the same target bit for
+        // bit, 5-7 % less march time in the player, 0.3-0.6 fps in the game (2026-11-20). Default 0.
         internal const string TuneMarchTriangle = "recon.marchTriangle";
         internal const bool MarchTriangleDefault = false;
         internal const float AccumulateDefault = 0.2f;
