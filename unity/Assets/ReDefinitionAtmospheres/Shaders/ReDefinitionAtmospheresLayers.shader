@@ -915,8 +915,8 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
-            // P0 cost prototype (CloudCells.cginc, cloud.bodies 1 .. 7); no keyword: the accepted lattice.
-            #pragma multi_compile_local __ _BODIES_V1 _BODIES_V2 _BODIES_V3 _BODIES_V4 _BODIES_V5 _BODIES_V6 _BODIES_V7
+            // P0 cost prototype (CloudCells.cginc, cloud.bodies 1 .. 9); no keyword: the accepted lattice.
+            #pragma multi_compile_local __ _BODIES_V1 _BODIES_V2 _BODIES_V3 _BODIES_V4 _BODIES_V5 _BODIES_V6 _BODIES_V7 _BODIES_V8 _BODIES_V9
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }

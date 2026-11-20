@@ -361,11 +361,11 @@ VARIANTS = {
     # (no keyword: the accepted lattice). p0dn_* look straight down from 15 km over the same place (the arrangement of the bodies).
     **{"p0_b%d" % n: ("(P0) tr_base, cloud.bodies %d (%s)" % (n, what), compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", float(n))])),
                       "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
-       for n, what in ((0, "the accepted lattice"), (1, "G2 as designed"), (2, "F2"), (3, "two classes"), (4, "G2 with arrays"), (5, "G2, loops over the cells too"), (6, "bound check"),
-                                     (7, "G2 with arrays, two hashes per body"))},
+       for n, what in ((0, "the accepted lattice"), (1, "G2 as designed"), (2, "F2"), (3, "two classes"), (4, "G2 with arrays"), (5, "G2, loops over the cells too"), (6, "neighbourhood check"),
+                                     (7, "G2 with arrays, two hashes per body"), (8, "leap check"), (9, "leap check's control"))},
     **{"p0dn_b%d" % n: ("(P0) straight down from 15 km, cloud.bodies %d" % n, compose(camera_at(15000.0, -90.0), sun_behind(45.0), tune_dotted([("cloud.bodies", float(n))])),
                         "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
-       for n in (0, 1, 5, 6)},
+       for n in (0, 1, 5, 6, 8, 9)},
     "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
     "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),

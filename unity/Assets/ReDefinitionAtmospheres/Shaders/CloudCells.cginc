@@ -151,6 +151,11 @@ float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out floa
     }
     gCellOther = min(gCellOther, outerM - gCellBodyX * rCap);
     reachM = max(min(reach, outerM - rCap), 0.0);
+#ifdef _BODIES_V9
+    // P0 leap check's control (cloud.bodies 9): the accepted lattice with no leaps.
+    gCellOther = -1e9;
+    reachM = 0.0;
+#endif
     xBest = best;
     return 1.0 - smoothstep(0.45, 1.0, best);
 }
@@ -257,10 +262,14 @@ float CellBodyReachX(int li)
 //      nearest disc, the body pass runs the placement again with the height and the billows known; the cells of a class [unroll].
 //   V2 F2 (the largest class 3 x 3, jitter +-0.7, cap 0.8, one body per cell), V3 K = 2 (the two larger classes of G2): both as V5 (as V1, F2 did not compile in Unity's time).
 //   V4 G2 with the candidates kept in arrays from the cover pass to the body pass (dynamically indexed under the class loop).
-//   V5 V1 with the cells' loops as [loop] too. V6 the bound check: V5 with a 6 x 6 search per class and no leaps (no reach, no shell gap): its picture must equal V5's.
+//   V5 V1 with the cells' loops as [loop] too. V6 the neighbourhood check: V5 with a 6 x 6 search per class (the same bounds): its picture must equal V5's bit for bit.
 //   V7 V4 with two hashes per body in place of four and the size without pow (the hashes' share of the cost).
-#if defined(_BODIES_V1) || defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V4) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V7)
+//   V8 the leap check: V5 with no leaps (no reach, no shell gap); V9 the same for the accepted lattice (in CellProfile), its control: V8 against V5 must differ as V9 against no keyword.
+#if defined(_BODIES_V1) || defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V4) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V7) || defined(_BODIES_V8)
 #define CLOUD_BODIES 1
+#if defined(_BODIES_V8)
+#define BODIES_NO_LEAP 1
+#endif
 #if defined(_BODIES_V4) || defined(_BODIES_V7)
 #define BODIES_ARRAYS 1
 #endif
@@ -271,7 +280,7 @@ float CellBodyReachX(int li)
 #if defined(_BODIES_V6)
 #define BODIES_BRUTE 1
 #endif
-#if defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V5) || defined(_BODIES_V6)
+#if defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V8)
 #define BODIES_CELL_LOOP [loop]
 #else
 #define BODIES_CELL_LOOP [unroll]
@@ -458,7 +467,7 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
         a.reach = min(a.reach, outerM - rCap);
         a.other = min(a.other, outerM - gCellBodyX * rCap);
     }
-#ifdef BODIES_BRUTE
+#ifdef BODIES_NO_LEAP
     a.reach = 0.0;
     a.other = -1e9;
 #endif
