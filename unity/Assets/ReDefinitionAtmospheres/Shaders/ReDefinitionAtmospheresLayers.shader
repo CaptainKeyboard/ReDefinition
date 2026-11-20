@@ -70,7 +70,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
         float4 _FirstHitP;   // CLOUDR1 P6: x the bisection iterations on the entered span (0: off, the march is as it was), y the thin steps inside as a share of the grid step, z how many of them follow the entry (the outer shell), w the distance in m up to which they are taken (0: everywhere)
-        float4 _ReuseP;      // x: the reused sun optical depth is moved by the ray's progress (1) or kept (0, layers.lightReuseMove); y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM)
+        float4 _ReuseP;      // x: the reused sun optical depth is moved by the ray's progress (1) or kept (0, layers.lightReuseMove); y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z: it starts there (layers.costStartM)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
@@ -512,6 +512,13 @@ Shader "ReDefinition/AtmospheresLayers"
                 // Cost attribution (layers.costCutM, _ReuseP.y): the span ends at the cut, so the time saved is what the clouds beyond it cost; the picture is wrong while set.
                 float tEnd = _ReuseP.y > 0.0 ? min(s1[k], _ReuseP.y) : s1[k];
                 float t = s0[k] + dt * jitter;
+                // Cost attribution (layers.costStartM, _ReuseP.z): the span starts at the first of its own grid points beyond the start, so the samples are the full march's
+                // there (the far part of a near / far split, with the transmittance of a pass of its own); the picture is wrong while set.
+                if (_ReuseP.z > 0.0)
+                {
+                    if (!(tEnd > _ReuseP.z)) continue;
+                    t += dt * max(0.0, ceil((_ReuseP.z - t) / dt));
+                }
                 float tLast = t - dt;
                 float leap = 1.0, arrived = 1.0;
                 float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;

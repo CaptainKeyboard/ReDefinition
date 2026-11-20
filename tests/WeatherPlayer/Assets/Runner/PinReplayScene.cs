@@ -20,7 +20,7 @@ namespace ReDefinition.WeatherPlayer
     public sealed class PinReplayScene : WeatherSceneBase
     {
         // The frame number is the replay's own per record (firstFrame + k); everything else the game's.
-        private static readonly string[] Skip = { "Frame.FrameNumber" };
+        internal static readonly string[] Skip = { "Frame.FrameNumber" };
 
         private static int Repeats
         {
@@ -31,7 +31,7 @@ namespace ReDefinition.WeatherPlayer
             }
         }
 
-        private static List<LayerPassSetting> Settings(LayersJob job)
+        internal static List<LayerPassSetting> Settings(LayersJob job)
         {
             var list = new List<LayerPassSetting>();
             if (job.settings == null) return list;
@@ -40,7 +40,7 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // A float32 .npy (C order) as the game's PinFiles writes it: the values after the header.
-        private static float[] ReadNpy(string path, out int height, out int width)
+        internal static float[] ReadNpy(string path, out int height, out int width)
         {
             byte[] bytes = File.ReadAllBytes(path);
             int headerLength = bytes[8] | (bytes[9] << 8);
