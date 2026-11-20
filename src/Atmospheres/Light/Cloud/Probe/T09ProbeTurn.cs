@@ -25,6 +25,9 @@ namespace ReDefinition.Atmospheres
     //             (what the player view's reconstruction ran), .written (the PNGs written).
     internal sealed partial class T09Probe
     {
+        // The kept frames' compass headings of the plain turn (the poses every later variant must repeat).
+        private double[] plainAzimuths;
+
         private int TurnFrames
         {
             get { return (int)NumberArg("-t09Turn", 0.0); }
@@ -68,6 +71,7 @@ namespace ReDefinition.Atmospheres
                                + (aimNote != null ? "; aim: " + aimNote : ""));
             PinEmit("start_az", start.AzimuthDeg);
             PinEmit("start_el", start.ElevationDeg);
+            plainAzimuths = null;
             var sets = new List<PinLimit> { null };
             sets.AddRange(limits);
             var restore = new List<KeyValuePair<string, double>>();
@@ -139,8 +143,19 @@ namespace ReDefinition.Atmospheres
                 PinStep("consecutive", consecutive && lastFrame - firstFrame == n, "the turn's " + n + " ticks were frames " + firstFrame + " to " + lastFrame);
                 for (int k = 0; k < keep.Length; k++) PinEmit("az_f" + keep[k].ToString(CultureInfo.InvariantCulture), azimuths[k]);
                 LayerReconstructor player = own.Driver != null ? own.Driver.Player : null;
+                // Every variant must see the poses of the first (plain): the compass heading of each kept frame within 0.01 degrees of plain's.
+                if (set == null) plainAzimuths = (double[])azimuths.Clone();
+                else if (plainAzimuths != null)
+                {
+                    double worst = 0.0;
+                    for (int k = 0; k < keep.Length; k++) worst = Math.Max(worst, Math.Abs(WrapDeg(azimuths[k] - plainAzimuths[k])));
+                    PinEmit("pose_diff_deg", worst);
+                    PinStep("same_poses", worst < 0.01, "the kept frames' compass headings differ from plain's by up to " + worst.ToString("0.0000", CultureInfo.InvariantCulture) + " degrees");
+                }
+                else PinStep("same_poses", false, "the plain turn did not run, so there are no poses to compare with");
                 if (player != null)
                 {
+                    EmitText("T09.pin." + pinLabel + ".recon_mode", player.LastMode.ToString());
                     PinEmit("recon_block", player.LastBlock);
                     PinEmit("recon_march_pass", player.LastMarchPass);
                     PinEmit("recon_count_target", player.LastCountTarget ? 1.0 : 0.0);
