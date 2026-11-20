@@ -361,12 +361,23 @@ def cmd_cost_inner(a):
     if lines is None:
         print("the player did not finish")
         return 1
+    text = cost_table(lines, names, variants, a.views)
+    os.makedirs(a.out, exist_ok=True)
+    with open(os.path.join(a.out, "cost-%s.txt" % time.strftime("%Y%m%d-%H%M%S")), "w", encoding="utf-8") as f:
+        f.write("variants: %s\nviews: %s\n\n%s\n\nplayer lines:\n%s\n" % (variants, a.views, text, "\n".join(lines)))
+    return 0
+
+
+def cost_table(lines, names, variants, views):
+    """The table of the player's pincost lines ({pincost.<kind>.<job>.<variant>.r<round>,value,-,info})."""
     table = {}
     for line in lines:
-        parts = line.split()
+        s = line.strip().strip("{}")
+        parts = s.split(",")
         if len(parts) >= 2 and parts[0].startswith("pincost."):
             _, kind, rest = parts[0].split(".", 2)
-            job, name, rnd = rest.rsplit(".", 2) if rest.count(".") >= 2 else (rest, "", "")
+            job_name, _rnd = rest.rsplit(".", 1)
+            job, name = job_name.split(".", 1)
             try:
                 table.setdefault((job, name), {}).setdefault(kind, []).append(float(parts[1]))
             except ValueError:
@@ -378,10 +389,7 @@ def cmd_cost_inner(a):
         out.append("%s | %s | %.2f (%.2f-%.2f) | %.2f | %d" % (view_of.get(job, job), name, float(np.median(mm)), min(mm), max(mm), float(np.median(rr)), len(mm)))
     text = "\n".join(out)
     print(text)
-    os.makedirs(a.out, exist_ok=True)
-    with open(os.path.join(a.out, "cost-%s.txt" % time.strftime("%Y%m%d-%H%M%S")), "w", encoding="utf-8") as f:
-        f.write("variants: %s\nviews: %s\n\n%s\n\nplayer lines:\n%s\n" % (variants, a.views, text, "\n".join(lines)))
-    return 0
+    return text
 
 
 def cmd_cost(a):
