@@ -351,5 +351,16 @@ namespace ReDefinition.Atmospheres
                 writer.Write(bytes);
             }
         }
+
+        // The values of a file WriteFloat32 wrote (format 1.0, '<f4'): the floats after the header, in the file's order.
+        internal static float[] ReadFloat32(string path)
+        {
+            byte[] all = System.IO.File.ReadAllBytes(path);
+            if (all.Length < 10 || all[0] != 0x93 || all[1] != (byte)'N' || all[6] != 1) throw new System.IO.InvalidDataException(path + " is not a NumPy 1.0 file");
+            int start = 10 + (all[8] | all[9] << 8);
+            var data = new float[(all.Length - start) / 4];
+            Buffer.BlockCopy(all, start, data, 0, data.Length * 4);
+            return data;
+        }
     }
 }

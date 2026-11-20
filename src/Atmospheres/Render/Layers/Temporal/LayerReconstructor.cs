@@ -127,6 +127,25 @@ namespace ReDefinition.Atmospheres
         internal bool LastCountTarget { get; private set; }
         // Whether the block reconstruction read the scene's depth (recon.sceneDepth with the frame's scene depth bound).
         internal bool LastSceneDepth { get; private set; }
+        // The game frame of the last Record (-1: none since ClearReadouts), the camera's render size and the march target's size in it.
+        internal int LastRecordFrame { get; private set; } = -1;
+        internal int LastRenderWidth { get; private set; }
+        internal int LastRenderHeight { get; private set; }
+        internal int LastMarchWidth { get; private set; }
+        internal int LastMarchHeight { get; private set; }
+
+        // The read-outs back to "nothing recorded" (a caller that reads them after a stretch of frames knows then that a value is this stretch's).
+        internal void ClearReadouts()
+        {
+            LastMode = ReconMode.Full;
+            LastBlock = 0;
+            LastEdge = false;
+            LastMarchPass = -1;
+            LastCountTarget = false;
+            LastSceneDepth = false;
+            LastRecordFrame = -1;
+            LastRenderWidth = LastRenderHeight = LastMarchWidth = LastMarchHeight = 0;
+        }
         private static readonly int IdAgeTex = Shader.PropertyToID("_AgeTex");
         private RenderTexture fullA, ageA, ageB;
         private RenderTargetIdentifier[] targetsA, targetsB;
@@ -322,6 +341,9 @@ namespace ReDefinition.Atmospheres
             LastEdge = edgeOn;
             LastCountTarget = false;
             LastSceneDepth = false;
+            LastRecordFrame = Time.frameCount;
+            LastRenderWidth = w;
+            LastRenderHeight = h;
             float scale = s.Mode == ReconMode.Low ? Mathf.Clamp(s.Resolution, 0.1f, 1f) : (s.Mode == ReconMode.Full ? 1f : 1f / n);
             int lw = s.Mode == ReconMode.Block ? (w + n - 1) / n : Mathf.RoundToInt(w * scale);
             int lh = s.Mode == ReconMode.Block ? (h + n - 1) / n : Mathf.RoundToInt(h * scale);
@@ -331,6 +353,8 @@ namespace ReDefinition.Atmospheres
                 low = Make("layer march", lw, lh, s.Mode == ReconMode.Block ? FilterMode.Bilinear : FilterMode.Point);
                 marchTargets = null;
             }
+            LastMarchWidth = low.width;
+            LastMarchHeight = low.height;
             // recon.trueDistance: the second target of the march, one distance per new sample.
             bool distanceOn = s.TrueDistance && s.Mode == ReconMode.Block && !edgeOn;
             if (distanceOn && (!Fits(lowDistance, lw, lh) || marchTargets == null))

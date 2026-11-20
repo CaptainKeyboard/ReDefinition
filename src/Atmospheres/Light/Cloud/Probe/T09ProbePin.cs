@@ -263,8 +263,8 @@ namespace ReDefinition.Atmospheres
             // -t09Turn (T09ProbeTurn.cs): the pinned turn instead of the captures, on the launch pad (-t09TurnPad: no placement) or in the first view of -t09PinViews.
             if (TurnFrames > 0)
             {
-                View turnView = views.Count > 0 ? views[0] : Views[0];
                 bool pad = TurnPad;
+                View turnView = pad ? new View { Name = "pad", CameraDistM = 60.0 } : views.Count > 0 ? views[0] : Views[0];
                 pinLabel = pad ? "pad" : turnView.Name;
                 if (!pad)
                 {
@@ -277,7 +277,7 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in PinSettleSteps(turnView)) yield return w;
                 if (pinSettledOk)
                 {
-                    foreach (ProbeWait w in PinTurn(OwnCloudModule.Current, limits, pad ? 60.0 : turnView.CameraDistM)) yield return w;
+                    foreach (ProbeWait w in PinTurn(OwnCloudModule.Current, limits, turnView)) yield return w;
                 }
                 PinShowUi();
                 PinCleanup();
@@ -375,6 +375,9 @@ namespace ReDefinition.Atmospheres
             pinSettledOk = true;
         }
 
+        // The folder of the last capture's files (PinCutHoldCapture; null before the first).
+        private string lastPinDir;
+
         // Steps 3 to 5 in the settled state: the cut, the hold, the capture; limit names the -t09PinLimits set in force (null: the plain capture).
         private IEnumerable<ProbeWait> PinCutHoldCapture(View view, string variant, string limit)
         {
@@ -465,6 +468,7 @@ namespace ReDefinition.Atmospheres
             PinEmit("frames_since_cut", job.FramesSinceCut);
             PinEmit("frame_number", job.FrameNumber);
             EmitText("T09.pin." + pinLabel + ".folder", dir);
+            lastPinDir = dir;
             AtmospheresLog.Say("T09 pin: capture of " + label + " " + variant + " in " + dir + ": frame number " + job.FrameNumber + ", " + job.FramesSinceCut + " frames since the cut"
                                + (job.Problems.Count > 0 ? "; problems: " + string.Join("; ", job.Problems.ToArray()) : ""));
             PinStep("reads_done", job.Done, job.Done ? "" : "the reads did not finish in " + PinReadTimeoutS.ToString("0") + " s");
