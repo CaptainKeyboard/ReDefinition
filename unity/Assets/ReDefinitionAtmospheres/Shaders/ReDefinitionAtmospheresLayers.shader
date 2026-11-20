@@ -759,8 +759,11 @@ Shader "ReDefinition/AtmospheresLayers"
             return (low * _ReconP.x + _ReconP.yz + 0.5) / _ReconD.xy;
         }
 
-        float4 Pass0(v2f i)
+        // dist: the mean distance along the ray of the cloud the pixel shows (the march's weights in the ray's colour, MarchOut.distSum / weightSum), 0 where the pixel holds no
+        // cloud or the pass draws an aid. The reconstruction's history is moved by it (recon.trueDistance, pass 6).
+        float4 Pass0D(v2f i, out float dist)
         {
+            dist = 0.0;
             i.uv = FullUv(i.uv);
             CullReadTile(i.uv);   // T16: the layers this pixel's tile marches
             // Aid 3: the phase function over mu = 2 u - 1 (r: octave 0, g: octave 1), the parity check's normalisation probe.
@@ -813,7 +816,44 @@ Shader "ReDefinition/AtmospheresLayers"
             if (_LimitP.y > 6.5)
                 return float4(saturate((CullTapFactor(r.first) - 1.0) * 0.5), saturate(_CullC.x * max(r.first, 0.0) * 0.5), saturate(CullFoot(r.first, 1.0) * 0.001), 1.0) * step(0.5, r.steps);
             if (_LimitP.y > 0.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
+            if (r.weightSum > 1e-9) dist = r.distSum / r.weightSum;
             return float4(r.rgb, r.alpha);
+        }
+
+        float4 Pass0(v2f i)
+        {
+            float dist;
+            return Pass0D(i, dist);
+        }
+
+        // The march drawn as one procedural triangle into two targets (pass 6): a command buffer's Blit binds one target only. The uv is the Blit's (v = 0 is the target's
+        // first row, which is the top of the clip space where the uv starts at the top).
+        v2f vertProc(uint vid : SV_VertexID)
+        {
+            v2f o;
+            float2 p = float2((vid << 1) & 2, vid & 2);
+            o.pos = float4(p * 2.0 - 1.0, UNITY_NEAR_CLIP_VALUE, 1.0);
+        #if UNITY_UV_STARTS_AT_TOP
+            o.uv = float2(p.x, 1.0 - p.y);
+        #else
+            o.uv = p;
+        #endif
+            return o;
+        }
+
+        struct MarchTargets
+        {
+            float4 colour : SV_Target0;
+            float4 dist : SV_Target1;
+        };
+
+        MarchTargets Pass0Targets(v2f i)
+        {
+            MarchTargets m;
+            float dist;
+            m.colour = Pass0D(i, dist);
+            m.dist = float4(dist, 0.0, 0.0, 0.0);
+            return m;
         }
 
         float4 PassAux(v2f i)
@@ -990,6 +1030,17 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             float4 frag(v2f i) : SV_Target { return CullTilePass(i); }
+            ENDCG
+        }
+
+        // Pass 6: the march of pass 0 with the cloud's distance in a second target (recon.trueDistance; LayerReconstructor draws it as a procedural triangle).
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vertProc
+            #pragma fragment frag
+            #pragma target 3.5
+            MarchTargets frag(v2f i) { return Pass0Targets(i); }
             ENDCG
         }
     }
