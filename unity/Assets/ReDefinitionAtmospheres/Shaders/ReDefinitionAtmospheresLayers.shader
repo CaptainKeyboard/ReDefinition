@@ -937,7 +937,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             // P0 cost prototype (CloudCells.cginc, cloud.bodies 7, 13 and 14 .. 16); no keyword: the accepted lattice.
-            #pragma multi_compile_local __ _BODIES_V7 _BODIES_V13 _BODIES_K2 _BODIES_K3 _BODIES_K4
+            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -970,6 +970,8 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            // P0c: the cache is filled from the same field as the march (cloud.bodies 13 the lattice at a forced share, 16 the bodies over four slots); no keyword: the lattice.
+            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4
             float4 frag(v2f i) : SV_Target
             {
                 float3 uvw = float3(i.uv, (_CacheSlice.x + 0.5) / max(_CacheSlice.y, 1.0));
@@ -1026,7 +1028,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 5.0
             #pragma multi_compile_local _BODIES_COUNT
-            #pragma multi_compile_local _BODIES_V7 _BODIES_V13 _BODIES_K2 _BODIES_K3 _BODIES_K4
+            #pragma multi_compile_local _BODIES_K4
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }

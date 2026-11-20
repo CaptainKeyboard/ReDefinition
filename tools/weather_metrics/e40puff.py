@@ -380,6 +380,36 @@ VARIANTS = {
                                      "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
        for v, what, pose in (("g", "ground", compose(camera_at(30.0, 4.0), sun_behind(25.0))), ("dn", "straight down from 15 km", compose(camera_at(15000.0, -90.0), sun_behind(45.0))))
        for n in (0, 7, 13, 14, 15, 16) for s in (0, 10, 15, 20, 25, 30, 35, 40, 50, 60, 75)},
+    # P0c: with the light cache (march token lcache3: three near sun taps, the rest from the cache) and a low sun, so that the shadows between bodies show: today and
+    # the bodies over four slots (16), each with the cache off (c0) and on (c1).
+    **{"p0c_%s%d_c%d" % (v, n, c): ("(P0c) %s, cloud.bodies %d, light cache %s" % (what, n, "on" if c else "off"),
+                                    compose(pose, tune_dotted([("cloud.bodies", float(n))])),
+                                    "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm%s+lp100" % ("+lcache3" if c else ""))
+       for v, what, pose in (("g", "ground, sun 10 degrees behind", compose(camera_at(30.0, 4.0), sun_behind(10.0))),
+                             ("dn", "straight down from 15 km, sun 15 degrees", compose(camera_at(15000.0, -90.0), sun_behind(15.0))))
+       for n in (0, 16) for c in (0, 1)},
+    # P0c diagnosis of the streaks in the P0b ground view (cloud.bodies.debug: 1 no reach leap, 2 no shell leap, 4 the nearest body alone).
+    **{"p0c_dbg%d" % b: ("(P0c) ground, cloud.bodies 16, debug %d" % b,
+                         compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", 16.0), ("cloud.bodies.debug", float(b))])),
+                         "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for b in (0, 1, 2, 3, 4, 8, 16)},
+    **{"p0c_trace%d_%d" % (n, t): ("(P0c) ground, cloud.bodies %d, cloud.cellTrace %d" % (n, t),
+                                   compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", float(n)), ("cloud.cellTrace", float(t))])),
+                                   "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for n in (0, 16) for t in (0, 1)},
+    # P0c: the streaks with the height variation off (the cumulus layer's heightVariation 0) and with one type everywhere (cloud.typeOverride 0.5), the shell leap on.
+    **{"p0c_field%d_%s" % (n, k): ("(P0c) ground, cloud.bodies %d, %s" % (n, k),
+                                   compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", float(n))]),
+                                           cumulus_layer(lambda l: l.__setitem__("heightVariation", 0.0)) if k in ("hv0", "hv0nt", "both", "bothnt") else (lambda job: None),
+                                           tune_cumulus([("cloud.typeOverride.", 0.5)]) if k in ("ty", "tynt", "both", "bothnt") else (lambda job: None),
+                                           tune_dotted([("cloud.cellTrace", 0.0)]) if k.endswith("nt") else (lambda job: None)),
+                                   "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for n in (0, 16) for k in ("hv0", "hv0nt", "ty", "tynt", "both", "bothnt")},
+    **{"p0c_fixf%d_%d" % (s, t): ("(P0c) ground, cloud.bodies 16, share forced %.2f, cloud.cellTrace %d" % (s / 100.0, t),
+                                  compose(camera_at(30.0, 4.0), sun_behind(25.0),
+                                          tune_dotted([("cloud.bodies", 16.0), ("cloud.bodies.share", s / 100.0), ("cloud.cellTrace", float(t))])),
+                                  "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for s in (25, 40) for t in (0, 1)},
     "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
     "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
@@ -906,6 +936,8 @@ def collect_p0b(ctx):
         text = "   %-14s %-26s %7.3f" % (view, march.replace(P0B_BASE + "+", "").replace("+lp100", ""), r.get("march", float("nan")))
         if per:
             text += "  (%.3f-%.3f, med %.3f, n %d)" % (per[0], per[-1], per[len(per) // 2], len(per))
+        if "fill" in r:
+            text += "  cache fill %.3f, march + fill %.3f" % (r["fill"], r.get("march", float("nan")) + r["fill"])
         if cnt[0] is not None:
             calls = (cnt[0] or 0) + (cnt[1] or 0)
             text += "  calls view %.0f light %.0f, live/cover call %.2f, body calls %.0f, looped/body %.2f, reaching/body %.2f" % (

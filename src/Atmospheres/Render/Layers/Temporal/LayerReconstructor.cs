@@ -140,6 +140,8 @@ namespace ReDefinition.Atmospheres
         internal Action<CommandBuffer> MarkMask, MarkEdge;
         // The timing marks around the culling's tile pass (package T16; the player sets them, the game leaves them null).
         internal Action<CommandBuffer> MarkCull, MarkCullEnd;
+        // Called right after the light cache's fill (null: no mark).
+        internal Action<CommandBuffer> MarkCacheFilled;
         // GPU profiler sub-markers of the reconstruction (labels "ReDefinition clouds: <part>"); the module sets it to the host's marker seam, null alone (the weather player).
         internal static Action<CommandBuffer, string> SubMark;
 
@@ -320,6 +322,7 @@ namespace ReDefinition.Atmospheres
             {
                 cache.Record(cb, layers);
                 Sub(cb, "light cache");
+                if (MarkCacheFilled != null) MarkCacheFilled(cb);   // P0c: the cache fill's own GPU time (the weather player's soft-cost scene)
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");

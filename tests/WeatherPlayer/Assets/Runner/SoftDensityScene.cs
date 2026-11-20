@@ -636,6 +636,7 @@ namespace ReDefinition.WeatherPlayer
             bool ready = input != null && File.Exists(Path.Combine(input, "jobs.json")) && WeatherGpuTimer.Start() && rig.Init();
             Sink.Flag("soft_cost_timers_available", ready);
             if (!ready) yield break;
+            rig.Recon.MarkCacheFilled = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainStart);   // P0c: the light cache's fill as its own segment
             LayersJobFile file = JsonUtility.FromJson<LayersJobFile>(File.ReadAllText(Path.Combine(input, "jobs.json")));
             var dummy = new RenderTexture(4, 4, 0, RenderTextureFormat.RFloat);
             dummy.Create();
@@ -698,7 +699,7 @@ namespace ReDefinition.WeatherPlayer
                             ReconSettings settings = SoftTable.Settings(marchCase, "acc20");
                             rig.Recon.Reset();
                             string label = view + "." + medium.Name + "." + march;
-                            if (!samples.ContainsKey(label)) samples[label] = new[] { new List<double>(), new List<double>(), new List<double>() };
+                            if (!samples.ContainsKey(label)) samples[label] = new[] { new List<double>(), new List<double>(), new List<double>(), new List<double>() };
                             List<double>[] s = samples[label];
                             int guard = 0, n = 0, taken = 0, first = s[0].Count;
                             LayerRenderer.ResetBodyCounts();
@@ -716,7 +717,13 @@ namespace ReDefinition.WeatherPlayer
                                 if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
                                 float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], r = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
                                     e = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
-                                if (m >= 0f && r >= 0f && e >= 0f) { s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++; }
+                                if (m >= 0f && r >= 0f && e >= 0f)
+                                {
+                                    s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++;
+                                    // P0c: with the light cache the march segment starts after the fill; the fill is its own segment (CurtainStart's mark).
+                                    float fill = segments[WeatherGpuTimer.CurtainStart - WeatherGpuTimer.SlabStart];
+                                    if (fill >= 0f) s[3].Add(fill);
+                                }
                             }
                             // P0b-0: the density call counters per frame (cloud.bodies.count; the counting march is not the timed one).
                             if (CloudLookTuning.BodiesCount && LayerRenderer.BodyCountFrames > 0 && round == 0)
@@ -748,6 +755,7 @@ namespace ReDefinition.WeatherPlayer
                 Sink.Info("softcost.composite." + kv.Key, tc);
                 Sink.Info("softcost.total." + kv.Key, tm + tr + tc);
                 Sink.Info("softcost.n." + kv.Key, kv.Value[0].Count);
+                if (kv.Value[3].Count > 0) Sink.Info("softcost.fill." + kv.Key, Median(kv.Value[3]));
             }
             if (rounds > 2)
                 foreach (KeyValuePair<string, List<double>> kv in perRound)

@@ -478,6 +478,7 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
     }
 #endif
     float g = BodyVisibleG(f);
+    float gMax = BodyGTable[4];   // the radius at the largest share (the leaps' bound, P0c)
     float u0 = frac(uv.x);
     float lat = (0.5 - uv.y) * 3.14159265;
     float coslat = cos(lat);
@@ -547,10 +548,28 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
                     float x = d / r;
                     if (mode == 0 || mode == 2)
                     {
+#ifdef BODIES_KSLOTS
+                        // P0c fix (the streaks of the P0b ground pictures): whether a body is alive and how large it is follow the share at the SAMPLE, and the share
+                        // changes along the ray, so a body dead or small here can be alive and larger a few hundred m on, inside the leap. The leaps' bounds (the reach
+                        // and the shell depth) are taken over every body of the search as large as it can get at any share: alive, radius at g(1), top 1 (the type's full
+                        // height). The share itself stays exact (the slots hold the live bodies as they are here).
+                        if (mode == 2 && rowOk && fmod(floor(_BodiesP.y * 0.0625), 2.0) < 1.0)
+                        {
+                            float rM = min(gMax * s * unitM / CELL_EDGE_X, rCap);
+                            a.reach = min(a.reach, d - rM);
+                            float axisM = min(max(CELL_EDGE_X * rM, 1.0), max(typeHeightM, 1.0));
+                            float xvM = d / rM / CELL_EDGE_X;
+                            a.far = max(a.far, (1.0 - sqrt(xvM * xvM + h * h)) * axisM + axisM * sw);
+                        }
+#endif
                         if (live)
                         {
                             if (x < a.best) { a.best = x; a.bestS = sAbs; a.bestR = r; }
+#ifdef BODIES_KSLOTS
+                            if (fmod(floor(_BodiesP.y * 0.0625), 2.0) >= 1.0) a.reach = min(a.reach, d - r);   // debug bit 16: the bounds at the sample's share (P0b)
+#else
                             a.reach = min(a.reach, d - r);
+#endif
                             a.live++;
 #ifdef BODIES_KSLOTS
                             // The candidate's exact body term below the billows and its bound (its shell depth); kept if among the K largest bounds.
@@ -559,7 +578,7 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
                             float xvK = x / CELL_EDGE_X, hvK = h / topK;
                             float qbK = (1.0 - sqrt(xvK * xvK + hvK * hvK)) * axisK;
                             float uK = qbK + axisK * sw;
-                            a.far = max(a.far, uK);
+                            if (fmod(floor(_BodiesP.y * 0.0625), 2.0) >= 1.0) a.far = max(a.far, uK);
                             float tu = uK, tq = qbK, ta = axisK;
                             BODY_KINSERT
                             gKDrop = max(gKDrop, tu);
@@ -666,6 +685,12 @@ float CellCoverBodiesK(int li, float cov, float2 uv, float pitch, float rm, floa
     gKFar = a.far;
     gCellOther = a.other;
     reachM = max(a.reach, 0.0);
+    // P0c diagnosis (cloud.bodies.debug, _BodiesP.y): bit 1 no leap over the reach (the empty discs), bit 2 no shell leap (the bodies' shells), bit 4 the body is today's
+    // single nearest disc (CellBody) instead of the union.
+    float dbgK = _BodiesP.y;
+    if (fmod(dbgK, 2.0) >= 1.0) reachM = 0.0;
+    if (fmod(floor(dbgK * 0.5), 2.0) >= 1.0) gCellOther = -1e9;     // bit 2: no room to bodies outside the search (the shell leap stops)
+    if (fmod(floor(dbgK * 0.125), 2.0) >= 1.0) gKFar = 1e9;         // bit 8: no shell depth of the searched bodies (the shell leap stops)
     float p = 1.0 - smoothstep(0.45, 1.0, a.best);
     float core = coreBase * a.bestS;
     float e = p > 0.5 ? (2.0 * p - 1.0) * core : p - 0.5;
@@ -697,6 +722,7 @@ float CellBodyBodies(int li, float h, float billow, float2 fine, float typeHeigh
     float bt = e.x * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
     float sw = e.x * (0.5 + 0.5 * e.z * (0.37 + 0.137));
 #if defined(BODIES_KSLOTS)
+    [branch] if (fmod(floor(_BodiesP.y * 0.25), 2.0) >= 1.0) return CellBody(li, h, billow, fine, typeHeightM);   // P0c diagnosis bit 4
     float q = BODY_KMAX(bt);
     float far = gKFar;
 #ifdef _BODIES_COUNT

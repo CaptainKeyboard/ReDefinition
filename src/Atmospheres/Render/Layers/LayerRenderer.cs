@@ -498,7 +498,7 @@ namespace ReDefinition.Atmospheres
                 if (v == bodies) m.EnableKeyword(CloudLookTuning.BodiesKeywords[v]);
                 else m.DisableKeyword(CloudLookTuning.BodiesKeywords[v]);
             }
-            m.SetVector(IdBodiesP, new Vector4(CloudLookTuning.BodiesShare, 0f, 0f, 0f));
+            m.SetVector(IdBodiesP, new Vector4(CloudLookTuning.BodiesShare, CloudLookTuning.BodiesDebug, 0f, 0f));
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));
