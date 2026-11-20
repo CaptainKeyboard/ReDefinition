@@ -42,7 +42,8 @@ def prepare(pattern, sets=("plain", "wms")):
     keys = sorted(caps)
     jobs = e40pp.prepare_pin([caps[k] for k in keys], out=COST_IN)
     for (ut, view, s), job in zip(keys, jobs):
-        job["id"] = "wms-%s-%s-%s" % (ut, view, s)
+        # the wm-cost scene takes only jobs whose id begins with "wm-"
+        job["id"] = "wm-wms-%s-%s-%s" % (ut, view, s)
         for k in ("recordCamera", "recordRotation", "recordPlanetCenter", "hostJitter"):
             job.pop(k, None)
         if job.get("depthFile"):
