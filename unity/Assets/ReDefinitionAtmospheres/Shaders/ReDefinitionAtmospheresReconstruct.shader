@@ -37,7 +37,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
         float4 _Drift;       // the cloud's drift over one frame in the planet frame (m), w: the history is valid (1) or not (0)
 
         sampler2D_float _DistTex;   // the march's second target (the layer shader's pass 6): the mean distance of each new sample's cloud along its ray (m), 0 where it holds none
-        float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0); y: the sample count weighs the samples (1; recon.age); z: the history is dropped where its stored distance is more than this many octaves from the frame's (recon.distanceReject; 0: off)
+        float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0); y: the sample count weighs the samples (1; recon.age); z: the history is dropped where its stored distance is more than this many octaves from the frame's (recon.distanceReject; 0: off); w: the scene's depth takes part (1; recon.sceneDepth)
         sampler2D_float _AgeTex;    // the history's sample count (pass 3's second target of the last frame): the marched samples each pixel's history holds
 
         #include "ReDefinitionAtmospheresCloudMotion.cginc"
@@ -128,6 +128,49 @@ Shader "ReDefinition/AtmospheresReconstruct"
             return tex2Dlod(_CurTex, float4((q + 0.5) * _CurTex_TexelSize.xy, 0, 0));
         }
 
+        // recon.sceneDepth (_ReconT.w): the scene in front of the cloud. The march ends at the scene's depth, so a pixel on the craft or the terrain holds only the cloud
+        // in front of it; its neighbours beside the silhouette hold the whole cloud. Without the scene's depth the upsample of the new samples, the clip box and a
+        // history moved by the cloud's motion carry that cloud onto the craft (thin parts dissolve in a turn) and the craft's "no cloud" onto the sky beside it (a
+        // cloudless band). With it: a sample counts by how well the scene's depth at its own pixel agrees with the depth at this pixel (the weight of the layer shader's
+        // depth-aware composite), and a history whose cloud lies behind this pixel's scene is dropped.
+        sampler2D_float _SceneDepth;   // the scene's depth at the full target's size: metres along the camera's forward axis, 0 (or above 1e9) the sky
+
+        float SceneZ(float2 uv)
+        {
+            float z = tex2Dlod(_SceneDepth, float4(uv, 0, 0)).r;
+            return (z <= 0.0 || z > 1e9) ? 1e9 : z;
+        }
+
+        // The scene's depth at the full-target pixel a new sample was marched for.
+        float LowZ(float2 texel, float n)
+        {
+            return SceneZ((texel * n + _ReconP.yz + 0.5) / _ReconD.xy);
+        }
+
+        float Agreement(float zSample, float zPixel)
+        {
+            return 1.0 / (1.0 + 40.0 * abs(zSample - zPixel) / max(min(zSample, zPixel), 1.0));
+        }
+
+        // The bilinear upsample of the new samples at q, each weighted by the agreement of its scene depth with the pixel's.
+        float4 LowAware(float2 q, float zPixel, float n)
+        {
+            float2 b = floor(q);
+            float2 f = q - b;
+            float4 sum = 0;
+            float ws = 0;
+            [unroll] for (int k = 0; k < 4; k++)
+            {
+                float2 o = float2(k & 1, k >> 1);
+                float4 s = tex2Dlod(_CurTex, float4((b + o + 0.5) * _CurTex_TexelSize.xy, 0, 0));
+                if (s.a < -0.5) continue;
+                float w = (o.x > 0.5 ? f.x : 1.0 - f.x) * (o.y > 0.5 ? f.y : 1.0 - f.y) * Agreement(LowZ(b + o, n), zPixel) + 1e-6;
+                sum += s * w;
+                ws += w;
+            }
+            return sum / max(ws, 1e-9);
+        }
+
         // The history with a Catmull-Rom filter in five bilinear taps (the 9-tap filter folded onto the bilinear hardware; Jimenez, "Filmic SMAA: Sharp
         // morphological and temporal antialiasing", SIGGRAPH 2016). _ReconK.w selects it (CLOUDR3 P7): the bilinear fetch blurs the history a little with every sub-pixel move, which a
         // history kept over twenty frames adds up. The negative lobes can overshoot; the clip box that follows bounds the result.
@@ -174,18 +217,28 @@ Shader "ReDefinition/AtmospheresReconstruct"
             bool kept = cur.a < -0.5;
             if (kept) { fresh = false; cur = 0; }
             if (_ReconP.w > 0.5 && _ReconP.w < 1.5) return cur;
+            bool aware = _ReconT.w > 0.5;
+            float zPixel = 1e9;
+            [branch] if (aware)
+            {
+                zPixel = SceneZ(i.uv);
+                if (!fresh && !kept) cur = LowAware(q, zPixel, n);
+            }
 
-            // The 3 x 3 new samples around the pixel: the clip box of the history (the marked ones left out).
+            // The 3 x 3 new samples around the pixel: the clip box of the history (the marked ones left out; with the scene's depth, each by its agreement with the pixel's).
             float2 q0 = floor(q + 0.5);
             float4 m1 = 0, m2 = 0;
             float count = 0;
             [unroll] for (int k = 0; k < 9; k++)
             {
-                float4 s = Low(q0 + float2(k % 3 - 1, k / 3 - 1));
+                float2 texel = q0 + float2(k % 3 - 1, k / 3 - 1);
+                float4 s = Low(texel);
                 if (s.a < -0.5) continue;
-                m1 += s;
-                m2 += s * s;
-                count += 1.0;
+                float wk = 1.0;
+                [branch] if (aware) wk = Agreement(LowZ(texel, n), zPixel);
+                m1 += s * wk;
+                m2 += s * s * wk;
+                count += wk;
             }
             m1 /= max(count, 1.0);
             float4 sd = sqrt(max(m2 / max(count, 1.0) - m1 * m1, 0.0));
@@ -193,8 +246,8 @@ Shader "ReDefinition/AtmospheresReconstruct"
             // The previous place of this pixel's cloud.
             float3 o = _CamPos.xyz;
             float3 d = RayDir(i.uv);
-            float2 puv;
-            float depth;
+            float2 puv = 0.0;
+            float depth = 0.0;
             bool valid;
             bool measured = false;
             float prevDist = 0.0;
@@ -222,6 +275,8 @@ Shader "ReDefinition/AtmospheresReconstruct"
                 puv = FirstShellPrevious(o, d, depth, f);
                 valid = _Drift.w > 0.5 && f > 1e-3 && all(puv > 0.0) && all(puv < 1.0);
             }
+            // The scene in front of the history's cloud: the cloud the history would bring lies behind what this pixel shows now (2 % of slack for the depth's own steps).
+            if (aware && valid && depth > zPixel / max(dot(d, _CamForward.xyz), 1e-3) * 1.02) valid = false;
             // A kept pixel without a history (the screen's edge after a turn, the first frames) takes the mean of the marched pixels around it (one of each block always is).
             if (!valid)
             {
