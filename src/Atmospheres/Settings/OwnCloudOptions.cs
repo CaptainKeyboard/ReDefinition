@@ -74,6 +74,10 @@ namespace ReDefinition.Atmospheres
         // recon.clipSigma X: the width of the history's colour clip in standard deviations of the new samples around the pixel (ReconSettings.ClipSigma; default 1, 999: none).
         internal const string TuneClipSigma = "recon.clipSigma";
         internal const float ClipSigmaDefault = 1f;   // ReconSettings.ClipSigma's own default (the T05 sweep's pick)
+        // recon.marchTriangle 1: the reconstructor draws the march as one procedural triangle instead of the Blit's quad (ReconSettings.ProcMarch): the same target bit for
+        // bit, 5-7 % less march time in the player (2026-11-20). Default 0 until it is measured in the game.
+        internal const string TuneMarchTriangle = "recon.marchTriangle";
+        internal const bool MarchTriangleDefault = false;
         internal const float AccumulateDefault = 0.2f;
 
         // E40 MVCLOUD: recon.layerMotion (default 1): the cloud's place in the previous frame, for the reconstruction's history and for the motion vector the upscalers read, is taken on
@@ -448,6 +452,7 @@ namespace ReDefinition.Atmospheres
             s.CatmullHistory = Tuning.Flag(TuneCatmull, CatmullDefault);
             s.TrueDistance = Tuning.Flag(TuneTrueDistance, TrueDistanceDefault);
             s.Age = Tuning.Flag(TuneAge, AgeDefault);
+            s.ProcMarch = Tuning.Flag(TuneMarchTriangle, MarchTriangleDefault);
             s.DistanceReject = Mathf.Max(0f, Tuning.Get(TuneDistanceReject, DistanceRejectDefault));
             s.ClipSigma = Mathf.Max(0f, Tuning.Get(TuneClipSigma, ClipSigmaDefault));
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the

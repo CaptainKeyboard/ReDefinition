@@ -58,6 +58,9 @@ namespace ReDefinition.Atmospheres
         // recon.distanceReject (with TrueDistance): the history keeps the distance of the cloud it showed (the count target's second channel) and is dropped where that is
         // more than this many octaves from the distance at which the previous camera saw the pixel's cloud (a disocclusion). 0: off, the colour clip alone.
         public float DistanceReject;
+        // Test switch (HIST2, the replay's settings only; not a tuning key): the march without TrueDistance is drawn as one procedural triangle (the layer shader's pass 7) instead of
+        // the Blit's quad, to time the draw path. False: the Blit, as before.
+        public bool ProcMarch;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
@@ -103,6 +106,8 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdFarDepth = Shader.PropertyToID("_FarDepth");
         // recon.trueDistance: the layer shader's pass 6 (the march into two targets), the second target and the pair the command buffer binds.
         internal const int PassMarchDistance = 6;
+        // Test switch ReconSettings.ProcMarch (HIST2): the layer shader's pass 7, pass 0 drawn as one procedural triangle.
+        internal const int PassMarchTriangle = 7;
         private static readonly int IdDistTex = Shader.PropertyToID("_DistTex"), IdReconT = Shader.PropertyToID("_ReconT");
         private RenderTexture lowDistance;
         private RenderTargetIdentifier[] marchTargets;
@@ -396,6 +401,12 @@ namespace ReDefinition.Atmospheres
             {
                 cb.SetRenderTarget(marchTargets, low.depthBuffer);
                 cb.DrawProcedural(Matrix4x4.identity, layers, PassMarchDistance, MeshTopology.Triangles, 3, 1);
+            }
+            else if (s.ProcMarch)
+            {
+                // Test switch (HIST2): pass 0 drawn as one procedural triangle into the one target (pass 7), to time the draw path against the Blit's quad.
+                cb.SetRenderTarget(low);
+                cb.DrawProcedural(Matrix4x4.identity, layers, PassMarchTriangle, MeshTopology.Triangles, 3, 1);
             }
             else
             {

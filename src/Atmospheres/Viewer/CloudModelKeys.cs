@@ -92,6 +92,8 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Flag(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault, KeySection.Quality,
                 "the block reconstruction counts the marched samples each pixel's history holds: a new area is sharp after its first samples instead of after the fixed weight's settling time",
                 KeyLiveness.FrameHistory);
+            r.Flag(OwnCloudOptions.TuneMarchTriangle, OwnCloudOptions.MarchTriangleDefault, KeySection.Quality,
+                "the march is drawn as one procedural triangle instead of the Blit's quad: the same picture, less march time", KeyLiveness.FrameHistory);
             r.Key(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault, KeySection.Quality,
                 "with recon.trueDistance: the history is dropped where the cloud distance it stored is more than this many octaves from the frame's (a disocclusion); 0 off",
                 KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 4f);

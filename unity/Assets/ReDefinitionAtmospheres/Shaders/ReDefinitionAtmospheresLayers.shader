@@ -1036,5 +1036,17 @@ Shader "ReDefinition/AtmospheresLayers"
             MarchTargets frag(v2f i) { return Pass0Targets(i); }
             ENDCG
         }
+
+        // Pass 7 (recon.marchTriangle): pass 0 drawn as pass 6's procedural triangle into one target. The target is bit-identical to the Blit's (HIST2 marchcheck,
+        // 2026-11-20: twelve frames on three captures, no differing texel) and the march 1.7-2.3 ms (5-7 %) cheaper at 1707 x 960 on the A4500.
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vertProc
+            #pragma fragment frag
+            #pragma target 3.5
+            float4 frag(v2f i) : SV_Target { return Pass0(i); }
+            ENDCG
+        }
     }
 }
