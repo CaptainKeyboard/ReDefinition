@@ -63,6 +63,17 @@ namespace ReDefinition.Atmospheres
         // (ReconSettings.TrueDistance; default 0: the middle spheres).
         internal const string TuneTrueDistance = "recon.trueDistance";
         internal const bool TrueDistanceDefault = false;
+        // recon.age 1: the block reconstruction counts the marched samples each pixel's history holds; the n-th sample enters at max(the fixed weight, 1 / n) and a pixel
+        // without one shows the current upsample (ReconSettings.Age; default 0: the fixed weights).
+        internal const string TuneAge = "recon.age";
+        internal const bool AgeDefault = false;
+        // recon.distanceReject X (with recon.trueDistance): the history is dropped where the distance it stored is more than X octaves from the frame's (ReconSettings.DistanceReject;
+        // default 0: off).
+        internal const string TuneDistanceReject = "recon.distanceReject";
+        internal const float DistanceRejectDefault = 0f;
+        // recon.clipSigma X: the width of the history's colour clip in standard deviations of the new samples around the pixel (ReconSettings.ClipSigma; default 1, 999: none).
+        internal const string TuneClipSigma = "recon.clipSigma";
+        internal const float ClipSigmaDefault = 1f;   // ReconSettings.ClipSigma's own default (the T05 sweep's pick)
         internal const float AccumulateDefault = 0.2f;
 
         // E40 MVCLOUD: recon.layerMotion (default 1): the cloud's place in the previous frame, for the reconstruction's history and for the motion vector the upscalers read, is taken on
@@ -440,6 +451,9 @@ namespace ReDefinition.Atmospheres
             s.LayerMotion = Tuning.Flag(TuneLayerMotion, LayerMotionDefault);
             s.CatmullHistory = Tuning.Flag(TuneCatmull, CatmullDefault);
             s.TrueDistance = Tuning.Flag(TuneTrueDistance, TrueDistanceDefault);
+            s.Age = Tuning.Flag(TuneAge, AgeDefault);
+            s.DistanceReject = Mathf.Max(0f, Tuning.Get(TuneDistanceReject, DistanceRejectDefault));
+            s.ClipSigma = Mathf.Max(0f, Tuning.Get(TuneClipSigma, ClipSigmaDefault));
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));

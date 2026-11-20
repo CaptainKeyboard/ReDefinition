@@ -23,7 +23,7 @@ INPUT = os.path.join(e40pp.BUILD, "far1-in-2560")
 SIZE = (2560, 1440)
 VIEWS = {"pp-gclock-far_g10": "ground-30m", "pp-gclock-far_a15": "above-9km"}
 SCENARIOS = ["fly", "flyfast"]
-FRAMES = {"static": [39], "fly": [37, 38], "flyfast": [37, 38]}
+FRAMES = {"static": [39], "fly": [38], "flyfast": [38]}
 HEAD = "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+"
 TAIL = "+bacc+chm+lp100"
 CASES = [
@@ -36,11 +36,55 @@ CASES = [
 ]
 
 
-def stages():
+# HIST1W: what softens the moved history at 3 x 3 with the true distance: the clip's width (clip<N>: N / 10 standard deviations; 9990 = none) and the fresh sample's weight
+# (acc<NN>: NN / 100). The first case is the still reference's march (the accepted 2 x 2).
+W_VIEWS = {"pp-gclock-far_a15": "above-9km"}
+W_SCENARIOS = ["static", "fly", "flyfast"]
+W_CASES = [
+    ("2x2-today", HEAD + "blk2" + TAIL),
+    ("3x3-td", HEAD + "blk3" + TAIL + "+rtd"),
+    ("3x3-td-clip2sigma", HEAD + "blk3" + TAIL + "+rtd+clip20"),
+    ("3x3-td-noclip", HEAD + "blk3" + TAIL + "+rtd+clip9990"),
+    ("3x3-td-fresh40", HEAD + "blk3" + TAIL + "+rtd+acc40"),
+    ("3x3-td-fresh40-clip2sigma", HEAD + "blk3" + TAIL + "+rtd+acc40+clip20"),
+    ("3x3-td-fresh100-noclip", HEAD + "blk3" + TAIL + "+rtd+acc100+clip9990"),
+    ("2x2-td", HEAD + "blk2" + TAIL + "+rtd"),
+]
+# HIST1A: the count of marched samples (rag) with the true distance, from a cut (hist1a: forty frames, the last 32 moving) and settled (hist1as: 120 frames at the first pose
+# before them).
+A_SCENARIOS = ["static", "fly", "flyfast"]
+A_CASES = [
+    ("2x2-today", HEAD + "blk2" + TAIL),
+    ("2x2-td-count", HEAD + "blk2" + TAIL + "+rtd+rag"),
+    ("3x3-today", HEAD + "blk3" + TAIL),
+    ("3x3-td", HEAD + "blk3" + TAIL + "+rtd"),
+    ("3x3-td-count", HEAD + "blk3" + TAIL + "+rtd+rag"),
+    ("4x4-td-count", HEAD + "blk4" + TAIL + "+rtd+rag"),
+]
+# HIST1D: the history dropped by distance (rdr<NN>: NN / 100 octaves) so that the colour clip can be wide (clip<N>), settled, with the count.
+D_CASES = [
+    ("2x2-today", HEAD + "blk2" + TAIL),
+    ("2x2-td", HEAD + "blk2" + TAIL + "+rtd"),
+    ("3x3-td", HEAD + "blk3" + TAIL + "+rtd"),
+    ("3x3-td-clip2", HEAD + "blk3" + TAIL + "+rtd+rag+clip20"),
+    ("3x3-td-clip2-dist03", HEAD + "blk3" + TAIL + "+rtd+rag+clip20+rdr30"),
+    ("3x3-td-clip3-dist03", HEAD + "blk3" + TAIL + "+rtd+rag+clip30+rdr30"),
+    ("3x3-td-noclip-dist03", HEAD + "blk3" + TAIL + "+rtd+rag+clip9990+rdr30"),
+    ("3x3-td-noclip-dist01", HEAD + "blk3" + TAIL + "+rtd+rag+clip9990+rdr10"),
+    ("4x4-td-clip3-dist03", HEAD + "blk4" + TAIL + "+rtd+rag+clip30+rdr30"),
+    ("2x2-td-clip3-dist03", HEAD + "blk2" + TAIL + "+rtd+rag+clip30+rdr30"),
+]
+SETS = {"hist1d": ("distance", VIEWS, A_SCENARIOS, D_CASES, ["-warm", "120"]),
+        "hist1": ("motion", VIEWS, SCENARIOS, CASES, []), "hist1w": ("weights", W_VIEWS, W_SCENARIOS, W_CASES, []),
+        "hist1a": ("cut", VIEWS, A_SCENARIOS, A_CASES, []), "hist1as": ("settled", VIEWS, A_SCENARIOS, A_CASES, ["-warm", "120"])}
+
+
+def stages(name="hist1"):
+    stage, views, scenarios, cases, extra = SETS[name]
     if not os.path.isfile(os.path.join(INPUT, "jobs.json")):
         return []
-    return [Stage("motion", ["-mode", "scene", "-scene", "soft-temporal", "-in", INPUT, "-views", ",".join(VIEWS), "-media", "pr50", "-marches", ",".join(m for _, m in CASES),
-                             "-scenarios", ",".join(SCENARIOS), "-stillref", "1", "-motion", "all", "-light", "product", "-width", str(SIZE[0]), "-height", str(SIZE[1])],
+    return [Stage(stage, ["-mode", "scene", "-scene", "soft-temporal", "-in", INPUT, "-views", ",".join(views), "-media", "pr50", "-marches", ",".join(m for _, m in cases),
+                             "-scenarios", ",".join(scenarios), "-dumpframes", "39", "-stillref", "1", "-motion", "all", "-light", "product", "-width", str(SIZE[0]), "-height", str(SIZE[1])] + extra,
                   size=SIZE, proxy=False, timeout=3000)]
 
 
@@ -48,7 +92,11 @@ def collect(ctx):
     return [Metric.info("hist1.stages", float(len(ctx.folders)))]
 
 
-register_series("hist1", stages(), collect, exclusive=False, who="hist1")
+register_series("hist1", stages("hist1"), collect, exclusive=False, who="hist1")
+register_series("hist1w", stages("hist1w"), collect, exclusive=False, who="hist1")
+register_series("hist1a", stages("hist1a"), collect, exclusive=False, who="hist1")
+register_series("hist1as", stages("hist1as"), collect, exclusive=False, who="hist1")
+register_series("hist1d", stages("hist1d"), collect, exclusive=False, who="hist1")
 
 
 def load(folder, name):
@@ -64,13 +112,28 @@ def display(a):
     return np.clip(rgb / (1.0 + rgb) * 1.6, 0, 1) ** (1 / 2.2)
 
 
+def fine(img, k=4):
+    """The picture's detail finer than k pixels (the luminance minus its k x k block mean)."""
+    g = img.mean(axis=2)
+    h, w = g.shape[0] // k * k, g.shape[1] // k * k
+    b = g[:h, :w].reshape(h // k, k, w // k, k).mean(axis=(1, 3))
+    return g[:h, :w] - np.repeat(np.repeat(b, k, axis=0), k, axis=1)
+
+
+def kept(img, ref):
+    """The share of the reference's fine detail the picture keeps (projection: noise that the two do not share does not count; a blur lowers it, a displacement too)."""
+    a, r = fine(img), fine(ref)
+    return float((a * r).sum() / max((r * r).sum(), 1e-12))
+
+
 def save(img, path):
     from PIL import Image
     Image.fromarray((np.clip(img, 0, 1) * 255 + 0.5).astype("uint8")).save(path)
 
 
-def pictures(out, root):
-    folder = os.path.join(root, "hist1-motion")
+def pictures(out, root, name="hist1"):
+    stage, VIEWS, SCENARIOS, CASES, _extra = SETS[name]
+    folder = os.path.join(root, name + "-" + stage)
     os.makedirs(out, exist_ok=True)
     rows = []
     for view, word in VIEWS.items():
@@ -88,22 +151,23 @@ def pictures(out, root):
                         print("missing %s %s %s f%d" % (view, sc, name, f))
                         continue
                     err = np.abs(display(a) - display(ref)).mean(axis=2)
-                    rows.append((word, sc, f, name, err.mean(), np.percentile(err, 99)))
+                    rows.append((word, sc, f, name, err.mean(), np.percentile(err, 99), kept(display(a), display(ref))))
                     if f == FRAMES[sc][-1]:
                         save(display(a), os.path.join(out, "HIST1-%s-%s-f%d-%s-2560x1440.png" % (word, sc, f, name)))
                         save(np.repeat(np.clip(err * 4.0, 0, 1)[..., None], 3, axis=2), os.path.join(out, "HIST1-%s-%s-f%d-%s-error-x4-2560x1440.png" % (word, sc, f, name)))
     print("view, scenario, frame, case: mean and 99th percentile of the display error against the full march of the same pose")
     for r in rows:
-        print("  %-11s %-8s f%-2d %-18s %.5f  %.4f" % r)
+        print("  %-11s %-8s f%-2d %-22s %.5f  %.4f  detail kept %.2f" % r)
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--pictures")
+    p.add_argument("--set", default="hist1")
     p.add_argument("--root", default=e40pp.BUILD.replace("weather-series", "WeatherPlayer"))
     a = p.parse_args()
     if a.pictures:
-        pictures(a.pictures, a.root)
+        pictures(a.pictures, a.root, a.set)
     return 0
 
 
