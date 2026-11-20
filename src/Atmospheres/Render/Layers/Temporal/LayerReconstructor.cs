@@ -58,6 +58,10 @@ namespace ReDefinition.Atmospheres
         // recon.distanceReject (with TrueDistance): the history keeps the distance of the cloud it showed (the count target's second channel) and is dropped where that is
         // more than this many octaves from the distance at which the previous camera saw the pixel's cloud (a disocclusion). 0: off, the colour clip alone.
         public float DistanceReject;
+        // recon.sceneDepth (Block mode without the edge pattern; needs the frame's scene depth, LayerFrame.UseSceneDepth): the reconstruction weighs the new samples by
+        // the agreement of the scene's depth at their pixel with the depth at the pixel it builds (the upsample and the clip box) and drops a history whose cloud lies
+        // behind the pixel's scene. False: the scene's depth takes no part, as before.
+        public bool SceneDepth;
         // Test switch (HIST2, the replay's settings only; not a tuning key): the march without TrueDistance is drawn as one procedural triangle (the layer shader's pass 7) instead of
         // the Blit's quad, to time the draw path. False: the Blit, as before.
         public bool ProcMarch;
@@ -522,7 +526,8 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdPrevU, previousUp / previousTanY);
                 m.SetVector(IdShellR, new Vector4(info.MiddleRadius, info.FallbackDistance, 0f, 0f));
                 m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
-                m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn && s.Age ? 1f : 0f, ageOn && distanceOn ? Mathf.Max(0f, s.DistanceReject) : 0f, 0f));
+                m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn && s.Age ? 1f : 0f, ageOn && distanceOn ? Mathf.Max(0f, s.DistanceReject) : 0f,
+                                                  s.SceneDepth && f.UseSceneDepth ? 1f : 0f));
                 if (distanceOn) m.SetTexture(IdDistTex, lowDistance);
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;

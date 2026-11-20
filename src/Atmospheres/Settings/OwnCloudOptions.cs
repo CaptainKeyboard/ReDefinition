@@ -76,6 +76,9 @@ namespace ReDefinition.Atmospheres
         internal const float ClipSigmaDefault = 1f;   // ReconSettings.ClipSigma's own default (the T05 sweep's pick)
         // recon.marchTriangle 1: the reconstructor draws the march as one procedural triangle instead of the Blit's quad (ReconSettings.ProcMarch): the same target bit for
         // bit, 5-7 % less march time in the player (2026-11-20). Default 0 until it is measured in the game.
+        // recon.sceneDepth 1: the block reconstruction takes the scene's depth into its upsample, its clip box and its history test (ReconSettings.SceneDepth; default 0).
+        internal const string TuneSceneDepth = "recon.sceneDepth";
+        internal const bool SceneDepthDefault = false;
         internal const string TuneMarchTriangle = "recon.marchTriangle";
         internal const bool MarchTriangleDefault = false;
         internal const float AccumulateDefault = 0.2f;
@@ -453,6 +456,7 @@ namespace ReDefinition.Atmospheres
             s.TrueDistance = Tuning.Flag(TuneTrueDistance, TrueDistanceDefault);
             s.Age = Tuning.Flag(TuneAge, AgeDefault);
             s.ProcMarch = Tuning.Flag(TuneMarchTriangle, MarchTriangleDefault);
+            s.SceneDepth = Tuning.Flag(TuneSceneDepth, SceneDepthDefault);
             s.DistanceReject = Mathf.Max(0f, Tuning.Get(TuneDistanceReject, DistanceRejectDefault));
             s.ClipSigma = Mathf.Max(0f, Tuning.Get(TuneClipSigma, ClipSigmaDefault));
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
