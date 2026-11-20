@@ -170,6 +170,14 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // Whether a limit set forces a key that changes the layer maps (the sky from the weather map): its capture waits for the maps and heights to settle again.
+        private static bool PinLimitChangesMaps(PinLimit limit)
+        {
+            foreach (PinSwitch s in limit.Switches)
+                if (s.Kind == 't' && s.Key.StartsWith(WeatherMapSky.TuneKey, StringComparison.Ordinal)) return true;
+            return false;
+        }
+
         // Undoes a limit set: the forced tuning keys go (cloud.motionScale 0 is forced again), the settings come back, the probe switches are off.
         private void PinLimitRevert(List<KeyValuePair<string, double>> restore)
         {
@@ -292,8 +300,24 @@ namespace ReDefinition.Atmospheres
                         PinLimitApply(limit, restore);
                         // Two frames for the switches to reach the frame's record (a tuning override is read at the next frame).
                         yield return ProbeWait.Frames(2);
+                        // A set that changes the maps (the sky from the weather map, cloud.weatherMapSky*): the maps and the heights are made and settled again before the capture.
+                        bool mapsChange = PinLimitChangesMaps(limit);
+                        if (mapsChange)
+                        {
+                            foreach (ProbeWait w in PinSettleSteps(view)) yield return w;
+                            if (!pinSettledOk)
+                            {
+                                PinLimitRevert(restore);
+                                continue;
+                            }
+                        }
                         foreach (ProbeWait w in PinCutHoldCapture(view, variant, limit.Name)) yield return w;
                         PinLimitRevert(restore);
+                        if (mapsChange)
+                        {
+                            yield return ProbeWait.Frames(2);
+                            foreach (ProbeWait w in PinSettleSteps(view)) yield return w;
+                        }
                     }
                 }
                 PinShowUi();

@@ -15,6 +15,10 @@ namespace ReDefinition.Atmospheres
         internal HeightTuning[] Tunings;
         internal uint[] Seeds;
         internal double[] AltitudesM;
+        // The sky drawn from the weather map (cloud.weatherMapSky, OwnCloudModule.MapSkyRoots): per layer the root offsets in m that replace the built ones, in a root range of their own,
+        // with the top term zeroed (the type's thickness is the map's depth); null where the layer keeps its built maps (always while the switch is off).
+        internal float[][] RootOverrideM;
+        internal float[] RootOverrideRangeM;
 
         // The plan of a stack at the time ut. body is the tuning of the body (switches already applied, OwnCloudOptions.Apply); the seed makes the
         // noise of one body's layers differ from another's.
@@ -62,10 +66,25 @@ namespace ReDefinition.Atmospheres
                 if (Tunings[l] == null) continue;
                 if (cancelled != null && cancelled()) return null;
                 HeightMaps maps = HeightMapBuilder.Build(gather.InputsOf(l), Tunings[l], BodyRadiusM, Seeds[l], cache);
+                if (RootOverrideM != null && l < RootOverrideM.Length && RootOverrideM[l] != null) maps = WithRoots(maps, RootOverrideM[l], RootOverrideRangeM[l]);
                 maps.MakeRgba();
                 result.Maps[l] = maps;
             }
             return result;
+        }
+
+        // The built maps with the root channel from the given offsets (m) in their own range, the top term zeroed, the variation kept.
+        internal static HeightMaps WithRoots(HeightMaps built, float[] rootM, float rangeM)
+        {
+            var maps = new HeightMaps(built.Width, built.Height, Math.Max(rangeM, built.RootRangeM), built.TopRangeM, built.VariationRangeM);
+            int n = built.Width * built.Height;
+            for (int i = 0; i < n && i < rootM.Length; i++)
+            {
+                maps.Bytes[i * 3] = HeightMaps.Encode(rootM[i], maps.RootRangeM);
+                maps.Bytes[i * 3 + 1] = 128;
+                maps.Bytes[i * 3 + 2] = built.Bytes[i * 3 + 2];
+            }
+            return maps;
         }
     }
 

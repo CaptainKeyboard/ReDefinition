@@ -73,7 +73,7 @@ namespace ReDefinition.Atmospheres
 
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers],
-            noiseD = new Vector4[CloudLayerDef.MaxLayers], noiseOff = new Vector4[CloudLayerDef.MaxLayers], cellE = new Vector4[CloudLayerDef.MaxLayers];
+            noiseD = new Vector4[CloudLayerDef.MaxLayers], noiseOff = new Vector4[CloudLayerDef.MaxLayers], cellE = new Vector4[CloudLayerDef.MaxLayers], cellS = new Vector4[CloudLayerDef.MaxLayers];
 
         // The layer pass's noise (volumes, offsets, drift): the shadow reads the shape share from the same volumes (CloudShadowFrame.ShapeNoise). null: no noise.
         internal LayerNoise Noise;
@@ -220,6 +220,11 @@ namespace ReDefinition.Atmospheres
             // The single cloud's body per layer, as the layer pass has it (CloudCells.cginc CellBody).
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(uploadedSource != null && l < layerCount ? uploadedSource.LayerAt(l) : null);
             m.SetVectorArray(LayerRenderer.IdCellE, cellE);
+            // The map-driven sky's connected sheet types, as the layer pass has them (zero while cloud.weatherMapSky is off).
+            bool mapSky = WeatherMapSky.On;
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
+                cellS[l] = mapSky && uploadedSource != null && l < layerCount ? MapSkyRegions.SheetTypes(uploadedSource.LayerAt(l)) : Vector4.zero;
+            m.SetVectorArray(LayerRenderer.IdCellS, cellS);
             bool reach = f.EmptyReachOn && f.EmptyReach != null;
             if (reach) m.SetTexture(IdCovReach, f.EmptyReach);
             m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), f.ShapeNoise && f.MacroLift && Noise != null ? 1f : 0f, reach ? 1f : 0f));

@@ -73,6 +73,11 @@ namespace ReDefinition.Atmospheres
             }
             downM = t.DownM;
             upM = t.UpM;
+            // Maps with a wider root range than the tuning's (the sky drawn from the weather map, HeightPlan.RootOverrideM) reach that much further.
+            HeightMaps m = maps[layer];
+            float extra = m != null ? Math.Max(0f, m.RootRangeM - t.RootRangeM) : 0f;
+            downM += extra;
+            upM += extra;
         }
     }
 }

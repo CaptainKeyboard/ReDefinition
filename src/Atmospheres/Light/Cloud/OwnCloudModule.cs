@@ -1025,6 +1025,8 @@ namespace ReDefinition.Atmospheres
             if (step == 2)
             {
                 FetchFogInputs(b, field, ut);
+                // cloud.weatherMapSky (default off): the package B maps and the layers' parts of this round (OwnCloudModule.MapSky.cs).
+                FetchMapSky(b, field, ut);
                 return;
             }
             int l = step - 3;
@@ -1034,7 +1036,7 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             // Whether this round combines the layer maps (decided once, at its first layer: the key may change between the frames of a round).
-            if (l == 0) combineRound = CloudLookTuning.CoverCombine > 0f && fetchHaveShared;
+            if (l == 0) combineRound = CloudLookTuning.CoverCombine > 0f && fetchHaveShared && !mapSkyRound;
             GeneratorField gf = GeneratorModule.Current;
             TakeAnvilInputs(b, gf, l);
             byte[] cover = coverageMap.Bytes;
@@ -1088,7 +1090,9 @@ namespace ReDefinition.Atmospheres
             // CELLS: a layer with the cell list draws its towers from the generator's cells and not from the point-sampled layer map: no deck rule, no meso stage (not under a probe's override
             // of the maps or the types, and only once the worker has made a list).
             CloudLayerDef cellDef = stack.LayerAt(l);
-            bool cellLayer = cellDef.CellList && AnvilMap.AnvilTypeIndex(cellDef) >= 0 && gf != null && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f;
+            // cloud.weatherMapSky: the tall layer draws its towers from the cell list (the map holds a cell's tower in the single texel at its centre; the list paints each cell as one tower).
+            bool mapSkyCells = mapSkyRound && WeatherMapSky.RoleOf(cellDef) == WeatherMapSky.Role.Tall;
+            bool cellLayer = (cellDef.CellList || mapSkyCells) && AnvilMap.AnvilTypeIndex(cellDef) >= 0 && gf != null && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f;
             if (cellLayer)
             {
                 double cellsUt;
@@ -1097,6 +1101,7 @@ namespace ReDefinition.Atmospheres
             }
             cellLayerNow[l] = cellLayer;
             WeatherDeckRule deck = cellLayer ? null : CloudLookTuning.DeckRuleOf(layerName, stack.LayerAt(l).Deck);
+            byte[] rawCover = cover;
             if (cellLayer)
             {
                 int n = cover.Length;
@@ -1155,9 +1160,13 @@ namespace ReDefinition.Atmospheres
                     if (!layerDef.HasClimate) typeBytes = CloudLookTuning.ApplyAlto(typeBytes, typeMap.Bytes, altoMidMap.Bytes, altoLowMap.Bytes, layerDef.AltoType, layerDef.AltoFrom, layerDef.AltoFull, ref altoScratch);
                 }
             }
+            // cloud.weatherMapSky (default off): a layer the weather map drives takes its cover and type from the round's parts; no meso stage, no combination (OwnCloudModule.MapSky.cs).
+            bool mapSkyLayer = forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f
+                               && MapSkyLayer(l, stack.LayerAt(l), deck ?? stack.LayerAt(l).Deck, rawCover, typeBytes, ref cover, ref typeBytes, ref coverSource);
+            if (mapSkyLayer) cellLayerNow[l] = false;
             // E40 L3: the meso-scale cover pattern and the types from their climate, from the layer's own cfg data (not under the probe's overrides of the maps and types).
             CloudLayerDef mesoDef = stack.LayerAt(l);
-            if (!cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && deck == null)) && gf != null)
+            if (!mapSkyLayer && !cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && deck == null)) && gf != null)
             {
                 CloudMesoInputs mi = mesoInputs;
                 mi.Width = MapWidth;
@@ -1333,7 +1342,9 @@ namespace ReDefinition.Atmospheres
                 heightRules = c.Clouds.Height;
             }
             int switches = (heightTuning.BaseVariation ? 1 : 0) | (heightTuning.BasePhysics ? 2 : 0) | (heightTuning.TopFromUpdraft ? 4 : 0) | (heightTuning.BaseRagged ? 8 : 0);
-            bool changed = switches != heightSwitches || numbersChanged;
+            // cloud.weatherMapSky: the bases come from the map's parts, so the heights are built again when the parts first come or go.
+            bool skyNow = mapSkyPartsForHeights != null;
+            bool changed = switches != heightSwitches || numbersChanged || skyNow != heightsHadMapSky;
             heightSwitches = switches;
             HeightResult done;
             HeightTake take = heightJob.TryTake(out done);
@@ -1362,6 +1373,14 @@ namespace ReDefinition.Atmospheres
                 forceHeights = false;
                 // The field hands its maps at the generator's size (512 x 256); the builder asks for the same, a smaller size would read nothing.
                 HeightPlan plan = HeightPlan.Make(stack, heightTuning, ut, (uint)(b.flightGlobalsIndex + 1) * 0x9E3779B1u, MapWidth, MapHeight);
+                heightsHadMapSky = skyNow;
+                if (skyNow)
+                {
+                    plan.RootOverrideM = new float[plan.Count][];
+                    plan.RootOverrideRangeM = new float[plan.Count];
+                    for (int l = 0; l < plan.Count; l++)
+                        if (plan.Tunings[l] != null) plan.RootOverrideM[l] = MapSkyRoots(stack.LayerAt(l), out plan.RootOverrideRangeM[l]);
+                }
                 heightJob.Begin(plan, field, stack);
                 heightJob.Pump(HeightPumpBudgetMs);
             }
@@ -1877,6 +1896,8 @@ namespace ReDefinition.Atmospheres
                     if (heights != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-height.u8"), heights.Bytes);
                 }
                 if (climateHumidity != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "humidity.u8"), climateHumidity);
+                // cloud.weatherMapSky: the package B maps and the layers' parts the round drew (nothing while it is off).
+                WriteMapSkyDump(dir);
                 System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "pass.json"), PassJson(tag));
                 AtmospheresLog.Say("own clouds: dumped the layer maps of " + stack.LayerCount + " layers and the pass's numbers (pass.json) to " + dir);
                 return true;

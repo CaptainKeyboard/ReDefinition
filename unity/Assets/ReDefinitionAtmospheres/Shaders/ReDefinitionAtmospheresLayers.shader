@@ -280,20 +280,29 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
                 // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
+                bool typeRead = false;
                 [branch] if (_CullL[li].w > 0.0)
                 {
                     float cellReach, wMap;
                     float edgeC = max(_LayerB[li].z, 1e-4);
                     gCellBodyX = CellBodyReachX(li);
+                    // The map-driven sky (_CellS, zero while cloud.weatherMapSky is off): the type map says where a sheet type is drawn connected; read here, before the cells.
+                    float sheetW = 0.0;
+                    [branch] if (_CellS[li].x > 0.5)
+                    {
+                        typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
+                        typeRead = true;
+                        sheetW = CellSheetWeight(li, typeValue);
+                    }
                     cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
-                                    (uint)_NoiseOffset[li].w, cellReach, wMap);
+                                    (uint)_NoiseOffset[li].w, sheetW, cellReach, wMap);
                     if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
                     {
                         gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
                         return 0;
                     }
                 }
-                typeValue =SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
+                if (!typeRead) typeValue =SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
             }
             float erosion = 0;
             float typeCount = _LayerC[li].w;
