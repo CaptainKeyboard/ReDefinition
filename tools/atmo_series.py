@@ -1275,7 +1275,11 @@ def cmd_run(args):
     # Before anything is touched (lock, build, deploy): the offline preflight; any FAIL refuses the run.
     import atmo_preflight
     t = time.time()
-    results = atmo_preflight.run_preflight(repo, defn["name"], args.start, ksp, mainrepo, who, dotnet=_dotnet())
+    # --free-memory-gb: the free RAM the preflight and the run ask for, for this run only (the series' freeMemoryGb, default 12, otherwise; the file is not changed).
+    if args.free_memory_gb is not None:
+        defn["freeMemoryGb"] = args.free_memory_gb
+        print("free RAM limit for this run: %g GB (--free-memory-gb)" % args.free_memory_gb)
+    results = atmo_preflight.run_preflight(repo, defn["name"], args.start, ksp, mainrepo, who, dotnet=_dotnet(), need_free_gb=args.free_memory_gb)
     preflight_seconds = time.time() - t
     if not atmo_preflight.preflight_ok(results):
         print(atmo_preflight.format_preflight(defn["name"], results))
@@ -1795,6 +1799,7 @@ def main(argv):
     s.add_argument("--ksp")
     s.add_argument("--dry", action="store_true")
     s.add_argument("--log")
+    s.add_argument("--free-memory-gb", type=float, default=None, help="the free RAM the preflight and the run ask for, this run only (default: the series' freeMemoryGb, 12)")
     s = sub.add_parser("preflight")
     s.add_argument("series")
     s.add_argument("--start")
