@@ -260,6 +260,32 @@ namespace ReDefinition.Atmospheres
             }
             Emit("T09.pin.views", views.Count);
             Emit("T09.pin.limits", limits.Count);
+            // -t09Turn (T09ProbeTurn.cs): the pinned turn instead of the captures, on the launch pad (-t09TurnPad: no placement) or in the first view of -t09PinViews.
+            if (TurnFrames > 0)
+            {
+                View turnView = views.Count > 0 ? views[0] : Views[0];
+                bool pad = TurnPad;
+                pinLabel = pad ? "pad" : turnView.Name;
+                if (!pad)
+                {
+                    foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, turnView)) yield return w;
+                    if (!PinStep("placed", placeOk, "the " + turnView.Name + " view")) yield break;
+                    foreach (ProbeWait w in StableGate(turnView, variant)) yield return w;
+                }
+                pinActive = true;
+                PinHideUi();
+                foreach (ProbeWait w in PinSettleSteps(turnView)) yield return w;
+                if (pinSettledOk)
+                {
+                    foreach (ProbeWait w in PinTurn(OwnCloudModule.Current, limits, pad ? 60.0 : turnView.CameraDistM)) yield return w;
+                }
+                PinShowUi();
+                PinCleanup();
+                pinLabel = "ground";
+                EndVariant();
+                if (!pad) Game.StopHold();
+                yield break;
+            }
             var restore = new List<KeyValuePair<string, double>>();
             foreach (View view in views)
             {

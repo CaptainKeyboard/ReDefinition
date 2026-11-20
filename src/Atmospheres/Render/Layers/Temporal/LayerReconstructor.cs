@@ -125,6 +125,8 @@ namespace ReDefinition.Atmospheres
         internal bool LastEdge { get; private set; }
         internal int LastMarchPass { get; private set; }
         internal bool LastCountTarget { get; private set; }
+        // Whether the block reconstruction read the scene's depth (recon.sceneDepth with the frame's scene depth bound).
+        internal bool LastSceneDepth { get; private set; }
         private static readonly int IdAgeTex = Shader.PropertyToID("_AgeTex");
         private RenderTexture fullA, ageA, ageB;
         private RenderTargetIdentifier[] targetsA, targetsB;
@@ -319,6 +321,7 @@ namespace ReDefinition.Atmospheres
             LastBlock = n;
             LastEdge = edgeOn;
             LastCountTarget = false;
+            LastSceneDepth = false;
             float scale = s.Mode == ReconMode.Low ? Mathf.Clamp(s.Resolution, 0.1f, 1f) : (s.Mode == ReconMode.Full ? 1f : 1f / n);
             int lw = s.Mode == ReconMode.Block ? (w + n - 1) / n : Mathf.RoundToInt(w * scale);
             int lh = s.Mode == ReconMode.Block ? (h + n - 1) / n : Mathf.RoundToInt(h * scale);
@@ -540,6 +543,7 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
                 m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn && s.Age ? 1f : 0f, ageOn && distanceOn ? Mathf.Max(0f, s.DistanceReject) : 0f,
                                                   s.SceneDepth && f.UseSceneDepth ? 1f : 0f));
+                LastSceneDepth = s.SceneDepth && f.UseSceneDepth;
                 if (distanceOn) m.SetTexture(IdDistTex, lowDistance);
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;
