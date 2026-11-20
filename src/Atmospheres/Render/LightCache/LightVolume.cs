@@ -51,9 +51,9 @@ namespace ReDefinition.Atmospheres
         public float HandOverM = 8000f, BandShare = 0.15f, PixelAngleRad;
         public int FarTaps = 3, Slices = 8, GridN = 128, GridNz = 32, Cascades = 2, FillTaps;
         public float Warp = 1f, WarpLimit = 1000f, VoxelM = 312.5f, FarScale = 4f, FadeVoxels = 4f, RelayM = 100000f, FillRatio = 1.15f;
-        // The fill (0 direct, 1 propagation, 2 / 3 reference), the propagation's samples per segment and its limit in voxels, the diagnosis, the near length's factor, the reference's
+        // The fill (0 direct, 1 propagation, 2 / 3 reference), the propagation's samples per segment and its limit in voxels, the near length's factor, the reference's
         // taps and growth; the read: k of the stored transmittance (0: the optical depth is stored), the read point past the trilinear footprint and its longest near length.
-        public int Fill, PropSteps = 2, PropCap = 16, Diagnosis, RefTaps = 64;
+        public int Fill, PropSteps = 2, PropCap = 16, RefTaps = 64;
         public float PropLimit = 8f, NearScale = 1f, RefRatio = 1.03f, StoreK = 4f, ReadPast, ReadPastMaxM = 4000f, CapRead;
 
         // What the last Record did: the slices filled, whether it was a new lay, and the lays so far.
@@ -107,7 +107,6 @@ namespace ReDefinition.Atmospheres
             PropSteps = CloudLookTuning.LvPropSteps;
             PropCap = Math.Max(CloudLookTuning.LvPropCap, PropSteps);
             PropLimit = CloudLookTuning.LvPropLimit;
-            Diagnosis = CloudLookTuning.LvDebug;
             NearScale = CloudLookTuning.LvNearScale;
             RefTaps = CloudLookTuning.LvRefTaps;
             RefRatio = CloudLookTuning.LvRefRatio;
@@ -201,7 +200,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.F, new Vector4(FillTaps, FillRatio, 0f, 0f));
             m.SetVectorArray(Ids.O, sliceO);
             m.SetVector(Ids.P, new Vector4(Mathf.Clamp(Fill, 0, 3), PropSteps, PropCap, PropLimit));
-            m.SetVector(Ids.D, new Vector4(Diagnosis, NearScale, RefTaps, RefRatio));
+            m.SetVector(Ids.D, new Vector4(0f, NearScale, RefTaps, RefRatio));
             m.SetVector(Ids.R, new Vector4(StoreK, ReadPast, ReadPastMaxM, CapRead));
         }
 

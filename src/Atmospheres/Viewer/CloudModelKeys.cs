@@ -65,8 +65,6 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneLvPropCap, 16f, KeySection.Light, "light volume: most samples of a propagation segment", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 64f);
             r.Key(CloudLookTuning.TuneLvPropLimit, 8f, KeySection.Light, "light volume: longest horizontal run of a segment in voxels (beyond: direct march)",
                 KeyLiveness.FrameHistory, KeyMarker.Live, 0.5f, 1000f);
-            r.Key(CloudLookTuning.TuneLvDebug, 0f, KeySection.Light, "light volume diagnosis: 1 the far part marched exactly from the read point (no voxels)",
-                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
             r.Key(CloudLookTuning.TuneLvNearScale, 1f, KeySection.Light, "light volume: factor on the far path's near length", KeyLiveness.FrameHistory, KeyMarker.Live, 0.1f, 20f);
             r.Key(CloudLookTuning.TuneLvRefTaps, 64f, KeySection.Light, "light volume: the reference fill's taps", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 64f);
             r.Key(CloudLookTuning.TuneLvStoreK, 4f, KeySection.Light, "light volume: k of the stored transmittance exp(-tau / k) (0: the optical depth is stored)",

@@ -55,12 +55,11 @@ float4 _LvU, _LvE, _LvN;   // the anchored frame: up, east, north (planet frame,
 float4 _LvZ;      // x, y the altitude range in m, z the slices of a cascade, w the fade band at a window's edge in voxels
 float4 _LvC;      // x, y the voxel size of cascade 0 and 1 in m, z the voxels across a window, w the cascades in use (1, 2)
 float4 _LvF;      // x the fill's taps over the whole sun march (0: the march's own taps beyond the far near taps), y the growth of each fill tap over the one before
-float4 _LvO[LV_MAX_SLICES];  // per slice: the window origin (voxel index) of cascade 0 (xy) and 1 (zw) when the slice was last filled (LightVolumeMath.NotFilled: not since the lay)
+float4 _LvO[64];  // LV_MAX_SLICES; per slice: the window origin (voxel index) of cascade 0 (xy) and 1 (zw) when the slice was last filled (LightVolumeMath.NotFilled: not since the lay)
 float4 _LvSlice;  // the fill (a global, never on the material): x the slice, y the cascade, z, w the window origin
 float4 _LvP;      // LV2 fill: x the mode (0 direct march, 1 propagation, 2 / 3 fine reference to the sun / over the direct length), y, z the propagation's least and most samples
                   // per segment, w the longest horizontal run of a segment in voxels (beyond it the direct march)
-float4 _LvD;      // LV2: x the far path's diagnosis (0 the volume; 1 the volume's value marched exactly from the read point as the fill would, no voxels), y the factor on the far
-                  // path's near length, z the reference fill's taps, w their growth
+float4 _LvD;      // LV2: x unused, y the factor on the far path's near length, z the reference fill's taps, w their growth
 float4 _LvR;      // LV2 read: x k of the stored value (0: the optical depth; above 0: exp(-tau / k), interpolated as such and read back as -k log), y 1: the read point past the
                   // trilinear footprint (near + one near voxel's diagonal over the sun's height), z the longest near length that gives in m, w 1: the read takes the stored value
                   // less the value where the rest of the sun march's length ends (a fill that reaches the sun read as the full march's length)
@@ -337,8 +336,6 @@ void LightVolumePlan(float3 pc, float3 sunDir, float dist, int steps, out float 
         nearSteps = keep;
         if (keep <= 0) near = 0.0;
     }
-    // _LvD.x 1 (diagnosis): no volume read; the caller marches the far part from the read point as the fill would (LightSource's slot 5).
-    if (_LvD.x > 0.5) { share = far; return; }
     float wv;
     float3 q = pc + sunDir * near;
     volTau = LightVolumeFetch(q, wv);
@@ -449,17 +446,11 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     // with a copy of the density, were what the Unity 2019.4 shader compiler choked on). Slot 0 the sun, 1 and 2 the moons, 3 straight up.
     int moonSteps = max(1, (int)_LightS.x);
 #ifdef CLOUD_LIGHTVOL
-    #define LIGHT_SLOTS 6
+    #define LIGHT_SLOTS 5
     #define LIGHT_ERODED ((k == 0 || k == 4) ? (int)_BlendP.w : 0)
-    #define LIGHT_ORIGIN torig[k]
-    #define LIGHT_OWN (k == 5 ? -1 : li)
-    #define LIGHT_RATIO tratio[k]
 #else
     #define LIGHT_SLOTS 4
     #define LIGHT_ERODED k == 0 ? (int)_BlendP.w : 0
-    #define LIGHT_ORIGIN pc
-    #define LIGHT_OWN li
-    #define LIGHT_RATIO _LightR.y
 #endif
     float3 tdir[LIGHT_SLOTS];
     int tsteps[LIGHT_SLOTS];
@@ -472,34 +463,21 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     tdir[3] = normalize(pc); tsteps[3] = max(1, (int)_LightS.y); tspread[3] = 0.0; trot[3] = 0.0;
     need[3] = _LightQ.w > 0 && tauUp < 0 && !(_LightT.w > 1.5 && tauUpReuse >= 0) && _LightT.w > 0.5;
 #ifdef CLOUD_LIGHTVOL
-    // LV1: slot 0 the full march (needed while the far path's share is below 1), slot 4 the far path's near taps (the same first places and erosion reads as slot 0's).
+    // Slot 0 the full march (needed while the far path's share is below 1), slot 4 the far path's near taps (the same first places and erosion reads as slot 0's).
     bool sunNeeded = need[0];
     need[0] = sunNeeded && lvShare < 1.0;
     tdir[4] = sunDir; tsteps[4] = max(lvSteps, 1); tspread[4] = _LightR.x; trot[4] = rot; trange[4] = -lvNear;
     need[4] = sunNeeded && lvShare > 0.0 && lvSteps > 0;
-    // LV2 diagnosis (_LvD.x 1): slot 5 marches the far part from the read point as the fill would (no voxels): the direct fill's taps over the rest of the sun march, or (the
-    // other fills) the reference's taps through whole spans, or over the rest of the sun march's length from the read point with the capped read (_LvR.w).
-    float3 torig[LIGHT_SLOTS];
-    float tratio[LIGHT_SLOTS];
-    [unroll] for (int ko = 0; ko < LIGHT_SLOTS; ko++) { torig[ko] = pc; tratio[ko] = _LightR.y; }
-    bool exact = _LvP.x > 0.5;
-    int keepKey = min((int)_LvA.z, steps - 1);
-    torig[5] = pc + sunDir * lvNear; tdir[5] = sunDir; tspread[5] = 0.0; trot[5] = 0.0;
-    tsteps[5] = exact ? max(1, (int)_LvD.z) : max(1, steps - keepKey);
-    trange[5] = exact ? (_LvR.w > 0.5 ? -max(_Sun.w - lvNear, 1.0) : 1e30) : max(_Sun.w - lvNear, 1.0);
-    tratio[5] = exact ? max(_LvD.w, 1.0) : _LightR.y;
-    need[5] = sunNeeded && lvShare > 0.0 && _LvD.x > 0.5;
 #endif
     [loop] for (int k = 0; k < LIGHT_SLOTS; k++)
     {
         ttau[k] = 0.0;
         if (!need[k]) continue;
-        ttau[k] = LightTau(LIGHT_ORIGIN, tdir[k], LIGHT_OWN, tsteps[k], t, tspread[k], trot[k], LIGHT_ERODED, trange[k], LIGHT_RATIO);
+        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k], LIGHT_ERODED, trange[k], _LightR.y);
     }
 #ifdef CLOUD_LIGHTVOL
     if (sunNeeded)
     {
-        if (need[5]) lvTau = ttau[5];
         tauSun = lvShare <= 0.0 ? ttau[0] : lvShare >= 1.0 ? ttau[4] + lvTau : lerp(ttau[0], ttau[4] + lvTau, lvShare);
         taps = (need[0] ? steps : 0) + (need[4] ? lvSteps : 0);
     }
@@ -508,9 +486,6 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
 #endif
     #undef LIGHT_SLOTS
     #undef LIGHT_ERODED
-    #undef LIGHT_ORIGIN
-    #undef LIGHT_OWN
-    #undef LIGHT_RATIO
     tauSunOut = max(tauSun, 0.0);
     float2 cell = float2(1.0, -1.0);
     [branch] if (_LightM[li].w > 0) cell = CellLight(pc, dens, max(tauSun, 0.0), topAlt, _LightM[li].w);

@@ -204,6 +204,13 @@ namespace ReDefinition.WeatherPlayer
             public int LvCascades = -1, LvGridZ = -1, LvVoxel = -1, LvFillTaps = -1, LvFillRatio = -1, LvBand = -1;
             // lvs<N>: the far cascade's voxel over the near one's.
             public int LvFarScale = -1;
+            // LV2: lvm<N> the fill (0 direct, 1 propagation, 2 / 3 reference), lvq<N> the near length's factor in hundredths, lvk<N> / lvx<N> the
+            // propagation's least / most samples, lvl<N> its limit in voxels.
+            public int LvFill = -1, LvNearScale = -1, LvPropSteps = -1, LvPropCap = -1, LvPropLimit = -1;
+            // lvh<N> k of the stored transmittance, lvp1 the read past the footprint, lvo<N> the time warp's rate (LightVolume.TimeWarpRate), lvu<N> the warp limit.
+            public int LvStoreK = -1, LvReadPast = -1, LvWarpRate = -1, LvWarpLimit = -1;
+            // lvy1: the capped read.
+            public int LvCapRead = -1;
         }
 
         private static LightCache cache;
@@ -292,6 +299,16 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("lvw")) c.LvWarp = Number(t, 3);
                 else if (t.StartsWith("lvc")) c.LvCascades = Number(t, 3);
                 else if (t.StartsWith("lvs")) c.LvFarScale = Number(t, 3);
+                else if (t.StartsWith("lvm")) c.LvFill = Number(t, 3);
+                else if (t.StartsWith("lvh")) c.LvStoreK = Number(t, 3);
+                else if (t.StartsWith("lvy")) c.LvCapRead = Number(t, 3);
+                else if (t.StartsWith("lvp")) c.LvReadPast = Number(t, 3);
+                else if (t.StartsWith("lvo")) c.LvWarpRate = Number(t, 3);
+                else if (t.StartsWith("lvu")) c.LvWarpLimit = Number(t, 3);
+                else if (t.StartsWith("lvq")) c.LvNearScale = Number(t, 3);
+                else if (t.StartsWith("lvk")) c.LvPropSteps = Number(t, 3);
+                else if (t.StartsWith("lvx")) c.LvPropCap = Number(t, 3);
+                else if (t.StartsWith("lvl")) c.LvPropLimit = Number(t, 3);
                 else if (t.StartsWith("lvz")) c.LvGridZ = Number(t, 3);
                 else if (t.StartsWith("lvv")) c.LvVoxel = Number(t, 3);
                 else if (t.StartsWith("lvf")) c.LvFillTaps = Number(t, 3);
@@ -336,6 +353,16 @@ namespace ReDefinition.WeatherPlayer
             if (c.LvWarp >= 0) Tuning.SetOverride(CloudLookTuning.TuneLvWarp, c.LvWarp); else Tuning.ClearOverride(CloudLookTuning.TuneLvWarp);
             Lever(CloudLookTuning.TuneLvCascades, c.LvCascades, 1f);
             Lever(CloudLookTuning.TuneLvFarScale, c.LvFarScale, 1f);
+            Lever(CloudLookTuning.TuneLvFill, c.LvFill, 1f);
+            Lever(CloudLookTuning.TuneLvNearScale, c.LvNearScale, 0.01f);
+            Lever(CloudLookTuning.TuneLvPropSteps, c.LvPropSteps, 1f);
+            Lever(CloudLookTuning.TuneLvPropCap, c.LvPropCap, 1f);
+            Lever(CloudLookTuning.TuneLvPropLimit, c.LvPropLimit, 1f);
+            Lever(CloudLookTuning.TuneLvStoreK, c.LvStoreK, 1f);
+            Lever(CloudLookTuning.TuneLvCapRead, c.LvCapRead, 1f);
+            Lever(CloudLookTuning.TuneLvReadPast, c.LvReadPast, 1f);
+            Lever(CloudLookTuning.TuneLvWarpLimit, c.LvWarpLimit, 1f);
+            LightVolume.TimeWarpRate = c.LvWarpRate > 0 ? c.LvWarpRate : 1f;
             Lever(CloudLookTuning.TuneLvGridZ, c.LvGridZ, 1f);
             Lever(CloudLookTuning.TuneLvVoxel, c.LvVoxel, 1f);
             Lever(CloudLookTuning.TuneLvFillTaps, c.LvFillTaps, 1f);
@@ -538,7 +565,17 @@ namespace ReDefinition.WeatherPlayer
             // 1 degree a frame (a time warp of about 15000 at Kerbin's day; 33 degrees over the run).
             new Scenario { Name = "lvmove", ForwardPerFrame = 100f, NoReference = true, Dump = new[] { 6, 10, 14, 18, 22, 26, 30, 34, 38 } },
             new Scenario { Name = "lvsun", SunPerFrame = 1f, NoReference = true, Dump = new[] { 6, 10, 14, 18, 22, 26, 30, 34, 38 } },
+            // LV2: the same motions, every frame of 16 (frames 20 to 35).
+            new Scenario { Name = "lvmove16", ForwardPerFrame = 100f, NoReference = true, Dump = Range(20, 16) },
+            new Scenario { Name = "lvsun16", SunPerFrame = 1f, NoReference = true, Dump = Range(20, 16) },
         };
+
+        private static int[] Range(int first, int count)
+        {
+            var frames = new int[count];
+            for (int k = 0; k < count; k++) frames[k] = first + k;
+            return frames;
+        }
 
         // -scenarios a,b: only these (the LV1 ones run only when named); without it every scenario but the LV1 ones (and -dump last: the still one).
         private static bool Selected(Scenario sc)
@@ -866,6 +903,8 @@ namespace ReDefinition.WeatherPlayer
             evictA.Release();
             evictB.Release();
             Cam.RemoveCommandBuffer(CameraEvent.AfterSkybox, cb);
+            rig.Recon.MarkCacheFilled = null;
+            LightVolume.TimeWarpRate = 1f;
             rig.Dispose();
             Sink.Flag("soft_cost_completed", true);
         }

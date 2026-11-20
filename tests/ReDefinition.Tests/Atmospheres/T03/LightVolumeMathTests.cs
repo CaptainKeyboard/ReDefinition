@@ -78,7 +78,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(LightVolumeMath.MinCos, Define(light, "LV_MIN_COS"));
             Assert.AreEqual(LightVolumeMath.MaxSlices, Define(light, "LV_MAX_SLICES"));
             Assert.AreEqual(LightVolumeMath.MinStored, Define(light, "LV_MIN_STORED"), 1e-9f);
-            StringAssert.Contains(light, "float4 _LvO[LV_MAX_SLICES];");
+            StringAssert.Contains(light, "float4 _LvO[" + LightVolumeMath.MaxSlices + "];");
             // the fetch: gnomonic coordinates, the bilinear footprint against each slice's window
             StringAssert.Contains(light, "float2 xy = _PlanetR * float2(dot(n, _LvE.xyz), dot(n, _LvN.xyz)) / c;");
             StringAssert.Contains(light, "float2 g = xy / vox - 0.5;");

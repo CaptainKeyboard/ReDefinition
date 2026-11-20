@@ -388,17 +388,15 @@ namespace ReDefinition.Atmospheres
         //                                  between them, refreshed from the top down; 2 / 3 a fine reference march (the diagnosis) through whole spans / over the direct fill's length
         //   cloud.lightVolume.propSteps, .propCap   the least and most samples of a segment (scaled between them so that they stay about a voxel apart at a low sun)
         //   cloud.lightVolume.propLimit    the longest horizontal run of a segment in voxels; beyond it (a low sun) the voxel takes the direct march
-        //   cloud.lightVolume.debug        1: the far path marches its far part exactly from the read point as the fill would (no voxels, the diagnosis of the read)
         //   cloud.lightVolume.nearScale    factor on the far path's near length (the read point further towards the sun)
         //   cloud.lightVolume.refTaps, .refRatio    the reference fill's taps (at most 64, LightTau's loop) and their growth
         internal const string TuneLvFill = "cloud.lightVolume.fill", TuneLvPropSteps = "cloud.lightVolume.propSteps", TuneLvPropCap = "cloud.lightVolume.propCap",
-            TuneLvPropLimit = "cloud.lightVolume.propLimit", TuneLvDebug = "cloud.lightVolume.debug", TuneLvNearScale = "cloud.lightVolume.nearScale",
+            TuneLvPropLimit = "cloud.lightVolume.propLimit", TuneLvNearScale = "cloud.lightVolume.nearScale",
             TuneLvRefTaps = "cloud.lightVolume.refTaps", TuneLvRefRatio = "cloud.lightVolume.refRatio";
         internal static int LvFill { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFill, 0f), 0f, 0f, 3f)); } }
         internal static int LvPropSteps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvPropSteps, 2f), 2f, 1f, 64f)); } }
         internal static int LvPropCap { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvPropCap, 16f), 16f, 1f, 64f)); } }
         internal static float LvPropLimit { get { return Clean(Tuning.Get(TuneLvPropLimit, 8f), 8f, 0.5f, 1000f); } }
-        internal static int LvDebug { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvDebug, 0f), 0f, 0f, 1f)); } }
         internal static float LvNearScale { get { return Clean(Tuning.Get(TuneLvNearScale, 1f), 1f, 0.1f, 20f); } }
         internal static int LvRefTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvRefTaps, 64f), 64f, 1f, 64f)); } }
         internal static float LvRefRatio { get { return Clean(Tuning.Get(TuneLvRefRatio, 1.03f), 1.03f, 1f, 4f); } }
