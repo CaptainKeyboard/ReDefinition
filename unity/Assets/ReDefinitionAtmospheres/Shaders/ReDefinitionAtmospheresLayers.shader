@@ -280,20 +280,18 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
                 // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
-                bool typeRead = false;
+                // The map-driven sky (keyword REDEFINITION_MAPSKY, set while cloud.weatherMapSky is on; _CellS per layer): the type is read before the cells and a sheet type is drawn
+                // connected (CellSheetWeight). Without the keyword the variant is the pass as before (a runtime branch here made the compiler process fail, 2026-11-20).
+                float sheetW = 0.0;
+#if defined(REDEFINITION_MAPSKY)
+                typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
+                sheetW = CellSheetWeight(li, typeValue);
+#endif
                 [branch] if (_CullL[li].w > 0.0)
                 {
                     float cellReach, wMap;
                     float edgeC = max(_LayerB[li].z, 1e-4);
                     gCellBodyX = CellBodyReachX(li);
-                    // The map-driven sky (_CellS, zero while cloud.weatherMapSky is off): the type map says where a sheet type is drawn connected; read here, before the cells.
-                    float sheetW = 0.0;
-                    [branch] if (_CellS[li].x > 0.5)
-                    {
-                        typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
-                        typeRead = true;
-                        sheetW = CellSheetWeight(li, typeValue);
-                    }
                     cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
                                     (uint)_NoiseOffset[li].w, sheetW, cellReach, wMap);
                     if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
@@ -302,7 +300,9 @@ Shader "ReDefinition/AtmospheresLayers"
                         return 0;
                     }
                 }
-                if (!typeRead) typeValue =SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
+#if !defined(REDEFINITION_MAPSKY)
+                typeValue =SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
+#endif
             }
             float erosion = 0;
             float typeCount = _LayerC[li].w;
@@ -915,6 +915,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -936,6 +937,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             float4 frag(v2f i) : SV_Target { return PassAux(i); }
             ENDCG
         }
@@ -947,6 +949,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             float4 frag(v2f i) : SV_Target
             {
                 float3 uvw = float3(i.uv, (_CacheSlice.x + 0.5) / max(_CacheSlice.y, 1.0));
