@@ -194,7 +194,7 @@ namespace ReDefinition.WeatherPlayer
             public int Grid;
             // sg<N>: a span's points by distance, the step's growth of N / 1000000 per m of distance from the camera (LayerFrame.SpanGrowthPerM).
             public int SpanGrowthE6;
-            // ld<N>: the leap's switches (LayerFrame.LeapDebug, bits); aid<N>: the pass's aid output (LayerFrame.AidMode; 8-10 the leap's probe); full: every pixel marched every frame,
+            // ld<N>: the leap's switches (LayerFrame.LeapDebug, bits); aid<N>: the pass's aid output (LayerFrame.AidMode); full: every pixel marched every frame,
             // no history (ReconMode.Full; the aid's numbers come out as the pass wrote them).
             // gf<N>: the step grows only beyond N m (LayerFrame.SpanGrowthFromM).
             public int LeapDebug = -1, Aid, GrowFromM;

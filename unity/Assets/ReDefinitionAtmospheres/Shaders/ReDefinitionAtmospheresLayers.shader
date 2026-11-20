@@ -430,12 +430,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float lightTaps;
             float distSum;    // sum over the steps of (weight in the ray's colour) x distance, for the mean distance of the cloud (T06)
             float weightSum;
-            // Aids 8-10 (layers.leapDebug's probe): the first leap of the ray that passed over cloud (see March).
-            float4 aidA, aidB, aidC;
         };
-
-        // Aids 8-10: the points a leap is probed at between its start and its landing.
-        #define LEAP_PROBES 12
 
         float Ign(float2 p, float frame)
         {
@@ -467,7 +462,6 @@ Shader "ReDefinition/AtmospheresLayers"
             r.tauLayer = 0;
             r.direct = 0; r.ambient = 0; r.lightTaps = 0;
             r.distSum = 0; r.weightSum = 0;
-            r.aidA = 0; r.aidB = 0; r.aidC = 0;
             if (_StepP.w > 0.5)
             {
                 float g0, g1;
@@ -526,11 +520,6 @@ Shader "ReDefinition/AtmospheresLayers"
             bool lbNoReach = fmod(leapBits, 2.0) > 0.5, lbNoGrow = fmod(floor(leapBits * 0.5), 2.0) > 0.5,
                  lbGap = fmod(floor(leapBits * 0.125), 2.0) > 0.5, lbInSlab = fmod(floor(leapBits / 16.0), 2.0) > 0.5, lbThin = fmod(floor(leapBits / 32.0), 2.0) > 0.5,
                  lbBack = fmod(floor(leapBits / 64.0), 2.0) > 0.5, lbRestart = fmod(floor(leapBits / 128.0), 2.0) > 0.5, lbEnd = fmod(floor(leapBits / 256.0), 2.0) > 0.5;
-            // Aids 8-10: every leap is probed at LEAP_PROBES points between its start and its landing (the same density call, the march's state untouched); the first leap whose
-            // landing is empty while a probe found cloud is written.
-            bool probeOn = _LimitP.y > 7.5 && _LimitP.y < 10.5;
-            int loopMax = probeOn ? 4096 : 512;
-            float misses = 0.0;
             [loop] for (int k = 0; k < 8; k++)
             {
                 if (k >= n) break;
@@ -599,26 +588,10 @@ Shader "ReDefinition/AtmospheresLayers"
                         if (ti.y > ti.x) thinM = min(thinM, (ti.y - ti.x) * (_LayerA[li].y - _LayerA[li].x));
                     }
                 }
-                // Aids 8-10: the probe of the last leap (probeLeft points still to take; pending: its landing is the next sample).
-                int probeLeft = 0;
-                bool probePending = false;
-                float pStart = 0.0, pLen = 0.0, pFirst = -1.0;
-                float4 pA = 0, pB = 0, pC = 0;
-                [loop] for (int i = 0; i < loopMax; i++)
+                [loop] for (int i = 0; i < 512; i++)
                 {
-                    bool probing = probeLeft > 0;
-                    float tq = probing ? pStart + pLen * ((float)(LEAP_PROBES - probeLeft) + 0.5) / LEAP_PROBES : t;
-                    if (!probing && !(t < tEnd))
-                    {
-                        // A leap past the span's end that passed over cloud.
-                        if (probePending && pFirst >= 0.0)
-                        {
-                            misses += 1.0;
-                            if (misses < 1.5) { r.aidA = pA; r.aidA.z = pFirst; r.aidB = pB; r.aidB.y = length(o + d * (pStart + pFirst)) - _PlanetR; r.aidB.z = -1.0; r.aidC = pC; }
-                        }
-                        break;
-                    }
-                    float3 pc = o + d * tq;
+                    if (!(t < tEnd)) break;
+                    float3 pc = o + d * t;
                     float alt = length(pc) - _PlanetR;
                     float share;
                     // T16: the step grows along the span; the detail's footprint is the pixel's size at the distance.
@@ -630,27 +603,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     else if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
                     // A4 (cloud.cellFoot): the pixel's size at the sample, the narrowest band the body is drawn with (CellBody).
                     gBodyFoot = _CullD.x > 0.5 ? _CullD.y * t : 0.0;
-                    float dens = LayerDensity(li, pc, alt, tq, share) * spanF;
-                    // Aids 8-10: a probe point of the last leap, or its landing.
-                    [branch] if (probeOn)
-                    {
-                        if (probing)
-                        {
-                            if (dens > 0 && pFirst < 0.0) pFirst = tq - pStart;
-                            probeLeft -= 1;
-                            probePending = probeLeft == 0;
-                            continue;
-                        }
-                        if (probePending)
-                        {
-                            probePending = false;
-                            if (!(dens > 0) && pFirst >= 0.0)
-                            {
-                                misses += 1.0;
-                                if (misses < 1.5) { r.aidA = pA; r.aidA.z = pFirst; r.aidB = pB; r.aidB.y = length(o + d * (pStart + pFirst)) - _PlanetR; r.aidB.z = alt; r.aidC = pC; }
-                            }
-                        }
-                    }
+                    float dens = LayerDensity(li, pc, alt, t, share) * spanF;
                     // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's billows the body's depth changes by at most 1 per m, so no surface lies within that
                     // depth (CellShellGap) nor within the reach of a neighbour's body (gCellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
                     // jitter, which spreads the entry over the frames) is kept and the picture is the grid march's, only cheaper; the entry is then found as before. A sphere trace on the
@@ -708,13 +661,6 @@ Shader "ReDefinition/AtmospheresLayers"
                         tLast = t + traceGap - dtv;
                         arrived = 1.0;
                         leap = 1.0;
-                        [branch] if (probeOn)
-                        {
-                            probeLeft = LEAP_PROBES; pStart = t; pLen = min(traceGap, tEnd - t); pFirst = -1.0;
-                            pA = float4(t * 0.001, traceGap, 0.0, 10.0 + 16.0);
-                            pB = float4(alt, 0.0, 0.0, 0.0);
-                            pC = float4(dtv, -1.0, gEmptyM, (float)li);
-                        }
                         t += traceGap;
                         continue;
                     }
@@ -750,13 +696,6 @@ Shader "ReDefinition/AtmospheresLayers"
                         // 256: a leap past the span's end is never tested by a landing; it becomes one grid step and the leap starts again.
                         bool pastEnd = lbEnd && arrived > 1.5 && t + jump >= tEnd;
                         if (pastEnd) jump = reachSkip + dtv;
-                        [branch] if (probeOn)
-                        {
-                            probeLeft = jump > dtv * 1.001 ? LEAP_PROBES : 0; pStart = t; pLen = min(jump, tEnd - t); pFirst = -1.0;
-                            pA = float4(t * 0.001, jump, 0.0, gExit + 16.0 * min(arrived, 120.0));
-                            pB = float4(alt, 0.0, 0.0, jump);
-                            pC = float4(dtv, gapUsed, gExit + 16.0 * min(arrived, 120.0), (float)li);
-                        }
                         t += jump;
                         // With the points by distance the leap's cap in grid points follows the step at the sample (the cap is a length in the layer's noise scales; dt is the
                         // step at the camera, and a cap counted in it would let a far leap pass over whole clouds).
@@ -879,7 +818,6 @@ Shader "ReDefinition/AtmospheresLayers"
             // A ray that ended on the early-out is opaque: the remaining transmittance (up to the threshold, 1 %) would show a bright background (the
             // sun's or the moon's disc, a lit planet) as a dot through a thick cloud (T03v2).
             r.alpha = T < _MarchP.w ? 1.0 : 1.0 - exp(-r.tau);
-            r.aidC.w += 8.0 * min(misses, 200.0);
             // Aerial perspective (T06): the air between the camera and the cloud's mean distance thins the cloud's colour towards the horizon sky.
             if (_FarA.x > 0.5 && r.weightSum > 1e-9)
             {
@@ -966,16 +904,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 return float4(col, 1.0);
             }
             // Aid 7 (T16): the LOD map at the ray's first dense sample: red the tap factor over 1, green the step scale over 1, blue the detail footprint share over 1.
-            // Aids 8-10 (layers.leapDebug's probe): the ray's first leap that passed over cloud (its landing empty, a probe between dense). 8: the leap's start in km, its length in m,
-            // the first probe found dense in m after the start, the exit code of the start (LayerDensityEx: 1-9, 26 the cells' trace) + 16 x the leap in grid points; 9: the
-            // altitudes in m of the start, the dense probe and the landing (-1: past the span's end), the empty reach skipped in m; 10: the step at the start in m, the slab or
-            // band gap in m (-1: none), the empty reach read in m, the layer + 8 x the ray's number of such leaps. All zero: no leap passed over cloud.
-            if (_LimitP.y > 7.5 && _LimitP.y < 8.5) return r.aidA;
-            if (_LimitP.y > 8.5 && _LimitP.y < 9.5) return r.aidB;
-            if (_LimitP.y > 9.5 && _LimitP.y < 10.5) return r.aidC;
-            // Aid 11: the samples the ray took, its light taps, its first dense sample in km, its alpha.
-            if (_LimitP.y > 10.5 && _LimitP.y < 11.5) return float4(r.steps, r.lightTaps, r.first * 0.001, r.alpha);
-            if (_LimitP.y > 6.5 && _LimitP.y < 7.5)
+            if (_LimitP.y > 6.5)
                 return float4(saturate((CullTapFactor(r.first) - 1.0) * 0.5), saturate(_CullC.x * max(r.first, 0.0) * 0.5), saturate(CullFoot(r.first, 1.0) * 0.001), 1.0) * step(0.5, r.steps);
             if (_LimitP.y > 0.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
             return float4(r.rgb, r.alpha);
