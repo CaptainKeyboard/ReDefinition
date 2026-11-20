@@ -61,7 +61,21 @@ A_CASES = [
     ("3x3-td-count", HEAD + "blk3" + TAIL + "+rtd+rag"),
     ("4x4-td-count", HEAD + "blk4" + TAIL + "+rtd+rag"),
 ]
-SETS = {"hist1": ("motion", VIEWS, SCENARIOS, CASES, []), "hist1w": ("weights", W_VIEWS, W_SCENARIOS, W_CASES, []),
+# HIST1D: the history dropped by distance (rdr<NN>: NN / 100 octaves) so that the colour clip can be wide (clip<N>), settled, with the count.
+D_CASES = [
+    ("2x2-today", HEAD + "blk2" + TAIL),
+    ("2x2-td", HEAD + "blk2" + TAIL + "+rtd"),
+    ("3x3-td", HEAD + "blk3" + TAIL + "+rtd"),
+    ("3x3-td-clip2", HEAD + "blk3" + TAIL + "+rtd+rag+clip20"),
+    ("3x3-td-clip2-dist03", HEAD + "blk3" + TAIL + "+rtd+rag+clip20+rdr30"),
+    ("3x3-td-clip3-dist03", HEAD + "blk3" + TAIL + "+rtd+rag+clip30+rdr30"),
+    ("3x3-td-noclip-dist03", HEAD + "blk3" + TAIL + "+rtd+rag+clip9990+rdr30"),
+    ("3x3-td-noclip-dist01", HEAD + "blk3" + TAIL + "+rtd+rag+clip9990+rdr10"),
+    ("4x4-td-clip3-dist03", HEAD + "blk4" + TAIL + "+rtd+rag+clip30+rdr30"),
+    ("2x2-td-clip3-dist03", HEAD + "blk2" + TAIL + "+rtd+rag+clip30+rdr30"),
+]
+SETS = {"hist1d": ("distance", VIEWS, A_SCENARIOS, D_CASES, ["-warm", "120"]),
+        "hist1": ("motion", VIEWS, SCENARIOS, CASES, []), "hist1w": ("weights", W_VIEWS, W_SCENARIOS, W_CASES, []),
         "hist1a": ("cut", VIEWS, A_SCENARIOS, A_CASES, []), "hist1as": ("settled", VIEWS, A_SCENARIOS, A_CASES, ["-warm", "120"])}
 
 
@@ -82,6 +96,7 @@ register_series("hist1", stages("hist1"), collect, exclusive=False, who="hist1")
 register_series("hist1w", stages("hist1w"), collect, exclusive=False, who="hist1")
 register_series("hist1a", stages("hist1a"), collect, exclusive=False, who="hist1")
 register_series("hist1as", stages("hist1as"), collect, exclusive=False, who="hist1")
+register_series("hist1d", stages("hist1d"), collect, exclusive=False, who="hist1")
 
 
 def load(folder, name):
@@ -95,6 +110,20 @@ def display(a):
     """Premultiplied radiance over a mid grey, with a plain display curve: a picture to compare cases in, not the product's display stage."""
     rgb = a[..., :3] + (1.0 - np.clip(a[..., 3:4], 0, 1)) * 0.18
     return np.clip(rgb / (1.0 + rgb) * 1.6, 0, 1) ** (1 / 2.2)
+
+
+def fine(img, k=4):
+    """The picture's detail finer than k pixels (the luminance minus its k x k block mean)."""
+    g = img.mean(axis=2)
+    h, w = g.shape[0] // k * k, g.shape[1] // k * k
+    b = g[:h, :w].reshape(h // k, k, w // k, k).mean(axis=(1, 3))
+    return g[:h, :w] - np.repeat(np.repeat(b, k, axis=0), k, axis=1)
+
+
+def kept(img, ref):
+    """The share of the reference's fine detail the picture keeps (projection: noise that the two do not share does not count; a blur lowers it, a displacement too)."""
+    a, r = fine(img), fine(ref)
+    return float((a * r).sum() / max((r * r).sum(), 1e-12))
 
 
 def save(img, path):
@@ -122,13 +151,13 @@ def pictures(out, root, name="hist1"):
                         print("missing %s %s %s f%d" % (view, sc, name, f))
                         continue
                     err = np.abs(display(a) - display(ref)).mean(axis=2)
-                    rows.append((word, sc, f, name, err.mean(), np.percentile(err, 99)))
+                    rows.append((word, sc, f, name, err.mean(), np.percentile(err, 99), kept(display(a), display(ref))))
                     if f == FRAMES[sc][-1]:
                         save(display(a), os.path.join(out, "HIST1-%s-%s-f%d-%s-2560x1440.png" % (word, sc, f, name)))
                         save(np.repeat(np.clip(err * 4.0, 0, 1)[..., None], 3, axis=2), os.path.join(out, "HIST1-%s-%s-f%d-%s-error-x4-2560x1440.png" % (word, sc, f, name)))
     print("view, scenario, frame, case: mean and 99th percentile of the display error against the full march of the same pose")
     for r in rows:
-        print("  %-11s %-8s f%-2d %-18s %.5f  %.4f" % r)
+        print("  %-11s %-8s f%-2d %-22s %.5f  %.4f  detail kept %.2f" % r)
 
 
 def main():

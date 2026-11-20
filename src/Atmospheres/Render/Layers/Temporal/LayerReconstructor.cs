@@ -55,6 +55,9 @@ namespace ReDefinition.Atmospheres
         // recon.age (Block mode without the edge pattern): the reconstruction keeps the number of marched samples each pixel's history holds (a second target of its pass 3):
         // the n-th sample enters at max(FreshWeight, 1 / n) and a pixel without a marched sample shows the current upsample. False: the fixed weights, as before.
         public bool Age;
+        // recon.distanceReject (with TrueDistance): the history keeps the distance of the cloud it showed (the count target's second channel) and is dropped where that is
+        // more than this many octaves from the distance at which the previous camera saw the pixel's cloud (a disocclusion). 0: off, the colour clip alone.
+        public float DistanceReject;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
@@ -232,7 +235,7 @@ namespace ReDefinition.Atmospheres
 
         private static RenderTexture MakeCount(string name, int w, int h)
         {
-            var rt = new RenderTexture(Mathf.Max(w, 2), Mathf.Max(h, 2), 0, RenderTextureFormat.RHalf, RenderTextureReadWrite.Linear)
+            var rt = new RenderTexture(Mathf.Max(w, 2), Mathf.Max(h, 2), 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear)
             {
                 name = name,
                 filterMode = FilterMode.Bilinear,
@@ -277,7 +280,7 @@ namespace ReDefinition.Atmospheres
                 targetsA = targetsB = null;
             }
             // recon.age: one sample count per full target, made with the first frame that asks for it. A count made anew holds no history: the frame runs as after a cut.
-            bool ageOn = s.Age && s.Mode == ReconMode.Block && !(s.Edge != null && s.Edge.Enabled && edgeMaterial != null);
+            bool ageOn = (s.Age || (s.TrueDistance && s.DistanceReject > 0f)) && s.Mode == ReconMode.Block && !(s.Edge != null && s.Edge.Enabled && edgeMaterial != null);
             if (ageOn && (!Fits(ageA, w, h) || targetsA == null))
             {
                 if (!Fits(ageA, w, h))
@@ -508,7 +511,7 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdPrevU, previousUp / previousTanY);
                 m.SetVector(IdShellR, new Vector4(info.MiddleRadius, info.FallbackDistance, 0f, 0f));
                 m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
-                m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn ? 1f : 0f, 0f, 0f));
+                m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn && s.Age ? 1f : 0f, ageOn && distanceOn ? Mathf.Max(0f, s.DistanceReject) : 0f, 0f));
                 if (distanceOn) m.SetTexture(IdDistTex, lowDistance);
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;

@@ -37,7 +37,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
         float4 _Drift;       // the cloud's drift over one frame in the planet frame (m), w: the history is valid (1) or not (0)
 
         sampler2D_float _DistTex;   // the march's second target (the layer shader's pass 6): the mean distance of each new sample's cloud along its ray (m), 0 where it holds none
-        float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0); y: the sample count is kept (1; recon.age)
+        float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0); y: the sample count weighs the samples (1; recon.age); z: the history is dropped where its stored distance is more than this many octaves from the frame's (recon.distanceReject; 0: off)
         sampler2D_float _AgeTex;    // the history's sample count (pass 3's second target of the last frame): the marched samples each pixel's history holds
 
         #include "ReDefinitionAtmospheresCloudMotion.cginc"
@@ -83,14 +83,21 @@ Shader "ReDefinition/AtmospheresReconstruct"
         // edge's, as the dilated motion vectors of temporal antialiasing: Karis, "High Quality Temporal Supersampling", SIGGRAPH 2014), the drift the one of the layer whose
         // middle sphere is nearest to the point. False where no sample around holds cloud (the caller's model then places the pixel); a place the previous camera did not see
         // comes back outside the picture.
-        bool TruePrevious(float3 o, float3 d, float2 q0, out float2 puv, out float dist)
+        bool TruePrevious(float3 o, float3 d, float2 q0, out float2 puv, out float dist, out float prev)
         {
             puv = -1.0;
-            dist = 1e30;
-            [unroll] for (int k = 0; k < 9; k++)
+            prev = 0.0;
+            // The nearest new sample's own distance where it holds cloud; the nearest of the eight around only where it holds none (the edge's dilation). Taking the
+            // nearest of all nine everywhere gave a far band at the horizon a nearer neighbour's distance: it led by 2-3 pixels in forward flight (HIST2 fwd300).
+            dist = tex2Dlod(_DistTex, float4((q0 + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
+            if (dist <= 0.0)
             {
-                float s = tex2Dlod(_DistTex, float4((q0 + float2(k % 3 - 1, k / 3 - 1) + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
-                if (s > 0.0) dist = min(dist, s);
+                dist = 1e30;
+                [unroll] for (int k = 0; k < 9; k++)
+                {
+                    float s = tex2Dlod(_DistTex, float4((q0 + float2(k % 3 - 1, k / 3 - 1) + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
+                    if (s > 0.0) dist = min(dist, s);
+                }
             }
             if (dist > 1e29)
             {
@@ -112,6 +119,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
             float3 v = pc - drift - _PrevPos.xyz;
             if (!PrevSees(v)) return true;
             puv = float2(dot(v, _PrevR.xyz), dot(v, _PrevU.xyz)) / dot(v, _PrevF.xyz) * 0.5 + 0.5;
+            prev = length(v);   // the distance at which the previous camera saw this point
             return true;
         }
 
@@ -151,9 +159,12 @@ Shader "ReDefinition/AtmospheresReconstruct"
         // picture's edge in a turn and where a cloud uncovers another. With the count the n-th sample enters at max(w, 1 / n) (the running mean until it reaches the
         // fixed weight: the first sample replaces the fill whole), and a pixel without a marched sample shows the current upsample of the new samples instead of the
         // moved fill. The settled picture is the same as without the count.
+        static float gStateDist;   // log2 of the distance (m) the frame placed the pixel's cloud at, 0 where it measured none: the count target's second channel
+
         float4 Reconstruct(v2f i, out float age)
         {
             age = 0.0;
+            gStateDist = 0.0;
             float n = max(_ReconP.x, 1.0);
             float2 pix = floor(i.uv * _ReconD.xy);
             float2 q = (pix - _ReconP.yz) / n;          // the pixel's place among the new samples (a sample stands at every whole number)
@@ -186,10 +197,20 @@ Shader "ReDefinition/AtmospheresReconstruct"
             float depth;
             bool valid;
             bool measured = false;
-            [branch] if (_ReconT.x > 0.5) measured = TruePrevious(o, d, q0, puv, depth);
+            float prevDist = 0.0;
+            [branch] if (_ReconT.x > 0.5) measured = TruePrevious(o, d, q0, puv, depth, prevDist);
+            gStateDist = measured ? log2(max(depth, 1.0)) : 0.0;
             if (measured)
             {
                 valid = _Drift.w > 0.5 && all(puv > 0.0) && all(puv < 1.0);
+                // recon.distanceReject (_ReconT.z, in octaves): the history holds the distance of the cloud it showed (the count target's second channel, read at the
+                // nearest texel: a distance is not blended across an edge). Where it is not the distance at which the previous camera saw this pixel's cloud, the
+                // history showed something else there (another cloud in front or behind, or none: a disocclusion) and is dropped. The colour clip can then be wide.
+                [branch] if (valid && _ReconT.z > 0.0)
+                {
+                    float stored = tex2Dlod(_AgeTex, float4((floor(puv * _ReconD.xy) + 0.5) / _ReconD.xy, 0, 0)).g;
+                    if (stored <= 0.0 || abs(stored - log2(max(prevDist, 1.0))) > _ReconT.z) valid = false;
+                }
             }
             else if (CloudPrevious(o, d, puv, depth))
             {
@@ -262,7 +283,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
             ReconTargets t;
             float age;
             t.colour = Reconstruct(i, age);
-            t.age = float4(age, 0.0, 0.0, 0.0);
+            t.age = float4(age, gStateDist, 0.0, 0.0);
             return t;
         }
 

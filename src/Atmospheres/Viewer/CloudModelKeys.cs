@@ -92,6 +92,12 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Flag(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault, KeySection.Quality,
                 "the block reconstruction counts the marched samples each pixel's history holds: a new area is sharp after its first samples instead of after the fixed weight's settling time",
                 KeyLiveness.FrameHistory);
+            r.Key(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault, KeySection.Quality,
+                "with recon.trueDistance: the history is dropped where the cloud distance it stored is more than this many octaves from the frame's (a disocclusion); 0 off",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 4f);
+            r.Key(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault, KeySection.Quality,
+                "width of the history's colour clip in standard deviations of the new samples around the pixel (999: no clip)",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 999f);
 
             // The same three per layer (the layer's name after the prefix): the layer's value wins over the global key.
             r.LayerKey(CloudLookTuning.TuneHeapLayer, "", -1f, KeySection.Shape, "heap preset of the layer (-1 the global key, 0 none, 1 billow, 2 rough)",

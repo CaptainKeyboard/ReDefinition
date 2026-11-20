@@ -188,6 +188,8 @@ namespace ReDefinition.WeatherPlayer
             public bool TrueDistance;
             // rag: the block reconstruction's count of marched samples (ReconSettings.Age).
             public bool Age;
+            // rdr<NN>: the history dropped where its stored distance is more than NN / 100 octaves from the frame's (ReconSettings.DistanceReject).
+            public float DistanceReject;
             // bexact: the block mode as a pixel-exact rotation (Settings); bacc: the same with the case's accumulation on the fresh sample.
             public bool BlockExact, BlockAcc;
             // far<km>: the far rotation beyond that distance (ReconSettings.FarRotateM); farb<N> its block side (2: every 4th frame).
@@ -271,6 +273,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "chm") c.CatmullHistory = true;   // CLOUDR3 P7: the history read with the Catmull-Rom filter
                 else if (t == "rtd") c.TrueDistance = true;   // recon.trueDistance: the history moved by the march's own distance (ReconSettings.TrueDistance)
                 else if (t == "rag") c.Age = true;   // recon.age: the history's count of marched samples (ReconSettings.Age)
+                else if (t.StartsWith("rdr")) c.DistanceReject = Number(t, 3) / 100f;   // recon.distanceReject in hundredths of an octave (ReconSettings.DistanceReject)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
                 else if (t.StartsWith("sp")) c.Spacing = Number(t, 2) / 10f;
@@ -413,7 +416,7 @@ namespace ReDefinition.WeatherPlayer
         {
             if (c.Block > 0)
             {
-                var b = new ReconSettings { Mode = ReconMode.Block, Block = c.Block, CatmullHistory = c.CatmullHistory, TrueDistance = c.TrueDistance, Age = c.Age };
+                var b = new ReconSettings { Mode = ReconMode.Block, Block = c.Block, CatmullHistory = c.CatmullHistory, TrueDistance = c.TrueDistance, Age = c.Age, DistanceReject = c.DistanceReject };
                 // bexact (the owner's perf program point 5, 2026-11-19): every pixel marched every block^2 frames and replaced whole; the others the reprojected history alone (no
                 // blend with the new samples, no clip to them).
                 if (c.BlockExact)
