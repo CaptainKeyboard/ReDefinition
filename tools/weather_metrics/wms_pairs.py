@@ -3,7 +3,7 @@
   python tools/weather_metrics/wms_pairs.py --pictures <folder with the pinscreen PNGs> --maps <series-pictures/K-T2/maps> --start <start id>
          --view ground --sets plain,wms --out <png> [--header "line"] [--radius-km 120]
 
-Per set the game's screen picture (t09-<start>-<view>-plain[-<set>]-2560x1440-pinscreen.png) and, from the capture folder of the first set that holds them
+Per set the game's screen picture (t09-<start>-<view>-plain[_<set>]-2560x1440-pinscreen.png) and, from the capture folder of the first set that holds them
 (pin-<view>-<set>-u<ut>-<start>-<utc>/wms-*.u8, written by OwnCloudModule.WriteMapSkyDump while cloud.weatherMapSky is on), the field's maps around KSC:
 Bedeckung (cover), Haufenwolken-Anteil (ConvectiveAmount), Schichtwolken-Anteil (StratiformAmount), and the parts the layers drew (Gitter-Cumulus, zusammen-
 haengende Schicht = Stratocumulus + Altocumulus, Regendecke, Cirrus, Gewitterzug). KSC is the cross, the view's heading the arrow, the circles 10 / 30 / 60 km.
@@ -38,7 +38,7 @@ def capture(maps, view, set_name, start):
 
 
 def screen(pictures, start, view, set_name):
-    name = "t09-%s-%s-plain%s-2560x1440-pinscreen.png" % (start, view, "" if set_name == "plain" else "-" + set_name)
+    name = "t09-%s-%s-plain%s-2560x1440-pinscreen.png" % (start, view, "" if set_name == "plain" else "_" + set_name)
     hits = glob.glob(os.path.join(pictures, "**", name), recursive=True)
     return hits[0] if hits else None
 
