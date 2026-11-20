@@ -83,6 +83,7 @@ namespace ReDefinition.Atmospheres
             pinLabel = "turn";
             if (!PinStep("turn_args", n >= 2 && keep.Length > 0 && stepDeg > 0.0 && hold >= 1, n + " frames, step " + stepDeg.ToString("0.###", CultureInfo.InvariantCulture) + " degrees a frame, hold "
                                                                                              + hold + " frames, kept frames " + string.Join(",", Array.ConvertAll(keep, k => k.ToString(CultureInfo.InvariantCulture))))) yield break;
+            if (!TurnVesselStands()) yield break;
             string prefix = "t09-" + (StartId ?? "nostart") + "-turn-";
             // Old turn pictures of this start: gone, so no check can pass on a stale file.
             try
@@ -181,6 +182,7 @@ namespace ReDefinition.Atmospheres
                 var az = new double[keep.Length];
                 var el = new double[keep.Length];
                 var height = new double[keep.Length];
+                var jitter = new Vector4[keep.Length];
                 int firstFrame = Game.FrameCount, lastFrame = firstFrame;
                 bool consecutive = true;
                 string fault = null;
@@ -205,6 +207,8 @@ namespace ReDefinition.Atmospheres
                         az[k] = p.AzimuthDeg;
                         el[k] = p.ElevationDeg;
                         height[k] = p.CameraAgl;
+                        // The host's jitter of the frame just drawn (render pixels; 0, 0 with the jitter off or without the upscaler).
+                        jitter[k] = OwnCloudModule.HostJitterNow();
                     }
                 }
                 float seconds = Time.realtimeSinceStartup - t0;
@@ -218,6 +222,8 @@ namespace ReDefinition.Atmospheres
                     PinEmit("az_f" + f, az[k]);
                     PinEmit("el_f" + f, el[k]);
                     PinEmit("camera_agl_m_f" + f, height[k]);
+                    PinEmit("jitter_x_f" + f, jitter[k].x);
+                    PinEmit("jitter_y_f" + f, jitter[k].y);
                 }
                 if (baseline)
                 {
@@ -353,11 +359,53 @@ namespace ReDefinition.Atmospheres
             EmitText("T09.pin." + pinLabel + ".march_target", player.LastMarchWidth + "x" + player.LastMarchHeight + " of " + player.LastRenderWidth + "x" + player.LastRenderHeight);
             string[] want;
             bool recorded = player.LastRecordFrame >= lastFrame - 2;
-            bool ok = recorded && expect.TryGetValue(name, out want) && want.Length >= 5 && seen == string.Join("/", want, 0, 5)
-                      && (want.Length < 6 || want[5] != "r" || (player.LastMarchWidth == player.LastRenderWidth && player.LastMarchHeight == player.LastRenderHeight));
+            bool ok = recorded && expect.TryGetValue(name, out want) && want.Length >= 5 && seen == string.Join("/", want, 0, 5) && (want.Length < 6 || TargetAsWanted(player, want[5]));
             string wanted = expect.TryGetValue(name, out want) ? string.Join("/", want) : "nothing (no -t09TurnExpect entry)";
             PinStep("state", ok, "mode/block/pass/count/scenedepth " + seen + ", march target " + player.LastMarchWidth + "x" + player.LastMarchHeight + " of " + player.LastRenderWidth + "x"
                                  + player.LastRenderHeight + ", recorded in frame " + player.LastRecordFrame + " (the turn ended in " + lastFrame + "); wanted " + wanted);
+        }
+
+        // The 6th field of -t09TurnExpect: "r" the march target is the render size; a number s the march target is the render size times s, rounded (the mode Low's
+        // Mathf.RoundToInt in LayerReconstructor.Record).
+        private static bool TargetAsWanted(LayerReconstructor player, string want)
+        {
+            if (want == "r") return player.LastMarchWidth == player.LastRenderWidth && player.LastMarchHeight == player.LastRenderHeight;
+            float s;
+            if (!float.TryParse(want, NumberStyles.Float, CultureInfo.InvariantCulture, out s)) return false;
+            return player.LastMarchWidth == Mathf.Max(2, Mathf.RoundToInt(player.LastRenderWidth * s)) && player.LastMarchHeight == Mathf.Max(2, Mathf.RoundToInt(player.LastRenderHeight * s));
+        }
+
+        // The vessel stands where the save put it: KSP's own correction at the flight's load ("[<vessel>]: ground contact! - error. Moving Vessel up|down <d>m", KSP.log) moved
+        // it at most 1 m (a correction of 7.69 m dropped the pad vessel on 2026-11-20 and broke it apart). No such line: no correction.
+        private bool TurnVesselStands()
+        {
+            double moved = 0.0;
+            string line = null;
+            try
+            {
+                string log = System.IO.Path.Combine(KSPUtil.ApplicationRootPath, "KSP.log");
+                using (var stream = new System.IO.FileStream(log, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete))
+                using (var reader = new System.IO.StreamReader(stream))
+                {
+                    string l;
+                    while ((l = reader.ReadLine()) != null)
+                    {
+                        int at = l.IndexOf("Moving Vessel", StringComparison.Ordinal);
+                        if (at < 0) continue;
+                        line = l.Trim();
+                        string rest = l.Substring(at + "Moving Vessel".Length).Replace("up", " ").Replace("down", " ").Replace("m", " ").Trim();
+                        double d;
+                        if (double.TryParse(rest, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) moved = Math.Max(moved, Math.Abs(d));
+                        else moved = double.NaN;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                return PinStep("vessel_stands", false, "KSP.log could not be read: " + e.GetType().Name + " " + e.Message);
+            }
+            PinEmit("vessel_moved_m", moved);
+            return PinStep("vessel_stands", !double.IsNaN(moved) && moved <= 1.0, line == null ? "no 'Moving Vessel' line: KSP did not correct the vessel at the load" : line);
         }
 
         // The still's copy against its CaptureScreenshot of the same frame: the mean channel difference (0..255) of the upright copy and of the copy flipped back.

@@ -154,6 +154,12 @@ namespace ReDefinition.Atmospheres
         // Whether the host's jitter global is off or at the first phase of its sequence (the upscaler's Halton index 1: x 0, y 1/3 - 0.5; Fsr3Upscaler.GetJitterOffset,
         // index Time.frameCount modulo the phase count). Read in a probe's Update it is the frame before's (ReDefinition.Api.Frame): the pinned capture cuts in the frame
         // after one at the first phase, so every start replays the same jitter sequence and the depth the march reads moves the same way from frame to frame.
+        // The host's jitter as the global holds it now (x, y the offset in render pixels; 0, 0 without jitter): the value of the last frame the host drew.
+        internal static Vector4 HostJitterNow()
+        {
+            return Shader.GetGlobalVector(HostJitter);
+        }
+
         internal static bool HostJitterAtFirstPhase()
         {
             return JitterAtFirstPhase(Shader.GetGlobalVector(HostJitter));
