@@ -307,9 +307,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The fake world's module has no renderer: every step up to it is done and said, the module's step fails the start by name, and no timing window runs.
             Run r = StartPin("1018800");
             Drive(r);
-            AssertNamedFailure(r, "T09.pin.module");
-            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: check T09.pin.placed: ok")), Dump(r));
-            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: check T09.pin.clock: ok (ut 1018800.000 against the pinned 1018800.000)")), "the clock was pinned at the asked time\n" + Dump(r));
+            AssertNamedFailure(r, "T09.pin.ground.module");
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: check T09.pin.ground.placed: ok")), Dump(r));
+            Assert.IsTrue(r.Log.Any(l => l.StartsWith("Probe: check T09.pin.ground.clock: ok (ut 1018800.000 against the pinned 1018800.000)")), "the clock was pinned at the asked time\n" + Dump(r));
             Assert.IsTrue(double.IsNaN(r.World.PinnedUt), "the clock runs again after the capture");
             Assert.AreEqual(0, r.World.Module.FrameOrigin, "the frame origin is 0 again after a failed capture");
             Assert.AreEqual(0, r.Log.Count(l => l.StartsWith("T09 view begin")), "no timing window");

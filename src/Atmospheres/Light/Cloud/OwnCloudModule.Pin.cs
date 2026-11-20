@@ -27,8 +27,8 @@ namespace ReDefinition.Atmospheres
         internal sealed class PinCapture
         {
             internal string Dir, Tag;
-            internal bool CloudWritten, DepthWritten, DumpWritten, Finished;
-            internal int CloudPending, FramesSinceCut = -1, FrameNumber = -1, CloudWidth, CloudHeight, DepthWidth, DepthHeight;
+            internal bool CloudWritten, DepthWritten, DumpWritten, SceneWritten, ComposedWritten, Finished;
+            internal int CloudPending, FramesSinceCut = -1, FrameNumber = -1, CloudWidth, CloudHeight, DepthWidth, DepthHeight, Frame = -1;
             internal readonly List<string> Problems = new List<string>();
 
             internal bool Done { get { return Finished && CloudPending == 0; } }
@@ -38,6 +38,11 @@ namespace ReDefinition.Atmospheres
                 lock (Problems) Problems.Add(what);
             }
         }
+
+        // Probe-only distance-limit switches of the pinned capture (T09ProbePin -t09PinLimits, master plan section 29): the march's sea-level sphere and what rides on the body's
+        // surface (the empty reach, the tight spans; LayerFrame.HasSurface), and the scene depth as the ray's end (LayerFrame.UseSceneDepth). False by default; the probe sets
+        // them back when it ends (T09Probe.RevertVariant).
+        internal static bool ProbeNoSurface, ProbeNoSceneDepth;
 
         // Asks for a map round with a snap and a height build at once (the clock was just pinned: the next maps and heights are those of the pinned time).
         internal void PinRefetch()
@@ -223,15 +228,55 @@ namespace ReDefinition.Atmospheres
         // holds them), and the maps and pass.json of the frame are written beside them. The host is the probe's (ReconHost), which exists while a series probe runs.
         internal PinCapture BeginPinCapture(MonoBehaviour host, string dir, string tag)
         {
-            var job = new PinCapture { Dir = dir, Tag = tag };
+            var job = new PinCapture { Dir = dir, Tag = tag, Frame = Time.frameCount };
             if (host == null)
             {
                 job.Fail("no host for the end-of-frame read");
                 job.Finished = true;
                 return job;
             }
+            // The scene before and after the clouds' composite in this frame's record (PinSceneCopy): the game's own background for the player's replay and the game's
+            // composite at the render size, before Scatterer's later passes, the upscaler and the post-processing.
+            pinSceneArmed = true;
             host.StartCoroutine(PinRoutine(job));
             return job;
+        }
+
+        // The scene colour copies of the pinned capture: armed by BeginPinCapture, recorded once into the depth copy's buffer (before: the camera target as the clouds'
+        // composite finds it) and at the end of the pass's buffer (after: the target with the clouds composited), then disarmed. pinSceneFrame is the frame they were recorded in.
+        private bool pinSceneArmed;
+        private int pinSceneFrame = -1;
+        private RenderTexture pinSceneBefore, pinSceneAfter;
+
+        private void PinSceneCopy(CommandBuffer cb, bool before)
+        {
+            if (!pinSceneArmed || depthTarget == null) return;
+            int w = depthTarget.width, h = depthTarget.height;
+            RenderTexture rt = before ? pinSceneBefore : pinSceneAfter;
+            if (rt == null || rt.width != w || rt.height != h)
+            {
+                if (rt != null) { rt.Release(); UnityEngine.Object.Destroy(rt); }
+                rt = new RenderTexture(w, h, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear)
+                {
+                    name = before ? "pinned capture scene before the clouds" : "pinned capture scene after the clouds", filterMode = FilterMode.Point
+                };
+                rt.Create();
+                if (before) pinSceneBefore = rt;
+                else pinSceneAfter = rt;
+            }
+            cb.Blit(BuiltinRenderTextureType.CameraTarget, rt);
+            if (!before)
+            {
+                pinSceneArmed = false;
+                pinSceneFrame = Time.frameCount;
+            }
+        }
+
+        private void PinSceneRelease()
+        {
+            if (pinSceneBefore != null) { pinSceneBefore.Release(); UnityEngine.Object.Destroy(pinSceneBefore); }
+            if (pinSceneAfter != null) { pinSceneAfter.Release(); UnityEngine.Object.Destroy(pinSceneAfter); }
+            pinSceneBefore = pinSceneAfter = null;
         }
 
         private IEnumerator PinRoutine(PinCapture job)
@@ -244,9 +289,19 @@ namespace ReDefinition.Atmospheres
                 job.FramesSinceCut = driver != null ? driver.FramesSinceCut : -1;
                 job.FrameNumber = frame.FrameNumber;
                 if (cloud == null) job.Fail("the reconstruction has no output (the pass did not record as the reconstruction)");
-                else PinRead(job, cloud, TextureFormat.RGBAFloat, 4, Path.Combine(job.Dir, "cloud.npy"), true);
+                else PinRead(job, cloud, TextureFormat.RGBAFloat, 4, Path.Combine(job.Dir, "cloud.npy"), PinPart.Cloud);
                 if (depthTarget == null) job.Fail("the pass has no scene depth target");
-                else PinRead(job, depthTarget, TextureFormat.RFloat, 1, Path.Combine(job.Dir, "depth.npy"), false);
+                else PinRead(job, depthTarget, TextureFormat.RFloat, 1, Path.Combine(job.Dir, "depth.npy"), PinPart.Depth);
+                if (pinSceneFrame != job.Frame || pinSceneBefore == null || pinSceneAfter == null)
+                {
+                    pinSceneArmed = false;
+                    job.Fail("the scene copies were not recorded in the capture frame " + job.Frame + " (last recorded " + pinSceneFrame + ")");
+                }
+                else
+                {
+                    PinRead(job, pinSceneBefore, TextureFormat.RGBAFloat, 4, Path.Combine(job.Dir, "scene.npy"), PinPart.Scene);
+                    PinRead(job, pinSceneAfter, TextureFormat.RGBAFloat, 4, Path.Combine(job.Dir, "composed.npy"), PinPart.Composed);
+                }
                 job.DumpWritten = WriteDump(job.Dir, job.Tag);
                 WritePinFrames(job.Dir);
                 if (!job.DumpWritten) job.Fail("the maps and pass.json were not written");
@@ -258,11 +313,13 @@ namespace ReDefinition.Atmospheres
             job.Finished = true;
         }
 
-        private static void PinRead(PinCapture job, RenderTexture rt, TextureFormat format, int channels, string path, bool cloud)
+        private enum PinPart { Cloud, Depth, Scene, Composed }
+
+        private static void PinRead(PinCapture job, RenderTexture rt, TextureFormat format, int channels, string path, PinPart part)
         {
             int w = rt.width, h = rt.height;
-            if (cloud) { job.CloudWidth = w; job.CloudHeight = h; }
-            else { job.DepthWidth = w; job.DepthHeight = h; }
+            if (part == PinPart.Cloud) { job.CloudWidth = w; job.CloudHeight = h; }
+            else if (part == PinPart.Depth) { job.DepthWidth = w; job.DepthHeight = h; }
             System.Threading.Interlocked.Increment(ref job.CloudPending);
             AsyncGPUReadback.Request(rt, 0, format, r =>
             {
@@ -276,8 +333,10 @@ namespace ReDefinition.Atmospheres
                         else
                         {
                             PinFiles.WriteFloat32(path, h, w, channels, data);
-                            if (cloud) job.CloudWritten = true;
-                            else job.DepthWritten = true;
+                            if (part == PinPart.Cloud) job.CloudWritten = true;
+                            else if (part == PinPart.Depth) job.DepthWritten = true;
+                            else if (part == PinPart.Scene) job.SceneWritten = true;
+                            else job.ComposedWritten = true;
                         }
                     }
                 }
