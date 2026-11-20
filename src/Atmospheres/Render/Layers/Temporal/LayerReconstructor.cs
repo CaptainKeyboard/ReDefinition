@@ -145,6 +145,9 @@ namespace ReDefinition.Atmospheres
         // The light volume (cloud.lightVolume): made when the key is first on; its textures are freed while it is off.
         private LightVolume lightVolume;
         internal LightVolume CurrentLightVolume { get { return lightVolume; } }
+        // Whether this reconstruction may use the light volume: the player's view does; a probe camera's (reset every frame, LayerReconstructDriver.ProbeFor) does not, since
+        // each reset would lay and fill its own volume completely every frame. It marches with today's light.
+        internal bool LightVolumeAllowed = true;
         // GPU profiler sub-markers of the reconstruction (labels "ReDefinition clouds: <part>"); the module sets it to the host's marker seam, null alone (the weather player).
         internal static Action<CommandBuffer, string> SubMark;
 
@@ -284,7 +287,7 @@ namespace ReDefinition.Atmospheres
             // The light volume replaces the cache while cloud.lightVolume is on (the march's keyword drops the cache's read). With the key off, at a hand-over distance of infinity
             // without the lateral spread (which reads it at every distance) or above the warp limit no sample reads it: the march keeps its no-keyword variant, nothing is filled, and the volume's textures are freed (the next use lays it anew).
             LightVolume volume = null;
-            bool volumeOn = CloudLookTuning.LightVolume && (CloudLookTuning.LvHandOverM >= 0f || CloudLookTuning.LvSpread > 0);
+            bool volumeOn = LightVolumeAllowed && CloudLookTuning.LightVolume && (CloudLookTuning.LvHandOverM >= 0f || CloudLookTuning.LvSpread > 0);
             if (volumeOn)
             {
                 if (lightVolume == null) lightVolume = new LightVolume();

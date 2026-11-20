@@ -1388,6 +1388,8 @@ namespace ReDefinition.Atmospheres
                 AtmospheresLog.Say("own clouds: light cache made (" + lightCache.GridN + " x " + lightCache.GridN + " x " + lightCache.GridNz + " voxels over " + lightCache.SizeM + " m)");
             }
             f.Light.Cache = lightCache;
+            // The light volume refreshes faster under time warp (cloud.lightVolume.warp times this rate) and is off above cloud.lightVolume.warpLimit.
+            LightVolume.TimeWarpRate = TimeWarp.fetch != null ? Mathf.Max(TimeWarp.CurrentRate, 1f) : 1f;
             OwnCloudOptions.Apply(f.Light);
             OwnCloudOptions.Apply(f.Far);
             // ProbeNoSurface / ProbeNoSceneDepth: the pinned capture's distance-limit look (T09ProbePin -t09PinLimits); false unless a probe sets them.

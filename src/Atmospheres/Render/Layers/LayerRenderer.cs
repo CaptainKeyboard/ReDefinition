@@ -698,6 +698,8 @@ namespace ReDefinition.Atmospheres
             Apply(f);
             // The direct path has no history: the reconstruction's far rotation (LayerReconstructor) must not mark any of its pixels.
             material.SetVector(IdFarRot, Vector4.zero);
+            // Nor a light volume: the reconstruction fills it; here the march keeps today's light (the keyword a reconstruction left on is taken off).
+            LightVolume.Unbind(material);
             // The camera's pixels as the march's pixel grid: the values _ScreenParams has in the camera's render, which the shader read here before.
             material.SetVector(Shader.PropertyToID("_ReconD"), new Vector4(camera.pixelWidth, camera.pixelHeight, 0f, 0f));
             commands.Clear();
