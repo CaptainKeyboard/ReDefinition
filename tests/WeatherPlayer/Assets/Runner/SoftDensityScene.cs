@@ -195,6 +195,15 @@ namespace ReDefinition.WeatherPlayer
             // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
             // lcgrid<N> its voxels across (the voxels up are a quarter of them).
             public int CacheNear, CacheFill, CacheKm, CacheGrid;
+            // The light volume (LV1, cloud.lightVolume): lv<km> on with that hand-over distance (lvinf: on, hand-over at infinity), lvn<N> slices per frame (0: all), lvt<N> the far near taps,
+            // lvw<N> the warp factor; set as tuning overrides by ApplyCase (no lv token: off).
+            public bool LvOn;
+            public float LvKm = -1f;
+            public int LvSlices = -1, LvTaps = -1, LvWarp = -1;
+            // The diagnosis levers: lvc<N> cascades, lvz<N> slices of a cascade, lvv<N> the near voxel in m, lvf<N> the fill's taps, lvr<N> their growth in hundredths, lvb<N> the band in percent.
+            public int LvCascades = -1, LvGridZ = -1, LvVoxel = -1, LvFillTaps = -1, LvFillRatio = -1, LvBand = -1;
+            // lvs<N>: the far cascade's voxel over the near one's.
+            public int LvFarScale = -1;
         }
 
         private static LightCache cache;
@@ -277,6 +286,18 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
+                else if (t == "lvinf") { c.LvOn = true; c.LvKm = -1f; }   // LV1: the light volume on, hand-over at infinity
+                else if (t.StartsWith("lvn")) c.LvSlices = Number(t, 3);
+                else if (t.StartsWith("lvt")) c.LvTaps = Number(t, 3);
+                else if (t.StartsWith("lvw")) c.LvWarp = Number(t, 3);
+                else if (t.StartsWith("lvc")) c.LvCascades = Number(t, 3);
+                else if (t.StartsWith("lvs")) c.LvFarScale = Number(t, 3);
+                else if (t.StartsWith("lvz")) c.LvGridZ = Number(t, 3);
+                else if (t.StartsWith("lvv")) c.LvVoxel = Number(t, 3);
+                else if (t.StartsWith("lvf")) c.LvFillTaps = Number(t, 3);
+                else if (t.StartsWith("lvr")) c.LvFillRatio = Number(t, 3);
+                else if (t.StartsWith("lvb")) c.LvBand = Number(t, 3);
+                else if (t.StartsWith("lv")) { c.LvOn = true; c.LvKm = Number(t, 2); }
                 else if (t.StartsWith("lcache")) c.CacheNear = Number(t, 6);
                 else if (t.StartsWith("lcfill")) c.CacheFill = Number(t, 6);
                 else if (t.StartsWith("lcbox")) c.CacheKm = Number(t, 5);
@@ -295,12 +316,31 @@ namespace ReDefinition.WeatherPlayer
             return c;
         }
 
+        // A light volume lever of a case: set to value * scale, or back to its default when the case does not name it (-1).
+        private static void Lever(string key, int value, float scale)
+        {
+            if (value >= 0) Tuning.SetOverride(key, value * scale);
+            else Tuning.ClearOverride(key);
+        }
+
         private static readonly LayerFrame FrameDefaults = new LayerFrame();
         private static readonly CloudLightSettings LightDefaults = new CloudLightSettings();
 
         // Every field a case can name is set on every call, so that a case never keeps what the one before it set on the same frame.
         internal static void ApplyCase(LayerFrame f, Case c)
         {
+            Tuning.SetOverride(CloudLookTuning.TuneLightVolume, c.LvOn ? 1f : 0f);
+            Tuning.SetOverride(CloudLookTuning.TuneLvHandOver, c.LvKm);
+            if (c.LvSlices >= 0) Tuning.SetOverride(CloudLookTuning.TuneLvSlices, c.LvSlices); else Tuning.ClearOverride(CloudLookTuning.TuneLvSlices);
+            if (c.LvTaps >= 0) Tuning.SetOverride(CloudLookTuning.TuneLvFarTaps, c.LvTaps); else Tuning.ClearOverride(CloudLookTuning.TuneLvFarTaps);
+            if (c.LvWarp >= 0) Tuning.SetOverride(CloudLookTuning.TuneLvWarp, c.LvWarp); else Tuning.ClearOverride(CloudLookTuning.TuneLvWarp);
+            Lever(CloudLookTuning.TuneLvCascades, c.LvCascades, 1f);
+            Lever(CloudLookTuning.TuneLvFarScale, c.LvFarScale, 1f);
+            Lever(CloudLookTuning.TuneLvGridZ, c.LvGridZ, 1f);
+            Lever(CloudLookTuning.TuneLvVoxel, c.LvVoxel, 1f);
+            Lever(CloudLookTuning.TuneLvFillTaps, c.LvFillTaps, 1f);
+            Lever(CloudLookTuning.TuneLvFillRatio, c.LvFillRatio, 0.01f);
+            Lever(CloudLookTuning.TuneLvBand, c.LvBand, 0.01f);
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.LightReuseMove = c.ReuseMove;
@@ -480,6 +520,9 @@ namespace ReDefinition.WeatherPlayer
             public float YawPerFrame, SidePerFrame;
             public int ArriveAt;
             public int[] Dump;
+            // LV1: the camera flies forward along its heading (m per frame), the sun rises (degrees per frame, about the horizontal axis across its azimuth); no converged reference.
+            public float ForwardPerFrame, SunPerFrame;
+            public bool NoReference;
         }
 
         // GrainTemporalScene's scenarios without the slow turn (the fast one is the harder case of the same motion).
@@ -491,7 +534,20 @@ namespace ReDefinition.WeatherPlayer
             new Scenario { Name = "turnin", YawPerFrame = 3f, ArriveAt = 38, Dump = new[] { 37, 38 } },
             new Scenario { Name = "flyfast", SidePerFrame = 40f, Dump = new[] { 37, 38 } },
             new Scenario { Name = "cut", Dump = new[] { 0, 2, 5, 10 } },
+            // LV1 (only with -scenarios): 100 m a frame forward (4 km over the run: a dozen of the near cascade's voxels, the clouds through the hand-over band), and the sun rising
+            // 1 degree a frame (a time warp of about 15000 at Kerbin's day; 33 degrees over the run).
+            new Scenario { Name = "lvmove", ForwardPerFrame = 100f, NoReference = true, Dump = new[] { 6, 10, 14, 18, 22, 26, 30, 34, 38 } },
+            new Scenario { Name = "lvsun", SunPerFrame = 1f, NoReference = true, Dump = new[] { 6, 10, 14, 18, 22, 26, 30, 34, 38 } },
         };
+
+        // -scenarios a,b: only these (the LV1 ones run only when named); without it every scenario but the LV1 ones (and -dump last: the still one).
+        private static bool Selected(Scenario sc)
+        {
+            string arg = WeatherPass.Argument("-scenarios");
+            if (!string.IsNullOrEmpty(arg)) return Array.IndexOf(arg.Split(','), sc.Name) >= 0;
+            if (sc.NoReference) return false;
+            return !SoftTable.DumpLast || sc.Name == "static";
+        }
 
         private Texture2D readback;
 
@@ -516,6 +572,28 @@ namespace ReDefinition.WeatherPlayer
             }
         }
 
+        private void DumpVolume(LightVolume lv, string name)
+        {
+            RenderTexture v = lv.Volume;
+            if (v == null) return;
+            AsyncGPUReadbackRequest r = AsyncGPUReadback.Request(v, 0, 0, v.width, 0, v.height, 0, v.volumeDepth, TextureFormat.RFloat);
+            r.WaitForCompletion();
+            if (r.hasError) { Sink.Info("lvdump_error", 1); return; }
+            string header = "{'descr': '<f4', 'fortran_order': False, 'shape': (" + r.layerCount + ", " + v.height + ", " + v.width + "), }";
+            int total = 10 + header.Length + 1;
+            header = header + new string(' ', (64 - total % 64) % 64) + "\n";
+            using (var stream = new FileStream(Path.Combine(Output, name + ".npy"), FileMode.Create, FileAccess.Write))
+            using (var writer = new BinaryWriter(stream))
+            {
+                writer.Write(new byte[] { 0x93, (byte)'N', (byte)'U', (byte)'M', (byte)'P', (byte)'Y', 1, 0 });
+                writer.Write((ushort)header.Length);
+                writer.Write(Encoding.ASCII.GetBytes(header));
+                for (int layer = 0; layer < r.layerCount; layer++)
+                    foreach (float f in r.GetData<float>(layer)) writer.Write(f);
+            }
+            File.WriteAllText(Path.Combine(Output, name + ".json"), lv.Describe());
+        }
+
         private void Render(TemporalRig rig, LayerReconstructor recon, ReconSettings s, int number)
         {
             var cb = new CommandBuffer { name = "soft temporal" };
@@ -534,6 +612,21 @@ namespace ReDefinition.WeatherPlayer
         private static float Side(Scenario sc, int i)
         {
             return sc.SidePerFrame * Mathf.Max(i - 6, 0);
+        }
+
+        // LV1: the forward flight along the view's horizontal heading and the rising sun of frame i (both start after frame 6, as the other motions).
+        private void Travel(Scenario sc, int i, LayersJob job, LayerFrame f, Vector3 sun0)
+        {
+            float k = Mathf.Max(i - 6, 0);
+            Vector3 up = LayersSetup.V(job.position).normalized;
+            if (sc.ForwardPerFrame != 0f)
+            {
+                Vector3 heading = Vector3.ProjectOnPlane(LayersSetup.V(job.forward), up).normalized;
+                Cam.transform.position += heading * (sc.ForwardPerFrame * k);
+            }
+            Vector3 flat = Vector3.ProjectOnPlane(sun0, up);
+            Vector3 axis = flat.sqrMagnitude > 1e-8f ? Vector3.Cross(up, flat.normalized) : Vector3.zero;
+            f.TowardsSun = sc.SunPerFrame != 0f && axis != Vector3.zero ? (Quaternion.AngleAxis(-sc.SunPerFrame * k, axis) * sun0).normalized : sun0;
         }
 
         public override IEnumerator Run()
@@ -562,15 +655,17 @@ namespace ReDefinition.WeatherPlayer
                 {
                     SoftTable.Load(rig, job, input, medium, original, detailMean);
                     if (SoftTable.ProductLightOn) SoftTable.ProductLight(rig.Frame);
+                    Vector3 sun0 = rig.Frame.TowardsSun;
                     foreach (Scenario sc in Scenarios)
                     {
-                        if (SoftTable.DumpLast && sc.Name != "static") continue;
+                        if (!Selected(sc)) continue;
                         // The converged reference of every pose that is written, of THIS medium.
                         // A case of an earlier scenario may have left taps, a cull or a cost mask on the frame: the references run on the frame's own defaults.
                         SoftTable.ApplyCase(rig.Frame, SoftTable.Parse("seq1"));
                         GrainTable.ApplyConverged(rig.Frame);
                         foreach (int i in sc.Dump)
                         {
+                            if (sc.NoReference) break;
                             if ((sc.Name == "static" || sc.Name == "cut") && i != sc.Dump[0]) continue;
                             GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));
                             refRecon.Reset();
@@ -590,6 +685,7 @@ namespace ReDefinition.WeatherPlayer
                                 for (int i = 0; i < Frames; i++)
                                 {
                                     GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));
+                                    Travel(sc, i, job, rig.Frame, sun0);
                                     Render(rig, rig.Recon, settings, 100 + i);
                                     if (Array.IndexOf(sc.Dump, i) >= 0)
                                     {
@@ -600,9 +696,13 @@ namespace ReDefinition.WeatherPlayer
                                                               LayerPassReadout.Uniforms(rig.Renderer.Material));
                                         dumped++;
                                         SoftTable.ReportCache(Sink, "lightcache." + view + "." + march);
+                                        // LV1: the light volume of a still view as it stands (-lvdump 1): its slices (depth, voxels, voxels) as .npy and its layout as .json.
+                                        if (sc.Name == "static" && marchCase.LvOn && WeatherPass.Argument("-lvdump") == "1" && rig.Recon.CurrentLightVolume != null)
+                                            DumpVolume(rig.Recon.CurrentLightVolume, "lv-" + view + "-" + march + "-f" + i);
                                     }
                                     if (i % 8 == 7) yield return null;
                                 }
+                                rig.Frame.TowardsSun = sun0;
                             }
                     }
                 }
@@ -627,6 +727,8 @@ namespace ReDefinition.WeatherPlayer
             bool ready = input != null && File.Exists(Path.Combine(input, "jobs.json")) && WeatherGpuTimer.Start() && rig.Init();
             Sink.Flag("soft_cost_timers_available", ready);
             if (!ready) yield break;
+            // The light cache's or the light volume's fill as its own segment (CurtainStart's mark; the march segment starts after it).
+            rig.Recon.MarkCacheFilled = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainStart);
             LayersJobFile file = JsonUtility.FromJson<LayersJobFile>(File.ReadAllText(Path.Combine(input, "jobs.json")));
             var dummy = new RenderTexture(4, 4, 0, RenderTextureFormat.RFloat);
             dummy.Create();
@@ -655,14 +757,20 @@ namespace ReDefinition.WeatherPlayer
             evictA.Create();
             evictB.Create();
             List<SoftTable.Medium> media = SoftTable.Selected();
-            // Two rounds in opposite order, so that a drift of the machine over the run falls on every case alike; the row is the median of both.
+            // Two rounds in opposite order, so that a drift of the machine over the run falls on every case alike; the row is the median of both. -rounds N (at least 2) runs N
+            // rounds, alternating the order, and also reports each round's march and fill medians (softcost.marchr<k>.<label>, softcost.fillr<k>.<label>).
+            int rounds;
+            if (!int.TryParse(WeatherPass.Argument("-rounds"), out rounds) || rounds < 2) rounds = 2;
             var samples = new Dictionary<string, List<double>[]>();
-            for (int round = 0; round < 2; round++)
+            var perRound = new Dictionary<string, List<double>>();
+            var perRoundFill = new Dictionary<string, List<double>>();
+            for (int round = 0; round < rounds; round++)
             {
+                bool forward = round % 2 == 0;
                 string[] views = SoftTable.Views;
                 for (int vi = 0; vi < views.Length; vi++)
                 {
-                    string view = views[round == 0 ? vi : views.Length - 1 - vi];
+                    string view = views[forward ? vi : views.Length - 1 - vi];
                     LayersJob job = GrainTable.Find(file, "gn-" + view + "-prod-f0");
                     if (job == null) { Sink.Flag("soft_cost_job_" + view, false); continue; }
                     SoftTable.Original original = SoftTable.Original.Of(job.layers[0]);
@@ -670,23 +778,24 @@ namespace ReDefinition.WeatherPlayer
                     double detailMean = SoftTable.DetailMean(rig);
                     for (int k = 0; k < media.Count; k++)
                     {
-                        SoftTable.Medium medium = media[round == 0 ? k : media.Count - 1 - k];
+                        SoftTable.Medium medium = media[forward ? k : media.Count - 1 - k];
                         SoftTable.Load(rig, job, input, medium, original, detailMean);
                         rig.Frame.UseSceneDepth = true;
                         GrainTable.Pose(Cam, job, 0f, 0f);
                         string[] marches = SoftTable.Marches;
                         for (int mi = 0; mi < marches.Length; mi++)
                         {
-                            string march = marches[round == 0 ? mi : marches.Length - 1 - mi];
-                            if (clock.Elapsed.TotalMinutes > 18.0) { Sink.Flag("soft_cost_completed", false); yield break; }
+                            string march = marches[forward ? mi : marches.Length - 1 - mi];
+                            if (clock.Elapsed.TotalMinutes > 18.0 + 6.0 * (rounds - 2)) { Sink.Flag("soft_cost_completed", false); yield break; }
                             SoftTable.Case marchCase = SoftTable.Parse(march);
                             SoftTable.ApplyCase(rig.Frame, marchCase);
                             ReconSettings settings = SoftTable.Settings(marchCase, "acc20");
                             rig.Recon.Reset();
                             string label = view + "." + medium.Name + "." + march;
-                            if (!samples.ContainsKey(label)) samples[label] = new[] { new List<double>(), new List<double>(), new List<double>() };
+                            if (!samples.ContainsKey(label)) samples[label] = new[] { new List<double>(), new List<double>(), new List<double>(), new List<double>() };
                             List<double>[] s = samples[label];
-                            int guard = 0, n = 0, taken = 0;
+                            int guard = 0, n = 0, taken = 0, first = s[0].Count, firstFill = s[3].Count;
+                            int laysBefore = rig.Recon.CurrentLightVolume != null ? rig.Recon.CurrentLightVolume.Lays : 0;
                             while (taken < 40 && guard++ < 1200)
                             {
                                 cb.Clear();
@@ -701,8 +810,27 @@ namespace ReDefinition.WeatherPlayer
                                 if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
                                 float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], r = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
                                     e = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
-                                if (m >= 0f && r >= 0f && e >= 0f) { s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++; }
+                                if (m >= 0f && r >= 0f && e >= 0f)
+                                {
+                                    s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++;
+                                    // With the light cache or the light volume the march segment starts after the fill; the fill is its own segment (CurtainStart's mark).
+                                    float fill = segments[WeatherGpuTimer.CurtainStart - WeatherGpuTimer.SlabStart];
+                                    if (fill >= 0f) s[3].Add(fill);
+                                }
                             }
+                            if (s[0].Count > first)
+                            {
+                                if (!perRound.ContainsKey(label)) perRound[label] = new List<double>();
+                                perRound[label].Add(Median(s[0].GetRange(first, s[0].Count - first)));
+                            }
+                            if (s[3].Count > firstFill)
+                            {
+                                if (!perRoundFill.ContainsKey(label)) perRoundFill[label] = new List<double>();
+                                perRoundFill[label].Add(Median(s[3].GetRange(firstFill, s[3].Count - firstFill)));
+                            }
+                            // LV1: the light volume's lays in this case (one at the first frame after the Reset; more would be a relay the case did not ask for).
+                            if (marchCase.LvOn && rig.Recon.CurrentLightVolume != null && round == 0)
+                                Sink.Info("softcost.lvlays." + label, rig.Recon.CurrentLightVolume.Lays - laysBefore);
                             if (marchCase.Skip && round == 0)
                             {
                                 // What the tile pass dropped: the share of the 16 x 16 tiles that march no layer at all, and of the (tile, layer) pairs that are not marched.
@@ -724,6 +852,14 @@ namespace ReDefinition.WeatherPlayer
                 Sink.Info("softcost.composite." + kv.Key, tc);
                 Sink.Info("softcost.total." + kv.Key, tm + tr + tc);
                 Sink.Info("softcost.n." + kv.Key, kv.Value[0].Count);
+                if (kv.Value[3].Count > 0) Sink.Info("softcost.fill." + kv.Key, Median(kv.Value[3]));
+            }
+            if (rounds > 2)
+            {
+                foreach (KeyValuePair<string, List<double>> kv in perRound)
+                    for (int k = 0; k < kv.Value.Count; k++) Sink.Info("softcost.marchr" + k + "." + kv.Key, kv.Value[k]);
+                foreach (KeyValuePair<string, List<double>> kv in perRoundFill)
+                    for (int k = 0; k < kv.Value.Count; k++) Sink.Info("softcost.fillr" + k + "." + kv.Key, kv.Value[k]);
             }
             Cam.targetTexture = Target;
             rt.Release();
