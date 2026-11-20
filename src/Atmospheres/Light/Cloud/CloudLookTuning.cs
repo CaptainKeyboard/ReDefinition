@@ -346,9 +346,12 @@ namespace ReDefinition.Atmospheres
         // keywords _BODIES_V1 .. _BODIES_V6): 1 scheme G2 as designed, 2 the fallback F2, 3 two classes, 4 G2 with the candidates in arrays, 5 as 1 with loops over the cells too,
         // 6 the neighbourhood check, 7 as 4 with two hashes per body and no pow, 8 the leap check (5 without leaps), 9 its control (the lattice without leaps).
         // A prototype for the timing in the weather player; the shadow, the light cache and the far passes keep the lattice.
-        internal const string TuneBodies = "cloud.bodies";
+        // P0b-0: 10 V7's search with no union, 11 the union over constant candidates (today's search), 12 V7 pruned, 13 today's lattice with the forced share. Only 7 and
+        // 10 .. 13 are compiled into the march pass now (the others are measured, their code stays); a value without a compiled variant is 0.
+        // cloud.bodies.share: a share forced on every sample that has one (0: the map's); cloud.bodies.count 1: the march runs the counting pass (layer pass 6) with 7, 12, 13.
+        internal const string TuneBodies = "cloud.bodies", TuneBodiesShare = "cloud.bodies.share", TuneBodiesCount = "cloud.bodies.count";
         internal const float BodiesDefault = 0f;
-        internal static readonly string[] BodiesKeywords = { null, "_BODIES_V1", "_BODIES_V2", "_BODIES_V3", "_BODIES_V4", "_BODIES_V5", "_BODIES_V6", "_BODIES_V7", "_BODIES_V8", "_BODIES_V9" };
+        internal static readonly string[] BodiesKeywords = { null, null, null, null, null, null, null, "_BODIES_V7", null, null, "_BODIES_V10", "_BODIES_V11", "_BODIES_V12", "_BODIES_V13" };
         internal static int Bodies
         {
             get
@@ -356,9 +359,11 @@ namespace ReDefinition.Atmospheres
                 float v = Tuning.Get(TuneBodies, BodiesDefault);
                 if (float.IsNaN(v) || float.IsInfinity(v)) return 0;
                 int n = (int)Math.Round(v);
-                return n >= 1 && n < BodiesKeywords.Length ? n : 0;
+                return n >= 1 && n < BodiesKeywords.Length && BodiesKeywords[n] != null ? n : 0;
             }
         }
+        internal static float BodiesShare { get { return Clean(Tuning.Get(TuneBodiesShare, 0f), 0f, 0f, 1f); } }
+        internal static bool BodiesCount { get { int b = Bodies; return Tuning.Get(TuneBodiesCount, 0f) > 0.5f && (b == 7 || b == 12 || b == 13); } }
 
         // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)

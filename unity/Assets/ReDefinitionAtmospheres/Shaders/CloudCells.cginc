@@ -97,6 +97,20 @@ float CellUnit(uint h)
 static float gCellBodyX = 0.0;
 static float gCellOther = 1e9;
 
+// P0b-0 (CloudCells' prototype section below): x a share forced on every sample that has one (0: the map's own), for the cost at fixed shares; read only by the prototype's
+// keywords (_BODIES_V13 for the accepted lattice). _BODIES_COUNT (layer pass 6, a debug copy of the march at shader model 5): counters of the density calls in a UAV.
+#if defined(_BODIES_V1) || defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V4) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V7) || defined(_BODIES_V8) \
+    || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12) || defined(_BODIES_V13)
+float4 _BodiesP;
+#endif
+#ifdef _BODIES_COUNT
+// [0] cover calls of view reads (light 0), [1] of light reads, [2] live candidates in the cover calls, [3] body calls, [4] candidates looped in the body calls,
+// [5] candidates that can reach the band (xv below 1 + swing + band / (2 axis)).
+RWStructuredBuffer<uint> _BodyCount : register(u1);
+static uint gBodCountLive = 0u;
+static int gBodCountLight = 0;
+#endif
+
 float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out float size, out float reachM, out float xBest, out float rBest)
 {
     gCellOther = 1e9;
@@ -135,6 +149,9 @@ float CellProfile(float2 uv, float pitch, float rm, float f, uint seed, out floa
             float cw = c - cols * floor(c / cols);
             uint h = CellHash((uint)j * 0x9E3779B1u ^ (uint)cw * 0x85EBCA6Bu ^ seed * 0xC2B2AE35u);
             if (CellUnit(h) >= alive) continue;
+#ifdef _BODIES_COUNT
+            gBodCountLive += 1u;
+#endif
             float jx = (CellUnit(CellHash(h ^ 0xA511E9B3u)) - 0.5) * CELL_JITTER;
             float jy = (CellUnit(CellHash(h ^ 0x63D83595u)) - 0.5) * CELL_JITTER;
             float s = 1.0 + CELL_SIGMA * (2.0 * CellUnit(CellHash(h ^ 0x2C1B3C6Du)) - 1.0);
@@ -178,8 +195,18 @@ static bool gBodyRead = false;
 float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, out float reachM, out float wMap)
 {
     float f = CellShare(cov, coverage, edge, amount);
+#ifdef _BODIES_V13
+    if (_BodiesP.x > 0.0 && f > 0.0) f = _BodiesP.x;
+#endif
+#ifdef _BODIES_COUNT
+    gBodCountLive = 0u;
+#endif
     float size, xBest, rBest;
     float p = CellProfile(uv, pitch, rm, f, seed, size, reachM, xBest, rBest);
+#ifdef _BODIES_COUNT
+    InterlockedAdd(_BodyCount[gBodCountLight != 0 ? 1 : 0], 1u);
+    InterlockedAdd(_BodyCount[2], gBodCountLive);
+#endif
     float core = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * size;
     float e = p > 0.5 ? (2.0 * p - 1.0) * core : p - 0.5;
     wMap = max(saturate((f - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * pitch) / (0.5 * pitch)) : 0.0);
@@ -234,6 +261,11 @@ float CellBody(int li, float h, float billow, float2 fine, float typeHeightM)
     // radial coordinate changes by at most 1 / axis per m, so its term by at most 1 (gBodyFar, the depth below the shell's outer side).
     gBodyFar = qBase + e.x * axis * (0.5 + 0.5 * e.z * (0.37 + 0.137));
     gBodyRead = true;
+#ifdef _BODIES_COUNT
+    InterlockedAdd(_BodyCount[3], 1u);
+    InterlockedAdd(_BodyCount[4], 1u);
+    InterlockedAdd(_BodyCount[5], (1.0 - xv + e.x * (0.5 + 0.5 * e.z * (0.37 + 0.137))) * axis > -0.5 * band ? 1u : 0u);
+#endif
     return saturate(q / band + 0.5);
 }
 
@@ -265,16 +297,33 @@ float CellBodyReachX(int li)
 //   V5 V1 with the cells' loops as [loop] too. V6 the neighbourhood check: V5 with a 6 x 6 search per class (the same bounds): its picture must equal V5's bit for bit.
 //   V7 V4 with two hashes per body in place of four and the size without pow (the hashes' share of the cost).
 //   V8 the leap check: V5 with no leaps (no reach, no shell gap); V9 the same for the accepted lattice (in CellProfile), its control: V8 against V5 must differ as V9 against no keyword.
-#if defined(_BODIES_V1) || defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V4) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V7) || defined(_BODIES_V8)
+// P0b-0 (the split of V7's cost and the pruned form; since then only 7 and 10 .. 13 are compiled into the march pass, the code of 1 .. 6, 8, 9 stays):
+//   V10 V7's search with no union: the cover pass searches as V7 (no arrays), the body is the nearest disc's alone (today's CellBody).
+//   V11 the union over constant candidates: today's cover pass (the lattice), then V7's sixteen array slots filled from its nearest disc (the first that disc, the
+//       other fifteen beyond reach) and V7's union loop over them: the picture is today's, the cost adds the arrays and the union.
+//   V12 V7 pruned: a dead cell leaves after its alive hash (as the lattice does), only live candidates enter the arrays, the union loops over them and skips a body
+//       before its square root where it cannot reach the band (xv at or above 1 + swing + band / (2 axis); its shell bound is then taken from xv alone).
+//   V13 today's lattice with the forced share of _BodiesP (the control at fixed shares).
+#if defined(_BODIES_V1) || defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V4) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V7) || defined(_BODIES_V8) \
+    || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12)
 #define CLOUD_BODIES 1
 #if defined(_BODIES_V8)
 #define BODIES_NO_LEAP 1
 #endif
-#if defined(_BODIES_V4) || defined(_BODIES_V7)
+#if defined(_BODIES_V4) || defined(_BODIES_V7) || defined(_BODIES_V11) || defined(_BODIES_V12)
 #define BODIES_ARRAYS 1
 #endif
-#if defined(_BODIES_V7)
+#if defined(_BODIES_V7) || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12)
 #define BODIES_CHEAP_HASH 1
+#endif
+#if defined(_BODIES_V10)
+#define BODIES_NO_UNION 1
+#endif
+#if defined(_BODIES_V11)
+#define BODIES_FIXED_CANDIDATES 1
+#endif
+#if defined(_BODIES_V12)
+#define BODIES_PRUNE 1
 #endif
 #define BODIES_CLASS_LOOP [loop]
 #if defined(_BODIES_V6)
@@ -348,10 +397,31 @@ static float gBodX[BODY_N];
 static float gBodSemiR[BODY_N];
 static float gBodTop[BODY_N];
 #endif
+static int gBodN = BODY_N;   // V12: the live candidates in the arrays
+
+// The one source of a body's jitter and size from its hash.
+void BodyDraw(uint hb, float J, out float jx, out float jy, out float s)
+{
+#ifdef BODIES_CHEAP_HASH
+    // V7: one extra hash per body (its halves the jitter), the size from the body hash's low byte (the alive draw reads the upper 24 bits) through a cubic
+    // fit of the power law below (largest error 0.002).
+    uint hj = CellHash(hb ^ 0xA511E9B3u);
+    jx = ((hj & 0xFFFFu) * (2.0 / 65535.0) - 1.0) * J;
+    jy = ((hj >> 16) * (2.0 / 65535.0) - 1.0) * J;
+    float us = (hb & 0xFFu) * (1.0 / 255.0);
+    s = ((0.21457 * us + 0.07435) * us + 0.41727) * us + 0.70586;
+#else
+    jx = (2.0 * CellUnit(CellHash(hb ^ 0xA511E9B3u)) - 1.0) * J;
+    jy = (2.0 * CellUnit(CellHash(hb ^ 0x63D83595u)) - 1.0) * J;
+    // The size within the class: dN/dl ~ l^-1.678 over one octave, 2^-0.5 .. 2^0.5 of the class's size unit.
+    s = pow(1.2647 + CellUnit(CellHash(hb ^ 0x2C1B3C6Du)) * (0.7907 - 1.2647), -1.4749);
+#endif
+}
 
 struct BodiesAcc
 {
     float best, bestS, bestR, reach, other;   // cover pass: the least d / r, that body's size and radius, the least d - r, the least room to a body outside the search
+    int live;                                 // cover pass: the live candidates
     float q, far;                             // body pass: the largest depth below the moved surface and below the shell's outer side
 };
 
@@ -359,7 +429,7 @@ struct BodiesAcc
 BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint seed, float coreBase, float h, float typeHeightM, float bt, float sw)
 {
     BodiesAcc a;
-    a.best = 1e9; a.bestS = 1.0; a.bestR = 0.0; a.reach = 1e9; a.other = 1e9; a.q = -1e9; a.far = -1e9;
+    a.best = 1e9; a.bestS = 1.0; a.bestR = 0.0; a.reach = 1e9; a.other = 1e9; a.q = -1e9; a.far = -1e9; a.live = 0;
     float g = BodyVisibleG(f);
     float u0 = frac(uv.x);
     float lat = (0.5 - uv.y) * 3.14159265;
@@ -417,20 +487,11 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
                     if (b >= nb) break;
                     uint hb = b == 0 ? h0 : CellHash(h0 ^ 0x68E31DA4u);
                     bool live = rowOk && CellUnit(hb) < alive;
-#ifdef BODIES_CHEAP_HASH
-                    // V7: one extra hash per body (its halves the jitter), the size from the body hash's low byte (the alive draw reads the upper 24 bits) through a cubic
-                    // fit of the power law below (largest error 0.002).
-                    uint hj = CellHash(hb ^ 0xA511E9B3u);
-                    float jx = ((hj & 0xFFFFu) * (2.0 / 65535.0) - 1.0) * J;
-                    float jy = ((hj >> 16) * (2.0 / 65535.0) - 1.0) * J;
-                    float us = (hb & 0xFFu) * (1.0 / 255.0);
-                    float s = ((0.21457 * us + 0.07435) * us + 0.41727) * us + 0.70586;
-#else
-                    float jx = (2.0 * CellUnit(CellHash(hb ^ 0xA511E9B3u)) - 1.0) * J;
-                    float jy = (2.0 * CellUnit(CellHash(hb ^ 0x63D83595u)) - 1.0) * J;
-                    // The size within the class: dN/dl ~ l^-1.678 over one octave, 2^-0.5 .. 2^0.5 of the class's size unit.
-                    float s = pow(1.2647 + CellUnit(CellHash(hb ^ 0x2C1B3C6Du)) * (0.7907 - 1.2647), -1.4749);
+#ifdef BODIES_PRUNE
+                    if (!live) continue;
 #endif
+                    float jx, jy, s;
+                    BodyDraw(hb, J, jx, jy, s);
                     float dx = (u - (c + 0.5 + jx) / cols) * 6.2831853 * rm * coslat;
                     float dy = (lat - ((jc + 0.5 + jy) * rowH / rm - 1.5707963)) * rm;
                     float d = sqrt(dx * dx + dy * dy);
@@ -443,6 +504,7 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
                         {
                             if (x < a.best) { a.best = x; a.bestS = sAbs; a.bestR = r; }
                             a.reach = min(a.reach, d - r);
+                            a.live++;
                         }
 #ifdef BODIES_ARRAYS
                         gBodX[n] = live ? x / CELL_EDGE_X : 1e4;
@@ -467,6 +529,9 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
         a.reach = min(a.reach, outerM - rCap);
         a.other = min(a.other, outerM - gCellBodyX * rCap);
     }
+#ifdef BODIES_PRUNE
+    if (mode == 0) gBodN = n;
+#endif
 #ifdef BODIES_NO_LEAP
     a.reach = 0.0;
     a.other = -1e9;
@@ -478,9 +543,26 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
 // outside, gCellOther the least room to a body of a cell outside a class's search (the march's cap on the shell gap; every searched body is in the union, so its own shell counts).
 float CellCoverBodies(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, out float reachM, out float wMap)
 {
+#ifdef BODIES_FIXED_CANDIDATES
+    // V11: today's cover pass, then the sixteen slots from its nearest disc (the first that disc as today's body reads it, the others beyond every reach).
+    float covToday = CellCover(cov, uv, pitch, rm, coverage, edge, amount, foot, seed, reachM, wMap);
+    float topToday = clamp(gCellCore / 0.5, 0.15, 1.0), semiRToday = max(CELL_EDGE_X * gCellR, 1.0);
+    [loop] for (int nf = 0; nf < BODY_N; nf++)
+    {
+        gBodX[nf] = gCellX / CELL_EDGE_X + (nf == 0 ? 0.0 : 4.0 + 0.25 * nf);
+        gBodSemiR[nf] = semiRToday * (1.0 + 0.01 * nf);
+        gBodTop[nf] = topToday;
+    }
+    return covToday;
+#else
     float f = CellShare(cov, coverage, edge, amount);
+    if (_BodiesP.x > 0.0 && f > 0.0) f = _BodiesP.x;
     float coreBase = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5);
     BodiesAcc a = BodiesRun(0, uv, pitch, rm, f, seed, coreBase, 0.0, 0.0, 0.0, 0.0);
+#ifdef _BODIES_COUNT
+    InterlockedAdd(_BodyCount[gBodCountLight != 0 ? 1 : 0], 1u);
+    InterlockedAdd(_BodyCount[2], (uint)a.live);
+#endif
     gBodUv = uv;
     gBodPitch = pitch;
     gBodRm = rm;
@@ -498,12 +580,16 @@ float CellCoverBodies(float cov, float2 uv, float pitch, float rm, float coverag
     gCellCore = core;
     gCellW = wMap;
     return lerp(1.0 - coverage + e, cov, wMap);
+#endif
 }
 
 // CellBody with the classes: the share from the largest depth over every candidate's FULL body term (each its own axis on the shared billow value), the shell gap from the largest
 // depth below the shells' outer sides (the least gap over the candidates).
 float CellBodyBodies(int li, float h, float billow, float2 fine, float typeHeightM)
 {
+#ifdef BODIES_NO_UNION
+    return CellBody(li, h, billow, fine, typeHeightM);
+#endif
     float4 e = _CellE[li];
     float band = CellBand(li);
     [branch] if (CellFootOn(li) && gNoiseFoot > 0.0)
@@ -517,16 +603,37 @@ float CellBodyBodies(int li, float h, float billow, float2 fine, float typeHeigh
     float sw = e.x * (0.5 + 0.5 * e.z * (0.37 + 0.137));
 #ifdef BODIES_ARRAYS
     float q = -1e9, far = -1e9;
-    [loop] for (int n = 0; n < BODY_N; n++)
+#ifdef _BODIES_COUNT
+    uint countReach = 0u;
+#endif
+    [loop] for (int n = 0; n < gBodN; n++)
     {
         float top = gBodTop[n];
         float semiH = max(top * typeHeightM, 1.0), semiR = gBodSemiR[n];
         float xv = gBodX[n], hv = h / top;
         float axis = min(semiR, semiH);
+        // The depth is at most (1 - xv) axis, its moved surface at most sw axis above it: below -band / 2 the body adds no share (V12 skips it before the root and keeps
+        // that bound as its shell depth, which can only shorten a leap).
+        float qUp = (1.0 - xv + sw) * axis;
+#ifdef _BODIES_COUNT
+        countReach += qUp > -0.5 * band ? 1u : 0u;
+#endif
+#ifdef BODIES_PRUNE
+        [branch] if (qUp <= -0.5 * band)
+        {
+            far = max(far, qUp);
+            continue;
+        }
+#endif
         float qb = (1.0 - sqrt(xv * xv + hv * hv)) * axis;
         q = max(q, qb + axis * bt);
         far = max(far, qb + axis * sw);
     }
+#ifdef _BODIES_COUNT
+    InterlockedAdd(_BodyCount[3], 1u);
+    InterlockedAdd(_BodyCount[4], (uint)gBodN);
+    InterlockedAdd(_BodyCount[5], countReach);
+#endif
 #else
     BodiesAcc a = BodiesRun(1, gBodUv, gBodPitch, gBodRm, gBodF, gBodSeed, gBodCore, h, typeHeightM, bt, sw);
     float q = a.q, far = a.far;

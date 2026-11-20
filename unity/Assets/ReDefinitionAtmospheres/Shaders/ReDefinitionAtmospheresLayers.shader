@@ -230,6 +230,9 @@ Shader "ReDefinition/AtmospheresLayers"
         // light 1: the light march's read (the shape only: no erosion detail, no far-view mean; the inlined copy of the light path is the slim one, CLOUDR2 P4).
         float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share)
         {
+#ifdef _BODIES_COUNT
+            gBodCountLight = light;
+#endif
             share = 0;
             gEmptyM = 0;
             gCellX = -1.0;
@@ -915,8 +918,8 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
-            // P0 cost prototype (CloudCells.cginc, cloud.bodies 1 .. 9); no keyword: the accepted lattice.
-            #pragma multi_compile_local __ _BODIES_V1 _BODIES_V2 _BODIES_V3 _BODIES_V4 _BODIES_V5 _BODIES_V6 _BODIES_V7 _BODIES_V8 _BODIES_V9
+            // P0 cost prototype (CloudCells.cginc, cloud.bodies 7 and 10 .. 13); no keyword: the accepted lattice.
+            #pragma multi_compile_local __ _BODIES_V7 _BODIES_V10 _BODIES_V11 _BODIES_V12 _BODIES_V13
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -994,6 +997,19 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             float4 frag(v2f i) : SV_Target { return CullTilePass(i); }
+            ENDCG
+        }
+
+        // Pass 6 (P0b-0 debug, cloud.bodies.count): the march with counters of the density calls in a UAV (CloudCells.cginc _BodyCount); shader model 5 for the UAV.
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 5.0
+            #pragma multi_compile_local _BODIES_COUNT
+            #pragma multi_compile_local _BODIES_V7 _BODIES_V12 _BODIES_V13
+            float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
     }

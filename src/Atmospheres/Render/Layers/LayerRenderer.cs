@@ -113,6 +113,40 @@ namespace ReDefinition.Atmospheres
     {
         internal const string ShaderName = "ReDefinition/AtmospheresLayers";
         internal const int PassMarch = 0, PassComposite = 1, PassAux = 2, PassCompositeOut = 4, PassCullTile = 5;
+        // P0b-0: the march with the density call counters (cloud.bodies.count, CloudCells.cginc _BodyCount; a debug pass at shader model 5).
+        internal const int PassMarchCount = 6;
+        private static readonly int IdBodiesP = Shader.PropertyToID("_BodiesP");
+        // The counters' buffer (six uints) and the sums since the last ResetBodyCounts: bound as UAV 1 around the counting march, read back after each frame.
+        private static ComputeBuffer bodyCountBuffer;
+        private static readonly uint[] bodyCountFrame = new uint[6];
+        internal static readonly double[] BodyCounts = new double[6];
+        internal static int BodyCountFrames;
+        private static bool bodyCountPending;
+
+        internal static void ResetBodyCounts()
+        {
+            for (int i = 0; i < BodyCounts.Length; i++) BodyCounts[i] = 0.0;
+            BodyCountFrames = 0;
+            bodyCountPending = false;
+        }
+
+        // Records the counting march into the buffer in place of the march: adds the last frame's counters to the sums (a synchronous read, a debug run only), clears the buffer.
+        internal static void RecordCountingMarch(CommandBuffer cb, RenderTargetIdentifier target, Material layers)
+        {
+            if (bodyCountBuffer == null) bodyCountBuffer = new ComputeBuffer(6, 4);
+            if (bodyCountPending)
+            {
+                bodyCountBuffer.GetData(bodyCountFrame);
+                for (int i = 0; i < bodyCountFrame.Length; i++) BodyCounts[i] += bodyCountFrame[i];
+                BodyCountFrames++;
+            }
+            for (int i = 0; i < bodyCountFrame.Length; i++) bodyCountFrame[i] = 0u;
+            bodyCountBuffer.SetData(bodyCountFrame);
+            cb.SetRandomWriteTarget(1, bodyCountBuffer);
+            cb.Blit(BuiltinRenderTextureType.None, target, layers, PassMarchCount);
+            cb.ClearRandomWriteTargets();
+            bodyCountPending = true;
+        }
 
         private static readonly int IdFarRot = Shader.PropertyToID("_FarRot"), IdReuseP = Shader.PropertyToID("_ReuseP");
         private static readonly int IdPlanetR = Shader.PropertyToID("_PlanetR"), IdPlanetCenter = Shader.PropertyToID("_PlanetCenter"),
@@ -460,9 +494,11 @@ namespace ReDefinition.Atmospheres
             int bodies = CloudLookTuning.Bodies;
             for (int v = 1; v < CloudLookTuning.BodiesKeywords.Length; v++)
             {
+                if (CloudLookTuning.BodiesKeywords[v] == null) continue;
                 if (v == bodies) m.EnableKeyword(CloudLookTuning.BodiesKeywords[v]);
                 else m.DisableKeyword(CloudLookTuning.BodiesKeywords[v]);
             }
+            m.SetVector(IdBodiesP, new Vector4(CloudLookTuning.BodiesShare, 0f, 0f, 0f));
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));

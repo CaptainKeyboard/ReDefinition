@@ -323,7 +323,8 @@ namespace ReDefinition.Atmospheres
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");
-            cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
+            if (CloudLookTuning.BodiesCount) LayerRenderer.RecordCountingMarch(cb, low, layers);   // P0b-0 debug: the march with its density call counters
+            else cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
             Sub(cb, "march");
             if (markMarched != null) markMarched(cb);
             if (s.Mode == ReconMode.Full)

@@ -195,6 +195,9 @@ namespace ReDefinition.WeatherPlayer
             // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
             // lcgrid<N> its voxels across (the voxels up are a quarter of them).
             public int CacheNear, CacheFill, CacheKm, CacheGrid;
+            // M2a P0b-0: bv<N> cloud.bodies, bs<NN> its forced share in hundredths, bcnt the counting march; set as tuning overrides by ApplyCase (-1: the job's).
+            public int BodiesV = -1, BodiesShare = -1;
+            public bool BodiesCount;
         }
 
         private static LightCache cache;
@@ -269,6 +272,9 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
                 else if (t.StartsWith("sp")) c.Spacing = Number(t, 2) / 10f;
                 else if (t.StartsWith("cr")) c.ConePattern = Number(t, 2);   // E40 F2: the light cone's rotation pattern (LayerFrame.ConePattern)
+                else if (t.StartsWith("bv")) c.BodiesV = Number(t, 2);   // M2a P0b-0: cloud.bodies
+                else if (t.StartsWith("bs")) c.BodiesShare = Number(t, 2);   // M2a P0b-0: cloud.bodies.share in hundredths (0: the map's)
+                else if (t == "bcnt") c.BodiesCount = true;   // M2a P0b-0: cloud.bodies.count (the counting march)
                 else if (t == "bexact") c.BlockExact = true;
                 else if (t == "bacc") c.BlockAcc = true;
                 else if (t == "lrm") c.ReuseMove = true;
@@ -301,6 +307,9 @@ namespace ReDefinition.WeatherPlayer
         // Every field a case can name is set on every call, so that a case never keeps what the one before it set on the same frame.
         internal static void ApplyCase(LayerFrame f, Case c)
         {
+            if (c.BodiesV >= 0) Tuning.SetOverride(CloudLookTuning.TuneBodies, c.BodiesV);
+            if (c.BodiesShare >= 0) Tuning.SetOverride(CloudLookTuning.TuneBodiesShare, c.BodiesShare / 100f);
+            if (c.BodiesV >= 0) Tuning.SetOverride(CloudLookTuning.TuneBodiesCount, c.BodiesCount ? 1f : 0f);
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.LightReuseMove = c.ReuseMove;
@@ -692,6 +701,7 @@ namespace ReDefinition.WeatherPlayer
                             if (!samples.ContainsKey(label)) samples[label] = new[] { new List<double>(), new List<double>(), new List<double>() };
                             List<double>[] s = samples[label];
                             int guard = 0, n = 0, taken = 0, first = s[0].Count;
+                            LayerRenderer.ResetBodyCounts();
                             while (taken < 40 && guard++ < 1200)
                             {
                                 cb.Clear();
@@ -708,6 +718,10 @@ namespace ReDefinition.WeatherPlayer
                                     e = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
                                 if (m >= 0f && r >= 0f && e >= 0f) { s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++; }
                             }
+                            // P0b-0: the density call counters per frame (cloud.bodies.count; the counting march is not the timed one).
+                            if (CloudLookTuning.BodiesCount && LayerRenderer.BodyCountFrames > 0 && round == 0)
+                                for (int ci = 0; ci < LayerRenderer.BodyCounts.Length; ci++)
+                                    Sink.Info("softcost.bodycount" + ci + "." + label, LayerRenderer.BodyCounts[ci] / LayerRenderer.BodyCountFrames);
                             if (s[0].Count > first)
                             {
                                 if (!perRound.ContainsKey(label)) perRound[label] = new List<double>();

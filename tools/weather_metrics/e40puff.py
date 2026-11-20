@@ -366,6 +366,13 @@ VARIANTS = {
     **{"p0dn_b%d" % n: ("(P0) straight down from 15 km, cloud.bodies %d" % n, compose(camera_at(15000.0, -90.0), sun_behind(45.0), tune_dotted([("cloud.bodies", float(n))])),
                         "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
        for n in (0, 1, 5, 6, 8, 9)},
+    # M2a P0b-0: the views of the series p0b-cost (the bodies, the forced share and the light are march tokens there, so one view load measures every case) and the
+    # pictures of the pruned form (12) against 7 (soft-temporal, cloud.bodies as a job key).
+    "p0b_g": ("(P0b-0) tr_base's ground view", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
+    "p0b_dn": ("(P0b-0) straight down from 15 km", compose(camera_at(15000.0, -90.0), sun_behind(45.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
+    **{"p0b_%s%d" % (v, n): ("(P0b-0) %s, cloud.bodies %d" % (what, n), compose(pose, tune_dotted([("cloud.bodies", float(n))])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for v, what, pose in (("g", "ground", compose(camera_at(30.0, 4.0), sun_behind(25.0))), ("dn", "straight down from 15 km", compose(camera_at(15000.0, -90.0), sun_behind(45.0))))
+       for n in (0, 7, 12)},
     "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
     "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
@@ -839,6 +846,58 @@ def collect_cost(ctx):
 
 
 register_series("e40-puff-cost", cost_stage_list(), collect_cost, exclusive=True, who="e40-puff")
+
+# M2a P0b-0: the cost of the bodies at fixed shares, light on and off (ATMO_P0B=share), the split of V7's cost (split), the density call counters (count). One stage
+# over the prepared views p0b_g and p0b_dn; every case is a march (tokens bv, bs, bcnt, dbg1), so a view is loaded once a round.
+P0B_BASE = "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm"
+
+
+def p0b_marches(kind):
+    if kind == "split":
+        return [P0B_BASE + "+bv%d+bs0+lp100" % b for b in (0, 7, 10, 11, 12)]
+    tail = "+bcnt" if kind == "count" else ""
+    return [P0B_BASE + "+bv%d+bs%d%s%s+lp100" % (b, s, dbg, tail) for s in (10, 25, 50, 75) for b in (13, 7, 12) for dbg in ("", "+dbg1")]
+
+
+def p0b_stage_list():
+    kind = os.environ.get("ATMO_P0B", "split")
+    names = [n for n, st in prepared().items() if st["variant"] in ("p0b_g", "p0b_dn")]
+    if not names:
+        return []
+    rounds = int(os.environ.get("ATMO_COST_ROUNDS", "2") or 2)
+    views = ",".join(e40pp.view_tag(n) for n in sorted(names))
+    return [Stage("p0b-" + kind, ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", ",".join(p0b_marches(kind)),
+                                  "-width", str(SIZE[0]), "-height", str(SIZE[1])] + (["-rounds", str(rounds)] if rounds > 2 else []),
+                  size=SIZE, proxy=True, timeout=1150)]
+
+
+def collect_p0b(ctx):
+    kind = os.environ.get("ATMO_P0B", "split")
+    rows = {}
+    for k, v in ctx.player_metrics("p0b-" + kind).items():
+        if not k.startswith("softcost."):
+            continue
+        _, part, rest = k.split(".", 2)
+        view, _medium, march = rest.split(".", 2)
+        rows.setdefault((view, march), {})[part] = v[0]
+    lines = ["P0b-0 %s: march ms (median of the round medians, min-max of the rounds) and the density call counters per frame" % kind]
+    for (view, march) in sorted(rows):
+        r = rows[(view, march)]
+        per = sorted(r[p] for p in r if p.startswith("marchr"))
+        cnt = [r.get("bodycount%d" % i) for i in range(6)]
+        text = "   %-14s %-26s %7.3f" % (view, march.replace(P0B_BASE + "+", "").replace("+lp100", ""), r.get("march", float("nan")))
+        if per:
+            text += "  (%.3f-%.3f, med %.3f, n %d)" % (per[0], per[-1], per[len(per) // 2], len(per))
+        if cnt[0] is not None:
+            calls = (cnt[0] or 0) + (cnt[1] or 0)
+            text += "  calls view %.0f light %.0f, live/cover call %.2f, body calls %.0f, looped/body %.2f, reaching/body %.2f" % (
+                cnt[0], cnt[1], cnt[2] / max(calls, 1), cnt[3], cnt[4] / max(cnt[3], 1), cnt[5] / max(cnt[3], 1))
+        lines.append(text)
+    print("\n".join(lines))
+    return []
+
+
+register_series("p0b-cost", p0b_stage_list(), collect_p0b, exclusive=True, who="p0b")
 
 
 def main():

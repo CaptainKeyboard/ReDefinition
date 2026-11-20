@@ -54,8 +54,8 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Flag(CloudLookTuning.TuneCellShell, CloudLookTuning.CellShellDefault > 0.5f, KeySection.Shape,
                 "single clouds: fine steps inside a body's shell, where its surface can lie (heads smaller than the grid step are not missed)", KeyLiveness.FrameHistory);
             r.Key(CloudLookTuning.TuneBodies, CloudLookTuning.BodiesDefault, KeySection.Shape,
-                "cost prototype: bodies of several size classes (0 the lattice; 1 G2, 2 F2, 3 two classes, 4 G2 with arrays, 5 as 1 with cell loops, 6 the neighbourhood check, 7 as 4 with cheaper hashes, 8 and 9 the leap check)",
-                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 9f);
+                "cost prototype: bodies of several size classes (0 the lattice; compiled: 7 G2 with arrays and cheap hashes, 10 its search alone, 11 its union alone, 12 7 pruned, 13 the lattice at cloud.bodies.share)",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 13f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.
