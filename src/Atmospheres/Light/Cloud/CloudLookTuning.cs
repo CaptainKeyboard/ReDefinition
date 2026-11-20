@@ -352,9 +352,8 @@ namespace ReDefinition.Atmospheres
         //   cloud.lightVolume.voxelM, .grid, .gridZ, .farScale, .cascades   the near cascade's voxel in m, the voxels across a window and up, the far cascade's coarsening, 1 or 2 cascades
         //   cloud.lightVolume.fade         the fade band at a window's edge in voxels
         //   cloud.lightVolume.relayKm      the travel from the anchor after which the volume is laid anew (refilled once)
-        //   cloud.lightVolume.fillTaps, .fillRatio   the fill's sun taps over the whole sun march and their growth; fillTaps 0 (default): the march's own taps beyond the far near
-        //                                  taps (the full march's estimate of the same path; 24 taps growing by 1.15, the light cache's, left the far clouds' lit sides darker than the
-        //                                  full march: player 2026-11-20, ground view, mean difference 0.0051 against 0.0029 at a hand-over of 4 km)
+        //   cloud.lightVolume.fillTaps, .fillRatio   the direct fill's sun taps over the whole sun march and their growth; fillTaps 0 (default): the march's own taps beyond the far
+        //                                  near taps, the full march's estimate of the same path
         internal const string TuneLightVolume = "cloud.lightVolume", TuneLvHandOver = "cloud.lightVolume.handOverKm", TuneLvBand = "cloud.lightVolume.band",
             TuneLvFarTaps = "cloud.lightVolume.farTaps", TuneLvSlices = "cloud.lightVolume.slices", TuneLvWarp = "cloud.lightVolume.warp", TuneLvVoxel = "cloud.lightVolume.voxelM",
             TuneLvGrid = "cloud.lightVolume.grid", TuneLvGridZ = "cloud.lightVolume.gridZ", TuneLvFarScale = "cloud.lightVolume.farScale", TuneLvCascades = "cloud.lightVolume.cascades",
@@ -370,7 +369,7 @@ namespace ReDefinition.Atmospheres
                 return km < 0f || float.IsInfinity(km) ? -1f : Math.Min(km, 1e5f) * 1000f;
             }
         }
-        internal static float LvBand { get { return Clean(Tuning.Get(TuneLvBand, 0.5f), 0.5f, 0.01f, 10f); } }
+        internal static float LvBand { get { return Clean(Tuning.Get(TuneLvBand, 0.15f), 0.15f, 0.01f, 10f); } }
         internal static int LvFarTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFarTaps, 3f), 3f, 0f, 3f)); } }
         internal static int LvSlices { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvSlices, 8f), 8f, 0f, 512f)); } }
         internal static float LvWarp { get { return Clean(Tuning.Get(TuneLvWarp, 1f), 1f, 1f, 1e5f); } }
@@ -383,6 +382,39 @@ namespace ReDefinition.Atmospheres
         internal static float LvRelayM { get { return Clean(Tuning.Get(TuneLvRelay, 100f), 100f, 1f, 5000f) * 1000f; } }
         internal static int LvFillTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFillTaps, 0f), 0f, 0f, 64f)); } }
         internal static float LvFillRatio { get { return Clean(Tuning.Get(TuneLvFillRatio, 1.15f), 1.15f, 1f, 4f); } }
+
+        // LV2 (wolken-m2a-technik.md 11.5):
+        //   cloud.lightVolume.fill         0 (default) a direct march per voxel with the march's own far taps, 1 propagation: a slice takes the slice above where the sun ray crosses it and adds the segment
+        //                                  between them, refreshed from the top down; 2 / 3 a fine reference march (the diagnosis) through whole spans / over the direct fill's length
+        //   cloud.lightVolume.propSteps, .propCap   the least and most samples of a segment (scaled between them so that they stay about a voxel apart at a low sun)
+        //   cloud.lightVolume.propLimit    the longest horizontal run of a segment in voxels; beyond it (a low sun) the voxel takes the direct march
+        //   cloud.lightVolume.debug        1: the far path marches its far part exactly from the read point as the fill would (no voxels, the diagnosis of the read)
+        //   cloud.lightVolume.nearScale    factor on the far path's near length (the read point further towards the sun)
+        //   cloud.lightVolume.refTaps, .refRatio    the reference fill's taps (at most 64, LightTau's loop) and their growth
+        internal const string TuneLvFill = "cloud.lightVolume.fill", TuneLvPropSteps = "cloud.lightVolume.propSteps", TuneLvPropCap = "cloud.lightVolume.propCap",
+            TuneLvPropLimit = "cloud.lightVolume.propLimit", TuneLvDebug = "cloud.lightVolume.debug", TuneLvNearScale = "cloud.lightVolume.nearScale",
+            TuneLvRefTaps = "cloud.lightVolume.refTaps", TuneLvRefRatio = "cloud.lightVolume.refRatio";
+        internal static int LvFill { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFill, 0f), 0f, 0f, 3f)); } }
+        internal static int LvPropSteps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvPropSteps, 2f), 2f, 1f, 64f)); } }
+        internal static int LvPropCap { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvPropCap, 16f), 16f, 1f, 64f)); } }
+        internal static float LvPropLimit { get { return Clean(Tuning.Get(TuneLvPropLimit, 8f), 8f, 0.5f, 1000f); } }
+        internal static int LvDebug { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvDebug, 0f), 0f, 0f, 1f)); } }
+        internal static float LvNearScale { get { return Clean(Tuning.Get(TuneLvNearScale, 1f), 1f, 0.1f, 20f); } }
+        internal static int LvRefTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvRefTaps, 64f), 64f, 1f, 64f)); } }
+        internal static float LvRefRatio { get { return Clean(Tuning.Get(TuneLvRefRatio, 1.03f), 1.03f, 1f, 4f); } }
+        //   cloud.lightVolume.storeK       0: the volume stores the optical depth; above 0 (default 4): exp(-tau / k), so that the trilinear read interpolates transmittance (read back as -k log)
+        //   cloud.lightVolume.readPast     1: the read point lies past the trilinear footprint (the near length plus a near voxel's diagonal over the sun's height, at most
+        //                                  cloud.lightVolume.readPastMaxM), so that the read does not pull in the voxels inside the cloud the sample sits on
+        //   cloud.lightVolume.warpLimit    the time warp's rate above which the far path is off and the full sun march lights everything (LightVolume.TimeWarpRate, which the host sets)
+        internal const string TuneLvStoreK = "cloud.lightVolume.storeK", TuneLvReadPast = "cloud.lightVolume.readPast", TuneLvReadPastMax = "cloud.lightVolume.readPastMaxM",
+            TuneLvWarpLimit = "cloud.lightVolume.warpLimit", TuneLvCapRead = "cloud.lightVolume.capRead";
+        //   cloud.lightVolume.capRead      1: the read takes the stored value less the value where the rest of the sun march's length ends, so that a fill that reaches the sun (the
+        //                                  propagation) gives the full march's length; two volume reads instead of one
+        internal static bool LvCapRead { get { return Tuning.Get(TuneLvCapRead, 0f) > 0.5f; } }
+        internal static float LvStoreK { get { return Clean(Tuning.Get(TuneLvStoreK, 4f), 4f, 0f, 64f); } }
+        internal static bool LvReadPast { get { return Tuning.Get(TuneLvReadPast, 0f) > 0.5f; } }
+        internal static float LvReadPastMaxM { get { return Clean(Tuning.Get(TuneLvReadPastMax, 4000f), 4000f, 0f, 1e5f); } }
+        internal static float LvWarpLimit { get { return Clean(Tuning.Get(TuneLvWarpLimit, 1000f), 1000f, 1f, 1e7f); } }
 
         // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)

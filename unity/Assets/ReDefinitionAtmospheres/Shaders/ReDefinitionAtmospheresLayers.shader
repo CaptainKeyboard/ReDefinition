@@ -1013,8 +1013,8 @@ Shader "ReDefinition/AtmospheresLayers"
                 // (one voxel diagonal): a voxel farther than both from every shell is never read and stays empty.
                 int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
                 int keep = min((int)_LvA.z, steps - 1);
-                float near = keep > 0 ? _Sun.w * NearShare(keep, steps, max(_LightR.y, 1.0)) : 0.0;
-                float reach = length(float2(1.4142 * vox, sliceH)) + near;
+                float near = LightVolumeNear(keep, steps, p, _Sun.xyz);
+                float reach = length(float2(sqrt(2.0) * vox, sliceH)) + near;
                 bool read = false;
                 [loop] for (int lj = 0; lj < MAXL; lj++)
                 {
@@ -1023,12 +1023,61 @@ Shader "ReDefinition/AtmospheresLayers"
                     float lowest = inner > 0 ? inner - reach : (_StepP.w > 0.5 ? -reach : -1e30);
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
-                if (!read) return float4(0, 0, 0, 0);
-                // _LvF.x 0: the march's own taps beyond the far path's near ones (their count, their growth, the rest of the sun march's length), so that the far light is the full
-                // march's estimate of the same path; above 0: that many taps growing by _LvF.y over the whole length.
-                bool own = _LvF.x < 0.5;
-                int taps = own ? max(1, steps - keep) : (int)_LvF.x;
-                return float4(LightTau(p, _Sun.xyz, -1, taps, 0.0, 0.0, 0.0, 0, own ? max(_Sun.w - near, 1.0) : _Sun.w, own ? _LightR.y : _LvF.y), 0, 0, 0);
+                // LV2: _LvP.x the fill (0 a direct march per voxel, 1 propagation from the slice above, 2 a fine reference march to the sun through whole spans, 3 the same over the
+                // direct fill's length). Propagation needs every voxel of the chain, so it skips nothing.
+                float mode = _LvP.x;
+                if (!read && mode < 0.5) return float4(0, 0, 0, 0);
+                float3 s = _Sun.xyz;
+                int taps;
+                float range, ratio = 1.0, above = 0.0;
+                if (mode < 0.5)
+                {
+                    // _LvF.x 0: the march's own taps beyond the far path's near ones (their count, their growth, the rest of the sun march's length), so that the far light is the
+                    // full march's estimate of the same path; above 0: that many taps growing by _LvF.y over the whole length.
+                    bool own = _LvF.x < 0.5;
+                    taps = own ? max(1, steps - keep) : (int)_LvF.x;
+                    range = own ? max(_Sun.w - near, 1.0) : _Sun.w;
+                    ratio = own ? _LightR.y : _LvF.y;
+                }
+                else if (mode > 1.5)
+                {
+                    taps = max(1, (int)_LvD.z);
+                    range = mode > 2.5 ? max(_Sun.w - near, 1.0) : 1e30;
+                    ratio = max(_LvD.w, 1.0);
+                }
+                else
+                {
+                    // The segment from the voxel centre along the sun up to the next slice's altitude; the slice above is read where the sun ray crosses it. The top slice
+                    // marches directly (layers that are not lit by the march, a cirrus deck above the lit ones, can reach above the volume's altitude range and still shade).
+                    bool top = _LvSlice.x > _LvZ.z - 1.5;
+                    float r0 = _PlanetR + alt, rUp = r0 + sliceH;
+                    float b = dot(p, s);
+                    float seg = -b + sqrt(max(b * b + rUp * rUp - r0 * r0, 0.0));
+                    float flat = sqrt(max(seg * seg - sliceH * sliceH, 0.0));
+                    bool fallback = top || dot(p, s) <= 0.0 || flat > _LvP.w * vox;
+                    if (!fallback)
+                    {
+                        bool ok;
+                        above = LightVolumeSlice(p + s * seg, (int)_LvSlice.x + 1, far ? 1 : 0, ok);
+                        fallback = !ok;
+                    }
+                    if (fallback)
+                    {
+                        // The top slice, a ray that leaves both windows between two slices, a low sun or the sun below the horizon: a direct march through whole spans.
+                        above = 0.0;
+                        taps = 24;
+                        range = 1e30;
+                        ratio = 1.15;
+                    }
+                    else
+                    {
+                        taps = (int)clamp(ceil(seg / vox), _LvP.y, _LvP.z);
+                        range = -seg;
+                    }
+                }
+                // The density as the march reads it at this voxel's distance from the camera (a layer's distance fade).
+                float camDist = length(p - (_CamPos.xyz - _PlanetCenter.xyz));
+                return float4(LightVolumeEncode(above + LightTau(p, s, -1, taps, camDist, 0.0, 0.0, 0, range, ratio)), 0, 0, 0);
             }
             ENDCG
         }

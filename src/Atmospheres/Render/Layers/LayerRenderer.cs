@@ -585,16 +585,20 @@ namespace ReDefinition.Atmospheres
         // The planet's radius of the uploaded stack, and the layers of its cloud motion for the CPU model (LayerMotionModel; Presence 1, drift over driftSeconds); the count.
         internal double PlanetRadiusM { get { return radius; } }
 
-        // The uploaded stack's lowest inner and highest outer altitude in m (the light volume's altitude axis, LV1); (0, 1) without layers.
+        // The lowest inner and highest outer altitude in m of the uploaded layers the march lights with the sun march (kind 0; the light volume's altitude axis; the other layers
+        // still shade through the light march), of all layers where none is of that kind; (0, 1) without layers.
         internal Vector2 ShellAltitudes()
         {
             if (layerCount <= 0) return new Vector2(0f, 1f);
             float lo = float.MaxValue, hi = float.MinValue;
-            for (int l = 0; l < Mathf.Min(layerCount, CloudLayerDef.MaxLayers); l++)
-            {
-                lo = Mathf.Min(lo, layerA[l].x);
-                hi = Mathf.Max(hi, layerA[l].y);
-            }
+            int n = Mathf.Min(layerCount, CloudLayerDef.MaxLayers);
+            for (int pass = 0; pass < 2 && lo == float.MaxValue; pass++)
+                for (int l = 0; l < n; l++)
+                {
+                    if (pass == 0 && layerB[l].w >= 0.5f) continue;
+                    lo = Mathf.Min(lo, layerA[l].x);
+                    hi = Mathf.Max(hi, layerA[l].y);
+                }
             return new Vector2(lo, Mathf.Max(hi, lo + 1f));
         }
 

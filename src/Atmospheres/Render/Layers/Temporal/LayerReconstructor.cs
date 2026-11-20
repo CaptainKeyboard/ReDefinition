@@ -142,7 +142,7 @@ namespace ReDefinition.Atmospheres
         internal Action<CommandBuffer> MarkCull, MarkCullEnd;
         // Called right after the light cache's or the light volume's fill (null: no mark; the weather player's cost scene times the fill as its own segment).
         internal Action<CommandBuffer> MarkCacheFilled;
-        // The light volume (LV1, cloud.lightVolume): made when the key is first on, kept while it stays on.
+        // The light volume (cloud.lightVolume): made when the key is first on; its textures are freed while it is off.
         private LightVolume lightVolume;
         internal LightVolume CurrentLightVolume { get { return lightVolume; } }
         // GPU profiler sub-markers of the reconstruction (labels "ReDefinition clouds: <part>"); the module sets it to the host's marker seam, null alone (the weather player).
@@ -178,7 +178,7 @@ namespace ReDefinition.Atmospheres
             havePose = false;
             blockIndex = 0;
             edgeIndex = 0;
-            if (lightVolume != null) lightVolume.Invalidate();   // LV1: the next frame lays the light volume anew (a teleport leaves its content elsewhere)
+            if (lightVolume != null) lightVolume.Invalidate();   // the next frame lays the light volume anew (a teleport leaves its content elsewhere)
         }
 
         internal void Dispose()
@@ -281,22 +281,30 @@ namespace ReDefinition.Atmospheres
             Material layers = renderer.Material;
             // The light cache's box follows the camera (the body's radius is the renderer's after Apply); bound again with the box's new place.
             LightCache cache = f.Light.Cache != null && f.Light.Cache.Enabled ? f.Light.Cache : null;
-            // LV1: the light volume replaces the cache while cloud.lightVolume is on (the march's keyword drops the cache's read); off, the keyword is off and nothing of it runs.
-            // At a hand-over distance of infinity no sample reads the volume: the march keeps its no-keyword variant and nothing is filled, so that end of the slider is today's
-            // picture by construction (the keyword's variant at a hand-over beyond every cloud differs from it by rounding only: up to 0.006 of a half-float channel on 0.3 to
-            // 2.3 % of the pixels, weather player 2026-11-20).
+            // The light volume replaces the cache while cloud.lightVolume is on (the march's keyword drops the cache's read). With the key off, at a hand-over distance of infinity
+            // or above the warp limit no sample reads it: the march keeps its no-keyword variant, nothing is filled, and the volume's textures are freed (the next use lays it anew).
             LightVolume volume = null;
-            if (CloudLookTuning.LightVolume && CloudLookTuning.LvHandOverM >= 0f)
+            bool volumeOn = CloudLookTuning.LightVolume && CloudLookTuning.LvHandOverM >= 0f;
+            if (volumeOn)
             {
                 if (lightVolume == null) lightVolume = new LightVolume();
+                lightVolume.Configure();
+                volumeOn = lightVolume.WarpAllows;
+            }
+            if (volumeOn)
+            {
                 volume = lightVolume;
-                volume.Configure();
                 volume.PixelAngleRad = f.Cull.PixelAngleRad;
-                volume.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM, renderer.ShellAltitudes());
+                int sunSteps = f.Light.SunStepsOverride > 0 ? f.Light.SunStepsOverride : f.SunSteps;
+                volume.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM, renderer.ShellAltitudes(), sunSteps, f.SunMarchM, f.Light.TapRatio);
                 volume.Bind(layers);
                 cache = null;
             }
-            else LightVolume.Unbind(layers);
+            else
+            {
+                LightVolume.Unbind(layers);
+                if (lightVolume != null) lightVolume.Dispose();
+            }
             if (cache != null)
             {
                 cache.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM);
@@ -348,7 +356,8 @@ namespace ReDefinition.Atmospheres
             }
             if (volume != null)
             {
-                volume.Record(cb, layers);
+                volume.Record(cb, layers, f.TowardsSun);
+                volume.ApplyStamps(edgeOn ? edgeLayers : null);
                 Sub(cb, "light volume");
                 if (MarkCacheFilled != null) MarkCacheFilled(cb);
             }
