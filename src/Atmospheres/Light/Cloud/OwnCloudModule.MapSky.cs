@@ -28,8 +28,42 @@ namespace ReDefinition.Atmospheres
         // The last parts and their layers' root offsets for the height build (null: today's heights).
         private volatile MapSkyRegions.Parts mapSkyPartsForHeights;
         private string mapSkyState;
-        // Whether the last height build began with the map sky's bases (BuildHeights builds again when that changes).
-        private bool heightsHadMapSky;
+        // Whether the last height build began with the map sky's bases (BuildHeights builds again when that changes), and whether the last APPLIED one had them.
+        private bool heightsHadMapSky, heightsBuildingMapSky, heightsAppliedMapSky;
+
+        // The proof of what the pass drew (pass.json "mapSky", the probe's row T09.pin.<label>.map_sky): the number of finished map rounds that published the map sky, and the
+        // last finished round's state: -1 today's chain, otherwise sheet rule x 10 + depth rule.
+        internal int MapSkyRounds { get; private set; }
+        private int lastRoundMapSky = -1;
+        internal int LastRoundMapSky { get { return lastRoundMapSky; } private set { lastRoundMapSky = value; } }
+
+        // The state the switch and the rule keys ask for now, in the form of LastRoundMapSky.
+        internal static int MapSkyWanted
+        {
+            get { return WeatherMapSky.On ? MapSkyRegions.SheetRule * 10 + MapSkyRegions.DepthRule : -1; }
+        }
+
+        private void MapSkyRoundEnded()
+        {
+            LastRoundMapSky = mapSkyRound && mapSkyParts != null ? mapSkyParts.SheetRule * 10 + mapSkyParts.DepthRule : -1;
+            if (LastRoundMapSky >= 0) MapSkyRounds++;
+        }
+
+        // Whether the last map round and the applied heights are those the keys ask for (why: the first that is not).
+        internal bool MapSkySettled(out string why)
+        {
+            why = null;
+            int wanted = MapSkyWanted;
+            if (LastRoundMapSky != wanted) why = "the last map round drew sky state " + LastRoundMapSky + ", the keys ask for " + wanted + " (-1: today's chain; else sheet rule x 10 + depth rule)";
+            else if (heightsAppliedMapSky != (wanted >= 0)) why = "the applied height maps were built " + (heightsAppliedMapSky ? "with" : "without") + " the map's bases";
+            return why == null;
+        }
+
+        private string MapSkyJson()
+        {
+            return ",\n \"mapSky\": {\"wanted\": " + MapSkyWanted + ", \"lastRound\": " + LastRoundMapSky + ", \"rounds\": " + MapSkyRounds + ", \"heightsWithBases\": "
+                   + (heightsAppliedMapSky ? "true" : "false") + ", \"partsUt\": " + (double.IsNaN(mapSkyUt) ? "null" : mapSkyUt.ToString("R", System.Globalization.CultureInfo.InvariantCulture)) + "}";
+        }
 
         // The round's map sky: the maps and the parts. Called at the round's fog step, after the coverage and the precipitation level were fetched.
         private void FetchMapSky(CelestialBody b, IWeatherField field, double ut)

@@ -995,6 +995,8 @@ namespace ReDefinition.Atmospheres
         private void EndRound()
         {
             fetchStep = -1;
+            // cloud.weatherMapSky: which sky the round that ends here published (the pinned capture's proof, OwnCloudModule.MapSky.cs).
+            MapSkyRoundEnded();
             if (roundOnWorker)
             {
                 roundDelivered = true;
@@ -1351,6 +1353,7 @@ namespace ReDefinition.Atmospheres
             if (take == HeightTake.Ready && ReferenceEquals(done.Source, stack))
             {
                 done.ApplyTo(stack);
+                heightsAppliedMapSky = heightsBuildingMapSky;
                 lastHeightPlanUt = done.PlanUt;
                 lastHeightMapsUt = done.MapsUt;
                 lastHeightMapsRead = done.MapsRead;
@@ -1373,7 +1376,7 @@ namespace ReDefinition.Atmospheres
                 forceHeights = false;
                 // The field hands its maps at the generator's size (512 x 256); the builder asks for the same, a smaller size would read nothing.
                 HeightPlan plan = HeightPlan.Make(stack, heightTuning, ut, (uint)(b.flightGlobalsIndex + 1) * 0x9E3779B1u, MapWidth, MapHeight);
-                heightsHadMapSky = skyNow;
+                heightsHadMapSky = heightsBuildingMapSky = skyNow;
                 if (skyNow)
                 {
                     plan.RootOverrideM = new float[plan.Count][];
@@ -1997,6 +2000,8 @@ namespace ReDefinition.Atmospheres
             s.Append(']');
             // The pinned capture's numbers (OwnCloudModule.Pin.cs): the frame numbers and the history, the tuning keys in force, the march and temporal settings, the type table's hash.
             s.Append(PinJsonNow());
+            // cloud.weatherMapSky: which sky the last map round published and whether the applied heights carry the map's bases.
+            s.Append(MapSkyJson());
             s.Append(",\n \"uniforms\": ").Append(LayerPassReadout.Uniforms(renderer.Material)).Append("}\n");
             return s.ToString();
         }

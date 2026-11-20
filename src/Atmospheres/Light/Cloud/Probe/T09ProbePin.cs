@@ -424,6 +424,13 @@ namespace ReDefinition.Atmospheres
                                                          + step.ToString("0.0000", CultureInfo.InvariantCulture) + " s; the sun's direction " + sunSpreadDeg.ToString("0.00000", CultureInfo.InvariantCulture)
                                                          + " degrees, the planet's centre " + centreSpreadM.ToString("0.000", CultureInfo.InvariantCulture) + " m")) yield break;
 
+            // The sky the pass draws in this capture: the last map round's state (-1 today's chain, else sheet rule x 10 + depth rule) must be the keys' (cloud.weatherMapSky*).
+            PinEmit("map_sky", own.LastRoundMapSky);
+            PinEmit("map_sky_rounds", own.MapSkyRounds);
+            string skyWhy;
+            if (!PinStep("map_sky", own.MapSkySettled(out skyWhy), skyWhy ?? ("the last map round drew sky state " + own.LastRoundMapSky + " as the keys ask, the heights "
+                                                                              + (own.LastRoundMapSky >= 0 ? "with" : "without") + " the map's bases"))) yield break;
+
             // 5. The capture, all at this frame's end.
             string label = view.Name + (limit != null ? "-" + limit : "");
             string pictureVariant = variant + (limit != null ? "-" + limit : "");
