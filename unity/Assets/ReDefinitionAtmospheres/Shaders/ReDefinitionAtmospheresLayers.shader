@@ -216,16 +216,10 @@ Shader "ReDefinition/AtmospheresLayers"
         static float2 gTypeLight = float2(1.0, 1.0);
         // E40 C1: the length along the ray (m) around the last point LayerDensity was asked for within which the layer's map is certainly empty (0: no statement); the march leaps by it.
         static float gEmptyM = 0;
-        // The vertical distance in m from an empty sample to its type's slab (below its base or above its top; -1: the sample is not empty for that reason). The march keeps a leap
-        // from passing over the slab (layers.spanGrowthPerM).
-        static float gSlabGap = -1;
-        // layers.leapDebug: the vertical distance in m from an empty sample to the band every offset of the height variation can reach (the sample is above or below it; -1: not
-        // empty for that reason), and which return made the sample empty (1 outside the layer's reach, 3 the fade, 4 the map's coverage bound, 5 the cells' bound, 6 outside the
-        // height variation's band, 7 outside the type's slab, 8 the lift's bound, 9 the noise; 0 dense).
-        static float gBandGap = -1;
-        static float gExit = 0;
-        // Whether that gap lies below the sample (the sample is above the slab or band).
-        static bool gGapAbove = false;
+        // The vertical distance in m from an empty sample to the altitudes where cloud of the layer can begin there: the layer's reach, the height variation's band, the type's
+        // slab, whichever test made the sample empty. Positive: the sample lies above them; negative: below; 0: the sample is not empty for that reason. The march ends a leap
+        // there (_ReuseP.w bit 8, with layers.spanGrowthPerM).
+        static float gSlabGap = 0;
 
         // The empty reach at a map point (EmptyReachMath.ReachMetres is its CPU twin): the texels to the nearest texel that can hold cloud as an angle on the planet (a texel is pi / height across
         // and 2 pi / width times the cosine of the latitude along a parallel), as the chord at the planet's radius (a straight line keeps at least that far from the centre), on a body with a surface.
@@ -242,9 +236,7 @@ Shader "ReDefinition/AtmospheresLayers"
         {
             share = 0;
             gEmptyM = 0;
-            gSlabGap = -1;
-            gBandGap = -1;
-            gExit = 1;
+            gSlabGap = 0;
             gCellX = -1.0;
             gCellW = 1.0;
             gBodyRead = false;
@@ -262,12 +254,10 @@ Shader "ReDefinition/AtmospheresLayers"
             float reachUp = heightOn ? HeightReachUp(li) / (outer - inner) : 0.0;
             if (share < -reachDown || share > 1 + reachUp)
             {
-                gBandGap = max(-reachDown - share, share - 1.0 - reachUp) * (outer - inner);
-                gGapAbove = share > 1.0 + reachUp;
+                gSlabGap = (share > 0.0 ? share - 1.0 - reachUp : share + reachDown) * (outer - inner);
                 return 0;
             }
             if (_CellA.w > 0) return li == 0 ? CellDensity(pc) : 0;   // the parity test cell (T03)
-            gExit = 3;
             float fade = 1.0;
             float fadeNear = _LayerC[li].x, fadeFar = _LayerC[li].y;
             if (fadeFar > fadeNear)
@@ -276,7 +266,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 fade = x * x * (3.0 - 2.0 * x);
                 if (fade <= 0) return 0;
             }
-            gExit = 4;
             float slice = _LayerC[li].z;
             float cov = 1.0, typeValue = 0.0;
             float2 uv = 0, uvRaw = 0;
@@ -300,7 +289,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
                 // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
-                gExit = 5;
                 [branch] if (_CullL[li].w > 0.0)
                 {
                     float cellReach, wMap;
@@ -337,27 +325,22 @@ Shader "ReDefinition/AtmospheresLayers"
                 waterPow = lerp(ja.y > 0 ? ja.y : waterPow, jb.y > 0 ? jb.y : waterPow, f);
             }
             float erosionType = lerp(ia.z, ib.z, f);
-            gExit = 6;
             if (heightOn)
             {
                 float localBase, localTop;
                 if (!HeightLocalBaseTop(li, pc, uvRaw, b, tp, erosionType, outer - inner, share, localBase, localTop))
                 {
-                    if (localTop > localBase) gBandGap = max(localBase - share, share - localTop) * (outer - inner);
-                    gGapAbove = share > localTop;
+                    if (localTop > localBase) gSlabGap = (share > localTop ? share - localTop : share - localBase) * (outer - inner);
                     return 0;
                 }
                 b = localBase;
                 tp = localTop;
             }
-            gExit = 7;
             if (share < b || share > tp || tp <= b)
             {
-                if (tp > b) gSlabGap = max(b - share, share - tp) * (outer - inner);
-                gGapAbove = share > tp;
+                if (tp > b) gSlabGap = (share > tp ? share - tp : share - b) * (outer - inner);
                 return 0;
             }
-            gExit = 8;
             gTopAlt = inner + tp * (outer - inner);
             gBaseAlt = inner + b * (outer - inner);
             erosion = erosionType * _LayerD[li].z;
@@ -376,7 +359,6 @@ Shader "ReDefinition/AtmospheresLayers"
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
             if (!body && _CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
-            gExit = 9;
             // The cost debug bits switch the shape noise (2) and the erosion (4) off.
             float noiseAmount = fmod(floor(_CostP.y * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
             if (fmod(floor(_CostP.y * 0.25), 2.0) >= 0.5) erosion = 0;
@@ -402,7 +384,6 @@ Shader "ReDefinition/AtmospheresLayers"
             float pw = waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             gTypeLight = pf.yz;
-            gExit = 0;
             return _LayerB[li].x * s * pf.x * fade;
         }
 
@@ -511,15 +492,11 @@ Shader "ReDefinition/AtmospheresLayers"
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;
             bool noLight = fmod(floor(_CostP.y), 2.0) > 0.5;
-            // The leap's switches (_ReuseP.w, bits; 0: the march as it is; the caller sets 136 with the points by distance, LayerFrame.LeapBits): 1 no skip over the empty reach, 2 no
-            // leap's growth (every empty sample steps one grid point), 8 a leap ends where the ray reaches the altitude at which cloud can begin (the type's slab, the band of the height
-            // variation, the layer's reach), 16 a leap from inside the type's slab is no longer than half the ray's path through it, 32 a leap is no longer than the ray's path through
-            // the layer's thinnest type, 64 a leap that landed on cloud goes back by the step at its start, 128 a leap ended by 8 starts again from one grid step, 256 a leap that
-            // would pass the span's end is one grid step and starts again.
-            float leapBits = _ReuseP.w;
-            bool lbNoReach = fmod(leapBits, 2.0) > 0.5, lbNoGrow = fmod(floor(leapBits * 0.5), 2.0) > 0.5,
-                 lbGap = fmod(floor(leapBits * 0.125), 2.0) > 0.5, lbInSlab = fmod(floor(leapBits / 16.0), 2.0) > 0.5, lbThin = fmod(floor(leapBits / 32.0), 2.0) > 0.5,
-                 lbBack = fmod(floor(leapBits / 64.0), 2.0) > 0.5, lbRestart = fmod(floor(leapBits / 128.0), 2.0) > 0.5, lbEnd = fmod(floor(leapBits / 256.0), 2.0) > 0.5;
+            // The leap's switches (_ReuseP.w, bits; 0: the march as it is; the caller sets 136 with the points by distance, LayerFrame.LeapBits): 8 a leap ends, in whole grid steps,
+            // where the ray reaches the altitude at which cloud can begin (the type's slab, the band of the height variation, the layer's reach), 128 a leap so ended starts again
+            // from one grid step. Read only where the switches are set, so the march without them is today's.
+            bool leapEnds = _ReuseP.w > 0.5;
+            bool lbGap = leapEnds && fmod(floor(_ReuseP.w * 0.125), 2.0) > 0.5, lbRestart = leapEnds && fmod(floor(_ReuseP.w / 128.0), 2.0) > 0.5;
             [loop] for (int k = 0; k < 8; k++)
             {
                 if (k >= n) break;
@@ -577,17 +554,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 bool prevDense = false, bisecting = false;
                 float bLo = 0.0, bHi = 0.0, bIter = 0.0, shell = 0.0;
                 float shellLeft = (float)count;   // A4: the fine steps a span may take inside bodies' shells (cloud.cellShell)
-                // layers.leapDebug 32: the height of the layer's thinnest type (m).
-                float thinM = 1e9;
-                [branch] if (lbThin)
-                {
-                    [loop] for (int ty = 0; ty < MAXT; ty++)
-                    {
-                        if (ty >= (int)_LayerC[li].w) break;
-                        float4 ti = TypeInfo(li, ty);
-                        if (ti.y > ti.x) thinM = min(thinM, (ti.y - ti.x) * (_LayerA[li].y - _LayerA[li].x));
-                    }
-                }
                 [loop] for (int i = 0; i < 512; i++)
                 {
                     if (!(t < tEnd)) break;
@@ -668,48 +634,32 @@ Shader "ReDefinition/AtmospheresLayers"
                     {
                         prevDense = false;
                         // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (gEmptyM is 0 where no reach was read).
-                        float reachSkip = lbNoReach ? 0.0 : dtv * floor(gEmptyM / dtv);
+                        float reachSkip = dtv * floor(gEmptyM / dtv);
                         tLast = t + reachSkip;
                         arrived = leap;
                         float jump = dtv * leap + reachSkip;
-                        // The ray's vertical share: a vertical distance h is crossed in h / sinUp along the ray.
-                        float sinUp = max(abs(dot(d, pc)) / length(pc), 1e-3);
-                        // 8: above or below the altitudes where cloud can begin (the type's slab, the height variation's band, the layer's reach) a leap ends where the ray reaches
-                        // them, when it moves towards them (a descending ray's vertical share only falls towards its lowest point, so the end lies at or before the altitude).
-                        float gapUsed = -1.0;
-                        if (lbGap && ((gGapAbove && dot(d, pc) < 0.0) || (!gGapAbove && dot(d, pc) > 0.0))) gapUsed = max(gSlabGap, gBandGap);
+                        // 8: above or below the altitudes where cloud can begin (the layer's reach, the height variation's band, the type's slab) a leap ends where the ray reaches
+                        // them, when it moves towards them (a descending ray's vertical share only falls towards its lowest point, so the end lies at or before the altitude). In
+                        // whole grid steps, as the reach skip: an end at the altitude itself is the same place for every pixel of a row, which drops the step offset's per-pixel
+                        // phase and draws the clouds behind it in horizontal streaks (ground view, FAR7). 128: such a leap starts again from one grid step (cloud can begin right
+                        // there; the altitude is the type's at the leap's start, another type along the leap may reach higher, so a landing on cloud is still walked back).
                         bool capped = false;
-                        if (gapUsed > 0.0)
+                        [branch] if (lbGap && gSlabGap * dot(d, pc) < 0.0)
                         {
-                            float toGap = max(dtv, gapUsed / sinUp);
+                            float toGap = dtv * max(1.0, floor(abs(gSlabGap) * length(pc) / max(abs(dot(d, pc)), 1e-3 * length(pc)) / dtv));
                             capped = toGap < jump;
                             jump = min(jump, toGap);
                         }
-                        // layers.leapDebug 16: inside the type's slab (empty by the lift's bound or the noise) a leap is no longer than half the ray's path through the slab.
-                        if (lbInSlab && (gExit > 7.5 && gExit < 9.5))
-                        {
-                            float inSlab = max(dtv, 0.5 * (gTopAlt - gBaseAlt) / sinUp) + reachSkip;
-                            jump = min(jump, inSlab);
-                        }
-                        // layers.leapDebug 32: no leap is longer than the ray's path through the layer's thinnest type.
-                        if (lbThin) jump = min(jump, reachSkip + max(dtv, thinM / sinUp));
-                        // 256: a leap past the span's end is never tested by a landing; it becomes one grid step and the leap starts again.
-                        bool pastEnd = lbEnd && arrived > 1.5 && t + jump >= tEnd;
-                        if (pastEnd) jump = reachSkip + dtv;
                         t += jump;
                         // With the points by distance the leap's cap in grid points follows the step at the sample (the cap is a length in the layer's noise scales; dt is the
                         // step at the camera, and a cap counted in it would let a far leap pass over whole clouds).
                         float leapCapHere = (spanG > 0.0 && _SpacingP.z > 0.0 && _LayerD[li].y > 0.0) ? max(leapMax, floor(_SpacingP.z / (_LayerD[li].y * dtv))) : leapCap;
-                        leap = lbNoGrow ? 1.0 : min(leap + 1.0, leapCapHere);
-                        // 128: a leap ended at the altitude where cloud can begin starts again from one grid step (cloud can begin right there). The altitude is the type's at the
-                        // leap's start, another type along the leap may reach higher: a landing on cloud is still walked back.
-                        if (lbRestart && capped) leap = 1.0;
-                        if (pastEnd) { leap = 1.0; arrived = 1.0; }
+                        leap = (lbRestart && capped) ? 1.0 : min(leap + 1.0, leapCapHere);
                         continue;
                     }
                     if (arrived > 1.5)
                     {
-                        t = tLast + (lbBack && spanG > 0.0 ? dt * (1.0 + spanG * max(tLast - growFrom, 0.0)) : dtv);
+                        t = tLast + dtv;
                         leap = 1.0;
                         arrived = 1.0;
                         continue;

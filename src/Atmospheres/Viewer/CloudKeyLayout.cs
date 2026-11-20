@@ -53,7 +53,7 @@ namespace ReDefinition.Atmospheres.Viewer
             { OwnCloudOptions.TuneLightReuseMove, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneCostCutM, new[] { 0f, 40000f } },
             { OwnCloudOptions.TuneSpanGrowthPerM, new[] { 0f, 0.002f } },
-            { OwnCloudOptions.TuneLeapDebug, new[] { -1f, 511f } },
+            { OwnCloudOptions.TuneLeapDebug, new[] { -1f, 136f } },
             { OwnCloudOptions.TuneSpanGrowthFromM, new[] { 0f, 20000f } },
             { OwnCloudOptions.TuneReconRotate, new[] { 0f, 4f } },
             { OwnCloudOptions.TuneShadowResolution, new[] { 2f, 4f } },
