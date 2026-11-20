@@ -57,11 +57,11 @@ CASES = {
     "stillabove": dict(view="above"),
     "fwd50": dict(view="ground", vel=(50, 0, 0)),
     "fwd150": dict(view="inside", vel=(150, 0, 0)),
-    "fwd300": dict(view="inside", vel=(300, 0, 0)),
+    "fwd300": dict(view="inside", vel=(300, 0, 0), windows=[(1072, 0)]),   # the far band at the horizon
     "fwdabove300": dict(view="above", vel=(300, 0, 0)),
     "side150": dict(view="inside", vel=(0, 150, 0)),
-    "yaw30": dict(view="ground", yaw=30.0),
-    "yawinside30": dict(view="inside", yaw=30.0),
+    "yaw30": dict(view="ground", yaw=30.0, windows=[(640, 1120)]),            # the rocket's edge (the disocclusion band)
+    "yawinside30": dict(view="inside", yaw=30.0, windows=[(600, 1120)]),      # the rocket's edge in front of the deck
     "climb": dict(view="inside", vel=(150, 0, 120), start=(0, 0, 0)),
     "wind": dict(view="ground", wind=8.0),
     "still_back": dict(view="groundback"),
@@ -171,6 +171,16 @@ def label_strip(tiles, row_labels, col_labels, tile, path):
     img.save(path)
 
 
+def fine_detail(img8, block=6):
+    """Luminance (0..1) minus its block mean: the detail finer than a block."""
+    lum = img8.astype(np.float32) @ np.array([0.2126, 0.7152, 0.0722], np.float32) / 255.0
+    h, w = lum.shape
+    h2, w2 = h // block * block, w // block * block
+    lum = lum[:h2, :w2]
+    m = lum.reshape(h2 // block, block, w2 // block, block).mean(axis=(1, 3))
+    return lum - np.repeat(np.repeat(m, block, axis=0), block, axis=1)
+
+
 def region_errors(err, ref_alpha, img_alpha):
     """Mean error (8-bit) by region at the render size: edge (where the reference's alpha changes by more than 0.1 within 2 px), thin (alpha 0.02-0.5), dense (above 0.5),
     border (the outer 6 % of the picture, any cover), sky (neither has cover); and the raster index of the error over the pixel phases of a 2 x 2 and a 3 x 3 grid."""
@@ -241,6 +251,7 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
     base = os.path.join(out_root, case)
     guard = {n: [] for n in names if n != "ref"}
     regions = {}
+    kept = {}
     last = {}
     for i, k in enumerate(frames):
         ref = load_half(os.path.join(folder, "%s-ref-f%d.npy" % (job, k)))
@@ -263,6 +274,10 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
             guard[n].append(float(np.sqrt((diff[mask] ** 2).mean())) if mask.any() else 0.0)
             if i >= len(frames) - 8:
                 regions.setdefault(n, []).append(region_errors(np.abs(diff).max(axis=-1), ref[..., 3], img[..., 3]))
+                fr, fc = fine_detail(ref8), fine_detail(img8)
+                kept.setdefault(n, [0.0, 0.0])
+                kept[n][0] += float((fc * fr).sum())
+                kept[n][1] += float((fr * fr).sum())
             if i % keep_every_err == 0 or i == len(frames) - 1:
                 save(np.clip(e * 4, 0, 255).astype(np.uint8)[..., None].repeat(3, axis=-1),
                      os.path.join(base, n + "-error-x4", "%s-%s-%s-error-x4-f%02d-2560x1440.png" % (case, view, n, i)))
@@ -273,11 +288,13 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
     tile = 256
     stripframes = frames[::max(1, len(frames) // 8)][:8]
     order = ["ref"] + [n for n in names if n != "ref"]
-    wins = []
+    # The case's fixed windows (a silhouette, a known artefact) first, then the automatic ones.
+    wins = [tuple(w) for w in spec.get("windows", [])]
+    fixed = len(wins)
     for n in reversed(order[1:]):
         if n in last:
             wins += [w for w in pick_windows(last[n][1].astype(np.float32), last[n][2], tile, 3) if w not in wins]
-    for wi, (y, x) in enumerate(wins[:4]):
+    for wi, (y, x) in enumerate(wins[:fixed + 4]):
         rows = []
         for n in order:
             row = []
@@ -297,10 +314,12 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
             lines.append("  %-14s %6.2f / %6.2f" % (n, float(np.mean(g)), float(np.max(g))))
     lines.append("  where (last 8 frames, mean 8-bit error at the render size 1707x960 by region; raster: spread of the error's mean over the pixel phases of a 2 x 2 / 3 x 3 grid, "
                  "std over mean, 0 = none):")
-    lines.append("  %-14s %7s %7s %7s %7s %7s %8s %8s" % ("variant", "edge", "thin", "dense", "border", "sky", "raster2", "raster3"))
+    lines.append("  kept: the share of the reference's fine detail (luminance minus its 6 x 6 block mean at 2560, i.e. 4 x 4 render px) the variant keeps, by projection")
+    lines.append("  %-14s %7s %7s %7s %7s %7s %8s %8s %6s" % ("variant", "edge", "thin", "dense", "border", "sky", "raster2", "raster3", "kept"))
     for n, rs in regions.items():
         m = {k: float(np.mean([r[k] for r in rs])) for k in rs[0]}
-        lines.append("  %-14s %7.2f %7.2f %7.2f %7.2f %7.2f %8.3f %8.3f" % (n, m["edge"], m["thin"], m["dense"], m["border"], m["sky"], m["raster2"], m["raster3"]))
+        k = kept[n][0] / max(kept[n][1], 1e-9) if n in kept else float("nan")
+        lines.append("  %-14s %7.2f %7.2f %7.2f %7.2f %7.2f %8.3f %8.3f %6.2f" % (n, m["edge"], m["thin"], m["dense"], m["border"], m["sky"], m["raster2"], m["raster3"], k))
     text = "\n".join(lines)
     with open(os.path.join(base, "%s-guard.txt" % case), "w", encoding="utf-8") as f:
         f.write(text + "\n")
