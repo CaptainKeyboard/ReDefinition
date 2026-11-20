@@ -19,8 +19,8 @@ namespace ReDefinition.Atmospheres
     //      replay) and after it (composed.npy), both at the render size before Scatterer's later passes, the upscaler and the post-processing, the natural picture
     //      (natural.npy, linear, and the PNG), the screen at the display size (the PNG t09-<start>-<view>-<variant>-<w>x<h>-pinscreen.png, UI hidden with -t09HideUi) and the
     //      maps with pass.json are taken at that frame's end.
-    //   5. -t09PinLimits <name=kind:key:value+...;...> (ground view only, master plan section 29, the straight line before the horizon): after the plain capture, each named set of
-    //      switches is applied, the history cut again, and the same capture taken under the tag pin-ground-<name>-...; kinds t (a tuning key forced), s (a setting set, put back
+    //   5. -t09PinLimits <name=kind:key:value+...;...> (in the views of -t09PinLimitViews, default ground; master plan section 29, the straight line before the horizon): after the
+    //      plain capture, each named set of switches is applied, the history cut again, and the same capture taken under the tag pin-<view>-<name>-...; kinds t (a tuning key forced), s (a setting set, put back
     //      after), p (a probe switch: surface 0 = OwnCloudModule.ProbeNoSurface, scenedepth 0 = ProbeNoSceneDepth, maxsteps N = LayerProbeSwitches.MaxSteps).
     // Every step is a row T09.pin.<view>[-<limit>].<step> and a check; a step that cannot be done fails the start by name and the next view is taken. The files land in
     // series-pictures/maps/<tag> (tag pin-<view>[-<limit>]-u<ut>-<start>-<time>).
@@ -282,7 +282,9 @@ namespace ReDefinition.Atmospheres
                     yield break;
                 }
                 foreach (ProbeWait w in PinCutHoldCapture(view, variant, null)) yield return w;
-                if (view.Name == "ground")
+                // -t09PinLimitViews (default ground): the views the limit sets are captured in.
+                string limitViews = CommandLine.After(Args(), "-t09PinLimitViews", true);
+                if (Array.IndexOf((string.IsNullOrEmpty(limitViews) ? "ground" : limitViews).Split(','), view.Name) >= 0)
                 {
                     foreach (PinLimit limit in limits)
                     {
