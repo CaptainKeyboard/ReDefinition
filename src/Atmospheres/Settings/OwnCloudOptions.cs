@@ -93,6 +93,10 @@ namespace ReDefinition.Atmospheres
         // the clouds beyond the cut cost (the 48 fps plan 2026-11-19: whether impostors for far clouds can pay). The K-T2 perf variants cut5, cut10, cut20 set it.
         internal const string TuneCostCutM = "layers.costCutM";
 
+        // layers.spanGrowthPerM (LayerFrame.SpanGrowthPerM, default 0, off): a span's points by distance, the growth of the step per m of distance from the camera. With
+        // layers.maxSteps it sets how many points a long span takes and where they lie.
+        internal const string TuneSpanGrowthPerM = "layers.spanGrowthPerM";
+
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
         // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
         // Measured: in the player (one layer, the lowest type alone) the cut lowers the temporal noise of a cloud pixel from 0.0031 / 0.0101 (closed / rim) to
@@ -278,6 +282,7 @@ namespace ReDefinition.Atmospheres
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.LightReuseMove = Tuning.Get(TuneLightReuseMove, 0f) > 0.5f;
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
+            f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, 0f));
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));

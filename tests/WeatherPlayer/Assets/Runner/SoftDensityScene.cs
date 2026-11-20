@@ -192,6 +192,8 @@ namespace ReDefinition.WeatherPlayer
             public bool ReuseMove;
             // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
             public int Grid;
+            // sg<N>: a span's points by distance, the step's growth of N / 1000000 per m of distance from the camera (LayerFrame.SpanGrowthPerM).
+            public int SpanGrowthE6;
             // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
             // lcgrid<N> its voxels across (the voxels up are a quarter of them).
             public int CacheNear, CacheFill, CacheKm, CacheGrid;
@@ -246,6 +248,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "clight") c.CeilTaps = true;   // PUFF ceiling render: the light's group alone
                 else if (t == "c256") c.C256 = true;
                 else if (t.StartsWith("ng") && t.Length > 2) c.Grid = Number(t, 2);
+                else if (t.StartsWith("sg") && t.Length > 2) c.SpanGrowthE6 = Number(t, 2);
                 else if (t == "cmin6") c.Cmin6 = true;
                 else if (t == "cng") c.Cng = true;
                 else if (t == "ceo") c.Ceo = true;
@@ -304,6 +307,7 @@ namespace ReDefinition.WeatherPlayer
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.LightReuseMove = c.ReuseMove;
+            f.SpanGrowthPerM = c.SpanGrowthE6 * 1e-6f;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
             f.DitherSequence = c.Dither >= 0 ? c.Dither : FrameDefaults.DitherSequence;
             f.DitherOwnGrid = !c.OldGrid;
