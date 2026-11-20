@@ -292,6 +292,8 @@ namespace ReDefinition.Atmospheres
         public void Init()
         {
             Current = this;
+            // LV1: a new lay of the light volume (cloud.lightVolume) is logged.
+            LightVolume.Say = line => AtmospheresLog.Say("own clouds: " + line);
             // The GPU profiler's sub-markers are wired only while the profiler runs, so no label is put together without it.
             if (HostSeams.GpuProfileOn())
             {

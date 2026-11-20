@@ -53,6 +53,25 @@ namespace ReDefinition.Atmospheres.Viewer
                 "single clouds: the body filtered by the sample's footprint (finer billows fade once the sample is wider than them, the surface band at least a pixel)", KeyLiveness.FrameHistory);
             r.Flag(CloudLookTuning.TuneCellShell, CloudLookTuning.CellShellDefault > 0.5f, KeySection.Shape,
                 "single clouds: fine steps inside a body's shell, where its surface can lie (heads smaller than the grid step are not missed)", KeyLiveness.FrameHistory);
+            // LV1: the light volume (LightVolume.cs), read every frame by LayerReconstructor.Record.
+            r.Flag(CloudLookTuning.TuneLightVolume, false, KeySection.Light,
+                "prototype: the sun's light beyond the hand-over distance from the light volume (near taps and one read) instead of the full sun march", KeyLiveness.FrameHistory);
+            r.Key(CloudLookTuning.TuneLvHandOver, 8f, KeySection.Light, "light volume: hand-over distance in km (below 0: infinity, the full sun march everywhere)",
+                KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 100f);
+            r.Key(CloudLookTuning.TuneLvBand, 0.5f, KeySection.Light, "light volume: blend band beyond the hand-over distance, as a share of it", KeyLiveness.FrameHistory, KeyMarker.Live, 0.01f, 10f);
+            r.Key(CloudLookTuning.TuneLvFarTaps, 3f, KeySection.Light, "light volume: near taps of the far path (fewer where shorter than the pixel's footprint)",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 3f);
+            r.Key(CloudLookTuning.TuneLvSlices, 8f, KeySection.Light, "light volume: slices refreshed per frame over both cascades (0: all)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 512f);
+            r.Key(CloudLookTuning.TuneLvWarp, 1f, KeySection.Light, "light volume: factor on the slices per frame (the time warp's rate)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 1e5f);
+            r.Key(CloudLookTuning.TuneLvVoxel, 312.5f, KeySection.Light, "light volume: the near cascade's voxel in m (a change lays the volume anew)", KeyLiveness.FrameHistory, KeyMarker.Live, 25f, 10000f);
+            r.Key(CloudLookTuning.TuneLvGrid, 128f, KeySection.Light, "light volume: voxels across a window", KeyLiveness.FrameHistory, KeyMarker.Live, 16f, 512f);
+            r.Key(CloudLookTuning.TuneLvGridZ, 32f, KeySection.Light, "light volume: slices of a cascade over the layers' altitudes", KeyLiveness.FrameHistory, KeyMarker.Live, 4f, 64f);
+            r.Key(CloudLookTuning.TuneLvFarScale, 4f, KeySection.Light, "light volume: the far cascade's voxel over the near one's", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 64f);
+            r.Key(CloudLookTuning.TuneLvCascades, 2f, KeySection.Light, "light volume: cascades (1 near only, 2 near and far)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);
+            r.Key(CloudLookTuning.TuneLvFade, 4f, KeySection.Light, "light volume: fade band at a window's edge in voxels", KeyLiveness.FrameHistory, KeyMarker.Live, 0.25f, 64f);
+            r.Key(CloudLookTuning.TuneLvRelay, 100f, KeySection.Light, "light volume: travel in km after which it is laid anew (refilled once)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 5000f);
+            r.Key(CloudLookTuning.TuneLvFillTaps, 24f, KeySection.Light, "light volume: the fill's sun taps", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 64f);
+            r.Key(CloudLookTuning.TuneLvFillRatio, 1.15f, KeySection.Light, "light volume: growth of each fill tap over the one before", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 4f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.

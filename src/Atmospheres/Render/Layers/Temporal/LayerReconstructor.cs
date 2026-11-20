@@ -140,6 +140,11 @@ namespace ReDefinition.Atmospheres
         internal Action<CommandBuffer> MarkMask, MarkEdge;
         // The timing marks around the culling's tile pass (package T16; the player sets them, the game leaves them null).
         internal Action<CommandBuffer> MarkCull, MarkCullEnd;
+        // Called right after the light cache's or the light volume's fill (null: no mark; the weather player's cost scene times the fill as its own segment).
+        internal Action<CommandBuffer> MarkCacheFilled;
+        // The light volume (LV1, cloud.lightVolume): made when the key is first on, kept while it stays on.
+        private LightVolume lightVolume;
+        internal LightVolume CurrentLightVolume { get { return lightVolume; } }
         // GPU profiler sub-markers of the reconstruction (labels "ReDefinition clouds: <part>"); the module sets it to the host's marker seam, null alone (the weather player).
         internal static Action<CommandBuffer, string> SubMark;
 
@@ -173,6 +178,7 @@ namespace ReDefinition.Atmospheres
             havePose = false;
             blockIndex = 0;
             edgeIndex = 0;
+            if (lightVolume != null) lightVolume.Invalidate();   // LV1: the next frame lays the light volume anew (a teleport leaves its content elsewhere)
         }
 
         internal void Dispose()
@@ -184,6 +190,8 @@ namespace ReDefinition.Atmospheres
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
             if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
             material = edgeMaterial = edgeLayers = null;
+            if (lightVolume != null) lightVolume.Dispose();
+            lightVolume = null;
             low = latest = spare = output = null;
             edgeLow = stateLast = stateNew = dilated = mask = null;
         }
@@ -273,6 +281,22 @@ namespace ReDefinition.Atmospheres
             Material layers = renderer.Material;
             // The light cache's box follows the camera (the body's radius is the renderer's after Apply); bound again with the box's new place.
             LightCache cache = f.Light.Cache != null && f.Light.Cache.Enabled ? f.Light.Cache : null;
+            // LV1: the light volume replaces the cache while cloud.lightVolume is on (the march's keyword drops the cache's read); off, the keyword is off and nothing of it runs.
+            // At a hand-over distance of infinity no sample reads the volume: the march keeps its no-keyword variant and nothing is filled, so that end of the slider is today's
+            // picture by construction (the keyword's variant at a hand-over beyond every cloud differs from it by rounding only: up to 0.006 of a half-float channel on 0.3 to
+            // 2.3 % of the pixels, weather player 2026-11-20).
+            LightVolume volume = null;
+            if (CloudLookTuning.LightVolume && CloudLookTuning.LvHandOverM >= 0f)
+            {
+                if (lightVolume == null) lightVolume = new LightVolume();
+                volume = lightVolume;
+                volume.Configure();
+                volume.PixelAngleRad = f.Cull.PixelAngleRad;
+                volume.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM, renderer.ShellAltitudes());
+                volume.Bind(layers);
+                cache = null;
+            }
+            else LightVolume.Unbind(layers);
             if (cache != null)
             {
                 cache.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM);
@@ -320,6 +344,13 @@ namespace ReDefinition.Atmospheres
             {
                 cache.Record(cb, layers);
                 Sub(cb, "light cache");
+                if (MarkCacheFilled != null) MarkCacheFilled(cb);
+            }
+            if (volume != null)
+            {
+                volume.Record(cb, layers);
+                Sub(cb, "light volume");
+                if (MarkCacheFilled != null) MarkCacheFilled(cb);
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");

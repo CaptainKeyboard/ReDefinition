@@ -22,7 +22,7 @@
 // cheap-sample march (SIGGRAPH 2015, same reference); the coverage bound lets the noise run only where the map can reach the threshold.
 //
 // Passes: 0 march into a premultiplied (radiance, alpha) target, 1 depth-aware composite over the camera target, 2 aux output
-// (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures, 3 light cache fill (T03).
+// (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures, 3 light cache fill (T03), 6 light volume fill (LV1, keyword CLOUD_LIGHTVOL).
 Shader "ReDefinition/AtmospheresLayers"
 {
     SubShader
@@ -906,6 +906,8 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            // LV1 (cloud.lightVolume): the sun's light beyond the hand-over distance from the light volume (LightVolume.cs); no keyword: today's march.
+            #pragma multi_compile_local __ CLOUD_LIGHTVOL
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -983,6 +985,46 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             float4 frag(v2f i) : SV_Target { return CullTilePass(i); }
+            ENDCG
+        }
+
+        // Pass 6 (LV1): fills one slice (_LvSlice.x) of one cascade (_LvSlice.y) of the light volume with the optical depth towards the sun at the voxel centres (LightVolume.cs).
+        // A texel holds the voxel of its window (origin _LvSlice.zw) whose index is congruent to the texel's modulo the window's size (wrap-around addressing).
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 3.5
+            #pragma multi_compile_local CLOUD_LIGHTVOL
+            float4 frag(v2f i) : SV_Target
+            {
+                float gridN = _LvC.z;
+                bool far = _LvSlice.y > 0.5;
+                float vox = far ? _LvC.y : _LvC.x;
+                float2 tx = min(floor(i.uv * gridN), gridN - 1.0);
+                float2 rel = tx - _LvSlice.zw;
+                float2 idx = _LvSlice.zw + rel - gridN * floor(rel / gridN);
+                float2 xy = (idx + 0.5) * vox;
+                float sliceH = (_LvZ.y - _LvZ.x) / max(_LvZ.z, 1.0);
+                float alt = _LvZ.x + (_LvSlice.x + 0.5) * sliceH;
+                float3 p = normalize(_LvU.xyz + (xy.x * _LvE.xyz + xy.y * _LvN.xyz) / _PlanetR) * (_PlanetR + alt);
+                // The march reads the volume at the end of its far near taps (at most _LvA.z taps of the sun march from a sample inside a layer's shell) through the trilinear fetch
+                // (one voxel diagonal): a voxel farther than both from every shell is never read and stays empty.
+                int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
+                int keep = min((int)_LvA.z, steps - 1);
+                float reach = length(float2(1.4142 * vox, sliceH)) + (keep > 0 ? _Sun.w * NearShare(keep, steps, max(_LightR.y, 1.0)) : 0.0);
+                bool read = false;
+                [loop] for (int lj = 0; lj < MAXL; lj++)
+                {
+                    if (lj >= (int)_LayerCount) break;
+                    float inner = _LayerA[lj].z, outer = _LayerA[lj].w;
+                    float lowest = inner > 0 ? inner - reach : (_StepP.w > 0.5 ? -reach : -1e30);
+                    if (alt <= outer + reach && alt >= lowest) read = true;
+                }
+                if (!read) return float4(0, 0, 0, 0);
+                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LvF.x), 0.0, 0.0, 0.0, 0, _Sun.w, _LvF.y), 0, 0, 0);
+            }
             ENDCG
         }
     }

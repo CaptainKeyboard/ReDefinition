@@ -342,6 +342,46 @@ namespace ReDefinition.Atmospheres
         internal const float CellShellDefault = 0f;
         internal static bool CellShell { get { return Tuning.Get(TuneCellShell, CellShellDefault) > 0.5f; } }
 
+        // cloud.lightVolume (LV1 prototype, 2026-11-20; wolken-m2a-technik.md section 11.2): 1 lights the march's samples beyond the hand-over distance from the light volume (LightVolume.cs,
+        // keyword CLOUD_LIGHTVOL of the march pass) and leaves the light cache (cloudLightCache) unread; 0 (default) today's march. Its levers, each a first value set on pictures later:
+        //   cloud.lightVolume.handOverKm   the distance from the camera beyond which a lit sample takes the far path (near taps and one volume read); below 0: infinity (the full march everywhere)
+        //   cloud.lightVolume.band         the blend band beyond the hand-over distance, as a share of it (both paths are computed only inside it)
+        //   cloud.lightVolume.farTaps      the far path's near taps (3 .. 0; fewer where the shortest is shorter than the pixel's footprint)
+        //   cloud.lightVolume.slices       slices refreshed per frame over both cascades, round-robin (0: all, the reference)
+        //   cloud.lightVolume.warp         factor on the slices per frame (the time warp's rate; the game's hookup comes later), up to all
+        //   cloud.lightVolume.voxelM, .grid, .gridZ, .farScale, .cascades   the near cascade's voxel in m, the voxels across a window and up, the far cascade's coarsening, 1 or 2 cascades
+        //   cloud.lightVolume.fade         the fade band at a window's edge in voxels
+        //   cloud.lightVolume.relayKm      the travel from the anchor after which the volume is laid anew (refilled once)
+        //   cloud.lightVolume.fillTaps, .fillRatio   the fill's sun taps and their growth
+        internal const string TuneLightVolume = "cloud.lightVolume", TuneLvHandOver = "cloud.lightVolume.handOverKm", TuneLvBand = "cloud.lightVolume.band",
+            TuneLvFarTaps = "cloud.lightVolume.farTaps", TuneLvSlices = "cloud.lightVolume.slices", TuneLvWarp = "cloud.lightVolume.warp", TuneLvVoxel = "cloud.lightVolume.voxelM",
+            TuneLvGrid = "cloud.lightVolume.grid", TuneLvGridZ = "cloud.lightVolume.gridZ", TuneLvFarScale = "cloud.lightVolume.farScale", TuneLvCascades = "cloud.lightVolume.cascades",
+            TuneLvFade = "cloud.lightVolume.fade", TuneLvRelay = "cloud.lightVolume.relayKm", TuneLvFillTaps = "cloud.lightVolume.fillTaps", TuneLvFillRatio = "cloud.lightVolume.fillRatio";
+        internal static bool LightVolume { get { return Tuning.Get(TuneLightVolume, 0f) > 0.5f; } }
+        // The hand-over distance in m; below 0 infinity.
+        internal static float LvHandOverM
+        {
+            get
+            {
+                float km = Tuning.Get(TuneLvHandOver, 8f);
+                if (float.IsNaN(km)) return 8000f;
+                return km < 0f || float.IsInfinity(km) ? -1f : Math.Min(km, 1e5f) * 1000f;
+            }
+        }
+        internal static float LvBand { get { return Clean(Tuning.Get(TuneLvBand, 0.5f), 0.5f, 0.01f, 10f); } }
+        internal static int LvFarTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFarTaps, 3f), 3f, 0f, 3f)); } }
+        internal static int LvSlices { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvSlices, 8f), 8f, 0f, 512f)); } }
+        internal static float LvWarp { get { return Clean(Tuning.Get(TuneLvWarp, 1f), 1f, 1f, 1e5f); } }
+        internal static float LvVoxelM { get { return Clean(Tuning.Get(TuneLvVoxel, 312.5f), 312.5f, 25f, 10000f); } }
+        internal static int LvGrid { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvGrid, 128f), 128f, 16f, 512f)); } }
+        internal static int LvGridZ { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvGridZ, 32f), 32f, 4f, 64f)); } }
+        internal static float LvFarScale { get { return Clean(Tuning.Get(TuneLvFarScale, 4f), 4f, 1f, 64f); } }
+        internal static int LvCascades { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvCascades, 2f), 2f, 1f, 2f)); } }
+        internal static float LvFade { get { return Clean(Tuning.Get(TuneLvFade, 4f), 4f, 0.25f, 64f); } }
+        internal static float LvRelayM { get { return Clean(Tuning.Get(TuneLvRelay, 100f), 100f, 1f, 5000f) * 1000f; } }
+        internal static int LvFillTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFillTaps, 24f), 24f, 1f, 64f)); } }
+        internal static float LvFillRatio { get { return Clean(Tuning.Get(TuneLvFillRatio, 1.15f), 1.15f, 1f, 4f); } }
+
         // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)
         {
