@@ -288,7 +288,25 @@ Shader "ReDefinition/AtmospheresLayers"
                     float cellReach, wMap;
                     float edgeC = max(_LayerB[li].z, 1e-4);
                     gCellBodyX = CellBodyReachX(li);
-#ifdef CLOUD_BODIES
+#if defined(BODIES_KSLOTS)
+                    // P0b-1: the type's base and top and the height share h here, read before the search (the same reads as below, which the compiler can share); the
+                    // exits they lead to stay below, where V7 has them.
+                    float tvK = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
+                    float x2K = saturate(tvK) * (_LayerC[li].w - 1);
+                    int taK = min((int)floor(x2K), (int)_LayerC[li].w - 1);
+                    int tbK = min(taK + 1, (int)_LayerC[li].w - 1);
+                    float fK = x2K - taK;
+                    float4 iaK = TypeInfo(li, taK), ibK = TypeInfo(li, tbK);
+                    float bK = lerp(iaK.x, ibK.x, fK), tpK = lerp(iaK.y, ibK.y, fK);
+                    if (heightOn)
+                    {
+                        float lbK, ltK;
+                        if (HeightLocalBaseTop(li, pc, uvRaw, bK, tpK, lerp(iaK.z, ibK.z, fK), outer - inner, share, lbK, ltK)) { bK = lbK; tpK = ltK; }
+                    }
+                    float hK = (share - bK) / max(tpK - bK, 1e-6);
+                    cov = CellCoverBodiesK(li, cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
+                                           (uint)_NoiseOffset[li].w, hK, (tpK - bK) * (outer - inner), cellReach, wMap);
+#elif defined(CLOUD_BODIES)
                     cov = CellCoverBodies(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
                                           (uint)_NoiseOffset[li].w, cellReach, wMap);
 #else
@@ -918,8 +936,8 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
-            // P0 cost prototype (CloudCells.cginc, cloud.bodies 7 and 10 .. 13); no keyword: the accepted lattice.
-            #pragma multi_compile_local __ _BODIES_V7 _BODIES_V10 _BODIES_V11 _BODIES_V12 _BODIES_V13
+            // P0 cost prototype (CloudCells.cginc, cloud.bodies 7, 13 and 14 .. 16); no keyword: the accepted lattice.
+            #pragma multi_compile_local __ _BODIES_V7 _BODIES_V13 _BODIES_K2 _BODIES_K3 _BODIES_K4
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -1008,7 +1026,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 5.0
             #pragma multi_compile_local _BODIES_COUNT
-            #pragma multi_compile_local _BODIES_V7 _BODIES_V12 _BODIES_V13
+            #pragma multi_compile_local _BODIES_V7 _BODIES_V13 _BODIES_K2 _BODIES_K3 _BODIES_K4
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }

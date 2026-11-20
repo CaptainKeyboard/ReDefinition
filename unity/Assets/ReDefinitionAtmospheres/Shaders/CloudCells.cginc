@@ -100,12 +100,13 @@ static float gCellOther = 1e9;
 // P0b-0 (CloudCells' prototype section below): x a share forced on every sample that has one (0: the map's own), for the cost at fixed shares; read only by the prototype's
 // keywords (_BODIES_V13 for the accepted lattice). _BODIES_COUNT (layer pass 6, a debug copy of the march at shader model 5): counters of the density calls in a UAV.
 #if defined(_BODIES_V1) || defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V4) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V7) || defined(_BODIES_V8) \
-    || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12) || defined(_BODIES_V13)
+    || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12) || defined(_BODIES_V13) || defined(_BODIES_K2) || defined(_BODIES_K3) || defined(_BODIES_K4)
 float4 _BodiesP;
 #endif
 #ifdef _BODIES_COUNT
 // [0] cover calls of view reads (light 0), [1] of light reads, [2] live candidates in the cover calls, [3] body calls, [4] candidates looped in the body calls,
-// [5] candidates that can reach the band (xv below 1 + swing + band / (2 axis)).
+// [5] candidates that can reach the band (xv below 1 + swing + band / (2 axis)); K slots: [6] body calls where a candidate NOT kept bounds the share above the kept ones'
+// result and the band (it could have changed the share), [7] body calls where the share over the kept ones differs from the share over every candidate (a second search).
 RWStructuredBuffer<uint> _BodyCount : register(u1);
 static uint gBodCountLive = 0u;
 static int gBodCountLight = 0;
@@ -304,8 +305,23 @@ float CellBodyReachX(int li)
 //   V12 V7 pruned: a dead cell leaves after its alive hash (as the lattice does), only live candidates enter the arrays, the union loops over them and skips a body
 //       before its square root where it cannot reach the band (xv at or above 1 + swing + band / (2 axis); its shell bound is then taken from xv alone).
 //   V13 today's lattice with the forced share of _BodiesP (the control at fixed shares).
+// P0b-1 (cloud.bodies 14, 15, 16; _BODIES_K2, K3, K4): the union over the K best live candidates in fixed register slots, no arrays. The march reads the type (base, top,
+// the height share h) BEFORE the search, so the one search computes every candidate's exact body term below the billows (qb, its axis) and its exact shell depth
+// (qb + axis x swing, which bounds its share from above); it keeps the K with the largest bound, takes the shell depth's maximum and the leaps' minima over ALL of them
+// (the leaps are V7's). The body pass is the maximum over the K slots with the shared billow value. Every early exit of the march stays where V7 has it.
+#if defined(_BODIES_K2) || defined(_BODIES_K3) || defined(_BODIES_K4)
+#define BODIES_KSLOTS 1
+#define BODIES_CHEAP_HASH 1
+#if defined(_BODIES_K2)
+#define BODY_KS 2
+#elif defined(_BODIES_K3)
+#define BODY_KS 3
+#else
+#define BODY_KS 4
+#endif
+#endif
 #if defined(_BODIES_V1) || defined(_BODIES_V2) || defined(_BODIES_V3) || defined(_BODIES_V4) || defined(_BODIES_V5) || defined(_BODIES_V6) || defined(_BODIES_V7) || defined(_BODIES_V8) \
-    || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12)
+    || defined(_BODIES_V10) || defined(_BODIES_V11) || defined(_BODIES_V12) || defined(BODIES_KSLOTS)
 #define CLOUD_BODIES 1
 #if defined(_BODIES_V8)
 #define BODIES_NO_LEAP 1
@@ -398,6 +414,15 @@ static float gBodSemiR[BODY_N];
 static float gBodTop[BODY_N];
 #endif
 static int gBodN = BODY_N;   // V12: the live candidates in the arrays
+#ifdef BODIES_KSLOTS
+// The K slots (constant indices only, so they stay registers): the bound qb + axis x swing (sorted, largest first), qb and the axis; the largest bound of a candidate
+// not kept; the shell depth's maximum over every candidate.
+static float gKU[BODY_KS];
+static float gKQ[BODY_KS];
+static float gKA[BODY_KS];
+static float gKDrop = -1e9;
+static float gKFar = -1e9;
+#endif
 
 // The one source of a body's jitter and size from its hash.
 void BodyDraw(uint hb, float J, out float jx, out float jy, out float s)
@@ -430,6 +455,13 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
 {
     BodiesAcc a;
     a.best = 1e9; a.bestS = 1.0; a.bestR = 0.0; a.reach = 1e9; a.other = 1e9; a.q = -1e9; a.far = -1e9; a.live = 0;
+#ifdef BODIES_KSLOTS
+    if (mode == 2)
+    {
+        [unroll] for (int ks = 0; ks < BODY_KS; ks++) { gKU[ks] = -1e9; gKQ[ks] = -1e9; gKA[ks] = 0.0; }
+        gKDrop = -1e9;
+    }
+#endif
     float g = BodyVisibleG(f);
     float u0 = frac(uv.x);
     float lat = (0.5 - uv.y) * 3.14159265;
@@ -498,13 +530,39 @@ BodiesAcc BodiesRun(int mode, float2 uv, float pitch, float rm, float f, uint se
                     float r = min(g * s * unitM / CELL_EDGE_X, rCap);
                     float sAbs = s * BodyUM[k];   // the size factor in today's units (the height law of CellCover / CellBody)
                     float x = d / r;
-                    if (mode == 0)
+                    if (mode == 0 || mode == 2)
                     {
                         if (live)
                         {
                             if (x < a.best) { a.best = x; a.bestS = sAbs; a.bestR = r; }
                             a.reach = min(a.reach, d - r);
                             a.live++;
+#ifdef BODIES_KSLOTS
+                            // The candidate's exact body term below the billows and its bound (its shell depth); kept if among the K largest bounds.
+                            float topK = clamp(coreBase * sAbs / 0.5, 0.15, 1.0);
+                            float axisK = min(max(CELL_EDGE_X * r, 1.0), max(topK * typeHeightM, 1.0));
+                            float xvK = x / CELL_EDGE_X, hvK = h / topK;
+                            float qbK = (1.0 - sqrt(xvK * xvK + hvK * hvK)) * axisK;
+                            float uK = qbK + axisK * sw;
+                            a.far = max(a.far, uK);
+                            [branch] if (uK > gKU[BODY_KS - 1])
+                            {
+                                gKDrop = max(gKDrop, gKU[BODY_KS - 1]);
+                                gKU[BODY_KS - 1] = uK;
+                                gKQ[BODY_KS - 1] = qbK;
+                                gKA[BODY_KS - 1] = axisK;
+                                [unroll] for (int ks = BODY_KS - 1; ks > 0; ks--)
+                                {
+                                    if (gKU[ks] > gKU[ks - 1])
+                                    {
+                                        float tu = gKU[ks], tq = gKQ[ks], ta = gKA[ks];
+                                        gKU[ks] = gKU[ks - 1]; gKQ[ks] = gKQ[ks - 1]; gKA[ks] = gKA[ks - 1];
+                                        gKU[ks - 1] = tu; gKQ[ks - 1] = tq; gKA[ks - 1] = ta;
+                                    }
+                                }
+                            }
+                            else gKDrop = max(gKDrop, uK);
+#endif
                         }
 #ifdef BODIES_ARRAYS
                         gBodX[n] = live ? x / CELL_EDGE_X : 1e4;
@@ -583,6 +641,42 @@ float CellCoverBodies(float cov, float2 uv, float pitch, float rm, float coverag
 #endif
 }
 
+#ifdef BODIES_KSLOTS
+// The K-slot search (P0b-1): as CellCoverBodies, with the height share h and the type's height in m of the sample known, so that the search keeps the K best bodies.
+float CellCoverBodiesK(int li, float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, float h, float typeHeightM,
+                       out float reachM, out float wMap)
+{
+    float4 ce = _CellE[li];
+    float sw = ce.x * (0.5 + 0.5 * ce.z * (0.37 + 0.137));
+    float f = CellShare(cov, coverage, edge, amount);
+    if (_BodiesP.x > 0.0 && f > 0.0) f = _BodiesP.x;
+    float coreBase = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5);
+    BodiesAcc a = BodiesRun(2, uv, pitch, rm, f, seed, coreBase, h, typeHeightM, 0.0, sw);
+#ifdef _BODIES_COUNT
+    InterlockedAdd(_BodyCount[gBodCountLight != 0 ? 1 : 0], 1u);
+    InterlockedAdd(_BodyCount[2], (uint)a.live);
+#endif
+    gBodUv = uv;
+    gBodPitch = pitch;
+    gBodRm = rm;
+    gBodF = f;
+    gBodSeed = seed;
+    gBodCore = coreBase;
+    gKFar = a.far;
+    gCellOther = a.other;
+    reachM = max(a.reach, 0.0);
+    float p = 1.0 - smoothstep(0.45, 1.0, a.best);
+    float core = coreBase * a.bestS;
+    float e = p > 0.5 ? (2.0 * p - 1.0) * core : p - 0.5;
+    wMap = max(saturate((f - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * pitch) / (0.5 * pitch)) : 0.0);
+    gCellX = a.best;
+    gCellR = a.bestR;
+    gCellCore = core;
+    gCellW = wMap;
+    return lerp(1.0 - coverage + e, cov, wMap);
+}
+#endif
+
 // CellBody with the classes: the share from the largest depth over every candidate's FULL body term (each its own axis on the shared billow value), the shell gap from the largest
 // depth below the shells' outer sides (the least gap over the candidates).
 float CellBodyBodies(int li, float h, float billow, float2 fine, float typeHeightM)
@@ -601,7 +695,19 @@ float CellBodyBodies(int li, float h, float billow, float2 fine, float typeHeigh
     }
     float bt = e.x * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
     float sw = e.x * (0.5 + 0.5 * e.z * (0.37 + 0.137));
-#ifdef BODIES_ARRAYS
+#if defined(BODIES_KSLOTS)
+    float q = -1e9;
+    [unroll] for (int ks = 0; ks < BODY_KS; ks++) q = max(q, gKQ[ks] + gKA[ks] * bt);
+    float far = gKFar;
+#ifdef _BODIES_COUNT
+    // [6]: a candidate not kept bounds the share above what the kept ones give and above the band's lower edge (it could have changed the share).
+    InterlockedAdd(_BodyCount[3], 1u);
+    InterlockedAdd(_BodyCount[6], gKDrop > max(q, -0.5 * band) ? 1u : 0u);
+    // [7]: the share over every candidate (V5's second search) against the kept ones'.
+    BodiesAcc full = BodiesRun(1, gBodUv, gBodPitch, gBodRm, gBodF, gBodSeed, gBodCore, h, typeHeightM, bt, sw);
+    InterlockedAdd(_BodyCount[7], saturate(full.q / band + 0.5) != saturate(q / band + 0.5) ? 1u : 0u);
+#endif
+#elif defined(BODIES_ARRAYS)
     float q = -1e9, far = -1e9;
 #ifdef _BODIES_COUNT
     uint countReach = 0u;

@@ -351,7 +351,8 @@ namespace ReDefinition.Atmospheres
         // cloud.bodies.share: a share forced on every sample that has one (0: the map's); cloud.bodies.count 1: the march runs the counting pass (layer pass 6) with 7, 12, 13.
         internal const string TuneBodies = "cloud.bodies", TuneBodiesShare = "cloud.bodies.share", TuneBodiesCount = "cloud.bodies.count";
         internal const float BodiesDefault = 0f;
-        internal static readonly string[] BodiesKeywords = { null, null, null, null, null, null, null, "_BODIES_V7", null, null, "_BODIES_V10", "_BODIES_V11", "_BODIES_V12", "_BODIES_V13" };
+        // P0b-1: 14, 15, 16 the union over the 2, 3, 4 best candidates in register slots (_BODIES_K2 .. K4). Compiled now: 7, 13, 14, 15, 16 (10 .. 12 are measured, their code stays).
+        internal static readonly string[] BodiesKeywords = { null, null, null, null, null, null, null, "_BODIES_V7", null, null, null, null, null, "_BODIES_V13", "_BODIES_K2", "_BODIES_K3", "_BODIES_K4" };
         internal static int Bodies
         {
             get
@@ -363,7 +364,7 @@ namespace ReDefinition.Atmospheres
             }
         }
         internal static float BodiesShare { get { return Clean(Tuning.Get(TuneBodiesShare, 0f), 0f, 0f, 1f); } }
-        internal static bool BodiesCount { get { int b = Bodies; return Tuning.Get(TuneBodiesCount, 0f) > 0.5f && (b == 7 || b == 12 || b == 13); } }
+        internal static bool BodiesCount { get { int b = Bodies; return Tuning.Get(TuneBodiesCount, 0f) > 0.5f && (b == 7 || b == 13 || b >= 14); } }
 
         // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)

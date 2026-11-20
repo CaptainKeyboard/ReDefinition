@@ -116,10 +116,10 @@ namespace ReDefinition.Atmospheres
         // P0b-0: the march with the density call counters (cloud.bodies.count, CloudCells.cginc _BodyCount; a debug pass at shader model 5).
         internal const int PassMarchCount = 6;
         private static readonly int IdBodiesP = Shader.PropertyToID("_BodiesP");
-        // The counters' buffer (six uints) and the sums since the last ResetBodyCounts: bound as UAV 1 around the counting march, read back after each frame.
+        // The counters' buffer (eight uints) and the sums since the last ResetBodyCounts: bound as UAV 1 around the counting march, read back after each frame.
         private static ComputeBuffer bodyCountBuffer;
-        private static readonly uint[] bodyCountFrame = new uint[6];
-        internal static readonly double[] BodyCounts = new double[6];
+        private static readonly uint[] bodyCountFrame = new uint[8];
+        internal static readonly double[] BodyCounts = new double[8];
         internal static int BodyCountFrames;
         private static bool bodyCountPending;
 
@@ -133,7 +133,7 @@ namespace ReDefinition.Atmospheres
         // Records the counting march into the buffer in place of the march: adds the last frame's counters to the sums (a synchronous read, a debug run only), clears the buffer.
         internal static void RecordCountingMarch(CommandBuffer cb, RenderTargetIdentifier target, Material layers)
         {
-            if (bodyCountBuffer == null) bodyCountBuffer = new ComputeBuffer(6, 4);
+            if (bodyCountBuffer == null) bodyCountBuffer = new ComputeBuffer(8, 4);
             if (bodyCountPending)
             {
                 bodyCountBuffer.GetData(bodyCountFrame);

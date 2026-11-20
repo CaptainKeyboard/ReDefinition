@@ -853,8 +853,19 @@ P0B_BASE = "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm"
 
 
 def p0b_marches(kind):
+    """P0b-0: split, share, count. P0b-1: kcount (the K slots' correctness counters, light on), kcost / kcostoff (today, V7 and the K variant ATMO_P0B_K at the map's share and
+    the four fixed shares, light on / off), list (the cases of ATMO_P0B_MARCHES, tokens joined by '+', cases by ',', e.g. bv13+bs25,bv15+bs21)."""
     if kind == "split":
         return [P0B_BASE + "+bv%d+bs0+lp100" % b for b in (0, 7, 10, 11, 12)]
+    if kind == "kcount":
+        return [P0B_BASE + "+bv%d+bs%d+bcnt+lp100" % (b, s) for s in (10, 25, 50, 75) for b in (14, 15, 16)]
+    if kind in ("kcost", "kcostoff"):
+        k = int(os.environ.get("ATMO_P0B_K", "15"))
+        dbg = "+dbg1" if kind == "kcostoff" else ""
+        return ([P0B_BASE + "+bv%d+bs0%s+lp100" % (b, dbg) for b in (0, 7, k)]
+                + [P0B_BASE + "+bv%d+bs%d%s+lp100" % (b, s, dbg) for s in (10, 25, 50, 75) for b in (13, 7, k)])
+    if kind == "list":
+        return [P0B_BASE + "+" + c + "+lp100" for c in os.environ.get("ATMO_P0B_MARCHES", "").split(",") if c]
     tail = "+bcnt" if kind == "count" else ""
     return [P0B_BASE + "+bv%d+bs%d%s%s+lp100" % (b, s, dbg, tail) for s in (10, 25, 50, 75) for b in (13, 7, 12) for dbg in ("", "+dbg1")]
 
@@ -884,7 +895,7 @@ def collect_p0b(ctx):
     for (view, march) in sorted(rows):
         r = rows[(view, march)]
         per = sorted(r[p] for p in r if p.startswith("marchr"))
-        cnt = [r.get("bodycount%d" % i) for i in range(6)]
+        cnt = [r.get("bodycount%d" % i) for i in range(8)]
         text = "   %-14s %-26s %7.3f" % (view, march.replace(P0B_BASE + "+", "").replace("+lp100", ""), r.get("march", float("nan")))
         if per:
             text += "  (%.3f-%.3f, med %.3f, n %d)" % (per[0], per[-1], per[len(per) // 2], len(per))
@@ -892,6 +903,8 @@ def collect_p0b(ctx):
             calls = (cnt[0] or 0) + (cnt[1] or 0)
             text += "  calls view %.0f light %.0f, live/cover call %.2f, body calls %.0f, looped/body %.2f, reaching/body %.2f" % (
                 cnt[0], cnt[1], cnt[2] / max(calls, 1), cnt[3], cnt[4] / max(cnt[3], 1), cnt[5] / max(cnt[3], 1))
+            if cnt[6] is not None:
+                text += ", K: dropped could reach %.1f, share differs %.1f per frame" % (cnt[6], cnt[7])
         lines.append(text)
     print("\n".join(lines))
     return []
