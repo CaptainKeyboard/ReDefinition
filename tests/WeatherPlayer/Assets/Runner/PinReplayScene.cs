@@ -263,6 +263,60 @@ namespace ReDefinition.WeatherPlayer
             Debug.Log("[WeatherPlayer] pin static march " + job.id + ": " + count + " records, " + differ + " differ from the first");
         }
 
+        private static IEnumerable<LayersJob> Reversed(List<LayersJob> jobs)
+        {
+            for (int i = jobs.Count - 1; i >= 0; i--) yield return jobs[i];
+        }
+
+        private static double Median(List<double> values)
+        {
+            if (values.Count == 0) return double.NaN;
+            double[] sorted = values.ToArray();
+            Array.Sort(sorted);
+            return sorted[sorted.Length / 2];
+        }
+
+        // job id -> (march ms, fill ms) samples over all rounds; job id -> each round's median of march + fill.
+        private readonly Dictionary<string, List<double>[]> timeSamples = new Dictionary<string, List<double>[]>();
+        private readonly Dictionary<string, List<double>> timeRoundSums = new Dictionary<string, List<double>>();
+
+        // LV3: the replay's last record drawn 60 more times at its pose (the frame number moving on, so the block rotation and the light volume's round-robin turn), the
+        // last 40 timed: the segment from the pass's start to the light volume's fill mark (the fill and its blur) and from there to the march's end.
+        private IEnumerator TimeLastRecord(TemporalRig rig, LayersJob job, ReconSettings recon, Texture depth, int round)
+        {
+            var cb = new CommandBuffer { name = "pin time" };
+            Cam.AddCommandBuffer(CameraEvent.AfterSkybox, cb);
+            rig.Recon.MarkCacheFilled = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainStart);
+            Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart), mMarched = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabMarched);
+            var segments = new float[8];
+            if (!timeSamples.ContainsKey(job.id)) timeSamples[job.id] = new[] { new List<double>(), new List<double>() };
+            List<double>[] s = timeSamples[job.id];
+            var sums = new List<double>();
+            int n = 0, taken = 0, guard = 0;
+            while (taken < 40 && guard++ < 1200)
+            {
+                cb.Clear();
+                cb.SetGlobalTexture(Shader.PropertyToID("_SceneDepth"), depth);
+                rig.Recon.Record(cb, rig.Renderer, rig.Frame, Cam, recon, job.firstFrame + job.frames + n, mStart, mMarched, null);
+                yield return Frames(1);
+                if (n++ < 20) continue;
+                float total;
+                int number;
+                if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
+                float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], fill = segments[WeatherGpuTimer.CurtainStart - WeatherGpuTimer.SlabStart];
+                if (m < 0f) continue;
+                s[0].Add(m);
+                if (fill >= 0f) s[1].Add(fill);
+                sums.Add(m + Math.Max(fill, 0f));
+                taken++;
+            }
+            Cam.RemoveCommandBuffer(CameraEvent.AfterSkybox, cb);
+            cb.Release();
+            rig.Recon.MarkCacheFilled = null;
+            if (!timeRoundSums.ContainsKey(job.id)) timeRoundSums[job.id] = new List<double>();
+            timeRoundSums[job.id].Add(Median(sums));
+        }
+
         public override IEnumerator Run()
         {
             string input = WeatherPass.Argument("-in");
@@ -272,7 +326,14 @@ namespace ReDefinition.WeatherPlayer
             if (!ready) yield break;
             LayersJobFile file = JsonUtility.FromJson<LayersJobFile>(File.ReadAllText(Path.Combine(input, "jobs.json")));
             int replayed = 0;
-            foreach (LayersJob job in file.jobs)
+            // LV3 (-pinTime N, N >= 1): after each replay the last record is drawn again for timing (WeatherGpuTimer: the light volume's fill and the march), N rounds over the
+            // jobs in alternating order; the files are written in the first round only.
+            int timeRounds = DiagInt("-pinTime", 0);
+            bool timed = timeRounds > 0 && WeatherGpuTimer.Start();
+            if (timeRounds > 0) Sink.Flag("pin_time_timers_available", timed);
+            var jobs = new List<LayersJob>(file.jobs);
+            for (int round = 0; round < Math.Max(timeRounds, 1); round++)
+            foreach (LayersJob job in round % 2 == 0 ? jobs : Reversed(jobs))
             {
                 if (job.id == null || !job.id.StartsWith("pin-", StringComparison.Ordinal)) continue;
                 List<LayerPassSetting> settings = Settings(job);
@@ -399,6 +460,12 @@ namespace ReDefinition.WeatherPlayer
                         }
                         if (yieldEvery > 0 && k % yieldEvery == yieldEvery - 1) yield return null;
                     }
+                    if (timed)
+                    {
+                        IEnumerator tm = TimeLastRecord(rig, job, recon, jittered ? (Texture)shiftedDepth : depth, round);
+                        while (tm.MoveNext()) yield return tm.Current;
+                    }
+                    if (round > 0) continue;
                     if (hashFrames) File.WriteAllText(Path.Combine(Output, job.id + "-r" + rep + "-hashes.txt"), hashes.ToString());
                     string stem = job.id + "-r" + rep;
                     WriteCloud(rig.Recon.Output, Path.Combine(Output, stem + "-cloud.npy"));
@@ -424,6 +491,14 @@ namespace ReDefinition.WeatherPlayer
                 target.Release();
                 UnityEngine.Object.Destroy(depth);
             }
+            foreach (KeyValuePair<string, List<double>[]> kv in timeSamples)
+            {
+                Sink.Info("pintime.march." + kv.Key, Median(kv.Value[0]));
+                Sink.Info("pintime.fill." + kv.Key, kv.Value[1].Count > 0 ? Median(kv.Value[1]) : 0.0);
+                Sink.Info("pintime.n." + kv.Key, kv.Value[0].Count);
+            }
+            foreach (KeyValuePair<string, List<double>> kv in timeRoundSums)
+                for (int r = 0; r < kv.Value.Count; r++) Sink.Info("pintime.sumr" + r + "." + kv.Key, kv.Value[r]);
             rig.Dispose();
             Sink.Info("pin_replays", replayed);
             Sink.Flag("pin_replay_completed", replayed > 0);

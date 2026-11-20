@@ -282,9 +282,9 @@ namespace ReDefinition.Atmospheres
             // The light cache's box follows the camera (the body's radius is the renderer's after Apply); bound again with the box's new place.
             LightCache cache = f.Light.Cache != null && f.Light.Cache.Enabled ? f.Light.Cache : null;
             // The light volume replaces the cache while cloud.lightVolume is on (the march's keyword drops the cache's read). With the key off, at a hand-over distance of infinity
-            // or above the warp limit no sample reads it: the march keeps its no-keyword variant, nothing is filled, and the volume's textures are freed (the next use lays it anew).
+            // without the lateral spread (which reads it at every distance) or above the warp limit no sample reads it: the march keeps its no-keyword variant, nothing is filled, and the volume's textures are freed (the next use lays it anew).
             LightVolume volume = null;
-            bool volumeOn = CloudLookTuning.LightVolume && CloudLookTuning.LvHandOverM >= 0f;
+            bool volumeOn = CloudLookTuning.LightVolume && (CloudLookTuning.LvHandOverM >= 0f || CloudLookTuning.LvSpread > 0);
             if (volumeOn)
             {
                 if (lightVolume == null) lightVolume = new LightVolume();

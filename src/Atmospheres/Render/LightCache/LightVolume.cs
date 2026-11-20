@@ -20,7 +20,7 @@ namespace ReDefinition.Atmospheres
     // the fill depends on changed, or after Invalidate; it refills every slice once (Lays counts them). It uses nothing of the game, so the weather player links it as it is.
     internal sealed class LightVolume
     {
-        internal const int PassFill = 6;
+        internal const int PassFill = 6, PassBlur = 7;
         internal const string Keyword = "CLOUD_LIGHTVOL";
 
         // The shader property ids, read on the first bind (a static field of this class would need Unity's native code when the module only sets Say: the T09 tests).
@@ -29,7 +29,8 @@ namespace ReDefinition.Atmospheres
             internal static readonly int Volume = Shader.PropertyToID("_LightVolume"), A = Shader.PropertyToID("_LvA"), U = Shader.PropertyToID("_LvU"),
                 E = Shader.PropertyToID("_LvE"), N = Shader.PropertyToID("_LvN"), Z = Shader.PropertyToID("_LvZ"), C = Shader.PropertyToID("_LvC"),
                 F = Shader.PropertyToID("_LvF"), O = Shader.PropertyToID("_LvO"), Slice = Shader.PropertyToID("_LvSlice"), P = Shader.PropertyToID("_LvP"),
-                D = Shader.PropertyToID("_LvD"), R = Shader.PropertyToID("_LvR");
+                D = Shader.PropertyToID("_LvD"), R = Shader.PropertyToID("_LvR"), S = Shader.PropertyToID("_LvS"), Spread = Shader.PropertyToID("_LightVolumeSpread"),
+                Blur = Shader.PropertyToID("_LvBlur"), BlurSigma = Shader.PropertyToID("_LvBlurSigma"), BlurSrc = Shader.PropertyToID("_LvBlurSrc");
         }
 
         // Called with a line when the volume is laid anew (the module points it at its log; null: silent).
@@ -37,7 +38,7 @@ namespace ReDefinition.Atmospheres
         // The game's time warp rate (1: real time); the host sets it each frame, the weather player from its scene.
         internal static float TimeWarpRate = 1f;
 
-        private RenderTexture volume, scratch;
+        private RenderTexture volume, scratch, spread, blurA, blurB;
         private Vector3 up, east, north;
         private Vector2 laidAlt;
         private float[] laidFill = new float[0];
@@ -55,6 +56,12 @@ namespace ReDefinition.Atmospheres
         // taps and growth; the read: k of the stored transmittance (0: the optical depth is stored), the read point past the trilinear footprint and its longest near length.
         public int Fill, PropSteps = 2, PropCap = 16, RefTaps = 64;
         public float PropLimit = 8f, NearScale = 1f, RefRatio = 1.03f, StoreK = 4f, ReadPast, ReadPastMaxM = 4000f, CapRead;
+        // The lateral spread of the direct light: its source (0 off, 1 blurred copy, 2 far cascade, 3 the volume), the blur's standard deviation in m, the optical depth its
+        // weight grows over, the largest weight.
+        public int Spread;
+        public float SpreadRadiusM = 400f, SpreadDepth = 4f, SpreadMax = 1f;
+        // Whether the volume must be filled at a hand-over distance of infinity (the spread reads it at every distance).
+        internal bool SpreadOn { get { return Spread > 0; } }
 
         // What the last Record did: the slices filled, whether it was a new lay, and the lays so far.
         internal int LastFilled { get; private set; }
@@ -113,6 +120,10 @@ namespace ReDefinition.Atmospheres
             StoreK = CloudLookTuning.LvStoreK;
             ReadPast = CloudLookTuning.LvReadPast ? 1f : 0f;
             ReadPastMaxM = CloudLookTuning.LvReadPastMaxM;
+            Spread = CloudLookTuning.LvSpread;
+            SpreadRadiusM = CloudLookTuning.LvSpreadRadiusM;
+            SpreadDepth = CloudLookTuning.LvSpreadDepth;
+            SpreadMax = CloudLookTuning.LvSpreadMax;
             CapRead = CloudLookTuning.LvCapRead ? 1f : 0f;
         }
 
@@ -138,6 +149,43 @@ namespace ReDefinition.Atmospheres
             laid = false;
         }
 
+        // The blurred copy and the blur's two 2D targets (only while the spread reads the blurred copy).
+        private void EnsureSpread()
+        {
+            if (Spread != 1)
+            {
+                ReleaseSpread();
+                return;
+            }
+            if (spread != null && spread.IsCreated() && spread.width == GridN && spread.volumeDepth == volume.volumeDepth) return;
+            ReleaseSpread();
+            spread = new RenderTexture(GridN, GridN, 0, RenderTextureFormat.RHalf, RenderTextureReadWrite.Linear)
+            {
+                name = "cloud light volume spread",
+                dimension = TextureDimension.Tex2DArray,
+                volumeDepth = volume.volumeDepth,
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Repeat
+            };
+            spread.Create();
+            blurA = new RenderTexture(GridN, GridN, 0, RenderTextureFormat.RHalf, RenderTextureReadWrite.Linear) { name = "cloud light volume blur a", wrapMode = TextureWrapMode.Repeat };
+            blurB = new RenderTexture(GridN, GridN, 0, RenderTextureFormat.RHalf, RenderTextureReadWrite.Linear) { name = "cloud light volume blur b", wrapMode = TextureWrapMode.Repeat };
+            blurA.Create();
+            blurB.Create();
+            fillAll = true;
+        }
+
+        private void ReleaseSpread()
+        {
+            foreach (RenderTexture rt in new[] { spread, blurA, blurB })
+                if (rt != null)
+                {
+                    rt.Release();
+                    UnityEngine.Object.Destroy(rt);
+                }
+            spread = blurA = blurB = null;
+        }
+
         // Places the windows around the camera (planet frame); lays the volume anew (new anchor, every slice to be refilled) on the first call, after RelayM of travel from the
         // anchor, after Invalidate, or when the layers' altitude range (shellAlt: lowest inner, highest outer altitude in m), the grid, the planet or the fill's inputs (march: the
         // sun march's taps, length and tap growth, which decide the near length and the direct fill's taps) changed.
@@ -149,7 +197,7 @@ namespace ReDefinition.Atmospheres
             float[] fill =
             {
                 alt.x, alt.y, planetRadius, VoxelM, FarScale, GridN, GridNz, Cascades, FarTaps, FillTaps, FillRatio, Fill, PropSteps, PropCap, PropLimit, NearScale, RefTaps, RefRatio,
-                StoreK, ReadPast, ReadPastMaxM, sunSteps, sunMarchM, tapRatio
+                StoreK, ReadPast, ReadPastMaxM, Spread > 0 ? 1f : 0f, sunSteps, sunMarchM, tapRatio
             };
             Vector3 dir = camera.normalized;
             float relayM = Mathf.Min(RelayM, 0.8f * planetRadius);
@@ -202,6 +250,9 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.P, new Vector4(Mathf.Clamp(Fill, 0, 3), PropSteps, PropCap, PropLimit));
             m.SetVector(Ids.D, new Vector4(0f, NearScale, RefTaps, RefRatio));
             m.SetVector(Ids.R, new Vector4(StoreK, ReadPast, ReadPastMaxM, CapRead));
+            EnsureSpread();
+            m.SetVector(Ids.S, new Vector4(Mathf.Clamp(Spread, 0, 3), SpreadRadiusM, SpreadDepth, SpreadMax));
+            m.SetTexture(Ids.Spread, spread != null ? (Texture)spread : volume);
         }
 
         // The windows the slices were filled for, on another material that draws the march with this volume (the edge pass's copy, taken before Record).
@@ -247,6 +298,20 @@ namespace ReDefinition.Atmospheres
                 cb.SetRenderTarget(scratch);
                 cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, layerMaterial, PassFill);
                 cb.CopyTexture(scratch, 0, 0, volume, ci * GridNz + z, 0);
+                if (spread != null)
+                {
+                    // The spread's copy of this slice: the blur along x from the volume's slice, along y from that, copied into the blurred array.
+                    float vox = ci == 0 ? VoxelM : VoxelM * FarScale;
+                    cb.SetGlobalVector(Ids.BlurSigma, new Vector4(SpreadRadiusM / vox, 0f, 0f, 0f));
+                    cb.SetGlobalVector(Ids.Blur, new Vector4(0f, ci * GridNz + z, 1f, 0f));
+                    cb.SetRenderTarget(blurA);
+                    cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, layerMaterial, PassBlur);
+                    cb.SetGlobalTexture(Ids.BlurSrc, blurA);
+                    cb.SetGlobalVector(Ids.Blur, new Vector4(1f, ci * GridNz + z, 0f, 1f));
+                    cb.SetRenderTarget(blurB);
+                    cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, layerMaterial, PassBlur);
+                    cb.CopyTexture(blurB, 0, 0, spread, ci * GridNz + z, 0);
+                }
                 Vector4 v = sliceO[z];
                 if (ci == 0) { v.x = o.x; v.y = o.y; }
                 else { v.z = o.x; v.w = o.y; }
@@ -269,6 +334,7 @@ namespace ReDefinition.Atmospheres
                 UnityEngine.Object.Destroy(scratch);
             }
             volume = scratch = null;
+            ReleaseSpread();
             laid = false;
         }
     }

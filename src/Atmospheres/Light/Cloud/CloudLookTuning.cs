@@ -409,6 +409,18 @@ namespace ReDefinition.Atmospheres
         //   cloud.lightVolume.capRead      1: the read takes the stored value less the value where the rest of the sun march's length ends, so that a fill that reaches the sun (the
         //                                  propagation) gives the full march's length; two volume reads instead of one
         internal static bool LvCapRead { get { return Tuning.Get(TuneLvCapRead, 0f) > 0.5f; } }
+        // LV3, the lateral spread of the direct light (works at every distance; with it on the volume is filled even at a hand-over distance of infinity):
+        //   cloud.lightVolume.spread        0 off; the source of the spread optical depth: 1 the volume blurred over cloud.lightVolume.spreadRadiusM, 2 the far cascade,
+        //                                   3 the volume as filled (with the propagation fill its bilinear upstream reads already spread)
+        //   cloud.lightVolume.spreadRadiusM the blur's standard deviation in m
+        //   cloud.lightVolume.spreadDepth   the optical depth over which the spread's weight grows (1 - exp(-tau / depth)): none at the sunlit surface
+        //   cloud.lightVolume.spreadMax     the largest weight
+        internal const string TuneLvSpread = "cloud.lightVolume.spread", TuneLvSpreadRadius = "cloud.lightVolume.spreadRadiusM", TuneLvSpreadDepth = "cloud.lightVolume.spreadDepth",
+            TuneLvSpreadMax = "cloud.lightVolume.spreadMax";
+        internal static int LvSpread { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvSpread, 0f), 0f, 0f, 3f)); } }
+        internal static float LvSpreadRadiusM { get { return Clean(Tuning.Get(TuneLvSpreadRadius, 400f), 400f, 10f, 5000f); } }
+        internal static float LvSpreadDepth { get { return Clean(Tuning.Get(TuneLvSpreadDepth, 4f), 4f, 0.01f, 100f); } }
+        internal static float LvSpreadMax { get { return Clean(Tuning.Get(TuneLvSpreadMax, 1f), 1f, 0f, 1f); } }
         internal static float LvStoreK { get { return Clean(Tuning.Get(TuneLvStoreK, 4f), 4f, 0f, 64f); } }
         internal static bool LvReadPast { get { return Tuning.Get(TuneLvReadPast, 0f) > 0.5f; } }
         internal static float LvReadPastMaxM { get { return Clean(Tuning.Get(TuneLvReadPastMax, 4000f), 4000f, 0f, 1e5f); } }

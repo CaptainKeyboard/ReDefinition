@@ -69,6 +69,12 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneLvRefTaps, 64f, KeySection.Light, "light volume: the reference fill's taps", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 64f);
             r.Key(CloudLookTuning.TuneLvStoreK, 4f, KeySection.Light, "light volume: k of the stored transmittance exp(-tau / k) (0: the optical depth is stored)",
                 KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 64f);
+            r.Key(CloudLookTuning.TuneLvSpread, 0f, KeySection.Light, "light volume: lateral spread of the direct light (0 off, 1 blurred volume, 2 far cascade, 3 volume as filled)",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 3f);
+            r.Key(CloudLookTuning.TuneLvSpreadRadius, 400f, KeySection.Light, "light volume: the spread blur's standard deviation in m", KeyLiveness.FrameHistory, KeyMarker.Live, 10f, 5000f);
+            r.Key(CloudLookTuning.TuneLvSpreadDepth, 4f, KeySection.Light, "light volume: optical depth over which the spread's weight grows", KeyLiveness.FrameHistory, KeyMarker.Live,
+                0.01f, 100f);
+            r.Key(CloudLookTuning.TuneLvSpreadMax, 1f, KeySection.Light, "light volume: largest weight of the spread", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
             r.Flag(CloudLookTuning.TuneLvCapRead, false, KeySection.Light, "light volume: the read less the value where the sun march's length ends", KeyLiveness.FrameHistory);
             r.Flag(CloudLookTuning.TuneLvReadPast, false, KeySection.Light, "light volume: the read point past the trilinear footprint", KeyLiveness.FrameHistory);
             r.Key(CloudLookTuning.TuneLvReadPastMax, 4000f, KeySection.Light, "light volume: longest near length of the read past the footprint in m", KeyLiveness.FrameHistory,
