@@ -357,6 +357,15 @@ VARIANTS = {
     "tr_s3m": ("(STRIDE) tr_s3 with the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls3+lrm+lp100"),
     "tr_s4m": ("(STRIDE) the sun march every 4th lit step, the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls4+lrm+lp100"),
     "rot2ac": ("(ROTATION) rot2a with the Catmull-Rom history", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
+    # M2a P0 cost prototype (cloud.bodies, CloudCells.cginc): the march of tr_base with the bodies of several size classes, each a compiled variant of the march pass; p0_b0 is tr_base
+    # (no keyword: the accepted lattice). p0dn_* look straight down from 15 km over the same place (the arrangement of the bodies).
+    **{"p0_b%d" % n: ("(P0) tr_base, cloud.bodies %d (%s)" % (n, what), compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", float(n))])),
+                      "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for n, what in ((0, "the accepted lattice"), (1, "G2 as designed"), (2, "F2"), (3, "two classes"), (4, "G2 with arrays"), (5, "G2, loops over the cells too"), (6, "bound check"),
+                                     (7, "G2 with arrays, two hashes per body"))},
+    **{"p0dn_b%d" % n: ("(P0) straight down from 15 km, cloud.bodies %d" % n, compose(camera_at(15000.0, -90.0), sun_behind(45.0), tune_dotted([("cloud.bodies", float(n))])),
+                        "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for n in (0, 1, 5, 6)},
     "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
     "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
@@ -782,7 +791,8 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
-COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10", "tr_base", "tr_d1", "tr_d2", "tr_d7", "tr_nocells", "tr_s1", "tr_s2m", "tr_s3", "tr_s3m", "tr_s4m", "rot2ac")
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10", "tr_base", "tr_d1", "tr_d2", "tr_d7", "tr_nocells", "tr_s1", "tr_s2m", "tr_s3", "tr_s3m", "tr_s4m", "rot2ac",
+                 "p0_b0", "p0_b1", "p0_b2", "p0_b3", "p0_b4", "p0_b5", "p0_b7")
 
 
 def cost_label(march):
@@ -798,10 +808,13 @@ def cost_stage_list():
         if st["variant"] in COST_VARIANTS:
             by_march.setdefault(st["march"], []).append(n)
     out = []
+    # ATMO_COST_ROUNDS=N: N rounds in alternating order (the scene's -rounds), each round's march median reported (the M2a P0 repeats).
+    rounds = int(os.environ.get("ATMO_COST_ROUNDS", "2") or 2)
     for march, names in sorted(by_march.items()):
         views = ",".join(e40pp.view_tag(n) for n in names)
-        out.append(Stage(cost_label(march), ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march, "-width", str(SIZE[0]), "-height", str(SIZE[1])],
-                         size=SIZE, proxy=True, timeout=2400 + (1500 if SIZE != (REF_W, REF_H) else 0)))
+        out.append(Stage(cost_label(march), ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march, "-width", str(SIZE[0]), "-height", str(SIZE[1])]
+                         + (["-rounds", str(rounds)] if rounds > 2 else []),
+                         size=SIZE, proxy=True, timeout=2400 + (1500 if SIZE != (REF_W, REF_H) else 0) + 400 * max(0, rounds - 2)))
     return out
 
 
@@ -814,10 +827,12 @@ def collect_cost(ctx):
             _, part, rest = k.split(".", 2)
             view = rest.split(".", 1)[0]
             rows.setdefault(view, {})[part] = v[0]
-    metrics, lines = [], ["E40 PUFF: GPU ms of the pass at %d x %d (march | resolve | composite | total)" % SIZE]
+    metrics, lines = [], ["E40 PUFF: GPU ms of the pass at %d x %d (march | resolve | composite | total; with ATMO_COST_ROUNDS each round's march)" % SIZE]
     for view in sorted(rows):
         r = rows[view]
-        lines.append("   %-34s %7.3f | %7.3f | %7.3f | %7.3f" % (view, r.get("march", float("nan")), r.get("resolve", float("nan")), r.get("composite", float("nan")), r.get("total", float("nan"))))
+        per = [r[p] for p in sorted((p for p in r if p.startswith("marchr")), key=lambda p: int(p[6:]))]
+        lines.append("   %-34s %7.3f | %7.3f | %7.3f | %7.3f%s" % (view, r.get("march", float("nan")), r.get("resolve", float("nan")), r.get("composite", float("nan")), r.get("total", float("nan")),
+                                                         ("   rounds " + " ".join("%.3f" % x for x in per)) if per else ""))
         metrics.append(Metric.info("e40puff.cost." + view, r.get("total", float("nan"))))
     print("\n".join(lines))
     return metrics

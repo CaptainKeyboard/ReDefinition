@@ -285,8 +285,13 @@ Shader "ReDefinition/AtmospheresLayers"
                     float cellReach, wMap;
                     float edgeC = max(_LayerB[li].z, 1e-4);
                     gCellBodyX = CellBodyReachX(li);
+#ifdef CLOUD_BODIES
+                    cov = CellCoverBodies(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
+                                          (uint)_NoiseOffset[li].w, cellReach, wMap);
+#else
                     cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
                                     (uint)_NoiseOffset[li].w, cellReach, wMap);
+#endif
                     if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
                     {
                         gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
@@ -361,7 +366,11 @@ Shader "ReDefinition/AtmospheresLayers"
             [branch] if (body)
             {
                 float2 fine = _CellE[li].z > 0.0 ? CellFineBillows(li, pc) : float2(0.0, 0.0);
+#ifdef CLOUD_BODIES
+                s = CellBodyBodies(li, h, s, fine, (tp - b) * (outer - inner));
+#else
                 s = CellBody(li, h, s, fine, (tp - b) * (outer - inner));
+#endif
             }
             if (s <= 0) return 0;
             float pw = waterPow;
@@ -906,6 +915,8 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            // P0 cost prototype (CloudCells.cginc, cloud.bodies 1 .. 7); no keyword: the accepted lattice.
+            #pragma multi_compile_local __ _BODIES_V1 _BODIES_V2 _BODIES_V3 _BODIES_V4 _BODIES_V5 _BODIES_V6 _BODIES_V7
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }

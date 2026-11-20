@@ -655,14 +655,19 @@ namespace ReDefinition.WeatherPlayer
             evictA.Create();
             evictB.Create();
             List<SoftTable.Medium> media = SoftTable.Selected();
-            // Two rounds in opposite order, so that a drift of the machine over the run falls on every case alike; the row is the median of both.
+            // Two rounds in opposite order, so that a drift of the machine over the run falls on every case alike; the row is the median of both. -rounds N (at least 2) runs N
+            // rounds, alternating the order, and also reports each round's march median (softcost.marchr<k>.<label>): the repeats of the M2a P0 cost prototype.
+            int rounds;
+            if (!int.TryParse(WeatherPass.Argument("-rounds"), out rounds) || rounds < 2) rounds = 2;
             var samples = new Dictionary<string, List<double>[]>();
-            for (int round = 0; round < 2; round++)
+            var perRound = new Dictionary<string, List<double>>();
+            for (int round = 0; round < rounds; round++)
             {
+                bool forward = round % 2 == 0;
                 string[] views = SoftTable.Views;
                 for (int vi = 0; vi < views.Length; vi++)
                 {
-                    string view = views[round == 0 ? vi : views.Length - 1 - vi];
+                    string view = views[forward ? vi : views.Length - 1 - vi];
                     LayersJob job = GrainTable.Find(file, "gn-" + view + "-prod-f0");
                     if (job == null) { Sink.Flag("soft_cost_job_" + view, false); continue; }
                     SoftTable.Original original = SoftTable.Original.Of(job.layers[0]);
@@ -670,15 +675,15 @@ namespace ReDefinition.WeatherPlayer
                     double detailMean = SoftTable.DetailMean(rig);
                     for (int k = 0; k < media.Count; k++)
                     {
-                        SoftTable.Medium medium = media[round == 0 ? k : media.Count - 1 - k];
+                        SoftTable.Medium medium = media[forward ? k : media.Count - 1 - k];
                         SoftTable.Load(rig, job, input, medium, original, detailMean);
                         rig.Frame.UseSceneDepth = true;
                         GrainTable.Pose(Cam, job, 0f, 0f);
                         string[] marches = SoftTable.Marches;
                         for (int mi = 0; mi < marches.Length; mi++)
                         {
-                            string march = marches[round == 0 ? mi : marches.Length - 1 - mi];
-                            if (clock.Elapsed.TotalMinutes > 18.0) { Sink.Flag("soft_cost_completed", false); yield break; }
+                            string march = marches[forward ? mi : marches.Length - 1 - mi];
+                            if (clock.Elapsed.TotalMinutes > 18.0 + 6.0 * (rounds - 2)) { Sink.Flag("soft_cost_completed", false); yield break; }
                             SoftTable.Case marchCase = SoftTable.Parse(march);
                             SoftTable.ApplyCase(rig.Frame, marchCase);
                             ReconSettings settings = SoftTable.Settings(marchCase, "acc20");
@@ -686,7 +691,7 @@ namespace ReDefinition.WeatherPlayer
                             string label = view + "." + medium.Name + "." + march;
                             if (!samples.ContainsKey(label)) samples[label] = new[] { new List<double>(), new List<double>(), new List<double>() };
                             List<double>[] s = samples[label];
-                            int guard = 0, n = 0, taken = 0;
+                            int guard = 0, n = 0, taken = 0, first = s[0].Count;
                             while (taken < 40 && guard++ < 1200)
                             {
                                 cb.Clear();
@@ -702,6 +707,11 @@ namespace ReDefinition.WeatherPlayer
                                 float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], r = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
                                     e = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
                                 if (m >= 0f && r >= 0f && e >= 0f) { s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++; }
+                            }
+                            if (s[0].Count > first)
+                            {
+                                if (!perRound.ContainsKey(label)) perRound[label] = new List<double>();
+                                perRound[label].Add(Median(s[0].GetRange(first, s[0].Count - first)));
                             }
                             if (marchCase.Skip && round == 0)
                             {
@@ -725,6 +735,9 @@ namespace ReDefinition.WeatherPlayer
                 Sink.Info("softcost.total." + kv.Key, tm + tr + tc);
                 Sink.Info("softcost.n." + kv.Key, kv.Value[0].Count);
             }
+            if (rounds > 2)
+                foreach (KeyValuePair<string, List<double>> kv in perRound)
+                    for (int k = 0; k < kv.Value.Count; k++) Sink.Info("softcost.marchr" + k + "." + kv.Key, kv.Value[k]);
             Cam.targetTexture = Target;
             rt.Release();
             evictA.Release();

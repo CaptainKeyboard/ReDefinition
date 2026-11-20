@@ -342,6 +342,24 @@ namespace ReDefinition.Atmospheres
         internal const float CellShellDefault = 0f;
         internal static bool CellShell { get { return Tuning.Get(TuneCellShell, CellShellDefault) > 0.5f; } }
 
+        // cloud.bodies (M2a P0 cost prototype, 2026-11-19): 0 the accepted lattice; 1 .. 6 compile the view march with the bodies of several size classes (CloudCells.cginc, the local
+        // keywords _BODIES_V1 .. _BODIES_V6): 1 scheme G2 as designed, 2 the fallback F2, 3 two classes, 4 G2 with the candidates in arrays, 5 as 1 with loops over the cells too,
+        // 6 the bound check, 7 as 4 with two hashes per body and no pow.
+        // A prototype for the timing in the weather player; the shadow, the light cache and the far passes keep the lattice.
+        internal const string TuneBodies = "cloud.bodies";
+        internal const float BodiesDefault = 0f;
+        internal static readonly string[] BodiesKeywords = { null, "_BODIES_V1", "_BODIES_V2", "_BODIES_V3", "_BODIES_V4", "_BODIES_V5", "_BODIES_V6", "_BODIES_V7" };
+        internal static int Bodies
+        {
+            get
+            {
+                float v = Tuning.Get(TuneBodies, BodiesDefault);
+                if (float.IsNaN(v) || float.IsInfinity(v)) return 0;
+                int n = (int)Math.Round(v);
+                return n >= 1 && n < BodiesKeywords.Length ? n : 0;
+            }
+        }
+
         // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)
         {

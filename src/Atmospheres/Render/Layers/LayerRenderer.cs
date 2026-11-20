@@ -456,6 +456,13 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdCullL, cullL);
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
             m.SetVectorArray(IdCellE, cellE);
+            // M2a P0 cost prototype (cloud.bodies, default 0: no keyword, the accepted lattice).
+            int bodies = CloudLookTuning.Bodies;
+            for (int v = 1; v < CloudLookTuning.BodiesKeywords.Length; v++)
+            {
+                if (v == bodies) m.EnableKeyword(CloudLookTuning.BodiesKeywords[v]);
+                else m.DisableKeyword(CloudLookTuning.BodiesKeywords[v]);
+            }
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));
