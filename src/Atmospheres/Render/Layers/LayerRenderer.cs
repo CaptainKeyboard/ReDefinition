@@ -83,6 +83,15 @@ namespace ReDefinition.Atmospheres
         // A span's points by distance (layers.spanGrowthPerM, 0 off): the step at the distance t from the camera is the step at the camera times (1 + this t), so a long span is fine
         // near and coarse far instead of evenly spaced; a short or near span keeps its count.
         public float SpanGrowthPerM;
+        // The distance in m beyond which that step grows (layers.spanGrowthFromM, 0: from the camera); the span's part before it is evenly spaced.
+        public float SpanGrowthFromM;
+        // The march's leap over empty grid points, switches for its diagnosis (layers.leapDebug, bits; the shader's _ReuseP.w lists them). Below 0 (the default): the march's own,
+        // LeapWithGrowth while SpanGrowthPerM is on, none while it is off.
+        public int LeapDebug = -1;
+        // With the points by distance a far step is long, and so is a leap of a few of them: it ends where the ray reaches the altitude at which cloud can begin, and starts again
+        // from one grid step there (8 + 128), so a thin deck crossed at an angle is entered, not passed over.
+        public const int LeapWithGrowth = 136;
+        public int LeapBits { get { return LeapDebug >= 0 ? LeapDebug : (SpanGrowthPerM > 0f ? LeapWithGrowth : 0); } }
         public int CostDebug;
         // Package T05: inside a cloud the step grows by this share of the transmittance the ray has already lost (0: a fixed step).
         public float TransmittanceGrowth;
@@ -436,10 +445,10 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             // Its sizes too (Record and Prepare set them after this call; 0: a caller that sets none, the shader then reads Unity's _ScreenParams as before).
             m.SetVector(Shader.PropertyToID("_ReconD"), Vector4.zero);
-            m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), Mathf.Max(0f, f.LeapScales), 0f));
+            m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
             // CLOUDR1 P6: the first hit by bisection and the thin steps inside (cloud.firstHit, cloud.firstHit.thin, cloud.firstHit.grow); 0 iterations: the march as it was.
             m.SetVector(IdFirstHitP, new Vector4(CloudLookTuning.FirstHitIterations, CloudLookTuning.FirstHitThin, CloudLookTuning.FirstHitShell, CloudLookTuning.FirstHitNear));
-            m.SetVector(IdReuseP, new Vector4(f.LightReuseMove ? 1f : 0f, Mathf.Max(0f, f.CostCutM), Mathf.Max(0f, f.SpanGrowthPerM), 0f));
+            m.SetVector(IdReuseP, new Vector4(f.LightReuseMove ? 1f : 0f, Mathf.Max(0f, f.CostCutM), Mathf.Max(0f, f.SpanGrowthPerM), f.LeapBits));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).

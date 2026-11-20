@@ -194,6 +194,11 @@ namespace ReDefinition.WeatherPlayer
             public int Grid;
             // sg<N>: a span's points by distance, the step's growth of N / 1000000 per m of distance from the camera (LayerFrame.SpanGrowthPerM).
             public int SpanGrowthE6;
+            // ld<N>: the leap's switches (LayerFrame.LeapDebug, bits); aid<N>: the pass's aid output (LayerFrame.AidMode; 8-10 the leap's probe); full: every pixel marched every frame,
+            // no history (ReconMode.Full; the aid's numbers come out as the pass wrote them).
+            // gf<N>: the step grows only beyond N m (LayerFrame.SpanGrowthFromM).
+            public int LeapDebug = -1, Aid, GrowFromM;
+            public bool Full;
             // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
             // lcgrid<N> its voxels across (the voxels up are a quarter of them).
             public int CacheNear, CacheFill, CacheKm, CacheGrid;
@@ -249,6 +254,10 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "c256") c.C256 = true;
                 else if (t.StartsWith("ng") && t.Length > 2) c.Grid = Number(t, 2);
                 else if (t.StartsWith("sg") && t.Length > 2) c.SpanGrowthE6 = Number(t, 2);
+                else if (t.StartsWith("ld") && t.Length > 2) c.LeapDebug = Number(t, 2);
+                else if (t.StartsWith("gf") && t.Length > 2) c.GrowFromM = Number(t, 2);
+                else if (t.StartsWith("aid") && t.Length > 3) c.Aid = Number(t, 3);
+                else if (t == "full") c.Full = true;
                 else if (t == "cmin6") c.Cmin6 = true;
                 else if (t == "cng") c.Cng = true;
                 else if (t == "ceo") c.Ceo = true;
@@ -308,6 +317,9 @@ namespace ReDefinition.WeatherPlayer
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.LightReuseMove = c.ReuseMove;
             f.SpanGrowthPerM = c.SpanGrowthE6 * 1e-6f;
+            f.LeapDebug = c.LeapDebug;
+            f.SpanGrowthFromM = c.GrowFromM;
+            f.AidMode = c.Aid;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
             f.DitherSequence = c.Dither >= 0 ? c.Dither : FrameDefaults.DitherSequence;
             f.DitherOwnGrid = !c.OldGrid;
@@ -409,6 +421,7 @@ namespace ReDefinition.WeatherPlayer
         // The reconstruction of a case in a mode of GrainTable (plain: the half-size march alone; acc20: with the history). A block level has its own history and ignores the mode.
         internal static ReconSettings Settings(Case c, string mode)
         {
+            if (c.Full) return new ReconSettings { Mode = ReconMode.Full };
             if (c.Block > 0)
             {
                 var b = new ReconSettings { Mode = ReconMode.Block, Block = c.Block, CatmullHistory = c.CatmullHistory };
