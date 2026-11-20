@@ -150,6 +150,11 @@ namespace ReDefinition.Atmospheres
             }
             if (!PinStep("settled", settled, settled ? "maps at their goal and a height build done, held " + holdS.ToString("0.0") + " s (" + settledFrames + " frames)"
                                                      : why + " after " + PinSettleTimeoutS.ToString("0") + " s")) yield break;
+            if (PinSeriesFrames > 0)
+            {
+                foreach (ProbeWait w in PinSeriesAims(view, variant, own)) yield return w;
+                yield break;
+            }
 
             // 3. The frame origin and the cut, in this frame (the pass records after the probe's tick), in the frame after one at the first phase of the host's jitter.
             double jitterGiveUp = Elapsed + PinJitterTimeoutS;
@@ -257,6 +262,88 @@ namespace ReDefinition.Atmospheres
                 }
             }
             PinStep("natural_picture", pictureOk, pictureOk ? "natural.npy " + image.Width + "x" + image.Height : fault ?? "the read gave no picture");
+        }
+
+        // -t09PinSeries <n> -t09PinAims <heading:pitch,heading:pitch,...> (edge flicker look, 2026-11-20): instead of the single capture, the camera is turned to each aim (compass
+        // heading and elevation in degrees, the ground view's height and distance), the history is cut, PinFrames frames are held, and then n CONSECUTIVE frames are read back at
+        // full size and written as PNGs (t09-<start>-edge-a<aim>-...-f<frame>.png), the clock and the noise pinned as in the single capture. The frames are kept in memory as
+        // 8-bit colours while they are read (one read per frame, no encoding between) and written after the last one.
+        private int PinSeriesFrames
+        {
+            get { return (int)NumberArg("-t09PinSeries", 0.0); }
+        }
+
+        private IEnumerable<ProbeWait> PinSeriesAims(View view, string variant, OwnCloudModule own)
+        {
+            string aimText = CommandLine.After(Args(), "-t09PinAims", true);
+            var aims = new List<double[]>();
+            foreach (string part in (aimText ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] hp = part.Split(':');
+                double h, p;
+                if (hp.Length == 2 && double.TryParse(hp[0], NumberStyles.Float, CultureInfo.InvariantCulture, out h) && double.TryParse(hp[1], NumberStyles.Float, CultureInfo.InvariantCulture, out p))
+                    aims.Add(new[] { h, p });
+            }
+            if (!PinStep("series_aims", aims.Count > 0, "-t09PinAims '" + aimText + "' gave " + aims.Count + " aims")) yield break;
+            int n = PinSeriesFrames;
+            KSP.UI.UIMasterController ui = CommandLine.Has(Args(), "-t09HideUi", true) ? KSP.UI.UIMasterController.Instance : null;
+            bool hid = ui != null && ui.IsUIShowing;
+            if (hid)
+            {
+                ui.HideUI();
+                yield return ProbeWait.Frames(2);
+            }
+            for (int a = 0; a < aims.Count; a++)
+            {
+                foreach (ProbeWait w in Aim(aims[a][0], aims[a][1], view.CameraDistM)) yield return w;
+                T09Pose pose = Game.ReadPose();
+                AtmospheresLog.Say("T09 pin series: aim " + a + " wanted " + aims[a][0].ToString("0.0", CultureInfo.InvariantCulture) + "/" + aims[a][1].ToString("0.0", CultureInfo.InvariantCulture)
+                                   + ", got " + pose.AzimuthDeg.ToString("0.0", CultureInfo.InvariantCulture) + "/" + pose.ElevationDeg.ToString("0.0", CultureInfo.InvariantCulture)
+                                   + ", camera " + pose.CameraAgl.ToString("0", CultureInfo.InvariantCulture) + " m over the terrain" + (aimNote != null ? ", aim: " + aimNote : ""));
+                double jitterGiveUp = Elapsed + PinJitterTimeoutS;
+                while (!OwnCloudModule.HostJitterAtFirstPhase() && Elapsed < jitterGiveUp) yield return ProbeWait.Frames(1);
+                own.PinNoise();
+                int cutsBefore = own.HistoryCuts;
+                own.FrameOrigin = Game.FrameCount;
+                CloudBridgeLights.RequestHistoryReset("pinned series");
+                try { new ApiBridge().RequestHistoryReset("ReDefinition pinned series"); }
+                catch (Exception e) { AtmospheresLog.Say("T09 pin series: the host's history reset threw " + e.GetType().Name + " " + e.Message); }
+                yield return ProbeWait.Frames(1);
+                if (!PinStep("series_cut_a" + a, own.HistoryCuts > cutsBefore, "cuts " + cutsBefore + " -> " + own.HistoryCuts)) yield break;
+                int cutsAfter = own.HistoryCuts;
+                double giveUp = Elapsed + PinHoldTimeoutS;
+                while (own.HistoryFramesSinceCut < PinFrames - 1 && own.HistoryCuts == cutsAfter && Elapsed < giveUp) yield return ProbeWait.Frames(1);
+                if (!PinStep("series_hold_a" + a, own.HistoryFramesSinceCut >= PinFrames - 1 && own.HistoryCuts == cutsAfter, "frames since the cut " + own.HistoryFramesSinceCut)) yield break;
+
+                // The screen as the player sees it (after the upscaler): one screenshot request per frame, written at that frame's end, so the frames are consecutive.
+                var frameNumbers = new List<string>();
+                string fault = null;
+                string stem = "t09-" + (StartId ?? "nostart") + "-edge-a" + a + "-h" + ((int)Math.Round(aims[a][0])).ToString(CultureInfo.InvariantCulture) + "p" + ((int)Math.Round(aims[a][1] * 10)).ToString(CultureInfo.InvariantCulture);
+                int sw = Game.ScreenWidth, sh = Game.ScreenHeight;
+                try { System.IO.Directory.CreateDirectory(SeriesPictures.Folder); }
+                catch (Exception e) { fault = e.GetType().Name + " " + e.Message; }
+                for (int i = 0; i < n && fault == null; i++)
+                {
+                    try
+                    {
+                        ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(SeriesPictures.Folder, stem + "-f" + i.ToString("00", CultureInfo.InvariantCulture) + "-" + sw + "x" + sh + ".png"));
+                        frameNumbers.Add(Game.FrameCount.ToString(CultureInfo.InvariantCulture));
+                    }
+                    catch (Exception e) { fault = "the screenshot threw " + e.GetType().Name + " " + e.Message; }
+                    yield return ProbeWait.Frames(1);
+                }
+                yield return ProbeWait.Frames(2);
+                int written = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    if (System.IO.File.Exists(System.IO.Path.Combine(SeriesPictures.Folder, stem + "-f" + i.ToString("00", CultureInfo.InvariantCulture) + "-" + sw + "x" + sh + ".png"))) written++;
+                }
+                PinStep("series_frames_a" + a, fault == null && written == n, fault ?? (written + " of " + n + " screenshots written, requested in game frames " + string.Join(",", frameNumbers.ToArray())));
+            }
+            if (hid && KSP.UI.UIMasterController.Instance != null) KSP.UI.UIMasterController.Instance.ShowUI();
+            PinCleanup();
+            EndVariant();
+            Game.StopHold();
         }
     }
 }
