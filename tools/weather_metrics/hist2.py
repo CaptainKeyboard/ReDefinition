@@ -67,6 +67,8 @@ CASES = {
     "still_back": dict(view="groundback"),
 }
 FPS = 50.0
+# The variants whose every frame is written as a picture (None: all); the others keep the strip's frames only (--full-frames).
+FULL_FRAMES = None
 
 
 def bwp():
@@ -171,6 +173,40 @@ def label_strip(tiles, row_labels, col_labels, tile, path):
     img.save(path)
 
 
+def march_compare(folder, job, names, frames):
+    """With -dumpMarch: each variant's march target (the block samples, half floats as read back) against the first variant's, frame by frame: equal hashes, the
+    largest difference, and where the differing texels sit (the border rows / columns, the quad's diagonal, elsewhere)."""
+    import hashlib
+    variants = [n for n in names if n != "ref"]
+    first = variants[0] if variants else None
+    out = []
+    for n in variants[1:]:
+        for k in frames:
+            pa = os.path.join(folder, "march~%s-%s-f%d.npy" % (job, first, k))
+            pb = os.path.join(folder, "march~%s-%s-f%d.npy" % (job, n, k))
+            if not (os.path.isfile(pa) and os.path.isfile(pb)):
+                continue
+            a, b = np.load(pa), np.load(pb)
+            same = hashlib.sha1(a.tobytes()).hexdigest() == hashlib.sha1(b.tobytes()).hexdigest()
+            d = np.abs(a.astype(np.float32) - b.astype(np.float32)).max(axis=-1)
+            diff = d > 0
+            h, w = d.shape
+            border = np.zeros_like(diff)
+            border[:2] = border[-2:] = True
+            border[:, :2] = border[:, -2:] = True
+            yy, xx = np.mgrid[0:h, 0:w]
+            diag = np.abs(yy / max(h - 1, 1) - xx / max(w - 1, 1)) * min(h, w) < 2.0
+            line = "march %s vs %s f%d (%dx%d): %s, max |d| %.6g, differing texels %d (%.4f %%): border %d, diagonal %d, elsewhere %d" % (
+                n, first, k, w, h, "identical" if same else "differ", float(d.max()), int(diff.sum()), 100.0 * diff.mean(),
+                int((diff & border).sum()), int((diff & diag & ~border).sum()), int((diff & ~diag & ~border).sum()))
+            if diff.any():
+                rows = np.where(diff.any(axis=1))[0]
+                cols = np.where(diff.any(axis=0))[0]
+                line += "; rows %s..%s (%d), columns %s..%s (%d); mean |d| where differing %.6g" % (rows[0], rows[-1], len(rows), cols[0], cols[-1], len(cols), float(d[diff].mean()))
+            out.append(line)
+    return "\n".join(out)
+
+
 def fine_detail(img8, block=6):
     """Luminance (0..1) minus its block mean: the detail finer than a block."""
     lum = img8.astype(np.float32) @ np.array([0.2126, 0.7152, 0.0722], np.float32) / 255.0
@@ -253,6 +289,7 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
     regions = {}
     kept = {}
     last = {}
+    stripset = set(frames[::max(1, len(frames) // 8)][:8])
     for i, k in enumerate(frames):
         ref = load_half(os.path.join(folder, "%s-ref-f%d.npy" % (job, k)))
         ref_disp = composite_display(ref, scene, pj)
@@ -267,7 +304,9 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
             img = load_half(p)
             disp = composite_display(img, scene, pj)
             img8 = upscale(disp)
-            save(img8, os.path.join(base, n, "%s-%s-%s-f%02d-2560x1440.png" % (case, view, n, i)))
+            # Every frame for the variants named in FULL_FRAMES (disk), the strip's frames for the others.
+            if FULL_FRAMES is None or n in FULL_FRAMES or k in stripset:
+                save(img8, os.path.join(base, n, "%s-%s-%s-f%02d-2560x1440.png" % (case, view, n, i)))
             e = np.abs(img8.astype(np.int16) - ref8.astype(np.int16)).max(axis=-1)
             mask = np.maximum(ref[..., 3], img[..., 3]) > 0.02
             diff = (disp - ref_disp) * 255.0
@@ -305,6 +344,11 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
             rows.append(row)
         label_strip(rows, order, ["frame %d" % frames.index(k) for k in stripframes], tile,
                     os.path.join(base, "%s-%s-strip%d-y%d-x%d-1to1.png" % (case, view, wi, y, x)))
+    march_text = march_compare(folder, job, names, frames)
+    if march_text:
+        with open(os.path.join(base, "%s-march-compare.txt" % case), "w", encoding="utf-8") as f:
+            f.write(march_text + "\n")
+        print(march_text)
     for f in os.listdir(folder):
         if f.endswith(".npy"):
             os.remove(os.path.join(folder, f))
@@ -327,9 +371,9 @@ def process_case(case, folder, names, out_root, keep_every_err=4):
     return text
 
 
-def motion_extra(case, variants, ref_frames, warm, dump):
+def motion_extra(case, variants, ref_frames, warm, dump, dump_march=False):
     s = CASES[case]
-    extra = ["-mode", "scene", "-scene", "pin-motion", "-in", IN, "-jobs", job_of(s["view"]), "-variants", variants,
+    extra = (["-dumpMarch", "1"] if dump_march else []) + ["-mode", "scene", "-scene", "pin-motion", "-in", IN, "-jobs", job_of(s["view"]), "-variants", variants,
              "-pathFps", str(FPS), "-pathWarm", str(warm), "-pathDump", str(dump), "-refFrames", str(ref_frames)]
     if "vel" in s:
         extra += ["-pathVel", ",".join(str(v) for v in s["vel"])]
@@ -345,6 +389,8 @@ def motion_extra(case, variants, ref_frames, warm, dump):
 
 
 def cmd_motion_inner(a):
+    global FULL_FRAMES
+    FULL_FRAMES = set(a.full_frames.split(",")) if a.full_frames else None
     variants, names = variant_arg(a.variants, True)
     with open(os.path.join(IN, "jobs.json"), encoding="utf-8") as f:
         jobs = {j["id"]: j for j in json.load(f)["jobs"]}
@@ -352,7 +398,7 @@ def cmd_motion_inner(a):
     for case in a.cases.split(","):
         s = CASES[case]
         j = jobs[job_of(s["view"])]
-        lines, folder = player("hist2-" + case, motion_extra(case, variants, a.ref_frames, a.warm, a.dump), (j["width"], j["height"]), 3000, False)
+        lines, folder = player("hist2-" + case, motion_extra(case, variants, a.ref_frames, a.warm, a.dump, a.dump_march), (j["width"], j["height"]), 3000, False)
         ok = lines is not None and any(line == "all checks passed" for line in lines)
         if not ok:
             print("\n".join(lines or ["(no player lines)"]))
@@ -368,7 +414,7 @@ def cmd_motion(a):
         return code
     m = bwp()
     cmd = [sys.executable, os.path.abspath(__file__), "motion-inner", "--cases", a.cases, "--variants", a.variants, "--out", a.out, "--ref-frames", str(a.ref_frames),
-           "--warm", str(a.warm), "--dump", str(a.dump)]
+           "--warm", str(a.warm), "--dump", str(a.dump)] + (["--dump-march"] if a.dump_march else []) + (["--full-frames", a.full_frames] if a.full_frames else [])
     return m.under_lock("gpu", "hist2-motion", 60, False, cmd)
 
 
@@ -434,6 +480,8 @@ def main():
         q.add_argument("--ref-frames", type=int, default=16)
         q.add_argument("--warm", type=int, default=40)
         q.add_argument("--dump", type=int, default=24)
+        q.add_argument("--dump-march", action="store_true", help="also the march targets, compared variant against the first")
+        q.add_argument("--full-frames", default="", help="variants whose every frame is written (default: all); the others keep the strip's frames")
         q.add_argument("--no-build", action="store_true")
     for name in ("cost", "cost-inner"):
         q = sub.add_parser(name)

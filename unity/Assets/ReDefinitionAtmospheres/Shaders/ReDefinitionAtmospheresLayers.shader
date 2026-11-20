@@ -1043,5 +1043,16 @@ Shader "ReDefinition/AtmospheresLayers"
             MarchTargets frag(v2f i) { return Pass0Targets(i); }
             ENDCG
         }
+
+        // Pass 7 (test switch ReconSettings.ProcMarch, HIST2): pass 0 drawn as pass 6's procedural triangle into one target, to time the draw path against the Blit.
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vertProc
+            #pragma fragment frag
+            #pragma target 3.5
+            float4 frag(v2f i) : SV_Target { return Pass0(i); }
+            ENDCG
+        }
     }
 }

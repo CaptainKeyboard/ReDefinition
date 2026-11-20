@@ -210,6 +210,7 @@ namespace ReDefinition.WeatherPlayer
             int warm = Mathf.Max(0, (int)PinKit.Number("-pathWarm", 40f)), dumpCount = Mathf.Max(1, (int)PinKit.Number("-pathDump", 24f));
             int refFrames = Mathf.Clamp((int)PinKit.Number("-refFrames", 16f), 1, 64);
             bool sky = PinKit.Number("-pathDepth", 1f) < 0.5f;
+            bool dumpMarch = PinKit.Number("-dumpMarch", 0f) > 0.5f;
             float dt = 1f / fps;
             var refRecon = new LayerReconstructor();
             refRecon.Init(Shader.Find(LayerReconstructor.ShaderName));
@@ -273,6 +274,8 @@ namespace ReDefinition.WeatherPlayer
                             if (dump)
                             {
                                 WriteHalf(rig.Recon.Output, Path.Combine(Output, job.id + "-" + v.Name + "-f" + k + ".npy"));
+                                // -dumpMarch 1: the march target too (the block samples before the reconstruction), to compare two ways of drawing the march.
+                                if (dumpMarch) WriteHalf(rig.Recon.March, Path.Combine(Output, "march~" + job.id + "-" + v.Name + "-f" + k + ".npy"));
                                 written++;
                             }
                         }
