@@ -352,7 +352,9 @@ namespace ReDefinition.Atmospheres
         //   cloud.lightVolume.voxelM, .grid, .gridZ, .farScale, .cascades   the near cascade's voxel in m, the voxels across a window and up, the far cascade's coarsening, 1 or 2 cascades
         //   cloud.lightVolume.fade         the fade band at a window's edge in voxels
         //   cloud.lightVolume.relayKm      the travel from the anchor after which the volume is laid anew (refilled once)
-        //   cloud.lightVolume.fillTaps, .fillRatio   the fill's sun taps and their growth
+        //   cloud.lightVolume.fillTaps, .fillRatio   the fill's sun taps over the whole sun march and their growth; fillTaps 0 (default): the march's own taps beyond the far near
+        //                                  taps (the full march's estimate of the same path; 24 taps growing by 1.15, the light cache's, left the far clouds' lit sides darker than the
+        //                                  full march: player 2026-11-20, ground view, mean difference 0.0051 against 0.0029 at a hand-over of 4 km)
         internal const string TuneLightVolume = "cloud.lightVolume", TuneLvHandOver = "cloud.lightVolume.handOverKm", TuneLvBand = "cloud.lightVolume.band",
             TuneLvFarTaps = "cloud.lightVolume.farTaps", TuneLvSlices = "cloud.lightVolume.slices", TuneLvWarp = "cloud.lightVolume.warp", TuneLvVoxel = "cloud.lightVolume.voxelM",
             TuneLvGrid = "cloud.lightVolume.grid", TuneLvGridZ = "cloud.lightVolume.gridZ", TuneLvFarScale = "cloud.lightVolume.farScale", TuneLvCascades = "cloud.lightVolume.cascades",
@@ -379,7 +381,7 @@ namespace ReDefinition.Atmospheres
         internal static int LvCascades { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvCascades, 2f), 2f, 1f, 2f)); } }
         internal static float LvFade { get { return Clean(Tuning.Get(TuneLvFade, 4f), 4f, 0.25f, 64f); } }
         internal static float LvRelayM { get { return Clean(Tuning.Get(TuneLvRelay, 100f), 100f, 1f, 5000f) * 1000f; } }
-        internal static int LvFillTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFillTaps, 24f), 24f, 1f, 64f)); } }
+        internal static int LvFillTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFillTaps, 0f), 0f, 0f, 64f)); } }
         internal static float LvFillRatio { get { return Clean(Tuning.Get(TuneLvFillRatio, 1.15f), 1.15f, 1f, 4f); } }
 
         // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).

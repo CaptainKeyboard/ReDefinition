@@ -49,7 +49,7 @@ float4 _LvA;      // x the hand-over distance in m (< 0: infinity, the full sun 
 float4 _LvU, _LvE, _LvN;   // the anchored frame: up, east, north (planet frame, unit)
 float4 _LvZ;      // x, y the altitude range in m, z the slices of a cascade, w the fade band at a window's edge in voxels
 float4 _LvC;      // x, y the voxel size of cascade 0 and 1 in m, z the voxels across a window, w the cascades in use (1, 2)
-float4 _LvF;      // x the fill's taps, y the growth of each fill tap over the one before
+float4 _LvF;      // x the fill's taps over the whole sun march (0: the march's own taps beyond the far near taps), y the growth of each fill tap over the one before
 float4 _LvO[64];  // per slice: the window origin (voxel index) of cascade 0 (xy) and 1 (zw) when the slice was last filled (far below -1e7: not filled since the lay)
 float4 _LvSlice;  // the fill (a global, never on the material): x the slice, y the cascade, z, w the window origin
 UNITY_DECLARE_TEX2DARRAY(_LightVolume);

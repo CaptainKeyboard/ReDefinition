@@ -42,7 +42,7 @@ namespace ReDefinition.Atmospheres
 
         // The levers (CloudLookTuning's cloud.lightVolume.* keys; Configure reads them).
         public float HandOverM = 8000f, BandShare = 0.5f, PixelAngleRad;
-        public int FarTaps = 3, Slices = 8, GridN = 128, GridNz = 32, Cascades = 2, FillTaps = 24;
+        public int FarTaps = 3, Slices = 8, GridN = 128, GridNz = 32, Cascades = 2, FillTaps;
         public float Warp = 1f, VoxelM = 312.5f, FarScale = 4f, FadeVoxels = 4f, RelayM = 100000f, FillRatio = 1.15f;
 
         // What the last Record did: the slices filled, whether it was a new lay, and the lays so far.
@@ -50,6 +50,27 @@ namespace ReDefinition.Atmospheres
         internal bool LastWasLay { get; private set; }
         internal int Lays { get; private set; }
         internal RenderTexture Volume { get { return volume; } }
+
+        // The layout for a readback (the weather player's diagnosis): the anchored frame, the altitude range, each cascade's window now and the windows each slice was filled for.
+        internal string Describe()
+        {
+            var s = new System.Text.StringBuilder();
+            System.Globalization.CultureInfo inv = System.Globalization.CultureInfo.InvariantCulture;
+            Func<Vector3, string> v3 = v => "[" + v.x.ToString("R", inv) + "," + v.y.ToString("R", inv) + "," + v.z.ToString("R", inv) + "]";
+            s.Append("{\"up\":").Append(v3(up)).Append(",\"east\":").Append(v3(east)).Append(",\"north\":").Append(v3(north));
+            s.Append(",\"alt\":[").Append(laidAlt.x.ToString("R", inv)).Append(',').Append(laidAlt.y.ToString("R", inv)).Append(']');
+            s.Append(",\"voxel\":").Append(VoxelM.ToString("R", inv)).Append(",\"farScale\":").Append(FarScale.ToString("R", inv)).Append(",\"grid\":").Append(GridN)
+             .Append(",\"gridZ\":").Append(GridNz).Append(",\"cascades\":").Append(Cascades).Append(",\"planetR\":").Append(planetR.ToString("R", inv));
+            s.Append(",\"window\":[[").Append(window[0].x).Append(',').Append(window[0].y).Append("],[").Append(window[1].x).Append(',').Append(window[1].y).Append("]]");
+            s.Append(",\"sliceO\":[");
+            for (int z = 0; z < GridNz; z++)
+            {
+                if (z > 0) s.Append(',');
+                s.Append('[').Append(sliceO[z].x.ToString("R", inv)).Append(',').Append(sliceO[z].y.ToString("R", inv)).Append(',').Append(sliceO[z].z.ToString("R", inv))
+                 .Append(',').Append(sliceO[z].w.ToString("R", inv)).Append(']');
+            }
+            return s.Append("]}").ToString();
+        }
 
         internal void Configure()
         {

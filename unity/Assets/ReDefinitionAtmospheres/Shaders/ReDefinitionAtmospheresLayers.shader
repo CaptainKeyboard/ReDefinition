@@ -1013,7 +1013,8 @@ Shader "ReDefinition/AtmospheresLayers"
                 // (one voxel diagonal): a voxel farther than both from every shell is never read and stays empty.
                 int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
                 int keep = min((int)_LvA.z, steps - 1);
-                float reach = length(float2(1.4142 * vox, sliceH)) + (keep > 0 ? _Sun.w * NearShare(keep, steps, max(_LightR.y, 1.0)) : 0.0);
+                float near = keep > 0 ? _Sun.w * NearShare(keep, steps, max(_LightR.y, 1.0)) : 0.0;
+                float reach = length(float2(1.4142 * vox, sliceH)) + near;
                 bool read = false;
                 [loop] for (int lj = 0; lj < MAXL; lj++)
                 {
@@ -1023,7 +1024,11 @@ Shader "ReDefinition/AtmospheresLayers"
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
                 if (!read) return float4(0, 0, 0, 0);
-                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LvF.x), 0.0, 0.0, 0.0, 0, _Sun.w, _LvF.y), 0, 0, 0);
+                // _LvF.x 0: the march's own taps beyond the far path's near ones (their count, their growth, the rest of the sun march's length), so that the far light is the full
+                // march's estimate of the same path; above 0: that many taps growing by _LvF.y over the whole length.
+                bool own = _LvF.x < 0.5;
+                int taps = own ? max(1, steps - keep) : (int)_LvF.x;
+                return float4(LightTau(p, _Sun.xyz, -1, taps, 0.0, 0.0, 0.0, 0, own ? max(_Sun.w - near, 1.0) : _Sun.w, own ? _LightR.y : _LvF.y), 0, 0, 0);
             }
             ENDCG
         }

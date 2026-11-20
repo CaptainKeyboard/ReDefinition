@@ -70,7 +70,8 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneLvCascades, 2f, KeySection.Light, "light volume: cascades (1 near only, 2 near and far)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);
             r.Key(CloudLookTuning.TuneLvFade, 4f, KeySection.Light, "light volume: fade band at a window's edge in voxels", KeyLiveness.FrameHistory, KeyMarker.Live, 0.25f, 64f);
             r.Key(CloudLookTuning.TuneLvRelay, 100f, KeySection.Light, "light volume: travel in km after which it is laid anew (refilled once)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 5000f);
-            r.Key(CloudLookTuning.TuneLvFillTaps, 24f, KeySection.Light, "light volume: the fill's sun taps", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 64f);
+            r.Key(CloudLookTuning.TuneLvFillTaps, 0f, KeySection.Light, "light volume: the fill's sun taps (0: the march's own taps beyond the far near taps)", KeyLiveness.FrameHistory,
+                KeyMarker.Live, 0f, 64f);
             r.Key(CloudLookTuning.TuneLvFillRatio, 1.15f, KeySection.Light, "light volume: growth of each fill tap over the one before", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 4f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
