@@ -83,13 +83,15 @@ Shader "ReDefinition/AtmospheresReconstruct"
         // edge's, as the dilated motion vectors of temporal antialiasing: Karis, "High Quality Temporal Supersampling", SIGGRAPH 2014), the drift the one of the layer whose
         // middle sphere is nearest to the point. False where no sample around holds cloud (the caller's model then places the pixel); a place the previous camera did not see
         // comes back outside the picture.
-        bool TruePrevious(float3 o, float3 d, float2 q0, out float2 puv, out float dist, out float prev)
+        // own: the distance is the nearest new sample's own (true) or a neighbour's (the dilation at a rim, false).
+        bool TruePrevious(float3 o, float3 d, float2 q0, out float2 puv, out float dist, out float prev, out bool own)
         {
             puv = -1.0;
             prev = 0.0;
             // The nearest new sample's own distance where it holds cloud; the nearest of the eight around only where it holds none (the edge's dilation). Taking the
             // nearest of all nine everywhere gave a far band at the horizon a nearer neighbour's distance: it led by 2-3 pixels in forward flight (HIST2 fwd300).
             dist = tex2Dlod(_DistTex, float4((q0 + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
+            own = dist > 0.0;
             if (dist <= 0.0)
             {
                 dist = 1e30;
@@ -251,18 +253,23 @@ Shader "ReDefinition/AtmospheresReconstruct"
             bool valid;
             bool measured = false;
             float prevDist = 0.0;
-            [branch] if (_ReconT.x > 0.5) measured = TruePrevious(o, d, q0, puv, depth, prevDist);
-            gStateDist = measured ? log2(max(depth, 1.0)) : 0.0;
+            bool ownDistance = false;
+            [branch] if (_ReconT.x > 0.5) measured = TruePrevious(o, d, q0, puv, depth, prevDist, ownDistance);
+            // The count target's second channel: log2 of the cloud's distance where the frame measured one; -1 where it measured none and the scene stands in the ray
+            // (the craft, the terrain: "no cloud" there says nothing about the sky behind); 0 where it measured none under an open sky.
+            gStateDist = measured ? log2(max(depth, 1.0)) : (zPixel < 1e8 ? -1.0 : 0.0);
             if (measured)
             {
                 valid = _Drift.w > 0.5 && all(puv > 0.0) && all(puv < 1.0);
-                // recon.distanceReject (_ReconT.z, in octaves): the history holds the distance of the cloud it showed (the count target's second channel, read at the
-                // nearest texel: a distance is not blended across an edge). Where it is not the distance at which the previous camera saw this pixel's cloud, the
-                // history showed something else there (another cloud in front or behind, or none: a disocclusion) and is dropped. The colour clip can then be wide.
+                // recon.distanceReject (_ReconT.z, in octaves): the history holds the distance of the cloud it showed (read at the nearest texel: a distance is not
+                // blended across an edge). The history is dropped where it stood behind the scene (-1: a disocclusion from behind the craft), and where this pixel's OWN
+                // sample measures a distance the history's is more than the tolerance from (another cloud in front or behind). A rim pixel's distance is a neighbour's
+                // and changes with the block's offset from frame to frame, and a rim's history often holds no distance: neither drops the history. Dropping it there
+                // left the rims on the upsample of the block grid for good: square steps at every cloud edge, also standing still (HIST2 r3, 2026-11-20).
                 [branch] if (valid && _ReconT.z > 0.0)
                 {
                     float stored = tex2Dlod(_AgeTex, float4((floor(puv * _ReconD.xy) + 0.5) / _ReconD.xy, 0, 0)).g;
-                    if (stored <= 0.0 || abs(stored - log2(max(prevDist, 1.0))) > _ReconT.z) valid = false;
+                    if (stored < -0.5 || (stored > 0.0 && ownDistance && abs(stored - log2(max(prevDist, 1.0))) > _ReconT.z)) valid = false;
                 }
             }
             else if (CloudPrevious(o, d, puv, depth))
