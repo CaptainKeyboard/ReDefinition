@@ -533,7 +533,12 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 Assert.IsTrue(sky.GetMap(Body, k, ut, map));
                 CollectionAssert.AreEqual(before[k], map.Values, k + ": the same with the sky maps on");
             }
-            var skyKinds = new[] { WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.ConvectiveBase, WeatherMapKind.ConvectiveTop, WeatherMapKind.Instability, WeatherMapKind.Uplift };
+            var skyKinds = new[]
+            {
+                WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.ConvectiveBase, WeatherMapKind.ConvectiveTop, WeatherMapKind.Instability, WeatherMapKind.Uplift,
+                WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.Descent, WeatherMapKind.CellReach, WeatherMapKind.DeckAmount,
+                WeatherMapKind.StableShare
+            };
             var maps = new Dictionary<WeatherMapKind, float[]>();
             foreach (WeatherMapKind k in skyKinds.Concat(new[] { WeatherMapKind.Coverage }))
             {
@@ -556,8 +561,10 @@ namespace ReDefinition.Tests.Atmospheres.C25
             {
                 float step = LargestStep(maps[k]);
                 Console.WriteLine(k + ": largest step between neighbouring texels " + step.ToString("0.000") + " (coverage " + coverStep.ToString("0.000") + ")");
-                // the top of a cell's tower stands in the one texel at its centre (up to the tropopause), so the top map steps there by up to the whole troposphere
-                if (k != WeatherMapKind.ConvectiveTop) Assert.IsTrue(step <= coverStep + 0.15f, k + " " + step);
+                // the top of a cell's tower stands in the one texel at its centre (up to the tropopause), so the top map steps there by up to the whole troposphere; the cells' reach
+                // is that tower's share, and the level humidities rise to saturation inside the tower's gate
+                if (k != WeatherMapKind.ConvectiveTop && k != WeatherMapKind.CellReach && k != WeatherMapKind.HumidityMid && k != WeatherMapKind.HumidityHigh)
+                    Assert.IsTrue(step <= coverStep + 0.15f, k + " " + step);
             }
 
             // in time: ten seconds of UT later every texel moves by less than the painters' slew allows in a second (MapSlew.DefaultRate, 0.08 of full scale)
@@ -572,6 +579,59 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 Console.WriteLine(k + ": largest change in 10 s of UT " + worst.ToString("0.0000"));
                 Assert.IsTrue(worst < MapSlew.DefaultRate, k + " " + worst);
             }
+        }
+
+        // The maps of kinds 16 to 22 are the column quantities at the texel's centre (the same samples as the other sky maps), each in its range.
+        [TestMethod]
+        public void TheLevelHumidityDescentReachDeckAndStableMapsAreTheColumnsQuantities()
+        {
+            const double ut = 4.0e6;
+            GeneratorField field = FieldFixture.Field();
+            var kinds = new[]
+            {
+                WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.Descent, WeatherMapKind.CellReach, WeatherMapKind.DeckAmount,
+                WeatherMapKind.StableShare, WeatherMapKind.StratiformAmount
+            };
+            var maps = new Dictionary<WeatherMapKind, float[]>();
+            var map = new WeatherMap();
+            foreach (WeatherMapKind k in kinds)
+            {
+                Assert.IsTrue(field.GetMap(Body, k, ut, map), k.ToString());
+                Assert.AreEqual(GeneratorMaps.Width, map.Width);
+                maps[k] = (float[])map.Values.Clone();
+            }
+            WeatherGenerator g = field.StateOf(Body).Generator;
+            const int W = GeneratorMaps.Width, H = GeneratorMaps.Height;
+            int checkedTexels = 0, inCell = 0;
+            for (int j = 3; j < H; j += 17)
+            {
+                double lat = (90.0 - (j + 0.5) * 180.0 / H) * (Math.PI / 180.0);
+                for (int i = 5; i < W; i += 23)
+                {
+                    double lon = (-180.0 + (i + 0.5) * 360.0 / W) * (Math.PI / 180.0);
+                    Weather w;
+                    g.Sample(lat, lon, 0.0, ut, out w, true);
+                    SkyColumn s;
+                    SkyColumn.Derive(g.Body, ref w, out s);
+                    int k = j * W + i;
+                    Assert.AreEqual((float)s.RhLow, maps[WeatherMapKind.HumidityLow][k], "low at " + k);
+                    Assert.AreEqual((float)s.RhMid, maps[WeatherMapKind.HumidityMid][k], "mid at " + k);
+                    Assert.AreEqual((float)s.RhHigh, maps[WeatherMapKind.HumidityHigh][k], "high at " + k);
+                    Assert.AreEqual((float)w.Descent01, maps[WeatherMapKind.Descent][k], "descent at " + k);
+                    Assert.AreEqual((float)w.CellReach01, maps[WeatherMapKind.CellReach][k], "reach at " + k);
+                    Assert.AreEqual((float)s.DeckAmount, maps[WeatherMapKind.DeckAmount][k], "deck at " + k);
+                    Assert.AreEqual((float)s.StableShare, maps[WeatherMapKind.StableShare][k], "stable at " + k);
+                    checkedTexels++;
+                }
+            }
+            for (int k = 0; k < W * H; k++)
+            {
+                foreach (WeatherMapKind kind in kinds) Assert.IsTrue(maps[kind][k] >= -1e-6f && maps[kind][k] <= 1f + 1e-6f, kind + " at " + k + ": " + maps[kind][k]);
+                Assert.IsTrue(maps[WeatherMapKind.DeckAmount][k] <= maps[WeatherMapKind.StratiformAmount][k] + 1e-5f, "the deck is a part of the sheet at " + k);
+                if (maps[WeatherMapKind.CellReach][k] > 0f) inCell++;
+            }
+            Console.WriteLine("checked " + checkedTexels + " texels against the columns; texels with a cell's reach " + inCell);
+            Assert.IsTrue(checkedTexels > 100);
         }
     }
 }
