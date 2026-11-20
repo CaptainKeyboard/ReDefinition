@@ -63,6 +63,10 @@ namespace ReDefinition.Atmospheres
         // (ReconSettings.TrueDistance; default 0: the middle spheres).
         internal const string TuneTrueDistance = "recon.trueDistance";
         internal const bool TrueDistanceDefault = false;
+        // recon.age 1: the block reconstruction counts the marched samples each pixel's history holds; the n-th sample enters at max(the fixed weight, 1 / n) and a pixel
+        // without one shows the current upsample (ReconSettings.Age; default 0: the fixed weights).
+        internal const string TuneAge = "recon.age";
+        internal const bool AgeDefault = false;
         internal const float AccumulateDefault = 0.2f;
 
         // E40 MVCLOUD: recon.layerMotion (default 1): the cloud's place in the previous frame, for the reconstruction's history and for the motion vector the upscalers read, is taken on
@@ -436,6 +440,7 @@ namespace ReDefinition.Atmospheres
             s.LayerMotion = Tuning.Flag(TuneLayerMotion, LayerMotionDefault);
             s.CatmullHistory = Tuning.Flag(TuneCatmull, CatmullDefault);
             s.TrueDistance = Tuning.Flag(TuneTrueDistance, TrueDistanceDefault);
+            s.Age = Tuning.Flag(TuneAge, AgeDefault);
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));

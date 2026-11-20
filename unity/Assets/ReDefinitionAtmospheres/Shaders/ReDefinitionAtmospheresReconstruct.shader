@@ -37,7 +37,8 @@ Shader "ReDefinition/AtmospheresReconstruct"
         float4 _Drift;       // the cloud's drift over one frame in the planet frame (m), w: the history is valid (1) or not (0)
 
         sampler2D_float _DistTex;   // the march's second target (the layer shader's pass 6): the mean distance of each new sample's cloud along its ray (m), 0 where it holds none
-        float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0)
+        float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0); y: the sample count is kept (1; recon.age)
+        sampler2D_float _AgeTex;    // the history's sample count (pass 3's second target of the last frame): the marched samples each pixel's history holds
 
         #include "ReDefinitionAtmospheresCloudMotion.cginc"
 
@@ -145,8 +146,14 @@ Shader "ReDefinition/AtmospheresReconstruct"
             return max(r / wsum, 0.0);
         }
 
-        float4 frag(v2f i) : SV_Target
+        // age (recon.age, _ReconT.y): the number of marched samples the pixel's history holds after this frame. A history is the first frames' upsampled fill until the
+        // pixel's own samples have replaced it; at a fixed weight w that takes about N x N / w frames (45 at the 3 x 3 rotation, 20 at 2 x 2), after every cut, at the
+        // picture's edge in a turn and where a cloud uncovers another. With the count the n-th sample enters at max(w, 1 / n) (the running mean until it reaches the
+        // fixed weight: the first sample replaces the fill whole), and a pixel without a marched sample shows the current upsample of the new samples instead of the
+        // moved fill. The settled picture is the same as without the count.
+        float4 Reconstruct(v2f i, out float age)
         {
+            age = 0.0;
             float n = max(_ReconP.x, 1.0);
             float2 pix = floor(i.uv * _ReconD.xy);
             float2 q = (pix - _ReconP.yz) / n;          // the pixel's place among the new samples (a sample stands at every whole number)
@@ -195,13 +202,68 @@ Shader "ReDefinition/AtmospheresReconstruct"
                 valid = _Drift.w > 0.5 && f > 1e-3 && all(puv > 0.0) && all(puv < 1.0);
             }
             // A kept pixel without a history (the screen's edge after a turn, the first frames) takes the mean of the marched pixels around it (one of each block always is).
-            if (!valid) return kept ? m1 : cur;
+            if (!valid)
+            {
+                age = fresh ? 1.0 : 0.0;
+                return kept ? m1 : cur;
+            }
             float4 h = _ReconK.w > 0.5 ? HistoryCatmull(puv) : tex2Dlod(_HistTex, float4(puv, 0, 0));
+            float held = _ReconT.y > 0.5 ? tex2Dlod(_AgeTex, float4(puv, 0, 0)).r : 0.0;
+            age = held;
             if (_ReconP.w > 1.5 || kept) return h;
             // A clip width of 999 or more is no clip at all (a pixel-exact rotation keeps its history as it is; where the nine new samples are equal, sd = 0 would still pull it to them).
             // Fewer than three new samples around (a far rotation's marched pixel among kept ones) give no spread to clip by: the clip would pull the history onto the one sample.
             if (_ReconK.z < 999.0 && count > 2.5) h = clamp(h, m1 - _ReconK.z * sd, m1 + _ReconK.z * sd);
-            return lerp(h, cur, fresh ? _ReconK.x : _ReconK.y);
+            float weight = fresh ? _ReconK.x : _ReconK.y;
+            [branch] if (_ReconT.y > 0.5)
+            {
+                if (fresh)
+                {
+                    weight = max(weight, 1.0 / (held + 1.0));
+                    age = min(held + 1.0, 255.0);
+                }
+                else if (held < 0.5)
+                {
+                    weight = 1.0;
+                }
+            }
+            return lerp(h, cur, weight);
+        }
+
+        float4 frag(v2f i) : SV_Target
+        {
+            float age;
+            return Reconstruct(i, age);
+        }
+
+        // Pass 3: the reconstruction with the sample count in a second target, drawn as one procedural triangle (a command buffer's Blit binds one target). The uv is the
+        // Blit's, as in the layer shader's pass 6.
+        v2f vertProc(uint vid : SV_VertexID)
+        {
+            v2f o;
+            float2 p = float2((vid << 1) & 2, vid & 2);
+            o.pos = float4(p * 2.0 - 1.0, UNITY_NEAR_CLIP_VALUE, 1.0);
+        #if UNITY_UV_STARTS_AT_TOP
+            o.uv = float2(p.x, 1.0 - p.y);
+        #else
+            o.uv = p;
+        #endif
+            return o;
+        }
+
+        struct ReconTargets
+        {
+            float4 colour : SV_Target0;
+            float4 age : SV_Target1;
+        };
+
+        ReconTargets fragAge(v2f i)
+        {
+            ReconTargets t;
+            float age;
+            t.colour = Reconstruct(i, age);
+            t.age = float4(age, 0.0, 0.0, 0.0);
+            return t;
         }
 
         sampler2D _MvCloud;        // the frame's full target: premultiplied radiance, alpha
@@ -269,6 +331,16 @@ Shader "ReDefinition/AtmospheresReconstruct"
             #pragma fragment fragDepth
             #pragma target 3.5
             float4 fragDepth(v2f i) : SV_Target { return CloudDepth(_CamPos.xyz, RayDir(i.uv)); }
+            ENDCG
+        }
+
+        // Pass 3: pass 0 with the sample count in a second target (recon.age).
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vertProc
+            #pragma fragment fragAge
+            #pragma target 3.5
             ENDCG
         }
     }

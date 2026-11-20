@@ -52,6 +52,9 @@ namespace ReDefinition.Atmospheres
         // recon.trueDistance (Block mode without the edge pattern): the march writes the mean distance of each pixel's cloud into a second target and the history is moved by it
         // instead of by the layers' middle spheres (ReDefinitionAtmospheresReconstruct.shader, TruePrevious). False: the middle spheres, as before.
         public bool TrueDistance;
+        // recon.age (Block mode without the edge pattern): the reconstruction keeps the number of marched samples each pixel's history holds (a second target of its pass 3):
+        // the n-th sample enters at max(FreshWeight, 1 / n) and a pixel without a marched sample shows the current upsample. False: the fixed weights, as before.
+        public bool Age;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
@@ -100,6 +103,12 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdDistTex = Shader.PropertyToID("_DistTex"), IdReconT = Shader.PropertyToID("_ReconT");
         private RenderTexture lowDistance;
         private RenderTargetIdentifier[] marchTargets;
+        // recon.age: the reconstruction shader's pass 3 (pass 0 into two targets), the sample counts of the two full targets (ageA with the one named "a", ageB with "b")
+        // and the two pairs the command buffer binds.
+        internal const int PassReconstructAge = 3;
+        private static readonly int IdAgeTex = Shader.PropertyToID("_AgeTex");
+        private RenderTexture fullA, ageA, ageB;
+        private RenderTargetIdentifier[] targetsA, targetsB;
         private RenderTexture farDepth;
         private bool haveFarDepth;
         private static readonly int IdMvCloud = Shader.PropertyToID("_MvCloud"), IdMvDepth = Shader.PropertyToID("_MvDepth");
@@ -185,10 +194,10 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, farDepth, lowDistance })
+            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, farDepth, lowDistance, ageA, ageB })
                 RenderTargets.Dispose(rt);
-            lowLatest = lowSpare = farDepth = lowDistance = null;
-            marchTargets = null;
+            lowLatest = lowSpare = farDepth = lowDistance = ageA = ageB = fullA = null;
+            marchTargets = targetsA = targetsB = null;
             if (material != null) UnityEngine.Object.Destroy(material);
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
             if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
@@ -215,6 +224,18 @@ namespace ReDefinition.Atmospheres
             {
                 name = name,
                 filterMode = filter,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            rt.Create();
+            return rt;
+        }
+
+        private static RenderTexture MakeCount(string name, int w, int h)
+        {
+            var rt = new RenderTexture(Mathf.Max(w, 2), Mathf.Max(h, 2), 0, RenderTextureFormat.RHalf, RenderTextureReadWrite.Linear)
+            {
+                name = name,
+                filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
             rt.Create();
@@ -252,6 +273,24 @@ namespace ReDefinition.Atmospheres
                 latest = Make("layer reconstruct a", w, h, FilterMode.Bilinear);
                 spare = Make("layer reconstruct b", w, h, FilterMode.Bilinear);
                 haveHistory = false;
+                fullA = latest;
+                targetsA = targetsB = null;
+            }
+            // recon.age: one sample count per full target, made with the first frame that asks for it. A count made anew holds no history: the frame runs as after a cut.
+            bool ageOn = s.Age && s.Mode == ReconMode.Block && !(s.Edge != null && s.Edge.Enabled && edgeMaterial != null);
+            if (ageOn && (!Fits(ageA, w, h) || targetsA == null))
+            {
+                if (!Fits(ageA, w, h))
+                {
+                    RenderTargets.Dispose(ageA);
+                    RenderTargets.Dispose(ageB);
+                    ageA = MakeCount("layer reconstruct count a", w, h);
+                    ageB = MakeCount("layer reconstruct count b", w, h);
+                    haveHistory = false;
+                }
+                RenderTexture fullB = fullA == latest ? spare : latest;
+                targetsA = new[] { new RenderTargetIdentifier(fullA.colorBuffer), new RenderTargetIdentifier(ageA.colorBuffer) };
+                targetsB = new[] { new RenderTargetIdentifier(fullB.colorBuffer), new RenderTargetIdentifier(ageB.colorBuffer) };
             }
             RenderTexture history = latest;
             output = spare;
@@ -469,10 +508,19 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdPrevU, previousUp / previousTanY);
                 m.SetVector(IdShellR, new Vector4(info.MiddleRadius, info.FallbackDistance, 0f, 0f));
                 m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
-                m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, 0f, 0f, 0f));
+                m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn ? 1f : 0f, 0f, 0f));
                 if (distanceOn) m.SetTexture(IdDistTex, lowDistance);
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;
+                if (ageOn)
+                {
+                    // The history's count is the one of the full target that is the history; the frame's goes with the output.
+                    bool outputIsA = output == fullA;
+                    m.SetTexture(IdAgeTex, outputIsA ? ageB : ageA);
+                    cb.SetRenderTarget(outputIsA ? targetsA : targetsB, output.depthBuffer);
+                    cb.DrawProcedural(Matrix4x4.identity, m, PassReconstructAge, MeshTopology.Triangles, 3, 1);
+                }
+                else
                 cb.Blit(BuiltinRenderTextureType.None, output, m, 0);
                 Sub(cb, "block reconstruction");
                 haveHistory = true;

@@ -186,6 +186,8 @@ namespace ReDefinition.WeatherPlayer
             public bool CatmullHistory;
             // rtd: the block reconstruction's history moved by the march's own distance (ReconSettings.TrueDistance).
             public bool TrueDistance;
+            // rag: the block reconstruction's count of marched samples (ReconSettings.Age).
+            public bool Age;
             // bexact: the block mode as a pixel-exact rotation (Settings); bacc: the same with the case's accumulation on the fresh sample.
             public bool BlockExact, BlockAcc;
             // far<km>: the far rotation beyond that distance (ReconSettings.FarRotateM); farb<N> its block side (2: every 4th frame).
@@ -268,6 +270,7 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
                 else if (t == "chm") c.CatmullHistory = true;   // CLOUDR3 P7: the history read with the Catmull-Rom filter
                 else if (t == "rtd") c.TrueDistance = true;   // recon.trueDistance: the history moved by the march's own distance (ReconSettings.TrueDistance)
+                else if (t == "rag") c.Age = true;   // recon.age: the history's count of marched samples (ReconSettings.Age)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
                 else if (t.StartsWith("sp")) c.Spacing = Number(t, 2) / 10f;
@@ -410,7 +413,7 @@ namespace ReDefinition.WeatherPlayer
         {
             if (c.Block > 0)
             {
-                var b = new ReconSettings { Mode = ReconMode.Block, Block = c.Block, CatmullHistory = c.CatmullHistory, TrueDistance = c.TrueDistance };
+                var b = new ReconSettings { Mode = ReconMode.Block, Block = c.Block, CatmullHistory = c.CatmullHistory, TrueDistance = c.TrueDistance, Age = c.Age };
                 // bexact (the owner's perf program point 5, 2026-11-19): every pixel marched every block^2 frames and replaced whole; the others the reprojected history alone (no
                 // blend with the new samples, no clip to them).
                 if (c.BlockExact)
@@ -594,7 +597,8 @@ namespace ReDefinition.WeatherPlayer
                             {
                                 ReconSettings stillSettings = SoftTable.Settings(stillCase, "acc20");
                                 // A frame's worth of work at a time: forty marches queued in one frame took the device away (DXGI_ERROR_DEVICE_REMOVED, 2026-11-20).
-                                for (int k = 0; k < Frames; k++)
+                                // 160 frames: the accepted 2 x 2 at weight 0.2 holds 1 - 0.8^40 of marched samples then (40 frames left 11 % of the first fill in it).
+                                for (int k = 0; k < 160; k++)
                                 {
                                     Render(rig, refRecon, stillSettings, 100 + k);
                                     if (k % 4 == 3) yield return null;
@@ -614,6 +618,16 @@ namespace ReDefinition.WeatherPlayer
                                 SoftTable.ApplyCase(rig.Frame, marchCase);
                                 ReconSettings settings = SoftTable.Settings(marchCase, mode);
                                 rig.Recon.Reset();
+                                // -warm N (HIST1): N frames at the scenario's first pose before its frames, so that the settled history is what moves (without it the
+                                // forty frames begin at a cut and measure the settling as well).
+                                int warm;
+                                if (!int.TryParse(WeatherPass.Argument("-warm"), out warm)) warm = 0;
+                                for (int k = 0; k < warm; k++)
+                                {
+                                    GrainTable.Pose(Cam, job, Yaw(sc, 0), Side(sc, 0));
+                                    Render(rig, rig.Recon, settings, 100 - warm + k);
+                                    if (k % 4 == 3) yield return null;
+                                }
                                 for (int i = 0; i < Frames; i++)
                                 {
                                     GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));
