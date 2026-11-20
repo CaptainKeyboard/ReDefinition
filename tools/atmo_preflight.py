@@ -564,6 +564,11 @@ def pf_pictures(repo, ksp, mainrepo, defn, free_bytes=None):
     return out
 
 
+def start_selected(only_start, sid):
+    """Whether --start selects the start sid: no --start selects every start, else one id or several separated by commas (run in the series' order, one lock)."""
+    return only_start is None or sid in [x.strip() for x in only_start.split(",")]
+
+
 def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script_repo=None, dotnet=DEFAULT_DOTNET):
     """All checks of a series start, without starting or changing anything. Returns the list of (status, check, detail)."""
     h = hooks or {}
@@ -573,7 +578,7 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
     results += series_results
     if defn is None or series_results[0][0] == FAIL:
         return results
-    starts = [s for s in defn["starts"] if only_start in (None, s["id"])]
+    starts = [s for s in defn["starts"] if start_selected(only_start, s["id"])]
     if not starts:
         return results + [(FAIL, "start", "the series has no start %s" % only_start)]
     profile_cache = h.get("profile_cache", os.path.join(mainrepo, *PROFILE_CACHE_REL))
