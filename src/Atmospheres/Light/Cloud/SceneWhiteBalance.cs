@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
         private const int AliveFrames = 3;
 
         // Taken when the material is made: the module is built in the unit tests, where Unity's calls are not there.
-        private int idScale, idCopy;
+        private int idScale, idCopy, idSource;
 
         private Material material;
         private PostUpscaleDraw draw;
@@ -57,6 +57,7 @@ namespace ReDefinition.Atmospheres
                     material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
                     idScale = Shader.PropertyToID("_WbScale");
                     idCopy = Shader.PropertyToID("_ReDefinitionWbCopy");
+                    idSource = Shader.PropertyToID("_WbSource");
                 }
                 if (Services.PostUpscale is NullPostUpscaleCompositor) Services.PostUpscale = new ApiBridge();
                 if (draw == null) draw = Draw;
@@ -89,9 +90,15 @@ namespace ReDefinition.Atmospheres
             desc.enableRandomWrite = false;
             desc.msaaSamples = 1;
             desc.depthBufferBits = 0;
+            // Each pixel is scaled where it stands: an exact copy, then one triangle over the whole target that reads its own pixel back by index
+            // (ReDefinitionAtmospheresWhiteBalance.shader), so no matrix and no filtering takes part. With the two Blits it replaces (the second through
+            // vert_img's view and projection) the finished picture came out moved by this frame's upscaler jitter and resampled every frame: a shake of about
+            // 1.5 px and a fifth of its sharpness lost (measured, K-T2 perfNpic2560dlssqdraws, 2026-11-21).
             cb.GetTemporaryRT(idCopy, desc);
-            cb.Blit(upscaled, idCopy);
-            cb.Blit(idCopy, upscaled, material, 0);
+            cb.CopyTexture(upscaled, idCopy);
+            cb.SetGlobalTexture(idSource, idCopy);
+            cb.SetRenderTarget(upscaled);
+            cb.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3, 1);
             cb.ReleaseTemporaryRT(idCopy);
         }
 
