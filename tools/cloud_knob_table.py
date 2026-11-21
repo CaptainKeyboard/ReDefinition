@@ -195,6 +195,45 @@ def field_writes():
     return writes
 
 
+def field_reads():
+    """Field name -> C# sites that READ `.Field` (not an assignment to it), across src/Atmospheres without the probes."""
+    reads = defaultdict(list)
+    for p in cs_files():
+        r = rel(p)
+        for i, ln in enumerate(read(p), 1):
+            code = ln.split("//")[0]
+            for m in re.finditer(r'\.([A-Z][A-Za-z0-9_]*)\b(?!\s*=[^=>])', code):
+                reads[m.group(1)].append("%s:%d" % (r, i))
+    return reads
+
+
+def verdict(key, r, tgt, field, up, uses, freads, src_lines):
+    """Static verdict: DEBUG, DEAD (value never used), BOUNDED (a shader reader limits it by max/min/clamp: check by hand), ACTS (reaches a reader)."""
+    low = (key + " " + field).lower()
+    if any(w in low for w in ("debug", ".aid", "aidmode", "probe")):
+        return "DEBUG"
+    if field:
+        shader = []
+        for (idn, c, expr, where) in up:
+            shader += uses.get((idn, c), []) if c else []
+        cs = [x for x in freads.get(field, []) if x != "%s:%d" % (r["file"], r["line"])]
+        if not up and not cs:
+            return "DEAD (field .%s is never read)" % field
+        if up and not any(uses.get((u, c)) for (u, c, e, w) in [(idmap.get(i, i), c, e, w) for (i, c, e, w) in up]) and not cs:
+            return "DEAD (uploaded, no shader reads it)"
+        return "ACTS"
+    if tgt:
+        n = 0
+        for j in range(r["line"], min(len(src_lines), r["line"] + 60)):
+            if re.search(r'\b%s\b' % re.escape(tgt), src_lines[j].split("//")[0]):
+                n += 1
+        return "ACTS (local)" if n else "DEAD (local %s unused)" % tgt
+    return "ACTS (expression)"
+
+
+idmap = {}
+
+
 def settings_table():
     rows = []
     p = os.path.join(SRC, "Settings", "AtmospheresSettings.Clouds.cs")
@@ -213,6 +252,9 @@ def main():
     idname, uploads = uniform_map()
     uses = shader_uses()
     writes = field_writes()
+    freads = field_reads()
+    idmap.update(idname)
+    verdicts = {}
 
     cloud_reads = [r for r in reads if any(c in r["file"] for c in CLOUD_PARTS)]
     out = []
@@ -233,7 +275,10 @@ def main():
             tgt = target_of(r["stmt"])
             field = tgt.split(".")[-1] if "." in tgt else ""
             up = uploads.get(field, []) if field else []
+            vd = verdict(key, r, tgt, field, up, uses, freads, read(os.path.join(ROOT, r["file"])))
+            verdicts.setdefault(key, []).append(vd)
             out.append("### %s\n" % key)
+            out.append("- static verdict: **%s**" % vd)
             out.append("- default: `%s`%s" % (d, "" if res == d else " -> `%s`" % res))
             out.append("- reader: %s:%d (class %s)" % (r["file"], r["line"], r["cls"]))
             out.append("- statement: `%s`" % r["stmt"][:260])
@@ -286,6 +331,17 @@ def main():
     for n, v in sorted(numconst.items()):
         if n.startswith("Look"):
             out.append("- %s = %s" % (n, v))
+    summary = ["\n## Static verdicts (count per class; DEAD and DEBUG listed)\n"]
+    cls = defaultdict(list)
+    for k, vs in verdicts.items():
+        top = "DEAD" if all(v.startswith("DEAD") for v in vs) else ("DEBUG" if all(v == "DEBUG" for v in vs) else "ACTS")
+        cls[top].append((k, "; ".join(sorted(set(vs)))))
+    for c in ("DEAD", "DEBUG", "ACTS"):
+        summary.append("- %s: %d" % (c, len(cls[c])))
+    for c in ("DEAD", "DEBUG"):
+        for k, v in sorted(cls[c]):
+            summary.append("  - %s: %s" % (k, v))
+    out[2:2] = summary
     unknown = [k for k in bykey if k.startswith("?")]
     if unknown:
         out.append("\n## Unresolved key expressions\n")
