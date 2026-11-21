@@ -124,6 +124,13 @@ namespace ReDefinition.Atmospheres
         // layers.maxSteps it sets how many points a long span takes and where they lie.
         internal const string TuneSpanGrowthPerM = "layers.spanGrowthPerM";
 
+        // layers.leapDebug (LayerFrame.LeapDebug, default -1: the march's own, LayerFrame.LeapWithGrowth while layers.spanGrowthPerM is on): switches of the march's leap over empty
+        // grid points, bits (the shader's _LeapP.x lists them); a prototype's diagnosis, not for players.
+        internal const string TuneLeapDebug = "layers.leapDebug";
+
+        // layers.spanGrowthFromM (LayerFrame.SpanGrowthFromM, default 0): the distance from the camera beyond which layers.spanGrowthPerM grows the step.
+        internal const string TuneSpanGrowthFromM = "layers.spanGrowthFromM";
+
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
         // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
         // Measured: in the player (one layer, the lowest type alone) the cut lowers the temporal noise of a cloud pixel from 0.0031 / 0.0101 (closed / rim) to
@@ -311,6 +318,8 @@ namespace ReDefinition.Atmospheres
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
             f.CostStartM = Mathf.Max(0f, Tuning.Get(TuneCostStartM, 0f));
             f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, 0f));
+            f.LeapDebug = Mathf.RoundToInt(Tuning.Get(TuneLeapDebug, -1f));
+            f.SpanGrowthFromM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthFromM, 0f));
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
