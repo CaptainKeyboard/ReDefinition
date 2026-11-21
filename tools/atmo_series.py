@@ -821,6 +821,12 @@ def launch_phases(t0, marks, end):
 
 # ---------------------------------------------------------------- build and launch
 
+def start_selected(only_start, sid):
+    """Whether --start selects the start sid: no --start selects every start, else one id or several separated by commas (run in the series' order inside
+    one GPU lock, so nothing else measures or builds between them). The same rule as atmo_preflight.start_selected."""
+    return only_start is None or sid in [x.strip() for x in only_start.split(",")]
+
+
 def build_command(repo, ksp, dotnet, configuration="Debug"):
     """The command line of the build with deploy, in the given configuration."""
     return [dotnet, "build", os.path.join(repo, "src", "ReDefinition.csproj"), "-c", configuration, "-nologo", "-v:minimal",
@@ -1011,7 +1017,7 @@ class Runner:
     def execute(self, defn, only_start=None, mods_ok=True):
         """Runs the series. Returns the report dict (table, ok, starts, hashes, warnings)."""
         name = defn["name"]
-        starts = [s for s in defn["starts"] if only_start in (None, s["id"])]
+        starts = [s for s in defn["starts"] if start_selected(only_start, s["id"])]
         if not starts:
             raise Refusal("the series has no start %s" % only_start)
         if self.ksp_running():
@@ -1269,14 +1275,18 @@ def cmd_run(args):
     # Before anything is touched (lock, build, deploy): the offline preflight; any FAIL refuses the run.
     import atmo_preflight
     t = time.time()
-    results = atmo_preflight.run_preflight(repo, defn["name"], args.start, ksp, mainrepo, who, dotnet=_dotnet())
+    # --free-memory-gb: the free RAM the preflight and the run ask for, for this run only (the series' freeMemoryGb, default 12, otherwise; the file is not changed).
+    if args.free_memory_gb is not None:
+        defn["freeMemoryGb"] = args.free_memory_gb
+        print("free RAM limit for this run: %g GB (--free-memory-gb)" % args.free_memory_gb)
+    results = atmo_preflight.run_preflight(repo, defn["name"], args.start, ksp, mainrepo, who, dotnet=_dotnet(), need_free_gb=args.free_memory_gb)
     preflight_seconds = time.time() - t
     if not atmo_preflight.preflight_ok(results):
         print(atmo_preflight.format_preflight(defn["name"], results))
         print("REFUSED: the preflight has FAIL(s); nothing was touched")
         return 2
     print(atmo_preflight.format_preflight(defn["name"], results))
-    minutes = min(defn.get("maxMinutes", MAX_MINUTES), MAX_MINUTES) * len([s for s in defn["starts"] if args.start in (None, s["id"])]) + 15
+    minutes = min(defn.get("maxMinutes", MAX_MINUTES), MAX_MINUTES) * len([s for s in defn["starts"] if start_selected(args.start, s["id"])]) + 15
     path = gpu_lock.lock_path("gpu")
     t = time.time()
     info = gpu_lock.wait_acquire(path, who, minutes, defn.get("exclusive", False), "gpu", os.getpid(), "atmo_series run " + defn["name"])
@@ -1789,6 +1799,7 @@ def main(argv):
     s.add_argument("--ksp")
     s.add_argument("--dry", action="store_true")
     s.add_argument("--log")
+    s.add_argument("--free-memory-gb", type=float, default=None, help="the free RAM the preflight and the run ask for, this run only (default: the series' freeMemoryGb, 12)")
     s = sub.add_parser("preflight")
     s.add_argument("series")
     s.add_argument("--start")

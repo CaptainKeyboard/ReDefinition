@@ -3,6 +3,7 @@
 
 #include "Config.h"
 #include "FileUtil.h"
+#include "JitterTrace.h"
 #include "Log.h"
 #include "NgxCore.h"
 #include "ProjectIdentity.h"
@@ -500,6 +501,16 @@ namespace redefinition
         {
             SetStatus(-1, "DLSS frame without all four textures");
             return;
+        }
+
+        if (JitterTraceOn())
+        {
+            static uint64_t traced = 0;
+            char text[200];
+            sprintf_s(text, "jitter trace: DLSS packet %llu: jitter %.6g %.6g, reset %d, render %ux%u, %s, t %.3f ms", static_cast<unsigned long long>(++traced),
+                      packet->jitterX, packet->jitterY, (packet->flags & kDlssReset) != 0 ? 1 : 0, packet->renderWidth, packet->renderHeight,
+                      DlssD3d12::On() ? "Direct3D 12" : "Direct3D 11", JitterTraceMs());
+            LogLine(text);
         }
 
         // On a Direct3D 12 device of its own (DlssD3d12.h says why); its status is this class's, which the

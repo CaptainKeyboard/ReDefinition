@@ -564,7 +564,12 @@ def pf_pictures(repo, ksp, mainrepo, defn, free_bytes=None):
     return out
 
 
-def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script_repo=None, dotnet=DEFAULT_DOTNET):
+def start_selected(only_start, sid):
+    """Whether --start selects the start sid: no --start selects every start, else one id or several separated by commas (run in the series' order, one lock)."""
+    return only_start is None or sid in [x.strip() for x in only_start.split(",")]
+
+
+def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script_repo=None, dotnet=DEFAULT_DOTNET, need_free_gb=None):
     """All checks of a series start, without starting or changing anything. Returns the list of (status, check, detail)."""
     h = hooks or {}
     results = []
@@ -573,7 +578,7 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
     results += series_results
     if defn is None or series_results[0][0] == FAIL:
         return results
-    starts = [s for s in defn["starts"] if only_start in (None, s["id"])]
+    starts = [s for s in defn["starts"] if start_selected(only_start, s["id"])]
     if not starts:
         return results + [(FAIL, "start", "the series has no start %s" % only_start)]
     profile_cache = h.get("profile_cache", os.path.join(mainrepo, *PROFILE_CACHE_REL))
@@ -588,7 +593,8 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
     results += pf_orphans(h.get("processes", list_processes)(), ksp)
     states = {n: h.get("vm_state", vm_state)(n) for n in VM_NAMES}
     results += pf_vms(states)
-    results += pf_ram(h.get("free_gb", free_memory_gb)(), defn.get("freeMemoryGb", 12), states)
+    # --free-memory-gb of the runner overrides the series' freeMemoryGb (default 12) for one run; the series file stays as it is.
+    results += pf_ram(h.get("free_gb", free_memory_gb)(), need_free_gb if need_free_gb is not None else defn.get("freeMemoryGb", 12), states)
     readers = [("gpu", h.get("read_gpu", lambda: gpu_lock.read_lock(gpu_lock.lock_path("gpu")))()),
                ("unity", h.get("read_unity", lambda: gpu_lock.read_lock(gpu_lock.lock_path("unity")))())]
     results += pf_locks(who, readers)

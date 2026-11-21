@@ -130,11 +130,125 @@ namespace ReDefinition.Upscaler
                         + " Unity's [row, column] row by row; then each texture: name width height format\n");
         }
 
-        // After the upscaler's dispatch: input the image it took, output the image it gave.
+        // Test switch -redefinitionStageDumpOnSignal (the upscaler-input test, 2026-11-21): a dump begins in the frame in which the global
+        // _ReDefinition_StageDumpSignal takes a new value above 0 (the turn probe sets it at the frames it wants), without waiting for a turn,
+        // into ReDefinitionCaptures\<time>-stages-s<value>; the dump also takes the motion vectors and the depth the upscaler is given, and
+        // writes its meta.txt as soon as its last frame is taken. Without the switch nothing of this runs.
+        private static readonly bool SignalMode = CommandLine.Has("-redefinitionStageDumpOnSignal");
+        private static readonly int SignalId = Shader.PropertyToID("_ReDefinition_StageDumpSignal");
+        private static float lastSignal;
+        private static bool signalled;
+
+        // The signal's dump armed in this frame where the global took a new value.
+        private static void TakeSignal()
+        {
+            float signal = Shader.GetGlobalFloat(SignalId);
+            if (signal <= 0f || signal == lastSignal) return;
+            lastSignal = signal;
+            Arm();
+            folder += "-s" + ((int)signal).ToString(CultureInfo.InvariantCulture);
+            signalled = true;
+            Debug.Log(Log.Tag + " Stage dump hooks: after-upscaling " + Api.Internal.SharedFrame.AfterUpscalingHooks.Count + " ["
+                      + Api.Internal.SharedFrame.AfterUpscalingHooks.DescribeAll() + "], after-upscaling with depth "
+                      + Api.Internal.SharedFrame.AfterUpscalingDepthHooks.Count + " ["
+                      + Api.Internal.SharedFrame.AfterUpscalingDepthHooks.DescribeAll() + "], overlay "
+                      + Api.Internal.SharedFrame.OverlayHooks.Count + " [" + Api.Internal.SharedFrame.OverlayHooks.DescribeAll()
+                      + "], motion vectors " + Api.Internal.SharedFrame.MotionVectorHooks.Count + ", skip after-upscaling hooks "
+                      + CommandLine.Has("-redefinitionSkipAfterUpscalingHooks") + ".");
+            StartCameraLog(folder);
+        }
+
+        // Test switch -redefinitionStageDumpOnSignal only: every camera that renders from the signal's frame through the dump's last frame,
+        // in render order, into <folder>\cameras.txt: frame, name, depth, target, its projection's [0,2] and [1,2] (where jitter sits)
+        // jittered and without jitter, and whether its projection equals the scene camera's jittered or unjittered one. The presenter's
+        // OnRenderImage is a line of its own, so the cameras after it are the lines below it.
+        private static StringBuilder cameraLog;
+        private static string cameraLogPath;
+        private static int cameraLogUntil = -1;
+        private static Camera sceneCamera;
+        private static bool cameraHooked;
+
+        private static void StartCameraLog(string into)
+        {
+            if (!cameraHooked)
+            {
+                Camera.onPreRender += LogCamera;
+                cameraHooked = true;
+            }
+            FlushCameraLog();
+            cameraLog = new StringBuilder("# frame name depth target proj02 proj12 nonJittered02 nonJittered12 cameraJittered"
+                                          + " sameAsSceneJittered sameAsSceneUnjittered\n");
+            cameraLogPath = Path.Combine(into, "cameras.txt");
+            cameraLogUntil = Time.frameCount + Frames - 1;
+        }
+
+        private static void LogCamera(Camera cam)
+        {
+            if (cameraLog == null) return;
+            if (Time.frameCount > cameraLogUntil)
+            {
+                FlushCameraLog();
+                return;
+            }
+            Matrix4x4 p = cam.projectionMatrix, u = cam.nonJitteredProjectionMatrix;
+            bool jittered = Mathf.Abs(p[0, 2] - u[0, 2]) > 1e-7f || Mathf.Abs(p[1, 2] - u[1, 2]) > 1e-7f;
+            string sameJ = "-", sameU = "-";
+            if (sceneCamera != null)
+            {
+                sameJ = Same(p, sceneCamera.projectionMatrix) ? "yes" : "no";
+                sameU = Same(p, sceneCamera.nonJitteredProjectionMatrix) ? "yes" : "no";
+            }
+            RenderTexture target = cam.targetTexture;
+            cameraLog.Append(Time.frameCount).Append(' ').Append(cam.name.Replace(' ', '_')).Append(' ')
+                .Append(cam.depth.ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(target == null ? "framebuffer" : target.name.Replace(' ', '_') + ":" + target.width + "x" + target.height).Append(' ')
+                .Append(p[0, 2].ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(p[1, 2].ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(u[0, 2].ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(u[1, 2].ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(jittered ? "yes" : "no").Append(' ').Append(sameJ).Append(' ').Append(sameU).Append('\n');
+        }
+
+        // Whether two projections agree to a millionth in every value.
+        private static bool Same(Matrix4x4 a, Matrix4x4 b)
+        {
+            for (int i = 0; i < 16; i++)
+                if (Mathf.Abs(a[i] - b[i]) > 1e-6f * Mathf.Max(1f, Mathf.Abs(b[i]))) return false;
+            return true;
+        }
+
+        // The presenter's line: its OnRenderImage runs now, with the scene camera's projection as it is now.
+        private static void LogPresenter(Camera cam)
+        {
+            if (cameraLog == null || Time.frameCount > cameraLogUntil) return;
+            sceneCamera = cam;
+            Matrix4x4 p = cam.projectionMatrix;
+            cameraLog.Append(Time.frameCount).Append(" PRESENTER_OnRenderImage scene=").Append(cam.name.Replace(' ', '_'))
+                .Append(" sceneProj02 ").Append(p[0, 2].ToString("R", CultureInfo.InvariantCulture))
+                .Append(" sceneProj12 ").Append(p[1, 2].ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+        }
+
+        private static void FlushCameraLog()
+        {
+            if (cameraLog == null) return;
+            byte[] text = Encoding.ASCII.GetBytes(cameraLog.ToString());
+            string path = cameraLogPath;
+            cameraLog = null;
+            ThreadPool.QueueUserWorkItem(_ => TryWrite(path, text, text.Length));
+        }
+
+        // After the upscaler's dispatch: input the image it took, output the image it gave; motion and depth the motion vectors and depth it
+        // was given (taken only with -redefinitionStageDumpOnSignal).
         internal static void AfterDispatch(Camera cam, Matrix4x4 unjittered, Vector2 jitter, bool reconstructing,
-                                           RenderTexture input, RenderTexture output)
+                                           RenderTexture input, RenderTexture output, RenderTexture motion = null, RenderTexture depth = null)
         {
             ReadNext();
+            if (SignalMode)
+            {
+                if (sceneCamera == null) sceneCamera = cam;
+                TakeSignal();
+                LogPresenter(cam);
+            }
             FollowClouds(cam, input);
             if (folder == null || cam == null) return;
             RtCamera raytraced = RtCamera.Current;
@@ -142,7 +256,7 @@ namespace ReDefinition.Upscaler
             Vector3 forward = cam.transform.forward;
             if (taken == 0)
             {
-                bool turning = haveForward && Vector3.Angle(forward, lastForward) > TurnDegrees;
+                bool turning = signalled || (haveForward && Vector3.Angle(forward, lastForward) > TurnDegrees);
                 lastForward = forward;
                 haveForward = true;
                 if (!turning && ++waited < WaitFrames)
@@ -157,6 +271,13 @@ namespace ReDefinition.Upscaler
             }
 
             int n = taken++;
+            if (signalled)
+            {
+                // The later stages of this frame (AfterStage) go into the same folder under the same frame number.
+                stageFolder = folder;
+                stageN = n;
+                stageFrame = Time.frameCount;
+            }
             meta.Append(n).Append(' ').Append(Time.frameCount).Append(' ').Append(reconstructing ? 1 : 0).Append(' ')
                 .Append(jitter.x.ToString("R", CultureInfo.InvariantCulture)).Append(' ')
                 .Append(jitter.y.ToString("R", CultureInfo.InvariantCulture));
@@ -165,6 +286,11 @@ namespace ReDefinition.Upscaler
             Take(n, "input", input);
             Take(n, "output", output);
             Take(n, "clouds", Clouds());
+            if (signalled)
+            {
+                Take(n, "motion", motion);
+                Take(n, "depthcopy", depth);
+            }
             if (raytraced != null)
             {
                 Take(n, "sun", raytraced.SunTexture);
@@ -176,6 +302,18 @@ namespace ReDefinition.Upscaler
             meta.Append('\n');
             if (taken < Frames) return;
 
+            if (signalled)
+            {
+                // A signal's dump may follow another before the copies are read: its meta.txt goes out now.
+                string signalMeta = Path.Combine(folder, "meta.txt");
+                byte[] signalText = Encoding.ASCII.GetBytes(meta.ToString());
+                ThreadPool.QueueUserWorkItem(_ => TryWrite(signalMeta, signalText, signalText.Length));
+                signalled = false;
+                folder = null;
+                ReleasePrepared();
+                DropClouds();
+                return;
+            }
             // Written after every texture: the folder is complete once meta.txt is there.
             metaPath = Path.Combine(folder, "meta.txt");
             metaText = meta.ToString();
@@ -231,6 +369,33 @@ namespace ReDefinition.Upscaler
         }
 
         // Copies one stage of frame n on the GPU into its prepared texture, notes it in meta.txt and queues it to be read.
+        // Test switch -redefinitionStageDumpOnSignal only: a later stage of the frame a signal's dump is taking (the image after the after-upscaling
+        // hooks, the presenter's destination after TUFX or the Blit), copied into the same folder as <name>-<nn>.bin with <name>-<nn>.txt (width
+        // height format). Nothing in any other frame or without the switch; a null texture (the frame buffer itself) is noted as such.
+        private static string stageFolder;
+        private static int stageN = -1, stageFrame = -1;
+
+        internal static void AfterStage(string name, RenderTexture source)
+        {
+            if (!SignalMode || stageFolder == null || stageFrame != Time.frameCount) return;
+            string stem = Path.Combine(stageFolder, name + "-" + stageN.ToString("00", CultureInfo.InvariantCulture));
+            byte[] info = Encoding.ASCII.GetBytes(source == null ? "null (the frame buffer)\n"
+                                                                 : source.width + " " + source.height + " " + source.format + "\n");
+            ThreadPool.QueueUserWorkItem(_ => TryWrite(stem + ".txt", info, info.Length));
+            if (source == null || !source.IsCreated()) return;
+            RenderTexture copy;
+            prepared[stageN].TryGetValue(name, out copy);
+            if (!Fits(copy, source))
+            {
+                Prepare(stageN, name, source);
+                prepared[stageN].TryGetValue(name, out copy);
+            }
+            prepared[stageN].Remove(name);
+            if (!Fits(copy, source)) return;
+            Graphics.CopyTexture(source, copy);
+            toRead.Enqueue(new Copy { Path = stem + ".bin", Texture = copy });
+        }
+
         private static void Take(int n, string name, RenderTexture source)
         {
             if (source == null || !source.IsCreated()) return;

@@ -118,6 +118,34 @@ namespace ReDefinition.Atmospheres
         // recon.age: the reconstruction shader's pass 3 (pass 0 into two targets), the sample counts of the two full targets (ageA with the one named "a", ageB with "b")
         // and the two pairs the command buffer binds.
         internal const int PassReconstructAge = 3;
+        // What the last Record ran (the perf starts' rows, T09.view.<view>.recon_*): the mode, the block side (1 outside the block mode), whether the edge pattern drew, the layer
+        // shader's pass the march drew with (0 the Blit, 6 the march with its distance target, 7 the procedural triangle), and whether the count targets were bound (pass 3).
+        internal ReconMode LastMode { get; private set; }
+        internal int LastBlock { get; private set; }
+        internal bool LastEdge { get; private set; }
+        internal int LastMarchPass { get; private set; }
+        internal bool LastCountTarget { get; private set; }
+        // Whether the block reconstruction read the scene's depth (recon.sceneDepth with the frame's scene depth bound).
+        internal bool LastSceneDepth { get; private set; }
+        // The game frame of the last Record (-1: none since ClearReadouts), the camera's render size and the march target's size in it.
+        internal int LastRecordFrame { get; private set; } = -1;
+        internal int LastRenderWidth { get; private set; }
+        internal int LastRenderHeight { get; private set; }
+        internal int LastMarchWidth { get; private set; }
+        internal int LastMarchHeight { get; private set; }
+
+        // The read-outs back to "nothing recorded" (a caller that reads them after a stretch of frames knows then that a value is this stretch's).
+        internal void ClearReadouts()
+        {
+            LastMode = ReconMode.Full;
+            LastBlock = 0;
+            LastEdge = false;
+            LastMarchPass = -1;
+            LastCountTarget = false;
+            LastSceneDepth = false;
+            LastRecordFrame = -1;
+            LastRenderWidth = LastRenderHeight = LastMarchWidth = LastMarchHeight = 0;
+        }
         private static readonly int IdAgeTex = Shader.PropertyToID("_AgeTex");
         private RenderTexture fullA, ageA, ageB;
         private bool ageWasOn;   // the count targets were written last frame: a frame that turns them on again finds counts and distances of an older picture in them
@@ -313,6 +341,14 @@ namespace ReDefinition.Atmospheres
             output = spare;
             bool edgeOn = s.Mode == ReconMode.Block && s.Edge != null && s.Edge.Enabled && edgeMaterial != null;
             int n = edgeOn ? EdgeSettings.CoarseBlock : (s.Mode == ReconMode.Block ? Mathf.Clamp(s.Block, 2, 4) : 1);
+            LastMode = s.Mode;
+            LastBlock = n;
+            LastEdge = edgeOn;
+            LastCountTarget = false;
+            LastSceneDepth = false;
+            LastRecordFrame = Time.frameCount;
+            LastRenderWidth = w;
+            LastRenderHeight = h;
             float scale = s.Mode == ReconMode.Low ? Mathf.Clamp(s.Resolution, 0.1f, 1f) : (s.Mode == ReconMode.Full ? 1f : 1f / n);
             int lw = s.Mode == ReconMode.Block ? (w + n - 1) / n : Mathf.RoundToInt(w * scale);
             int lh = s.Mode == ReconMode.Block ? (h + n - 1) / n : Mathf.RoundToInt(h * scale);
@@ -322,6 +358,8 @@ namespace ReDefinition.Atmospheres
                 low = Make("layer march", lw, lh, s.Mode == ReconMode.Block ? FilterMode.Bilinear : FilterMode.Point);
                 marchTargets = null;
             }
+            LastMarchWidth = low.width;
+            LastMarchHeight = low.height;
             // recon.trueDistance: the second target of the march, one distance per new sample.
             bool distanceOn = s.TrueDistance && s.Mode == ReconMode.Block && !edgeOn;
             if (distanceOn && (!Fits(lowDistance, lw, lh) || marchTargets == null))
@@ -406,6 +444,7 @@ namespace ReDefinition.Atmospheres
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");
+            LastMarchPass = distanceOn ? PassMarchDistance : s.ProcMarch ? PassMarchTriangle : LayerRenderer.PassMarch;
             if (distanceOn)
             {
                 cb.SetRenderTarget(marchTargets, low.depthBuffer);
@@ -533,6 +572,7 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
                 m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn && s.Age ? 1f : 0f, ageOn && distanceOn ? Mathf.Max(0f, s.DistanceReject) : 0f,
                                                   s.SceneDepth && f.UseSceneDepth ? 1f : 0f));
+                LastSceneDepth = s.SceneDepth && f.UseSceneDepth;
                 if (distanceOn) m.SetTexture(IdDistTex, lowDistance);
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;
@@ -543,6 +583,7 @@ namespace ReDefinition.Atmospheres
                     m.SetTexture(IdAgeTex, outputIsA ? ageB : ageA);
                     cb.SetRenderTarget(outputIsA ? targetsA : targetsB, output.depthBuffer);
                     cb.DrawProcedural(Matrix4x4.identity, m, PassReconstructAge, MeshTopology.Triangles, 3, 1);
+                    LastCountTarget = true;
                 }
                 else
                 cb.Blit(BuiltinRenderTextureType.None, output, m, 0);

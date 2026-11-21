@@ -579,7 +579,8 @@ namespace ReDefinition.Atmospheres
             string size = Game.ScreenWidth + "x" + Game.ScreenHeight;
             AtmospheresLog.Say("T09 view begin: " + view.Name + " " + variant + " " + size);
             // E40 C2: the maps the pass marches in this view, for the player to draw the same sky (OwnCloudModule.DumpMaps).
-            if (own != null) own.DumpMaps(view.Name + "-u" + ((long)Game.UniversalTime).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // The variant's name at the end keeps each variant's dump (a tag already dumped is skipped).
+            if (own != null) own.DumpMaps(view.Name + "-u" + ((long)Game.UniversalTime).ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + variant);
             // The dwell in slices: the pose is read at the end of each (the placement check says only where the vessel stood a few seconds before the dwell; in
             // start 42 it had left the pose within seconds), the first deviation fails the view named and the pictures of it are not taken.
             viewPoseOk = true;
@@ -608,6 +609,7 @@ namespace ReDefinition.Atmospheres
             string prefix = "T09.view." + view.Name + ".";
             Emit(prefix + "frames", frames);
             Emit(prefix + "fps", frames / Math.Max(0.001, seconds));
+            if (PerfStart) EmitReconState(own, prefix);
             Check("no frame cap in the " + view.Name + " view (" + variant + ")", NoFrameCap(), "targetFrameRate " + Game.TargetFrameRate + ", vSyncCount " + Game.VSyncCount);
             // A driver reset (K-T2 2026-11-16/17: three, each at the placement from the ground view to the inside view) leaves the game running on a removed device: the
             // frames after it draw nothing and are fast, so a view's rows would read as a gain. The view fails by name and its rows are void.
@@ -656,6 +658,23 @@ namespace ReDefinition.Atmospheres
             double altitude = Math.Min(20000.0, view.AglM);
             WeatherSample s;
             if (WeatherHub.Sample(Game.BodyIndex, lat, lon, altitude, Game.UniversalTime, out s)) Emit(prefix + "cover_at_view_height", s.CloudCover01);
+        }
+
+        // HIST fps: what the player view's reconstruction ran at the end of a perf view's dwell (LayerReconstructor.Last*): the mode, the block side, the edge pattern, the
+        // layer shader's march pass (0 Blit, 6 with the distance target, 7 the procedural triangle) and whether the count targets were bound (reconstruct pass 3).
+        private void EmitReconState(OwnCloudModule own, string prefix)
+        {
+            LayerReconstructor player = own != null && own.Driver != null ? own.Driver.Player : null;
+            if (player == null)
+            {
+                EmitText(prefix + "recon_mode", "none");
+                return;
+            }
+            EmitText(prefix + "recon_mode", player.LastMode.ToString());
+            Emit(prefix + "recon_block", player.LastBlock);
+            Emit(prefix + "recon_edge", player.LastEdge);
+            Emit(prefix + "recon_march_pass", player.LastMarchPass);
+            Emit(prefix + "recon_count_target", player.LastCountTarget);
         }
 
         // --- The pose at the end of a dwell and around a capture ---------------------------------------------------------------------------
