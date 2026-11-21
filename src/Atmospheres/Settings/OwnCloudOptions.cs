@@ -116,6 +116,9 @@ namespace ReDefinition.Atmospheres
         // layers.costCutM (LayerFrame.CostCutM, default 0, off): cost attribution only, the march ends at this distance in m; the plain run's time minus the cut run's is what
         // the clouds beyond the cut cost (the 48 fps plan 2026-11-19: whether impostors for far clouds can pay). The K-T2 perf variants cut5, cut10, cut20 set it.
         internal const string TuneCostCutM = "layers.costCutM";
+        // layers.costStartM (LayerFrame.CostStartM, default 0, off): cost attribution only, the march starts at this distance in m; with layers.costCutM at the same
+        // distance the near and the far part of the march are timed apart (the distance-dependent pixel rate, 2026-11-20).
+        internal const string TuneCostStartM = "layers.costStartM";
 
         // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
         // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
@@ -302,6 +305,7 @@ namespace ReDefinition.Atmospheres
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.LightReuseMove = Tuning.Get(TuneLightReuseMove, 0f) > 0.5f;
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
+            f.CostStartM = Mathf.Max(0f, Tuning.Get(TuneCostStartM, 0f));
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));

@@ -568,6 +568,19 @@ namespace ReDefinition.Atmospheres
             }
             if (!PinStep("series_aims", aims.Count > 0, "-t09PinAims '" + aimText + "' gave " + aims.Count + " aims")) yield break;
             int n = PinSeriesFrames;
+            // -t09PinSeriesTune key=value;key=value (HIST2): tuning keys forced for the whole series (e.g. recon.rotate=3), two frames before the first aim so the frame's record has them.
+            string tuneText = CommandLine.After(Args(), "-t09PinSeriesTune", true);
+            if (!string.IsNullOrEmpty(tuneText))
+            {
+                foreach (string kv in tuneText.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string[] p = kv.Split('=');
+                    float value;
+                    if (!PinStep("series_tune", p.Length == 2 && float.TryParse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture, out value), "-t09PinSeriesTune '" + kv + "'")) yield break;
+                    ForceTuning(p[0].Trim(), float.Parse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture));
+                }
+                yield return ProbeWait.Frames(2);
+            }
             KSP.UI.UIMasterController ui = CommandLine.Has(Args(), "-t09HideUi", true) ? KSP.UI.UIMasterController.Instance : null;
             bool hid = ui != null && ui.IsUIShowing;
             if (hid)
@@ -577,7 +590,20 @@ namespace ReDefinition.Atmospheres
             }
             for (int a = 0; a < aims.Count; a++)
             {
-                foreach (ProbeWait w in Aim(aims[a][0], aims[a][1], view.CameraDistM)) yield return w;
+                // -t09PinSeriesTurn <deg per frame> and -t09PinSeriesDolly <m per frame> (the history's motion pictures, HIST2 2026-11-20; 0 by default: the still series as before):
+                // from the cut on, through the hold and the written frames, the camera's heading turns by that much every frame and the camera moves that far towards the vessel
+                // along its view (the flight camera's distance falls from -t09PinSeriesDollyFrom, default the view's distance, never below 5 m).
+                double turn = NumberArg("-t09PinSeriesTurn", 0.0), dolly = NumberArg("-t09PinSeriesDolly", 0.0);
+                double dollyFrom = NumberArg("-t09PinSeriesDollyFrom", view.CameraDistM);
+                foreach (ProbeWait w in Aim(aims[a][0], aims[a][1], dolly > 0.0 ? dollyFrom : view.CameraDistM)) yield return w;
+                double heading0 = Game.CameraHeading * 180.0 / Math.PI, pitch0 = Game.CameraPitch * 180.0 / Math.PI;
+                int moved = 0;
+                Action moveStep = () =>
+                {
+                    if (turn != 0.0) Command(heading0 + turn * moved, pitch0);
+                    if (dolly > 0.0) Game.SetCameraDistance(Math.Max(5.0, dollyFrom - dolly * moved));
+                    moved++;
+                };
                 T09Pose pose = Game.ReadPose();
                 AtmospheresLog.Say("T09 pin series: aim " + a + " wanted " + aims[a][0].ToString("0.0", CultureInfo.InvariantCulture) + "/" + aims[a][1].ToString("0.0", CultureInfo.InvariantCulture)
                                    + ", got " + pose.AzimuthDeg.ToString("0.0", CultureInfo.InvariantCulture) + "/" + pose.ElevationDeg.ToString("0.0", CultureInfo.InvariantCulture)
@@ -594,13 +620,18 @@ namespace ReDefinition.Atmospheres
                 if (!PinStep("series_cut_a" + a, own.HistoryCuts > cutsBefore, "cuts " + cutsBefore + " -> " + own.HistoryCuts)) yield break;
                 int cutsAfter = own.HistoryCuts;
                 double giveUp = Elapsed + PinHoldTimeoutS;
-                while (own.HistoryFramesSinceCut < PinFrames - 1 && own.HistoryCuts == cutsAfter && Elapsed < giveUp) yield return ProbeWait.Frames(1);
+                while (own.HistoryFramesSinceCut < PinFrames - 1 && own.HistoryCuts == cutsAfter && Elapsed < giveUp)
+                {
+                    moveStep();
+                    yield return ProbeWait.Frames(1);
+                }
                 if (!PinStep("series_hold_a" + a, own.HistoryFramesSinceCut >= PinFrames - 1 && own.HistoryCuts == cutsAfter, "frames since the cut " + own.HistoryFramesSinceCut)) yield break;
 
                 // The screen as the player sees it (after the upscaler): one screenshot request per frame, written at that frame's end, so the frames are consecutive.
                 var frameNumbers = new List<string>();
                 string fault = null;
-                string stem = "t09-" + (StartId ?? "nostart") + "-edge-a" + a + "-h" + ((int)Math.Round(aims[a][0])).ToString(CultureInfo.InvariantCulture) + "p" + ((int)Math.Round(aims[a][1] * 10)).ToString(CultureInfo.InvariantCulture);
+                string stem = "t09-" + (StartId ?? "nostart") + "-edge-a" + a + "-h" + ((int)Math.Round(aims[a][0])).ToString(CultureInfo.InvariantCulture) + "p" + ((int)Math.Round(aims[a][1] * 10)).ToString(CultureInfo.InvariantCulture)
+                              + (turn != 0.0 ? "-turn" + turn.ToString("0.###", CultureInfo.InvariantCulture) : "") + (dolly > 0.0 ? "-dolly" + dolly.ToString("0.###", CultureInfo.InvariantCulture) : "");
                 int sw = Game.ScreenWidth, sh = Game.ScreenHeight;
                 try { System.IO.Directory.CreateDirectory(SeriesPictures.Folder); }
                 catch (Exception e) { fault = e.GetType().Name + " " + e.Message; }
@@ -612,6 +643,7 @@ namespace ReDefinition.Atmospheres
                         frameNumbers.Add(Game.FrameCount.ToString(CultureInfo.InvariantCulture));
                     }
                     catch (Exception e) { fault = "the screenshot threw " + e.GetType().Name + " " + e.Message; }
+                    moveStep();
                     yield return ProbeWait.Frames(1);
                 }
                 yield return ProbeWait.Frames(2);
