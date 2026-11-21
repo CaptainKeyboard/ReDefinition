@@ -79,6 +79,14 @@ namespace ReDefinition.Api.Internal
             }
         }
 
+        // Every registered handler as Describe names it, joined with "; " (the stage dump's log, test switch only).
+        internal string DescribeAll()
+        {
+            var names = new List<string>(handlers.Count);
+            for (int i = 0; i < handlers.Count; i++) names.Add(Describe(handlers[i]));
+            return string.Join("; ", names.ToArray());
+        }
+
         // The handler's method with its type and assembly, for the log; "unknown" for anything but a delegate.
         private static string Describe(T handler)
         {

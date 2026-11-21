@@ -148,6 +148,93 @@ namespace ReDefinition.Upscaler
             Arm();
             folder += "-s" + ((int)signal).ToString(CultureInfo.InvariantCulture);
             signalled = true;
+            Debug.Log(Log.Tag + " Stage dump hooks: after-upscaling " + Api.Internal.SharedFrame.AfterUpscalingHooks.Count + " ["
+                      + Api.Internal.SharedFrame.AfterUpscalingHooks.DescribeAll() + "], after-upscaling with depth "
+                      + Api.Internal.SharedFrame.AfterUpscalingDepthHooks.Count + " ["
+                      + Api.Internal.SharedFrame.AfterUpscalingDepthHooks.DescribeAll() + "], overlay "
+                      + Api.Internal.SharedFrame.OverlayHooks.Count + " [" + Api.Internal.SharedFrame.OverlayHooks.DescribeAll()
+                      + "], motion vectors " + Api.Internal.SharedFrame.MotionVectorHooks.Count + ", skip after-upscaling hooks "
+                      + CommandLine.Has("-redefinitionSkipAfterUpscalingHooks") + ".");
+            StartCameraLog(folder);
+        }
+
+        // Test switch -redefinitionStageDumpOnSignal only: every camera that renders from the signal's frame through the dump's last frame,
+        // in render order, into <folder>\cameras.txt: frame, name, depth, target, its projection's [0,2] and [1,2] (where jitter sits)
+        // jittered and without jitter, and whether its projection equals the scene camera's jittered or unjittered one. The presenter's
+        // OnRenderImage is a line of its own, so the cameras after it are the lines below it.
+        private static StringBuilder cameraLog;
+        private static string cameraLogPath;
+        private static int cameraLogUntil = -1;
+        private static Camera sceneCamera;
+        private static bool cameraHooked;
+
+        private static void StartCameraLog(string into)
+        {
+            if (!cameraHooked)
+            {
+                Camera.onPreRender += LogCamera;
+                cameraHooked = true;
+            }
+            FlushCameraLog();
+            cameraLog = new StringBuilder("# frame name depth target proj02 proj12 nonJittered02 nonJittered12 cameraJittered"
+                                          + " sameAsSceneJittered sameAsSceneUnjittered\n");
+            cameraLogPath = Path.Combine(into, "cameras.txt");
+            cameraLogUntil = Time.frameCount + Frames - 1;
+        }
+
+        private static void LogCamera(Camera cam)
+        {
+            if (cameraLog == null) return;
+            if (Time.frameCount > cameraLogUntil)
+            {
+                FlushCameraLog();
+                return;
+            }
+            Matrix4x4 p = cam.projectionMatrix, u = cam.nonJitteredProjectionMatrix;
+            bool jittered = Mathf.Abs(p[0, 2] - u[0, 2]) > 1e-7f || Mathf.Abs(p[1, 2] - u[1, 2]) > 1e-7f;
+            string sameJ = "-", sameU = "-";
+            if (sceneCamera != null)
+            {
+                sameJ = Same(p, sceneCamera.projectionMatrix) ? "yes" : "no";
+                sameU = Same(p, sceneCamera.nonJitteredProjectionMatrix) ? "yes" : "no";
+            }
+            RenderTexture target = cam.targetTexture;
+            cameraLog.Append(Time.frameCount).Append(' ').Append(cam.name.Replace(' ', '_')).Append(' ')
+                .Append(cam.depth.ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(target == null ? "framebuffer" : target.name.Replace(' ', '_') + ":" + target.width + "x" + target.height).Append(' ')
+                .Append(p[0, 2].ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(p[1, 2].ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(u[0, 2].ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(u[1, 2].ToString("R", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(jittered ? "yes" : "no").Append(' ').Append(sameJ).Append(' ').Append(sameU).Append('\n');
+        }
+
+        // Whether two projections agree to a millionth in every value.
+        private static bool Same(Matrix4x4 a, Matrix4x4 b)
+        {
+            for (int i = 0; i < 16; i++)
+                if (Mathf.Abs(a[i] - b[i]) > 1e-6f * Mathf.Max(1f, Mathf.Abs(b[i]))) return false;
+            return true;
+        }
+
+        // The presenter's line: its OnRenderImage runs now, with the scene camera's projection as it is now.
+        private static void LogPresenter(Camera cam)
+        {
+            if (cameraLog == null || Time.frameCount > cameraLogUntil) return;
+            sceneCamera = cam;
+            Matrix4x4 p = cam.projectionMatrix;
+            cameraLog.Append(Time.frameCount).Append(" PRESENTER_OnRenderImage scene=").Append(cam.name.Replace(' ', '_'))
+                .Append(" sceneProj02 ").Append(p[0, 2].ToString("R", CultureInfo.InvariantCulture))
+                .Append(" sceneProj12 ").Append(p[1, 2].ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+        }
+
+        private static void FlushCameraLog()
+        {
+            if (cameraLog == null) return;
+            byte[] text = Encoding.ASCII.GetBytes(cameraLog.ToString());
+            string path = cameraLogPath;
+            cameraLog = null;
+            ThreadPool.QueueUserWorkItem(_ => TryWrite(path, text, text.Length));
         }
 
         // After the upscaler's dispatch: input the image it took, output the image it gave; motion and depth the motion vectors and depth it
@@ -156,7 +243,12 @@ namespace ReDefinition.Upscaler
                                            RenderTexture input, RenderTexture output, RenderTexture motion = null, RenderTexture depth = null)
         {
             ReadNext();
-            if (SignalMode) TakeSignal();
+            if (SignalMode)
+            {
+                if (sceneCamera == null) sceneCamera = cam;
+                TakeSignal();
+                LogPresenter(cam);
+            }
             FollowClouds(cam, input);
             if (folder == null || cam == null) return;
             RtCamera raytraced = RtCamera.Current;
