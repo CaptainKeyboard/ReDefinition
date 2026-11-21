@@ -5,6 +5,7 @@
 
 #include "WaitStats.h"
 #include "GpuProfiler.h"
+#include "JitterTrace.h"
 #include "SwapChainProxy.h"
 
 #include "Config.h"
@@ -570,6 +571,13 @@ namespace redefinition
 
         RecordFrameTime();
         GpuProfiler::Get().OnPresent();
+        if (JitterTraceOn())
+        {
+            static uint64_t traced = 0;
+            char text[96];
+            sprintf_s(text, "jitter trace: present %llu, t %.3f ms", static_cast<unsigned long long>(++traced), JitterTraceMs());
+            LogLine(text);
+        }
 
         if (measureOnly)
         {

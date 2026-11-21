@@ -183,6 +183,7 @@ namespace ReDefinition.Atmospheres
                 var el = new double[keep.Length];
                 var height = new double[keep.Length];
                 var jitter = new Vector4[keep.Length];
+                var frameNumbers = new int[keep.Length];
                 int firstFrame = Game.FrameCount, lastFrame = firstFrame;
                 bool consecutive = true;
                 string fault = null;
@@ -197,6 +198,9 @@ namespace ReDefinition.Atmospheres
                         catch (Exception e) { fault = fault ?? "the copy of frame " + i + " threw " + e.GetType().Name + " " + e.Message; }
                     }
                     int before = Game.FrameCount;
+                    // The game's frame number of the kept frame (Time.frameCount in the tick that turned it, the frame then drawn): the key to the
+                    // per-frame jitter lines of -redefinitionJitterLog.
+                    if (k >= 0) frameNumbers[k] = before;
                     yield return ProbeWait.Frames(1);
                     if (Game.FrameCount != before + 1) consecutive = false;
                     lastFrame = Game.FrameCount;
@@ -222,6 +226,7 @@ namespace ReDefinition.Atmospheres
                     PinEmit("az_f" + f, az[k]);
                     PinEmit("el_f" + f, el[k]);
                     PinEmit("camera_agl_m_f" + f, height[k]);
+                    PinEmit("frame_number_f" + f, frameNumbers[k]);
                     PinEmit("jitter_x_f" + f, jitter[k].x);
                     PinEmit("jitter_y_f" + f, jitter[k].y);
                 }

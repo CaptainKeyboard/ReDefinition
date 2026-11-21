@@ -773,17 +773,38 @@ namespace ReDefinition.Upscaler
                 float jitterX, jitterY;
                 Fsr3Upscaler.GetJitterOffset(out jitterX, out jitterY, Time.frameCount, phaseCount);
 
-                dispatch.JitterOffset = new Vector2(jitterX, jitterY);
+                // Test switch -redefinitionJitterTold prev|next (2026-11-21): the upscaler is told the jitter of the frame before or after
+                // this one while the projection keeps this frame's; without the switch it is told this frame's, as always.
+                float toldX = jitterX, toldY = jitterY;
+                if (JitterToldShift != 0)
+                    Fsr3Upscaler.GetJitterOffset(out toldX, out toldY, Time.frameCount + JitterToldShift, phaseCount);
+                dispatch.JitterOffset = new Vector2(toldX, toldY);
                 CameraRedirect.JitterNdc = new Vector2(2.0f * jitterX / renderSize.x,
                                                        2.0f * jitterY / renderSize.y);
                 CameraRedirect.JitterActive = true;
+                if (JitterLog)
+                    Debug.Log(Log.Tag + " jitter trace: frame " + Time.frameCount + ": projection " + jitterX.ToString("R") + " " + jitterY.ToString("R") + ", told "
+                              + toldX.ToString("R") + " " + toldY.ToString("R") + ", phases " + phaseCount + ", render " + renderSize.x + "x" + renderSize.y
+                              + ", t " + (System.Diagnostics.Stopwatch.GetTimestamp() * 1000.0 / System.Diagnostics.Stopwatch.Frequency).ToString("0.000") + " ms");
             }
             else
             {
                 // The upscaler is told that nothing was offset.
                 dispatch.JitterOffset = Vector2.zero;
                 CameraRedirect.JitterActive = false;
+                if (JitterLog)
+                    Debug.Log(Log.Tag + " jitter trace: frame " + Time.frameCount + ": no jitter");
             }
+        }
+
+        // -redefinitionJitterTold prev|next: the frame offset of the jitter the upscaler is told (0 without the switch; test starts only).
+        private static readonly int JitterToldShift = ToldShift(CommandLine.After("-redefinitionJitterTold"));
+        // -redefinitionJitterLog: one KSP.log line per frame with the projection's and the told jitter (and the proxy's lines, Common/JitterTrace.h).
+        private static readonly bool JitterLog = CommandLine.Has("-redefinitionJitterLog");
+
+        internal static int ToldShift(string word)
+        {
+            return word == "prev" ? -1 : word == "next" ? 1 : 0;
         }
 
         // Whether SetupStaticDispatch has filled the description since Setup decided the sizes.
