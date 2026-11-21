@@ -269,6 +269,8 @@ namespace ReDefinition.Atmospheres
         internal CameraEvent AttachedEvent { get { return attachedEvent; } }
         internal LayerReconstructDriver Driver { get { return driver; } }
         internal LayerFrame Frame { get { return frame; } }
+        // The cloud shadow's numbers of the last frame (the perf starts' proof rows); null without the shadow rig.
+        internal CloudShadowFrame ShadowFrame { get { return shadowRig != null ? shadowRig.Frame : null; } }
         // The origin of the frame number (OwnCloudPlan.FrameNumber): 0 by default; the pinned capture (T09ProbePin.cs, -t09Pin) sets it so that the step dither, the light
         // cone's rotation and, with a history cut, the rotation's block index start from a known state.
         internal int FrameOrigin;

@@ -478,13 +478,18 @@ namespace ReDefinition.Atmospheres
                             continue;
                         }
                         foreach (ProbeWait w in StableGate(view, variant)) yield return w;
-                        foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, PerfStart ? PerfDwellS : InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
+                        foreach (ProbeWait w in Dwell(siteLat, siteLon, view, variant, PerfStart ? PerfDwell : InsideOnly(variant) ? InsideDwellS : DwellS)) yield return w;
                         if (deviceLost)
                         {
                             // Every later view would run on the removed device and its rows are void (Dwell's check names the view): the start ends here.
                             LogLine("Probe: the graphics device was removed in the " + view.Name + " view (" + variant + "); the start ends");
                             Game.StopHold();
                             yield break;
+                        }
+                        // The flag is asked here: the readout's iterator touches the engine's calls, which the unit tests' runtime cannot compile.
+                        if (PerfStart && CommandLine.Has(Args(), "-t09TapReadout", true))
+                        {
+                            foreach (ProbeWait w in TapReadout(OwnCloudModule.Current, view, variant)) yield return w;
                         }
                         if (PerfStart && !PerfPictures) continue;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
@@ -580,7 +585,8 @@ namespace ReDefinition.Atmospheres
             AtmospheresLog.Say("T09 view begin: " + view.Name + " " + variant + " " + size);
             // E40 C2: the maps the pass marches in this view, for the player to draw the same sky (OwnCloudModule.DumpMaps).
             // The variant's name at the end keeps each variant's dump (a tag already dumped is skipped).
-            if (own != null) own.DumpMaps(view.Name + "-u" + ((long)Game.UniversalTime).ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + variant);
+            // -t09NoMapDump (the 48 fps block): no dump, so no write lands inside a view's timed frames.
+            if (own != null && !CommandLine.Has(Args(), "-t09NoMapDump", true)) own.DumpMaps(view.Name + "-u" + ((long)Game.UniversalTime).ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + variant);
             // The dwell in slices: the pose is read at the end of each (the placement check says only where the vessel stood a few seconds before the dwell; in
             // start 42 it had left the pose within seconds), the first deviation fails the view named and the pictures of it are not taken.
             viewPoseOk = true;
@@ -668,6 +674,7 @@ namespace ReDefinition.Atmospheres
         // layer shader's march pass (0 Blit, 6 with the distance target, 7 the procedural triangle) and whether the count targets were bound (reconstruct pass 3).
         private void EmitReconState(OwnCloudModule own, string prefix)
         {
+            EmitMarchState(own, prefix);
             LayerReconstructor player = own != null && own.Driver != null ? own.Driver.Player : null;
             if (player == null)
             {
@@ -698,6 +705,36 @@ namespace ReDefinition.Atmospheres
             lv.Stamped(out near, out far);
             Emit(prefix + "lv_lays", lv.Lays);
             Emit(prefix + "lv_stamped_near", near);
+        }
+
+        // PERF48 (the 48 fps block, 2026-11-21): the march's effective numbers of the frame the pass drew (OwnCloudModule.Frame: the shortest step, the step growth, the
+        // sun taps with the light's override, the march towards the sun), the reconstruction the keys give now (OwnCloudOptions.Apply on a fresh ReconSettings: the
+        // rotation's block side, the true distance, the march target's side) and the cloud shadow's numbers (divisor, steps per span, disc taps, whether it is on).
+        private void EmitMarchState(OwnCloudModule own, string prefix)
+        {
+            LayerFrame f = own != null ? own.Frame : null;
+            if (f != null)
+            {
+                Emit(prefix + "march_min_step_m", f.MinStepM);
+                Emit(prefix + "march_step_growth", f.StepGrowth);
+                Emit(prefix + "march_sun_steps", f.Light != null && f.Light.SunStepsOverride > 0 ? f.Light.SunStepsOverride : f.SunSteps);
+                Emit(prefix + "march_sun_march_m", f.SunMarchM);
+            }
+            var r = new ReconSettings();
+            OwnCloudOptions.Apply(r);
+            Emit(prefix + "recon_rotation", r.Rotation);
+            Emit(prefix + "recon_true_distance", r.TrueDistance);
+            Emit(prefix + "recon_resolution", r.Resolution);
+            Emit(prefix + "cloud_rotation_setting", AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudRotation));
+            CloudShadowFrame s = own != null ? own.ShadowFrame : null;
+            Emit(prefix + "shadow_on", own != null && own.Stats.ShadowOn);
+            if (s != null)
+            {
+                Emit(prefix + "shadow_divisor", s.Divisor);
+                Emit(prefix + "shadow_steps_per_span", s.StepsPerSpan);
+                Emit(prefix + "shadow_disc_taps", s.DiscTaps);
+            }
+            Emit(prefix + "shadow_quality_setting", AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudShadowQuality));
         }
 
         // --- The pose at the end of a dwell and around a capture ---------------------------------------------------------------------------
