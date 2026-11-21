@@ -423,6 +423,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float lightTaps;
             float freshLit;   // the lit samples that marched their light anew (aid 10, the probe's tap readout)
             float freshSunTaps;   // the sun's taps of those samples alone (no moons, no up march; aid 10)
+            float spanLen, spanBudget, spanFeat;   // the spans whose count their length, the step budget or the noise-scale count set (aid 11)
             float distSum;    // sum over the steps of (weight in the ray's colour) x distance, for the mean distance of the cloud (T06)
             float weightSum;
         };
@@ -455,7 +456,7 @@ Shader "ReDefinition/AtmospheresLayers"
             MarchOut r;
             r.rgb = 0; r.alpha = 0; r.tau = 0; r.steps = 0; r.first = -1;
             r.tauLayer = 0;
-            r.direct = 0; r.ambient = 0; r.lightTaps = 0; r.freshLit = 0; r.freshSunTaps = 0;
+            r.direct = 0; r.ambient = 0; r.lightTaps = 0; r.freshLit = 0; r.freshSunTaps = 0; r.spanLen = 0; r.spanBudget = 0; r.spanFeat = 0;
             r.distSum = 0; r.weightSum = 0;
             if (_StepP.w > 0.5)
             {
@@ -546,6 +547,15 @@ Shader "ReDefinition/AtmospheresLayers"
                 float grow0 = max(s0[k] - growFrom, 0.0), grow1 = max(s1[k] - growFrom, 0.0);
                 float lenU = spanG > 0.0 ? (len - (grow1 - grow0)) + log((1.0 + spanG * grow1) / (1.0 + spanG * grow0)) / spanG : len;
                 int count = (int)clamp(ceil(lenU / stepLen), minCount, max(minCount, min(floor(maxSteps * share01 + 0.5), featCount)));
+                // Aid 11 (the probe's cap readout, T09ProbeTaps.cs): which bound set this span's count: its length over the step, the budget maxSteps x share, or the
+                // noise-scale count (featCount); only while the aid is drawn.
+                if (_LimitP.y > 10.5 && _LimitP.y < 11.5)
+                {
+                    float budgetN = floor(maxSteps * share01 + 0.5);
+                    if (ceil(lenU / stepLen) < max(minCount, min(budgetN, featCount))) r.spanLen += 1.0;
+                    else if (featCount < budgetN) r.spanFeat += 1.0;
+                    else r.spanBudget += 1.0;
+                }
                 float dt = lenU / count;
                 float dtStart = spanG > 0.0 ? dt * (1.0 + spanG * grow0) : dt;
                 gNoiseFoot = spanG > 0.0 ? max(dt, _CullD.y * s0[k]) : dt;   // the sample spacing: the erosion detail's distance LOD (T02)
@@ -867,6 +877,8 @@ Shader "ReDefinition/AtmospheresLayers"
             if (_LimitP.y > 3.5 && _LimitP.y < 4.5) return float4(Luma(r.direct), r.lightTaps, Luma(r.ambient), r.alpha);
             // Aid 10 (the probe's tap readout, T09ProbeTaps.cs): the sun's taps of the lit samples that marched their light anew, those samples, the samples.
             if (_LimitP.y > 9.5 && _LimitP.y < 10.5) return float4(r.freshSunTaps, r.freshLit, r.steps, 1.0);
+            // Aid 11 (the probe's cap readout): the spans whose count their length, the step budget, the noise-scale count set.
+            if (_LimitP.y > 10.5 && _LimitP.y < 11.5) return float4(r.spanLen, r.spanBudget, r.spanFeat, 1.0);
             if (_LimitP.y > 4.5 && _LimitP.y < 5.5) return float4(Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * step(0.5, r.steps), 1.0);
             // Aid 6 (T16): the skipped-block map. Blue the maps, green the terrain, grey no shell, orange behind a closed deck, yellow some layers dropped,
             // dark red scale the marched steps where the whole tile marches.

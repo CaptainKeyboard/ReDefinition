@@ -133,6 +133,9 @@ namespace ReDefinition.Atmospheres
                 case "lvall":
                 case "lvall2":
                 case "lvallr3":
+                case "samp75":
+                case "samp50":
+                case "r3samp75":
                     return true;
                 default:
                     return false;
@@ -302,6 +305,19 @@ namespace ReDefinition.Atmospheres
                 // path's share is saturate(dist / _LvA.y) with _LvA.y = max(band x 0, 1 m) (LightVolume.cs Bind), so 1 beyond a metre and cloud.lightVolume.band has no width
                 // to keep the full march in; the share is then multiplied by the volume read's weight, below 1 only outside or at the fade of a cascade's window), the far
                 // path's near taps 1 (lvall) or 2 (lvall2); lvallr3 is lvall with recon.rotate 3 and recon.trueDistance 1. The volume's other keys stay at their defaults.
+                // The step budget block (2026-11-21): the march's most samples per span. OwnCloudOptions.Apply(LayerFrame): f.MaxSteps = clamp(round(ScaleSamples(the step
+                // quality's maxSteps, cloudSamples) x layers.gridFine), 4, 256); at Medium 48 x 256 / 48 = 256 x gridFine 1 (GridFineDefault) = 256. samp75 / samp50 set
+                // layers.gridFine 0.75 / 0.5 (192 / 128 samples per span at most); r3samp75 adds recon.rotate 3 and recon.trueDistance 1 to samp75.
+                case "samp75":
+                case "samp50":
+                case "r3samp75":
+                    ForceTuning(OwnCloudOptions.TuneGridFine, name == "samp50" ? 0.5f : 0.75f);
+                    if (name == "r3samp75")
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
+                    break;
                 case "lvall":
                 case "lvall2":
                 case "lvallr3":

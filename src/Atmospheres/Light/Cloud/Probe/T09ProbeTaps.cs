@@ -65,6 +65,56 @@ namespace ReDefinition.Atmospheres
                                + march.width + "x" + march.height + ")");
             // The aid off reaches the frames after.
             yield return ProbeWait.Frames(3);
+            foreach (ProbeWait w in CapReadout(player, view, variant)) yield return w;
+        }
+
+        // Aid 11 (the step budget block, 2026-11-21): per march pixel the spans whose step count their length over the step set (r), the budget maxSteps x share (g), the
+        // noise-scale count featCount (b). Rows T09.view.<view>.span_len_share, span_budget_share, span_feat_share (shares of all spans) and spans_per_pixel.
+        private const int CapAidMode = 11;
+
+        private IEnumerable<ProbeWait> CapReadout(LayerReconstructor player, View view, string variant)
+        {
+            string prefix = "T09.view." + view.Name + ".";
+            if (player == null || !Game.AidOn(CapAidMode))
+            {
+                EmitText(prefix + "span_budget_share", "none");
+                yield break;
+            }
+            yield return ProbeWait.Frames(3);
+            RenderTexture march = player.March;
+            AsyncGPUReadbackRequest request = default(AsyncGPUReadbackRequest);
+            bool asked = false;
+            if (march != null && march.IsCreated() && SystemInfo.supportsAsyncGPUReadback)
+            {
+                request = AsyncGPUReadback.Request(march, 0);
+                asked = true;
+            }
+            int waited = 0;
+            while (asked && !request.done && waited++ < 30) yield return ProbeWait.Frames(1);
+            Game.AidOff();
+            if (!asked || !request.done || request.hasError || march.format != RenderTextureFormat.ARGBHalf)
+            {
+                EmitText(prefix + "span_budget_share", "readback failed");
+                yield return ProbeWait.Frames(3);
+                yield break;
+            }
+            NativeArray<ushort> halves = request.GetData<ushort>();
+            int pixels = halves.Length / 4;
+            double len = 0, budget = 0, feat = 0;
+            for (int i = 0; i < pixels; i++)
+            {
+                len += Mathf.HalfToFloat(halves[4 * i]);
+                budget += Mathf.HalfToFloat(halves[4 * i + 1]);
+                feat += Mathf.HalfToFloat(halves[4 * i + 2]);
+            }
+            double spans = len + budget + feat;
+            Emit(prefix + "span_len_share", spans > 0 ? len / spans : 0.0);
+            Emit(prefix + "span_budget_share", spans > 0 ? budget / spans : 0.0);
+            Emit(prefix + "span_feat_share", spans > 0 ? feat / spans : 0.0);
+            Emit(prefix + "spans_per_pixel", pixels > 0 ? spans / pixels : 0.0);
+            AtmospheresLog.Say("T09 caps: " + view.Name + " " + variant + ": of " + spans.ToString("0") + " spans the length set " + (spans > 0 ? len / spans : 0.0).ToString("0.000")
+                               + ", the budget " + (spans > 0 ? budget / spans : 0.0).ToString("0.000") + ", the noise-scale count " + (spans > 0 ? feat / spans : 0.0).ToString("0.000"));
+            yield return ProbeWait.Frames(3);
         }
     }
 }

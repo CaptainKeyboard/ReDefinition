@@ -716,6 +716,8 @@ namespace ReDefinition.Atmospheres
             if (f != null)
             {
                 Emit(prefix + "march_min_step_m", f.MinStepM);
+                Emit(prefix + "march_max_steps", f.MaxSteps);
+                Emit(prefix + "march_span_spacing", f.SpanSpacing);
                 Emit(prefix + "march_step_growth", f.StepGrowth);
                 Emit(prefix + "march_sun_steps", f.Light != null && f.Light.SunStepsOverride > 0 ? f.Light.SunStepsOverride : f.SunSteps);
                 Emit(prefix + "march_sun_march_m", f.SunMarchM);
