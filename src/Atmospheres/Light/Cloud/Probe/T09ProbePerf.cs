@@ -136,6 +136,11 @@ namespace ReDefinition.Atmospheres
                 case "samp75":
                 case "samp50":
                 case "r3samp75":
+                case "half":
+                case "halfr3":
+                case "r3s50":
+                case "r3s50lv":
+                case "halfr3s75":
                     return true;
                 default:
                     return false;
@@ -316,6 +321,33 @@ namespace ReDefinition.Atmospheres
                     {
                         ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
                         ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
+                    break;
+                // The stack block (2026-11-21): the strong levers together.
+                //   half       recon.resolution 0.5 (the march target's side over the full target's; pre set 0.33 with cloudRotation 0). OwnCloudOptions.Apply(ReconSettings) turns
+                //              the rotation on only at a resolution above 0.99, so below it the history path of level 1 marches the smaller target without the rotation
+                //   halfr3     half + recon.rotate 3 + recon.trueDistance 1 (the rotation cannot act at 0.5, see above; the proof rows show what ran)
+                //   r3s50      recon.rotate 3 + recon.trueDistance 1 + layers.gridFine 0.5
+                //   r3s50lv    r3s50 + cloud.lightVolume 1, cloud.lightVolume.handOverKm 0, cloud.lightVolume.farTaps 1
+                //   halfr3s75  halfr3 + layers.gridFine 0.75
+                case "half":
+                case "halfr3":
+                case "r3s50":
+                case "r3s50lv":
+                case "halfr3s75":
+                    if (name != "r3s50" && name != "r3s50lv") ForceTuning(OwnCloudOptions.TuneReconResolution, 0.5f);
+                    if (name != "half")
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
+                    if (name == "r3s50" || name == "r3s50lv") ForceTuning(OwnCloudOptions.TuneGridFine, 0.5f);
+                    if (name == "halfr3s75") ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
+                    if (name == "r3s50lv")
+                    {
+                        ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
+                        ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
+                        ForceTuning(CloudLookTuning.TuneLvFarTaps, 1f);
                     }
                     break;
                 case "lvall":
