@@ -99,6 +99,17 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneBodies, CloudLookTuning.BodiesDefault, KeySection.Shape,
                 "cost prototype: bodies of several size classes (0 the lattice; compiled: 7 G2 with arrays and cheap hashes, 13 the lattice at cloud.bodies.share, 14 .. 16 G2 over the 2 .. 4 best bodies)",
                 KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 16f);
+            r.Key(CloudLookTuning.TuneBodiesShare, 0f, KeySection.Shape, "cost prototype: a share forced on every sample that has one (0: the map's)",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
+            r.Flag(CloudLookTuning.TuneBodiesCount, false, KeySection.Shape, "cost prototype: the counting march with the density call counters (with cloud.bodies 13 or 16)",
+                KeyLiveness.FrameHistory);
+            r.Key(CloudLookTuning.TuneBodiesDebug, 0f, KeySection.Shape, "cost prototype: the bodies' diagnosis bits (16 only)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 127f);
+            r.Flag(WeatherMapSky.TuneKey, WeatherMapSky.Default > 0.5f, KeySection.Shape, "prototype: the sky drawn from the weather map's level humidities, deck and cells",
+                KeyLiveness.FrameHistory);
+            r.Key(MapSkyRegions.TuneSheetRule, MapSkyRegions.SheetRuleDefault, KeySection.Shape,
+                "weather map sky: a sheet at no saturated level (0 the most humid level, 1 a deck at the condensation level, 2 the deck map)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 2f);
+            r.Key(MapSkyRegions.TuneDepthRule, MapSkyRegions.DepthRuleDefault, KeySection.Shape,
+                "weather map sky: the heap depth (1 the field's depth, 2 the calibrated depth)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.
