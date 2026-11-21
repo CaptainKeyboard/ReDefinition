@@ -422,6 +422,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float3 ambient;
             float lightTaps;
             float freshLit;   // the lit samples that marched their light anew (aid 10, the probe's tap readout)
+            float freshSunTaps;   // the sun's taps of those samples alone (no moons, no up march; aid 10)
             float distSum;    // sum over the steps of (weight in the ray's colour) x distance, for the mean distance of the cloud (T06)
             float weightSum;
         };
@@ -454,7 +455,7 @@ Shader "ReDefinition/AtmospheresLayers"
             MarchOut r;
             r.rgb = 0; r.alpha = 0; r.tau = 0; r.steps = 0; r.first = -1;
             r.tauLayer = 0;
-            r.direct = 0; r.ambient = 0; r.lightTaps = 0; r.freshLit = 0;
+            r.direct = 0; r.ambient = 0; r.lightTaps = 0; r.freshLit = 0; r.freshSunTaps = 0;
             r.distSum = 0; r.weightSum = 0;
             if (_StepP.w > 0.5)
             {
@@ -744,7 +745,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         }
                         // The cone's rotation advances by the golden angle from one lit sample to the next, so that the per-pixel pattern averages out along the ray (FX-T03).
                         src = LightSource(pc, d, dens, share, li, t - dts, rot + r.steps * 2.3999632, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
-                        if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; r.freshLit += 1.0; }
+                        if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; r.freshLit += 1.0; r.freshSunTaps += gSunTapsAid; }
                         r.lightTaps += taps;
                     }
                     else
@@ -864,8 +865,8 @@ Shader "ReDefinition/AtmospheresLayers"
             }
             // Aid 4: the direct light (r) against the ambient (b) and the step count's share of the budget (g); aid 5: the step map.
             if (_LimitP.y > 3.5 && _LimitP.y < 4.5) return float4(Luma(r.direct), r.lightTaps, Luma(r.ambient), r.alpha);
-            // Aid 10 (the probe's tap readout, T09ProbeTaps.cs): the light taps, the lit samples that marched their light anew, the samples.
-            if (_LimitP.y > 9.5 && _LimitP.y < 10.5) return float4(r.lightTaps, r.freshLit, r.steps, 1.0);
+            // Aid 10 (the probe's tap readout, T09ProbeTaps.cs): the sun's taps of the lit samples that marched their light anew, those samples, the samples.
+            if (_LimitP.y > 9.5 && _LimitP.y < 10.5) return float4(r.freshSunTaps, r.freshLit, r.steps, 1.0);
             if (_LimitP.y > 4.5 && _LimitP.y < 5.5) return float4(Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * step(0.5, r.steps), 1.0);
             // Aid 6 (T16): the skipped-block map. Blue the maps, green the terrain, grey no shell, orange behind a closed deck, yellow some layers dropped,
             // dark red scale the marched steps where the whole tile marches.

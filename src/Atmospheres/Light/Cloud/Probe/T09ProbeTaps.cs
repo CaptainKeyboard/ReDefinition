@@ -7,9 +7,10 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Atmospheres
 {
     // -t09TapReadout (the light-volume fps block, 2026-11-21): after a perf view's timed dwell, the march's light taps of that view and variant. The layer shader's aid 10
-    // (ReDefinitionAtmospheresLayers.shader) writes per march pixel the sum of the light taps of its lit samples (r), the lit samples that marched their light anew (g; the
-    // others reuse the last optical depth) and the samples (b); the march target (LayerReconstructor.March) is read back and summed. Rows T09.view.<view>.light_taps_per_fresh_sample
-    // (the sun march's taps plus the moons' and the ambient's where they march), fresh_lit_per_pixel and march_pixels. The aid changes the picture for a few frames after
+    // (ReDefinitionAtmospheresLayers.shader) writes per march pixel the sun's taps of the lit samples that marched their light anew (r; CloudLight.cginc gSunTapsAid: the full
+    // march's and the far path's near taps, NOT the moons' and NOT the ambient's up march), those samples (g; the others reuse the last optical depth) and the samples (b);
+    // the march target (LayerReconstructor.March) is read back and summed. Rows T09.view.<view>.sun_taps_per_fresh_sample, fresh_lit_per_pixel, march_samples_per_pixel
+    // and march_pixels. The aid changes the picture for a few frames after
     // the dwell; the timed frames and the pictures are not affected.
     internal sealed partial class T09Probe
     {
@@ -22,7 +23,7 @@ namespace ReDefinition.Atmospheres
             LayerReconstructor player = own != null && own.Driver != null ? own.Driver.Player : null;
             if (player == null || !Game.AidOn(TapAidMode))
             {
-                EmitText(prefix + "light_taps_per_fresh_sample", "none");
+                EmitText(prefix + "sun_taps_per_fresh_sample", "none");
                 yield break;
             }
             // Three frames for the aid to reach the march target.
@@ -40,7 +41,7 @@ namespace ReDefinition.Atmospheres
             Game.AidOff();
             if (!asked || !request.done || request.hasError)
             {
-                EmitText(prefix + "light_taps_per_fresh_sample", "readback failed");
+                EmitText(prefix + "sun_taps_per_fresh_sample", "readback failed");
                 yield return ProbeWait.Frames(3);
                 yield break;
             }
@@ -55,11 +56,11 @@ namespace ReDefinition.Atmospheres
                 fresh += Mathf.HalfToFloat(halves[4 * i + 1]);
                 samples += Mathf.HalfToFloat(halves[4 * i + 2]);
             }
-            Emit(prefix + "light_taps_per_fresh_sample", fresh > 0 ? taps / fresh : 0.0);
+            Emit(prefix + "sun_taps_per_fresh_sample", fresh > 0 ? taps / fresh : 0.0);
             Emit(prefix + "fresh_lit_per_pixel", px.Length > 0 ? fresh / px.Length : 0.0);
             Emit(prefix + "march_samples_per_pixel", px.Length > 0 ? samples / px.Length : 0.0);
             Emit(prefix + "march_pixels", px.Length);
-            AtmospheresLog.Say("T09 taps: " + view.Name + " " + variant + ": " + (fresh > 0 ? taps / fresh : 0.0).ToString("0.00") + " light taps per fresh lit sample, "
+            AtmospheresLog.Say("T09 taps: " + view.Name + " " + variant + ": " + (fresh > 0 ? taps / fresh : 0.0).ToString("0.00") + " sun taps per fresh lit sample, "
                                + (px.Length > 0 ? fresh / px.Length : 0.0).ToString("0.00") + " fresh lit samples per pixel over " + px.Length + " march pixels ("
                                + march.width + "x" + march.height + ")");
             // The aid off reaches the frames after.
