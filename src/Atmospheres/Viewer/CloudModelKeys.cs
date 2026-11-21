@@ -96,14 +96,6 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneLvFillTaps, 0f, KeySection.Light, "light volume: the fill's sun taps (0: the march's own taps beyond the far near taps)", KeyLiveness.FrameHistory,
                 KeyMarker.Live, 0f, 64f);
             r.Key(CloudLookTuning.TuneLvFillRatio, 1.15f, KeySection.Light, "light volume: growth of each fill tap over the one before", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 4f);
-            r.Key(CloudLookTuning.TuneBodies, CloudLookTuning.BodiesDefault, KeySection.Shape,
-                "cost prototype: bodies of several size classes (0 the lattice; compiled: 7 G2 with arrays and cheap hashes, 13 the lattice at cloud.bodies.share, 14 .. 16 G2 over the 2 .. 4 best bodies)",
-                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 16f);
-            r.Key(CloudLookTuning.TuneBodiesShare, 0f, KeySection.Shape, "cost prototype: a share forced on every sample that has one (0: the map's)",
-                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
-            r.Flag(CloudLookTuning.TuneBodiesCount, false, KeySection.Shape, "cost prototype: the counting march with the density call counters (with cloud.bodies 13 or 16)",
-                KeyLiveness.FrameHistory);
-            r.Key(CloudLookTuning.TuneBodiesDebug, 0f, KeySection.Shape, "cost prototype: the bodies' diagnosis bits (16 only)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 127f);
             r.Flag(WeatherMapSky.TuneKey, WeatherMapSky.Default > 0.5f, KeySection.Shape, "prototype: the sky drawn from the weather map's level humidities, deck and cells",
                 KeyLiveness.FrameHistory);
             r.Key(MapSkyRegions.TuneSheetRule, MapSkyRegions.SheetRuleDefault, KeySection.Shape,
