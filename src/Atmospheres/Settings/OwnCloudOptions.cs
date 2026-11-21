@@ -301,12 +301,12 @@ namespace ReDefinition.Atmospheres
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
             f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
             // The owner's look (2026-11-19, the default; e40puff k4_stride, judged in the player 2026-11-18): the shortest step LookMinStepM, no step growth along the ray, the march
-            // towards the sun LookSunMarchM long. A key at or below 0 gives the step quality's value instead (layers.minStepM, layers.sunMarchM; layers.stepGrowth below 0);
-            // layers.earlyOut above 0 replaces the frame's early out.
+            // towards the sun LookSunMarchM long. A key at or below 0 gives the step quality's value instead (layers.minStepM, layers.sunMarchM); layers.stepGrowth below 0 gives
+            // the frame's default growth (LayerFrame.DefaultStepGrowth); layers.earlyOut above 0 replaces the frame's early out.
             float minStepKey = Tuning.Get(TuneMinStepM, LookMinStepM);
             if (minStepKey > 0f) f.MinStepM = minStepKey;
             float growthKey = Tuning.Get(TuneFrameStepGrowth, LookStepGrowth);
-            if (growthKey >= 0f) f.StepGrowth = growthKey;
+            f.StepGrowth = growthKey >= 0f ? growthKey : LayerFrame.DefaultStepGrowth;
             float earlyKey = Tuning.Get(TuneEarlyOut, 0f);
             if (earlyKey > 0f) f.EarlyOut = earlyKey;
             float sunMarchKey = Tuning.Get(TuneSunMarchM, LookSunMarchM);

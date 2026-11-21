@@ -59,6 +59,21 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
+        public void AStepGrowthKeyBelowZeroGivesTheFramesDefaultGrowthEvenAfterAFrameWithTheLooksZero()
+        {
+            // The frame is kept from one frame to the next: the look's 0 first, then the key below 0 must give the default back, not leave the 0 standing.
+            var frame = new LayerFrame();
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(OwnCloudOptions.LookStepGrowth, frame.StepGrowth, "the look's growth first");
+            Tuning.SetOverride(OwnCloudOptions.TuneFrameStepGrowth, -1f);
+            NextFrame();
+            OwnCloudOptions.Apply(frame, Defaults());
+            Assert.AreEqual(LayerFrame.DefaultStepGrowth, frame.StepGrowth, "layers.stepGrowth below 0: the frame's default growth");
+            Assert.AreEqual(new LayerFrame().StepGrowth, LayerFrame.DefaultStepGrowth, "a new frame starts with the same default");
+        }
+
+        [TestMethod]
         public void EveryOwnCloudKeyIsDeclaredOnceWithTheCloudsCategoryAHelpTextAndAContractRow()
         {
             string contract = File.ReadAllText(Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Atmospheres", "CONTRACT.md"));
