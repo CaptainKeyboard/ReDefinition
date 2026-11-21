@@ -184,6 +184,12 @@ namespace ReDefinition.WeatherPlayer
             public int MinStepOverride, SunTaps, SunMarchKm;
             // CLOUDR3 P7: chm reads the reconstruction's history with the Catmull-Rom filter (ReconSettings.CatmullHistory).
             public bool CatmullHistory;
+            // rtd: the block reconstruction's history moved by the march's own distance (ReconSettings.TrueDistance).
+            public bool TrueDistance;
+            // rag: the block reconstruction's count of marched samples (ReconSettings.Age).
+            public bool Age;
+            // rdr<NN>: the history dropped where its stored distance is more than NN / 100 octaves from the frame's (ReconSettings.DistanceReject).
+            public float DistanceReject;
             // bexact: the block mode as a pixel-exact rotation (Settings); bacc: the same with the case's accumulation on the fresh sample.
             public bool BlockExact, BlockAcc;
             // far<km>: the far rotation beyond that distance (ReconSettings.FarRotateM); farb<N> its block side (2: every 4th frame).
@@ -265,6 +271,9 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("wt")) c.WarpTable = Number(t, 2);   // E40 C4
                 else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
                 else if (t == "chm") c.CatmullHistory = true;   // CLOUDR3 P7: the history read with the Catmull-Rom filter
+                else if (t == "rtd") c.TrueDistance = true;   // recon.trueDistance: the history moved by the march's own distance (ReconSettings.TrueDistance)
+                else if (t == "rag") c.Age = true;   // recon.age: the history's count of marched samples (ReconSettings.Age)
+                else if (t.StartsWith("rdr")) c.DistanceReject = Number(t, 3) / 100f;   // recon.distanceReject in hundredths of an octave (ReconSettings.DistanceReject)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
                 else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
                 else if (t.StartsWith("sp")) c.Spacing = Number(t, 2) / 10f;
@@ -407,7 +416,7 @@ namespace ReDefinition.WeatherPlayer
         {
             if (c.Block > 0)
             {
-                var b = new ReconSettings { Mode = ReconMode.Block, Block = c.Block, CatmullHistory = c.CatmullHistory };
+                var b = new ReconSettings { Mode = ReconMode.Block, Block = c.Block, CatmullHistory = c.CatmullHistory, TrueDistance = c.TrueDistance, Age = c.Age, DistanceReject = c.DistanceReject };
                 // bexact (the owner's perf program point 5, 2026-11-19): every pixel marched every block^2 frames and replaced whole; the others the reprojected history alone (no
                 // blend with the new samples, no clip to them).
                 if (c.BlockExact)
@@ -449,6 +458,13 @@ namespace ReDefinition.WeatherPlayer
 
         // -motion all runs the moving scenarios and the cut for every case, not only for the first march of the list.
         internal static bool MotionForAll { get { return WeatherPass.Argument("-motion") == "all"; } }
+
+        // -scenarios a,b runs these scenarios of soft-temporal only (all without the argument).
+        internal static bool ScenarioOn(string name)
+        {
+            string list = WeatherPass.Argument("-scenarios");
+            return string.IsNullOrEmpty(list) || Array.IndexOf(list.Split(','), name) >= 0;
+        }
     }
 
     [WeatherScene("soft-temporal")]
@@ -565,15 +581,33 @@ namespace ReDefinition.WeatherPlayer
                     foreach (Scenario sc in Scenarios)
                     {
                         if (SoftTable.DumpLast && sc.Name != "static") continue;
+                        if (!SoftTable.ScenarioOn(sc.Name)) continue;
                         // The converged reference of every pose that is written, of THIS medium.
                         // A case of an earlier scenario may have left taps, a cull or a cost mask on the frame: the references run on the frame's own defaults.
                         SoftTable.ApplyCase(rig.Frame, SoftTable.Parse("seq1"));
-                        GrainTable.ApplyConverged(rig.Frame);
+                        // -stillref 1 (HIST1): the reference of a pose is the FIRST march of the list held still at that pose for the scenario's frames, the picture the
+                        // history settles to without motion: what a moved history differs from it by is the motion's error alone, not the march's.
+                        bool stillRef = WeatherPass.Argument("-stillref") == "1";
+                        SoftTable.Case stillCase = stillRef ? SoftTable.Parse(SoftTable.Marches[0]) : null;
+                        if (stillRef) SoftTable.ApplyCase(rig.Frame, stillCase);
+                        else GrainTable.ApplyConverged(rig.Frame);
                         foreach (int i in sc.Dump)
                         {
                             if ((sc.Name == "static" || sc.Name == "cut") && i != sc.Dump[0]) continue;
                             GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));
                             refRecon.Reset();
+                            if (stillRef)
+                            {
+                                ReconSettings stillSettings = SoftTable.Settings(stillCase, "acc20");
+                                // A frame's worth of work at a time: forty marches queued in one frame took the device away (DXGI_ERROR_DEVICE_REMOVED, 2026-11-20).
+                                // 160 frames: the accepted 2 x 2 at weight 0.2 holds 1 - 0.8^40 of marched samples then (40 frames left 11 % of the first fill in it).
+                                for (int k = 0; k < 160; k++)
+                                {
+                                    Render(rig, refRecon, stillSettings, 100 + k);
+                                    if (k % 4 == 3) yield return null;
+                                }
+                            }
+                            else
                             Render(rig, refRecon, full, 0);
                             Dump(refRecon.Output, "gs-" + view + "-" + medium.Name + "-" + sc.Name + "-ref-f" + i);
                             yield return null;
@@ -587,6 +621,16 @@ namespace ReDefinition.WeatherPlayer
                                 SoftTable.ApplyCase(rig.Frame, marchCase);
                                 ReconSettings settings = SoftTable.Settings(marchCase, mode);
                                 rig.Recon.Reset();
+                                // -warm N (HIST1): N frames at the scenario's first pose before its frames, so that the settled history is what moves (without it the
+                                // forty frames begin at a cut and measure the settling as well).
+                                int warm;
+                                if (!int.TryParse(WeatherPass.Argument("-warm"), out warm)) warm = 0;
+                                for (int k = 0; k < warm; k++)
+                                {
+                                    GrainTable.Pose(Cam, job, Yaw(sc, 0), Side(sc, 0));
+                                    Render(rig, rig.Recon, settings, 100 - warm + k);
+                                    if (k % 4 == 3) yield return null;
+                                }
                                 for (int i = 0; i < Frames; i++)
                                 {
                                     GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));

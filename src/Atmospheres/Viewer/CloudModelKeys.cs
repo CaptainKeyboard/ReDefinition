@@ -85,6 +85,25 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Flag(OwnCloudOptions.TuneCatmull, OwnCloudOptions.CatmullDefault, KeySection.Quality,
                 "the reconstruction reads its history with a Catmull-Rom filter instead of the bilinear one (less blur from sub-pixel moves, bounded by the variance clip)", KeyLiveness.FrameHistory);
 
+            // Read every frame (OwnCloudOptions.Apply(ReconSettings) -> LayerReconstructor, _ReconT.x).
+            r.Flag(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault, KeySection.Quality,
+                "the block reconstruction moves its history by the distance the march measured for each pixel's cloud instead of by the layers' middle spheres", KeyLiveness.FrameHistory);
+
+            r.Flag(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault, KeySection.Quality,
+                "the block reconstruction counts the marched samples each pixel's history holds: a new area is sharp after its first samples instead of after the fixed weight's settling time",
+                KeyLiveness.FrameHistory);
+            r.Flag(OwnCloudOptions.TuneMarchTriangle, OwnCloudOptions.MarchTriangleDefault, KeySection.Quality,
+                "the march is drawn as one procedural triangle instead of the Blit's quad: the same picture, less march time", KeyLiveness.FrameHistory);
+            r.Flag(OwnCloudOptions.TuneSceneDepth, OwnCloudOptions.SceneDepthDefault, KeySection.Quality,
+                "the block reconstruction takes the scene's depth into its upsample, its clip box and its history test: no cloud carried onto the craft or the terrain in front of it",
+                KeyLiveness.FrameHistory);
+            r.Key(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault, KeySection.Quality,
+                "with recon.trueDistance: the history is dropped where the cloud distance it stored is more than this many octaves from the frame's (a disocclusion); 0 off",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 4f);
+            r.Key(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault, KeySection.Quality,
+                "width of the history's colour clip in standard deviations of the new samples around the pixel (999: no clip)",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 999f);
+
             // The same three per layer (the layer's name after the prefix): the layer's value wins over the global key.
             r.LayerKey(CloudLookTuning.TuneHeapLayer, "", -1f, KeySection.Shape, "heap preset of the layer (-1 the global key, 0 none, 1 billow, 2 rough)",
                 min: -1f, max: presets);

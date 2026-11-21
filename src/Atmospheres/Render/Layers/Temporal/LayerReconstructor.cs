@@ -49,6 +49,22 @@ namespace ReDefinition.Atmospheres
         public int FarRotateBlock = 2;
         // The block mode as the full-size march's rotation (recon.rotate): the history's own weights, never the edge pattern.
         public bool Rotation;
+        // recon.trueDistance (Block mode without the edge pattern): the march writes the mean distance of each pixel's cloud into a second target and the history is moved by it
+        // instead of by the layers' middle spheres (ReDefinitionAtmospheresReconstruct.shader, TruePrevious). False: the middle spheres, as before.
+        public bool TrueDistance;
+        // recon.age (Block mode without the edge pattern): the reconstruction keeps the number of marched samples each pixel's history holds (a second target of its pass 3):
+        // the n-th sample enters at max(FreshWeight, 1 / n) and a pixel without a marched sample shows the current upsample. False: the fixed weights, as before.
+        public bool Age;
+        // recon.distanceReject (with TrueDistance): the history keeps the distance of the cloud it showed (the count target's second channel) and is dropped where that is
+        // more than this many octaves from the distance at which the previous camera saw the pixel's cloud (a disocclusion). 0: off, the colour clip alone.
+        public float DistanceReject;
+        // recon.sceneDepth (Block mode without the edge pattern; needs the frame's scene depth, LayerFrame.UseSceneDepth): the reconstruction weighs the new samples by
+        // the agreement of the scene's depth at their pixel with the depth at the pixel it builds (the upsample and the clip box) and drops a history whose cloud lies
+        // behind the pixel's scene. False: the scene's depth takes no part, as before.
+        public bool SceneDepth;
+        // recon.marchTriangle: the march without TrueDistance is drawn as one procedural triangle (the layer shader's pass 7) instead of the Blit's quad. False: the Blit,
+        // as before.
+        public bool ProcMarch;
         // 1: the new samples only (upsampled), 2: the history only (a trail test).
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
@@ -92,6 +108,20 @@ namespace ReDefinition.Atmospheres
         // The far rotation (ReconSettings.FarRotateM): pass 2 writes the distance to each pixel's cloud, which the next frame's march reads.
         internal const int PassDepth = 2;
         private static readonly int IdFarDepth = Shader.PropertyToID("_FarDepth");
+        // recon.trueDistance: the layer shader's pass 6 (the march into two targets), the second target and the pair the command buffer binds.
+        internal const int PassMarchDistance = 6;
+        // Test switch ReconSettings.ProcMarch (HIST2): the layer shader's pass 7, pass 0 drawn as one procedural triangle.
+        internal const int PassMarchTriangle = 7;
+        private static readonly int IdDistTex = Shader.PropertyToID("_DistTex"), IdReconT = Shader.PropertyToID("_ReconT");
+        private RenderTexture lowDistance;
+        private RenderTargetIdentifier[] marchTargets;
+        // recon.age: the reconstruction shader's pass 3 (pass 0 into two targets), the sample counts of the two full targets (ageA with the one named "a", ageB with "b")
+        // and the two pairs the command buffer binds.
+        internal const int PassReconstructAge = 3;
+        private static readonly int IdAgeTex = Shader.PropertyToID("_AgeTex");
+        private RenderTexture fullA, ageA, ageB;
+        private bool ageWasOn;   // the count targets were written last frame: a frame that turns them on again finds counts and distances of an older picture in them
+        private RenderTargetIdentifier[] targetsA, targetsB;
         private RenderTexture farDepth;
         private bool haveFarDepth;
         private static readonly int IdMvCloud = Shader.PropertyToID("_MvCloud"), IdMvDepth = Shader.PropertyToID("_MvDepth");
@@ -177,9 +207,10 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, farDepth })
+            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, farDepth, lowDistance, ageA, ageB })
                 RenderTargets.Dispose(rt);
-            lowLatest = lowSpare = farDepth = null;
+            lowLatest = lowSpare = farDepth = lowDistance = ageA = ageB = fullA = null;
+            marchTargets = targetsA = targetsB = null;
             if (material != null) UnityEngine.Object.Destroy(material);
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
             if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
@@ -206,6 +237,18 @@ namespace ReDefinition.Atmospheres
             {
                 name = name,
                 filterMode = filter,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            rt.Create();
+            return rt;
+        }
+
+        private static RenderTexture MakeCount(string name, int w, int h)
+        {
+            var rt = new RenderTexture(Mathf.Max(w, 2), Mathf.Max(h, 2), 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear)
+            {
+                name = name,
+                filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
             rt.Create();
@@ -243,6 +286,28 @@ namespace ReDefinition.Atmospheres
                 latest = Make("layer reconstruct a", w, h, FilterMode.Bilinear);
                 spare = Make("layer reconstruct b", w, h, FilterMode.Bilinear);
                 haveHistory = false;
+                fullA = latest;
+                targetsA = targetsB = null;
+            }
+            // recon.age: one sample count per full target, made with the first frame that asks for it. A count made anew holds no history: the frame runs as after a cut.
+            bool ageOn = (s.Age || (s.TrueDistance && s.DistanceReject > 0f)) && s.Mode == ReconMode.Block && !(s.Edge != null && s.Edge.Enabled && edgeMaterial != null);
+            // Turned on again after frames without it (the key, the edge mode, another size in between): the targets still fit but hold the counts and distances of the
+            // picture they were last written for. The frame runs as after a cut, which writes them anew.
+            if (ageOn && !ageWasOn) haveHistory = false;
+            ageWasOn = ageOn;
+            if (ageOn && (!Fits(ageA, w, h) || targetsA == null))
+            {
+                if (!Fits(ageA, w, h))
+                {
+                    RenderTargets.Dispose(ageA);
+                    RenderTargets.Dispose(ageB);
+                    ageA = MakeCount("layer reconstruct count a", w, h);
+                    ageB = MakeCount("layer reconstruct count b", w, h);
+                    haveHistory = false;
+                }
+                RenderTexture fullB = fullA == latest ? spare : latest;
+                targetsA = new[] { new RenderTargetIdentifier(fullA.colorBuffer), new RenderTargetIdentifier(ageA.colorBuffer) };
+                targetsB = new[] { new RenderTargetIdentifier(fullB.colorBuffer), new RenderTargetIdentifier(ageB.colorBuffer) };
             }
             RenderTexture history = latest;
             output = spare;
@@ -255,6 +320,24 @@ namespace ReDefinition.Atmospheres
             {
                 RenderTargets.Dispose(low);
                 low = Make("layer march", lw, lh, s.Mode == ReconMode.Block ? FilterMode.Bilinear : FilterMode.Point);
+                marchTargets = null;
+            }
+            // recon.trueDistance: the second target of the march, one distance per new sample.
+            bool distanceOn = s.TrueDistance && s.Mode == ReconMode.Block && !edgeOn;
+            if (distanceOn && (!Fits(lowDistance, lw, lh) || marchTargets == null))
+            {
+                if (!Fits(lowDistance, lw, lh))
+                {
+                    RenderTargets.Dispose(lowDistance);
+                    lowDistance = new RenderTexture(Mathf.Max(lw, 2), Mathf.Max(lh, 2), 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear)
+                    {
+                        name = "layer march distance",
+                        filterMode = FilterMode.Point,
+                        wrapMode = TextureWrapMode.Clamp
+                    };
+                    lowDistance.Create();
+                }
+                marchTargets = new[] { new RenderTargetIdentifier(low.colorBuffer), new RenderTargetIdentifier(lowDistance.colorBuffer) };
             }
 
             float tanY = Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
@@ -323,7 +406,21 @@ namespace ReDefinition.Atmospheres
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");
-            cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
+            if (distanceOn)
+            {
+                cb.SetRenderTarget(marchTargets, low.depthBuffer);
+                cb.DrawProcedural(Matrix4x4.identity, layers, PassMarchDistance, MeshTopology.Triangles, 3, 1);
+            }
+            else if (s.ProcMarch)
+            {
+                // Test switch (HIST2): pass 0 drawn as one procedural triangle into the one target (pass 7), to time the draw path against the Blit's quad.
+                cb.SetRenderTarget(low);
+                cb.DrawProcedural(Matrix4x4.identity, layers, PassMarchTriangle, MeshTopology.Triangles, 3, 1);
+            }
+            else
+            {
+                cb.Blit(BuiltinRenderTextureType.None, low, layers, LayerRenderer.PassMarch);
+            }
             Sub(cb, "march");
             if (markMarched != null) markMarched(cb);
             if (s.Mode == ReconMode.Full)
@@ -364,6 +461,7 @@ namespace ReDefinition.Atmospheres
                     a.SetVector(IdPrevU, previousUp / previousTanY);
                     a.SetVector(IdShellR, new Vector4(shell.MiddleRadius, shell.FallbackDistance, 0f, 0f));
                     a.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveLowHistory ? 1f : 0f));
+                    a.SetVector(IdReconT, Vector4.zero);
                     renderer.BindMotion(a, f, s.LayerMotion, havePose, s.DriftSeconds);
                     materialBound = true;
                     cb.Blit(BuiltinRenderTextureType.None, lowSpare, a, 0);
@@ -433,8 +531,20 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdPrevU, previousUp / previousTanY);
                 m.SetVector(IdShellR, new Vector4(info.MiddleRadius, info.FallbackDistance, 0f, 0f));
                 m.SetVector(IdDrift, new Vector4(s.DriftPerFrame.x, s.DriftPerFrame.y, s.DriftPerFrame.z, haveHistory ? 1f : 0f));
+                m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn && s.Age ? 1f : 0f, ageOn && distanceOn ? Mathf.Max(0f, s.DistanceReject) : 0f,
+                                                  s.SceneDepth && f.UseSceneDepth ? 1f : 0f));
+                if (distanceOn) m.SetTexture(IdDistTex, lowDistance);
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;
+                if (ageOn)
+                {
+                    // The history's count is the one of the full target that is the history; the frame's goes with the output.
+                    bool outputIsA = output == fullA;
+                    m.SetTexture(IdAgeTex, outputIsA ? ageB : ageA);
+                    cb.SetRenderTarget(outputIsA ? targetsA : targetsB, output.depthBuffer);
+                    cb.DrawProcedural(Matrix4x4.identity, m, PassReconstructAge, MeshTopology.Triangles, 3, 1);
+                }
+                else
                 cb.Blit(BuiltinRenderTextureType.None, output, m, 0);
                 Sub(cb, "block reconstruction");
                 haveHistory = true;

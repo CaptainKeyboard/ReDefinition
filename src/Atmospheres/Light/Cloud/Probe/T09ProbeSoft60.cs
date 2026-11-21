@@ -43,8 +43,8 @@ namespace ReDefinition.Atmospheres
         //   ref<name>   layers.gridFine 5.3333 = 256 grid points, four frames, read RIGHT BEFORE the weave variant <name> (a few seconds earlier): the converged picture of the pose at that moment, the reference
         //               of the static-pattern measure (the 48-step bias leaves with the high-pass). One reference for all variants taken minutes apart would measure the clouds' drift (MEASURED in start 59's
         //               pictures: 0.003 luma between two frames of one moment, 0.04 to 0.06 about 100 s apart), not the pattern.
-        // (softacc10, recon.accumulate 0.1, was cut for the time of the four references: its direction is that of softacc05. There is no key for the history's clip: ReconSettings.ClipSigma is no
-        // tuning key; the player series e40-wv-temporal measured clip1000 and found no case separated from the default.)
+        // (softacc10, recon.accumulate 0.1, was cut for the time of the four references: its direction is that of softacc05. The history's clip (recon.clipSigma) is not in this set:
+        // the player series e40-wv-temporal measured clip1000 and found no case separated from the default.)
         internal static readonly SoftVariant[] Soft60Variants =
         {
             Soft60Reference("soft"),
