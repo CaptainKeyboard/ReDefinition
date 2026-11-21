@@ -83,6 +83,9 @@ namespace ReDefinition.Atmospheres
         // Cost attribution only (layers.costStartM): the march starts at this distance in m (on the span's own sample grid, as the full march places its samples there), 0 off;
         // with CostCutM at the same distance the two runs split the full march into its near and far part. The picture is wrong while set.
         public float CostStartM;
+        // A span's points by distance (layers.spanGrowthPerM, 0 off): the step at the distance t from the camera is the step at the camera times (1 + this t), so a long span is fine
+        // near and coarse far instead of evenly spaced; a short or near span keeps its count.
+        public float SpanGrowthPerM;
         public int CostDebug;
         // Package T05: inside a cloud the step grows by this share of the transmittance the ray has already lost (0: a fixed step).
         public float TransmittanceGrowth;
@@ -446,7 +449,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), Mathf.Max(0f, f.LeapScales), 0f));
             // CLOUDR1 P6: the first hit by bisection and the thin steps inside (cloud.firstHit, cloud.firstHit.thin, cloud.firstHit.grow); 0 iterations: the march as it was.
             m.SetVector(IdFirstHitP, new Vector4(CloudLookTuning.FirstHitIterations, CloudLookTuning.FirstHitThin, CloudLookTuning.FirstHitShell, CloudLookTuning.FirstHitNear));
-            m.SetVector(IdReuseP, new Vector4(f.LightReuseMove ? 1f : 0f, Mathf.Max(0f, f.CostCutM), Mathf.Max(0f, f.CostStartM), 0f));
+            m.SetVector(IdReuseP, new Vector4(f.LightReuseMove ? 1f : 0f, Mathf.Max(0f, f.CostCutM), Mathf.Max(0f, f.CostStartM), Mathf.Max(0f, f.SpanGrowthPerM)));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).

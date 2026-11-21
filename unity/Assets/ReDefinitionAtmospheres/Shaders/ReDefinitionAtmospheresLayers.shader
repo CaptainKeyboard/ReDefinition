@@ -72,7 +72,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
         float4 _FirstHitP;   // CLOUDR1 P6: x the bisection iterations on the entered span (0: off, the march is as it was), y the thin steps inside as a share of the grid step, z how many of them follow the entry (the outer shell), w the distance in m up to which they are taken (0: everywhere)
-        float4 _ReuseP;      // x: the reused sun optical depth is moved by the ray's progress (1) or kept (0, layers.lightReuseMove); y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z: it starts there (layers.costStartM)
+        float4 _ReuseP;      // x: the reused sun optical depth is moved by the ray's progress (1) or kept (0, layers.lightReuseMove); y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z: cost attribution, it starts there (0: off, layers.costStartM); w: a span's points by distance, the step's growth per m of distance from the camera (0: off, layers.spanGrowthPerM)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
@@ -218,6 +218,9 @@ Shader "ReDefinition/AtmospheresLayers"
         static float2 gTypeLight = float2(1.0, 1.0);
         // E40 C1: the length along the ray (m) around the last point LayerDensity was asked for within which the layer's map is certainly empty (0: no statement); the march leaps by it.
         static float gEmptyM = 0;
+        // The vertical distance in m from an empty sample to its type's slab (below its base or above its top; -1: the sample is not empty for that reason). The march keeps a leap
+        // from passing over the slab (layers.spanGrowthPerM).
+        static float gSlabGap = -1;
 
         // The empty reach at a map point (EmptyReachMath.ReachMetres is its CPU twin): the texels to the nearest texel that can hold cloud as an angle on the planet (a texel is pi / height across
         // and 2 pi / width times the cosine of the latitude along a parallel), as the chord at the planet's radius (a straight line keeps at least that far from the centre), on a body with a surface.
@@ -234,6 +237,7 @@ Shader "ReDefinition/AtmospheresLayers"
         {
             share = 0;
             gEmptyM = 0;
+            gSlabGap = -1;
             gCellX = -1.0;
             gCellW = 1.0;
             gBodyRead = false;
@@ -334,7 +338,11 @@ Shader "ReDefinition/AtmospheresLayers"
                 b = localBase;
                 tp = localTop;
             }
-            if (share < b || share > tp || tp <= b) return 0;
+            if (share < b || share > tp || tp <= b)
+            {
+                if (tp > b) gSlabGap = max(b - share, share - tp) * (outer - inner);
+                return 0;
+            }
             gTopAlt = inner + tp * (outer - inner);
             gBaseAlt = inner + b * (outer - inner);
             erosion = erosionType * _LayerD[li].z;
@@ -512,9 +520,15 @@ Shader "ReDefinition/AtmospheresLayers"
                 float minCount = max(1.0, _FarD.w);
                 // E40 C1: a layer whose noise is coarse (a weather deck 10 km, a cumulonimbus 5 km) needs no grid point every 100 m: the count follows the span over the noise scale times the spacing, not below _SpacingP.y.
                 float featCount = (_SpacingP.x > 0.0 && _LayerD[li].y > 0.0) ? max(_SpacingP.y, ceil(len * _LayerD[li].y / _SpacingP.x)) : 1e4;
-                int count = (int)clamp(ceil(len / stepLen), minCount, max(minCount, min(floor(maxSteps * share01 + 0.5), featCount)));
-                float dt = len / count;
-                gNoiseFoot = dt;   // the sample spacing: the erosion detail's distance LOD (T02)
+                // layers.spanGrowthPerM (_ReuseP.w, 0: off): a span's points by distance. The step at the distance t is dt (1 + g t), so a long span is fine near the camera and coarse far
+                // away instead of evenly spaced; lenU is the span's length in units of that step at the camera (the integral of ds / (1 + g s)), and a short or near span keeps today's
+                // count (ln(1 + x) -> x).
+                float spanG = _ReuseP.w;
+                float lenU = spanG > 0.0 ? log((1.0 + spanG * s1[k]) / (1.0 + spanG * s0[k])) / spanG : len;
+                int count = (int)clamp(ceil(lenU / stepLen), minCount, max(minCount, min(floor(maxSteps * share01 + 0.5), featCount)));
+                float dt = lenU / count;
+                float dtStart = spanG > 0.0 ? dt * (1.0 + spanG * s0[k]) : dt;
+                gNoiseFoot = spanG > 0.0 ? max(dt, _CullD.y * s0[k]) : dt;   // the sample spacing: the erosion detail's distance LOD (T02)
                 // The samples lie on the grid s0 + dt * (i + jitter). An empty sample lets the next ones leap over 1, 2 .. leapMax grid
                 // points; a leap that lands on cloud goes back to the grid point after the last empty one, so a cloud is always entered
                 // at the grid's own resolution and only features narrower than the leap can be passed over.
@@ -522,15 +536,16 @@ Shader "ReDefinition/AtmospheresLayers"
                 float leapCap = (_SpacingP.z > 0.0 && _LayerD[li].y > 0.0) ? max(leapMax, floor(_SpacingP.z / (_LayerD[li].y * dt))) : leapMax;
                 // Cost attribution (layers.costCutM, _ReuseP.y): the span ends at the cut, so the time saved is what the clouds beyond it cost; the picture is wrong while set.
                 float tEnd = _ReuseP.y > 0.0 ? min(s1[k], _ReuseP.y) : s1[k];
-                float t = s0[k] + dt * jitter;
+                float t = s0[k] + dtStart * jitter;
                 // Cost attribution (layers.costStartM, _ReuseP.z): the span starts at the first of its own grid points beyond the start, so the samples are the full march's
-                // there (the far part of a near / far split, with the transmittance of a pass of its own); the picture is wrong while set.
+                // there (the far part of a near / far split, with the transmittance of a pass of its own); the picture is wrong while set. With layers.spanGrowthPerM the
+                // points beyond the start are counted in the span's first step, not on its growing grid.
                 if (_ReuseP.z > 0.0)
                 {
                     if (!(tEnd > _ReuseP.z)) continue;
-                    t += dt * max(0.0, ceil((_ReuseP.z - t) / dt));
+                    t += dtStart * max(0.0, ceil((_ReuseP.z - t) / dtStart));
                 }
-                float tLast = t - dt;
+                float tLast = t - dtStart;
                 float leap = 1.0, arrived = 1.0;
                 float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
@@ -549,7 +564,11 @@ Shader "ReDefinition/AtmospheresLayers"
                     float share;
                     // T16: the step grows along the span; the detail's footprint is the pixel's size at the distance.
                     float dtv = _CullC.x > 0.0 ? dt * CullStepScale(t - s0[k]) : dt;
+                    if (spanG > 0.0) dtv = dt * (1.0 + spanG * t);
                     if (_CullD.x > 0.5) gNoiseFoot = CullFoot(t, dtv);
+                    // With the points by distance the footprint of the shape is the pixel's size at the sample, not the step along the ray: the step is long far away, and a footprint
+                    // of that length would replace a body by the map's mean (CellCover) where the pixel still resolves it. The jittered grid and the history integrate along the ray.
+                    else if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
                     // A4 (cloud.cellFoot): the pixel's size at the sample, the narrowest band the body is drawn with (CellBody).
                     gBodyFoot = _CullD.x > 0.5 ? _CullD.y * t : 0.0;
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
@@ -620,8 +639,15 @@ Shader "ReDefinition/AtmospheresLayers"
                         float reachSkip = dtv * floor(gEmptyM / dtv);
                         tLast = t + reachSkip;
                         arrived = leap;
-                        t += dtv * leap + reachSkip;
-                        leap = min(leap + 1.0, leapCap);
+                        float jump = dtv * leap + reachSkip;
+                        // With the points by distance a leap is long far away: above or below the type's slab it ends where the ray reaches the slab's altitude, so a thin
+                        // layer crossed at an angle is not passed over.
+                        if (spanG > 0.0 && gSlabGap > 0.0) jump = min(jump, max(dtv, gSlabGap * length(pc) / max(abs(dot(d, pc)), 1e-3 * length(pc))));
+                        t += jump;
+                        // With the points by distance the leap's cap in grid points follows the step at the sample (the cap is a length in the layer's noise scales; dt is the
+                        // step at the camera, and a cap counted in it would let a far leap pass over whole clouds).
+                        float leapCapHere = (spanG > 0.0 && _SpacingP.z > 0.0 && _LayerD[li].y > 0.0) ? max(leapMax, floor(_SpacingP.z / (_LayerD[li].y * dtv))) : leapCap;
+                        leap = min(leap + 1.0, leapCapHere);
                         continue;
                     }
                     if (arrived > 1.5)
@@ -699,7 +725,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         float3 sky = lerp(_AmbientBottom.rgb, _AmbientTop.rgb, saturate(share));
                         sky = lerp(Luma(sky).xxx, sky, _LightR.z) * _LightS.z * _LightL[li].z;
                         ambPart = max(sky * _PhaseP.w, (_LightQ.z * Luma(_SunColor.rgb) * LIGHT_INV4PI).xxx);
-                        float lit = kind < 1.5 ? exp(-dens * dt * 4.0) : 0.25;
+                        float lit = kind < 1.5 ? exp(-dens * (spanG > 0.0 ? dtv : dt) * 4.0) : 0.25;
                         dirPart = _SunColor.rgb * SunAir(pc, _Sun.xyz) * lit * (lerp(ph, LIGHT_INV4PI, _LightL[li].w) + _LightM[li].z * LIGHT_INV4PI) * _PhaseP.w;
                         src = dirPart + ambPart;
                     }
