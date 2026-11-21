@@ -802,6 +802,9 @@ namespace ReDefinition.Upscaler
         // -redefinitionJitterLog: one KSP.log line per frame with the projection's and the told jitter (and the proxy's lines, Common/JitterTrace.h).
         private static readonly bool JitterLog = CommandLine.Has("-redefinitionJitterLog");
 
+        // -redefinitionSkipAfterUpscalingHooks: the after-upscaling hooks (RigHooks.RunAfterUpscaling) are not run (test starts only).
+        private static readonly bool SkipAfterUpscalingHooks = CommandLine.Has("-redefinitionSkipAfterUpscalingHooks");
+
         internal static int ToldShift(string word)
         {
             return word == "prev" ? -1 : word == "next" ? 1 : 0;
@@ -979,11 +982,13 @@ namespace ReDefinition.Upscaler
             Graphics.ExecuteCommandBuffer(dispatchBuffer);
             StageDump.AfterDispatch(cam, CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix,
                                     dispatch.JitterOffset, Reconstructing, textures.LowRes, result, textures.MotionVectors, textures.DepthCopy);
-            hooks.RunAfterUpscaling(result, textures.DepthCopy, cam);
+            if (!SkipAfterUpscalingHooks) hooks.RunAfterUpscaling(result, textures.DepthCopy, cam);
             Probe.GpuProfiler.MarkNow("ReDefinition upscaler: after-upscaling hooks");
+            StageDump.AfterStage("afterhooks", result);
 
             if (!tufx.Render(result, destination, textures.DepthCopy, textures.MotionVectors))
                 Graphics.Blit(result, destination);
+            StageDump.AfterStage("destination", destination);
             Probe.GpuProfiler.MarkNow("ReDefinition upscaler: TUFX after upscaling, or the copy out");
 
             // After the frame is out, and fenced: an instrument does not stop a

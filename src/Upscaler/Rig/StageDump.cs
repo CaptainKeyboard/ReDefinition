@@ -179,6 +179,13 @@ namespace ReDefinition.Upscaler
             }
 
             int n = taken++;
+            if (signalled)
+            {
+                // The later stages of this frame (AfterStage) go into the same folder under the same frame number.
+                stageFolder = folder;
+                stageN = n;
+                stageFrame = Time.frameCount;
+            }
             meta.Append(n).Append(' ').Append(Time.frameCount).Append(' ').Append(reconstructing ? 1 : 0).Append(' ')
                 .Append(jitter.x.ToString("R", CultureInfo.InvariantCulture)).Append(' ')
                 .Append(jitter.y.ToString("R", CultureInfo.InvariantCulture));
@@ -270,6 +277,33 @@ namespace ReDefinition.Upscaler
         }
 
         // Copies one stage of frame n on the GPU into its prepared texture, notes it in meta.txt and queues it to be read.
+        // Test switch -redefinitionStageDumpOnSignal only: a later stage of the frame a signal's dump is taking (the image after the after-upscaling
+        // hooks, the presenter's destination after TUFX or the Blit), copied into the same folder as <name>-<nn>.bin with <name>-<nn>.txt (width
+        // height format). Nothing in any other frame or without the switch; a null texture (the frame buffer itself) is noted as such.
+        private static string stageFolder;
+        private static int stageN = -1, stageFrame = -1;
+
+        internal static void AfterStage(string name, RenderTexture source)
+        {
+            if (!SignalMode || stageFolder == null || stageFrame != Time.frameCount) return;
+            string stem = Path.Combine(stageFolder, name + "-" + stageN.ToString("00", CultureInfo.InvariantCulture));
+            byte[] info = Encoding.ASCII.GetBytes(source == null ? "null (the frame buffer)\n"
+                                                                 : source.width + " " + source.height + " " + source.format + "\n");
+            ThreadPool.QueueUserWorkItem(_ => TryWrite(stem + ".txt", info, info.Length));
+            if (source == null || !source.IsCreated()) return;
+            RenderTexture copy;
+            prepared[stageN].TryGetValue(name, out copy);
+            if (!Fits(copy, source))
+            {
+                Prepare(stageN, name, source);
+                prepared[stageN].TryGetValue(name, out copy);
+            }
+            prepared[stageN].Remove(name);
+            if (!Fits(copy, source)) return;
+            Graphics.CopyTexture(source, copy);
+            toRead.Enqueue(new Copy { Path = stem + ".bin", Texture = copy });
+        }
+
         private static void Take(int n, string name, RenderTexture source)
         {
             if (source == null || !source.IsCreated()) return;
