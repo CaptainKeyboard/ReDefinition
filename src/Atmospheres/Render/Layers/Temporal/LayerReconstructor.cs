@@ -499,7 +499,7 @@ namespace ReDefinition.Atmospheres
             {
                 cache.Record(cb, layers);
                 Sub(cb, "light cache");
-                if (MarkCacheFilled != null) MarkCacheFilled(cb);
+                if (MarkCacheFilled != null) MarkCacheFilled(cb);   // P0c: the cache fill's own GPU time (the weather player's soft-cost scene)
             }
             if (volume != null)
             {
@@ -510,7 +510,7 @@ namespace ReDefinition.Atmospheres
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on
             Sub(cb, "cull tiles");
-            LastMarchPass = distanceOn ? PassMarchDistance : s.ProcMarch ? PassMarchTriangle : LayerRenderer.PassMarch;
+            LastMarchPass = distanceOn ? PassMarchDistance : s.ProcMarch ? PassMarchTriangle : CloudLookTuning.BodiesCount ? LayerRenderer.PassMarchCount : LayerRenderer.PassMarch;
             if (distanceOn)
             {
                 cb.SetRenderTarget(marchTargets, low.depthBuffer);
@@ -521,6 +521,10 @@ namespace ReDefinition.Atmospheres
                 // Test switch (HIST2): pass 0 drawn as one procedural triangle into the one target (pass 7), to time the draw path against the Blit's quad.
                 cb.SetRenderTarget(low);
                 cb.DrawProcedural(Matrix4x4.identity, layers, PassMarchTriangle, MeshTopology.Triangles, 3, 1);
+            }
+            else if (CloudLookTuning.BodiesCount)
+            {
+                LayerRenderer.RecordCountingMarch(cb, low, layers);   // P0b-0 debug: the march with its density call counters (layer pass 10)
             }
             else
             {

@@ -357,6 +357,75 @@ VARIANTS = {
     "tr_s3m": ("(STRIDE) tr_s3 with the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls3+lrm+lp100"),
     "tr_s4m": ("(STRIDE) the sun march every 4th lit step, the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls4+lrm+lp100"),
     "rot2ac": ("(ROTATION) rot2a with the Catmull-Rom history", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
+    # M2a P0 cost prototype (cloud.bodies, CloudCells.cginc): the march of tr_base with the bodies of several size classes, each a compiled variant of the march pass; p0_b0 is tr_base
+    # (no keyword: the accepted lattice). p0dn_* look straight down from 15 km over the same place (the arrangement of the bodies).
+    **{"p0_b%d" % n: ("(P0) tr_base, cloud.bodies %d (%s)" % (n, what), compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", float(n))])),
+                      "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for n, what in ((0, "the accepted lattice"), (1, "G2 as designed"), (2, "F2"), (3, "two classes"), (4, "G2 with arrays"), (5, "G2, loops over the cells too"), (6, "neighbourhood check"),
+                                     (7, "G2 with arrays, two hashes per body"), (8, "leap check"), (9, "leap check's control"))},
+    **{"p0dn_b%d" % n: ("(P0) straight down from 15 km, cloud.bodies %d" % n, compose(camera_at(15000.0, -90.0), sun_behind(45.0), tune_dotted([("cloud.bodies", float(n))])),
+                        "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for n in (0, 1, 5, 6, 8, 9)},
+    # M2a P0b-0: the views of the series p0b-cost (the bodies, the forced share and the light are march tokens there, so one view load measures every case) and the
+    # pictures of the pruned form (12) against 7 (soft-temporal, cloud.bodies as a job key).
+    "p0b_g": ("(P0b-0) tr_base's ground view", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
+    "p0b_dn": ("(P0b-0) straight down from 15 km", compose(camera_at(15000.0, -90.0), sun_behind(45.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
+    **{"p0b_%s%d" % (v, n): ("(P0b-0) %s, cloud.bodies %d" % (what, n), compose(pose, tune_dotted([("cloud.bodies", float(n))])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for v, what, pose in (("g", "ground", compose(camera_at(30.0, 4.0), sun_behind(25.0))), ("dn", "straight down from 15 km", compose(camera_at(15000.0, -90.0), sun_behind(45.0))))
+       for n in (0, 7, 12)},
+    # P0b-1: the K slots (14 .. 16) against 7 and today, at the map's share and at forced shares (s<NN>: cloud.bodies.share NN / 100), for the pictures and the alphas of
+    # the matched-cover search.
+    **{"p0b_%s%ds%02d" % (v, n, s): ("(P0b-1) %s, cloud.bodies %d, share %s" % (what, n, "the map's" if s == 0 else "%.2f" % (s / 100.0)),
+                                     compose(pose, tune_dotted([("cloud.bodies", float(n)), ("cloud.bodies.share", s / 100.0)])),
+                                     "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for v, what, pose in (("g", "ground", compose(camera_at(30.0, 4.0), sun_behind(25.0))), ("dn", "straight down from 15 km", compose(camera_at(15000.0, -90.0), sun_behind(45.0))))
+       for n in (0, 7, 13, 14, 15, 16) for s in (0, 10, 15, 20, 25, 30, 35, 40, 50, 60, 75)},
+    # P0c: with the light cache (march token lcache3: three near sun taps, the rest from the cache) and a low sun, so that the shadows between bodies show: today and
+    # the bodies over four slots (16), each with the cache off (c0) and on (c1).
+    **{"p0c_%s%d_c%d" % (v, n, c): ("(P0c) %s, cloud.bodies %d, light cache %s" % (what, n, "on" if c else "off"),
+                                    compose(pose, tune_dotted([("cloud.bodies", float(n))])),
+                                    "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm%s+lp100" % ("+lcache3" if c else ""))
+       for v, what, pose in (("g", "ground, sun 10 degrees behind", compose(camera_at(30.0, 4.0), sun_behind(10.0))),
+                             ("dn", "straight down from 15 km, sun 15 degrees", compose(camera_at(15000.0, -90.0), sun_behind(15.0))))
+       for n in (0, 16) for c in (0, 1)},
+    # P0c diagnosis of the streaks in the P0b ground view (cloud.bodies.debug: 1 no reach leap, 2 no shell leap, 4 the nearest body alone).
+    **{"p0c_dbg%d" % b: ("(P0c) ground, cloud.bodies 16, debug %d" % b,
+                         compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", 16.0), ("cloud.bodies.debug", float(b))])),
+                         "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for b in (0, 1, 2, 3, 4, 8, 16)},
+    **{"p0c_trace%d_%d" % (n, t): ("(P0c) ground, cloud.bodies %d, cloud.cellTrace %d" % (n, t),
+                                   compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", float(n)), ("cloud.cellTrace", float(t))])),
+                                   "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for n in (0, 16) for t in (0, 1)},
+    # P0c: the streaks with the height variation off (the cumulus layer's heightVariation 0) and with one type everywhere (cloud.typeOverride 0.5), the shell leap on.
+    **{"p0c_field%d_%s" % (n, k): ("(P0c) ground, cloud.bodies %d, %s" % (n, k),
+                                   compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.bodies", float(n))]),
+                                           cumulus_layer(lambda l: l.__setitem__("heightVariation", 0.0)) if k in ("hv0", "hv0nt", "both", "bothnt") else (lambda job: None),
+                                           tune_cumulus([("cloud.typeOverride.", 0.5)]) if k in ("ty", "tynt", "both", "bothnt") else (lambda job: None),
+                                           tune_dotted([("cloud.cellTrace", 0.0)]) if k.endswith("nt") else (lambda job: None)),
+                                   "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for n in (0, 16) for k in ("hv0", "hv0nt", "ty", "tynt", "both", "bothnt")},
+    **{"p0c_fixf%d_%d" % (s, t): ("(P0c) ground, cloud.bodies 16, share forced %.2f, cloud.cellTrace %d" % (s / 100.0, t),
+                                  compose(camera_at(30.0, 4.0), sun_behind(25.0),
+                                          tune_dotted([("cloud.bodies", 16.0), ("cloud.bodies.share", s / 100.0), ("cloud.cellTrace", float(t))])),
+                                  "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for s in (25, 40) for t in (0, 1)},
+    # P0d: the local leap bound (the largest share near the ray): its validity (shell leap on / off at the map's share and at forced shares), and the diagnosis of the
+    # straight-edged body (17 the 4 x 4 search, debug 64 no second body in the largest class, a forced share against the share map's texel edges).
+    **{"p0d_val_s%02d_t%d" % (s, t): ("(P0d) ground, K4 local bound, share %s, cloud.cellTrace %d" % ("the map's" if s == 0 else "%.2f" % (s / 100.0), t),
+                                      compose(camera_at(30.0, 4.0), sun_behind(25.0),
+                                              tune_dotted([("cloud.bodies", 16.0), ("cloud.bodies.share", s / 100.0), ("cloud.cellTrace", float(t))])),
+                                      "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for s in (0, 25, 50) for t in (0, 1)},
+    **{"p0d_body_%s" % k: ("(P0d) ground, %s" % what, compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted(keys)),
+                           "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for k, what, keys in (("k4", "K4", [("cloud.bodies", 16.0)]), ("k4w", "K4 with a 4 x 4 search", [("cloud.bodies", 17.0)]),
+                             ("nb1", "K4 without the second body of the largest class", [("cloud.bodies", 16.0), ("cloud.bodies.debug", 64.0)]),
+                             ("f35", "K4 at a forced share 0.35", [("cloud.bodies", 16.0), ("cloud.bodies.share", 0.35)]),
+                             ("today", "today's lattice", [("cloud.bodies", 0.0)]))},
+    **{"p0d_dn_%s" % k: ("(P0d) straight down from 15 km, sun 45, %s" % what, compose(camera_at(15000.0, -90.0), sun_behind(45.0), tune_dotted(keys)),
+                         "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100")
+       for k, what, keys in (("k4", "K4 local bound", [("cloud.bodies", 16.0)]), ("today", "today's lattice", [("cloud.bodies", 0.0)]))},
     "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
     "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
@@ -782,7 +851,8 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
-COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10", "tr_base", "tr_d1", "tr_d2", "tr_d7", "tr_nocells", "tr_s1", "tr_s2m", "tr_s3", "tr_s3m", "tr_s4m", "rot2ac")
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10", "tr_base", "tr_d1", "tr_d2", "tr_d7", "tr_nocells", "tr_s1", "tr_s2m", "tr_s3", "tr_s3m", "tr_s4m", "rot2ac",
+                 "p0_b0", "p0_b1", "p0_b2", "p0_b3", "p0_b4", "p0_b5", "p0_b7")
 
 
 def cost_label(march):
@@ -798,10 +868,13 @@ def cost_stage_list():
         if st["variant"] in COST_VARIANTS:
             by_march.setdefault(st["march"], []).append(n)
     out = []
+    # ATMO_COST_ROUNDS=N: N rounds in alternating order (the scene's -rounds), each round's march median reported (the M2a P0 repeats).
+    rounds = int(os.environ.get("ATMO_COST_ROUNDS", "2") or 2)
     for march, names in sorted(by_march.items()):
         views = ",".join(e40pp.view_tag(n) for n in names)
-        out.append(Stage(cost_label(march), ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march, "-width", str(SIZE[0]), "-height", str(SIZE[1])],
-                         size=SIZE, proxy=True, timeout=2400 + (1500 if SIZE != (REF_W, REF_H) else 0)))
+        out.append(Stage(cost_label(march), ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", march, "-width", str(SIZE[0]), "-height", str(SIZE[1])]
+                         + (["-rounds", str(rounds)] if rounds > 2 else []),
+                         size=SIZE, proxy=True, timeout=2400 + (1500 if SIZE != (REF_W, REF_H) else 0) + 400 * max(0, rounds - 2)))
     return out
 
 
@@ -814,16 +887,85 @@ def collect_cost(ctx):
             _, part, rest = k.split(".", 2)
             view = rest.split(".", 1)[0]
             rows.setdefault(view, {})[part] = v[0]
-    metrics, lines = [], ["E40 PUFF: GPU ms of the pass at %d x %d (march | resolve | composite | total)" % SIZE]
+    metrics, lines = [], ["E40 PUFF: GPU ms of the pass at %d x %d (march | resolve | composite | total; with ATMO_COST_ROUNDS each round's march)" % SIZE]
     for view in sorted(rows):
         r = rows[view]
-        lines.append("   %-34s %7.3f | %7.3f | %7.3f | %7.3f" % (view, r.get("march", float("nan")), r.get("resolve", float("nan")), r.get("composite", float("nan")), r.get("total", float("nan"))))
+        per = [r[p] for p in sorted((p for p in r if p.startswith("marchr")), key=lambda p: int(p[6:]))]
+        lines.append("   %-34s %7.3f | %7.3f | %7.3f | %7.3f%s" % (view, r.get("march", float("nan")), r.get("resolve", float("nan")), r.get("composite", float("nan")), r.get("total", float("nan")),
+                                                         ("   rounds " + " ".join("%.3f" % x for x in per)) if per else ""))
         metrics.append(Metric.info("e40puff.cost." + view, r.get("total", float("nan"))))
     print("\n".join(lines))
     return metrics
 
 
 register_series("e40-puff-cost", cost_stage_list(), collect_cost, exclusive=True, who="e40-puff")
+
+# M2a P0b-0: the cost of the bodies at fixed shares, light on and off (ATMO_P0B=share), the split of V7's cost (split), the density call counters (count). One stage
+# over the prepared views p0b_g and p0b_dn; every case is a march (tokens bv, bs, bcnt, dbg1), so a view is loaded once a round.
+P0B_BASE = "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm"
+
+
+def p0b_marches(kind):
+    """P0b-0: split, share, count. P0b-1: kcount (the K slots' correctness counters, light on), kcost / kcostoff (today, V7 and the K variant ATMO_P0B_K at the map's share and
+    the four fixed shares, light on / off), list (the cases of ATMO_P0B_MARCHES, tokens joined by '+', cases by ',', e.g. bv13+bs25,bv15+bs21)."""
+    if kind == "split":
+        return [P0B_BASE + "+bv%d+bs0+lp100" % b for b in (0, 7, 10, 11, 12)]
+    if kind == "kcount":
+        return [P0B_BASE + "+bv%d+bs%d+bcnt+lp100" % (b, s) for s in (10, 25, 50, 75) for b in (14, 15, 16)]
+    if kind in ("kcost", "kcostoff"):
+        k = int(os.environ.get("ATMO_P0B_K", "15"))
+        dbg = "+dbg1" if kind == "kcostoff" else ""
+        return ([P0B_BASE + "+bv%d+bs0%s+lp100" % (b, dbg) for b in (0, 7, k)]
+                + [P0B_BASE + "+bv%d+bs%d%s+lp100" % (b, s, dbg) for s in (10, 25, 50, 75) for b in (13, 7, k)])
+    if kind == "list":
+        return [P0B_BASE + "+" + c + "+lp100" for c in os.environ.get("ATMO_P0B_MARCHES", "").split(",") if c]
+    tail = "+bcnt" if kind == "count" else ""
+    return [P0B_BASE + "+bv%d+bs%d%s%s+lp100" % (b, s, dbg, tail) for s in (10, 25, 50, 75) for b in (13, 7, 12) for dbg in ("", "+dbg1")]
+
+
+def p0b_stage_list():
+    kind = os.environ.get("ATMO_P0B", "split")
+    names = [n for n, st in prepared().items() if st["variant"] in ("p0b_g", "p0b_dn")]
+    if not names:
+        return []
+    rounds = int(os.environ.get("ATMO_COST_ROUNDS", "2") or 2)
+    views = ",".join(e40pp.view_tag(n) for n in sorted(names))
+    return [Stage("p0b-" + kind, ["-mode", "scene", "-scene", "soft-cost", "-in", INPUT, "-views", views, "-media", "pr50", "-marches", ",".join(p0b_marches(kind)),
+                                  "-width", str(SIZE[0]), "-height", str(SIZE[1])] + (["-rounds", str(rounds)] if rounds > 2 else []),
+                  size=SIZE, proxy=True, timeout=1150)]
+
+
+def collect_p0b(ctx):
+    kind = os.environ.get("ATMO_P0B", "split")
+    rows = {}
+    for k, v in ctx.player_metrics("p0b-" + kind).items():
+        if not k.startswith("softcost."):
+            continue
+        _, part, rest = k.split(".", 2)
+        view, _medium, march = rest.split(".", 2)
+        rows.setdefault((view, march), {})[part] = v[0]
+    lines = ["P0b-0 %s: march ms (median of the round medians, min-max of the rounds) and the density call counters per frame" % kind]
+    for (view, march) in sorted(rows):
+        r = rows[(view, march)]
+        per = sorted(r[p] for p in r if p.startswith("marchr"))
+        cnt = [r.get("bodycount%d" % i) for i in range(8)]
+        text = "   %-14s %-26s %7.3f" % (view, march.replace(P0B_BASE + "+", "").replace("+lp100", ""), r.get("march", float("nan")))
+        if per:
+            text += "  (%.3f-%.3f, med %.3f, n %d)" % (per[0], per[-1], per[len(per) // 2], len(per))
+        if "fill" in r:
+            text += "  cache fill %.3f, march + fill %.3f" % (r["fill"], r.get("march", float("nan")) + r["fill"])
+        if cnt[0] is not None:
+            calls = (cnt[0] or 0) + (cnt[1] or 0)
+            text += "  calls view %.0f light %.0f, live/cover call %.2f, body calls %.0f, looped/body %.2f, reaching/body %.2f" % (
+                cnt[0], cnt[1], cnt[2] / max(calls, 1), cnt[3], cnt[4] / max(cnt[3], 1), cnt[5] / max(cnt[3], 1))
+            if cnt[6] is not None:
+                text += ", K: dropped could reach %.1f, share differs %.1f per frame" % (cnt[6], cnt[7])
+        lines.append(text)
+    print("\n".join(lines))
+    return []
+
+
+register_series("p0b-cost", p0b_stage_list(), collect_p0b, exclusive=True, who="p0b")
 
 
 def main():

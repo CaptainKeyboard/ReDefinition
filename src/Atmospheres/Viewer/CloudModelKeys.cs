@@ -96,6 +96,9 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneLvFillTaps, 0f, KeySection.Light, "light volume: the fill's sun taps (0: the march's own taps beyond the far near taps)", KeyLiveness.FrameHistory,
                 KeyMarker.Live, 0f, 64f);
             r.Key(CloudLookTuning.TuneLvFillRatio, 1.15f, KeySection.Light, "light volume: growth of each fill tap over the one before", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 4f);
+            r.Key(CloudLookTuning.TuneBodies, CloudLookTuning.BodiesDefault, KeySection.Shape,
+                "cost prototype: bodies of several size classes (0 the lattice; compiled: 7 G2 with arrays and cheap hashes, 13 the lattice at cloud.bodies.share, 14 .. 16 G2 over the 2 .. 4 best bodies)",
+                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 16f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.

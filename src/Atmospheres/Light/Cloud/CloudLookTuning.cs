@@ -428,6 +428,37 @@ namespace ReDefinition.Atmospheres
         internal static float LvReadPastMaxM { get { return Clean(Tuning.Get(TuneLvReadPastMax, 4000f), 4000f, 0f, 1e5f); } }
         internal static float LvWarpLimit { get { return Clean(Tuning.Get(TuneLvWarpLimit, 1000f), 1000f, 1f, 1e7f); } }
 
+        // cloud.bodies (M2a P0 cost prototype, 2026-11-19): 0 the accepted lattice; 1 .. 6 compile the view march with the bodies of several size classes (CloudCells.cginc, the local
+        // keywords _BODIES_V1 .. _BODIES_V6): 1 scheme G2 as designed, 2 the fallback F2, 3 two classes, 4 G2 with the candidates in arrays, 5 as 1 with loops over the cells too,
+        // 6 the neighbourhood check, 7 as 4 with two hashes per body and no pow, 8 the leap check (5 without leaps), 9 its control (the lattice without leaps).
+        // A prototype for the timing in the weather player; the shadow, the light cache and the far passes keep the lattice.
+        // P0b-0: 10 V7's search with no union, 11 the union over constant candidates (today's search), 12 V7 pruned, 13 today's lattice with the forced share. Only 7 and
+        // 10 .. 13 are compiled into the march pass now (the others are measured, their code stays); a value without a compiled variant is 0.
+        // cloud.bodies.share: a share forced on every sample that has one (0: the map's); cloud.bodies.count 1: the march runs the counting pass (layer pass 10) with 7, 12, 13.
+        internal const string TuneBodies = "cloud.bodies", TuneBodiesShare = "cloud.bodies.share", TuneBodiesCount = "cloud.bodies.count";
+        internal const float BodiesDefault = 0f;
+        // P0b-1: 14, 15, 16 the union over the 2, 3, 4 best candidates in register slots (_BODIES_K2 .. K4). Compiled now: 7, 13, 14, 15, 16 (10 .. 12 are measured, their code stays).
+        // P0c: compiled now 13 and 16 only (the march, the cache fill; the counting pass with 16); the others are measured, their code stays.
+        // P0d: 17 K4 with a 4 x 4 search (_BODIES_K4W, the diagnosis of the straight-edged body).
+        internal static readonly string[] BodiesKeywords = { null, null, null, null, null, null, null, null, null, null, null, null, null, "_BODIES_V13", null, null, "_BODIES_K4", "_BODIES_K4W" };
+        internal static int Bodies
+        {
+            get
+            {
+                float v = Tuning.Get(TuneBodies, BodiesDefault);
+                if (float.IsNaN(v) || float.IsInfinity(v)) return 0;
+                int n = (int)Math.Round(v);
+                return n >= 1 && n < BodiesKeywords.Length && BodiesKeywords[n] != null ? n : 0;
+            }
+        }
+        internal static float BodiesShare { get { return Clean(Tuning.Get(TuneBodiesShare, 0f), 0f, 0f, 1f); } }
+        // cloud.bodies.debug (P0c diagnosis, 16 only): bit 1 no reach leap, bit 2 no room to bodies outside the search, bit 4 the nearest body alone, bit 8 no shell
+        // depth of the searched bodies, bit 16 the leaps' bounds from the bodies as they are at the sample's share (P0b, before the fix), bit 32 the bounds from the
+        // largest form at any share (P0c) instead of the largest share near the ray (P0d), bit 64 no second body in the largest class.
+        internal const string TuneBodiesDebug = "cloud.bodies.debug";
+        internal static float BodiesDebug { get { return Clean(Tuning.Get(TuneBodiesDebug, 0f), 0f, 0f, 127f); } }
+        internal static bool BodiesCount { get { int b = Bodies; return Tuning.Get(TuneBodiesCount, 0f) > 0.5f && (b == 13 || b == 16); } }
+
         // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)
         {

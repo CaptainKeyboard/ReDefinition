@@ -24,7 +24,8 @@
 // Passes: 0 march into a premultiplied (radiance, alpha) target, 1 depth-aware composite over the camera target, 2 aux output
 // (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures, 3 light cache fill (T03), 4 the final composite with the
 // display stage, 5 the culling's tile map (T16), 6 the march with the cloud's distance in a second target (recon.trueDistance), 7 the march
-// drawn as one procedural triangle (recon.marchTriangle), 8 light volume fill (LV1, keyword CLOUD_LIGHTVOL), 9 the light volume's blur (LV3).
+// drawn as one procedural triangle (recon.marchTriangle), 8 light volume fill (LV1, keyword CLOUD_LIGHTVOL), 9 the light volume's blur (LV3),
+// 10 the march with the size-class bodies' density call counters (P0b-0, cloud.bodies.count).
 Shader "ReDefinition/AtmospheresLayers"
 {
     SubShader
@@ -237,6 +238,9 @@ Shader "ReDefinition/AtmospheresLayers"
         // light 1: the light march's read (the shape only: no erosion detail, no far-view mean; the inlined copy of the light path is the slim one, CLOUDR2 P4).
         float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share)
         {
+#ifdef _BODIES_COUNT
+            gBodCountLight = light;
+#endif
             share = 0;
             gEmptyM = 0;
             gSlabGap = 0;
@@ -304,8 +308,31 @@ Shader "ReDefinition/AtmospheresLayers"
                     float cellReach, wMap;
                     float edgeC = max(_LayerB[li].z, 1e-4);
                     gCellBodyX = CellBodyReachX(li);
+#if defined(BODIES_KSLOTS)
+                    // P0b-1: the type's base and top and the height share h here, read before the search (the same reads as below, which the compiler can share); the
+                    // exits they lead to stay below, where V7 has them.
+                    float tvK = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
+                    float x2K = saturate(tvK) * (_LayerC[li].w - 1);
+                    int taK = min((int)floor(x2K), (int)_LayerC[li].w - 1);
+                    int tbK = min(taK + 1, (int)_LayerC[li].w - 1);
+                    float fK = x2K - taK;
+                    float4 iaK = TypeInfo(li, taK), ibK = TypeInfo(li, tbK);
+                    float bK = lerp(iaK.x, ibK.x, fK), tpK = lerp(iaK.y, ibK.y, fK);
+                    if (heightOn)
+                    {
+                        float lbK, ltK;
+                        if (HeightLocalBaseTop(li, pc, uvRaw, bK, tpK, lerp(iaK.z, ibK.z, fK), outer - inner, share, lbK, ltK)) { bK = lbK; tpK = ltK; }
+                    }
+                    float hK = (share - bK) / max(tpK - bK, 1e-6);
+                    cov = CellCoverBodiesK(li, cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
+                                           (uint)_NoiseOffset[li].w, hK, (tpK - bK) * (outer - inner), _CullL[li].y, cellReach, wMap);
+#elif defined(CLOUD_BODIES)
+                    cov = CellCoverBodies(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
+                                          (uint)_NoiseOffset[li].w, cellReach, wMap);
+#else
                     cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
                                     (uint)_NoiseOffset[li].w, sheetW, cellReach, wMap);
+#endif
                     if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
                     {
                         gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
@@ -390,7 +417,11 @@ Shader "ReDefinition/AtmospheresLayers"
             [branch] if (body)
             {
                 float2 fine = _CellE[li].z > 0.0 ? CellFineBillows(li, pc) : float2(0.0, 0.0);
+#ifdef CLOUD_BODIES
+                s = CellBodyBodies(li, h, s, fine, (tp - b) * (outer - inner));
+#else
                 s = CellBody(li, h, s, fine, (tp - b) * (outer - inner));
+#endif
             }
             if (s <= 0) return 0;
             float pw = waterPow;
@@ -1020,6 +1051,8 @@ Shader "ReDefinition/AtmospheresLayers"
             // LV1 (cloud.lightVolume): the sun's light beyond the hand-over distance from the light volume (LightVolume.cs); no keyword: today's march.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            // P0 cost prototype (CloudCells.cginc, cloud.bodies 13, 16 and 17); no keyword: the accepted lattice.
+            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4 _BODIES_K4W
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -1054,6 +1087,8 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            // P0c: the cache is filled from the same field as the march (cloud.bodies 13 the lattice at a forced share, 16 the bodies over four slots); no keyword: the lattice.
+            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4
             float4 frag(v2f i) : SV_Target
             {
                 float3 uvw = float3(i.uv, (_CacheSlice.x + 0.5) / max(_CacheSlice.y, 1.0));
@@ -1109,9 +1144,10 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vertProc
             #pragma fragment frag
             #pragma target 3.5
-            // The keyword variants of pass 0 (the light volume, the map-driven sky), so that the march is the same whichever pass draws it.
+            // The keyword variants of pass 0 (the light volume, the map-driven sky, the size-class bodies), so that the march is the same whichever pass draws it.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4 _BODIES_K4W
             MarchTargets frag(v2f i) { return Pass0Targets(i); }
             ENDCG
         }
@@ -1124,9 +1160,10 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vertProc
             #pragma fragment frag
             #pragma target 3.5
-            // The keyword variants of pass 0 (the light volume, the map-driven sky), so that the march is the same whichever pass draws it.
+            // The keyword variants of pass 0 (the light volume, the map-driven sky, the size-class bodies), so that the march is the same whichever pass draws it.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4 _BODIES_K4W
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -1140,8 +1177,9 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             #pragma multi_compile_local CLOUD_LIGHTVOL
-            // The map-driven sky's density read, as in the march and the light cache's fill.
+            // The map-driven sky's density read and the size-class bodies' field, as in the march and the light cache's fill.
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ _BODIES_V13 _BODIES_K4
             float4 frag(v2f i) : SV_Target
             {
                 float gridN = _LvC.z;
@@ -1262,6 +1300,19 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 return float4(sum / max(wsum, 1e-6), 0, 0, 0);
             }
+            ENDCG
+        }
+
+        // Pass 10 (P0b-0 debug, cloud.bodies.count): the march with counters of the density calls in a UAV (CloudCells.cginc _BodyCount); shader model 5 for the UAV.
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 5.0
+            #pragma multi_compile_local _BODIES_COUNT
+            #pragma multi_compile_local _BODIES_V13 _BODIES_K4
+            float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
     }
