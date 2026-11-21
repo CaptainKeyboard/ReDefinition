@@ -47,7 +47,19 @@ namespace ReDefinition.Core
         Instability = 13,
         Uplift = 14,
         // The share of the sky the sheet clouds cover (deck and layered background), 0 to 1; ConvectiveAmount + StratiformAmount = Coverage.
-        StratiformAmount = 15
+        StratiformAmount = 15,
+        // The relative humidity at the low, middle and high level of the troposphere (SkyColumn.RhLow / RhMid / RhHigh), 0 to 1.
+        HumidityLow = 16,
+        HumidityMid = 17,
+        HumidityHigh = 18,
+        // The large-scale descent, 0 to 1 (the generator's subsidence index).
+        Descent = 19,
+        // How far a storm cell carries the column toward the tropopause, 0 to 1 (energy, life stage and footprint of the strongest cell over the column; 0 outside every cell).
+        CellReach = 20,
+        // The share of the sky the deck of the dynamic lift and the fronts covers, 0 to 1; a part of StratiformAmount.
+        DeckAmount = 21,
+        // The top of the mixed layer (the stable layer) as a share of the troposphere, 0 to 1.
+        StableShare = 22
     }
 
     // A provider of weather at a place, besides the field: another mod's weather or a test source. Providers are asked in the

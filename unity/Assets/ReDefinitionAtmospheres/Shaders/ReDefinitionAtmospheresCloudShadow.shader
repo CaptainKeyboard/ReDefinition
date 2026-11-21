@@ -196,18 +196,27 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 }
                 // CELLS: the single clouds of the layer pass (CloudCells.cginc; _CsLayerD[li].y the pitch, 0: none). The shadow's points are on the ground, far from the march's spacing, so the
                 // cells are read without the far view's blend; the discs' own empty reach is the leap.
+                bool typeRead = false;
                 [branch] if (_CsLayerD[li].y > 0.0)
                 {
                     float cellReach, wMap;
+                    // The map-driven sky's connected sheets (CloudCells.cginc _CellS, zero while cloud.weatherMapSky is off), as the layer pass reads them.
+                    float sheetW = 0.0;
+                    [branch] if (_CellS[li].x > 0.5)
+                    {
+                        typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
+                        typeRead = true;
+                        sheetW = CellSheetWeight(li, typeValue);
+                    }
                     cov = CellCover(cov, uvRaw, _CsLayerD[li].y, _CsPlanetR + 0.5 * (_CsLayerA[li].x + _CsLayerA[li].y), _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0,
-                                    (uint)_CsLayerD[li].z, cellReach, wMap);
+                                    (uint)_CsLayerD[li].z, sheetW, cellReach, wMap);
                     if (cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0)
                     {
                         reachM = _CsParams2.w > 0.5 && wMap <= 0.0 ? 0.7 * cellReach : 0.0;
                         return 0;
                     }
                 }
-                typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
+                if (!typeRead) typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
             }
             float typeCount = _CsLayerC[li].w;
             float x2 = saturate(typeValue) * (typeCount - 1);

@@ -83,6 +83,8 @@ namespace ReDefinition.Atmospheres
                 forceHeights = true;
                 return false;
             }
+            // cloud.weatherMapSky: the last map round and the applied heights must be those of the switch's and the rules' state (a round of the other state would hold the old sky).
+            if (!MapSkySettled(out why)) return false;
             for (int l = 0; l < stack.LayerCount; l++)
             {
                 int c = Differing(renderer.Maps.CoverageBytes(l), renderer.Maps.CoverageGoalBytes(l)), t = Differing(renderer.Maps.TypeBytes(l), renderer.Maps.TypeGoalBytes(l));

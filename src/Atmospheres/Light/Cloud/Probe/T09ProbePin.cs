@@ -163,6 +163,13 @@ namespace ReDefinition.Atmospheres
                     problem = "-t09PinLimits entry '" + entry + "' has no name=";
                     return list;
                 }
+                // The names become file names (screenshots, capture folders), which NTFS compares without case.
+                foreach (PinLimit other in list)
+                    if (string.Equals(other.Name, limit.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        problem = "-t09PinLimits names " + other.Name + " and " + limit.Name + ", which are the same file name without case";
+                        return list;
+                    }
                 foreach (string part in entry.Substring(eq + 1).Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     string[] f = part.Split(':');
@@ -203,6 +210,14 @@ namespace ReDefinition.Atmospheres
                 else LayerProbeSwitches.MaxSteps = (int)s.Value;
                 AtmospheresLog.Say("T09 pin limit " + limit.Name + ": " + s.Kind + " " + s.Key + " = " + s.Value.ToString("R", CultureInfo.InvariantCulture));
             }
+        }
+
+        // Whether a limit set forces a key that changes the layer maps (the sky from the weather map): its capture waits for the maps and heights to settle again.
+        private static bool PinLimitChangesMaps(PinLimit limit)
+        {
+            foreach (PinSwitch s in limit.Switches)
+                if (s.Kind == 't' && s.Key.StartsWith(WeatherMapSky.TuneKey, StringComparison.Ordinal)) return true;
+            return false;
         }
 
         // Undoes a limit set: the forced tuning keys go (cloud.motionScale 0 is forced again), the settings come back, the probe switches are off.
@@ -353,8 +368,38 @@ namespace ReDefinition.Atmospheres
                         PinLimitApply(limit, restore);
                         // Two frames for the switches to reach the frame's record (a tuning override is read at the next frame).
                         yield return ProbeWait.Frames(2);
+                        // A set that changes the maps (the sky from the weather map, cloud.weatherMapSky*): the maps and the heights are made and settled again before the capture.
+                        bool mapsChange = PinLimitChangesMaps(limit);
+                        if (mapsChange)
+                        {
+                            // The settle's rows read T09.pin.<view>-<set>-apply.<step>.
+                            pinLabel = view.Name + "-" + limit.Name + "-apply";
+                            double settleFrom = Elapsed;
+                            foreach (ProbeWait w in PinSettleSteps(view)) yield return w;
+                            PinEmit("settle_s", Elapsed - settleFrom);
+                            pinLabel = view.Name + "-" + limit.Name;
+                            if (!pinSettledOk)
+                            {
+                                PinLimitRevert(restore);
+                                continue;
+                            }
+                        }
                         foreach (ProbeWait w in PinCutHoldCapture(view, variant, limit.Name)) yield return w;
                         PinLimitRevert(restore);
+                        if (mapsChange)
+                        {
+                            yield return ProbeWait.Frames(2);
+                            pinLabel = view.Name + "-" + limit.Name + "-revert";
+                            double settleFrom = Elapsed;
+                            foreach (ProbeWait w in PinSettleSteps(view)) yield return w;
+                            PinEmit("settle_s", Elapsed - settleFrom);
+                            // The sky did not come back to the plain state: nothing more of this view is captured (its settle step has failed the start by name).
+                            if (!pinSettledOk)
+                            {
+                                AtmospheresLog.Say("T09 pin: the sky did not settle back after " + limit.Name + " in the " + view.Name + " view; the rest of this view is skipped");
+                                break;
+                            }
+                        }
                     }
                 }
                 PinShowUi();
@@ -463,6 +508,13 @@ namespace ReDefinition.Atmospheres
             if (!PinStep("ut_spread", utSpread <= step, "the time the module read over the hold spread " + utSpread.ToString("0.0000", CultureInfo.InvariantCulture) + " s, one physics step "
                                                          + step.ToString("0.0000", CultureInfo.InvariantCulture) + " s; the sun's direction " + sunSpreadDeg.ToString("0.00000", CultureInfo.InvariantCulture)
                                                          + " degrees, the planet's centre " + centreSpreadM.ToString("0.000", CultureInfo.InvariantCulture) + " m")) yield break;
+
+            // The sky the pass draws in this capture: the last map round's state (-1 today's chain, else sheet rule x 10 + depth rule) must be the keys' (cloud.weatherMapSky*).
+            PinEmit("map_sky", own.LastRoundMapSky);
+            PinEmit("map_sky_rounds", own.MapSkyRounds);
+            string skyWhy;
+            if (!PinStep("map_sky", own.MapSkySettled(out skyWhy), skyWhy ?? ("the last map round drew sky state " + own.LastRoundMapSky + " as the keys ask, the heights "
+                                                                              + (own.LastRoundMapSky >= 0 ? "with" : "without") + " the map's bases"))) yield break;
 
             // 5. The capture, all at this frame's end.
             string label = view.Name + (limit != null ? "-" + limit : "");

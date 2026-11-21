@@ -142,6 +142,9 @@ namespace ReDefinition.Atmospheres
         // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the least vertical optical depth (x; closure test).
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
         internal static readonly int IdCellE = Shader.PropertyToID("_CellE");
+        internal static readonly int IdCellS = Shader.PropertyToID("_CellS");
+        internal const string MapSkyKeyword = "REDEFINITION_MAPSKY";
+        private readonly Vector4[] cellS = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
         // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on. cellLayer: the layers, whose single cloud's body
         // (_CellE, CloudLookTuning.CellBodyVector) is written each frame with the viewer's overrides.
@@ -463,6 +466,16 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdCullL, cullL);
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
             m.SetVectorArray(IdCellE, cellE);
+            // The map-driven sky's connected sheet types (cloud.weatherMapSky, MapSkyRegions.SheetTypes; zero while it is off).
+            bool mapSky = WeatherMapSky.On;
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = mapSky && l < layerCount ? MapSkyRegions.SheetTypes(cellLayer[l]) : Vector4.zero;
+            m.SetVectorArray(IdCellS, cellS);
+            // The pass's variant with the type read before the cells (the shader's REDEFINITION_MAPSKY); without it the pass is the one of before.
+            if (mapSky != m.IsKeywordEnabled(MapSkyKeyword))
+            {
+                if (mapSky) m.EnableKeyword(MapSkyKeyword);
+                else m.DisableKeyword(MapSkyKeyword);
+            }
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));

@@ -47,6 +47,8 @@ namespace ReDefinition.Atmospheres
             // The heap family's and the sheets' sky shares (SkyColumn.HeapAmount, SheetAmount; their sum is the Coverage map), base and top as shares of the troposphere, instability
             // 0 to 1, uplift 0 to 1.4; all continuous in the UT, so the painters' slew limit applies as to coverage.
             internal float[] ConvectiveAmount, StratiformAmount, ConvectiveBase, ConvectiveTop, Instability, Uplift;
+            // The level humidities, the descent, the cells' reach, the deck's share and the stable layer's height share (map kinds 16 to 22), made with the maps above.
+            internal float[] HumidityLow, HumidityMid, HumidityHigh, Descent, CellReach, DeckAmount, StableShare;
 
             internal bool HasSky
             {
@@ -61,6 +63,13 @@ namespace ReDefinition.Atmospheres
                 Instability = new float[Width * Height];
                 Uplift = new float[Width * Height];
                 StratiformAmount = new float[Width * Height];
+                HumidityLow = new float[Width * Height];
+                HumidityMid = new float[Width * Height];
+                HumidityHigh = new float[Width * Height];
+                Descent = new float[Width * Height];
+                CellReach = new float[Width * Height];
+                DeckAmount = new float[Width * Height];
+                StableShare = new float[Width * Height];
                 ConvectiveAmount = new float[Width * Height];
             }
         }
@@ -69,7 +78,9 @@ namespace ReDefinition.Atmospheres
         internal static bool IsSkyKind(WeatherMapKind kind)
         {
             return kind == WeatherMapKind.ConvectiveAmount || kind == WeatherMapKind.StratiformAmount || kind == WeatherMapKind.ConvectiveBase || kind == WeatherMapKind.ConvectiveTop
-                || kind == WeatherMapKind.Instability || kind == WeatherMapKind.Uplift;
+                || kind == WeatherMapKind.Instability || kind == WeatherMapKind.Uplift || kind == WeatherMapKind.HumidityLow || kind == WeatherMapKind.HumidityMid
+                || kind == WeatherMapKind.HumidityHigh || kind == WeatherMapKind.Descent || kind == WeatherMapKind.CellReach || kind == WeatherMapKind.DeckAmount
+                || kind == WeatherMapKind.StableShare;
         }
 
         internal sealed class Cover2D
@@ -234,6 +245,13 @@ namespace ReDefinition.Atmospheres
                     case WeatherMapKind.ConvectiveTop: values = w.ConvectiveTop; break;
                     case WeatherMapKind.Instability: values = w.Instability; break;
                     case WeatherMapKind.Uplift: values = w.Uplift; break;
+                    case WeatherMapKind.HumidityLow: values = w.HumidityLow; break;
+                    case WeatherMapKind.HumidityMid: values = w.HumidityMid; break;
+                    case WeatherMapKind.HumidityHigh: values = w.HumidityHigh; break;
+                    case WeatherMapKind.Descent: values = w.Descent; break;
+                    case WeatherMapKind.CellReach: values = w.CellReach; break;
+                    case WeatherMapKind.DeckAmount: values = w.DeckAmount; break;
+                    case WeatherMapKind.StableShare: values = w.StableShare; break;
                     default: return false;
                 }
                 // a map of the new sky before the first render that makes it
@@ -631,7 +649,8 @@ namespace ReDefinition.Atmospheres
                     into.WindSpeed[k] = (float)w.WindSpeed;
                     if (!sky) continue;
                     SkyColumn.Derive(g.Body, ref w, out column);
-                    if (!IsFinite(column.HeapAmount) || !IsFinite(column.SheetAmount) || !IsFinite(column.BaseShare) || !IsFinite(column.TopShare))
+                    if (!IsFinite(column.HeapAmount) || !IsFinite(column.SheetAmount) || !IsFinite(column.BaseShare) || !IsFinite(column.TopShare) || !IsFinite(column.RhLow)
+                        || !IsFinite(column.RhMid) || !IsFinite(column.RhHigh) || !IsFinite(column.DeckAmount) || !IsFinite(column.StableShare))
                     {
                         s.Trip();
                         return false;
@@ -642,6 +661,13 @@ namespace ReDefinition.Atmospheres
                     into.ConvectiveTop[k] = (float)column.TopShare;
                     into.Instability[k] = (float)w.Instability;
                     into.Uplift[k] = (float)w.Uplift;
+                    into.HumidityLow[k] = (float)column.RhLow;
+                    into.HumidityMid[k] = (float)column.RhMid;
+                    into.HumidityHigh[k] = (float)column.RhHigh;
+                    into.Descent[k] = (float)w.Descent01;
+                    into.CellReach[k] = (float)w.CellReach01;
+                    into.DeckAmount[k] = (float)column.DeckAmount;
+                    into.StableShare[k] = (float)column.StableShare;
                 }
             }
             into.Ut = ut;
