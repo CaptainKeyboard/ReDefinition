@@ -141,6 +141,10 @@ namespace ReDefinition.Atmospheres
                 case "thirds75":
                 case "r3s50":
                 case "r3s50lv":
+                case "leap0":
+                case "leap2":
+                case "leap4":
+                case "leap2r3":
                     return true;
                 default:
                     return false;
@@ -330,6 +334,20 @@ namespace ReDefinition.Atmospheres
                 //   thirds75   third + layers.gridFine 0.75
                 //   r3s50      recon.rotate 3 + recon.trueDistance 1 + layers.gridFine 0.5
                 //   r3s50lv    r3s50 + cloud.lightVolume 1, cloud.lightVolume.handOverKm 0, cloud.lightVolume.farTaps 1
+                // The empty-leap block (2026-11-21): layers.leapScale (LayerFrame.LeapScales -> _SpacingP.z; default 1, OwnCloudOptions.LeapScaleDefault), the longest leap over empty grid
+                // points in the layer's noise scales (Layers.shader leapCap). leap0 the march without the leap, leap2 / leap4 two and four noise scales, leap2r3 leap2 with
+                // recon.rotate 3 and recon.trueDistance 1. (layers.emptyLeap only raises the floor leapMax of that cap, so 2 to 8 change nothing where a layer has a noise scale.)
+                case "leap0":
+                case "leap2":
+                case "leap4":
+                case "leap2r3":
+                    ForceTuning(OwnCloudOptions.TuneLeapScale, name == "leap0" ? 0f : name == "leap4" ? 4f : 2f);
+                    if (name == "leap2r3")
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
+                    break;
                 case "half":
                 case "third":
                 case "thirds75":

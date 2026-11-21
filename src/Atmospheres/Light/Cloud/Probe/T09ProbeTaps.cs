@@ -115,6 +115,52 @@ namespace ReDefinition.Atmospheres
             AtmospheresLog.Say("T09 caps: " + view.Name + " " + variant + ": of " + spans.ToString("0") + " spans the length set " + (spans > 0 ? len / spans : 0.0).ToString("0.000")
                                + ", the budget " + (spans > 0 ? budget / spans : 0.0).ToString("0.000") + ", the noise-scale count " + (spans > 0 ? feat / spans : 0.0).ToString("0.000"));
             yield return ProbeWait.Frames(3);
+            foreach (ProbeWait w in EmptyReadout(player, view, variant)) yield return w;
+        }
+
+        // Aid 12 (the empty-leap block, 2026-11-21): per march pixel the samples (r) and those that found no density (g). Rows T09.view.<view>.empty_sample_share and
+        // aid12_samples_per_pixel (the samples of the frame the aid drew; the tap readout's march_samples_per_pixel is the same count from aid 10's frame).
+        private const int EmptyAidMode = 12;
+
+        private IEnumerable<ProbeWait> EmptyReadout(LayerReconstructor player, View view, string variant)
+        {
+            string prefix = "T09.view." + view.Name + ".";
+            if (player == null || !Game.AidOn(EmptyAidMode))
+            {
+                EmitText(prefix + "empty_sample_share", "none");
+                yield break;
+            }
+            yield return ProbeWait.Frames(3);
+            RenderTexture march = player.March;
+            AsyncGPUReadbackRequest request = default(AsyncGPUReadbackRequest);
+            bool asked = false;
+            if (march != null && march.IsCreated() && SystemInfo.supportsAsyncGPUReadback)
+            {
+                request = AsyncGPUReadback.Request(march, 0);
+                asked = true;
+            }
+            int waited = 0;
+            while (asked && !request.done && waited++ < 30) yield return ProbeWait.Frames(1);
+            Game.AidOff();
+            if (!asked || !request.done || request.hasError || march.format != RenderTextureFormat.ARGBHalf)
+            {
+                EmitText(prefix + "empty_sample_share", "readback failed");
+                yield return ProbeWait.Frames(3);
+                yield break;
+            }
+            NativeArray<ushort> halves = request.GetData<ushort>();
+            int pixels = halves.Length / 4;
+            double samples = 0, empty = 0;
+            for (int i = 0; i < pixels; i++)
+            {
+                samples += Mathf.HalfToFloat(halves[4 * i]);
+                empty += Mathf.HalfToFloat(halves[4 * i + 1]);
+            }
+            Emit(prefix + "empty_sample_share", samples > 0 ? empty / samples : 0.0);
+            Emit(prefix + "aid12_samples_per_pixel", pixels > 0 ? samples / pixels : 0.0);
+            AtmospheresLog.Say("T09 empty: " + view.Name + " " + variant + ": " + (pixels > 0 ? samples / pixels : 0.0).ToString("0.0") + " samples per march pixel, "
+                               + (samples > 0 ? empty / samples : 0.0).ToString("0.000") + " of them empty");
+            yield return ProbeWait.Frames(3);
         }
     }
 }
