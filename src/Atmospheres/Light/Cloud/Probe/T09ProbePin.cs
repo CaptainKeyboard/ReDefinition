@@ -65,6 +65,19 @@ namespace ReDefinition.Atmospheres
             OwnCloudModule.ProbeNoSurface = false;
             OwnCloudModule.ProbeNoSceneDepth = false;
             LayerProbeSwitches.MaxSteps = 0;
+            ApiBridge.ProbeSkipOwners.Clear();
+        }
+
+        // The post-upscale draw test of 2026-11-21: the probe switches skipprecip and skiplamp leave that draw uncalled (ApiBridge.ProbeSkipOwners), for the
+        // two draws that register whenever the host has depth and have no setting that takes them away (PrecipitationRenderer.Tick, LampScatter.Tick).
+        private static string SkipDrawOwner(string key)
+        {
+            switch (key)
+            {
+                case "skipprecip": return "precipitation";
+                case "skiplamp": return "lamp scatter";
+                default: return null;
+            }
         }
 
         // The view (and limit set) the steps of the pinned capture belong to: the rows read T09.pin.<label>.<step>.
@@ -140,9 +153,10 @@ namespace ReDefinition.Atmospheres
                     string[] f = part.Split(':');
                     float value;
                     if (f.Length != 3 || f[0].Length != 1 || "tsp".IndexOf(f[0][0]) < 0 || !float.TryParse(f[2], NumberStyles.Float, CultureInfo.InvariantCulture, out value)
-                        || (f[0][0] == 'p' && f[1] != "surface" && f[1] != "scenedepth" && f[1] != "maxsteps"))
+                        || (f[0][0] == 'p' && f[1] != "surface" && f[1] != "scenedepth" && f[1] != "maxsteps" && SkipDrawOwner(f[1]) == null))
                     {
-                        problem = "-t09PinLimits switch '" + part + "' of " + limit.Name + " is not kind:key:value (kinds t, s, p; probe switches surface, scenedepth, maxsteps)";
+                        problem = "-t09PinLimits switch '" + part + "' of " + limit.Name + " is not kind:key:value (kinds t, s, p; probe switches surface, scenedepth, maxsteps, "
+                                  + "skipprecip, skiplamp)";
                         return list;
                     }
                     limit.Switches.Add(new PinSwitch { Kind = f[0][0], Key = f[1], Value = value });
@@ -165,6 +179,10 @@ namespace ReDefinition.Atmospheres
                 }
                 else if (s.Key == "surface") OwnCloudModule.ProbeNoSurface = s.Value == 0f;
                 else if (s.Key == "scenedepth") OwnCloudModule.ProbeNoSceneDepth = s.Value == 0f;
+                else if (SkipDrawOwner(s.Key) != null)
+                {
+                    if (s.Value != 0f) ApiBridge.ProbeSkipOwners.Add(SkipDrawOwner(s.Key));
+                }
                 else LayerProbeSwitches.MaxSteps = (int)s.Value;
                 AtmospheresLog.Say("T09 pin limit " + limit.Name + ": " + s.Kind + " " + s.Key + " = " + s.Value.ToString("R", CultureInfo.InvariantCulture));
             }

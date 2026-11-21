@@ -196,6 +196,9 @@ namespace ReDefinition.Atmospheres
                 // the tick of that frame, before its render.
                 string dumpVariants = CommandLine.After(Args(), "-t09TurnStageDump", true);
                 bool dumpHere = dumpVariants != null && Array.IndexOf(dumpVariants.Split(','), name) >= 0;
+                // One line per frame of the turn: which post-upscale draws were called and whether they drew (ApiBridge.ProbeLogFrames).
+                AtmospheresLog.Say("T09 turn " + name + ": post-upscale draws logged per frame from game frame " + Game.FrameCount);
+                ApiBridge.ProbeLogFrames = true;
                 for (int i = 1; i <= n; i++)
                 {
                     Game.CameraHeading = hdg0 + i * stepRad;
@@ -230,6 +233,8 @@ namespace ReDefinition.Atmospheres
                         jitter[k] = OwnCloudModule.HostJitterNow();
                     }
                 }
+                ApiBridge.ProbeLogFrames = false;
+                ApiBridge.ProbeFlush();
                 float seconds = Time.realtimeSinceStartup - t0;
                 PinEmit("fps", n / Math.Max(1e-3, seconds));
                 PinEmit("frame_ms", 1000.0 * seconds / n);

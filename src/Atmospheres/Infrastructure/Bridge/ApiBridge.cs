@@ -149,15 +149,58 @@ namespace ReDefinition.Atmospheres
             {
                 if (!afterUpscalingDepth.Present) return false;
                 pair = afterUpscalingDepth;
-                handler = new Action<CommandBuffer, RenderTexture, RenderTexture, Camera>((commands, image, depth, camera) => draw(commands, image, depth, camera));
+                handler = new Action<CommandBuffer, RenderTexture, RenderTexture, Camera>((commands, image, depth, camera) => Call(owner, draw, commands, image, depth, camera));
             }
             else
             {
                 if (!afterUpscaling.Present) return false;
                 pair = afterUpscaling;
-                handler = new Action<CommandBuffer, RenderTexture, Camera>((commands, image, camera) => draw(commands, image, null, camera));
+                handler = new Action<CommandBuffer, RenderTexture, Camera>((commands, image, camera) => Call(owner, draw, commands, image, null, camera));
             }
-            return Invoke(owner, pair, handler, draw);
+            bool done = Invoke(owner, pair, handler, draw);
+            AtmospheresLog.Say("post-upscale draw " + owner + (done ? " registered with the host" : " not registered") + (wantsDepth ? " (with depth)" : " (image only)"));
+            return done;
+        }
+
+        // Probe only (the post-upscale draw test of 2026-11-21, T09 -t09PinLimits p:skip<draw>:1): the owners whose draw is not called.
+        internal static readonly HashSet<string> ProbeSkipOwners = new HashSet<string>();
+        // Probe only: while true (the T09 pad turn), one log line per frame names each post-upscale draw called and the bytes it added to the
+        // host's command buffer (0: it returned without drawing; "skipped": ProbeSkipOwners).
+        internal static bool ProbeLogFrames;
+        private static int probeLogFrame = -1;
+        private static readonly System.Text.StringBuilder probeLogLine = new System.Text.StringBuilder();
+
+        private static void Call(string owner, PostUpscaleDraw draw, CommandBuffer commands, RenderTexture image, RenderTexture depth, Camera camera)
+        {
+            if (!ProbeLogFrames && ProbeSkipOwners.Count == 0)
+            {
+                draw(commands, image, depth, camera);
+                return;
+            }
+            ProbeCall(owner, draw, commands, image, depth, camera);
+        }
+
+        // The probe's path of Call, a method of its own: it touches Unity's engine calls, which the unit tests' runtime cannot compile.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static void ProbeCall(string owner, PostUpscaleDraw draw, CommandBuffer commands, RenderTexture image, RenderTexture depth, Camera camera)
+        {
+            bool skip = ProbeSkipOwners.Contains(owner);
+            int before = commands != null ? commands.sizeInBytes : 0;
+            if (!skip) draw(commands, image, depth, camera);
+            if (!ProbeLogFrames) return;
+            if (probeLogFrame != Time.frameCount) ProbeFlush();
+            probeLogFrame = Time.frameCount;
+            probeLogLine.Append(' ').Append(owner.Replace(' ', '-')).Append('=')
+                .Append(skip ? "skipped" : ((commands != null ? commands.sizeInBytes : 0) - before).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        // The last frame's line out (also when the turn ends).
+        internal static void ProbeFlush()
+        {
+            if (probeLogFrame >= 0 && probeLogLine.Length > 0)
+                AtmospheresLog.Say("post-upscale draws frame " + probeLogFrame + ":" + probeLogLine);
+            probeLogLine.Length = 0;
+            probeLogFrame = -1;
         }
 
         public bool Unregister(PostUpscaleDraw draw)
