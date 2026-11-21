@@ -171,7 +171,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void K_T2_GateAudit_EveryGateOfTheChainIsOpenForEveryStartWithTheStartStateOfTheSettings()
         {
             List<StartDef> starts = KT2Starts();
-            Assert.AreEqual(90, starts.Count, "the starts of K-T2.json were read");
+            Assert.AreEqual(93, starts.Count, "the starts of K-T2.json were read");
             foreach (StartDef s in starts)
             {
                 Assert.IsTrue(s.Switches.ContainsKey("weatherEffects") && s.Switches.ContainsKey("genEnabled") && s.Switches.ContainsKey("enabled") && s.Switches.ContainsKey("cloudSource"),

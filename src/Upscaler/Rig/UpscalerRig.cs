@@ -978,7 +978,7 @@ namespace ReDefinition.Upscaler
 
             Graphics.ExecuteCommandBuffer(dispatchBuffer);
             StageDump.AfterDispatch(cam, CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix,
-                                    dispatch.JitterOffset, Reconstructing, textures.LowRes, result);
+                                    dispatch.JitterOffset, Reconstructing, textures.LowRes, result, textures.MotionVectors, textures.DepthCopy);
             hooks.RunAfterUpscaling(result, textures.DepthCopy, cam);
             Probe.GpuProfiler.MarkNow("ReDefinition upscaler: after-upscaling hooks");
 

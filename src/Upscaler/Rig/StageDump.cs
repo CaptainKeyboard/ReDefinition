@@ -130,11 +130,33 @@ namespace ReDefinition.Upscaler
                         + " Unity's [row, column] row by row; then each texture: name width height format\n");
         }
 
-        // After the upscaler's dispatch: input the image it took, output the image it gave.
+        // Test switch -redefinitionStageDumpOnSignal (the upscaler-input test, 2026-11-21): a dump begins in the frame in which the global
+        // _ReDefinition_StageDumpSignal takes a new value above 0 (the turn probe sets it at the frames it wants), without waiting for a turn,
+        // into ReDefinitionCaptures\<time>-stages-s<value>; the dump also takes the motion vectors and the depth the upscaler is given, and
+        // writes its meta.txt as soon as its last frame is taken. Without the switch nothing of this runs.
+        private static readonly bool SignalMode = CommandLine.Has("-redefinitionStageDumpOnSignal");
+        private static readonly int SignalId = Shader.PropertyToID("_ReDefinition_StageDumpSignal");
+        private static float lastSignal;
+        private static bool signalled;
+
+        // The signal's dump armed in this frame where the global took a new value.
+        private static void TakeSignal()
+        {
+            float signal = Shader.GetGlobalFloat(SignalId);
+            if (signal <= 0f || signal == lastSignal) return;
+            lastSignal = signal;
+            Arm();
+            folder += "-s" + ((int)signal).ToString(CultureInfo.InvariantCulture);
+            signalled = true;
+        }
+
+        // After the upscaler's dispatch: input the image it took, output the image it gave; motion and depth the motion vectors and depth it
+        // was given (taken only with -redefinitionStageDumpOnSignal).
         internal static void AfterDispatch(Camera cam, Matrix4x4 unjittered, Vector2 jitter, bool reconstructing,
-                                           RenderTexture input, RenderTexture output)
+                                           RenderTexture input, RenderTexture output, RenderTexture motion = null, RenderTexture depth = null)
         {
             ReadNext();
+            if (SignalMode) TakeSignal();
             FollowClouds(cam, input);
             if (folder == null || cam == null) return;
             RtCamera raytraced = RtCamera.Current;
@@ -142,7 +164,7 @@ namespace ReDefinition.Upscaler
             Vector3 forward = cam.transform.forward;
             if (taken == 0)
             {
-                bool turning = haveForward && Vector3.Angle(forward, lastForward) > TurnDegrees;
+                bool turning = signalled || (haveForward && Vector3.Angle(forward, lastForward) > TurnDegrees);
                 lastForward = forward;
                 haveForward = true;
                 if (!turning && ++waited < WaitFrames)
@@ -165,6 +187,11 @@ namespace ReDefinition.Upscaler
             Take(n, "input", input);
             Take(n, "output", output);
             Take(n, "clouds", Clouds());
+            if (signalled)
+            {
+                Take(n, "motion", motion);
+                Take(n, "depthcopy", depth);
+            }
             if (raytraced != null)
             {
                 Take(n, "sun", raytraced.SunTexture);
@@ -176,6 +203,18 @@ namespace ReDefinition.Upscaler
             meta.Append('\n');
             if (taken < Frames) return;
 
+            if (signalled)
+            {
+                // A signal's dump may follow another before the copies are read: its meta.txt goes out now.
+                string signalMeta = Path.Combine(folder, "meta.txt");
+                byte[] signalText = Encoding.ASCII.GetBytes(meta.ToString());
+                ThreadPool.QueueUserWorkItem(_ => TryWrite(signalMeta, signalText, signalText.Length));
+                signalled = false;
+                folder = null;
+                ReleasePrepared();
+                DropClouds();
+                return;
+            }
             // Written after every texture: the folder is complete once meta.txt is there.
             metaPath = Path.Combine(folder, "meta.txt");
             metaText = meta.ToString();

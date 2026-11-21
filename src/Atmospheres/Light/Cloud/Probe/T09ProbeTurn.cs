@@ -32,6 +32,9 @@ namespace ReDefinition.Atmospheres
     {
         // The kept frames' poses of the reference turn ("none"): compass heading, elevation, the camera's height over the terrain.
         private double[] refAz, refEl, refHeight;
+        // The stage dump's signal (-t09TurnStageDump): the global's last value, one more per dump.
+        private const string StageSignalId = "_ReDefinition_StageDumpSignal";
+        private int stageSignal;
         // The baseline pictures (the "none" turn's copies, RGBA bytes upright), for the cloud share of each variant's first kept frame and still.
         private byte[][] turnBaseline;
 
@@ -188,9 +191,21 @@ namespace ReDefinition.Atmospheres
                 bool consecutive = true;
                 string fault = null;
                 float t0 = Time.realtimeSinceStartup;
+                // -t09TurnStageDump <variants> (the upscaler-input test, 2026-11-21): in those variants the upscaler's stage dump (StageDump with
+                // -redefinitionStageDumpOnSignal) begins at turn frames 20 and 40 (four consecutive frames each): the global it watches takes a new value in
+                // the tick of that frame, before its render.
+                string dumpVariants = CommandLine.After(Args(), "-t09TurnStageDump", true);
+                bool dumpHere = dumpVariants != null && Array.IndexOf(dumpVariants.Split(','), name) >= 0;
                 for (int i = 1; i <= n; i++)
                 {
                     Game.CameraHeading = hdg0 + i * stepRad;
+                    if (dumpHere && (i == 20 || i == 40))
+                    {
+                        stageSignal++;
+                        Shader.SetGlobalFloat(StageSignalId, stageSignal);
+                        PinEmit("stage_signal_f" + i.ToString(CultureInfo.InvariantCulture), stageSignal);
+                        AtmospheresLog.Say("T09 turn " + name + ": stage dump signal " + stageSignal + " at turn frame " + i + " (game frame " + Game.FrameCount + ")");
+                    }
                     int k = Array.IndexOf(keep, i);
                     if (k >= 0)
                     {
