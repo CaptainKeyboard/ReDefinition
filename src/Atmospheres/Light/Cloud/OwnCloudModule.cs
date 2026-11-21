@@ -292,6 +292,8 @@ namespace ReDefinition.Atmospheres
         public void Init()
         {
             Current = this;
+            // LV1: a new lay of the light volume (cloud.lightVolume) is logged.
+            LightVolume.Say = line => AtmospheresLog.Say("own clouds: " + line);
             // The GPU profiler's sub-markers are wired only while the profiler runs, so no label is put together without it.
             if (HostSeams.GpuProfileOn())
             {
@@ -1386,6 +1388,8 @@ namespace ReDefinition.Atmospheres
                 AtmospheresLog.Say("own clouds: light cache made (" + lightCache.GridN + " x " + lightCache.GridN + " x " + lightCache.GridNz + " voxels over " + lightCache.SizeM + " m)");
             }
             f.Light.Cache = lightCache;
+            // The light volume refreshes faster under time warp (cloud.lightVolume.warp times this rate) and is off above cloud.lightVolume.warpLimit.
+            LightVolume.TimeWarpRate = TimeWarp.fetch != null ? Mathf.Max(TimeWarp.CurrentRate, 1f) : 1f;
             OwnCloudOptions.Apply(f.Light);
             OwnCloudOptions.Apply(f.Far);
             // ProbeNoSurface / ProbeNoSceneDepth: the pinned capture's distance-limit look (T09ProbePin -t09PinLimits); false unless a probe sets them.
@@ -1976,6 +1980,12 @@ namespace ReDefinition.Atmospheres
             s.Append(']');
             // The pinned capture's numbers (OwnCloudModule.Pin.cs): the frame numbers and the history, the tuning keys in force, the march and temporal settings, the type table's hash.
             s.Append(PinJsonNow());
+            // LV3: the light volume of the player's view at this frame (its lays, the slices filled and stamped) and whether its Record left the march's keyword on; the
+            // uniforms' "keywords" below are the material's at the frame's end (another camera's Record may have changed them since).
+            LayerReconstructor player = driver != null ? driver.Player : null;
+            LightVolume lv = player != null ? player.CurrentLightVolume : null;
+            s.Append(",\n \"lightVolume\": {\"keywordAtRecord\": ").Append(player == null ? "null" : player.LightVolumeKeywordAtRecord ? "true" : "false")
+             .Append(", \"state\": ").Append(lv != null ? lv.StateJson() : "null").Append('}');
             s.Append(",\n \"uniforms\": ").Append(LayerPassReadout.Uniforms(renderer.Material)).Append("}\n");
             return s.ToString();
         }

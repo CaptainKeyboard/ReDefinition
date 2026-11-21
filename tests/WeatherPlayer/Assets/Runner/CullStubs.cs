@@ -40,6 +40,12 @@ namespace ReDefinition.Atmospheres
             Values.Clear();
             version++;
         }
+
+        // One key back to its compiled default (the game's Tuning.ClearOverride).
+        internal static void ClearOverride(string key)
+        {
+            if (Values.Remove(key)) version++;
+        }
     }
 
     // The log of the atmospheres for the map store's GPU slew (LayerMapStore.GpuSlew.cs, OPT1), which the player links with the store: the game's AtmospheresLog needs the main mod's

@@ -592,6 +592,23 @@ namespace ReDefinition.Atmospheres
         // The planet's radius of the uploaded stack, and the layers of its cloud motion for the CPU model (LayerMotionModel; Presence 1, drift over driftSeconds); the count.
         internal double PlanetRadiusM { get { return radius; } }
 
+        // The lowest inner and highest outer altitude in m of the uploaded layers the march lights with the sun march (kind 0; the light volume's altitude axis; the other layers
+        // still shade through the light march), of all layers where none is of that kind; (0, 1) without layers.
+        internal Vector2 ShellAltitudes()
+        {
+            if (layerCount <= 0) return new Vector2(0f, 1f);
+            float lo = float.MaxValue, hi = float.MinValue;
+            int n = Mathf.Min(layerCount, CloudLayerDef.MaxLayers);
+            for (int pass = 0; pass < 2 && lo == float.MaxValue; pass++)
+                for (int l = 0; l < n; l++)
+                {
+                    if (pass == 0 && layerB[l].w >= 0.5f) continue;
+                    lo = Mathf.Min(lo, layerA[l].x);
+                    hi = Mathf.Max(hi, layerA[l].y);
+                }
+            return new Vector2(lo, Mathf.Max(hi, lo + 1f));
+        }
+
         internal int FillMotionLayers(MotionLayer[] into, float driftSeconds)
         {
             int n = Mathf.Min(Mathf.Min(layerCount, CloudLayerDef.MaxLayers), into.Length);
@@ -684,6 +701,8 @@ namespace ReDefinition.Atmospheres
             Apply(f);
             // The direct path has no history: the reconstruction's far rotation (LayerReconstructor) must not mark any of its pixels.
             material.SetVector(IdFarRot, Vector4.zero);
+            // Nor a light volume: the reconstruction fills it; here the march keeps today's light (the keyword a reconstruction left on is taken off).
+            LightVolume.Unbind(material);
             // The camera's pixels as the march's pixel grid: the values _ScreenParams has in the camera's render, which the shader read here before.
             material.SetVector(Shader.PropertyToID("_ReconD"), new Vector4(camera.pixelWidth, camera.pixelHeight, 0f, 0f));
             commands.Clear();

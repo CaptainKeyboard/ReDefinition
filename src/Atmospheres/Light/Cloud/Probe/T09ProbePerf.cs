@@ -107,6 +107,9 @@ namespace ReDefinition.Atmospheres
                 case "r3":
                 case "r3n":
                 case "r4n":
+                case "lvrec":
+                case "lvfar8":
+                case "lvfull":
                     return true;
                 default:
                     return false;
@@ -217,6 +220,22 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(OwnCloudOptions.TuneAge, 1f);
                     ForceTuning(OwnCloudOptions.TuneDistanceReject, 0.3f);
                     ForceTuning(OwnCloudOptions.TuneClipSigma, 2f);
+                    break;
+                // LV3 (2026-11-20, wolken-m2a-technik.md 11): the light volume's cost in the game. lvrec the recommendation (the far light from 8 km and the lateral spread from the
+                // propagation fill on 156.25 m voxels, transmittance stored over 8), lvfull the same spread with the full sun march at every distance, lvfar8 the far light from
+                // 8 km alone (direct fill, no spread).
+                case "lvrec":
+                case "lvfull":
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
+                    ForceTuning(CloudLookTuning.TuneLvHandOver, name == "lvrec" ? 8f : -1f);
+                    ForceTuning(CloudLookTuning.TuneLvSpread, 3f);
+                    ForceTuning(CloudLookTuning.TuneLvFill, 1f);
+                    ForceTuning(CloudLookTuning.TuneLvStoreK, 8f);
+                    ForceTuning(CloudLookTuning.TuneLvVoxel, 156.25f);
+                    break;
+                case "lvfar8":
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
+                    ForceTuning(CloudLookTuning.TuneLvHandOver, 8f);
                     break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;
