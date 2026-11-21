@@ -336,6 +336,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneReconResolution, OwnCloudOptions.ReconResolutionDefault, KeyLiveness.FrameHistory),
             N(OwnCloudOptions.TuneReconRotate, 0f, KeyLiveness.FrameHistory, "the rotation's block side 2 to 4 (0: the setting Cloud Rotation's 2 x 2)"),
             F(OwnCloudOptions.TuneLayerMotion, OwnCloudOptions.LayerMotionDefault, KeyLiveness.FrameHistory, "cloud motion in the history and the motion vectors"),
+            F(OwnCloudOptions.TuneHostJitter, OwnCloudOptions.HostJitterDefault, KeyLiveness.Frame, "the march's rays follow the upscaler's jitter of the scene's depth"),
             F(OwnCloudOptions.TuneMotionVectors, OwnCloudOptions.MotionVectorsDefault, note: "motion vectors for the upscalers"),
             F(OwnCloudOptions.TuneMotionAudit, OwnCloudOptions.MotionAuditDefault, note: "logs the vectors' error"),
             F(EdgeSettings.TuneReconstructor, EdgeSettings.ReconstructorDefault, KeyLiveness.FrameHistory),

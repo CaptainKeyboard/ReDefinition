@@ -25,7 +25,9 @@ namespace ReDefinition.Atmospheres
     //    layers' middle spheres, blended by the layers' share of the pixel (LayerMotionModel), weighted by the cloud's alpha where the cloud is in front of the scene. The same place is
     //    the history's lookup (recon.layerMotion). The pass draws into the camera target before the image effects; the upscaler sees the clouds as part
     //    of the colour. With the reconstruction (off by default) the cloud keeps its own history: the block levels of cloudResolution a full-size one, the
-    //    half-size march of level 1 one of its own size behind recon.accumulate (E40 grain; default 0.2, 0 = none); the upscaler's jitter is not applied to the rays.
+    //    half-size march of level 1 one of its own size behind recon.accumulate (E40 grain; default 0.2, 0 = none). The upscaler's jitter: with recon.hostJitter the march's rays
+    //    follow the jittered projection the scene's depth was rendered with (each ray is tested against the depth texel rendered along it), while the history's reprojection
+    //    and the motion vectors keep the unjittered camera; without it the rays are the unjittered ones.
     //  - depth: the camera's depth texture, made linear by ReDefinitionAtmospheresLayerDepth.shader, limits the march and the composite
     //    (depth-aware); the clouds write no depth. [VERIFY] that _CameraDepthTexture is readable at the chosen event under the Deferred mod.
     //  - masks: no reactive mask for DLSS. HUD-less frame generation: the pass is part of the scene colour before the HUD. Raytracing: the
@@ -1713,6 +1715,9 @@ namespace ReDefinition.Atmospheres
                 // The history is carried by the wind over the frame's time, scaled as the noise's drift is (cloud.motionScale, default 1: the frame's time as before; 0 holds the
                 // pattern still, and the history then stays where the pattern stands instead of following a wind that moves nothing).
                 recon.DriftSeconds = lastDt * CloudMotion.Scale;
+                // The jitter the scene and its depth render with in this frame (the host decides it before the first scene camera culls, ahead of this camera's cull).
+                Vector4 hostJitter = Shader.GetGlobalVector(HostJitter);
+                recon.HostJitterNdc = new Vector2(hostJitter.z, hostJitter.w);
                 reconstruct = driver.Configure(Tuning.Get, recon);
             }
             if (reconstruct)
@@ -1742,7 +1747,7 @@ namespace ReDefinition.Atmospheres
                 // The plain path does not fill the light cache: the march marches the whole way to the sun.
                 if (lightCache != null) lightCache.Enabled = false;
                 Stats.LightCacheOn = false;
-                renderer.Prepare(cam, frame, depth, begin, null, end);
+                renderer.Prepare(cam, frame, depth, begin, null, end, driver != null && recon.HostJitter ? ReconSettings.RayJitter(recon.HostJitterNdc) : Vector2.zero);
                 Stats.PlainFrames++;
                 Stats.Mode = "plain";
             }

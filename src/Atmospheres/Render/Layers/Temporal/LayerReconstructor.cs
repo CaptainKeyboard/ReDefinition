@@ -24,6 +24,11 @@ namespace ReDefinition.Atmospheres
         // Low: the march target's size over the full one, and whether its rays carry the sub-pixel Halton jitter the upscaler would give them.
         public float Resolution = 0.5f;
         public bool Jitter;
+        // recon.hostJitter: the march's rays follow the projection the scene and its depth were rendered with (the upscaler's jitter), in every mode; the history's
+        // reprojection and the cloud's motion vectors keep the unjittered camera. HostJitterNdc is that frame's jitter as the host publishes it (_ReDefinition_Jitter z, w:
+        // the shift of the projection in normalized device coordinates; zero without an upscaler), set by the caller each frame; it is not a setting, so pass.json does not carry it.
+        public bool HostJitter;
+        internal Vector2 HostJitterNdc;
         // Low (E40 grain): above 0 the reduced march target is blended into a history of its own size before it is laid up (the weight of the new frame; the
         // history is reprojected and clipped like the block mode's, ReDefinitionAtmospheresReconstruct.shader with a block of 1). 0: no history, every frame is
         // the march alone (the mode as it was).
@@ -69,6 +74,15 @@ namespace ReDefinition.Atmospheres
         public int Debug;
         // Package T12: the edge-adaptive resolution on top of the 4 x 4 block mode (null or not Enabled: the block mode as it was).
         public EdgeSettings Edge;
+
+        // The offset of the march's rays (added to a pixel's ndc, LayerRenderer.SetCamera) for the host's jitter. The host shifts the projection by hostJitterNdc
+        // (CameraRedirect.Jittered: a translation in front of the projection), so what lies at ndc n without the jitter is drawn at n + hostJitterNdc, and the depth texel
+        // of a pixel holds the scene along the unjittered ray of its centre minus the jitter. Zero in, zero out with a positive sign (0 - 0), so that a frame without the
+        // jitter sets the same bits as the pass without this switch.
+        internal static Vector2 RayJitter(Vector2 hostJitterNdc)
+        {
+            return new Vector2(0f - hostJitterNdc.x, 0f - hostJitterNdc.y);
+        }
 
         internal ReconSettings Clone()
         {
@@ -401,6 +415,11 @@ namespace ReDefinition.Atmospheres
                 int phase = frameNumber % 16 + 1;
                 jitterNdc = new Vector2((ReconPattern.Halton(phase, 2) - 0.5f) * 2f / low.width, (ReconPattern.Halton(phase, 3) - 0.5f) * 2f / low.height);
             }
+            else if (s.HostJitter)
+            {
+                jitterNdc = ReconSettings.RayJitter(s.HostJitterNdc);
+            }
+            // Only the march's camera carries the jitter: the reconstruction below and BindPose set the unjittered pose, so the history and the motion vectors stay keyed to it.
             renderer.SetCamera(t.position, t.forward, t.right * tanX, t.up * tanY, jitterNdc);
             f.FrameNumber = frameNumber;
             f.Cull.PixelAngleRad = 2f * tanY / (s.Mode == ReconMode.Low ? low.height : h);   // T16: the pixel the detail LOD resolves

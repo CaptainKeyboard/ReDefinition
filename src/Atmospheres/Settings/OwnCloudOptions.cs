@@ -109,6 +109,11 @@ namespace ReDefinition.Atmospheres
         // block, at full size, and blends it into that pixel's history with the accumulation weight; the other pixels keep their reprojected history (Catmull-Rom) alone. The owner judged
         // N = 2 equal to the full march in the weather player still, turning and flying (2026-11-19, e40puff rot2ac against k4_stride); the march costs a third (33 against 97 ms).
         internal const string TuneReconRotate = "recon.rotate";
+        // recon.hostJitter (ReconSettings.HostJitter): the march's rays carry the upscaler's jitter, so that each ray is the one the scene's depth texel of its pixel was
+        // rendered for (the depth test at the terrain's silhouette); the history's reprojection and the motion vectors keep the unjittered camera. Without an upscaler's jitter
+        // the pass is the same either way.
+        internal const string TuneHostJitter = "recon.hostJitter";
+        internal const bool HostJitterDefault = false;
         // layers.lightReuseMove 1 (default 0): a lit step that reuses the last sun march moves its optical depth by what the ray crossed since, projected on the sun's direction
         // (LayerFrame.LightReuseMove); a test for a longer layers.lightStride.
         internal const string TuneLightReuseMove = "layers.lightReuseMove";
@@ -472,6 +477,7 @@ namespace ReDefinition.Atmospheres
             s.Mode = low ? ReconMode.Low : (level > 1 ? ReconMode.Block : ReconMode.Full);
             s.Block = Math.Max(2, level);
             s.LayerMotion = Tuning.Flag(TuneLayerMotion, LayerMotionDefault);
+            s.HostJitter = Tuning.Flag(TuneHostJitter, HostJitterDefault);
             s.CatmullHistory = Tuning.Flag(TuneCatmull, CatmullDefault);
             s.TrueDistance = Tuning.Flag(TuneTrueDistance, TrueDistanceDefault);
             s.Age = Tuning.Flag(TuneAge, AgeDefault);
