@@ -24,7 +24,9 @@ namespace ReDefinition.Atmospheres
     internal static class WeatherMapSky
     {
         internal const string TuneKey = "cloud.weatherMapSky";
-        internal const float Default = 0f;
+        // On by default (owner 2026-11-22: the sky is the weather map's; the even 3 km lattice of single clouds was a test arrangement). The single-cloud bodies (cloud.cells)
+        // stay on: without them the map's texels are the soft lumps the owner rejected on 2026-11-19.
+        internal const float Default = 1f;
         // The level counts as saturated from here (RESULTS.md of the M1 count, section 3: the generator caps humidity at 1).
         internal const float SaturatedRh = 0.9999f;
 
