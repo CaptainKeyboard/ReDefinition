@@ -50,7 +50,6 @@ namespace ReDefinition.Atmospheres.Viewer
             // clamps it to 0.25 to 8 (the march is capped at 256 points a span), the slider shows 0.25 to 4, which holds the stops 1 (48 points), 2 (96) and 2.6667 (128) and 4 (192).
             { OwnCloudOptions.TuneGridFine, new[] { 0.25f, 4f } },
             { OwnCloudOptions.TuneLightStride, new[] { 1f, 8f } },
-            { OwnCloudOptions.TuneLightReuseMove, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneCostCutM, new[] { 0f, 40000f } },
             { OwnCloudOptions.TuneCostStartM, new[] { 0f, 40000f } },
             { OwnCloudOptions.TuneSpanGrowthPerM, new[] { 0f, 0.002f } },
@@ -64,19 +63,14 @@ namespace ReDefinition.Atmospheres.Viewer
             { OwnCloudOptions.TuneCostDebug, new[] { 0f, 15f } },
             { OwnCloudOptions.TuneSpanSpacingMin, new[] { 1f, 256f } },
             { OwnCloudOptions.TuneDitherSequence, new[] { 1f, 3f } },
-            { OwnCloudOptions.TuneWarpTable, new[] { 0f, 2f } },
-            { OwnCloudOptions.TuneCutWeight, new[] { 0.001f, 0.5f } },
-            { OwnCloudOptions.TuneTapFactor, new[] { 1f, 8f } },
             { OwnCloudOptions.TuneFootScale, new[] { 0f, 8f } },
             { OwnCloudOptions.TuneCapKeep, new[] { 1f, 8f } },
             { OwnCloudOptions.TuneMinStepM, new[] { 0f, 100f } },
-            { OwnCloudOptions.TuneFrameStepGrowth, new[] { -1f, 0.001f } },
             { OwnCloudOptions.TuneEarlyOut, new[] { 0f, 0.05f } },
             { OwnCloudOptions.TuneSunMarchM, new[] { 0f, 20000f } },
             { OwnCloudOptions.TuneSunSteps, new[] { 0f, 32f } },
             { EdgeSettings.TuneDilation, new[] { 0f, (float)EdgeSettings.MaxDilation } },
             { EdgeSettings.TunePersist, new[] { 1f, 32f } },
-            { CloudLookTuning.TuneDensityRemap, new[] { 0f, 1f } },
             { CloudLookTuning.TuneCoverCombine, new[] { 0f, 1f } },
             { CloudLookTuning.TuneFadeNearShare, new[] { 0f, 1f } },
             { CloudLookTuning.TuneFarHaze, new[] { -1f, 2f } },
@@ -85,7 +79,6 @@ namespace ReDefinition.Atmospheres.Viewer
             { CloudLookTuning.TuneBillowLight, new[] { 0f, 8f } },
             { CloudLookTuning.TuneBillowContrast, new[] { 0f, 8f } },
             { CloudLookTuning.TuneBillowTop, new[] { 0f, 8f } },
-            { CloudLookTuning.TuneBillowSharpen, new[] { 0f, 1f } },
             { CloudLookTuning.TuneSoloLayer, new[] { 0f, (float)CloudLayerDef.MaxLayers } },
             { CloudCoverShift.TuneShift, new[] { -1f, 1f } },
             { CloudCoverShift.TuneShiftRain, new[] { -1f, 1f } }
@@ -95,10 +88,9 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             var map = new Dictionary<string, KeySection>(StringComparer.Ordinal);
             Put(map, KeySection.Shape,
-                CloudLookTuning.TuneSigma, CloudLookTuning.TuneNoiseAmount, CloudLookTuning.TuneNoiseSize, CloudLookTuning.TuneDensityRemap,
-                CloudSoftDensity.TuneCoverMeaning,
+                CloudLookTuning.TuneSigma, CloudLookTuning.TuneNoiseSize,
                 CloudLookTuning.TuneBillowLight, CloudLookTuning.TuneBillowContrast, CloudLookTuning.TuneBillowTop, CloudLookTuning.TuneBillowFine,
-                CloudLookTuning.TuneBillowFineFreq, CloudLookTuning.TuneBillowSharpen);
+                CloudLookTuning.TuneBillowFineFreq);
             Put(map, KeySection.Edge,
                 CloudLookTuning.TuneSoftness, CloudLookTuning.TuneFadeFar, CloudLookTuning.TuneFadeNearShare, CloudLookTuning.TuneFarHaze);
             Put(map, KeySection.Light,
@@ -113,16 +105,15 @@ namespace ReDefinition.Atmospheres.Viewer
                 OwnCloudOptions.TuneCellIncidenceRef, OwnCloudOptions.TuneCellIncidenceEps, LightWriter.TuneSunDimWeight, LightWriter.TuneSunDimWeightEve,
                 CloudShadowStepPolicy.TuneKey, CloudShadowShapeNoise.TuneKey, OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.TuneShadowTaps);
             Put(map, KeySection.Quality,
-                OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent, OwnCloudModule.TuneReaddEveryFrame, OwnCloudModule.TuneStatsS,
+                OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent, OwnCloudModule.TuneReaddEveryFrame,
                 OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.TuneSpanSpacing, OwnCloudOptions.TuneSpanSpacingMin, OwnCloudOptions.TuneLeapScale,
-                OwnCloudOptions.TuneWarpTable, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightReuseMove, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneCheapShare,
-                OwnCloudOptions.TuneFogShare, OwnCloudOptions.TuneCostDebug, OwnCloudOptions.TuneCostCutM, OwnCloudOptions.TuneCostStartM, OwnCloudOptions.TuneSpanGrowthPerM, OwnCloudOptions.TuneLeapDebug, OwnCloudOptions.TuneSpanGrowthFromM, OwnCloudOptions.TuneGridFine,OwnCloudOptions.TuneSpanTight, OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.TuneDitherFix,
+                OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneCheapShare,
+                OwnCloudOptions.TuneFogShare, OwnCloudOptions.TuneCostDebug, OwnCloudOptions.TuneCostCutM, OwnCloudOptions.TuneCostStartM, OwnCloudOptions.TuneSpanGrowthPerM, OwnCloudOptions.TuneLeapDebug, OwnCloudOptions.TuneSpanGrowthFromM, OwnCloudOptions.TuneGridFine,OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.TuneDitherFix,
                 OwnCloudOptions.TuneAccumulate, OwnCloudOptions.TuneReconResolution, OwnCloudOptions.TuneReconRotate, OwnCloudOptions.TuneLayerMotion, OwnCloudOptions.TuneMotionVectors,
                 OwnCloudOptions.TuneMotionAudit, OwnCloudOptions.TuneHostJitter, EdgeSettings.TuneReconstructor, EdgeSettings.TuneEdgeAdaptive, EdgeSettings.TuneThreshold, EdgeSettings.TuneDilation,
                 EdgeSettings.TunePersist,
-                OwnCloudOptions.TuneCutWeight, OwnCloudOptions.TuneStepGrowth, OwnCloudOptions.TuneTapStart, OwnCloudOptions.TuneTapEnd, OwnCloudOptions.TuneTapFactor,
                 OwnCloudOptions.TuneFootScale, OwnCloudOptions.TuneCapKeep,
-                OwnCloudOptions.TuneMinStepM, OwnCloudOptions.TuneFrameStepGrowth, OwnCloudOptions.TuneEarlyOut, OwnCloudOptions.TuneSunMarchM, OwnCloudOptions.TuneSunSteps);
+                OwnCloudOptions.TuneMinStepM, OwnCloudOptions.TuneEarlyOut, OwnCloudOptions.TuneSunMarchM, OwnCloudOptions.TuneSunSteps);
             Put(map, KeySection.Weather,
                 CloudMotion.TuneScale, CloudCoverShift.TuneShift, CloudCoverShift.TuneShiftRain, CloudLookTuning.TuneCoverCombine, CloudLookTuning.TuneSoloLayer,
                 CloudLookTuning.TuneCellKm, CloudLookTuning.TuneCellLat, CloudLookTuning.TuneCellLon);
@@ -143,7 +134,7 @@ namespace ReDefinition.Atmospheres.Viewer
         // The group of the per-layer keys by their prefix: the look factors of a layer are Shape, the rest (map and type values, deck rule, shift) Weather.
         internal static KeySection SectionOfLayerKey(string prefix)
         {
-            if (prefix == CloudLookTuning.TuneSigma + "." || prefix == CloudLookTuning.TuneNoiseAmount + "." || prefix == CloudLookTuning.TuneNoiseSize + ".") return KeySection.Shape;
+            if (prefix == CloudLookTuning.TuneSigma + "." || prefix == CloudLookTuning.TuneNoiseSize + ".") return KeySection.Shape;
             if (prefix == CloudLookTuning.TuneSoftness + ".") return KeySection.Edge;
             return KeySection.Weather;
         }

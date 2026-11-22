@@ -30,9 +30,6 @@ namespace ReDefinition.Atmospheres.Viewer
                 "the march's sample spacing raises the heap volume's mip level; off: only the smoothing does", KeyLiveness.FrameHistory);
             r.Flag(CloudLookTuning.TuneHeapIso, true, KeySection.Shape,
                 "the heap is read at the lattice's true vertical scale, so a layer's vertical scale does not stretch the lobes into columns; off: as the shape volume is read", KeyLiveness.FrameHistory);
-            r.Key(CloudLookTuning.TuneHeapWarp, (float)HeapModel.WarpShare, KeySection.Shape,
-                "share of the untiling displacement's horizontal part the heap lookup keeps, 0 to 1; below 0 the whole displacement (the pulled lookup)", KeyLiveness.FrameHistory,
-                KeyMarker.Live, -1f, 1f);
             // CloudLookTuning.NoiseBlend and the two numbers are read by LayerNoise.LayerParams every frame (CLOUDR2: the layer pass has the blended lookup, one call site with a four-tap loop; the CPU
             // twin follows for the cloud shadow).
             r.Flag(CloudLookTuning.TuneNoiseBlend, CloudLookTuning.NoiseBlendDefault > 0.5f, KeySection.Shape,
@@ -49,8 +46,6 @@ namespace ReDefinition.Atmospheres.Viewer
                 "gain of a single cloud's finer billows, the heads on the heads (0 off; below 0 each layer's cellFine)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 4f);
             r.Flag(CloudLookTuning.TuneCellTrace, CloudLookTuning.CellTraceDefault > 0.5f, KeySection.Shape,
                 "single clouds: the march leaps the grid points beyond the reach of a body's billows (the same picture, fewer samples)", KeyLiveness.FrameHistory);
-            r.Flag(CloudLookTuning.TuneCellFoot, CloudLookTuning.CellFootDefault > 0.5f, KeySection.Shape,
-                "single clouds: the body filtered by the sample's footprint (finer billows fade once the sample is wider than them, the surface band at least a pixel)", KeyLiveness.FrameHistory);
             r.Flag(CloudLookTuning.TuneCellShell, CloudLookTuning.CellShellDefault > 0.5f, KeySection.Shape,
                 "single clouds: fine steps inside a body's shell, where its surface can lie (heads smaller than the grid step are not missed)", KeyLiveness.FrameHistory);
             // LV1: the light volume (LightVolume.cs), read every frame by LayerReconstructor.Record.
@@ -111,16 +106,6 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneHeapDetail, 0f, KeySection.Shape,
                 "Hurst exponent of the erosion detail octaves, 0 the compiled weights; read only when the noise volumes are made (a scene change or a change of Cloud Noise Size)",
                 KeyLiveness.Volume, KeyMarker.AfterVolumeRebuild, 0f, 2f);
-            // P6, a measured dead end: smooth look, +3.9 ms. Read every frame (LayerRenderer.Apply, _FirstHitP).
-            r.Key(CloudLookTuning.TuneFirstHit, 0f, KeySection.Quality,
-                "experimental, a measured dead end (smooth look, +3.9 ms): bisection evaluations on the entered span, 0 off", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 8f);
-            r.Key(CloudLookTuning.TuneFirstHitThin, 0.25f, KeySection.Quality,
-                "experimental: the thin steps inside the cloud as a share of the grid step", KeyLiveness.FrameHistory, KeyMarker.Live, 0.02f, 1f);
-            r.Key(CloudLookTuning.TuneFirstHitShell, 32f, KeySection.Quality,
-                "experimental: how many thin steps follow the entry", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 512f);
-            r.Key(CloudLookTuning.TuneFirstHitNear, 0f, KeySection.Quality,
-                "experimental: distance in m up to which the thin steps are taken, 0 everywhere (the reader clamps to 1e7; the slider stops at 20000)", KeyLiveness.FrameHistory,
-                KeyMarker.Live, 0f, 20000f);
 
             // OPT1: the map pipeline. cloud.mapGpuSlew is read when the map store is made (OwnCloudModule.cs:642, a stack build) and when a fetch round starts (:769, a change
             // switches the mode at the next round); cloud.mapWorker is read when each steady-state round starts (:789), so a change acts within about a second.

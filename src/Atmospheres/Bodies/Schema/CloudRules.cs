@@ -62,7 +62,7 @@ namespace ReDefinition.Atmospheres
         // The type's height-shaped threshold (E40 L2 D1; cfg node LIFT { key0 = height lift, ... }, null: none): at the height h of the type (0 base, 1 top) the coverage threshold is lifted by
         // lift(h) in units of the layer's headroom (LayerTypeTable.LiftHeadroom: 1 lowers the map so far that no noise value passes even at map 1), so the cloud's outline is narrower there
         // than where the lift is 0 (Schneider's height gradient, as data per type). A cumulus lifts towards the top (a dome over a flat base), a cumulonimbus lifts its middle and lets the
-        // top stand wide (the anvil). Never negative: the lift only lowers the map value, so the coverage bounds of the march and of the span cut (LayerSpanBound.Bound) stay exact. Baked
+        // top stand wide (the anvil). Never negative: the lift only lowers the map value, so the coverage bounds of the march and of the tile cull stay exact. Baked
         // into the type's tabulated profile texture (channel a, LayerTypeTable.LiftData) together with the top's closure (TopClose).
         internal Curve Lift { get; set; }
         // The share of the type's height over which its top closes (E40 CB step 0; cfg key topClose, 0 to 1): the baked lift is at least the ramp (h - (1 - TopClose)) / TopClose, so at the
@@ -168,8 +168,8 @@ namespace ReDefinition.Atmospheres
         internal LayerKind Kind { get; }
 
         // The share of the map that clouds: a column is cloud where the coverage map is above 1 - Coverage (a ranked map gives the
-        // share Coverage of the body), 0 to 1. Read only with cloud.coverMeaning 0 (the old mapping) and by a layer without noise; with the cover meaning (default) the outline is at
-        // noise rank 1 - map value and Coverage cancels out of EffectiveCoverage and ClearSkyK (only the runtime shifts remain), so the cfg key coverage has no effect then.
+        // share Coverage of the body), 0 to 1. Read by a layer without noise; the outline of a layer with noise is at noise rank 1 - map value and Coverage cancels out of
+        // EffectiveCoverage and ClearSkyK (only the runtime shifts remain), so the cfg key coverage has no effect there.
         internal float Coverage { get; set; }
         // The group of the layer's spec (members of a group never show together), or empty; the layer-selective coverage shift acts on one group.
         internal string Group { get; set; } = "";
@@ -181,9 +181,8 @@ namespace ReDefinition.Atmospheres
             get
             {
                 if (!Soft) return ThresholdCoverage;
-                double w = SoftWidth, a = SoftAmount;
-                double c = CloudSoftDensity.CoverMeaning ? 0.5 + (ThresholdCoverage - Coverage) + (SoftClosed - 0.5) * w
-                                                          : ThresholdCoverage + 0.5 * LookedEdgeSoftness + (SoftClosed - 0.5) * a * w;
+                double w = SoftWidth;
+                double c = 0.5 + (ThresholdCoverage - Coverage) + (SoftClosed - 0.5) * w;
                 return (float)c;
             }
         }
@@ -200,20 +199,19 @@ namespace ReDefinition.Atmospheres
         // The numbers of the layer with the look knobs applied (CloudLookTuning; every default is a factor of 1 or no change): the readers use these, never the configured ones.
         internal float EffectiveSigmaPerM { get { Look(); return lookSigma == 1f ? SigmaPerM : SigmaPerM * lookSigma; } }
         internal float EffectiveEdgeSoftness { get { return Soft ? (float)(SoftAmount * SoftWidth) : LookedEdgeSoftness; } }
-        internal float EffectiveNoiseAmount { get { return Soft ? (float)SoftAmount : ConfiguredNoiseAmount; } }
+        internal float EffectiveNoiseAmount { get { return Soft ? (float)SoftAmount : NoiseAmount; } }
         // The cfg's edge softness with the look knob (cloud.layerSoftnessScale): the width of the plain soft edge. It centres the soft water content's outline (0.5 of it is in
         // EffectiveCoverage) and is the edge of a layer without noise.
         internal float LookedEdgeSoftness { get { Look(); return lookSoftness == 1f ? EdgeSoftness : EdgeSoftness * lookSoftness; } }
-        private float ConfiguredNoiseAmount { get { Look(); return lookNoiseAmount == 1f ? NoiseAmount : NoiseAmount * lookNoiseAmount; } }
 
         // ---- The soft water content (E40 soft density, package B1): ONE place that turns the layer's cfg numbers into the numbers every reader uses. ----
         // The layer shader, the cloud shadow and every CPU twin evaluate the share saturate((map + (n - 0.5) A + cov - 1) / edge + 0.5), eroded, to a power. With
-        //   A = the layer's noise amount, w = the owner's softness x SoftnessScale, edge = A w, cov = C + 0.5 e + (closed - 0.5) A w
-        // (C the threshold coverage, e the cfg's edge softness, closed the water content at which a column of the layer's types is just closed), no edge hardness and the exponent
-        // WaterPower this IS CloudWater's water content whose outline is where the old share began (CloudWaterTests). The thin water below the outline must not appear where the old
-        // cloud did not exist: the map value is moved before the share, map' = min(map, 2 map - K) (ClearSkyMap), K = m0 + closed A w with m0 = 1 - C - 0.5 e - 0.5 A.
-        // Where the layer has no noise (A = 0) it keeps the plain soft edge of its cfg numbers.
-        internal bool Soft { get { return ConfiguredNoiseAmount > 0f; } }
+        //   A = 1 (the noise rank itself), w = the owner's softness x SoftnessScale, edge = w, cov = 0.5 + (T - C) + (closed - 0.5) w
+        // (T the threshold coverage with the runtime shifts, C the cfg's coverage, closed the water content at which a column of the layer's types is just closed), no edge hardness and the exponent
+        // WaterPower this IS CloudWater's water content whose outline is at noise rank 1 - map value, so a map value is the share of the sky the layer closes (CloudWaterTests). The thin
+        // water below the outline must not appear where the map is low: the map value is moved before the share, map' = min(map, 2 map - K) (ClearSkyMap), K = closed w - (T - C).
+        // Where the layer has no noise (cfg noiseAmount 0) it keeps the plain soft edge of its cfg numbers.
+        internal bool Soft { get { return NoiseAmount > 0f; } }
         // The factor on the owner's softness: the layer's cfg key softnessScale (a weather deck softer, a cirrus sheet softest).
         internal float SoftnessScale { get; set; } = 1f;
         // The exponent of the water content in the density: the layer's cfg key waterPower (2: the density grows with the square of the water; 1: thin sheets have no core).
@@ -329,9 +327,8 @@ namespace ReDefinition.Atmospheres
             return InnerAltitudeM + 0.5 * (t.BaseShare + t.TopShare) * ThicknessM;
         }
 
-        // 1 with the cover meaning: the noise amount is the rank space itself there (scaling it would break "a map value is the share of the sky"), so cfg noiseAmount and the look key
-        // cloud.layerNoiseAmountScale only decide whether the layer has noise (Soft); they set the amount only with cloud.coverMeaning 0 (the old mapping, kept switchable).
-        private double SoftAmount { get { return CloudSoftDensity.CoverMeaning ? 1.0 : ConfiguredNoiseAmount; } }
+        // 1: the noise amount is the rank space itself (scaling it would break "a map value is the share of the sky"), so the cfg noiseAmount only decides whether the layer has noise (Soft).
+        private const double SoftAmount = 1.0;
         // The width of the water content's rise in noise rank.
         private double SoftWidth { get { return Math.Max(0.02, CloudSoftDensity.Softness * SoftnessScale); } }
 
@@ -405,9 +402,8 @@ namespace ReDefinition.Atmospheres
             get
             {
                 if (!Soft) return 0f;
-                double w = SoftWidth, a = SoftAmount, k;
-                if (CloudSoftDensity.CoverMeaning) k = SoftClosed * w - (ThresholdCoverage - Coverage);
-                else k = (1.0 - ThresholdCoverage - 0.5 * LookedEdgeSoftness - 0.5 * a) + SoftClosed * a * w;
+                double w = SoftWidth;
+                double k = SoftClosed * w - (ThresholdCoverage - Coverage);
                 return (float)Math.Max(0.0, k);
             }
         }
@@ -438,7 +434,7 @@ namespace ReDefinition.Atmospheres
         // The look knobs of this layer (CloudLookTuning), read again when the tuning table changed (CloudCoverShift.Stamp rises with it): the CPU readers ask these getters for every
         // sample, so the by-name lookups are done once per change, not once per call. The configured numbers are multiplied at the call, so a test that sets them still sees them.
         private long lookStamp = -1;
-        private float lookShift, lookSigma = 1f, lookSoftness = 1f, lookNoiseAmount = 1f, lookNoiseSize = 1f, lookFadeNear, lookFadeFar;
+        private float lookShift, lookSigma = 1f, lookSoftness = 1f, lookNoiseSize = 1f, lookFadeNear, lookFadeFar;
         private bool lookFade;
 
         private void Look()
@@ -448,7 +444,6 @@ namespace ReDefinition.Atmospheres
             lookShift = CloudLookTuning.ShiftOf(Name);
             lookSigma = CloudLookTuning.SigmaScaleOf(Name);
             lookSoftness = CloudLookTuning.SoftnessScaleOf(Name);
-            lookNoiseAmount = CloudLookTuning.NoiseAmountScaleOf(Name);
             lookNoiseSize = CloudLookTuning.NoiseSizeScaleOf(Name);
             lookFade = CloudLookTuning.FadeFor(out lookFadeNear, out lookFadeFar);
             System.Threading.Volatile.Write(ref lookStamp, stamp);

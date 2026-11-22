@@ -266,7 +266,6 @@ namespace ReDefinition.Atmospheres.Viewer
             F(OwnCloudModule.TuneAfterScatterer, true, KeyLiveness.Second, note: "read once a second (OwnCloudModule.OnPreRender); the buffers move behind Scatterer's scattering within a second"),
             N(OwnCloudModule.TuneCameraEvent, 0f, note: "0 BeforeForwardAlpha, 1 AfterForwardAlpha, 2 BeforeImageEffects; buffers move"),
             F(OwnCloudModule.TuneReaddEveryFrame, false),
-            N(OwnCloudModule.TuneStatsS, 30f, note: "seconds between statistics lines"),
             N(CloudMotion.TuneScale, CloudMotion.DefaultScale, note: "cloud speed, 0 to 50"),
             // The haze (OwnCloudModule.FillFrame, ResolveAir).
             N(CloudHazePlan.TuneAirSource, -1f, note: "-1 auto, re-read when it changes"),
@@ -279,9 +278,7 @@ namespace ReDefinition.Atmospheres.Viewer
             // The look knobs (CloudLookTuning, CloudCoverShift, CloudSoftDensity).
             N(CloudLookTuning.TuneSigma, 1f, KeyLiveness.Change),
             N(CloudLookTuning.TuneSoftness, 1f, KeyLiveness.Change),
-            N(CloudLookTuning.TuneNoiseAmount, 1f, KeyLiveness.Change),
             N(CloudLookTuning.TuneNoiseSize, 1f, KeyLiveness.Change),
-            N(CloudLookTuning.TuneDensityRemap, 0f, KeyLiveness.Change),
             N(CloudLookTuning.TuneCoverCombine, CloudLookTuning.DefaultCoverCombine, KeyLiveness.Change, "a map round follows"),
             N(CloudLookTuning.TuneFadeFar, 0f, KeyLiveness.Change),
             N(CloudLookTuning.TuneFadeNearShare, 0.5f, KeyLiveness.Change),
@@ -293,31 +290,26 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneCellLon, 0f, KeyLiveness.Change, "centre of the forced cell, degrees"),
             N(CloudCoverShift.TuneShift, 0f, KeyLiveness.Change),
             N(CloudCoverShift.TuneShiftRain, 0f, KeyLiveness.Change),
-            F(CloudSoftDensity.TuneCoverMeaning, CloudSoftDensity.DefaultCoverMeaning, KeyLiveness.Change),
             // The billow detail (CloudLookTuning; read in LayerNoise.Bind every frame).
             N(CloudLookTuning.TuneBillowLight, 0f, KeyLiveness.FrameHistory, "billow shading of the direct light, 0 off"),
             N(CloudLookTuning.TuneBillowContrast, 1f, KeyLiveness.FrameHistory, "contrast of the erosion detail about its mean"),
             N(CloudLookTuning.TuneBillowTop, 0f, KeyLiveness.FrameHistory, "erosion gain toward the cloud's top"),
             N(CloudLookTuning.TuneBillowFine, -1f, KeyLiveness.FrameHistory, "weight of the fine octave, -1 compiled"),
             N(CloudLookTuning.TuneBillowFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
-            N(CloudLookTuning.TuneBillowSharpen, 0f, KeyLiveness.FrameHistory, "spline upsampling of the march target, 0 bilinear"),
-            // The keys of the new cloud model (heap, edgePower, cavity, noise blend, first hit) are registered by CloudModelKeys (a CloudKeySource), not listed here.
+            // The keys of the new cloud model (heap, edgePower, cavity, noise blend) are registered by CloudModelKeys (a CloudKeySource), not listed here.
             // The march's cost controls (OwnCloudOptions.Apply(LayerFrame)).
             F(OwnCloudOptions.TuneCoverageBound, Frame0.CoverageBound),
             F(OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.EmptyReachDefault),
             N(OwnCloudOptions.TuneSpanSpacing, OwnCloudOptions.SpanSpacingDefault),
             N(OwnCloudOptions.TuneSpanSpacingMin, OwnCloudOptions.SpanSpacingMinDefault),
             N(OwnCloudOptions.TuneLeapScale, OwnCloudOptions.LeapScaleDefault),
-            N(OwnCloudOptions.TuneWarpTable, OwnCloudOptions.WarpTableDefault, note: "a table bake follows"),
             N(OwnCloudOptions.TuneLightStride, Frame0.LightStride),
-            N(OwnCloudOptions.TuneLightReuseMove, 0f, note: "1 moves a stride step's reused sun optical depth by the ray's progress (measured: no gain worth its change)"),
             N(OwnCloudOptions.TuneLightCutoff, Frame0.LightCutoff),
             N(OwnCloudOptions.TuneEmptyLeap, Frame0.EmptyLeap),
             N(OwnCloudOptions.TuneCheapShare, Frame0.CheapShare),
             N(OwnCloudOptions.TuneFogShare, Frame0.FogShare),
             // The owner's look (the default since 2026-11-19; at or below 0 the step and light quality's value).
             N(OwnCloudOptions.TuneMinStepM, OwnCloudOptions.LookMinStepM, note: "shortest step in m, the owner's look 6; 0 the step quality's"),
-            N(OwnCloudOptions.TuneFrameStepGrowth, OwnCloudOptions.LookStepGrowth, note: "the step's growth per m along the ray, the owner's look 0; below 0 the step quality's"),
             N(OwnCloudOptions.TuneEarlyOut, 0f, note: "the transmittance a ray ends at, the ceiling march 0.001; 0 the product's"),
             N(OwnCloudOptions.TuneSunMarchM, OwnCloudOptions.LookSunMarchM, note: "the length of the march towards the sun in m, the owner's look 12000; 0 the setting's"),
             N(OwnCloudOptions.TuneSunSteps, OwnCloudOptions.LookSunSteps, note: "taps towards the sun, the owner's look 8; 0 the light quality's"),
@@ -328,7 +320,6 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneLeapDebug, -1f, KeyLiveness.Frame, "the leap over empty grid points, bits (-1 the march's own: 136 with layers.spanGrowthPerM, else 0): 8 a leap ends where cloud can begin (slab, band, reach), 128 restart after such an end"),
             N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),
             N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
-            F(OwnCloudOptions.TuneSpanTight, OwnCloudOptions.SpanTightDefault),
             N(OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.DitherSequenceDefault, KeyLiveness.FrameHistory, "1 hash, 2 gradient, 3 blue noise"),
             F(OwnCloudOptions.TuneDitherFix, OwnCloudOptions.DitherFixDefault, KeyLiveness.FrameHistory),
             // The reconstruction (OwnCloudOptions.Apply(ReconSettings), LayerReconstructDriver.Configure).
@@ -368,12 +359,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneCellIncidenceEps, Light.CellIncidenceEps),
             N(LightWriter.TuneSunDimWeight, LightWriter.SunDimWeightDefault, note: "sun dimming by the clouds"),
             N(LightWriter.TuneSunDimWeightEve, LightWriter.SunDimWeightEveDefault, note: "the same with an EVE layer"),
-            // The culling and the distance LOD (OwnCloudOptions.Apply(CullSettings)).
-            N(OwnCloudOptions.TuneCutWeight, Cull.CutWeight),
-            N(OwnCloudOptions.TuneStepGrowth, Cull.StepGrowthPerM),
-            N(OwnCloudOptions.TuneTapStart, Cull.TapStartM),
-            N(OwnCloudOptions.TuneTapEnd, Cull.TapEndM),
-            N(OwnCloudOptions.TuneTapFactor, Cull.TapFactor),
+            // The culling (OwnCloudOptions.Apply(CullSettings)).
             N(OwnCloudOptions.TuneFootScale, Cull.FootScale),
             N(OwnCloudOptions.TuneCapKeep, Cull.CapKeepSpans),
             // The cloud shadow (OwnCloudOptions.Apply(CloudShadowFrame)).
@@ -395,7 +381,6 @@ namespace ReDefinition.Atmospheres.Viewer
             new CloudLayerKey(CloudLookTuning.TuneLayerShift, 0f, "coverage shift of the layer", -1f, 1f),
             new CloudLayerKey(CloudLookTuning.TuneSigma + ".", 1f, "sigma factor of the layer"),
             new CloudLayerKey(CloudLookTuning.TuneSoftness + ".", 1f, "softness factor of the layer"),
-            new CloudLayerKey(CloudLookTuning.TuneNoiseAmount + ".", 1f, "noise amount factor of the layer"),
             new CloudLayerKey(CloudLookTuning.TuneNoiseSize + ".", 1f, "noise size factor of the layer")
         };
 

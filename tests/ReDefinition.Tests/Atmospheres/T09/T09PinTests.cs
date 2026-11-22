@@ -59,7 +59,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             f.MinStepM = 6f;
             f.MaxSteps = 256;
             f.SunMarchM = 12000f;
-            f.StepGrowth = 0f;
             f.EarlyOut = 0.004f;
             f.LightStride = 1;
             f.FrameNumber = 63;
@@ -73,8 +72,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             f.Light.LayerM[2] = new Vector4(1f, 2f, 3f, 4f);
             f.Far.InscatterNear = new Color(0.4f, 0.5f, 0.6f);
             f.Far.MinSamples = 3;
-            f.Cull.StepGrowth = true;
-            f.Cull.StepGrowthPerM = 2e-4f;
             f.Cull.CapDistanceM = float.PositiveInfinity;
             r.Mode = ReconMode.Block;
             r.Block = 2;
@@ -152,7 +149,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (string p in new[]
                      {
                          "Frame.MinStepM", "Frame.MaxSteps", "Frame.SunSteps", "Frame.Light.SunStepsOverride", "Frame.SunMarchM", "Frame.LightStride", "Frame.Resolution", "Frame.EarlyOut",
-                         "Frame.StepGrowth", "Frame.TransmittanceGrowth", "Frame.Cull.StepGrowth", "Frame.Cull.StepGrowthPerM", "Frame.FrameNumber", "Frame.PlanetCenter.x",
+                         "Frame.TransmittanceGrowth", "Frame.Cull.CapDistanceM", "Frame.FrameNumber", "Frame.PlanetCenter.x",
                          "Frame.WorldToMap.m01", "Frame.Light.Lights[1].Colour.b", "Recon.Mode", "Recon.Resolution", "Recon.Accumulate", "Recon.Block", "Recon.FreshWeight",
                          "Recon.StaleWeight", "Recon.ClipSigma", "Recon.Rotation", "Recon.DriftSeconds", "Noise.Seed", "Soft.Softness", "Soft.DetailMean"
                      })
@@ -212,8 +209,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(6.0, keys["layers.minStepM"]);
             Assert.AreEqual("cloud.motionScale", ((List<object>)d["tuningOverrides"]).Single());
             var march = (Dictionary<string, object>)d["march"];
-            foreach (string k in new[] { "minStepM", "gridPoints", "sunSteps", "sunMarchM", "lightStride", "resolution", "accumulate", "blockSide", "freshWeight", "staleWeight", "earlyOut", "stepGrowth",
-                                         "transmittanceGrowth", "cullStepGrowthPerM", "rotation" })
+            foreach (string k in new[] { "minStepM", "gridPoints", "sunSteps", "sunMarchM", "lightStride", "resolution", "accumulate", "blockSide", "freshWeight", "staleWeight", "earlyOut",
+                                         "transmittanceGrowth", "rotation" })
                 Assert.IsTrue(march.ContainsKey(k), "march names " + k);
             Assert.AreEqual(6.0, march["minStepM"]);
             Assert.AreEqual(8.0, march["sunSteps"], "the light's override is the taps the march takes");

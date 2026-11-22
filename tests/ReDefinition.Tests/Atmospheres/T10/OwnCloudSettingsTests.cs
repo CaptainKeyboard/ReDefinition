@@ -21,7 +21,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             "ownClouds", "layerCap", "layerStepQuality", "layerStepGrowth", "cloudNoise", "cloudNoiseUntile", "cloudNoiseCurl", "cloudNoiseTier",
             "cloudNoiseDistanceLod", "cloudFineDetail", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
             "cloudSunTint", "cloudMoonLights", "cloudAmbientTaps", "cloudAmbientReuse", "cloudLightCache", "cloudShadows", "cloudShadowQuality",
-            "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudRotation", "sceneWhiteBalance", "cloudSkipEmpty", "cloudSkipClosed", "cloudLayerDistanceCut", "cloudStepGrowth", "cloudTapLod", "cloudDetailLod", "cloudLayerCapDistance", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
+            "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudRotation", "sceneWhiteBalance", "cloudSkipEmpty", "cloudLayerCapDistance", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft", "baseRagged"
         };
 
         private static Func<string, double> Defaults(params object[] pairs)
@@ -56,21 +56,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             Tuning.ClearOverrides();
             NextFrame();
-        }
-
-        [TestMethod]
-        public void AStepGrowthKeyBelowZeroGivesTheFramesDefaultGrowthEvenAfterAFrameWithTheLooksZero()
-        {
-            // The frame is kept from one frame to the next: the look's 0 first, then the key below 0 must give the default back, not leave the 0 standing.
-            var frame = new LayerFrame();
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(OwnCloudOptions.LookStepGrowth, frame.StepGrowth, "the look's growth first");
-            Tuning.SetOverride(OwnCloudOptions.TuneFrameStepGrowth, -1f);
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(LayerFrame.DefaultStepGrowth, frame.StepGrowth, "layers.stepGrowth below 0: the frame's default growth");
-            Assert.AreEqual(new LayerFrame().StepGrowth, LayerFrame.DefaultStepGrowth, "a new frame starts with the same default");
         }
 
         [TestMethod]
@@ -110,7 +95,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(Math.Round(Math.Round(expected.MaxSteps * samplesShare) * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             Assert.AreEqual(expected.SunSteps, frame.SunSteps);
             Assert.AreEqual(OwnCloudOptions.LookMinStepM, frame.MinStepM, "the owner's look (the default since 2026-11-19)");
-            Assert.AreEqual(OwnCloudOptions.LookStepGrowth, frame.StepGrowth, "the owner's look: no step growth along the ray");
             Assert.AreEqual(OwnCloudOptions.LookSunMarchM, frame.SunMarchM, "the owner's look: a 12 km march towards the sun");
             Assert.AreEqual(expected.TransmittanceGrowth, frame.TransmittanceGrowth, "the product's step growth");
             Assert.AreEqual(expected.CoverageBound, frame.CoverageBound);
@@ -551,21 +535,17 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
-        public void TheSpanCutIsOffByDefaultWithAKeyOn()
+        public void TheGridMultiplierScalesTheGridPointsAndClampsAtAQuarter()
         {
             Tuning.ClearOverrides();
             NextFrame();
             var frame = new LayerFrame();
-            Assert.IsFalse(frame.SpanTight);
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(OwnCloudOptions.SpanTightDefault, frame.SpanTight);
             Assert.AreEqual(Math.Round(256 * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
 
-            Tuning.SetOverride(OwnCloudOptions.TuneSpanTight, 1f);
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 1f);
             NextFrame();
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsTrue(frame.SpanTight);
             Assert.AreEqual(256, frame.MaxSteps);
 
             Tuning.SetOverride(OwnCloudOptions.TuneGridFine, 0.5f);
@@ -648,7 +628,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 if (json.IndexOf("\"atmo." + key + "\": \"", StringComparison.Ordinal) < 0) gaps.Add(key + " (key)");
             }
             foreach (string tuning in new[] { OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap,
-                                              OwnCloudOptions.TuneGridFine, OwnCloudOptions.TuneAccumulate, OwnCloudOptions.TuneSpanTight, OwnCloudOptions.TuneDitherSequence })
+                                              OwnCloudOptions.TuneGridFine, OwnCloudOptions.TuneAccumulate, OwnCloudOptions.TuneDitherSequence })
             {
                 if (json.IndexOf("\"atmo." + tuning + "\"", StringComparison.Ordinal) < 0) gaps.Add(tuning);
             }

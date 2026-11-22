@@ -18,19 +18,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
     {
         private static NoiseVolumeSet[] volumes = new NoiseVolumeSet[4];
 
-        // The model reads the layer's configured numbers (the mapping the prototype proposes replaces them): the old mapping's numbers are pinned (E40 F1 made the cover meaning the default).
-        [TestInitialize]
-        public void Setup()
-        {
-            CoverMeaningPin.Legacy();
-        }
-
-        [TestCleanup]
-        public void Clean()
-        {
-            CoverMeaningPin.Release();
-        }
-
         private static NoiseVolumeSet Volumes(uint seed)
         {
             return volumes[seed] ?? (volumes[seed] = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), seed));
@@ -84,35 +71,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     double fall = Closed(CoverMapping.AmountShare, layers[li], li, 1u, c, types[li], 40) - Closed(CoverMapping.AmountShare, layers[li], li, 1u, c, types[li], 40, -1.0, -0.15);
                     Assert.AreEqual(0.15, fall, 0.06, layers[li].Name + " at c " + c + ": the shift -0.15 lowers the closed share by " + fall);
                 }
-        }
-
-        [TestMethod]
-        public void TheNoiseAmountDoesNotMoveTheCover()
-        {
-            CloudLayerDef rain = CloudLookFixtures.Rain();
-            // The property of the mapping for a column of a given thickness: the fitted opacity of the stratus (B3, density scale 0.22: a column of optical depth 5) is the data, not the subject.
-            foreach (CloudTypeDef t in rain.Types) t.DensityScale = 1f;
-            double a = Closed(CoverMapping.AmountShare, rain, 0, 1u, 0.5, 0.5, 40, 0.3);
-            double b = Closed(CoverMapping.AmountShare, rain, 0, 1u, 0.5, 0.5, 40, 0.6);
-            double c = Closed(CoverMapping.AmountShare, rain, 0, 1u, 0.5, 0.5, 40, 1.0);
-            Assert.AreEqual(a, b, 0.04, "amount 0.3 against 0.6");
-            Assert.AreEqual(b, c, 0.04, "amount 0.6 against 1");
-        }
-
-        // The mapping of the shipped code for the layers whose amount is below 1 and whose coverage constant was chosen by hand: a step in the map, not a share (the rain deck is empty at
-        // 0.2 and closed from 0.6; the cumulonimbus layer shows nothing below 0.7).
-        [TestMethod]
-        public void TheShippedMappingDoesNotGiveTheMapValueForTheRainDeckAndTheCumulonimbusLayer()
-        {
-            CloudLayerDef rain = CloudLookFixtures.Rain(), cb = CloudLookFixtures.Cumulonimbus();
-            double errRain = 0.0, errCb = 0.0;
-            foreach (double c in Cs)
-            {
-                errRain += Math.Abs(Closed(CoverMapping.Current, rain, 0, 1u, c, 0.5, 20) - c);
-                errCb += Math.Abs(Closed(CoverMapping.Current, cb, 2, 1u, c, 0.229, 20) - c);
-            }
-            Assert.IsTrue(errRain / Cs.Length > 0.15, "rain deck mean error " + errRain / Cs.Length);
-            Assert.IsTrue(errCb / Cs.Length > 0.25, "cumulonimbus mean error " + errCb / Cs.Length);
         }
 
         // The model's copy of the share (the part this file replaces) is the product's function where it is the shipped mapping, so the numbers above are about the product.

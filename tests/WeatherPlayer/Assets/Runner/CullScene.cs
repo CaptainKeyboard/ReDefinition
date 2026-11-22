@@ -4,7 +4,7 @@
 //                                          split into the tile pass, the march and the reconstruction (timing run, exclusive)
 //   -scene cull-quality -in <T16 inputs>   per view the error of each variant against the reference (the mean of four full marches without any switch) in the band
 //                                          around the contour, the thick interior and the empty sky, the A/B difference to the same frame without the switch, the
-//                                          share of tiles and layers dropped, and the pictures t16-<view>-before / after / aid-skip / aid-lod / aid-diff
+//                                          share of tiles and layers dropped, and the pictures t16-<view>-before / after / aid-skip / aid-diff
 //   -scene cull-sweep -in <T16 inputs>     the camera sweeps (altitude, layer crossing, a turn of 360 degrees, the distance): the largest frame-to-frame change of
 //                                          the picture's luminance that the switch adds to the baseline's own
 //   -scene cull-levels -in <T16 inputs>    the 4 x 4 block mode through two turns with and without the switches: ghosting, trail and shimmer against the full
@@ -23,11 +23,11 @@ namespace ReDefinition.WeatherPlayer
     internal sealed class CullVariant
     {
         public string Name, Baseline = "off";
-        public bool Skip, Closed, Cut, Growth, Tap, Detail, Haze, Mean;
+        public bool Skip, Haze, Mean;
         public float CapKm;
         public int Tests = 7;
         // The numbers of the switches (CullSettings' compiled values unless a sweep variant names others).
-        public float GrowthPerM = 4e-5f, TapStartM = 20000f, TapEndM = 120000f, TapFactor = 3f, FootScale = 1.5f;
+        public float FootScale = 1.5f;
         public int CapKeep = 2;
         public ReconMode Mode = ReconMode.Full;
         public int Block = 4;
@@ -41,24 +41,14 @@ namespace ReDefinition.WeatherPlayer
         {
             CullSettings c = f.Cull;
             c.SkipEmpty = Skip;
-            c.SkipClosed = Closed;
-            c.DistanceCut = Cut;
-            c.StepGrowth = Growth;
-            c.TapLod = Tap;
-            c.DetailLod = Detail;
             c.CapDistanceM = CapKm * 1000f;
             c.Tests = Tests;
-            c.StepGrowthPerM = GrowthPerM;
-            c.TapStartM = TapStartM;
-            c.TapEndM = TapEndM;
-            c.TapFactor = TapFactor;
             c.FootScale = FootScale;
             c.CapKeepSpans = CapKeep;
-            f.Far.Haze = Haze || Cut;
-            // A measurement lever: the Earth coefficients leave a layer at 60 km with a weight above 0.5, so the distance cut could never act; the haze rows use
-            // eight times the optical depth (a dusty or thick atmosphere), the same for the baseline and the switch.
-            f.Far.HazeStrength = Haze || Cut ? 8f : 1f;
-            f.Far.ShapeMean = Mean || Detail;
+            f.Far.Haze = Haze;
+            // A measurement lever: the haze rows use eight times the optical depth (a dusty or thick atmosphere), the same for the baseline and the switch.
+            f.Far.HazeStrength = Haze ? 8f : 1f;
+            f.Far.ShapeMean = Mean;
         }
 
         private static CullVariant Make(string name, string baseline, bool block, Action<CullVariant> set)
@@ -70,8 +60,7 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // off / haze / mean / hm: the baselines (nothing, the aerial perspective, the far shape mean, both); skip, skipG, skipT, skipM: the empty-sky skip with all
-        // tests and with the shells, the terrain and the maps alone; closed; cut (needs the haze, baseline haze); growth; tap; detail (needs the shape mean,
-        // baseline mean); cap; all (baseline hm). The u4 variants are the same in the 4 x 4 block mode (cloudResolution 4), whose baseline is u4off.
+        // tests and with the shells, the terrain and the maps alone; cap; all (baseline off). The u4 variants are the same in the 4 x 4 block mode (cloudResolution 4), whose baseline is u4off.
         internal static List<CullVariant> Table()
         {
             var list = new List<CullVariant>();
@@ -86,23 +75,14 @@ namespace ReDefinition.WeatherPlayer
                 list.Add(Make(p + "skipG", p + "off", block, v => { v.Skip = true; v.Tests = 1; }));
                 list.Add(Make(p + "skipT", p + "off", block, v => { v.Skip = true; v.Tests = 2; }));
                 list.Add(Make(p + "skipM", p + "off", block, v => { v.Skip = true; v.Tests = 4; }));
-                list.Add(Make(p + "closed", p + "off", block, v => { v.Closed = true; }));
-                list.Add(Make(p + "cut", p + "haze", block, v => v.Cut = true));
-                list.Add(Make(p + "growth", p + "off", block, v => v.Growth = true));
-                list.Add(Make(p + "tap", p + "off", block, v => v.Tap = true));
-                list.Add(Make(p + "detail", p + "mean", block, v => v.Detail = true));
                 list.Add(Make(p + "cap", p + "off", block, v => v.CapKm = 100f));
-                list.Add(Make(p + "all", p + "hm", block, v =>
+                list.Add(Make(p + "all", p + "off", block, v =>
                 {
-                    v.Skip = v.Closed = v.Cut = v.Growth = v.Tap = v.Detail = true;
+                    v.Skip = true;
                     v.CapKm = 100f;
                 }));
             }
-            // Sweep 1 of the constants (full mode only): stronger growth, nearer and stronger tap LOD, a coarser detail footprint, a nearer cap with one span kept.
-            list.Add(Make("growth2", "off", false, v => { v.Growth = true; v.GrowthPerM = 4e-4f; }));
-            list.Add(Make("growth3", "off", false, v => { v.Growth = true; v.GrowthPerM = 1.6e-3f; }));
-            list.Add(Make("tap2", "off", false, v => { v.Tap = true; v.TapStartM = 3000f; v.TapEndM = 15000f; v.TapFactor = 5f; }));
-            list.Add(Make("detail2", "mean", false, v => { v.Detail = true; v.FootScale = 6f; }));
+            // Sweep 1 of the constants (full mode only): a nearer cap with one span kept.
             list.Add(Make("cap2", "off", false, v => { v.CapKm = 20f; v.CapKeep = 1; }));
             return list;
         }
@@ -169,9 +149,9 @@ namespace ReDefinition.WeatherPlayer
 
         // The share of tiles that march no layer, and of the layer-tile pairs dropped, by reason, from the tile map of the last render.
         internal static void TileStats(LayerRenderer renderer, int layers, out double emptyTiles, out double droppedPairs, out double byMaps, out double byTerrain,
-                                       out double byShell, out double byClosed)
+                                       out double byShell)
         {
-            emptyTiles = droppedPairs = byMaps = byTerrain = byShell = byClosed = double.NaN;
+            emptyTiles = droppedPairs = byMaps = byTerrain = byShell = double.NaN;
             RenderTexture tiles = renderer.Tiles.Tiles;
             if (tiles == null) return;
             var tex = new Texture2D(tiles.width, tiles.height, TextureFormat.RGBAHalf, false, true);
@@ -180,7 +160,7 @@ namespace ReDefinition.WeatherPlayer
             RenderTexture.active = null;
             Color[] px = tex.GetPixels();
             UnityEngine.Object.Destroy(tex);
-            int n = px.Length, empty = 0, dropped = 0, maps = 0, terrain = 0, shell = 0, closed = 0;
+            int n = px.Length, empty = 0, dropped = 0, maps = 0, terrain = 0, shell = 0;
             foreach (Color c in px)
             {
                 int bits = Mathf.RoundToInt(c.r), aid = Mathf.RoundToInt(c.g);
@@ -189,14 +169,12 @@ namespace ReDefinition.WeatherPlayer
                 maps += aid & 1;
                 terrain += (aid >> 1) & 1;
                 shell += (aid >> 2) & 1;
-                closed += (aid >> 3) & 1;
             }
             emptyTiles = (double)empty / n;
             droppedPairs = (double)dropped / (n * (double)layers);
             byMaps = (double)maps / n;
             byTerrain = (double)terrain / n;
             byShell = (double)shell / n;
-            byClosed = (double)closed / n;
         }
     }
 
@@ -280,7 +258,7 @@ namespace ReDefinition.WeatherPlayer
                                 int number;
                                 if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
                                 float a = segments[march - WeatherGpuTimer.SlabStart], r = segments[recon - WeatherGpuTimer.SlabStart], tl = segments[tile - WeatherGpuTimer.SlabStart];
-                                bool tiled = v.Skip || v.Closed;
+                                bool tiled = v.Skip;
                                 if (a >= 0f && r >= 0f && (!tiled || tl >= 0f)) { cMarch.Add(a); cRecon.Add(r); cTile.Add(tiled ? tl : 0f); }
                             }
                             string label = job.id + "." + v.Name + "." + sz;
@@ -401,7 +379,7 @@ namespace ReDefinition.WeatherPlayer
                     }
                     string key = "cullq." + view + "." + v.Name;
                     // The reference of the variant is the mean of the baseline without the switches of its own (the same haze and shape mean).
-                    string refName = v.Haze || v.Cut ? (v.Mean || v.Detail ? "hm" : "haze") : (v.Mean || v.Detail ? "mean" : "off");
+                    string refName = v.Haze ? (v.Mean ? "hm" : "haze") : (v.Mean ? "mean" : "off");
                     float[] rd2 = refs[refName].Key, ra2 = refs[refName].Value;
                     double sb = 0, si = 0, ci = 0, lumI = 0, leak = 0, sAll = 0, lost = 0, lostMax = 0;
                     float[] baseAlpha = v.Mode == ReconMode.Full && v.Name != v.Baseline && shownA.ContainsKey(v.Baseline) ? shownA[v.Baseline] : null;
@@ -424,16 +402,15 @@ namespace ReDefinition.WeatherPlayer
                     Sink.Info(key + ".cloud_lost", lost / pixels);
                     Sink.Info(key + ".cloud_lost_max", lostMax);
                     if (flicker.Count > 0) Sink.Info(key + ".band_flicker", EdgeKit.Mean(flicker));
-                    if (v.Skip || v.Closed)
+                    if (v.Skip)
                     {
-                        double et, dp, bm, bt, bs, bc;
-                        CullKit.TileStats(rig.Renderer, layerCount, out et, out dp, out bm, out bt, out bs, out bc);
+                        double et, dp, bm, bt, bs;
+                        CullKit.TileStats(rig.Renderer, layerCount, out et, out dp, out bm, out bt, out bs);
                         Sink.Info(key + ".tiles_empty", et);
                         Sink.Info(key + ".pairs_dropped", dp);
                         Sink.Info(key + ".tiles_by_maps", bm);
                         Sink.Info(key + ".tiles_by_terrain", bt);
                         Sink.Info(key + ".tiles_by_shell", bs);
-                        Sink.Info(key + ".tiles_by_closed", bc);
                     }
                     shown[v.Name] = d;
                     shownA[v.Name] = a;
@@ -455,7 +432,7 @@ namespace ReDefinition.WeatherPlayer
                     }
                     yield return null;
                 }
-                // The pictures. before: the baseline; after: every switch on; aid-skip: the tile map; aid-lod: the LOD map; aid-diff: the difference to the baseline x8.
+                // The pictures. before: the baseline; after: every switch on; aid-skip: the tile map; aid-diff: the difference to the baseline x8.
                 CullVariant off = CullVariant.Named("off"), all = CullVariant.Named("all"), skip = CullVariant.Named("skip");
                 off.Apply(rig.Frame);
                 rig.Recon.Reset();
@@ -470,17 +447,13 @@ namespace ReDefinition.WeatherPlayer
                 rig.Recon.Reset();
                 EdgeKit.Render(Cam, rig, full, 9000);
                 CullKit.SaveAid(Path.Combine(pictures, "t16-" + view + "-aid-skip.png"), CullKit.ReadColours(rig.Recon.Output, ref readback), W, H);
-                rig.Frame.AidMode = 7;
-                rig.Recon.Reset();
-                EdgeKit.Render(Cam, rig, full, 9000);
-                CullKit.SaveAid(Path.Combine(pictures, "t16-" + view + "-aid-lod.png"), CullKit.ReadColours(rig.Recon.Output, ref readback), W, H);
                 rig.Frame.AidMode = 0;
-                if (shown.ContainsKey("all") && shown.ContainsKey("hm"))
+                if (shown.ContainsKey("all") && shown.ContainsKey("off"))
                 {
                     var diff = new Color[pixels];
                     for (int p = 0; p < pixels; p++)
                     {
-                        float e = Mathf.Clamp01(Mathf.Abs(shown["all"][p] - shown["hm"][p]) * 8f);
+                        float e = Mathf.Clamp01(Mathf.Abs(shown["all"][p] - shown["off"][p]) * 8f);
                         diff[p] = new Color(e, e * 0.4f, 0f);
                     }
                     EdgeKit.SaveColour(Path.Combine(pictures, "t16-" + view + "-aid-diff.png"), diff, W, H);
@@ -741,7 +714,7 @@ namespace ReDefinition.WeatherPlayer
                     foreach (CullVariant v in variants)
                     {
                         if (clock.Elapsed.TotalMinutes > 16.0) { Sink.Flag("levels_completed", false); yield break; }
-                        string refKey = v.Haze || v.Cut ? "hm" : "off";
+                        string refKey = v.Haze ? "hm" : "off";
                         float[][] refDisplay = refSets[refKey], refAlpha = refAlphaSets[refKey];
                         v.Apply(rig.Frame);
                         ReconSettings s = v.Settings();

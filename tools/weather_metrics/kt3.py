@@ -75,11 +75,9 @@ def build_expect():
     add("h_ragged_off_g", "t13", T13)
     add("h_top_off_a", "t13", T13)
     add("h_all_off_a", "t13", T13, "changes")
-    add("remap1_g", "look", FREE, "changes")
     add("combine0_g", "look", FREE)
     add("sigma2_g", "look", (-1.5, 0.6), "changes")
     add("soft2_g", "look", FREE, "changes")
-    add("namt2_g", "look", FREE, "changes")
     add("nsize2_g", "look", FREE, "changes")
     # light, shadows, steps
     add("lightq_low_g", "light", SAVES, "changes")
@@ -108,12 +106,8 @@ def build_expect():
     add("skytint0_g", "light", FREE)
     # T16 culling (horizon, sky3), the keys on top of all six switches, T06 far view
     add("skip_empty_h", "cull", SAVES, "same", note="cloudSkipEmpty claims to be exact")
-    add("dcut_h", "cull", SAVES)
-    add("stepg_h", "cull", SAVES)
-    add("tap_h", "cull", SAVES)
-    add("detail_h", "cull", SAVES)
     add("cull_all_h", "cull", SAVES)
-    for k in ("kcut", "kstepg", "ktapwin", "ktapf", "kfoot", "kcapkeep"):
+    for k in ("kfoot", "kcapkeep"):
         add(k + "_h", "cull", SAVES, ref="cull_all_h")
     # the aerial perspective is on by default behind Scatterer's scattering: switching it off shows its effect, switching it on draws the plain picture
     add("nohaze_h", "far", (-0.5, 0.3), "changes")
@@ -125,7 +119,6 @@ def build_expect():
     add("farpolicy_h", "far", FREE)
     add("mapfade_h", "far", FREE)
     add("fade40_h", "far", SAVES, "changes")
-    add("skip_closed_s", "cull", SAVES, "any", note="cloudSkipClosed claims to be exact")
     add("cull_all_s", "cull", SAVES)
     # reconstruction options
     add("rlow_g", "recon", SAVES, "changes")
@@ -456,16 +449,16 @@ def selftest():
         return [row(vid, p + "deck_fraction", frac), row(vid, p + "deck_median", med), row(vid, p + "sky_closed_share", closed), row(vid, p + "ground_median", ground),
                 row(vid, p + "deck_r", r), row(vid, p + "deck_b", b)]
 
-    ids = ["off_g", "plain_g", "noise_off_g", "h_all_off_g", "remap1_g", "moon0_g", "shadows_off_g"]
+    ids = ["off_g", "plain_g", "noise_off_g", "h_all_off_g", "sigma2_g", "moon0_g", "shadows_off_g"]
     def make(t13_labels=4.15, remap_med=0.36, noise_labels=3.0, ids_made=None, pictures=True):
         made = ids_made or ids
         text = ["Probe: series K-T3 start k3near begins with variants " + ",".join(ids)]
-        labels = {"plain_g": 4.2, "noise_off_g": noise_labels, "h_all_off_g": t13_labels, "remap1_g": 4.2, "moon0_g": 4.0, "shadows_off_g": 4.0}
-        frames = {"off_g": 10.0, "plain_g": 12.0, "noise_off_g": 11.0, "h_all_off_g": 12.0, "remap1_g": 12.0, "moon0_g": 12.0, "shadows_off_g": 11.8}
+        labels = {"plain_g": 4.2, "noise_off_g": noise_labels, "h_all_off_g": t13_labels, "sigma2_g": 4.2, "moon0_g": 4.0, "shadows_off_g": 4.0}
+        frames = {"off_g": 10.0, "plain_g": 12.0, "noise_off_g": 11.0, "h_all_off_g": 12.0, "sigma2_g": 12.0, "moon0_g": 12.0, "shadows_off_g": 11.8}
         for vid in made:
             text += window("ground", vid, frames[vid], 3.0, labels=labels.get(vid))
         for vid, frac, med, closed, ground, r, b in (("plain_g", 0.40, 0.30, 0.20, 0.70, 0.30, 0.24), ("noise_off_g", 0.46, 0.36, 0.26, 0.70, 0.3, 0.24),
-                                                     ("h_all_off_g", 0.43, 0.30, 0.20, 0.70, 0.3, 0.24), ("remap1_g", 0.40, remap_med, 0.20, 0.70, 0.30, 0.24),
+                                                     ("h_all_off_g", 0.43, 0.30, 0.20, 0.70, 0.3, 0.24), ("sigma2_g", 0.40, remap_med, 0.20, 0.70, 0.30, 0.24),
                                                      ("moon0_g", 0.40, 0.30, 0.20, 0.70, 0.3, 0.24), ("shadows_off_g", 0.40, 0.30, 0.20, 0.78, 0.3, 0.24)):
             text += frame_rows("ground", vid, frac, med, closed, ground, r, b)
         text += [row("plain_g", "T09.noise.ground.flicker", 0.0100), row("h_ragged_off_g", "T09.noise.ground.flicker", 0.0098)]
@@ -491,7 +484,7 @@ def selftest():
     out = series_results({"k3near": make(remap_med=0.30)})
     by = {r["metric"]: r["value"] for r in out}
     assert by["K3.k3near.effect_misses"] == 1 and by["K3.k3near.cost_misses"] == 0, (by, NOTES)
-    assert any("remap1_g" in n and "effect" in n for n in NOTES), NOTES
+    assert any("sigma2_g" in n and "effect" in n for n in NOTES), NOTES
     # the T13 switches cost 0.8 ms: a cost miss, named; noise_off that costs more than the plain pass: a second one
     out = series_results({"k3near": make(t13_labels=3.4, noise_labels=5.5)})
     by = {r["metric"]: r["value"] for r in out}

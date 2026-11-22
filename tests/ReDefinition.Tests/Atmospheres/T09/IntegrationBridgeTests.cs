@@ -235,7 +235,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 "ownClouds", "layerCap", "layerStepQuality", "layerStepGrowth", "cloudNoise", "cloudNoiseUntile", "cloudNoiseCurl", "cloudNoiseTier",
                 "cloudNoiseDistanceLod", "cloudFineDetail", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
                 "cloudSunTint", "cloudMoonLights", "cloudAmbientTaps", "cloudAmbientReuse", "cloudShadows", "cloudShadowQuality",
-                "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudSkipEmpty", "cloudSkipClosed", "cloudLayerDistanceCut", "cloudStepGrowth", "cloudTapLod", "cloudDetailLod", "cloudLayerCapDistance", "cloudSunMarchLong", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudFarHaze",
+                "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudSkipEmpty", "cloudLayerCapDistance", "cloudSunMarchLong", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudFarHaze",
                 "cloudFarShapeMean", "cloudFarMinSamples", "cloudFarPolicy", "cloudFarMapFade", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft",
                 "baseRagged"
             };

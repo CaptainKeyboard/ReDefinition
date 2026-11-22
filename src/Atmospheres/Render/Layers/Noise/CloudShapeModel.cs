@@ -89,8 +89,6 @@ namespace ReDefinition.Atmospheres
         internal bool NoDistanceLod;
         // True: no fine octave of the erosion detail.
         internal bool NoFineDetail;
-        // layers.densityRemap (CloudLookTuning): the share of the erosion that also thins a closed deck's interior; 0: the erosion acts only in the soft edge.
-        internal double DensityRemap;
         // E40 L2 D1 (cfg key fibreStretch): the lookup is compressed along the unit axis (AxisX, AxisY, AxisZ) by 1 - Stretch, i.e. the features are 1 / (1 - Stretch) times longer along it;
         // 0: isotropic. The shader's axis is the body's pole (the third row of the world-to-map matrix), (0, 0, 1) in the planet frame of the tests.
         internal double Stretch, AxisX, AxisY, AxisZ;
@@ -102,7 +100,7 @@ namespace ReDefinition.Atmospheres
         // below the footprint are dropped, never the ones above it). The twin of the shader's gHeapPreset and _HeapP.y.
         internal int HeapPreset;
         internal bool HeapFootLod, HeapIso;
-        // The share of the untiling displacement's horizontal part the heap lookup keeps (below 0: the whole displacement; NaN or 0 from a default-constructed set: HeapModel.WarpShare is used only through
+        // The share of the untiling displacement's horizontal part the heap lookup keeps (0 from a default-constructed set: HeapModel.WarpShare is used only through
         // LayerNoise, so a hand-made set keeps 0 = no displacement unless it sets this).
         internal double HeapWarpShare;
         // cloud.noise.blend (CLOUDR1): the shape and heap volumes hide their tiling by BlendedMacro instead of the untiling displacement; the exponent of the blend weights and the lattice cell in periods
@@ -284,27 +282,21 @@ namespace ReDefinition.Atmospheres
                                         out double hx, out double hy, out double hz)
         {
             double r = Math.Sqrt(px * px + py * py + pz * pz), share = prm.HeapWarpShare;
-            hx = qx;
-            hy = qy;
-            hz = qz;
-            if (share >= 0.0)
+            hx = qx - dx;
+            hy = qy - dy;
+            hz = qz - dz;
+            if (r > 0.0)
             {
-                hx -= dx;
-                hy -= dy;
-                hz -= dz;
-                if (r > 0.0)
-                {
-                    double ux = px / r, uy = py / r, uz = pz / r, along = dx * ux + dy * uy + dz * uz;
-                    hx += share * (dx - ux * along);
-                    hy += share * (dy - uy * along);
-                    hz += share * (dz - uz * along);
-                }
-                else
-                {
-                    hx += share * dx;
-                    hy += share * dy;
-                    hz += share * dz;
-                }
+                double ux = px / r, uy = py / r, uz = pz / r, along = dx * ux + dy * uy + dz * uz;
+                hx += share * (dx - ux * along);
+                hy += share * (dy - uy * along);
+                hz += share * (dz - uz * along);
+            }
+            else
+            {
+                hx += share * dx;
+                hy += share * dy;
+                hz += share * dz;
             }
             // The lattice's vertical compression taken back (cloud.heap.iso), as the erosion detail reads it.
             if (prm.HeapIso && prm.SphereScale != 1.0 && prm.SphereScale > 0.0 && r > 0.0)
@@ -502,8 +494,8 @@ namespace ReDefinition.Atmospheres
             double x = (cov + (n - 0.5) * noiseAmount + coverage - 1.0) / edge + 0.5;
             double s = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
             if (s <= 0.0 || erosion <= 0.0 || !fine) return s;
-            // DensityRemap 0 (the default): the erosion is read only in the soft edge, a closed deck (s = 1) keeps the share 1.
-            if (s >= 1.0 && !(prm.DensityRemap > 0.0)) return s;
+            // The erosion is read only in the soft edge, a closed deck (s = 1) keeps the share 1.
+            if (s >= 1.0) return s;
             double lod = DetailLod(ref prm, footM);
             double d = set.DetailMean;
             double r = Math.Sqrt(px * px + py * py + pz * pz);
@@ -535,17 +527,7 @@ namespace ReDefinition.Atmospheres
             }
             // PUFF: the detail's contrast about its mean (0: as it was).
             if (prm.BillowContrastDelta != 0.0) d = Math.Min(1.0, Math.Max(0.0, set.DetailMean + (d - set.DetailMean) * (1.0 + prm.BillowContrastDelta)));
-            double eroded = Erode(s, d, erosion);
-            // layers.densityRemap: the erosion also thins the interior of a closed deck, by the share of the detail's gap (the structure a flat slab lacks).
-            if (prm.DensityRemap > 0.0) eroded *= InteriorThinning(prm.DensityRemap, erosion, d);
-            return eroded;
-        }
-
-        // The factor the interior erosion multiplies the share by: 1 - remap * erosion * (1 - detail), 0 to 1.
-        internal static double InteriorThinning(double remap, double erosion, double detail)
-        {
-            double f = 1.0 - remap * erosion * (1.0 - detail);
-            return f < 0.0 ? 0.0 : f > 1.0 ? 1.0 : f;
+            return Erode(s, d, erosion);
         }
     }
 }

@@ -40,21 +40,12 @@ namespace ReDefinition.Atmospheres
 
         private LayerHeightField queued;
         private int queuedCount, nextSlice;
-        // The maps the GPU array holds per slice (null: the neutral slice), and the ones written into the array but not applied yet (LayerSpanBound reads the
-        // offsets a layer really has around the camera from both, so that its bound holds whichever the frame samples).
+        // The maps the GPU array holds per slice (null: the neutral slice), and the ones written into the array but not applied yet.
         private readonly HeightMaps[] applied = new HeightMaps[CloudLayerDef.MaxLayers], staged = new HeightMaps[CloudLayerDef.MaxLayers];
 
         internal HeightMaps AppliedMaps(int layer)
         {
             return applied[layer];
-        }
-
-        // The maps of a layer that a queued upload will bring (null: none waits, or the layer has none).
-        internal HeightMaps QueuedMaps(int layer)
-        {
-            if (queued == null || layer >= queuedCount) return null;
-            HeightMaps m = queued.MapsOf(layer);
-            return m != null && (m.Width != Width || m.Height != Height) ? null : m;
         }
 
         // Whether slices of a queued upload are still waiting (Step writes them).

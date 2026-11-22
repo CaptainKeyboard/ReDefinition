@@ -125,7 +125,6 @@ namespace ReDefinition.WeatherPlayer
                 MaxSteps = job.maxSteps,
                 SunSteps = job.sunSteps,
                 MinStepM = job.minStep,
-                StepGrowth = job.stepGrowth,
                 EarlyOut = job.earlyOut,
                 Jitter = job.jitter,
                 SunMarchM = job.sunMarch,

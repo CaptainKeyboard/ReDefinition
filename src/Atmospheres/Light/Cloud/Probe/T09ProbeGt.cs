@@ -28,12 +28,9 @@ namespace ReDefinition.Atmospheres
 
         internal static readonly GtVariant[] GtVariants =
         {
-            // The pass without the span cut: the type table's whole interval, 48 grid points, the history of the half-size march. (The "before" of the package also had a
-            // new step offset per pixel and frame, which went with layers.ditherSequence.)
-            new GtVariant { Name = "before", Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneGridFine, 1f) } },
-            // The cut span and the sequence with the full count of grid points (what the count alone costs).
+            // The sequence with the full count of grid points (what the count alone costs).
             new GtVariant { Name = "full", Keys = new[] { Key(OwnCloudOptions.TuneGridFine, 1f) } },
-            // The cut span and the sequence with a third of the grid points.
+            // The sequence with a third of the grid points.
             new GtVariant { Name = "low", Keys = new[] { Key(OwnCloudOptions.TuneGridFine, 0.33f) } },
         };
 
@@ -46,15 +43,13 @@ namespace ReDefinition.Atmospheres
         // the start gt58 is out of K-T2d. The "before" of gt57 had also a new step offset per pixel and frame (layers.ditherSequence 0), which is gone.
         private static readonly KeyValuePair<string, float>[] Gt57Before =
         {
-            Key(OwnCloudOptions.TuneAccumulate, 0.2f), Key(OwnCloudOptions.TuneSpanTight, 0f), Key(OwnCloudOptions.TuneGridFine, 1f)
+            Key(OwnCloudOptions.TuneAccumulate, 0.2f), Key(OwnCloudOptions.TuneGridFine, 1f)
         };
-        private static readonly KeyValuePair<string, float>[] Gt57New = { Key(OwnCloudOptions.TuneSpanTight, 1f) };
 
         internal static readonly GrainVariant[] Gt57Variants =
         {
             new GrainVariant { Tag = "gbefore", Level = 1, HistoryFrames = 60, Keys = Gt57Before },
-            new GrainVariant { Tag = "gnew", Level = 1, HistoryFrames = 60, Keys = Gt57New },
-            new GrainVariant { Tag = "gnew10", Level = 1, HistoryFrames = 90, Keys = new[] { Key(OwnCloudOptions.TuneSpanTight, 1f), Key(OwnCloudOptions.TuneAccumulate, 0.1f) } },
+            new GrainVariant { Tag = "gnew10", Level = 1, HistoryFrames = 90, Keys = new[] { Key(OwnCloudOptions.TuneAccumulate, 0.1f) } },
         };
 
         private IEnumerable<ProbeWait> Look57Cover(string cover, double lat, double lon)
@@ -70,7 +65,6 @@ namespace ReDefinition.Atmospheres
                 Game.SetLayerMask(0);
                 foreach (ProbeWait w in Look55CostWindow(view, head, "off", NoLayersMask, null)) yield return w;
                 foreach (ProbeWait w in Look55CostWindow(view, head, "before", 0, Gt57Before)) yield return w;
-                foreach (ProbeWait w in Look55CostWindow(view, head, "plain", 0, Gt57New)) yield return w;
                 ClearForced();
                 Game.SetLayerMask(0);
                 yield return ProbeWait.Frames(DiagSettleFrames);

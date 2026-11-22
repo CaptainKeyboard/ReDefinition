@@ -11,8 +11,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // EXPECTED RESULTS, written before the first run of this file (the numbers are those of the exploration run, SkyClearModel on the 24 maps of the type-mix audit and on the game's maps of
     // start 60 at the K-T2 site):
     //   - a map value is about the share of the sky a layer shows (the cover meaning, the default): the rain deck, the cumulus layer and the cumulonimbus layer show between c - 0.05 and c + 0.2
-    //     of the sky at c = 0.3, 0.5, 0.7, the cirrus layer between c - 0.1 and c + 0.2 from c = 0.5 (a thin sheet: visible, never closed); with the old mapping (cloud.coverMeaning 0) the deck
-    //     shows 0.98 of the sky at c = 0.5 and the cumulonimbus layer nothing;
+    //     of the sky at c = 0.3, 0.5, 0.7, the cirrus layer between c - 0.1 and c + 0.2 from c = 0.5 (a thin sheet: visible, never closed);
     //   - the layer maps of the generator carry about the field's whole cover each, so the four layers together show 0.75 of the sky where the field says 0.40 (the cause); brought to the
     //     field (CloudLookTuning.MeetTheField, the default) they show the field's cover within 0.1;
     //   - rain still has a cloud above it: where it rains heavily the weather deck is at its floor after the combination, and a deck without a floor is left alone.
@@ -21,12 +20,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
     {
         private static CloudLayerDef[] shipped;
         private static CloudLayerDef[] Layers() { return shipped ?? (shipped = TypeMixFixture.ShippedLayers()); }
-
-        [TestCleanup]
-        public void Clean()
-        {
-            CoverMeaningPin.Release();
-        }
 
         // The share of the sky a layer shows at a map value and a type value, by the model (a vertical column; visible: opacity 0.1).
         private static double Visible(CloudLayerDef layer, double map, double typeValue)
@@ -55,19 +48,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
         }
 
+        // The layer's cfg key coverage: the layer's numbers that the pass, the shadow, the RT pack and the cull bounds read do not depend on it (E40 K1COV:
+        // 0.35, 0.30 and 0.27 gave identical pictures).
         [TestMethod]
-        public void WithTheOldMappingTheDeckIsAStepAndTheTowerLayerShowsNothingAtHalf()
-        {
-            CoverMeaningPin.Legacy();
-            CloudLayerDef[] layers = Layers();
-            Assert.IsTrue(Visible(layers[0], 0.5, 0.5) > 0.9, "the deck at 0.5 shows nearly all of the sky");
-            Assert.IsTrue(Visible(layers[2], 0.5, 0.0) < 0.05, "the cumulonimbus layer at 0.5 shows nothing");
-        }
-
-        // The layer's cfg key coverage: with the cover meaning (default) the layer's numbers that the pass, the shadow, the RT pack and the cull bounds read do not depend on it (E40 K1COV:
-        // 0.35, 0.30 and 0.27 gave identical pictures); with cloud.coverMeaning 0 it is the outline's threshold again.
-        [TestMethod]
-        public void TheLayersCoverageKeyIsReadOnlyByTheOldMapping()
+        public void TheLayersCoverageKeyDoesNotChangeTheNumbersTheReadersUse()
         {
             Func<float, CloudLayerDef> make = c => { CloudLayerDef l = CloudLookFixtures.Cumulus(); l.Coverage = c; return l; };
             CloudLayerDef a = make(0.35f), b = make(0.27f);
@@ -76,8 +60,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(a.ClearSkyK, b.ClearSkyK, 1e-6f, "the clear-sky rule");
             Assert.AreEqual(LayerTypeTable.LiftHeadroom(a), LayerTypeTable.LiftHeadroom(b), 1e-6, "the headroom of the lift and of the cull bounds");
             Assert.AreEqual(a.EffectiveEdgeSoftness, b.EffectiveEdgeSoftness, 1e-6f);
-            CoverMeaningPin.Legacy();
-            Assert.AreEqual(0.08f, a.EffectiveCoverage - b.EffectiveCoverage, 1e-5f, "with the old mapping the coverage is the threshold");
         }
 
         // Cover of the four layers for one time of a generator field: the maps as FetchStep makes them (deck rule, the meso stage), before the combination.

@@ -36,7 +36,7 @@ namespace ReDefinition.Atmospheres
         //   soft        the defaults: cost in every view, the grain trio, eight frames in the fair ground view (the weave of the default)
         //   softr50     recon.resolution 0.5, the march target of before E40 C1 (the default is 0.33 now): cost in every view, one frame, no weave and no reference: C1's halving in the game on the
         //               same sky in the same start
-        //   softcut16   the cut span, 16 points, target 0.33: cost at the fair ground
+        //   softcut16   16 points, target 0.33: cost at the fair ground
         //   soft100s24  cloudSoftness 1.0, cloudSamples Low (24 points): the owner's second favourite, cost at the fair and the clock ground (C2: 2.56 ms against TVC's 2.59 in the player)
         //   softhash    layers.ditherSequence 1 (the white hash): the weave check, eight frames, no cost
         //   softacc05   recon.accumulate 0.05 (a history of about 20 frames): the history's share in the static pattern; the history needs frames to settle
@@ -50,7 +50,7 @@ namespace ReDefinition.Atmospheres
             Soft60Reference("soft"),
             Soft60("soft", "ga", "gias", 3).Weave(8),
             Soft60("softr50", "ga", "gias", 1, "t:" + OwnCloudOptions.TuneReconResolution + "=0.5"),
-            Soft60("softcut16", "g", "", 1, "t:" + OwnCloudOptions.TuneSpanTight + "=1", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "-"),
+            Soft60("softcut16", "g", "", 1, "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "-"),
             Soft60("soft100s24", "g", "g", 1, "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=24").In("g", "g"),
             Soft60Reference("softhash"),
             Soft60("softhash", "", "", 1, "t:" + OwnCloudOptions.TuneDitherSequence + "=1").Weave(8).In("g", "-"),

@@ -34,7 +34,7 @@ namespace ReDefinition.Atmospheres
 
         // The grid points the start began with (the profile's), read before the first variant changes them.
         private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN,
-            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseDetailLod = double.NaN, baseTapLod = double.NaN,baseLightCache = double.NaN, baseSceneWb = double.NaN;
+            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseLightCache = double.NaN, baseSceneWb = double.NaN;
 
         private bool PerfStart
         {
@@ -100,9 +100,6 @@ namespace ReDefinition.Atmospheres
                 case "cut10":
                 case "cut20":
                 case "cells":
-                case "grow1":
-                case "grow2":
-                case "grow2lod":
                 case "tri":
                 case "r3":
                 case "r3n":
@@ -127,8 +124,6 @@ namespace ReDefinition.Atmospheres
             baseVariation = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudBaseVariation);
             baseStepGrowth = AtmospheresSettings.Number(AtmospheresSettings.Keys.LayerStepGrowth);
             baseSkipEmpty = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSkipEmpty);
-            baseDetailLod = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudDetailLod);
-            baseTapLod = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudTapLod);
             baseLightCache = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudLightCache);
             baseSceneWb = AtmospheresSettings.Number(AtmospheresSettings.Keys.SceneWhiteBalance);
         }
@@ -144,8 +139,6 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, baseVariation);
             SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, baseStepGrowth);
             SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, baseSkipEmpty);
-            SetSetting(AtmospheresSettings.Keys.CloudDetailLod, baseDetailLod);
-            SetSetting(AtmospheresSettings.Keys.CloudTapLod, baseTapLod);
             SetSetting(AtmospheresSettings.Keys.CloudLightCache, baseLightCache);
             SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, baseSceneWb);
         }
@@ -198,15 +191,6 @@ namespace ReDefinition.Atmospheres
                 // The owner's question 2026-11-19 (a field of equal cotton balls from above): the same views with the single-cloud lattice (cloud.cells 1, the default 11-17 to 11-19; now a
                 // shape-test tool, the weather map decides the clouds).
                 case "cells": ForceTuning(CloudLookTuning.TuneCells, 1f); break;
-                // The 48 fps plan, lever 1a (2026-11-19): the look marches far spans in its 6 m steps (layers.stepGrowth 0); the step grows with the span's distance
-                // again (1e-4 / 2e-4 per m, 2e-4 the frame's value before the look: a 3x step at 10 km), near clouds unchanged; grow2lod adds the T16 distance LODs.
-                case "grow1": ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 1e-4f); break;
-                case "grow2": ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 2e-4f); break;
-                case "grow2lod":
-                    ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 2e-4f);
-                    SetSetting(AtmospheresSettings.Keys.CloudTapLod, 1.0);
-                    SetSetting(AtmospheresSettings.Keys.CloudDetailLod, 1.0);
-                    break;
                 // HIST fps (2026-11-20, the history work's variants in the game): tri the march as one procedural triangle (today's 2 x 2 otherwise); r3 the rotation over
                 // 3 x 3 blocks with today's history; r3n / r4n the rotation over 3 x 3 / 4 x 4 with the new history (the march's own distance, the sample count, the drop
                 // by distance at 0.3 octaves, the clip at 2 sigma; with the distance target the march draws pass 6, so the triangle key does not act there).
@@ -286,7 +270,6 @@ namespace ReDefinition.Atmospheres
                         SetSetting(AtmospheresSettings.Keys.CloudSamples, 256.0);
                         if (!vis) SetSetting(AtmospheresSettings.Keys.LayerStepGrowth, 0.0);
                         ForceTuning(OwnCloudOptions.TuneMinStepM, 6f);
-                        ForceTuning(OwnCloudOptions.TuneFrameStepGrowth, 0f);
                         if (!vis) ForceTuning(OwnCloudOptions.TuneEarlyOut, 0.001f);
                         ForceTuning(OwnCloudOptions.TuneEmptyLeap, 1f);
                         // The accepted look's light stride 2 for every variant from round 4 on (s2, nl, sd and the cost split c<N>).
@@ -294,12 +277,8 @@ namespace ReDefinition.Atmospheres
                         // ceilvis8c<N> (2026-11-18, where the accepted look's time goes): the cost debug bits N (1 no light march, 2 no shape noise, 4 no erosion); the picture is wrong.
                         if (name.StartsWith("ceilvis8c", StringComparison.Ordinal))
                             ForceTuning(OwnCloudOptions.TuneCostDebug, float.Parse(name.Substring("ceilvis8c".Length), System.Globalization.CultureInfo.InvariantCulture));
-                        // ceilvis8sd (the owner's perf program, points 2 and 6, both judged equal in the player): with the tile pass's skip of empty tiles and the detail dropped below a pixel.
-                        if (name == "ceilvis8sd")
-                        {
-                            SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, 1.0);
-                            SetSetting(AtmospheresSettings.Keys.CloudDetailLod, 1.0);
-                        }
+                        // ceilvis8sd (the owner's perf program, point 2, judged equal in the player): with the tile pass's skip of empty tiles.
+                        if (name == "ceilvis8sd") SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, 1.0);
                         // ceilvis8lc (2026-11-19, the owner judged the player's lc_g128 equal): the accepted look with the light cache (3 near sun taps, 128 x 128 x 32 voxels).
                         if (name == "ceilvis8lc" || name == "ceilvis8lcrot") SetSetting(AtmospheresSettings.Keys.CloudLightCache, 1.0);
                         // ceilvis8rot (2026-11-19, the owner judged the player's rot2ac equal still, turning and flying): the accepted look as a rotation over 2 x 2 blocks

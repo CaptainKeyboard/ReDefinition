@@ -22,9 +22,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         {
             string[] global =
             {
-                CloudLookTuning.TuneHeap, CloudLookTuning.TuneEdgePower, CloudLookTuning.TuneCavity, CloudLookTuning.TuneHeapFootLod, CloudLookTuning.TuneHeapIso, CloudLookTuning.TuneHeapWarp,
-                CloudLookTuning.TuneNoiseBlend, CloudLookTuning.TuneNoiseBlendExp, CloudLookTuning.TuneNoiseBlendCell, CloudLookTuning.TuneHeapDetail,
-                CloudLookTuning.TuneFirstHit, CloudLookTuning.TuneFirstHitThin, CloudLookTuning.TuneFirstHitShell, CloudLookTuning.TuneFirstHitNear
+                CloudLookTuning.TuneHeap, CloudLookTuning.TuneEdgePower, CloudLookTuning.TuneCavity, CloudLookTuning.TuneHeapFootLod, CloudLookTuning.TuneHeapIso,
+                CloudLookTuning.TuneNoiseBlend, CloudLookTuning.TuneNoiseBlendExp, CloudLookTuning.TuneNoiseBlendCell, CloudLookTuning.TuneHeapDetail
             };
             foreach (string key in global)
             {
@@ -32,11 +31,6 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 Assert.AreNotEqual(KeySection.Other, k.Section, key);
                 Assert.IsFalse(k.RangeEstimated, key + ": the range is the reader's clamp");
                 Assert.IsTrue(k.Min <= k.Default && k.Default <= k.Max, key + ": the default is on the slider");
-            }
-            foreach (string key in new[] { CloudLookTuning.TuneFirstHit, CloudLookTuning.TuneFirstHitThin, CloudLookTuning.TuneFirstHitShell, CloudLookTuning.TuneFirstHitNear })
-            {
-                Assert.AreEqual(KeySection.Quality, Key(key).Section, key);
-                StringAssert.Contains(Key(key).Note, "experimental");
             }
             Assert.AreEqual(KeySection.Light, Key(CloudLookTuning.TuneLightErosion).Section);
             Assert.AreEqual(KeyMarker.Live, Key(CloudLookTuning.TuneLightErosion).Marker);
@@ -84,7 +78,6 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsTrue(CloudLookTuning.LightErosionTaps >= 1f, "the first sun taps read the eroded density by default");
             Assert.IsTrue(CloudLookTuning.NoiseBlend);
             Assert.AreEqual(1f, Key(OwnCloudOptions.TuneCatmull).Default);
-            Assert.AreEqual(0f, Key(CloudLookTuning.TuneFirstHit).Default, "the first-hit bisection is a measured dead end and stays off");
             Assert.AreEqual(256, (int)AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default);
         }
 

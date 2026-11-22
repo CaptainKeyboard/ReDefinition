@@ -25,8 +25,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             Tuning.ClearOverrides();
             Tuning.Instance.BeginFrame(++frameCounter);
-            // the knobs' arithmetic is that of the old mapping (E40 F1 made the cover meaning the default)
-            CoverMeaningPin.Legacy();
         }
 
         [TestInitialize]
@@ -55,7 +53,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 Assert.AreEqual(l.SigmaPerM, l.EffectiveSigmaPerM, 0f, l.Name);
                 Assert.AreEqual(l.EdgeSoftness, l.LookedEdgeSoftness, 0f);
-                Assert.AreEqual(l.NoiseAmount, l.EffectiveNoiseAmount, 0f);
                 Assert.AreEqual(l.NoiseScaleM, l.EffectiveNoiseScaleM, 0f);
                 Assert.AreEqual(l.Coverage, l.ThresholdCoverage, 0f);
                 Assert.AreEqual(l.FadeNearM, l.EffectiveFadeNearM, 0f);
@@ -66,10 +63,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(-1f, CloudLookTuning.MapOverrideOf(l.Name));
                 Assert.AreEqual(1f, CloudLookTuning.SigmaScaleOf(l.Name));
                 Assert.AreEqual(1f, CloudLookTuning.SoftnessScaleOf(l.Name));
-                Assert.AreEqual(1f, CloudLookTuning.NoiseAmountScaleOf(l.Name));
                 Assert.AreEqual(1f, CloudLookTuning.NoiseSizeScaleOf(l.Name));
             }
-            Assert.AreEqual(0f, CloudLookTuning.DensityRemap);
             Assert.AreEqual(CloudLookTuning.DefaultCoverCombine, CloudLookTuning.CoverCombine);
             Assert.AreEqual(-1f, CloudLookTuning.FarHazeForce);
             Assert.AreEqual(1f, CloudLookTuning.HazeStrengthScale);
@@ -96,15 +91,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             Assert.AreEqual(sum1, sum0, 0.0);
             Assert.AreEqual(sum1 > 0.0, true);
-            // The noise model's share at a default parameter set equals the share with the remap field never set (a struct default).
-            NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(0), 3u);
-            NoiseLayerParams a = NoiseLayerParams.Default(5000.0), b = NoiseLayerParams.Default(5000.0);
-            b.DensityRemap = 0.0;
-            for (int i = 0; i < 300; i++)
-            {
-                double x = 600000.0 + i * 913.0, y = i * 1777.0, z = i * 331.0;
-                Assert.AreEqual(CloudShapeModel.Share(set, ref a, x, y, z, 0.8, 0.35, 0.15, 0.35, 0.3, true, 40.0), CloudShapeModel.Share(set, ref b, x, y, z, 0.8, 0.35, 0.15, 0.35, 0.3, true, 40.0), 0.0);
-            }
         }
 
         [TestMethod]
@@ -132,11 +118,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             long stamp = CloudCoverShift.Stamp;
             Set(CloudLookTuning.TuneSigma, 0.7f);
             Set(CloudLookTuning.TuneSoftness, 2f);
-            Set(CloudLookTuning.TuneNoiseAmount, 0.7f);
             Set(CloudLookTuning.TuneNoiseSize, 0.5f);
             Assert.AreEqual(0.035f, l1.EffectiveSigmaPerM, 1e-6f);
             Assert.AreEqual(0.30f, l1.LookedEdgeSoftness, 1e-6f);
-            Assert.AreEqual(l1.NoiseAmount * 0.7f, l1.EffectiveNoiseAmount, 1e-6f);
             Assert.AreEqual(l1.NoiseScaleM * 0.5f, l1.EffectiveNoiseScaleM, 1e-3f);
             Assert.AreEqual(l1.SigmaPerM, l1.SigmaPerM, 0f, "the configured number is untouched");
             Assert.IsTrue(CloudCoverShift.Stamp > stamp);
@@ -160,11 +144,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudLayerDef[] stack = Stack();
             Set(CloudLookTuning.TuneSigma + ".Kerbin-cumulus", 0.7f);
             Set(CloudLookTuning.TuneSoftness + ".Kerbin-cumulus", 2f);
-            Set(CloudLookTuning.TuneNoiseAmount + ".Kerbin-cumulus", 0.7f);
             Set(CloudLookTuning.TuneNoiseSize + ".Kerbin-cumulus", 0.5f);
             Assert.AreEqual(0.035f, stack[1].EffectiveSigmaPerM, 1e-6f);
             Assert.AreEqual(0.30f, stack[1].LookedEdgeSoftness, 1e-6f);
-            Assert.AreEqual(stack[1].NoiseAmount * 0.7f, stack[1].EffectiveNoiseAmount, 1e-6f);
             Assert.AreEqual(stack[1].NoiseScaleM * 0.5f, stack[1].EffectiveNoiseScaleM, 1e-3f);
             Assert.AreEqual(stack[2].SigmaPerM, stack[2].EffectiveSigmaPerM, 0f, "another layer is untouched");
             Assert.AreEqual(stack[0].EdgeSoftness, stack[0].LookedEdgeSoftness, 0f);
@@ -190,15 +172,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheLookSetsAreTheSixCandidatesWithTheKeysTheOracleAndThePlayerUse()
+        public void TheLookSetsAreTheFiveCandidatesWithTheKeysTheOracleAndThePlayerUse()
         {
-            Assert.AreEqual(6, CloudLookModel.Sets.Length);
-            CollectionAssert.AreEqual(new[] { "C0", "C1", "C2", "C3", "C4", "C5" }, Array.ConvertAll(CloudLookModel.Sets, s => s.Tag));
+            Assert.AreEqual(5, CloudLookModel.Sets.Length);
+            CollectionAssert.AreEqual(new[] { "C0", "C1", "C2", "C4", "C5" }, Array.ConvertAll(CloudLookModel.Sets, s => s.Tag));
             Assert.AreEqual(0, CloudLookModel.SetByTag("C0").Keys.Length, "C0 is the current numbers: no key");
             Assert.IsTrue(CloudLookModel.SetByTag("c1").ChangesTypes);
-            Assert.IsFalse(CloudLookModel.SetByTag("C3").ChangesTypes);
+            Assert.IsFalse(CloudLookModel.SetByTag("C2").ChangesTypes);
             Assert.AreEqual(3, CloudLookModel.Selected("C0, C4 ,CX,C4,C5").Count, "unknown tags skipped, repeats once");
-            Assert.AreEqual(6, CloudLookModel.Selected(null).Count);
+            Assert.AreEqual(5, CloudLookModel.Selected(null).Count);
             // C4 applied to the cumulus layer gives the numbers of the plan's proposal table.
             Clear();
             foreach (System.Collections.Generic.KeyValuePair<string, float> k in CloudLookModel.SetByTag("C4").Keys) Tuning.SetOverride(k.Key, k.Value);
@@ -207,7 +189,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.25f, l1.ThresholdCoverage, 1e-6f);
             Assert.AreEqual(0.35f, l1.LookedEdgeSoftness, 1e-6f);
             Assert.AreEqual(0.035f, l1.EffectiveSigmaPerM, 1e-6f);
-            Assert.AreEqual(0.7f, l1.EffectiveNoiseAmount, 1e-5f);
             Assert.AreEqual(350f, l1.EffectiveNoiseScaleM, 1e-2f);
             Assert.AreEqual(CloudLookFixtures.Cumulonimbus().SigmaPerM, CloudLookFixtures.Cumulonimbus().EffectiveSigmaPerM, 0f, "the other layers keep their numbers");
         }
@@ -398,36 +379,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             l1.FadeNearM = 10000f;
             l1.FadeFarM = 20000f;
             Assert.AreEqual(20000f, l1.EffectiveFadeFarM, "a layer's own fade wins");
-        }
-
-        [TestMethod]
-        public void TheDensityRemapThinsAClosedDeckInsideAndLeavesTheDefaultAlone()
-        {
-            Clear();
-            NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(0), 3u);
-            NoiseLayerParams plain = NoiseLayerParams.Default(5000.0), remap = NoiseLayerParams.Default(5000.0);
-            remap.DensityRemap = 0.6;
-            int closedPlain = 0, thinned = 0, equalOutside = 0;
-            for (int i = 0; i < 400; i++)
-            {
-                double x = 600000.0 + i * 977.0, y = i * 1493.0, z = i * 211.0;
-                // map 1.0: the soft edge is far below the noise, the share is 1 everywhere (a closed deck).
-                double a = CloudShapeModel.Share(set, ref plain, x, y, z, 1.0, 0.7, 0.15, 0.2, 0.5, true, 40.0);
-                double b = CloudShapeModel.Share(set, ref remap, x, y, z, 1.0, 0.7, 0.15, 0.2, 0.5, true, 40.0);
-                if (a >= 1.0) closedPlain++;
-                if (b < a) thinned++;
-                Assert.IsTrue(b <= a + 1e-12 && b >= 0.0);
-                // map 0: nothing there, the remap adds nothing.
-                if (CloudShapeModel.Share(set, ref remap, x, y, z, 0.0, 0.1, 0.15, 0.2, 0.5, true, 40.0) == 0.0) equalOutside++;
-            }
-            Assert.AreEqual(400, closedPlain, "a closed deck keeps the share 1 without the remap");
-            Assert.IsTrue(thinned > 380, "the remap thins the interior (" + thinned + ")");
-            Assert.AreEqual(400, equalOutside);
-            Assert.AreEqual(1.0 - 0.6 * 0.5 * (1.0 - 0.4), CloudShapeModel.InteriorThinning(0.6, 0.5, 0.4), 1e-12);
-            // The far view's mean follows: the same factor.
-            double m0 = FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45), m1 = FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45, 0.6);
-            Assert.AreEqual(m0 * CloudShapeModel.InteriorThinning(0.6, 0.5, 0.45), m1, 1e-12);
-            Assert.AreEqual(m0, FarViewMath.ShapeMean(1.0, 0.7, 0.15, 0.2, 0.5, 0.45, 0.0), 0.0, "default 0: unchanged");
         }
 
         [TestMethod]

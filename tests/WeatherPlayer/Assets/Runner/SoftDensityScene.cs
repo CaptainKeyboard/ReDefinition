@@ -67,7 +67,7 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // The marches every medium is drawn with (GrainTable's: the product's grid march with the golden-ratio offset; 32 and 24 grid points at most).
-        // -marches a,b,c replaces the list; seq1m<N> is N grid points at most, tseq1m<N> the same on the span cut to the types present (LayerFrame.SpanTight).
+        // -marches a,b,c replaces the list; seq1m<N> is N grid points at most.
         internal static string[] Marches
         {
             get
@@ -126,7 +126,7 @@ namespace ReDefinition.WeatherPlayer
             return set != null ? set.DetailMean : 0.5;
         }
 
-        // The march of a name on the frame (GrainTable's, or seq1m<N> / tseq1m<N>).
+        // The march of a name on the frame (GrainTable's, or seq1m<N>).
         internal static void ApplyMarch(LayerFrame f, string name)
         {
             GrainTable.Apply(f, March(name));
@@ -134,9 +134,8 @@ namespace ReDefinition.WeatherPlayer
 
         internal static GrainTable.March March(string name)
         {
-            bool tight = name.StartsWith("tseq1m");
-            if (tight || name.StartsWith("seq1m"))
-                return new GrainTable.March { Name = name, Tight = tight, MaxSteps = int.Parse(name.Substring(tight ? 6 : 5)) };
+            if (name.StartsWith("seq1m"))
+                return new GrainTable.March { Name = name, MaxSteps = int.Parse(name.Substring(5)) };
             return GrainTable.MarchByName(name);
         }
 
@@ -146,16 +145,16 @@ namespace ReDefinition.WeatherPlayer
         //   clip<NN>  the history's clip width in standard deviations, NN / 10 (the product: 10; clip1000 is no clip in practice)
         //   ls<N>     layers.lightStride              lc<NNN>  layers.lightCutoff NNN / 1000                    ds<N> layers.ditherSequence
         //   lq<N>     cloudLightQuality 0 Low, 1 Medium, 2 High (taps and octaves; without it the frame's own: 3 sun taps, 4 octaves)   sun<N> the frame's sun steps
-        //   skip      cloudSkipEmpty (the tile pass)    skipc    cloudSkipClosed                                  leap<N> layers.emptyLeap
+        //   skip      cloudSkipEmpty (the tile pass)                                                                    leap<N> layers.emptyLeap
         //   lm<N>     the layers that are marched, bit i = layer i (0: all; a measurement of what dropping the empty layers before the march would save)
         //   dbg<N>    the cost debug mask (1 no light, 2 no shape noise, 4 no erosion; not a picture of the product)
         //   og        the pattern's pixel grid of the pass before E40 F2 (the camera's size scales the uv)       cr<N>  the light cone's rotation pattern: 0 gradient noise, 1 fixed, 2 hash, 3 blue noise (the default)
-        // The base is seq1 (the product's grid march with the 48 points of the High setting), seq1m<N> and tseq1m<N> (N grid points, the second on the cut span) or a GrainTable name.
+        // The base is seq1 (the product's grid march with the 48 points of the High setting), seq1m<N> (N grid points) or a GrainTable name.
         internal sealed class Case
         {
             public string Name, Base = "seq1";
             public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f;
-            public bool Jitter, Skip, SkipClosed, OldGrid, NoReach, StepGrowth, TapLod, FarMean, DetailLod;
+            public bool Jitter, Skip, OldGrid, NoReach, FarMean;
             public int ConePattern = -1, Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
             // E40 C1: sp<NN> the widest grid spacing of a span in the layer's noise scales, NN / 10 (0: off); spm<N> the fewest grid points such a span keeps
             public float Spacing;
@@ -166,20 +165,18 @@ namespace ReDefinition.WeatherPlayer
             public int Moon, MoonCut;
             public bool Evict;
             public float Leap100;
-            // E40 C3: cg<N> the step growth along a span (cloudStepGrowth) of N / 1000000 per m (cg alone: the switch's own default), eo<N> the march's early-out transmittance N / 1000 (the product's 0.01).
-            public int GrowthE6, EarlyOut;
-            // E40 C4: wt<N> layers.warpTable (0 the warp's lattice values hashed at every sample, 1 the table of half floats, 2 the table of bytes; the product 0).
-            public int WarpTable;
-            // PUFF ceiling render: ceil the march and the light without the real-time compromises (256 grid points over the span at 6 m at least, no step growth, early-out 0.001, no
+            // E40 C3: eo<N> the march's early-out transmittance N / 1000 (the product's 0.01).
+            public int EarlyOut;
+            // PUFF ceiling render: ceil the march and the light without the real-time compromises (256 grid points over the span at 6 m at least, early-out 0.001, no
             // transmittance growth, every lit step marches to the sun, no light cutoff, 16 sun taps over 12 km). Used with r100+jit+acc<N>+clip1000: the reconstruction then accumulates jittered full-size frames.
             // cstep alone is the march's group (grid, minimum step, no growth, early-out), clight alone the light's group (stride, cutoff, taps, reach); ceil is both.
             public bool CeilStep, CeilTaps;
-            // CLOUDR1 ablation of the ceiling's march group, one lever each: c256 256 grid points, cmin6 a minimum step of 6 m, cng no step and transmittance growth, ceo early-out 0.001,
+            // CLOUDR1 ablation of the ceiling's march group, one lever each: c256 256 grid points, cmin6 a minimum step of 6 m, cng no transmittance growth, ceo early-out 0.001,
             // cel no leap over empty grid points; cls every lit step marches to the sun (stride 1, no cutoff) with the product's taps.
             public bool C256, Cmin6, Cng, Ceo, Cel, Cls;
             // A4 search round 2 (owner 2026-11-18: save where clouds are hidden or contribute little, before the size): ctaps the ceiling's sun taps alone (16 over 12 km, the product's
-            // stride and cutoff); cnsg no step growth along the ray but the product's growth with the lost transmittance; cst1 every lit step marches (stride 1) with the product's cutoff.
-            public bool Ctaps, Cnsg, Cst1;
+            // stride and cutoff); cst1 every lit step marches (stride 1) with the product's cutoff.
+            public bool Ctaps, Cst1;
             // Round 3: cms<N> the shortest step in m; ctap<N> the sun taps (with ctaps' 12 km march). Round 4: csm<N> the sun march in km (with ctaps or ctap<N>).
             public int MinStepOverride, SunTaps, SunMarchKm;
             // CLOUDR3 P7: chm reads the reconstruction's history with the Catmull-Rom filter (ReconSettings.CatmullHistory).
@@ -194,8 +191,6 @@ namespace ReDefinition.WeatherPlayer
             public bool BlockExact, BlockAcc;
             // far<km>: the far rotation beyond that distance (ReconSettings.FarRotateM); farb<N> its block side (2: every 4th frame).
             public int FarKm, FarBlock;
-            // lrm: the reused sun optical depth moved by the ray's progress (LayerFrame.LightReuseMove).
-            public bool ReuseMove;
             // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
             public int Grid;
             // sg<N>: a span's points by distance, the step's growth of N / 1000000 per m of distance from the camera (LayerFrame.SpanGrowthPerM).
@@ -265,12 +260,8 @@ namespace ReDefinition.WeatherPlayer
                 string t = parts[i];
                 if (t == "jit") c.Jitter = true;
                 else if (t == "skip") c.Skip = true;
-                else if (t == "skipc") c.SkipClosed = true;
                 else if (t == "nr") c.NoReach = true;   // E40 C1: the march without the leap over the empty reach (LayerFrame.EmptyReach false)
-                else if (t == "cg") c.StepGrowth = true;   // T16 cloudStepGrowth
-                else if (t == "tl") c.TapLod = true;   // T16 cloudTapLod
                 else if (t == "fm") c.FarMean = true;   // cloudFarShapeMean
-                else if (t == "dlod") c.DetailLod = true;   // cloudDetailLod (A4 perf program point 6, 2026-11-18)
                 else if (t == "ev") c.Evict = true;   // E40 C2
                 else if (t == "ceil") { c.CeilStep = true; c.CeilTaps = true; }   // PUFF ceiling render
                 else if (t == "cstep") c.CeilStep = true;   // PUFF ceiling render: the march's group alone
@@ -291,14 +282,11 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("cms") && t.Length > 3) c.MinStepOverride = Number(t, 3);
                 else if (t.StartsWith("csm") && t.Length > 3) c.SunMarchKm = Number(t, 3);
                 else if (t.StartsWith("ctap") && t.Length > 4) { c.Ctaps = true; c.SunTaps = Number(t, 4); }
-                else if (t == "cnsg") c.Cnsg = true;
                 else if (t == "cst1") c.Cst1 = true;
-                else if (t.StartsWith("cg") && t.Length > 2) { c.StepGrowth = true; c.GrowthE6 = Number(t, 2); }   // E40 C3
                 else if (t.StartsWith("eo")) c.EarlyOut = Number(t, 2);   // E40 C3
                 else if (t.StartsWith("mn")) c.Moon = Number(t, 2);   // E40 C2
                 else if (t.StartsWith("mc")) c.MoonCut = Number(t, 2);   // E40 C2
                 else if (t.StartsWith("lp")) c.Leap100 = Number(t, 2) / 100f;   // E40 C2
-                else if (t.StartsWith("wt")) c.WarpTable = Number(t, 2);   // E40 C4
                 else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
                 else if (t == "chm") c.CatmullHistory = true;   // CLOUDR3 P7: the history read with the Catmull-Rom filter
                 else if (t == "rtd") c.TrueDistance = true;   // recon.trueDistance: the history moved by the march's own distance (ReconSettings.TrueDistance)
@@ -310,7 +298,6 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("cr")) c.ConePattern = Number(t, 2);   // E40 F2: the light cone's rotation pattern (LayerFrame.ConePattern)
                 else if (t == "bexact") c.BlockExact = true;
                 else if (t == "bacc") c.BlockAcc = true;
-                else if (t == "lrm") c.ReuseMove = true;
                 else if (t.StartsWith("farb")) c.FarBlock = Number(t, 4);
                 else if (t.StartsWith("far")) c.FarKm = Number(t, 3);
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
@@ -401,7 +388,6 @@ namespace ReDefinition.WeatherPlayer
             Lever(CloudLookTuning.TuneLvBand, c.LvBand, 0.01f);
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
-            f.LightReuseMove = c.ReuseMove;
             f.SpanGrowthPerM = c.SpanGrowthE6 * 1e-6f;
             f.LeapDebug = c.LeapDebug;
             f.SpanGrowthFromM = c.GrowFromM;
@@ -416,23 +402,12 @@ namespace ReDefinition.WeatherPlayer
             f.SunSteps = c.Sun > 0 ? c.Sun : 3;
             f.LayerMask = c.Mask;
             f.Cull.SkipEmpty = c.Skip;
-            f.Cull.SkipClosed = c.SkipClosed;
-            f.Cull.StepGrowth = c.StepGrowth;
-            f.Cull.StepGrowthPerM = c.GrowthE6 > 0 ? c.GrowthE6 * 1e-6f : new CullSettings().StepGrowthPerM;
             if (c.EarlyOut > 0) f.EarlyOut = c.EarlyOut / 1000f;   // the march's own value (GrainTable.Apply) otherwise
-            f.Cull.TapLod = c.TapLod;
             f.Far.ShapeMean = c.FarMean;
-            // dlod: the setting cloudDetailLod, which in the game also switches the far shape mean on (OwnCloudOptions).
-            if (c.DetailLod)
-            {
-                f.Cull.DetailLod = true;
-                f.Far.ShapeMean = true;
-            }
             f.EmptyReach = !c.NoReach;
             f.SpanSpacing = c.Spacing;
             f.SpanSpacingMin = c.SpacingMin;
             f.LeapScales = c.Leap100;
-            f.WarpTable = c.WarpTable;
             for (int i = 0; i < f.Light.Lights.Length; i++) f.Light.Lights[i] = new CloudLight { Towards = Vector3.up, Colour = Color.black };
             // The product's light.moonMinShare (OwnCloudOptions.MoonTooFaint, which the player does not link): a moon below that share of the sun is left out.
             if (c.Moon > 0 && !(c.MoonCut > 0 && c.Moon / 10000f < c.MoonCut / 1000f))
@@ -451,7 +426,6 @@ namespace ReDefinition.WeatherPlayer
             {
                 f.MaxSteps = 256;
                 f.MinStepM = 6f;
-                f.StepGrowth = 0f;
                 f.EarlyOut = 0.001f;
                 f.TransmittanceGrowth = 0f;
                 f.EmptyLeap = 1f;
@@ -459,11 +433,7 @@ namespace ReDefinition.WeatherPlayer
             if (c.C256) f.MaxSteps = 256;
             if (c.Grid > 0) f.MaxSteps = c.Grid;
             if (c.Cmin6) f.MinStepM = 6f;
-            if (c.Cng)
-            {
-                f.StepGrowth = 0f;
-                f.TransmittanceGrowth = 0f;
-            }
+            if (c.Cng) f.TransmittanceGrowth = 0f;
             if (c.Ceo) f.EarlyOut = 0.001f;
             if (c.Cel) f.EmptyLeap = 1f;
             if (c.Cls)
@@ -471,7 +441,6 @@ namespace ReDefinition.WeatherPlayer
                 f.LightStride = 1;
                 f.LightCutoff = 0f;
             }
-            if (c.Cnsg) f.StepGrowth = 0f;
             if (c.Cst1) f.LightStride = 1;
             if (c.Ctaps)
             {
@@ -942,8 +911,8 @@ namespace ReDefinition.WeatherPlayer
                             if (marchCase.Skip && round == 0)
                             {
                                 // What the tile pass dropped: the share of the 16 x 16 tiles that march no layer at all, and of the (tile, layer) pairs that are not marched.
-                                double emptyTiles, droppedPairs, byMaps, byTerrain, byShell, byClosed;
-                                CullKit.TileStats(rig.Renderer, job.layers.Length, out emptyTiles, out droppedPairs, out byMaps, out byTerrain, out byShell, out byClosed);
+                                double emptyTiles, droppedPairs, byMaps, byTerrain, byShell;
+                                CullKit.TileStats(rig.Renderer, job.layers.Length, out emptyTiles, out droppedPairs, out byMaps, out byTerrain, out byShell);
                                 Sink.Info("softcost.tilesempty." + label, emptyTiles);
                                 Sink.Info("softcost.tilesdropped." + label, droppedPairs);
                             }

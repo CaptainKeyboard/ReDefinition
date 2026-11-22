@@ -52,7 +52,6 @@ namespace ReDefinition.WeatherPlayer
                 frame.Resolution = 0.5f;
                 frame.MaxSteps = 48;
                 frame.MinStepM = 25f;
-                frame.StepGrowth = 0.0002f;
                 frame.Jitter = 1f;
                 frame.EarlyOut = 0.01f;
                 Cam.fieldOfView = lj.fovV;
