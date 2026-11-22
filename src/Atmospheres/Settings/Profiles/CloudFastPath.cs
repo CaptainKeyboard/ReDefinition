@@ -3,7 +3,7 @@ using System;
 namespace ReDefinition.Atmospheres
 {
     // The fast cloud path of the tier in force (TierRow.CloudFastPath): the defaults of the tuning keys that make it. A key set by hand still wins, so the
-    // probe and the viewer compare both paths in one session. Read once per tuning frame (Tuning.Version changes every frame), not per call.
+    // probe and the viewer compare both paths in one session.
     internal static class CloudFastPath
     {
         // The light volume for the sun's light of every lit sample: on, handed over at 0 km, one near tap on the far path.
@@ -19,21 +19,11 @@ namespace ReDefinition.Atmospheres
         // Whether the tier in force takes the fast path; tests assign their own.
         internal static Func<bool> Source = () => TierRows.For(QualityProfile.Effective()).CloudFastPath;
 
-        private static long seen = long.MinValue;
-        private static bool on;
-
+        // Read at every ask, so a change of the tier (the setting, the host's profile, the memory guard) acts on the next frame: the ask is two enum reads and the
+        // engine's cached video memory, about ten times a frame.
         internal static bool On
         {
-            get
-            {
-                long version = Tuning.Version;
-                if (version != seen)
-                {
-                    seen = version;
-                    on = Read();
-                }
-                return on;
-            }
+            get { return Read(); }
         }
 
         private static bool reported;
@@ -61,12 +51,6 @@ namespace ReDefinition.Atmospheres
                 }
                 return false;
             }
-        }
-
-        // Tests: forget the cached answer after assigning Source.
-        internal static void Reset()
-        {
-            seen = long.MinValue;
         }
 
         internal static float Pick(float fast, float full)

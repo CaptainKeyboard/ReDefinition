@@ -18,7 +18,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
         private static void Frame(int n, bool fast)
         {
             CloudFastPath.Source = () => fast;
-            CloudFastPath.Reset();
             Tuning.Instance.BeginFrame(n);
         }
 
@@ -27,7 +26,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             Tuning.ClearOverrides();
             CloudFastPath.Source = () => TierRows.For(QualityProfile.Effective()).CloudFastPath;
-            CloudFastPath.Reset();
             Tuning.Instance.BeginFrame(9300099);
         }
 
@@ -112,11 +110,23 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
+        public void AChangeOfTheTierActsWithoutAChangeOfAnyKey()
+        {
+            Tuning.ClearOverrides();
+            Frame(9300005, true);
+            Assert.IsTrue(CloudFastPath.On);
+            CloudFastPath.Source = () => false;
+            Assert.IsFalse(CloudFastPath.On, "the same tuning frame, the tier changed: the full path at once");
+            var frame = new LayerFrame();
+            OwnCloudOptions.Apply(frame, Default);
+            Assert.AreEqual(0f, frame.SpanGrowthPerM);
+        }
+
+        [TestMethod]
         public void ATierThatCannotBeReadGivesTheFullPath()
         {
             Tuning.ClearOverrides();
             CloudFastPath.Source = () => { throw new InvalidOperationException("no host"); };
-            CloudFastPath.Reset();
             Tuning.Instance.BeginFrame(9300004);
             Assert.IsFalse(CloudFastPath.On);
         }
