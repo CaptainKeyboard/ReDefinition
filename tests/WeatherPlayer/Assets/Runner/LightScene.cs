@@ -9,8 +9,7 @@ namespace ReDefinition.WeatherPlayer
 {
     // The cloud light in the player (package T03, -mode scene -scene light -in <folder>): draws the jobs of <folder>/jobs.json with the mod's own
     // LayerRenderer and the light's settings of the job (the phase, the octaves, powder, ambient, the extra lights, the light cache), and writes
-    // each job's four channels as <id>-r.npy, -g, -b, -a (float32, row 0 at the top). What the channels hold depends on the job's aid number
-    // (LightJob). The judging, the pictures and the sweeps are tools/weather_metrics/light.py, which also wrote the jobs. No upscaler, no proxy.
+    // each job's four channels as <id>-r.npy, -g, -b, -a (float32, row 0 at the top). The judging, the pictures and the sweeps are tools/weather_metrics/light.py, which also wrote the jobs. No upscaler, no proxy.
     [WeatherScene("light")]
     public sealed class LightScene : WeatherSceneBase
     {
@@ -39,7 +38,6 @@ namespace ReDefinition.WeatherPlayer
                 LayersJob lj = job.layerJob;
                 LayerFrame frame = LayersSetup.Load(lj, input, renderer);
                 Configure(job, frame.Light);
-                frame.AidMode = job.aid;
                 float tan = Mathf.Tan(lj.fovV * Mathf.Deg2Rad * 0.5f);
                 Vector3 right = LayersSetup.V(lj.right) * tan * (lj.width / (float)lj.height), up = LayersSetup.V(lj.up) * tan;
                 renderer.SetCamera(LayersSetup.V(lj.position), LayersSetup.V(lj.forward), right, up, Vector2.zero);

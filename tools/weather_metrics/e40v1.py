@@ -69,7 +69,6 @@ def variants():
         "ssh": dict(az=AZIMUTH, smooth_scale=0.5),
         "ns125": dict(az=AZIMUTH, noise=125.0),
         "ns500": dict(az=AZIMUTH, noise=500.0),
-        "aid4": dict(az=AZIMUTH, aid=4),
         # the soft density's width through the job (the medium of the scene does not reach a job that names its own), the erosion in the interior, the aerial perspective
         "sf30": dict(az=AZIMUTH, soft=0.3),
         "sf100": dict(az=AZIMUTH, soft=1.0),
@@ -156,8 +155,6 @@ def build_job(view, variant):
     cam = camera(view)
     args = gn.prod()
     v = variants()[variant]
-    if "aid" in v:
-        args["aid"] = v["aid"]
     if "tuning" in v:
         args["tuning"] = e40o.tuning(v["tuning"])
     if v.get("haze"):
@@ -363,7 +360,6 @@ STAGES = {
     "v1-a": (["base", "az90", "az0", "ss0"], "pr50", [R33, R50, R100]),
     "v1-d": (["base"], "pr50", [R33 + "+acc0", R33 + "+acc50", R33 + "+acc100", "seq1m128+lq2+r33"]),
     "v1-e": (["ssh", "ns125", "ns500"], "pr50", [R33, R100]),
-    "v1-g": (["aid4"], "pr50", [R33]),
     "v1-h": (["sf30", "sf100", "dr06", "dr10", "ss0dr06", "sshdr06", "haze"], "pr50", [R33]),
     "v1-o": (["base"], "pr50", [R33]),
     "v1-i": (["hzcs10", "hzcs20", "hzsg05", "hzsg03", "hzssh", "hzss0"], "pr50", [R33]),
@@ -414,18 +410,6 @@ def collect(ctx):
                     if not os.path.isfile(path):
                         continue
                     m = e40ty.load_lum(folder, case_file(label, view, n, medium, march))
-                    if "aid" in variants()[n]:
-                        # aid 4: r the direct light's luma, b the ambient's (both radiance, summed along the ray), a the alpha; relative to the stage's white
-                        ok = rocket_mask(m.shape)
-                        w = VIEWS[view]["white"]
-                        closed = ok & (m[..., 3] > 0.9)
-                        if closed.sum() > 200:
-                            d, a = m[..., 0][closed] / w, m[..., 2][closed] / w
-                            rows["%s|%s|%s|%s" % (view, n, medium, march)] = dict(direct_p50=float(np.percentile(d, 50)), direct_p90=float(np.percentile(d, 90)), amb_p50=float(np.percentile(a, 50)),
-                                                                                   amb_p90=float(np.percentile(a, 90)), closed=float(closed.mean()))
-                            lines.append("   %-44s closed %.2f  direct/W P50 %.3f P90 %.3f  ambient/W P50 %.3f P90 %.3f" % ("%s|%s|%s" % (view, n, march.replace(c1.BASE, "p")), closed.mean(), np.percentile(d, 50),
-                                                                                                                np.percentile(d, 90), np.percentile(a, 50), np.percentile(a, 90)))
-                        continue
                     img, alpha = compose(view, m, off)
                     r = measure_frame(view, img, off)
                     # the coverage's own edge: the alpha image, measured as the signal

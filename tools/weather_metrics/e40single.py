@@ -385,54 +385,6 @@ def collect(ctx):
 register_series("e40-single", stage_list(), collect, exclusive=False, who="e40-single")
 
 
-# ---------------------------------------------------------------------------------------------------------------------------------
-# The light's components (aid picture 4 of the march: the direct light, the ambient light, the alpha), one frame per job, at the product's march
-# ---------------------------------------------------------------------------------------------------------------------------------
-AID_IN = INPUT + "-aid"
-AID_NAMES = ("s_m1d6_base", "s_m1d6_heap", "s_m1d6b_base", "s_m2d6_base")
-
-
-def prepare_aid():
-    import shutil
-    stages = prepared()
-    with open(os.path.join(INPUT, "jobs.json"), encoding="utf-8") as f:
-        jobs = {j["id"]: j for j in json.load(f)["jobs"]}
-    os.makedirs(AID_IN, exist_ok=True)
-    for fn in os.listdir(INPUT):
-        if fn.endswith(".r8"):
-            shutil.copyfile(os.path.join(INPUT, fn), os.path.join(AID_IN, fn))
-    out = []
-    for name in AID_NAMES:
-        job = json.loads(json.dumps(jobs["gn-%s-prod-f0" % e40pp.view_tag(name)]))
-        job["id"] = "aid-" + name
-        job["mode"], job["aid"] = "lum", 4
-        out.append(job)
-    with open(os.path.join(AID_IN, "jobs.json"), "w", encoding="utf-8") as f:
-        json.dump({"jobs": out}, f)
-
-
-def aid_stage_list():
-    return [Stage("single-aid", ["-mode", "scene", "-scene", "layers", "-in", AID_IN, "-light", "product", "-width", str(SIZE[0]), "-height", str(SIZE[1])], size=SIZE, proxy=False, timeout=1800)] if os.path.isdir(AID_IN) else []
-
-
-def collect_aid(ctx):
-    folder = ctx.folder("single-aid")
-    lines = ["%-16s %-8s %8s %8s %8s %8s" % ("job", "part", "p5", "p50", "p95", "p95/p5")]
-    for name in AID_NAMES:
-        def plane(k):
-            return np.load(os.path.join(folder, "aid-%s-%s.npy" % (name, k))).astype(np.float64)
-        a, d, amb = plane("a"), plane("r"), plane("b")
-        sel = a > 0.95
-        for part, v in (("direct", d), ("ambient", amb), ("sum", d + amb)):
-            p = np.percentile(v[sel] / a[sel], [5, 50, 95])
-            lines.append("%-16s %-8s %8.3f %8.3f %8.3f %8.1f" % (name, part, p[0], p[1], p[2], p[2] / max(p[0], 1e-6)))
-    print("\n".join(lines))
-    return [Metric.info("e40single.aid.jobs", float(len(AID_NAMES)))]
-
-
-register_series("e40-single-aid", aid_stage_list(), collect_aid, exclusive=False, who="e40-single")
-
-
 # The GPU time of the pass for one cell in several looks (soft-cost scene: march | resolve | composite, median of 40 frames, proxy timestamps; a timing run takes the GPU exclusively).
 COST_LOOKS = ("base", "heap", "blend", "blendb", "lite2", "bns", "lns") + tuple(RT_OPTIONS)
 COST_SCENES = ("m1d6", "c1d11", "field")
@@ -484,7 +436,6 @@ def main():
     a = p.parse_args()
     if a.prepare:
         prepare(a.source, a.map_width)
-        prepare_aid()
     if a.pictures:
         if a.root:
             os.environ["ATMO_WP_ROOT"] = a.root

@@ -486,11 +486,6 @@ namespace ReDefinition.Atmospheres
                             Game.StopHold();
                             yield break;
                         }
-                        // The flag is asked here: the readout's iterator touches the engine's calls, which the unit tests' runtime cannot compile.
-                        if (PerfStart && CommandLine.Has(Args(), "-t09TapReadout", true))
-                        {
-                            foreach (ProbeWait w in TapReadout(OwnCloudModule.Current, view, variant)) yield return w;
-                        }
                         if (PerfStart && !PerfPictures) continue;
                         foreach (ProbeWait w in Pictures(view, variant)) yield return w;
                         if (drawnCover && DrawnIndex(view.Name) >= 0)

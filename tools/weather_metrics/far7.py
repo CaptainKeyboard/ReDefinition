@@ -7,9 +7,7 @@
     python tools/build_weather_player.py --series far7-cost --no-build      (march ms of the same cases at 1707 x 960)
     python tools/weather_metrics/far7.py --pictures <folder> [--stage check|pic]
 
-Tokens beyond FAR1's: ld<bits> the leap's switches (LayerFrame.LeapDebug; without the token the march's own: 136 with sg, else 0; 8 a leap ends where cloud can begin,
-128 restart after such an end; the other switches of the bisection are in commit 5961a1e1 only);
-gf<N> the step grows only beyond N m; aid<N> the pass's aid output; full: every pixel marched every frame without history. The leap probe (aids 8-10) is in commit 5961a1e1 only;
+Tokens beyond FAR1's: gf<N> the step grows only beyond N m; aid<N> the pass's aid output; full: every pixel marched every frame without history. The leap probe (aids 8-10) is in commit 5961a1e1 only;
 the full mode's dumps of that build repeated the first full case's frame, so they are not to be trusted without a check.
 """
 import argparse
@@ -30,16 +28,14 @@ CHECK_CASES = [
     ("accepted", ""),
     ("sg1000", "+sg1000"),
     ("sg1000-noleap", "+sg1000+lp0"),
-    ("sg1000-ld0", "+sg1000+ld0"),
-    ("sg1000-gap", "+sg1000+ld8"),
 ]
-# The off path (no growth): today's march and the same with every leap switch named (the cost of the switches' code), and the fix with the growth.
-OFF_CASES = [("today", ""), ("today ld0", "+ld0"), ("today noleap", "+lp0"), ("sg1000", "+sg1000"), ("sg1000 ng192", "+sg1000+ng192"), ("sg1000 ng128", "+sg1000+ng128"),
-             ("sg500", "+sg500"), ("sg1000 old", "+sg1000+ld0"), ("sg1000 noleap", "+sg1000+lp0")]
+# The off path (no growth): today's march, and the fix with the growth.
+OFF_CASES = [("today", ""), ("today noleap", "+lp0"), ("sg1000", "+sg1000"), ("sg1000 ng192", "+sg1000+ng192"), ("sg1000 ng128", "+sg1000+ng128"),
+             ("sg500", "+sg500"), ("sg1000 noleap", "+sg1000+lp0")]
 
 
 def pic_cases():
-    cases = [("accepted", ""), ("sg1000-noleap", "+sg1000+lp0"), ("sg1000-old", "+sg1000+ld0")]
+    cases = [("accepted", ""), ("sg1000-noleap", "+sg1000+lp0")]
     for g in (500, 1000):
         for n in (256, 192, 128):
             cases.append(("sg%d-ng%d" % (g, n), "+sg%d%s" % (g, "" if n == 256 else "+ng%d" % n)))
@@ -48,7 +44,7 @@ def pic_cases():
 
 
 def cost_cases():
-    cases = [("today", ""), ("today ld136", "+ld136"), ("sg1000 old", "+sg1000+ld0"), ("sg1000 noleap", "+sg1000+lp0")]
+    cases = [("today", ""), ("sg1000 noleap", "+sg1000+lp0")]
     for g in (500, 1000):
         for n in (256, 192, 128):
             cases.append(("sg%d ng%d" % (g, n), "+sg%d%s" % (g, "" if n == 256 else "+ng%d" % n)))

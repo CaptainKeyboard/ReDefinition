@@ -161,8 +161,6 @@ namespace ReDefinition.WeatherPlayer
         public int maxSteps = 256, sunSteps = 3;
         public float earlyOut, minStep = 1f, jitter, sunMarch = 4000f, resolution = 1f;
         public int layerMask;
-        // The aid picture of a lum job (LayerFrame.AidMode; 4: direct light, light taps, ambient, alpha), 0: the natural march.
-        public int aid;
         // 1: the march without the leap over the empty reach of the map (LayerFrame.EmptyReach false; the product leaps).
         public int noReach;
         // E40 C3: layers.leapScale of the march (LayerFrame.LeapScales; the product's default 1; 0: the pass before E40 C2, which the parity jobs and the older series keep).

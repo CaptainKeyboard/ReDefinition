@@ -16,9 +16,8 @@ namespace ReDefinition.WeatherPlayer
     public sealed class LightJob
     {
         public string id;
-        // "lum": the march (rgb, alpha); the aid number picks what the channels hold (0 natural, 3 phase over mu, 4 direct | steps | ambient, 5 step map).
+        // "lum": the march (rgb, alpha).
         public string mode = "lum";
-        public int aid;
         // 1: the light's numbers are the compiled defaults of CloudLightSettings (the cell, the extra lights and the cache still come from the job).
         public int useDefaults;
         public LayersJob layerJob;

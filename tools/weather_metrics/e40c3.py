@@ -7,7 +7,7 @@
     python tools/weather_metrics/e40c3.py --selftest
 
 The cost stage draws every game scene in its own view with the product pass (march target a third) and the cost levers of the cases below; the aux stage draws the ray
-statistics (steps, optical depth, alpha per pixel) of the whole stack and of each layer alone, and the lit samples (a fresh sun march at each: three taps).
+statistics (steps, optical depth, alpha per pixel) of the whole stack and of each layer alone.
 """
 import argparse
 import json
@@ -70,8 +70,6 @@ def aux_jobs():
         for view in c2.scene_views(scene):
             for mask in (0, 1, 2, 4, 8):
                 jobs.append(c1.build_job(scene, "now", view, "aux", c1.AUX_SIZE, aux_id(scene, view, mask), layerMask=mask, leapScale=LEAP))
-                jobs.append(c1.build_job(scene, "now", view, "lum", c1.AUX_SIZE, aux_id(scene, view, mask).replace("c3aux", "c3dense"), layerMask=mask, aid=4, costCut=0.0, lightStride=1, leapScale=LEAP))
-            jobs.append(c1.build_job(scene, "now", view, "lum", c1.AUX_SIZE, aux_id(scene, view, 0).replace("c3aux", "c3taps"), aid=4, leapScale=LEAP))
             jobs.append(c1.build_job(scene, "now", view, "aux", c1.AUX_SIZE, aux_id(scene, view, 0) + "nl", leapScale=0.0))
     return jobs
 
@@ -268,7 +266,7 @@ def collect(ctx):
         return metrics
     results = {}
     folder = ctx.folder("c3-aux")
-    lines = ["E40-C3 ray statistics (aux pass, %dx%d, product march; steps = density reads per ray; lit = samples with a fresh sun march, taps = the sun march's reads with the product's reuse)" % c1.AUX_SIZE]
+    lines = ["E40-C3 ray statistics (aux pass, %dx%d, product march; steps = density reads per ray)" % c1.AUX_SIZE]
     for scene in scene_names():
         for view in c2.scene_views(scene):
             key = c1.tag(scene, "now", view)
@@ -281,17 +279,14 @@ def collect(ctx):
                 p = os.path.join(folder, aux_id(scene, view, 1 << li) + "-steps.npy")
                 if os.path.isfile(p):
                     alone = c1.ray_stats(folder, aux_id(scene, view, 1 << li))
-                    per[name] = dict(steps=alone["steps"], clear=alone["clear"], tau=alone["tau"],
-                                     lit=float(np.load(os.path.join(folder, aux_id(scene, view, 1 << li).replace("c3aux", "c3dense") + "-g.npy")).astype(np.float64).mean() / 3.0))
+                    per[name] = dict(steps=alone["steps"], clear=alone["clear"], tau=alone["tau"])
             st["per_layer"] = per
-            st["lit"] = float(np.load(os.path.join(folder, aux_id(scene, view, 0).replace("c3aux", "c3dense") + "-g.npy")).astype(np.float64).mean() / 3.0)
-            st["taps"] = float(np.load(os.path.join(folder, aux_id(scene, view, 0).replace("c3aux", "c3taps") + "-g.npy")).astype(np.float64).mean())
             nl = os.path.join(folder, aux_id(scene, view, 0) + "nl-steps.npy")
             st["steps_noleap"] = float(np.load(nl).astype(np.float64).mean()) if os.path.isfile(nl) else float("nan")
             results[key] = st
-            lines.append("   %-26s steps %6.1f (no leap %6.1f; clear %.2f partial %.2f early %.2f) lit %5.1f taps %5.1f | alone steps/lit/clear: %s" % (
-                key, st["steps"], st["steps_noleap"], st["clear"], st["partial"], st["early"], st["lit"], st["taps"],
-                "  ".join("%s %.1f/%.1f/%.2f" % (n.split("-")[-1][:5], per[n]["steps"], per[n]["lit"], per[n]["clear"]) for n in c1.STACK if n in per)))
+            lines.append("   %-26s steps %6.1f (no leap %6.1f; clear %.2f partial %.2f early %.2f) | alone steps/clear: %s" % (
+                key, st["steps"], st["steps_noleap"], st["clear"], st["partial"], st["early"],
+                "  ".join("%s %.1f/%.2f" % (n.split("-")[-1][:5], per[n]["steps"], per[n]["clear"]) for n in c1.STACK if n in per)))
             metrics.append(Metric.info("e40c3.aux.%s.steps" % key, st["steps"]))
     with open(AUX_JSON, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=1)

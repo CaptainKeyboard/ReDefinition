@@ -195,10 +195,10 @@ namespace ReDefinition.WeatherPlayer
             public int Grid;
             // sg<N>: a span's points by distance, the step's growth of N / 1000000 per m of distance from the camera (LayerFrame.SpanGrowthPerM).
             public int SpanGrowthE6;
-            // ld<N>: the leap's switches (LayerFrame.LeapDebug, bits); aid<N>: the pass's aid output (LayerFrame.AidMode); full: every pixel marched every frame,
+            // aid<N>: the pass's aid output (LayerFrame.AidMode); full: every pixel marched every frame,
             // no history (ReconMode.Full; the aid's numbers come out as the pass wrote them).
             // gf<N>: the step grows only beyond N m (LayerFrame.SpanGrowthFromM).
-            public int LeapDebug = -1, Aid, GrowFromM;
+            public int Aid, GrowFromM;
             public bool Full;
             // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
             // lcgrid<N> its voxels across (the voxels up are a quarter of them).
@@ -214,13 +214,10 @@ namespace ReDefinition.WeatherPlayer
             public int LvFarScale = -1;
             // LV3: lvsp<N> the spread's source, lvsr<N> its radius in m, lvsd<N> its depth in tenths of an optical depth, lvsm<N> its largest weight in percent.
             public int LvSpread = -1, LvSpreadRadius = -1, LvSpreadDepth = -1, LvSpreadMax = -1;
-            // LV2: lvm<N> the fill (0 direct, 1 propagation, 2 / 3 reference), lvq<N> the near length's factor in hundredths, lvk<N> / lvx<N> the
-            // propagation's least / most samples, lvl<N> its limit in voxels.
-            public int LvFill = -1, LvNearScale = -1, LvPropSteps = -1, LvPropCap = -1, LvPropLimit = -1;
-            // lvh<N> k of the stored transmittance, lvp1 the read past the footprint, lvo<N> the time warp's rate (LightVolume.TimeWarpRate), lvu<N> the warp limit.
-            public int LvStoreK = -1, LvReadPast = -1, LvWarpRate = -1, LvWarpLimit = -1;
-            // lvy1: the capped read.
-            public int LvCapRead = -1;
+            // LV2: lvm<N> the fill (0 direct, 1 propagation), lvk<N> / lvx<N> the propagation's least / most samples, lvl<N> its limit in voxels.
+            public int LvFill = -1, LvPropSteps = -1, LvPropCap = -1, LvPropLimit = -1;
+            // lvh<N> k of the stored transmittance, lvo<N> the time warp's rate (LightVolume.TimeWarpRate), lvu<N> the warp limit.
+            public int LvStoreK = -1, LvWarpRate = -1, LvWarpLimit = -1;
         }
 
         private static LightCache cache;
@@ -269,7 +266,6 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "c256") c.C256 = true;
                 else if (t.StartsWith("ng") && t.Length > 2) c.Grid = Number(t, 2);
                 else if (t.StartsWith("sg") && t.Length > 2) c.SpanGrowthE6 = Number(t, 2);
-                else if (t.StartsWith("ld") && t.Length > 2) c.LeapDebug = Number(t, 2);
                 else if (t.StartsWith("gf") && t.Length > 2) c.GrowFromM = Number(t, 2);
                 else if (t.StartsWith("aid") && t.Length > 3) c.Aid = Number(t, 3);
                 else if (t == "full") c.Full = true;
@@ -315,11 +311,8 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("lvs")) c.LvFarScale = Number(t, 3);
                 else if (t.StartsWith("lvm")) c.LvFill = Number(t, 3);
                 else if (t.StartsWith("lvh")) c.LvStoreK = Number(t, 3);
-                else if (t.StartsWith("lvy")) c.LvCapRead = Number(t, 3);
-                else if (t.StartsWith("lvp")) c.LvReadPast = Number(t, 3);
                 else if (t.StartsWith("lvo")) c.LvWarpRate = Number(t, 3);
                 else if (t.StartsWith("lvu")) c.LvWarpLimit = Number(t, 3);
-                else if (t.StartsWith("lvq")) c.LvNearScale = Number(t, 3);
                 else if (t.StartsWith("lvk")) c.LvPropSteps = Number(t, 3);
                 else if (t.StartsWith("lvx")) c.LvPropCap = Number(t, 3);
                 else if (t.StartsWith("lvl")) c.LvPropLimit = Number(t, 3);
@@ -372,13 +365,10 @@ namespace ReDefinition.WeatherPlayer
             Lever(CloudLookTuning.TuneLvSpreadDepth, c.LvSpreadDepth, 0.1f);
             Lever(CloudLookTuning.TuneLvSpreadMax, c.LvSpreadMax, 0.01f);
             Lever(CloudLookTuning.TuneLvFill, c.LvFill, 1f);
-            Lever(CloudLookTuning.TuneLvNearScale, c.LvNearScale, 0.01f);
             Lever(CloudLookTuning.TuneLvPropSteps, c.LvPropSteps, 1f);
             Lever(CloudLookTuning.TuneLvPropCap, c.LvPropCap, 1f);
             Lever(CloudLookTuning.TuneLvPropLimit, c.LvPropLimit, 1f);
             Lever(CloudLookTuning.TuneLvStoreK, c.LvStoreK, 1f);
-            Lever(CloudLookTuning.TuneLvCapRead, c.LvCapRead, 1f);
-            Lever(CloudLookTuning.TuneLvReadPast, c.LvReadPast, 1f);
             Lever(CloudLookTuning.TuneLvWarpLimit, c.LvWarpLimit, 1f);
             LightVolume.TimeWarpRate = c.LvWarpRate > 0 ? c.LvWarpRate : 1f;
             Lever(CloudLookTuning.TuneLvGridZ, c.LvGridZ, 1f);
@@ -389,7 +379,6 @@ namespace ReDefinition.WeatherPlayer
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.SpanGrowthPerM = c.SpanGrowthE6 * 1e-6f;
-            f.LeapDebug = c.LeapDebug;
             f.SpanGrowthFromM = c.GrowFromM;
             f.AidMode = c.Aid;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;

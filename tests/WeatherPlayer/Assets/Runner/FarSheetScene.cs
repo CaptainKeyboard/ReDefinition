@@ -1,10 +1,9 @@
 // Scene of the weather player for the light of far clouds (E40 FL far; tools/weather_metrics/e40far.py writes the jobs and measures the output):
 //   -scene far-sheet -in <e40far inputs>   every job "fl-*": one cloud seen from a given distance, drawn by the product's layer pass (the march numbers of the job, the sun as the
 //                                          product gives it: the white sun outside the air and Kerbin's air above each sample). Per job three float32 arrays (rows from the top):
-//                                          <id>-lum.npy (radiance and alpha of the march), <id>-aid.npy (the direct light's luminance, the light taps, the ambient's luminance,
-//                                          alpha: aid 4) and <id>-aux.npy (alpha, optical depth, steps, first hit's distance). The light switches of a job are tokens of its id
+//                                          <id>-lum.npy (radiance and alpha of the march) and <id>-aux.npy (alpha, optical depth, steps, first hit's distance). The light switches of a job are tokens of its id
 //                                          between dashes: oct1 (one octave: no multiple scattering), ao0 (no ambient occlusion and no sky diffusion), diff0 (no deep-core diffusion).
-//                                          job.accumulate frames (the frame numbers move the step offset) are averaged for the lum and aid arrays.
+//                                          job.accumulate frames (the frame numbers move the step offset) are averaged for the lum array.
 using System;
 using System.Collections;
 using System.IO;
@@ -54,29 +53,21 @@ namespace ReDefinition.WeatherPlayer
                 var target = new RenderTexture(job.width, job.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear) { filterMode = FilterMode.Point };
                 target.Create();
                 int frames = Mathf.Max(1, job.accumulate);
-                float[] lum = null, aid = null;
+                float[] lum = null;
                 for (int k = 0; k < frames; k++)
                 {
                     frame.FrameNumber = job.frameNumber + k;
-                    frame.AidMode = 0;
                     renderer.Apply(frame);
                     Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassMarch);
                     yield return new WaitForEndOfFrame();
                     Accumulate(ref lum, Read(target), frames);
-                    frame.AidMode = 4;
-                    renderer.Apply(frame);
-                    Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassMarch);
-                    yield return new WaitForEndOfFrame();
-                    Accumulate(ref aid, Read(target), frames);
                 }
                 frame.FrameNumber = job.frameNumber;
-                frame.AidMode = 0;
                 renderer.Apply(frame);
                 Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassAux);
                 yield return new WaitForEndOfFrame();
                 float[] aux = Read(target);
                 Write(job, "lum", lum);
-                Write(job, "aid", aid);
                 Write(job, "aux", aux);
                 target.Release();
                 done++;

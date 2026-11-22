@@ -7,7 +7,7 @@
 
     day / dusk / night   the luminance of the cloud with a stroke at its peak over the luminance before (the row R22-lightning-flash of
                          tests/data/parity/checks.json: more than 2 times), a cloud-internal flash at the cloud's centre. The bolt light is
-                         a term of its own in the march (not in the direct/ambient split of aid 4), so the aid pictures here are the ratio
+                         a term of its own in the march (not a separate channel of the march), so the ratio pictures here are the ratio
                          and the added light;
     ground               a flash to the ground, its light at 0.8 of the way up to the cloud's light centre (an info figure);
     level, range         the colour of the light scales with the flash level and the light grows with its reach. The linearity row pins the
@@ -58,10 +58,10 @@ def bolt(position, range_m, level, scale=1.0):
     return dict(pos=list(position), range=float(range_m), col=[FLASH_TINT[0] * k, FLASH_TINT[1] * k, FLASH_TINT[2] * k])
 
 
-def flash_job(jid, scene, bolts, aid=0, w=96):
+def flash_job(jid, scene, bolts, w=96):
     """The cell of a view of the light series with the bolts added."""
     spec = [s for s in T.VIEW_TABLE if s[0] == SCENES.get(scene, scene)][0]
-    j = T.view_job(jid, spec, aid=aid, w=w)
+    j = T.view_job(jid, spec, w=w)
     if bolts:
         j["boltPos"] = [c for b in bolts for c in b["pos"]]
         j["boltRange"] = [b["range"] for b in bolts]

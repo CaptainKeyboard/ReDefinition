@@ -69,7 +69,7 @@ bool HeightLocalBaseTop(int li, float3 pc, float2 uv, float b, float tp, float e
     float liftMost = max(-_LayerA[li].x / thickness - lbLeast, 0.0);
     float ltMost = max(tp + topOffsetEarly / thickness, b + (smoothOffset + raggedMost) / thickness + _LayerH2[li].y / thickness) + liftMost;
     // 1e-4 of the layer's thickness of slack for the rounding of the two ways the same sums are formed.
-    // Outside the band every offset can reach: lb and lt hold the band's edges (the march keeps a leap from passing over it, layers.leapDebug).
+    // Outside the band every offset can reach: lb and lt hold the band's edges (the march keeps a leap from passing over it, with layers.spanGrowthPerM).
     if (share < lbLeast - 1e-4 || share > ltMost + 1e-4)
     {
         lb = lbLeast;

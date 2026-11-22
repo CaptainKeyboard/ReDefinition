@@ -29,7 +29,7 @@ namespace ReDefinition.Atmospheres
             internal static readonly int Volume = Shader.PropertyToID("_LightVolume"), A = Shader.PropertyToID("_LvA"), U = Shader.PropertyToID("_LvU"),
                 E = Shader.PropertyToID("_LvE"), N = Shader.PropertyToID("_LvN"), Z = Shader.PropertyToID("_LvZ"), C = Shader.PropertyToID("_LvC"),
                 F = Shader.PropertyToID("_LvF"), O = Shader.PropertyToID("_LvO"), Slice = Shader.PropertyToID("_LvSlice"), P = Shader.PropertyToID("_LvP"),
-                D = Shader.PropertyToID("_LvD"), R = Shader.PropertyToID("_LvR"), S = Shader.PropertyToID("_LvS"), Spread = Shader.PropertyToID("_LightVolumeSpread"),
+                R =Shader.PropertyToID("_LvR"), S = Shader.PropertyToID("_LvS"), Spread = Shader.PropertyToID("_LightVolumeSpread"),
                 Blur = Shader.PropertyToID("_LvBlur"), BlurSigma = Shader.PropertyToID("_LvBlurSigma"), BlurSrc = Shader.PropertyToID("_LvBlurSrc");
         }
 
@@ -52,10 +52,9 @@ namespace ReDefinition.Atmospheres
         public float HandOverM = 8000f, BandShare = 0.15f, PixelAngleRad;
         public int FarTaps = 3, Slices = 8, GridN = 128, GridNz = 32, Cascades = 2, FillTaps;
         public float Warp = 1f, WarpLimit = 1000f, VoxelM = 312.5f, FarScale = 4f, FadeVoxels = 4f, RelayM = 100000f, FillRatio = 1.15f;
-        // The fill (0 direct, 1 propagation, 2 / 3 reference), the propagation's samples per segment and its limit in voxels, the near length's factor, the reference's
-        // taps and growth; the read: k of the stored transmittance (0: the optical depth is stored), the read point past the trilinear footprint and its longest near length.
-        public int Fill, PropSteps = 2, PropCap = 16, RefTaps = 64;
-        public float PropLimit = 8f, NearScale = 1f, RefRatio = 1.03f, StoreK = 4f, ReadPast, ReadPastMaxM = 4000f, CapRead;
+        // The fill (0 direct, 1 propagation), the propagation's samples per segment and its limit in voxels; the read: k of the stored transmittance (0: the optical depth is stored).
+        public int Fill, PropSteps = 2, PropCap = 16;
+        public float PropLimit = 8f, StoreK = 4f;
         // The lateral spread of the direct light: its source (0 off, 1 blurred copy, 2 far cascade, 3 the volume), the blur's standard deviation in m, the optical depth its
         // weight grows over, the largest weight.
         public int Spread;
@@ -150,17 +149,11 @@ namespace ReDefinition.Atmospheres
             PropSteps = CloudLookTuning.LvPropSteps;
             PropCap = Math.Max(CloudLookTuning.LvPropCap, PropSteps);
             PropLimit = CloudLookTuning.LvPropLimit;
-            NearScale = CloudLookTuning.LvNearScale;
-            RefTaps = CloudLookTuning.LvRefTaps;
-            RefRatio = CloudLookTuning.LvRefRatio;
             StoreK = CloudLookTuning.LvStoreK;
-            ReadPast = CloudLookTuning.LvReadPast ? 1f : 0f;
-            ReadPastMaxM = CloudLookTuning.LvReadPastMaxM;
             Spread = CloudLookTuning.LvSpread;
             SpreadRadiusM = CloudLookTuning.LvSpreadRadiusM;
             SpreadDepth = CloudLookTuning.LvSpreadDepth;
             SpreadMax = CloudLookTuning.LvSpreadMax;
-            CapRead = CloudLookTuning.LvCapRead ? 1f : 0f;
         }
 
         private int TotalSlices { get { return GridNz * Cascades; } }
@@ -232,8 +225,8 @@ namespace ReDefinition.Atmospheres
             Vector2 alt = new Vector2(shellAlt.x - margin, shellAlt.y + margin);
             float[] fill =
             {
-                alt.x, alt.y, planetRadius, VoxelM, FarScale, GridN, GridNz, Cascades, FarTaps, FillTaps, FillRatio, Fill, PropSteps, PropCap, PropLimit, NearScale, RefTaps, RefRatio,
-                StoreK, ReadPast, ReadPastMaxM, Spread > 0 ? 1f : 0f, sunSteps, sunMarchM, tapRatio
+                alt.x, alt.y, planetRadius, VoxelM, FarScale, GridN, GridNz, Cascades, FarTaps, FillTaps, FillRatio, Fill, PropSteps, PropCap, PropLimit,
+                StoreK, Spread > 0 ? 1f : 0f, sunSteps, sunMarchM, tapRatio
             };
             Vector3 dir = camera.normalized;
             float relayM = Mathf.Min(RelayM, 0.8f * planetRadius);
@@ -285,9 +278,8 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.C, new Vector4(VoxelM, VoxelM * FarScale, GridN, Cascades));
             m.SetVector(Ids.F, new Vector4(FillTaps, FillRatio, 0f, 0f));
             m.SetVectorArray(Ids.O, sliceO);
-            m.SetVector(Ids.P, new Vector4(Mathf.Clamp(Fill, 0, 3), PropSteps, PropCap, PropLimit));
-            m.SetVector(Ids.D, new Vector4(0f, NearScale, RefTaps, RefRatio));
-            m.SetVector(Ids.R, new Vector4(StoreK, ReadPast, ReadPastMaxM, CapRead));
+            m.SetVector(Ids.P, new Vector4(Mathf.Clamp(Fill, 0, 1), PropSteps, PropCap, PropLimit));
+            m.SetVector(Ids.R, new Vector4(StoreK, 0f, 0f, 0f));
             EnsureSpread();
             m.SetVector(Ids.S, new Vector4(Mathf.Clamp(Spread, 0, 3), SpreadRadiusM, SpreadDepth, SpreadMax));
             m.SetTexture(Ids.Spread, spread != null ? (Texture)spread : volume);

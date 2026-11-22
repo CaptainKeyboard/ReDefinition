@@ -674,7 +674,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public double CameraFovDeg { get { return EmptyHorizon ? 2.0 : FovDeg; } }
         internal double FovDeg = 60.0;
         internal int LayerMaskNow;
-        internal int AidModeNow;
         // The picture of the sky: the sun-lit sea below the horizon, the blue sky above it; the own pass, when it draws all layers, replaces the sky by a deck of
         // DeckRadiance times the sun gain (clipped at ClipAt) where DeckCovers says so (by the picture's column). A model of the real thing with the numbers the test chooses.
         internal float SkyLuma = 0.5f, SeaLuma = 0.7f, DeckRadiance = 0.075f, ClipAt = 1f;
@@ -759,16 +758,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             if (Module != null) Module.Frame.LayerMask = mask;
         }
 
-        public bool AidOn(int mode)
-        {
-            RequireFlight();
-            if (!AidAvailable) return false;
-            AidIsOn = true;
-            AidModeNow = mode;
-            Stamp("aidon" + mode);
-            return true;
-        }
-
         public IList<KeyValuePair<string, string>> EnvironmentLines()
         {
             RequireFlight();
@@ -793,7 +782,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double horizonV = 0.5 + Math.Tan(angleFromAxis) / (2.0 * Math.Tan(FovDeg * Math.PI / 360.0));
             float gain = Tuning.Get(OwnCloudModule.TuneSunGain, 1f);
             bool deck = Module != null && Module.Stats.Mode != "off" && MaskDrawsDeck() && !AidIsOn;
-            bool aid = AidIsOn && !AidIgnored && AidModeNow == 4;
             var raw = new Color[w * h];
             for (int y = 0; y < h; y++)
             {
@@ -812,7 +800,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         c = new Color(d, d, d, 1f);
                     }
                     if (FloorNoise > 0f) c = new Color(c.r + FloorNoise * Hash(Frames, x + 1000, y), c.g, c.b, 1f);
-                    if (aid && covered && Module != null && Module.Stats.Mode != "off" && LayerMaskNow == 0) c = new Color(0.3f, 0.5f, 0.1f, 1f);
                     raw[y * w + x] = c;
                 }
             }
