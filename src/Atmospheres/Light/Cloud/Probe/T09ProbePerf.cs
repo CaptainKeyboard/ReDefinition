@@ -141,6 +141,11 @@ namespace ReDefinition.Atmospheres
                 case "leap2":
                 case "leap4":
                 case "leap2r3":
+                case "r4lv":
+                case "r3lvf20":
+                case "r3lvf10":
+                case "r4lvf20":
+                case "r4lvs75":
                     return true;
                 default:
                     return false;
@@ -347,6 +352,42 @@ namespace ReDefinition.Atmospheres
                         ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
                         ForceTuning(CloudLookTuning.TuneLvFarTaps, 1f);
                     }
+                    break;
+                // The 48 fps block on the cleaned-up code (2026-11-22, prio 2: quality may drop for now): the light volume (lvall's keys) with the rotation and a far fade.
+                //   r4lv     r4n (4 x 4 rotation with the new history) + the light volume
+                //   r3lvf20  lvallr3 + cloud.fadeFarM 20 km with the march ending there (layers.costCutM 20 km): the clouds fade out towards 20 km, so the cut
+                //            leaves a correct picture; r3lvf10 the same at 10 km
+                //   r4lvf20  r4lv + the 20 km fade and cut
+                //   r4lvs75  r4lv + layers.gridFine 0.75
+                case "r4lv":
+                case "r3lvf20":
+                case "r3lvf10":
+                case "r4lvf20":
+                case "r4lvs75":
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
+                    ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
+                    ForceTuning(CloudLookTuning.TuneLvFarTaps, 1f);
+                    if (name.StartsWith("r3"))
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
+                    else
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 4f);
+                        ForceTuning(OwnCloudOptions.TuneMarchTriangle, 1f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                        ForceTuning(OwnCloudOptions.TuneAge, 1f);
+                        ForceTuning(OwnCloudOptions.TuneDistanceReject, 0.3f);
+                        ForceTuning(OwnCloudOptions.TuneClipSigma, 2f);
+                    }
+                    if (name.EndsWith("f20") || name.EndsWith("f10"))
+                    {
+                        float farM = name.EndsWith("f10") ? 10000f : 20000f;
+                        ForceTuning(CloudLookTuning.TuneFadeFar, farM);
+                        ForceTuning(OwnCloudOptions.TuneCostCutM, farM);
+                    }
+                    if (name == "r4lvs75") ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
                     break;
                 case "lvall":
                 case "lvall2":
