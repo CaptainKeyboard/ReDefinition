@@ -22,6 +22,7 @@
 // march's footprint exceeds it. Its second half is a baked cavity (ambient occlusion of the heap field) that darkens the creases between lobes. No code of these works is taken.
 #ifndef REDEFINITION_ATMOSPHERES_NOISE
 #define REDEFINITION_ATMOSPHERES_NOISE
+#include "CloudDev.cginc"
 
 sampler3D _NoiseShape;   // the shape volume (R8); once a type asks for a heap preset (CLOUDR1 P2/P3) RGBA8: r the shape, g the heap field of preset 1, b of preset 2, a the cavity of preset 1 (the pass
                          // has no sampler register left for a texture of its own: ps_4_0 has 16; HeapVolumes.MergeWithShape)
@@ -218,7 +219,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     // undisplaced point and only the erosion detail of the rim band below takes the displaced one, so the light march, the cloud shadow and every sample outside the rim band skip it. The blend reads
     // q0 itself instead of (q0 + w) - w, which differs from it by the float rounding of the sum (centimetres at the planet's radius; the CPU twins have q0 exactly).
     float3 q0 = NoiseLookupBase(li, pc, scale, flow);
-    bool blendOn = _BlendP.x > 0.5;
+    bool blendOn = DEV(_BlendP.x, 1.0) > 0.5;
     gNoiseWarp = 0;
     [branch] if (!blendOn) gNoiseWarp = NoiseWarp(li, q0, scale);
     float3 q = q0 + gNoiseWarp;
@@ -256,7 +257,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     }
     // CLOUDR2 P2: the macro shape (shape or heap volume) reads at ONE place; with cloud.noise.blend its taps are a loop over the Kuhn tetrahedron's corners (NoiseBlend: the lookup point is not
     // displaced, strain 1, the tile not repeated); the compile budget P4 freed is what pays for it.
-    [branch] if (_BlendP.x > 0.5)
+    [branch] if (DEV(_BlendP.x, 1.0) > 0.5)
     {
         float2 bl = NoiseBlend(li, qb, periodUse, lodUse, chUse);
         n = bl.x;

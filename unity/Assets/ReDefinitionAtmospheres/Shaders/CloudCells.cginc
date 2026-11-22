@@ -17,6 +17,9 @@
 // leaps over the space beyond the billows' reach (CellShellGap, cloud.cellTrace), 2 unused, 4 the march steps finely
 // inside that reach, where the surface can lie (cloud.cellShell, CELL_SHELL_STEP_MIN).
 float4 _CellE[4];
+// The body's core profile (a global, set by CellCoreProfile.Apply for the layer pass and the cloud shadow alike): x the depth of the rise in shares of the body's shorter semi-axis (0: off),
+// y the share at the surface.
+float4 _CellK;
 // The sky drawn from the weather map (MapSkyRegions.SheetTypes, cloud.weatherMapSky; zero while it is off): per layer x 1 where the layer's sheet types are drawn connected, y the type value
 // of the low sheet type (Stratocumulus), z the one of the high sheet type (Altocumulus; above 1: none), w the type value of one type step. Where the type map stands at a sheet type, the
 // map's own value is drawn instead of single clouds (wMap 1): a connected deck over the area the map gives; one type step away the lattice draws alone.
@@ -221,7 +224,11 @@ float CellBody(int li, float h, float billow, float2 fine, float typeHeightM)
     // radial coordinate changes by at most 1 / axis per m, so its term by at most 1 (gBodyFar, the depth below the shell's outer side).
     gBodyFar = qBase + e.x * axis * (0.5 + 0.5 * e.z * (0.37 + 0.137));
     gBodyRead = true;
-    return saturate(q / band + 0.5);
+    // The core profile (_CellK, cloud.cellCoreDepth / cloud.cellCoreFloor; x 0: off, the uniform body of before): the share rises from x.y of the core's at the surface to the core's at the depth
+    // _CellK.x of the shorter semi-axis below it. A uniform body with a crisp rim casts hard self-shadow zones in the sun's light (the contour bands, master plan 32, PRUEFPROTOKOLL 77); a body
+    // that thins towards its surface lets the light through its outer part, so the zones soften while the rim stays where it was.
+    float core = _CellK.x > 0.0 ? lerp(_CellK.y, 1.0, smoothstep(0.0, _CellK.x * axis, q)) : 1.0;
+    return saturate(q / band + 0.5) * core;
 }
 
 // The distance along any line from the point of the last CellBody within which the body's surface band cannot begin (m, 0 inside the shell or where no body was read): the depth below the shell's
@@ -238,6 +245,53 @@ float CellBodyReachX(int li)
 {
     float4 e = _CellE[li];
     return CELL_EDGE_X * (1.0 + e.x * (0.5 + 0.5 * e.z * (0.37 + 0.137)));
+}
+
+// CLOUD FIELD (CloudField.cs, CloudFieldGpu.cs; globals for the layer pass and the cloud shadow alike): _CloudField r the rank-uniform multi-scale field u, g its gradient (rank per km), b its
+// coarse rank; _FieldP x on, yz the streets' direction, w the smallest feature in m; _FieldC the puff classes (x aspect, y top gain, z scale, w street stretch).
+sampler2D _CloudField;
+float4 _FieldP;
+float4 _FieldC[8];
+
+// A puffy type's single cloud from the field, the one code of the layer pass and the cloud shadow. The cloud is where the field u(x) is below the map's local share f ({u < f} has the map's cover
+// whatever the field); its body is CellBody's with the distance to the footprint's edge in m, (f - u) over the gradient of u, in the place of the lattice's distance to a centre: a dome of the
+// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the deck) and where the march's spacing (foot, 0: none) is
+// wider than the field's smallest feature, the map's own value is drawn. Returns -1 there (the caller draws the map; cov is then the map's value with the field's footprint blended in by
+// the hand-over weight, as CellCover blends the lattice's discs, so there is no edge where the hand-over begins), 0 outside the body's reach (the density is 0), 1 inside it with the cell
+// read's globals (gCellX, gCellR, gCellCore, gCellW) set for CellBody. uv: the layer map's coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point;
+// typeHeightM: the type's height in m. The field is read at the mip level of the march's spacing (foot): without it the field's 50 to 200 m texels alias into a speckle at distance.
+int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, float edge, float amount, float foot, float rm, float h, float typeHeightM)
+{
+    float4 fc = _FieldC[puff];
+    float fShare = CellShare(cov, coverage, edge, amount);
+    float wF = max(saturate((fShare - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * _FieldP.w) / (0.5 * _FieldP.w)) : 0.0);
+    float lat = (0.5 - uv.y) * 3.14159265;
+    float xM = uv.x * 2.0 * 3.14159265 * rm * max(cos(lat), 0.02), yM = lat * rm;
+    float along = (xM * _FieldP.y + yM * _FieldP.z) / fc.w, across = -xM * _FieldP.z + yM * _FieldP.y;
+    float2 pF = float2(along * _FieldP.y - across * _FieldP.z, along * _FieldP.z + across * _FieldP.y) * (fc.z / 102400.0);
+    // A texel is CloudField.TileM / CloudField.Size / z = 100 / z m.
+    float lod = foot > 0.0 ? max(log2(foot * fc.z / 100.0), 0.0) : 0.0;
+    float3 fv = tex2Dlod(_CloudField, float4(pF, 0, lod)).xyz;
+    float dm = (fShare - fv.x) / max(fv.y * fc.z * 0.001, 1e-6);
+    float coreF = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * (1.0 + fc.y * (1.0 - 2.0 * fv.z));
+    float topF = clamp(coreF / 0.5, 0.15, 1.0);
+    float semiH = max(topF * typeHeightM, 1.0), rC = fc.x * semiH;
+    if (wF > 0.0)
+    {
+        // The footprint as CellCover's profile: above the threshold by up to the core strength inside, below it by up to half a unit outside.
+        float e = dm >= 0.0 ? min(dm / rC, 1.0) * coreF : max(dm / rC, -1.0) * 0.5;
+        cov = lerp(1.0 - coverage + e, cov, wF);
+        return -1;
+    }
+    float xv = 1.0 - clamp(dm / rC, -2.0, 1.0), hv = h / topF;
+    float axis = min(rC, semiH);
+    float swing = _CellE[li].x * axis * (0.5 + 0.5 * _CellE[li].z * (0.37 + 0.137));
+    if ((1.0 - sqrt(xv * xv + hv * hv)) * axis + swing + 0.5 * CellBand(li) < 0.0) return 0;
+    gCellX = CELL_EDGE_X * xv;
+    gCellR = rC / CELL_EDGE_X;
+    gCellCore = coreF;
+    gCellW = 0.0;
+    return 1;
 }
 
 #endif

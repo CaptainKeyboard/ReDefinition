@@ -484,6 +484,8 @@ namespace ReDefinition.Atmospheres
             layers.SetVector(IdReconD, new Vector4(w, h, low.width, low.height));
             LastOffset = offset;
             layers.SetVector(IdEdgeP, new Vector4(0f, EdgeSettings.CoarseBlock, 0f, 0f));
+            // The test switches' variant with this frame's far rotation (CloudDevVariant; the edge draw's copy sets its own).
+            CloudDevVariant.Apply(layers, CloudDevVariant.Layer);
             if (edgeOn)
             {
                 // The edge draw is the layer material's copy with the edge pattern's numbers.

@@ -329,6 +329,7 @@ namespace ReDefinition.Atmospheres
                 Heap = HeapModel.PresetOf(r.String("heap", "none")),
                 EdgePower = r.Float("edgePower", 0f, 0f, 6f),
                 Cavity = r.Float("cavity", 0f, 0f, 1f),
+                Puff = CloudField.ClassOf(r.String("puff", "none")),
                 TopClose = r.Float("topClose", CloudTypeDef.DefaultTopClose, 0f, 1f),
                 Outflow = r.Float("outflow", 0f, 0f, 1f),
                 Climate = Climate(r.Child("CLIMATE"))

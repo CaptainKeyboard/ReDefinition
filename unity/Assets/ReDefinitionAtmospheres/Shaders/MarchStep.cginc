@@ -12,6 +12,7 @@
 
 #ifndef REDEFINITION_MARCH_STEP_INCLUDED
 #define REDEFINITION_MARCH_STEP_INCLUDED
+#include "CloudDev.cginc"
 
 sampler2D _EdgeMask;   // the edge mask: one texel per 4 x 4 block of the full target, 1 where the block holds a contour
 float4 _EdgeP;         // x: 1 on the edge draw (march only the flagged blocks), 0 otherwise; y: the mask block's side in pixels; z, w: 0
@@ -24,7 +25,7 @@ bool EdgeBlockFlagged(float2 fullUv)
 
 float4 EdgePass0(v2f i)
 {
-    if (_EdgeP.x > 0.5 && !EdgeBlockFlagged(FullUv(i.uv))) return float4(0, 0, 0, 0);
+    if (DEV(_EdgeP.x, 0.0) > 0.5 && !EdgeBlockFlagged(FullUv(i.uv))) return float4(0, 0, 0, 0);
     return Pass0(i);
 }
 

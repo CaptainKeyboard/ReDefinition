@@ -85,7 +85,7 @@ bool CellHit(float3 o, float3 d, out float t0, out float t1)
 // The spans of a ray cut to the cell's bounding sphere.
 void CellClip(float3 o, float3 d, inout float4 sp)
 {
-    if (_CellA.w <= 0) return;
+    if (DEV(_CellA.w, 0.0) <= 0) return;
     float c0, c1;
     if (!CellHit(o, d, c0, c1)) { sp = 0; return; }
     sp.x = max(sp.x, c0); sp.y = min(sp.y, c1);
@@ -163,7 +163,7 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
     {
         if (lj >= (int)_LayerCount) break;
         // Cost attribution only (layers.costDebug bit 8): the march towards a light crosses the sample's own layer alone.
-        if (own >= 0 && lj != own && fmod(floor(_CostP.y * 0.125), 2.0) > 0.5) continue;
+        if (own >= 0 && lj != own && fmod(floor(DEV(_CostP.y, 0.0) * 0.125), 2.0) > 0.5) continue;
         float4 sp;
         LayerSpans(lj, pc, dir, 1e30, sp);
         CellClip(pc, dir, sp);
@@ -488,17 +488,18 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     int tsteps[LIGHT_SLOTS];
     float tspread[LIGHT_SLOTS], trot[LIGHT_SLOTS], ttau[LIGHT_SLOTS], trange[LIGHT_SLOTS];
     bool need[LIGHT_SLOTS];
-    tdir[0] = sunDir; tsteps[0] = sunSteps; tspread[0] = _LightR.x; trot[0] = rot; need[0] = tauSun < 0 && Luma(sunCol) > 0;
+    float coneSpread = DEV(_LightR.x, 0.0);
+    tdir[0] = sunDir; tsteps[0] = sunSteps; tspread[0] = coneSpread; trot[0] = rot; need[0] = tauSun < 0 && Luma(sunCol) > 0;
     trange[0] = sunRange; trange[1] = _Sun.w; trange[2] = _Sun.w; trange[3] = _Sun.w;
-    tdir[1] = _MoonDir[0].xyz; tsteps[1] = moonSteps; tspread[1] = _LightR.x; trot[1] = rot; need[1] = Luma(_MoonCol[0].rgb) > 0;
-    tdir[2] = _MoonDir[1].xyz; tsteps[2] = moonSteps; tspread[2] = _LightR.x; trot[2] = rot; need[2] = Luma(_MoonCol[1].rgb) > 0;
+    tdir[1] = _MoonDir[0].xyz; tsteps[1] = moonSteps; tspread[1] = coneSpread; trot[1] = rot; need[1] = Luma(_MoonCol[0].rgb) > 0;
+    tdir[2] = _MoonDir[1].xyz; tsteps[2] = moonSteps; tspread[2] = coneSpread; trot[2] = rot; need[2] = Luma(_MoonCol[1].rgb) > 0;
     tdir[3] = normalize(pc); tsteps[3] = max(1, (int)_LightS.y); tspread[3] = 0.0; trot[3] = 0.0;
     need[3] = _LightQ.w > 0 && tauUp < 0 && !(_LightT.w > 1.5 && tauUpReuse >= 0) && _LightT.w > 0.5;
 #ifdef CLOUD_LIGHTVOL
     // Slot 0 the full march (needed while the far path's share is below 1), slot 4 the far path's near taps (the same first places and erosion reads as slot 0's).
     bool sunNeeded = need[0];
     need[0] = sunNeeded && lvShare < 1.0;
-    tdir[4] = sunDir; tsteps[4] = max(lvSteps, 1); tspread[4] = _LightR.x; trot[4] = rot; trange[4] = -lvNear;
+    tdir[4] = sunDir; tsteps[4] = max(lvSteps, 1); tspread[4] = coneSpread; trot[4] = rot; trange[4] = -lvNear;
     need[4] = sunNeeded && lvShare > 0.0 && lvSteps > 0;
 #endif
     [loop] for (int k = 0; k < LIGHT_SLOTS; k++)

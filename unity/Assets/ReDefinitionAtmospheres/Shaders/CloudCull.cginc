@@ -59,7 +59,7 @@ float4 CullTilePass(v2f i)
     float2 c = 0.5 * (uv0 + uv1);
     float2 h = 0.5 * (uv1 - uv0) + 1.5 / full;
     // The parity test cell replaces the density: nothing is dropped for it.
-    if (_CellA.w > 0) return float4(15.0, 0.0, 0.0, 1.0);
+    if (DEV(_CellA.w, 0.0) > 0) return float4(15.0, 0.0, 0.0, 1.0);
     float3 o = _CamPos.xyz - _PlanetCenter.xyz;
     float3 dc = RayDir(c);
     // The five rays of the bundle: the centre and the four corners (index 0 is the centre).
@@ -87,7 +87,7 @@ float4 CullTilePass(v2f i)
     [unroll] for (int li = 0; li < MAXL; li++)
     {
         if (li >= (int)_LayerCount) break;
-        if (_LimitP.z > 0 && fmod(floor(_LimitP.z / exp2((float)li)), 2.0) < 0.5) continue;
+        if (DEV(_LimitP.z, 0.0) > 0 && fmod(floor(DEV(_LimitP.z, 0.0) / exp2((float)li)), 2.0) < 0.5) continue;
         bool must = true;
         float4 sp;
         float tIn = 1e30, tOut = 0.0;

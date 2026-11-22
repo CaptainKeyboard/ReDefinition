@@ -49,6 +49,8 @@ namespace ReDefinition.Atmospheres
         private static float sigma = 1f, softness = 1f, noiseSize = 1f, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
         private static float cellKm, cellLat, cellLon;
         private static float heapForce = -1f, edgeForce, cavityForce = -1f, heapFoot = 1f, heapIso = 1f;
+        // cloud.field as last read (the type table's heap, edge and cavity follow it, LayerDensity: a change must re-upload the table).
+        private static float fieldState = -1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -100,7 +102,9 @@ namespace ReDefinition.Atmospheres
             float hf = Clean(Tuning.Get(TuneHeap, -1f), -1f, -1f, HeapModel.PresetCount), ef = Clean(Tuning.Get(TuneEdgePower, 0f), 0f, 0f, 6f);
             float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneHeapFootLod, 1f), 1f, 0f, 1f), hi = Clean(Tuning.Get(TuneHeapIso, 1f), 1f, 0f, 1f);
             hf = hf < 0f ? -1f : (float)Math.Round(hf);
-            bool changed = hf != heapForce || ef != edgeForce || cf != cavityForce || ft != heapFoot || hi != heapIso;
+            float fd = Tuning.Get(TuneField, FieldDefault) > 0.5f ? 1f : 0f;
+            bool changed = hf != heapForce || ef != edgeForce || cf != cavityForce || ft != heapFoot || hi != heapIso || fd != fieldState;
+            fieldState = fd;
             heapIso = hi;
             heapForce = hf;
             edgeForce = ef;
@@ -285,6 +289,14 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCells = "cloud.cells";
         internal const float CellsDefault = 1f;
         internal static bool Cells { get { return Tuning.Get(TuneCells, CellsDefault) > 0.5f; } }
+        // cloud.field (CLOUD FIELD, 2026-11-19): 1 draws the types with a puff class (cfg key puff: the cumulus family, altocumulus, stratocumulus, cumulonimbus calvus and the incus tower) as single
+        // clouds arranged by the weather map's share and one multi-scale field (CloudField.cs), without the lattice (cloud.cells is then not read on those types); 1 is the default
+        // (owner 2026-11-22: the lattice is only a tool to test single cloud types); 0 the lattice.
+        // cloud.field.wind: the direction of the streets in degrees from east, counter-clockwise, in the map's frame (the class's stretch lengthens the field along it).
+        internal const string TuneField = "cloud.field", TuneFieldWind = "cloud.field.wind";
+        internal const float FieldDefault = 1f;
+        internal static bool Field { get { return Tuning.Get(TuneField, FieldDefault) > 0.5f; } }
+        internal static float FieldWindDeg { get { return Clean(Tuning.Get(TuneFieldWind, 0f), 0f, -360f, 360f); } }
         // The body of a single cloud in the viewer (CloudLayerDef.CellBillow, CellBandM, CellFine): cloud.cellBillow, cloud.cellBand and cloud.cellFine set it on every layer with cells where
         // they are set (below 0, the default: each layer's own). Read every frame (LayerRenderer.Apply and CloudShadowRenderer, _CellE).
         internal const string TuneCellBillow = "cloud.cellBillow", TuneCellBand = "cloud.cellBand", TuneCellFine = "cloud.cellFine";

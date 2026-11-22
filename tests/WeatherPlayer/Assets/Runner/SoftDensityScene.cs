@@ -156,15 +156,13 @@ namespace ReDefinition.WeatherPlayer
             public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f;
             public bool Jitter, Skip, OldGrid, NoReach, FarMean;
             public int ConePattern = -1, Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
-            // E40 C1: sp<NN> the widest grid spacing of a span in the layer's noise scales, NN / 10 (0: off); spm<N> the fewest grid points such a span keeps
-            public float Spacing;
-            public int SpacingMin = 20;
             // E40 C2: mn<N> a moon of N / 10000 of the sun's luminance (the game's moon is lit by any body in the sky, day or night; the player had none), mc<N> the product's light.moonMinShare
             // N / 1000 (a moon below that share of the sun is left out, OwnCloudOptions.MoonTooFaint), lp<NN> the longest leap over empty grid points in the layer's noise scales, NN / 100
             // (LayerFrame.LeapScales), ev the GPU's caches flushed before the pass (a copy of 64 MB; the game draws the rest of the frame between two passes, the player's loop only this one).
             public int Moon, MoonCut;
             public bool Evict;
-            public float Leap100;
+            // -1: not named, the game's value (OwnCloudOptions.LeapScaleDefault 1, which the player does not link); lp0 the march before E40 C2.
+            public float Leap100 = -1f;
             // E40 C3: eo<N> the march's early-out transmittance N / 1000 (the product's 0.01).
             public int EarlyOut;
             // PUFF ceiling render: ceil the march and the light without the real-time compromises (256 grid points over the span at 6 m at least, early-out 0.001, no
@@ -289,8 +287,6 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "rag") c.Age = true;   // recon.age: the history's count of marched samples (ReconSettings.Age)
                 else if (t.StartsWith("rdr")) c.DistanceReject = Number(t, 3) / 100f;   // recon.distanceReject in hundredths of an octave (ReconSettings.DistanceReject)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
-                else if (t.StartsWith("spm")) c.SpacingMin = Number(t, 3);
-                else if (t.StartsWith("sp")) c.Spacing = Number(t, 2) / 10f;
                 else if (t.StartsWith("cr")) c.ConePattern = Number(t, 2);   // E40 F2: the light cone's rotation pattern (LayerFrame.ConePattern)
                 else if (t == "bexact") c.BlockExact = true;
                 else if (t == "bacc") c.BlockAcc = true;
@@ -394,9 +390,7 @@ namespace ReDefinition.WeatherPlayer
             if (c.EarlyOut > 0) f.EarlyOut = c.EarlyOut / 1000f;   // the march's own value (GrainTable.Apply) otherwise
             f.Far.ShapeMean = c.FarMean;
             f.EmptyReach = !c.NoReach;
-            f.SpanSpacing = c.Spacing;
-            f.SpanSpacingMin = c.SpacingMin;
-            f.LeapScales = c.Leap100;
+            f.LeapScales = c.Leap100 >= 0f ? c.Leap100 : 1f;
             for (int i = 0; i < f.Light.Lights.Length; i++) f.Light.Lights[i] = new CloudLight { Towards = Vector3.up, Colour = Color.black };
             // The product's light.moonMinShare (OwnCloudOptions.MoonTooFaint, which the player does not link): a moon below that share of the sun is left out.
             if (c.Moon > 0 && !(c.MoonCut > 0 && c.Moon / 10000f < c.MoonCut / 1000f))

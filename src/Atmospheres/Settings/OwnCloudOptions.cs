@@ -25,12 +25,6 @@ namespace ReDefinition.Atmospheres
         // density reads that are left are the same ones, so the picture does not change; 0 is the march as it was.
         internal const string TuneEmptyReach = "layers.emptyReach";
         internal const bool EmptyReachDefault = true;
-        // E40 C1: layers.spanSpacing (LayerFrame.SpanSpacing; the widest spacing of a span's grid points in the layer's noise scales, 0 = off) and layers.spanSpacingMin (the fewest grid
-        // points such a span keeps, default 20): the count of a span of a layer with coarse noise follows the span over the spacing, so a weather deck or a cumulonimbus layer is not
-        // searched every 100 m.
-        internal const string TuneSpanSpacing = "layers.spanSpacing", TuneSpanSpacingMin = "layers.spanSpacingMin";
-        internal const float SpanSpacingDefault = 0f;
-        internal const int SpanSpacingMinDefault = 20;
 
         // E40 C2: layers.leapScale (LayerFrame.LeapScales; the longest leap over empty grid points in the layer's noise scales, 0 = off).
         internal const string TuneLeapScale = "layers.leapScale";
@@ -109,9 +103,6 @@ namespace ReDefinition.Atmospheres
         // layers.costCutM (LayerFrame.CostCutM, default 0, off): cost attribution only, the march ends at this distance in m; the plain run's time minus the cut run's is what
         // the clouds beyond the cut cost (the 48 fps plan 2026-11-19: whether impostors for far clouds can pay). The K-T2 perf variants cut5, cut10, cut20 set it.
         internal const string TuneCostCutM = "layers.costCutM";
-        // layers.costStartM (LayerFrame.CostStartM, default 0, off): cost attribution only, the march starts at this distance in m; with layers.costCutM at the same
-        // distance the near and the far part of the march are timed apart (the distance-dependent pixel rate, 2026-11-20).
-        internal const string TuneCostStartM = "layers.costStartM";
 
         // layers.spanGrowthPerM (LayerFrame.SpanGrowthPerM, default 0, off): a span's points by distance, the growth of the step per m of distance from the camera. With
         // layers.maxSteps it sets how many points a long span takes and where they lie.
@@ -275,12 +266,9 @@ namespace ReDefinition.Atmospheres
             // The cost controls: tuning keys with the compiled values of the frame.
             f.CoverageBound = Tuning.Flag(TuneCoverageBound, CompiledFrame.CoverageBound);
             f.EmptyReach = Tuning.Flag(TuneEmptyReach, EmptyReachDefault);
-            f.SpanSpacing = Mathf.Max(0f, Tuning.Get(TuneSpanSpacing, SpanSpacingDefault));
-            f.SpanSpacingMin = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneSpanSpacingMin, SpanSpacingMinDefault)), 1, 256);
             f.LeapScales = Mathf.Max(0f, Tuning.Get(TuneLeapScale, LeapScaleDefault));
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
-            f.CostStartM = Mathf.Max(0f, Tuning.Get(TuneCostStartM, 0f));
             f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, CloudFastPath.Pick(CloudFastPath.SpanGrowthPerM, 0f)));
             f.SpanGrowthFromM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthFromM, 0f));
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));

@@ -712,7 +712,6 @@ namespace ReDefinition.Atmospheres
             {
                 Emit(prefix + "march_min_step_m", f.MinStepM);
                 Emit(prefix + "march_max_steps", f.MaxSteps);
-                Emit(prefix + "march_span_spacing", f.SpanSpacing);
                 // _SkipP.x as LayerRenderer uploads it: max(1, EmptyLeap).
                 Emit(prefix + "march_empty_leap", Mathf.Max(1f, f.EmptyLeap));
                 // _SpacingP.z as LayerRenderer uploads it: max(0, LeapScales), the longest leap over empty grid points in the layer's noise scales.

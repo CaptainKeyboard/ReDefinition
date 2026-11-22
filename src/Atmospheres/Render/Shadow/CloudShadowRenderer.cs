@@ -61,6 +61,9 @@ namespace ReDefinition.Atmospheres
         internal static readonly string OceanShadowsName = "ScattererOceanShadowsTexture";
         internal static readonly string OceanDepthName = "ScattererDownscaledOceanDepthTexture";
 
+        // The shader's local keyword of the test lattice (passes 1 and 4), on while cloud.field is off.
+        internal const string LatticeKeyword = "CLOUD_LATTICE";
+
         private static readonly int IdPlanet = Shader.PropertyToID("_CsPlanet"), IdWorldToMap = Shader.PropertyToID("_CsWorldToMap"),
             IdSun = Shader.PropertyToID("_CsSun"), IdParams = Shader.PropertyToID("_CsParams"), IdParams2 = Shader.PropertyToID("_CsParams2"), IdLayerA = Shader.PropertyToID("_CsLayerA"),
             IdLayerB = Shader.PropertyToID("_CsLayerB"), IdLayerC = Shader.PropertyToID("_CsLayerC"), IdLayerD = Shader.PropertyToID("_CsLayerD"),
@@ -185,7 +188,8 @@ namespace ReDefinition.Atmospheres
                     int heap = table.HeapOfType(t);
                     if (heap > 0 && Noise != null) Noise.RequestHeap();
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), heap);
-                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, 0f);
+                    // w: the type's puff class (cloud.field, CloudField.cs), as the layer pass's second row: the shadow draws the field's single clouds where the pass does.
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, table.PuffOfType(t));
                 }
             }
             profileTexture.SetPixelData(profile, 0);
@@ -225,6 +229,14 @@ namespace ReDefinition.Atmospheres
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
                 cellS[l] = mapSky && uploadedSource != null && l < layerCount ? MapSkyRegions.SheetTypes(uploadedSource.LayerAt(l)) : Vector4.zero;
             m.SetVectorArray(LayerRenderer.IdCellS, cellS);
+            // The shadow casts the clouds the layer pass draws: the CLOUD FIELD's single clouds (the field's texture and uniforms are globals of CloudFieldGpu), or with cloud.field off the
+            // test lattice, which is the shader's variant so the product's shader holds none of its code.
+            bool lattice = !CloudLookTuning.Field;
+            if (lattice != m.IsKeywordEnabled(LatticeKeyword))
+            {
+                if (lattice) m.EnableKeyword(LatticeKeyword);
+                else m.DisableKeyword(LatticeKeyword);
+            }
             bool reach = f.EmptyReachOn && f.EmptyReach != null;
             if (reach) m.SetTexture(IdCovReach, f.EmptyReach);
             m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), f.ShapeNoise && f.MacroLift && Noise != null ? 1f : 0f, reach ? 1f : 0f));
@@ -238,6 +250,9 @@ namespace ReDefinition.Atmospheres
             if (noise) Noise.Bind(m, layerCount);
             m.SetVectorArray(IdNoiseD, noise ? noiseD : noiseOff);
             m.SetFloat(IdPlanetR, (float)(f.RadiusUnits * f.MetresPerUnit));
+            // The test switches' variant (CloudDevVariant): the noise's switches are on this material only while the noise is bound; without it the noise is not read.
+            if (noise) CloudDevVariant.Apply(m, CloudDevVariant.Shadow);
+            else if (m.IsKeywordEnabled(CloudDevVariant.Keyword)) m.DisableKeyword(CloudDevVariant.Keyword);
         }
 
         // The sun's buffer for a camera of that size (deferred rendering): the depth to half size, the shadow at half size, and the multiply into
