@@ -30,6 +30,12 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
+        public void TheFastPathsClipIsTheFullPathsOneSigma()
+        {
+            Assert.AreEqual(OwnCloudOptions.ClipSigmaDefault, CloudFastPath.ClipSigma, "the 2-sigma clip drew the grid (PRUEFPROTOKOLL 77); a literal, so the player links the file alone");
+        }
+
+        [TestMethod]
         public void LowAndMediumTakeTheFastPathWithTheLowShadowAndTheHigherTiersKeepTheFullMarch()
         {
             Assert.IsTrue(TierRows.For(QualityTier.Low).CloudFastPath);
