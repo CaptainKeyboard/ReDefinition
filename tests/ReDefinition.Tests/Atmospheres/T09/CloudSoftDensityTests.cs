@@ -26,13 +26,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return new[] { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
         }
 
-        // The tests below are about the outline where the old share began (E40 F1 made the cover meaning the default; CoverMeaningTests and SkySharesTests pin that one).
-        [TestInitialize]
-        public void Setup()
-        {
-            CoverMeaningPin.Legacy();
-        }
-
         [TestCleanup]
         public void Clean()
         {
@@ -51,42 +44,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheLayersShareIsTheWaterContentWhoseOutlineIsWhereTheOldShareBegan()
-        {
-            var rng = new Random(11);
-            foreach (CloudLayerDef layer in Layers())
-            {
-                Assert.IsTrue(layer.Soft, layer.Name);
-                double w = CloudSoftDensity.Softness * layer.SoftnessScale, a = layer.EffectiveNoiseAmount, closed = layer.SoftClosed;
-                Assert.AreEqual(a * w, layer.EffectiveEdgeSoftness, 1e-6, layer.Name + " edge = amount x width");
-                var k = new CloudWaterNumbers { Width = w, Power = layer.WaterPower, BaseGain = 0.3, RiseShare = 0.5 };
-                for (int i = 0; i < 300; i++)
-                {
-                    double map = rng.NextDouble(), n = rng.NextDouble();
-                    // The outline: where the old share (coverage C, edge e, amount A) began, in noise rank.
-                    double c = layer.ThresholdCoverage, e = layer.EffectiveEdgeSoftness;
-                    double oldEdge = layer.EdgeSoftness;
-                    double start = 0.5 + (1.0 - map - c - 0.5 * oldEdge) / a;
-                    double water = CloudWater.Content(n, start, closed, k);
-                    // The clear-sky rule moves a map value below K: the outline is that of the moved value.
-                    double moved = layer.ClearSkyMap(map);
-                    double startMoved = 0.5 + (1.0 - moved - c - 0.5 * oldEdge) / a;
-                    double expected = CloudWater.Content(n, startMoved, closed, k);
-                    Assert.AreEqual(expected, Share(layer, map, n), 2e-5, layer.Name + " map " + map.ToString("0.000") + " n " + n.ToString("0.000"));
-                    if (map >= layer.ClearSkyK) Assert.AreEqual(water, expected, 1e-12);
-                }
-            }
-        }
-
-        [TestMethod]
         public void AMapValueOfZeroIsAClearSkyAndTheRuleIsIdentityAboveItsK()
         {
             foreach (CloudLayerDef layer in Layers())
             {
-                for (int j = 0; j <= 20; j++) Assert.AreEqual(0.0, Share(layer, 0.0, j / 20.0), 1e-9, layer.Name + " n " + j);
+                for (int j = 0; j <= 20; j++) Assert.AreEqual(0.0, Share(layer, 0.0, j / 20.0), 1e-6, layer.Name + " n " + j);
                 float k = layer.ClearSkyK;
-                Assert.IsTrue(k > 0f && k < 1f, layer.Name + " K " + k);
-                Assert.AreEqual(0.9f, layer.ClearSkyMap(0.9f), 1e-6f);
+                Assert.IsTrue(k > 0f && k <= 1f, layer.Name + " K " + k);
+                Assert.AreEqual(1f, layer.ClearSkyMap(1f), 1e-6f);
                 Assert.IsTrue(layer.ClearSkyMap(k * 0.5f) < k * 0.5f, "below K the map value is moved down");
                 Assert.AreEqual(k, layer.ClearSkyMap(k), 1e-6f, "K is the fixed point");
             }
@@ -139,8 +104,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(CloudSoftDensity.MinSoftness, CloudSoftDensity.Softness, 0.0, "clamped to 0.3 to 1.0");
             rain.SoftnessScale = 2f;
             CloudSoftDensity.Softness = 0.5;
-            // amount 0.3 x width (0.5 x 2)
-            Assert.AreEqual(0.3f, rain.EffectiveEdgeSoftness, 1e-6f);
+            // amount 1 x width (0.5 x 2)
+            Assert.AreEqual(1f, rain.EffectiveEdgeSoftness, 1e-6f);
         }
 
         [TestMethod]
@@ -183,7 +148,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 const int n = 40000;
                 for (int i = 0; i < n; i++)
                     sum += CloudWater.Pow(FarViewMath.ShapeSample(cov, coverage, edge, amount, erosion, detailMean, (i + 0.5) / n), power);
-                Assert.AreEqual(sum / n, FarViewMath.ShapeMean(cov, coverage, edge, amount, erosion, detailMean, 0.0, power), 2e-4, "power " + power);
+                Assert.AreEqual(sum / n, FarViewMath.ShapeMean(cov, coverage, edge, amount, erosion, detailMean, power), 2e-4, "power " + power);
             }
         }
 

@@ -4,9 +4,9 @@ using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests.Atmospheres.T16
 {
-    // The pure parts of the visibility culling and the distance LOD (package T16): the bound maps against a brute force over the map (a planted
+    // The pure parts of the visibility culling (package T16): the bound maps against a brute force over the map (a planted
     // contributing texel is never lost), the cone against sphere test against sampled rays, the tile decision of the shader as a CPU twin against planted
-    // clouds, the fades (zero and one at their ends, monotone, continuous) and the option plumbing (every switch off by default). The shader mirrors
+    // clouds, the layer cap's fade (zero and one at its ends, monotone, continuous) and the option plumbing (every switch off by default). The shader mirrors
     // these functions; the weather player measures the picture (tools/weather_metrics/cull.py).
     [TestClass]
     public class CullMathTests
@@ -32,17 +32,17 @@ namespace ReDefinition.Tests.Atmospheres.T16
             return map;
         }
 
-        // The extreme over every texel within the footprint of a point (in texels), widened by the bilinear read's one texel.
-        private static byte Brute(byte[] map, double px, double py, double radius, bool max)
+        // The maximum over every texel within the footprint of a point (in texels), widened by the bilinear read's one texel.
+        private static byte Brute(byte[] map, double px, double py, double radius)
         {
-            byte best = max ? (byte)0 : (byte)255;
+            byte best = 0;
             int x0 = (int)Math.Floor(px - radius - 1.0), x1 = (int)Math.Ceiling(px + radius + 1.0);
             int y0 = Math.Max(0, (int)Math.Floor(py - radius - 1.0)), y1 = Math.Min(H - 1, (int)Math.Ceiling(py + radius + 1.0));
             for (int y = y0; y <= y1; y++)
                 for (int x = x0; x <= x1; x++)
                 {
                     byte v = map[y * W + ((x % W + W) % W)];
-                    if (max ? v > best : v < best) best = v;
+                    if (v > best) best = v;
                 }
             return best;
         }
@@ -52,11 +52,9 @@ namespace ReDefinition.Tests.Atmospheres.T16
         {
             byte[] map = Map(7, 260);
             var cellMax = new byte[CullMath.FineW * CullMath.FineH];
-            var cellMin = new byte[CullMath.FineW * CullMath.FineH];
-            CullMath.Cells(map, W, H, CullMath.FineW, CullMath.FineH, cellMax, cellMin);
-            byte[] fineMax = CullMath.Dilate(cellMax, CullMath.FineW, CullMath.FineH, true), fineMin = CullMath.Dilate(cellMin, CullMath.FineW, CullMath.FineH, false);
-            byte[] coarseMax = CullMath.Dilate(CullMath.Coarsen(cellMax, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH, true), CullMath.CoarseW, CullMath.CoarseH, true);
-            byte[] coarseMin = CullMath.Dilate(CullMath.Coarsen(cellMin, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH, false), CullMath.CoarseW, CullMath.CoarseH, false);
+            CullMath.Cells(map, W, H, CullMath.FineW, CullMath.FineH, cellMax);
+            byte[] fineMax = CullMath.Dilate(cellMax, CullMath.FineW, CullMath.FineH);
+            byte[] coarseMax = CullMath.Dilate(CullMath.Coarsen(cellMax, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH), CullMath.CoarseW, CullMath.CoarseH);
             var rng = new Random(3);
             for (int n = 0; n < 4000; n++)
             {
@@ -67,9 +65,8 @@ namespace ReDefinition.Tests.Atmospheres.T16
                 double radius = rng.NextDouble() * CullMath.CellUse * cellTexels;
                 int gw = coarse ? CullMath.CoarseW : CullMath.FineW, gh = coarse ? CullMath.CoarseH : CullMath.FineH;
                 int cx = Math.Min(gw - 1, (int)(px * gw / W)), cy = Math.Min(gh - 1, (int)(py * gh / H));
-                byte bmax = (coarse ? coarseMax : fineMax)[cy * gw + cx], bmin = (coarse ? coarseMin : fineMin)[cy * gw + cx];
-                Assert.IsTrue(Brute(map, px, py, radius, true) <= bmax, "the maximum bound lost a texel at " + px + ", " + py + " radius " + radius);
-                Assert.IsTrue(Brute(map, px, py, radius, false) >= bmin, "the minimum bound lost a texel at " + px + ", " + py + " radius " + radius);
+                byte bmax = (coarse ? coarseMax : fineMax)[cy * gw + cx];
+                Assert.IsTrue(Brute(map, px, py, radius) <= bmax, "the maximum bound lost a texel at " + px + ", " + py + " radius " + radius);
             }
         }
 
@@ -95,8 +92,6 @@ namespace ReDefinition.Tests.Atmospheres.T16
             double edgeOfEmpty = 1.0 - 0.62 - 0.225 - 0.09;
             Assert.IsTrue(CullMath.BoundIsEmpty(edgeOfEmpty - 2.0 * CullMath.Slack, 0.62, 0.45, 0.18));
             Assert.IsFalse(CullMath.BoundIsEmpty(edgeOfEmpty, 0.62, 0.45, 0.18), "the slack keeps the margin");
-            Assert.IsTrue(CullMath.BoundIsSolid(1.0, 0.62, 0.45, 0.18));
-            Assert.IsFalse(CullMath.BoundIsSolid(0.5, 0.62, 0.45, 0.18));
         }
 
         [TestMethod]
@@ -169,9 +164,9 @@ namespace ReDefinition.Tests.Atmospheres.T16
                 for (int y = by - 2; y <= by + 2; y++)
                     for (int x = bx - 2; x <= bx + 2; x++) map[y * W + ((x % W + W) % W)] = 200;
                 var cellMax = new byte[CullMath.FineW * CullMath.FineH];
-                CullMath.Cells(map, W, H, CullMath.FineW, CullMath.FineH, cellMax, new byte[cellMax.Length]);
-                byte[] fineMax = CullMath.Dilate(cellMax, CullMath.FineW, CullMath.FineH, true);
-                byte[] coarseMax = CullMath.Dilate(CullMath.Coarsen(cellMax, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH, true), CullMath.CoarseW, CullMath.CoarseH, true);
+                CullMath.Cells(map, W, H, CullMath.FineW, CullMath.FineH, cellMax);
+                byte[] fineMax = CullMath.Dilate(cellMax, CullMath.FineW, CullMath.FineH);
+                byte[] coarseMax = CullMath.Dilate(CullMath.Coarsen(cellMax, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH), CullMath.CoarseW, CullMath.CoarseH);
                 // A camera on the ground below the blob's direction, aiming at the blob's texel at a random elevation: the ray passes over it at the layer.
                 double lon = ((bx + 0.5) / W * 360.0 - 180.0) * Math.PI / 180.0, lat = (90.0 - (by + 0.5) / H * 180.0) * Math.PI / 180.0;
                 double[] target = { Math.Cos(lat) * Math.Cos(lon), Math.Cos(lat) * Math.Sin(lon), Math.Sin(lat) };
@@ -205,56 +200,30 @@ namespace ReDefinition.Tests.Atmospheres.T16
         {
             var map = new byte[W * H];
             var cellMax = new byte[CullMath.FineW * CullMath.FineH];
-            CullMath.Cells(map, W, H, CullMath.FineW, CullMath.FineH, cellMax, new byte[cellMax.Length]);
-            byte[] fineMax = CullMath.Dilate(cellMax, CullMath.FineW, CullMath.FineH, true);
-            byte[] coarseMax = CullMath.Dilate(CullMath.Coarsen(cellMax, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH, true), CullMath.CoarseW, CullMath.CoarseH, true);
+            CullMath.Cells(map, W, H, CullMath.FineW, CullMath.FineH, cellMax);
+            byte[] fineMax = CullMath.Dilate(cellMax, CullMath.FineW, CullMath.FineH);
+            byte[] coarseMax = CullMath.Dilate(CullMath.Coarsen(cellMax, CullMath.FineW, CullMath.FineH, CullMath.CoarseW, CullMath.CoarseH), CullMath.CoarseW, CullMath.CoarseH);
             double[] o = { 600002.0, 0, 0 };
             double[] d = { Math.Cos(1.2), 0, Math.Sin(1.2) };
             Assert.IsTrue(TileProvedEmpty(fineMax, coarseMax, o, d, 0.0136, 5000.0, 60000.0, 0.62, 0.45, 0.18));
         }
 
         [TestMethod]
-        public void TheFadesAreZeroAndOneAtTheirEndsMonotoneAndContinuous()
+        public void TheCapFadeIsZeroAndOneAtItsEndsMonotoneAndContinuous()
         {
-            Assert.AreEqual(0.0, CullMath.DistanceFade(0.02, 0.02), 1e-12);
-            Assert.AreEqual(0.0, CullMath.DistanceFade(0.001, 0.02), 1e-12);
-            Assert.AreEqual(1.0, CullMath.DistanceFade(0.04, 0.02), 1e-12);
-            Assert.AreEqual(1.0, CullMath.DistanceFade(0.9, 0.02), 1e-12);
-            double last = -1.0, lastStep = 0.0;
+            double last = -1.0;
             for (int i = 0; i <= 400; i++)
             {
-                double w = 0.02 + 0.02 * i / 400.0, f = CullMath.DistanceFade(w, 0.02);
+                double f = 1.0 - CullMath.CapFade(3, 2, 100000.0 + 25000.0 * i / 400.0, 100000.0);
                 Assert.IsTrue(f >= last, "monotone");
                 if (i > 0) Assert.IsTrue(f - last < 0.02, "no jump");
                 last = f;
-                lastStep = f;
             }
-            Assert.AreEqual(1.0, lastStep, 1e-12);
+            Assert.AreEqual(1.0, last, 1e-12);
             Assert.AreEqual(1.0, CullMath.CapFade(0, 2, 500000.0, 100000.0), "the nearest spans stay");
             Assert.AreEqual(1.0, CullMath.CapFade(3, 2, 100000.0, 100000.0), 1e-12, "a far span is whole at the cap distance");
             Assert.AreEqual(0.0, CullMath.CapFade(3, 2, 125000.0, 100000.0), 1e-12, "and gone a quarter further");
             Assert.AreEqual(1.0, CullMath.CapFade(3, 2, 900000.0, 0.0), "no cap distance, no cap");
-            Assert.AreEqual(1.0, CullMath.StepScale(-5.0, 4e-5));
-            Assert.AreEqual(2.0, CullMath.StepScale(25000.0, 4e-5), 1e-12);
-            Assert.AreEqual(1.0, CullMath.TapFactor(1000.0, 20000.0, 120000.0, 3.0));
-            Assert.AreEqual(3.0, CullMath.TapFactor(200000.0, 20000.0, 120000.0, 3.0));
-            Assert.AreEqual(1.0, CullMath.TapFactor(1e6, 20000.0, 120000.0, 1.0), "factor 1 is off");
-            Assert.AreEqual(3.5, CullMath.Foot(1000.0, 3.5, 1e-3), "never below the spacing");
-            Assert.AreEqual(100.0, CullMath.Foot(100000.0, 3.5, 1e-3), 1e-9);
-        }
-
-        [TestMethod]
-        public void TheClearestChannelDecidesTheAirWeight()
-        {
-            Assert.AreEqual(Math.Exp(-0.5), CullMath.AirWeight(0.5, 1.3, 3.9), 1e-12);
-        }
-
-        [TestMethod]
-        public void TheLeastVerticalOpticalDepthIsTheProductOfTheLeastShareAndMeanProfile()
-        {
-            double tau = CullMath.MinVerticalTau(0.012, 2000.0, 3, t => new[] { 0.3, 0.65, 1.0 }[t], t => new[] { 0.5, 0.6, 0.4 }[t]);
-            Assert.AreEqual(0.012 * 2000.0 * 0.3 * 0.4, tau, 1e-9);
-            Assert.AreEqual(0.0, CullMath.MinVerticalTau(0.012, 2000.0, 0, t => 1.0, t => 1.0));
         }
     }
 }

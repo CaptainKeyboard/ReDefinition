@@ -12,7 +12,7 @@ namespace ReDefinition.Tests.Atmospheres.T16
     {
         private static readonly string[] Keys =
         {
-            "cloudSkipEmpty", "cloudSkipClosed", "cloudLayerDistanceCut", "cloudStepGrowth", "cloudTapLod", "cloudDetailLod", "cloudLayerCapDistance"
+            "cloudSkipEmpty", "cloudLayerCapDistance"
         };
 
         private static Func<string, double> Values(params object[] pairs)
@@ -50,13 +50,10 @@ namespace ReDefinition.Tests.Atmospheres.T16
             Assert.IsFalse(frame.Cull.AnyOn, "all off by default");
             Assert.IsFalse(frame.Cull.TilesNeeded);
             OwnCloudOptions.Apply(frame, Values("cloudSkipEmpty", 1));
-            Assert.IsTrue(frame.Cull.SkipEmpty && frame.Cull.TilesNeeded && !frame.Cull.SkipClosed);
-            OwnCloudOptions.Apply(frame, Values("cloudSkipClosed", 1));
-            Assert.IsTrue(frame.Cull.SkipClosed && frame.Cull.TilesNeeded && !frame.Cull.SkipEmpty);
-            OwnCloudOptions.Apply(frame, Values("cloudLayerDistanceCut", 1, "cloudStepGrowth", 1, "cloudTapLod", 1, "cloudDetailLod", 1));
-            Assert.IsTrue(frame.Cull.DistanceCut && frame.Cull.StepGrowth && frame.Cull.TapLod && frame.Cull.DetailLod && !frame.Cull.TilesNeeded);
+            Assert.IsTrue(frame.Cull.SkipEmpty && frame.Cull.TilesNeeded);
             OwnCloudOptions.Apply(frame, Values("cloudLayerCapDistance", 120));
             Assert.AreEqual(120000f, frame.Cull.CapDistanceM);
+            Assert.IsFalse(frame.Cull.TilesNeeded, "the cap does not need the tile pass");
             Assert.IsTrue(frame.Cull.AnyOn);
             OwnCloudOptions.Apply(frame, Values("cloudLayerCapDistance", 9999));
             Assert.AreEqual(400000f, frame.Cull.CapDistanceM, "clamped to the setting's range");
@@ -65,14 +62,14 @@ namespace ReDefinition.Tests.Atmospheres.T16
         }
 
         [TestMethod]
-        public void TheDetailLodSwitchesTheFarShapeMeanOnAndNothingElseDoes()
+        public void OnlyTheFarShapeMeanSettingSwitchesTheFarShapeMeanOn()
         {
             var far = new FarViewSettings();
             OwnCloudOptions.Apply(far, Values());
             Assert.IsFalse(far.ShapeMean);
-            OwnCloudOptions.Apply(far, Values("cloudDetailLod", 1));
+            OwnCloudOptions.Apply(far, Values("cloudFarShapeMean", 1));
             Assert.IsTrue(far.ShapeMean);
-            OwnCloudOptions.Apply(far, Values("cloudSkipEmpty", 1, "cloudStepGrowth", 1));
+            OwnCloudOptions.Apply(far, Values("cloudSkipEmpty", 1, "cloudLayerCapDistance", 100));
             Assert.IsFalse(far.ShapeMean);
         }
     }

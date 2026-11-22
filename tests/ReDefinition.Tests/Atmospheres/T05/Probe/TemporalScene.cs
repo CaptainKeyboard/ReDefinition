@@ -35,7 +35,6 @@ namespace ReDefinition.WeatherPlayer
             Frame.UseSceneDepth = false;
             Frame.SunSteps = 3;
             Frame.MinStepM = 25f;
-            Frame.StepGrowth = 0.0002f;
             Frame.Jitter = 1f;
             Frame.EarlyOut = 0.01f;
             Frame.MaxSteps = 48;

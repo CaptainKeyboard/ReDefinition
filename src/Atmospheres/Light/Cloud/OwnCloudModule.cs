@@ -46,7 +46,7 @@ namespace ReDefinition.Atmospheres
     {
         // The tuning keys of this module (ATMO_TUNING { key = value }, or a matrix row atmo.<key>).
         internal const string TuneCameraEvent = "cloud.cameraEvent", TuneSunGain = "cloud.sunGain", TuneSunAirWithScatterer = "cloud.sunAirWithScatterer",
-            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma", TuneStatsS = "cloud.statsS", TuneReaddEveryFrame = "cloud.readdEveryFrame",
+            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma", TuneReaddEveryFrame = "cloud.readdEveryFrame",
             TuneAfterScatterer = "cloud.afterScatterer",
             // E40 B3: the white point of the output stage follows the sun at the clouds (CloudOutputStage.WhiteTint): the strength 0 to 1 (default 1, 0 = the grey white as before) and
             // the altitude the sun's air is taken at (default -1: the lower quarter of the stack's lowest layer, CloudOutputStage.NominalCloudAltitudeM; a value of 0 or more is that altitude in m).
@@ -2034,7 +2034,7 @@ namespace ReDefinition.Atmospheres
         private void PublishStats(float now)
         {
             if (now < nextStats) return;
-            nextStats = now + Math.Max(5f, Tuning.Get(TuneStatsS, 30f));
+            nextStats = now + 30f;
             AtmospheresLog.Say("own clouds: " + Stats.Mode + ", " + Stats.Layers + " layers, frames " + Stats.FramesDrawn + " (plain " + Stats.PlainFrames + ", reconstruct "
                                + Stats.ReconFrames + "), map fetches " + Stats.MapFetches + " (last " + Stats.LastMapMs.ToString("0.0") + " ms, worst "
                                + Stats.WorstMapMs.ToString("0.0") + " ms, main step worst " + Stats.WorstMapMainMs.ToString("0.0") + " ms), height builds " + Stats.HeightBuilds

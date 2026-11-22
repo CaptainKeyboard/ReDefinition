@@ -91,12 +91,9 @@ namespace ReDefinition.Atmospheres
         // the end of the ramp, which is the shader's early return.)
         // power: the layer's exponent of the share (CloudWater.Pow); the mean is that of the share to the power (the closed form below), not the power of the mean.
         // The shader's FarShareMean returns the mean of the share and the exponent is applied to it afterwards (E40 B1: the residual, MEASURED in FarViewTests).
-        internal static double ShapeMean(double cov, double coverage, double edge, double amount, double erosion, double detailMean,
-                                         double densityRemap = 0.0, double power = 1.0)
+        internal static double ShapeMean(double cov, double coverage, double edge, double amount, double erosion, double detailMean, double power = 1.0)
         {
-            double mean = ShapeMeanPlain(cov, coverage, edge, amount, erosion, detailMean, power);
-            // layers.densityRemap thins every share by the same factor once the detail is its mean (CloudShapeModel.InteriorThinning).
-            return densityRemap > 0.0 && erosion > 0.0 ? mean * CloudShapeModel.InteriorThinning(densityRemap, erosion, detailMean) : mean;
+            return ShapeMeanPlain(cov, coverage, edge, amount, erosion, detailMean, power);
         }
 
         private static double ShapeMeanPlain(double cov, double coverage, double edge, double amount, double erosion, double detailMean, double power)

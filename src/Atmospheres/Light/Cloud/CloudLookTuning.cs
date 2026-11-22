@@ -9,11 +9,9 @@ namespace ReDefinition.Atmospheres
     // CloudLayerDef's Effective* getters and the module read these, never the configured numbers, so the layer pass, the cloud shadows and the CPU readers see one value.
     //   cloud.layerSigmaScale             factor on every layer's sigma per m (1)
     //   cloud.layerSoftnessScale          factor on every layer's edge softness (1)
-    //   cloud.layerNoiseAmountScale       factor on every layer's noise amount (1). It only acts with cloud.coverMeaning 0: with the cover meaning (default) the amount is 1 by definition (the
-    //                                     outline stands at noise rank 1 - map value, so a map value is the share of the sky), and a factor above 0 changes nothing but the on / off of the noise
     //   cloud.layerNoiseSizeScale         factor on every layer's noise scale in m (1)
     //   cloud.mapOverride.<name>          a constant coverage-map value for the layer everywhere, 0 to 1 (-1: the field's map); tells a map that varies over the view from the pass
-    //   cloud.layerSigmaScale.<name>, cloud.layerSoftnessScale.<name>, cloud.layerNoiseAmountScale.<name>, cloud.layerNoiseSizeScale.<name>
+    //   cloud.layerSigmaScale.<name>, cloud.layerSoftnessScale.<name>, cloud.layerNoiseSizeScale.<name>
     //                                     the same for the layer of that name only, multiplied with the general key (1)
     //   cloud.layerCoverageShift.<name>   added to the coverage of the layer of that name, on top of cloud.coverageShift (0)
     //   cloud.typeFair.<name>             the type value of the layer at no precipitation, rising linearly to 1 at full precipitation (-1: the precipitation level itself)
@@ -22,7 +20,6 @@ namespace ReDefinition.Atmospheres
     //                                     precipitation level and the deck draws wherever its map passes), -1 (default): the layer's cfg (deckRule = 1 on the weather decks)
     //   cloud.deckPrecip.<name>           the probe's: a precipitation level the layer's deck rule sees everywhere, 0 to 1 (-1: the field's)
     //   cloud.deckFog.<name>              the probe's: a fog share the layer's deck rule sees everywhere, 0 to 1 (-1: the field's dew-point spread and wind)
-    //   layers.densityRemap               the share of the erosion that also thins the interior of a closed deck (0: erosion only in the soft edge)
     //   cloud.coverCombine                0 to 1: how far the layer maps are scaled so that their random-overlap union equals the field's cover (0: maps as they are; default 1, E40 F1: each
     //                                     layer map the generator makes carries about the field's whole cover, the four closed the sky twice over)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
@@ -40,16 +37,16 @@ namespace ReDefinition.Atmospheres
         // The default of cloud.coverCombine (E40 F1): the layer maps meet the field's cover.
         internal const float DefaultCoverCombine = 1f;
 
-        internal const string TuneSigma = "cloud.layerSigmaScale", TuneSoftness = "cloud.layerSoftnessScale", TuneNoiseAmount = "cloud.layerNoiseAmountScale",
+        internal const string TuneSigma = "cloud.layerSigmaScale", TuneSoftness = "cloud.layerSoftnessScale",
             TuneNoiseSize = "cloud.layerNoiseSizeScale", TuneLayerShift = "cloud.layerCoverageShift.", TuneTypeFair = "cloud.typeFair.", TuneTypeOverride = "cloud.typeOverride.",
-            TuneDensityRemap = "layers.densityRemap", TuneCoverCombine = "cloud.coverCombine", TuneFadeFar = "cloud.fadeFarM",
+            TuneCoverCombine = "cloud.coverCombine", TuneFadeFar = "cloud.fadeFarM",
             TuneFadeNearShare = "cloud.fadeNearShare", TuneFarHaze = "cloud.farHaze", TuneHazeStrength = "cloud.hazeStrength", TuneMapOverride = "cloud.mapOverride.",
             TuneDeckRule = "cloud.deckRule.",
             TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.",
             TuneSoloLayer = "cloud.soloLayer", TuneCellKm = "cloud.cellKm", TuneCellLat = "cloud.cellLat", TuneCellLon = "cloud.cellLon";
 
         private static long seenVersion = -1;
-        private static float sigma = 1f, softness = 1f, noiseAmount = 1f, noiseSize = 1f, remap, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
+        private static float sigma = 1f, softness = 1f, noiseSize = 1f, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
         private static float cellKm, cellLat, cellLon;
         private static float heapForce = -1f, edgeForce, cavityForce = -1f, heapFoot = 1f, heapIso = 1f;
         private static long stamp;
@@ -60,10 +57,9 @@ namespace ReDefinition.Atmospheres
         private static readonly Dictionary<string, float> DeckRuleByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> DeckPrecipByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> DeckFogByName = new Dictionary<string, float>(StringComparer.Ordinal);
-        // The per-layer factors (cloud.layerSigmaScale.<name> and the three like it), multiplied with the general ones.
+        // The per-layer factors (cloud.layerSigmaScale.<name> and the two like it), multiplied with the general ones.
         private static readonly Dictionary<string, float> SigmaByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> SoftnessByName = new Dictionary<string, float>(StringComparer.Ordinal);
-        private static readonly Dictionary<string, float> NoiseAmountByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> NoiseSizeByName = new Dictionary<string, float>(StringComparer.Ordinal);
 
         // Rises each time any of the keys that reach the layers' uploaded numbers changed.
@@ -94,8 +90,8 @@ namespace ReDefinition.Atmospheres
 
         private static void Load()
         {
-            float s = Scale(Tuning.Get(TuneSigma, 1f)), e = Scale(Tuning.Get(TuneSoftness, 1f)), a = Scale(Tuning.Get(TuneNoiseAmount, 1f)), z = Scale(Tuning.Get(TuneNoiseSize, 1f));
-            float r = Unit(Tuning.Get(TuneDensityRemap, 0f)), c = Unit(Tuning.Get(TuneCoverCombine, DefaultCoverCombine));
+            float s = Scale(Tuning.Get(TuneSigma, 1f)), e = Scale(Tuning.Get(TuneSoftness, 1f)), z = Scale(Tuning.Get(TuneNoiseSize, 1f));
+            float c = Unit(Tuning.Get(TuneCoverCombine, DefaultCoverCombine));
             float f = Clean(Tuning.Get(TuneFadeFar, 0f), 0f, 0f, 1e7f), n = Clean(Tuning.Get(TuneFadeNearShare, 0.5f), 0.5f, 0f, 1f);
             float h = Tuning.Get(TuneFarHaze, -1f);
             h = float.IsNaN(h) || float.IsInfinity(h) ? -1f : h < 0f ? -1f : h > 1.5f ? 2f : h > 0f ? 1f : 0f;
@@ -110,16 +106,14 @@ namespace ReDefinition.Atmospheres
             edgeForce = ef;
             cavityForce = cf;
             heapFoot = ft;
-            changed |= s != sigma || e != softness || a != noiseAmount || z != noiseSize || r != remap || c != combine || f != fadeFar || n != fadeNearShare
+            changed |= s != sigma || e != softness || z != noiseSize || c != combine || f != fadeFar || n != fadeNearShare
                            || h != farHaze || hs != hazeStrength || ck != cellKm || cla != cellLat || clo != cellLon;
             cellKm = ck;
             cellLat = cla;
             cellLon = clo;
             sigma = s;
             softness = e;
-            noiseAmount = a;
             noiseSize = z;
-            remap = r;
             combine = c;
             fadeFar = f;
             fadeNearShare = n;
@@ -138,7 +132,6 @@ namespace ReDefinition.Atmospheres
             changed |= Reread(CavityByName, TuneCavityLayer, -1f, -1f, 1f);
             changed |= Reread(SigmaByName, TuneSigma + ".", 1f, 0.01f, 100f);
             changed |= Reread(SoftnessByName, TuneSoftness + ".", 1f, 0.01f, 100f);
-            changed |= Reread(NoiseAmountByName, TuneNoiseAmount + ".", 1f, 0.01f, 100f);
             changed |= Reread(NoiseSizeByName, TuneNoiseSize + ".", 1f, 0.01f, 100f);
             if (changed) stamp++;
         }
@@ -199,9 +192,7 @@ namespace ReDefinition.Atmospheres
 
         internal static float SigmaScale { get { Refresh(); return sigma; } }
         internal static float SoftnessScale { get { Refresh(); return softness; } }
-        internal static float NoiseAmountScale { get { Refresh(); return noiseAmount; } }
         internal static float NoiseSizeScale { get { Refresh(); return noiseSize; } }
-        internal static float DensityRemap { get { Refresh(); return remap; } }
         internal static float CoverCombine { get { Refresh(); return combine; } }
         internal static float FarHazeForce { get { Refresh(); return farHaze; } }
         internal static float HazeStrengthScale { get { Refresh(); return hazeStrength; } }
@@ -217,14 +208,12 @@ namespace ReDefinition.Atmospheres
         //   cloud.billow.top          the erosion's gain toward the cloud's top: erosion x (1 + gain x height in the cloud) (0)
         //   cloud.billow.fine         the weight of the fine octave of the detail (-1: the compiled NoiseModel.FineDetailWeight)
         //   cloud.billow.fineFreq     the fine octave's frequency over the first read (-1: the compiled NoiseModel.FineDetailFrequency)
-        //   cloud.billow.sharpen      0 to 1: the composite upsamples the march target with a Catmull-Rom spline, clamped to the four nearest texels (0: bilinear)
         internal const string TuneBillowLight = "cloud.billow.light", TuneBillowContrast = "cloud.billow.contrast", TuneBillowTop = "cloud.billow.top",
-            TuneBillowFine = "cloud.billow.fine", TuneBillowFineFreq = "cloud.billow.fineFreq", TuneBillowSharpen = "cloud.billow.sharpen";
+            TuneBillowFine = "cloud.billow.fine", TuneBillowFineFreq = "cloud.billow.fineFreq";
 
         internal static float BillowLight { get { return Clean(Tuning.Get(TuneBillowLight, 0f), 0f, 0f, 8f); } }
         internal static float BillowContrast { get { return Clean(Tuning.Get(TuneBillowContrast, 1f), 1f, 0f, 8f); } }
         internal static float BillowTop { get { return Clean(Tuning.Get(TuneBillowTop, 0f), 0f, 0f, 8f); } }
-        internal static float BillowSharpen { get { return Clean(Tuning.Get(TuneBillowSharpen, 0f), 0f, 0f, 1f); } }
 
         // The weight of the fine octave: the key, or `compiled` where it is below 0.
         internal static float BillowFine(float compiled)
@@ -246,18 +235,7 @@ namespace ReDefinition.Atmospheres
         //   cloud.cavity          -1: each type's cfg key cavity; 0 to 1: this strength for every type that reads a heap
         //   cloud.heap.iso        1: the heap is read at the lattice's true vertical scale, so a layer's verticalScale does not stretch the rounded heaps into columns; 0: as the shape volume is read
         //   cloud.heap.footLod    1: the march's sample spacing raises the heap volume's mip level (an octave is dropped only where it is below the footprint); 0: only the smoothing does
-        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod", TuneHeapIso = "cloud.heap.iso", TuneHeapDetail = "cloud.heap.detail", TuneHeapWarp = "cloud.heap.warp", TuneNoiseBlend = "cloud.noise.blend", TuneNoiseBlendExp = "cloud.noise.blendExp", TuneNoiseBlendCell = "cloud.noise.blendCell";
-
-        // --- CLOUDR1 P6: the first hit of the march by bisection (default off). ---
-        //   cloud.firstHit        evaluations of the bisection on the span a ray enters (0: off, the march is as it was; 3 is the default of the experiments)
-        //   cloud.firstHit.thin   the steps right inside the cloud as a share of the grid step (0.25)
-        //   cloud.firstHit.shell  how many thin steps follow the entry, the outer shell of the cloud (32), then the grid step again
-        //   cloud.firstHit.near   the distance in m up to which the thin steps are taken (0: everywhere)
-        internal const string TuneFirstHit = "cloud.firstHit", TuneFirstHitThin = "cloud.firstHit.thin", TuneFirstHitShell = "cloud.firstHit.shell", TuneFirstHitNear = "cloud.firstHit.near";
-        internal static float FirstHitIterations { get { float v = Clean(Tuning.Get(TuneFirstHit, 0f), 0f, 0f, 8f); return (float)Math.Round(v); } }
-        internal static float FirstHitThin { get { return Clean(Tuning.Get(TuneFirstHitThin, 0.25f), 0.25f, 0.02f, 1f); } }
-        internal static float FirstHitShell { get { return (float)Math.Round(Clean(Tuning.Get(TuneFirstHitShell, 32f), 32f, 0f, 512f)); } }
-        internal static float FirstHitNear { get { return Clean(Tuning.Get(TuneFirstHitNear, 0f), 0f, 0f, 1e7f); } }
+        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod", TuneHeapIso = "cloud.heap.iso", TuneHeapDetail = "cloud.heap.detail", TuneNoiseBlend = "cloud.noise.blend", TuneNoiseBlendExp = "cloud.noise.blendExp", TuneNoiseBlendCell = "cloud.noise.blendCell";
 
         // The same per layer (the layer's name after the prefix): the layer's own value wins over the global key, so a look can be tried on one layer (the cumulus layer) and the decks stay as they were.
         internal const string TuneHeapLayer = "cloud.heap.layer.", TuneEdgePowerLayer = "cloud.edgePower.layer.", TuneCavityLayer = "cloud.cavity.layer.";
@@ -289,9 +267,6 @@ namespace ReDefinition.Atmospheres
         internal static bool HeapFootLod { get { Refresh(); return heapFoot > 0.5f; } }
         // cloud.heap.detail: the Hurst exponent of the erosion detail volume's octaves (2^(-H k): the heap's cascade continued; 0: the compiled weights, whose finest octave is the heaviest). Read when the
         // volumes are generated (the first frame of a scene), not live.
-        // cloud.heap.warp: the share of the untiling displacement's horizontal part the heap lookup keeps (its radial part is always dropped); the default is HeapModel.WarpShare, -1 reads the heap at the
-        // fully displaced point like the shape volume (the lookup that strains it: the diagnosis of the pulled look).
-        internal static float HeapWarpShare { get { float v = Tuning.Get(TuneHeapWarp, (float)HeapModel.WarpShare); return float.IsNaN(v) || float.IsInfinity(v) ? (float)HeapModel.WarpShare : v < 0f ? -1f : Math.Min(v, 1f); } }
         // cloud.noise.blend (the layer pass reads it since the compile budget package CLOUDR2 P4: the earlier builds with it crashed the Unity 2019.4 shader compiler at 1190 s and 833 s): 1 hides the tiling of the shape and heap volumes by blending (random offset per lattice cell, variance-preserving, back to a rank: NoiseBlend, the local strain is exactly 1)
         // instead of the untiling displacement, which pulls the pattern (1, the default; 0: the displacement). cloud.noise.blendExp is the exponent of the weights (8), cloud.noise.blendCell the lattice
         // cell in periods (1). The erosion detail keeps its displacement.
@@ -330,12 +305,6 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCellTrace = "cloud.cellTrace";
         internal const float CellTraceDefault = 1f;
         internal static bool CellTrace { get { return Tuning.Get(TuneCellTrace, CellTraceDefault) > 0.5f; } }
-
-        // cloud.cellFoot (A4): 1 filters a single cloud's body by the view sample's footprint, as the erosion detail's distance LOD does: the finer billow octaves fade out once the sample is
-        // wider than their cells, and the surface band is at least a pixel wide (CloudCells.cginc CellBody). Off: in the player it changed next to nothing (sclock ng96 S_alpha -5.41 to -5.37).
-        internal const string TuneCellFoot = "cloud.cellFoot";
-        internal const float CellFootDefault = 0f;
-        internal static bool CellFoot { get { return Tuning.Get(TuneCellFoot, CellFootDefault) > 0.5f; } }
 
         // cloud.cellShell (A4): 1 lets the march step finely inside a body's shell, where its surface can lie (the pixel's size there, at least the chosen look's 6 m, at most the grid step;
         // CloudCells.cginc CELL_SHELL_STEP_MIN), so heads smaller than the grid step are not missed between two grid points. Off: the cover and the outline came back (player, sclock 0.296
@@ -428,13 +397,13 @@ namespace ReDefinition.Atmospheres
         internal static float LvReadPastMaxM { get { return Clean(Tuning.Get(TuneLvReadPastMax, 4000f), 4000f, 0f, 1e5f); } }
         internal static float LvWarpLimit { get { return Clean(Tuning.Get(TuneLvWarpLimit, 1000f), 1000f, 1f, 1e7f); } }
 
-        // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 2 cloud.cellFoot, 4 cloud.cellShell).
+        // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)
         {
             float billow = layer == null ? CloudLayerDef.DefaultCellBillow : CellBillowFor(layer);
             float band = layer == null ? CloudLayerDef.DefaultCellBandM : CellBandFor(layer);
             float fine = layer == null ? CloudLayerDef.DefaultCellFine : CellFineFor(layer);
-            float flags = (CellTrace ? 1f : 0f) + (CellFoot ? 2f : 0f) + (CellShell ? 4f : 0f);
+            float flags = (CellTrace ? 1f : 0f) + (CellShell ? 4f : 0f);
             return new UnityEngine.Vector4(billow, band, fine, flags);
         }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
@@ -506,11 +475,6 @@ namespace ReDefinition.Atmospheres
         internal static float SoftnessScaleOf(string layerName)
         {
             return SoftnessScale * Named(SoftnessByName, TuneSoftness + ".", layerName, 1f, 0.01f, 100f);
-        }
-
-        internal static float NoiseAmountScaleOf(string layerName)
-        {
-            return NoiseAmountScale * Named(NoiseAmountByName, TuneNoiseAmount + ".", layerName, 1f, 0.01f, 100f);
         }
 
         internal static float NoiseSizeScaleOf(string layerName)

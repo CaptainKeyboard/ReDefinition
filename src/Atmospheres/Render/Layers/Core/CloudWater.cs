@@ -98,13 +98,12 @@ namespace ReDefinition.Atmospheres
         }
 
         // The layer's coverage constant with which the old share's expression saturate((map + (n - 0.5) amount + coverage - 1) / edge + 0.5), at the noise amount 1
-        // and the edge `Width`, IS the water content saturate((n - t) / Width + closed). coverMeaning: the outline is t = 1 - map value; otherwise it is where the
-        // old share began with the layer's old coverage constant and edge softness (only for a layer whose noise amount was 1). It holds for map values of at
+        // and the edge `Width`, IS the water content saturate((n - t) / Width + closed). The outline is t = 1 - map value. It holds for map values of at
         // least closed x Width; the clear sky at small map values (Threshold) is not in the old expression and needs the map value moved before it.
-        internal static double Coverage(bool coverMeaning, double oldCoverage, double oldEdge, double closed, CloudWaterNumbers k)
+        internal static double Coverage(double closed, CloudWaterNumbers k)
         {
             double w = Math.Max(k.Width, 1e-3);
-            return (coverMeaning ? 0.5 : oldCoverage + 0.5 * oldEdge) + (closed - 0.5) * w;
+            return 0.5 + (closed - 0.5) * w;
         }
 
         // The mean over a cloud's height of profile x rise, from the profile sampled evenly from the base to the top.

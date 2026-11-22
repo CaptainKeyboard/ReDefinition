@@ -14,7 +14,7 @@
 
 // The body of a single cloud per layer (CloudLayerDef's cell keys, the viewer's overrides through CloudLookTuning): x how far the billows move the body's surface, as a share of its shorter
 // semi-axis (cfg cellBillow); y the width in m of the band the share rises over at the surface (cellBand); z the gain of the finer billow octaves (cellFine; 0: not read); w flags: 1 the march
-// leaps over the space beyond the billows' reach (CellShellGap, cloud.cellTrace), 2 the body is filtered by the view sample's footprint (CellBody, cloud.cellFoot), 4 the march steps finely
+// leaps over the space beyond the billows' reach (CellShellGap, cloud.cellTrace), 2 unused, 4 the march steps finely
 // inside that reach, where the surface can lie (cloud.cellShell, CELL_SHELL_STEP_MIN).
 float4 _CellE[4];
 // The sky drawn from the weather map (MapSkyRegions.SheetTypes, cloud.weatherMapSky; zero while it is off): per layer x 1 where the layer's sheet types are drawn connected, y the type value
@@ -33,22 +33,10 @@ float CellSheetWeight(int li, float typeValue)
 
 // The finest step inside a body's shell in m: the minimum step of the march the owner chose the single clouds' look with (e40puff CEIL, 2026-11-17: 6 m).
 #define CELL_SHELL_STEP_MIN 6.0
-// The view sample's pixel footprint in m, set by the view march before each read of the density (0 where the pixel's footprint is off, cloudDetailLod): the band at the surface is never
-// narrower than a pixel there (cloud.cellFoot). -1 outside the view march: the shadow keeps the body as it is (its CPU twin, CloudCells.CellBody, has no footprint). The light march's reads
-// keep the value of the view sample they light (as gNoiseFoot), so the light sees the same filtered body.
-static float gBodyFoot = -1.0;
-
-// Whether the body is filtered by the footprint: cloud.cellFoot on, the distance LOD of the noise on (_NoiseS.z > 0, Switches.DistanceLod, as for the erosion detail) and the view march.
-bool CellFootOn(int li)
-{
-    return fmod(floor(_CellE[li].w * 0.5), 2.0) > 0.5 && _NoiseS.z > 0.0 && gBodyFoot >= 0.0;
-}
-
-// The width in m of the band the share rises over at the surface: the layer's, at least a pixel where the body is filtered and the pixel's footprint is on.
+// The width in m of the band the share rises over at the surface: the layer's.
 float CellBand(int li)
 {
-    float band = max(_CellE[li].y, 1.0);
-    return CellFootOn(li) ? max(band, gBodyFoot) : band;
+    return max(_CellE[li].y, 1.0);
 }
 
 // The lattice: a centre lies anywhere in its cell (CELL_JITTER 1: the rows and columns do not show), a disc's size is 1 +- CELL_SIGMA of the share's radius, the share f / CELL_ALIVE_F0 of the
@@ -228,18 +216,7 @@ float CellBody(int li, float h, float billow, float2 fine, float typeHeightM)
     float axis = min(semiR, semiH);
     float qBase = (1.0 - sqrt(xv * xv + hv * hv)) * axis;
     float band = CellBand(li);
-    // A4 (cloud.cellFoot): the body filtered by the view sample's footprint, as the erosion detail is (its distance LOD, NoiseShareAt): a finer octave fades out while the sample's footprint
-    // (gNoiseFoot, the march's spacing, or the pixel's size there where that is larger and on) grows from one to two of its cells (the heap field's strongest octave has two cells per period, so
-    // a cell is half the octave's period, 0.37 and 0.137 of the heap period), and the surface band is at least a pixel wide (gBodyFoot, CellBand). The octaves are centred on 0, so the body's mean
-    // stays; finer than the sample, they could only be missed or flicker.
-    [branch] if (CellFootOn(li) && gNoiseFoot > 0.0)
-    {
-        float cell = 0.5 * _NoiseR.z * (_LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 250.0);
-        float full = _NoiseS.y, off = max(_NoiseS.z, full + 1e-3);
-        fine.x *= 1.0 - saturate((gNoiseFoot - full * 0.37 * cell) / ((off - full) * 0.37 * cell));
-        fine.y *= 1.0 - saturate((gNoiseFoot - full * 0.137 * cell) / ((off - full) * 0.137 * cell));
-    }
-    float q = qBase + e.x * axis * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
+    float q =qBase + e.x * axis * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
     // The shell: the billows move the surface by at most e.x axis (0.5 + 0.5 e.z (0.37 + 0.137)) outwards, so beyond that the body's own term alone bounds the distance to it: the ellipsoid's
     // radial coordinate changes by at most 1 / axis per m, so its term by at most 1 (gBodyFar, the depth below the shell's outer side).
     gBodyFar = qBase + e.x * axis * (0.5 + 0.5 * e.z * (0.37 + 0.137));

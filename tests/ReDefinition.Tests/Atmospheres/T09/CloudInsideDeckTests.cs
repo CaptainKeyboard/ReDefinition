@@ -121,47 +121,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return new NoiseLayerParams
             {
                 ScaleM = layer.EffectiveNoiseScaleM, Untile = true, Curl = true, OffsetX = bx, OffsetY = by, OffsetZ = bz, Seed = NoiseSeeds.LayerSeed(1u, index), SphereScale = 1.0,
-                ReferenceRadiusM = 600000.0, DensityRemap = CloudLookTuning.DensityRemap
+                ReferenceRadiusM = 600000.0
             };
-        }
-
-        [TestMethod]
-        public void TheZenithTauOfTheRainDeckIsDeepAtTheHighPickAndNearZeroAtTheLowPick()
-        {
-            // The deck as a step in the map value (the old mapping): with the cover meaning (E40 F1) a map value of 0.86 closes 86 percent of the columns, not all of them.
-            CoverMeaningPin.Legacy();
-            try
-            {
-                ZenithTauOfTheRainDeck();
-            }
-            finally
-            {
-                CoverMeaningPin.Release();
-            }
-        }
-
-        private static void ZenithTauOfTheRainDeck()
-        {
-            CloudLayerDef rain = CloudLookFixtures.Rain();
-            var table = new LayerTypeTable(rain);
-            NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), 1u);
-            double minHigh = double.MaxValue, maxLow = 0.0;
-            for (int site = 0; site < 8; site++)
-            {
-                NoiseLayerParams prm = ParamsOf(rain, 0);
-                prm.OffsetX += site * 250000.0;
-                prm.OffsetY += site * 130000.0;
-                double high = CloudCoverOracle.ZenithTau(rain, table, set, prm, 264.0, R, CloudCoverOracle.Constant(0.859, 0.229), rain.EffectiveCoverage, CloudCoverOracle.March.Medium);
-                double low = CloudCoverOracle.ZenithTau(rain, table, set, prm, 264.0, R, CloudCoverOracle.Constant(0.4056, 0.0), rain.EffectiveCoverage, CloudCoverOracle.March.Medium);
-                minHigh = Math.Min(minHigh, high);
-                maxLow = Math.Max(maxLow, low);
-                var frame = new CloudCoverOracle.Frame { HeightM = 264.0, PitchDeg = 90.0, FovVDeg = 1.0, BodyRadiusM = R, Width = 1, Height = 1 };
-                double same = CloudCoverOracle.Render(rain, table, set, prm, frame, CloudCoverOracle.Constant(0.859, 0.229), rain.EffectiveCoverage, CloudCoverOracle.March.Medium).Tau[0];
-                Assert.AreEqual(same, high, 1e-9, "the zenith function is the one-pixel frame at pitch 90");
-            }
-            Report("I3 zenith tau of the rain deck at 264 m: high pick min over 8 sites " + minHigh.ToString("0.00") + ", low pick max " + maxLow.ToString("0.0000"));
-            Assert.IsTrue(minHigh >= 4.6, "high pick: " + minHigh);
-            Assert.IsTrue(maxLow < 0.05, "low pick: " + maxLow);
         }
 
         [TestMethod]

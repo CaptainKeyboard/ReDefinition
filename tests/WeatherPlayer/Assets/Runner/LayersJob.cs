@@ -159,7 +159,7 @@ namespace ReDefinition.WeatherPlayer
         public float[] sun;
         public float rayLimit;
         public int maxSteps = 256, sunSteps = 3;
-        public float earlyOut, minStep = 1f, stepGrowth, jitter, sunMarch = 4000f, resolution = 1f;
+        public float earlyOut, minStep = 1f, jitter, sunMarch = 4000f, resolution = 1f;
         public int layerMask;
         // The aid picture of a lum job (LayerFrame.AidMode; 4: direct light, light taps, ambient, alpha), 0: the natural march.
         public int aid;
@@ -182,7 +182,7 @@ namespace ReDefinition.WeatherPlayer
         // An occluder sphere (centre, radius) whose depth is the scene's; radius 0: none.
         public float[] occluder;
         public LayersJobLayer[] layers;
-        // Tuning keys the job sets before it draws (the game's keys, e.g. "cloud.coverageShift", "layers.densityRemap"; see CloudLookTuning); cleared for the next job.
+        // Tuning keys the job sets before it draws (the game's keys, e.g. "cloud.coverageShift", "cloud.layerSigmaScale"; see CloudLookTuning); cleared for the next job.
         public LayersJobKey[] tuning;
         // The noise model's switches and maps (package T02); null: the defaults.
         public LayersJobNoise noise;

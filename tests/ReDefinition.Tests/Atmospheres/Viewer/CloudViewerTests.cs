@@ -84,7 +84,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(OwnCloudOptions.AccumulateDefault, CloudKeyRegistry.Find(OwnCloudOptions.TuneAccumulate).Default);
             Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, CloudKeyRegistry.Find(OwnCloudOptions.TuneReconResolution).Default);
             Assert.AreEqual(new CloudLightSettings().MsBrightness, CloudKeyRegistry.Find(OwnCloudOptions.TuneMsBrightness).Default);
-            Assert.AreEqual(new CullSettings().TapEndM, CloudKeyRegistry.Find(OwnCloudOptions.TuneTapEnd).Default);
+            Assert.AreEqual(new CullSettings().FootScale, CloudKeyRegistry.Find(OwnCloudOptions.TuneFootScale).Default);
             Assert.AreEqual(1f, CloudKeyRegistry.Find(CloudMotion.TuneScale).Default, "the cloud speed's default changes nothing");
             Assert.IsTrue(CloudKeyRegistry.Find(OwnCloudOptions.TuneDitherFix).Flag);
             Assert.AreEqual(KeyLiveness.FrameHistory, CloudKeyRegistry.Find(OwnCloudOptions.TuneAccumulate).Liveness);

@@ -6,13 +6,13 @@ namespace ReDefinition.Atmospheres
 {
     // The tile map of the culling (package T16): one texel per tile of CullMath.TilePixels pixels of the full target, written by pass 5 of the layer shader
     // before the march. Red holds the bits of the layers the tile marches (bit i = layer i), green the reasons layers were dropped (1 the maps, 2 the
-    // terrain, 4 no ray reaches the shell, 8 behind a closed deck), blue the farthest scene distance of the tile. The march reads it per pixel
+    // terrain, 4 no ray reaches the shell), blue the farthest scene distance of the tile. The march reads it per pixel
     // (Pass0), and aid view 6 draws it.
     internal sealed class CullTiles
     {
         private RenderTexture tiles;
         private static readonly int IdTiles = Shader.PropertyToID("_CullTiles"), IdBMax0 = Shader.PropertyToID("_CullMax0"),
-            IdBMax1 = Shader.PropertyToID("_CullMax1"), IdBMin0 = Shader.PropertyToID("_CullMin0"), IdBMin1 = Shader.PropertyToID("_CullMin1");
+            IdBMax1 = Shader.PropertyToID("_CullMax1");
 
         internal RenderTexture Tiles { get { return tiles; } }
         internal int TilesX { get; private set; }
@@ -39,7 +39,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // Records the tile pass for a camera whose full target is fullW x fullH, with the material state of this frame's Apply. Nothing, and the march
-        // reading no tiles, where neither skip switch is on. The scene depth global must be set already (the pass reads it like the march).
+        // reading no tiles, where the skip switch is off. The scene depth global must be set already (the pass reads it like the march).
         internal void Record(CommandBuffer cb, LayerRenderer renderer, CullBounds bounds, CullSettings cull, int fullW, int fullH, Action<CommandBuffer> markStart,
                              Action<CommandBuffer> markEnd)
         {
@@ -51,8 +51,6 @@ namespace ReDefinition.Atmospheres
             m.SetTexture(IdTiles, tiles);
             m.SetTexture(IdBMax0, bounds.MaxFine);
             m.SetTexture(IdBMax1, bounds.MaxCoarse);
-            m.SetTexture(IdBMin0, bounds.MinFine);
-            m.SetTexture(IdBMin1, bounds.MinCoarse);
             if (markStart != null) markStart(cb);
             cb.Blit(BuiltinRenderTextureType.None, tiles, m, LayerRenderer.PassCullTile);
             if (markEnd != null) markEnd(cb);

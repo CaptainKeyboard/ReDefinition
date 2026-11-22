@@ -47,19 +47,12 @@ namespace ReDefinition.Atmospheres
             return engine != null ? engine.Version(0, layer) : coverageGoalVersion[layer];
         }
 
-        // The two maps every value the layer's coverage shows lies between, texel by texel (the culling bounds and the span bound read the minimum and the maximum of both: valid for
+        // The two maps every value the layer's coverage shows lies between, texel by texel (the culling bounds read the maximum of both: valid for
         // every moment of the slew). Without GpuSlew both are the shown map. False where the layer has no maps yet.
         internal bool CoverageBoundPair(int layer, out byte[] a, out byte[] b)
         {
             if (engine != null) return engine.Pair(0, layer, out a, out b);
             a = b = coverageNow[layer];
-            return a != null;
-        }
-
-        internal bool TypeBoundPair(int layer, out byte[] a, out byte[] b)
-        {
-            if (engine != null) return engine.Pair(1, layer, out a, out b);
-            a = b = typeNow[layer];
             return a != null;
         }
 
@@ -74,7 +67,7 @@ namespace ReDefinition.Atmospheres
 
         private readonly long[] coverageGoalVersion = new long[CloudLayerDef.MaxLayers];
 
-        // The bytes of a layer's type map as uploaded last, and the number of uploads so far (LayerSpanBound reads both maps of the frame).
+        // The bytes of a layer's type map as uploaded last, and the number of uploads so far.
         internal byte[] TypeBytes(int layer)
         {
             return engine != null ? engine.NowBytes(1, layer) : typeNow[layer];

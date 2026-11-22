@@ -86,7 +86,6 @@ namespace ReDefinition.WeatherPlayer
                     frame.UseSceneDepth = true;
                     frame.SunSteps = 3;
                     frame.MinStepM = 25f;
-                    frame.StepGrowth = 0.0002f;
                     frame.Jitter = 1f;
                     frame.EarlyOut = 0.01f;
                     Cam.fieldOfView = job.fovV;

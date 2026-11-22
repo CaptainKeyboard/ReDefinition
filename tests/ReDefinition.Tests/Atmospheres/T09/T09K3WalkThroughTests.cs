@@ -42,12 +42,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void K3RunsEachVariantWithItsKeysOnAndTheStartsValuesBackAfterIt()
         {
-            string[] ids = { "off_g", "plain_g", "noise_off_g", "tier_low_g", "h_all_off_g", "remap1_g", "off_a", "plain_a", "h_top_off_a" };
+            string[] ids = { "off_g", "plain_g", "noise_off_g", "tier_low_g", "h_all_off_g", "sigma2_g", "off_a", "plain_a", "h_top_off_a" };
             Run r = StartK3(ids);
             var seen = new Dictionary<string, Dictionary<string, double>>();
             string[] keys = { AtmospheresSettings.Keys.CloudNoise, AtmospheresSettings.Keys.CloudNoiseTier, AtmospheresSettings.Keys.CloudBaseVariation, AtmospheresSettings.Keys.CloudBasePhysics,
                               AtmospheresSettings.Keys.CloudTopFromUpdraft, AtmospheresSettings.Keys.BaseRagged, AtmospheresSettings.Keys.CloudSource };
-            Drive(r, 0.02, 3600.0, Sample(seen, keys, new[] { CloudLookTuning.TuneDensityRemap }));
+            Drive(r, 0.02, 3600.0, Sample(seen, keys, new[] { CloudLookTuning.TuneSigma }));
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual(1, r.Quits);
             Assert.AreEqual("k3near", r.Probe.StartId);
@@ -64,13 +64,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (string k in new[] { AtmospheresSettings.Keys.CloudBaseVariation, AtmospheresSettings.Keys.CloudBasePhysics, AtmospheresSettings.Keys.CloudTopFromUpdraft, AtmospheresSettings.Keys.BaseRagged })
             {
                 Assert.AreEqual(0.0, seen["h_all_off_g"][k], "T13 switch " + k + " off in h_all_off_g");
-                Assert.AreEqual(1.0, seen["remap1_g"][k], "T13 switch " + k + " on again after it");
+                Assert.AreEqual(1.0, seen["sigma2_g"][k], "T13 switch " + k + " on again after it");
                 Assert.AreEqual(1.0, seen["plain_a"][k]);
             }
             Assert.AreEqual(0.0, seen["h_top_off_a"][AtmospheresSettings.Keys.CloudTopFromUpdraft]);
             Assert.AreEqual(1.0, seen["h_top_off_a"][AtmospheresSettings.Keys.CloudBaseVariation], "only the top switch is off");
-            Assert.AreEqual(1.0, seen["remap1_g"][CloudLookTuning.TuneDensityRemap], 1e-6, "the tuning key is on in its window");
-            Assert.AreEqual(-99.0, seen["noise_off_g"][CloudLookTuning.TuneDensityRemap], 1e-6, "and gone in the others");
+            Assert.AreEqual(2.0, seen["sigma2_g"][CloudLookTuning.TuneSigma], 1e-6, "the tuning key is on in its window");
+            Assert.AreEqual(-99.0, seen["noise_off_g"][CloudLookTuning.TuneSigma], 1e-6, "and gone in the others");
             Assert.AreEqual((double)(int)CloudSourceKind.None, seen["off_g"][AtmospheresSettings.Keys.CloudSource], "the off window has no clouds");
             Assert.AreEqual((double)(int)CloudSourceKind.Ours, seen["plain_g"][AtmospheresSettings.Keys.CloudSource]);
 
@@ -95,18 +95,18 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(r.World.Saved.Count, r.World.Saved.Distinct().Count(), "every picture has its own name");
             foreach (string id in new[] { "plain_g", "noise_off_g", "tier_low_g", "h_all_off_g" })
                 Assert.IsTrue(Values(r, "T09.noise.ground.flicker", id).Count > 0, id + " has a noise read");
-            Assert.AreEqual(0, Values(r, "T09.noise.ground.flicker", "remap1_g").Count, "remap1_g has none");
+            Assert.AreEqual(0, Values(r, "T09.noise.ground.flicker", "sigma2_g").Count, "sigma2_g has none");
             Assert.IsTrue(Values(r, "K3.keys", "noise_off_g")[0].Value.Contains("cloudNoise=0"), "the keys of a variant are written");
         }
 
         [TestMethod]
         public void K3SkyViewTakesThePicturesWithoutTheNumericFrame()
         {
-            Run r = StartK3(new[] { "off_s", "plain_s", "skip_closed_s" });
+            Run r = StartK3(new[] { "off_s", "plain_s", "cull_all_s" });
             Drive(r, 0.02);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-sky3-skip_closed_s-1707x960-natural")), string.Join(",", r.World.Saved.ToArray()));
-            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-sky3-skip_closed_s-1707x960-aid-opticaldepth")));
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-sky3-cull_all_s-1707x960-natural")), string.Join(",", r.World.Saved.ToArray()));
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-sky3-cull_all_s-1707x960-aid-opticaldepth")));
             Assert.IsFalse(r.Rows.Any(l => l.Contains("T09d.sky3.")), "no numeric frame in the sky3 view");
         }
 
@@ -197,7 +197,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(r.World.Saved.Count, r.World.Saved.Distinct().Count(), s.Key + ": unique picture names");
                 windows += s.Value.Length;
             }
-            Assert.AreEqual(119, windows);
+            Assert.AreEqual(108, windows);
         }
 
         [TestMethod]
@@ -232,7 +232,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 if (v.Off) Assert.AreEqual(0, v.Tunes.Count + v.Sets.Count(s => s.Key != AtmospheresSettings.Keys.ForceLevel && s.Key != AtmospheresSettings.Keys.ForceType), id + ": an off window changes nothing but the rain");
                 if (v.Special == K3Special.Storm) Assert.IsTrue(v.Sets.Any(s => s.Key == AtmospheresSettings.Keys.Lightning && s.Value == 1.0), id + " switches the lightning on");
             }
-            Assert.IsTrue(K3Variants.AllIds.Count >= 100, "the table holds " + K3Variants.AllIds.Count);
+            Assert.IsTrue(K3Variants.AllIds.Count >= 90, "the table holds " + K3Variants.AllIds.Count);
         }
     }
 }

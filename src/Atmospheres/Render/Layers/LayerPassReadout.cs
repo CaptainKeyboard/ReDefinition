@@ -18,10 +18,10 @@ namespace ReDefinition.Atmospheres
         {
             "_PlanetCenter", "_CamPos", "_CamForward", "_CamRight", "_CamUp", "_MapDim", "_Sun", "_SunColor", "_AmbientTop", "_AmbientBottom", "_MarchP", "_StepP", "_LimitP",
             "_PhaseP", "_OutP", "_OutW", "_SkipP", "_SpacingP", "_ReuseP", "_LeapP", "_CostP", "_DitherP", "_ReconP", "_ReconD", "_FarRot", "_MarchTex_TexelSize",
-            "_NoiseL", "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BillowP", "_HeapP", "_BlendP", "_FirstHitP", "_MapReachCov", "_MapReachType",
+            "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BillowP", "_HeapP", "_BlendP", "_MapReachCov", "_MapReachType",
             "_LightP", "_LightQ", "_LightR", "_LightS", "_LightT", "_SunAir", "_LightU", "_LightV", "_LightW", "_LightX", "_CellA", "_CellB", "_CacheA", "_CacheX", "_CacheY", "_CacheZ", "_CacheH", "_CacheSlice",
             "_LvA", "_LvU", "_LvE", "_LvN", "_LvZ", "_LvC", "_LvF", "_LvSlice", "_LvP", "_LvD", "_LvR", "_LvS", "_LvBlur", "_LvBlurSigma",
-            "_FarA", "_FarB", "_FarC", "_FarE", "_FarD", "_CullA", "_CullB", "_CullC", "_CullD", "_CullT", "_EdgeP"
+            "_FarA", "_FarB", "_FarC", "_FarE", "_FarD", "_CullA", "_CullB", "_CullD", "_CullT", "_EdgeP"
         };
 
         internal static readonly string[] Arrays =
@@ -33,7 +33,7 @@ namespace ReDefinition.Atmospheres
         internal static readonly string[] Textures =
         {
             "_TypeProfile", "_TypeInfo", "_CovMaps", "_TypeMaps", "_CovReach", "_SceneDepth", "_MarchTex", "_NoiseShape", "_NoiseDetail", "_NoiseCurl", "_NoiseFlow",
-            "_NoiseColour", "_NoiseLattice", "_LightCache", "_LightVolume", "_LvBlurSrc", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_CullMin0", "_CullMin1", "_EdgeMask"
+            "_NoiseColour", "_LightCache", "_LightVolume", "_LvBlurSrc", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_EdgeMask"
         };
 
         // The local keywords the layer shader declares (multi_compile_local; LightVolume.Keyword, LayerRenderer.MapSkyKeyword): the readout says for each whether the material has it on.

@@ -29,9 +29,7 @@ sampler3D _NoiseDetail;
 sampler3D _NoiseCurl;
 sampler2D _NoiseFlow;
 sampler2D _NoiseColour;
-sampler3D _NoiseLattice; // the untiling warp's lattice table around the viewer (E40 C4; NoiseLattice.cs)
-float4 _NoiseL;          // the table: x cells per side, y 1 / that, z slices per layer's slab, w 1 / the slices of the texture
-float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w: the warp reads the lattice table (1) or hashes the corners of its cell (0) (layers.warpTable; the vertical scale of the lattice is per layer, _NoiseStretch.y)
+float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w unused (the vertical scale of the lattice is per layer, _NoiseStretch.y)
 float4 _NoiseQ;          // warp amplitude, warp cell, curl amplitude (in noise scales), flow phase 0..1
 float4 _NoiseR;          // shape period, detail period, heap period (in noise scales), w the share of the untiling displacement's horizontal part the heap lookup keeps (HeapModel.WarpShare)
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
@@ -43,11 +41,11 @@ float4 _NoiseAxis[4];    // per layer: xyz the unit axis of the fibre stretch in
 float4 _NoiseS;          // distance LOD of the erosion detail: x the detail's finest cell (noise scales), y/z the march spacing in cells up to which the detail is
                          // read in full / from which it is dropped (z = 0: LOD off), w the detail volume's mean (what the erosion reads once dropped)
 
-float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read, z layers.densityRemap (0: the erosion acts only in the soft edge),
+float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its weight (0: off), y its frequency over the first read, z unused,
                          // w log2 of the shape volume's voxels per noise scale (the mip level of a smoothing of s scales is log2(s) + w; E40 L6 shape)
 
 float4 _BillowP;         // billow detail (package PUFF; all 0 = the model as it was): x the billow shading of the direct light (the march scales a sample's direct light by 1 + 2 x (d - mean), d the erosion detail's value there: the bumps catch the light, the crevices between them are shaded; 0: off), y the detail's contrast about
-                         // its mean minus 1 (d' = mean + (d - mean) (1 + y)), z the erosion's gain toward the cloud's top (erosion (1 + z h), h the height in the cloud 0..1), w the composite's sharpening 0..1
+                         // its mean minus 1 (d' = mean + (d - mean) (1 + y)), z the erosion's gain toward the cloud's top (erosion (1 + z h), h the height in the cloud 0..1), w unused
 
 float4 _BlendP;          // CLOUDR1: x the macro shape (shape and heap volume) hides its tiling by blending instead of the untiling displacement (cloud.noise.blend; 0: the displacement), y the exponent of the blend weights, z the lattice cell in periods, w the number of the sun march's first taps that read the eroded density (cloud.light.erosion; 0: the shape only, as it was)
 float4 _HeapP;           // CLOUDR1: x the heap volume is built (0: every type reads the shape volume), y bit 0 the march's spacing raises the heap's mip level (cloud.heap.footLod), bit 1 the heap is read at the lattice's true vertical scale (cloud.heap.iso), z log2 of the heap's voxels per noise scale, w a type has a heap, an edge exponent or a cavity (0: the type info 2 is not read)
@@ -114,15 +112,6 @@ float3 NoiseValueVec(float3 p, uint seed)
     return acc;
 }
 
-// NoiseValueVec from the lattice table (E40 C4): the quintic fade of the position, and the texture's linear filter blends the 8 corners of the cell with the fade as weights. The vector is in rgb, 0..1 per component.
-float4 NoiseLatticeAt(float3 c, float slab)
-{
-    float3 f0 = floor(c);
-    float3 t = f0 + NzFade(c - f0);
-    float z = t.z - _NoiseL.x * floor(t.z * _NoiseL.y);
-    return tex3Dlod(_NoiseLattice, float4((t.xy + 0.5) * _NoiseL.y, (slab * _NoiseL.z + z + 0.5) * _NoiseL.w, 0));
-}
-
 // The point the volumes are read at before the untiling displacement (see the header).
 float3 NoiseLookupBase(int li, float3 pc, float scale, float3 flow)
 {
@@ -144,9 +133,7 @@ float3 NoiseLookupBase(int li, float3 pc, float scale, float3 flow)
 float3 NoiseWarp(int li, float3 q, float scale)
 {
     if (_NoiseP.y < 0.5) return 0;
-    float3 wv;
-    [branch] if (_NoiseP.w > 0.5) wv = NoiseLatticeAt(q / (_NoiseQ.y * scale), li).rgb * 2.0 - 1.0;
-    else wv = NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
+    float3 wv = NoiseValueVec(q / (_NoiseQ.y * scale), (uint)_NoiseOffset[li].w + 4001u);
     return (_NoiseQ.x * scale) * wv;
 }
 
@@ -253,7 +240,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
         // of the horizontal part (the NumPy and C# twins: HeapLookup); with the blend (cloud.noise.blend) the point is not displaced at all.
         float3 upw = pc / max(length(pc), 1.0);
         float3 wh = gNoiseWarp - upw * dot(gNoiseWarp, upw);
-        if (_NoiseR.w >= 0.0) qh = q - gNoiseWarp + wh * _NoiseR.w;   // _NoiseR.w < 0: the whole displacement (cloud.heap.warp -1, the lookup the shape volume has)
+        qh = q - gNoiseWarp + wh * _NoiseR.w;
         // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
         // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
         if (_HeapP.y > 1.5)
@@ -283,9 +270,9 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     }
     else n = tex3Dlod(_NoiseShape, float4(q / periodUse, lodShape)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
-    // _NoiseT.z (layers.densityRemap, default 0): the erosion also thins the interior of a closed deck; 0 leaves the interior at the share 1.
+    // The erosion acts only in the soft edge: a closed deck (s = 1) keeps the share 1.
     if (s <= 0 || erosion <= 0 || light != 0) return s;
-    if (s >= 1.0 && _NoiseT.z <= 0) return s;
+    if (s >= 1.0) return s;
     // The distance LOD: the sample spacing against the detail's finest cell; once the spacing exceeds the cell the detail is dropped (the volume's mean).
     float lod = 0;
     if (_NoiseS.z > 0 && gNoiseFoot > 0)
@@ -327,9 +314,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     gNoiseD = d;
     float er = erosion * (1.0 - d);
     float c = saturate((s - er) / max(1.0 - er, 1e-3));
-    float eroded = c;
-    if (_NoiseT.z > 0) eroded *= saturate(1.0 - _NoiseT.z * er);
-    return eroded;
+    return c;
 }
 
 // The flow map's direction at a point in world space (east and north of the map frame, from the map's red and green, 0.5 = still).
