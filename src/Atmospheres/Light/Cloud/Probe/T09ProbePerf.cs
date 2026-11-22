@@ -158,6 +158,13 @@ namespace ReDefinition.Atmospheres
                 case "fpnosg":
                 case "fpshfull":
                 case "fpspread":
+                case "hnoage":
+                case "hnodr":
+                case "hclip1":
+                case "hnotd":
+                case "hnotri":
+                case "bnowb":
+                case "bnohaze":
                     return true;
                 default:
                     return false;
@@ -442,6 +449,15 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault);
                     break;
                 case "fpnolv": ForceTuning(CloudLookTuning.TuneLightVolume, 0f); break;
+                // The grid hunt, step 2 (PRUEFPROTOKOLL 76: the grid goes with the five history keys off together, fpnohist): one key back to its full-path value each.
+                case "hnoage": ForceTuning(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault ? 1f : 0f); break;
+                case "hnodr": ForceTuning(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault); break;
+                case "hclip1": ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault); break;
+                case "hnotd": ForceTuning(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault ? 1f : 0f); break;
+                case "hnotri": ForceTuning(OwnCloudOptions.TuneMarchTriangle, OwnCloudOptions.MarchTriangleDefault ? 1f : 0f); break;
+                // The band hunt (owner "fix what you see"): the scene's white balance off (setting sceneWhiteBalance 0) and the clouds' aerial perspective off (cloud.hazeStrength 0).
+                case "bnowb": SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, 0.0); break;
+                case "bnohaze": ForceTuning(CloudLookTuning.TuneHazeStrength, 0f); break;
                 // The contour bands (PRUEFPROTOKOLL 75, owner "fix what you see"): the fast path with LV3's lateral light spread (wolken-m2a-technik 11.8: the propagation fill on
                 // 156.25 m voxels as the spread's source, transmittance stored over 8; the hand-over stays the fast path's 0 km).
                 case "fpspread":
