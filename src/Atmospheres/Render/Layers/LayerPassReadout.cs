@@ -36,9 +36,9 @@ namespace ReDefinition.Atmospheres
             "_NoiseColour", "_LightCache", "_LightVolume", "_LvBlurSrc", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_EdgeMask", "_CloudField"
         };
 
-        // The local keywords the layer shader declares (multi_compile_local; LightVolume.Keyword, LayerRenderer.MapSkyKeyword, LayerRenderer.LatticeKeyword): the readout says for each whether
-        // the material has it on.
-        internal static readonly string[] Keywords = { "CLOUD_LIGHTVOL", "REDEFINITION_MAPSKY", "CLOUD_LATTICE" };
+        // The local keywords the layer shader declares (multi_compile_local; LightVolume.Keyword, LayerRenderer.MapSkyKeyword, LayerRenderer.LatticeKeyword, CloudDevVariant.Keyword): the
+        // readout says for each whether the material has it on.
+        internal static readonly string[] Keywords = { "CLOUD_LIGHTVOL", "REDEFINITION_MAPSKY", "CLOUD_LATTICE", "CLOUD_DEV" };
 
         // Where the numbers come from: a material in the game and in the player, a stand-in in the tests.
         internal interface ISource

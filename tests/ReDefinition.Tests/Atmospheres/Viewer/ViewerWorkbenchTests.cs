@@ -514,7 +514,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             for (int i = 0; i < 400; i++) cost.Add(16.0, 2.0);
             Assert.AreEqual(2.0, cost.GpuMs, 0.01);
             Assert.AreEqual(16.0, cost.FrameMs, 0.01);
-            cost.Mark("layers.spanSpacing");
+            cost.Mark("layers.leapScale");
             Assert.IsTrue(cost.Watching);
             StringAssert.Contains(cost.ChangeLine(), "measuring");
             for (int i = 0; i < 600; i++) cost.Add(18.0, 2.6);
@@ -522,7 +522,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(0.6, cost.DeltaGpuMs, 0.05, "the delta is the smoothed value after the settle against the one before the change");
             Assert.IsTrue(cost.DeltaFrameMs > 0.5);
             string line = cost.ChangeLine();
-            StringAssert.Contains(line, "layers.spanSpacing");
+            StringAssert.Contains(line, "layers.leapScale");
             StringAssert.Contains(line, "GPU +");
         }
 

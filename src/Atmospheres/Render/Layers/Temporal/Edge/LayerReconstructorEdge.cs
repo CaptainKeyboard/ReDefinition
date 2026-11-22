@@ -75,6 +75,7 @@ namespace ReDefinition.Atmospheres
             edgeLayers.SetVector(IdReconP, new Vector4(EdgeSettings.EdgeBlock, ox, oy, 0f));
             edgeLayers.SetVector(IdReconD, new Vector4(w, h, edgeLow.width, edgeLow.height));
             edgeLayers.SetVector(IdEdgeP, new Vector4(1f, EdgeSettings.CoarseBlock, 0f, 0f));
+            CloudDevVariant.Apply(edgeLayers, CloudDevVariant.Layer);   // the edge draw is a test switch (layers.edgeAdaptive): its variant
             cb.Blit(BuiltinRenderTextureType.None, edgeLow, edgeLayers, LayerRenderer.PassMarch);
             if (MarkEdge != null) MarkEdge(cb);
             Sub(cb, "edge march");

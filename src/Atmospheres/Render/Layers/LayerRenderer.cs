@@ -59,10 +59,6 @@ namespace ReDefinition.Atmospheres
         public bool CoverageBound = true;
         // E40 C1: the march leaps over the grid points that lie within the empty reach of an empty sample (EmptyReachMaps; exact: the density reads that are left are the same).
         public bool EmptyReach = true;
-        // E40 C1: the widest spacing of the grid points of a layer's span in the layer's noise scales (0: off, the span gets the step quality's count), and the fewest grid points the
-        // span keeps then. A weather deck (noise scale 10 km) or a cumulonimbus layer (5 km) is searched at a spacing that follows its features, not every 100 m.
-        public float SpanSpacing;
-        public int SpanSpacingMin = 20;
         // E40 C2: the longest leap over empty grid points in the layer's noise scales (0: off, the leap is EmptyLeap's grid points whatever the layer). A span of a layer with coarse noise
         // (a weather deck 10 km, a cumulonimbus layer 5 km) is stepped every 100 m or less; where the density is empty the march then leaps up to this many scales at a time and goes back to
         // the grid point after the last empty one when a leap lands on cloud, so a cloud is entered at the grid's own resolution and only a feature narrower than the leap can be passed over.
@@ -74,9 +70,6 @@ namespace ReDefinition.Atmospheres
         public int LightStride = 2;
         // Cost attribution only (layers.costCutM): the march ends at this distance in m, 0 off; the picture is wrong while set.
         public float CostCutM;
-        // Cost attribution only (layers.costStartM): the march starts at this distance in m (on the span's own sample grid, as the full march places its samples there), 0 off;
-        // with CostCutM at the same distance the two runs split the full march into its near and far part. The picture is wrong while set.
-        public float CostStartM;
         // A span's points by distance (layers.spanGrowthPerM, 0 off): the step at the distance t from the camera is the step at the camera times (1 + this t), so a long span is fine
         // near and coarse far instead of evenly spaced; a short or near span keeps its count.
         public float SpanGrowthPerM;
@@ -435,8 +428,8 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             // Its sizes too (Record and Prepare set them after this call; 0: a caller that sets none, the shader then reads Unity's _ScreenParams as before).
             m.SetVector(Shader.PropertyToID("_ReconD"), Vector4.zero);
-            m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
-            m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), Mathf.Max(0f, f.CostStartM), Mathf.Max(0f, f.SpanGrowthPerM)));
+            m.SetVector(IdSpacingP, new Vector4(0f, 0f, Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
+            m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), 0f, Mathf.Max(0f, f.SpanGrowthPerM)));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).
@@ -479,6 +472,8 @@ namespace ReDefinition.Atmospheres
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));
             Noise.Bind(m, layerCount);
+            // The test switches' variant from the values just uploaded (the reconstruction sets it again after its own, the far rotation and the edge draw).
+            CloudDevVariant.Apply(m, CloudDevVariant.Layer);
         }
 
         // The intervals of the last Upload as text (the probe's row and the log): per layer "table <inner>-<outer>" in m.
@@ -629,6 +624,7 @@ namespace ReDefinition.Atmospheres
             Apply(f);
             // The direct path has no history: the reconstruction's far rotation (LayerReconstructor) must not mark any of its pixels.
             material.SetVector(IdFarRot, Vector4.zero);
+            CloudDevVariant.Apply(material, CloudDevVariant.Layer);
             // Nor a light volume: the reconstruction fills it; here the march keeps today's light (the keyword a reconstruction left on is taken off).
             LightVolume.Unbind(material);
             // The camera's pixels as the march's pixel grid: the values _ScreenParams has in the camera's render, which the shader read here before.

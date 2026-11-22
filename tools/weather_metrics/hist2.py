@@ -17,9 +17,7 @@ settings of the capture (which hold today's 2 x 2 rotation: Recon.Mode 1, Block 
   rot2:                                                                  today (the capture's settings unchanged)
   rot3:Recon.Block=3                                                     the rejected 3 x 3 rotation
   rot4:Recon.Block=4
-  far5:Recon.Mode=2;Recon.Rotation=0;Recon.Resolution=1;Recon.FarRotateM=5000;Recon.FarRotateBlock=2   the far rotation of 2026-11-19 (full-size march with a history, beyond
-                                                                         5 km a pixel marched every 4th frame)
-  near5:Frame.CostCutM=5000            (cost only: the march ends at 5 km)      far5only:Frame.CostStartM=5000   (cost only: the march starts at 5 km)
+  near5:Frame.CostCutM=5000            (cost only: the march ends at 5 km)
 The reference (variant ref, added by the tool) is the same pose and noise marched at every pixel with no history (Recon.Mode Full), the mean of --ref-frames dither phases.
 Tuning keys (recon.*, cloud.*) are NOT read by the player (OwnCloudOptions is not linked); a new switch is reached through the field it sets.
 """

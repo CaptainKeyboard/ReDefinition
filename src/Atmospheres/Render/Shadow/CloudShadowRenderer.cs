@@ -250,6 +250,9 @@ namespace ReDefinition.Atmospheres
             if (noise) Noise.Bind(m, layerCount);
             m.SetVectorArray(IdNoiseD, noise ? noiseD : noiseOff);
             m.SetFloat(IdPlanetR, (float)(f.RadiusUnits * f.MetresPerUnit));
+            // The test switches' variant (CloudDevVariant): the noise's switches are on this material only while the noise is bound; without it the noise is not read.
+            if (noise) CloudDevVariant.Apply(m, CloudDevVariant.Shadow);
+            else if (m.IsKeywordEnabled(CloudDevVariant.Keyword)) m.DisableKeyword(CloudDevVariant.Keyword);
         }
 
         // The sun's buffer for a camera of that size (deferred rendering): the depth to half size, the shadow at half size, and the multiply into

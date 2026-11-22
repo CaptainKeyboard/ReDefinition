@@ -456,6 +456,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             #pragma target 4.0
             // The test lattice (cloud.field off) as a variant, so the product's shader holds none of its code.
             #pragma multi_compile_local _ CLOUD_LATTICE
+            #pragma multi_compile_local _ CLOUD_DEV
 
             float4 frag(v2f i) : SV_Target
             {
@@ -526,6 +527,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             #pragma fragment frag
             #pragma target 4.0
             #pragma multi_compile_local _ CLOUD_LATTICE
+            #pragma multi_compile_local _ CLOUD_DEV
 
             float4 frag(v2f i) : SV_Target
             {

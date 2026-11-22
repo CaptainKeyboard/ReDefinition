@@ -298,10 +298,9 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneBillowFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
             // The keys of the new cloud model (heap, edgePower, cavity, noise blend) are registered by CloudModelKeys (a CloudKeySource), not listed here.
             // The march's cost controls (OwnCloudOptions.Apply(LayerFrame)).
+            F(CloudDevVariant.TuneForce, false, KeyLiveness.Frame, "the cloud shaders' test variant (CLOUD_DEV) on whatever the values: a cost comparison measures both sides on the same shader"),
             F(OwnCloudOptions.TuneCoverageBound, Frame0.CoverageBound),
             F(OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.EmptyReachDefault),
-            N(OwnCloudOptions.TuneSpanSpacing, OwnCloudOptions.SpanSpacingDefault),
-            N(OwnCloudOptions.TuneSpanSpacingMin, OwnCloudOptions.SpanSpacingMinDefault),
             N(OwnCloudOptions.TuneLeapScale, OwnCloudOptions.LeapScaleDefault),
             N(OwnCloudOptions.TuneLightStride, Frame0.LightStride),
             N(OwnCloudOptions.TuneLightCutoff, Frame0.LightCutoff),
@@ -314,7 +313,6 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneSunMarchM, OwnCloudOptions.LookSunMarchM, note: "the length of the march towards the sun in m, the owner's look 12000; 0 the setting's"),
             N(OwnCloudOptions.TuneSunSteps, OwnCloudOptions.LookSunSteps, note: "taps towards the sun, the owner's look 8; 0 the light quality's"),
             N(OwnCloudOptions.TuneCostCutM, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: the march ends at this distance in m (0 off)"),
-            N(OwnCloudOptions.TuneCostStartM, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: the march starts at this distance in m (0 off)"),
             N(OwnCloudOptions.TuneSpanGrowthPerM, 0f, KeyLiveness.Frame, "a span's points by distance: the step's growth per m of distance from the camera (0 off: evenly spaced)"),
             N(OwnCloudOptions.TuneSpanGrowthFromM, 0f, KeyLiveness.Frame, "with layers.spanGrowthPerM: the distance in m beyond which the step grows (0: from the camera)"),
             N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),

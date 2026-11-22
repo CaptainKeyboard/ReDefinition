@@ -33,6 +33,7 @@ Shader "ReDefinition/AtmospheresLayers"
 
         CGINCLUDE
         #include "UnityCG.cginc"
+        #include "CloudDev.cginc"
         #include "MapSlew.cginc"
 
         static const float PI = 3.14159265;
@@ -70,8 +71,8 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _OutW;        // the white point's colour (E40 B3): the per-channel share of the white of a sunlit cloud (1, 1, 1: the white is grey); w unused
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
-        float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
-        float4 _ReuseP;      // x: unused; y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z: cost attribution, it starts there (0: off, layers.costStartM); w: a span's points by distance, the step's growth per m of distance from the camera (0: off, layers.spanGrowthPerM)
+        float4 _SpacingP;    // x, y unused; z the longest leap over empty grid points in the layer's noise scales (layers.leapScale); w the distance in m beyond which the step grows (layers.spanGrowthFromM)
+        float4 _ReuseP;      // x unused; y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z unused; w: a span's points by distance, the step's growth per m of distance from the camera (0: off, layers.spanGrowthPerM)
         float4 _LeapP;       // unused (kept so that the uniform layout stays)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
@@ -257,7 +258,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 gSlabGap = (share > 0.0 ? share - 1.0 - reachUp : share + reachDown) * (outer - inner);
                 return 0;
             }
-            if (_CellA.w > 0) return li == 0 ? CellDensity(pc) : 0;   // the parity test cell (T03)
+            if (DEV(_CellA.w, 0.0) > 0) return li == 0 ? CellDensity(pc) : 0;   // the parity test cell (T03)
             float fade = 1.0;
             float fadeNear = _LayerC[li].x, fadeFar = _LayerC[li].y;
             if (fadeFar > fadeNear)
@@ -282,7 +283,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 cov = min(cov, 2.0 * cov - _CullL[li].y);  // E40 soft density: the clear-sky rule of the water content (CloudLayerDef.ClearSkyMap); K = 0 is off
                 // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. the type's lift only
                 // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
-                if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0)
+                if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0)
                 {
                     gEmptyM = EmptyReach(li, uv);
                     return 0;
@@ -306,7 +307,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     gCellBodyX = CellBodyReachX(li);
                     cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
                                     (uint)_NoiseOffset[li].w, sheetW, cellReach, wMap);
-                    if (_CostP.x > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
+                    if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
                     {
                         gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
                         return 0;
@@ -384,10 +385,10 @@ Shader "ReDefinition/AtmospheresLayers"
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
-            if (!body && _CostP.x > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
+            if (!body && DEV(_CostP.x, 1.0) > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
             // The cost debug bits switch the shape noise (2) and the erosion (4) off.
-            float noiseAmount = fmod(floor(_CostP.y * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
-            if (fmod(floor(_CostP.y * 0.25), 2.0) >= 0.5) erosion = 0;
+            float noiseAmount = fmod(floor(DEV(_CostP.y, 0.0) * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
+            if (fmod(floor(DEV(_CostP.y, 0.0) * 0.25), 2.0) >= 0.5) erosion = 0;
             // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
             erosion *= 1.0 + _BillowP.z * saturate(h);
             // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band). The body reads the billow noise itself through the
@@ -484,7 +485,7 @@ Shader "ReDefinition/AtmospheresLayers"
             [unroll] for (int li = 0; li < MAXL; li++)
             {
                 if (li >= (int)_LayerCount) break;
-                if (_LimitP.z > 0 && fmod(floor(_LimitP.z / pow(2.0, (float)li)), 2.0) < 0.5) continue;
+                if (DEV(_LimitP.z, 0.0) > 0 && fmod(floor(DEV(_LimitP.z, 0.0) / pow(2.0, (float)li)), 2.0) < 0.5) continue;
                 if (!CullLayerOn(li)) continue;
                 float4 sp;
                 LayerSpans(li, o, d, tmax, sp);
@@ -510,15 +511,16 @@ Shader "ReDefinition/AtmospheresLayers"
             // The step offset: the pixel keeps one offset (the blue-noise tile; the interleaved gradient noise puts a few percent of its power into single spatial lines, which show) and every frame adds the golden ratio to it
             // (Roberts 2018, the R1 sequence): any run of frames spreads its offsets evenly over the grid step, so the history of the pass integrates the step by
             // strata instead of by chance (the cloud's entry, its light at the sample's depth and the hit or miss of a thin rim all depend on that offset).
-            float jitterValue = frac((_DitherP.z < 1.5 ? DitherHash(pixel) : (_DitherP.z < 2.5 ? Ign(pixel, 0.0) : DitherBlue(pixel))) + _DitherP.x);
+            float jitterValue = frac((DEV(_DitherP.z, 3.0) < 1.5 ? DitherHash(pixel) : (DEV(_DitherP.z, 3.0) < 2.5 ? Ign(pixel, 0.0) : DitherBlue(pixel))) + _DitherP.x);
             float jitter = lerp(0.5, jitterValue, _StepP.y);
             // The cone's rotation of the light taps (_DitherP.y 1: a fixed rotation, a probe): the same pattern at another place, advanced in time by the same
             // phase (T03v2).
-            float rot = frac((_DitherP.y < 1.5 ? Ign(pixel + 17.0, 0.0) : (_DitherP.y < 2.5 ? DitherHash(pixel + 17.0) : DitherBlue(pixel.yx + 5.0))) + _DitherP.x) * 6.2831853 * (_DitherP.y > 0.5 && _DitherP.y < 1.5 ? 0.0 : 1.0);
+            float coneP = DEV(_DitherP.y, 3.0);
+            float rot = frac((coneP < 1.5 ? Ign(pixel + 17.0, 0.0) : (coneP < 2.5 ? DitherHash(pixel + 17.0) : DitherBlue(pixel.yx + 5.0))) + _DitherP.x) * 6.2831853 * (coneP > 0.5 && coneP < 1.5 ? 0.0 : 1.0);
             int maxSteps = (int)_MarchP.x;
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;
-            bool noLight = fmod(floor(_CostP.y), 2.0) > 0.5;
+            bool noLight = fmod(floor(DEV(_CostP.y, 0.0)), 2.0) > 0.5;
             // With the points by distance (layers.spanGrowthPerM > 0) a leap ends, in whole grid steps, where the ray reaches the altitude at which cloud can begin (the type's slab,
             // the band of the height variation, the layer's reach), and a leap so ended starts again from one grid step. Without them the march is as it was.
             bool lbGap = _ReuseP.w > 0.0, lbRestart = lbGap;
@@ -546,8 +548,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 // sample at a jittered place is a coin toss of the cloud's coverage that changes with the step count (the coverage of an orbit view
                 // jumped by 14 percent between two altitudes where the count went from two to one).
                 float minCount = max(1.0, _FarD.w);
-                // E40 C1: a layer whose noise is coarse (a weather deck 10 km, a cumulonimbus 5 km) needs no grid point every 100 m: the count follows the span over the noise scale times the spacing, not below _SpacingP.y.
-                float featCount = (_SpacingP.x > 0.0 && _LayerD[li].y > 0.0) ? max(_SpacingP.y, ceil(len * _LayerD[li].y / _SpacingP.x)) : 1e4;
                 // layers.spanGrowthPerM (_ReuseP.w, 0: off): a span's points by distance. The step at the distance t is dt (1 + g t), so a long span is fine near the camera and coarse far
                 // away instead of evenly spaced; lenU is the span's length in units of that step at the camera (the integral of ds / (1 + g s)), and a short or near span keeps today's
                 // count (ln(1 + x) -> x).
@@ -556,7 +556,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float growFrom = _SpacingP.w;
                 float grow0 = max(s0[k] - growFrom, 0.0), grow1 = max(s1[k] - growFrom, 0.0);
                 float lenU = spanG > 0.0 ? (len - (grow1 - grow0)) + log((1.0 + spanG * grow1) / (1.0 + spanG * grow0)) / spanG : len;
-                int count = (int)clamp(ceil(lenU / stepLen), minCount, max(minCount, min(floor(maxSteps * share01 + 0.5), featCount)));
+                int count = (int)clamp(ceil(lenU / stepLen), minCount, max(minCount, floor(maxSteps * share01 + 0.5)));
                 float dt = lenU / count;
                 float dtStart = spanG > 0.0 ? dt * (1.0 + spanG * grow0) : dt;
                 gNoiseFoot = spanG > 0.0 ? max(dt, _CullD.y * s0[k]) : dt;   // the sample spacing: the erosion detail's distance LOD (T02)
@@ -564,18 +564,10 @@ Shader "ReDefinition/AtmospheresLayers"
                 // points; a leap that lands on cloud goes back to the grid point after the last empty one, so a cloud is always entered
                 // at the grid's own resolution and only features narrower than the leap can be passed over.
                 // E40 C2: a layer with coarse noise leaps up to _SpacingP.z of its noise scales over empty grid points (the leap's growth is capped there); 0: the leap of _SkipP.x for every layer.
-                float leapCap = (_SpacingP.z > 0.0 && _LayerD[li].y > 0.0) ? max(leapMax, floor(_SpacingP.z / (_LayerD[li].y * dt))) : leapMax;
+                float leapCap = (DEV(_SpacingP.z, 1.0) > 0.0 && _LayerD[li].y > 0.0) ? max(leapMax, floor(DEV(_SpacingP.z, 1.0) / (_LayerD[li].y * dt))) : leapMax;
                 // Cost attribution (layers.costCutM, _ReuseP.y): the span ends at the cut, so the time saved is what the clouds beyond it cost; the picture is wrong while set.
-                float tEnd = _ReuseP.y > 0.0 ? min(s1[k], _ReuseP.y) : s1[k];
+                float tEnd = DEV(_ReuseP.y, 0.0) > 0.0 ? min(s1[k], DEV(_ReuseP.y, 0.0)) : s1[k];
                 float t = s0[k] + dtStart * jitter;
-                // Cost attribution (layers.costStartM, _ReuseP.z): the span starts at the first of its own grid points beyond the start, so the samples are the full march's
-                // there (the far part of a near / far split, with the transmittance of a pass of its own); the picture is wrong while set. With layers.spanGrowthPerM the
-                // points beyond the start are counted in the span's first step, not on its growing grid.
-                if (_ReuseP.z > 0.0)
-                {
-                    if (!(tEnd > _ReuseP.z)) continue;
-                    t += dtStart * max(0.0, ceil((_ReuseP.z - t) / dtStart));
-                }
                 float tLast = t - dtStart;
                 float leap = 1.0, arrived = 1.0;
                 float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
@@ -666,7 +658,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         t += jump;
                         // With the points by distance the leap's cap in grid points follows the step at the sample (the cap is a length in the layer's noise scales; dt is the
                         // step at the camera, and a cap counted in it would let a far leap pass over whole clouds).
-                        float leapCapHere = (spanG > 0.0 && _SpacingP.z > 0.0 && _LayerD[li].y > 0.0) ? max(leapMax, floor(_SpacingP.z / (_LayerD[li].y * dtv))) : leapCap;
+                        float leapCapHere = (spanG > 0.0 && DEV(_SpacingP.z, 1.0) > 0.0 && _LayerD[li].y > 0.0) ? max(leapMax, floor(DEV(_SpacingP.z, 1.0) / (_LayerD[li].y * dtv))) : leapCap;
                         leap = (lbRestart && capped) ? 1.0 : min(leap + 1.0, leapCapHere);
                         continue;
                     }
@@ -770,8 +762,9 @@ Shader "ReDefinition/AtmospheresLayers"
         // zero is a ramp: the ray's length grows with the pixel's x from 0 to -limit (one render samples a profile along a ray).
         float SceneDistance(float2 uv, float3 d)
         {
-            float lim = _LimitP.x < 0 ? -_LimitP.x * uv.x : (_LimitP.x > 0 ? _LimitP.x : 1e30);
-            if (_LimitP.w < 0.5) return lim;
+            float limX = DEV(_LimitP.x, 0.0);
+            float lim = limX < 0 ? -limX * uv.x : (limX > 0 ? limX : 1e30);
+            if (DEV(_LimitP.w, 1.0) < 0.5) return lim;
             float depth = tex2Dlod(_SceneDepth, float4(uv, 0, 0)).r;
             if (depth <= 0 || depth > 1e9) return lim;
             return min(lim, depth / max(dot(d, normalize(_CamForward.xyz)), 1e-3));
@@ -805,25 +798,27 @@ Shader "ReDefinition/AtmospheresLayers"
             // The far rotation (_FarRot: x the distance in m, y the block side, z, w this frame's offset in the block; x 0: off): a pixel whose cloud lay beyond x in the last
             // frame (_FarDepth, the reconstruction's CloudDepth) is marched only when its place in the block is this frame's; the others write the marker alpha -1 and the
             // reconstruction keeps their reprojected history.
-            [branch] if (_FarRot.x > 0.0 && _ReconP.x < 1.5)
+            float farRot = DEV(_FarRot.x, 0.0);
+            [branch] if (farRot > 0.0 && _ReconP.x < 1.5)
             {
                 float2 fpx = floor(i.uv * _ReconD.zw);
                 bool turn = all(abs(fmod(fpx, _FarRot.y) - _FarRot.zw) < 0.5);
-                if (!turn && _FarDepth.Load(int3(fpx, 0)) > _FarRot.x) return float4(0, 0, 0, -1);
+                if (!turn && _FarDepth.Load(int3(fpx, 0)) > farRot) return float4(0, 0, 0, -1);
             }
             // The pixel grid of the dither: the pass's own sizes (_ReconD: the full target x, y and the march target z, w; the direct path sets x, y to the camera's
             // pixels and z, w to 0). Unity's _ScreenParams only where no caller set them (0, the weather player's own scenes): a command buffer executed outside a
             // camera's render (the pinned replay) does not have the camera's size in it.
             float2 grid = _ReconD.x > 0.5 ? _ReconD.xy : _ScreenParams.xy;
-            float2 pixel = i.uv * (_ReconP.x < 1.5 ? (_DitherP.w > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : grid) : _ReconD.xy);
+            float2 pixel = i.uv * (_ReconP.x < 1.5 ? (DEV(_DitherP.w, 1.0) > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : grid) : _ReconD.xy);
             MarchOut r = March(o, d, tmax, pixel);
-            if (_LimitP.y > 1.5 && _LimitP.y < 2.5)
+            float aid = DEV(_LimitP.y, 0.0);
+            if (aid > 1.5 && aid < 2.5)
             {
                 float3 c = r.tauLayer.x * float3(0.9, 0.3, 0.2) + r.tauLayer.y * float3(0.2, 0.7, 0.9) + r.tauLayer.z * float3(0.9, 0.8, 0.2) + r.tauLayer.w * float3(0.4, 0.9, 0.3);
                 float s = max(r.tau, 1e-6);
                 return float4(c / s * r.alpha, r.alpha);
             }
-            if (_LimitP.y > 0.5 && _LimitP.y < 1.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
+            if (aid > 0.5 && aid < 1.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
             if (r.weightSum > 1e-9) dist = r.distSum / r.weightSum;
             return float4(r.rgb, r.alpha);
         }
@@ -882,7 +877,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float2 base = floor(p);
             float2 f = p - base;
             float3 d0 = RayDir(i.uv);
-            float dist0 = _LimitP.w > 0.5 ? tex2Dlod(_SceneDepth, float4(i.uv, 0, 0)).r : 0;
+            float dist0 = DEV(_LimitP.w, 1.0) > 0.5 ? tex2Dlod(_SceneDepth, float4(i.uv, 0, 0)).r : 0;
             float4 sum = 0;
             float wsum = 0;
             [unroll] for (int k = 0; k < 4; k++)
@@ -890,7 +885,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float2 o = float2(k & 1, k >> 1);
                 float2 uvc = (base + o + 0.5) * texel;
                 float w = (o.x > 0.5 ? f.x : 1.0 - f.x) * (o.y > 0.5 ? f.y : 1.0 - f.y);
-                if (_LimitP.w > 0.5)
+                if (DEV(_LimitP.w, 1.0) > 0.5)
                 {
                     float dc = tex2Dlod(_SceneDepth, float4(uvc, 0, 0)).r;
                     float rel = abs(dc - dist0) / max(dist0, 1.0);
@@ -906,7 +901,7 @@ Shader "ReDefinition/AtmospheresLayers"
         // without the coverage (rgb / alpha): D = W * (c * exposure / W) ^ (1 / gamma), then back to premultiplied. Natural frames only.
         float4 OutputStage(float4 c)
         {
-            if (_OutP.w < 0.5 || _LimitP.y > 0.5) return c;
+            if (DEV(_OutP.w, 1.0) < 0.5 || DEV(_LimitP.y, 0.0) > 0.5) return c;
             float w = max(_OutP.z, 1e-4);
             float a = max(c.a, 1e-4);
             float3 u = max(c.rgb / a * _OutP.x / (w * max(_OutW.rgb, 1e-3)), 0.0);
@@ -930,6 +925,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
+            #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -941,6 +937,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return PassComposite(i); }
             ENDCG
         }
@@ -953,6 +950,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma target 3.5
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
+            #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return PassAux(i); }
             ENDCG
         }
@@ -966,6 +964,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma target 3.5
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
+            #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target
             {
                 float3 uvw = float3(i.uv, (_CacheSlice.x + 0.5) / max(_CacheSlice.y, 1.0));
@@ -999,6 +998,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return OutputStage(PassComposite(i)); }
             ENDCG
         }
@@ -1010,6 +1010,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
+            #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return CullTilePass(i); }
             ENDCG
         }
@@ -1025,6 +1026,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
+            #pragma multi_compile_local __ CLOUD_DEV
             MarchTargets frag(v2f i) { return Pass0Targets(i); }
             ENDCG
         }
@@ -1041,6 +1043,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
+            #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -1057,6 +1060,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // The map-driven sky's density read, as in the march and the light cache's fill.
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
+            #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target
             {
                 float gridN = _LvC.z;

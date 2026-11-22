@@ -186,30 +186,6 @@ namespace ReDefinition.Tests.Atmospheres.T16
             Assert.IsTrue(EmptyReachMath.ReachMetres(120, 0.5, W, H, R) < Math.PI * R, "never more than the planet's half circle");
         }
 
-        [TestMethod]
-        public void TheSpanSpacingKeysReachTheFrameAndAreOffByDefault()
-        {
-            var frame = new LayerFrame();
-            Tuning.ClearOverrides();
-            Tuning.Instance.BeginFrame(9100020);
-            OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-            Assert.AreEqual(OwnCloudOptions.SpanSpacingDefault, frame.SpanSpacing);
-            Assert.AreEqual(OwnCloudOptions.SpanSpacingMinDefault, frame.SpanSpacingMin);
-            Tuning.SetOverride(OwnCloudOptions.TuneSpanSpacing, 1.5f);
-            Tuning.SetOverride(OwnCloudOptions.TuneSpanSpacingMin, 12f);
-            try
-            {
-                Tuning.Instance.BeginFrame(9100021);
-                OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-                Assert.AreEqual(1.5f, frame.SpanSpacing);
-                Assert.AreEqual(12, frame.SpanSpacingMin);
-            }
-            finally
-            {
-                Tuning.ClearOverrides();
-                Tuning.Instance.BeginFrame(9100022);
-            }
-        }
 
         [TestMethod]
         public void TheLeapIsOnByDefaultAndTheTuningKeySwitchesItOff()

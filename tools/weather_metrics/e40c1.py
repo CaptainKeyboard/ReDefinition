@@ -231,9 +231,7 @@ COST_STAGES = [
 ]
 # The levers on the sky now at the clock and the game-like fair scene (series e40-c1-lev): the march target below a third, the light reuse, the owner's 1.0 / 24 setting.
 LEV_JSON = os.path.join(BUILD, "e40c1-lev-results.json")
-#   sp<NN>: the widest grid spacing of a span in the layer's noise scales NN / 10, spm<N> the fewest points such a span keeps (E40 C1, layers.spanSpacing)
-CASES_LEV = [BASE + "+sp10", BASE + "+sp10+spm12", BASE + "+sp10+spm30", BASE + "+sp20", BASE + "+r33", BASE + "+r33+sp10", BASE + "+r25", BASE + "+r25+sp10",
-             BASE + "+r33+cg", BASE + "+r33+tl", "seq1m24+lq2+r25+sp10"]
+CASES_LEV = [BASE + "+r33", BASE + "+r25", BASE + "+r33+cg", BASE + "+r33+tl", "seq1m24+lq2+r25"]
 LEVER_STAGES = [("c1-lev", tags(["clock", "fairfb"], ["now"]), "pr50", CASES_LEV)]
 if CASES_D:
     COST_STAGES.append(("c1-d", tags(["clock", "fairfb"], ["now"]), "pr50", CASES_D))

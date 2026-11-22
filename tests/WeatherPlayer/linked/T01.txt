@@ -21,6 +21,9 @@ src/Atmospheres/Render/Layers/LayerMapStore.GpuSlew.cs
 src/Atmospheres/Render/Layers/MapSlewField.cs
 # OPT1: the layer maps' GPU slew, included by the layer shader, the cloud shadow and the cloud motion include.
 unity/Assets/ReDefinitionAtmospheres/**/MapSlew.cginc
+# The test switches' variant (CLOUD_DEV): the macro every cloud shader include reads, and the C# table that sets the keyword.
+unity/Assets/ReDefinitionAtmospheres/**/CloudDev.cginc
+src/Atmospheres/Render/Layers/CloudDevVariant.cs
 src/Atmospheres/Render/Layers/LayerRenderer.cs
 src/Atmospheres/Render/Layers/StepPhase.cs
 src/Atmospheres/Render/Layers/DitherMatrix.cs
