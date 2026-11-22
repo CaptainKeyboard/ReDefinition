@@ -142,6 +142,8 @@ namespace ReDefinition.Atmospheres
         internal static readonly int IdCellE = Shader.PropertyToID("_CellE");
         internal static readonly int IdCellS = Shader.PropertyToID("_CellS");
         internal const string MapSkyKeyword = "REDEFINITION_MAPSKY";
+        // The test lattice's variant (cloud.field off): the product's passes hold none of its code.
+        internal const string LatticeKeyword = "CLOUD_LATTICE";
         private readonly Vector4[] cellS = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
         // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on. cellLayer: the layers, whose single cloud's body
@@ -465,6 +467,13 @@ namespace ReDefinition.Atmospheres
             {
                 if (mapSky) m.EnableKeyword(MapSkyKeyword);
                 else m.DisableKeyword(MapSkyKeyword);
+            }
+            // The test lattice (cloud.field off) is the variant CLOUD_LATTICE; the product (the field) draws without its code.
+            bool lattice = !CloudLookTuning.Field;
+            if (lattice != m.IsKeywordEnabled(LatticeKeyword))
+            {
+                if (lattice) m.EnableKeyword(LatticeKeyword);
+                else m.DisableKeyword(LatticeKeyword);
             }
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));

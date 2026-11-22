@@ -49,6 +49,8 @@ namespace ReDefinition.Atmospheres
         private static float sigma = 1f, softness = 1f, noiseSize = 1f, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
         private static float cellKm, cellLat, cellLon;
         private static float heapForce = -1f, edgeForce, cavityForce = -1f, heapFoot = 1f, heapIso = 1f;
+        // cloud.field as last read (the type table's heap, edge and cavity follow it, LayerDensity: a change must re-upload the table).
+        private static float fieldState = -1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -100,7 +102,9 @@ namespace ReDefinition.Atmospheres
             float hf = Clean(Tuning.Get(TuneHeap, -1f), -1f, -1f, HeapModel.PresetCount), ef = Clean(Tuning.Get(TuneEdgePower, 0f), 0f, 0f, 6f);
             float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneHeapFootLod, 1f), 1f, 0f, 1f), hi = Clean(Tuning.Get(TuneHeapIso, 1f), 1f, 0f, 1f);
             hf = hf < 0f ? -1f : (float)Math.Round(hf);
-            bool changed = hf != heapForce || ef != edgeForce || cf != cavityForce || ft != heapFoot || hi != heapIso;
+            float fd = Tuning.Get(TuneField, FieldDefault) > 0.5f ? 1f : 0f;
+            bool changed = hf != heapForce || ef != edgeForce || cf != cavityForce || ft != heapFoot || hi != heapIso || fd != fieldState;
+            fieldState = fd;
             heapIso = hi;
             heapForce = hf;
             edgeForce = ef;

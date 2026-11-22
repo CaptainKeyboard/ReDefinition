@@ -52,11 +52,6 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _LayerE[4];   // emission colour (kind 3)
         sampler2D _TypeProfile;
         sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's heap preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
-        // CLOUD FIELD (CloudField.cs, CloudFieldGpu.cs): _CloudField r the rank-uniform multi-scale field u, g its gradient (rank per km), b its coarse rank; _FieldP x on, yz the streets' direction,
-        // w the smallest feature in m; _FieldC the puff classes (x aspect, y top gain, z scale, w street stretch). The type info's alpha of the second row is the type's puff class.
-        sampler2D _CloudField;
-        float4 _FieldP;
-        float4 _FieldC[8];
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
         UNITY_DECLARE_TEX2DARRAY(_TypeMaps);
         // The two maps are RG16 arrays: r the value the map showed when its newest goal arrived, g the goal. The shown value is r moved toward g by at most the layer's reach
@@ -301,7 +296,10 @@ Shader "ReDefinition/AtmospheresLayers"
                 typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
                 sheetW = CellSheetWeight(li, typeValue);
 #endif
-                [branch] if (_CullL[li].w > 0.0 && _FieldP.x < 0.5)
+                // The lattice (cloud.field off) is a test function for single cloud types, never the product: its code is only in the variant CLOUD_LATTICE (LayerRenderer sets it while
+                // cloud.field is off; without it the march pass is 19 % shorter and holds 10 fewer registers).
+#if defined(CLOUD_LATTICE)
+                [branch] if (_CullL[li].w > 0.0)
                 {
                     float cellReach, wMap;
                     float edgeC = max(_LayerB[li].z, 1e-4);
@@ -314,6 +312,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         return 0;
                     }
                 }
+#endif
 #if !defined(REDEFINITION_MAPSKY)
                 typeValue =SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
 #endif
@@ -368,40 +367,17 @@ Shader "ReDefinition/AtmospheresLayers"
             // gradient of Schneider's cloudscapes (SIGGRAPH 2015: the coverage is reduced by the height signal of the cloud type); the code is the project's own.
             float h = (share - b) / (tp - b);
             float4 pf = lerp(TypeProfile4(li, ta, h), TypeProfile4(li, tb, h), f);
-            // CLOUD FIELD: a puffy type's cloud is where the field u(x) is below the map's local share f ({u < f} has the map's cover whatever the field); its body is the single cloud's (CellBody) with
-            // the distance to the footprint's edge in m, (f - u) over the gradient of u, in the place of the lattice's distance to a centre: a dome of the class's aspect over the type's flat base, its
-            // top lifted in the clusters' cores (the coarse channel). The globals of the cell read (gCellX, gCellR, gCellCore, gCellW) are what CellBody takes. Where the share is above 0.8 (the deck)
-            // and where the march's spacing is wider than the field's smallest feature, the map's own value is drawn (the lattice's wMap).
+            // CLOUD FIELD: a puffy type's single cloud from the field (FieldCloud, CloudCells.cginc; the cloud shadow reads the same function).
             bool fieldBody = false;
-            [branch] if (puff > 0 && _FieldP.x > 0.5 && slice >= 0)
+#if !defined(CLOUD_LATTICE)
+            [branch] if (puff > 0 && slice >= 0)
             {
-                float4 fc = _FieldC[puff];
-                float fShare = CellShare(cov, coverage, edge, _LayerD[li].x);
-                float fFoot = light != 0 ? 0.0 : gNoiseFoot;
-                float wF = max(saturate((fShare - 0.8) / 0.15), fFoot > 0.0 ? saturate((fFoot - 0.25 * _FieldP.w) / (0.5 * _FieldP.w)) : 0.0);
-                if (wF <= 0.0)
-                {
-                    float rmM = _PlanetR + 0.5 * (inner + outer);
-                    float latF = (0.5 - uvRaw.y) * PI;
-                    float xM = uvRaw.x * 2.0 * PI * rmM * max(cos(latF), 0.02), yM = latF * rmM;
-                    float along = (xM * _FieldP.y + yM * _FieldP.z) / fc.w, across = -xM * _FieldP.z + yM * _FieldP.y;
-                    float2 pF = float2(along * _FieldP.y - across * _FieldP.z, along * _FieldP.z + across * _FieldP.y) * (fc.z / 102400.0);
-                    float3 fv = tex2Dlod(_CloudField, float4(pF, 0, 0)).xyz;
-                    float dm = (fShare - fv.x) / max(fv.y * fc.z * 0.001, 1e-6);
-                    float coreF = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * (1.0 + fc.y * (1.0 - 2.0 * fv.z));
-                    float topF = clamp(coreF / 0.5, 0.15, 1.0);
-                    float semiH = max(topF * (tp - b) * (outer - inner), 1.0), rC = fc.x * semiH;
-                    float xv = 1.0 - clamp(dm / rC, -2.0, 1.0), hv = h / topF;
-                    float axis = min(rC, semiH);
-                    float swing = _CellE[li].x * axis * (0.5 + 0.5 * _CellE[li].z * (0.37 + 0.137));
-                    if ((1.0 - sqrt(xv * xv + hv * hv)) * axis + swing + 0.5 * CellBand(li) < 0.0) return 0;
-                    gCellX = CELL_EDGE_X * xv;
-                    gCellR = rC / CELL_EDGE_X;
-                    gCellCore = coreF;
-                    gCellW = 0.0;
-                    fieldBody = true;
-                }
+                int fieldCloud = FieldCloud(li, puff, uvRaw, cov, coverage, edge, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot, _PlanetR + 0.5 * (inner + outer), h,
+                                            (tp - b) * (outer - inner));
+                if (fieldCloud == 0) return 0;
+                fieldBody = fieldCloud > 0;
             }
+#endif
             cov -= pf.a * (coverage + CoverageNoiseBound(li) + 0.5 * edge);   // E40 CB step 0: the lift in units of the layer's headroom (LayerTypeTable.LiftHeadroom), 1 closes every column
             // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the deck and the far view): its own height shape
             // replaces the type's lift, so the lift's bound below is not asked; outside the body the share is 0.
@@ -953,6 +929,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // LV1 (cloud.lightVolume): the sun's light beyond the hand-over distance from the light volume (LightVolume.cs); no keyword: today's march.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ CLOUD_LATTICE
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -975,6 +952,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ CLOUD_LATTICE
             float4 frag(v2f i) : SV_Target { return PassAux(i); }
             ENDCG
         }
@@ -987,6 +965,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma fragment frag
             #pragma target 3.5
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ CLOUD_LATTICE
             float4 frag(v2f i) : SV_Target
             {
                 float3 uvw = float3(i.uv, (_CacheSlice.x + 0.5) / max(_CacheSlice.y, 1.0));
@@ -1045,6 +1024,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // The keyword variants of pass 0 (the light volume, the map-driven sky), so that the march is the same whichever pass draws it.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ CLOUD_LATTICE
             MarchTargets frag(v2f i) { return Pass0Targets(i); }
             ENDCG
         }
@@ -1060,6 +1040,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // The keyword variants of pass 0 (the light volume, the map-driven sky), so that the march is the same whichever pass draws it.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ CLOUD_LATTICE
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
@@ -1075,6 +1056,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma multi_compile_local CLOUD_LIGHTVOL
             // The map-driven sky's density read, as in the march and the light cache's fill.
             #pragma multi_compile_local __ REDEFINITION_MAPSKY
+            #pragma multi_compile_local __ CLOUD_LATTICE
             float4 frag(v2f i) : SV_Target
             {
                 float gridN = _LvC.z;

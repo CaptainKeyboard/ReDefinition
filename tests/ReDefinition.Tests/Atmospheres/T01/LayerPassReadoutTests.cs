@@ -17,7 +17,7 @@ namespace ReDefinition.Tests.Atmospheres.T01
         private static readonly string[] Files =
         {
             "ReDefinitionAtmospheresLayers.shader", "ReDefinitionAtmospheresNoise.cginc", "ReDefinitionAtmospheresCloudLight.cginc", "ReDefinitionAtmospheresFarView.cginc",
-            "ReDefinitionAtmospheresBaseHeight.cginc", "CloudCull.cginc", "MarchStep.cginc"
+            "ReDefinitionAtmospheresBaseHeight.cginc", "CloudCull.cginc", "MarchStep.cginc", "CloudCells.cginc"
         };
 
         // name -> kind ("float", "float4", "float4[]", "float4x4", "texture") as the shader files declare it
@@ -111,7 +111,7 @@ namespace ReDefinition.Tests.Atmospheres.T01
             StringAssert.Contains(json, "\"_WorldToMap\": [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]");
             StringAssert.Contains(json, "\"_CovMaps\": \"512x256x4\"");
             StringAssert.Contains(json, "\"_NoiseShape\": null");
-            StringAssert.Contains(json, "\"keywords\": {\"CLOUD_LIGHTVOL\": true, \"REDEFINITION_MAPSKY\": false}");
+            StringAssert.Contains(json, "\"keywords\": {\"CLOUD_LIGHTVOL\": true, \"REDEFINITION_MAPSKY\": false, \"CLOUD_LATTICE\": false}");
             StringAssert.Contains(json, "\"keywordsOn\": [\"CLOUD_LIGHTVOL\"]");
             StringAssert.Contains(json, "\"readFailures\": []");
             Assert.AreEqual(json.Count(c => c == '{'), json.Count(c => c == '}'), "balanced braces");

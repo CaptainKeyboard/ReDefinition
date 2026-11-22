@@ -3,7 +3,7 @@ using UnityEngine;
 namespace ReDefinition.Atmospheres
 {
     // CLOUD FIELD: the field's texture (CloudField.Build) and its uniforms as shader globals, read by the layer pass and the cloud shadow pass alike. The texture is built once, on the first frame
-    // the field is on (about a second on the CPU).
+    // the field is on, on the main thread (two 1024 x 1024 FFTs, two sorts of a million values and a blur: estimated 2 to 4 s, not measured; the game run's log gives the number).
     internal static class CloudFieldGpu
     {
         private static readonly int IdField = Shader.PropertyToID("_CloudField"), IdP = Shader.PropertyToID("_FieldP"), IdC = Shader.PropertyToID("_FieldC");
