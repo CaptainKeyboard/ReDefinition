@@ -11,6 +11,8 @@ namespace ReDefinition.Atmospheres
     {
         internal const string MarkerFile = "profile.cfg";
         internal const string MarkerKey = "appliedTier";
+        // The revision of the tier table the marker was written with (TierRows.Revision): a changed table is written once more, also at the same tier.
+        internal const string RevisionKey = "rowRevision";
         private const float CheckSeconds = 1f;
 
         private float next;
@@ -20,7 +22,7 @@ namespace ReDefinition.Atmospheres
         {
             QualityTier? marked = ReadMarker(AtmospheresSettings.Mod);
             QualityTier effective = QualityProfile.Effective();
-            if (QualityProfile.NeedsApply(effective, marked)) Apply(effective);
+            if (QualityProfile.NeedsApply(effective, marked) || ReadRevision(AtmospheresSettings.Mod) != TierRows.Revision) Apply(effective);
             else applied = effective;
         }
 
@@ -59,6 +61,20 @@ namespace ReDefinition.Atmospheres
             return ModSettingsFile.Read<QualityTier?>(mod, MarkerFile, ParseMarker, null);
         }
 
+        // The table revision the marker names; 0 where there is none (a marker from before the revision was written).
+        internal static int ReadRevision(string mod)
+        {
+            return ModSettingsFile.Read(mod, MarkerFile, ParseRevision, 0);
+        }
+
+        internal static int ParseRevision(ConfigNode root)
+        {
+            string text;
+            int revision;
+            if (root == null || !ModSettingsFile.TryString(root, RevisionKey, out text)) return 0;
+            return int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out revision) ? revision : 0;
+        }
+
         internal static QualityTier? ParseMarker(ConfigNode root)
         {
             string text;
@@ -69,7 +85,11 @@ namespace ReDefinition.Atmospheres
 
         internal static void WriteMarker(string mod, QualityTier tier)
         {
-            ModSettingsFile.Write(mod, MarkerFile, root => root.AddValue(MarkerKey, tier.ToString()));
+            ModSettingsFile.Write(mod, MarkerFile, root =>
+            {
+                root.AddValue(MarkerKey, tier.ToString());
+                root.AddValue(RevisionKey, TierRows.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            });
         }
     }
 }

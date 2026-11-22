@@ -329,19 +329,19 @@ namespace ReDefinition.Atmospheres
             TuneLvFarTaps = "cloud.lightVolume.farTaps", TuneLvSlices = "cloud.lightVolume.slices", TuneLvWarp = "cloud.lightVolume.warp", TuneLvVoxel = "cloud.lightVolume.voxelM",
             TuneLvGrid = "cloud.lightVolume.grid", TuneLvGridZ = "cloud.lightVolume.gridZ", TuneLvFarScale = "cloud.lightVolume.farScale", TuneLvCascades = "cloud.lightVolume.cascades",
             TuneLvFade = "cloud.lightVolume.fade", TuneLvRelay = "cloud.lightVolume.relayKm", TuneLvFillTaps = "cloud.lightVolume.fillTaps", TuneLvFillRatio = "cloud.lightVolume.fillRatio";
-        internal static bool LightVolume { get { return Tuning.Get(TuneLightVolume, 0f) > 0.5f; } }
+        internal static bool LightVolume { get { return Tuning.Get(TuneLightVolume, CloudFastPath.Pick(CloudFastPath.LightVolume, 0f)) > 0.5f; } }
         // The hand-over distance in m; below 0 infinity.
         internal static float LvHandOverM
         {
             get
             {
-                float km = Tuning.Get(TuneLvHandOver, 8f);
+                float km = Tuning.Get(TuneLvHandOver, CloudFastPath.Pick(CloudFastPath.LvHandOverKm, 8f));
                 if (float.IsNaN(km)) return 8000f;
                 return km < 0f || float.IsInfinity(km) ? -1f : Math.Min(km, 1e5f) * 1000f;
             }
         }
         internal static float LvBand { get { return Clean(Tuning.Get(TuneLvBand, 0.15f), 0.15f, 0.01f, 10f); } }
-        internal static int LvFarTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFarTaps, 3f), 3f, 0f, 3f)); } }
+        internal static int LvFarTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFarTaps, CloudFastPath.Pick(CloudFastPath.LvFarTaps, 3f)), 3f, 0f, 3f)); } }
         internal static int LvSlices { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvSlices, 8f), 8f, 0f, 512f)); } }
         internal static float LvWarp { get { return Clean(Tuning.Get(TuneLvWarp, 1f), 1f, 1f, 1e5f); } }
         internal static float LvVoxelM { get { return Clean(Tuning.Get(TuneLvVoxel, 312.5f), 312.5f, 25f, 10000f); } }

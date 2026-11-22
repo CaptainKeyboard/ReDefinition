@@ -612,6 +612,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             foreach (SettingDef def in AtmospheresSettings.Definitions.Where(d => OwnKeys.Contains(d.Key) && d.ProfileRow.Length > 0))
             {
+                // A tier sets the key (cloudShadowQuality since the fast cloud path, owner 2026-11-22) or names why it does not.
+                if (TierRows.SetKeys.Contains(def.Key)) continue;
                 string reason;
                 Assert.IsTrue(TierRows.NotSet.TryGetValue(def.Key, out reason) && reason.Length > 0, def.Key);
             }
