@@ -157,6 +157,7 @@ namespace ReDefinition.Atmospheres
                 case "fpnolv":
                 case "fpnosg":
                 case "fpshfull":
+                case "fpspread":
                     return true;
                 default:
                     return false;
@@ -441,6 +442,14 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault);
                     break;
                 case "fpnolv": ForceTuning(CloudLookTuning.TuneLightVolume, 0f); break;
+                // The contour bands (PRUEFPROTOKOLL 75, owner "fix what you see"): the fast path with LV3's lateral light spread (wolken-m2a-technik 11.8: the propagation fill on
+                // 156.25 m voxels as the spread's source, transmittance stored over 8; the hand-over stays the fast path's 0 km).
+                case "fpspread":
+                    ForceTuning(CloudLookTuning.TuneLvSpread, 3f);
+                    ForceTuning(CloudLookTuning.TuneLvFill, 1f);
+                    ForceTuning(CloudLookTuning.TuneLvStoreK, 8f);
+                    ForceTuning(CloudLookTuning.TuneLvVoxel, 156.25f);
+                    break;
                 case "fpnosg": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0f); break;
                 case "fpshfull":
                     SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, 1.0);
