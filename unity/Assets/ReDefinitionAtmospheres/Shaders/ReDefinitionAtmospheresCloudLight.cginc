@@ -437,6 +437,9 @@ float3 BoltLight(float3 pc)
 // _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
 // topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's copy of gTopAlt, gBaseAlt): the end of the analytic occlusion's column and the type's
 // height for the cell diffusion (E40 LM2).
+// The sun's taps of the last LightSource call alone, without the moons' and the up march's (the layer shader's aid 10, the probe's tap readout).
+static float gSunTapsAid = 0.0;
+
 float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float rot, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
                    out float3 ambPart, out float taps, out float tauSunOut, out float tauUpOut)
 {
@@ -538,6 +541,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     [branch] if (_LightM[li].w > 0) cell = CellLight(pc, dens, max(tauSun, 0.0), topAlt, _LightM[li].w);
     float3 direct = DirectOfLight(sunCol, sunDir, d, li, max(tauSun, 0.0), cell);
     direct += DirectOfLight(_MoonCol[0].rgb, _MoonDir[0].xyz, d, li, ttau[1], float2(1.0, -1.0));
+    gSunTapsAid = taps;
     if (need[1]) taps += moonSteps;
     direct += DirectOfLight(_MoonCol[1].rgb, _MoonDir[1].xyz, d, li, ttau[2], float2(1.0, -1.0));
     if (need[2]) taps += moonSteps;
