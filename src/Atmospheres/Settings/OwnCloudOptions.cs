@@ -285,7 +285,7 @@ namespace ReDefinition.Atmospheres
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
             f.CostStartM = Mathf.Max(0f, Tuning.Get(TuneCostStartM, 0f));
-            f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, 0f));
+            f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, CloudFastPath.Pick(CloudFastPath.SpanGrowthPerM, 0f)));
             f.LeapDebug = Mathf.RoundToInt(Tuning.Get(TuneLeapDebug, -1f));
             f.SpanGrowthFromM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthFromM, 0f));
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
@@ -385,7 +385,7 @@ namespace ReDefinition.Atmospheres
         // T04: the cloud shadow's numbers of a frame.
         internal static void Apply(CloudShadowFrame f, Func<string, double> v)
         {
-            f.Divisor = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowResolution, ShadowResolutionDefault)), 2, 4);
+            f.Divisor = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowResolution, CloudFastPath.Pick(CloudFastPath.ShadowResolution, ShadowResolutionDefault))), 2, 4);
             int steps, taps;
             CloudShadowSwitches.Quality((int)Level(v, AtmospheresSettings.Keys.CloudShadowQuality), out steps, out taps);
             int tapsKey = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowTaps, ShadowTapsDefault)), 0, 8);
@@ -440,12 +440,12 @@ namespace ReDefinition.Atmospheres
             s.LayerMotion = Tuning.Flag(TuneLayerMotion, LayerMotionDefault);
             s.HostJitter = Tuning.Flag(TuneHostJitter, HostJitterDefault);
             s.CatmullHistory = Tuning.Flag(TuneCatmull, CatmullDefault);
-            s.TrueDistance = Tuning.Flag(TuneTrueDistance, TrueDistanceDefault);
-            s.Age = Tuning.Flag(TuneAge, AgeDefault);
-            s.ProcMarch = Tuning.Flag(TuneMarchTriangle, MarchTriangleDefault);
+            s.TrueDistance = Tuning.Flag(TuneTrueDistance, CloudFastPath.Pick(CloudFastPath.TrueDistance, TrueDistanceDefault));
+            s.Age = Tuning.Flag(TuneAge, CloudFastPath.Pick(CloudFastPath.Age, AgeDefault));
+            s.ProcMarch = Tuning.Flag(TuneMarchTriangle, CloudFastPath.Pick(CloudFastPath.MarchTriangle, MarchTriangleDefault));
             s.SceneDepth = Tuning.Flag(TuneSceneDepth, SceneDepthDefault);
-            s.DistanceReject = Mathf.Max(0f, Tuning.Get(TuneDistanceReject, DistanceRejectDefault));
-            s.ClipSigma = Mathf.Max(0f, Tuning.Get(TuneClipSigma, ClipSigmaDefault));
+            s.DistanceReject = Mathf.Max(0f, Tuning.Get(TuneDistanceReject, CloudFastPath.Pick(CloudFastPath.DistanceReject, DistanceRejectDefault)));
+            s.ClipSigma = Mathf.Max(0f, Tuning.Get(TuneClipSigma, CloudFastPath.Pick(CloudFastPath.ClipSigma, ClipSigmaDefault)));
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));
@@ -467,7 +467,8 @@ namespace ReDefinition.Atmospheres
             s.StaleWeight = defaults.StaleWeight;
             s.Rotation = false;
             // The switch cloudRotation is 2 x 2; the tuning key recon.rotate, where set, names the block side.
-            int rotate = (int)Tuning.Get(TuneReconRotate, v(AtmospheresSettings.Keys.CloudRotation) > 0.5 ? 2f : 0f);
+            // The fast cloud path (CloudFastPath, the tier's) takes 4 x 4 when the key is not set.
+            int rotate = (int)Tuning.Get(TuneReconRotate, CloudFastPath.Pick(CloudFastPath.ReconRotate, v(AtmospheresSettings.Keys.CloudRotation) > 0.5 ? 2f : 0f));
             // Only the history path of level 1: the mode setting Low (prototype B) stays as the player chose it.
             if (rotate >= 2 && !low && s.Mode == ReconMode.Low && s.Accumulate > 0f && s.Resolution > 0.99f)
             {

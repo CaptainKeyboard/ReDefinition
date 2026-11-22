@@ -384,6 +384,20 @@ def pf_scene_guard(repo, probe_args):
     return [(PASS, "probe scene guard", "%s checks GameScenes.FLIGHT" % os.path.basename(hits[0]) if uses else "no flight state used")]
 
 
+def pf_atmospheres_tier(ksp):
+    """The graphics tier the Atmospheres settings were last set to (GameData/ReDefinition/Atmospheres/PluginData/profile.cfg, appliedTier); the profile cache
+    holds no ReDefinition file, so the install's own settings are what the start runs with. Reported, not judged: a start may want another tier."""
+    path = os.path.join(ksp, "GameData", "ReDefinition", "Atmospheres", "PluginData", "profile.cfg")
+    if not os.path.isfile(path):
+        return [(INFO, "atmospheres tier", "no profile.cfg: the settings' defaults")]
+    tier = None
+    for line in open(path, encoding="utf-8", errors="replace"):
+        m = re.match(r"\s*appliedTier\s*=\s*(\S+)", line)
+        if m:
+            tier = m.group(1)
+    return [(INFO, "atmospheres tier", "appliedTier = %s (%s)" % (tier or "absent", path))]
+
+
 def pf_profile_cache(profile_cache):
     """The profile cache is copied over the install before every start. It must hold no KSPCF texture cache file: an index without
     its data files made the loader of K-T2 starts 37 and 38 fail (apply_profile skips such files now, but they do not belong there)."""
@@ -603,6 +617,7 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
     results += pf_modsets(ksp, starts, h.get("mod_folders"))
     results += pf_texture_cache(ksp)
     results += pf_profile_cache(profile_cache)
+    results += pf_atmospheres_tier(ksp)
     results += pf_pictures(repo, ksp, mainrepo, defn, h.get("free_bytes"))
     for st in starts:
         results += pf_scene_path(defn, st)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReDefinition.Atmospheres.Viewer;
+using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres
 {
@@ -32,9 +33,21 @@ namespace ReDefinition.Atmospheres
         // 8 s a view: some 400 frames at 50 fps, enough for the timing rows (owner 2026-11-17: the pauses were too long; it was 20 s).
         private const double PerfDwellS = 8.0;
 
+        // -t09PerfDwell S (the 48 fps block's profiler start): a perf view holds S seconds instead, so that whole 10 s profiler blocks lie inside it.
+        private double PerfDwell
+        {
+            get
+            {
+                string s = CommandLine.After(Args(), "-t09PerfDwell", true);
+                double d;
+                return s != null && double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d) && d > 0 ? d : PerfDwellS;
+            }
+        }
+
         // The grid points the start began with (the profile's), read before the first variant changes them.
         private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN,
-            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseLightCache = double.NaN, baseSceneWb = double.NaN;
+            baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseLightCache = double.NaN, baseSceneWb = double.NaN,
+            baseCloudRotation = double.NaN, baseShadowQuality = double.NaN;
 
         private bool PerfStart
         {
@@ -107,6 +120,37 @@ namespace ReDefinition.Atmospheres
                 case "lvrec":
                 case "lvfar8":
                 case "lvfull":
+                case "step12":
+                case "sun4":
+                case "shadowlow":
+                case "r3td":
+                case "pre":
+                case "combo":
+                case "lvall":
+                case "lvall2":
+                case "lvallr3":
+                case "samp75":
+                case "samp50":
+                case "r3samp75":
+                case "half":
+                case "third":
+                case "thirds75":
+                case "r3s50":
+                case "r3s50lv":
+                case "leap0":
+                case "leap2":
+                case "leap4":
+                case "leap2r3":
+                case "r4lv":
+                case "r3lvf20":
+                case "r3lvf10":
+                case "r4lvf20":
+                case "r4lvs75":
+                case "r4lvsh":
+                case "r4lvsg":
+                case "r4lvsgsh":
+                case "r4lvsg75sh":
+                case "r4lvsg50sh":
                     return true;
                 default:
                     return false;
@@ -126,6 +170,8 @@ namespace ReDefinition.Atmospheres
             baseSkipEmpty = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSkipEmpty);
             baseLightCache = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudLightCache);
             baseSceneWb = AtmospheresSettings.Number(AtmospheresSettings.Keys.SceneWhiteBalance);
+            baseCloudRotation = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudRotation);
+            baseShadowQuality = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudShadowQuality);
         }
 
         private void PerfRestoreBase()
@@ -141,6 +187,8 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, baseSkipEmpty);
             SetSetting(AtmospheresSettings.Keys.CloudLightCache, baseLightCache);
             SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, baseSceneWb);
+            SetSetting(AtmospheresSettings.Keys.CloudRotation, baseCloudRotation);
+            SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, baseShadowQuality);
         }
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
@@ -220,6 +268,158 @@ namespace ReDefinition.Atmospheres
                 case "lvfar8":
                     ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
                     ForceTuning(CloudLookTuning.TuneLvHandOver, 8f);
+                    break;
+                // PERF48 (2026-11-21, the 48 fps block): one lever each against today's look (OwnCloudOptions.cs, the look constants of ca5f67da).
+                //   step12     layers.minStepM 12 (the look's 6 m)
+                //   sun4       layers.sunSteps 4 (the look's 8 taps towards the sun)
+                //   shadowlow  the cloud shadow at its cheapest: the setting cloudShadowQuality 0 (Low: 4 steps per span, 1 disc tap) and shadow.resolution 4 (a quarter size)
+                //   r3td       recon.rotate 3 with recon.trueDistance 1
+                //   pre        the product before the full-size look: cloudRotation 0, recon.resolution 0.33, and the look keys handed back (layers.minStepM 0,
+                //              layers.sunMarchM 0, layers.sunSteps 0: the step and light quality levels' own values)
+                //   combo      sun4 + r3td (the step growth key it also set is removed)
+                case "step12": ForceTuning(OwnCloudOptions.TuneMinStepM, 12f); break;
+                case "sun4": ForceTuning(OwnCloudOptions.TuneSunSteps, 4f); break;
+                case "shadowlow":
+                    SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, 0.0);
+                    ForceTuning(OwnCloudOptions.TuneShadowResolution, 4f);
+                    break;
+                case "r3td":
+                    ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                    ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    break;
+                case "pre":
+                    SetSetting(AtmospheresSettings.Keys.CloudRotation, 0.0);
+                    ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f);
+                    ForceTuning(OwnCloudOptions.TuneMinStepM, 0f);
+                    ForceTuning(OwnCloudOptions.TuneSunMarchM, 0f);
+                    ForceTuning(OwnCloudOptions.TuneSunSteps, 0f);
+                    break;
+                case "combo":
+                    ForceTuning(OwnCloudOptions.TuneSunSteps, 4f);
+                    ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                    ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    break;
+                // The light-volume fps block (2026-11-21): the sun's light of every lit sample from the volume (CloudLight.cginc LightVolumePlan: with the hand-over at 0 the far
+                // path's share is saturate(dist / _LvA.y) with _LvA.y = max(band x 0, 1 m) (LightVolume.cs Bind), so 1 beyond a metre and cloud.lightVolume.band has no width
+                // to keep the full march in; the share is then multiplied by the volume read's weight, below 1 only outside or at the fade of a cascade's window), the far
+                // path's near taps 1 (lvall) or 2 (lvall2); lvallr3 is lvall with recon.rotate 3 and recon.trueDistance 1. The volume's other keys stay at their defaults.
+                // The step budget block (2026-11-21): the march's most samples per span. OwnCloudOptions.Apply(LayerFrame): f.MaxSteps = clamp(round(ScaleSamples(the step
+                // quality's maxSteps, cloudSamples) x layers.gridFine), 4, 256); at Medium 48 x 256 / 48 = 256 x gridFine 1 (GridFineDefault) = 256. samp75 / samp50 set
+                // layers.gridFine 0.75 / 0.5 (192 / 128 samples per span at most); r3samp75 adds recon.rotate 3 and recon.trueDistance 1 to samp75.
+                case "samp75":
+                case "samp50":
+                case "r3samp75":
+                    ForceTuning(OwnCloudOptions.TuneGridFine, name == "samp50" ? 0.5f : 0.75f);
+                    if (name == "r3samp75")
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
+                    break;
+                // The stack block (2026-11-21): the strong levers together.
+                //   half       recon.resolution 0.5 (the march target's side over the full target's; pre set 0.33 with cloudRotation 0). OwnCloudOptions.Apply(ReconSettings) turns
+                //              the rotation on only at a resolution above 0.99, so below it the history path of level 1 marches the smaller target without the rotation
+                //   third      recon.resolution 0.33 (pre's march size, a ninth of the pixels a frame like a 3 x 3 rotation; without the rotation, as above)
+                //   thirds75   third + layers.gridFine 0.75
+                //   r3s50      recon.rotate 3 + recon.trueDistance 1 + layers.gridFine 0.5
+                //   r3s50lv    r3s50 + cloud.lightVolume 1, cloud.lightVolume.handOverKm 0, cloud.lightVolume.farTaps 1
+                // The empty-leap block (2026-11-21): layers.leapScale (LayerFrame.LeapScales -> _SpacingP.z; default 1, OwnCloudOptions.LeapScaleDefault), the longest leap over empty grid
+                // points in the layer's noise scales (Layers.shader leapCap). leap0 the march without the leap, leap2 / leap4 two and four noise scales, leap2r3 leap2 with
+                // recon.rotate 3 and recon.trueDistance 1. (layers.emptyLeap only raises the floor leapMax of that cap, so 2 to 8 change nothing where a layer has a noise scale.)
+                case "leap0":
+                case "leap2":
+                case "leap4":
+                case "leap2r3":
+                    ForceTuning(OwnCloudOptions.TuneLeapScale, name == "leap0" ? 0f : name == "leap4" ? 4f : 2f);
+                    if (name == "leap2r3")
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
+                    break;
+                case "half":
+                case "third":
+                case "thirds75":
+                case "r3s50":
+                case "r3s50lv":
+                    if (name == "half") ForceTuning(OwnCloudOptions.TuneReconResolution, 0.5f);
+                    if (name == "third" || name == "thirds75") ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f);
+                    if (name == "thirds75") ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
+                    if (name == "r3s50" || name == "r3s50lv")
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                        ForceTuning(OwnCloudOptions.TuneGridFine, 0.5f);
+                    }
+                    if (name == "r3s50lv")
+                    {
+                        ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
+                        ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
+                        ForceTuning(CloudLookTuning.TuneLvFarTaps, 1f);
+                    }
+                    break;
+                // The 48 fps block on the cleaned-up code (2026-11-22, prio 2: quality may drop for now): the light volume (lvall's keys) with the rotation and a far fade.
+                //   r4lv     r4n (4 x 4 rotation with the new history) + the light volume
+                //   r3lvf20  lvallr3 + cloud.fadeFarM 20 km with the march ending there (layers.costCutM 20 km): the clouds fade out towards 20 km, so the cut
+                //            leaves a correct picture; r3lvf10 the same at 10 km
+                //   r4lvf20  r4lv + the 20 km fade and cut
+                //   r4lvs75  r4lv + layers.gridFine 0.75
+                case "r4lv":
+                case "r3lvf20":
+                case "r3lvf10":
+                case "r4lvf20":
+                case "r4lvs75":
+                // The far points block (2026-11-22): r4lv with the cloud shadow at its cheapest (sh: cloudShadowQuality 0 and shadow.resolution 4, as shadowlow) and the
+                // span's points by distance (sg: layers.spanGrowthPerM 0.001, the player's sg1000, wolken-m2a-technik 12.7/12.8); sg75 / sg50 with layers.gridFine 0.75 / 0.5.
+                case "r4lvsh":
+                case "r4lvsg":
+                case "r4lvsgsh":
+                case "r4lvsg75sh":
+                case "r4lvsg50sh":
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
+                    ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
+                    ForceTuning(CloudLookTuning.TuneLvFarTaps, 1f);
+                    if (name.StartsWith("r3"))
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
+                    else
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 4f);
+                        ForceTuning(OwnCloudOptions.TuneMarchTriangle, 1f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                        ForceTuning(OwnCloudOptions.TuneAge, 1f);
+                        ForceTuning(OwnCloudOptions.TuneDistanceReject, 0.3f);
+                        ForceTuning(OwnCloudOptions.TuneClipSigma, 2f);
+                    }
+                    if (name.EndsWith("f20") || name.EndsWith("f10"))
+                    {
+                        float farM = name.EndsWith("f10") ? 10000f : 20000f;
+                        ForceTuning(CloudLookTuning.TuneFadeFar, farM);
+                        ForceTuning(OwnCloudOptions.TuneCostCutM, farM);
+                    }
+                    if (name == "r4lvs75") ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
+                    if (name.Contains("sg")) ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.001f);
+                    if (name.Contains("sg75")) ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
+                    if (name.Contains("sg50")) ForceTuning(OwnCloudOptions.TuneGridFine, 0.5f);
+                    if (name.EndsWith("sh"))
+                    {
+                        SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, 0.0);
+                        ForceTuning(OwnCloudOptions.TuneShadowResolution, 4f);
+                    }
+                    break;
+                case "lvall":
+                case "lvall2":
+                case "lvallr3":
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
+                    ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
+                    ForceTuning(CloudLookTuning.TuneLvFarTaps, name == "lvall2" ? 2f : 1f);
+                    if (name == "lvallr3")
+                    {
+                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
+                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
+                    }
                     break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;
