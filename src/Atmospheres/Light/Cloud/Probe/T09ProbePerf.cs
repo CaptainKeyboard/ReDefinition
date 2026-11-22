@@ -146,6 +146,11 @@ namespace ReDefinition.Atmospheres
                 case "r3lvf10":
                 case "r4lvf20":
                 case "r4lvs75":
+                case "r4lvsh":
+                case "r4lvsg":
+                case "r4lvsgsh":
+                case "r4lvsg75sh":
+                case "r4lvsg50sh":
                     return true;
                 default:
                     return false;
@@ -364,6 +369,13 @@ namespace ReDefinition.Atmospheres
                 case "r3lvf10":
                 case "r4lvf20":
                 case "r4lvs75":
+                // The far points block (2026-11-22): r4lv with the cloud shadow at its cheapest (sh: cloudShadowQuality 0 and shadow.resolution 4, as shadowlow) and the
+                // span's points by distance (sg: layers.spanGrowthPerM 0.001, the player's sg1000, wolken-m2a-technik 12.7/12.8); sg75 / sg50 with layers.gridFine 0.75 / 0.5.
+                case "r4lvsh":
+                case "r4lvsg":
+                case "r4lvsgsh":
+                case "r4lvsg75sh":
+                case "r4lvsg50sh":
                     ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
                     ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
                     ForceTuning(CloudLookTuning.TuneLvFarTaps, 1f);
@@ -388,6 +400,14 @@ namespace ReDefinition.Atmospheres
                         ForceTuning(OwnCloudOptions.TuneCostCutM, farM);
                     }
                     if (name == "r4lvs75") ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
+                    if (name.Contains("sg")) ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.001f);
+                    if (name.Contains("sg75")) ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
+                    if (name.Contains("sg50")) ForceTuning(OwnCloudOptions.TuneGridFine, 0.5f);
+                    if (name.EndsWith("sh"))
+                    {
+                        SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, 0.0);
+                        ForceTuning(OwnCloudOptions.TuneShadowResolution, 4f);
+                    }
                     break;
                 case "lvall":
                 case "lvall2":
