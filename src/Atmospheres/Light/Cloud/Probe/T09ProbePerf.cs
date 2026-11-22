@@ -152,6 +152,11 @@ namespace ReDefinition.Atmospheres
                 case "r4lvsg75sh":
                 case "r4lvsg50sh":
                 case "lattice":
+                case "fpnorot":
+                case "fpnohist":
+                case "fpnolv":
+                case "fpnosg":
+                case "fpshfull":
                     return true;
                 default:
                     return false;
@@ -424,6 +429,23 @@ namespace ReDefinition.Atmospheres
                     break;
                 // The map sky check (2026-11-22): lattice is the sky as it was before the weather map became the default (cloud.weatherMapSky 0: the old layer maps, the 3 km lattice).
                 case "lattice": ForceTuning(WeatherMapSky.TuneKey, 0f); break;
+                // The grid hunt (2026-11-22, PRUEFPROTOKOLL 75: a regular 16-render-pixel grid over the storm's ground view with the map sky): one part of the fast cloud
+                // path off each (CloudFastPath): fpnorot the 4 x 4 rotation (recon.rotate 0: the setting's own), fpnohist the march's distance history (trueDistance, age,
+                // distanceReject, clipSigma back to their full-path values), fpnolv the light volume, fpnosg the points by distance, fpshfull the full cloud shadow.
+                case "fpnorot": ForceTuning(OwnCloudOptions.TuneReconRotate, 0f); break;
+                case "fpnohist":
+                    ForceTuning(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault ? 1f : 0f);
+                    ForceTuning(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault ? 1f : 0f);
+                    ForceTuning(OwnCloudOptions.TuneMarchTriangle, OwnCloudOptions.MarchTriangleDefault ? 1f : 0f);
+                    ForceTuning(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault);
+                    ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault);
+                    break;
+                case "fpnolv": ForceTuning(CloudLookTuning.TuneLightVolume, 0f); break;
+                case "fpnosg": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0f); break;
+                case "fpshfull":
+                    SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, 1.0);
+                    ForceTuning(OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.ShadowResolutionDefault);
+                    break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;
                 case "nolight": ForceTuning(OwnCloudOptions.TuneCostDebug, 1f); break;
