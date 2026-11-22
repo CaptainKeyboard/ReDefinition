@@ -151,6 +151,7 @@ namespace ReDefinition.Atmospheres
                 case "r4lvsgsh":
                 case "r4lvsg75sh":
                 case "r4lvsg50sh":
+                case "lattice":
                     return true;
                 default:
                     return false;
@@ -421,6 +422,8 @@ namespace ReDefinition.Atmospheres
                         ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
                     }
                     break;
+                // The map sky check (2026-11-22): lattice is the sky as it was before the weather map became the default (cloud.weatherMapSky 0: the old layer maps, the 3 km lattice).
+                case "lattice": ForceTuning(WeatherMapSky.TuneKey, 0f); break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;
                 case "nolight": ForceTuning(OwnCloudOptions.TuneCostDebug, 1f); break;
