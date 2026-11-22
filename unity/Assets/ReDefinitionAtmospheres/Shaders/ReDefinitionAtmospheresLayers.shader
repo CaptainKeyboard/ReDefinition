@@ -809,10 +809,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // pixels and z, w to 0). Unity's _ScreenParams only where no caller set them (0, the weather player's own scenes): a command buffer executed outside a
             // camera's render (the pinned replay) does not have the camera's size in it.
             float2 grid = _ReconD.x > 0.5 ? _ReconD.xy : _ScreenParams.xy;
-            // The pattern's pixel is the march target's own texel (a block sample of the temporal reconstruction too): on the full target's pixels the fresh samples of one frame lie 4 px
-            // apart and read only 16 of the 256 entries of the 16 x 16 tile, repeating every 16 px, a lattice that shows wherever a sample's value depends on its step offset (the dark star
-            // specks 16 px apart of the 48f storm ground frame, PRUEFPROTOKOLL 84). The block's 16 frames still differ by the golden-ratio phase of the step offset.
-            float2 pixel = i.uv * (DEV(_DitherP.w, 1.0) > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : (_ReconP.x < 1.5 ? grid : _ReconD.xy));
+            float2 pixel = i.uv * (_ReconP.x < 1.5 ? (DEV(_DitherP.w, 1.0) > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : grid) : _ReconD.xy);
             MarchOut r = March(o, d, tmax, pixel);
             float aid = DEV(_LimitP.y, 0.0);
             if (aid > 1.5 && aid < 2.5)
