@@ -72,7 +72,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
         float4 _ReuseP;      // x: unused; y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z: cost attribution, it starts there (0: off, layers.costStartM); w: a span's points by distance, the step's growth per m of distance from the camera (0: off, layers.spanGrowthPerM)
-        float4 _LeapP;       // x: the leap's switches (layers.leapDebug, bits, 0: none); yzw unused
+        float4 _LeapP;       // unused (kept so that the uniform layout stays)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
         // caller. Each pixel keeps one offset and every frame adds the phase to it. y 1: the light cone's rotation is the same
@@ -218,7 +218,7 @@ Shader "ReDefinition/AtmospheresLayers"
         static float gEmptyM = 0;
         // The vertical distance in m from an empty sample to the altitudes where cloud of the layer can begin there: the layer's reach, the height variation's band, the type's
         // slab, whichever test made the sample empty. Positive: the sample lies above them; negative: below; 0: the sample is not empty for that reason. The march ends a leap
-        // there (_LeapP.x bit 8, with layers.spanGrowthPerM).
+        // there (with layers.spanGrowthPerM).
         static float gSlabGap = 0;
 
         // The empty reach at a map point (EmptyReachMath.ReachMetres is its CPU twin): the texels to the nearest texel that can hold cloud as an angle on the planet (a texel is pi / height across
@@ -417,11 +417,6 @@ Shader "ReDefinition/AtmospheresLayers"
             float4 tauLayer;
             float3 direct;
             float3 ambient;
-            float lightTaps;
-            float freshLit;   // the lit samples that marched their light anew (aid 10, the probe's tap readout)
-            float freshSunTaps;   // the sun's taps of those samples alone (no moons, no up march; aid 10)
-            float spanLen, spanBudget, spanFeat;   // the spans whose count their length, the step budget or the noise-scale count set (aid 11)
-            float emptySamples;   // the samples that found no density (aid 12)
             float distSum;    // sum over the steps of (weight in the ray's colour) x distance, for the mean distance of the cloud (T06)
             float weightSum;
         };
@@ -454,7 +449,7 @@ Shader "ReDefinition/AtmospheresLayers"
             MarchOut r;
             r.rgb = 0; r.alpha = 0; r.tau = 0; r.steps = 0; r.first = -1;
             r.tauLayer = 0;
-            r.direct = 0; r.ambient = 0; r.lightTaps = 0; r.freshLit = 0; r.freshSunTaps = 0; r.spanLen = 0; r.spanBudget = 0; r.spanFeat = 0; r.emptySamples = 0;
+            r.direct = 0; r.ambient = 0;
             r.distSum = 0; r.weightSum = 0;
             if (_StepP.w > 0.5)
             {
@@ -505,11 +500,9 @@ Shader "ReDefinition/AtmospheresLayers"
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;
             bool noLight = fmod(floor(_CostP.y), 2.0) > 0.5;
-            // The leap's switches (_LeapP.x, bits; 0: the march as it is; the caller sets 136 with the points by distance, LayerFrame.LeapBits): 8 a leap ends, in whole grid steps,
-            // where the ray reaches the altitude at which cloud can begin (the type's slab, the band of the height variation, the layer's reach), 128 a leap so ended starts again
-            // from one grid step. Read only where the switches are set, so the march without them is today's.
-            bool leapEnds = _LeapP.x > 0.5;
-            bool lbGap = leapEnds && fmod(floor(_LeapP.x * 0.125), 2.0) > 0.5, lbRestart = leapEnds && fmod(floor(_LeapP.x / 128.0), 2.0) > 0.5;
+            // With the points by distance (layers.spanGrowthPerM > 0) a leap ends, in whole grid steps, where the ray reaches the altitude at which cloud can begin (the type's slab,
+            // the band of the height variation, the layer's reach), and a leap so ended starts again from one grid step. Without them the march is as it was.
+            bool lbGap = _ReuseP.w > 0.0, lbRestart = lbGap;
             [loop] for (int k = 0; k < 8; k++)
             {
                 if (k >= n) break;
@@ -545,15 +538,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 float grow0 = max(s0[k] - growFrom, 0.0), grow1 = max(s1[k] - growFrom, 0.0);
                 float lenU = spanG > 0.0 ? (len - (grow1 - grow0)) + log((1.0 + spanG * grow1) / (1.0 + spanG * grow0)) / spanG : len;
                 int count = (int)clamp(ceil(lenU / stepLen), minCount, max(minCount, min(floor(maxSteps * share01 + 0.5), featCount)));
-                // Aid 11 (the probe's cap readout, T09ProbeTaps.cs): which bound set this span's count: its length over the step, the budget maxSteps x share, or the
-                // noise-scale count (featCount); only while the aid is drawn.
-                if (_LimitP.y > 10.5 && _LimitP.y < 11.5)
-                {
-                    float budgetN = floor(maxSteps * share01 + 0.5);
-                    if (ceil(lenU / stepLen) < max(minCount, min(budgetN, featCount))) r.spanLen += 1.0;
-                    else if (featCount < budgetN) r.spanFeat += 1.0;
-                    else r.spanBudget += 1.0;
-                }
                 float dt = lenU / count;
                 float dtStart = spanG > 0.0 ? dt * (1.0 + spanG * grow0) : dt;
                 gNoiseFoot = spanG > 0.0 ? max(dt, _CullD.y * s0[k]) : dt;   // the sample spacing: the erosion detail's distance LOD (T02)
@@ -610,8 +594,6 @@ Shader "ReDefinition/AtmospheresLayers"
                     float cavity = 1.0;
                     [branch] if (gHeapCavK > 0.0) cavity = pow(max(gHeapCav, 0.02), 4.0 * gHeapCavK);
                     r.steps += 1;
-                    // Aid 12 (the probe's empty readout, T09ProbeTaps.cs): the samples that found no density; only while the aid is drawn.
-                    if (_LimitP.y > 11.5 && _LimitP.y < 12.5 && !(dens > 0)) r.emptySamples += 1.0;
                     // A4 (cloud.cellShell): within the billows' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
                     // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap
                     // above saves them elsewhere. A span takes at most as many fine steps as it has grid points (a grazing ray runs kilometres in a shell), then the grid takes over.
@@ -712,8 +694,7 @@ Shader "ReDefinition/AtmospheresLayers"
                         }
                         // The cone's rotation advances by the golden angle from one lit sample to the next, so that the per-pixel pattern averages out along the ray (FX-T03).
                         src = LightSource(pc, d, dens, share, li, t - dts, rot + r.steps * 2.3999632, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
-                        if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; r.freshLit += 1.0; r.freshSunTaps += gSunTapsAid; }
-                        r.lightTaps += taps;
+                        if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                     }
                     else
                     {
@@ -799,13 +780,6 @@ Shader "ReDefinition/AtmospheresLayers"
             dist = 0.0;
             i.uv = FullUv(i.uv);
             CullReadTile(i.uv);   // T16: the layers this pixel's tile marches
-            // Aid 3: the phase function over mu = 2 u - 1 (r: octave 0, g: octave 1), the parity check's normalisation probe.
-            if (_LimitP.y > 2.5 && _LimitP.y < 3.5)
-            {
-                float w = 1.0 / max(abs(ddx(i.uv.x)), 1e-6);
-                float m = floor(i.uv.x * w + 0.01) / max(w - 1.0, 1.0) * 2.0 - 1.0;
-                return float4(Phase(m), Phase(m, _LightP.w), 0, 1);
-            }
             float3 d = RayDir(i.uv);
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
             float tmax = SceneDistance(i.uv, d);
@@ -829,26 +803,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 float3 c = r.tauLayer.x * float3(0.9, 0.3, 0.2) + r.tauLayer.y * float3(0.2, 0.7, 0.9) + r.tauLayer.z * float3(0.9, 0.8, 0.2) + r.tauLayer.w * float3(0.4, 0.9, 0.3);
                 float s = max(r.tau, 1e-6);
                 return float4(c / s * r.alpha, r.alpha);
-            }
-            // Aid 4: the direct light (r) against the ambient (b) and the step count's share of the budget (g); aid 5: the step map.
-            if (_LimitP.y > 3.5 && _LimitP.y < 4.5) return float4(Luma(r.direct), r.lightTaps, Luma(r.ambient), r.alpha);
-            // Aid 10 (the probe's tap readout, T09ProbeTaps.cs): the sun's taps of the lit samples that marched their light anew, those samples, the samples.
-            if (_LimitP.y > 9.5 && _LimitP.y < 10.5) return float4(r.freshSunTaps, r.freshLit, r.steps, 1.0);
-            // Aid 11 (the probe's cap readout): the spans whose count their length, the step budget, the noise-scale count set.
-            if (_LimitP.y > 10.5 && _LimitP.y < 11.5) return float4(r.spanLen, r.spanBudget, r.spanFeat, 1.0);
-            // Aid 12 (the probe's empty readout): the samples, the samples that found no density.
-            if (_LimitP.y > 11.5 && _LimitP.y < 12.5) return float4(r.steps, r.emptySamples, 0.0, 1.0);
-            if (_LimitP.y > 4.5 && _LimitP.y < 5.5) return float4(Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * step(0.5, r.steps), 1.0);
-            // Aid 6 (T16): the skipped-block map. Blue the maps, green the terrain, grey no shell, orange behind a closed deck, yellow some layers dropped,
-            // dark red scale the marched steps where the whole tile marches.
-            if (_LimitP.y > 5.5 && _LimitP.y < 6.5)
-            {
-                float full = exp2(_LayerCount) - 1.0;
-                float3 col = Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * 0.35 * step(0.5, r.steps);
-                bool a1 = fmod(gCullAid, 2.0) > 0.5, a2 = fmod(floor(gCullAid / 2.0), 2.0) > 0.5, a4 = fmod(floor(gCullAid / 4.0), 2.0) > 0.5;
-                if (gCullBits < 0.5) col = a1 ? float3(0.1, 0.3, 0.95) : (a2 ? float3(0.1, 0.8, 0.2) : (a4 ? float3(0.45, 0.45, 0.6) : float3(0.8, 0.1, 0.1)));
-                else if (gCullBits < full - 0.5) col = float3(0.95, 0.85, 0.15);
-                return float4(col, 1.0);
             }
             if (_LimitP.y > 0.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
             if (r.weightSum > 1e-9) dist = r.distSum / r.weightSum;
@@ -1104,8 +1058,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     float lowest = inner > 0 ? inner - reach : (_StepP.w > 0.5 ? -reach : -1e30);
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
-                // LV2: _LvP.x the fill (0 a direct march per voxel, 1 propagation from the slice above, 2 a fine reference march to the sun through whole spans, 3 the same over the
-                // direct fill's length). Propagation needs every voxel of the chain, so it skips nothing.
+                // LV2: _LvP.x the fill (0 a direct march per voxel, 1 propagation from the slice above). Propagation needs every voxel of the chain, so it skips nothing.
                 float mode = _LvP.x;
                 // The spread's blur reads every voxel's neighbours, so with it nothing is skipped either.
                 if (!read && mode < 0.5 && _LvS.x < 0.5) return float4(0, 0, 0, 0);
@@ -1124,12 +1077,6 @@ Shader "ReDefinition/AtmospheresLayers"
                     taps = own ? max(1, steps - keepFill) : (int)_LvF.x;
                     range = own ? max(_Sun.w - nearFill, 1.0) : _Sun.w;
                     ratio = own ? _LightR.y : _LvF.y;
-                }
-                else if (mode > 1.5)
-                {
-                    taps = max(1, (int)_LvD.z);
-                    range = mode > 2.5 ? max(_Sun.w - nearFill, 1.0) : 1e30;
-                    ratio = max(_LvD.w, 1.0);
                 }
                 else
                 {

@@ -7,8 +7,7 @@
     python tools/weather_metrics/lv2.py --errors                          (the fills' optical depth against the fine references)
     python tools/weather_metrics/lv2.py --pictures <folder>               (the PNGs of the last lv2-pic run)
 
-The cases are lv1.py's march plus SoftTable tokens; lvm<N> the fill, lvd1 (in commit a9902845 only) the far part marched exactly from the read point, lvq<N> the near length's factor
-in hundredths, lvb<N> the band in percent.
+The cases are lv1.py's march plus SoftTable tokens; lvm<N> the fill, lvb<N> the band in percent.
 """
 import argparse
 import json
@@ -65,12 +64,9 @@ ERR_CASES = [("direct", "+lv4+lvn0+lvm0+lvh0"), ("prop", "+lv4+lvn0+lvm1+lvh0"),
 # point further towards the sun.
 PIC_STILL = [("full", ""), ("lv16km", "+lv16+lvn8"), ("lv8km", "+lv8+lvn8"), ("lv4km", "+lv4+lvn8"), ("lv2km", "+lv2+lvn8"),
              ("lv16km-propagation", "+lv16+lvn8+lvm1+lvh8"), ("lv8km-propagation", "+lv8+lvn8+lvm1+lvh8")]
-# The matrix of the views from above and the ground view at 8 km: fill (direct / propagation) x read (optical depth / transmittance with k 8 and 16 / the read point past the
-# trilinear footprint), and the far part marched exactly from the read point (no voxels) with each fill's semantics.
-PIC_ABOVE = [("lv8km-direct-tau", "+lv8+lvn8+lvm0+lvh0"), ("lv8km-direct-T8", "+lv8+lvn8+lvm0+lvh8"), ("lv8km-direct-tau-readpast", "+lv8+lvn8+lvm0+lvh0+lvp1"),
+# The matrix of the views from above and the ground view at 8 km: fill (direct / propagation) x read (optical depth / transmittance with k 8 and 16).
+PIC_ABOVE = [("lv8km-direct-tau", "+lv8+lvn8+lvm0+lvh0"), ("lv8km-direct-T8", "+lv8+lvn8+lvm0+lvh8"),
              ("lv8km-prop-tau", "+lv8+lvn8+lvm1+lvh0"), ("lv8km-prop-T8", "+lv8+lvn8+lvm1+lvh8"), ("lv8km-prop-T16", "+lv8+lvn8+lvm1+lvh16"),
-             ("lv8km-prop-tau-readpast", "+lv8+lvn8+lvm1+lvh0+lvp1"), ("lv8km-prop-T8-readpast", "+lv8+lvn8+lvm1+lvh8+lvp1"),
-             ("lv8km-prop-tau-capped", "+lv8+lvn8+lvm1+lvh0+lvy1"), ("lv8km-prop-T8-capped", "+lv8+lvn8+lvm1+lvh8+lvy1"),
              ("lv8km-direct-T4", "+lv8+lvn8+lvm0+lvh4"), ("lv8km-direct-T16", "+lv8+lvn8+lvm0+lvh16"), ("full-repeat", "+ctl")]
 MATRIX_VIEWS = ("lv_a15", "lv_a60", "lv_g10")
 PIC_MOVE = [("full", ""), ("lv4km-n4", "+lv4+lvn4")]

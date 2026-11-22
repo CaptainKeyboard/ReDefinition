@@ -793,7 +793,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double horizonV = 0.5 + Math.Tan(angleFromAxis) / (2.0 * Math.Tan(FovDeg * Math.PI / 360.0));
             float gain = Tuning.Get(OwnCloudModule.TuneSunGain, 1f);
             bool deck = Module != null && Module.Stats.Mode != "off" && MaskDrawsDeck() && !AidIsOn;
-            bool aid = AidIsOn && !AidIgnored && AidModeNow == 4;
             var raw = new Color[w * h];
             for (int y = 0; y < h; y++)
             {
@@ -812,7 +811,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         c = new Color(d, d, d, 1f);
                     }
                     if (FloorNoise > 0f) c = new Color(c.r + FloorNoise * Hash(Frames, x + 1000, y), c.g, c.b, 1f);
-                    if (aid && covered && Module != null && Module.Stats.Mode != "off" && LayerMaskNow == 0) c = new Color(0.3f, 0.5f, 0.1f, 1f);
                     raw[y * w + x] = c;
                 }
             }

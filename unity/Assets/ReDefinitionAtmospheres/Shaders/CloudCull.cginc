@@ -167,7 +167,6 @@ UNITY_DECLARE_TEX2DARRAY(_CullMax1);
 
 // The layers the pixel's tile marches (bit i = layer i); all of them where the tile pass did not run.
 static float gCullBits = 15.0;
-static float gCullAid = 0.0;
 
 bool CullLayerOn(int li)
 {
@@ -184,13 +183,11 @@ float CullSmooth(float x)
 void CullReadTile(float2 uv)
 {
     gCullBits = 15.0;
-    gCullAid = 0.0;
     if (_CullA.x > 0.5)
     {
         float2 tuv = (floor(uv * _CullT.zw / _CullA.z) + 0.5) / _CullT.xy;
         float4 tile = tex2Dlod(_CullTiles, float4(tuv, 0, 0));
         gCullBits = tile.r;
-        gCullAid = tile.g;
     }
 }
 

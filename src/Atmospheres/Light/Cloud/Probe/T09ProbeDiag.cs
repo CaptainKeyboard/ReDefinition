@@ -502,20 +502,6 @@ namespace ReDefinition.Atmospheres
             // the per-layer numbers (CPU map, GPU map, the layer's group, type, threshold and softness, the model's closed share).
             if (view.Name == "ground")
                 foreach (ProbeWait w in DiagLayers(view, tag, head, off)) yield return w;
-
-            // The aid picture of the direct light (r), the light taps (g) and the ambient (b) over the deck the natural frame showed.
-            bool on = false;
-            try { on = Game.AidOn(4); }
-            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + tag + ": " + e.GetType().Name + " " + e.Message); }
-            if (!on)
-            {
-                Warn("no_aid_view", view.Name + " " + tag + ": the own pass has no aid view now");
-                yield break;
-            }
-            yield return ProbeWait.Frames(DiagAidFrames);
-            foreach (ProbeWait w in DiagTake(view, tag, "aid4", true, one)) yield return w;
-            try { Game.AidOff(); }
-            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + tag + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
         }
 
         // The shift of the c35 frames of the layer-only series (the same as the ShiftVariants' c35).
@@ -622,7 +608,7 @@ namespace ReDefinition.Atmospheres
 
         // Reads the flight camera's frame, checks the pose at both ends, saves the picture (half size) and measures it. diagReading is null where any of it failed. baseline: the
         // off reading (null for the off frame itself); for the aid frame it is the gain-1 reading whose deck mask the aid frame is measured over.
-        private IEnumerable<ProbeWait> DiagTake(View view, string tag, string gainTag, bool aid, T09Readout.Reading baseline, int aidMode = 4)
+        private IEnumerable<ProbeWait> DiagTake(View view, string tag, string gainTag, bool aid, T09Readout.Reading baseline)
         {
             diagReading = null;
             diagImage = null;
@@ -700,8 +686,7 @@ namespace ReDefinition.Atmospheres
             Emit(p + "pose_ok", poseOk);
             Emit(p + "pose_alt_m", after.VesselAsl);
             // The ground view looks up at a sky layer; the other views (inside, deck, above, sky3... ) look down on the deck, so their tau is read over the sea or ground region.
-            if (aid && aidMode == 1) EmitAidTau(p, reading, image.Raw, baseline, view.Name != "ground" && view.Name != "sky3");
-            else if (aid) EmitAid(p, reading);
+            if (aid) EmitAidTau(p, reading, image.Raw, baseline, view.Name != "ground" && view.Name != "sky3");
             else EmitReading(p, what, reading, baseline, IsOffVariant(gainTag), poseOk);
             diagReading = reading;
             diagImage = image;
@@ -834,19 +819,6 @@ namespace ReDefinition.Atmospheres
             Emit(p + "aidtau_saturated_share", t.ShareSaturated);
             Emit(p + "aidtau_top_n", t.TopCount);
             if (t.TopCount > 0) Emit(p + "aidtau_top_median", t.TopMedian);
-        }
-
-        private void EmitAid(string p, T09Readout.Reading r)
-        {
-            Emit(p + "deck_n", r.Deck.Count);
-            if (r.Deck.Count == 0) return;
-            Emit(p + "direct_median", r.Deck.R);
-            Emit(p + "taps_median", r.Deck.G);
-            Emit(p + "ambient_median", r.Deck.B);
-            Emit(p + "direct_p90", r.Deck.P90);
-            // The direct light's own spread over the deck (the red channel of the aid picture): a patch of the deck that lies in the shadow of another layer reads far under the lit part.
-            Emit(p + "direct_r_p10", r.Deck.RP10);
-            Emit(p + "direct_r_p90", r.Deck.RP90);
         }
 
         // The light and the target, at the first drawn frame and every 30 s of the scenario.
