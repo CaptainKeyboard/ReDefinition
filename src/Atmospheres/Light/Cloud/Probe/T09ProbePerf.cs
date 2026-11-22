@@ -173,6 +173,8 @@ namespace ReDefinition.Atmospheres
                 case "core15":
                 case "core30":
                 case "core30f25":
+                case "ditherold":
+                case "band40":
                     return true;
                 default:
                     return false;
@@ -476,6 +478,11 @@ namespace ReDefinition.Atmospheres
                 // Step 1b (2026-11-22): nofield the single clouds on the lattice again (cloud.field 0; the map sky stays), core15 / core30 / core30f25 the single cloud's core
                 // profile (CellCoreProfile: the share rises from cloud.cellCoreFloor at the surface to the core's over cloud.cellCoreDepth of the shorter semi-axis) against the contour bands.
                 case "nofield": ForceTuning(CloudLookTuning.TuneField, 0f); break;
+                // The 48f artefacts (PRUEFPROTOKOLL 84): ditherold the step offset's pattern on the full target's pixels in the block pass again (layers.ditherFix 0; the shader's
+                // CLOUD_DEV variant, the cone spread is 0 so the cone's pattern has no effect), the A/B of the dark specks 16 px apart; band40 the single cloud's rim 40 m wide instead
+                // of 10 (cloud.cellBand), whether the crisp rim makes the specks and the 4 px stair edges.
+                case "ditherold": ForceTuning(OwnCloudOptions.TuneDitherFix, 0f); break;
+                case "band40": ForceTuning(CloudLookTuning.TuneCellBand, 40f); break;
                 case "core15":
                 case "core30":
                 case "core30f25":

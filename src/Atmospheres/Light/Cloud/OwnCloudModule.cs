@@ -1033,7 +1033,7 @@ namespace ReDefinition.Atmospheres
             if (step == 2)
             {
                 FetchFogInputs(b, field, ut);
-                // cloud.weatherMapSky (default off): the package B maps and the layers' parts of this round (OwnCloudModule.MapSky.cs).
+                // cloud.weatherMapSky (the default): the package B maps and the layers' parts of this round (OwnCloudModule.MapSky.cs).
                 FetchMapSky(b, field, ut);
                 return;
             }
@@ -1168,7 +1168,7 @@ namespace ReDefinition.Atmospheres
                     if (!layerDef.HasClimate) typeBytes = CloudLookTuning.ApplyAlto(typeBytes, typeMap.Bytes, altoMidMap.Bytes, altoLowMap.Bytes, layerDef.AltoType, layerDef.AltoFrom, layerDef.AltoFull, ref altoScratch);
                 }
             }
-            // cloud.weatherMapSky (default off): a layer the weather map drives takes its cover and type from the round's parts; no meso stage, no combination (OwnCloudModule.MapSky.cs).
+            // cloud.weatherMapSky (the default): a layer the weather map drives takes its cover and type from the round's parts; no meso stage, no combination (OwnCloudModule.MapSky.cs).
             bool mapSkyLayer = forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f
                                && MapSkyLayer(l, stack.LayerAt(l), deck ?? stack.LayerAt(l).Deck, rawCover, typeBytes, ref cover, ref typeBytes, ref coverSource);
             if (mapSkyLayer) cellLayerNow[l] = false;

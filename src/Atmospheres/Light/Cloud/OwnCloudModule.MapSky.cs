@@ -3,7 +3,7 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres
 {
-    // The sky drawn from the weather map (master plan section 34; cloud.weatherMapSky, default 0: nothing here runs and the module draws as before). Once per map round the package B
+    // The sky drawn from the weather map (cloud.weatherMapSky, the default; at 0 nothing here runs and the layers take the old layer maps). Once per map round the package B
     // maps are fetched and cut into the layers' parts (MapSkyRegions.Plan); each layer the map drives then takes its cover and type from them instead of today's chain (no meso stage,
     // no combination with the field's cover), and the next height build puts the convective base into the heap and tall layers' root offsets.
     internal sealed partial class OwnCloudModule
