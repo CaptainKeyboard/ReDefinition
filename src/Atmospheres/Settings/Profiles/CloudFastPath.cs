@@ -14,6 +14,9 @@ namespace ReDefinition.Atmospheres
         internal const bool MarchTriangle = true, TrueDistance = true, Age = true;
         // A span's points by distance: the step grows by this per m from the camera.
         internal const float SpanGrowthPerM = 0.001f;
+        // The shortest step in m (the look's 6 m on the full path): with the points by distance the near steps in a fog-filled view are short and many; 12 m kept
+        // the storm's ground view at 49-50 fps (46-48 with 6 m) and every other view >= 53 (PRUEFPROTOKOLL 79), at a little softer near detail.
+        internal const float MinStepM = 12f;
         // The cloud shadow marched at a quarter of the camera's size.
         internal const float ShadowResolution = 4f;
 

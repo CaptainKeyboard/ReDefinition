@@ -266,7 +266,7 @@ namespace ReDefinition.Atmospheres
             // The owner's look (2026-11-19, the default; e40puff k4_stride, judged in the player 2026-11-18): the shortest step LookMinStepM, no step growth along the ray, the march
             // towards the sun LookSunMarchM long. A key at or below 0 gives the step quality's value instead (layers.minStepM, layers.sunMarchM); layers.earlyOut above 0 replaces the
             // frame's early out.
-            float minStepKey = Tuning.Get(TuneMinStepM, LookMinStepM);
+            float minStepKey = Tuning.Get(TuneMinStepM, CloudFastPath.Pick(CloudFastPath.MinStepM, LookMinStepM));
             if (minStepKey > 0f) f.MinStepM = minStepKey;
             float earlyKey = Tuning.Get(TuneEarlyOut, 0f);
             if (earlyKey > 0f) f.EarlyOut = earlyKey;
