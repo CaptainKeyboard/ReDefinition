@@ -169,6 +169,10 @@ namespace ReDefinition.Atmospheres
                 case "sg2e4":
                 case "sgfrom2k":
                 case "sgstep12":
+                case "nofield":
+                case "core15":
+                case "core30":
+                case "core30f25":
                     return true;
                 default:
                     return false;
@@ -469,6 +473,15 @@ namespace ReDefinition.Atmospheres
                 case "sg2e4": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.0002f); break;
                 case "sgfrom2k": ForceTuning(OwnCloudOptions.TuneSpanGrowthFromM, 2000f); break;
                 case "sgstep12": ForceTuning(OwnCloudOptions.TuneMinStepM, 12f); break;
+                // Step 1b (2026-11-22): nofield the single clouds on the lattice again (cloud.field 0; the map sky stays), core15 / core30 / core30f25 the single cloud's core
+                // profile (CellCoreProfile: the share rises from cloud.cellCoreFloor at the surface to the core's over cloud.cellCoreDepth of the shorter semi-axis) against the contour bands.
+                case "nofield": ForceTuning(CloudLookTuning.TuneField, 0f); break;
+                case "core15":
+                case "core30":
+                case "core30f25":
+                    ForceTuning(CellCoreProfile.TuneDepth, name == "core15" ? 0.15f : 0.3f);
+                    ForceTuning(CellCoreProfile.TuneFloor, name == "core30f25" ? 0.25f : 0.5f);
+                    break;
                 // The contour bands (PRUEFPROTOKOLL 75, owner "fix what you see"): the fast path with LV3's lateral light spread (wolken-m2a-technik 11.8: the propagation fill on
                 // 156.25 m voxels as the spread's source, transmittance stored over 8; the hand-over stays the fast path's 0 km).
                 case "fpspread":
