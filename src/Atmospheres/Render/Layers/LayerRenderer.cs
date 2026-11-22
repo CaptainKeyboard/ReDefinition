@@ -358,7 +358,7 @@ namespace ReDefinition.Atmospheres
                     int heap = table.HeapOfType(t);
                     if (heap > 0) Noise.RequestHeap();
                     if (heap > 0 || table.EdgeOfType(t) > 0f) extras = true;
-                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), 0f);
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), table.PuffOfType(t));
                 }
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++)
@@ -449,6 +449,8 @@ namespace ReDefinition.Atmospheres
             }
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);
+            CloudFieldGpu.Apply();
+            CellCoreProfile.Apply();
             bool cells = CloudLookTuning.Cells;
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cullL[l].w = cells ? cellPitch[l] : 0f;
             m.SetVectorArray(IdCullL, cullL);

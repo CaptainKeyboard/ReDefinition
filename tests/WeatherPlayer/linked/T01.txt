@@ -11,6 +11,11 @@ src/Atmospheres/Render/Layers/Core/CloudWater.cs
 src/Atmospheres/Render/Layers/Core/CloudSoftDensity.cs
 # CELLS: the single clouds' C# twin (the cloud shadow's CPU field reads the map value through it).
 src/Atmospheres/Render/Layers/Core/CloudCells.cs
+# CLOUD FIELD: the single clouds arranged by the weather map's share and one multi-scale field instead of the lattice (the default since 2026-11-22); the renderer binds it every frame.
+src/Atmospheres/Render/Layers/Core/CloudField.cs
+src/Atmospheres/Render/Layers/CloudFieldGpu.cs
+# The single cloud's core profile (the global _CellK), set by the renderer every frame.
+src/Atmospheres/Render/Layers/CellCoreProfile.cs
 src/Atmospheres/Render/Layers/LayerMapStore.cs
 src/Atmospheres/Render/Layers/LayerMapStore.GpuSlew.cs
 src/Atmospheres/Render/Layers/MapSlewField.cs

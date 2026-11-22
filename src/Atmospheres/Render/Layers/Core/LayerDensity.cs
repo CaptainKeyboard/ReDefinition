@@ -60,6 +60,8 @@ namespace ReDefinition.Atmospheres
         internal int HeapOfType(int type)
         {
             int forced = CloudLookTuning.HeapOverrideFor(layer.Name);
+            // CLOUD FIELD: a puffy type reads the billow heap where the field is on (the owner's puffy concept is part of the type).
+            if (forced < 0 && layer.Types[type].Heap == 0 && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return HeapModel.PresetOf("billow");
             return forced >= 0 ? forced : layer.Types[type].Heap;
         }
 
@@ -67,6 +69,7 @@ namespace ReDefinition.Atmospheres
         {
             if (!layer.Soft) return 0f;
             float forced = CloudLookTuning.EdgePowerOverrideFor(layer.Name);
+            if (forced <= 0f && layer.Types[type].EdgePower <= 0f && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return 0.5f;
             return forced > 0f ? forced : layer.Types[type].EdgePower;
         }
 
@@ -74,6 +77,7 @@ namespace ReDefinition.Atmospheres
         {
             if (HeapOfType(type) <= 0) return 0f;
             float forced = CloudLookTuning.CavityOverrideFor(layer.Name);
+            if (forced < 0f && layer.Types[type].Cavity <= 0f && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return 0.35f;
             return forced >= 0f ? forced : layer.Types[type].Cavity;
         }
 
@@ -84,6 +88,12 @@ namespace ReDefinition.Atmospheres
             double f;
             Neighbours(typeValue, out a, out c, out f);
             return HeapOfType(f < 0.5 ? a : c);
+        }
+
+        // CLOUD FIELD: the puff class of a type where the field is on (0: none or the field off); the shader reads the nearer of the two neighbouring types' like the heap preset.
+        internal int PuffOfType(int type)
+        {
+            return CloudLookTuning.Field ? layer.Types[type].Puff : 0;
         }
 
         // The smoothing of a type (noise scales).
