@@ -21,12 +21,13 @@ namespace ReDefinition.Atmospheres
             if (on && texture == null)
             {
                 data = CloudField.Build();
-                texture = new Texture2D(CloudField.Size, CloudField.Size, TextureFormat.RGBAFloat, false, true)
+                // With mip levels: the shaders read the field at the march's spacing (FieldCloud), so a far sample takes the field's mean over its spacing instead of one texel.
+                texture = new Texture2D(CloudField.Size, CloudField.Size, TextureFormat.RGBAFloat, true, true)
                 {
-                    name = "cloud field", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Repeat
+                    name = "cloud field", filterMode = FilterMode.Trilinear, wrapMode = TextureWrapMode.Repeat
                 };
                 texture.SetPixelData(data, 0);
-                texture.Apply(false, true);
+                texture.Apply(true, true);
             }
             double a = CloudLookTuning.FieldWindDeg * System.Math.PI / 180.0;
             // x on, yz the street direction, w the smallest feature the field draws in m (the march's spacing beyond a quarter of it hands the map's own value over).

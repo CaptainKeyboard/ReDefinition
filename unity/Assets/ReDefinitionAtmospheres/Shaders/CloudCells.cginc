@@ -256,24 +256,33 @@ float4 _FieldC[8];
 // A puffy type's single cloud from the field, the one code of the layer pass and the cloud shadow. The cloud is where the field u(x) is below the map's local share f ({u < f} has the map's cover
 // whatever the field); its body is CellBody's with the distance to the footprint's edge in m, (f - u) over the gradient of u, in the place of the lattice's distance to a centre: a dome of the
 // class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the deck) and where the march's spacing (foot, 0: none) is
-// wider than the field's smallest feature, the map's own value is drawn. Returns -1 there (the caller draws the map), 0 outside the body's reach (the density is 0), 1 inside it with the cell
+// wider than the field's smallest feature, the map's own value is drawn. Returns -1 there (the caller draws the map; cov is then the map's value with the field's footprint blended in by
+// the hand-over weight, as CellCover blends the lattice's discs, so there is no edge where the hand-over begins), 0 outside the body's reach (the density is 0), 1 inside it with the cell
 // read's globals (gCellX, gCellR, gCellCore, gCellW) set for CellBody. uv: the layer map's coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point;
-// typeHeightM: the type's height in m.
-int FieldCloud(int li, int puff, float2 uv, float cov, float coverage, float edge, float amount, float foot, float rm, float h, float typeHeightM)
+// typeHeightM: the type's height in m. The field is read at the mip level of the march's spacing (foot): without it the field's 50 to 200 m texels alias into a speckle at distance.
+int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, float edge, float amount, float foot, float rm, float h, float typeHeightM)
 {
     float4 fc = _FieldC[puff];
     float fShare = CellShare(cov, coverage, edge, amount);
     float wF = max(saturate((fShare - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * _FieldP.w) / (0.5 * _FieldP.w)) : 0.0);
-    if (wF > 0.0) return -1;
     float lat = (0.5 - uv.y) * 3.14159265;
     float xM = uv.x * 2.0 * 3.14159265 * rm * max(cos(lat), 0.02), yM = lat * rm;
     float along = (xM * _FieldP.y + yM * _FieldP.z) / fc.w, across = -xM * _FieldP.z + yM * _FieldP.y;
     float2 pF = float2(along * _FieldP.y - across * _FieldP.z, along * _FieldP.z + across * _FieldP.y) * (fc.z / 102400.0);
-    float3 fv = tex2Dlod(_CloudField, float4(pF, 0, 0)).xyz;
+    // A texel is CloudField.TileM / CloudField.Size / z = 100 / z m.
+    float lod = foot > 0.0 ? max(log2(foot * fc.z / 100.0), 0.0) : 0.0;
+    float3 fv = tex2Dlod(_CloudField, float4(pF, 0, lod)).xyz;
     float dm = (fShare - fv.x) / max(fv.y * fc.z * 0.001, 1e-6);
     float coreF = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * (1.0 + fc.y * (1.0 - 2.0 * fv.z));
     float topF = clamp(coreF / 0.5, 0.15, 1.0);
     float semiH = max(topF * typeHeightM, 1.0), rC = fc.x * semiH;
+    if (wF > 0.0)
+    {
+        // The footprint as CellCover's profile: above the threshold by up to the core strength inside, below it by up to half a unit outside.
+        float e = dm >= 0.0 ? min(dm / rC, 1.0) * coreF : max(dm / rC, -1.0) * 0.5;
+        cov = lerp(1.0 - coverage + e, cov, wF);
+        return -1;
+    }
     float xv = 1.0 - clamp(dm / rC, -2.0, 1.0), hv = h / topF;
     float axis = min(rC, semiH);
     float swing = _CellE[li].x * axis * (0.5 + 0.5 * _CellE[li].z * (0.37 + 0.137));
