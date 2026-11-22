@@ -151,6 +151,24 @@ namespace ReDefinition.Atmospheres
                 case "r4lvsgsh":
                 case "r4lvsg75sh":
                 case "r4lvsg50sh":
+                case "lattice":
+                case "fpnorot":
+                case "fpnohist":
+                case "fpnolv":
+                case "fpnosg":
+                case "fpshfull":
+                case "fpspread":
+                case "hnoage":
+                case "hnodr":
+                case "hclip1":
+                case "hnotd":
+                case "hnotri":
+                case "bnowb":
+                case "bnohaze":
+                case "sg5e4":
+                case "sg2e4":
+                case "sgfrom2k":
+                case "sgstep12":
                     return true;
                 default:
                     return false;
@@ -420,6 +438,49 @@ namespace ReDefinition.Atmospheres
                         ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
                         ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
                     }
+                    break;
+                // The map sky check (2026-11-22): lattice is the sky as it was before the weather map became the default (cloud.weatherMapSky 0: the old layer maps, the 3 km lattice).
+                case "lattice": ForceTuning(WeatherMapSky.TuneKey, 0f); break;
+                // The grid hunt (2026-11-22, PRUEFPROTOKOLL 75: a regular 16-render-pixel grid over the storm's ground view with the map sky): one part of the fast cloud
+                // path off each (CloudFastPath): fpnorot the 4 x 4 rotation (recon.rotate 0: the setting's own), fpnohist the march's distance history (trueDistance, age,
+                // distanceReject, clipSigma back to their full-path values), fpnolv the light volume, fpnosg the points by distance, fpshfull the full cloud shadow.
+                case "fpnorot": ForceTuning(OwnCloudOptions.TuneReconRotate, 0f); break;
+                case "fpnohist":
+                    ForceTuning(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault ? 1f : 0f);
+                    ForceTuning(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault ? 1f : 0f);
+                    ForceTuning(OwnCloudOptions.TuneMarchTriangle, OwnCloudOptions.MarchTriangleDefault ? 1f : 0f);
+                    ForceTuning(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault);
+                    ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault);
+                    break;
+                case "fpnolv": ForceTuning(CloudLookTuning.TuneLightVolume, 0f); break;
+                // The grid hunt, step 2 (PRUEFPROTOKOLL 76: the grid goes with the five history keys off together, fpnohist): one key back to its full-path value each.
+                case "hnoage": ForceTuning(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault ? 1f : 0f); break;
+                case "hnodr": ForceTuning(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault); break;
+                case "hclip1": ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault); break;
+                case "hnotd": ForceTuning(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault ? 1f : 0f); break;
+                case "hnotri": ForceTuning(OwnCloudOptions.TuneMarchTriangle, OwnCloudOptions.MarchTriangleDefault ? 1f : 0f); break;
+                // The band hunt (owner "fix what you see"): the scene's white balance off (setting sceneWhiteBalance 0) and the clouds' aerial perspective off (cloud.hazeStrength 0).
+                case "bnowb": SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, 0.0); break;
+                case "bnohaze": ForceTuning(CloudLookTuning.TuneHazeStrength, 0f); break;
+                // The storm's ground view below 48 fps (PRUEFPROTOKOLL 76/77): points by distance put many short steps into the fog near the camera (fpnosg 53 fps ground but 46
+                // above). sg5e4 / sg2e4 a weaker growth (layers.spanGrowthPerM 0.0005 / 0.0002), sgfrom2k the growth from 2 km on (layers.spanGrowthFromM 2000), sgstep12 the fast
+                // growth with the shortest step 12 m (layers.minStepM; the look's 6 m).
+                case "sg5e4": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.0005f); break;
+                case "sg2e4": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.0002f); break;
+                case "sgfrom2k": ForceTuning(OwnCloudOptions.TuneSpanGrowthFromM, 2000f); break;
+                case "sgstep12": ForceTuning(OwnCloudOptions.TuneMinStepM, 12f); break;
+                // The contour bands (PRUEFPROTOKOLL 75, owner "fix what you see"): the fast path with LV3's lateral light spread (wolken-m2a-technik 11.8: the propagation fill on
+                // 156.25 m voxels as the spread's source, transmittance stored over 8; the hand-over stays the fast path's 0 km).
+                case "fpspread":
+                    ForceTuning(CloudLookTuning.TuneLvSpread, 3f);
+                    ForceTuning(CloudLookTuning.TuneLvFill, 1f);
+                    ForceTuning(CloudLookTuning.TuneLvStoreK, 8f);
+                    ForceTuning(CloudLookTuning.TuneLvVoxel, 156.25f);
+                    break;
+                case "fpnosg": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0f); break;
+                case "fpshfull":
+                    SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, 1.0);
+                    ForceTuning(OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.ShadowResolutionDefault);
                     break;
                 case "noshadow": SetSetting(AtmospheresSettings.Keys.CloudShadows, 0.0); break;
                 case "norays": SetSetting(AtmospheresSettings.Keys.RtOwnClouds, 0.0); break;

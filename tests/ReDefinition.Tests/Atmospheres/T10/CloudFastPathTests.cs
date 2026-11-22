@@ -52,6 +52,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Default);
             Assert.AreEqual(CloudFastPath.SpanGrowthPerM, frame.SpanGrowthPerM);
+            Assert.AreEqual(CloudFastPath.MinStepM, frame.MinStepM);
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Default);
             Assert.IsTrue(recon.Rotation, "the rotation is on");
@@ -77,6 +78,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Default);
             Assert.AreEqual(0f, frame.SpanGrowthPerM);
+            Assert.AreEqual(OwnCloudOptions.LookMinStepM, frame.MinStepM);
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Default);
             Assert.AreEqual(OwnCloudOptions.TrueDistanceDefault, recon.TrueDistance);

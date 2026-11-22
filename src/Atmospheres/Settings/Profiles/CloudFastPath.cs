@@ -9,10 +9,14 @@ namespace ReDefinition.Atmospheres
         // The light volume for the sun's light of every lit sample: on, handed over at 0 km, one near tap on the far path.
         internal const float LightVolume = 1f, LvHandOverKm = 0f, LvFarTaps = 1f;
         // The rotation over 4 x 4 blocks with the march's own distance history.
-        internal const float ReconRotate = 4f, DistanceReject = 0.3f, ClipSigma = 2f;
+        // The clip stays the full path's 1 sigma: 2 sigma drew a 4-pixel stipple and a 16-pixel grid over a fog-filled view (storm, ground; PRUEFPROTOKOLL 77).
+        internal const float ReconRotate = 4f, DistanceReject = 0.3f, ClipSigma = OwnCloudOptions.ClipSigmaDefault;
         internal const bool MarchTriangle = true, TrueDistance = true, Age = true;
         // A span's points by distance: the step grows by this per m from the camera.
         internal const float SpanGrowthPerM = 0.001f;
+        // The shortest step in m (the look's 6 m on the full path): with the points by distance the near steps in a fog-filled view are short and many; 12 m kept
+        // the storm's ground view at 49-50 fps (46-48 with 6 m) and every other view >= 53 (PRUEFPROTOKOLL 79), at a little softer near detail.
+        internal const float MinStepM = 12f;
         // The cloud shadow marched at a quarter of the camera's size.
         internal const float ShadowResolution = 4f;
 
