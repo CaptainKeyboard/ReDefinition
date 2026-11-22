@@ -20,6 +20,7 @@ namespace ReDefinition.Atmospheres
 
         public void Init()
         {
+            CloudFastPath.Source = FastPathOfTier;
             QualityTier? marked = ReadMarker(AtmospheresSettings.Mod);
             QualityTier effective = QualityProfile.Effective();
             if (QualityProfile.NeedsApply(effective, marked) || ReadRevision(AtmospheresSettings.Mod) != TierRows.Revision) Apply(effective);
@@ -56,6 +57,12 @@ namespace ReDefinition.Atmospheres
         }
 
         // The tier the marker names; null where there is no marker or it is damaged.
+        // The fast cloud path of the tier in force (CloudFastPath.Source in the game).
+        internal static bool FastPathOfTier()
+        {
+            return TierRows.For(QualityProfile.Effective()).CloudFastPath;
+        }
+
         internal static QualityTier? ReadMarker(string mod)
         {
             return ModSettingsFile.Read<QualityTier?>(mod, MarkerFile, ParseMarker, null);

@@ -27,8 +27,6 @@ namespace ReDefinition.Atmospheres
         {
             internal int Count;
             internal float P10, Median, P90, R, G, B;
-            // The 10th and 90th percentile of the red channel (the aid frame of the light carries the direct light in it).
-            internal float RP10, RP90;
             // The share of the region's samples with a channel at or above ClipValue.
             internal float Clipped;
         }
@@ -617,8 +615,6 @@ namespace ReDefinition.Atmospheres
                 s.P10 = Percentile(luma, 0.10);
                 s.Median = Percentile(luma, 0.50);
                 s.P90 = Percentile(luma, 0.90);
-                s.RP10 = Percentile(r, 0.10);
-                s.RP90 = Percentile(r, 0.90);
                 s.R = Percentile(r, 0.50);
                 s.G = Percentile(g, 0.50);
                 s.B = Percentile(b, 0.50);

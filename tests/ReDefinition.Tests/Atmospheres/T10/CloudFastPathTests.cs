@@ -25,7 +25,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void Restore()
         {
             Tuning.ClearOverrides();
-            CloudFastPath.Source = () => TierRows.For(QualityProfile.Effective()).CloudFastPath;
+            CloudFastPath.Source = () => false;
             Tuning.Instance.BeginFrame(9300099);
         }
 

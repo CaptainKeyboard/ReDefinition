@@ -85,7 +85,7 @@ def cell_camera(w, h=None):
     return cam
 
 
-def light_job(jid, cam, layers, width, height, sun, aid=0, planet=R, cell=False, sun_colour=None, amb_top=None, amb_bottom=None,
+def light_job(jid, cam, layers, width, height, sun, planet=R, cell=False, sun_colour=None, amb_top=None, amb_bottom=None,
               layer_kw=None, **over):
     """One job of the light scene: the layer-pass job of the camera and layers plus the light's numbers (MODEL, overridden by over)."""
     kw = dict(maxSteps=128, minStep=1.0, stepGrowth=0.0, jitter=0.0, earlyOut=0.0, sunMarch=SUN_MARCH_M, sunSteps=int(MODEL["sunSteps"]),
@@ -96,7 +96,7 @@ def light_job(jid, cam, layers, width, height, sun, aid=0, planet=R, cell=False,
     bot = amb_bottom if amb_bottom is not None else [AMBIENT_BOTTOM] * 3
     lj = L.job(jid, "lum", cam, layers, width, height, planet=planet, surface=1, sun=sun, sunColour=vec(sc), ambientTop=vec(top),
                ambientBottom=vec(bot), **kw)
-    j = dict(id=jid, mode="lum", aid=int(aid), useDefaults=0, layerJob=lj)
+    j = dict(id=jid, mode="lum", useDefaults=0, layerJob=lj)
     j.update(MODEL)
     j.update(over)
     j["sunSteps"] = int(j["sunSteps"])
@@ -113,11 +113,6 @@ def cell_job(jid, az, el, w=96, **over):
 def slab_job(jid, tau, thickness, base=2000.0, el=45.0, **over):
     cam = pr.Camera([0.0, 0.0, R + 2.0], 0.0, 90.0, 3, 3, 10.0)
     return light_job(jid, cam, [L.layer(base, base + thickness, tau / thickness)], 3, 3, flat_sun(200.0, el), **over)
-
-
-def phase_job(jid, **over):
-    cam = pr.Camera([0.0, 0.0, R + 2.0], 0.0, 0.0, 4001, 1, 10.0)
-    return light_job(jid, cam, [L.layer(2000.0, 3000.0, 0.001)], 4001, 1, [0.0, 0.0, 1.0], aid=3, **over)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------
@@ -144,7 +139,7 @@ def reference_column():
 
 
 def reference_numbers():
-    """The figures of the full-quality reference run: ratios and dips, and its sun term sums."""
+    """The figures of the full-quality reference run: ratios and dips."""
     col = reference_column()
     out = {}
     if "R06-silver-lining" in col:
@@ -159,8 +154,6 @@ def reference_numbers():
         c = col["R09-powder"]
         out["powder"] = float(c["edge_j"]) / float(c["interior_j"])
         out["edge_j"], out["interior_j"] = float(c["edge_j"]), float(c["interior_j"])
-    if "R07-light-steps" in col:
-        out["sun_term_ref64"] = float(col["R07-light-steps"]["sun_term_ref64"])
     return out
 
 
@@ -298,8 +291,6 @@ register_series("T03-fit", fit_stages(), fit_collect, exclusive=False, who="T03"
 # --------------------------------------------------------------------------------------------------------------------------------
 # The jobs of the judged series
 # --------------------------------------------------------------------------------------------------------------------------------
-SUN_STEPS_SET = (1, 2, 3, 4, 8)
-UNIFORM_STEPS_SET = (1, 2, 3, 4, 8, 16, 64)
 CLIMB_FRAMES, CLIMB_FROM, CLIMB_TO = 61, 8000.0, 9000.0
 SUN_STEP_FRAMES = 16
 # The production sampling of the planet scenes (T01): 48 steps, the step growing with the distance, the interleaved gradient noise, the early out.
@@ -321,15 +312,15 @@ VIEW_TABLE = (
 UP_VIEWS = {"deck": (2000.0, 2600.0, 25.0, 25.0), "cirrus": (8000.0, 8400.0, 0.4, 25.0)}
 
 
-def up_job(jid, vid, aid=0, w=64, harness=False):
+def up_job(jid, vid, w=64, harness=False):
     """A view up at a layer. harness: the harness's own grey environment and the white sun, the setting the reference renderer rendered
     (build/parity-ref-images/updecks.json, 16 x 12 px) for the 'deck' and 'cirrus' checks."""
     base, top, tau, el = UP_VIEWS[vid]
     cam = pr.Camera([0.0, 0.0, R + 2.0], 0.0, 35.0, w, int(w * 0.75), 60.0)
     if harness:
-        return light_job(jid, cam, [L.layer(base, top, tau / (top - base))], cam.width, cam.height, flat_sun(200.0, el), aid=aid)
+        return light_job(jid, cam, [L.layer(base, top, tau / (top - base))], cam.width, cam.height, flat_sun(200.0, el))
     over = dict(SUN_AIR) if vid in AIR_VIEWS else {}
-    return light_job(jid, cam, [L.layer(base, top, tau / (top - base))], cam.width, cam.height, flat_sun(200.0, el), aid=aid,
+    return light_job(jid, cam, [L.layer(base, top, tau / (top - base))], cam.width, cam.height, flat_sun(200.0, el),
                      amb_top=[0.25, 0.32, 0.5], amb_bottom=[0.10, 0.10, 0.10], **over)
 
 
@@ -369,7 +360,7 @@ SUN_AIR = dict(sunAirTau=[0.0764, 0.138, 0.295], sunAirHeight=8000.0)
 AIR_VIEWS = ("low", "sunset", "deck", "cirrus", "storm")
 
 
-def view_job(jid, spec, variant=None, aid=0, w=96):
+def view_job(jid, spec, variant=None, w=96):
     _, az, el, sun_col, amb, extra = spec
     over = dict(SUN_AIR) if spec[0] in AIR_VIEWS else {}
     over.update(variant or {})
@@ -382,7 +373,7 @@ def view_job(jid, spec, variant=None, aid=0, w=96):
         kw["amb_top"], kw["amb_bottom"] = amb
     if extra is not None:
         over.update(moonDir0=vec(extra[0]), moonCol0=vec(extra[1]))
-    return cell_job(jid, az, el, w=w, aid=aid, **dict(kw, **over))
+    return cell_job(jid, az, el, w=w, **dict(kw, **over))
 
 
 def climb_camera(h):
@@ -390,33 +381,20 @@ def climb_camera(h):
 
 
 def build_jobs():
-    jobs = [phase_job("P-phase")]
-    jobs.append(cell_job("S-near", 0.0, 8.0, w=96))
+    jobs = [cell_job("S-near", 0.0, 8.0, w=96)]
     jobs.append(cell_job("S-far", 75.0, 8.0, w=96))
     jobs.append(slab_job("B-h", 1.5, 1000.0))
     jobs.append(slab_job("B-2h", 3.0, 2000.0))
-    for n in SUN_STEPS_SET:
-        jobs.append(cell_job("LS-g%d" % n, 90.0, 50.0, w=96, aid=4, octaves=1, sunSteps=n, tapRatio=2.0, powder=0.0, diffusion=0.0))
-    for n in UNIFORM_STEPS_SET:
-        jobs.append(cell_job("LS-u%d" % n, 90.0, 50.0, w=96, aid=4, octaves=1, sunSteps=n, tapRatio=1.0, powder=0.0, diffusion=0.0))
-    jobs.append(cell_job("LSR", 90.0, 50.0, w=64, aid=4, octaves=1, sunSteps=64, tapRatio=1.0, powder=0.0, diffusion=0.0))
     jobs.append(cell_job("BT", 90.0, 50.0, w=96))
     jobs.append(cell_job("PW", 180.0, 35.0, w=96))
     jobs.append(cell_job("PW-off", 180.0, 35.0, w=96, powder=0.0))
     jobs.append(cell_job("PW-one", 180.0, 35.0, w=96, octaves=1))
-    jobs.append(cell_job("AF", 90.0, 50.0, w=96, aid=4))
-    jobs.append(cell_job("AF-black", 90.0, 50.0, w=96, aid=4, amb_top=[0.0] * 3, amb_bottom=[0.0] * 3, ambientGain=0.0, ambientFloor=0.0))
-    # The analytic slab: view straight up, isotropic phase, single scattering, no ambient (aid 4: the direct part alone).
-    cam = pr.Camera([0.0, 0.0, R + 2.0], 0.0, 90.0, 3, 3, 10.0)
-    for tag, steps, ratio in [("g%d" % n, n, 2.0) for n in SUN_STEPS_SET] + [("u%d" % n, n, 1.0) for n in UNIFORM_STEPS_SET]:
-        jobs.append(light_job("SL-" + tag, cam, [L.layer(2000.0, 3000.0, 0.002)], 3, 3, flat_sun(200.0, 45.0), aid=4, octaves=1, forwardG=0.0,
-                              backG=0.0, forwardWeight=1.0, albedo=1.0, sunSteps=steps, tapRatio=ratio, powder=0.0, diffusion=0.0))
     # The sun's step response and the climb: each frame its own job (the pass keeps no state between frames).
     for i in range(SUN_STEP_FRAMES):
-        jobs.append(cell_job("SS-%02d" % i, 0.0 if i < 4 else 5.0, 8.0, w=48, aid=4))
+        jobs.append(cell_job("SS-%02d" % i, 0.0 if i < 4 else 5.0, 8.0, w=48))
     for i in range(SUN_STEP_FRAMES):
         amb = [AMBIENT_TOP * (1.0 if i < 4 else 1.5)] * 3
-        jobs.append(cell_job("AS-%02d" % i, 90.0, 50.0, w=48, aid=4, amb_top=amb, amb_bottom=[AMBIENT_BOTTOM * (1.0 if i < 4 else 1.5)] * 3))
+        jobs.append(cell_job("AS-%02d" % i, 90.0, 50.0, w=48, amb_top=amb, amb_bottom=[AMBIENT_BOTTOM * (1.0 if i < 4 else 1.5)] * 3))
     sun = flat_sun(200.0, 30.0)
     for i in range(CLIMB_FRAMES):
         h = CLIMB_FROM + (CLIMB_TO - CLIMB_FROM) * i / (CLIMB_FRAMES - 1)
@@ -424,33 +402,14 @@ def build_jobs():
         jobs.append(light_job("CL-%02d" % i, cam, [L.layer(2200.0, 2500.0, 0.02)], 24, 24, sun, layer_kw=PRODUCTION))
         jobs.append(light_job("CLS-%02d" % i, cam, [L.layer(2200.0, 2500.0, 0.02)], 24, 24, sun, layer_kw=dict(PRODUCTION, jitter=0.0)))
     jobs.append(dict(cell_job("DF", 90.0, 50.0, w=96), useDefaults=1))
-    # Pictures: the view table, the A/B variants of the side view, each natural (aid 0) and with the aid split (aid 4).
+    # Pictures: the view table and the A/B variants of the side view.
     for spec in VIEW_TABLE:
         jobs.append(view_job("V-%s" % spec[0], spec))
-        jobs.append(view_job("VA-%s" % spec[0], spec, aid=4))
     for vid in UP_VIEWS:
         jobs.append(up_job("V-%s" % vid, vid))
-        jobs.append(up_job("VA-%s" % vid, vid, aid=4))
         jobs.append(up_job("DK-%s" % vid, vid, w=16, harness=True))
     for name, over in AB_VARIANTS:
         jobs.append(view_job("AB-%s" % name, VIEW_TABLE[1], over))
-        jobs.append(view_job("ABA-%s" % name, VIEW_TABLE[1], over, aid=4))
-    jobs.extend(cache_jobs())
-    return jobs
-
-
-# The light cache A/B: the cell's sun term (single scattering, aid 4) with the per-sample march at a few taps, the cache filled with N taps, and
-# the 64-tap uniform march as the truth. The box is 2400 m on a side around the cell's centre: 37.5 m voxels in the plan, 75 m in height.
-CACHE_FILL_SET = (4, 8, 16, 32)
-CACHE_BOX = [2400.0, 2400.0, 2400.0]
-
-
-def cache_jobs():
-    jobs = []
-    lo = [CELL_CENTRE[0] - CACHE_BOX[0] / 2, CELL_CENTRE[1] - CACHE_BOX[1] / 2, CELL_CENTRE[2] - CACHE_BOX[2] / 2]
-    for n in CACHE_FILL_SET:
-        jobs.append(cell_job("CA-%d" % n, 90.0, 50.0, w=96, aid=4, octaves=1, sunSteps=3, cache=1, cacheMin=lo, cacheSize=CACHE_BOX, cacheFillSteps=n,
-                             tapRatio=1.0, powder=0.0, diffusion=0.0))
     return jobs
 
 
@@ -470,13 +429,6 @@ def luma(img4):
     return (r + g + b) / 3.0
 
 
-def cap_phase_ours(folder):
-    r = plane(folder, "P-phase", "r")[0]
-    g = plane(folder, "P-phase", "g")[0]
-    mu = np.linspace(-1.0, 1.0, len(r))
-    return {"mu": mu, "p": r}, {"mu": mu, "p": g}
-
-
 def cap_silver_ours(folder):
     near, _ = cell_img(folder, "S-near")
     far, _ = cell_img(folder, "S-far")
@@ -485,17 +437,6 @@ def cap_silver_ours(folder):
 
 def cap_beer_ours(folder):
     return {"T_h": 1.0 - float(plane(folder, "B-h", "a")[1, 1]), "T_2h": 1.0 - float(plane(folder, "B-2h", "a")[1, 1])}
-
-
-def sun_term(folder, jid, mask):
-    """The sum of the direct light over the mask (aid 4: r holds the direct part, premultiplied)."""
-    return float(plane(folder, jid, "r")[mask].sum())
-
-
-def cap_light_steps_ours(folder, tag="g", n=4):
-    a = plane(folder, "LS-u64", "a")
-    mask = a > 0.5
-    return {"sun_term": sun_term(folder, "LS-%s%d" % (tag, n), mask), "sun_term_ref64": sun_term(folder, "LS-u64", mask), "steps": n}
 
 
 def cap_base_top_ours(folder, jid="BT"):
@@ -510,13 +451,6 @@ def cap_powder_ours(folder, jid="PW"):
     return {"edge_j": e, "interior_j": i}
 
 
-def cap_ambient_ours(folder, jid="AF-black"):
-    r, g, b, a = (plane(folder, jid, c) for c in "rgba")
-    m = a > 0.97
-    j = b[m] / a[m]
-    return {"ambient": float(j.min()), "sun_share": SUN_E / (4.0 * math.pi)}
-
-
 def sequence(folder, prefix, count, start=0, channel=None):
     out = []
     for i in range(start, count):
@@ -526,13 +460,6 @@ def sequence(folder, prefix, count, start=0, channel=None):
         else:
             out.append(float(luma(tuple(plane(folder, jid, c) for c in "rgba")).mean()))
     return np.array(out)
-
-
-def slab_expected():
-    """The direct light of the analytic slab: S0/4pi * sigma * integral over the depth z of exp(-sigma z) * exp(-sigma (H - z) / sin e)."""
-    s0, sigma, h, s = SUN_E, 0.002, 1000.0, math.sin(math.radians(45.0))
-    k = sigma * (1.0 - 1.0 / s)
-    return s0 / (4.0 * math.pi) * sigma * math.exp(-sigma * h / s) * (math.exp(-k * h) - 1.0) / (-k)
 
 
 def cell_summary(folder, jid):
@@ -555,42 +482,26 @@ def collect(ctx):
     spec = pc.load_spec()
     folder = ctx.folder("scene")
     out = list(core.player_judged("scene")(ctx))
-    if not os.path.isfile(os.path.join(folder, "P-phase-r.npy")):
+    if not os.path.isfile(os.path.join(folder, "S-near-r.npy")):
         out.append(Metric.flag("written", False))
         return out
     ref = reference_numbers()
-    needed = ("silver", "base_top", "powder", "sun_term_ref64")
+    needed = ("silver", "base_top", "powder")
     missing = [k for k in needed if k not in ref]
     # No reference, no verdict: the checks that equal the reference need its numbers (run parity_run.py reference ... --quality full).
     out.append(Metric.flag("reference_available", not missing))
     if missing:
         return out
     os.makedirs(OURS, exist_ok=True)
-    phase0, phase1 = cap_phase_ours(folder)
-    judge(spec, "R06-phase-integral", phase0, out)
-    m = pc.run_check("phase_integral", phase1, spec["R06-phase-integral"])
-    out.append(Metric.info("R06-phase-integral.octave1_error", m.value))
     d = cap_silver_ours(folder)
     d["ref_ratio"] = ref["silver"]
     judge(spec, "R06-silver-lining", d, out)
     judge(spec, "R07-beer-lambert", cap_beer_ours(folder), out)
-    for n in SUN_STEPS_SET:
-        m = pc.run_check("light_step_error", cap_light_steps_ours(folder, "g", n), spec["R07-light-steps"])
-        out.append(Metric.info("R07-light-steps.geometric%d" % n, m.value))
-    for n in UNIFORM_STEPS_SET[:-1]:
-        m = pc.run_check("light_step_error", cap_light_steps_ours(folder, "u", n), spec["R07-light-steps"])
-        out.append(Metric.info("R07-light-steps.uniform%d" % n, m.value))
-    judge(spec, "R07-light-steps", cap_light_steps_ours(folder, "g", MODEL["sunSteps"]), out)
-    mask = plane(folder, "LSR", "a") > 0.5
-    out.append(Metric.info("R07-light-steps.ours64_vs_reference64", pc.rel(sun_term(folder, "LSR", mask), ref["sun_term_ref64"])))
     for k in ("silver_near", "silver_far", "top", "base", "edge_j", "interior_j"):
         out.append(Metric.info("reference." + k, ref[k]))
     d = cap_base_top_ours(folder)
     d["ref_ratio"] = ref["base_top"]
     judge(spec, "R08-base-top", d, out)
-    judge(spec, "R08-ambient-floor", cap_ambient_ours(folder), out)
-    m = pc.run_check("ambient_floor", cap_ambient_ours(folder, "AF"), spec["R08-ambient-floor"])
-    out.append(Metric.info("R08-ambient-floor.normal_sky", m.value))
     d = cap_powder_ours(folder)
     d["ref_dip"] = ref["powder"]
     judge(spec, "R09-powder", d, out)
@@ -610,17 +521,9 @@ def collect(ctx):
     judge(spec, "R10-cache-jump", {"luminance": sequence(folder, "CL", CLIMB_FRAMES)}, out)
     m = pc.run_check("light_cache_jump", {"luminance": sequence(folder, "CLS", CLIMB_FRAMES)}, spec["R10-cache-jump"])
     out.append(Metric.info("R10-cache-jump.midpoint_rule", m.value))
-    expected = slab_expected()
-    for tag in ["g%d" % n for n in SUN_STEPS_SET] + ["u%d" % n for n in UNIFORM_STEPS_SET]:
-        got = float(plane(folder, "SL-" + tag, "r")[1, 1])
-        err = abs(got - expected) / expected
-        configured = tag in ("g3", "g4")
-        out.append((Metric.at_most("SL.%s_error" % tag, err, 0.10).based("gate") if configured else Metric.info("SL.%s_error" % tag, err)))
-    out.append(Metric.info("SL.expected", expected))
     # The compiled defaults against the explicit numbers of the same cell.
     a, b = plane(folder, "DF", "g"), plane(folder, "BT", "g")
     out.append(Metric.at_most("defaults_equal_model", float(np.abs(a - b).max()), 1e-4).based("new"))
-    out.extend(cache_metrics(folder))
     # The layers seen from below against the reference renderer (FX-T03): a thick deck, a thin cirrus; within 25 % of the reference's radiance.
     for vid in UP_VIEWS:
         u = up_ratio(folder, vid)
@@ -636,31 +539,8 @@ def collect(ctx):
     return out
 
 
-def cache_metrics(folder):
-    out = []
-    truth = plane(folder, "LS-u64", "r")
-    mask = plane(folder, "LS-u64", "a") > 0.5
-    t = truth[mask]
-
-    def err(jid):
-        # The sum's relative error (the harness's measure) and the pixel RMS error over the cloud pixels, as a share of the mean sun term.
-        v = plane(folder, jid, "r")[mask]
-        return abs(v.sum() - t.sum()) / t.sum(), float(np.sqrt(np.mean((v - t) ** 2)) / t.mean())
-
-    for n in SUN_STEPS_SET:
-        s, p = err("LS-g%d" % n)
-        out.append(Metric.info("cache.A.geometric%d.sum_error" % n, s))
-        out.append(Metric.info("cache.A.geometric%d.pixel_rms" % n, p))
-    for n in CACHE_FILL_SET:
-        if os.path.isfile(os.path.join(folder, "CA-%d-r.npy" % n)):
-            s, p = err("CA-%d" % n)
-            out.append(Metric.info("cache.B.fill%d.sum_error" % n, s))
-            out.append(Metric.info("cache.B.fill%d.pixel_rms" % n, p))
-    return out
-
-
 # --------------------------------------------------------------------------------------------------------------------------------
-# The pictures: natural and aid views, A/B grids
+# The pictures: natural views, A/B grids
 # --------------------------------------------------------------------------------------------------------------------------------
 def tone(c, k=1.3):
     return np.clip(1.0 - np.exp(-np.maximum(c, 0.0) * k), 0.0, 1.0) ** (1.0 / 2.2)
@@ -697,6 +577,7 @@ def natural_image(folder, jid, sky=None, all_sky=False):
 
 
 def heat(x):
+    """A heat colour map of values in 0..1 (black, violet, orange, yellow) for the pictures that are computed from the natural frames."""
     x = np.clip(x, 0.0, 1.0)
     stops = [(0.0, 0.0, 0.0), (0.4, 0.1, 0.5), (0.9, 0.4, 0.1), (1.0, 0.95, 0.5)]
     xs = np.linspace(0.0, 1.0, len(stops))
@@ -704,15 +585,6 @@ def heat(x):
     for c in range(3):
         out[..., c] = np.interp(x, xs, [s[c] for s in stops])
     return out
-
-
-def split_image(folder, jid):
-    """The aid views: the direct light (red) against the ambient (blue), and the step count's heat map."""
-    r, g, b, a = (plane(folder, jid, c) for c in "rgba")
-    scale = max(float(np.percentile(r + b, 99)), 1e-6)
-    sp = np.stack([tone(r / scale * 1.5), np.zeros_like(r), tone(b / scale * 1.5)], axis=-1)
-    steps = heat(g / max(float(g.max()), 1e-6)) * (a[..., None] > 0.01)
-    return sp, steps
 
 
 def upscale(img, k=4):
@@ -755,8 +627,7 @@ def pictures(folder):
         if not os.path.isfile(os.path.join(folder, "V-%s-r.npy" % vid)):
             continue
         nat = natural_image(folder, "V-%s" % vid, sky_of(vid), all_sky=vid in UP_VIEWS)
-        sp, steps = split_image(folder, "VA-%s" % vid)
-        panels, labels = [nat, sp, steps], ["ours natural", "direct (red) | ambient (blue)", "light taps per pixel"]
+        panels, labels = [nat], ["ours natural"]
         refimg = reference_image(vid)
         if refimg is not None:
             panels.append(refimg)
@@ -845,7 +716,7 @@ def cost_jobs():
         lj["ambientTop"] = [0.35, 0.42, 0.55]
         lj["ambientBottom"] = [0.14, 0.15, 0.16]
         for vname, over in COST_VARIANTS:
-            j = dict(id="%s|%s" % (lj["id"], vname), mode="lum", aid=0, useDefaults=0, layerJob=lj)
+            j = dict(id="%s|%s" % (lj["id"], vname), mode="lum", useDefaults=0, layerJob=lj)
             j.update(MODEL)
             j.update(over)
             if over.get("cache"):

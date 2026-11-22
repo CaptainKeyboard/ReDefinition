@@ -8,7 +8,7 @@ using ReDefinition.Core;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The whole K-T2d scenario of T09Probe (the diagnosis of the black own clouds) against the fake world: the two cover times, the views ground and above, the off baseline,
-    // the gains 1, 4 and 16, the coverage variants, the aid frame, the numeric readouts, the environment lines, and the faults the readout must name (an empty region, a lost pose, no raw values,
+    // the gains 1, 4 and 16, the coverage variants, the numeric readouts, the environment lines, and the faults the readout must name (an empty region, a lost pose, no raw values,
     // a cover that does not differ, a field that does not answer). The fake draws a sky of 0.5, a sea of 0.7 and, when the pass draws all layers, a deck of 0.075 times the sun gain
     // clipped at 1: the readout has to find those numbers again.
     public partial class T09WalkThroughTests
@@ -96,18 +96,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     }
                     Assert.AreEqual(4.0, Row(r, p + "g4.deck_vs_g1"), 1e-2);
                     Assert.AreEqual(0.0, Values(r, p + "g1.deck_vs_g1", "plain").Count);
-                    // The aid frame: the direct light, the taps and the ambient over the deck.
-                    Assert.AreEqual(0.3, Row(r, p + "aid4.direct_median"), 1e-4);
-                    Assert.AreEqual(0.5, Row(r, p + "aid4.taps_median"), 1e-4);
-                    Assert.AreEqual(0.1, Row(r, p + "aid4.ambient_median"), 1e-4);
                     Assert.IsTrue(Row(r, "T09d." + view + "." + cover + ".cover_at_view_height") > 0);
                 }
             }
 
             // The poses are verified at every capture (the rows of the pictures).
-            Assert.IsTrue(r.Rows.Count(l => l.Contains("\"metric\":\"T09.pic.") && l.Contains(".alt_m\"")) >= 56, "a pose row for each of the 56 frames");
-            // 2 covers x 2 views x (off + 3 gains + 3 stage variants + 2 coverage variants + aid) pictures, half size, plus 2 covers x ground x 4 layers x 2 shifts (layer alone).
-            Assert.AreEqual(56, r.World.Saved.Count);
+            Assert.IsTrue(r.Rows.Count(l => l.Contains("\"metric\":\"T09.pic.") && l.Contains(".alt_m\"")) >= 52, "a pose row for each of the 52 frames");
+            // 2 covers x 2 views x (off + 3 gains + 3 stage variants + 2 coverage variants) pictures, half size, plus 2 covers x ground x 4 layers x 2 shifts (layer alone).
+            Assert.AreEqual(52, r.World.Saved.Count);
             // The coverage variants: a frame each beside p1, with the shift they ran at (the fake world has no layer stack, so no model rows and no reach rows).
             foreach (string tag in new[] { "c42", "c35" })
             {
@@ -121,7 +117,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(Row(r, "T09d.ground.high.p1.deck_median") > 0 && Row(r, "T09d.above.low.pe2.deck_vs_g1") > 0, "the stage variants have rows");
             Assert.IsTrue(r.World.SavedFactor.All(f => f == 2));
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_low-g16-1707x960-natural-half")), string.Join(",", r.World.Saved.Take(4).ToArray()));
-            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-above_high-aid4-1707x960-aid-direct-half")));
             Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
 
             // The environment: at the first drawn frame and every 30 s of the scenario, as log lines; the first also as rows.
@@ -191,7 +186,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0, r.World.LayerMasks.Last(), "the mask ends at all layers");
             Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning gpu_map_differs") && l.Contains(".L1.")), "layer 1's GPU map differs and is named");
             Assert.IsFalse(r.Log.Any(l => l.Contains("Probe: warning gpu_map_differs") && l.Contains(".L0.")));
-            Assert.AreEqual(56.0, Row(r, "T09d.frames"));
+            Assert.AreEqual(52.0, Row(r, "T09d.frames"));
         }
 
         [TestMethod]
@@ -236,7 +231,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.0, Row(r, "T09d.ground.low.g16.deck_fraction"));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.low.g16.deck_n"));
             Assert.AreEqual(0, Values(r, "T09d.ground.low.g16.deck_median", "plain").Count);
-            Assert.AreEqual(0, Values(r, "T09d.ground.low.aid4.direct_median", "plain").Count);
             Assert.AreEqual(1.0, Row(r, "T09d.ground.low.g16.sky_over_off_sky"), 1e-3, "the sky is the sky of the baseline");
         }
 
@@ -257,9 +251,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.low.off.pose_ok"), "the frame is flagged");
             Assert.AreEqual(0.5, Row(r, "T09d.ground.low.off.sky_median"), 1e-4, "and read");
-            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 56);
+            Assert.IsTrue(Row(r, "T09d.frames_pose_bad") > 0 && Row(r, "T09d.frames") == 52);
             Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning pose_mismatch")));
-            Assert.AreEqual(56, r.World.Saved.Count, "the pictures are saved");
+            Assert.AreEqual(52, r.World.Saved.Count, "the pictures are saved");
         }
 
         [TestMethod]
@@ -268,7 +262,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run r = StartRealistic(x => x.World.PlaceResult = (call, wanted) => 85.35);
             Drive(r, 0.02);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.AreEqual(56.0, Row(r, "T09d.frames"));
+            Assert.AreEqual(52.0, Row(r, "T09d.frames"));
             Assert.AreEqual(0.0, Row(r, "T09d.frames_pose_ok"));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.high.placed_ok"));
             Assert.IsTrue(Row(r, "T09d.ground.high.g1.deck_median") > 0, "the readout is there");

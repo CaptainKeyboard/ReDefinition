@@ -117,10 +117,6 @@ namespace ReDefinition.Atmospheres
         // layers.maxSteps it sets how many points a long span takes and where they lie.
         internal const string TuneSpanGrowthPerM = "layers.spanGrowthPerM";
 
-        // layers.leapDebug (LayerFrame.LeapDebug, default -1: the march's own, LayerFrame.LeapWithGrowth while layers.spanGrowthPerM is on): switches of the march's leap over empty
-        // grid points, bits (the shader's _LeapP.x lists them); a prototype's diagnosis, not for players.
-        internal const string TuneLeapDebug = "layers.leapDebug";
-
         // layers.spanGrowthFromM (LayerFrame.SpanGrowthFromM, default 0): the distance from the camera beyond which layers.spanGrowthPerM grows the step.
         internal const string TuneSpanGrowthFromM = "layers.spanGrowthFromM";
 
@@ -286,7 +282,6 @@ namespace ReDefinition.Atmospheres
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
             f.CostStartM = Mathf.Max(0f, Tuning.Get(TuneCostStartM, 0f));
             f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, CloudFastPath.Pick(CloudFastPath.SpanGrowthPerM, 0f)));
-            f.LeapDebug = Mathf.RoundToInt(Tuning.Get(TuneLeapDebug, -1f));
             f.SpanGrowthFromM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthFromM, 0f));
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));

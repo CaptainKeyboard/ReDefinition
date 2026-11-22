@@ -441,19 +441,6 @@ namespace ReDefinition.WeatherPlayer
                     }
                     yield return null;
                 }
-                // The step-count heat map of the full pass (the layer shader's aid 5).
-                rig.Frame.AidMode = 5;
-                rig.Recon.Reset();
-                EdgeKit.Render(Cam, rig,full, 5);
-                rig.Frame.AidMode = 0;
-                RenderTexture.active = rig.Recon.Output;
-                var stepTex = new Texture2D(W, H, TextureFormat.RGBAHalf, false, true);
-                stepTex.ReadPixels(new Rect(0, 0, W, H), 0, 0, false);
-                RenderTexture.active = null;
-                Color[] steps = stepTex.GetPixels();
-                for (int p = 0; p < steps.Length; p++) steps[p] = new Color(steps[p].r, steps[p].g, steps[p].b);
-                EdgeKit.SaveColour(Path.Combine(pictures, "t12-" + view + "-aid-steps.png"), steps, W, H);
-                UnityEngine.Object.Destroy(stepTex);
                 yield return null;
             }
             rig.Dispose();

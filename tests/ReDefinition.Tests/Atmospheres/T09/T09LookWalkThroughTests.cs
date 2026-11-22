@@ -198,7 +198,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.IsTrue(Row(r, p + frame + ".deck_median") > 0, p + frame);
                     Assert.IsTrue(Row(r, p + frame + ".sun_r") > 0 && Row(r, p + frame + ".sun_g") > 0 && Row(r, p + frame + ".sun_b") > 0, p + frame + " sun colour");
                 }
-                Assert.AreEqual(0.3, Row(r, p + "aid4.direct_median"), 1e-4);
                 Assert.IsTrue(Row(r, p + "off2.sky_n") > 0 || Row(r, p + "off2.ground_n") > 0, p + "the second baseline frame (the noise floor) is read");
                 Assert.IsTrue(Row(r, p + "off.prof_b0_n") >= 0, p + "the baseline's row profile");
             }
@@ -225,22 +224,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-ground_low-ord1-") || n.Contains("-ground_high-hh1-")), "the order and haze frames are read from above at the low cover and at the horizon only");
             Assert.IsFalse(r.Rows.Any(l => l.Contains(".t0.prof_")), "the row profile is written for the horizon pose, the order frames and the baselines only");
             Assert.AreEqual(1.0, Row(r, "T09d.horizon.low.placed_ok"));
-            // The rain deck's own light at the high cover, from 8.3 km and 2.3 km: the deck, with the shadows off, with every layer, the aid frames of the tau and of the light.
+            // The rain deck's own light at the high cover, from 8.3 km and 2.3 km: the deck, with the shadows off, with every layer, the aid frame of the tau.
             foreach (string pose in new[] { "above.high.l0up", "deck.high.l0mid" })
             {
                 string view = pose.Substring(0, pose.LastIndexOf('.')), frame = pose.Substring(pose.LastIndexOf('.') + 1);
                 string q = "T09d." + view + ".";
                 Assert.IsTrue(Row(r, q + frame + ".deck_median") >= 0 && Row(r, q + frame + "sh0.deck_median") >= 0 && Row(r, q + frame + "all.deck_median") >= 0, pose + " frames");
                 Assert.IsTrue(Row(r, q + "aid1" + frame + ".aidtau_n") > 0, pose + " aid tau");
-                Assert.IsTrue(Row(r, q + "aid4" + frame + ".direct_median") > 0, pose + " aid light");
-                Assert.IsTrue(Row(r, q + "aid4" + frame + ".direct_r_p10") <= Row(r, q + "aid4" + frame + ".direct_r_p90"), pose + " the direct light's spread over the deck");
                 Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view.Replace('.', '_') + "-" + frame + "sh0-")), pose + " shadows-off picture");
             }
             // The shadow setting is put back after the shadows-off frames.
             Assert.AreEqual(shadowsBefore, AtmospheresSettings.CloudShadows, "cloudShadows is back as it was");
-            // 3 pairs x (off + off2 + 4 variants + aid) + the horizon (off, off2, 4 order frames, 8 fade frames, the repeat) + the high cover's ground view again (counted in the 3 pairs)
-            // + 2 deck-light views x (off, deck, aid tau, aid light, shadows off, all layers) + from above at the low cover the order frames (4) and the haze frames (2).
-            Assert.AreEqual(3 * 7 + 15 + 2 * 6 + 4 + 2, r.World.Saved.Count);
+            // 3 pairs x (off + off2 + 4 variants) + the horizon (off, off2, 4 order frames, 8 fade frames, the repeat) + the high cover's ground view again (counted in the 3 pairs)
+            // + 2 deck-light views x (off, deck, aid tau, shadows off, all layers) + from above at the low cover the order frames (4) and the haze frames (2).
+            Assert.AreEqual(3 * 6 + 15 + 2 * 5 + 4 + 2, r.World.Saved.Count);
         }
 
         [TestMethod]
@@ -249,7 +246,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run r = StartDiag();
             Drive(r, 0.02);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.AreEqual(56, r.World.Saved.Count);
+            Assert.AreEqual(52, r.World.Saved.Count);
             Assert.AreEqual(0, r.Rows.Count(l => l.Contains(".expect_closed_mean")), "no look rows");
             Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-kC0-")));
         }

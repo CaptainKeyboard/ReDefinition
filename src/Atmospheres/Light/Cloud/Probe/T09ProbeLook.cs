@@ -14,14 +14,14 @@ namespace ReDefinition.Atmospheres
     //                        inside (4.6 km) and from above (P3: it drew nothing at map 0.86).
     //   -atmoLook B          start 52, "look B": the light and the surface. The same three view/cover pairs with the exposure 1.4 and the sun's
     //                        path through the air with Scatterer loaded; the horizon pose (pitch +2 degrees, 200 m) at the low cover with the distance fade 0 / 20 / 40 / 80 km (cloud.fadeFarM)
-    //                        with and without the aerial perspective (cloud.farHaze); the aid frame of the direct light, the taps and the ambient. Follow-up of start 52: a second baseline frame
+    //                        with and without the aerial perspective (cloud.farHaze). Follow-up of start 52: a second baseline frame
     //                        (off2) and the repeats t0b / hz0h0b for the noise floor; the order pair at the horizon pose in the order 1, 0, 0, 1 (frames ord1, ord0, ord0b, ord1b) with the vertical
     //                        row profile of the deck (rows prof_b<k> / prof_a<k>, T09Readout.MeasureRowProfile); at the high cover the rain deck alone from 8.3 km and 2.3 km with the
-    //                        cloud shadows off (l0up / l0mid + sh0), every layer drawn (+ all) and the aid frames of the optical depth and the light.
+    //                        cloud shadows off (l0up / l0mid + sh0), every layer drawn (+ all) and the aid frame of the optical depth.
     // Rows, all T09d.<view>.<cover>.<frame>.*: the readout of the frame (EmitReading), written after the expectation rows (<frame>.expect_closed_mean / _p10 / _p90 / _sites: the CPU
     // oracle's closed share for the camera's geometry and the stack's CPU maps at the vessel with the knobs as they are, CloudLookModel.Expect, written BEFORE the frame is read) and
     // T09d.<view>.<cover>.L<k>.map_at_<d>_km, the layer's coverage map along the view's heading. Frames are named k<set>[m8] (shift 0 / -0.08), kovr (map forced), w<set>o<k> (layer k alone),
-    // q50 / q42, l0in / l0up, t0 / t5 / t10 (tint), e14, air1, hz<fade in km>h<0|1>, aid4.
+    // q50 / q42, l0in / l0up, t0 / t5 / t10 (tint), e14, air1, hz<fade in km>h<0|1>.
     internal sealed partial class T09Probe
     {
         private const string LookSwitch = "-atmoLook", LookSetsSwitch = "-atmoLookSets", LookWinSwitch = "-atmoLookWin";
@@ -171,7 +171,7 @@ namespace ReDefinition.Atmospheres
         private IEnumerable<ProbeWait> LookAidTau(View view, string cover, string frame, T09Readout.Reading off)
         {
             bool on = false;
-            try { on = Game.AidOn(1); }
+            try { on = Game.AidOn(); }
             catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": " + e.GetType().Name + " " + e.Message); }
             if (!on)
             {
@@ -179,7 +179,7 @@ namespace ReDefinition.Atmospheres
                 yield break;
             }
             yield return ProbeWait.Frames(DiagAidFrames);
-            foreach (ProbeWait w in DiagTake(view, cover, "aid1" + frame, true, off, 1)) yield return w;
+            foreach (ProbeWait w in DiagTake(view, cover, "aid1" + frame, true, off)) yield return w;
             try { Game.AidOff(); }
             catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
         }
@@ -366,7 +366,6 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in DiagTake(view, cover, "off2", false, null)) yield return w;
             Game.SetLayerMask(0);
             yield return ProbeWait.Frames(DiagSettleFrames);
-            T09Readout.Reading first = null;
             foreach (LightVariant v in LightVariants)
             {
                 ClearForced();
@@ -381,7 +380,6 @@ namespace ReDefinition.Atmospheres
                     Emit(head + v.Frame + ".sun_b", own.Frame.SunColour.b);
                 }
                 foreach (ProbeWait w in DiagTake(view, cover, v.Frame, false, off)) yield return w;
-                if (first == null) first = diagReading;
             }
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
@@ -392,18 +390,6 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in LookOrderPair(view, cover, head, off, new[] { 1, 0, 0, 1 })) yield return w;
                 foreach (ProbeWait w in LookHazeFrames(view, cover, head, off)) yield return w;
             }
-            bool on = false;
-            try { on = Game.AidOn(4); }
-            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + ": " + e.GetType().Name + " " + e.Message); }
-            if (!on)
-            {
-                Warn("no_aid_view", view.Name + " " + cover + ": the own pass has no aid view now");
-                yield break;
-            }
-            yield return ProbeWait.Frames(DiagAidFrames);
-            foreach (ProbeWait w in DiagTake(view, cover, "aid4", true, first)) yield return w;
-            try { Game.AidOff(); }
-            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
         }
 
         // The pass's aerial perspective (T06: the cloud's colour fogged towards the horizon sky by the air to its mean distance; cloud.farHaze, strength cloud.hazeStrength) at the strength 1 and 2:
@@ -465,8 +451,8 @@ namespace ReDefinition.Atmospheres
         }
 
         // Look B at the high cover (the rain deck L0 alone, from 2.3 km and from above): the deck's own light. Frames: off (no layer), the deck (l0mid / l0up), the same with the cloud shadows
-        // off (<frame>sh0), the same with every layer drawn (<frame>all, the layers that the layer-alone frames hide and that the deck's light march still sees), and the aid frames: optical
-        // depth (aid1) and light (aid4: direct r, light taps g, ambient b; the pass has no separate shadow channel, the cloud's shadow on itself is in the direct term).
+        // off (<frame>sh0), the same with every layer drawn (<frame>all, the layers that the layer-alone frames hide and that the deck's light march still sees), and the aid frame of the
+        // optical depth (aid1).
         private IEnumerable<ProbeWait> DiagLookDeckLight(View view, string cover)
         {
             string head = "T09d." + view.Name + "." + cover + ".";
@@ -480,9 +466,7 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(DiagSettleFrames);
             EmitLookExpectation(head, frame, view, Game.ReadLookInput(), 0);
             foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
-            T09Readout.Reading natural = diagReading;
             foreach (ProbeWait w in LookAidTau(view, cover, frame, off)) yield return w;
-            foreach (ProbeWait w in LookAidLight(view, cover, frame, natural)) yield return w;
             // The cloud shadow off: the pass does not read it (its buffers are the sun's mask and the opaque colour, both before the pass), so the deck does not change; the sea under an open
             // deck would.
             double shadowsBefore = AtmospheresSettings.CloudShadows ? 1.0 : 0.0;
@@ -500,23 +484,6 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in DiagTake(view, cover, frame + "all", false, off)) yield return w;
             Game.SetLayerMask(0);
             yield return ProbeWait.Frames(DiagSettleFrames);
-        }
-
-        // The aid frame of the light (aid mode 4) of the scene as it stands, read over the deck of the natural frame next to it: rows <frame>aid4.direct_*, taps_*, ambient_* (EmitAid).
-        private IEnumerable<ProbeWait> LookAidLight(View view, string cover, string frame, T09Readout.Reading natural)
-        {
-            bool on = false;
-            try { on = Game.AidOn(4); }
-            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": " + e.GetType().Name + " " + e.Message); }
-            if (!on)
-            {
-                Warn("no_aid_view", view.Name + " " + cover + " " + frame + ": the own pass has no aid view now");
-                yield break;
-            }
-            yield return ProbeWait.Frames(DiagAidFrames);
-            foreach (ProbeWait w in DiagTake(view, cover, "aid4" + frame, true, natural)) yield return w;
-            try { Game.AidOff(); }
-            catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": switching it off threw " + e.GetType().Name + " " + e.Message); }
         }
     }
 }

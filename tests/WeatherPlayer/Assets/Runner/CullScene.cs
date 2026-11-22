@@ -4,7 +4,7 @@
 //                                          split into the tile pass, the march and the reconstruction (timing run, exclusive)
 //   -scene cull-quality -in <T16 inputs>   per view the error of each variant against the reference (the mean of four full marches without any switch) in the band
 //                                          around the contour, the thick interior and the empty sky, the A/B difference to the same frame without the switch, the
-//                                          share of tiles and layers dropped, and the pictures t16-<view>-before / after / aid-skip / aid-diff
+//                                          share of tiles and layers dropped, and the pictures t16-<view>-before / after / aid-diff
 //   -scene cull-sweep -in <T16 inputs>     the camera sweeps (altitude, layer crossing, a turn of 360 degrees, the distance): the largest frame-to-frame change of
 //                                          the picture's luminance that the switch adds to the baseline's own
 //   -scene cull-levels -in <T16 inputs>    the 4 x 4 block mode through two turns with and without the switches: ghosting, trail and shimmer against the full
@@ -137,13 +137,6 @@ namespace ReDefinition.WeatherPlayer
                 float r = c.r + (1f - c.a) * EdgeKit.Sky.r, g = c.g + (1f - c.a) * EdgeKit.Sky.g, b = c.b + (1f - c.a) * EdgeKit.Sky.b;
                 outPx[i] = new Color(r / (1f + r), g / (1f + g), b / (1f + b));
             }
-            EdgeKit.SaveColour(path, outPx, w, h);
-        }
-
-        internal static void SaveAid(string path, Color[] px, int w, int h)
-        {
-            var outPx = new Color[px.Length];
-            for (int i = 0; i < px.Length; i++) outPx[i] = new Color(Mathf.Clamp01(px[i].r), Mathf.Clamp01(px[i].g), Mathf.Clamp01(px[i].b));
             EdgeKit.SaveColour(path, outPx, w, h);
         }
 
@@ -432,7 +425,7 @@ namespace ReDefinition.WeatherPlayer
                     }
                     yield return null;
                 }
-                // The pictures. before: the baseline; after: every switch on; aid-skip: the tile map; aid-diff: the difference to the baseline x8.
+                // The pictures. before: the baseline; after: every switch on; aid-diff: the difference to the baseline x8.
                 CullVariant off = CullVariant.Named("off"), all = CullVariant.Named("all"), skip = CullVariant.Named("skip");
                 off.Apply(rig.Frame);
                 rig.Recon.Reset();
@@ -443,11 +436,6 @@ namespace ReDefinition.WeatherPlayer
                 rig.Recon.Reset();
                 EdgeKit.Render(Cam, rig, full, 9000);
                 CullKit.SaveNatural(Path.Combine(pictures, "t16-" + view + "-after.png"), CullKit.ReadColours(rig.Recon.Output, ref readback), W, H);
-                rig.Frame.AidMode = 6;
-                rig.Recon.Reset();
-                EdgeKit.Render(Cam, rig, full, 9000);
-                CullKit.SaveAid(Path.Combine(pictures, "t16-" + view + "-aid-skip.png"), CullKit.ReadColours(rig.Recon.Output, ref readback), W, H);
-                rig.Frame.AidMode = 0;
                 if (shown.ContainsKey("all") && shown.ContainsKey("off"))
                 {
                     var diff = new Color[pixels];

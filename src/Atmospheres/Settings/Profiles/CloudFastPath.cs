@@ -16,8 +16,9 @@ namespace ReDefinition.Atmospheres
         // The cloud shadow marched at a quarter of the camera's size.
         internal const float ShadowResolution = 4f;
 
-        // Whether the tier in force takes the fast path; tests assign their own.
-        internal static Func<bool> Source = () => TierRows.For(QualityProfile.Effective()).CloudFastPath;
+        // Whether the tier in force takes the fast path. The game's profile module installs the tier's answer (QualityProfileModule.Init); the weather player
+        // installs its own (PlayerFastPath.cs); tests assign theirs. Until then the full path: no dependency here, so the player can link this file alone.
+        internal static Func<bool> Source = () => false;
 
         // Read at every ask, so a change of the tier (the setting, the host's profile, the memory guard) acts on the next frame: the ask is two enum reads and the
         // engine's cached video memory, about ten times a frame.

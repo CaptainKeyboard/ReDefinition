@@ -5,7 +5,7 @@
                4); every variant twice. Also the CPU ms of building the bound maps (refresh_ms).
   T16-quality  scene 'cull-quality' (640x360): per view and variant the error against the reference (the mean of four full marches of the baseline without the
                switches), the A/B difference to the same frame without the switch, the share of tiles and layer-tile pairs dropped by reason, and the pictures
-               t16-<view>-before / after / aid-skip / aid-lod / aid-diff.png in the player's output folder (cull16).
+               t16-<view>-before / after / aid-lod / aid-diff.png in the player's output folder (cull16).
   T16-sweep    scene 'cull-sweep': camera sweeps (altitude 0 to 12 km, a layer crossing, a turn of 360 degrees, a distance of 300 km, a turn under three layers):
                the largest frame-to-frame change of the mean luminance that the switch adds to the baseline's own.
   T16-levels   scene 'cull-levels': the 4 x 4 block mode through two turns with and without the switches: ghost_move, trail_px, shimmer.

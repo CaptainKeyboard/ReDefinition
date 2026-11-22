@@ -82,13 +82,8 @@ namespace ReDefinition.Atmospheres
         public float SpanGrowthPerM;
         // The distance in m beyond which that step grows (layers.spanGrowthFromM, 0: from the camera); the span's part before it is evenly spaced.
         public float SpanGrowthFromM;
-        // The march's leap over empty grid points, switches for its diagnosis (layers.leapDebug, bits; the shader's _LeapP.x lists them). Below 0 (the default): the march's own,
-        // LeapWithGrowth while SpanGrowthPerM is on, none while it is off.
-        public int LeapDebug = -1;
-        // With the points by distance a far step is long, and so is a leap of a few of them: it ends where the ray reaches the altitude at which cloud can begin, and starts again
-        // from one grid step there (8 + 128), so a thin deck crossed at an angle is entered, not passed over.
-        public const int LeapWithGrowth = 136;
-        public int LeapBits { get { return LeapDebug >= 0 ? LeapDebug : (SpanGrowthPerM > 0f ? LeapWithGrowth : 0); } }
+        // With the points by distance (SpanGrowthPerM > 0) a far step is long, and so is a leap of a few of them: the march ends the leap where the ray reaches the altitude at which cloud
+        // can begin, and starts again from one grid step there, so a thin deck crossed at an angle is entered, not passed over (the shader derives this from _ReuseP.w).
         public int CostDebug;
         // Package T05: inside a cloud the step grows by this share of the transmittance the ray has already lost (0: a fixed step).
         public float TransmittanceGrowth;
@@ -124,7 +119,7 @@ namespace ReDefinition.Atmospheres
         // a span (the frame's own are capped at 256). 0, the default: the frame's. Kept outside this class: its static ids need Unity (the probe's tests reset it).
         private static int ProbeMaxSteps { get { return LayerProbeSwitches.MaxSteps; } }
 
-        private static readonly int IdFarRot = Shader.PropertyToID("_FarRot"), IdReuseP = Shader.PropertyToID("_ReuseP"), IdLeapP = Shader.PropertyToID("_LeapP");
+        private static readonly int IdFarRot = Shader.PropertyToID("_FarRot"), IdReuseP = Shader.PropertyToID("_ReuseP");
         private static readonly int IdPlanetR = Shader.PropertyToID("_PlanetR"), IdPlanetCenter = Shader.PropertyToID("_PlanetCenter"),
             IdWorldToMap = Shader.PropertyToID("_WorldToMap"), IdCamPos = Shader.PropertyToID("_CamPos"),
             IdCamForward = Shader.PropertyToID("_CamForward"), IdCamRight = Shader.PropertyToID("_CamRight"), IdCamUp = Shader.PropertyToID("_CamUp"),
@@ -440,7 +435,6 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Shader.PropertyToID("_ReconD"), Vector4.zero);
             m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SpanSpacing), Mathf.Max(1, f.SpanSpacingMin), Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
             m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), Mathf.Max(0f, f.CostStartM), Mathf.Max(0f, f.SpanGrowthPerM)));
-            m.SetVector(IdLeapP, new Vector4(f.LeapBits, 0f, 0f, 0f));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).

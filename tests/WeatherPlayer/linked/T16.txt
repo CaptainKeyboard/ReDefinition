@@ -15,3 +15,5 @@ src/Atmospheres/Light/Cloud/AnvilMap.cs
 # The sky from the weather map (cloud.weatherMapSky): the layer renderer and the cloud shadow set the sheet types (_CellS) and the shader keyword from it.
 src/Atmospheres/Light/Cloud/WeatherMapSky.cs
 src/Atmospheres/Light/Cloud/MapSkyRegions.cs
+# CloudLookTuning and OwnCloudOptions read the fast cloud path's defaults (CloudFastPath); the player installs its own answer (Runner/PlayerFastPath.cs).
+src/Atmospheres/Settings/Profiles/CloudFastPath.cs
