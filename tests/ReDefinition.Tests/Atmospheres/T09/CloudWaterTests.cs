@@ -30,10 +30,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         if (map < closed * k.Width) continue;
                         // The cover meaning: the outline at the noise rank 1 - map value.
                         double water = CloudWater.Content(n, CloudWater.Threshold(map, 0.0, closed, k), closed, k);
-                        Assert.AreEqual(water, OldShare(map, n, 1.0, CloudWater.Coverage(true, 0.35, 0.15, closed, k), k.Width), 1e-12);
-                        // The old outline of a layer with the noise amount 1 (coverage 0.35, edge 0.15): the place its share began.
-                        double start = 0.5 + (1.0 - map - 0.35 - 0.5 * 0.15);
-                        Assert.AreEqual(CloudWater.Content(n, start, closed, k), OldShare(map, n, 1.0, CloudWater.Coverage(false, 0.35, 0.15, closed, k), k.Width), 1e-12);
+                        Assert.AreEqual(water, OldShare(map, n, 1.0, CloudWater.Coverage(closed, k), k.Width), 1e-12);
                     }
         }
 

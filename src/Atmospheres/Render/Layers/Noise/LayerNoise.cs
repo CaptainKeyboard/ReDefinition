@@ -30,9 +30,6 @@ namespace ReDefinition.Atmospheres
         public float WarpAmplitude, WarpCell;
         // The fine octave of the erosion detail (stream T): the detail volume read again at 2.37 times the frequency.
         public bool FineDetail = true;
-        // E40 C4 (layers.warpTable): how the untiling warp gets its lattice values: 0 the shader hashes the corners of its cell at every sample (the model as it was), 1 it reads them from the
-        // lattice table of half floats around the viewer (NoiseLattice), 2 from the table of bytes (a quarter of the memory, to 0.004 of a corner value).
-        public int WarpTable;
     }
 
     // The motion and the maps of one layer's noise: the drift of the whole noise with the local wind, the rise of the detail (P18), the
@@ -63,14 +60,7 @@ namespace ReDefinition.Atmospheres
             IdCurl = Shader.PropertyToID("_NoiseCurl"), IdFlow = Shader.PropertyToID("_NoiseFlow"), IdColour = Shader.PropertyToID("_NoiseColour"),
             IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"), IdS = Shader.PropertyToID("_NoiseS"),
             IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer"), IdStretch = Shader.PropertyToID("_NoiseStretch"), IdAxis = Shader.PropertyToID("_NoiseAxis"),
-            IdLattice = Shader.PropertyToID("_NoiseLattice"), IdLatticeP = Shader.PropertyToID("_NoiseL"), IdBillow = Shader.PropertyToID("_BillowP"),
-            IdHeapP = Shader.PropertyToID("_HeapP"), IdBlendP = Shader.PropertyToID("_BlendP");
-
-        // E40 C4: the tables of the untiling warp and the ragged boundary (NoiseLattice), the viewer's place and each layer's scale and reference radius they follow.
-        private readonly NoiseLattice lattice = new NoiseLattice();
-        private readonly double[] latticeScaleM = new double[CloudLayerDef.MaxLayers], latticeReferenceM = new double[CloudLayerDef.MaxLayers];
-        private Vector3 viewer;
-        private bool viewerKnown;
+            IdBillow = Shader.PropertyToID("_BillowP"), IdHeapP = Shader.PropertyToID("_HeapP"), IdBlendP = Shader.PropertyToID("_BlendP");
 
         private readonly Vector4[] offsets = new Vector4[CloudLayerDef.MaxLayers], layerData = new Vector4[CloudLayerDef.MaxLayers], stretchData = new Vector4[CloudLayerDef.MaxLayers];
         // The factor each layer's noise features are longer along the body's axis than across (CloudLayerDef.FibreStretch; 1: isotropic).
@@ -308,38 +298,6 @@ namespace ReDefinition.Atmospheres
             colourTexture = map;
         }
 
-        // The viewer's place relative to the planet's centre (world axes), which the warp's table window follows (NoiseLattice.FollowWarp). Set before Bind, every frame.
-        internal void SetViewer(Vector3 fromPlanetCentre)
-        {
-            viewer = fromPlanetCentre;
-            viewerKnown = true;
-        }
-
-        // A layer's noise scale in m (0: no noise) and the radius its lattice's vertical scale is taken about (the planet's radius plus the layer's middle altitude): the numbers the shader's lookup uses.
-        internal void SetLatticeLayer(int layer, double scaleM, double referenceRadiusM)
-        {
-            if (layer < 0 || layer >= latticeScaleM.Length) return;
-            latticeScaleM[layer] = scaleM;
-            latticeReferenceM[layer] = referenceRadiusM;
-        }
-
-        // Moves each layer's warp table window to the viewer.
-        private void FollowLattice(int layerCount)
-        {
-            if (!viewerKnown || !Switches.Untile || Switches.WarpTable == 0) return;
-            double cellScales = Switches.WarpCell > 0f ? Switches.WarpCell : NoiseModel.WarpCellScales;
-            for (int l = 0; l < layerCount && l < CloudLayerDef.MaxLayers; l++)
-            {
-                if (!(latticeScaleM[l] > 0.0)) continue;
-                NoiseLayerParams prm = LayerParams(l, latticeScaleM[l], latticeReferenceM[l]);
-                prm.Untile = false;
-                double qx, qy, qz;
-                CloudShapeModel.LookupPoint(ref prm, viewer.x, viewer.y, viewer.z, out qx, out qy, out qz);
-                double cell = cellScales * latticeScaleM[l];
-                lattice.FollowWarp(l, CloudShapeModel.WarpSeed(prm.Seed), qx / cell, qy / cell, qz / cell);
-            }
-        }
-
         // The motion of a layer; takes effect at the next Advance.
         internal void SetMotion(int layer, LayerNoiseMotion value)
         {
@@ -486,10 +444,9 @@ namespace ReDefinition.Atmospheres
                 SmoothingScales = smoothing[layer],
                 NoDistanceLod = !Switches.DistanceLod,
                 NoFineDetail = !Switches.FineDetail,
-                DensityRemap = CloudLookTuning.DensityRemap,
                 HeapFootLod = CloudLookTuning.HeapFootLod,
                 HeapIso = CloudLookTuning.HeapIso,
-                HeapWarpShare = CloudLookTuning.HeapWarpShare,
+                HeapWarpShare = HeapModel.WarpShare,
                 Blend = CloudLookTuning.NoiseBlend,
                 BlendExponent = CloudLookTuning.NoiseBlendExp,
                 BlendCell = CloudLookTuning.NoiseBlendCell,
@@ -512,17 +469,17 @@ namespace ReDefinition.Atmospheres
             Poll();
             EnsureDefaults();
             bool on = Switches.Enabled && Ready;
-            material.SetVector(IdP, new Vector4(on ? 1f : 0f, Switches.Untile ? 1f : 0f, Switches.Curl ? 1f : 0f, Switches.WarpTable != 0 && viewerKnown ? 1f : 0f));
+            material.SetVector(IdP, new Vector4(on ? 1f : 0f, Switches.Untile ? 1f : 0f, Switches.Curl ? 1f : 0f, 0f));
             material.SetVector(IdQ, new Vector4(Switches.WarpAmplitude > 0f ? Switches.WarpAmplitude : (float)NoiseModel.WarpAmplitudeScales,
                                                 Switches.WarpCell > 0f ? Switches.WarpCell : (float)NoiseModel.WarpCellScales, (float)NoiseModel.CurlAmplitudeScales,
                                                 (float)((flowTime / FlowLoopSeconds) % 1.0)));
-            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, (float)HeapModel.PeriodScales, CloudLookTuning.HeapWarpShare));
+            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, (float)HeapModel.PeriodScales, (float)HeapModel.WarpShare));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
             material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? CloudLookTuning.BillowFine((float)NoiseModel.FineDetailWeight) : 0f,
-                                                                           CloudLookTuning.BillowFineFreq((float)NoiseModel.FineDetailFrequency), CloudLookTuning.DensityRemap, ShapeVoxelsLog2()));
-            // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top, the composite's sharpening).
-            material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, CloudLookTuning.BillowSharpen));
+                                                                           CloudLookTuning.BillowFineFreq((float)NoiseModel.FineDetailFrequency), 0f, ShapeVoxelsLog2()));
+            // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top).
+            material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, 0f));
             // CLOUDR1: the heap volume (x: it is built, y: bit 0 the march's spacing raises its mip level, bit 1 the heap is read at the lattice's true vertical scale, z: log2 of its voxels per noise scale like _NoiseT.w).
             material.SetVector(IdBlendP, new Vector4(CloudLookTuning.NoiseBlend ? 1f : 0f, CloudLookTuning.NoiseBlendExp, CloudLookTuning.NoiseBlendCell, CloudLookTuning.LightErosionTaps));
             material.SetVector(IdHeapP, new Vector4(shapeHasHeap ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), (float)Math.Log(ShapeSize() / HeapModel.PeriodScales, 2.0), ExtrasUsed ? 1f : 0f));
@@ -531,9 +488,6 @@ namespace ReDefinition.Atmospheres
             material.SetTexture(IdCurl, curlTexture);
             material.SetTexture(IdFlow, flowTexture != null ? flowTexture : defaultFlow);
             material.SetTexture(IdColour, colourTexture != null ? colourTexture : defaultColour);
-            FollowLattice(layerCount);
-            material.SetTexture(IdLattice, lattice.Texture(Switches.WarpTable != 2));
-            material.SetVector(IdLatticeP, new Vector4(NoiseLattice.N, 1f / NoiseLattice.N, NoiseLattice.SlabDepth, 1f / NoiseLattice.Depth));
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
             {
                 double bx, by, bz;
@@ -588,7 +542,6 @@ namespace ReDefinition.Atmospheres
             Destroy(curlTexture);
             Destroy(defaultFlow);
             Destroy(defaultColour);
-            lattice.Dispose();
             shapeTexture = detailTexture = curlTexture = null;
             defaultFlow = defaultColour = null;
             Ready = false;

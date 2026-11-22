@@ -63,7 +63,6 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0f, CloudLookTuning.BillowLight);
             Assert.AreEqual(1f, CloudLookTuning.BillowContrast);
             Assert.AreEqual(0f, CloudLookTuning.BillowTop);
-            Assert.AreEqual(0f, CloudLookTuning.BillowSharpen);
             Assert.AreEqual(0.4f, CloudLookTuning.BillowFine(0.4f));
             Assert.AreEqual(-1f, CloudLookTuning.BillowFine(-1f));
             Assert.AreEqual(2.37f, CloudLookTuning.BillowFineFreq(2.37f));

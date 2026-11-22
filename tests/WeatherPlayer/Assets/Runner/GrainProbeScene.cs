@@ -22,9 +22,7 @@ namespace ReDefinition.WeatherPlayer
             public string Name;
             public int MaxSteps = 48, CostDebug;
             public float Leap = 1f;
-            // E40 grain against TVC: the march searches the altitudes of the types present only (LayerFrame.SpanTight). The step offset is the one fixed sequence
-            // of the shader (E40 step (c)); the names with seq1 keep the names of the series from before it.
-            public bool Tight;
+            // The step offset is the one fixed sequence of the shader (E40 step (c)); the names with seq1 keep the names of the series from before it.
         }
 
         internal sealed class Mode
@@ -42,16 +40,9 @@ namespace ReDefinition.WeatherPlayer
             new March { Name = "prodnl", CostDebug = 1 },
             new March { Name = "leap4xnl", MaxSteps = 192, Leap = 4f, CostDebug = 1 },
             new March { Name = "prodnn", CostDebug = 2 },
-            // E40 grain against TVC (series e40-gt-temporal, e40-gt-cost): the span cut to the types present, fewer grid points on the cut span, the leap on it. seq1 is
-            // the product's march (the one sequence of the step offset), kept under its name from before E40 step (c).
+            // E40 grain against TVC (series e40-gt-temporal, e40-gt-cost): seq1 is the product's march (the one sequence of the step offset), kept under its name from before
+            // E40 step (c).
             new March { Name = "seq1" },
-            new March { Name = "tight", Tight = true },
-            new March { Name = "tseq1", Tight = true },
-            new March { Name = "t32seq1", Tight = true, MaxSteps = 32 },
-            new March { Name = "t24seq1", Tight = true, MaxSteps = 24 },
-            new March { Name = "t16seq1", Tight = true, MaxSteps = 16 },
-            new March { Name = "t12seq1", Tight = true, MaxSteps = 12 },
-            new March { Name = "tleap2seq1", Tight = true, MaxSteps = 96, Leap = 2f },
             new March { Name = "leap4xseq1", MaxSteps = 192, Leap = 4f },
         };
 
@@ -59,16 +50,13 @@ namespace ReDefinition.WeatherPlayer
         internal static readonly string[][] GtTemporal =
         {
             new[] { "prod", "plain" }, new[] { "prod", "acc20" }, new[] { "seq1", "acc10" },
-            new[] { "tight", "plain" }, new[] { "tight", "acc20" }, new[] { "tseq1", "acc10" },
-            new[] { "t32seq1", "acc20" }, new[] { "t24seq1", "acc20" }, new[] { "tleap2seq1", "acc20" },
-            new[] { "leap4x", "acc20" }, new[] { "leap4xseq1", "acc20" }, new[] { "t16seq1", "acc20" }, new[] { "t12seq1", "acc20" },
+            new[] { "leap4x", "acc20" }, new[] { "leap4xseq1", "acc20" },
         };
 
         internal static readonly string[][] GtCost =
         {
-            new[] { "prod", "plain" }, new[] { "prod", "acc20" }, new[] { "tight", "acc20" }, new[] { "tseq1", "acc20" },
-            new[] { "t32seq1", "acc20" }, new[] { "t24seq1", "acc20" }, new[] { "tleap2seq1", "acc20" },
-            new[] { "leap4x", "acc20" }, new[] { "t16seq1", "acc20" }, new[] { "t12seq1", "acc20" },
+            new[] { "prod", "plain" }, new[] { "prod", "acc20" },
+            new[] { "leap4x", "acc20" },
         };
 
         internal static bool Gt { get { return WeatherPass.Argument("-cases") == "gt"; } }
@@ -100,22 +88,18 @@ namespace ReDefinition.WeatherPlayer
         {
             f.MaxSteps = m.MaxSteps;
             f.MinStepM = 25f;
-            f.StepGrowth = 0.0002f;
             f.Jitter = 1f;
             f.EarlyOut = 0.01f;
             f.TransmittanceGrowth = 2f;
             f.EmptyLeap = m.Leap;
             f.CostDebug = m.CostDebug;
-            f.SpanTight = m.Tight;
         }
 
         // The converged march of the references (e40gn.py CONVERGED).
-        internal static void ApplyConverged(LayerFrame f, bool tight = false)
+        internal static void ApplyConverged(LayerFrame f)
         {
-            f.SpanTight = tight;
             f.MaxSteps = 256;
             f.MinStepM = 4f;
-            f.StepGrowth = 0f;
             f.Jitter = 0f;
             f.EarlyOut = 0.001f;
             f.TransmittanceGrowth = 0f;
@@ -234,20 +218,16 @@ namespace ReDefinition.WeatherPlayer
                 rig.Load(job, input);
                 foreach (Scenario sc in Scenarios)
                 {
-                    // The converged reference of every pose that is written (a still camera has one); with -cases gt also the one over the span cut to the
-                    // types present (reft: its light taps lie closer, so it is the reference of the marches with the cut span).
-                    foreach (bool tight in GrainTable.Gt ? new[] { false, true } : new[] { false })
+                    // The converged reference of every pose that is written (a still camera has one).
+                    GrainTable.ApplyConverged(rig.Frame);
+                    foreach (int i in sc.Dump)
                     {
-                        GrainTable.ApplyConverged(rig.Frame, tight);
-                        foreach (int i in sc.Dump)
-                        {
-                            if ((sc.Name == "static" || sc.Name == "cut") && i != sc.Dump[0]) continue;
-                            GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));
-                            refRecon.Reset();
-                            Render(rig, refRecon, full, 0);
-                            Dump(refRecon.Output, "gt-" + view + "-" + sc.Name + (tight ? "-reft-f" : "-ref-f") + i);
-                            yield return null;
-                        }
+                        if ((sc.Name == "static" || sc.Name == "cut") && i != sc.Dump[0]) continue;
+                        GrainTable.Pose(Cam, job, Yaw(sc, i), Side(sc, i));
+                        refRecon.Reset();
+                        Render(rig, refRecon, full, 0);
+                        Dump(refRecon.Output, "gt-" + view + "-" + sc.Name + "-ref-f" + i);
+                        yield return null;
                     }
                     foreach (string[] c in GrainTable.Gt ? GrainTable.GtTemporal : Cases)
                     {

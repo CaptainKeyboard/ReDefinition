@@ -41,10 +41,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             foreach (string view in new[] { "ground", "above" })
             {
-                foreach (string tag in new[] { "gbefore", "gnew", "gnew10" })
+                foreach (string tag in new[] { "gbefore", "gnew10" })
                     foreach (string letter in new[] { "a", "b", "c" })
                         Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view + "_low-" + tag + letter + "-")), view + " " + tag + letter + " was written");
-                foreach (string variant in new[] { "off", "before", "plain" })
+                foreach (string variant in new[] { "off", "before" })
                 {
                     Assert.AreEqual(1, r.Log.Count(l => l.StartsWith("T09 view begin: " + view + " " + variant + " ")), view + " " + variant + " has a cost window");
                     Assert.AreEqual(1, r.Log.Count(l => l.StartsWith("T09 view end: " + view + " " + variant + " ")), view + " " + variant + " ends its cost window");
@@ -159,7 +159,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run all = StartLook("A");
             Drive(all, 0.02);
             Assert.IsTrue(all.Probe.Passed, Dump(all));
-            foreach (string t in new[] { "kC0", "kC1m8", "kC2", "kC3m8", "kC4", "kC5m8" })
+            foreach (string t in new[] { "kC0", "kC1m8", "kC2", "kC4", "kC5m8" })
                 Assert.IsTrue(all.World.Saved.Any(n => n.Contains("-ground_low-" + t + "-")), "set frame " + t);
             // The winning set defaults to the last selected one: C5.
             Assert.IsTrue(all.World.Saved.Any(n => n.Contains("-ground_low-wC5o2-")));

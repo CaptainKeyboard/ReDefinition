@@ -191,14 +191,6 @@ namespace ReDefinition.Tests
             Assert.AreEqual(HeapModel.WarpShare * (dx - ux * along), ex, 1e-9);
             Assert.AreEqual(HeapModel.WarpShare * (dy - uy * along), ey, 1e-9);
             Assert.AreEqual(HeapModel.WarpShare * (dz - uz * along), ez, 1e-9);
-            // A negative share reads the whole displaced point (the shape volume's lookup).
-            double keep = prm.HeapWarpShare;
-            prm.HeapWarpShare = -1.0;
-            CloudShapeModel.HeapLookup(ref prm, p[0], p[1], p[2], qx, qy, qz, dx, dy, dz, out hx, out hy, out hz);
-            Assert.AreEqual(qx, hx, 1e-9);
-            Assert.AreEqual(qy, hy, 1e-9);
-            Assert.AreEqual(qz, hz, 1e-9);
-            prm.HeapWarpShare = keep;
             // Without the warp the lookup is the plain point.
             prm.Untile = false;
             CloudShapeModel.LookupPoint(ref prm, p[0], p[1], p[2], out qx, out qy, out qz, out dx, out dy, out dz);

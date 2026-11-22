@@ -141,11 +141,6 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.Keys.CloudShadowQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
             { AtmospheresSettings.Keys.CloudResolution, "a level above 1 lowers the cloud picture's resolution; a tier sets it only after the owner agrees to a lower default" },
             { AtmospheresSettings.Keys.CloudSkipEmpty, "starts no ray in tiles the maps prove empty; the bound is conservative but its saving and error are measured, and a tier sets it only after the owner agrees" },
-            { AtmospheresSettings.Keys.CloudSkipClosed, "drops the layers above a deck proved closed for a tile; the early-out of the march already does most of this, and a tier sets it only after the owner agrees" },
-            { AtmospheresSettings.Keys.CloudLayerDistanceCut, "thins and drops layers the air leaves below a visibility weight, which needs the aerial perspective; a tier sets it only after the owner agrees to the trade" },
-            { AtmospheresSettings.Keys.CloudStepGrowth, "coarsens the far part of long spans, a quality reduction; a tier sets it only after the owner agrees to a lower default" },
-            { AtmospheresSettings.Keys.CloudTapLod, "repeats the sun march less often with distance, a quality reduction; a tier sets it only after the owner agrees to a lower default" },
-            { AtmospheresSettings.Keys.CloudDetailLod, "drops the noise detail where a pixel cannot resolve it and switches the far shape mean on; a tier sets it only after the owner agrees" },
             { AtmospheresSettings.Keys.CloudLayerCapDistance, "thins the layers beyond the nearest few from a distance, a quality reduction; a tier sets it only after the owner agrees to a lower default" }
         };
 

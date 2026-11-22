@@ -55,9 +55,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             string file = Environment.GetEnvironmentVariable("SKYMAPS_TABLES");
             if (string.IsNullOrEmpty(file)) return;
-            // SKYMAPS_MEANING=1: the cover meaning on (a map value is the closed share looking up): the tables of what that would draw
-            bool meaning = Environment.GetEnvironmentVariable("SKYMAPS_MEANING") == "1";
-            if (meaning) Tuning.SetOverride(CloudSoftDensity.TuneCoverMeaning, 1f);
             Tuning.Instance.BeginFrame(9000001);
             using (var w = new StreamWriter(file))
             {

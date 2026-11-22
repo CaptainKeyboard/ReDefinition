@@ -722,7 +722,6 @@ namespace ReDefinition.Atmospheres
                 Emit(prefix + "march_empty_leap", Mathf.Max(1f, f.EmptyLeap));
                 // _SpacingP.z as LayerRenderer uploads it: max(0, LeapScales), the longest leap over empty grid points in the layer's noise scales.
                 Emit(prefix + "march_leap_scale", Mathf.Max(0f, f.LeapScales));
-                Emit(prefix + "march_step_growth", f.StepGrowth);
                 Emit(prefix + "march_sun_steps", f.Light != null && f.Light.SunStepsOverride > 0 ? f.Light.SunStepsOverride : f.SunSteps);
                 Emit(prefix + "march_sun_march_m", f.SunMarchM);
             }

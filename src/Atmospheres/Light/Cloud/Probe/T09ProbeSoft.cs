@@ -118,11 +118,11 @@ namespace ReDefinition.Atmospheres
         // soft: the defaults of origin/main (the soft density on, cloudSoftness 0.5, cloudSamples High = 48 grid points: the Medium tier does not set cloudSamples, so the "Medium: 32" of the
         // brief is not what the game runs; the owner's favourite "soft48" IS this variant and has no row of its own). (The variant hard, layers.softDensity 0, went with the old density, E40 step (c) part 2.)
         // soft100s24: cloudSoftness 1.0 with cloudSamples Low (24), the owner's other favourite; no grid points are left of the old sampling keys, the count is cloudSamples alone.
+        //   softcut16  a grid of 16 points (layers.gridFine 0.3333 of 48) at the march target 0.33
         // The table of 2026-11-14 evening (E40 L2 package B2): the cost candidates of .local/plans/atmospheres/E40-ground-cost-result.md against TVC, sized to the time plan
         // (SoftEstimateS at most 1020 s of SoftMaxSeconds). In: the views a variant runs in (frames and windows), "" every view of the scene, "-" none.
         //   softhash   layers.ditherSequence 1, the white hash the default drew before (the owner's look decision, E40 step (c)): the fair views' frames, no window, not in the clock scene
         //   softr33    the march target at 0.33 of the full size (recon.resolution) with cloudSkipEmpty on (the tile test that starts no ray in a tile the maps prove empty; its default is OFF)
-        //   softcut16  the span cut to the cloud types around the camera (layers.spanTight) with a grid of 16 points (layers.gridFine 0.3333 of 48) at the march target 0.33
         // (softnodrop, layers.dropEmpty 0, is gone with its key: the drop left out 0 of 4 layers in every view of start 59, E40 L4 clean.)
         // Cut for the time (the lead's order): soft100s24's clock window (the test pins the estimate against 1020).
         // Slots are gone: the table is full. The size of one more candidate is what SoftEstimateS says; an example that costs one window: Soft("soft32", "", "g", "s:" + AtmospheresSettings.Keys.CloudSamples + "=32").
@@ -132,7 +132,7 @@ namespace ReDefinition.Atmospheres
             Soft("soft100s24", "g", "", "s:" + AtmospheresSettings.Keys.CloudSoftness + "=1", "s:" + AtmospheresSettings.Keys.CloudSamples + "=24"),
             Soft("softhash", "", "", "t:" + OwnCloudOptions.TuneDitherSequence + "=1").In("", "-"),
             Soft("softr33", "ga", "gias", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33", "s:" + AtmospheresSettings.Keys.CloudSkipEmpty + "=1"),
-            Soft("softcut16", "g", "g", "t:" + OwnCloudOptions.TuneSpanTight + "=1", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "g")
+            Soft("softcut16", "g", "g", "t:" + OwnCloudOptions.TuneGridFine + "=0.3333", "t:" + OwnCloudOptions.TuneReconResolution + "=0.33").In("g", "g")
         };
 
         // The scenario's own limit (the runner's is 20 minutes for the whole start: the game needs about 90 s to come up). A guard only: the scenario ends when its last view is done.
@@ -183,10 +183,10 @@ namespace ReDefinition.Atmospheres
         {
             internal double Softness;
             internal int Samples, GridPoints;
-            // E40 L2 B2: the march target's side over the full target's (recon.resolution; the history path of recon.accumulate runs at it), the cut span, the step offset's
+            // E40 L2 B2: the march target's side over the full target's (recon.resolution; the history path of recon.accumulate runs at it), the step offset's
             // sequence and the tile test of empty sky (the setting cloudSkipEmpty).
             internal float Resolution;
-            internal bool SpanTight, SkipEmpty;
+            internal bool SkipEmpty;
             internal int DitherSequence;
             // E40 start 60: the weight of a new frame in the march target's history (recon.accumulate).
             internal float Accumulate;
@@ -208,7 +208,6 @@ namespace ReDefinition.Atmospheres
             double level = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default;
             float gridFine = OwnCloudOptions.GridFineDefault;
             float resolution = SoftCompiledResolution;
-            bool spanTight = OwnCloudOptions.SpanTightDefault;
             bool skipEmpty = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSkipEmpty).Default != 0.0;
             int dither = OwnCloudOptions.DitherSequenceDefault;
             float accumulate = OwnCloudOptions.AccumulateDefault;
@@ -225,7 +224,6 @@ namespace ReDefinition.Atmospheres
                     else if (!setting && key == OwnCloudOptions.TuneGridFine) gridFine = value;
                     else if (setting && key == AtmospheresSettings.Keys.CloudSkipEmpty) skipEmpty = value != 0f;
                     else if (!setting && key == OwnCloudOptions.TuneReconResolution) resolution = value;
-                    else if (!setting && key == OwnCloudOptions.TuneSpanTight) spanTight = value != 0f;
                     else if (!setting && key == OwnCloudOptions.TuneDitherSequence) dither = Math.Max(1, Math.Min(3, Mathf.RoundToInt(value)));
                     else if (!setting && key == OwnCloudOptions.TuneAccumulate) accumulate = Mathf.Clamp01(value);
                 }
@@ -239,7 +237,7 @@ namespace ReDefinition.Atmospheres
             points = Math.Max(4, Math.Min(256, Mathf.RoundToInt(points * Mathf.Clamp(gridFine, 0.25f, 8f))));
             return new SoftExpectation
             {
-                Softness = softness, Samples = samples, GridPoints = points, Resolution = Mathf.Clamp(resolution, 0.1f, 1f), SpanTight = spanTight,
+                Softness = softness, Samples = samples, GridPoints = points, Resolution = Mathf.Clamp(resolution, 0.1f, 1f),
                 SkipEmpty = skipEmpty, DitherSequence = dither, Accumulate = accumulate
             };
         }
@@ -367,17 +365,16 @@ namespace ReDefinition.Atmospheres
             Emit(head + "softness", softness);
             bool ok = points == e.GridPoints && Math.Abs(softness - e.Softness) < 1e-6;
             string more = "";
-            bool spanTight = own.Frame.SpanTight, skip = own.Frame.Cull != null && own.Frame.Cull.SkipEmpty;
+            bool skip = own.Frame.Cull != null && own.Frame.Cull.SkipEmpty;
             int dither = own.Frame.DitherSequence;
-            Emit(head + "span_tight", spanTight);
             Emit(head + "skip_empty", skip);
             Emit(head + "dither_sequence", dither);
             // The history weight is read where the module reads it (OwnCloudOptions.Apply(ReconSettings): Tuning.Get(recon.accumulate)); the module's mode says whether the history path runs.
             float accumulate = Mathf.Clamp01(Tuning.Get(OwnCloudOptions.TuneAccumulate, OwnCloudOptions.AccumulateDefault));
             Emit(head + "accumulate", accumulate);
-            bool framesOk = spanTight == e.SpanTight && skip == e.SkipEmpty && dither == e.DitherSequence && Math.Abs(accumulate - e.Accumulate) < 1e-5f;
+            bool framesOk = skip == e.SkipEmpty && dither == e.DitherSequence && Math.Abs(accumulate - e.Accumulate) < 1e-5f;
             ok = ok && framesOk;
-            more += ", span tight " + spanTight + "/" + e.SpanTight + ", skip empty " + skip + "/" + e.SkipEmpty + ", dither " + dither + "/" + e.DitherSequence + ", history weight "
+            more += ", skip empty " + skip + "/" + e.SkipEmpty + ", dither " + dither + "/" + e.DitherSequence + ", history weight "
                     + accumulate.ToString("0.###", CultureInfo.InvariantCulture) + "/" + e.Accumulate.ToString("0.###", CultureInfo.InvariantCulture);
             if (MarchSizeReader != null)
             {

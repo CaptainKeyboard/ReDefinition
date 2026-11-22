@@ -57,11 +57,6 @@ namespace ReDefinition.Atmospheres
             internal const string SceneWhiteBalance = "sceneWhiteBalance";
             // Own clouds: the visibility culling and the distance LOD (T16)
             internal const string CloudSkipEmpty = "cloudSkipEmpty";
-            internal const string CloudSkipClosed = "cloudSkipClosed";
-            internal const string CloudLayerDistanceCut = "cloudLayerDistanceCut";
-            internal const string CloudStepGrowth = "cloudStepGrowth";
-            internal const string CloudTapLod = "cloudTapLod";
-            internal const string CloudDetailLod = "cloudDetailLod";
             internal const string CloudLayerCapDistance = "cloudLayerCapDistance";
             // Own clouds: the ray-side pack for the traced rays (T18, RtOwnClouds)
             internal const string RtOwnClouds = "rtOwnClouds";
@@ -116,11 +111,6 @@ namespace ReDefinition.Atmospheres
         internal static bool CloudRotation => B(Keys.CloudRotation);
         internal static float SceneWhiteBalance => F(Keys.SceneWhiteBalance);
         internal static bool CloudSkipEmpty => B(Keys.CloudSkipEmpty);
-        internal static bool CloudSkipClosed => B(Keys.CloudSkipClosed);
-        internal static bool CloudLayerDistanceCut => B(Keys.CloudLayerDistanceCut);
-        internal static bool CloudStepGrowth => B(Keys.CloudStepGrowth);
-        internal static bool CloudTapLod => B(Keys.CloudTapLod);
-        internal static bool CloudDetailLod => B(Keys.CloudDetailLod);
         internal static int CloudLayerCapDistance => I(Keys.CloudLayerCapDistance);
         internal static bool RtOwnClouds => B(Keys.RtOwnClouds);
         internal static int RtOwnCloudsLayerCap => I(Keys.RtOwnCloudsLayerCap);
@@ -170,14 +160,9 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Choice("cloudNoiseTier", typeof(CloudDetailLevel), CloudDetailLevel.Medium, CL, "Cloud Noise Size", NOISE, RV),
                 SettingDef.Bool("cloudNoiseDistanceLod", true, CL, "Cloud Noise Distance Detail", NOISE),
                 SettingDef.Bool("cloudFineDetail", true, CL, "Cloud Fine Detail Octave", NOISE),
-                // Package T16: the visibility culling and the distance LOD, all off until the owner agrees (each lowers the cost at some error, measured in
+                // Package T16: the visibility culling, off until the owner agrees (each lowers the cost at some error, measured in
                 // tools/weather_metrics/cull.py).
                 SettingDef.Bool("cloudSkipEmpty", false, CL, "Cloud Skip Empty Sky", OWN, RV),
-                SettingDef.Bool("cloudSkipClosed", false, CL, "Cloud Skip Behind Closed Decks", OWN, RV),
-                SettingDef.Bool("cloudLayerDistanceCut", false, CL, "Cloud Layer Distance Cut", OWN, RV),
-                SettingDef.Bool("cloudStepGrowth", false, CL, "Cloud Step Growth With Distance", OWN, RV),
-                SettingDef.Bool("cloudTapLod", false, CL, "Cloud Light Taps By Distance", OWN, RV),
-                SettingDef.Bool("cloudDetailLod", false, CL, "Cloud Detail By Distance", OWN, RV),
                 SettingDef.Int("cloudLayerCapDistance", 0, 0, 400, CL, "Cloud Layer Cap Distance In Km", OWN, RV),
                 // Package T18: the traced rays see the own layers (a visible feature: on; it bakes only while the raytracing traces). The layer cap of the
                 // ray side is a quality reduction (0 is every layer).

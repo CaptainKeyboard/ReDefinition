@@ -15,8 +15,7 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCoverageBound = "layers.coverageBound", TuneLightStride = "layers.lightStride", TuneLightCutoff = "layers.lightCutoff",
             TuneEmptyLeap = "layers.emptyLeap", TuneCheapShare = "layers.cheapShare", TuneFogShare = "layers.fogShare";
         // A4 test keys: the player's ceiling march in the game (Apply).
-        internal const string TuneMinStepM = "layers.minStepM", TuneFrameStepGrowth = "layers.stepGrowth", TuneEarlyOut = "layers.earlyOut", TuneSunMarchM = "layers.sunMarchM",
-            TuneSunSteps = "layers.sunSteps";
+        internal const string TuneMinStepM = "layers.minStepM", TuneEarlyOut = "layers.earlyOut", TuneSunMarchM = "layers.sunMarchM", TuneSunSteps = "layers.sunSteps";
 
         // layers.costDebug (LayerFrame.CostDebug, 0 to 15, default 0): cost attribution only, the picture is wrong while it is set. Bit 1 skips the light march, bit 2 reads no shape
         // noise, bit 4 no erosion, bit 8 the light march crosses the sample's own layer alone; the K-T2 perf variants nolight, noshape, noerode and lightown set it.
@@ -38,13 +37,6 @@ namespace ReDefinition.Atmospheres
         // 1: the largest leap whose picture is the one without it (player series e40-c1-sheet, error against the converged picture: 1.0 the same to four digits in all eight views, 2.0 +0.003 to +0.006,
         // 4.0 +0.02 to +0.05); the pass costs 18 to 35 percent less at the clock's views (series e40-c1-cost). layers.leapScale 0 is the march as it was.
         internal const float LeapScaleDefault = 1f;
-
-        // E40 C4: layers.warpTable (LayerFrame.WarpTable): the lattice values of the untiling warp from a table of half floats around the camera (1), of bytes (2) or hashed at every sample (0, the pass as it was).
-        internal const string TuneWarpTable = "layers.warpTable";
-        // 0: the table saves 0.45-0.66 ms at the clock's views (series e40-c4-noise) but its window step is not hitch-free (8 ms of main-thread bake plus an 8.5 MB upload every few km of
-        // travel; Unity 2019.4 has no sub-region upload of a 3D texture), and beyond the window (84 km at cumulus) the field is another corner of the noise, with a seam at the window's edge
-        // that was not looked at. Off until the bake runs on a worker and uploads in slices, and the edge is checked.
-        internal const int WarpTableDefault = 0;
 
         // E40 grain: the multiplier of the most grid points of a span (LayerFrame.MaxSteps); 1: the step quality's count.
         internal const string TuneGridFine = "layers.gridFine";
@@ -103,7 +95,7 @@ namespace ReDefinition.Atmospheres
         internal const float ReconResolutionDefault = 1f;
         // The owner's look (2026-11-19, made the default): e40puff k4_stride's march (shortest step 6 m, no step growth, 8 taps over a 12 km march towards the sun), at
         // the full size (ReconResolutionDefault) with the rotation (cloudRotation on). Game, K-T2 perfN2560dlssqceil (A4500 2560x1440 DLSS Q): 21.4 fps at the ground.
-        internal const float LookMinStepM = 6f, LookStepGrowth = 0f, LookSunMarchM = 12000f;
+        internal const float LookMinStepM = 6f, LookSunMarchM = 12000f;
         internal const int LookSunSteps = 8;
         // recon.rotate N (2 to 4; default 0, off): with the march at full size (recon.resolution 1) and a history (recon.accumulate above 0), each frame marches one pixel of every N x N
         // block, at full size, and blends it into that pixel's history with the accumulation weight; the other pixels keep their reprojected history (Catmull-Rom) alone. The owner judged
@@ -114,10 +106,6 @@ namespace ReDefinition.Atmospheres
         // the pass is the same either way.
         internal const string TuneHostJitter = "recon.hostJitter";
         internal const bool HostJitterDefault = false;
-        // layers.lightReuseMove 1 (default 0): a lit step that reuses the last sun march moves its optical depth by what the ray crossed since, projected on the sun's direction
-        // (LayerFrame.LightReuseMove); a test for a longer layers.lightStride.
-        internal const string TuneLightReuseMove = "layers.lightReuseMove";
-
         // layers.costCutM (LayerFrame.CostCutM, default 0, off): cost attribution only, the march ends at this distance in m; the plain run's time minus the cut run's is what
         // the clouds beyond the cut cost (the 48 fps plan 2026-11-19: whether impostors for far clouds can pay). The K-T2 perf variants cut5, cut10, cut20 set it.
         internal const string TuneCostCutM = "layers.costCutM";
@@ -136,15 +124,6 @@ namespace ReDefinition.Atmospheres
         // layers.spanGrowthFromM (LayerFrame.SpanGrowthFromM, default 0): the distance from the camera beyond which layers.spanGrowthPerM grows the step.
         internal const string TuneSpanGrowthFromM = "layers.spanGrowthFromM";
 
-        // E40 grain against TVC: layers.spanTight (LayerFrame.SpanTight; 1: the march searches only the altitudes the cloud types around the camera reach, with the
-        // height variation's reach as the maps hold it there; 0, the default: the type table's whole interval plus the worst-case reach).
-        // Measured: in the player (one layer, the lowest type alone) the cut lowers the temporal noise of a cloud pixel from 0.0031 / 0.0101 (closed / rim) to
-        // 0.0006 / 0.0014 and the error against the converged picture from 0.050 to 0.018 (series e40-gt-temporal). In the game the map around the camera holds most
-        // types, the interval stays wide (cumulus layer 608 to 8042 m of 430 to 9990) and the noise falls by 13 percent (ground) and 2 percent (above) at +0.7 / 0.0 ms
-        // (K-T2d start gt57), so the cut is not the default: it is the search interval of the per-ray march that follows this package.
-        // The step offset is one fixed sequence (the interleaved gradient noise per pixel, advanced by the golden ratio per frame; the shader's _DitherP).
-        internal const string TuneSpanTight = "layers.spanTight";
-        internal const bool SpanTightDefault = false;
         // layers.ditherSequence (LayerFrame.DitherSequence): 1 a per-pixel white hash offset, 2 the interleaved gradient noise, 3 (the default, E40 F2) the 16 x 16 blue-noise tile
         // (DitherMatrix), all advanced by the golden ratio per frame. 2 has the lower temporal noise than 1 (rim 0.0023 against 0.0032 at the soft 0.5, player series e40-gs3) but
         // a regular screen-fixed pattern (a few percent of the residual's power in single spatial lines); 3 has the temporal noise of 2 and a spectrum with no line
@@ -256,27 +235,16 @@ namespace ReDefinition.Atmospheres
             Apply(t, Live);
         }
 
-        // The tuning keys of the culling and the distance LOD (T16); the compiled values are the fields of CullSettings.
-        internal const string TuneCutWeight = "cull.cutWeight", TuneStepGrowth = "cull.stepGrowth", TuneTapStart = "cull.tapStart", TuneTapEnd = "cull.tapEnd",
-            TuneTapFactor = "cull.tapFactor", TuneFootScale = "cull.footScale", TuneCapKeep = "cull.capKeep";
+        // The tuning keys of the culling (T16); the compiled values are the fields of CullSettings.
+        internal const string TuneFootScale = "cull.footScale", TuneCapKeep = "cull.capKeep";
 
         private static readonly CullSettings CompiledCull = new CullSettings();
 
-        // T16: the switches of the visibility culling and the distance LOD; the numbers are tuning keys with the compiled values of the struct.
+        // T16: the switches of the visibility culling; the numbers are tuning keys with the compiled values of the struct.
         internal static void Apply(CullSettings c, Func<string, double> v)
         {
             c.SkipEmpty = On(v, AtmospheresSettings.Keys.CloudSkipEmpty);
-            c.SkipClosed = On(v, AtmospheresSettings.Keys.CloudSkipClosed);
-            c.DistanceCut = On(v, AtmospheresSettings.Keys.CloudLayerDistanceCut);
-            c.StepGrowth = On(v, AtmospheresSettings.Keys.CloudStepGrowth);
-            c.TapLod = On(v, AtmospheresSettings.Keys.CloudTapLod);
-            c.DetailLod = On(v, AtmospheresSettings.Keys.CloudDetailLod);
             c.CapDistanceM = Math.Max(0, Math.Min(400, (int)v(AtmospheresSettings.Keys.CloudLayerCapDistance))) * 1000f;
-            c.CutWeight = Mathf.Clamp(Tuning.Get(TuneCutWeight, CompiledCull.CutWeight), 0.001f, 0.5f);
-            c.StepGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneStepGrowth, CompiledCull.StepGrowthPerM));
-            c.TapStartM = Mathf.Max(0f, Tuning.Get(TuneTapStart, CompiledCull.TapStartM));
-            c.TapEndM = Mathf.Max(c.TapStartM + 1f, Tuning.Get(TuneTapEnd, CompiledCull.TapEndM));
-            c.TapFactor = Mathf.Clamp(Tuning.Get(TuneTapFactor, CompiledCull.TapFactor), 1f, 8f);
             c.FootScale = Mathf.Clamp(Tuning.Get(TuneFootScale, CompiledCull.FootScale), 0f, 8f);
             c.CapKeepSpans = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCapKeep, CompiledCull.CapKeepSpans)), 1, 8);
         }
@@ -289,8 +257,7 @@ namespace ReDefinition.Atmospheres
             LayerSwitches.StepQuality((int)Level(v, AtmospheresSettings.Keys.LayerStepQuality), out maxSteps, out sunSteps, out minStep);
             // E40 grain: layers.gridFine N (1 to 8; default 1) multiplies the most grid points of a span (up to the shader's 256); with layers.emptyLeap N the leap over
             // empty samples is as long as the product's grid step at most, so the search is N times finer where the clouds are at about the density reads of before.
-            // E40 grain against TVC: the multiplier may be below 1 (down to 0.25): on a span cut to the types present (layers.spanTight) fewer grid points still lie closer
-            // than the full count did over the type table's whole interval.
+            // E40 grain against TVC: the multiplier may be below 1 (down to 0.25).
             // E40 soft density: cloudSamples (24 to 256 grid points, relative to the Medium step quality's 48) scales the count of every step quality by the same share; the
             // owner's softness is read into CloudSoftDensity once a frame (the layers' uploaded numbers follow it).
             maxSteps = CloudSoftDensity.ScaleSamples(maxSteps, (int)v(AtmospheresSettings.Keys.CloudSamples));
@@ -301,12 +268,10 @@ namespace ReDefinition.Atmospheres
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
             f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
             // The owner's look (2026-11-19, the default; e40puff k4_stride, judged in the player 2026-11-18): the shortest step LookMinStepM, no step growth along the ray, the march
-            // towards the sun LookSunMarchM long. A key at or below 0 gives the step quality's value instead (layers.minStepM, layers.sunMarchM); layers.stepGrowth below 0 gives
-            // the frame's default growth (LayerFrame.DefaultStepGrowth); layers.earlyOut above 0 replaces the frame's early out.
+            // towards the sun LookSunMarchM long. A key at or below 0 gives the step quality's value instead (layers.minStepM, layers.sunMarchM); layers.earlyOut above 0 replaces the
+            // frame's early out.
             float minStepKey = Tuning.Get(TuneMinStepM, LookMinStepM);
             if (minStepKey > 0f) f.MinStepM = minStepKey;
-            float growthKey = Tuning.Get(TuneFrameStepGrowth, LookStepGrowth);
-            f.StepGrowth = growthKey >= 0f ? growthKey : LayerFrame.DefaultStepGrowth;
             float earlyKey = Tuning.Get(TuneEarlyOut, 0f);
             if (earlyKey > 0f) f.EarlyOut = earlyKey;
             float sunMarchKey = Tuning.Get(TuneSunMarchM, LookSunMarchM);
@@ -317,9 +282,7 @@ namespace ReDefinition.Atmospheres
             f.SpanSpacing = Mathf.Max(0f, Tuning.Get(TuneSpanSpacing, SpanSpacingDefault));
             f.SpanSpacingMin = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneSpanSpacingMin, SpanSpacingMinDefault)), 1, 256);
             f.LeapScales = Mathf.Max(0f, Tuning.Get(TuneLeapScale, LeapScaleDefault));
-            f.WarpTable = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneWarpTable, WarpTableDefault)), 0, 2);
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
-            f.LightReuseMove = Tuning.Get(TuneLightReuseMove, 0f) > 0.5f;
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
             f.CostStartM = Mathf.Max(0f, Tuning.Get(TuneCostStartM, 0f));
             f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, 0f));
@@ -330,7 +293,6 @@ namespace ReDefinition.Atmospheres
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
             f.CostDebug = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCostDebug, 0f)), 0, 15);
-            f.SpanTight = Tuning.Flag(TuneSpanTight, SpanTightDefault);
             f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 3);
             bool fix = Tuning.Flag(TuneDitherFix, DitherFixDefault);
             f.DitherOwnGrid = fix;
@@ -451,8 +413,7 @@ namespace ReDefinition.Atmospheres
             s.Haze = haze;
             s.HazeAuto = auto;
             s.HazeStrength = CloudLookTuning.HazeStrengthScale;
-            // T16: the detail LOD by distance takes the shape mean with it (the footprint only lifts the spacing the mean is chosen by).
-            s.ShapeMean = On(v, AtmospheresSettings.Keys.CloudFarShapeMean) || On(v, AtmospheresSettings.Keys.CloudDetailLod);
+            s.ShapeMean = On(v, AtmospheresSettings.Keys.CloudFarShapeMean);
             s.MinSamples = Math.Max(0, Math.Min(16, (int)v(AtmospheresSettings.Keys.CloudFarMinSamples)));
             s.Policy = On(v, AtmospheresSettings.Keys.CloudFarPolicy);
         }

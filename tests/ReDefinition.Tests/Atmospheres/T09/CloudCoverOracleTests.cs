@@ -63,8 +63,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 OffsetZ = bz,
                 Seed = NoiseSeeds.LayerSeed(1u, index),
                 SphereScale = 1.0,
-                ReferenceRadiusM = 600000.0,
-                DensityRemap = CloudLookTuning.DensityRemap
+                ReferenceRadiusM = 600000.0
             };
         }
 

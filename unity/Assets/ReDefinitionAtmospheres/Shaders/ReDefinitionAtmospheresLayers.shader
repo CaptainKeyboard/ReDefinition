@@ -62,7 +62,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _MapDim;      // map width, map height
         float4 _Sun;         // towards the sun, w: the longest sun march in m
         float4 _SunColor, _AmbientTop, _AmbientBottom;
-        float4 _MarchP;      // max steps per span, sun steps, step growth with distance, early-out transmittance
+        float4 _MarchP;      // max steps per span, sun steps, unused, early-out transmittance
         float4 _StepP;       // shortest step in m, jitter 0..1, frame number, has surface (1) or gas giant (0)
         float4 _LimitP;      // ray length limit in m (<= 0: none), aid mode (0 natural, 1 optical depth, 2 layer colours), layer mask, use scene depth
         float4 _PhaseP;      // g forward, g back, forward weight, albedo
@@ -71,8 +71,7 @@ Shader "ReDefinition/AtmospheresLayers"
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
         float4 _SpacingP;    // E40 C1: x the widest spacing of a layer's grid points in the layer's noise scales (0: off), y the fewest grid points a span keeps when that cuts its count
-        float4 _FirstHitP;   // CLOUDR1 P6: x the bisection iterations on the entered span (0: off, the march is as it was), y the thin steps inside as a share of the grid step, z how many of them follow the entry (the outer shell), w the distance in m up to which they are taken (0: everywhere)
-        float4 _ReuseP;      // x: the reused sun optical depth is moved by the ray's progress (1) or kept (0, layers.lightReuseMove); y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z: cost attribution, it starts there (0: off, layers.costStartM); w: a span's points by distance, the step's growth per m of distance from the camera (0: off, layers.spanGrowthPerM)
+        float4 _ReuseP;      // x: unused; y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z: cost attribution, it starts there (0: off, layers.costStartM); w: a span's points by distance, the step's growth per m of distance from the camera (0: off, layers.spanGrowthPerM)
         float4 _LeapP;       // x: the leap's switches (layers.leapDebug, bits, 0: none); yzw unused
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
         // The step offset's sequence in time (E40 grain against TVC): x the frame's phase, frac(frame number x golden ratio), computed in double precision by the
@@ -131,8 +130,6 @@ Shader "ReDefinition/AtmospheresLayers"
         {
             sp = 0;
             float inner = _LayerA[li].z, outer = _LayerA[li].w;
-            // A tight outer altitude below zero: the layer holds no cloud the camera can see this frame (LayerSpanBound, layers.spanTight).
-            if (outer < 0) return;
             float o0, o1;
             if (!HitSphere(o, d, _PlanetR + outer, o0, o1)) return;
             float lo = max(o0, 0), hi = min(o1, tmax);
@@ -521,18 +518,18 @@ Shader "ReDefinition/AtmospheresLayers"
                 // light march at each, seconds per frame.
                 if (!(T >= _MarchP.w)) break;
                 int li = sl[k];
-                // T16: the distance cut and the layer cap thin a span by a smooth factor and drop it where the factor is zero.
+                // T16: the layer cap thins a span by a smooth factor and drops it where the factor is zero.
                 float spanF = 1.0;
-                if (_CullB.x > 0.5 || _CullB.z > 0.0)
+                if (_CullB.z > 0.0)
                 {
-                    spanF = CullDistanceFade(o, d, s0[k]) * CullCapFade(k, s0[k]);
+                    spanF = CullCapFade(k, s0[k]);
                     if (spanF <= 0.0) continue;
                 }
                 float len = s1[k] - s0[k];
                 float kind = _LayerB[li].w;
                 // Cheap and fog layers take a share of the step budget (they carry no detail the full count would resolve).
                 float share01 = kind > 1.5 && kind < 2.5 ? _SkipP.w : (kind > 0.5 && kind < 1.5 ? _SkipP.z : 1.0);
-                float stepLen = max(_StepP.x * (1.0 + s0[k] * _MarchP.z), 1e-3);
+                float stepLen = max(_StepP.x, 1e-3);
                 // The far view (T06) keeps at least _FarD.w samples in a span: a thin layer seen from far away has a step longer than itself, and one
                 // sample at a jittered place is a coin toss of the cloud's coverage that changes with the step count (the coverage of an orbit view
                 // jumped by 14 percent between two altitudes where the count went from two to one).
@@ -581,11 +578,6 @@ Shader "ReDefinition/AtmospheresLayers"
                 float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
-                // CLOUDR1 P6: the first hit by bisection. When a dense sample follows an empty one, the entry lies between them: the loop below evaluates the density at the middle of the
-                // bracket (the same call, no second copy of the density in the shader), keeps the half that holds the entry, and after _FirstHitP.x evaluations goes back to the dense end
-                // and shades from there. The steps right inside are thin (_FirstHitP.y of the grid step) and grow with the lost transmittance, so the rim is resolved where the eye sees it.
-                bool prevDense = false, bisecting = false;
-                float bLo = 0.0, bHi = 0.0, bIter = 0.0, shell = 0.0;
                 float shellLeft = (float)count;   // A4: the fine steps a span may take inside bodies' shells (cloud.cellShell)
                 [loop] for (int i = 0; i < 512; i++)
                 {
@@ -593,15 +585,11 @@ Shader "ReDefinition/AtmospheresLayers"
                     float3 pc = o + d * t;
                     float alt = length(pc) - _PlanetR;
                     float share;
-                    // T16: the step grows along the span; the detail's footprint is the pixel's size at the distance.
-                    float dtv = _CullC.x > 0.0 ? dt * CullStepScale(t - s0[k]) : dt;
+                    float dtv = dt;
                     if (spanG > 0.0) dtv = dt * (1.0 + spanG * max(t - growFrom, 0.0));
-                    if (_CullD.x > 0.5) gNoiseFoot = CullFoot(t, dtv);
                     // With the points by distance the footprint of the shape is the pixel's size at the sample, not the step along the ray: the step is long far away, and a footprint
                     // of that length would replace a body by the map's mean (CellCover) where the pixel still resolves it. The jittered grid and the history integrate along the ray.
-                    else if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
-                    // A4 (cloud.cellFoot): the pixel's size at the sample, the narrowest band the body is drawn with (CellBody).
-                    gBodyFoot = _CullD.x > 0.5 ? _CullD.y * t : 0.0;
+                    if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
                     // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's billows the body's depth changes by at most 1 per m, so no surface lies within that
                     // depth (CellShellGap) nor within the reach of a neighbour's body (gCellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
@@ -624,18 +612,10 @@ Shader "ReDefinition/AtmospheresLayers"
                     r.steps += 1;
                     // Aid 12 (the probe's empty readout, T09ProbeTaps.cs): the samples that found no density; only while the aid is drawn.
                     if (_LimitP.y > 11.5 && _LimitP.y < 12.5 && !(dens > 0)) r.emptySamples += 1.0;
-                    [branch] if (bisecting)
-                    {
-                        if (dens > 0) bHi = t; else bLo = t;
-                        bIter += 1.0;
-                        if (bIter < _FirstHitP.x) t = 0.5 * (bLo + bHi);
-                        else { bisecting = false; t = bHi; prevDense = true; shell = _FirstHitP.z; }
-                        continue;
-                    }
                     // A4 (cloud.cellShell): within the billows' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
                     // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap
                     // above saves them elsewhere. A span takes at most as many fine steps as it has grid points (a grazing ray runs kilometres in a shell), then the grid takes over.
-                    // The fine samples follow the jittered grid point they start from, so the entry still spreads over the frames; one that lands on cloud is bracketed by the bisection.
+                    // The fine samples follow the jittered grid point they start from, so the entry still spreads over the frames.
                     float shellStep = -1.0;
                     [branch] if (fmod(floor(_CellE[li].w * 0.25), 2.0) > 0.5 && gBodyRead && !(dens > 0) && traceGap <= 0.0 && shellLeft > 0.0 && CellShellGap(li) <= 0.0)
                     {
@@ -648,7 +628,6 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     if (shellStep > 0.0)
                     {
-                        prevDense = false;
                         tLast = t;
                         arrived = 1.0;
                         leap = 1.0;
@@ -657,8 +636,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     if (traceGap > 0.0)
                     {
-                        // A4: the grid points within the gap are empty; the last of them is where an entry after the leap is bracketed from (as the reach skip below).
-                        prevDense = false;
+                        // A4: the grid points within the gap are empty; the last of them is where an entry after the leap is walked back to (as the reach skip below).
                         tLast = t + traceGap - dtv;
                         arrived = 1.0;
                         leap = 1.0;
@@ -667,7 +645,6 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     if (!(dens > 0))
                     {
-                        prevDense = false;
                         // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (gEmptyM is 0 where no reach was read).
                         float reachSkip = dtv * floor(gEmptyM / dtv);
                         tLast = t + reachSkip;
@@ -699,31 +676,11 @@ Shader "ReDefinition/AtmospheresLayers"
                         arrived = 1.0;
                         continue;
                     }
-                    [branch] if (_FirstHitP.x > 0.5 && !prevDense)
-                    {
-                        bLo = max(tLast, s0[k]);
-                        bHi = t;
-                        if (bHi - bLo > 1e-2)
-                        {
-                            bisecting = true;
-                            bIter = 0.0;
-                            t = 0.5 * (bLo + bHi);
-                            continue;
-                        }
-                    }
-                    prevDense = true;
                     leap = 1.0;
                     tLast = t;
                     // COST (T05): inside a cloud the step grows with what the ray has already lost (_CostP.w): a ray that is nearly opaque
                     // needs no fine sampling of what lies behind. The sample stands for its whole step, so the optical depth uses it.
-                    float thinScale = 1.0;
-                    // CLOUDR1 P6: the outer shell, the thin steps after the entry; they stop where the ray has lost its light or the near distance ends, then the grid step takes over.
-                    [branch] if (_FirstHitP.x > 0.5 && shell > 0.5 && (_FirstHitP.w <= 0.0 || t < _FirstHitP.w))
-                    {
-                        thinScale = _FirstHitP.y;
-                        shell -= 1.0;
-                    }
-                    float dts = min(dtv * thinScale * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dtv * thinScale));
+                    float dts = min(dtv * (1.0 + _CostP.w * (1.0 - T)), max(tEnd - t, dtv));
                     t += dts;
                     if (r.first < 0) r.first = t - dts;
                     float dtau = dens * dts;
@@ -738,13 +695,10 @@ Shader "ReDefinition/AtmospheresLayers"
                         // The light march costs most: a step that weighs less than the cut-off, or that follows a march by fewer than _CostP.z
                         // lit steps, reuses the optical depth towards the sun of the last march of this span (package T01c).
                         float reuse = -1.0;
-                        float tapK = CullTapFactor(t);
                         if (noLight) reuse = 0.0;
-                        else if (haveSun && !(T * ext >= lightCut * tapK && sinceLight + 1.0 >= _CostP.z * tapK))
+                        else if (haveSun && !(T * ext >= lightCut && sinceLight + 1.0 >= _CostP.z))
                         {
-                            // _ReuseP.x (layers.lightReuseMove): the reused optical depth towards the sun is moved by what the ray crossed since, projected on the sun's
-                            // direction (exact along it; the sideways shift of the sun's path stays unmodelled, as in the plain reuse).
-                            reuse = _ReuseP.x > 0.5 ? max(sunTau - dot(d, _Sun.xyz) * tauSince, 0.0) : sunTau;
+                            reuse = sunTau;
                             sinceLight += 1.0;
                         }
                         float taps, tauUsed, upUsed;
@@ -891,15 +845,11 @@ Shader "ReDefinition/AtmospheresLayers"
             {
                 float full = exp2(_LayerCount) - 1.0;
                 float3 col = Heat(r.steps / max(_MarchP.x * 2.0, 1.0)) * 0.35 * step(0.5, r.steps);
-                bool a1 = fmod(gCullAid, 2.0) > 0.5, a2 = fmod(floor(gCullAid / 2.0), 2.0) > 0.5, a4 = fmod(floor(gCullAid / 4.0), 2.0) > 0.5, a8 = gCullAid > 7.5;
+                bool a1 = fmod(gCullAid, 2.0) > 0.5, a2 = fmod(floor(gCullAid / 2.0), 2.0) > 0.5, a4 = fmod(floor(gCullAid / 4.0), 2.0) > 0.5;
                 if (gCullBits < 0.5) col = a1 ? float3(0.1, 0.3, 0.95) : (a2 ? float3(0.1, 0.8, 0.2) : (a4 ? float3(0.45, 0.45, 0.6) : float3(0.8, 0.1, 0.1)));
-                else if (a8) col = float3(1.0, 0.55, 0.1);
                 else if (gCullBits < full - 0.5) col = float3(0.95, 0.85, 0.15);
                 return float4(col, 1.0);
             }
-            // Aid 7 (T16): the LOD map at the ray's first dense sample: red the tap factor over 1, green the step scale over 1, blue the detail footprint share over 1.
-            if (_LimitP.y > 6.5)
-                return float4(saturate((CullTapFactor(r.first) - 1.0) * 0.5), saturate(_CullC.x * max(r.first, 0.0) * 0.5), saturate(CullFoot(r.first, 1.0) * 0.001), 1.0) * step(0.5, r.steps);
             if (_LimitP.y > 0.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
             if (r.weightSum > 1e-9) dist = r.distSum / r.weightSum;
             return float4(r.rgb, r.alpha);
@@ -976,42 +926,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 sum += tex2Dlod(_MarchTex, float4(uvc, 0, 0)) * w;
                 wsum += w;
             }
-            float4 res = sum / max(wsum, 1e-6);
-            // PUFF (_BillowP.w): the Catmull-Rom spline's difference to the bilinear read is added to the depth-aware result (a sharper upsampling of the march target; the
-            // result stays within the range of the four nearest texels, so nothing rings at an edge).
-            [branch] if (_BillowP.w > 0.0)
-            {
-                float wx[4], wy[4];
-                wx[0] = f.x * (-0.5 + f.x * (1.0 - 0.5 * f.x));
-                wx[1] = 1.0 + f.x * f.x * (-2.5 + 1.5 * f.x);
-                wx[2] = f.x * (0.5 + f.x * (2.0 - 1.5 * f.x));
-                wx[3] = f.x * f.x * (-0.5 + 0.5 * f.x);
-                wy[0] = f.y * (-0.5 + f.y * (1.0 - 0.5 * f.y));
-                wy[1] = 1.0 + f.y * f.y * (-2.5 + 1.5 * f.y);
-                wy[2] = f.y * (0.5 + f.y * (2.0 - 1.5 * f.y));
-                wy[3] = f.y * f.y * (-0.5 + 0.5 * f.y);
-                float4 cubic = 0, lin = 0;
-                float4 mn = 1e30, mx = -1e30;
-                [unroll] for (int j = 0; j < 4; j++)
-                {
-                    [unroll] for (int a = 0; a < 4; a++)
-                    {
-                        float4 t = tex2Dlod(_MarchTex, float4((base + float2(a - 1, j - 1) + 0.5) * texel, 0, 0));
-                        cubic += t * (wx[a] * wy[j]);
-                        if (a == 1 || a == 2)
-                        {
-                            if (j == 1 || j == 2)
-                            {
-                                lin += t * ((a == 2 ? f.x : 1.0 - f.x) * (j == 2 ? f.y : 1.0 - f.y));
-                                mn = min(mn, t);
-                                mx = max(mx, t);
-                            }
-                        }
-                    }
-                }
-                res = clamp(res + _BillowP.w * (cubic - lin), mn, mx);
-            }
-            return res;
+            return sum / max(wsum, 1e-6);
         }
         // The display stage (CloudOutputStage.cs is its CPU twin and the test's reference): the march's radiance is physical, the target it is
         // written into holds display values of a Gamma-space scene whose white is the sun's own display value W. Per channel, on the colour

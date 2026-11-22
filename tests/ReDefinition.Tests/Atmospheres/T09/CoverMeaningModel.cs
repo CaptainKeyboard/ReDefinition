@@ -121,7 +121,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double n = CloudShapeModel.ShapeAt(set, ref prm, qx, qy, qz);
             double s = BaseShare(mapping, n, c, k);
             if (s <= 0.0 || erosion <= 0.0 || !fine) return s;
-            if (s >= 1.0 && !(prm.DensityRemap > 0.0)) return s;
+            if (s >= 1.0) return s;
             double lod = CloudShapeModel.DetailLod(ref prm, footM);
             double d = set.DetailMean;
             double r = Math.Sqrt(px * px + py * py + pz * pz);
@@ -141,9 +141,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 }
                 d += (d2 - d) * NoiseModel.FineDetailWeight;
             }
-            double eroded = CloudShapeModel.Erode(s, d, erosion);
-            if (prm.DensityRemap > 0.0) eroded *= CloudShapeModel.InteriorThinning(prm.DensityRemap, erosion, d);
-            return eroded;
+            return CloudShapeModel.Erode(s, d, erosion);
         }
 
         // The optical depth of a vertical column through the layer at the horizontal place (hx, hy) (metres from the noise site's origin on the tangent plane; the point is put on the

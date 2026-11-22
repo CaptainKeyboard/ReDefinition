@@ -100,9 +100,7 @@ float NoiseShare(int li, float3 pc, float cov, float coverage, float edge, float
     if (light == 0 && _FarD.x > 0.5 && gNoiseFoot > 0 && scale > 0 && amount > 0 && _NoiseP.x > 0.5)
     {
         lod = saturate((gNoiseFoot - _FarD.y * scale) / max((_FarD.z - _FarD.y) * scale, 1e-3));
-        // layers.densityRemap (_NoiseT.z) thins every share by one factor once the detail is its mean.
-        float thin = (_NoiseT.z > 0 && erosion > 0) ? saturate(1.0 - _NoiseT.z * erosion * (1.0 - _NoiseS.w)) : 1.0;
-        mean = FarShareMean(cov, coverage, edge, amount, erosion) * thin;
+        mean = FarShareMean(cov, coverage, edge, amount, erosion);
         if (lod >= 1.0) return mean;
     }
     float near = NoiseShareNearEx(li, pc, cov, coverage, edge, amount, erosion, light);

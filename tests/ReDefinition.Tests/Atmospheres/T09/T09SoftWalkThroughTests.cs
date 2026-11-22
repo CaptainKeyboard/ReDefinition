@@ -119,16 +119,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Func<string, T09Probe.SoftExpectation> of = n => T09Probe.SoftExpect(T09Probe.SoftVariants.First(v => v.Name == n));
             Assert.AreEqual(OwnCloudOptions.ReconResolutionDefault, soft.Resolution, 1e-6f, "the march target is a third by default (E40 C1)");
             Assert.IsFalse(soft.SkipEmpty, "cloudSkipEmpty is off by default (so softr33 sets it)");
-            Assert.IsFalse(soft.SpanTight);
             Assert.AreEqual(3, soft.DitherSequence, "the step offset is the blue-noise tile by default (E40 F2)");
             T09Probe.SoftExpectation r33 = of("softr33");
             Assert.AreEqual(0.33f, r33.Resolution, 1e-6f);
             Assert.IsTrue(r33.SkipEmpty);
             Assert.AreEqual(256, r33.GridPoints);
-            Assert.IsFalse(r33.SpanTight);
             T09Probe.SoftExpectation cut = of("softcut16");
             Assert.AreEqual(85, cut.GridPoints, "256 points at gridFine 0.3333");
-            Assert.IsTrue(cut.SpanTight);
             Assert.AreEqual(0.33f, cut.Resolution, 1e-6f);
             Assert.IsFalse(cut.SkipEmpty);
             Assert.AreEqual(1, of("softhash").DitherSequence);
@@ -243,7 +240,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         Assert.AreEqual(e.Softness, Number(r, row + "softness"), 1e-6, row + "softness");
                         Assert.AreEqual(1.0, Number(r, row + "effective_ok"), row + "the numbers are the table's");
                         // The cost candidates' switches and the march target as the table says (the fake reconstructor sizes it from recon.resolution).
-                        Assert.AreEqual(e.SpanTight ? 1.0 : 0.0, Number(r, row + "span_tight"), row + "span tight");
                         Assert.AreEqual(e.SkipEmpty ? 1.0 : 0.0, Number(r, row + "skip_empty"), row + "skip empty");
                         Assert.AreEqual(e.DitherSequence, Number(r, row + "dither_sequence"), row + "dither sequence");
                         int ew, eh;

@@ -118,11 +118,9 @@ namespace ReDefinition.Atmospheres
             Add("h_ragged_off_g", Ground, "t13").Set(K.BaseRagged, 0).Noise = true;
             Add("h_top_off_a", Above, "t13").Set(K.CloudTopFromUpdraft, 0);
             AddHeightOff("h_all_off_a", Above);
-            Add("remap1_g", Ground, Cloud).Tune(CloudLookTuning.TuneDensityRemap, 1f);
             Add("combine0_g", Ground, Cloud).Tune(CloudLookTuning.TuneCoverCombine, 0f);
             Add("sigma2_g", Ground, Cloud).Tune(CloudLookTuning.TuneSigma, 2f);
             Add("soft2_g", Ground, Cloud).Tune(CloudLookTuning.TuneSoftness, 2f);
-            Add("namt2_g", Ground, Cloud).Tune(CloudLookTuning.TuneNoiseAmount, 2f);
             Add("nsize2_g", Ground, Cloud).Tune(CloudLookTuning.TuneNoiseSize, 2f);
 
             // --- Start k3light: light quality, octaves, powder, sun colour, moons, ambient, sun march, shadows, step quality, the light constants (ground view) ---
@@ -151,17 +149,9 @@ namespace ReDefinition.Atmospheres
             Add("diff0_g", Ground, "light").Tune(OwnCloudOptions.TuneDiffusion, 0f);
             Add("skytint0_g", Ground, "light").Tune(OwnCloudOptions.TuneSkyTint, 0f);
 
-            // --- Start k3far: the culling (T16) and the far view (T06) at the horizon, the closed-deck skip under the stack (sky3) ---
+            // --- Start k3far: the culling (T16) and the far view (T06) at the horizon, the skip under the stack (sky3) ---
             Add("skip_empty_h", Horizon, "cull").Set(K.CloudSkipEmpty, 1);
-            Add("dcut_h", Horizon, "cull").Set(K.CloudLayerDistanceCut, 1).Set(K.CloudLayerCapDistance, 100);
-            Add("stepg_h", Horizon, "cull").Set(K.CloudStepGrowth, 1);
-            Add("tap_h", Horizon, "cull").Set(K.CloudTapLod, 1);
-            Add("detail_h", Horizon, "cull").Set(K.CloudDetailLod, 1);
             AddCullAll("cull_all_h", Horizon);
-            AddCullAll("kcut_h", Horizon).Tune(OwnCloudOptions.TuneCutWeight, 0.1f);
-            AddCullAll("kstepg_h", Horizon).Tune(OwnCloudOptions.TuneStepGrowth, 4e-4f);
-            AddCullAll("ktapwin_h", Horizon).Tune(OwnCloudOptions.TuneTapStart, 5000f).Tune(OwnCloudOptions.TuneTapEnd, 30000f);
-            AddCullAll("ktapf_h", Horizon).Tune(OwnCloudOptions.TuneTapFactor, 6f);
             AddCullAll("kfoot_h", Horizon).Tune(OwnCloudOptions.TuneFootScale, 3f);
             AddCullAll("kcapkeep_h", Horizon).Tune(OwnCloudOptions.TuneCapKeep, 1f);
             // The aerial perspective is on by default behind Scatterer's scattering, so the rows that switch it on draw the plain picture; the row that switches it off shows its effect.
@@ -174,7 +164,6 @@ namespace ReDefinition.Atmospheres
             Add("farpolicy_h", Horizon, "far").Set(K.CloudFarPolicy, 1);
             Add("mapfade_h", Horizon, "far").Set(K.CloudFarMapFade, 1);
             Add("fade40_h", Horizon, "far").Tune(CloudLookTuning.TuneFadeFar, 40000f);
-            Add("skip_closed_s", Sky3, "cull").Set(K.CloudSkipClosed, 1);
             AddCullAll("cull_all_s", Sky3);
 
             // --- Start k3fx: the reconstruction options (ground), lightning (horizon, storm 12 km east), rain with the wet surfaces and the droplets (ground) ---
@@ -217,11 +206,10 @@ namespace ReDefinition.Atmospheres
             return Add(id, view, "t13").Set(K.CloudBaseVariation, 0).Set(K.CloudBasePhysics, 0).Set(K.CloudTopFromUpdraft, 0).Set(K.BaseRagged, 0);
         }
 
-        // The six switches of T16 on, the distance cut at a cap distance of 100 km.
+        // The skip of empty tiles on, the layer cap at a cap distance of 100 km.
         private static K3Variant AddCullAll(string id, string view)
         {
-            return Add(id, view, "cull").Set(K.CloudSkipEmpty, 1).Set(K.CloudSkipClosed, 1).Set(K.CloudLayerDistanceCut, 1)
-                .Set(K.CloudStepGrowth, 1).Set(K.CloudTapLod, 1).Set(K.CloudDetailLod, 1).Set(K.CloudLayerCapDistance, 100);
+            return Add(id, view, "cull").Set(K.CloudSkipEmpty, 1).Set(K.CloudLayerCapDistance, 100);
         }
 
         private static K3Variant Storm(string id)
