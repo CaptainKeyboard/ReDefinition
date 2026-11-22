@@ -650,7 +650,8 @@ namespace ReDefinition.Atmospheres
         {
             OwnCloudModule m = OwnCloudModule.Current;
             if (m == null) { why = "no own cloud module"; return false; }
-            return m.ProbeMapsAtGoal(out why);
+            // The sky the keys ask for (the weather map's or the old chain) and its heights count too: a variant that flips cloud.weatherMapSky is measured on its own sky.
+            return m.ProbeMapsAtGoal(out why) && m.MapSkySettled(out why);
         }
 
         public void RequestMapSnap()

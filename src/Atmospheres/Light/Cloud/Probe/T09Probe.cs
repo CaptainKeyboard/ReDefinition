@@ -735,6 +735,13 @@ namespace ReDefinition.Atmospheres
                 Emit(prefix + "shadow_disc_taps", s.DiscTaps);
             }
             Emit(prefix + "shadow_quality_setting", AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudShadowQuality));
+            // The sky the last map round drew (-1: the old layer maps; else the weather map's, sheet rule x 10 + depth rule) and whether it and its heights are the keys'.
+            if (own != null)
+            {
+                string skyWhy;
+                Emit(prefix + "map_sky", own.LastRoundMapSky);
+                Emit(prefix + "map_sky_settled", own.MapSkySettled(out skyWhy));
+            }
         }
 
         // --- The pose at the end of a dwell and around a capture ---------------------------------------------------------------------------
