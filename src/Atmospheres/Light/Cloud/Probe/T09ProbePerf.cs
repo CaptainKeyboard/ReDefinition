@@ -165,6 +165,10 @@ namespace ReDefinition.Atmospheres
                 case "hnotri":
                 case "bnowb":
                 case "bnohaze":
+                case "sg5e4":
+                case "sg2e4":
+                case "sgfrom2k":
+                case "sgstep12":
                     return true;
                 default:
                     return false;
@@ -458,6 +462,13 @@ namespace ReDefinition.Atmospheres
                 // The band hunt (owner "fix what you see"): the scene's white balance off (setting sceneWhiteBalance 0) and the clouds' aerial perspective off (cloud.hazeStrength 0).
                 case "bnowb": SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, 0.0); break;
                 case "bnohaze": ForceTuning(CloudLookTuning.TuneHazeStrength, 0f); break;
+                // The storm's ground view below 48 fps (PRUEFPROTOKOLL 76/77): points by distance put many short steps into the fog near the camera (fpnosg 53 fps ground but 46
+                // above). sg5e4 / sg2e4 a weaker growth (layers.spanGrowthPerM 0.0005 / 0.0002), sgfrom2k the growth from 2 km on (layers.spanGrowthFromM 2000), sgstep12 the fast
+                // growth with the shortest step 12 m (layers.minStepM; the look's 6 m).
+                case "sg5e4": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.0005f); break;
+                case "sg2e4": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.0002f); break;
+                case "sgfrom2k": ForceTuning(OwnCloudOptions.TuneSpanGrowthFromM, 2000f); break;
+                case "sgstep12": ForceTuning(OwnCloudOptions.TuneMinStepM, 12f); break;
                 // The contour bands (PRUEFPROTOKOLL 75, owner "fix what you see"): the fast path with LV3's lateral light spread (wolken-m2a-technik 11.8: the propagation fill on
                 // 156.25 m voxels as the spread's source, transmittance stored over 8; the hand-over stays the fast path's 0 km).
                 case "fpspread":
