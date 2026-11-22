@@ -171,7 +171,7 @@ namespace ReDefinition.Atmospheres
         private IEnumerable<ProbeWait> LookAidTau(View view, string cover, string frame, T09Readout.Reading off)
         {
             bool on = false;
-            try { on = Game.AidOn(1); }
+            try { on = Game.AidOn(); }
             catch (Exception e) { Warn("aid_view_fault", view.Name + " " + cover + " " + frame + ": " + e.GetType().Name + " " + e.Message); }
             if (!on)
             {

@@ -147,16 +147,13 @@ def aux_id(scene, variant, view, mask):
 
 def aux_jobs():
     """Per scene, variant and view: the aux pass (steps, tau, alpha) of the whole stack and, for the variant now, of each layer alone and of the whole stack without the leap over the
-    empty reach (id suffix nr: the result must be the same, with more steps); the same views as lum jobs with the aid picture 4 (light taps): `dense` with a fresh sun march at every
-    lit sample (cut-off 0, stride 1: taps = 3 x the lit samples) and `taps` with the product's reuse."""
+    empty reach (id suffix nr: the result must be the same, with more steps)."""
     jobs = []
     for s in SCENES:
         for v in VARIANTS:
             for w in VIEWS:
                 for mask in ([0, 1, 2, 4, 8] if v == "now" else [0]):
                     jobs.append(build_job(s, v, w, "aux", AUX_SIZE, aux_id(s, v, w, mask), layerMask=mask))
-                    jobs.append(build_job(s, v, w, "lum", AUX_SIZE, aux_id(s, v, w, mask).replace("c1aux", "c1dense"), layerMask=mask, aid=4, costCut=0.0, lightStride=1))
-                jobs.append(build_job(s, v, w, "lum", AUX_SIZE, aux_id(s, v, w, 0).replace("c1aux", "c1taps"), aid=4))
                 if v == "now":
                     jobs.append(build_job(s, v, w, "aux", AUX_SIZE, aux_id(s, v, w, 0) + "nr", noReach=1))
     return jobs
@@ -303,15 +300,6 @@ def collect_aux(ctx):
                         if os.path.isfile(os.path.join(folder, aux_id(s, v, w, 1 << li) + "-steps.npy")):
                             per[name] = ray_stats(folder, aux_id(s, v, w, 1 << li))["steps"]
                 st["per_layer"] = per
-                # the lit samples (a fresh sun march at each: 3 taps), per ray, of the stack and of each layer; the taps of the product's reuse
-                dense = {}
-                for mask in ([0, 1, 2, 4, 8] if v == "now" else [0]):
-                    p = os.path.join(folder, aux_id(s, v, w, mask).replace("c1aux", "c1dense") + "-g.npy")
-                    if os.path.isfile(p):
-                        dense[mask] = float(np.load(p).astype(np.float64).mean() / 3.0)
-                p = os.path.join(folder, aux_id(s, v, w, 0).replace("c1aux", "c1taps") + "-g.npy")
-                st["dense"] = dense
-                st["taps"] = float(np.load(p).astype(np.float64).mean()) if os.path.isfile(p) else float("nan")
                 if v == "now" and os.path.isfile(os.path.join(folder, aux_id(s, v, w, 0) + "nr-steps.npy")):
                     nr = ray_stats(folder, aux_id(s, v, w, 0) + "nr")
                     st["steps_noreach"] = nr["steps"]
@@ -324,10 +312,8 @@ def collect_aux(ctx):
                     tag(s, v, w), st["steps"], st["clear"], st["partial"], st["early"], st["steps_clear"], st["steps_partial"], st["steps_early"],
                     st["share_clear"], st["share_partial"], st["share_early"], ("   per layer " + " ".join("%.1f" % per[n] for n in STACK if n in per)) if per else ""))
                 metrics.append(Metric.info("e40c1.aux.%s.steps" % tag(s, v, w), st["steps"]))
-                if 0 in dense:
-                    lines.append("      lit samples per ray %.1f (per layer %s), sun-march taps with the reuse %.1f%s" % (
-                        dense[0], " ".join("%.1f" % dense.get(1 << li, float("nan")) for li in range(len(STACK))), st["taps"],
-                        ("; without the reach leap %.1f steps, largest difference alpha %.2g tau %.2g" % (st["steps_noreach"], st["maxdiff_alpha"], st["maxdiff_tau"])) if "steps_noreach" in st else ""))
+                if "steps_noreach" in st:
+                    lines.append("      without the reach leap %.1f steps, largest difference alpha %.2g tau %.2g" % (st["steps_noreach"], st["maxdiff_alpha"], st["maxdiff_tau"]))
     with open(AUX_JSON, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=1)
     print("\n".join(lines))

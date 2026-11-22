@@ -804,7 +804,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float s = max(r.tau, 1e-6);
                 return float4(c / s * r.alpha, r.alpha);
             }
-            if (_LimitP.y > 0.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
+            if (_LimitP.y > 0.5 && _LimitP.y < 1.5) return float4(Heat((log10(max(r.tau, 1e-4)) + 3.0) / 4.5) * step(1e-4, r.tau), r.alpha);
             if (r.weightSum > 1e-9) dist = r.distSum / r.weightSum;
             return float4(r.rgb, r.alpha);
         }

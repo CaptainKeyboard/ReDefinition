@@ -674,7 +674,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public double CameraFovDeg { get { return EmptyHorizon ? 2.0 : FovDeg; } }
         internal double FovDeg = 60.0;
         internal int LayerMaskNow;
-        internal int AidModeNow;
         // The picture of the sky: the sun-lit sea below the horizon, the blue sky above it; the own pass, when it draws all layers, replaces the sky by a deck of
         // DeckRadiance times the sun gain (clipped at ClipAt) where DeckCovers says so (by the picture's column). A model of the real thing with the numbers the test chooses.
         internal float SkyLuma = 0.5f, SeaLuma = 0.7f, DeckRadiance = 0.075f, ClipAt = 1f;
@@ -757,16 +756,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             LayerMasks.Add(mask);
             LayerMaskNow = mask;
             if (Module != null) Module.Frame.LayerMask = mask;
-        }
-
-        public bool AidOn(int mode)
-        {
-            RequireFlight();
-            if (!AidAvailable) return false;
-            AidIsOn = true;
-            AidModeNow = mode;
-            Stamp("aidon" + mode);
-            return true;
         }
 
         public IList<KeyValuePair<string, string>> EnvironmentLines()

@@ -10,7 +10,7 @@ two elevations (45.6 degrees and 12 degrees). Haze off: the radiance is the clou
 step growth, light reuse; the mean of PRODUCT_FRAMES frames). A third group switches single light terms off or changes them at the same distances (the 'chain' variants of VARIANTS).
 
 The measures are taken over the closed part of the cloud (alpha above 0.9): the luminance of its radiance relative to W (the white card facing the sun outside the air), the same as the
-display value of the output stage, the direct light's share of the radiance (the pass's aid 4), the median first-hit distance and optical depth (the pass's aux).
+display value of the output stage, the median first-hit distance and optical depth (the pass's aux).
 """
 import argparse
 import json
@@ -351,7 +351,7 @@ def label(img, text):
 
 def measure(folder, jid, tint):
     """The measures of one picture over its closed part; None where the picture or its closed part is missing."""
-    lum, aid, aux = load(folder, jid, "lum"), load(folder, jid, "aid"), load(folder, jid, "aux")
+    lum, aux = load(folder, jid, "lum"), load(folder, jid, "aux")
     if lum is None:
         return None
     a = lum[..., 3]
@@ -365,11 +365,6 @@ def measure(folder, jid, tint):
     shown = encode(neutral[closed], tint) @ LUMA
     out.update(rel=[float(x) for x in np.percentile(rel, [10, 50, 90, 99])], display=[float(x) for x in np.percentile(shown, [10, 50, 90, 99])],
                blue_red=float(np.median(encode(neutral[closed], tint)[:, 2] / np.maximum(encode(neutral[closed], tint)[:, 0], 1e-6))))
-    if aid is not None:
-        direct, ambient = aid[..., 0][closed], aid[..., 2][closed]
-        out["direct_share"] = float(direct.sum() / max(direct.sum() + ambient.sum(), 1e-9))
-        out["direct_rel"] = float(np.median(direct / WHITE))
-        out["ambient_rel"] = float(np.median(ambient / WHITE))
     if aux is not None:
         out["first_km_p10_p50"] = [float(np.percentile(aux[..., 3][closed], q)) / 1000.0 for q in (10, 50)]
         out["tau_p50"] = float(np.median(aux[..., 1][closed]))
@@ -418,8 +413,8 @@ def collect(ctx):
                     elif "rel" not in m:
                         lines.append("   %-34s cover %.3f, closed %.3f (%d px): too small a closed part" % (jid, m["cover"], m["closed"], m["n_closed"]))
                     else:
-                        lines.append("   %-34s cover %.3f closed %.3f  rel p10/50/90/99 %.2f %.2f %.2f %.2f  display p50/p90 %.2f %.2f  direct share %.2f  first %.1f km  tau p50 %.1f  steps %.0f"
-                                     % (jid, m["cover"], m["closed"], m["rel"][0], m["rel"][1], m["rel"][2], m["rel"][3], m["display"][1], m["display"][2], m.get("direct_share", float("nan")),
+                        lines.append("   %-34s cover %.3f closed %.3f  rel p10/50/90/99 %.2f %.2f %.2f %.2f  display p50/p90 %.2f %.2f  first %.1f km  tau p50 %.1f  steps %.0f"
+                                     % (jid, m["cover"], m["closed"], m["rel"][0], m["rel"][1], m["rel"][2], m["rel"][3], m["display"][1], m["display"][2],
                                         m.get("first_km_p10_p50", [0, float("nan")])[1], m.get("tau_p50", float("nan")), m.get("steps_mean", float("nan"))))
                         metrics.append(Metric.info("e40far.%s.rel_p90" % jid, m["rel"][2]))
                         if HAZE and lum is not None:
@@ -476,8 +471,8 @@ def collect(ctx):
             if m is None or "rel" not in m:
                 lines.append("   %-34s %s" % (jid, "no picture" if m is None else "too small a closed part"))
                 continue
-            lines.append("   %-34s rel p10/50/90/99 %.2f %.2f %.2f %.2f  display p50/p90 %.2f %.2f  direct share %.2f  first %.1f km  steps %.0f"
-                         % (jid, m["rel"][0], m["rel"][1], m["rel"][2], m["rel"][3], m["display"][1], m["display"][2], m.get("direct_share", float("nan")),
+            lines.append("   %-34s rel p10/50/90/99 %.2f %.2f %.2f %.2f  display p50/p90 %.2f %.2f  first %.1f km  steps %.0f"
+                         % (jid, m["rel"][0], m["rel"][1], m["rel"][2], m["rel"][3], m["display"][1], m["display"][2],
                             m.get("first_km_p10_p50", [0, float("nan")])[1], m.get("steps_mean", float("nan"))))
             metrics.append(Metric.info("e40far.%s.rel_p90" % jid, m["rel"][2]))
     with open(RESULTS, "w", encoding="utf-8") as f:

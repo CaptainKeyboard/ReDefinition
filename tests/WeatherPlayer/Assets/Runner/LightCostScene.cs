@@ -12,7 +12,7 @@ namespace ReDefinition.WeatherPlayer
     // The cost of the cloud light (package T03, -mode scene -scene light-cost -in <folder>, a timing run: exclusive lock, proxy timestamps): the
     // milliseconds of the layer pass at 1707x960 (half size march, 48 steps) on the jobs of <folder>/jobs.json for each light variant of the job
     // (its own light numbers, the cache on or off), and the milliseconds of the cache fill alone. The light variants are the jobs' own: the
-    // job id is "<view>|<variant>"; cache jobs read an atlas that was filled before the timing. Output: cost.<job id>.march / composite / total
+    // job id is "<view>|<variant>"; cache jobs read an atlas that was filled before the timing. Output: cost.march.<job id> / composite / total
     // and cost.fill.<job id> as info lines.
     [WeatherScene("light-cost")]
     public sealed class LightCostScene : WeatherSceneBase
@@ -68,13 +68,6 @@ namespace ReDefinition.WeatherPlayer
                     yield return Frames(2);
                     cache.Enabled = true;
                 }
-                if (job.cache != 0)
-                {
-                    // The share of the light taps the cache saves: the taps of the aid view with the atlas on over with it off.
-                    float on = TapSum(renderer, frame, lj, dummy, true), off = TapSum(renderer, frame, lj, dummy, false);
-                    yield return new WaitForEndOfFrame();
-                    Sink.Info("cost.taps_cache_over_march." + job.id, on / Math.Max(off, 1f));
-                }
                 for (int i = 0; i < 60; i++)
                 {
                     frame.FrameNumber = FrameIndex;
@@ -129,33 +122,6 @@ namespace ReDefinition.WeatherPlayer
             Cam.targetTexture = Target;
             rt.Release();
             cache.Dispose();
-        }
-
-        private static float TapSum(LayerRenderer renderer, LayerFrame frame, LayersJob lj, RenderTexture dummy, bool cacheOn)
-        {
-            const int w = 160, h = 90;
-            float tan = Mathf.Tan(lj.fovV * Mathf.Deg2Rad * 0.5f);
-            renderer.SetCamera(LayersSetup.V(lj.position), LayersSetup.V(lj.forward), LayersSetup.V(lj.right) * tan * (16f / 9f), LayersSetup.V(lj.up) * tan, Vector2.zero);
-            frame.Light.Cache.Enabled = cacheOn;
-            frame.AidMode = 4;
-            renderer.Material.SetTexture("_SceneDepth", dummy);
-            renderer.Apply(frame);
-            var target = new RenderTexture(w, h, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear) { filterMode = FilterMode.Point };
-            target.Create();
-            Graphics.Blit(null, target, renderer.Material, LayerRenderer.PassMarch);
-            RenderTexture previous = RenderTexture.active;
-            RenderTexture.active = target;
-            var copy = new Texture2D(w, h, TextureFormat.RGBAFloat, false, true);
-            copy.ReadPixels(new Rect(0, 0, w, h), 0, 0);
-            copy.Apply(false);
-            RenderTexture.active = previous;
-            float sum = 0f;
-            foreach (Color c in copy.GetPixels()) sum += c.g;
-            UnityEngine.Object.Destroy(copy);
-            target.Release();
-            frame.AidMode = 0;
-            frame.Light.Cache.Enabled = true;
-            return sum;
         }
 
         private static double Median(List<double> values)

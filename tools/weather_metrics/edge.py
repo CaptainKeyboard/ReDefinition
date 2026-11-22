@@ -5,7 +5,7 @@ tools/build_weather_player.py --series T12-cost (timing run, exclusive), T12-qua
                 modes of the table at 1707x960 and 2560x1440.
   T12-quality   scene 'edge-quality': per view the error against the reference (the mean of four full marches) in
                 the band of N = 6 pixels around the contour, in the thick interior and in the empty sky, the seams at the block borders, the mask
-                and the pictures t12-<view>-before/after/reference/aid-mask/aid-rays/aid-error/aid-steps.png.
+                and the pictures t12-<view>-before/after/reference/aid-mask/aid-rays/aid-error.png.
   T12-temporal  scene 'edge-temporal': turns of 2 and 12 degrees a frame, a 100 m/s fly-by and a camera cut: ghost_move, trail_px, shimmer,
                 the frames to converge after the cut, the mask's cover of the contour.
 

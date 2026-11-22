@@ -6,7 +6,7 @@ entry refinement (E40 step (c), the soft water content has no surface to refine)
                       and the light cache.
   T14-light-look      scene 'light': a deep cell seen from the side, against the sun and with the sun behind: the dark base (base / top ratio and the regions)
                       for the same variants, against the T11 reference renderer, and the pictures
-                      t14-<view>-before/after/grid/aid-direct/aid-ambient.png (natural plus aid).
+                      t14-<view>-before/after/grid.png.
 
 Light variants carry no pass/fail limit: their numbers (ms, base / top, region ratios to the reference) are for the owner's decision.
 
@@ -146,7 +146,7 @@ def light_cost_jobs():
             lj["ambientTop"] = [0.35, 0.42, 0.55]
             lj["ambientBottom"] = [0.14, 0.15, 0.16]
             lj["sunMarch"] = march
-            j = dict(id="%s|%s" % (lj["id"], vname), mode="lum", aid=0, useDefaults=0, layerJob=lj)
+            j = dict(id="%s|%s" % (lj["id"], vname), mode="lum", useDefaults=0, layerJob=lj)
             j.update(Lt.MODEL)
             j.update(over)
             if over.get("cache"):
@@ -187,14 +187,13 @@ def look_jobs():
     jobs = []
     for spec in LOOK_CELLS:
         for vname, over, march in LIGHT_VARIANTS:
-            for aid in (0, 4):
-                o = dict(over)
-                alt = centre_alt(spec)
-                if o.get("cache"):
-                    # The atlas box around the cell: the product's 4000 m for the 1100 m cells, 16000 m for the storm cells (the grid is 64 x 64 x 32).
-                    box = 16000.0 if alt > 3000.0 else 4000.0
-                    o.update(cacheMin=[-box / 2, -box / 2, Lt.R + alt - box / 2], cacheSize=[box] * 3, cacheFillSteps=12)
-                jobs.append(look_job("%s_%s_%d" % (spec[0], vname, aid), spec, aid=aid, layer_kw=dict(sunMarch=march), **o))
+            o = dict(over)
+            alt = centre_alt(spec)
+            if o.get("cache"):
+                # The atlas box around the cell: the product's 4000 m for the 1100 m cells, 16000 m for the storm cells (the grid is 64 x 64 x 32).
+                box = 16000.0 if alt > 3000.0 else 4000.0
+                o.update(cacheMin=[-box / 2, -box / 2, Lt.R + alt - box / 2], cacheSize=[box] * 3, cacheFillSteps=12)
+            jobs.append(look_job("%s_%s" % (spec[0], vname), spec, layer_kw=dict(sunMarch=march), **o))
     return jobs
 
 
@@ -265,7 +264,7 @@ def look_collect(ctx):
         ref = _ref(spec)
         rows = {}
         for vname, _, _ in LIGHT_VARIANTS:
-            jid = "%s_%s_0" % (name, vname)
+            jid = "%s_%s" % (name, vname)
             if not os.path.isfile(os.path.join(folder, jid + "-r.npy")):
                 continue
             img = Lt.cell_img(folder, jid)[0]
@@ -284,17 +283,13 @@ def look_collect(ctx):
             rb, rt = run.base_top(type("R", (), {"alpha": ref[0], "cloud": ref[1]}))
             out.append(Metric.info("look.%s.reference.top_over_base" % name, rt / max(rb, 1e-12)))
             out.append(Metric.info("look.%s.reference.base" % name, rb))
-        # The pictures: before = the shipped default, after = the long sun march; the grid holds every variant; the aids are the direct light against the
-        # ambient (red | blue) and the light taps per pixel, for both.
+        # The pictures: before = the shipped default, after = the long sun march; the grid holds every variant.
         if "default" in rows and "sun9" in rows:
             sky = Lt.DAY_SKY
             for tag, vname in (("before", "default"), ("after", "sun9")):
-                nat = Lt.natural_image(folder, "%s_%s_0" % (name, vname), sky)
+                nat = Lt.natural_image(folder, "%s_%s" % (name, vname), sky)
                 Lt.upscale(nat, 4).save(os.path.join(LOOK_PICTURES, "t14-%s-%s.png" % (name, tag)))
-                sp, steps = Lt.split_image(folder, "%s_%s_4" % (name, vname))
-                Lt.upscale(sp, 4).save(os.path.join(LOOK_PICTURES, "t14-%s-aid-%s-direct-ambient.png" % (name, tag)))
-                Lt.upscale(steps, 4).save(os.path.join(LOOK_PICTURES, "t14-%s-aid-%s-taps.png" % (name, tag)))
-            panels = [Lt.natural_image(folder, "%s_%s_0" % (name, v), sky) for v, _, _ in LIGHT_VARIANTS if v in rows]
+            panels = [Lt.natural_image(folder, "%s_%s" % (name, v), sky) for v, _, _ in LIGHT_VARIANTS if v in rows]
             labels = [v for v, _, _ in LIGHT_VARIANTS if v in rows]
             if ref is not None:
                 ra, rc = ref

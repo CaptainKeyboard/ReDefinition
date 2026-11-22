@@ -124,9 +124,8 @@ namespace ReDefinition.Atmospheres
         // Switches the aid view of the own pass on (the layer shader's optical-depth picture over the scene); false where the pass has none.
         bool AidOn();
         void AidOff();
-        // K-T2d: the aid picture of a given mode (4: the direct light against the ambient, the light taps), the vertical field of view of the flight camera (degrees),
-        // the raw copy of the next read (T09Image.Raw: the values as the target held them), and the log lines about the light and the target (key, text).
-        bool AidOn(int mode);
+        // K-T2d: the vertical field of view of the flight camera (degrees), the raw copy of the next read (T09Image.Raw: the values as the target held them),
+        // and the log lines about the light and the target (key, text).
         double CameraFovDeg { get; }
         // Which layers the pass draws (bit i = layer i; 0 = all): a mask that names no layer gives the baseline frame with the pass still running.
         void SetLayerMask(int mask);
@@ -1023,14 +1022,6 @@ namespace ReDefinition.Atmospheres
         public System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> EnvironmentLines()
         {
             return T09Environment.Read();
-        }
-
-        public bool AidOn(int mode)
-        {
-            OwnCloudModule m = OwnCloudModule.Current;
-            if (m == null || m.Renderer == null || !m.Renderer.Ready || m.Stats.Mode == "off") return false;
-            m.Frame.AidMode = mode;
-            return true;
         }
 
         // The layer shader's aid picture 1 (optical depth as a heat map over the scene); the module fills the frame's other fields every frame but not this one.
