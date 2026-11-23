@@ -60,8 +60,8 @@ namespace ReDefinition.Atmospheres
         internal int CumuliformOfType(int type)
         {
             int forced = CloudLookTuning.CumuliformOverrideFor(layer.Name);
-            // CLOUD FIELD: a puffy type reads the bulge cumuliform where the field is on (the owner's puffy concept is part of the type).
-            if (forced < 0 && layer.Types[type].Cumuliform == 0 && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return CumuliformModel.PresetOf("bulge");
+            // CLOUD FIELD: a type with a cloud form reads the bulge cumuliform where the field is on (the owner's fluffy concept is part of the type).
+            if (forced < 0 && layer.Types[type].Cumuliform == 0 && layer.Types[type].Form > 0 && CloudLookTuning.Field) return CumuliformModel.PresetOf("bulge");
             return forced >= 0 ? forced : layer.Types[type].Cumuliform;
         }
 
@@ -69,7 +69,7 @@ namespace ReDefinition.Atmospheres
         {
             if (!layer.Soft) return 0f;
             float forced = CloudLookTuning.EdgePowerOverrideFor(layer.Name);
-            if (forced <= 0f && layer.Types[type].EdgePower <= 0f && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return 0.5f;
+            if (forced <= 0f && layer.Types[type].EdgePower <= 0f && layer.Types[type].Form > 0 && CloudLookTuning.Field) return 0.5f;
             return forced > 0f ? forced : layer.Types[type].EdgePower;
         }
 
@@ -77,7 +77,7 @@ namespace ReDefinition.Atmospheres
         {
             if (CumuliformOfType(type) <= 0) return 0f;
             float forced = CloudLookTuning.CavityOverrideFor(layer.Name);
-            if (forced < 0f && layer.Types[type].Cavity <= 0f && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return 0.35f;
+            if (forced < 0f && layer.Types[type].Cavity <= 0f && layer.Types[type].Form > 0 && CloudLookTuning.Field) return 0.35f;
             return forced >= 0f ? forced : layer.Types[type].Cavity;
         }
 
@@ -90,10 +90,10 @@ namespace ReDefinition.Atmospheres
             return CumuliformOfType(f < 0.5 ? a : c);
         }
 
-        // CLOUD FIELD: the puff class of a type where the field is on (0: none or the field off); the shader reads the nearer of the two neighbouring types' like the cumuliform preset.
-        internal int PuffOfType(int type)
+        // CLOUD FIELD: the cloud form of a type where the field is on (0: none or the field off); the shader reads the nearer of the two neighbouring types' like the cumuliform preset.
+        internal int FormOfType(int type)
         {
-            return CloudLookTuning.Field ? layer.Types[type].Puff : 0;
+            return CloudLookTuning.Field ? layer.Types[type].Form : 0;
         }
 
         // The smoothing of a type (noise scales).

@@ -63,8 +63,8 @@ namespace ReDefinition.Atmospheres
         internal int Cumuliform { get; set; }
         internal float EdgePower { get; set; }
         internal float Cavity { get; set; }
-        // CLOUD FIELD: the puffy class of the type (cfg key puff): see CloudTypeDef.Puff.
-        internal int Puff { get; set; }
+        // CLOUD FIELD: the cloud form of the type (cfg key form): see CloudTypeDef.Form.
+        internal int Form { get; set; }
         // The share of the type's height over which its top closes (cfg key topClose): see CloudTypeDef.TopClose.
         internal float TopClose { get; set; } = CloudTypeDef.DefaultTopClose;
         // How much a tower of this type feeds an anvil (cfg key outflow): see CloudTypeDef.Outflow.
@@ -93,7 +93,7 @@ namespace ReDefinition.Atmospheres
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 BaseLight = BaseLight, TopLight = TopLight, BaseAmbient = BaseAmbient, TopAmbient = TopAmbient, Lift = Lift, Climate = Climate,
-                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Puff = Puff
+                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Form = Form
             };
         }
     }

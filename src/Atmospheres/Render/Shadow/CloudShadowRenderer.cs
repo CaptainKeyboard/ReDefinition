@@ -188,8 +188,8 @@ namespace ReDefinition.Atmospheres
                     int cumuliform = table.CumuliformOfType(t);
                     if (cumuliform > 0 && Noise != null) Noise.RequestCumuliform();
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), cumuliform);
-                    // w: the type's puff class (cloud.field, CloudField.cs), as the layer pass's second row: the shadow draws the field's single clouds where the pass does.
-                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, table.PuffOfType(t));
+                    // w: the type's cloud form (cloud.field, CloudField.cs), as the layer pass's second row: the shadow draws the field's single clouds where the pass does.
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, table.FormOfType(t));
                 }
             }
             profileTexture.SetPixelData(profile, 0);

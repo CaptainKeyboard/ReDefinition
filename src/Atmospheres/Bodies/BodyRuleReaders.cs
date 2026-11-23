@@ -341,7 +341,7 @@ namespace ReDefinition.Atmospheres
                 Cumuliform = CumuliformModel.PresetOf(r.String("cumuliform", "none")),
                 EdgePower = r.Float("edgePower", 0f, 0f, 6f),
                 Cavity = r.Float("cavity", 0f, 0f, 1f),
-                Puff = CloudField.ClassOf(r.String("puff", "none")),
+                Form = CloudField.ClassOf(r.String("form", "none")),
                 TopClose = r.Float("topClose", CloudTypeDef.DefaultTopClose, 0f, 1f),
                 Outflow = r.Float("outflow", 0f, 0f, 1f),
                 UndulatusAmount = r.Float("undulatusAmount", 0f, 0f, 1f),

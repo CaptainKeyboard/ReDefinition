@@ -39,7 +39,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 "single clouds: the map's cloud share is put down as single clouds on the lattice of each layer's cellPitch (the cumulus layer); off: the map's smoothed texels are the clouds",
                 KeyLiveness.FrameHistory);
             r.Flag(CloudLookTuning.TuneField, CloudLookTuning.FieldDefault > 0.5f, KeySection.Shape,
-                "the cumuliform types (puff in the cfg) as single clouds placed by the weather map's share and a multi-scale field: a broad size spectrum, clusters and gaps, streets; off: as before",
+                "the cumuliform types (form in the cfg) as single clouds placed by the weather map's share and a multi-scale field: a broad size spectrum, clusters and gaps, streets; off: as before",
                 KeyLiveness.FrameHistory);
             r.Key(CloudLookTuning.TuneFieldWind, 0f, KeySection.Shape,
                 "direction of the cloud streets in degrees from east, counter-clockwise in the map's frame", KeyLiveness.FrameHistory, KeyMarker.Live, -360f, 360f);

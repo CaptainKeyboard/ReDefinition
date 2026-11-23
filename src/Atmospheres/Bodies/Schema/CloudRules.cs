@@ -93,9 +93,9 @@ namespace ReDefinition.Atmospheres
         internal float EdgePower { get; set; }
         // CLOUDR1 P3: how strongly the cumuliform volume's cavity channel darkens the creases between lobes (cfg key cavity, 0 to 1; 0: off): the light factors are cavity^(4 x this).
         internal float Cavity { get; set; }
-        // CLOUD FIELD: the puffy form of the type (cfg key puff = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): where cloud.field is on the weather map's
-        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the bulges of the cumuliform preset); 0: the type is not drawn puffy.
-        internal int Puff { get; set; }
+        // CLOUD FIELD: the cloud form of the type (cfg key form = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): where cloud.field is on the weather map's
+        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the bulges of the cumuliform preset); 0: the type is not drawn as single clouds.
+        internal int Form { get; set; }
 
         internal double LiftAt(double h)
         {

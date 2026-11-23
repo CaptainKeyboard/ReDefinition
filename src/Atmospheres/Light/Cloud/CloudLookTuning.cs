@@ -289,7 +289,7 @@ namespace ReDefinition.Atmospheres
         internal const string TuneCells = "cloud.cells";
         internal const float CellsDefault = 1f;
         internal static bool Cells { get { return Tuning.Get(TuneCells, CellsDefault) > 0.5f; } }
-        // cloud.field (CLOUD FIELD, 2026-11-19): 1 draws the types with a puff class (cfg key puff: the cumulus family, altocumulus, stratocumulus, cumulonimbus calvus and the incus tower) as single
+        // cloud.field (CLOUD FIELD, 2026-11-19): 1 draws the types with a cloud form (cfg key form: the cumulus family, altocumulus, stratocumulus, cumulonimbus calvus and the incus tower) as single
         // clouds arranged by the weather map's share and one multi-scale field (CloudField.cs), without the lattice (cloud.cells is then not read on those types); 1 is the default
         // (owner 2026-11-22: the lattice is only a tool to test single cloud types); 0 the lattice.
         // cloud.field.wind: the direction of the streets in degrees from east, counter-clockwise, in the map's frame (the class's stretch lengthens the field along it).
