@@ -7,8 +7,9 @@ namespace ReDefinition.Atmospheres
     // troposphere (BodyFacts.MeasuredTropopauseM) times a height factor, and the cloud bodies' horizontal lengths follow with it. The troposphere replaces the generator's
     // assumed depth (a share of the atmosphere's depth) as the unit of the depth keys (innerDepths, outerDepths, ...); a layer set authored in metres names the troposphere
     // it was written for (CLOUDS key heightReferenceM, for example 11000 m for a set authored from the standard atmosphere), and its metre lengths are multiplied by the measured troposphere over that reference.
-    // The factor is the body's (CLOUDS key heightFactor) times the viewer's slider; the owner picks the default from pictures with 1, 0.75 and 0.6. Off (0) until then:
-    // the layers are what they were. A change of either key re-reads the body configuration within a second (OwnCloudModule.EnsureStack).
+    // The factor is the body's (CLOUDS key heightFactor) times the viewer's slider. On by default at the factor 1 on the heights only (owner 2026-11-23 16:02, from pictures
+    // with 1, 0.75 and 0.6), and only for a set that names heightReferenceM (owner 17:14; today the home planet's authored set); the template's bodies draw as before. A change of a key
+    // re-reads the body configuration within a second (OwnCloudModule.EnsureStack).
     internal static class CloudHeightScale
     {
         internal const string TuneOn = "cloud.heightScale", TuneFactor = "cloud.heightFactor";
