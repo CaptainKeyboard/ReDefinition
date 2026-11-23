@@ -247,7 +247,9 @@ def gas_job(far):
     cam = vertical_camera([(GAS_B0 + GAS_B1) / 2.0, -far, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0], 64, 1, 0.01)
     cam.cam_up = np.array([0.0, 0.0, 1.0])
     tan_half_v = (GAS_B1 - GAS_B0) / (2.0 * 64.0 * far)
-    j = job("GAS", "aux", cam, [layer(1500.0, 2500.0, 0.02)], 64, 1, surface=0, maxSteps=256)
+    # A hard edge (softness 0.01, as R04's): the expectation is the hollow shell's chord, and the default soft edge (0.15 of the 1000 m layer) thins the
+    # density in the top 150 m, where the grazing rays then fell 5 to 15 percent short of the chord (2026-11-23, PRUEFPROTOKOLL 125).
+    j = job("GAS", "aux", cam, [layer(1500.0, 2500.0, 0.02, softness=0.01)], 64, 1, surface=0, maxSteps=256)
     j["fovV"] = 2.0 * math.degrees(math.atan(tan_half_v))
     return j
 
