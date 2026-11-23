@@ -200,9 +200,26 @@ namespace ReDefinition.Atmospheres
         private static bool PinLimitChangesMaps(PinLimit limit)
         {
             foreach (PinSwitch s in limit.Switches)
-                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule)) return true;
+                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule || PinChangesHeightScale(s))) return true;
             return false;
         }
+
+        // A key of the height scale (CloudHeightScale): the module re-reads the body configuration at its next once-a-second check and builds the stack anew, so the settle
+        // starts only after that (PinHeightScaleWaitS).
+        private static bool PinChangesHeightScale(PinSwitch s)
+        {
+            return s.Kind == 't' && (s.Key == CloudHeightScale.TuneOn || s.Key == CloudHeightScale.TuneFactor);
+        }
+
+        private static bool PinLimitChangesHeightScale(PinLimit limit)
+        {
+            foreach (PinSwitch s in limit.Switches)
+                if (PinChangesHeightScale(s)) return true;
+            return false;
+        }
+
+        // The wait for the module's check (once a second) and the stack build after it.
+        private const double PinHeightScaleWaitS = 2.5;
 
         // Undoes a limit set: the forced tuning keys go (cloud.motionScale 0 is forced again), the settings come back, the probe switches are off.
         private void PinLimitRevert(List<KeyValuePair<string, double>> restore)
@@ -354,6 +371,8 @@ namespace ReDefinition.Atmospheres
                         yield return ProbeWait.Frames(2);
                         // A set that changes the maps (the sky from the weather map's rules, cloud.weatherMapSky.*): the maps and the heights are made and settled again before the capture.
                         bool mapsChange = PinLimitChangesMaps(limit);
+                        bool heightScale = PinLimitChangesHeightScale(limit);
+                        if (heightScale) yield return ProbeWait.Seconds(PinHeightScaleWaitS);
                         if (mapsChange)
                         {
                             // The settle's rows read T09.pin.<view>-<set>-apply.<step>.
@@ -373,6 +392,7 @@ namespace ReDefinition.Atmospheres
                         if (mapsChange)
                         {
                             yield return ProbeWait.Frames(2);
+                            if (heightScale) yield return ProbeWait.Seconds(PinHeightScaleWaitS);
                             pinLabel = view.Name + "-" + limit.Name + "-revert";
                             double settleFrom = Elapsed;
                             foreach (ProbeWait w in PinSettleSteps(view)) yield return w;

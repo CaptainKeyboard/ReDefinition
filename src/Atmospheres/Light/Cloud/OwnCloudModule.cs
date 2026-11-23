@@ -228,6 +228,8 @@ namespace ReDefinition.Atmospheres
         private IReadOnlyList<CloudLayerSpec> stackSpecs;
         private int stackCap = -1, stackPick = -1;
         private float nextMaps, nextHeights, nextStats, nextWind, nextStackCheck;
+        // The height scale's switch and factor the body configuration was last read with (CloudHeightScale.Signature); null before the first check.
+        private string heightScaleSignature;
         private bool forceMaps, forceHeights, stepMaps, scattererLoaded, mapsPrimed, preCullSubscribed;
         private const int MaxFailures = 3;
         private int failures;
@@ -635,6 +637,15 @@ namespace ReDefinition.Atmospheres
             // Checked once a second (a build allocates): the temperature at the camera picks the member of a group, the layer cap limits the count.
             if (stack != null && now < nextStackCheck) return;
             nextStackCheck = now + 1f;
+            // The height scale (CloudHeightScale): a change of its switch or factor re-reads the body configuration; the next check builds the stack from the new layers.
+            string heightScale = CloudHeightScale.Signature;
+            if (heightScaleSignature != null && heightScale != heightScaleSignature)
+            {
+                var provider = Bodies.Provider as BodyConfigProvider;
+                if (provider != null) provider.Reset();
+                AtmospheresLog.Say("own clouds: the height scale changed (" + heightScaleSignature + " -> " + heightScale + "); the body configuration is read again");
+            }
+            heightScaleSignature = heightScale;
             // Read again each second: the first look of EveRenderCompat may come after this module's first build.
             scattererLoaded = EveRenderCompat.ScattererLoaded;
             WeatherSample sample;
@@ -1180,6 +1191,9 @@ namespace ReDefinition.Atmospheres
                     mi.Edge1Rad = mi.Edge2Rad = double.NaN;
                     mi.SystemKm = 0.0;
                 }
+                // The height scale (CloudHeightScale): the meso depth keys follow the troposphere the layers were read against.
+                BodyClimate scaleClimate = Bodies.Get(b);
+                if (scaleClimate != null && scaleClimate.Clouds.ScaledTroposphereM > 0) mi.DepthKm = scaleClimate.Clouds.ScaledTroposphereM * 0.001;
                 byte[] mc = mesoCover[l], mt = mesoType[l];
                 CloudMesoStage.Apply(mesoDef, mi, cover, typeBytes, ref mc, ref mt);
                 mesoCover[l] = mc;
