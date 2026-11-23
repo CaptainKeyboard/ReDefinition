@@ -36,7 +36,7 @@ namespace ReDefinition.Atmospheres
 
                 // Clouds
                 { "cloudSource", "Who draws the clouds. Ours uses the mod's own volume pass, Eve paints the weather into EVE's clouds, Both does both, None draws no clouds." },
-                { "weatherCompose", "Where the precipitation extinction and the flakes are put on the picture. Scene is before the upscaler, Host is after it through the main mod. Auto picks Scene unless the pair of graphics card and upscaler is recorded." },
+                { "weatherCompose", "Where the precipitation extinction and the falling precipitation particles are put on the picture. Scene is before the upscaler, Host is after it through the main mod. Auto picks Scene unless the pair of graphics card and upscaler is recorded." },
                 { "useEveWeather", "Lets EVE's own weather layers stay on the bodies where this mod paints no map." },
                 { "eveLayerCap", "The most EVE cloud layers the mod paints on one body. Fewer layers cost less." },
                 { "lightWeatherFrequency", "How often light weather forms: 0 none, 1 the body's own rate, 2 twice as often." },

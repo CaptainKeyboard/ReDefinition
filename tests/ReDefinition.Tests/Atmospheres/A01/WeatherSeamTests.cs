@@ -219,7 +219,7 @@ namespace ReDefinition.Tests.Atmospheres.A01
         public void TheSlewLimitsHoldOverManyRandomSteps()
         {
             Assert.AreEqual(0.25f, WindNoise.MaxVisibilitySlewPerS);
-            Assert.AreEqual(30f, WindNoise.MaxFlakeDirectionDegPerS);
+            Assert.AreEqual(30f, WindNoise.MaxHydrometeorDirectionDegPerS);
             Assert.AreEqual(8f, WindNoise.MaxWindSlewMsPerS);
             var rng = new System.Random(99);
             float vis = 5000f, dir = 10f, wind = 5f;
@@ -229,7 +229,7 @@ namespace ReDefinition.Tests.Atmospheres.A01
                 float targetVis = (float)(rng.NextDouble() * 20000), targetDir = (float)(rng.NextDouble() * 720 - 360), targetWind = (float)(rng.NextDouble() * 40);
                 float v = WindNoise.LimitVisibility(vis, targetVis, dt);
                 Assert.IsTrue(Math.Abs(v - vis) <= vis * 0.25f * dt + 1e-3f, "visibility slew");
-                float d = WindNoise.LimitFlakeDirection(dir, targetDir, dt);
+                float d = WindNoise.LimitHydrometeorDirection(dir, targetDir, dt);
                 float turn = (float)(((d - dir) % 360.0 + 540.0) % 360.0 - 180.0);
                 Assert.IsTrue(Math.Abs(turn) <= 30f * dt + 1e-3f, "direction slew");
                 float w = WindNoise.LimitWind(wind, targetWind, dt);
@@ -239,9 +239,9 @@ namespace ReDefinition.Tests.Atmospheres.A01
                 wind = w;
             }
             Assert.AreEqual(100f, WindNoise.LimitVisibility(100f, 100f, 1f));
-            Assert.AreEqual(349.9f, WindNoise.LimitFlakeDirection(340f, 10f, 0.33f), 1e-3f, "the short way round 360 is to turn up, 30 degrees per second");
-            Assert.AreEqual(370f, WindNoise.LimitFlakeDirection(340f, 10f, 2f), 1e-3f, "reaches it when the step is long enough (the angle is not wrapped)");
-            Assert.AreEqual(-5f, WindNoise.LimitFlakeDirection(10f, -10f, 0.5f), 1e-3f, "the short way down");
+            Assert.AreEqual(349.9f, WindNoise.LimitHydrometeorDirection(340f, 10f, 0.33f), 1e-3f, "the short way round 360 is to turn up, 30 degrees per second");
+            Assert.AreEqual(370f, WindNoise.LimitHydrometeorDirection(340f, 10f, 2f), 1e-3f, "reaches it when the step is long enough (the angle is not wrapped)");
+            Assert.AreEqual(-5f, WindNoise.LimitHydrometeorDirection(10f, -10f, 0.5f), 1e-3f, "the short way down");
         }
 
         [TestMethod]
@@ -419,7 +419,7 @@ namespace ReDefinition.Tests.Atmospheres.A01
             Assert.AreEqual(0f, view.Level);
             Assert.AreEqual(1f, view.SunTransmission);
             Assert.AreEqual(1f, view.AmbientFactor);
-            Assert.AreEqual(3, view.FlakeLayers.Length);
+            Assert.AreEqual(3, view.HydrometeorLayers.Length);
         }
 
         [TestMethod]

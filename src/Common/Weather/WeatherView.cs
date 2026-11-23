@@ -4,21 +4,21 @@ using UnityEngine;
 
 namespace ReDefinition.Core
 {
-    // One of the three layers of falling flakes (near, middle, far): the numbers the precipitation renderer draws a layer with.
-    public struct FlakeLayer
+    // One of the three layers of falling hydrometeors (near, middle, far): the numbers the precipitation renderer draws a layer with.
+    public struct HydrometeorLayer
     {
         // The width of the layer's box in metres.
         public float Width;
-        // The share of the flake rate that falls in this layer.
+        // The share of the hydrometeor rate that falls in this layer.
         public float Share;
-        // The smallest and the largest flake size in metres.
+        // The smallest and the largest hydrometeor size in metres.
         public float SizeMin;
         public float SizeMax;
         public float Opacity;
     }
 
     // The weather at the camera for this frame, as the frame driver of the atmospheres wrote it: what the visibility extinction, the light, the precipitation extinction, the
-    // flakes and the wind do now. The class is sealed and its fields are mutated in place, so a read allocates nothing and a field
+    // hydrometeors and the wind do now. The class is sealed and its fields are mutated in place, so a read allocates nothing and a field
     // added later leaves older readers working.
     //
     // Rules: there is ONE writer, the frame driver of the atmospheres (written once per frame, in LateUpdate, before
@@ -75,13 +75,13 @@ namespace ReDefinition.Core
         // The sun elevation range, in degrees, over which the overhead sky goes from clear to grey.
         public float SkyGreyStart;
         public float SkyGreyFull;
-        // Flakes per second over all layers, the size and fall speed factors, the brightness and the seed of the pattern.
-        public float FlakeRatePerS;
-        public float FlakeSizeScale = 1f;
-        public float FlakeFallMS;
-        public float FlakeBrightness = 1f;
-        public int FlakeSeed;
-        public readonly FlakeLayer[] FlakeLayers = new FlakeLayer[3];
+        // Hydrometeors per second over all layers, the size and fall speed factors, the brightness and the seed of the pattern.
+        public float HydrometeorRatePerS;
+        public float HydrometeorSizeScale = 1f;
+        public float HydrometeorFallMS;
+        public float HydrometeorBrightness = 1f;
+        public int HydrometeorSeed;
+        public readonly HydrometeorLayer[] HydrometeorLayers = new HydrometeorLayer[3];
 
         // --- Clouds ---
         // The CloudMapsState.Version the driver copied: raised each time the maps EVE reads were repainted.
@@ -133,8 +133,8 @@ namespace ReDefinition.Core
             GustPhase = 0f;
             PrecipExtinctionGroundAlpha = 0f;
             PrecipExtinctionSkyAlpha = 0f;
-            FlakeRatePerS = 0f;
-            FlakeFallMS = 0f;
+            HydrometeorRatePerS = 0f;
+            HydrometeorFallMS = 0f;
             ForecastHorizonS = 0.0;
             NextChangeInS = float.MaxValue;
             Readiness = FieldReadiness.Ready;

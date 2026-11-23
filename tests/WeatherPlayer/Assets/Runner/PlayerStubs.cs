@@ -7,7 +7,7 @@ namespace ReDefinition.Core
     {
     }
 
-    public struct FlakeLayer
+    public struct HydrometeorLayer
     {
         public float Width;
         public float Share;

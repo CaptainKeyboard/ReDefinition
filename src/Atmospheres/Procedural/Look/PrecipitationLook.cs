@@ -9,10 +9,10 @@ namespace ReDefinition.Atmospheres
     {
         // The visibility along the ground in metres.
         public float VisibilityM;
-        // Flakes per second over all layers.
-        public float FlakesPerS;
-        // The factors on the flake size and the fall speed (1 is the size and speed of light snow).
-        public float FlakeSizeFactor;
+        // Hydrometeors per second over all layers.
+        public float HydrometeorsPerS;
+        // The factors on the hydrometeor size and the fall speed (1 is the size and speed of light snow).
+        public float HydrometeorSizeFactor;
         public float FallFactor;
         // The mean wind in m/s before the gusts.
         public float WindMs;
@@ -36,8 +36,8 @@ namespace ReDefinition.Atmospheres
         public float ShadowStrength;
     }
 
-    // The look table of the precipitation scale: one set of curves over the level that drives the fog, the extinction, the flakes, the light and
-    // the sound, so every effect reads the same scale. The 1.0 column (60 m, extinction 0.85, 2400 flakes per second) holds the values of the
+    // The look table of the precipitation scale: one set of curves over the level that drives the fog, the extinction, the hydrometeors, the light and
+    // the sound, so every effect reads the same scale. The 1.0 column (60 m, extinction 0.85, 2400 hydrometeors per second) holds the values of the
     // accepted storm; every key point is a tuning value (Tuning.Get "look.<curve>.<level>"), not a gate. Pure, no allocation per call.
     internal static class PrecipitationLook
     {
@@ -54,7 +54,7 @@ namespace ReDefinition.Atmospheres
         // The names of the curves; the key of a key point is "look.<name>.<level>".
         internal static readonly string[] CurveNames =
         {
-            "visibility", "flakes", "flakeSize", "fall", "wind", "extinction", "cloudDark", "sun", "ambient", "skyGrey", "sound", "accumulation",
+            "visibility", "hydrometeors", "hydrometeorSize", "fall", "wind", "extinction", "cloudDark", "sun", "ambient", "skyGrey", "sound", "accumulation",
             "lampSigma", "shadow"
         };
 
@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
         private static long builtFor = -1;
         private static readonly object Gate = new object();
 
-        private const int Visibility = 0, Flakes = 1, FlakeSize = 2, Fall = 3, Wind = 4, Extinction = 5, CloudDark = 6, Sun = 7, Ambient = 8, SkyGrey = 9,
+        private const int Visibility = 0, Hydrometeors = 1, HydrometeorSize = 2, Fall = 3, Wind = 4, Extinction = 5, CloudDark = 6, Sun = 7, Ambient = 8, SkyGrey = 9,
             Sound = 10, Accumulation = 11, LampSigma = 12, Shadow = 13;
 
         // The look at a level (clamped to 0 to 1). The curves are rebuilt when the tuning table changed.
@@ -93,8 +93,8 @@ namespace ReDefinition.Atmospheres
             float p = Clamp01(level01);
             LookValues v;
             v.VisibilityM = c[Visibility].Evaluate(p);
-            v.FlakesPerS = c[Flakes].Evaluate(p);
-            v.FlakeSizeFactor = c[FlakeSize].Evaluate(p);
+            v.HydrometeorsPerS = c[Hydrometeors].Evaluate(p);
+            v.HydrometeorSizeFactor = c[HydrometeorSize].Evaluate(p);
             v.FallFactor = c[Fall].Evaluate(p);
             v.WindMs = c[Wind].Evaluate(p);
             v.PrecipExtinctionAlpha = c[Extinction].Evaluate(p);

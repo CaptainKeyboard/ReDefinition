@@ -26,7 +26,7 @@ namespace ReDefinition.Tests.Atmospheres.C22
             PrecipMath.Place(7, 2, out x2, out y2, out z2);
             Assert.IsTrue(x1 != x2 || y1 != y2 || z1 != z2, "another seed gives another pattern");
 
-            // Each axis is spread evenly: ten bins of 20000 flakes are each within 10 % of the mean.
+            // Each axis is spread evenly: ten bins of 20000 hydrometeors are each within 10 % of the mean.
             var bins = new int[3, 10];
             const int N = 20000;
             for (int cell = 0; cell < N; cell++)
@@ -65,7 +65,7 @@ namespace ReDefinition.Tests.Atmospheres.C22
         }
 
         [TestMethod]
-        public void TheWrapKeepsEveryFlakeInTheBoxAroundTheCamera()
+        public void TheWrapKeepsEveryHydrometeorInTheBoxAroundTheCamera()
         {
             for (int cell = 0; cell < 200; cell++)
             {
@@ -80,7 +80,7 @@ namespace ReDefinition.Tests.Atmospheres.C22
             // A camera that moved one whole box sees the same pattern.
             float a = PrecipMath.Wrap(0.3f, 0.1f, 0.25f), b = PrecipMath.Wrap(0.3f, 0.1f, 1.25f);
             Assert.AreEqual(a, b, 1e-5f);
-            Assert.AreEqual(0f, PrecipMath.EdgeFade(0f, 0.1f), "a flake at the edge is invisible");
+            Assert.AreEqual(0f, PrecipMath.EdgeFade(0f, 0.1f), "a hydrometeor at the edge is invisible");
             Assert.AreEqual(1f, PrecipMath.EdgeFade(0.5f, 0.1f), "the middle is full");
         }
 
@@ -91,14 +91,14 @@ namespace ReDefinition.Tests.Atmospheres.C22
             Assert.AreEqual((float)Math.Pow(0.5, 1.3), PrecipMath.LevelScale(0.5f), 1e-6f);
             Assert.AreEqual(1f, PrecipMath.LevelScale(1f), 1e-6f);
             // At a visibility that does not limit, the count follows the power law.
-            int low = PrecipMath.FlakeCount(0.3f, 100f, 18f, 18f, 0.34f, 0.01f, 10f, 8000f, 1f);
-            int high = PrecipMath.FlakeCount(0.6f, 100f, 18f, 18f, 0.34f, 0.01f, 10f, 8000f, 1f);
+            int low = PrecipMath.HydrometeorCount(0.3f, 100f, 18f, 18f, 0.34f, 0.01f, 10f, 8000f, 1f);
+            int high = PrecipMath.HydrometeorCount(0.6f, 100f, 18f, 18f, 0.34f, 0.01f, 10f, 8000f, 1f);
             Assert.AreEqual(Math.Pow(2.0, 1.3), (double)high / low, 0.05);
             // Monotone in level.
             int previous = 0;
             for (float level = 0.04f; level <= 1f; level += 0.05f)
             {
-                int n = PrecipMath.FlakeCount(level, 800f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 1f);
+                int n = PrecipMath.HydrometeorCount(level, 800f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 1f);
                 Assert.IsTrue(n >= previous, "count falls at level " + level);
                 previous = n;
             }
@@ -110,23 +110,23 @@ namespace ReDefinition.Tests.Atmospheres.C22
             for (int layer = 0; layer < 3; layer++)
             {
                 Assert.IsFalse(PrecipMath.LayerActive(layer, 0.0399f));
-                Assert.AreEqual(0, PrecipMath.FlakeCount(0.03f, 100f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 1f));
+                Assert.AreEqual(0, PrecipMath.HydrometeorCount(0.03f, 100f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 1f));
             }
             Assert.IsFalse(PrecipMath.LayerActive(PrecipMath.Near, 0.19f));
             Assert.IsTrue(PrecipMath.LayerActive(PrecipMath.Near, 0.2f));
             Assert.IsTrue(PrecipMath.LayerActive(PrecipMath.Mid, 0.05f));
             Assert.IsTrue(PrecipMath.LayerActive(PrecipMath.Far, 0.05f));
-            Assert.AreEqual(0, PrecipMath.FlakeCount(0.5f, 100f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 0f), "density 0 draws nothing");
+            Assert.AreEqual(0, PrecipMath.HydrometeorCount(0.5f, 100f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 0f), "density 0 draws nothing");
             Assert.IsFalse(PrecipMath.LayerActive(1, float.NaN));
         }
 
         [TestMethod]
-        public void ClearAirAsksForFewFlakesAndTheCapRulesInADenseFall()
+        public void ClearAirAsksForFewHydrometeorsAndTheCapRulesInADenseFall()
         {
-            int clear = PrecipMath.FlakeCount(0.6f, 20000f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 1f);
-            int dense = PrecipMath.FlakeCount(0.6f, 60f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 1f);
-            Assert.IsTrue(clear < dense / 10, "a visibility of 20 km carries few flakes: " + clear + " vs " + dense);
-            int capped = PrecipMath.FlakeCount(1f, 20f, 36f, 36f, 0.6f, 0.02f, 0.35f, 8000f, 1f);
+            int clear = PrecipMath.HydrometeorCount(0.6f, 20000f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 1f);
+            int dense = PrecipMath.HydrometeorCount(0.6f, 60f, 18f, 18f, 0.34f, 0.05f, 0.35f, 8000f, 1f);
+            Assert.IsTrue(clear < dense / 10, "a visibility of 20 km carries few hydrometeors: " + clear + " vs " + dense);
+            int capped = PrecipMath.HydrometeorCount(1f, 20f, 36f, 36f, 0.6f, 0.02f, 0.35f, 8000f, 1f);
             Assert.IsTrue(capped <= 8000 * 0.6f + 1, "the cap rules at the top of the scale: " + capped);
         }
 
@@ -136,12 +136,12 @@ namespace ReDefinition.Tests.Atmospheres.C22
             float fov = 60f * (float)Math.PI / 180f;
             float metresPerPixel = 2f * 30f * (float)Math.Tan(fov / 2f) / 1080f;
             float size = PrecipMath.SizeWithFloor(0.02f, 30f, fov, 1080f, 3f);
-            Assert.AreEqual(3f * metresPerPixel, size, 1e-5f, "a small flake is raised to 3 pixels");
-            Assert.AreEqual(0.5f, PrecipMath.SizeWithFloor(0.5f, 30f, fov, 1080f, 3f), "a large flake keeps its size");
+            Assert.AreEqual(3f * metresPerPixel, size, 1e-5f, "a small hydrometeor is raised to 3 pixels");
+            Assert.AreEqual(0.5f, PrecipMath.SizeWithFloor(0.5f, 30f, fov, 1080f, 3f), "a large hydrometeor keeps its size");
             float at2160 = PrecipMath.SizeWithFloor(0.02f, 30f, fov, 2160f, 3f);
             Assert.AreEqual(size, at2160, 1e-5f, "6 pixels at 2160 lines are the same angle as 3 at 1080");
             Assert.AreEqual(1f, PrecipMath.FloorContrast(0.5f, 0.5f, 0.45f));
-            Assert.AreEqual(0.45f, PrecipMath.FloorContrast(0.001f, size, 0.45f), 1e-6f, "the contrast of a floored flake does not go below the minimum");
+            Assert.AreEqual(0.45f, PrecipMath.FloorContrast(0.001f, size, 0.45f), 1e-6f, "the contrast of a floored hydrometeor does not go below the minimum");
             float half = PrecipMath.FloorContrast(size * 0.8f, size, 0.1f);
             Assert.AreEqual(0.64f, half, 1e-5f, "the opacity follows the area");
         }
@@ -166,7 +166,7 @@ namespace ReDefinition.Tests.Atmospheres.C22
         }
 
         [TestMethod]
-        public void TheGustTurnsTheFlakesAtMostTwelveDegreesAtThirtyDegreesPerSecond()
+        public void TheGustTurnsTheHydrometeorsAtMostTwelveDegreesAtThirtyDegreesPerSecond()
         {
             Assert.AreEqual(12f, PrecipMath.GustDirectionTarget(1f), 1e-5f);
             Assert.AreEqual(-12f, PrecipMath.GustDirectionTarget(0f), 1e-5f);

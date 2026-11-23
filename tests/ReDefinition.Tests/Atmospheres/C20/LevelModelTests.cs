@@ -12,7 +12,7 @@ namespace ReDefinition.Tests.Atmospheres.C20
         // The direction of each curve's key values: +1 rises with the level, -1 falls.
         private static int Direction(string name)
         {
-            return name == "visibility" || name == "sun" || name == "ambient" || name == "shadow" || name == "flakeSize" || name == "fall" ? -1 : 1;
+            return name == "visibility" || name == "sun" || name == "ambient" || name == "shadow" || name == "hydrometeorSize" || name == "fall" ? -1 : 1;
         }
 
         [TestMethod]
@@ -67,7 +67,7 @@ namespace ReDefinition.Tests.Atmospheres.C20
             LookValues top = PrecipitationLook.Evaluate(1f);
             Assert.AreEqual(60f, top.VisibilityM, 1e-3f);
             Assert.AreEqual(0.85f, top.PrecipExtinctionAlpha, 1e-4f);
-            Assert.AreEqual(2400f, top.FlakesPerS, 1e-2f);
+            Assert.AreEqual(2400f, top.HydrometeorsPerS, 1e-2f);
             LookValues none = PrecipitationLook.Evaluate(0f);
             Assert.AreEqual(1f, none.SunDirect, 1e-5f);
             Assert.AreEqual(1f, none.AmbientFactor, 1e-5f);

@@ -2,7 +2,7 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // Which of the two ways of composing the extinction and the flakes draws now, and how a change between them is blended. Pure: the
+    // Which of the two ways of composing the extinction and the hydrometeors draws now, and how a change between them is blended. Pure: the
     // renderer gives it the setting and what the host answers each frame.
     //
     // Host draws after the upscaler through the main mod's hook, with the render-size depth; Scene draws in the scene before the

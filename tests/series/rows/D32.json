@@ -578,7 +578,7 @@
       "start": "lamp",
       "metric": "D32.beam_noise_snow",
       "max": 0.003,
-      "note": "the noise the beam is read against: mean difference of two scatter-off frames of the same state (the flakes move)"
+      "note": "the noise the beam is read against: mean difference of two scatter-off frames of the same state (the hydrometeors move)"
     },
     {
       "series": "K-W3b",
@@ -587,7 +587,7 @@
       "start": "lamp",
       "metric": "D32.beam_control",
       "max": 0.003,
-      "note": "control (variant none, every source off, lamps lit, nothing drawn): the difference of scatter on and off is what the reading shows without any beam (flakes, light changes, the switch itself); the beam is read against it"
+      "note": "control (variant none, every source off, lamps lit, nothing drawn): the difference of scatter on and off is what the reading shows without any beam (hydrometeors, light changes, the switch itself); the beam is read against it"
     },
     {
       "series": "K-W3b",

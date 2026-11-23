@@ -142,7 +142,7 @@ namespace ReDefinition.Atmospheres
 
             Vector4 target = new Vector4(draw.TargetWidth, draw.TargetHeight, draw.DepthFlipY ? 1f : 0f, draw.Host && draw.Depth != null ? 1f : 0f);
 
-            // The extinction first, so that the flakes are not washed out by it.
+            // The extinction first, so that the hydrometeors are not washed out by it.
             if (frame.ExtinctionGround > 0.001f || frame.ExtinctionSky > 0.001f)
             {
                 block.Clear();
@@ -186,7 +186,7 @@ namespace ReDefinition.Atmospheres
             block.SetVector("_PrecipCamBox", new Vector4(
                 Frac((float)(draw.CamE / layer.BoxW)), Frac((float)(draw.CamU / layer.BoxH)), Frac((float)(draw.CamN / layer.BoxW)), draw.TimeMod60));
             block.SetVector("_PrecipVel", new Vector4(frame.VelE, frame.VelU, frame.VelN, frame.Look.Sway));
-            float gain = draw.Host ? tuning.HostFlakeGain : 1f;
+            float gain = draw.Host ? tuning.HostHydrometeorGain : 1f;
             block.SetVector("_PrecipColour", new Vector4(frame.Colour0 * frame.Light * gain, frame.Colour1 * frame.Light * gain, frame.Colour2 * frame.Light * gain, weight));
             block.SetVector("_PrecipLook", new Vector4(frame.Look.Stretch, tuning.FloorPx, draw.Host ? tuning.HostMinContrast : tuning.SceneMinContrast, (float)frame.Look.Sheet));
             cmd.DrawProcedural(Matrix4x4.identity, material, 1, MeshTopology.Triangles, 6, layer.Count, block);

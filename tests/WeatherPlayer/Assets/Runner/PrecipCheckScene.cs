@@ -11,7 +11,7 @@ namespace ReDefinition.WeatherPlayer
     //   * per type at level 0.6 over a flat grey: the luminance shift has the sign of the type's colour, enough pixels change, the
     //     pattern moves down (gravity), and with a wind from the west it moves to the east (every type, grit included);
     //   * below level 0.04 nothing is drawn: the frame equals the frame without the renderer;
-    //   * Host against Scene composite of the same frame with extinction and flakes at levels 0.3, 0.6, 1.0: mean luminance within 5 %;
+    //   * Host against Scene composite of the same frame with extinction and hydrometeors at levels 0.3, 0.6, 1.0: mean luminance within 5 %;
     //   * a cross-fade between the two (weights 0.5 / 0.5) covers the extinction as one extinction, not two.
     //
     //   -mode scene -scene precip-check
@@ -47,10 +47,10 @@ namespace ReDefinition.WeatherPlayer
             return new PrecipInput
             {
                 Active = true, Type = type, Level = level, VisibilityM = Mathf.Lerp(8000f, 60f, level), WindE = windE, GustNoise = 0.5f, GustDirNoise = 0.5f,
-                FlakeFallMs = 1.1f, FlakeBrightness = 1f, Seed = 11,
-                Near = new FlakeLayer { Width = 7f, Share = 0.06f, SizeMin = 0.10f, SizeMax = 0.26f, Opacity = 0.5f },
-                Mid = new FlakeLayer { Width = 18f, Share = 0.34f, SizeMin = 0.03f, SizeMax = 0.08f, Opacity = 0.95f },
-                Far = new FlakeLayer { Width = 36f, Share = 0.60f, SizeMin = 0.02f, SizeMax = 0.05f, Opacity = 1f },
+                HydrometeorFallMs = 1.1f, HydrometeorBrightness = 1f, Seed = 11,
+                Near = new HydrometeorLayer { Width = 7f, Share = 0.06f, SizeMin = 0.10f, SizeMax = 0.26f, Opacity = 0.5f },
+                Mid = new HydrometeorLayer { Width = 18f, Share = 0.34f, SizeMin = 0.03f, SizeMax = 0.08f, Opacity = 0.95f },
+                Far = new HydrometeorLayer { Width = 36f, Share = 0.60f, SizeMin = 0.02f, SizeMax = 0.05f, Opacity = 1f },
                 ExtinctionGroundAlpha = extinction ? 0.6f * level : 0f, ExtinctionSkyAlpha = extinction ? 0.7f * level : 0f,
                 ExtinctionGroundColour = ExtinctionGround, ExtinctionSkyColour = ExtinctionSky, SkyGreyStart = 0f, SkyGreyFull = 30f,
                 Density = 1f, TypeEnabled = true, FovYRad = Cam.fieldOfView * Mathf.Deg2Rad, HeightPx = Height, Dt = 1f / 60f, GroundDistM = 1e6f
@@ -142,7 +142,7 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // The best correlation to the east (shifts 1..range) over the best to the west, at the known vertical shift. Above 1 the pattern
-        // moved east; the flakes sit at many depths and so move by many amounts, which is why the sides are compared and no one shift
+        // moved east; the hydrometeors sit at many depths and so move by many amounts, which is why the sides are compared and no one shift
         // is read.
         private static float EastBias(float[] a, float[] b, int width, int height, int range, int vertical)
         {

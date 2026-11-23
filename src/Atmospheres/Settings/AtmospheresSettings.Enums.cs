@@ -28,7 +28,7 @@ namespace ReDefinition.Atmospheres
         MapsOnly = 2
     }
 
-    // Who composes the precipitation extinction and the flakes (key weatherCompose).
+    // Who composes the precipitation extinction and the hydrometeors (key weatherCompose).
     internal enum WeatherCompose
     {
         // Host where the main mod's after-upscaling hook answers, else Scene.

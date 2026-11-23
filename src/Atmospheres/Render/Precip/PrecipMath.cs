@@ -2,12 +2,12 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The pure numbers behind the precipitation renderer: the hash that places a flake, the counts a level and a visibility allow, the
+    // The pure numbers behind the precipitation renderer: the hash that places a hydrometeor, the counts a level and a visibility allow, the
     // size floor, and the rate limits of everything a gust changes. No engine type, no allocation, any thread; the player links this
     // file as it is, and the unit tests run it without the game.
     //
-    // The renderer places every flake from a hash of its lattice cell and the seed, in a box that is centred on the camera and wraps,
-    // so a flake needs no state: the same cell, seed and time always give the same place (deterministic, no per-frame random).
+    // The renderer places every hydrometeor from a hash of its lattice cell and the seed, in a box that is centred on the camera and wraps,
+    // so a hydrometeor needs no state: the same cell, seed and time always give the same place (deterministic, no per-frame random).
     internal static class PrecipMath
     {
         // The three layers, near to far.
@@ -21,7 +21,7 @@ namespace ReDefinition.Atmospheres
         // The counts rise with level to this power.
         internal const float CountExponent = 1.3f;
 
-        // The smallest a flake may look on screen at 1080 lines, in pixels; other heights scale it.
+        // The smallest a hydrometeor may look on screen at 1080 lines, in pixels; other heights scale it.
         internal const float SizeFloorPx1080 = 3f;
 
         // Visibility is the distance at which a contrast of 2 % is left (Koschmieder): extinction = 3.912 / visibility.
@@ -69,7 +69,7 @@ namespace ReDefinition.Atmospheres
             return (hash >> 8) * (1f / 16777216f);
         }
 
-        // The place of a flake in the box, each axis from 0 to 1 (before the drift and the camera are applied).
+        // The place of a hydrometeor in the box, each axis from 0 to 1 (before the drift and the camera are applied).
         internal static void Place(int cell, int seed, out float x, out float y, out float z)
         {
             x = Unit(Hash(cell, seed, 0));
@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
             return v - (float)Math.Floor(v);
         }
 
-        // Where a flake is in the box after the drift moved it and the camera moved on: its place plus the drift, minus the camera's
+        // Where a hydrometeor is in the box after the drift moved it and the camera moved on: its place plus the drift, minus the camera's
         // place, wrapped into 0..1 on one axis. The box is centred on the camera, so the offset from the camera is (result - 0.5) times
         // the box size.
         internal static float Wrap(float place, float drift, float camera)
@@ -91,7 +91,7 @@ namespace ReDefinition.Atmospheres
             return Frac(place + drift - camera);
         }
 
-        // The fade at the box's edge, so that a flake that wraps does not pop: 0 at the edge, 1 from the given share inwards.
+        // The fade at the box's edge, so that a hydrometeor that wraps does not pop: 0 at the edge, 1 from the given share inwards.
         internal static float EdgeFade(float wrapped, float edgeShare)
         {
             float d = Math.Min(wrapped, 1f - wrapped) / Math.Max(edgeShare, 1e-4f);
@@ -117,7 +117,7 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        // The size a flake looks, in metres: its own size, raised so that it covers at least floorPx pixels. distanceM is the distance
+        // The size a hydrometeor looks, in metres: its own size, raised so that it covers at least floorPx pixels. distanceM is the distance
         // from the camera along the view axis, fovYRad the vertical field of view and heightPx the height of the picture it is drawn in.
         internal static float SizeWithFloor(float sizeM, float distanceM, float fovYRad, float heightPx, float floorPxAt1080)
         {
@@ -127,7 +127,7 @@ namespace ReDefinition.Atmospheres
             return Math.Max(sizeM, floorM);
         }
 
-        // The opacity share a flake that was raised to the floor keeps: its area shrinks relative to the raised one, so the brightness it
+        // The opacity share a hydrometeor that was raised to the floor keeps: its area shrinks relative to the raised one, so the brightness it
         // adds to a pixel stays about the same; it never falls below minContrast (low contrast in Scene mode, where the upscaler
         // would otherwise smear a hard 3 px dot).
         internal static float FloorContrast(float sizeM, float sizeFlooredM, float minContrast)
@@ -143,11 +143,11 @@ namespace ReDefinition.Atmospheres
             return KoschmiederNumerator / Math.Max(visibilityM, 1f);
         }
 
-        // The number of flakes in one layer's box. Two limits apply and the smaller wins: the count that makes the flakes carry the
-        // share `fill` of the extinction the visibility asks for (extinction x box volume / cross-section of one flake), and the
-        // count the level allows (maxPerLayer x share x level^1.3). Fog and flakes stay consistent in clear air (few flakes where
+        // The number of hydrometeors in one layer's box. Two limits apply and the smaller wins: the count that makes the hydrometeors carry the
+        // share `fill` of the extinction the visibility asks for (extinction x box volume / cross-section of one hydrometeor), and the
+        // count the level allows (maxPerLayer x share x level^1.3). Fog and hydrometeors stay consistent in clear air (few hydrometeors where
         // the visibility is high); at the top of the scale the cap rules. density is the player's precipDensity.
-        internal static int FlakeCount(float level, float visibilityM, float boxWidthM, float boxHeightM, float share, float sizeM,
+        internal static int HydrometeorCount(float level, float visibilityM, float boxWidthM, float boxHeightM, float share, float sizeM,
             float fill, float maxPerLayer, float density)
         {
             if (!(level >= OffBelow) || !(share > 0f) || !(density > 0f)) return 0;
@@ -206,7 +206,7 @@ namespace ReDefinition.Atmospheres
             return previousDeg + move;
         }
 
-        // The direction a gust turns the flakes to, in degrees off the wind, from a second noise value.
+        // The direction a gust turns the hydrometeors to, in degrees off the wind, from a second noise value.
         internal static float GustDirectionTarget(float noise01)
         {
             return (noise01 * 2f - 1f) * GustDirectionMaxDeg;

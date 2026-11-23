@@ -9,15 +9,15 @@ namespace ReDefinition.Atmospheres
     // it without the game.
     internal struct PrecipTuning
     {
-        // The most flakes one layer holds (before the player's density).
+        // The most hydrometeors one layer holds (before the player's density).
         public float MaxPerLayer;
-        // The share of the visibility's extinction the flakes carry (the rest is the scene fog of the visibility extinction).
+        // The share of the visibility's extinction the hydrometeors carry (the rest is the scene fog of the visibility extinction).
         public float Fill;
         // The size floor in pixels at 1080 lines.
         public float FloorPx;
-        // The lowest opacity share a floored flake keeps, Scene and Host.
+        // The lowest opacity share a floored hydrometeor keeps, Scene and Host.
         public float SceneMinContrast, HostMinContrast;
-        // The share of the box at which a wrapping flake fades.
+        // The share of the box at which a wrapping hydrometeor fades.
         public float EdgeShare;
         // How hard the gust swings the factor (1 = the depth of WindNoise).
         public float GustScale;
@@ -27,8 +27,8 @@ namespace ReDefinition.Atmospheres
         public float MaxTotal;
         // The most splashes, the range they appear in (m) and the highest ground distance (m) at which they are drawn.
         public float SplashMax, SplashRangeM, SplashMaxGroundM;
-        // The factor on the flake colour in Host mode.
-        public float HostFlakeGain;
+        // The factor on the hydrometeor colour in Host mode.
+        public float HostHydrometeorGain;
         // The extinction colour: the lowest luminance relative colour, and the time the luminance of the image is smoothed over.
         public float ExtinctionLumaFloor, LumaTauS;
         // The share of the image luminance the extinction takes (before visibilityExtinctionBrightness).
@@ -40,7 +40,7 @@ namespace ReDefinition.Atmospheres
             {
                 MaxPerLayer = 8000f, Fill = 0.35f, FloorPx = PrecipMath.SizeFloorPx1080, SceneMinContrast = 0.45f, HostMinContrast = 0.85f,
                 EdgeShare = 0.12f, GustScale = 1f, VisibilityHz = 3f, VisibilityGustAmp = 0.1f, VisibilityGustPeriodS = 6f, MaxTotal = 20000f, SplashMax = 1500f,
-                SplashRangeM = 40f, SplashMaxGroundM = 200f, HostFlakeGain = 1f, ExtinctionLumaFloor = 0.02f, LumaTauS = 0.5f, ExtinctionLumaGain = 1f
+                SplashRangeM = 40f, SplashMaxGroundM = 200f, HostHydrometeorGain = 1f, ExtinctionLumaFloor = 0.02f, LumaTauS = 0.5f, ExtinctionLumaGain = 1f
             };
         }
     }
@@ -58,9 +58,9 @@ namespace ReDefinition.Atmospheres
         // Two noise values from 0 to 1 that drive the gust factor and the gust direction (slow, shared with sound).
         public float GustNoise, GustDirNoise;
         // From the view.
-        public float FlakeFallMs, FlakeBrightness;
+        public float HydrometeorFallMs, HydrometeorBrightness;
         public int Seed;
-        public FlakeLayer Near, Mid, Far;
+        public HydrometeorLayer Near, Mid, Far;
         public float ExtinctionGroundAlpha, ExtinctionSkyAlpha;
         public Color ExtinctionGroundColour, ExtinctionSkyColour;
         public float SkyGreyStart, SkyGreyFull;
@@ -143,7 +143,7 @@ namespace ReDefinition.Atmospheres
             frame.Look = look;
             frame.Draw = true;
 
-            // The gust: a factor on the wind and the flake rate, a turn of the direction, both slew-limited.
+            // The gust: a factor on the wind and the hydrometeor rate, a turn of the direction, both slew-limited.
             float amplitude = PrecipMath.GustAmplitude(input.Level) * tuning.GustScale;
             float factorTarget = PrecipMath.GustTarget(input.GustNoise, amplitude);
             float dirTarget = PrecipMath.GustDirectionTarget(input.GustDirNoise);
@@ -164,7 +164,7 @@ namespace ReDefinition.Atmospheres
             float wE = input.WindE * look.WindCoupling, wN = input.WindN * look.WindCoupling;
             frame.VelE = wE * c - wN * s;
             frame.VelN = wE * s + wN * c;
-            float fall = look.FallMs > 0f ? look.FallMs : input.FlakeFallMs;
+            float fall = look.FallMs > 0f ? look.FallMs : input.HydrometeorFallMs;
             frame.VelU = -Math.Max(fall, 0f);
 
             // The layers.
@@ -203,11 +203,11 @@ namespace ReDefinition.Atmospheres
             frame.Colour0 = look.R;
             frame.Colour1 = look.G;
             frame.Colour2 = look.B;
-            frame.Light = input.FlakeBrightness;
+            frame.Light = input.HydrometeorBrightness;
         }
 
 
-        private static PrecipLayerFrame Layer(int index, ref FlakeLayer l, ref PrecipInput input, ref PrecipTuning tuning, ref PrecipTypeLook look, PrecipState state)
+        private static PrecipLayerFrame Layer(int index, ref HydrometeorLayer l, ref PrecipInput input, ref PrecipTuning tuning, ref PrecipTypeLook look, PrecipState state)
         {
             var f = new PrecipLayerFrame();
             f.Active = PrecipMath.LayerActive(index, input.Level) && l.Width > 0f && l.Share > 0f;
@@ -220,9 +220,9 @@ namespace ReDefinition.Atmospheres
             float meanSize = 0.5f * (f.SizeMin + f.SizeMax);
             float typicalDistance = Math.Max(l.Width * 0.5f, 0.5f);
             float seen = PrecipMath.SizeWithFloor(meanSize, typicalDistance, input.FovYRad, input.HeightPx, tuning.FloorPx);
-            // The count comes from the visibility and the level (a floored flake covers more, so fewer carry the same extinction); the
+            // The count comes from the visibility and the level (a floored hydrometeor covers more, so fewer carry the same extinction); the
             // gust factor swings it within the slew limit.
-            f.Count = (int)Math.Round(PrecipMath.FlakeCount(input.Level, input.VisibilityM, l.Width, l.Width, l.Share, seen,
+            f.Count = (int)Math.Round(PrecipMath.HydrometeorCount(input.Level, input.VisibilityM, l.Width, l.Width, l.Share, seen,
                 tuning.Fill, tuning.MaxPerLayer, input.Density) * Math.Min(state.GustFactor, 1.25f));
             return f;
         }

@@ -22,12 +22,12 @@ namespace ReDefinition.Tests.Atmospheres.C22
                 WindN = windN,
                 GustNoise = 0.5f,
                 GustDirNoise = 0.5f,
-                FlakeFallMs = 1.1f,
-                FlakeBrightness = 1f,
+                HydrometeorFallMs = 1.1f,
+                HydrometeorBrightness = 1f,
                 Seed = 5,
-                Near = new FlakeLayer { Width = 7f, Share = 0.06f, SizeMin = 0.10f, SizeMax = 0.26f, Opacity = 0.5f },
-                Mid = new FlakeLayer { Width = 18f, Share = 0.34f, SizeMin = 0.03f, SizeMax = 0.08f, Opacity = 0.95f },
-                Far = new FlakeLayer { Width = 36f, Share = 0.60f, SizeMin = 0.02f, SizeMax = 0.05f, Opacity = 1f },
+                Near = new HydrometeorLayer { Width = 7f, Share = 0.06f, SizeMin = 0.10f, SizeMax = 0.26f, Opacity = 0.5f },
+                Mid = new HydrometeorLayer { Width = 18f, Share = 0.34f, SizeMin = 0.03f, SizeMax = 0.08f, Opacity = 0.95f },
+                Far = new HydrometeorLayer { Width = 36f, Share = 0.60f, SizeMin = 0.02f, SizeMax = 0.05f, Opacity = 1f },
                 ExtinctionGroundAlpha = level > 0.4f ? (level - 0.4f) : 0f,
                 ExtinctionSkyAlpha = level > 0.4f ? (level - 0.4f) * 1.1f : 0f,
                 ExtinctionGroundColour = new Color(0.8f, 0.8f, 0.85f, 1f),
@@ -208,9 +208,9 @@ namespace ReDefinition.Tests.Atmospheres.C22
         }
 
         [TestMethod]
-        public void ASizeFloorFewerFlakesCarryTheSameExtinction()
+        public void ASizeFloorFewerHydrometeorsCarryTheSameExtinction()
         {
-            // A small flake far away is raised to the floor, so fewer of them carry the same share of the extinction.
+            // A small hydrometeor far away is raised to the floor, so fewer of them carry the same share of the extinction.
             PrecipInput far = Input(PrecipType.Snow, 0.5f);
             far.Far.SizeMin = 0.005f;
             far.Far.SizeMax = 0.01f;
@@ -221,8 +221,8 @@ namespace ReDefinition.Tests.Atmospheres.C22
             PrecipFrame a, b;
             PrecipLookParams.Compute(ref far, ref withFloor, new PrecipState(), out a);
             PrecipLookParams.Compute(ref far, ref noFloor, new PrecipState(), out b);
-            Assert.IsTrue(a.Far.Count > 0, "some flakes remain");
-            Assert.IsTrue(a.Far.Count < b.Far.Count, "the floor makes the flakes count for more: " + a.Far.Count + " vs " + b.Far.Count);
+            Assert.IsTrue(a.Far.Count > 0, "some hydrometeors remain");
+            Assert.IsTrue(a.Far.Count < b.Far.Count, "the floor makes the hydrometeors count for more: " + a.Far.Count + " vs " + b.Far.Count);
         }
 
         [TestMethod]

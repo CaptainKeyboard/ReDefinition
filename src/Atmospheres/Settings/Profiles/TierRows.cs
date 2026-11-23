@@ -136,7 +136,7 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.Keys.QualityTier, "the choice of the tier itself" },
             { AtmospheresSettings.Keys.QualityGovernor, "a switch of the player's; its rule is E42's" },
             { AtmospheresSettings.Keys.CloudSource, "which renderer draws the clouds, not how large" },
-            { AtmospheresSettings.Keys.WeatherCompose, "where the precipitation extinction and flakes are composed, not how large" },
+            { AtmospheresSettings.Keys.WeatherCompose, "where the precipitation extinction and hydrometeors are composed, not how large" },
             { AtmospheresSettings.Keys.EveLayerCap, "a limit on EVE's own layers, which are EVE's cost" },
             { AtmospheresSettings.Keys.VolumePass, "a switch of the player's" },
             { AtmospheresSettings.Keys.VolumeCompose, "where the volume is composed, not how large" },

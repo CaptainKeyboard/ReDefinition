@@ -89,13 +89,13 @@ namespace ReDefinition.Atmospheres
         internal static readonly LookRules Default = new LookRules();
 
         internal LookRules(Color? visibilityExtinctionColour = null, float visibilityMinM = 60f, Color? precipExtinctionGroundColour = null, Color? precipExtinctionSkyColour = null,
-            Color? flakeColour = null)
+            Color? hydrometeorColour = null)
         {
             VisibilityExtinctionColour = visibilityExtinctionColour ?? new Color(0.78f, 0.80f, 0.84f, 1f);
             VisibilityMinM = visibilityMinM;
             PrecipExtinctionGroundColour = precipExtinctionGroundColour ?? new Color(0.86f, 0.88f, 0.92f, 1f);
             PrecipExtinctionSkyColour = precipExtinctionSkyColour ?? new Color(0.70f, 0.73f, 0.78f, 1f);
-            FlakeColour = flakeColour ?? Color.white;
+            HydrometeorColour = hydrometeorColour ?? Color.white;
         }
 
         // Key visibilityExtinctionColour, linear: the colour of the visibility extinction (the scene fog the weather writes).
@@ -104,7 +104,7 @@ namespace ReDefinition.Atmospheres
         internal float VisibilityMinM { get; }
         internal Color PrecipExtinctionGroundColour { get; }
         internal Color PrecipExtinctionSkyColour { get; }
-        internal Color FlakeColour { get; }
+        internal Color HydrometeorColour { get; }
     }
 
     // The clips of the body's weather sound; empty names use the procedural sound. Node SOUND.

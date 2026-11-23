@@ -183,7 +183,7 @@ namespace ReDefinition.WeatherPlayer
             RgbFrame glint = null;
             yield return Capture(Beam(0.02f, 0.02f, 0.6f), 1, 1f, f => glint = f);
             // The spread of the added light around its local mean (41 x 41 box): the backdrop's edges (the frames are differences to the
-            // frame without the lamp) and the beam's own gradient are left out, the flakes are not.
+            // frame without the lamp) and the beam's own gradient are left out, the hydrometeors are not.
             double spreadBase = RgbFrame.Difference(at002, none).HighFrequency(region, 20);
             double spreadGlint = RgbFrame.Difference(glint, none).HighFrequency(region, 20);
             double meanRatio = (glint.Mean(region, 3) - baseLuma) / Math.Max(measured0, 1e-9);

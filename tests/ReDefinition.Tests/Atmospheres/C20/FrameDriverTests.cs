@@ -71,11 +71,11 @@ namespace ReDefinition.Tests.Atmospheres.C20
             LookValues top = PrecipitationLook.Evaluate(1f);
             Assert.AreEqual(top.VisibilityM, view.VisibilityM, 1f);
             Assert.AreEqual(top.PrecipExtinctionAlpha, view.PrecipExtinctionGroundAlpha, 1e-4f);
-            Assert.AreEqual(top.FlakesPerS, view.FlakeRatePerS, 1f);
+            Assert.AreEqual(top.HydrometeorsPerS, view.HydrometeorRatePerS, 1f);
             Assert.AreEqual(top.AmbientFactor, view.AmbientFactor, 1e-4f);
             Assert.AreEqual(PrecipitationLook.VisibilityExtinctionDensity(top.VisibilityM), view.VisibilityExtinctionDensity, 1e-5f);
-            Assert.AreEqual(3, view.FlakeLayers.Length);
-            Assert.IsTrue(view.FlakeLayers[0].Width < view.FlakeLayers[2].Width);
+            Assert.AreEqual(3, view.HydrometeorLayers.Length);
+            Assert.IsTrue(view.HydrometeorLayers[0].Width < view.HydrometeorLayers[2].Width);
         }
 
         [TestMethod]
@@ -167,7 +167,7 @@ namespace ReDefinition.Tests.Atmospheres.C20
             composer.Compose(ref high, view);
             Assert.AreEqual(0f, view.Level, 1e-6f);
             Assert.AreEqual(PrecipType.None, view.Type);
-            Assert.AreEqual(0f, view.FlakeRatePerS);
+            Assert.AreEqual(0f, view.HydrometeorRatePerS);
             Assert.AreEqual(0.5f, FrameComposer.HeightFactor(7000f, 4000f, 10000f), 1e-5f);
         }
 

@@ -454,8 +454,8 @@ namespace ReDefinition.Atmospheres
             foreach (var kv in states) if (!kv.Value.Seen) stale.Add(kv.Key);
             for (int k = 0; k < stale.Count; k++) states.Remove(stale[k]);
 
-            // Drift of the flakes the glints ride on: the wind and the fall, in the world.
-            drift += (windAxisE * view.WindWorld.x + windAxisN * view.WindWorld.y + windAxisU * (view.WindWorld.z - view.FlakeFallMS)) * dt;
+            // Drift of the hydrometeors the glints ride on: the wind and the fall, in the world.
+            drift += (windAxisE * view.WindWorld.x + windAxisN * view.WindWorld.y + windAxisU * (view.WindWorld.z - view.HydrometeorFallMS)) * dt;
             // The noise table repeats every 256 cells in each axis: wrapping the drift by that period is seamless. A floating-origin
             // or Krakensbane shift moves the world positions the pattern is read at and shows as one jump of the glints [VERIFY].
             float period = 256f * t.GlintSizeM;
@@ -526,7 +526,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The wind and the up axis in the world frame, for the drift of the flakes (10 Hz).
+        // The wind and the up axis in the world frame, for the drift of the hydrometeors (10 Hz).
         private void UpdateWind(Camera cam, CelestialBody body, WeatherView view)
         {
             BodyFrame.Compute(body, cam.transform.position, ref basis);

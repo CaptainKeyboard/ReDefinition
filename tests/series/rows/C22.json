@@ -17,7 +17,7 @@
 
     { "series": "player-C22", "section": "C22", "metric": "trail_px.level_0_3.ratio_to_1_0", "max": 1.5, "required": false, "note": "OPEN (owner E40, proxy run): trail pixels at level 0.3 against the level-1.0 baseline, DLSS K/M/L, FSR 3, XeSS DP4a at render scale 0.667, fixed-camera two-frame compare and 10 s fly-by at 100 m/s" },
     { "series": "player-C22", "section": "C22", "metric": "edge_sharpness_dev.extinction", "max": 0.05, "required": false, "note": "OPEN (owner E40): ground-edge sharpness under the extinction against upscaler off" },
-    { "series": "player-C22", "section": "C22", "metric": "flake_smear_over_floor", "max": 0.005, "required": false, "note": "OPEN (owner E40): flake smear against the spike's no-slab floor" },
+    { "series": "player-C22", "section": "C22", "metric": "hydrometeor_smear_over_floor", "max": 0.005, "required": false, "note": "OPEN (owner E40): hydrometeor smear against the spike's no-slab floor" },
     { "series": "player-C22", "section": "C22", "metric": "host_composite_ms_2560x1440_20k", "max": 0.5, "unit": "ms", "required": false, "note": "OPEN (owner E40, exclusive timing run): host composite (extinction + particles, depth test) with 20k billboards" },
     { "series": "player-C22", "section": "C22", "metric": "fg_replay.mid_far_duplicates_vs_baseline", "max": 1.2, "required": false, "note": "OPEN (owner E40): FG replay, mid and far duplicates at most baseline + 20 %; the near-layer decision (post-upscale in the interpolated image against the overlay hook) is recorded with these numbers" }
   ]

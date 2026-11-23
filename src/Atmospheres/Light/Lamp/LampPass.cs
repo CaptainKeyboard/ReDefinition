@@ -34,7 +34,7 @@ namespace ReDefinition.Atmospheres
         internal bool DepthFlipY;
         // Reversed z (SystemInfo.usesReversedZBuffer).
         internal bool ReversedZ;
-        // The temporal jitter offset (0: the pattern is the same every frame), the drift of the flakes since the start, in metres.
+        // The temporal jitter offset (0: the pattern is the same every frame), the drift of the hydrometeors since the start, in metres.
         internal float JitterOffset;
         internal Vector3 Drift;
         // The share of the draw in a cross-fade of the two ways of composing (0 to 1) times any gain of the way; multiplies the colour.

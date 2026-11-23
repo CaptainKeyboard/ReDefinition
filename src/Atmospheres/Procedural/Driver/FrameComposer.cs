@@ -73,7 +73,7 @@ namespace ReDefinition.Atmospheres
     //
     // Order of a frame: the field level at the camera times the height fade (full to FadeStartM, gone from FadeEndM above sea level) is the
     // target; the level follows it at most 1/90 per game second (Level, the number the forecast and the cover would read); the shower
-    // pulse multiplies it for the picture only (DisplayLevel); the look table gives visibility, flakes, extinction, light and sound; the type
+    // pulse multiplies it for the picture only (DisplayLevel); the look table gives visibility, hydrometeors, extinction, light and sound; the type
     // comes from the field's temperature; sun transmission is SunTransmission.From of the optical depth and the sun's elevation.
     // Stale reads: a reader in Update sees the previous frame's view; a view older than two frames is "no weather" (WeatherView.IsStale).
     internal sealed class FrameComposer
@@ -86,12 +86,12 @@ namespace ReDefinition.Atmospheres
         private float displayLevel;
         private float visibility = WeatherSample.ClearVisibilityM;
         private float windSpeed;
-        private float flakeDirection;
+        private float hydrometeorDirection;
         private TypeMix mix;
         private float lastExtinctionDensity;
         private bool lastFreezing;
         private long layersBuiltFor = -1;
-        private readonly FlakeLayer[] layerTemplate = new FlakeLayer[3];
+        private readonly HydrometeorLayer[] layerTemplate = new HydrometeorLayer[3];
 
         // The level the field gave, after the height fade and the rate limit, without the shower pulse: what a forecast or a cover reads.
         internal float Level
@@ -217,8 +217,8 @@ namespace ReDefinition.Atmospheres
             float gustScale = input.Sample.GustFactor > 0f ? input.Sample.GustFactor : 1f;
             gust = 1f + (gust - 1f) * gustScale;
             float sustained = windSpeed;
-            float flakeDir = (float)(Math.Atan2(dir.y, dir.x) * 57.29577951308232);
-            flakeDirection = jump ? flakeDir : WindNoise.LimitFlakeDirection(flakeDirection, flakeDir, input.DtReal);
+            float hydrometeorDir = (float)(Math.Atan2(dir.y, dir.x) * 57.29577951308232);
+            hydrometeorDirection = jump ? hydrometeorDir : WindNoise.LimitHydrometeorDirection(hydrometeorDirection, hydrometeorDir, input.DtReal);
 
             // The air: the visibility is the smaller of the table's and the field's, and it moves at most a quarter of itself per second.
             // A forced level (the viewer's and the probes' forceLevel) is the whole precipitation of the frame: the field's own visibility, which follows the field's level at the place,
@@ -268,16 +268,16 @@ namespace ReDefinition.Atmospheres
             moved |= Set(ref view.SkyGreyStart, Tuning.Get("driver.skyGreyStartDeg", 0f));
             moved |= Set(ref view.SkyGreyFull, Tuning.Get("driver.skyGreyFullDeg", 23.6f));
 
-            moved |= Set(ref view.FlakeRatePerS, falling ? look.FlakesPerS : 0f);
-            moved |= Set(ref view.FlakeSizeScale, look.FlakeSizeFactor);
-            moved |= Set(ref view.FlakeFallMS, falling ? Tuning.Get("driver.fallBaseMs", 1.1f) * look.FallFactor : 0f);
-            moved |= Set(ref view.FlakeBrightness, Tuning.Get("driver.flakeBrightness", 1f) * brightness);
-            if (view.FlakeSeed != input.Seed)
+            moved |= Set(ref view.HydrometeorRatePerS, falling ? look.HydrometeorsPerS : 0f);
+            moved |= Set(ref view.HydrometeorSizeScale, look.HydrometeorSizeFactor);
+            moved |= Set(ref view.HydrometeorFallMS, falling ? Tuning.Get("driver.fallBaseMs", 1.1f) * look.FallFactor : 0f);
+            moved |= Set(ref view.HydrometeorBrightness, Tuning.Get("driver.hydrometeorBrightness", 1f) * brightness);
+            if (view.HydrometeorSeed != input.Seed)
             {
-                view.FlakeSeed = input.Seed;
+                view.HydrometeorSeed = input.Seed;
                 moved = true;
             }
-            FillLayers(view, look.FlakeSizeFactor);
+            FillLayers(view, look.HydrometeorSizeFactor);
 
             if (view.CloudMapsVersion != input.CloudMapsVersion)
             {
@@ -301,10 +301,10 @@ namespace ReDefinition.Atmospheres
             get { return lastFreezing; }
         }
 
-        // The direction in degrees the flakes are blown to (limited in turning speed), for the flake renderer.
-        internal float FlakeDirectionDeg
+        // The direction in degrees the hydrometeors are blown to (limited in turning speed), for the hydrometeor renderer.
+        internal float HydrometeorDirectionDeg
         {
-            get { return flakeDirection; }
+            get { return hydrometeorDirection; }
         }
 
         // The visibility extinction density (Unity's exp2 fog density) of the last frame.
@@ -313,7 +313,7 @@ namespace ReDefinition.Atmospheres
             get { return lastExtinctionDensity; }
         }
 
-        // The three flake layers of the view: widths, shares and sizes from the table (tuning keys flake.<layer>.*), sizes by the level's
+        // The three hydrometeor layers of the view: widths, shares and sizes from the table (tuning keys hydrometeor.<layer>.*), sizes by the level's
         // size factor.
         private void FillLayers(WeatherView view, float sizeFactor)
         {
@@ -326,7 +326,7 @@ namespace ReDefinition.Atmospheres
                 float[] opacity = { 0.5f, 0.95f, 1f };
                 for (int i = 0; i < 3; i++)
                 {
-                    string p = "flake." + names[i] + ".";
+                    string p = "hydrometeor." + names[i] + ".";
                     layerTemplate[i].Width = Tuning.Get(p + "width", width[i]);
                     layerTemplate[i].Share = Tuning.Get(p + "share", share[i]);
                     layerTemplate[i].SizeMin = Tuning.Get(p + "sizeMin", sizeMin[i]);
@@ -336,10 +336,10 @@ namespace ReDefinition.Atmospheres
             }
             for (int i = 0; i < 3; i++)
             {
-                FlakeLayer t = layerTemplate[i];
+                HydrometeorLayer t = layerTemplate[i];
                 t.SizeMin *= sizeFactor;
                 t.SizeMax *= sizeFactor;
-                view.FlakeLayers[i] = t;
+                view.HydrometeorLayers[i] = t;
             }
         }
 

@@ -439,7 +439,7 @@ namespace ReDefinition.Atmospheres
                 GravityY = gy,
                 GravityInPlane = Mathf.Sqrt(gx * gx + gy * gy),
                 Aspect = flight.aspect,
-                Seed = live ? view.FlakeSeed : 0
+                Seed = live ? view.HydrometeorSeed : 0
             };
             state.Step(ref input, ref t);
 
