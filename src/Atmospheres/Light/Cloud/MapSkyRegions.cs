@@ -47,10 +47,11 @@ namespace ReDefinition.Atmospheres
         internal const uint CalSeed = 0x5EEDC10Du;
 
         // The deck's base from the weather field (owner 2026-11-23 "Ja, Feld-Basis", after "Warum sind die Regenwolken so niedrig?"): 1 lifts the rain and snow deck's types to the
-        // field's cloud base (DeckRoots; the fog type stays on the ground), 0 the deck at its cfg type shares (about 170 m at KSC where the field says 899 m). Off until the owner
-        // has seen the pictures of both on the same pinned sky.
+        // field's cloud base (DeckRoots; the fog type stays on the ground), 0 the deck at its cfg type shares (about 170 m at KSC where the field says 899 m; the condensation
+        // physics and the place variation pushed it onto the ground there, the owner's "Nebel"). On by default since the owner chose the height factor on pictures that all
+        // carried it (2026-11-23 16:02, PRUEFPROTOKOLL 139; his "Ja, Feld-Basis" asked for pictures first, then the default).
         internal const string TuneDeckBase = "cloud.weatherMapSky.deckBase";
-        internal const float DeckBaseDefault = 0f;
+        internal const float DeckBaseDefault = 1f;
         internal static bool DeckBase { get { return Tuning.Get(TuneDeckBase, DeckBaseDefault) > 0.5f; } }
 
         internal static int SheetRule { get { return (int)Math.Round(Tuning.Get(TuneSheetRule, SheetRuleDefault)); } }

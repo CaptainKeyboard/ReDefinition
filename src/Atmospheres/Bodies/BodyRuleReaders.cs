@@ -150,13 +150,11 @@ namespace ReDefinition.Atmospheres
             string layerSet;
             double metreScale, scaledDepthM, horizontalScale;
             List<CloudLayerSpec> layers = CloudLayerTemplate.Choose(r, ctx, out layerSet, out metreScale, out scaledDepthM, out horizontalScale);
-            CloudRules rules = new CloudRules(source, r.Enum("discover", CloudDiscovery.Auto), r.String("baseLayer", ""), r.List("weatherLayers"),
+            return new CloudRules(source, r.Enum("discover", CloudDiscovery.Auto), r.String("baseLayer", ""), r.List("weatherLayers"),
                 r.Has("snowTypeNames") ? r.List("snowTypeNames") : null, r.Has("stratusTypeNames") ? r.List("stratusTypeNames") : null,
                 r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), layers, r.Float("sphereScale", 1f, 0.25f, 1f),
                 r.Float("hazeBlue", CloudRules.DefaultHazeBlue, 0f, 1f), r.Float("hazeNearBlue", CloudRules.DefaultHazeNearBlue, 0f, 1f),
-                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)), layerSet, HeightRules(r, (float)metreScale, (float)horizontalScale));
-            rules.ScaledTroposphereM = scaledDepthM;
-            return rules;
+                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)), layerSet, HeightRules(r, (float)metreScale, (float)horizontalScale), scaledDepthM);
         }
 
         // The keys height* of the CLOUDS node (E40 HKEYS): the numbers of the height variation of the layers (CloudHeightRules). A key that is not a number keeps its default, one outside its range

@@ -194,7 +194,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             MapSkyRegions.Parts high = Plan(One(0f, 0.7f, 9000, 9500, 9500, 1f, 0.5f, 0.5f));
             r = MapSkyRegions.DeckRoots(deck, high, null);
             Assert.AreEqual(depth, r[0], 1e-3f, "at most the deck's depth");
-            Assert.AreEqual(0f, MapSkyRegions.DeckBaseDefault, "off until the owner has seen the pictures");
+            Assert.AreEqual(1f, MapSkyRegions.DeckBaseDefault, "on since the owner's choice of 2026-11-23 16:02");
         }
 
         private static float BaseShareAt(CloudLayerDef l, float typeValue)

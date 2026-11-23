@@ -86,7 +86,7 @@ namespace ReDefinition.Atmospheres
                     scaleNote = ", height scale: measured troposphere x " + factor.ToString("0.##", CultureInfo.InvariantCulture) + " = " + (t * 0.001).ToString("0.##", CultureInfo.InvariantCulture)
                                 + " km, metres x " + metreScale.ToString("0.###", CultureInfo.InvariantCulture) + (ctx.HeightScaleHorizontal ? "" : ", the horizontal lengths as written");
                 }
-                else scaleNote = ", height scale: no measured troposphere, the layers as written";
+                // No measured troposphere (a body whose curve has none, or facts without it): the layers as written and the note as before (the probe's log line says why).
             }
             List<CloudLayerSpec> chosen = ChooseSet(clouds, ctx, mode, name, own, depth, metreScale, horizontalDepth, horizontalScale, out note);
             note += scaleNote;

@@ -43,7 +43,8 @@ namespace ReDefinition.Tests.Atmospheres.E41
             Assert.AreEqual(4000f, Layer(r, "deck").NoiseScaleM, 1e-3f);
             Assert.AreEqual(110f, r.Height.VariationM, 1e-3f);
             Assert.IsTrue(double.IsNaN(r.ScaledTroposphereM));
-            Assert.AreEqual(0f, CloudHeightScale.OnDefault, "off until the owner has picked the factor from the pictures");
+            Assert.AreEqual(1f, CloudHeightScale.OnDefault, "on with the factor 1 (owner 2026-11-23 16:02)");
+            Assert.AreEqual(1f, CloudHeightScale.FactorDefault);
         }
 
         [TestMethod]
@@ -83,7 +84,7 @@ namespace ReDefinition.Tests.Atmospheres.E41
             Assert.AreEqual(off.Height.WavelengthM, heights.Height.WavelengthM, 0.01f);
             Assert.AreEqual(110f * 0.8f, heights.Height.VariationM, 0.01f);
             Assert.IsTrue(double.IsNaN(heights.ScaledTroposphereM), "the meso stage keeps the generator's depth");
-            Assert.AreEqual(1f, CloudHeightScale.HorizontalDefault, "the concept: the horizontal lengths follow");
+            Assert.AreEqual(0f, CloudHeightScale.HorizontalDefault, "the owner's \"Nur Höhen\" (2026-11-23 16:02)");
         }
 
         [TestMethod]
