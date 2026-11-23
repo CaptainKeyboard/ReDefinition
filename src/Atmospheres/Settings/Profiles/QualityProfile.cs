@@ -63,6 +63,7 @@ namespace ReDefinition.Atmospheres
             AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.OrbitMapWidth, row.OrbitMapWidth);
             AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.CloudSamples, row.CloudSamples);
             AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.CloudShadowQuality, (double)(int)row.CloudShadowQuality);
+            AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.LayerStepQuality, (double)(int)row.CloudStepQuality);
         }
 
         // The row of the tier in force, for the renderers' budget numbers.

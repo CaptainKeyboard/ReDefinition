@@ -62,7 +62,7 @@ namespace ReDefinition.Atmospheres
             internal const string RtOwnClouds = "rtOwnClouds";
             internal const string RtOwnCloudsLayerCap = "rtOwnCloudsLayerCap";
             // Own clouds: the look fixes of T03v2 and the far view (T06), the switches of the review of wave 4
-            internal const string CloudSunMarchLong = "cloudSunMarchLong";
+            internal const string CloudShortSunMarch = "cloudShortSunMarch";
             internal const string CloudSunWhiteBalance = "cloudSunWhiteBalance";
             internal const string CloudDiffusionDecay = "cloudDiffusionDecay";
             internal const string CloudFarHaze = "cloudFarHaze";
@@ -115,7 +115,7 @@ namespace ReDefinition.Atmospheres
         internal static bool RtOwnClouds => B(Keys.RtOwnClouds);
         internal static int RtOwnCloudsLayerCap => I(Keys.RtOwnCloudsLayerCap);
 
-        internal static bool CloudSunMarchLong => B(Keys.CloudSunMarchLong);
+        internal static bool CloudShortSunMarch => B(Keys.CloudShortSunMarch);
         internal static bool CloudSunWhiteBalance => B(Keys.CloudSunWhiteBalance);
         internal static float CloudDiffusionDecay => F(Keys.CloudDiffusionDecay);
         internal static bool CloudFarHaze => B(Keys.CloudFarHaze);
@@ -201,9 +201,10 @@ namespace ReDefinition.Atmospheres
                 // (0 none, 1 the full tint), in place of the clouds' own white point (SceneWhiteBalance). The owner found the full balance too strong on every body.
                 SettingDef.Float("sceneWhiteBalance", 0.25, 0.0, 1.0, CL, "Scene White Balance", OWN),
 
-                // The sun march and the look fixes of T03v2: the short march (4 km) is what the parity rows measured; the white balance and the decay are the
-                // fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)
-                SettingDef.Bool("cloudSunMarchLong", false, CL, "Cloud Long Sun March", OWN),
+                // The sun march and the look fixes of T03v2: off, the march is the owner's look of 2026-11-19 (12 km); on, the short one (4 km) the parity rows measured.
+                // (It replaced cloudSunMarchLong on 2026-11-23: the old key's files say False, which would now mean 4 km; a new key reads its default on every install.)
+                // The white balance and the decay are the fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)
+                SettingDef.Bool("cloudShortSunMarch", false, CL, "Cloud Short Sun March", OWN),
                 SettingDef.Bool("cloudSunWhiteBalance", false, CL, "Cloud Sun White Balance", OWN),
                 SettingDef.Float("cloudDiffusionDecay", 0.08,0.0, 0.2, CL, "Cloud Diffusion Decay", OWN),
 

@@ -15,7 +15,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
     {
         private static readonly string[] CloudKeys =
         {
-            "cloudSunMarchLong", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudFarHaze", "cloudFarShapeMean", "cloudFarMinSamples", "cloudFarPolicy",
+            "cloudShortSunMarch", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudFarHaze", "cloudFarShapeMean", "cloudFarMinSamples", "cloudFarPolicy",
             "cloudFarMapFade"
         };
 
@@ -68,7 +68,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             foreach (string key in new[]
             {
-                "cloudSunMarchLong", "cloudFarHaze", "cloudFarShapeMean", "cloudFarPolicy", "cloudFarMapFade", "wetSurfaces", "windowDroplets", "lightning"
+                "cloudShortSunMarch", "cloudFarHaze", "cloudFarShapeMean", "cloudFarPolicy", "cloudFarMapFade", "wetSurfaces", "windowDroplets", "lightning"
             })
                 Assert.AreEqual(0.0, AtmospheresSettings.Definition(key).Default, key + " waits for the owner's agreement");
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudFarMinSamples").Default);
@@ -78,15 +78,15 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
-        public void TheSunMarchIsTheLooksTwelveKilometresWhateverTheSwitch()
+        public void TheSunMarchIsTheLooksTwelveKilometresByDefaultAndTheSwitchActs()
         {
             Assert.AreEqual(4000f, new LayerFrame().SunMarchM, "the frame's own default is the one the parity rows measured");
-            // The owner's look (2026-11-19, OwnCloudOptions.LookSunMarchM) sets the march towards the sun over the switch cloudSunMarchLong.
+            // The owner's look (2026-11-19): 12 km with the switch cloudShortSunMarch off, the default (2026-11-23: the switch acts; on is the short 4 km).
             var f = new LayerFrame();
             OwnCloudOptions.Apply(f, Defaults());
-            Assert.AreEqual(OwnCloudOptions.LookSunMarchM, f.SunMarchM);
-            OwnCloudOptions.Apply(f, Defaults("cloudSunMarchLong", 1));
-            Assert.AreEqual(OwnCloudOptions.LookSunMarchM, f.SunMarchM);
+            Assert.AreEqual(12000f, f.SunMarchM);
+            OwnCloudOptions.Apply(f, Defaults("cloudShortSunMarch", 1));
+            Assert.AreEqual(4000f, f.SunMarchM);
         }
 
         [TestMethod]

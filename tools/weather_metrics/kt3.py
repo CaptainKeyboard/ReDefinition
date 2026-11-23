@@ -89,7 +89,7 @@ def build_expect():
     add("aotaps_g", "light", ADDS)
     add("aoreuse2_g", "light", ADDS)
     add("wb_off_g", "light", FREE)
-    add("sun9_g", "light", FREE, note="T14 measured 1.00 of the 4 km march")
+    add("sun4_g", "light", FREE, note="the short 4 km march against the look's 12 km (T14 measured 9 km at 1.00 of 4 km)")
     add("shadows_off_g", "shadow", SAVES, "ground", note="the ground loses the cloud shadow")
     add("shq_low_g", "shadow", SAVES)
     add("shq_high_g", "shadow", ADDS)

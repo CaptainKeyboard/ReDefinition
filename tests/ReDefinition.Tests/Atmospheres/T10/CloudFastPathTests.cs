@@ -16,6 +16,15 @@ namespace ReDefinition.Tests.Atmospheres.T10
             return AtmospheresSettings.Definition(key).Default;
         }
 
+        // The settings as a tier's row writes them (QualityProfile.Apply), the defaults for the rest.
+        private static Func<string, double> TierSettings(QualityTier tier)
+        {
+            TierRow row = TierRows.For(tier);
+            return key => key == AtmospheresSettings.Keys.LayerStepQuality ? (int)row.CloudStepQuality
+                : key == AtmospheresSettings.Keys.CloudShadowQuality ? (int)row.CloudShadowQuality
+                : key == AtmospheresSettings.Keys.CloudSamples ? row.CloudSamples : Default(key);
+        }
+
         private static void Frame(int n, bool fast)
         {
             CloudFastPath.Source = () => fast;
@@ -51,6 +60,53 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.IsFalse(TierRows.NotSet.ContainsKey(AtmospheresSettings.Keys.CloudShadowQuality));
         }
 
+        // 2026-11-23 (the owner: the quality settings act per graphics profile, the picture of each tier stays): every tier's march and light as they were before the
+        // settings acted: the shortest step 12 m with the fast path and 6 m without, 8 taps over 12 km towards the sun, the grid points of the tier's cloudSamples.
+        [TestMethod]
+        public void EveryTiersMarchAndLightAreThoseOfBeforeTheSettingsActed()
+        {
+            Tuning.ClearOverrides();
+            foreach (QualityTier tier in TierRows.All)
+            {
+                bool fast = TierRows.For(tier).CloudFastPath;
+                Frame(9300020 + (int)tier, fast);
+                var frame = new LayerFrame();
+                OwnCloudOptions.Apply(frame, TierSettings(tier));
+                Assert.AreEqual(fast ? 12f : 6f, frame.MinStepM, tier + " shortest step");
+                Assert.AreEqual(12000f, frame.SunMarchM, tier + " sun march");
+                Assert.AreEqual(tier == QualityTier.Low ? 48 : 256, frame.MaxSteps, tier + " grid points");
+                var light = new CloudLightSettings();
+                OwnCloudOptions.Apply(light, TierSettings(tier));
+                Assert.AreEqual(8, light.SunStepsOverride, tier + " sun taps");
+            }
+            CollectionAssert.Contains(TierRows.SetKeys, AtmospheresSettings.Keys.LayerStepQuality);
+            Assert.IsFalse(TierRows.NotSet.ContainsKey(AtmospheresSettings.Keys.LayerStepQuality));
+            Assert.IsTrue(TierRows.Revision >= 3, "a changed row raises the revision, so the module writes it once more");
+        }
+
+        // The three settings act on every tier (they were overwritten by the look's constants until 2026-11-23, antipattern review F1).
+        [TestMethod]
+        public void TheStepLightAndSunMarchSettingsAct()
+        {
+            Tuning.ClearOverrides();
+            foreach (bool fast in new[] { true, false })
+            {
+                Frame(fast ? 9300030 : 9300031, fast);
+                Func<string, double> low = k => k == AtmospheresSettings.Keys.LayerStepQuality || k == AtmospheresSettings.Keys.CloudLightQuality ? 0.0
+                    : k == AtmospheresSettings.Keys.CloudShortSunMarch ? 1.0 : Default(k);
+                var frame = new LayerFrame();
+                OwnCloudOptions.Apply(frame, low);
+                Assert.AreEqual(LayerSwitches.MinStepLowM, frame.MinStepM, "step quality Low");
+                Assert.AreEqual(LayerFrame.SunMarchShortM, frame.SunMarchM, "the short sun march");
+                var light = new CloudLightSettings();
+                OwnCloudOptions.Apply(light, low);
+                Assert.AreEqual(CloudLightSettings.SunTapsLow, light.SunStepsOverride, "light quality Low");
+                Func<string, double> medium = k => k == AtmospheresSettings.Keys.CloudLightQuality ? 1.0 : Default(k);
+                OwnCloudOptions.Apply(light, medium);
+                Assert.AreEqual(CloudLightSettings.SunTapsMedium, light.SunStepsOverride, "light quality Medium");
+            }
+        }
+
         [TestMethod]
         public void TheFastPathSetsTheDefaultsOfItsKeys()
         {
@@ -59,7 +115,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Default);
             Assert.AreEqual(CloudFastPath.SpanGrowthPerM, frame.SpanGrowthPerM);
-            Assert.AreEqual(CloudFastPath.MinStepM, frame.MinStepM);
+            OwnCloudOptions.Apply(frame, TierSettings(QualityTier.Medium));
+            Assert.AreEqual(12f, frame.MinStepM, "the Medium tier's step quality: the fast path's 12 m of before (PRUEFPROTOKOLL 79)");
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Default);
             Assert.IsTrue(recon.Rotation, "the rotation is on");
@@ -85,7 +142,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Default);
             Assert.AreEqual(0f, frame.SpanGrowthPerM);
-            Assert.AreEqual(OwnCloudOptions.LookMinStepM, frame.MinStepM);
+            OwnCloudOptions.Apply(frame, TierSettings(QualityTier.High));
+            Assert.AreEqual(6f, frame.MinStepM, "the High tier's step quality: the owner's look of 2026-11-19");
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Default);
             Assert.AreEqual(OwnCloudOptions.TrueDistanceDefault, recon.TrueDistance);
@@ -149,7 +207,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var fast = new System.Collections.Generic.Dictionary<string, float>
             {
                 { CloudLookTuning.TuneLightVolume, CloudFastPath.LightVolume }, { CloudLookTuning.TuneLvHandOver, CloudFastPath.LvHandOverKm },
-                { CloudLookTuning.TuneLvFarTaps, CloudFastPath.LvFarTaps }, { OwnCloudOptions.TuneMinStepM, CloudFastPath.MinStepM },
+                { CloudLookTuning.TuneLvFarTaps, CloudFastPath.LvFarTaps },
                 { OwnCloudOptions.TuneSpanGrowthPerM, CloudFastPath.SpanGrowthPerM }, { OwnCloudOptions.TuneShadowResolution, CloudFastPath.ShadowResolution },
                 { OwnCloudOptions.TuneReconRotate, CloudFastPath.ReconRotate }, { OwnCloudOptions.TuneTrueDistance, 1f }, { OwnCloudOptions.TuneAge, 1f },
                 { OwnCloudOptions.TuneMarchTriangle, 1f }, { OwnCloudOptions.TuneDistanceReject, CloudFastPath.DistanceReject }, { OwnCloudOptions.TuneClipSigma, CloudFastPath.ClipSigma }

@@ -89,12 +89,13 @@ namespace ReDefinition.Atmospheres
         internal const float ReconResolutionDefault = 1f;
         // The owner's look (2026-11-19, made the default): e40puff k4_stride's march (shortest step 6 m, no step growth, 8 taps over a 12 km march towards the sun), at
         // the full size (ReconResolutionDefault) with the rotation (cloudRotation on). Game, K-T2 perfN2560dlssqceil (A4500 2560x1440 DLSS Q): 21.4 fps at the ground.
-        internal const float LookMinStepM = 6f, LookSunMarchM = 12000f;
-        internal const int LookSunSteps = 8;
+        // Since 2026-11-23 the look is carried by the settings' levels (the owner: the quality settings act per graphics profile): the step quality's shortest step
+        // (LayerSwitches.MinStepHighM 6 m from the High tier up, MinStepMediumM 12 m below it: TierRow.CloudStepQuality), the light quality's taps (High 8,
+        // CloudLightSettings.SunTapsHigh) and cloudShortSunMarch (off: LayerFrame.SunMarchLongM 12 km). The keys layers.minStepM, layers.sunMarchM and layers.sunSteps
+        // replace them only when set above 0 (a probe's or the viewer's hand).
 
         // The defaults in force of the keys the fast cloud path changes (CloudFastPath): the readers below and the viewer's registry take the same property, so the viewer shows
         // what runs on the tier in force.
-        internal static float MinStepDefaultM { get { return CloudFastPath.Pick(CloudFastPath.MinStepM, LookMinStepM); } }
         internal static float SpanGrowthDefaultPerM { get { return CloudFastPath.Pick(CloudFastPath.SpanGrowthPerM, 0f); } }
         internal static float ShadowResolutionDefaultNow { get { return CloudFastPath.Pick(CloudFastPath.ShadowResolution, ShadowResolutionDefault); } }
         internal static float ReconRotateDefault(float full) { return CloudFastPath.Pick(CloudFastPath.ReconRotate, full); }
@@ -260,15 +261,14 @@ namespace ReDefinition.Atmospheres
             f.SunSteps = sunSteps;
             f.MinStepM = minStep;
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
-            f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
-            // The owner's look (2026-11-19, the default; e40puff k4_stride, judged in the player 2026-11-18): the shortest step LookMinStepM, no step growth along the ray, the march
-            // towards the sun LookSunMarchM long. A key at or below 0 gives the step quality's value instead (layers.minStepM, layers.sunMarchM); layers.earlyOut above 0 replaces the
-            // frame's early out.
-            float minStepKey = Tuning.Get(TuneMinStepM, MinStepDefaultM);
+            f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudShortSunMarch) ? LayerFrame.SunMarchShortM : LayerFrame.SunMarchLongM;
+            // The shortest step and the march towards the sun are the settings' (the step quality's level, cloudShortSunMarch); layers.minStepM and layers.sunMarchM above 0 replace
+            // them (default 0: the settings'); layers.earlyOut above 0 replaces the frame's early out.
+            float minStepKey = Tuning.Get(TuneMinStepM, 0f);
             if (minStepKey > 0f) f.MinStepM = minStepKey;
             float earlyKey = Tuning.Get(TuneEarlyOut, 0f);
             if (earlyKey > 0f) f.EarlyOut = earlyKey;
-            float sunMarchKey = Tuning.Get(TuneSunMarchM, LookSunMarchM);
+            float sunMarchKey = Tuning.Get(TuneSunMarchM, 0f);
             if (sunMarchKey > 0f) f.SunMarchM = sunMarchKey;
             // The cost controls: tuning keys with the compiled values of the frame.
             f.CoverageBound = Tuning.Flag(TuneCoverageBound, CompiledFrame.CoverageBound);
@@ -298,8 +298,8 @@ namespace ReDefinition.Atmospheres
         {
             CloudLightSettings q = CloudLightSettings.ForQuality((int)Level(v, AtmospheresSettings.Keys.CloudLightQuality));
             s.SunStepsOverride = q.SunStepsOverride;
-            // The owner's look: LookSunSteps taps towards the sun (layers.sunSteps; 0 keeps the light quality level's).
-            int sunSteps = Mathf.RoundToInt(Tuning.Get(TuneSunSteps, LookSunSteps));
+            // The taps towards the sun are the light quality level's; layers.sunSteps above 0 replaces them (default 0).
+            int sunSteps = Mathf.RoundToInt(Tuning.Get(TuneSunSteps, 0f));
             if (sunSteps > 0) s.SunStepsOverride = Math.Min(sunSteps, 64);
             s.MoonSteps = q.MoonSteps;
             s.UpSteps = q.UpSteps;

@@ -316,11 +316,11 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneEmptyLeap, Frame0.EmptyLeap),
             N(OwnCloudOptions.TuneCheapShare, Frame0.CheapShare),
             N(OwnCloudOptions.TuneFogShare, Frame0.FogShare),
-            // The owner's look (the default since 2026-11-19; at or below 0 the step and light quality's value).
-            N(OwnCloudOptions.TuneMinStepM, OwnCloudOptions.LookMinStepM, note: "shortest step in m, the owner's look 6 (the fast path's 12); 0 the step quality's", effective: () => OwnCloudOptions.MinStepDefaultM),
+            // Hand overrides of the settings' march (0, the default: the step quality's, cloudShortSunMarch's and the light quality's value).
+            N(OwnCloudOptions.TuneMinStepM, 0f, note: "shortest step in m; 0 the step quality's (High 6, the owner's look; Medium 12; Low 24)"),
             N(OwnCloudOptions.TuneEarlyOut, 0f, note: "the transmittance a ray ends at, the ceiling march 0.001; 0 the product's"),
-            N(OwnCloudOptions.TuneSunMarchM, OwnCloudOptions.LookSunMarchM, note: "the length of the march towards the sun in m, the owner's look 12000; 0 the setting's"),
-            N(OwnCloudOptions.TuneSunSteps, OwnCloudOptions.LookSunSteps, note: "taps towards the sun, the owner's look 8; 0 the light quality's"),
+            N(OwnCloudOptions.TuneSunMarchM, 0f, note: "the length of the march towards the sun in m; 0 the setting cloudShortSunMarch's (off 12000, the owner's look; on 4000)"),
+            N(OwnCloudOptions.TuneSunSteps, 0f, note: "taps towards the sun; 0 the light quality's (High 8, the owner's look; Medium 6; Low 4)"),
             N(OwnCloudOptions.TuneCostCutM, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: the march ends at this distance in m (0 off)"),
             N(OwnCloudOptions.TuneSpanGrowthPerM, 0f, KeyLiveness.Frame, "a span's points by distance: the step's growth per m of distance from the camera (0 off: evenly spaced)",
               () => OwnCloudOptions.SpanGrowthDefaultPerM),

@@ -13,14 +13,19 @@ namespace ReDefinition.Atmospheres
         // The layers one pass draws at most (1 to CloudLayerDef.MaxLayers).
         internal const int LayerCapDefault = CloudLayerDef.MaxLayers;
 
-        // The march quality levels: most steps per span, steps towards the sun, and the shortest step in m.
+        // The march quality levels: most steps per span, steps towards the sun (the frame's fallback; the light quality's taps replace it), and the shortest step in m.
+        // The shortest step is the level's own (2026-11-23, the owner: the quality settings act per graphics profile): High 6 m is the owner's look of 2026-11-19 (the full
+        // path's), Medium 12 m the fast path's (PRUEFPROTOKOLL 79: the storm's ground view at 49-50 fps against 46-48 with 6 m), Low twice that. The tier rows set High from the
+        // High tier up and Medium below it (TierRow.CloudStepQuality), which keeps every tier's picture as it was.
+        internal const float MinStepLowM = 24f, MinStepMediumM = 12f, MinStepHighM = 6f;
+
         internal static void StepQuality(int level, out int maxSteps, out int sunSteps, out float minStepM)
         {
             switch (level)
             {
-                case 0: maxSteps = 32; sunSteps = 2; minStepM = 40f; break;
-                case 1: maxSteps = 48; sunSteps = 3; minStepM = 25f; break;
-                default: maxSteps = 64; sunSteps = 4; minStepM = 15f; break;
+                case 0: maxSteps = 32; sunSteps = 2; minStepM = MinStepLowM; break;
+                case 1: maxSteps = 48; sunSteps = 3; minStepM = MinStepMediumM; break;
+                default: maxSteps = 64; sunSteps = 4; minStepM = MinStepHighM; break;
             }
         }
 
