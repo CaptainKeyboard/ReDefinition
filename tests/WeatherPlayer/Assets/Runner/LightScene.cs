@@ -90,7 +90,7 @@ namespace ReDefinition.WeatherPlayer
                 s.PowderStrength = job.powder; s.PowderLengthM = job.powderLength;
                 s.AmbientFloor = job.ambientFloor; s.AmbientOcclusion = job.ambientOcclusion; s.SkyTint = job.skyTint; s.AmbientGain = job.ambientGain;
                 s.SunStepsOverride = job.sunSteps; s.MoonSteps = job.moonSteps; s.UpSteps = job.upSteps;
-                s.ConeSpread = job.coneSpread; s.TapRatio = job.tapRatio; s.CacheFillSteps = job.cacheFillSteps;
+                s.TapRatio = job.tapRatio; s.CacheFillSteps = job.cacheFillSteps;
                 if (job.layerScale != null && job.layerScale.Length >= 3) s.LayerScale[0] = new Vector3(job.layerScale[0], job.layerScale[1], job.layerScale[2]);
             }
             s.AmbientOcclusionTaps = job.aoTaps != 0;

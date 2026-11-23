@@ -15,8 +15,7 @@
 // Atmosphere and Cloud Rendering in Frostbite", 2016 (the cloud-only history keyed to the camera).
 //
 // Passes: 0 reconstruct into the new history, 1 the cloud's motion vector over the host's motion vectors (E40 MVCLOUD), blended by the cloud's alpha,
-// 2 the distance to the cloud each pixel sees (for the far rotation), 3 pass 0 with the sample count and the cloud's distance in a second target
-// (recon.age, recon.distanceReject), drawn as one procedural triangle;
+// 2 pass 0 with the sample count and the cloud's distance in a second target (recon.age, recon.distanceReject), drawn as one procedural triangle;
 // the depth-aware composite of the full target over the camera target is the layer shader's pass 1.
 Shader "ReDefinition/AtmospheresReconstruct"
 {
@@ -234,19 +233,16 @@ Shader "ReDefinition/AtmospheresReconstruct"
             float2 q = (pix - _ReconP.yz) / n;          // the pixel's place among the new samples (a sample stands at every whole number)
             bool fresh = all(abs(fmod(pix, n) - _ReconP.yz) < 0.5);
             float4 cur = Low(q);
-            // The far rotation's marker (alpha -1, the layer shader's Pass0): this pixel was not marched this frame, its history stands alone.
-            bool kept = cur.a < -0.5;
-            if (kept) { fresh = false; cur = 0; }
             if (_ReconP.w > 0.5 && _ReconP.w < 1.5) return cur;
             bool aware = _ReconT.w > 0.5;
             float zPixel = 1e9;
             [branch] if (aware)
             {
                 zPixel = SceneZ(i.uv);
-                if (!fresh && !kept) cur = LowAware(q, zPixel, n);
+                if (!fresh) cur = LowAware(q, zPixel, n);
             }
 
-            // The 3 x 3 new samples around the pixel: the clip box of the history (the marked ones left out; with the scene's depth, each by its agreement with the pixel's).
+            // The 3 x 3 new samples around the pixel: the clip box of the history (with the scene's depth, each by its agreement with the pixel's).
             float2 q0 = floor(q + 0.5);
             float4 m1 = 0, m2 = 0;
             float count = 0;
@@ -254,7 +250,6 @@ Shader "ReDefinition/AtmospheresReconstruct"
             {
                 float2 texel = q0 + float2(k % 3 - 1, k / 3 - 1);
                 float4 s = Low(texel);
-                if (s.a < -0.5) continue;
                 float wk = 1.0;
                 [branch] if (aware) wk = Agreement(LowZ(texel, n), zPixel);
                 m1 += s * wk;
@@ -303,18 +298,18 @@ Shader "ReDefinition/AtmospheresReconstruct"
             }
             // The scene in front of the history's cloud: the cloud the history would bring lies behind what this pixel shows now (2 % of slack for the depth's own steps).
             if (aware && valid && depth > zPixel / max(dot(d, _CamForward.xyz), 1e-3) * 1.02) valid = false;
-            // A kept pixel without a history (the screen's edge after a turn, the first frames) takes the mean of the marched pixels around it (one of each block always is).
+            // A pixel without a history (the screen's edge after a turn, the first frames) shows the upsample of the new samples.
             if (!valid)
             {
                 age = fresh ? 1.0 : 0.0;
-                return kept ? m1 : cur;
+                return cur;
             }
             float4 h = _ReconK.w > 0.5 ? HistoryCatmull(puv) : tex2Dlod(_HistTex, float4(puv, 0, 0));
             float held = _ReconT.y > 0.5 ? tex2Dlod(_AgeTex, float4(puv, 0, 0)).r : 0.0;
             age = held;
-            if (_ReconP.w > 1.5 || kept) return h;
+            if (_ReconP.w > 1.5) return h;
             // A clip width of 999 or more is no clip at all (a pixel-exact rotation keeps its history as it is; where the nine new samples are equal, sd = 0 would still pull it to them).
-            // Fewer than three new samples around (a far rotation's marched pixel among kept ones) give no spread to clip by: the clip would pull the history onto the one sample.
+            // Less than three samples' weight around (the scene's depth disagrees with most of them) gives no spread to clip by: the clip would pull the history onto one sample.
             if (_ReconK.z < 999.0 && count > 2.5) h = clamp(h, m1 - _ReconK.z * sd, m1 + _ReconK.z * sd);
             float weight = fresh ? _ReconK.x : _ReconK.y;
             [branch] if (_ReconT.y > 0.5)
@@ -338,7 +333,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
             return Reconstruct(i, age);
         }
 
-        // Pass 3: the reconstruction with the sample count in a second target, drawn as one procedural triangle (a command buffer's Blit binds one target). The uv is the
+        // Pass 2: the reconstruction with the sample count in a second target, drawn as one procedural triangle (a command buffer's Blit binds one target). The uv is the
         // Blit's, as in the layer shader's pass 6.
         v2f vertProc(uint vid : SV_VertexID)
         {
@@ -425,18 +420,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
             ENDCG
         }
 
-        // Pass 2: the distance to the cloud each pixel sees (CloudDepth), for the far rotation of the next frame's march.
-        Pass
-        {
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment fragDepth
-            #pragma target 3.5
-            float4 fragDepth(v2f i) : SV_Target { return CloudDepth(_CamPos.xyz, RayDir(i.uv)); }
-            ENDCG
-        }
-
-        // Pass 3: pass 0 with the sample count in a second target (recon.age).
+        // Pass 2: pass 0 with the sample count in a second target (recon.age).
         Pass
         {
             CGPROGRAM

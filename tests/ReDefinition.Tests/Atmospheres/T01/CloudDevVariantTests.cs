@@ -125,13 +125,9 @@ namespace ReDefinition.Tests.Atmospheres.T01
             Assert.AreEqual(0f, frame.CostCutM, "_ReuseP.y");
             Assert.IsTrue(frame.CoverageBound, "_CostP.x");
             Assert.AreEqual(0f, frame.CostDebug, "_CostP.y");
-            Assert.IsFalse(frame.FixedConeRotation, "_DitherP.y");
-            Assert.AreEqual(3, frame.ConePattern, "_DitherP.y");
             Assert.AreEqual(3, frame.DitherSequence, "_DitherP.z");
-            Assert.AreEqual(0f, new ReconSettings().FarRotateM, "_FarRot.x");
             Assert.IsFalse(EdgeSettings.AdaptiveDefault, "_EdgeP.x");
             var light = new CloudLightSettings();
-            Assert.AreEqual(0f, light.ConeSpread, "_LightR.x");
             Assert.AreEqual(0f, light.CellRadiusM, "_CellA.w");
             Assert.IsTrue(CloudLookTuning.NoiseBlend, "_BlendP.x");
         }

@@ -173,9 +173,9 @@ namespace ReDefinition.WeatherPlayer
         // costDebug: the march's cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion); the jitter mode (0: the product's
         // dither, 1: none) is the job's jitter value.
         public int accumulate = 1, costDebug;
-        // The product's transmittance growth of the step (1); fixedCone: the light cone's rotation is the same for every pixel (a probe).
+        // The product's transmittance growth of the step (1).
         // frameNumber: the frame number of an aux or lum job (it moves the per-pixel step offset; the colour jobs count their own).
-        public int productCost, fixedCone, frameNumber;
+        public int productCost, frameNumber;
         public float costLeap = -1f, costCut = -1f, cheapShare = -1f, fogShare = -1f;
         // An occluder sphere (centre, radius) whose depth is the scene's; radius 0: none.
         public float[] occluder;

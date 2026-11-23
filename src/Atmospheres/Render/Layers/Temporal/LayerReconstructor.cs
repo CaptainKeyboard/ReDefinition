@@ -48,10 +48,6 @@ namespace ReDefinition.Atmospheres
         // (the frame's; 0: no drift).
         public bool LayerMotion = true;
         public float DriftSeconds;
-        // The far rotation (Low mode with Accumulate above 0; the owner's question 2026-11-19, a test): a pixel whose ray enters the first layer beyond FarRotateM (0: off) is marched
-        // once in FarRotateBlock^2 frames and keeps its reprojected history in between; the nearer pixels are marched every frame.
-        public float FarRotateM;
-        public int FarRotateBlock = 2;
         // The block mode as the full-size march's rotation (recon.rotate): the history's own weights, never the edge pattern.
         public bool Rotation;
         // recon.trueDistance (Block mode without the edge pattern): the march writes the mean distance of each pixel's cloud into a second target and the history is moved by it
@@ -105,7 +101,6 @@ namespace ReDefinition.Atmospheres
     {
         internal const string ShaderName = "ReDefinition/AtmospheresReconstruct";
 
-        private static readonly int IdFarRot = Shader.PropertyToID("_FarRot");
         private static readonly int IdReconP = Shader.PropertyToID("_ReconP"), IdReconD = Shader.PropertyToID("_ReconD"),
             IdReconK = Shader.PropertyToID("_ReconK"), IdCurTex = Shader.PropertyToID("_CurTex"), IdCurTexel = Shader.PropertyToID("_CurTex_TexelSize"),
             IdHistTex = Shader.PropertyToID("_HistTex"), IdCamPos = Shader.PropertyToID("_CamPos"), IdCamForward = Shader.PropertyToID("_CamForward"),
@@ -119,9 +114,6 @@ namespace ReDefinition.Atmospheres
         internal const string EdgeShaderName = "ReDefinition/AtmospheresEdge";
         // E40 MVCLOUD: pass 1 of the reconstruction shader draws the cloud's motion vectors; its inputs are the frame's full target and the host's copy of the scene depth.
         internal const int PassMotion = 1;
-        // The far rotation (ReconSettings.FarRotateM): pass 2 writes the distance to each pixel's cloud, which the next frame's march reads.
-        internal const int PassDepth = 2;
-        private static readonly int IdFarDepth = Shader.PropertyToID("_FarDepth");
         // recon.trueDistance: the layer shader's pass 6 (the march into two targets), the second target and the pair the command buffer binds.
         internal const int PassMarchDistance = 6;
         // Test switch ReconSettings.ProcMarch (HIST2): the layer shader's pass 7, pass 0 drawn as one procedural triangle.
@@ -129,11 +121,11 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdDistTex = Shader.PropertyToID("_DistTex"), IdReconT = Shader.PropertyToID("_ReconT");
         private RenderTexture lowDistance;
         private RenderTargetIdentifier[] marchTargets;
-        // recon.age: the reconstruction shader's pass 3 (pass 0 into two targets), the sample counts of the two full targets (ageA with the one named "a", ageB with "b")
+        // recon.age: the reconstruction shader's pass 2 (pass 0 into two targets), the sample counts of the two full targets (ageA with the one named "a", ageB with "b")
         // and the two pairs the command buffer binds.
-        internal const int PassReconstructAge = 3;
+        internal const int PassReconstructAge = 2;
         // What the last Record ran (the perf starts' rows, T09.view.<view>.recon_*): the mode, the block side (1 outside the block mode), whether the edge pattern drew, the layer
-        // shader's pass the march drew with (0 the Blit, 6 the march with its distance target, 7 the procedural triangle), and whether the count targets were bound (pass 3).
+        // shader's pass the march drew with (0 the Blit, 6 the march with its distance target, 7 the procedural triangle), and whether the count targets were bound (pass 2).
         internal ReconMode LastMode { get; private set; }
         internal int LastBlock { get; private set; }
         internal bool LastEdge { get; private set; }
@@ -164,8 +156,6 @@ namespace ReDefinition.Atmospheres
         private RenderTexture fullA, ageA, ageB;
         private bool ageWasOn;   // the count targets were written last frame: a frame that turns them on again finds counts and distances of an older picture in them
         private RenderTargetIdentifier[] targetsA, targetsB;
-        private RenderTexture farDepth;
-        private bool haveFarDepth;
         private static readonly int IdMvCloud = Shader.PropertyToID("_MvCloud"), IdMvDepth = Shader.PropertyToID("_MvDepth");
 
         private Material material;
@@ -189,7 +179,7 @@ namespace ReDefinition.Atmospheres
 
         internal bool Ready { get { return material != null; } }
 
-        // The rotation's block counter (0 after Reset, one step per Block or far-rotation frame): the pinned capture writes it into pass.json.
+        // The rotation's block counter (0 after Reset, one step per Block frame): the pinned capture writes it into pass.json.
         internal int BlockIndex { get { return blockIndex; } }
 
         // The full target of the last Record (valid until the next one).
@@ -251,7 +241,6 @@ namespace ReDefinition.Atmospheres
         {
             haveHistory = false;
             haveLowHistory = false;
-            haveFarDepth = false;
             haveEdgeState = false;
             havePose = false;
             blockIndex = 0;
@@ -261,9 +250,9 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, farDepth, lowDistance, ageA, ageB })
+            foreach (RenderTexture rt in new[] { low, latest, spare, edgeLow, stateLast, stateNew, dilated, mask, lowLatest, lowSpare, lowDistance, ageA, ageB })
                 RenderTargets.Dispose(rt);
-            lowLatest = lowSpare = farDepth = lowDistance = ageA = ageB = fullA = null;
+            lowLatest = lowSpare = lowDistance = ageA = ageB = fullA = null;
             marchTargets = targetsA = targetsB = null;
             if (material != null) UnityEngine.Object.Destroy(material);
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
@@ -469,22 +458,10 @@ namespace ReDefinition.Atmospheres
             {
                 layers.SetVector(IdReconP, new Vector4(1f, 0f, 0f, 0f));
             }
-            // The far rotation (Low mode with a history only): beyond FarRotateM a pixel is marched once a block of FarRotateBlock frames squared, at this frame's offset.
-            // The distance of each pixel's cloud comes from the last frame (farDepth, the reconstruction's PassDepth): without it the frame marches every pixel.
-            Vector4 farRot = Vector4.zero;
-            bool farOn = s.Mode == ReconMode.Low && s.Accumulate > 0f && s.FarRotateM > 0f;
-            if (farOn && haveFarDepth && Fits(farDepth, low.width, low.height))
-            {
-                int fb = Mathf.Clamp(s.FarRotateBlock, 2, 4), fx, fy;
-                ReconPattern.BlockOffset(fb, blockIndex++, out fx, out fy);
-                farRot = new Vector4(s.FarRotateM, fb, fx, fy);
-                layers.SetTexture(IdFarDepth, farDepth);
-            }
-            layers.SetVector(IdFarRot, farRot);
             layers.SetVector(IdReconD, new Vector4(w, h, low.width, low.height));
             LastOffset = offset;
             layers.SetVector(IdEdgeP, new Vector4(0f, EdgeSettings.CoarseBlock, 0f, 0f));
-            // The test switches' variant with this frame's far rotation (CloudDevVariant; the edge draw's copy sets its own).
+            // The test switches' variant (CloudDevVariant; the edge draw's copy sets its own).
             CloudDevVariant.Apply(layers, CloudDevVariant.Layer);
             if (edgeOn)
             {
@@ -573,27 +550,6 @@ namespace ReDefinition.Atmospheres
                     materialBound = true;
                     cb.Blit(BuiltinRenderTextureType.None, lowSpare, a, 0);
                     Sub(cb, "accumulate");
-                    if (farOn)
-                    {
-                        if (!Fits(farDepth, low.width, low.height))
-                        {
-                            RenderTargets.Dispose(farDepth);
-                            farDepth = new RenderTexture(low.width, low.height, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear)
-                            {
-                                name = "layer far depth",
-                                filterMode = FilterMode.Point,
-                                wrapMode = TextureWrapMode.Clamp
-                            };
-                            farDepth.Create();
-                        }
-                        cb.Blit(BuiltinRenderTextureType.None, farDepth, a, PassDepth);
-                        Sub(cb, "far depth");
-                        haveFarDepth = true;
-                    }
-                    else
-                    {
-                        haveFarDepth = false;
-                    }
                     source = lowSpare;
                     lowSpare = lowLatest;
                     lowLatest = source;

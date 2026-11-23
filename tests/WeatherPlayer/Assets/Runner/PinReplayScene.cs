@@ -146,7 +146,7 @@ namespace ReDefinition.WeatherPlayer
         private static readonly string[] DiagTextures =
         {
             "_CovMaps", "_TypeMaps", "_HeightMaps", "_CovReach", "_TypeProfile", "_TypeInfo", "_TypeInfo2", "_NoiseShape", "_NoiseDetail", "_NoiseCurl", "_NoiseFlow",
-            "_NoiseColour", "_CullTiles", "_CullMax0", "_CullMax1", "_LightCache", "_FarDepth", "_SceneDepth"
+            "_NoiseColour", "_CullTiles", "_CullMax0", "_CullMax1", "_LightCache", "_SceneDepth"
         };
 
         private static readonly string[] DiagReconVectors =

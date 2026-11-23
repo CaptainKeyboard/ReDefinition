@@ -46,52 +46,6 @@ float MvPresence(int l, float3 pc)
     return saturate((cov + _MvA[l].y - 1.0) / max(_MvA[l].z, 1e-4) + 0.5);
 }
 
-// The distance along the ray from o (planet-relative) in direction d to the cloud it sees: the layers' middle spheres weighted by their presence on the coverage maps and by what the
-// nearer layers hide (CloudPrevious's weights, without the previous camera); 1e9 where no layer fills the pixel. The far rotation's distance (LayerReconstructor.PassDepth).
-float CloudDepth(float3 o, float3 d)
-{
-    if (_MvN.x < 0.5) return 1e9;
-    float len = length(o);
-    float b = dot(o, d);
-    float tPlanet = 1e30;
-    float discP = b * b - (len - _MvN.y) * (len + _MvN.y);
-    if (discP > 0)
-    {
-        float tp = -b - sqrt(discP);
-        if (tp > 0) tPlanet = tp;
-    }
-    float t[4], p[4], a[4];
-    [unroll] for (int l = 0; l < 4; l++)
-    {
-        t[l] = 0; p[l] = 0; a[l] = 0;
-        if (l >= (int)_MvN.x) continue;
-        float r = _MvA[l].x;
-        float disc = b * b - (len - r) * (len + r);
-        if (disc <= 0) continue;
-        float sq = sqrt(disc);
-        float t0 = -b - sq, t1 = -b + sq;
-        float th = t0 > 0 ? t0 : t1;
-        if (th <= 0 || th >= tPlanet) continue;
-        float3 pc = o + d * th;
-        t[l] = th;
-        p[l] = MvPresence(l, pc);
-        a[l] = 1.0 - exp(-_MvB[l].x / max(abs(dot(d, pc)) / r, 0.05));
-    }
-    float sum = 0, td = 0;
-    [unroll] for (int m = 0; m < 4; m++)
-    {
-        float w = p[m];
-        if (w <= 0) continue;
-        [unroll] for (int k = 0; k < 4; k++)
-        {
-            if (k != m && p[k] > 0 && t[k] < t[m]) w *= 1.0 - p[k] * a[k];
-        }
-        sum += w;
-        td += w * t[m];
-    }
-    return sum < 1e-3 ? 1e9 : td / sum;
-}
-
 // The previous place (uv, not limited to the picture) of the cloud seen along the ray from o (planet-relative) in direction d, and the weighted distance along the ray. False where
 // no layer fills the pixel, or the cloud was behind the previous camera.
 bool CloudPrevious(float3 o, float3 d, out float2 puv, out float depth)

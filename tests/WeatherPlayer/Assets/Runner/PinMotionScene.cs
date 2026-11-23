@@ -3,7 +3,7 @@
 //   -scene pin-motion -in <folder> -variants <list> [-path...]   a camera path through the game's clouds, every variant along the same path, and a reference per dumped frame
 //   -scene pin-cost -in <folder> -variants <list> [-rounds N]      the GPU time of the march and of the reconstruction per variant at the capture's pose (needs the proxy)
 // A variant is name:setting;setting;.. where a setting is a path of the replay's settings (LayerPassSettings: Frame.<field>, Recon.<field>, Noise.<field>) = value, applied over the
-// game's settings of the capture, e.g. rot3:Recon.Block=3 or far5:Recon.Mode=2;Recon.Rotation=0;Recon.FarRotateM=5000. Variants are separated by commas; a variant without settings is
+// game's settings of the capture, e.g. rot3:Recon.Block=3 or acc:Recon.Mode=2;Recon.Rotation=0;Recon.Accumulate=0.2. Variants are separated by commas; a variant without settings is
 // the game's own pass. The name ref is the reference: the same pose and noise marched at every pixel without a history (Recon.Mode Full), the mean of -refFrames dither phases.
 // The path (all in the camera's own frame at the capture's pose, metres and seconds, at -pathFps frames a second):
 //   -pathStart f,r,u   offset of the first frame        -pathVel f,r,u   velocity (m/s)        -pathYaw d   turn about the local up (deg/s, positive to the right)
