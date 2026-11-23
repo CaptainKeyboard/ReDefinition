@@ -97,17 +97,24 @@ Shader "ReDefinition/AtmospheresReconstruct"
             // The distance varies from pixel to pixel as the position among the new samples does (bilinear over the four around, those that hold cloud within a factor of 3 of the
             // nearest's): one distance for all 16 pixels of a block moved their history by one parallax, and the next block's by another, so that a translating camera cut the
             // history along the block grid at every cloud edge: 4 px stair steps (the dolly series with recon.trueDistance 0 has none; a camera turn has no parallax and none).
-            if (own)
+            // Beside a rim too: a pixel whose nearest sample holds no cloud takes the interpolated distance of the cloud samples around (the nearest of them is the reference),
+            // not the nearest of the nine as one constant for its block, which would jump against the cloud block next to it exactly at the edge.
             {
                 float2 qf = floor(q), fr = q - qf;
-                float acc = 0.0, wsum = 0.0;
+                float4 sj4 = 0.0, wj4 = 0.0;
+                float smin = 1e30;
                 [unroll] for (int j = 0; j < 4; j++)
                 {
                     float2 oj = float2(j & 1, j >> 1);
                     float sj = tex2Dlod(_DistTex, float4((qf + oj + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
-                    float wj = (oj.x > 0.5 ? fr.x : 1.0 - fr.x) * (oj.y > 0.5 ? fr.y : 1.0 - fr.y);
-                    if (sj > 0.0 && sj < dist * 3.0 && sj * 3.0 > dist) { acc += sj * wj; wsum += wj; }
+                    sj4[j] = sj;
+                    wj4[j] = (oj.x > 0.5 ? fr.x : 1.0 - fr.x) * (oj.y > 0.5 ? fr.y : 1.0 - fr.y);
+                    if (sj > 0.0) smin = min(smin, sj);
                 }
+                float refd = own ? dist : smin;
+                float acc = 0.0, wsum = 0.0;
+                [unroll] for (int m = 0; m < 4; m++)
+                    if (sj4[m] > 0.0 && sj4[m] < refd * 3.0 && sj4[m] * 3.0 > refd) { acc += sj4[m] * wj4[m]; wsum += wj4[m]; }
                 if (wsum > 1e-4) dist = acc / wsum;
             }
             if (dist <= 0.0)
