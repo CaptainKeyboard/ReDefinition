@@ -89,7 +89,7 @@ namespace ReDefinition.Atmospheres
         internal bool NoDistanceLod;
         // True: no fine octave of the erosion detail.
         internal bool NoFineDetail;
-        // E40 L2 D1 (cfg key fibreStretch): the lookup is compressed along the unit axis (AxisX, AxisY, AxisZ) by 1 - Stretch, i.e. the features are 1 / (1 - Stretch) times longer along it;
+        // E40 L2 D1 (cfg key filamentStretch): the lookup is compressed along the unit axis (AxisX, AxisY, AxisZ) by 1 - Stretch, i.e. the features are 1 / (1 - Stretch) times longer along it;
         // 0: isotropic. The shader's axis is the body's pole (the third row of the world-to-map matrix), (0, 0, 1) in the planet frame of the tests.
         internal double Stretch, AxisX, AxisY, AxisZ;
         // PUFF (cloud.bulge.*): the detail's contrast about its mean minus 1 (0: as it was), the weight of the fine octave (null: NoiseModel.FineDetailWeight) and its frequency
@@ -148,7 +148,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The point the volumes are read at: the planet-centred point (optionally on the spherical lattice), the layer's offset, minus the
-        // distance the flow has carried the pattern, the fibre stretch along the axis, then the untiling displacement.
+        // distance the flow has carried the pattern, the filament stretch along the axis, then the untiling displacement.
         internal static void LookupPoint(ref NoiseLayerParams prm, double px, double py, double pz, out double qx, out double qy, out double qz)
         {
             double dx, dy, dz;

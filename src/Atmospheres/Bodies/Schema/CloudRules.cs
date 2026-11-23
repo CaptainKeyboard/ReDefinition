@@ -250,10 +250,10 @@ namespace ReDefinition.Atmospheres
         internal float LightCellWidth { get; set; }
         // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
         internal float RainType { get; set; } = 1f;
-        // How much longer the layer's noise features are along the planet's axis than across it (cfg key fibreStretch, 1 and above; 1: isotropic): the lookup is compressed along the
-        // axis by 1 / FibreStretch (E40 L2 D1; Noise.cginc NoiseLookupBase). Cirrus fibres; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
+        // How much longer the layer's noise features are along the planet's axis than across it (cfg key filamentStretch, 1 and above; 1: isotropic): the lookup is compressed along the
+        // axis by 1 / FilamentStretch (E40 L2 D1; Noise.cginc NoiseLookupBase). Cirrus filaments; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
         // towards the poles (where the stretch then lies in the vertical and does not show in a thin layer).
-        internal float FibreStretch { get; set; } = 1f;
+        internal float FilamentStretch { get; set; } = 1f;
         // The pitch of the layer's cloud cells in m (cfg key cellPitch, 0: none; CELLS, owner order 2026-11-17). The layer map (a texel of 7.4 km on Kerbin) says how much of a region
         // is cloud; the cells put that share down as single clouds: a jittered lattice of this pitch on the sphere, each cell a disc whose radius follows the map's cloud share (CloudCells.cginc).
         internal float CellPitchM { get; set; }
@@ -275,10 +275,10 @@ namespace ReDefinition.Atmospheres
         // fine octaves of the volume (cone-shaped Worley peaks among them) turn into narrow spires that are a kilometre tall (E40 L6 shape). Averaged, those octaves are gone and the
         // tops are rounded: the volume's mip chain, each level equalised again so that the share of the sky a map value covers does not move (NoiseVolumeSet.ShapeMips).
         internal float ShapeSmoothing { get; set; }
-        // The fibre axis of the layer (cfg keys fibreMinWindMs and fibreTurnSeconds): the wind below which the fibres keep to the body's pole, and the time the axis takes to turn to a
-        // new wind (FibreAxis).
-        internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
-        internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
+        // The filament axis of the layer (cfg keys filamentMinWindMs and filamentTurnSeconds): the wind below which the filaments keep to the body's pole, and the time the axis takes to turn to a
+        // new wind (FilamentAxis).
+        internal float FilamentMinWindMs { get; set; } = FilamentAxis.DefaultMinWindMs;
+        internal float FilamentTurnSeconds { get; set; } = FilamentAxis.DefaultTurnSeconds;
         // The tops of the layer's convective types follow the updraft of their cell (cfg keys topReach, topRefMs and topFullMs; HeightPlan.TuningFor): TopReach is the most a top is moved up
         // or down as a share of the layer's thickness, TopRefMs the updraft at which a top stands where the type table puts it, TopFullMs the updraft at which it has moved by the whole
         // reach. 0 (TopReach): the body's own numbers in m (HeightTuning), the behaviour before E40 L6.

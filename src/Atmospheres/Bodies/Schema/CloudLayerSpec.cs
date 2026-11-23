@@ -157,8 +157,8 @@ namespace ReDefinition.Atmospheres
         // The type value of the layer at full precipitation (cfg key rainType; 1: the last type of the table). With fairType the type value runs from fairType at no precipitation to
         // rainType at full precipitation, so a table whose last type is not a rain cloud (altocumulus after congestus) can end its precipitation axis at the type that is.
         internal float RainType { get; set; } = 1f;
-        // How much longer the noise features are along the body's axis than across it (cfg key fibreStretch; 1: isotropic): see CloudLayerDef.FibreStretch.
-        internal float FibreStretch { get; set; } = 1f;
+        // How much longer the noise features are along the body's axis than across it (cfg key filamentStretch; 1: isotropic): see CloudLayerDef.FilamentStretch.
+        internal float FilamentStretch { get; set; } = 1f;
         // The pitch of the layer's cloud cells in m (cfg key cellPitch; 0: no cells): see CloudLayerDef.CellPitchM.
         internal float CellPitchM { get; set; }
         // The body of a single cloud (cfg keys cellBulge, cellBand, cellFine): see CloudLayerDef.CellBulge.
@@ -169,9 +169,9 @@ namespace ReDefinition.Atmospheres
         internal float VerticalScale { get; set; }
         // The smoothing of the layer's shape noise in noise scales (cfg key shapeSmoothing; 0: none): see CloudLayerDef.ShapeSmoothing.
         internal float ShapeSmoothing { get; set; }
-        // The layer's fibre axis numbers (cfg keys fibreMinWindMs, fibreTurnSeconds): see CloudLayerDef.
-        internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
-        internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
+        // The layer's filament axis numbers (cfg keys filamentMinWindMs, filamentTurnSeconds): see CloudLayerDef.
+        internal float FilamentMinWindMs { get; set; } = FilamentAxis.DefaultMinWindMs;
+        internal float FilamentTurnSeconds { get; set; } = FilamentAxis.DefaultTurnSeconds;
         // The numbers of the tops that follow the updraft (cfg keys topReach, topRefMs, topFullMs): see CloudLayerDef.
         internal float TopReach { get; set; }
         internal float TopRefMs { get; set; } = 1.2f;
@@ -241,15 +241,15 @@ namespace ReDefinition.Atmospheres
                 AmbientDecay = AmbientDecay,
                 LightCellWidth = LightCellWidth,
                 RainType = RainType,
-                FibreStretch = FibreStretch,
+                FilamentStretch = FilamentStretch,
                 CellPitchM = CellPitchM,
                 CellBulge = CellBulge,
                 CellBandM = CellBandM,
                 CellFine = CellFine,
                 VerticalScale = VerticalScale,
                 ShapeSmoothing = ShapeSmoothing,
-                FibreMinWindMs = FibreMinWindMs,
-                FibreTurnSeconds = FibreTurnSeconds,
+                FilamentMinWindMs = FilamentMinWindMs,
+                FilamentTurnSeconds = FilamentTurnSeconds,
                 TopReach = TopReach,
                 TopRefMs = TopRefMs,
                 TopFullMs = TopFullMs,

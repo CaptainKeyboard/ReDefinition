@@ -63,16 +63,16 @@ namespace ReDefinition.Atmospheres
             IdBulge = Shader.PropertyToID("_BulgeP"), IdCumuliformP = Shader.PropertyToID("_CumuliformP"), IdBlendP = Shader.PropertyToID("_BlendP");
 
         private readonly Vector4[] offsets = new Vector4[CloudLayerDef.MaxLayers], layerData = new Vector4[CloudLayerDef.MaxLayers], stretchData = new Vector4[CloudLayerDef.MaxLayers];
-        // The factor each layer's noise features are longer along the body's axis than across (CloudLayerDef.FibreStretch; 1: isotropic).
+        // The factor each layer's noise features are longer along the body's axis than across (CloudLayerDef.FilamentStretch; 1: isotropic).
         private readonly double[] stretch = { 1.0, 1.0, 1.0, 1.0 };
         // The vertical scale of each layer's lattice (CloudLayerDef.VerticalScale; 0: the switch SphereScale, the body's key).
         private readonly double[] vertical = new double[CloudLayerDef.MaxLayers];
         // How far each layer's shape noise is smoothed, in noise scales (CloudLayerDef.ShapeSmoothing; 0: not at all).
         private readonly double[] smoothing = new double[CloudLayerDef.MaxLayers];
-        // Each layer's fibre axis numbers (CloudLayerDef.FibreMinWindMs and FibreTurnSeconds).
-        private readonly float[] minWind = { FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs };
-        private readonly double[] turnSeconds = { FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds };
-        // The unit axis of each layer's fibre stretch: the layer's wind (the horizontal direction of the drift), smoothed in time, or the body's pole where there is no wind.
+        // Each layer's filament axis numbers (CloudLayerDef.FilamentMinWindMs and FilamentTurnSeconds).
+        private readonly float[] minWind = { FilamentAxis.DefaultMinWindMs, FilamentAxis.DefaultMinWindMs, FilamentAxis.DefaultMinWindMs, FilamentAxis.DefaultMinWindMs };
+        private readonly double[] turnSeconds = { FilamentAxis.DefaultTurnSeconds, FilamentAxis.DefaultTurnSeconds, FilamentAxis.DefaultTurnSeconds, FilamentAxis.DefaultTurnSeconds };
+        // The unit axis of each layer's filament stretch: the layer's wind (the horizontal direction of the drift), smoothed in time, or the body's pole where there is no wind.
         private readonly Vector3[] axis = { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward };
         private Vector3 pole = Vector3.forward;
         private bool poleKnown;
@@ -329,15 +329,15 @@ namespace ReDefinition.Atmospheres
             if (layer >= 0 && layer < smoothing.Length) smoothing[layer] = scales > 0.0 && !double.IsNaN(scales) ? scales : 0.0;
         }
 
-        // A layer's fibre axis numbers: the wind below which the fibres keep to the pole (m/s) and the time the axis takes to turn to a new wind (s; the cfg keys fibreMinWindMs and fibreTurnSeconds).
-        internal void SetFibre(int layer, float minWindMs, double turnSeconds)
+        // A layer's filament axis numbers: the wind below which the filaments keep to the pole (m/s) and the time the axis takes to turn to a new wind (s; the cfg keys filamentMinWindMs and filamentTurnSeconds).
+        internal void SetFilament(int layer, float minWindMs, double turnSeconds)
         {
             if (layer < 0 || layer >= minWind.Length) return;
-            minWind[layer] = minWindMs >= 0f && !float.IsNaN(minWindMs) ? minWindMs : FibreAxis.DefaultMinWindMs;
-            this.turnSeconds[layer] = turnSeconds >= 0.0 && !double.IsNaN(turnSeconds) ? turnSeconds : FibreAxis.DefaultTurnSeconds;
+            minWind[layer] = minWindMs >= 0f && !float.IsNaN(minWindMs) ? minWindMs : FilamentAxis.DefaultMinWindMs;
+            this.turnSeconds[layer] = turnSeconds >= 0.0 && !double.IsNaN(turnSeconds) ? turnSeconds : FilamentAxis.DefaultTurnSeconds;
         }
 
-        // The body's pole in world space (the third row of the world-to-map matrix): the axis of a layer's fibres where there is no wind. The first time it is known every axis takes it
+        // The body's pole in world space (the third row of the world-to-map matrix): the axis of a layer's filaments where there is no wind. The first time it is known every axis takes it
         // (a layer's axis then turns from it to the wind in Advance).
         internal void SetPole(Vector3 value)
         {
@@ -345,13 +345,13 @@ namespace ReDefinition.Atmospheres
             pole = value.normalized;
             if (poleKnown) return;
             poleKnown = true;
-            for (int l = 0; l < axis.Length; l++) axis[l] = FibreAxis.Target(motion[l].DriftMs, pole, minWind[l]);
+            for (int l = 0; l < axis.Length; l++) axis[l] = FilamentAxis.Target(motion[l].DriftMs, pole, minWind[l]);
         }
 
         // Puts a layer's axis at the direction of its wind at once (a reading, the player; the game turns it over the layer's turn time in Advance).
         internal void SnapAxis(int layer)
         {
-            if (layer >= 0 && layer < axis.Length) axis[layer] = FibreAxis.Target(motion[layer].DriftMs, pole, minWind[layer]);
+            if (layer >= 0 && layer < axis.Length) axis[layer] = FilamentAxis.Target(motion[layer].DriftMs, pole, minWind[layer]);
         }
 
         // Puts a layer's axis at a given direction (a reading of the game's axis, the player; the game's axis may still be turning towards its wind). The pole counts as known, so the first
@@ -401,8 +401,8 @@ namespace ReDefinition.Atmospheres
                 driftY[l] += motion[l].DriftMs.y * dt;
                 driftZ[l] += motion[l].DriftMs.z * dt;
                 rise[l] += motion[l].RiseMs * dt;
-                // The fibres turn to the layer's wind, slowly (a camera that moves over the planet turns the wind's world direction too).
-                axis[l] = FibreAxis.Turn(axis[l], FibreAxis.Target(motion[l].DriftMs, pole, minWind[l]), dt, turnSeconds[l]);
+                // The filaments turn to the layer's wind, slowly (a camera that moves over the planet turns the wind's world direction too).
+                axis[l] = FilamentAxis.Turn(axis[l], FilamentAxis.Target(motion[l].DriftMs, pole, minWind[l]), dt, turnSeconds[l]);
             }
         }
 

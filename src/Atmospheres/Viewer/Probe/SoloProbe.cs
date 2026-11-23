@@ -66,7 +66,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             Cell("cb_near", "Cumulonimbus incus", 25.0, 200.0, 15.0, 0.40, 0.90, 0.40, 1.0, "section 1 (CB-G, CB-S): tower flanks, flat dark base, anvil spreading overhead; checklist 1-4, 8"),
             Cell("cb_far", "Cumulonimbus incus", 40.0, 300.0, 5.0, 0.04, 0.85, 0.20, 0.80, "section 1 (CB-S, side view 10-40 km): the whole cell on the horizon, anvil flat at the top; checklist 1-5, 8"),
-            Field("sc", WeatherPresets.Role.Cumulus, "Stratocumulus", 0.8f, 200.0, 45.0, 0.35, 1.0, "section 2 (SC-G): lumps and gaps, dark parts, no fibre"),
+            Field("sc", WeatherPresets.Role.Cumulus, "Stratocumulus", 0.8f, 200.0, 45.0, 0.35, 1.0, "section 2 (SC-G): lumps and gaps, dark parts, no filament"),
             Field("humilis", WeatherPresets.Role.Cumulus, "Cumulus humilis", 0.5f, 200.0, 35.0, 0.15, 0.90, "section 5 (CU-G): detached, flat dark base, sharp outline, flat and low"),
             Field("mediocris", WeatherPresets.Role.Cumulus, "Cumulus mediocris", 0.5f, 200.0, 35.0, 0.30, 0.97, "section 5 (CU-G): detached, cauliflower tops, about as tall as wide"),
             Field("congestus", WeatherPresets.Role.Cumulus, "Cumulus congestus", 0.4f, 200.0, 35.0, 0.40, 1.0, "section 5 (CU-G): towering above the field of view, sharp outline"),

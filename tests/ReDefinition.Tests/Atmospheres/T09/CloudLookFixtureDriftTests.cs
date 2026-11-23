@@ -66,11 +66,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(shipped.Meso.ScatterSoft, fixture.Meso.ScatterSoft, 1e-6f, n + " meso scatter soft");
             }
             Assert.AreEqual(shipped.LightAmbient, fixture.LightAmbient, 1e-6f, n + " light ambient");
-            Assert.AreEqual(shipped.FibreStretch, fixture.FibreStretch, 1e-6f, n + " fibre stretch");
+            Assert.AreEqual(shipped.FilamentStretch, fixture.FilamentStretch, 1e-6f, n + " filament stretch");
             Assert.AreEqual(shipped.VerticalScale, fixture.VerticalScale, 1e-6f, n + " vertical scale");
             Assert.AreEqual(shipped.ShapeSmoothing, fixture.ShapeSmoothing, 1e-6f, n + " shape smoothing");
-            Assert.AreEqual(shipped.FibreMinWindMs, fixture.FibreMinWindMs, 1e-6f, n + " fibre minimum wind");
-            Assert.AreEqual(shipped.FibreTurnSeconds, fixture.FibreTurnSeconds, 1e-6f, n + " fibre turn time");
+            Assert.AreEqual(shipped.FilamentMinWindMs, fixture.FilamentMinWindMs, 1e-6f, n + " filament minimum wind");
+            Assert.AreEqual(shipped.FilamentTurnSeconds, fixture.FilamentTurnSeconds, 1e-6f, n + " filament turn time");
             Assert.AreEqual(shipped.TopReach, fixture.TopReach, 1e-6f, n + " top reach");
             Assert.AreEqual(shipped.TopRefMs, fixture.TopRefMs, 1e-6f, n + " top reference updraft");
             Assert.AreEqual(shipped.TopFullMs, fixture.TopFullMs, 1e-6f, n + " top full updraft");

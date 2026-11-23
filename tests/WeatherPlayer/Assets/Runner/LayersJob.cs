@@ -69,14 +69,14 @@ namespace ReDefinition.WeatherPlayer
         public float cellPitch;
         // The body of a single cloud (the cfg keys cellBulge, cellBand, cellFine; below 0: the defaults of CloudLayerDef).
         public float cellBulge = -1f, cellBand = -1f, cellFine = -1f;
-        // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
-        public float fibreStretch = 1f;
+        // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key filamentStretch; 1: isotropic).
+        public float filamentStretch = 1f;
         // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).
         public float verticalScale;
-        // The smoothing of the shape noise in noise scales (E40 L6 shape; the cfg key shapeSmoothing; 0: none), the fibre axis numbers (the cfg keys fibreMinWindMs and fibreTurnSeconds)
+        // The smoothing of the shape noise in noise scales (E40 L6 shape; the cfg key shapeSmoothing; 0: none), the filament axis numbers (the cfg keys filamentMinWindMs and filamentTurnSeconds)
         // and the numbers of the tops that follow the updraft (the cfg keys topReach, topRefMs and topFullMs; 0 reach: the body's own numbers).
         public float shapeSmoothing;
-        public float fibreMinWindMs = 0.5f, fibreTurnSeconds = 20f;
+        public float filamentMinWindMs = 0.5f, filamentTurnSeconds = 20f;
         public float topReach, topRefMs = 1.2f, topFullMs = 6f;
         // The anvil of the layer's towers (E40 CB; the cfg keys anvilType, anvilSeconds, anvilUpdraftMs, anvilScale; anvilType -1: none) and the shear of the anvil's level against
         // the steering level (rad/s eastward; the game takes it from the generator, CloudDriftRadS): the setup draws the anvils into the job's maps with AnvilMap.
@@ -84,9 +84,9 @@ namespace ReDefinition.WeatherPlayer
         // A factor on the type map's values before the anvils are drawn (1: none): a game dump of the cumulonimbus layer from before E40 CB has the precipitation level 0 to 1 as its type, which
         // the table with the anvil sheet reads at rainType (0.5) and below.
         public float typeScale = 1f;
-        // The layer's wind in world space (m/s; E40 L5 shape): the fibres lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
+        // The layer's wind in world space (m/s; E40 L5 shape): the filaments lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
         public float[] wind;
-        // E40 PP64: the fibre axis the game's layer had in the frame (world space; it turns towards the wind over fibreTurnSeconds, so it is not always the wind's direction): empty: the wind's direction.
+        // E40 PP64: the filament axis the game's layer had in the frame (world space; it turns towards the wind over filamentTurnSeconds, so it is not always the wind's direction): empty: the wind's direction.
         public float[] axis;
         // E40 PP64: 1 where the job's maps already hold the anvils the game drew (a probe dump). The setup then keeps anvilType, which the layer's cover threshold reads (the anvil's type is
         // left out of the water content the cover is calibrated on), and draws no anvil again.

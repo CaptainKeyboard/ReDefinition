@@ -324,12 +324,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             }
                             Assert.IsTrue(TypeMixMetrics.MixOf(cbCover, cbType, cb.Types.Count, 0.2).TypesIn300kmWindow >= 1.5, "cumulonimbus types in a window of 28.6 d" + tag);
 
-                            // cirrus: fibres and veils
+                            // cirrus: filaments and veils
                             byte[] cirrusCover, cirrusType;
                             TypeMixFixture.Layer(field, body, shared, cirrus, true, out cirrusCover, out cirrusType);
                             TypeMixMetrics.Sizes cs = TypeMixMetrics.Of(cirrusCover, 0.5);
                             Assert.IsTrue(cs.CorrZonalKm < 13.0 * depthKm && cs.CorrMeridionalKm < 9.0 * depthKm, "cirrus corr length " + cs.CorrZonalKm + " / " + cs.CorrMeridionalKm + " km" + tag);
-                            Assert.IsTrue(cs.CorrZonalKm > cs.CorrMeridionalKm, "cirrus fibres are longer along the parallel than across it" + tag);
+                            Assert.IsTrue(cs.CorrZonalKm > cs.CorrMeridionalKm, "cirrus filaments are longer along the parallel than across it" + tag);
                             if (Mean(cirrusCover, 0, H) < 0.4)
                             {
                                 Assert.IsTrue(cs.FieldDiameterKm < 75.0 * depthKm, "cirrus field diameter " + cs.FieldDiameterKm + " km" + tag);

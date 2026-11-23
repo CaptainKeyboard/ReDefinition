@@ -340,10 +340,10 @@ namespace ReDefinition.Atmospheres
                     profile[texel + 2] = lightData[i * 2 + 1];
                     profile[texel + 3] = liftData[i];
                 }
-                Noise.SetStretch(l, layer.FibreStretch);
+                Noise.SetStretch(l, layer.FilamentStretch);
                 Noise.SetVertical(l, layer.VerticalScale);
                 Noise.SetSmoothing(l, layer.ShapeSmoothing);
-                Noise.SetFibre(l, layer.FibreMinWindMs, layer.FibreTurnSeconds);
+                Noise.SetFilament(l, layer.FilamentMinWindMs, layer.FilamentTurnSeconds);
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;

@@ -30,7 +30,7 @@ namespace ReDefinition.Atmospheres
         // false: the cloud is where the noise is high (blobs and gaps; a region of cover above one half is one connected sheet with holes). true: the gaps are lanes along the noise's median, a
         // connected network, so that the cloud breaks into separate cells whatever the cover (as the closed cells of a stratocumulus field, and TVC's cell tiles).
         internal bool Cells { get; set; }
-        // How much longer the features are along a parallel than across it (1: round cells; above: lines along the wind, as cirrus fibres).
+        // How much longer the features are along a parallel than across it (1: round cells; above: lines along the wind, as cirrus filaments).
         internal float Stretch { get; set; } = 1f;
         // The share of the generator's cover that stays where precipitation falls (1: the pattern never opens a gap in rain; 0: it may).
         internal float RainKeep { get; set; } = 1f;

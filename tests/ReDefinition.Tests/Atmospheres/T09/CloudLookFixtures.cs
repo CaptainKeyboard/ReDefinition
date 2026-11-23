@@ -160,9 +160,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Light(cirrus.Types[0], 1f, 1f, 1f, 1f);
             cirrus.SoftnessScale = 2f;
             cirrus.WaterPower = 1f;
-            cirrus.FibreStretch = 6f;
-            cirrus.FibreMinWindMs = 0.5f;
-            cirrus.FibreTurnSeconds = 20f;
+            cirrus.FilamentStretch = 6f;
+            cirrus.FilamentMinWindMs = 0.5f;
+            cirrus.FilamentTurnSeconds = 20f;
             cirrus.Types[0].Climate = Climate(null, null, null, C(0f, 1f, 0.3f, 0.45f, 1f, 0.15f));
             cirrus.Types[1].Climate = Climate(C(0f, 0.3f, 0.5f, 1f, 1f, 0.8f), null, C(0f, 0.2f, 0.6f, 1f, 1f, 1f), C(0f, 0.25f, 0.3f, 1f, 1f, 1f));
             cirrus.TypePatchDepths = 10.5f;

@@ -4,10 +4,10 @@
     python tools/weather_metrics/e40ci.py --selftest
 
 The vertical optical depth of the layer on a horizontal grid (rows north, columns east) is evaluated with the shader's own mapping (noise_model.py: the ranked shape volume read through the
-fibre stretch along the wind axis and the untiling warp, the erosion detail, CloudWater's soft water content with the layer's softnessScale, the type's profile and rise) and the structure
+filament stretch along the wind axis and the untiling warp, the erosion detail, CloudWater's soft water content with the layer's softnessScale, the type's profile and rise) and the structure
 is measured on it: the share of the grid with an optical depth above 0.03 (the visible threshold of cirrus, Sassen and Griffin 1989), the percentiles of the optical depth where there is
 cloud, the widths of the autocorrelation across and along the wind axis (acf_widths) and the width across as an angle for an observer at 30, 45 and 60 degrees elevation below the layer's
-middle. Keys after the options replace the cfg's numbers of the layer for a sweep: noiseScaleM, fibreStretch, softnessScale, sigmaPerM, densityScale (of the type), erosion (of the type).
+middle. Keys after the options replace the cfg's numbers of the layer for a sweep: noiseScaleM, filamentStretch, softnessScale, sigmaPerM, densityScale (of the type), erosion (of the type).
 """
 import argparse
 import math
@@ -92,7 +92,7 @@ def load_layer(cfg_path, layer_name="Kerbin-cirrus"):
             types[e40o.val(t, "name")] = dict(base=num(t, "baseShare", 0.0), top=num(t, "topShare", 1.0), erosion=num(t, "erosion", 0.3), density=num(t, "densityScale", 1.0),
                                               base_gain=num(t, "baseGain", 0.3), rise_share=num(t, "riseShare", 0.5), profile=keys)
         return dict(inner=num(layer, "innerAltitudeM", 9000.0), outer=num(layer, "outerAltitudeM", 11000.0), sigma=num(layer, "sigmaPerM", 2e-4), scale=num(layer, "noiseScaleM", 3000.0),
-                    stretch=num(layer, "fibreStretch", 1.0), softness_scale=num(layer, "softnessScale", 1.0), water_power=num(layer, "waterPower", 2.0), types=types)
+                    stretch=num(layer, "filamentStretch", 1.0), softness_scale=num(layer, "softnessScale", 1.0), water_power=num(layer, "waterPower", 2.0), types=types)
     raise SystemExit("no layer %s in %s" % (layer_name, cfg_path))
 
 
@@ -203,7 +203,7 @@ def run(cfg, type_name, map_value, softness, overrides, wind_en=(17.7, 17.7), ex
     for k, v in overrides.items():
         if k == "noiseScaleM":
             layer["scale"] = v
-        elif k == "fibreStretch":
+        elif k == "filamentStretch":
             layer["stretch"] = v
         elif k == "softnessScale":
             layer["softness_scale"] = v
