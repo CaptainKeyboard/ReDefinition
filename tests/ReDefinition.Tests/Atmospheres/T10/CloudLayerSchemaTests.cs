@@ -75,25 +75,25 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual("Kerbin-base-layer", r.Climate.Clouds.BaseLayer);
         }
 
-        // M2c (the low decks): the stratus types of both decks carry their rolls (rollAmount), every other type none; the rolls are drawn only with cloud.sheetRolls on,
+        // M2c (the low decks): the stratus types of both decks carry their undulations (undulatusAmount), every other type none; they are drawn only with cloud.undulatus on,
         // which is off by default, so the shipped deck draws as before.
         [TestMethod]
-        public void TheStratusTypesCarryTheirRollsAndTheSwitchIsOffByDefault()
+        public void TheStratusTypesCarryTheirUndulatusAndTheSwitchIsOffByDefault()
         {
             foreach (CloudLayerSpec layer in Kerbin().Layers)
                 foreach (CloudTypeSpec type in layer.Types)
                 {
                     bool stratus = type.Name == "Stratus" || type.Name == "Snow stratus";
-                    Assert.AreEqual(stratus ? 0.6f : 0f, type.RollAmount, 1e-6f, layer.Name + " " + type.Name);
-                    Assert.AreEqual(stratus ? 0.6f : 0f, type.Build().RollAmount, 1e-6f, layer.Name + " " + type.Name + " built");
+                    Assert.AreEqual(stratus ? 0.6f : 0f, type.UndulatusAmount, 1e-6f, layer.Name + " " + type.Name);
+                    Assert.AreEqual(stratus ? 0.6f : 0f, type.Build().UndulatusAmount, 1e-6f, layer.Name + " " + type.Name + " built");
                 }
-            Assert.AreEqual(0f, OwnCloudOptions.SheetRollsDefault, "off until the owner says yes on the pictures");
+            Assert.AreEqual(0f, OwnCloudOptions.UndulatusDefault, "off until the owner says yes on the pictures");
             Tuning.ClearOverrides();
             Tuning.Instance.BeginFrame(9400001);
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-            Assert.AreEqual(0f, frame.SheetRolls);
-            Assert.AreEqual(1f, frame.RollLengthShare);
+            Assert.AreEqual(0f, frame.Undulatus);
+            Assert.AreEqual(1f, frame.UndulatusWavelengthShare);
         }
 
         [TestMethod]

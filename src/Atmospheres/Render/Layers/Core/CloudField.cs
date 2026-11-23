@@ -17,7 +17,7 @@ namespace ReDefinition.Atmospheres
     //  - The size distribution of the sets the measurement is made against: n(l) ~ l^-1.66 (Wood and Field 2011, chord and sqrt-area size, 0.1 < l < 1000 km, all cloud types) and ~ l^-1.7 for cumulus
     //    up to a scale break (Neggers, Jonker and Siebesma 2003), equivalent to a density of the area n(A) ~ A^-1.33 to A^-1.35.
     //  - The perimeter-area dimension of the clouds' outlines: 1.2 to 1.35 for clouds under about 1 km^2, 1.5 to 1.55 above (Lovejoy 1982; Cahalan and Joseph 1989; Benner and Curry 1998).
-    //  - Streets: the rolls' spacing is 2 to 3 times the depth of the boundary layer, their length several times the spacing (Etling and Brown 1993): the class's Stretch lengthens the lookup along the wind.
+    //  - Cloud streets: the horizontal convective rolls' spacing is 2 to 3 times the depth of the boundary layer, their length several times the spacing (Etling and Brown 1993): the class's Stretch lengthens the lookup along the wind.
     //  The aspect, the top gain and the scale factor of each class are tuned against the owner's accepted single-cloud look (pictures), not measured values.
     internal static class CloudField
     {
@@ -47,7 +47,7 @@ namespace ReDefinition.Atmospheres
             new float[] { 1.0f, 0.35f, 1.0f, 1f },   // mediocris
             new float[] { 0.8f, 0.40f, 0.7f, 1f },   // congestus: taller than wide, towers
             new float[] { 2.5f, 0.20f, 2.0f, 2f },   // altocumulus: small flat puffs
-            new float[] { 4.0f, 0.15f, 0.8f, 3f },   // stratocumulus: flat, merged rolls and lumps
+            new float[] { 4.0f, 0.15f, 0.8f, 3f },   // stratocumulus: flat, merged tessellations, rounded masses and rolls (WMO definition)
             new float[] { 0.8f, 0.30f, 0.7f, 1f },   // calvus: round heads
             new float[] { 0.7f, 0.30f, 0.5f, 1f }    // incus tower (the anvil is another type and has no puff)
         };

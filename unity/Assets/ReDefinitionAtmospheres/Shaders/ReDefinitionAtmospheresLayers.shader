@@ -178,21 +178,21 @@ Shader "ReDefinition/AtmospheresLayers"
             return 0.5 * _LayerD[li].x;
         }
 
-        // ---- M2c: the rolls of the sheet types (stratus undulatus) ----
-        float4 _TypeRoll[8];   // each type's roll depth (CloudTypeDef.RollAmount): layer li's type t at slot li * MAXT + t, four to a vector
-        float4 _RollP;         // x the frame's switch (cloud.sheetRolls, 0: off), y the roll length as a share of the layer's depth
+        // ---- M2c: the undulations of the sheet types (variety undulatus) ----
+        float4 _TypeUndulatus[8];   // each type's undulatus depth (CloudTypeDef.UndulatusAmount): layer li's type t at slot li * MAXT + t, four to a vector
+        float4 _UndulatusP;         // x the frame's switch (cloud.undulatus, 0: off), y the wavelength as a share of the layer's depth
 
-        float TypeRollOf(int li, int type)
+        float TypeUndulatusOf(int li, int type)
         {
             int slot = li * MAXT + type;
-            return _TypeRoll[slot >> 2][slot & 3];
+            return _TypeUndulatus[slot >> 2][slot & 3];
         }
 
-        // The thickness factor of the rolls at a point: long bands across the level's wind (_NoiseAxis, the layer's wind; the bands move with the layer's offset like its
-        // pattern), their crests bent by a value noise of twice their length so that no band is a straight line; amount the share the thickness swings by.
-        float SheetRollFactor(int li, float3 pc, float amount, float depthM)
+        // The thickness factor of the undulations at a point: long waves across the level's wind (_NoiseAxis, the layer's wind; the waves move with the layer's offset like
+        // its pattern), their crests bent by a value noise of twice their wavelength so that no crest is a straight line; amount the share the thickness swings by.
+        float UndulatusFactor(int li, float3 pc, float amount, float depthM)
         {
-            float len = max(_RollP.y * depthM, 1.0);
+            float len = max(_UndulatusP.y * depthM, 1.0);
             float3 q = pc + _NoiseOffset[li].xyz;
             float bend = HeightValueNoise(q / (2.0 * len), (uint)_NoiseOffset[li].w + 7019u);
             float phase = dot(q, _NoiseAxis[li].xyz) / len + 1.5 * bend;
@@ -364,10 +364,10 @@ Shader "ReDefinition/AtmospheresLayers"
                 b = localBase;
                 tp = localTop;
             }
-            // M2c: the sheet types' rolls swing the type's THICKNESS (its top; the base stays even, as the stratus photos show), before the height test so that the leap's gap
-            // and the light path see the same shape (off while _RollP.x is 0 or the type has no roll depth: the deck of before, bit for bit).
-            float rollAmount = _RollP.x * lerp(TypeRollOf(li, ta), TypeRollOf(li, tb), f);
-            [branch] if (rollAmount > 0.0) tp = b + (tp - b) * SheetRollFactor(li, pc, rollAmount, outer - inner);
+            // M2c: the sheet types' undulations swing the type's THICKNESS (its top; the base stays even), before the height test so that the leap's gap and the light
+            // path see the same shape (off while _UndulatusP.x is 0 or the type has no undulatus depth: the deck of before, bit for bit).
+            float undulatusAmount = _UndulatusP.x * lerp(TypeUndulatusOf(li, ta), TypeUndulatusOf(li, tb), f);
+            [branch] if (undulatusAmount > 0.0) tp = b + (tp - b) * UndulatusFactor(li, pc, undulatusAmount, outer - inner);
             if (share < b || share > tp || tp <= b)
             {
                 if (tp > b) gSlabGap = (share > tp ? share - tp : share - b) * (outer - inner);

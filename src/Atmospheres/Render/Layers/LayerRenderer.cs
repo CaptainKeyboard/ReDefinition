@@ -83,10 +83,10 @@ namespace ReDefinition.Atmospheres
         // E40 grain against TVC. DitherSequence: the per-pixel step offset, advanced by the golden ratio per frame: 1 an integer hash (white; what the default drew before E40 step (c)), 2 the
         // interleaved gradient noise (lower temporal noise, a few strong spatial lines), 3 (E40 F2, the default) the blue-noise tile of DitherMatrix (the same temporal noise, no line).
         public int DitherSequence = 3;
-        // M2c (the low decks): the rolls of the sheet types (CloudTypeDef.RollAmount) drawn with this share of their depth (0: off, the deck of before; the tuning key
-        // cloud.sheetRolls), and the roll length as a share of the layer's depth (cloud.rollLengthShare).
-        public float SheetRolls;
-        public float RollLengthShare = 1f;
+        // M2c (the low decks): the undulations of the sheet types (variety undulatus, CloudTypeDef.UndulatusAmount) drawn with this share of their depth (0: off, the deck of
+        // before; the tuning key cloud.undulatus), and the wavelength as a share of the layer's depth (cloud.undulatusWavelengthShare).
+        public float Undulatus;
+        public float UndulatusWavelengthShare = 1f;
         // Package T16, the visibility culling (the switches are off until the owner agrees).
         public CullSettings Cull = new CullSettings();
 
@@ -134,10 +134,10 @@ namespace ReDefinition.Atmospheres
         internal const string LatticeKeyword = "CLOUD_LATTICE";
         private readonly Vector4[] cellS = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
-        // M2c: each type's roll depth (CloudTypeDef.RollAmount), layer l's type t at slot l * MaxTypes + t, four to a vector (_TypeRoll); the frame's switch and the roll length
-        // are _RollP (LayerFrame.SheetRolls, LayerFrame.RollLengthShare).
-        private readonly Vector4[] typeRoll = new Vector4[CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes / 4];
-        private static readonly int IdTypeRoll = Shader.PropertyToID("_TypeRoll"), IdRollP = Shader.PropertyToID("_RollP");
+        // M2c: each type's undulatus depth (CloudTypeDef.UndulatusAmount), layer l's type t at slot l * MaxTypes + t, four to a vector (_TypeUndulatus); the frame's switch
+        // and the wavelength are _UndulatusP (LayerFrame.Undulatus, LayerFrame.UndulatusWavelengthShare).
+        private readonly Vector4[] typeUndulatus = new Vector4[CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes / 4];
+        private static readonly int IdTypeUndulatus = Shader.PropertyToID("_TypeUndulatus"), IdUndulatusP = Shader.PropertyToID("_UndulatusP");
         // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on. cellLayer: the layers, whose single cloud's body
         // (_CellE, CloudLookTuning.CellBodyVector) is written each frame with the viewer's overrides.
         private readonly float[] cellPitch = new float[CloudLayerDef.MaxLayers];
@@ -354,12 +354,12 @@ namespace ReDefinition.Atmospheres
                     if (heap > 0 || table.EdgeOfType(t) > 0f) extras = true;
                     info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), table.PuffOfType(t));
                     int slot = l * CloudLayerDef.MaxTypes + t;
-                    typeRoll[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].RollAmount : 0f;
+                    typeUndulatus[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].UndulatusAmount : 0f;
                 }
                 for (int t = table.Count; t < CloudLayerDef.MaxTypes; t++)
                 {
                     int slot = l * CloudLayerDef.MaxTypes + t;
-                    typeRoll[slot >> 2][slot & 3] = 0f;
+                    typeUndulatus[slot >> 2][slot & 3] = 0f;
                 }
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++)
@@ -369,10 +369,10 @@ namespace ReDefinition.Atmospheres
                 for (int t = 0; t < CloudLayerDef.MaxTypes; t++)
                 {
                     int slot = l * CloudLayerDef.MaxTypes + t;
-                    typeRoll[slot >> 2][slot & 3] = 0f;
+                    typeUndulatus[slot >> 2][slot & 3] = 0f;
                 }
             }
-            material.SetVectorArray(IdTypeRoll, typeRoll);
+            material.SetVectorArray(IdTypeUndulatus, typeUndulatus);
             if (SpreadHeights) Heights.Queue(source.Heights, layerCount);
             else Heights.Upload(source.Heights, layerCount);
             profileTexture.SetPixelData(profile, 0);
@@ -443,7 +443,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSpacingP, new Vector4(0f, 0f, Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
             m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), 0f, Mathf.Max(0f, f.SpanGrowthPerM)));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
-            m.SetVector(IdRollP, new Vector4(Mathf.Clamp01(f.SheetRolls), Mathf.Max(f.RollLengthShare, 0.05f), 0f, 0f));
+            m.SetVector(IdUndulatusP, new Vector4(Mathf.Clamp01(f.Undulatus), Mathf.Max(f.UndulatusWavelengthShare, 0.05f), 0f, 0f));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (z: the step offset's; y and w unused since the cone rotation and the pre-F2 grid went).
             double phase = StepPhase.Of(f.FrameNumber);

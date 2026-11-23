@@ -328,8 +328,8 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),
             N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
             N(OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.DitherSequenceDefault, KeyLiveness.FrameHistory, "1 hash, 2 gradient, 3 blue noise"),
-            N(OwnCloudOptions.TuneSheetRolls, OwnCloudOptions.SheetRollsDefault, KeyLiveness.Frame, "M2c: the sheet types' rolls across the wind (stratus undulatus), share of their depth; 0 off"),
-            N(OwnCloudOptions.TuneRollLengthShare, OwnCloudOptions.RollLengthShareDefault, KeyLiveness.Frame, "M2c: the roll length as a share of the layer's depth"),
+            N(OwnCloudOptions.TuneUndulatus, OwnCloudOptions.UndulatusDefault, KeyLiveness.Frame, "M2c: the sheet types' undulations across the wind (variety undulatus), share of their depth; 0 off"),
+            N(OwnCloudOptions.TuneUndulatusWavelengthShare, OwnCloudOptions.UndulatusWavelengthShareDefault, KeyLiveness.Frame, "M2c: the undulatus wavelength as a share of the layer's depth"),
             // The reconstruction (OwnCloudOptions.Apply(ReconSettings), LayerReconstructDriver.Configure).
             N(OwnCloudOptions.TuneAccumulate, OwnCloudOptions.AccumulateDefault, KeyLiveness.FrameHistory),
             N(OwnCloudOptions.TuneReconResolution, OwnCloudOptions.ReconResolutionDefault, KeyLiveness.FrameHistory),

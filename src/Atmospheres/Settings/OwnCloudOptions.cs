@@ -129,10 +129,10 @@ namespace ReDefinition.Atmospheres
         // a regular screen-fixed pattern (a few percent of the residual's power in single spatial lines); 3 has the temporal noise of 2 and a spectrum with no line
         // (the strongest line 0.4 / 0.9 percent of the power against 4.2 / 3.5, series e40-f2-fix) and no power below 0.15 cycles per pixel in its tile.
         internal const string TuneDitherSequence = "layers.ditherSequence";
-        // M2c (the low decks, 2026-11-23): cloud.sheetRolls draws the sheet types' rolls (CloudTypeDef.RollAmount) with this share of their depth (0, the default: off, the deck
-        // of before, until the owner says yes on the pictures); cloud.rollLengthShare is the roll length as a share of the layer's depth.
-        internal const string TuneSheetRolls = "cloud.sheetRolls", TuneRollLengthShare = "cloud.rollLengthShare";
-        internal const float SheetRollsDefault = 0f, RollLengthShareDefault = 1f;
+        // M2c (the low decks, 2026-11-23): cloud.undulatus draws the sheet types' undulations (variety undulatus, CloudTypeDef.UndulatusAmount) with this share of their depth
+        // (0, the default: off, the deck of before, until the owner says yes on the pictures); cloud.undulatusWavelengthShare is the wavelength as a share of the layer's depth.
+        internal const string TuneUndulatus = "cloud.undulatus", TuneUndulatusWavelengthShare = "cloud.undulatusWavelengthShare";
+        internal const float UndulatusDefault = 0f, UndulatusWavelengthShareDefault = 1f;
         internal const int DitherSequenceDefault = 3;
         // The per-pixel pattern of the step offset is read on the march target's own pixel grid (E40 F2).
 
@@ -288,8 +288,8 @@ namespace ReDefinition.Atmospheres
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
             f.CostDebug = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCostDebug, 0f)), 0, 15);
             f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 3);
-            f.SheetRolls = Mathf.Clamp01(Tuning.Get(TuneSheetRolls, SheetRollsDefault));
-            f.RollLengthShare = Mathf.Clamp(Tuning.Get(TuneRollLengthShare, RollLengthShareDefault), 0.05f, 20f);
+            f.Undulatus = Mathf.Clamp01(Tuning.Get(TuneUndulatus, UndulatusDefault));
+            f.UndulatusWavelengthShare = Mathf.Clamp(Tuning.Get(TuneUndulatusWavelengthShare, UndulatusWavelengthShareDefault), 0.05f, 20f);
             Apply(f.Cull, v);
         }
 
