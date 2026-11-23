@@ -11,7 +11,10 @@ namespace ReDefinition.Atmospheres
         // The rotation over 4 x 4 blocks with the march's own distance history.
         // The clip stays the full path's 1 sigma (OwnCloudOptions.ClipSigmaDefault; a literal, because the weather player links this file without OwnCloudOptions, and CloudFastPathTests
         // keeps the two equal): 2 sigma drew a 4-pixel stipple and a 16-pixel grid over a fog-filled view (storm, ground; PRUEFPROTOKOLL 77).
-        internal const float ReconRotate = 4f, DistanceReject = 0.3f, ClipSigma = 1f;
+        // The distance reject's tolerance is 3 octaves (a factor 8): the history stays unless the block's own sample and the stored one are clouds of very different distances. At 0.3 to
+        // 1.5 octaves the block's single sample distance threw the history of all 16 pixels of a block away at the borders of the gaps, and the block's upsample stood there as 4 px
+        // squares (the pinned storm view, PRUEFPROTOKOLL 95/96); at 3 and more they are gone, and a turn and a dolly show no ghost (97, 98). The full path has no reject (0).
+        internal const float ReconRotate = 4f, DistanceReject = 3f, ClipSigma = 1f;
         internal const bool MarchTriangle = true, TrueDistance = true, Age = true;
         // A span's points by distance: the step grows by this per m from the camera.
         internal const float SpanGrowthPerM = 0.001f;
