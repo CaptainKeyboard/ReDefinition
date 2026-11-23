@@ -2,10 +2,10 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The bookkeeping of Unity's global fog for a storm: the fog as it was before the storm, the fog the storm wrote last, and the
-    // decision about putting it back. Like AmbientTracker, the saved fog goes back only while the fog is still the one written; if
-    // another mod set it since, it is theirs now and is left alone. Free of RenderSettings (StormEffect reads and writes them), so
-    // that it is tested outside the game.
+    // The bookkeeping of Unity's global fog for the fog writer: the fog as it was before, the fog written last, and the decision about
+    // putting it back. Like AmbientTracker, the saved fog goes back only while the fog is still the one written; if another mod set it
+    // since, it is theirs now and is left alone. Free of RenderSettings (the fog writer reads and writes them), so that it is tested
+    // outside the game.
     internal sealed class FogController
     {
         // Densities and colour channels closer than this are the same value (floats come back from the engine as they were written).
@@ -22,17 +22,6 @@ namespace ReDefinition.Atmospheres
         private Color writtenColour;
 
         private bool outsideChange;
-        private readonly bool legacy;
-
-        // The tracker of the legacy storm effect (the default) or of the fog writer of the precipitation renderer (legacy = false).
-        internal FogController(bool legacy = true)
-        {
-            this.legacy = legacy;
-        }
-
-        // True while a legacy tracker holds the fog (between its Save and its Restore). The fog writer of Render/Fog does not write
-        // meanwhile, so that two writers never fight over RenderSettings; the last caller package (C25) removes the legacy storm effect.
-        internal static bool LegacyHolds { get; private set; }
 
         // How many times another writer was found to have changed the fog since the last write (counted by the caller with
         // CountExternal), for the log of the fog writer.
@@ -79,7 +68,6 @@ namespace ReDefinition.Atmospheres
         internal void Save(bool fog, FogMode mode, float density, Color colour)
         {
             if (saved) return;
-            if (legacy) LegacyHolds = true;
             saved = true;
             savedFog = fog;
             savedMode = mode;
@@ -113,7 +101,6 @@ namespace ReDefinition.Atmospheres
                         && Mathf.Abs(density - writtenDensity) <= Same
                         && Mathf.Abs(colour.r - writtenColour.r) <= Same && Mathf.Abs(colour.g - writtenColour.g) <= Same
                         && Mathf.Abs(colour.b - writtenColour.b) <= Same;
-            if (legacy) LegacyHolds = false;
             saved = false;
             written = false;
             return ours;

@@ -2,13 +2,12 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // Shim for the files of other packages that still call it: StormVolume (LoadVolumeShader, LayerOf, bundle names), EveLayerStorm
-    // (LoadSwirlShader, Find), OrbitTextures (Find, Blended, Tint) and VolumePass (LayerOf). The Atmospheres' own bundle is read by
-    // AtmosphereShaders.Get (A02). Each of those packages (C21, C25, D34) switches to AtmosphereShaders.Get or its own helper and the
-    // last of them deletes this class. The flakes' and the veil's textures are gone with StormFlakes and StormVeil (C22).
+    // The shader helpers of the precipitation curtain (VolumePass) and the orbit overlay (OrbitTextures): the curtain's shader name, an
+    // alpha-blended material from the first shader that exists, and the lowest layer of a camera's mask. The Atmospheres' own bundle is read
+    // by AtmosphereShaders.Get.
     internal static class StormShaders
     {
-        // Alpha-blended shaders, the first that exists is used: KSP's own particle shader, then Unity's legacy ones, then sprites.
+        // Alpha-blended shaders, the first that exists is used: KSP's own particle shader, then Unity's own, then sprites.
         internal static readonly string[] BlendedNames =
         {
             "KSP/Particles/Alpha Blended",
@@ -17,32 +16,8 @@ namespace ReDefinition.Atmospheres
             "Sprites/Default"
         };
 
-        // The raymarched storm volume's shader and the swirl shader, from the Atmospheres' own bundle.
+        // The raymarched precipitation curtain's shader, from the Atmospheres' own bundle.
         internal const string VolumeShaderName = "ReDefinition/AtmospheresStormVolume";
-        internal const string SwirlShaderName = "ReDefinition/AtmospheresSwirlPaint";
-
-        [System.Obsolete("Use AtmosphereShaders.BundleName.")]
-        internal const string BundleName = AtmosphereShaders.BundleName;
-
-        [System.Obsolete("Use AtmosphereShaders.BundlePath.")]
-        internal static string BundlePath
-        {
-            get { return AtmosphereShaders.BundlePath; }
-        }
-
-        // The volume shader from the bundle, or null and the reason.
-        [System.Obsolete("Use AtmosphereShaders.Get(StormShaders.VolumeShaderName, out error).")]
-        internal static Shader LoadVolumeShader(out string error)
-        {
-            return AtmosphereShaders.Get(VolumeShaderName, out error);
-        }
-
-        // The swirl shader from the bundle, or null and the reason (an older bundle has none).
-        [System.Obsolete("Use AtmosphereShaders.Get(StormShaders.SwirlShaderName, out error).")]
-        internal static Shader LoadSwirlShader(out string error)
-        {
-            return AtmosphereShaders.Get(SwirlShaderName, out error);
-        }
 
         // The first of the names that Shader.Find returns, or null.
         internal static Shader Find(string[] names)

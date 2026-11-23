@@ -203,18 +203,15 @@ namespace ReDefinition.Tests
             }
         }
 
-        // The aliases of Settings/AtmospheresSettings.Legacy.cs are removed by the packages named in CONTRACT.md; the package that removes
-        // some lowers this number. It is 0 at F50.
-        private const int ObsoleteAliasesLeft = 19;
-
+        // The mod is unreleased: no old name is kept as a C# alias either (owner 2026-11-23).
         [TestMethod]
-        public void TheObsoleteAliasesLeftAreCounted()
+        public void NoObsoleteAliasIsLeft()
         {
             const System.Reflection.BindingFlags all = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Instance
                 | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly;
             int count = typeof(AtmospheresSettings).GetMembers(all)
                 .Count(m => m.GetCustomAttributes(typeof(ObsoleteAttribute), false).Length > 0);
-            Assert.AreEqual(ObsoleteAliasesLeft, count, "lower ObsoleteAliasesLeft when a package removes aliases (CONTRACT.md lists who)");
+            Assert.AreEqual(0, count, "the settings keep no [Obsolete] alias");
         }
 
         [TestMethod]
@@ -390,32 +387,6 @@ namespace ReDefinition.Tests
             {
                 AtmospheresSettings.Restore(saved);
             }
-        }
-
-        [TestMethod]
-        public void TheAliasesOfRenamedSettingsForwardToTheNewOnes()
-        {
-            ConfigNode saved = AtmospheresSettings.Snapshot();
-#pragma warning disable 618
-            try
-            {
-                AtmospheresSettings.StormSeed = 41;
-                Assert.AreEqual(41, AtmospheresSettings.GenSeed);
-                AtmospheresSettings.StormFrequency = 1.5f;
-                Assert.AreEqual(1.5f, AtmospheresSettings.HeavyShare);
-                AtmospheresSettings.StormsEnabled = false;
-                Assert.IsFalse(AtmospheresSettings.WeatherEffects);
-                AtmospheresSettings.ForceStorm = 0.35f;
-                Assert.AreEqual(0.35f, AtmospheresSettings.ForceLevel);
-                AtmospheresSettings.ResetToDefaults();
-                Assert.AreEqual(1, AtmospheresSettings.StormSeed);
-                Assert.AreEqual(AtmospheresSettings.StormCellRadiusDefaultKm, AtmospheresSettings.StormCellRadiusKm, "a deleted setting's field starts at its default");
-            }
-            finally
-            {
-                AtmospheresSettings.Restore(saved);
-            }
-#pragma warning restore 618
         }
 
         [TestMethod]

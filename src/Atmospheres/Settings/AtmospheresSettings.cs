@@ -84,7 +84,6 @@ namespace ReDefinition.Atmospheres
                 if (def.Kind == SettingKind.Text) Texts[def.Key] = def.DefaultText;
                 else Numbers[def.Key] = def.Default;
             }
-            ResetLegacy();
         }
 
         // All settings as a node, to be put back with Restore (the tests keep the settings they change this way).

@@ -232,16 +232,5 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(0.0, SeasonClock.Phase(1e6, null, mode, -40));
             }
         }
-
-#pragma warning disable CS0618
-        [TestMethod]
-        public void TheObsoleteSingleBodyShimsStillAnswer()
-        {
-            Assert.IsTrue(SeasonClock.Applies(SeasonClock.BodyName));
-            Assert.IsFalse(SeasonClock.Applies("Mun"));
-            Assert.IsFalse(SeasonClock.Applies(null));
-            Assert.AreEqual(0.5, SeasonClock.SouthernOffset);
-        }
-#pragma warning restore CS0618
     }
 }

@@ -45,14 +45,6 @@ namespace ReDefinition.Atmospheres
             return Choose(AtmospheresSettings.ForcePhase, clock);
         }
 
-        // The phase of the first body with seasons the game has: the callers of the single-body API.
-        [System.Obsolete("Use Phase(body); the callers are removed by D34 and C20.")]
-        internal static double? Phase()
-        {
-            CelestialBody home = FlightGlobals.fetch == null || FlightGlobals.Bodies == null ? null : FlightGlobals.GetBodyByName(SeasonClock.BodyName);
-            return Phase(home);
-        }
-
         // The forced phase when it is from 0 to 1, otherwise the clock's, otherwise null.
         internal static double? Choose(float forced, double? clock)
         {

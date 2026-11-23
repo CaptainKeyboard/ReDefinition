@@ -22,7 +22,6 @@ src/Fsr3/**/ResourceView.cs
 src/Common/**/CommandLine.cs
 src/Atmospheres/**/StormNoise.cs
 src/Atmospheres/**/Mathx.cs
-src/Atmospheres/**/StormVolumeMath.cs
 # What the linked code names of the raytracing player's runner: the profiler's markers, the proxy's refusal, the rig's sharpness.
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs
 tests/RaytracingPlayer/Assets/Runner/UpscalerRigStub.cs

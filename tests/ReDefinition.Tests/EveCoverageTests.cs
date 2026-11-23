@@ -237,9 +237,9 @@ namespace ReDefinition.Tests
             string root = Repo();
             string folder = Path.Combine(root, "GameData", "ReDefinition", "Atmospheres", "Clouds");
             string cfg = File.ReadAllText(Path.Combine(folder, "AtmospheresStormLayer.cfg"));
-            StringAssert.Contains(cfg, "name = " + EveCellLayer.LayerName);
+            StringAssert.Contains(cfg, "name = ReDefinition-Atmospheres-Storm");
             StringAssert.Contains(cfg, "body = Kerbin");
-            StringAssert.Contains(cfg, "minAltitude = " + EveCellLayer.BaseAslM.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            StringAssert.Contains(cfg, "minAltitude = 500");
             StringAssert.Contains(cfg, "speed = 0,0,0");
             Assert.IsFalse(cfg.Contains("lightningConfig") || cfg.Contains("dropletsConfig"), "no lightning or droplets");
             Assert.IsFalse(cfg.ToLowerInvariant().Contains("thunder") || cfg.ToLowerInvariant().Contains("cumulonimbus"), "a snow cloud, not a thunderstorm");
@@ -254,8 +254,8 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Repo(), "GameData", "ReDefinition", "Atmospheres", "Clouds");
             string cfg = File.ReadAllText(Path.Combine(folder, "AtmospheresStormLayer.cfg"));
-            int snow = cfg.IndexOf("name = " + EveCellLayer.SnowLayerName, StringComparison.Ordinal);
-            int cloud = cfg.IndexOf("name = " + EveCellLayer.LayerName, StringComparison.Ordinal);
+            int snow = cfg.IndexOf("name = ReDefinition-Atmospheres-Snow", StringComparison.Ordinal);
+            int cloud = cfg.IndexOf("name = ReDefinition-Atmospheres-Storm", StringComparison.Ordinal);
             Assert.IsTrue(cloud >= 0 && snow > cloud, "both layers, the cloud first");
             string cloudText = cfg.Substring(cloud, snow - cloud);
             string snowText = cfg.Substring(snow, cfg.IndexOf("EVE_PARTICLE_FIELD_CONFIG", snow, StringComparison.Ordinal) - snow);
@@ -278,7 +278,6 @@ namespace ReDefinition.Tests
             // The particle field is defined here, with a name that has "snow" in it (EveSnowLink looks for that).
             StringAssert.Contains(cfg, "EVE_PARTICLE_FIELD_CONFIG");
             StringAssert.Contains(cfg, "name = ReDefinition-Atmospheres-snow");
-            StringAssert.Contains(EveCellLayer.SnowLayerName.ToLowerInvariant(), "snow");
         }
 
         private static string Repo()

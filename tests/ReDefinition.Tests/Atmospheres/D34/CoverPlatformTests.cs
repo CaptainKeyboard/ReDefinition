@@ -251,13 +251,5 @@ namespace ReDefinition.Tests.Atmospheres.D34
             Assert.IsTrue(resampler.Contains("WeatherMapKind.SnowCover"));
             Assert.IsTrue(resampler.Contains("WeatherHub.Field"));
         }
-
-        [TestMethod]
-        public void TheSettingsOfTheDeletedFeaturesAreGoneFromTheLegacyFile()
-        {
-            string legacy = File.ReadAllText(RepoRoot.Locate("src", "Atmospheres", "Settings", "AtmospheresSettings.Legacy.cs"));
-            foreach (string gone in new[] { "SnowStrength", "OrbitSnowWidth", "GroundRefreshMode", "RefreshSeconds", "enum GroundRefresh", "bool OrbitSnow" })
-                Assert.IsFalse(legacy.Contains(gone), gone + " is still in the legacy settings");
-        }
     }
 }

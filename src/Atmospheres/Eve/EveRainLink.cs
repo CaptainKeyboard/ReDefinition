@@ -22,10 +22,6 @@ namespace ReDefinition.Atmospheres
     // .currentCoverage and .SetRendererEnabled(bool), and the four private floats of CloudType.
     internal static class EveRainLink
     {
-        // The coverage of the ground from which the rain is replaced, and the one below which it comes back (so that it does not
-        // flicker at the edge).
-        internal const double ColdOn = 0.5, ColdOff = 0.45;
-
         private sealed class TypeRecord
         {
             internal object Type;
@@ -137,16 +133,6 @@ namespace ReDefinition.Atmospheres
         internal static string Describe()
         {
             return "fields " + fields + ", droplets " + dropletLayers + ", wet surfaces " + wetLayers + ", lightning " + lightningLayers + ", sound " + soundLayers;
-        }
-
-        // Whether the camera is in a cold region, with a margin so that it does not flicker: on from ColdOn, off below ColdOff.
-        // The binary gate is replaced by the field's type fractions (GroundEffectMath, EveGroundEffects); the storm effect that still
-        // calls it goes with C25.
-        [Obsolete("Replaced by the field's type fractions (GroundEffectMath); removed with the old storm effect.")]
-        internal static bool Cold(bool wasCold, double snowCoverage)
-        {
-            if (double.IsNaN(snowCoverage)) return false;
-            return wasCold ? snowCoverage >= ColdOff : snowCoverage >= ColdOn;
         }
 
         private static void Look()
