@@ -94,8 +94,11 @@ Shader "ReDefinition/AtmospheresReconstruct"
             // nearest of all nine everywhere gave a far band at the horizon a nearer neighbour's distance: it led by 2-3 pixels in forward flight (HIST2 fwd300).
             dist = tex2Dlod(_DistTex, float4((q0 + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
             own = dist > 0.0;
-            // TRY (PRUEFPROTOKOLL 104): the distance varies from pixel to pixel as the position among the samples does (bilinear over the four samples around that hold cloud,
-            // no limit on how far apart their distances are): a block-constant distance moves the history of neighbouring blocks by different parallaxes (the stair steps).
+            // The distance varies from pixel to pixel as the pixel's place among the new samples does: bilinear over the four samples around that hold cloud, with no limit on
+            // how far apart their distances are. One distance for all 16 pixels of a block moved their history by one parallax and the next block's by another, which cut the
+            // history along the block grid at every cloud edge under a translating camera: 4 px stair steps (PRUEFPROTOKOLL 100 to 108; the dolly series with
+            // recon.trueDistance 0 had none, a pure turn has no parallax and none; a version that left out neighbours more than 3 times further or nearer did nothing, because
+            // the neighbours at a rim are exactly those).
             {
                 float2 qf = floor(q), fr = q - qf;
                 float acc = 0.0, wsum = 0.0;
