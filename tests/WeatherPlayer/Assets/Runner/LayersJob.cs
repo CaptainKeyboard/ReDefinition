@@ -67,8 +67,8 @@ namespace ReDefinition.WeatherPlayer
         public float lightCellWidth;
         // The pitch of the layer's cloud cells in m (CELLS; the cfg key cellPitch; 0: none).
         public float cellPitch;
-        // The body of a single cloud (the cfg keys cellBillow, cellBand, cellFine; below 0: the defaults of CloudLayerDef).
-        public float cellBillow = -1f, cellBand = -1f, cellFine = -1f;
+        // The body of a single cloud (the cfg keys cellBulge, cellBand, cellFine; below 0: the defaults of CloudLayerDef).
+        public float cellBulge = -1f, cellBand = -1f, cellFine = -1f;
         // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
         public float fibreStretch = 1f;
         // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).

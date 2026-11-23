@@ -314,7 +314,7 @@ float LightVolumeFetch(float3 q, out float w)
 
 // LV3, the lateral spread of the direct light: the sun's optical depth the direct term reads, blended in transmittance between the exact one (the march's, tau) and a spread
 // one from the volume at the sample (spreadTau, with the volume's weight wv there; _LvS.x: 1 the blurred copy, 2 the far cascade, 3 the volume as filled), by a weight that grows
-// with the depth into the cloud (tau): nothing at the sunlit surface, so its rim and the billows' own shadow stay; up to _LvS.w deep inside and on the faces in another lobe's
+// with the depth into the cloud (tau): nothing at the sunlit surface, so its rim and the bulges' own shadow stay; up to _LvS.w deep inside and on the faces in another lobe's
 // shadow. Where the volume holds nothing: tau. A diffusion stand-in: light that scattered several times reaches the sample from the side. It does not conserve energy (the
 // transmittance is averaged over a neighbourhood that includes clear air) and it cannot tell a gap the light passes through from one it does not.
 float LightVolumeSpread(float tau, float spreadTau, float wv)

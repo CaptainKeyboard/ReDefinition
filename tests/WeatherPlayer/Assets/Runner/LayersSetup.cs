@@ -82,7 +82,7 @@ namespace ReDefinition.WeatherPlayer
                     LightPlateau = jl.lightPlateau,
                     LightCellWidth = jl.lightCellWidth,
                     CellPitchM = jl.cellPitch,
-                    CellBillow = jl.cellBillow >= 0f ? jl.cellBillow : CloudLayerDef.DefaultCellBillow,
+                    CellBulge = jl.cellBulge >= 0f ? jl.cellBulge : CloudLayerDef.DefaultCellBulge,
                     CellBandM = jl.cellBand >= 0f ? jl.cellBand : CloudLayerDef.DefaultCellBandM,
                     CellFine = jl.cellFine >= 0f ? jl.cellFine : CloudLayerDef.DefaultCellFine,
                     AmbientMs = jl.ambientMs >= 0f ? jl.ambientMs : CloudLayerDef.DefaultAmbientMs,

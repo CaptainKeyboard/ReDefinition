@@ -86,7 +86,7 @@ namespace ReDefinition.Atmospheres
         // CloudLayerDef.ShapeSmoothing. A tall type (congestus) needs it, a flat sheet (stratocumulus) wants the volume's fine octaves for its lumps. The GPU reads it from the type
         // info texture's alpha (LayerTypeTable.SmoothingOf).
         internal float ShapeSmoothing { get; set; } = -1f;
-        // CLOUDR1 P2: the heap preset of the type's macro shape (cfg key heap = billow | rough | none; HeapModel.PresetOf: 0, the shape volume of today). Read by every consumer of the shape.
+        // CLOUDR1 P2: the heap preset of the type's macro shape (cfg key heap = bulge | rough | none; HeapModel.PresetOf: 0, the shape volume of today). Read by every consumer of the shape.
         internal int Heap { get; set; }
         // CLOUDR1 P1: the exponent of the type's density rim (cfg key edgePower; 0: the layer's waterPower). Below 1 the rim turns opaque within a short distance (a crisp outline), above
         // it the rim is a long translucent ramp. The water content at the outline (CloudLayerDef.SoftClosed) and every reader of the share follow it.
@@ -94,7 +94,7 @@ namespace ReDefinition.Atmospheres
         // CLOUDR1 P3: how strongly the heap volume's cavity channel darkens the creases between lobes (cfg key cavity, 0 to 1; 0: off): the light factors are cavity^(4 x this).
         internal float Cavity { get; set; }
         // CLOUD FIELD: the puffy form of the type (cfg key puff = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): where cloud.field is on the weather map's
-        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the billows of the heap preset); 0: the type is not drawn puffy.
+        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the bulges of the heap preset); 0: the type is not drawn puffy.
         internal int Puff { get; set; }
 
         internal double LiftAt(double h)
@@ -257,14 +257,14 @@ namespace ReDefinition.Atmospheres
         // The pitch of the layer's cloud cells in m (cfg key cellPitch, 0: none; CELLS, owner order 2026-11-17). The layer map (a texel of 7.4 km on Kerbin) says how much of a region
         // is cloud; the cells put that share down as single clouds: a jittered lattice of this pitch on the sphere, each cell a disc whose radius follows the map's cloud share (CloudCells.cginc).
         internal float CellPitchM { get; set; }
-        // The body of each single cloud (CloudCells.cginc CellBody, after Schneider's Nubis: a half ellipsoid over the type's flat base with a sharp surface that the billow noise moves).
-        // CellBillow (cfg key cellBillow): how far the billows move the surface, as a share of the body's shorter semi-axis (0: the bare ellipsoid). CellBandM (cellBand): the width in m over
-        // which the share rises at the surface (Nubis: 35 m; the narrower, the crisper the outline). CellFine (cellFine): the gain of the two finer billow octaves (0.37 and 0.137 of the
+        // The body of each single cloud (CloudCells.cginc CellBody, after Schneider's Nubis: a half ellipsoid over the type's flat base with a sharp surface that the bulge noise moves).
+        // CellBulge (cfg key cellBulge): how far the bulges move the surface, as a share of the body's shorter semi-axis (0: the bare ellipsoid). CellBandM (cellBand): the width in m over
+        // which the share rises at the surface (Nubis: 35 m; the narrower, the crisper the outline). CellFine (cellFine): the gain of the two finer bulge octaves (0.37 and 0.137 of the
         // first's size), the heads on the heads (0: not read). The defaults are the look the owner chose on 2026-11-17 (the player's photo framing, c_pv_f1).
-        internal float CellBillow { get; set; } = DefaultCellBillow;
+        internal float CellBulge { get; set; } = DefaultCellBulge;
         internal float CellBandM { get; set; } = DefaultCellBandM;
         internal float CellFine { get; set; } = DefaultCellFine;
-        internal const float DefaultCellBillow = 0.5f, DefaultCellBandM = 10f, DefaultCellFine = 1f;
+        internal const float DefaultCellBulge = 0.5f, DefaultCellBandM = 10f, DefaultCellFine = 1f;
         // The vertical scale of the layer's noise lattice (cfg key verticalScale, 0: the body's sphereScale key, 1: the lattice is isotropic): the radial distance from the layer's middle is
         // multiplied by it before the volumes are read, so below 1 the features are 1 / VerticalScale times longer in the vertical than across. A convective cloud is a column: the air that
         // rises in a cell is the same over the depth of the cloud, so the noise that decides where it stands must not change over that depth, or the bodies float at different heights and

@@ -17,7 +17,7 @@ namespace ReDefinition.Atmospheres.Viewer
             float presets = HeapModel.PresetCount;
             // Read into the type tables when the layers are uploaded (LayerRenderer.Upload); a change of the tuning table uploads them again within a frame (CloudLookTuning.Stamp, LayerRenderer.cs:272).
             r.Key(CloudLookTuning.TuneHeap, -1f, KeySection.Shape,
-                "heap preset for every type: -1 each type's cfg key, 0 none (today's shape volume), 1 billow, 2 rough; the first use builds the heap volume on a worker (about a second at Medium, the shape volume shows meanwhile)",
+                "heap preset for every type: -1 each type's cfg key, 0 none (today's shape volume), 1 bulge, 2 rough; the first use builds the heap volume on a worker (about a second at Medium, the shape volume shows meanwhile)",
                 KeyLiveness.Change, KeyMarker.Live, -1f, presets);
             r.Key(CloudLookTuning.TuneEdgePower, 0f, KeySection.Edge,
                 "exponent of the density rim for every type of a soft layer: 0 each type's key, below 1 a crisper rim",
@@ -47,14 +47,14 @@ namespace ReDefinition.Atmospheres.Viewer
                 "a single cloud's core profile: the depth over which its share rises to the core's, in shares of its shorter semi-axis (0: off, uniform inside)", KeyLiveness.Frame, KeyMarker.Live, 0f, 1f);
             r.Key(CellCoreProfile.TuneFloor, CellCoreProfile.FloorDefault, KeySection.Shape,
                 "a single cloud's share at its surface against its core's while the core profile is on", KeyLiveness.Frame, KeyMarker.Live, 0f, 1f);
-            r.Key(CloudLookTuning.TuneCellBillow, -1f, KeySection.Shape,
-                "how far the billows move a single cloud's surface, as a share of its shorter semi-axis (0 the bare body; below 0 each layer's cellBillow)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 2f);
+            r.Key(CloudLookTuning.TuneCellBulge, -1f, KeySection.Shape,
+                "how far the bulges move a single cloud's surface, as a share of its shorter semi-axis (0 the bare body; below 0 each layer's cellBulge)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 2f);
             r.Key(CloudLookTuning.TuneCellBand, -1f, KeySection.Shape,
                 "width in m over which a single cloud's share rises at its surface, narrow is a sharp outline (below 0 each layer's cellBand)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 300f);
             r.Key(CloudLookTuning.TuneCellFine, -1f, KeySection.Shape,
-                "gain of a single cloud's finer billows, the heads on the heads (0 off; below 0 each layer's cellFine)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 4f);
+                "gain of a single cloud's finer bulges, the heads on the heads (0 off; below 0 each layer's cellFine)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 4f);
             r.Flag(CloudLookTuning.TuneCellTrace, CloudLookTuning.CellTraceDefault > 0.5f, KeySection.Shape,
-                "single clouds: the march leaps the grid points beyond the reach of a body's billows (the same picture, fewer samples)", KeyLiveness.FrameHistory);
+                "single clouds: the march leaps the grid points beyond the reach of a body's bulges (the same picture, fewer samples)", KeyLiveness.FrameHistory);
             r.Flag(CloudLookTuning.TuneCellShell, CloudLookTuning.CellShellDefault > 0.5f, KeySection.Shape,
                 "single clouds: fine steps inside a body's shell, where its surface can lie (heads smaller than the grid step are not missed)", KeyLiveness.FrameHistory);
             // LV1: the light volume (LightVolume.cs), read every frame by LayerReconstructor.Record.
@@ -147,7 +147,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 999f, () => OwnCloudOptions.ClipSigmaDefaultNow);
 
             // The same three per layer (the layer's name after the prefix): the layer's value wins over the global key.
-            r.LayerKey(CloudLookTuning.TuneHeapLayer, "", -1f, KeySection.Shape, "heap preset of the layer (-1 the global key, 0 none, 1 billow, 2 rough)",
+            r.LayerKey(CloudLookTuning.TuneHeapLayer, "", -1f, KeySection.Shape, "heap preset of the layer (-1 the global key, 0 none, 1 bulge, 2 rough)",
                 min: -1f, max: presets);
             r.LayerKey(CloudLookTuning.TuneEdgePowerLayer, "", 0f, KeySection.Edge, "rim exponent of the layer (0 the global key; below 1 a crisper rim)", min: 0f, max: 6f);
             r.LayerKey(CloudLookTuning.TuneCavityLayer, "", -1f, KeySection.Shape, "cavity strength of the layer (-1 the global key, 0 off)", min: -1f, max: 1f);

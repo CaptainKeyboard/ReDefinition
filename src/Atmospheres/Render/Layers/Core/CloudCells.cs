@@ -151,15 +151,15 @@ namespace ReDefinition.Atmospheres
 
         // The body of a single cloud at a point, as the shader's CellBody: its share, 0 outside and 1 inside, rising over the band at its surface. The body is a half ellipsoid over the type's
         // flat base (horizontal semi-axis EdgeX of the disc's profile radius, vertical the cloud's own height, a share of the type's height typeHeightM from the core strength); its depth below
-        // the surface in m, (1 - the ellipsoid's radial coordinate) times the shorter semi-axis, is moved by the billows: the first octave (billow, 0..1) by up to bodyBillow of that
+        // the surface in m, (1 - the ellipsoid's radial coordinate) times the shorter semi-axis, is moved by the bulges: the first octave (bulge, 0..1) by up to bodyBulge of that
         // semi-axis, the finer ones (fineX, fineY, centred on 0) in proportion to their size, with the gain fineGain. h: the height share of the type at the point; band: the width in m.
-        internal static double CellBody(CellRead read, double h, double billow, double fineX, double fineY, double typeHeightM, double bodyBillow, double band, double fineGain)
+        internal static double CellBody(CellRead read, double h, double bulge, double fineX, double fineY, double typeHeightM, double bodyBulge, double band, double fineGain)
         {
             double top = Math.Max(0.15, Math.Min(1.0, read.Core / 0.5));
             double semiH = Math.Max(top * typeHeightM, 1.0), semiR = Math.Max(EdgeX * read.RBest, 1.0);
             double xv = read.XBest / EdgeX, hv = h / top;
             double axis = Math.Min(semiR, semiH);
-            double q = (1.0 - Math.Sqrt(xv * xv + hv * hv)) * axis + bodyBillow * axis * (billow - 0.5 + fineGain * (0.37 * fineX + 0.137 * fineY));
+            double q = (1.0 - Math.Sqrt(xv * xv + hv * hv)) * axis + bodyBulge * axis * (bulge - 0.5 + fineGain * (0.37 * fineX + 0.137 * fineY));
             return Saturate(q / Math.Max(band, 1.0) + 0.5);
         }
 

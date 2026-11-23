@@ -60,8 +60,8 @@ namespace ReDefinition.Atmospheres
         internal int HeapOfType(int type)
         {
             int forced = CloudLookTuning.HeapOverrideFor(layer.Name);
-            // CLOUD FIELD: a puffy type reads the billow heap where the field is on (the owner's puffy concept is part of the type).
-            if (forced < 0 && layer.Types[type].Heap == 0 && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return HeapModel.PresetOf("billow");
+            // CLOUD FIELD: a puffy type reads the bulge heap where the field is on (the owner's puffy concept is part of the type).
+            if (forced < 0 && layer.Types[type].Heap == 0 && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return HeapModel.PresetOf("bulge");
             return forced >= 0 ? forced : layer.Types[type].Heap;
         }
 

@@ -110,7 +110,7 @@ namespace ReDefinition.Atmospheres
             return prm;
         }
 
-        // The share of a single cloud's body at a height of the layer, as the shader's LayerExtinction takes it where the cells alone draw: CellBody on the billows' rank (the threshold at the
+        // The share of a single cloud's body at a height of the layer, as the shader's LayerExtinction takes it where the cells alone draw: CellBody on the bulges' rank (the threshold at the
         // noise's mean, a unit edge, the full swing: the share with cov 1 - coverage), the type's lift not asked. 0 outside the type's height. The type's density profile (pf.x) is not applied,
         // as in the other branches of Share.
         private double BodyShare(int layerIndex, CloudLayerDef layer, double x, double y, double z, LayerTypeTable table, double typeValue, double layerShare, double amount, ref CloudCells.CellRead read)
@@ -126,17 +126,17 @@ namespace ReDefinition.Atmospheres
             double coverage = layer.EffectiveCoverage;
             bool noise = amount > 0.0 && layer.EffectiveNoiseScaleM > 0f;
             double rank = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, 1.0 - coverage, coverage, 1.0, noise ? amount : 0.0, 0.0, false);
-            double billow = CloudLookTuning.CellBillowFor(layer), band = CloudLookTuning.CellBandFor(layer), gain = CloudLookTuning.CellFineFor(layer);
+            double bulge = CloudLookTuning.CellBulgeFor(layer), band = CloudLookTuning.CellBandFor(layer), gain = CloudLookTuning.CellFineFor(layer);
             double fineX = 0.0, fineY = 0.0;
-            if (gain > 0.0 && layer.EffectiveNoiseScaleM > 0f) FineBillows(volumes.Heap, prm, wx, wy, wz, out fineX, out fineY);
-            double s = CloudCells.CellBody(read, h, rank, fineX, fineY, (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), billow, band, gain);
+            if (gain > 0.0 && layer.EffectiveNoiseScaleM > 0f) FineBulges(volumes.Heap, prm, wx, wy, wz, out fineX, out fineY);
+            double s = CloudCells.CellBody(read, h, rank, fineX, fineY, (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), bulge, band, gain);
             if (s <= 0.0) return 0.0;
             return CloudWater.Pow(s, layer.EffectiveWaterPowerAt(table, typeValue));
         }
 
-        // The finer billow octaves of a single cloud's body (the shader's CellFineBillows): the heap field of preset 1 (the shape volume's green channel on the GPU) read straight at 0.37 and 0.137
+        // The finer bulge octaves of a single cloud's body (the shader's CellFineBulges): the heap field of preset 1 (the shape volume's green channel on the GPU) read straight at 0.37 and 0.137
         // of its period, at the lattice's true vertical scale, each centred on 0. No heap volume (no type asked for a heap preset): both 0.
-        private static void FineBillows(HeapVolumeSet heap, NoiseLayerParams prm, double px, double py, double pz, out double fine1, out double fine2)
+        private static void FineBulges(HeapVolumeSet heap, NoiseLayerParams prm, double px, double py, double pz, out double fine1, out double fine2)
         {
             fine1 = fine2 = 0.0;
             if (heap == null || heap.Levels == null || heap.Levels.Length == 0) return;

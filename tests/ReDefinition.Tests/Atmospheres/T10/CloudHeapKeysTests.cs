@@ -32,7 +32,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             BodyParseResult r = CloudLayerSchemaTests.Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;"
                 + "TYPE{name = Plain;baseShare = 0;topShare = 1;" + Prof + "}"
-                + "TYPE{name = Heap;baseShare = 0;topShare = 1;heap = billow;edgePower = 0.5;cavity = 0.7;" + Prof + "}"
+                + "TYPE{name = Heap;baseShare = 0;topShare = 1;heap = bulge;edgePower = 0.5;cavity = 0.7;" + Prof + "}"
                 + "TYPE{name = Rough;baseShare = 0;topShare = 1;heap = Rough;" + Prof + "}"
                 + "TYPE{name = Bad;baseShare = 0;topShare = 1;heap = nonsense;" + Prof + "}}");
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));

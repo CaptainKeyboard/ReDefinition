@@ -205,31 +205,31 @@ namespace ReDefinition.Atmospheres
         internal static float CellLat { get { Refresh(); return cellLat; } }
         internal static float CellLon { get { Refresh(); return cellLon; } }
 
-        // --- Billow detail (package PUFF): the small-scale detail of the cloud's surface. Every key is neutral at its default, so the pass is as it was. ---------------------------------
-        //   cloud.billow.light        above 0: billow shading, a sample's direct light is scaled by 1 + 2 x this x (d - mean), d the erosion detail's value at the sample (the bumps catch the light,
+        // --- Bulge detail (package PUFF): the small-scale detail of the cloud's surface. Every key is neutral at its default, so the pass is as it was. ---------------------------------
+        //   cloud.bulge.light        above 0: bulge shading, a sample's direct light is scaled by 1 + 2 x this x (d - mean), d the erosion detail's value at the sample (the bumps catch the light,
         //                             the crevices are shaded; no extra density read, which would put a second copy of the erosion into the shader and crash its compiler) (0: off)
-        //   cloud.billow.contrast     the erosion detail's contrast about its mean (1)
-        //   cloud.billow.top          the erosion's gain toward the cloud's top: erosion x (1 + gain x height in the cloud) (0)
-        //   cloud.billow.fine         the weight of the fine octave of the detail (-1: the compiled NoiseModel.FineDetailWeight)
-        //   cloud.billow.fineFreq     the fine octave's frequency over the first read (-1: the compiled NoiseModel.FineDetailFrequency)
-        internal const string TuneBillowLight = "cloud.billow.light", TuneBillowContrast = "cloud.billow.contrast", TuneBillowTop = "cloud.billow.top",
-            TuneBillowFine = "cloud.billow.fine", TuneBillowFineFreq = "cloud.billow.fineFreq";
+        //   cloud.bulge.contrast     the erosion detail's contrast about its mean (1)
+        //   cloud.bulge.top          the erosion's gain toward the cloud's top: erosion x (1 + gain x height in the cloud) (0)
+        //   cloud.bulge.fine         the weight of the fine octave of the detail (-1: the compiled NoiseModel.FineDetailWeight)
+        //   cloud.bulge.fineFreq     the fine octave's frequency over the first read (-1: the compiled NoiseModel.FineDetailFrequency)
+        internal const string TuneBulgeLight = "cloud.bulge.light", TuneBulgeContrast = "cloud.bulge.contrast", TuneBulgeTop = "cloud.bulge.top",
+            TuneBulgeFine = "cloud.bulge.fine", TuneBulgeFineFreq = "cloud.bulge.fineFreq";
 
-        internal static float BillowLight { get { return Clean(Tuning.Get(TuneBillowLight, 0f), 0f, 0f, 8f); } }
-        internal static float BillowContrast { get { return Clean(Tuning.Get(TuneBillowContrast, 1f), 1f, 0f, 8f); } }
-        internal static float BillowTop { get { return Clean(Tuning.Get(TuneBillowTop, 0f), 0f, 0f, 8f); } }
+        internal static float BulgeLight { get { return Clean(Tuning.Get(TuneBulgeLight, 0f), 0f, 0f, 8f); } }
+        internal static float BulgeContrast { get { return Clean(Tuning.Get(TuneBulgeContrast, 1f), 1f, 0f, 8f); } }
+        internal static float BulgeTop { get { return Clean(Tuning.Get(TuneBulgeTop, 0f), 0f, 0f, 8f); } }
 
         // The weight of the fine octave: the key, or `compiled` where it is below 0.
-        internal static float BillowFine(float compiled)
+        internal static float BulgeFine(float compiled)
         {
-            float v = Clean(Tuning.Get(TuneBillowFine, -1f), -1f, -1f, 1f);
+            float v = Clean(Tuning.Get(TuneBulgeFine, -1f), -1f, -1f, 1f);
             return v < 0f ? compiled : v;
         }
 
         // The frequency of the fine octave: the key, or `compiled` where it is not above 0.
-        internal static float BillowFineFreq(float compiled)
+        internal static float BulgeFineFreq(float compiled)
         {
-            float v = Clean(Tuning.Get(TuneBillowFineFreq, -1f), -1f, -1f, 16f);
+            float v = Clean(Tuning.Get(TuneBulgeFineFreq, -1f), -1f, -1f, 16f);
             return v > 0f ? v : compiled;
         }
 
@@ -297,10 +297,10 @@ namespace ReDefinition.Atmospheres
         internal const float FieldDefault = 1f;
         internal static bool Field { get { return Tuning.Get(TuneField, FieldDefault) > 0.5f; } }
         internal static float FieldWindDeg { get { return Clean(Tuning.Get(TuneFieldWind, 0f), 0f, -360f, 360f); } }
-        // The body of a single cloud in the viewer (CloudLayerDef.CellBillow, CellBandM, CellFine): cloud.cellBillow, cloud.cellBand and cloud.cellFine set it on every layer with cells where
+        // The body of a single cloud in the viewer (CloudLayerDef.CellBulge, CellBandM, CellFine): cloud.cellBulge, cloud.cellBand and cloud.cellFine set it on every layer with cells where
         // they are set (below 0, the default: each layer's own). Read every frame (LayerRenderer.Apply and CloudShadowRenderer, _CellE).
-        internal const string TuneCellBillow = "cloud.cellBillow", TuneCellBand = "cloud.cellBand", TuneCellFine = "cloud.cellFine";
-        internal static float CellBillowFor(CloudLayerDef layer) { return Layered(TuneCellBillow, layer.CellBillow, 2f); }
+        internal const string TuneCellBulge = "cloud.cellBulge", TuneCellBand = "cloud.cellBand", TuneCellFine = "cloud.cellFine";
+        internal static float CellBulgeFor(CloudLayerDef layer) { return Layered(TuneCellBulge, layer.CellBulge, 2f); }
         internal static float CellBandFor(CloudLayerDef layer) { return Math.Max(Layered(TuneCellBand, layer.CellBandM, 1000f), 1f); }
         internal static float CellFineFor(CloudLayerDef layer) { return Layered(TuneCellFine, layer.CellFine, 4f); }
 
@@ -310,8 +310,8 @@ namespace ReDefinition.Atmospheres
             return float.IsNaN(v) || float.IsInfinity(v) || v < 0f ? own : Math.Min(v, max);
         }
 
-        // cloud.cellTrace (A4, owner audit 2026-11-17): 1 lets the march leap the grid points beyond the reach of a single cloud's billows, where the body's depth bounds the distance to its
-        // surface (CloudCells.cginc CellShellGap); the grid's phase is kept, so the picture is the grid march's. The first form, a sphere trace on the billows' slope bound, ran out of its loop
+        // cloud.cellTrace (A4, owner audit 2026-11-17): 1 lets the march leap the grid points beyond the reach of a single cloud's bulges, where the body's depth bounds the distance to its
+        // surface (CloudCells.cginc CellShellGap); the grid's phase is kept, so the picture is the grid march's. The first form, a sphere trace on the bulges' slope bound, ran out of its loop
         // (player 2026-11-18, ceiling march: cover 0.065 against 0.318). On: the player's cover and spectra are equal on and off (gclock, sclock; ceiling and product marches), and K-T2
         // perfN2560dlssqleap (2026-11-18, 2560x1440, DLSS Quality) gained 2 to 11 % fps per view (ground 37.6 to 38.4, inside 29.8 to 31.1, above 25.8 to 26.5, sky3 43.0 to 47.9).
         internal const string TuneCellTrace = "cloud.cellTrace";
@@ -399,14 +399,14 @@ namespace ReDefinition.Atmospheres
         internal static float LvStoreK { get { return Clean(Tuning.Get(TuneLvStoreK, 4f), 4f, 0f, 64f); } }
         internal static float LvWarpLimit { get { return Clean(Tuning.Get(TuneLvWarpLimit, 1000f), 1000f, 1f, 1e7f); } }
 
-        // _CellE of a layer (CloudCells.cginc): x the billows' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 4 cloud.cellShell).
+        // _CellE of a layer (CloudCells.cginc): x the bulges' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 4 cloud.cellShell).
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)
         {
-            float billow = layer == null ? CloudLayerDef.DefaultCellBillow : CellBillowFor(layer);
+            float bulge = layer == null ? CloudLayerDef.DefaultCellBulge : CellBulgeFor(layer);
             float band = layer == null ? CloudLayerDef.DefaultCellBandM : CellBandFor(layer);
             float fine = layer == null ? CloudLayerDef.DefaultCellFine : CellFineFor(layer);
             float flags = (CellTrace ? 1f : 0f) + (CellShell ? 4f : 0f);
-            return new UnityEngine.Vector4(billow, band, fine, flags);
+            return new UnityEngine.Vector4(bulge, band, fine, flags);
         }
         internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
         internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }

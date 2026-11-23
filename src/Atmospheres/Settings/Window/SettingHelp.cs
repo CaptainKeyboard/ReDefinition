@@ -48,7 +48,7 @@ namespace ReDefinition.Atmospheres
                 { "layerStepGrowth", "How fast the march steps grow inside a cloud as the light dies out. 0 keeps the step fixed, 2 is the measured value, higher is cheaper and softer in thick cloud." },
                 { "cloudNoise", "Shapes the clouds with noise: ragged edges, cauliflower tops and holes. Off, the clouds are the smooth maps alone and cost less." },
                 { "cloudNoiseUntile", "Breaks the repetition of the noise, so that a wide deck shows no regular pattern." },
-                { "cloudNoiseCurl", "Swirls the edge of the clouds with a curl noise, for billowing shapes." },
+                { "cloudNoiseCurl", "Swirls the edge of the clouds with a curl noise, for bulging shapes." },
                 { "cloudNoiseTier", "The size of the noise volumes: Low 32 cells wide for the shape (35 KB), Medium 64 (0.4 MB), High 128 (2.4 MB). Larger volumes show finer detail and use more video memory." },
                 { "cloudNoiseDistanceLod", "Fades the finest detail out where it could only shimmer, with distance. Off, the detail is read at every step and costs more." },
                 { "cloudFineDetail", "Adds a second, finer octave of detail to the cloud edge. Off, the edge is smoother." },

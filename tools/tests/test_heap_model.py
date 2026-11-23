@@ -61,19 +61,19 @@ class ScaleInvarianceTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.billow = nm.heap_field(64, 64, nm.HEAP_HURST[0], 1)
+        cls.bulge = nm.heap_field(64, 64, nm.HEAP_HURST[0], 1)
         cls.rough = nm.heap_field(64, 64, nm.HEAP_HURST[1], 18)
 
     def test_spectrum_follows_the_nominal_power_law_over_the_whole_range(self):
         # Hurst 0.65: P(k) falls as k^-(2 H + 2) = k^-3.3 (measured -3.22 over k = 2..16). The bands are not equal: the octaves are cellular (a Poisson floor at low k, a
         # roll-off of the smooth domes at high k), so the band slopes run from about -2.2 (k 2-4) to -3.8 (k 8-16); the whole-range slope is the nominal one.
-        whole = slice_slope(self.billow, 2, 16)
+        whole = slice_slope(self.bulge, 2, 16)
         self.assertTrue(-3.6 < whole < -2.8, whole)
         for lo, hi in ((2, 4), (4, 8), (8, 16)):
-            self.assertTrue(-4.4 < slice_slope(self.billow, lo, hi) < -1.8, (lo, hi))
+            self.assertTrue(-4.4 < slice_slope(self.bulge, lo, hi) < -1.8, (lo, hi))
 
     def test_rougher_preset_has_the_shallower_spectrum(self):
-        self.assertLess(slice_slope(self.billow, 2, 16), slice_slope(self.rough, 2, 16))
+        self.assertLess(slice_slope(self.bulge, 2, 16), slice_slope(self.rough, 2, 16))
 
 
 if __name__ == "__main__":

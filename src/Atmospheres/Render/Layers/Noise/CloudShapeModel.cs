@@ -92,9 +92,9 @@ namespace ReDefinition.Atmospheres
         // E40 L2 D1 (cfg key fibreStretch): the lookup is compressed along the unit axis (AxisX, AxisY, AxisZ) by 1 - Stretch, i.e. the features are 1 / (1 - Stretch) times longer along it;
         // 0: isotropic. The shader's axis is the body's pole (the third row of the world-to-map matrix), (0, 0, 1) in the planet frame of the tests.
         internal double Stretch, AxisX, AxisY, AxisZ;
-        // PUFF (cloud.billow.*): the detail's contrast about its mean minus 1 (0: as it was), the weight of the fine octave (null: NoiseModel.FineDetailWeight) and its frequency
+        // PUFF (cloud.bulge.*): the detail's contrast about its mean minus 1 (0: as it was), the weight of the fine octave (null: NoiseModel.FineDetailWeight) and its frequency
         // (0 or less: NoiseModel.FineDetailFrequency). The gain toward the top and the light tap belong to the shader's density and light march and have no twin here.
-        internal double BillowContrastDelta, FineFrequency;
+        internal double BulgeContrastDelta, FineFrequency;
         internal double? FineWeight;
         // CLOUDR1 P2: the heap preset the point's type reads (0: the shape volume; HeapModel.PresetOf) and whether the march's spacing adds to the mip level of the heap read (the octaves
         // below the footprint are dropped, never the ones above it). The twin of the shader's gHeapPreset and _HeapP.y.
@@ -526,7 +526,7 @@ namespace ReDefinition.Atmospheres
                 d += (d2 - d) * prm.FineWeightValue;
             }
             // PUFF: the detail's contrast about its mean (0: as it was).
-            if (prm.BillowContrastDelta != 0.0) d = Math.Min(1.0, Math.Max(0.0, set.DetailMean + (d - set.DetailMean) * (1.0 + prm.BillowContrastDelta)));
+            if (prm.BulgeContrastDelta != 0.0) d = Math.Min(1.0, Math.Max(0.0, set.DetailMean + (d - set.DetailMean) * (1.0 + prm.BulgeContrastDelta)));
             return Erode(s, d, erosion);
         }
     }

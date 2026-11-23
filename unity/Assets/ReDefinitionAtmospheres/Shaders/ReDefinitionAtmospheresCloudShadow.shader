@@ -254,7 +254,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             }
 #endif
             cov -= _CsParams2.z * pf.y * (_CsLayerB[li].y + noiseBound + 0.5 * edge);
-            // CELLS: the single cloud's body where the cells alone draw, as the layer pass draws it (CellBody on the billows' rank: the threshold at the noise's mean, a unit edge, the
+            // CELLS: the single cloud's body where the cells alone draw, as the layer pass draws it (CellBody on the bulges' rank: the threshold at the noise's mean, a unit edge, the
             // full swing); it replaces the type's lift, so the lift's bound is not asked.
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // OPT2: the same bound after the lift (the layer pass's second one): no noise read where the lifted map cannot reach the threshold.
@@ -264,7 +264,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             [branch] if (body)
             {
                 float rank = NoiseShareNear(li, pc, 1.0 - _CsLayerB[li].y, _CsLayerB[li].y, 1.0, _CsNoiseD[li].x > 0.0 ? 1.0 : 0.0, 0.0);
-                float2 fine = _CellE[li].z > 0.0 ? CellFineBillows(li, pc) : float2(0.0, 0.0);
+                float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
                 s = CellBody(li, h, rank, fine, (tp - b) * (outer - inner));
             }
             else s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);

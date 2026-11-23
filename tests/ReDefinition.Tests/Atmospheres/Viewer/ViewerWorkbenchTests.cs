@@ -60,7 +60,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(0f, flag.Min);
             Assert.AreEqual(1f, flag.Max);
             Assert.IsFalse(flag.RangeEstimated);
-            CloudKey sentinel = CloudKeyRegistry.Find(CloudLookTuning.TuneBillowFine);
+            CloudKey sentinel = CloudKeyRegistry.Find(CloudLookTuning.TuneBulgeFine);
             Assert.AreEqual(-1f, sentinel.Default);
             Assert.AreEqual(-1f, sentinel.Min, "a sentinel default starts the range");
             Assert.IsTrue(sentinel.RangeEstimated);

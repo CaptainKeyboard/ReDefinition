@@ -299,12 +299,12 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneCellLon, 0f, KeyLiveness.Change, "centre of the forced cell, degrees"),
             N(CloudCoverShift.TuneShift, 0f, KeyLiveness.Change),
             N(CloudCoverShift.TuneShiftRain, 0f, KeyLiveness.Change),
-            // The billow detail (CloudLookTuning; read in LayerNoise.Bind every frame).
-            N(CloudLookTuning.TuneBillowLight, 0f, KeyLiveness.FrameHistory, "billow shading of the direct light, 0 off"),
-            N(CloudLookTuning.TuneBillowContrast, 1f, KeyLiveness.FrameHistory, "contrast of the erosion detail about its mean"),
-            N(CloudLookTuning.TuneBillowTop, 0f, KeyLiveness.FrameHistory, "erosion gain toward the cloud's top"),
-            N(CloudLookTuning.TuneBillowFine, -1f, KeyLiveness.FrameHistory, "weight of the fine octave, -1 compiled"),
-            N(CloudLookTuning.TuneBillowFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
+            // The bulge detail (CloudLookTuning; read in LayerNoise.Bind every frame).
+            N(CloudLookTuning.TuneBulgeLight, 0f, KeyLiveness.FrameHistory, "bulge shading of the direct light, 0 off"),
+            N(CloudLookTuning.TuneBulgeContrast, 1f, KeyLiveness.FrameHistory, "contrast of the erosion detail about its mean"),
+            N(CloudLookTuning.TuneBulgeTop, 0f, KeyLiveness.FrameHistory, "erosion gain toward the cloud's top"),
+            N(CloudLookTuning.TuneBulgeFine, -1f, KeyLiveness.FrameHistory, "weight of the fine octave, -1 compiled"),
+            N(CloudLookTuning.TuneBulgeFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
             // The keys of the new cloud model (heap, edgePower, cavity, noise blend) are registered by CloudModelKeys (a CloudKeySource), not listed here.
             // The march's cost controls (OwnCloudOptions.Apply(LayerFrame)).
             F(CloudDevVariant.TuneForce, false, KeyLiveness.Frame, "the cloud shaders' test variant (CLOUD_DEV) on whatever the values: a cost comparison measures both sides on the same shader"),

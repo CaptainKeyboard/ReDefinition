@@ -4,7 +4,7 @@
     python tools/weather_metrics/surface_visibility.py replay <folder> <view> [...]      the player's replay (e40pp composite) of a view in an output folder
     python tools/weather_metrics/surface_visibility.py picture <png> [--baseline <png>]  any frame; the cloud mask against the baseline frame
 
-The owner's symptom: 'the clouds have no visible surface, they are just a uniform area'. A surface is seen as structure inside the cloud (billows, lit and shaded sides) and as
+The owner's symptom: 'the clouds have no visible surface, they are just a uniform area'. A surface is seen as structure inside the cloud (bulges, lit and shaded sides) and as
 contrast to the sky at its edge. The quantities, all on the cloud mask (e40pp.cloud_stats: colour moved away from the frame without clouds and towards grey):
 
     lit      the sunlit over the shaded luminance, the 90th over the 10th percentile of the smoothed cloud luminance (e40pp.lit_ratio)

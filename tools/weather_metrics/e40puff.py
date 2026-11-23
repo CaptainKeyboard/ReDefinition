@@ -7,7 +7,7 @@
 
 Same method as e40surf.py (each variant changes ONE factor of the base view's job: the same camera, sun, maps, haze, display stage and march; every frame is laid over the game's
 own frame without clouds and measured on the same mask), with the puffiness measures of puffiness.py instead of the surface-visibility ones. The variants that need no change of the
-job but another march (the render target's size) are separate stages with the base views. The keys cloud.billow.* are the product's tuning keys (CloudLookTuning).
+job but another march (the render target's size) are separate stages with the base views. The keys cloud.bulge.* are the product's tuning keys (CloudLookTuning).
 """
 import argparse
 import json
@@ -45,7 +45,7 @@ def each_type(job, f):
 
 
 def tune_dotted(pairs):
-    """A variant that sets tuning keys (the product's own, e.g. cloud.billow.light)."""
+    """A variant that sets tuning keys (the product's own, e.g. cloud.bulge.light)."""
     def f(job):
         for k, v in pairs:
             job.setdefault("tuning", []).append({"key": k, "value": float(v)})
@@ -180,7 +180,7 @@ def tune_cumulus(pairs):
 VARIANTS = {
     "base": ("the replay as e40pp makes it", None, None),
     # --- CLOUDR1 (2026-11-16): the model packages P2 (heap volume), P1 (edge exponent), P3 (cavity), P6 (first hit) as the global tuning keys of CloudLookTuning; each also at the ceiling. ---
-    "p2": ("(P2) the heap volume, preset billow, for every type (cloud.heap 1)", tune_cumulus(HEAP1), None),
+    "p2": ("(P2) the heap volume, preset bulge, for every type (cloud.heap 1)", tune_cumulus(HEAP1), None),
     "p2r": ("(P2) the heap volume, preset rough (cloud.heap 2)", tune_cumulus([("cloud.heap.layer.", 2.0)]), None),
     "p2p1": ("(P2 + P1) heap volume + the rim exponent 0.5 (cloud.edgePower)", tune_cumulus(HEAP1 + EDGE), None),
     "p2p1p3": ("(P2 + P1 + P3) + cavity 0.7", tune_cumulus(HEAP1 + EDGE + CAV), None),
@@ -242,12 +242,12 @@ VARIANTS = {
     "c_photo_off": ("(CELLS) as c_photo, cells off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), NG96),
     # the look without a cost limit (owner 2026-11-17: first the photograph's look whatever it costs, then the performance): c_photo at the ceiling march
     "c_photo_ceil": ("(CELLS) c_photo at the ceiling march (256 grid points, 6 m minimum step, every lit step to the sun with 16 taps, full size)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0)])), CEIL),
-    # The single cloud's body (CloudCells.cginc CellBody) as the cfg sets it (the cumulus layer's cellBillow 0.5, cellBand 10 m, cellFine 1: the look the owner chose on 2026-11-17),
+    # The single cloud's body (CloudCells.cginc CellBody) as the cfg sets it (the cumulus layer's cellBulge 0.5, cellBand 10 m, cellFine 1: the look the owner chose on 2026-11-17),
     # in the photograph's framing and light. b_ceil at the ceiling march is the chosen look; b_prod is what the product's march of Medium draws of it; b_fh adds the first hit by
-    # bisection with 32 thin steps after it (the surface found to the band's width), b_fh50 that at half the size; b_f0 and b_f3 the finer billows off and three times as strong.
+    # bisection with 32 thin steps after it (the surface found to the band's width), b_fh50 that at half the size; b_f0 and b_f3 the finer bulges off and three times as strong.
     "b_ceil": ("(BODY) the cfg's single clouds at the ceiling march", compose(camera_at(30.0, 4.0), sun_behind(25.0)), CEIL),
-    "b_f0": ("(BODY) b_ceil without the finer billows (cloud.cellFine 0)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 0.0)])), CEIL),
-    "b_f3": ("(BODY) b_ceil with the finer billows three times as strong (cloud.cellFine 3)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 3.0)])), CEIL),
+    "b_f0": ("(BODY) b_ceil without the finer bulges (cloud.cellFine 0)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 0.0)])), CEIL),
+    "b_f3": ("(BODY) b_ceil with the finer bulges three times as strong (cloud.cellFine 3)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 3.0)])), CEIL),
     "b_prod": ("(BODY) the cfg's single clouds at the product march (Medium)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), NG96),
     "b_fh": ("(BODY) b_prod with the first hit and 32 thin steps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted(shell(32))), NG96),
     "b_fh50": ("(BODY) b_fh at half the size (r50)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted(shell(32))), "seq1+lq2+ng96+r50+lp100"),
@@ -257,7 +257,7 @@ VARIANTS = {
     "b_light": ("(BODY) the product's march with the ceiling's light", compose(camera_at(30.0, 4.0), sun_behind(25.0)), LIGHT),
     # b_steps makes the look: its levers one at a time on the product's march (256 grid points, a 6 m minimum step, no step or transmittance growth, early-out 0.001, no leap, every lit step to the sun)
     "b_c256": ("(BODY) the product's march with 256 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+r33+lp100"),
-    # the cause check (2026-11-17): 96 grid points with the heap field's spacing LOD off (cloud.heap.footLod 0: the billows' mip no longer follows the march spacing)
+    # the cause check (2026-11-17): 96 grid points with the heap field's spacing LOD off (cloud.heap.footLod 0: the bulges' mip no longer follows the march spacing)
     # which part completes the ceiling's shading (the owner saw b_c256/b_steps blotchy against b_ceil): the steps with the light, the steps with the full size
     "b_steps_light": ("(BODY) the ceiling's steps and light at a third of the size", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+cstep+clight+r33+lp100"),
     "b_steps_res": ("(BODY) the ceiling's steps and full-size target, the product's light", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+cstep+r100+jit+acc8+clip1000+lp100"),
@@ -267,8 +267,8 @@ VARIANTS = {
     "b_steps_filt": ("(BODY) the ceiling's steps, the product's light with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
     "b_prod_filt": ("(BODY) the product's march (96 grid points) with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 1.0)])), "seq1+lq2+ng96+r33+lp100"),
     "b_ng96_nofoot": ("(BODY) the product's march with 96 grid points, the heap's spacing LOD off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 0.0)])), "seq1+lq2+ng96+r33+lp100"),
-    # A4 (owner audit 2026-11-17): cloud.cellTrace leaps the grid points beyond the reach of a body's billows (the picture should be the grid march's: cover and look equal on and off);
-    # cloud.cellFoot filters the body by the sample's footprint (finer billows fade once the sample is wider than them, the band at least a pixel): the product's march with fewer grid points
+    # A4 (owner audit 2026-11-17): cloud.cellTrace leaps the grid points beyond the reach of a body's bulges (the picture should be the grid march's: cover and look equal on and off);
+    # cloud.cellFoot filters the body by the sample's footprint (finer bulges fade once the sample is wider than them, the band at least a pixel): the product's march with fewer grid points
     # should come close to the chosen look (t_ceil_off) where the grid alone needed 256.
     "t_ceil": ("(TRACE) b_ceil with the shell leap", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), CEIL),
     "t_ceil_off": ("(TRACE) b_ceil without the shell leap (the chosen look as it was)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), CEIL),
@@ -316,13 +316,13 @@ VARIANTS = {
     "p2_skip": ("(PERF 2) the accepted look with the tile pass's skip of empty tiles", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+skip+r100+lp100"),
     "p6_dlod": ("(PERF 6) the accepted look with the detail dropped below a pixel", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dlod+r100+lp100"),
     # Timing split of the accepted look in the player's soft-cost scene (2026-11-18, the GPU timestamps of the march, a few minutes a run; the cost debug bits make the picture
-    # wrong on purpose): no light march (dbg1), no shape noise (dbg2), neither and no erosion (dbg7), the map alone without the single clouds, no finer billows.
+    # wrong on purpose): no light march (dbg1), no shape noise (dbg2), neither and no erosion (dbg7), the map alone without the single clouds, no finer bulges.
     "tc_base": ("(TIME) the accepted look", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
     "tc_d1": ("(TIME) the accepted look without the light march", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg1+r100+lp100"),
     "tc_d2": ("(TIME) the accepted look without the shape noise", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg2+r100+lp100"),
     "tc_d7": ("(TIME) the accepted look without light, noise and erosion", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg7+r100+lp100"),
     "tc_nocells": ("(TIME) the accepted look with the map alone (no single clouds)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
-    "tc_nofine": ("(TIME) the accepted look without the finer billows", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
+    "tc_nofine": ("(TIME) the accepted look without the finer bulges", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
     # The light cache (2026-11-19): the accepted look with its first three sun taps marched (47/94/188 m) and the rest of the way to the sun from the cache (40 km box,
     # 24 fill taps unless named). lc_g128 the default 128 x 128 x 32 voxels (owner: equal to k4_stride; player 86 against 97 ms); the others at 256 x 256 x 64:
     # lc_3 (125 ms, the fill costs more than it saves), lc_box80 a box of 80 km, lc_near4 four near taps, lc_fill12 12 fill taps.
@@ -384,23 +384,23 @@ VARIANTS = {
     "c_p2p1p3": ("(ceiling) P2 + P1 + P3", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV)), CEIL),
     "ero0": ("(a) no erosion (every type's erosion 0): what the erosion contributes now", v_ero0, None),
     "ero2": ("(a) the erosion of every type doubled", v_ero2, None),
-    "contrast2": ("(a) the erosion detail's contrast about its mean doubled (cloud.billow.contrast 2)", tune_dotted([("cloud.billow.contrast", 2.0)]), None),
-    "contrast3": ("(a) the erosion detail's contrast x 3 (the volume's d has a spread of 0.09: x 3.2 makes it uniform like the shape volume; cloud.billow.contrast 3)",
-                  tune_dotted([("cloud.billow.contrast", 3.0)]), None),
-    "top1": ("(a) the erosion's gain toward the top 1 (cloud.billow.top: erosion x (1 + h))", tune_dotted([("cloud.billow.top", 1.0)]), None),
-    "fine08": ("(a) the fine octave at weight 0.8 (0.4 now)", tune_dotted([("cloud.billow.fine", 0.8)]), None),
-    "fine0": ("(a) no fine octave (weight 0)", tune_dotted([("cloud.billow.fine", 0.0)]), None),
-    "fine4": ("(a) the fine octave at 4 times the frequency (2.37 now)", tune_dotted([("cloud.billow.fineFreq", 4.0)]), None),
+    "contrast2": ("(a) the erosion detail's contrast about its mean doubled (cloud.bulge.contrast 2)", tune_dotted([("cloud.bulge.contrast", 2.0)]), None),
+    "contrast3": ("(a) the erosion detail's contrast x 3 (the volume's d has a spread of 0.09: x 3.2 makes it uniform like the shape volume; cloud.bulge.contrast 3)",
+                  tune_dotted([("cloud.bulge.contrast", 3.0)]), None),
+    "top1": ("(a) the erosion's gain toward the top 1 (cloud.bulge.top: erosion x (1 + h))", tune_dotted([("cloud.bulge.top", 1.0)]), None),
+    "fine08": ("(a) the fine octave at weight 0.8 (0.4 now)", tune_dotted([("cloud.bulge.fine", 0.8)]), None),
+    "fine0": ("(a) no fine octave (weight 0)", tune_dotted([("cloud.bulge.fine", 0.0)]), None),
+    "fine4": ("(a) the fine octave at 4 times the frequency (2.37 now)", tune_dotted([("cloud.bulge.fineFreq", 4.0)]), None),
     "nolod": ("(a) no distance LOD of the detail", v_nolod, None),
-    "light": ("(b) billow shading: the direct light of a sample follows the erosion detail there (cloud.billow.light 1)", tune_dotted([("cloud.billow.light", 1.0)]), None),
+    "light": ("(b) bulge shading: the direct light of a sample follows the erosion detail there (cloud.bulge.light 1)", tune_dotted([("cloud.bulge.light", 1.0)]), None),
     "nosmooth": ("(c) no shape smoothing", v_nosmooth, None),
     "soft03": ("(c) the soft density's width 0.3 (0.5 now)", v_soft03, None),
-    "sharp": ("(d) the composite upsamples with a Catmull-Rom spline (cloud.billow.sharpen 1)", tune_dotted([("cloud.billow.sharpen", 1.0)]), None),
+    "sharp": ("(d) the composite upsamples with a Catmull-Rom spline (cloud.bulge.sharpen 1)", tune_dotted([("cloud.bulge.sharpen", 1.0)]), None),
     "res50": ("(d) the march target half the size (r50; a third now)", None, "r50"),
     "res100": ("(d) the march target the full size (r100)", None, "r100"),
-    "puff1": ("(e) contrast 3 + top 0.5", tune_dotted([("cloud.billow.contrast", 3.0), ("cloud.billow.top", 0.5)]), None),
-    "puff2": ("(e) contrast 3 + top 0.5 + light tap + sharpen 1", tune_dotted([("cloud.billow.contrast", 3.0), ("cloud.billow.top", 0.5), ("cloud.billow.light", 1.0),
-                                                                                  ("cloud.billow.sharpen", 1.0)]), None),
+    "puff1": ("(e) contrast 3 + top 0.5", tune_dotted([("cloud.bulge.contrast", 3.0), ("cloud.bulge.top", 0.5)]), None),
+    "puff2": ("(e) contrast 3 + top 0.5 + light tap + sharpen 1", tune_dotted([("cloud.bulge.contrast", 3.0), ("cloud.bulge.top", 0.5), ("cloud.bulge.light", 1.0),
+                                                                                  ("cloud.bulge.sharpen", 1.0)]), None),
 }
 
 

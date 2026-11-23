@@ -190,7 +190,7 @@ def gen_curl(n, seed=3):
 HEAP_FIRST_CELLS = 2
 HEAP_RADIUS = 0.9
 HEAP_SMOOTH = 0.15
-HEAP_HURST = (0.65, 0.45)          # preset 1 (billow: outline dimension 1.35), preset 2 (rough: 1.55)
+HEAP_HURST = (0.65, 0.45)          # preset 1 (bulge: outline dimension 1.35), preset 2 (rough: 1.55)
 HEAP_CAVITY_GAIN = 3.0
 HEAP_MIN_OCTAVE_VOXELS = 4
 

@@ -34,7 +34,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { 2 }, HeapModel.Octaves(8));
             CollectionAssert.AreEqual(new[] { 2 }, HeapModel.Octaves(2), "at least the first octave");
             Assert.AreEqual(0, HeapModel.PresetOf("none"));
-            Assert.AreEqual(1, HeapModel.PresetOf("Billow"));
+            Assert.AreEqual(1, HeapModel.PresetOf("Bulge"));
             Assert.AreEqual(2, HeapModel.PresetOf("rough"));
             Assert.AreEqual(0, HeapModel.PresetOf("nonsense"));
         }

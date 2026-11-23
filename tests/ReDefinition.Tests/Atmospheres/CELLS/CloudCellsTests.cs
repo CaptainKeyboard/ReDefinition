@@ -112,7 +112,7 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
             Assert.AreEqual(0.0, CloudCells.CellBody(Disc(1.5), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
             // At the centre, on the base, the depth is the shorter semi-axis (725 m) over a band of 10 m: fully inside.
             Assert.AreEqual(1.0, CloudCells.CellBody(Disc(0.0), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
-            // On the ellipsoid's surface (x at the visible radius, h 0) with the billow rank at its mean and no fine octaves: the depth is 0, the share half.
+            // On the ellipsoid's surface (x at the visible radius, h 0) with the bulge rank at its mean and no fine octaves: the depth is 0, the share half.
             Assert.AreEqual(0.5, CloudCells.CellBody(Disc(CloudCells.EdgeX), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
             // A rank above the mean moves the surface out: the same point is inside.
             Assert.IsTrue(CloudCells.CellBody(Disc(CloudCells.EdgeX), 0.0, 1.0, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0) > 0.5);

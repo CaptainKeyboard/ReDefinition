@@ -406,8 +406,8 @@ Shader "ReDefinition/AtmospheresLayers"
             float noiseAmount = fmod(floor(DEV(_CostP.y, 0.0) * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
             if (fmod(floor(DEV(_CostP.y, 0.0) * 0.25), 2.0) >= 0.5) erosion = 0;
             // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
-            erosion *= 1.0 + _BillowP.z * saturate(h);
-            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band). The body reads the billow noise itself through the
+            erosion *= 1.0 + _BulgeP.z * saturate(h);
+            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band). The body reads the bulge noise itself through the
             // same call (the threshold at the noise's mean, a unit edge, the full swing, no erosion: the share is the noise's rank), so the noise keeps ONE call site (CLOUDR2 P4).
             float covN = cov, edgeN = edge, amountN = noiseAmount, erosionN = erosion;
             if (body)
@@ -420,7 +420,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
             [branch] if (body)
             {
-                float2 fine = _CellE[li].z > 0.0 ? CellFineBillows(li, pc) : float2(0.0, 0.0);
+                float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
                 s = CellBody(li, h, s, fine, (tp - b) * (outer - inner));
                 // The field's distance in m is estimated from the gradient, not exact: the march does not leap over a body's shell on it.
                 if (fieldBody) gBodyRead = false;
@@ -598,10 +598,10 @@ Shader "ReDefinition/AtmospheresLayers"
                     // of that length would replace a body by the map's mean (CellCover) where the pixel still resolves it. The jittered grid and the history integrate along the ray.
                     if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
-                    // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's billows the body's depth changes by at most 1 per m, so no surface lies within that
+                    // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's bulges the body's depth changes by at most 1 per m, so no surface lies within that
                     // depth (CellShellGap) nor within the reach of a neighbour's body (gCellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
                     // jitter, which spreads the entry over the frames) is kept and the picture is the grid march's, only cheaper; the entry is then found as before. A sphere trace on the
-                    // billows' slope bound (about 55 m per m for a 1 km body) crept up to every cloud over hundreds of steps and ran out of its loop (the ceiling march lost 80 % of its cover).
+                    // bulges' slope bound (about 55 m per m for a 1 km body) crept up to every cloud over hundreds of steps and ran out of its loop (the ceiling march lost 80 % of its cover).
                     float traceGap = -1.0;
                     [branch] if (fmod(_CellE[li].w, 2.0) > 0.5 && gBodyRead && !(dens > 0))
                     {
@@ -612,12 +612,12 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
                     float2 typeLight = gTypeLight;
-                    float billowD = gNoiseD;
+                    float bulgeD = gNoiseD;
                     // CLOUDR1 P3: the heap volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
                     float cavity = 1.0;
                     [branch] if (gHeapCavK > 0.0) cavity = pow(max(gHeapCav, 0.02), 4.0 * gHeapCavK);
                     r.steps += 1;
-                    // A4 (cloud.cellShell): within the billows' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
+                    // A4 (cloud.cellShell): within the bulges' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
                     // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap
                     // above saves them elsewhere. A span takes at most as many fine steps as it has grid points (a grazing ray runs kilometres in a shell), then the grid takes over.
                     // The fine samples follow the jittered grid point they start from, so the entry still spreads over the frames.
@@ -732,10 +732,10 @@ Shader "ReDefinition/AtmospheresLayers"
                     src += dirPart * (typeLight.x - 1.0) + ambPart * (typeLight.y - 1.0);
                     dirPart *= typeLight.x;
                     ambPart *= typeLight.y;
-                    // PUFF (_BillowP.x): billow shading, a sample's direct light follows the erosion detail there (the bumps catch the light, the crevices between them are shaded).
-                    float billowShade = saturate(1.0 + _BillowP.x * 2.0 * (billowD - _NoiseS.w));
-                    src += dirPart * (billowShade - 1.0);
-                    dirPart *= billowShade;
+                    // PUFF (_BulgeP.x): bulge shading, a sample's direct light follows the erosion detail there (the bumps catch the light, the crevices between them are shaded).
+                    float bulgeShade = saturate(1.0 + _BulgeP.x * 2.0 * (bulgeD - _NoiseS.w));
+                    src += dirPart * (bulgeShade - 1.0);
+                    dirPart *= bulgeShade;
                     // The colour map's tint of the layer (P15; one when the layer has none).
                     // CLOUDR1 P3: the creases between lobes are lit less, by the direct light with its multiple scattering octaves and by the sky's fill (a factor, no extra light path).
                     src += (dirPart + ambPart) * (cavity - 1.0);

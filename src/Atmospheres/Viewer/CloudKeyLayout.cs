@@ -46,7 +46,7 @@ namespace ReDefinition.Atmospheres.Viewer
             { OwnCloudOptions.TuneAccumulate, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneReconResolution, new[] { 0.1f, 1f } },
             { OwnCloudModule.TuneWhitePoint, new[] { 0f, 1f } },
-            // The clamps of the readers (OwnCloudOptions.Apply, CloudLookTuning.Load and the billow getters, CloudCoverShift.Clean, EdgeSettings). layers.gridFine is the main quality lever: the reader
+            // The clamps of the readers (OwnCloudOptions.Apply, CloudLookTuning.Load and the bulge getters, CloudCoverShift.Clean, EdgeSettings). layers.gridFine is the main quality lever: the reader
             // clamps it to 0.25 to 8 (the march is capped at 256 points a span), the slider shows 0.25 to 4, which holds the stops 1 (48 points), 2 (96) and 2.6667 (128) and 4 (192).
             { OwnCloudOptions.TuneGridFine, new[] { 0.25f, 4f } },
             { OwnCloudOptions.TuneLightStride, new[] { 1f, 8f } },
@@ -73,9 +73,9 @@ namespace ReDefinition.Atmospheres.Viewer
             { CloudLookTuning.TuneFarHaze, new[] { -1f, 2f } },
             { CloudLookTuning.TuneCellLat, new[] { -90f, 90f } },
             { CloudLookTuning.TuneCellLon, new[] { -360f, 360f } },
-            { CloudLookTuning.TuneBillowLight, new[] { 0f, 8f } },
-            { CloudLookTuning.TuneBillowContrast, new[] { 0f, 8f } },
-            { CloudLookTuning.TuneBillowTop, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBulgeLight, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBulgeContrast, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBulgeTop, new[] { 0f, 8f } },
             { CloudLookTuning.TuneSoloLayer, new[] { 0f, (float)CloudLayerDef.MaxLayers } },
             { CloudCoverShift.TuneShift, new[] { -1f, 1f } },
             { CloudCoverShift.TuneShiftRain, new[] { -1f, 1f } }
@@ -86,8 +86,8 @@ namespace ReDefinition.Atmospheres.Viewer
             var map = new Dictionary<string, KeySection>(StringComparer.Ordinal);
             Put(map, KeySection.Shape,
                 CloudLookTuning.TuneSigma, CloudLookTuning.TuneNoiseSize,
-                CloudLookTuning.TuneBillowLight, CloudLookTuning.TuneBillowContrast, CloudLookTuning.TuneBillowTop, CloudLookTuning.TuneBillowFine,
-                CloudLookTuning.TuneBillowFineFreq,
+                CloudLookTuning.TuneBulgeLight, CloudLookTuning.TuneBulgeContrast, CloudLookTuning.TuneBulgeTop, CloudLookTuning.TuneBulgeFine,
+                CloudLookTuning.TuneBulgeFineFreq,
                 // M2c: the stratus undulations (variety undulatus: their amount and the wavelength in the layer's thickness).
                 OwnCloudOptions.TuneUndulatus, OwnCloudOptions.TuneUndulatusWavelengthShare);
             Put(map, KeySection.Edge,

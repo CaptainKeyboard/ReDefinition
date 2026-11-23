@@ -18,7 +18,7 @@ namespace ReDefinition.Atmospheres
         {
             "_PlanetCenter", "_CamPos", "_CamForward", "_CamRight", "_CamUp", "_MapDim", "_Sun", "_SunColor", "_AmbientTop", "_AmbientBottom", "_MarchP", "_StepP", "_LimitP",
             "_PhaseP", "_OutP", "_OutW", "_SkipP", "_SpacingP", "_ReuseP", "_LeapP", "_CostP", "_DitherP", "_UndulatusP", "_ReconP", "_ReconD", "_MarchTex_TexelSize",
-            "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BillowP", "_HeapP", "_BlendP", "_MapReachCov", "_MapReachType",
+            "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BulgeP", "_HeapP", "_BlendP", "_MapReachCov", "_MapReachType",
             "_LightP", "_LightQ", "_LightR", "_LightS", "_LightT", "_SunAir", "_LightU", "_LightV", "_LightW", "_LightX", "_CellA", "_CellB", "_CacheA", "_CacheX", "_CacheY", "_CacheZ", "_CacheH", "_CacheSlice",
             "_LvA", "_LvU", "_LvE", "_LvN", "_LvZ", "_LvC", "_LvF", "_LvSlice", "_LvP", "_LvD", "_LvR", "_LvS", "_LvBlur", "_LvBlurSigma",
             "_FarA", "_FarB", "_FarC", "_FarE", "_FarD", "_CullA", "_CullB", "_CullD", "_CullT", "_EdgeP", "_FieldP", "_CellK"

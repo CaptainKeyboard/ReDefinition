@@ -19,17 +19,17 @@ namespace ReDefinition.Atmospheres
         // between two lobes).
         internal const double DomeRadius = 0.9;
         internal const double SmoothWidth = 0.15;
-        // The Hurst exponent of the cascade of preset 1 (billow) and preset 2 (rough): octave k has the weight 2^(-H k), so the outline of a level set of the field has the
+        // The Hurst exponent of the cascade of preset 1 (bulge) and preset 2 (rough): octave k has the weight 2^(-H k), so the outline of a level set of the field has the
         // dimension 2 - H (1.35 and 1.55); the power spectrum of a slice falls as k^-(2 H + 2).
         internal static readonly double[] Hurst = { 0.65, 0.45 };
-        internal static readonly string[] PresetNames = { "none", "billow", "rough" };
+        internal static readonly string[] PresetNames = { "none", "bulge", "rough" };
         // The cavity channel: 1 - gain x max(blur - field, 0), the blur a box of (2 r + 1)^3 voxels with r = N / 32 (at least 1).
         internal const double CavityGain = 3.0;
         // The levels below this size (voxels per side) are box means of the level above; the levels above hold the octaves whose cell is at least MinOctaveVoxels wide there.
         internal const int AnalyticLevelMin = 8;
         internal const int PresetCount = 2;
 
-        // 0 (none) for an unknown name, 1 billow, 2 rough.
+        // 0 (none) for an unknown name, 1 bulge, 2 rough.
         internal static int PresetOf(string name)
         {
             if (string.IsNullOrEmpty(name)) return 0;
