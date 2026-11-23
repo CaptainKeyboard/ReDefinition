@@ -34,8 +34,9 @@ namespace ReDefinition.Atmospheres
     internal static class MapSkyRegions
     {
         internal const string TuneSheetRule = "cloud.weatherMapSky.sheetRule", TuneDepthRule = "cloud.weatherMapSky.depthRule";
-        // Defaults of the two open rules (neither decided by the owner): A and a.
-        internal const float SheetRuleDefault = 1f, DepthRuleDefault = 1f;
+        // Defaults of the two rules (owner 2026-11-23, after the pictures of PRUEFPROTOKOLL 105): the sheet rule B (2: by source, the deck map) and the depth rule b (2: the calibrated
+        // depth). The former defaults were A (1: a deck at the condensation level) and a (1: the field's depth).
+        internal const float SheetRuleDefault = 2f, DepthRuleDefault = 2f;
         internal const float SaturatedRh = WeatherMapSky.SaturatedRh;
         // The lattice's fair-sky edge (CloudCells.cginc CELL_ALIVE_F0): below this share only share / F0 of the cells hold a cloud.
         internal const float LatticeFairShare = 0.25f;
