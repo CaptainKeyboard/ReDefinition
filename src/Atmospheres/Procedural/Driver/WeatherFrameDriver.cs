@@ -14,6 +14,12 @@ namespace ReDefinition.Atmospheres
     {
         private readonly FrameComposer composer = new FrameComposer();
         private readonly LightWriter light = new LightWriter();
+
+        // The start parameter -atmoNoPrecipVeil: this run draws no precipitation veil (owner 2026-11-23: the cloud tests need a free view; the veil stays on in every run
+        // without it, as the weather fog with -atmoNoWeatherFog). Read once: the command line does not change while the game runs.
+        internal const string NoVeilArgument = "-atmoNoPrecipVeil";
+        internal static readonly bool NoVeilByArgument = CommandLine.Has(NoVeilArgument, true);
+        private bool loggedNoVeil;
         private bool broken;
         private int bodyIndex = -1;
         private double lastUt = double.NaN;
@@ -136,7 +142,12 @@ namespace ReDefinition.Atmospheres
             input.FreezingRain = Tuning.Flag("driver.freezingRain", false);
             float forced = AtmospheresSettings.ForceLevel;
             input.LevelOverride = forced >= 0f ? forced : -1f;
-            input.VeilScale = AtmospheresSettings.VeilStrength / 0.85f;
+            input.VeilScale = NoVeilByArgument ? 0f : AtmospheresSettings.VeilStrength / 0.85f;
+            if (NoVeilByArgument && !loggedNoVeil)
+            {
+                loggedNoVeil = true;
+                AtmospheresLog.Say("precipitation veil: off for this run (start parameter " + NoVeilArgument + ")");
+            }
             input.VisibilityTopScale = AtmospheresSettings.BlizzardVisibilityM / 60f;
             input.DarkeningScale = AtmospheresSettings.SkyDimming / 0.6f;
             input.TypeByTemperature = AtmospheresSettings.TypeByTemperature;
