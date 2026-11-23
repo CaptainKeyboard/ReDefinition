@@ -228,7 +228,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             var taste = new HashSet<string>(StringComparer.Ordinal)
             {
                 "yearLengthFactor", "seasonMode", "lightWeatherFrequency", "heavyShare", "windStrength", "gustStrength", "precipDensity",
-                "fogBrightness", "precipExtinctionStrength", "blizzardVisibilityM", "skyDimming", "lightInMediumStrength", "auroraAmbientTint",
+                "visibilityExtinctionBrightness", "precipExtinctionStrength", "blizzardVisibilityM", "skyDimming", "lightInMediumStrength", "auroraAmbientTint",
                 "weatherAudioVolume", "coverStrength", "coverDrift", "forecastUncertainty", "genSeed"
             };
             foreach (string key in TierRows.SetKeys) Assert.IsFalse(taste.Contains(key), key + " is taste");

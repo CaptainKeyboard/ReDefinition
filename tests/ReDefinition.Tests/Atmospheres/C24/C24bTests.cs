@@ -59,7 +59,7 @@ namespace ReDefinition.Tests.Atmospheres.C24
         public void TheQualityCostsAreOffAndTheFogIsOnByDefault()
         {
             var settings = new OwnSettings();
-            Assert.IsTrue(settings.RtWeatherFog);
+            Assert.IsTrue(settings.RtVisibilityExtinction);
             Assert.IsFalse(settings.RtWeatherReachCap, "a quality cost, off until the owner agrees");
             Assert.IsFalse(settings.RtWeatherFewerBounces, "a quality cost, off until the owner agrees");
         }

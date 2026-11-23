@@ -134,7 +134,7 @@ namespace ReDefinition.Atmospheres
                 { "precipAsh", "Draws falling ash." },
                 { "precipMethane", "Draws methane precipitation." },
                 { "stormCullDistance", "Leaves out terrain beyond what the storm's fog shows. Saves frame time in a blizzard." },
-                { "fogBrightness", "How bright the fog of the weather is." },
+                { "visibilityExtinctionBrightness", "How bright the haze of lost visibility in rain, snow, dust and fog is." },
                 { "precipExtinctionStrength", "How much heavy precipitation washes out the picture (the light the falling drops and flakes scatter and block)." },
                 { "blizzardVisibilityM", "How far one can see in the worst blizzard, in metres." },
                 { "skyDimming", "How much a storm darkens the sky." },

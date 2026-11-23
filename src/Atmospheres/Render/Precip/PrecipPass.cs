@@ -29,7 +29,7 @@ namespace ReDefinition.Atmospheres
         public int Seed;
         public Color ExtinctionGroundColour, ExtinctionSkyColour;
         public float SkyGreyStartDeg, SkyGreyFullDeg;
-        // The share of the storm grade, the extinction's luminance gain (fogBrightness), the dt for the luminance smoothing.
+        // The share of the storm grade, the extinction's luminance gain (visibilityExtinctionBrightness), the dt for the luminance smoothing.
         public float Grade, LumaGain, Dt;
         public PrecipTuning Tuning;
     }

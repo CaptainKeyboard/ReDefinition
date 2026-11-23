@@ -188,53 +188,53 @@ namespace ReDefinition.Tests.Atmospheres.C22
         }
 
         [TestMethod]
-        public void TheFogGustStaysWithinTwelvePercentAndThreeSeconds()
+        public void TheVisibilityGustStaysWithinTwelvePercentAndThreeSeconds()
         {
             float min = float.MaxValue, max = float.MinValue;
             for (double t = 0; t < 30; t += 0.05)
             {
-                float f = PrecipMath.FogFactor(t, 0.5f, 0.5f);
+                float f = PrecipMath.VisibilityGustFactor(t, 0.5f, 0.5f);
                 min = Math.Min(min, f);
                 max = Math.Max(max, f);
             }
             Assert.IsTrue(max <= 1.12001f && min >= 0.87999f, "amplitude is capped at 12 %: " + min + " .. " + max);
             // The period is held to 3 s: the factor at 0.75 s of a 3 s period is at its peak, whatever shorter period was asked.
-            Assert.AreEqual(1.12f, PrecipMath.FogFactor(0.75, 0.12f, 0.1f), 1e-4f);
-            Assert.AreEqual(1f, PrecipMath.FogFactor(100.0, 0f, 6f), 1e-6f);
+            Assert.AreEqual(1.12f, PrecipMath.VisibilityGustFactor(0.75, 0.12f, 0.1f), 1e-4f);
+            Assert.AreEqual(1f, PrecipMath.VisibilityGustFactor(100.0, 0f, 6f), 1e-6f);
         }
 
         [TestMethod]
-        public void TheFogRampNeverMovesFasterThanThreeHertzOfTwelvePercent()
+        public void TheVisibilityExtinctionRampNeverMovesFasterThanThreeHertzOfTwelvePercent()
         {
-            float slew = PrecipMath.FogSlewPerS(3f);
+            float slew = PrecipMath.VisibilitySlewPerS(3f);
             Assert.AreEqual(2f * (float)Math.PI * 3f * 0.12f, slew, 1e-5f);
             float density = 0.001f;
             float worst = 0f;
             for (int i = 0; i < 600; i++)
             {
-                float next = PrecipMath.FogStep(density, 0.004f, 3f, 1f / 60f);
+                float next = PrecipMath.VisibilityStep(density, 0.004f, 3f, 1f / 60f);
                 worst = Math.Max(worst, (next - density) / Math.Max(Math.Max(density, 0.004f), 1e-6f) * 60f);
                 density = next;
             }
             Assert.IsTrue(worst <= slew + 1e-3f, "relative rate " + worst + " is over " + slew);
             Assert.AreEqual(0.004f, density, 1e-6f, "it arrives");
             // A 6 s swing of 12 % passes through the ramp unchanged.
-            var ramp = new FogRamp();
+            var ramp = new VisibilityExtinctionRamp();
             double sumErr = 0;
             ramp.Step(0.002f, 1f, 1f, 1f, 1f, 0.12f, 6f, 3f, 1f, 0f);
             for (int i = 1; i < 720; i++)
             {
                 ramp.Step(0.002f, 1f, 1f, 1f, 1f, 0.12f, 6f, 3f, 1f, 1f / 60f);
-                float want = 0.002f * PrecipMath.FogFactor(i / 60.0, 0.12f, 6f);
+                float want = 0.002f * PrecipMath.VisibilityGustFactor(i / 60.0, 0.12f, 6f);
                 sumErr = Math.Max(sumErr, Math.Abs(ramp.Density - want) / want);
             }
             Assert.IsTrue(sumErr < 0.01, "the ramp follows a slow swing: " + sumErr);
         }
 
         [TestMethod]
-        public void TheFogRampTakesTheFirstTargetAtOnceAndScalesTheColour()
+        public void TheVisibilityExtinctionRampTakesTheFirstTargetAtOnceAndScalesTheColour()
         {
-            var ramp = new FogRamp();
+            var ramp = new VisibilityExtinctionRamp();
             ramp.Step(0.003f, 0.8f, 0.6f, 0.4f, 0f, 0f, 6f, 3f, 0.5f, 0.016f);
             Assert.AreEqual(0.003f, ramp.Density, 1e-7f);
             Assert.AreEqual(0.4f, ramp.R, 1e-6f);

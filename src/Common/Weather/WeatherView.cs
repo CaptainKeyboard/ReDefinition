@@ -17,7 +17,7 @@ namespace ReDefinition.Core
         public float Opacity;
     }
 
-    // The weather at the camera for this frame, as the frame driver of the atmospheres wrote it: what the fog, the light, the precipitation extinction, the
+    // The weather at the camera for this frame, as the frame driver of the atmospheres wrote it: what the visibility extinction, the light, the precipitation extinction, the
     // flakes and the wind do now. The class is sealed and its fields are mutated in place, so a read allocates nothing and a field
     // added later leaves older readers working.
     //
@@ -47,10 +47,10 @@ namespace ReDefinition.Core
 
         // --- The air at the camera ---
         public float VisibilityM = WeatherSample.ClearVisibilityM;
-        // The exponent-squared fog density the driver wrote into RenderSettings, so that a reader can reproduce it.
-        public float FogDensity;
+        // The visibility extinction as the exponent-squared fog density the driver wrote into RenderSettings, so that a reader can reproduce it.
+        public float VisibilityExtinctionDensity;
         // Linear colour.
-        public Color FogColour = Color.white;
+        public Color VisibilityExtinctionColour = Color.white;
         // The share of the sun's direct light that arrives ALONG the current sun ray at the camera, 0 to 1. The frame driver writes it
         // from SunTransmission.From; raytracing, solar panels and the sky read only this.
         public float SunTransmission = 1f;
@@ -124,7 +124,7 @@ namespace ReDefinition.Core
             Level = 0f;
             Band = PrecipBand.None;
             VisibilityM = WeatherSample.ClearVisibilityM;
-            FogDensity = 0f;
+            VisibilityExtinctionDensity = 0f;
             SunTransmission = 1f;
             SkyDimming = 0f;
             AmbientFactor = 1f;

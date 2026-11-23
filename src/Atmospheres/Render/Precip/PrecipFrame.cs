@@ -11,7 +11,7 @@ namespace ReDefinition.Atmospheres
     {
         // The most flakes one layer holds (before the player's density).
         public float MaxPerLayer;
-        // The share of the visibility's extinction the flakes carry (the rest is the fog).
+        // The share of the visibility's extinction the flakes carry (the rest is the scene fog of the visibility extinction).
         public float Fill;
         // The size floor in pixels at 1080 lines.
         public float FloorPx;
@@ -21,8 +21,8 @@ namespace ReDefinition.Atmospheres
         public float EdgeShare;
         // How hard the gust swings the factor (1 = the depth of WindNoise).
         public float GustScale;
-        // The fog's highest rate of change in hertz, the swing of its gust and the period of it.
-        public float FogHz, FogGustAmp, FogGustPeriodS;
+        // The visibility extinction's highest rate of change in hertz, the swing of its gust and the period of it.
+        public float VisibilityHz, VisibilityGustAmp, VisibilityGustPeriodS;
         // The total of billboards over the layers.
         public float MaxTotal;
         // The most splashes, the range they appear in (m) and the highest ground distance (m) at which they are drawn.
@@ -31,7 +31,7 @@ namespace ReDefinition.Atmospheres
         public float HostFlakeGain;
         // The extinction colour: the lowest luminance relative colour, and the time the luminance of the image is smoothed over.
         public float ExtinctionLumaFloor, LumaTauS;
-        // The share of the image luminance the extinction takes (before fogBrightness).
+        // The share of the image luminance the extinction takes (before visibilityExtinctionBrightness).
         public float ExtinctionLumaGain;
 
         internal static PrecipTuning Defaults()
@@ -39,7 +39,7 @@ namespace ReDefinition.Atmospheres
             return new PrecipTuning
             {
                 MaxPerLayer = 8000f, Fill = 0.35f, FloorPx = PrecipMath.SizeFloorPx1080, SceneMinContrast = 0.45f, HostMinContrast = 0.85f,
-                EdgeShare = 0.12f, GustScale = 1f, FogHz = 3f, FogGustAmp = 0.1f, FogGustPeriodS = 6f, MaxTotal = 20000f, SplashMax = 1500f,
+                EdgeShare = 0.12f, GustScale = 1f, VisibilityHz = 3f, VisibilityGustAmp = 0.1f, VisibilityGustPeriodS = 6f, MaxTotal = 20000f, SplashMax = 1500f,
                 SplashRangeM = 40f, SplashMaxGroundM = 200f, HostFlakeGain = 1f, ExtinctionLumaFloor = 0.02f, LumaTauS = 0.5f, ExtinctionLumaGain = 1f
             };
         }

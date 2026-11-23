@@ -163,7 +163,7 @@ namespace ReDefinition.Atmospheres
                     {
                         SetSetting(AtmospheresSettings.Keys.SkyDimming, 0.0);
                         SetSetting(AtmospheresSettings.Keys.PrecipDensity, 0.0);
-                        SetSetting(AtmospheresSettings.Keys.FogBrightness, 0.0);
+                        SetSetting(AtmospheresSettings.Keys.VisibilityExtinctionBrightness, 0.0);
                     }
                     break;
                 case "recon2":

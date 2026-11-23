@@ -151,7 +151,7 @@ namespace ReDefinition.Tests
                 "weatherEffects", "seasonMode", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
                 "eveLayerCap", "windSource", "windInjection", "windForces", "windStrength", "windOnLanded", "gustStrength", "windShear", "layerWindSteering", "verticalMotion", "anvilTilt", "solarDimming", "solarDimmingStrength",
                 "visibilityExport", "genEnabled", "simGrid", "simLevels", "simSliceMs", "genSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
-                "stormCullDistance", "fogBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
+                "stormCullDistance", "visibilityExtinctionBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
                 "weatherAudio", "weatherAudioVolume", "audioWind", "audioPrecip", "audioFootsteps", "audioFootstepsSurface", "audioDistantStorm", "audioQuietSnow",
                 "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "vehicleCoverMethod", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
                 "iceCollision", "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp", "alertScreenMessage", "forecastOverlay",

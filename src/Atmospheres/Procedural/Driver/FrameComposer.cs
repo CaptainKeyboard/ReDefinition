@@ -35,7 +35,7 @@ namespace ReDefinition.Atmospheres
         // The vertical optical depth of the cloud over the camera (the field's, or the host's WeatherHooks.CloudOpticalDepth).
         public float OpticalDepth;
         // The colours of the body's look (linear).
-        public Color FogColour, PrecipExtinctionGroundColour, PrecipExtinctionSkyColour;
+        public Color VisibilityExtinctionColour, PrecipExtinctionGroundColour, PrecipExtinctionSkyColour;
         // Whether the shower pulse is on; whether the freezing-rain flag is allowed.
         public bool ShowerPulse;
         public bool FreezingRain;
@@ -58,7 +58,7 @@ namespace ReDefinition.Atmospheres
             input.LevelOverride = -1f;
             input.BodyName = "";
             input.CloudLayerName = "";
-            input.FogColour = new Color(0.78f, 0.80f, 0.84f, 1f);
+            input.VisibilityExtinctionColour = new Color(0.78f, 0.80f, 0.84f, 1f);
             input.PrecipExtinctionGroundColour = new Color(0.86f, 0.88f, 0.92f, 1f);
             input.PrecipExtinctionSkyColour = new Color(0.70f, 0.73f, 0.78f, 1f);
             input.CentreC = PrecipTypeModel.DefaultCentreC;
@@ -78,8 +78,8 @@ namespace ReDefinition.Atmospheres
     // Stale reads: a reader in Update sees the previous frame's view; a view older than two frames is "no weather" (WeatherView.IsStale).
     internal sealed class FrameComposer
     {
-        // The fog is a share of the sun's brightness: 0.12 at night to 1 by day.
-        internal const float NightFogFloor = 0.12f;
+        // The colour of the visibility extinction is a share of the sun's brightness: 0.12 at night to 1 by day.
+        internal const float NightVisibilityExtinctionFloor = 0.12f;
 
         private bool started;
         private float level;
@@ -88,7 +88,7 @@ namespace ReDefinition.Atmospheres
         private float windSpeed;
         private float flakeDirection;
         private TypeMix mix;
-        private float lastFogDensity;
+        private float lastExtinctionDensity;
         private bool lastFreezing;
         private long layersBuiltFor = -1;
         private readonly FlakeLayer[] layerTemplate = new FlakeLayer[3];
@@ -135,13 +135,13 @@ namespace ReDefinition.Atmospheres
             return t * t * (3f - 2f * t);
         }
 
-        // The brightness of the fog from the sun's elevation: grey-white by day, dark by night.
-        internal static float FogBrightness(float sunElevationRad)
+        // The brightness of the visibility extinction's colour from the sun's elevation: grey-white by day, dark by night.
+        internal static float VisibilityExtinctionBrightness(float sunElevationRad)
         {
             float sin = (float)Math.Sin(sunElevationRad);
             float t = (sin + 0.1f) / 0.4f;
             t = t < 0f ? 0f : t > 1f ? 1f : t;
-            return NightFogFloor + (1f - NightFogFloor) * t * t * (3f - 2f * t);
+            return NightVisibilityExtinctionFloor + (1f - NightVisibilityExtinctionFloor) * t * t * (3f - 2f * t);
         }
 
         // Writes the view for this frame.
@@ -222,15 +222,15 @@ namespace ReDefinition.Atmospheres
 
             // The air: the visibility is the smaller of the table's and the field's, and it moves at most a quarter of itself per second.
             // A forced level (the viewer's and the probes' forceLevel) is the whole precipitation of the frame: the field's own visibility, which follows the field's level at the place,
-            // would hold a fog under a forced clear sky.
-            // driver.forcedLevelOwnsFog 0 keeps the field's visibility under a forced level (the behaviour before this rule, for the comparison).
-            bool forcedOwns = input.LevelOverride >= 0f && Tuning.Flag("driver.forcedLevelOwnsFog", true);
+            // would hold a visibility extinction under a forced clear sky.
+            // driver.forcedLevelOwnsVisibility 0 keeps the field's visibility under a forced level (the behaviour before this rule, for the comparison).
+            bool forcedOwns = input.LevelOverride >= 0f && Tuning.Flag("driver.forcedLevelOwnsVisibility", true);
             float fieldVisibility = forcedOwns || !(input.Sample.VisibilityM > 0f) ? PrecipitationLook.ClearVisibilityM : input.Sample.VisibilityM;
             float visTarget = Math.Min(look.VisibilityM, fieldVisibility);
             visibility = jump ? visTarget : WindNoise.LimitVisibility(visibility, visTarget, input.DtReal);
-            float fogDensity = visibility >= PrecipitationLook.ClearVisibilityM ? 0f : PrecipitationLook.FogDensity(visibility);
-            float brightness = FogBrightness(input.SunElevationRad);
-            var fogColour = new Color(input.FogColour.r * brightness, input.FogColour.g * brightness, input.FogColour.b * brightness, 1f);
+            float extinctionDensity = visibility >= PrecipitationLook.ClearVisibilityM ? 0f : PrecipitationLook.VisibilityExtinctionDensity(visibility);
+            float brightness = VisibilityExtinctionBrightness(input.SunElevationRad);
+            var extinctionColour = new Color(input.VisibilityExtinctionColour.r * brightness, input.VisibilityExtinctionColour.g * brightness, input.VisibilityExtinctionColour.b * brightness, 1f);
 
             float sunTransmission = ReDefinition.Core.SunTransmission.From(input.OpticalDepth, input.SunElevationRad);
 
@@ -245,8 +245,8 @@ namespace ReDefinition.Atmospheres
             if (!ReferenceEquals(view.BodyName, input.BodyName)) view.BodyName = input.BodyName ?? "";
 
             moved |= Set(ref view.VisibilityM, visibility);
-            moved |= Set(ref view.FogDensity, fogDensity);
-            moved |= SetColour(ref view.FogColour, fogColour);
+            moved |= Set(ref view.VisibilityExtinctionDensity, extinctionDensity);
+            moved |= SetColour(ref view.VisibilityExtinctionColour, extinctionColour);
             moved |= Set(ref view.SunTransmission, sunTransmission);
             float skyShare = falling ? look.SkyGreyShare : 0f;
             moved |= Set(ref view.SkyDimming, skyShare);
@@ -291,7 +291,7 @@ namespace ReDefinition.Atmospheres
                 moved = true;
             }
             view.Readiness = input.Sample.Readiness;
-            lastFogDensity = fogDensity;
+            lastExtinctionDensity = extinctionDensity;
             view.Publish(input.FrameCount, moved);
         }
 
@@ -307,10 +307,10 @@ namespace ReDefinition.Atmospheres
             get { return flakeDirection; }
         }
 
-        // The fog density of the last frame.
-        internal float FogDensity
+        // The visibility extinction density (Unity's exp2 fog density) of the last frame.
+        internal float VisibilityExtinctionDensity
         {
-            get { return lastFogDensity; }
+            get { return lastExtinctionDensity; }
         }
 
         // The three flake layers of the view: widths, shares and sizes from the table (tuning keys flake.<layer>.*), sizes by the level's

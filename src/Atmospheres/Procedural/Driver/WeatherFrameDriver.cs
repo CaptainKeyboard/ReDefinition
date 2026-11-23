@@ -16,7 +16,7 @@ namespace ReDefinition.Atmospheres
         private readonly LightWriter light = new LightWriter();
 
         // The start parameter -atmoNoPrecipExtinction: this run draws no precipitation extinction (owner 2026-11-23: the cloud tests need a free view; the extinction stays on in every run
-        // without it, as the weather fog with -atmoNoWeatherFog). Read once: the command line does not change while the game runs.
+        // without it, as the visibility extinction with -atmoNoVisibilityExtinction). Read once: the command line does not change while the game runs.
         internal const string NoPrecipExtinctionArgument = "-atmoNoPrecipExtinction";
         internal static readonly bool NoPrecipExtinctionByArgument = CommandLine.Has(NoPrecipExtinctionArgument, true);
         private bool loggedNoPrecipExtinction;
@@ -135,7 +135,7 @@ namespace ReDefinition.Atmospheres
             input.CloudMapsVersion = CloudMapsState.Version;
             input.CloudLayerName = CloudMapsState.LayerName;
             input.OpticalDepth = CloudDepthRule.Resolve(WeatherHooks.CloudOpticalDepth, lat, lon, alt, ut, sample.OpticalDepthVertical);
-            input.FogColour = climate.Look.FogColour;
+            input.VisibilityExtinctionColour = climate.Look.VisibilityExtinctionColour;
             input.PrecipExtinctionGroundColour = climate.Look.PrecipExtinctionGroundColour;
             input.PrecipExtinctionSkyColour = climate.Look.PrecipExtinctionSkyColour;
             input.ShowerPulse = Tuning.Flag("driver.showerPulse", true);

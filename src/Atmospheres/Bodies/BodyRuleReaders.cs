@@ -416,7 +416,7 @@ namespace ReDefinition.Atmospheres
 
         internal static LookRules Look(BodyNodeReader r)
         {
-            return new LookRules(r.Colour("fogColour"), r.Float("visibilityMinM", 60f, 1f, 100000f), r.Colour("precipExtinctionGroundColour"), r.Colour("precipExtinctionSkyColour"),
+            return new LookRules(r.Colour("visibilityExtinctionColour"), r.Float("visibilityMinM", 60f, 1f, 100000f), r.Colour("precipExtinctionGroundColour"), r.Colour("precipExtinctionSkyColour"),
                 r.Colour("flakeColour"));
         }
 

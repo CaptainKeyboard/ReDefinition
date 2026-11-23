@@ -110,8 +110,8 @@ namespace ReDefinition.Atmospheres
         //   precip.splashMax 1500 (0-4000)   precip.splashRangeM 40 (10-100)   precip.splashMaxGroundM 200 (50-500)
         //   precip.extinctionLumaFloor 0.02 (0-0.1)   precip.lumaTauS 0.5 (0.2-2)   precip.extinctionLumaGain 1 (0.5-1.5)
         //   precip.grade 0.55 (0-1)   flags precip.depthFlipY false, precip.hostProven.<nvidia|amd|intel|other> false
-        //   fog.gustAmp 0.1 (0-0.12)   fog.gustPeriodS 6 (3-20)   fog.hertz 3 (0.5-3)
-        // The ranges are the tuning ranges proposed here, not enforced; fog.gustAmp and fog.hertz are capped by FogRamp (12 %, 3 Hz).
+        //   visibility.gustAmp 0.1 (0-0.12)   visibility.gustPeriodS 6 (3-20)   visibility.hertz 3 (0.5-3)
+        // The ranges are the tuning ranges proposed here, not enforced; visibility.gustAmp and visibility.hertz are capped by VisibilityExtinctionRamp (12 %, 3 Hz).
         internal static PrecipTuning ReadTuning()
         {
             PrecipTuning t = PrecipTuning.Defaults();
@@ -273,7 +273,7 @@ namespace ReDefinition.Atmospheres
             };
             PrecipLookParams.Compute(ref input, ref tuning, state, out frame);
 
-            // Fog gust is the fog writer's; the renderer reports the gust it used.
+            // The visibility gust is the visibility extinction writer's; the renderer reports the gust it used.
             haveFrame = frame.Draw;
             Drawing = frame.Draw;
             LastTotalCount = frame.TotalCount;
@@ -297,7 +297,7 @@ namespace ReDefinition.Atmospheres
                 SkyGreyStartDeg = view.SkyGreyStart,
                 SkyGreyFullDeg = Mathf.Max(view.SkyGreyFull, view.SkyGreyStart + 1f),
                 Grade = Tuning.Get("precip.grade", 0.55f),
-                LumaGain = AtmospheresSettings.FogBrightness,
+                LumaGain = AtmospheresSettings.VisibilityExtinctionBrightness,
                 Dt = dt,
                 DepthFlipY = Tuning.Flag("precip.depthFlipY", false),
                 Tuning = tuning

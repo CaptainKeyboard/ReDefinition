@@ -253,7 +253,7 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 | `precipAsh` | on | on / off | Draw Ash | needs-precipitation | - |
 | `precipMethane` | on | on / off | Draw Methane | needs-precipitation | - |
 | `stormCullDistance` | off | on / off | Cull Distant Terrain In Storms | needs-weather-effects | precipitation |
-| `fogBrightness` | 1 | 0.25 to 2 | Fog Brightness | needs-weather-effects | - |
+| `visibilityExtinctionBrightness` | 1 | 0.25 to 2 | Visibility Extinction Brightness | needs-weather-effects | - |
 | `precipExtinctionStrength` | 0.85 | 0 to 0.95 | Precipitation Extinction | needs-weather-effects | - |
 | `blizzardVisibilityM` | 60 | 20 to 500 | Blizzard Visibility | needs-weather-effects | - |
 | `skyDimming` | 0.6 | 0 to 1 | Sky Darkening | needs-weather-effects | - |

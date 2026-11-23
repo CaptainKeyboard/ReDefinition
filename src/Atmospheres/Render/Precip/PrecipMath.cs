@@ -28,14 +28,14 @@ namespace ReDefinition.Atmospheres
         internal const float KoschmiederNumerator = 3.912f;
 
         // What a gust may change, and how fast. Gust factor: 25 % of the factor a second; direction: at most 12 degrees off the wind,
-        // turning 30 degrees a second; the extinction gains 0.03 per 0.1 of gust; the fog density moves at most 12 % with a period of 3
+        // turning 30 degrees a second; the extinction gains 0.03 per 0.1 of gust; the visibility extinction density moves at most 12 % with a period of 3
         // seconds or longer.
         internal const float GustSlewPerS = 0.25f;
         internal const float GustDirectionMaxDeg = 12f;
         internal const float GustDirectionRateDegPerS = 30f;
         internal const float ExtinctionAlphaPerGust = 0.3f;
-        internal const float FogAmplitudeMax = 0.12f;
-        internal const float FogPeriodMinS = 3f;
+        internal const float VisibilityGustAmplitudeMax = 0.12f;
+        internal const float VisibilityPeriodMinS = 3f;
 
         // --- The hash ---
 
@@ -218,27 +218,27 @@ namespace ReDefinition.Atmospheres
             return Math.Max(gustFactor - 1f, 0f) * ExtinctionAlphaPerGust;
         }
 
-        // The fog density factor at a time: 1 + amplitude x sin(2 pi t / period), the amplitude at most 12 % and the period at least 3
+        // The visibility extinction density factor at a time: 1 + amplitude x sin(2 pi t / period), the amplitude at most 12 % and the period at least 3
         // seconds, however the caller asks.
-        internal static float FogFactor(double seconds, float amplitude, float periodS)
+        internal static float VisibilityGustFactor(double seconds, float amplitude, float periodS)
         {
-            float a = Math.Min(Math.Max(amplitude, 0f), FogAmplitudeMax);
-            float p = Math.Max(periodS, FogPeriodMinS);
+            float a = Math.Min(Math.Max(amplitude, 0f), VisibilityGustAmplitudeMax);
+            float p = Math.Max(periodS, VisibilityPeriodMinS);
             return 1f + a * (float)Math.Sin(2.0 * Math.PI * (seconds % p) / p);
         }
 
-        // The fastest the written fog density may change, as a share of its value per second: the slope of a 12 % swing at 3 Hz.
-        internal static float FogSlewPerS(float hertz)
+        // The fastest the written visibility extinction density may change, as a share of its value per second: the slope of a 12 % swing at 3 Hz.
+        internal static float VisibilitySlewPerS(float hertz)
         {
-            return 2f * (float)Math.PI * Math.Max(hertz, 0f) * FogAmplitudeMax;
+            return 2f * (float)Math.PI * Math.Max(hertz, 0f) * VisibilityGustAmplitudeMax;
         }
 
-        // The fog density one step on towards a target by at most FogSlewPerS (relative to the larger of the two, so a start from
+        // The visibility extinction density one step on towards a target by at most VisibilitySlewPerS (relative to the larger of the two, so a start from
         // zero still moves).
-        internal static float FogStep(float previous, float target, float hertz, float dt)
+        internal static float VisibilityStep(float previous, float target, float hertz, float dt)
         {
             float reference = Math.Max(Math.Max(previous, target), 1e-6f);
-            return Slew(previous, target, FogSlewPerS(hertz) * reference, dt);
+            return Slew(previous, target, VisibilitySlewPerS(hertz) * reference, dt);
         }
     }
 }

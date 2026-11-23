@@ -130,7 +130,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The fog density of Unity's ExponentialSquared fog that leaves 5 % of the contrast at that visibility: sqrt(3) / visibility.
-        internal static float FogDensity(float visibilityM)
+        internal static float VisibilityExtinctionDensity(float visibilityM)
         {
             return 1.7320508f / Math.Max(visibilityM, 1f);
         }
