@@ -224,7 +224,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(humilis.Matches("Kerbin-cumulus", "Cumulus humilis") && !humilis.Matches("Kerbin-cumulus", "Cumulus congestus") && !humilis.Matches("Kerbin-cumulonimbus", "Cumulus humilis"));
             Assert.IsTrue(congestus.Matches("Kerbin-cumulus", "Cumulus congestus"));
             Assert.IsTrue(cb.Matches("Kerbin-cumulonimbus", "Cumulonimbus calvus") && cb.Matches("Kerbin-cumulonimbus", "Cumulonimbus incus") && !cb.Matches("Kerbin-cumulus", "Cumulonimbus incus"));
-            Assert.IsFalse(cb.Matches("Kerbin-cumulonimbus", "Cumulonimbus anvil"), "the cumulonimbus view centres on a tower, not on its anvil sheet");
+            Assert.IsFalse(cb.Matches("Kerbin-cumulonimbus", "Incus"), "the cumulonimbus view centres on a tower, not on its incus (the anvil sheet)");
             // E40 CB: the cumulonimbus views see the whole cell: from the ground 25 to 40 km away, the tower's 11 km top inside a 60 degree picture; from above at least 20 km up.
             T09Probe.Soft60Pose cbGround = T09Probe.Soft60PoseFor(cb, false, new T09Probe.Soft60Cell { LatDeg = Soft60SiteLat, LonDeg = Soft60SiteLon + 1.0, DistKm = 100.0 }, Soft60SiteLat, Soft60SiteLon, Soft60Radius, 0.0);
             Assert.IsTrue(cbGround.ReachKm >= 25.0 && cbGround.ReachKm <= 40.0, "ground reach " + cbGround.ReachKm);

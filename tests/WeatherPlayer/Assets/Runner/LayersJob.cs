@@ -21,7 +21,7 @@ namespace ReDefinition.WeatherPlayer
         public float[] profile;
         // The soft water content's numbers of the type and its light response by height (E40; the cfg keys of the same names): the defaults are the type's own.
         public float baseGain = 0.3f, riseShare = 0.5f, densityScale = 1f;
-        public float baseLight = 1f, headLight = 1f, baseAmbient = 1f, headAmbient = 1f;
+        public float baseLight = 1f, topLight = 1f, baseAmbient = 1f, topAmbient = 1f;
         // The type's height-shaped threshold (E40 L2 D1; the cfg node LIFT) sampled evenly over the type's height, at least two values; none: no lift.
         public float[] lift;
         // The cfg's own keys of PROFILE and LIFT (height, value; empty: none): where given, the curves are built from them as the game builds them (BodyRuleReaders.ProfileCurve),

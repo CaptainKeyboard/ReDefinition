@@ -196,8 +196,8 @@ def shipped_types():
 
             h = share * thick_layer
             tau = sigma * h * float(np.mean([profile((i + 0.5) / 128.0) for i in range(128)]))
-            out.append((e40o.val(layer, "name"), e40o.val(t, "name"), tau, h, sigma, profile, float(e40o.val(t, "baseLight", 1.0)), float(e40o.val(t, "headLight", 1.0)),
-                        float(e40o.val(t, "baseAmbient", 1.0)) * float(e40o.val(layer, "lightAmbient", 1.0)), float(e40o.val(t, "headAmbient", 1.0)) * float(e40o.val(layer, "lightAmbient", 1.0))))
+            out.append((e40o.val(layer, "name"), e40o.val(t, "name"), tau, h, sigma, profile, float(e40o.val(t, "baseLight", 1.0)), float(e40o.val(t, "topLight", 1.0)),
+                        float(e40o.val(t, "baseAmbient", 1.0)) * float(e40o.val(layer, "lightAmbient", 1.0)), float(e40o.val(t, "topAmbient", 1.0)) * float(e40o.val(layer, "lightAmbient", 1.0))))
     return out
 
 

@@ -104,7 +104,7 @@ LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "l
                "cellBulge", "cellBand", "cellFine")
 # E40TY_NOSMOOTH=1: the same pictures without the shape smoothing and the top-from-updraft numbers of the layers (the "before" of E40 L6 shape on the same player), under the tag given.
 NOSMOOTH = os.environ.get("E40TY_NOSMOOTH") == "1"
-TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose", "outflow")
+TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "topLight", "baseAmbient", "topAmbient", "shapeSmoothing", "topClose", "outflow")
 
 
 def lift_samples(type_node):
@@ -194,7 +194,7 @@ def job_layer(spec, extras, layers_by_name):
         east, north = WIND_EN[spec[1]]
         jl["wind"] = [-math.sin(lon) * east, math.cos(lon) * east, north]
     for t in jl["types"]:
-        t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")
+        t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "topLight", "baseAmbient", "topAmbient")) and not (NOSHAPE and k == "lift")
                   and not (NOSMOOTH and k == "shapeSmoothing")})
     return jl
 
@@ -278,7 +278,7 @@ def cb_jobs(layers_by_name, extras):
             jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("fibreStretch", "verticalScale"))
                        and not (NOSMOOTH and k in ("shapeSmoothing", "topReach"))})
             for t in jl["types"]:
-                t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")
+                t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "topLight", "baseAmbient", "topAmbient")) and not (NOSHAPE and k == "lift")
                           and not (NOSMOOTH and k == "shapeSmoothing")})
             cam = cb_camera(view, SIZE)
             jobs.append(lay.job(jid(key, view), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=CB_MAP[0], mapHeight=CB_MAP[1],

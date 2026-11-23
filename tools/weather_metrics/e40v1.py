@@ -142,9 +142,9 @@ def job_layers(scene, variant):
                 for t in jl["types"]:
                     t["erosion"] = min(t["erosion"] * v["erosion"], 0.95)
             if "light" in v:
-                # the direct light of every cumulus type scaled (the types' baseLight / headLight: the direct part of the source at the base and at the head of the cloud)
+                # the direct light of every cumulus type scaled (the types' baseLight / topLight: the direct part of the source at the base and at the head of the cloud)
                 for t in jl["types"]:
-                    for key in ("baseLight", "headLight"):
+                    for key in ("baseLight", "topLight"):
                         t[key] = t.get(key, 1.0) * v["light"]
         out.append(jl)
     return out

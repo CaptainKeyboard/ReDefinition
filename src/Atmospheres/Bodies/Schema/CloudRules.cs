@@ -51,13 +51,13 @@ namespace ReDefinition.Atmospheres
         internal float RiseShare { get; set; } = 0.5f;
         internal float DensityScale { get; set; } = 1f;
 
-        // The type's light response by height (E40 B3; cfg keys baseLight, headLight, baseAmbient, headAmbient): factors on the direct light and on the sky's fill at the type's base
+        // The type's light response by height (E40 B3; cfg keys baseLight, topLight, baseAmbient, topAmbient): factors on the direct light and on the sky's fill at the type's base
         // and at its top, smoothly between (1: the global fit). A cumulus gets a shaded flat base and bright hard-lit heads, a stratus a flat dark base. Baked into the type's
         // tabulated profile texture (channels g and b, LayerTypeTable.LightAt), read by the layer shader at the sample.
         internal float BaseLight { get; set; } = 1f;
-        internal float HeadLight { get; set; } = 1f;
+        internal float TopLight { get; set; } = 1f;
         internal float BaseAmbient { get; set; } = 1f;
-        internal float HeadAmbient { get; set; } = 1f;
+        internal float TopAmbient { get; set; } = 1f;
 
         // The type's height-shaped threshold (E40 L2 D1; cfg node LIFT { key0 = height lift, ... }, null: none): at the height h of the type (0 base, 1 top) the coverage threshold is lifted by
         // lift(h) in units of the layer's headroom (LayerTypeTable.LiftHeadroom: 1 lowers the map so far that no noise value passes even at map 1), so the cloud's outline is narrower there
@@ -117,8 +117,8 @@ namespace ReDefinition.Atmospheres
         {
             double x = h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h;
             double s = x * x * (3.0 - 2.0 * x);
-            direct = BaseLight + (HeadLight - BaseLight) * s;
-            ambient = BaseAmbient + (HeadAmbient - BaseAmbient) * s;
+            direct = BaseLight + (TopLight - BaseLight) * s;
+            ambient = BaseAmbient + (TopAmbient - BaseAmbient) * s;
         }
 
         // The factor the type's profile is multiplied by at a height share h of the type (0 base, 1 top): its density scale, with the rise by height where the soft density is on.

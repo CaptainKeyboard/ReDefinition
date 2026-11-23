@@ -19,13 +19,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return new CloudClimateSpec { Weight = 1f, Latitude = latitude, Surface = surface, Humidity = humidity, Precipitation = precipitation };
         }
 
-        // The type's light response by height (cfg keys baseLight, headLight, baseAmbient, headAmbient).
-        private static void Light(CloudTypeDef t, float baseLight, float headLight, float baseAmbient, float headAmbient)
+        // The type's light response by height (cfg keys baseLight, topLight, baseAmbient, topAmbient).
+        private static void Light(CloudTypeDef t, float baseLight, float topLight, float baseAmbient, float topAmbient)
         {
             t.BaseLight = baseLight;
-            t.HeadLight = headLight;
+            t.TopLight = topLight;
             t.BaseAmbient = baseAmbient;
-            t.HeadAmbient = headAmbient;
+            t.TopAmbient = topAmbient;
         }
 
         private static CloudLayerDef Layer(string name, string group, float inner, float outer, float sigma, float coverage, float edge, float noise, float scaleM, LayerKind kind,
@@ -116,7 +116,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudLayerDef cb = Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f, 5000f, LayerKind.Weather,
                 new CloudTypeDef("Cumulonimbus calvus", 0f, 0.85f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
                 new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f),
-                new CloudTypeDef("Cumulonimbus anvil", 0f, 1f, C(0f, 0f, 0.72f, 0f, 0.8f, 1f, 0.9f, 0.9f, 1f, 0f), 0.7f));
+                new CloudTypeDef("Incus", 0f, 1f, C(0f, 0f, 0.72f, 0f, 0.8f, 1f, 0.9f, 0.9f, 1f, 0f), 0.7f));
             cb.Deck = new WeatherDeckRule { Fog = false, PrecipType = 0f };
             foreach (CloudTypeDef t in cb.Types) t.RiseShare = 0.3f;
             cb.LightAmbient = 0.8f;

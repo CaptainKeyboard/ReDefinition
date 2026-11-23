@@ -44,7 +44,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 new { Name = "Cumulus mediocris", Lo = 30.0, Hi = 120.0 }
             })
                 Assert.IsTrue(tau[range.Name] >= range.Lo && tau[range.Name] <= range.Hi, range.Name + " has the full-column optical depth " + tau[range.Name].ToString("0.00") + ", wanted " + range.Lo + " to " + range.Hi);
-            foreach (string opaque in new[] { "Nimbostratus", "Snow nimbus", "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
+            foreach (string opaque in new[] { "Nimbostratus", "Snow nimbostratus", "Cumulus congestus", "Cumulonimbus calvus", "Cumulonimbus incus" })
                 Assert.IsTrue(tau[opaque] > 30.0, opaque + " is opaque: " + tau[opaque].ToString("0.0"));
             Assert.IsTrue(tau["Stratus"] < tau["Stratocumulus"] && tau["Stratocumulus"] < tau["Cumulus humilis"] && tau["Cumulus humilis"] < tau["Cumulus congestus"]
                           && tau["Cumulus congestus"] < tau["Cumulonimbus incus"], "the family grows with the cloud's depth");

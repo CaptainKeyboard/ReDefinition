@@ -87,7 +87,7 @@ SC_RAYLEIGH = (0.0153407799e-3, 0.0357074998e-3, 0.0875488967e-3)
 SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
 LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing",
                "fibreMinWindMs", "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs", "lightCellWidth")
-TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose")
+TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "topLight", "baseAmbient", "topAmbient", "shapeSmoothing", "topClose")
 CFG_PATH = os.environ.get("E40FAR_CFG") or e40o.CFG
 # E40FAR_TUNING=key=value,key=value: the job's tuning keys (the look knobs of the game), E40FAR_LAYER=key=value,...: layer keys of the job (for a cfg candidate without editing the cfg).
 TUNING = [dict(key=k, value=float(v)) for k, v in (p.split("=") for p in os.environ.get("E40FAR_TUNING", "").split(",") if p)]

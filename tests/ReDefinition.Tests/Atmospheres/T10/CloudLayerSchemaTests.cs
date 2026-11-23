@@ -125,7 +125,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 { "Stratus", new[] { 0f, 2000f, 100f, 2500f } },
                 { "Snow stratus", new[] { 0f, 2000f, 100f, 2500f } },
                 { "Nimbostratus", new[] { 0f, 2000f, 1000f, 4000f } },
-                { "Snow nimbus", new[] { 0f, 2000f, 1000f, 4000f } },
+                { "Snow nimbostratus", new[] { 0f, 2000f, 1000f, 4000f } },
                 { "Stratocumulus", new[] { 300f, 2000f, 500f, 2500f } },
                 { "Cumulus humilis", new[] { 600f, 2000f, 2000f, 4000f } },
                 { "Cumulus mediocris", new[] { 600f, 2000f, 3000f, 5000f } },
@@ -135,7 +135,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 { "Cumulonimbus incus", new[] { 600f, 2000f, 8000f, 16000f } },
                 // The anvil sheet of a cumulonimbus (its outflow): its type spans the layer like the towers' (so that the mix between them keeps one base); the sheet itself is where its
                 // LIFT opens, 8.6 km, and its top is the towers' (asserted below with the sheet's own band).
-                { "Cumulonimbus anvil", new[] { 600f, 2000f, 8000f, 16000f } },
+                { "Incus", new[] { 600f, 2000f, 8000f, 16000f } },
                 { "Cirrus", new[] { 5000f, 13000f, 6000f, 13000f } },
                 { "Cirrostratus", new[] { 5000f, 13000f, 6000f, 13000f } }
             };
@@ -164,7 +164,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var tau = new Dictionary<string, float[]>(StringComparer.Ordinal)
             {
                 { "Stratus", new[] { 10f, 60f } }, { "Snow stratus", new[] { 10f, 60f } },
-                { "Nimbostratus", new[] { 20f, 300f } }, { "Snow nimbus", new[] { 20f, 300f } },
+                { "Nimbostratus", new[] { 20f, 300f } }, { "Snow nimbostratus", new[] { 20f, 300f } },
                 { "Stratocumulus", new[] { 5f, 300f } }, { "Cumulus humilis", new[] { 5f, 300f } }, { "Cumulus mediocris", new[] { 5f, 300f } },
                 { "Cumulus congestus", new[] { 5f, 300f } }, { "Altocumulus", new[] { 5f, 300f } },
                 { "Cumulonimbus calvus", new[] { 100f, 1000f } }, { "Cumulonimbus incus", new[] { 100f, 1000f } },

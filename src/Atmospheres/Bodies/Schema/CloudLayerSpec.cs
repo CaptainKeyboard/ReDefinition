@@ -48,11 +48,11 @@ namespace ReDefinition.Atmospheres
         internal float BaseGain { get; set; } = 0.3f;
         internal float RiseShare { get; set; } = 0.5f;
         internal float DensityScale { get; set; } = 1f;
-        // The type's light response by height (cfg keys baseLight, headLight, baseAmbient, headAmbient; E40 B3): see CloudTypeDef.
+        // The type's light response by height (cfg keys baseLight, topLight, baseAmbient, topAmbient; E40 B3): see CloudTypeDef.
         internal float BaseLight { get; set; } = 1f;
-        internal float HeadLight { get; set; } = 1f;
+        internal float TopLight { get; set; } = 1f;
         internal float BaseAmbient { get; set; } = 1f;
-        internal float HeadAmbient { get; set; } = 1f;
+        internal float TopAmbient { get; set; } = 1f;
         // The type's height-shaped threshold (cfg node LIFT; null: none): see CloudTypeDef.Lift.
         internal Curve Lift { get; set; }
         // The type's climate (cfg node CLIMATE, null: none): see CloudClimateSpec.
@@ -92,7 +92,7 @@ namespace ReDefinition.Atmospheres
             return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion)
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
-                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate,
+                BaseLight = BaseLight, TopLight = TopLight, BaseAmbient = BaseAmbient, TopAmbient = TopAmbient, Lift = Lift, Climate = Climate,
                 ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Puff = Puff
             };
         }
