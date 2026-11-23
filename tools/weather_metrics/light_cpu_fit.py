@@ -41,9 +41,22 @@ def energy(p):
     return 1.0 + p.msBrightness * sum(p.octaveB ** n for n in range(1, int(p.octaves)))
 
 
-REF = Lt.reference_numbers()
-REFIMG = {case: Lt._ref_image(view) for case, view in Lt.FIT_IMAGE_VIEWS}
-REFREG = {case: Lt.region_means(a, c, a) for case, (a, c) in REFIMG.items()}
+# The reference figures and region means, read when the fit first needs them: the series discovery imports every module, and a fresh worktree has no
+# build/parity-ref-images, so a read at import time stopped every other series there (2026-11-23).
+_REF_CACHE = {}
+
+
+def ref():
+    if "ref" not in _REF_CACHE:
+        _REF_CACHE["ref"] = Lt.reference_numbers()
+    return _REF_CACHE["ref"]
+
+
+def refreg():
+    if "reg" not in _REF_CACHE:
+        images_ = {case: Lt._ref_image(view) for case, view in Lt.FIT_IMAGE_VIEWS}
+        _REF_CACHE["reg"] = {case: Lt.region_means(a, c, a) for case, (a, c) in images_.items()}
+    return _REF_CACHE["reg"]
 
 
 def figures(p):
@@ -56,15 +69,15 @@ def figures(p):
     for case, _ in Lt.FIT_IMAGE_VIEWS:
         im = imgs[case]
         om = Lt.region_means(im.alpha, im.cloud, im.alpha)
-        regions[case] = {r: om[r] / max(REFREG[case][r], 1e-9) for r in om}
+        regions[case] = {r: om[r] / max(refreg()[case][r], 1e-9) for r in om}
     return dict(silver=silver, base_top=top / max(base, 1e-12), powder=e / max(i, 1e-12), regions=regions,
                 levels=dict(top=top, base=base, silver_near=near, edge_j=e, interior_j=i))
 
 
 def terms(f):
-    t = [math.log(f["silver"] / REF["silver"]) / 0.15 / 1.0, math.log(f["base_top"] / REF["base_top"]) / 0.2, math.log(f["powder"] / REF["powder"]) / 0.25]
+    t = [math.log(f["silver"] / ref()["silver"]) / 0.15 / 1.0, math.log(f["base_top"] / ref()["base_top"]) / 0.2, math.log(f["powder"] / ref()["powder"]) / 0.25]
     for k, v in f["levels"].items():
-        t.append(math.log(max(v, 1e-9) / REF[k]) / 0.25)
+        t.append(math.log(max(v, 1e-9) / ref()[k]) / 0.25)
     for case, d in f["regions"].items():
         for r, v in d.items():
             t.append(math.log(max(v, 1e-9)) / 0.25 * (1.5 if r == "core" else 1.0))
@@ -82,9 +95,9 @@ def objective(x, cap):
 def report(p):
     f = figures(p)
     t = terms(f)
-    print("energy %.2f silver %.1f (ref %.1f) base_top %.2f (%.2f) powder %.2f (%.2f)" % (energy(p), f["silver"], REF["silver"], f["base_top"], REF["base_top"], f["powder"], REF["powder"]))
+    print("energy %.2f silver %.1f (ref %.1f) base_top %.2f (%.2f) powder %.2f (%.2f)" % (energy(p), f["silver"], ref()["silver"], f["base_top"], ref()["base_top"], f["powder"], ref()["powder"]))
     for k, v in f["levels"].items():
-        print("  level %s %.3f / ref %.3f = %.2f" % (k, v, REF[k], v / REF[k]))
+        print("  level %s %.3f / ref %.3f = %.2f" % (k, v, ref()[k], v / ref()[k]))
     for case, d in f["regions"].items():
         print("  %s " % case + " ".join("%s %.2f" % (r, v) for r, v in d.items()))
     print("  worst term (in tolerances) %.2f" % max(abs(v) for v in t))
