@@ -22,6 +22,13 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="ReDefinition.Tests" />
+    <InternalsVisibleTo Include="ReDefinition.Atmospheres.Probes" />
+  </ItemGroup>
+
+  <!-- Cleanup 2 C (2026-11-23): the probes and the test tooling are not part of the shipped DLL. They stay beside the features they probe and compile
+       into ReDefinition.Atmospheres.Probes.dll (src/AtmospheresProbes), which the release never packs and the test installs get from the deploy. -->
+  <ItemGroup>
+    <Compile Remove="**\Probe\**\*.cs;Testing\**\*.cs" />
   </ItemGroup>
 
   <!-- The weather generator's core is the source of the offline proof (tools/atmosphere-sim/AtmoSim.Core), compiled into this assembly as it

@@ -484,7 +484,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(500.0, T09Probe.Soft60HeldToleranceM(5.0), 1e-9, "a tenth of 5 km");
             Assert.AreEqual(750.0, T09Probe.Soft60HeldToleranceM(40.0), "and at most 750 m");
             // The cost and weave views (a View without the fields) have no tolerance of their own.
-            var plain = new T09Probe.View { Name = "ground", AglM = 200.0 };
+            var plain = new T09View { Name = "ground", AglM = 200.0 };
             Assert.AreEqual(0.0, plain.HeldToleranceM);
             Assert.AreEqual(0, plain.PlaceAttempts);
         }

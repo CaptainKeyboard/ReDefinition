@@ -101,7 +101,7 @@ namespace ReDefinition.Tests.Atmospheres.A02
         {
             // The main mod is not walked type by type: it needs Harmony, which the test host does not carry; its Api type is enough.
             Assert.IsNotNull(typeof(ReDefinition.Api.Hooks).GetMethod("RegisterAfterUpscaling"));
-            foreach (Type anchor in new[] { typeof(IAtmospheresModule), typeof(WeatherHub) })
+            foreach (Type anchor in new[] { typeof(IAtmospheresModule), typeof(WeatherHub), typeof(SeriesProbe) })
             {
                 Assembly assembly = anchor.Assembly;
                 Type[] types;
@@ -116,7 +116,7 @@ namespace ReDefinition.Tests.Atmospheres.A02
                 }
                 Assert.IsTrue(types.Length > 0, assembly.GetName().Name);
             }
-            List<Type> modules = ModuleRegistry.Discover(typeof(IAtmospheresModule).Assembly);
+            List<Type> modules = ModuleRegistry.Discover(typeof(IAtmospheresModule).Assembly, typeof(SeriesProbe).Assembly);
             Assert.IsTrue(modules.Count >= 1);
             foreach (Type type in modules)
             {

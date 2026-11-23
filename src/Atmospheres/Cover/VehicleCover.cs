@@ -699,7 +699,7 @@ namespace ReDefinition.Atmospheres
         {
             lastSave = now;
             dirty = false;
-            if (loadedSave == null || !ForcedField.AllowSideFileWrite()) return;
+            if (loadedSave == null || !ForcedRun.AllowSideFileWrite()) return;
             try
             {
                 double ut;

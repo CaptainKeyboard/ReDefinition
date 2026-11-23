@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
+using View = ReDefinition.Atmospheres.T09View;
 
 namespace ReDefinition.Atmospheres
 {
@@ -317,12 +318,7 @@ namespace ReDefinition.Atmospheres
         // The point at km (negative: behind) along the bearing from a place, on a sphere of the body's radius.
         internal static void Soft60Destination(double latDeg, double lonDeg, double bearingDeg, double km, double radiusM, out double lat2, out double lon2)
         {
-            double d = km * 1000.0 / radiusM, phi = Soft60Rad(latDeg), lam = Soft60Rad(lonDeg), th = Soft60Rad(bearingDeg);
-            double sinPhi2 = Math.Sin(phi) * Math.Cos(d) + Math.Cos(phi) * Math.Sin(d) * Math.Cos(th);
-            double phi2 = Math.Asin(Math.Max(-1.0, Math.Min(1.0, sinPhi2)));
-            double lam2 = lam + Math.Atan2(Math.Sin(th) * Math.Sin(d) * Math.Cos(phi), Math.Cos(d) - Math.Sin(phi) * sinPhi2);
-            lat2 = phi2 * 180.0 / Math.PI;
-            lon2 = WrapDeg(lam2 * 180.0 / Math.PI);
+            T09Views.Destination(latDeg, lonDeg, bearingDeg, km, radiusM, out lat2, out lon2);
         }
 
         // The initial bearing from the first place to the second, degrees clockwise from north, 0 to 360.

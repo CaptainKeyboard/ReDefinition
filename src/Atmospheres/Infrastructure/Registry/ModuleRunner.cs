@@ -20,9 +20,11 @@ namespace ReDefinition.Atmospheres
         {
             try
             {
-                registry = ModuleRegistry.FromAssembly(Assembly.GetExecutingAssembly());
+                // The product's modules and, in a test install, the probes' (ReDefinition.Atmospheres.Probes.dll, cleanup 2 C).
+                Assembly probes = ModuleRegistry.LoadedProbeAssembly();
+                registry = ModuleRegistry.FromAssemblies(new[] { Assembly.GetExecutingAssembly(), probes });
                 BodyWatcher.Changed += OnBodyChanged;
-                AtmospheresLog.Say("modules: " + registry.Count);
+                AtmospheresLog.Say("modules: " + registry.Count + (probes != null ? " (with the probes of " + ModuleRegistry.ProbeAssemblyName + ")" : ""));
             }
             catch (Exception e)
             {

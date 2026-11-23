@@ -4,6 +4,7 @@ using System.Globalization;
 using ReDefinition.Core;
 using UnityEngine;
 using UnityEngine.Rendering;
+using View = ReDefinition.Atmospheres.T09View;
 
 namespace ReDefinition.Atmospheres
 {

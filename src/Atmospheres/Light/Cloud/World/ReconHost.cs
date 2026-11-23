@@ -29,7 +29,7 @@ namespace ReDefinition.Atmospheres
                 for (int x = x0; x < x1; x++)
                 {
                     Color c = Pixels[y * Width + x];
-                    list.Add(ReconMath.Luma(c.r, c.g, c.b));
+                    list.Add(0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b);   // Rec. 709 luma (ReconMath.Luma's weights)
                 }
             }
             return list;

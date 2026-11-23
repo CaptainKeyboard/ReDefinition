@@ -47,7 +47,7 @@ namespace ReDefinition.Atmospheres
     // exists and the writers of side files ask AllowSideFileWrite before they write.
     internal sealed class ForcedField : IWeatherField, ISurfaceForcing
     {
-        private static int attached;
+        // The count of attached decorators lives in the shipped DLL (ForcedRun), where the writers of side files read it.
         private readonly IWeatherField inner;
 
         internal ForcedField(IWeatherField inner, int seed = 0)
@@ -55,27 +55,27 @@ namespace ReDefinition.Atmospheres
             if (inner == null) throw new ArgumentNullException("inner");
             this.inner = inner;
             Seed = seed;
-            attached++;
+            ForcedRun.Attached++;
         }
 
         // True while a decorator is attached (until Detach).
-        internal static bool Active { get { return attached > 0; } }
+        internal static bool Active { get { return ForcedRun.Attached > 0; } }
 
         // Side files are written only when no forced run is going.
         internal static bool AllowSideFileWrite()
         {
-            return attached == 0;
+            return ForcedRun.AllowSideFileWrite();
         }
 
         internal void Detach()
         {
-            if (attached > 0) attached--;
+            if (ForcedRun.Attached > 0) ForcedRun.Attached--;
         }
 
         // Forgets every attached decorator (a test's clean-up).
         internal static void DetachAll()
         {
-            attached = 0;
+            ForcedRun.Attached = 0;
         }
 
         internal IWeatherField Inner { get { return inner; } }

@@ -90,6 +90,8 @@ BUILD_ARTIFACTS = [
     ("build/ReDefinition.Planner.dll", "GameData/ReDefinition/Planner/Plugins/ReDefinition.Planner.dll"),
     ("build/ReDefinition.Dashboard.dll", "GameData/ReDefinition/Dashboard/Plugins/ReDefinition.Dashboard.dll"),
     ("build/ReDefinition.Atmospheres.dll", "GameData/ReDefinition/Atmospheres/Plugins/ReDefinition.Atmospheres.dll"),
+    # The probes and the test tooling (cleanup 2 C, 2026-11-23): their own DLL, which the release never packs; without it no series probe runs.
+    ("build/ReDefinition.Atmospheres.Probes.dll", "GameData/ReDefinition/Atmospheres/Plugins/ReDefinition.Atmospheres.Probes.dll"),
 ]
 BUNDLE = ("build/atmospheres.shaders", "GameData/ReDefinition/Atmospheres/Shaders/atmospheres.shaders")
 ATMO_PLUGINDATA = "GameData/ReDefinition/Atmospheres/PluginData"

@@ -119,7 +119,12 @@ namespace ReDefinition.Atmospheres
         // Whether the game is in the flight scene with a ready active vessel: the guard of the first wait of every probe that needs the flight.
         // FlightGlobals.ActiveVessel dereferences the FlightGlobals object, which does not exist in the main menu, so the scene is asked first.
         // A test replaces the state with Func<bool>.
-        internal static Func<bool> FlightReadyState = () => HighLogic.LoadedScene == GameScenes.FLIGHT && FlightGlobals.ready && FlightGlobals.fetch != null && FlightGlobals.ActiveVessel != null;
+        // The shipped world adapter's own check (T09Flight), so that a test that replaces it here replaces it there too.
+        internal static Func<bool> FlightReadyState
+        {
+            get { return T09Flight.ReadyState; }
+            set { T09Flight.ReadyState = value; }
+        }
 
         protected static bool InFlightReady()
         {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using ReDefinition.Core;
 using UnityEngine;
+using View = ReDefinition.Atmospheres.T09View;
 
 namespace ReDefinition.Atmospheres
 {
