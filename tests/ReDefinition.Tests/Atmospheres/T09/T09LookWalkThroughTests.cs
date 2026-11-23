@@ -82,7 +82,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 foreach (int l in new[] { 0, 1, 2, 3 })
                     foreach (string km in new[] { "0", "5", "10", "20", "40", "80" })
                         Assert.IsTrue(Row(r, p + "L" + l + ".map_at_" + km + "_km") >= 0, p + "map profile L" + l + " " + km);
-                Assert.AreEqual("Kerbin-cumulus", Values(r, p + "sheet_layer", "plain")[0].Value, "the sheet layer is the highest map outside the rain group");
+                Assert.AreEqual("Kerbin-cumulus", Values(r, p + "stratiform_layer", "plain")[0].Value, "the sheet layer is the highest map outside the rain group");
                 Assert.AreEqual(0.665, Row(r, p + "kovr.forced_map"), 1e-6);
             }
             // The forced map reaches the tuning table (the key of the sheet layer) while its frame is taken, and the keys of a set while its frames are.

@@ -715,7 +715,7 @@ namespace ReDefinition.Atmospheres
                 Emit(prefix + "shadow_disc_taps", s.DiscTaps);
             }
             Emit(prefix + "shadow_quality_setting", AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudShadowQuality));
-            // The sky the last map round drew (-1: the old layer maps; else the weather map's, sheet rule x 10 + depth rule) and whether it and its heights are the keys'.
+            // The sky the last map round drew (-1: the old layer maps; else the weather map's, stratiform rule x 10 + depth rule) and whether it and its heights are the keys'.
             if (own != null)
             {
                 string skyWhy;

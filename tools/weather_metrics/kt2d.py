@@ -70,7 +70,7 @@ def layers_table(values, view, cover, region, get, add, notes):
       L<k>.closed_p1 / closed_c35      the picture's closed share of the region with only layer k drawn
       L<k>.closed_minus_model_p1       the drawn closed share minus the model's at the CPU map value (a layer whose map the pass reads as the CPU does: near 0)
       L<k>.gpu_minus_cpu               the pass's map value minus the CPU readers' (the uploaded bytes at the vessel's place)
-      sheet_layer                      the layer whose own closed share is the highest at shift 0 (-1: none measured)
+      stratiform_layer                      the layer whose own closed share is the highest at shift 0 (-1: none measured)
       gpu_matches_cpu                  1 when every layer's GPU and pass-sample map are within GPU_TOLERANCE of the CPU map, -1 when one is not, absent without GPU rows
     """
     def row(k, stat):
@@ -110,7 +110,7 @@ def layers_table(values, view, cover, region, get, add, notes):
             return "-" if v is None else fmt % v
         lines.append("L%d cpu %s gpu %s pass %s (type %s) | drawn closed p1 %s c35 %s | model p1 %s c35 %s | deck_fraction %s / %s | deck median %s / %s" % (
             k, f(cpu), f(gpu), f(sh), f(row(k, "cpu_type")), f(p1, "%.2f"), f(c35, "%.2f"), f(mod1, "%.2f"), f(mod35, "%.2f"), f(f1, "%.2f"), f(f35, "%.2f"), f(m1), f(m35)))
-    add("T09d.%s.%s.layers.sheet_layer" % (view, cover), best_k)
+    add("T09d.%s.%s.layers.stratiform_layer" % (view, cover), best_k)
     if have_gpu:
         add("T09d.%s.%s.layers.gpu_matches_cpu" % (view, cover), -1 if mismatch else 1)
     surface, cold = values.get((view, cover, "layers", "surface_temp_k")), values.get((view, cover, "layers", "stack_cold"))
@@ -591,7 +591,7 @@ def selftest():
                      ("only1.deck_fraction", 0.6), ("only1.deck_median", 0.4), ("layers.surface_temp_k", 288.0), ("layers.stack_cold", 0)))
     notes = []
     got = {r["metric"]: r["value"] for r in analyse(parse([layers]), notes)}
-    assert got["T09d.ground.low.layers.sheet_layer"] == 1, got
+    assert got["T09d.ground.low.layers.stratiform_layer"] == 1, got
     assert abs(got["T09d.ground.low.layers.L1.closed_minus_model_p1"] - 0.26) < 1e-9 and abs(got["T09d.ground.low.layers.L1.closed_c35"] - 0.97) < 1e-9, got
     assert abs(got["T09d.ground.low.layers.L1.gpu_minus_cpu"] - 0.235) < 1e-9 and got["T09d.ground.low.layers.gpu_matches_cpu"] == -1, got
     assert abs(got["T09d.ground.low.layers.L0.gpu_minus_cpu"]) < 1e-9, got

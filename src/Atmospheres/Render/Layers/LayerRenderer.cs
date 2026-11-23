@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
         // E40 grain against TVC. DitherSequence: the per-pixel step offset, advanced by the golden ratio per frame: 1 an integer hash (white; what the default drew before E40 step (c)), 2 the
         // interleaved gradient noise (lower temporal noise, a few strong spatial lines), 3 (E40 F2, the default) the blue-noise tile of DitherMatrix (the same temporal noise, no line).
         public int DitherSequence = 3;
-        // M2c (the low decks): the undulations of the sheet types (variety undulatus, CloudTypeDef.UndulatusAmount) drawn with this share of their depth (0: off, the deck of
+        // M2c (the low decks): the undulations of the stratiform types (variety undulatus, CloudTypeDef.UndulatusAmount) drawn with this share of their depth (0: off, the deck of
         // before; the tuning key cloud.undulatus), and the wavelength as a share of the layer's depth (cloud.undulatusWavelengthShare).
         public float Undulatus;
         public float UndulatusWavelengthShare = 1f;
@@ -464,8 +464,8 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdCullL, cullL);
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
             m.SetVectorArray(IdCellE, cellE);
-            // The map-driven sky's connected sheet types (MapSkyRegions.SheetTypes).
-            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = l < layerCount ? MapSkyRegions.SheetTypes(cellLayer[l]) : Vector4.zero;
+            // The map-driven sky's connected stratiform types (MapSkyRegions.StratiformTypes).
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = l < layerCount ? MapSkyRegions.StratiformTypes(cellLayer[l]) : Vector4.zero;
             m.SetVectorArray(IdCellS, cellS);
             // The test lattice (cloud.field off) is the variant CLOUD_LATTICE; the product (the field) draws without its code.
             bool lattice = !CloudLookTuning.Field;

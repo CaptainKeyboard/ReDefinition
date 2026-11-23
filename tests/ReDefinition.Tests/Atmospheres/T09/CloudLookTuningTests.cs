@@ -335,7 +335,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(128, shown[3], "heavy rain hides the sheet");
             Assert.AreEqual(64, shown[4], "the type value runs to the sheet from wherever it was");
             Assert.AreEqual((byte)128, type[0], "the source is not changed");
-            Assert.AreSame(type, CloudLookTuning.ApplyAlto(type, precip, mid, low, -1f, 0.05f, 0.3f, ref scratch), "no sheet type: the bytes themselves");
+            Assert.AreSame(type, CloudLookTuning.ApplyAlto(type, precip, mid, low, -1f, 0.05f, 0.3f, ref scratch), "no stratiform type: the bytes themselves");
             Assert.AreSame(type, CloudLookTuning.ApplyAlto(type, precip, null, low, 0.25f, 0.05f, 0.3f, ref scratch), "a missing map: the bytes themselves");
         }
 

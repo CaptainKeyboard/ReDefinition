@@ -78,9 +78,9 @@ namespace AtmoSim.Core
         // dynamic cloud's, so StableShare keeps its value at no net motion there (StableShareOf).
         public double Ascent01;
         // The sky shares, as seen, of the column's cloud (the field's Coverage = 1 - exp(-3 CloudWater)), split by the parts of its cloud water: CumuliformAmount the cumuliform family (the
-        // convective water: cells and trade-wind cumulus, plus the humidity background where it is shallow cumulus), SheetAmount the rest (the deck from the dynamic lift and fronts,
-        // DeckAmount, plus the background where it is no cumulus). CumuliformAmount + SheetAmount = Coverage <= 1; each part is the coverage times its share of the cloud water.
-        public double CumuliformAmount, SheetAmount, DeckAmount;
+        // convective water: cells and trade-wind cumulus, plus the humidity background where it is shallow cumulus), StratiformAmount the rest (the deck from the dynamic lift and fronts,
+        // DeckAmount, plus the background where it is no cumulus). CumuliformAmount + StratiformAmount = Coverage <= 1; each part is the coverage times its share of the cloud water.
+        public double CumuliformAmount, StratiformAmount, DeckAmount;
         // The share of the humidity background that is shallow cumulus (the instability, where convection has depth below the stable layer and no deck saturates the column).
         public double ShallowShare;
         // The relative humidity at the low, middle and high level of the troposphere (BodyParams.SkyLevelLow/Mid/HighShare), 0 to 1.
@@ -180,7 +180,7 @@ namespace AtmoSim.Core
             s.BaseShare = h > 0.0 ? zb / h : 0.0; s.TopShare = h > 0.0 ? top / h : 0.0; s.StableShare = si;
             s.SurfaceHumidity = rhS; s.SurfaceDewPointK = td;
             s.Ascent01 = up > w.Descent01 ? up - w.Descent01 : 0.0;
-            s.CumuliformAmount = cumuliform; s.SheetAmount = cover - cumuliform; s.DeckAmount = total > 0.0 ? cover * dyn / total : 0.0;
+            s.CumuliformAmount = cumuliform; s.StratiformAmount = cover - cumuliform; s.DeckAmount = total > 0.0 ? cover * dyn / total : 0.0;
             s.ShallowShare = shallow;
             s.WarmFront01 = w.WarmFront01; s.ColdFront01 = w.ColdFront01; s.FrontAmp01 = w.FrontAmp01; s.FrontSurfaceShare = w.FrontSurfaceShare;
 

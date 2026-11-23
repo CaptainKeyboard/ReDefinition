@@ -12,7 +12,7 @@ src/Atmospheres/Light/Cloud/CloudLookTuning.cs
 src/Atmospheres/Light/Cloud/WeatherDeckRule.cs
 # The anvils of the cumulonimbus towers are drawn into the layer maps (E40 CB); the player's LayersSetup draws them as the game does.
 src/Atmospheres/Light/Cloud/AnvilMap.cs
-# The sky from the weather map (cloud.weatherMapSky): the layer renderer and the cloud shadow set the sheet types (_CellS) and the shader keyword from it.
+# The sky from the weather map (cloud.weatherMapSky): the layer renderer and the cloud shadow set the stratiform types (_CellS) and the shader keyword from it.
 src/Atmospheres/Light/Cloud/WeatherMapSky.cs
 src/Atmospheres/Light/Cloud/MapSkyRegions.cs
 # CloudLookTuning and OwnCloudOptions read the fast cloud path's defaults (CloudFastPath); the player installs its own answer (Runner/PlayerFastPath.cs).

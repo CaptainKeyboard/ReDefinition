@@ -13,7 +13,7 @@ namespace ReDefinition.Atmospheres
     //                   thinnest type (Stratocumulus, 0.11 of 5.7 km = 627 m; the cumuliform water without depth) is drawn that thin; a tall column thinner than Cumulonimbus calvus
     //                   (0.85 of 9.3 km) is drawn as calvus. The base: the height map's root offset (R channel) moves the layer's types by base - inner altitude, clamped to the root range
     //                   (heightRoot, the cfg's); APPROXIMATION where the base lies further from the shell's floor than that.
-    //   sheet amount -> per saturated level (relative humidity >= SaturatedRh, the M1 count's definition): low -> the deck layer (the layer with a deck rule and no anvil), its precipitation
+    //   stratiform amount -> per saturated level (relative humidity >= SaturatedRh, the M1 count's definition): low -> the deck layer (the layer with a deck rule and no anvil), its precipitation
     //                   type (Stratus) or, where all three levels are saturated, it precipitates and the deck amount exceeds the cumuliform amount (the M1 proposal's nimbostratus rule R9),
     //                   its last type (Nimbostratus); middle -> the cumuliform layer's alto type (Altocumulus), drawn in the same texel as the cumuliform: the texel's cover is the union
     //                   1 - (1 - cumuliform)(1 - sheet) with the larger part's type (APPROXIMATION: one type per texel); high -> the cheap layer (Kerbin-cirrus), today's type kept.
@@ -30,7 +30,7 @@ namespace ReDefinition.Atmospheres
         internal sealed class Columns
         {
             internal int Width, Height;
-            internal float[] Cover, Cumuliform, Sheet, Deck, BaseM, TopM, RhLow, RhMid, RhHigh, PrecipMmH;
+            internal float[] Cover, Cumuliform, Stratiform, Deck, BaseM, TopM, RhLow, RhMid, RhHigh, PrecipMmH;
         }
 
         internal sealed class Result
@@ -39,7 +39,7 @@ namespace ReDefinition.Atmospheres
             internal byte[][] Cover, Type, Root;
             // Per texel: the cumuliform amount the union rule dropped from the texel's type (diagnosis of the one-type-per-texel approximation), and where the sheet went (bit 1 low, 2 middle, 4 high).
             internal float[] CumuliformDropped;
-            internal byte[] SheetLevels;
+            internal byte[] StratiformLevels;
         }
 
         internal enum Role { None, Deck, Cumuliform, Tall, High }
@@ -90,7 +90,7 @@ namespace ReDefinition.Atmospheres
         internal static Result Build(CloudLayerDef[] layers, Columns c, byte[][] todayType, byte[] fogCover, byte[] fogType, float[] heightRootM)
         {
             int n = c.Width * c.Height, count = layers.Length;
-            var r = new Result { Cover = new byte[count][], Type = new byte[count][], Root = new byte[count][], CumuliformDropped = new float[n], SheetLevels = new byte[n] };
+            var r = new Result { Cover = new byte[count][], Type = new byte[count][], Root = new byte[count][], CumuliformDropped = new float[n], StratiformLevels = new byte[n] };
             int deck = -1, cumuliform = -1, tall = -1, high = -1;
             for (int l = 0; l < count; l++)
             {
@@ -116,7 +116,7 @@ namespace ReDefinition.Atmospheres
             if (tall >= 0 && heightRootM[tall] > 0f) r.Root[tall] = new byte[n];
             for (int i = 0; i < n; i++)
             {
-                float cover = c.Cover[i], h = Math.Max(0f, c.Cumuliform[i]), s = Math.Max(0f, c.Sheet[i]);
+                float cover = c.Cover[i], h = Math.Max(0f, c.Cumuliform[i]), s = Math.Max(0f, c.Stratiform[i]);
                 float baseM = c.BaseM[i], depth = Math.Max(0f, c.TopM[i] - baseM);
                 // The cumuliform amount: the cumuliform layer or, deeper than its shell, the tall layer.
                 bool toTall = tl != null && (hl == null || depth > cumuliformThick);
@@ -144,7 +144,7 @@ namespace ReDefinition.Atmospheres
                     else hi = true;
                 }
                 if (s <= 0f) low = mid = hi = false;
-                r.SheetLevels[i] = (byte)((low ? 1 : 0) | (mid ? 2 : 0) | (hi ? 4 : 0));
+                r.StratiformLevels[i] = (byte)((low ? 1 : 0) | (mid ? 2 : 0) | (hi ? 4 : 0));
                 if (deck >= 0)
                 {
                     double dc = 0.0, dt = fogType != null ? fogType[i] / 255.0 : 0.0;

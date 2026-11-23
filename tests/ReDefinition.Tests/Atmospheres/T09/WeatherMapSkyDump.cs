@@ -144,7 +144,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     // The column quantities (GeneratorMaps.RenderWeather's samples, with the quantities the maps do not keep).
                     var c = new WeatherMapSky.Columns
                     {
-                        Width = w, Height = h, Cover = new float[n], Cumuliform = new float[n], Sheet = new float[n], Deck = new float[n], BaseM = new float[n], TopM = new float[n],
+                        Width = w, Height = h, Cover = new float[n], Cumuliform = new float[n], Stratiform = new float[n], Deck = new float[n], BaseM = new float[n], TopM = new float[n],
                         RhLow = new float[n], RhMid = new float[n], RhHigh = new float[n], PrecipMmH = new float[n]
                     };
                     float[] reach = new float[n], stable = new float[n], warm = new float[n], cold = new float[n], inst = new float[n];
@@ -161,7 +161,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             int k = j * w + i;
                             c.Cover[k] = (float)wx.Coverage;
                             c.Cumuliform[k] = (float)col.CumuliformAmount;
-                            c.Sheet[k] = (float)col.SheetAmount;
+                            c.Stratiform[k] = (float)col.StratiformAmount;
                             c.Deck[k] = (float)col.DeckAmount;
                             c.BaseM[k] = (float)col.BaseM;
                             c.TopM[k] = (float)col.TopM;
@@ -190,10 +190,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         if (r.Root[li] != null) Bytes(folder, tag + "wm_" + layers[li].Name + "_root", r.Root[li]);
                     }
                     Floats(folder, tag + "wm_cumuliformDropped", r.CumuliformDropped);
-                    Bytes(folder, tag + "wm_sheetLevels", r.SheetLevels);
+                    Bytes(folder, tag + "wm_sheetLevels", r.StratiformLevels);
                     Floats(folder, tag + "col_cover", c.Cover);
                     Floats(folder, tag + "col_cumuliform", c.Cumuliform);
-                    Floats(folder, tag + "col_sheet", c.Sheet);
+                    Floats(folder, tag + "col_sheet", c.Stratiform);
                     Floats(folder, tag + "col_deck", c.Deck);
                     Floats(folder, tag + "col_base", c.BaseM);
                     Floats(folder, tag + "col_top", c.TopM);

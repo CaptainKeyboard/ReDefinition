@@ -11,7 +11,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     public class MapSkyRegionsTests
     {
         private const double H = 10500.0;
-        // A sheet amount of 0.7 as the layers' byte.
+        // A stratiform amount of 0.7 as the layers' byte.
         private static readonly byte Seventy = (byte)Math.Round(0.7f * 255.0, MidpointRounding.ToEven);
 
         private static MapSkyRegions.Inputs One(float cumuliform, float sheet, double baseM, double topM, double stableM, float rhLow = 0.5f, float rhMid = 0.5f, float rhHigh = 0.5f,
@@ -19,7 +19,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             return new MapSkyRegions.Inputs
             {
-                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Sheet = new[] { sheet }, Deck = new[] { deck }, BaseShare = new[] { (float)(baseM / H) },
+                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Stratiform = new[] { sheet }, Deck = new[] { deck }, BaseShare = new[] { (float)(baseM / H) },
                 TopShare = new[] { (float)(topM / H) }, StableShare = new[] { (float)(stableM / H) }, RhLow = new[] { rhLow }, RhMid = new[] { rhMid }, RhHigh = new[] { rhHigh },
                 Descent = new[] { 0.2f }, Instability = new[] { 0.5f }, Uplift = new[] { 0.1f }, Reach = new[] { reach }, PrecipLevel = new[] { precip }, SurfaceTempK = new[] { 290f },
                 TropopauseM = H, LapseKPerM = 0.00711, DayS = 21549.425, Ut = 1486800.0
@@ -31,20 +31,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return TypeMixFixture.ShippedLayers();
         }
 
-        // Owner 2026-11-23: the sheet rule is B (2) and the depth rule a (1, the field's depth: the more realistic) by default (the other tests here name their rule).
+        // Owner 2026-11-23: the stratiform rule is B (2) and the depth rule a (1, the field's depth: the more realistic) by default (the other tests here name their rule).
         [TestMethod]
         public void TheOwnersRulesAreTheDefaults()
         {
             Tuning.ClearOverrides();
             Tuning.Instance.BeginFrame(9200101);
-            Assert.AreEqual(2, MapSkyRegions.SheetRule);
+            Assert.AreEqual(2, MapSkyRegions.StratiformRule);
             Assert.AreEqual(1, MapSkyRegions.DepthRule);
         }
 
-        private static MapSkyRegions.Parts Plan(MapSkyRegions.Inputs m, int sheetRule = 1, int depthRule = 1)
+        private static MapSkyRegions.Parts Plan(MapSkyRegions.Inputs m, int stratiformRule = 1, int depthRule = 1)
         {
             CloudLayerDef[] l = Layers();
-            return MapSkyRegions.Plan(m, l[1], l[2], sheetRule, depthRule);
+            return MapSkyRegions.Plan(m, l[1], l[2], stratiformRule, depthRule);
         }
 
         private static void Draw(MapSkyRegions.Parts p, int layer, out byte cover, out byte type)
@@ -83,7 +83,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             float step = 1f / (cu.Types.Count - 1);
             Assert.IsTrue(tThin / 255f >= step - 0.01f, "the thinnest lattice type is humilis, not the sheet: " + tThin);
             Assert.IsTrue(tDeep > tThin, "deeper cumuliform, taller type: " + tThin + " -> " + tDeep);
-            Assert.IsTrue(tDeep / 255f <= MapSkyRegions.CumuliformLast(cu) * step + 0.01f, "never the alto sheet type");
+            Assert.IsTrue(tDeep / 255f <= MapSkyRegions.CumuliformLast(cu) * step + 0.01f, "never the alto stratiform type");
         }
 
         [TestMethod]
@@ -99,7 +99,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.6f, b.Sc[0], 1e-6f, "rule b: capped means sheet");
             byte c, t;
             Draw(a, 1, out c, out t);
-            Assert.AreEqual(0, t, "the sheet type (Stratocumulus, the first)");
+            Assert.AreEqual(0, t, "the stratiform type (Stratocumulus, the first)");
             // a cell is never capped
             MapSkyRegions.Parts cell = Plan(One(0.6f, 0f, 1200, 9000, 900, reach: 0.8f), 1, 2);
             Assert.AreEqual(0f, cell.Sc[0]);
@@ -206,12 +206,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void OnlyTheCumuliformLayerHasSheetTypesAndTheRootsFollowTheBase()
+        public void OnlyTheCumuliformLayerHasStratiformTypesAndTheRootsFollowTheBase()
         {
             CloudLayerDef[] l = Layers();
-            Assert.AreEqual(0f, MapSkyRegions.SheetTypes(l[0]).x);
-            Assert.AreEqual(1f, MapSkyRegions.SheetTypes(l[1]).x);
-            Assert.AreEqual(0f, MapSkyRegions.SheetTypes(l[2]).x);
+            Assert.AreEqual(0f, MapSkyRegions.StratiformTypes(l[0]).x);
+            Assert.AreEqual(1f, MapSkyRegions.StratiformTypes(l[1]).x);
+            Assert.AreEqual(0f, MapSkyRegions.StratiformTypes(l[2]).x);
             MapSkyRegions.Parts p = Plan(One(0.4f, 0f, 600, 1600, 1800));
             Assert.AreEqual(600f - l[1].InnerAltitudeM, MapSkyRegions.Roots(l[1], p)[0], 1e-3f);
             MapSkyRegions.Parts high = Plan(One(0.4f, 0f, 9000, 9100, 9500));

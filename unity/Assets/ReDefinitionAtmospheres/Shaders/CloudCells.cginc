@@ -20,13 +20,13 @@ float4 _CellE[4];
 // The body's core profile (a global, set by CellCoreProfile.Apply for the layer pass and the cloud shadow alike): x the depth of the rise in shares of the body's shorter semi-axis (0: off),
 // y the share at the surface.
 float4 _CellK;
-// The sky drawn from the weather map (MapSkyRegions.SheetTypes, cloud.weatherMapSky; zero while it is off): per layer x 1 where the layer's sheet types are drawn connected, y the type value
-// of the low sheet type (Stratocumulus), z the one of the high sheet type (Altocumulus; above 1: none), w the type value of one type step. Where the type map stands at a sheet type, the
+// The sky drawn from the weather map (MapSkyRegions.StratiformTypes, cloud.weatherMapSky; zero while it is off): per layer x 1 where the layer's stratiform types are drawn connected, y the type value
+// of the low stratiform type (Stratocumulus), z the one of the high stratiform type (Altocumulus; above 1: none), w the type value of one type step. Where the type map stands at a stratiform type, the
 // map's own value is drawn instead of single clouds (wMap 1): a connected deck over the area the map gives; one type step away the lattice draws alone.
 float4 _CellS[4];
 
-// The weight of the connected sheet at a type value (0: the lattice alone): 1 at a sheet type, falling linearly to 0 one type step away.
-float CellSheetWeight(int li, float typeValue)
+// The weight of the connected sheet at a type value (0: the lattice alone): 1 at a stratiform type, falling linearly to 0 one type step away.
+float CellStratiformWeight(int li, float typeValue)
 {
     float4 s = _CellS[li];
     if (s.x < 0.5) return 0.0;
@@ -174,16 +174,16 @@ static bool gBodyRead = false;
 // The layer map's value at a point with the cells, for the coverage bounds and the far view. The disc's profile p is placed on the layer's threshold (p 0.5 at the threshold, 0 half a unit below
 // it), and inside the disc it rises to the cloud's core strength: the map's excess over the threshold (how much the region convects: a fair sky's clouds stay low, a stormy region's grow) times
 // the cell's size factor (the wide clouds are the tall ones; a field holds many low clouds and a few towers). wMap: the share of the map's own value (a closed deck above a share of 0.8, where
-// the discs merge; and the far view, where the march's spacing passes a quarter of the pitch: the cells would alias, the map's value has their mean; and a sheet type of the map-driven
-// sky, sheetW from CellSheetWeight, 0 otherwise).
-float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, float sheetW, out float reachM, out float wMap)
+// the discs merge; and the far view, where the march's spacing passes a quarter of the pitch: the cells would alias, the map's value has their mean; and a stratiform type of the map-driven
+// sky, stratiformW from CellStratiformWeight, 0 otherwise).
+float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, float stratiformW, out float reachM, out float wMap)
 {
     float f = CellShare(cov, coverage, edge, amount);
     float size, xBest, rBest;
     float p = CellProfile(uv, pitch, rm, f, seed, size, reachM, xBest, rBest);
     float core = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * size;
     float e = p > 0.5 ? (2.0 * p - 1.0) * core : p - 0.5;
-    wMap = max(max(saturate((f - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * pitch) / (0.5 * pitch)) : 0.0), saturate(sheetW));
+    wMap = max(max(saturate((f - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * pitch) / (0.5 * pitch)) : 0.0), saturate(stratiformW));
     gCellX = xBest;
     gCellR = rBest;
     gCellCore = core;

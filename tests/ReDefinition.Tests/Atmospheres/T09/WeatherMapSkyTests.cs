@@ -11,7 +11,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             return new WeatherMapSky.Columns
             {
-                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Sheet = new[] { sheet }, Deck = new[] { deck }, BaseM = new[] { baseM }, TopM = new[] { topM },
+                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Stratiform = new[] { sheet }, Deck = new[] { deck }, BaseM = new[] { baseM }, TopM = new[] { topM },
                 RhLow = new[] { rhLow }, RhMid = new[] { rhMid }, RhHigh = new[] { rhHigh }, PrecipMmH = new[] { precip }
             };
         }

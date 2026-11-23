@@ -56,7 +56,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             SkyColumn.Derive(g.Body, ref v, out s);
                             sc += v.Coverage;
                             sh += s.CumuliformAmount;
-                            ss += s.SheetAmount;
+                            ss += s.StratiformAmount;
                             if (v.CellReach01 > rmax)
                             {
                                 rmax = v.CellReach01;
@@ -66,7 +66,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         }
                         w.WriteLine(string.Join(",", new[]
                         {
-                            ut.ToString("R", CultureInfo.InvariantCulture), F(wx.Coverage), F(c.CumuliformAmount), F(c.SheetAmount), F(c.DeckAmount), F(c.BaseM), F(c.TopM), F(c.StableM),
+                            ut.ToString("R", CultureInfo.InvariantCulture), F(wx.Coverage), F(c.CumuliformAmount), F(c.StratiformAmount), F(c.DeckAmount), F(c.BaseM), F(c.TopM), F(c.StableM),
                             F(c.RhLow), F(c.RhMid), F(c.RhHigh), F(wx.CellReach01), F(wx.PrecipMmH), F(sc / n), F(sh / n), F(ss / n), F(rmax), F(rKm)
                         }));
                     }

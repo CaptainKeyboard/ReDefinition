@@ -212,15 +212,15 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 {
                     float cellReach, wMap;
                     // The map-driven sky's connected sheets (CloudCells.cginc _CellS, zero where a round draws no sheet), as the layer pass reads them.
-                    float sheetW = 0.0;
+                    float stratiformW = 0.0;
                     [branch] if (_CellS[li].x > 0.5)
                     {
                         typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
                         typeRead = true;
-                        sheetW = CellSheetWeight(li, typeValue);
+                        stratiformW = CellStratiformWeight(li, typeValue);
                     }
                     cov = CellCover(cov, uvRaw, _CsLayerD[li].y, _CsPlanetR + 0.5 * (_CsLayerA[li].x + _CsLayerA[li].y), _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0,
-                                    (uint)_CsLayerD[li].z, sheetW, cellReach, wMap);
+                                    (uint)_CsLayerD[li].z, stratiformW, cellReach, wMap);
                     if (cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0)
                     {
                         reachM = _CsParams2.w > 0.5 && wMap <= 0.0 ? 0.7 * cellReach : 0.0;

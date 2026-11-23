@@ -9,10 +9,10 @@ namespace ReDefinition.Atmospheres
         None,
         // A forced storm 12 km east of the site (the lightning module's ForcedSource), flashes counted over the window.
         Storm,
-        // The sheet layer of the stack (the highest map outside a group) gets a key of the look family: coverage shift, fair-weather type, constant type.
-        SheetShift,
-        SheetTypeFair,
-        SheetTypeOverride
+        // The stratiform layer of the stack (the highest map outside a group) gets a key of the look family: coverage shift, fair-weather type, constant type.
+        StratiformShift,
+        StratiformTypeFair,
+        StratiformTypeOverride
     }
 
     // One variant of series K-T3: a name, the view it is measured in and the switches it changes against the plain own pass. tools/weather_metrics/kt3.py holds the
@@ -196,9 +196,9 @@ namespace ReDefinition.Atmospheres
             Add("recon4_a", Above, "recon").Set(K.CloudResolution, 4).Mode = "reconstruct";
             Add("cap2_g", Ground, "step").Set(K.LayerCap, 2);
             Add("cache_g", Ground, "light").Set(K.CloudLightCache, 1).Cache = true;
-            Add("lshift_g", Ground, Cloud).Special = K3Special.SheetShift;
-            Add("tfair_g", Ground, Cloud).Special = K3Special.SheetTypeFair;
-            Add("toverride_g", Ground, Cloud).Special = K3Special.SheetTypeOverride;
+            Add("lshift_g", Ground, Cloud).Special = K3Special.StratiformShift;
+            Add("tfair_g", Ground, Cloud).Special = K3Special.StratiformTypeFair;
+            Add("toverride_g", Ground, Cloud).Special = K3Special.StratiformTypeOverride;
         }
 
         private static K3Variant AddHeightOff(string id, string view)

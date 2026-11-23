@@ -32,7 +32,7 @@ namespace ReDefinition.Atmospheres
         private bool heightsHadMapSky, heightsBuildingMapSky, heightsAppliedMapSky;
 
         // The proof of what the pass drew (pass.json "mapSky", the probe's row T09.pin.<label>.map_sky): the number of finished map rounds that published the map sky, and the
-        // last finished round's state: -1 today's chain, otherwise sheet rule x 10 + depth rule.
+        // last finished round's state: -1 today's chain, otherwise stratiform rule x 10 + depth rule.
         internal int MapSkyRounds { get; private set; }
         private int lastRoundMapSky = -1;
         internal int LastRoundMapSky { get { return lastRoundMapSky; } private set { lastRoundMapSky = value; } }
@@ -40,12 +40,12 @@ namespace ReDefinition.Atmospheres
         // The state the rule keys ask for now, in the form of LastRoundMapSky.
         internal static int MapSkyWanted
         {
-            get { return MapSkyRegions.SheetRule * 10 + MapSkyRegions.DepthRule; }
+            get { return MapSkyRegions.StratiformRule * 10 + MapSkyRegions.DepthRule; }
         }
 
         private void MapSkyRoundEnded()
         {
-            LastRoundMapSky = mapSkyRound && mapSkyParts != null ? mapSkyParts.SheetRule * 10 + mapSkyParts.DepthRule : -1;
+            LastRoundMapSky = mapSkyRound && mapSkyParts != null ? mapSkyParts.StratiformRule * 10 + mapSkyParts.DepthRule : -1;
             if (LastRoundMapSky >= 0) MapSkyRounds++;
         }
 
@@ -54,7 +54,7 @@ namespace ReDefinition.Atmospheres
         {
             why = null;
             int wanted = MapSkyWanted;
-            if (LastRoundMapSky != wanted) why = "the last map round drew sky state " + LastRoundMapSky + ", the keys ask for " + wanted + " (-1: today's chain; else sheet rule x 10 + depth rule)";
+            if (LastRoundMapSky != wanted) why = "the last map round drew sky state " + LastRoundMapSky + ", the keys ask for " + wanted + " (-1: today's chain; else stratiform rule x 10 + depth rule)";
             else if (heightsAppliedMapSky != (wanted >= 0)) why = "the applied height maps were built " + (heightsAppliedMapSky ? "with" : "without") + " the map's bases";
             return why == null;
         }
@@ -90,7 +90,7 @@ namespace ReDefinition.Atmospheres
             m0.Height = MapHeight;
             m0.Cover = coverageMap.Values;
             m0.Cumuliform = mapSkyMaps[0].Values;
-            m0.Sheet = mapSkyMaps[1].Values;
+            m0.Stratiform = mapSkyMaps[1].Values;
             m0.Deck = mapSkyMaps[2].Values;
             m0.BaseShare = mapSkyMaps[3].Values;
             m0.TopShare = mapSkyMaps[4].Values;
@@ -116,11 +116,11 @@ namespace ReDefinition.Atmospheres
                 if (role == WeatherMapSky.Role.Tall && tall == null) tall = stack.LayerAt(l);
             }
             // A new Parts each round: the height build of the last round may still read the one before on its worker.
-            mapSkyParts = MapSkyRegions.Plan(m0, cumuliform, tall, MapSkyRegions.SheetRule, MapSkyRegions.DepthRule);
+            mapSkyParts = MapSkyRegions.Plan(m0, cumuliform, tall, MapSkyRegions.StratiformRule, MapSkyRegions.DepthRule);
             mapSkyPartsForHeights = mapSkyParts;
             mapSkyUt = ut;
             mapSkyRound = true;
-            string state = "on (sheet rule " + mapSkyParts.SheetRule + ", depth rule " + mapSkyParts.DepthRule + ")";
+            string state = "on (stratiform rule " + mapSkyParts.StratiformRule + ", depth rule " + mapSkyParts.DepthRule + ")";
             if (mapSkyState != state) AtmospheresLog.Say("own clouds: the sky from the weather map " + state + " at ut " + ut.ToString("0"));
             mapSkyState = state;
         }
@@ -178,7 +178,7 @@ namespace ReDefinition.Atmospheres
             return MapSkyRegions.Roots(def, p);
         }
 
-        // The pinned capture's map patches: the field's cover, cumuliform and sheet amounts and the base, top and cells' reach as bytes (0..1 of their range) into the dump folder.
+        // The pinned capture's map patches: the field's cover, cumuliform and stratiform amounts and the base, top and cells' reach as bytes (0..1 of their range) into the dump folder.
         private void WriteMapSkyDump(string dir)
         {
             // Only the published parts and the map copies they hold: the fetch buffers may be refilled by a round in flight.
@@ -188,7 +188,7 @@ namespace ReDefinition.Atmospheres
             {
                 if (p.MapCover != null) WriteScaled(dir, "wms-cover.u8", p.MapCover, 1f);
                 if (p.MapCumuliform != null) WriteScaled(dir, "wms-ConvectiveAmount.u8", p.MapCumuliform, 1f);
-                if (p.MapSheet != null) WriteScaled(dir, "wms-StratiformAmount.u8", p.MapSheet, 1f);
+                if (p.MapStratiform != null) WriteScaled(dir, "wms-StratiformAmount.u8", p.MapStratiform, 1f);
                 if (p.MapBase != null) WriteScaled(dir, "wms-ConvectiveBase.u8", p.MapBase, 1f);
                 if (p.MapTop != null) WriteScaled(dir, "wms-ConvectiveTop.u8", p.MapTop, 1f);
                 if (p.MapReach != null) WriteScaled(dir, "wms-CellReach.u8", p.MapReach, 1f);
@@ -201,7 +201,7 @@ namespace ReDefinition.Atmospheres
                     WriteScaled(dir, "wms-part-high.u8", p.High, 1f);
                     WriteScaled(dir, "wms-part-depth.u8", p.DepthM, 1f / 12000f);
                     System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "wms.json"), "{\"ut\": " + p.Ut.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
-                        + ", \"sheetRule\": " + p.SheetRule + ", \"depthRule\": " + p.DepthRule + ", \"tropopauseM\": "
+                        + ", \"stratiformRule\": " + p.StratiformRule + ", \"depthRule\": " + p.DepthRule + ", \"tropopauseM\": "
                         + p.TropopauseM.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ", \"depthScaleM\": 12000, \"lastRound\": " + LastRoundMapSky
                         + ", \"rounds\": " + MapSkyRounds + "}\n");
                 }

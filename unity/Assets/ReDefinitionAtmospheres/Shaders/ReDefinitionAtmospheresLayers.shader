@@ -178,7 +178,7 @@ Shader "ReDefinition/AtmospheresLayers"
             return 0.5 * _LayerD[li].x;
         }
 
-        // ---- M2c: the undulations of the sheet types (variety undulatus) ----
+        // ---- M2c: the undulations of the stratiform types (variety undulatus) ----
         float4 _TypeUndulatus[8];   // each type's undulatus depth (CloudTypeDef.UndulatusAmount): layer li's type t at slot li * MAXT + t, four to a vector
         float4 _UndulatusP;         // x the frame's switch (cloud.undulatus, 0: off), y the wavelength as a share of the layer's depth
 
@@ -309,9 +309,9 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
                 // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
-                // The map-driven sky (_CellS per layer, zero where a round draws no sheet): the type is read before the cells and a sheet type is drawn connected (CellSheetWeight).
+                // The map-driven sky (_CellS per layer, zero where a round draws no sheet): the type is read before the cells and a stratiform type is drawn connected (CellStratiformWeight).
                 typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
-                float sheetW = CellSheetWeight(li, typeValue);
+                float stratiformW = CellStratiformWeight(li, typeValue);
                 // The lattice (cloud.field off) is a test function for single cloud types, never the product: its code is only in the variant CLOUD_LATTICE (LayerRenderer sets it while
                 // cloud.field is off; without it the march pass is 19 % shorter and holds 10 fewer registers).
 #if defined(CLOUD_LATTICE)
@@ -321,7 +321,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     float edgeC = max(_LayerB[li].z, 1e-4);
                     gCellBodyX = CellBodyReachX(li);
                     cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
-                                    (uint)_NoiseOffset[li].w, sheetW, cellReach, wMap);
+                                    (uint)_NoiseOffset[li].w, stratiformW, cellReach, wMap);
                     if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
                     {
                         gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
@@ -364,7 +364,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 b = localBase;
                 tp = localTop;
             }
-            // M2c: the sheet types' undulations swing the type's THICKNESS (its top; the base stays even), before the height test so that the leap's gap and the light
+            // M2c: the stratiform types' undulations swing the type's THICKNESS (its top; the base stays even), before the height test so that the leap's gap and the light
             // path see the same shape (off while _UndulatusP.x is 0 or the type has no undulatus depth: the deck of before, bit for bit).
             float undulatusAmount = _UndulatusP.x * lerp(TypeUndulatusOf(li, ta), TypeUndulatusOf(li, tb), f);
             [branch] if (undulatusAmount > 0.0) tp = b + (tp - b) * UndulatusFactor(li, pc, undulatusAmount, outer - inner);

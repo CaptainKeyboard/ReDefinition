@@ -94,7 +94,7 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneLvFillTaps, 0f, KeySection.Light, "light volume: the fill's sun taps (0: the march's own taps beyond the far near taps)", KeyLiveness.FrameHistory,
                 KeyMarker.Live, 0f, 64f);
             r.Key(CloudLookTuning.TuneLvFillRatio, 1.15f, KeySection.Light, "light volume: growth of each fill tap over the one before", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 4f);
-            r.Key(MapSkyRegions.TuneSheetRule, MapSkyRegions.SheetRuleDefault, KeySection.Shape,
+            r.Key(MapSkyRegions.TuneStratiformRule, MapSkyRegions.StratiformRuleDefault, KeySection.Shape,
                 "weather map sky: a sheet at no saturated level (0 the most humid level, 1 a deck at the condensation level, 2 the deck map)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 2f);
             r.Key(MapSkyRegions.TuneDepthRule, MapSkyRegions.DepthRuleDefault, KeySection.Shape,
                 "weather map sky: the cumuliform depth (1 the field's depth, 2 the calibrated depth)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);

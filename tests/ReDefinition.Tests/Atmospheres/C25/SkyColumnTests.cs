@@ -163,9 +163,9 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 SkyColumn s = Derive(p, w);
                 Assert.IsTrue(s.BaseM > 0.0 && s.BaseM <= s.TopM && s.TopM <= p.TropopauseM, "base " + s.BaseM + " top " + s.TopM);
                 Assert.IsTrue(s.StableShare >= p.SkyStableShareMin && s.StableShare <= p.SkyStableShare + 1e-12, "stable " + s.StableShare);
-                Assert.IsTrue(s.CumuliformAmount >= 0.0 && s.SheetAmount >= -1e-12 && s.DeckAmount >= 0.0 && s.DeckAmount <= s.SheetAmount + 1e-12);
-                Assert.AreEqual(w.Coverage, s.CumuliformAmount + s.SheetAmount, 1e-12, "cumuliform plus sheet is the column's cover");
-                Assert.IsTrue(s.CumuliformAmount + s.SheetAmount <= 1.0 + 1e-12);
+                Assert.IsTrue(s.CumuliformAmount >= 0.0 && s.StratiformAmount >= -1e-12 && s.DeckAmount >= 0.0 && s.DeckAmount <= s.StratiformAmount + 1e-12);
+                Assert.AreEqual(w.Coverage, s.CumuliformAmount + s.StratiformAmount, 1e-12, "cumuliform plus sheet is the column's cover");
+                Assert.IsTrue(s.CumuliformAmount + s.StratiformAmount <= 1.0 + 1e-12);
                 foreach (double rh in new[] { s.RhLow, s.RhMid, s.RhHigh, s.SurfaceHumidity }) Assert.IsTrue(rh >= 0.0 && rh <= 1.0, "rh " + rh);
                 foreach (double f in new[] { s.WarmFront01, s.ColdFront01, s.FrontAmp01, s.FrontSurfaceShare }) Assert.IsTrue(f >= 0.0 && f <= 1.0, "front " + f);
                 Assert.IsTrue(w.CellReach01 >= 0.0 && w.CellReach01 <= 1.0);
@@ -192,7 +192,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
             {
                 SkyColumn s = Derive(p, w);
                 add("base m", s.BaseM); add("stable m", s.StableM); add("top m", s.TopM); add("shallow depth m", s.TopM - s.BaseM); add("surface RH", s.SurfaceHumidity);
-                add("cumuliform", s.CumuliformAmount); add("sheet", s.SheetAmount); add("RH low", s.RhLow); add("RH mid", s.RhMid); add("RH high", s.RhHigh);
+                add("cumuliform", s.CumuliformAmount); add("sheet", s.StratiformAmount); add("RH low", s.RhLow); add("RH mid", s.RhMid); add("RH high", s.RhHigh);
             }
             Console.WriteLine("Kerbin: tropopause " + p.TropopauseM.ToString("0") + " m; quartiles:");
             foreach (KeyValuePair<string, List<double>> kv in lists)
@@ -290,7 +290,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
             w.Coverage = 1.0 - Math.Exp(-3.0 * 0.5);
             SkyColumn s = Derive(p, w);
             Assert.AreEqual(0.0, s.CumuliformAmount, 1e-15);
-            Assert.AreEqual(w.Coverage, s.SheetAmount, 1e-12);
+            Assert.AreEqual(w.Coverage, s.StratiformAmount, 1e-12);
             // monotonic in the convective water; cumuliform + sheet = cover <= 1
             double prev = -1.0;
             for (double c = 0.0; c <= 2.0; c += 0.05)
@@ -299,7 +299,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 w.Coverage = 1.0 - Math.Exp(-3.0 * Math.Min(1.5, 0.5 + c));
                 s = Derive(p, w);
                 Assert.IsTrue(s.CumuliformAmount > prev || (c == 0.0 && s.CumuliformAmount == 0.0), "convective water " + c);
-                Assert.IsTrue(s.CumuliformAmount + s.SheetAmount <= 1.0 + 1e-12);
+                Assert.IsTrue(s.CumuliformAmount + s.StratiformAmount <= 1.0 + 1e-12);
                 prev = s.CumuliformAmount;
             }
             // only cumuliform water: the whole cover is cumuliform
@@ -427,7 +427,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 }
             var quantities = new Dictionary<string, Func<int, double>>
             {
-                { "cover", k => cols[k].Coverage }, { "cumuliform", k => sky[k].CumuliformAmount }, { "sheet", k => sky[k].SheetAmount }, { "base share", k => sky[k].BaseShare },
+                { "cover", k => cols[k].Coverage }, { "cumuliform", k => sky[k].CumuliformAmount }, { "sheet", k => sky[k].StratiformAmount }, { "base share", k => sky[k].BaseShare },
                 { "top share", k => sky[k].TopShare }, { "stable share", k => sky[k].StableShare }, { "rh low", k => sky[k].RhLow }, { "rh mid", k => sky[k].RhMid },
                 { "rh high", k => sky[k].RhHigh }, { "warm front", k => sky[k].WarmFront01 }, { "cold front", k => sky[k].ColdFront01 }, { "surface rh", k => sky[k].SurfaceHumidity }
             };

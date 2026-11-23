@@ -144,7 +144,7 @@ def main():
         if os.path.isfile(mp):
             meta = json.load(open(mp))
         note = "Karte: Paket-B-Felder des Generators, ut %s, Regeln: Schicht %s, Tiefe %s; Kreuz KSC, Pfeil Blickrichtung, Kreise 10/30/60 km, Texel 7,4 km" % (
-            meta.get("ut", "?"), meta.get("sheetRule", "?"), meta.get("depthRule", "?"))
+            meta.get("ut", "?"), meta.get("stratiformRule", "?"), meta.get("depthRule", "?"))
         fig.text(0.5, 0.005, note, ha="center", fontsize=11)
     if a.header:
         fig.suptitle(a.header, fontsize=14, x=0.01, ha="left")

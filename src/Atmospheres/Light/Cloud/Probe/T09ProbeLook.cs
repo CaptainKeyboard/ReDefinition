@@ -100,7 +100,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The sheet layer of the stack: the one with the highest map at the vessel that is not in a group (the rain deck is the group "weather"); the highest overall where all are.
-        internal static int SheetLayer(T09LookInput input)
+        internal static int StratiformLayer(T09LookInput input)
         {
             int best = -1;
             for (int l = 0; l < input.Layers.Length; l++)
@@ -201,8 +201,8 @@ namespace ReDefinition.Atmospheres
             else
             {
                 EmitLookMapProfile(head, view, input);
-                int sheet = SheetLayer(input);
-                if (sheet >= 0) EmitText(head + "sheet_layer", input.Layers[sheet].Name);
+                int sheet = StratiformLayer(input);
+                if (sheet >= 0) EmitText(head + "stratiform_layer", input.Layers[sheet].Name);
             }
             // The maps and types of the pass move when the forced key set changes what they hold (the module snaps them in the frame after a look-knob change; the wait covers the
             // round and the upload). A frame whose set leaves the types alone still waits where the set before it changed them.
@@ -222,7 +222,7 @@ namespace ReDefinition.Atmospheres
             // it still shows a sheet, the pass differs from the CPU.
             if (input != null)
             {
-                int sheet = SheetLayer(input);
+                int sheet = StratiformLayer(input);
                 if (sheet >= 0)
                 {
                     ClearForced();
