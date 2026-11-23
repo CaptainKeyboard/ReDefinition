@@ -81,24 +81,5 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(255, nimbo.Type[0][0], "all levels saturated, rain, the deck dominating: nimbostratus");
         }
 
-        [TestMethod]
-        public void TheSkyIsTheWeatherMapsByDefaultAndTheKeyTurnsItOff()
-        {
-            // Owner 2026-11-22: the sky is the weather map's by default; cloud.weatherMapSky 0 gives the old layer maps.
-            Tuning.ClearOverrides();
-            Tuning.Instance.BeginFrame(9200001);
-            Assert.IsTrue(WeatherMapSky.On);
-            Tuning.SetOverride(WeatherMapSky.TuneKey, 0f);
-            try
-            {
-                Tuning.Instance.BeginFrame(9200002);
-                Assert.IsFalse(WeatherMapSky.On);
-            }
-            finally
-            {
-                Tuning.ClearOverrides();
-                Tuning.Instance.BeginFrame(9200003);
-            }
-        }
     }
 }

@@ -151,7 +151,6 @@ namespace ReDefinition.Atmospheres
                 case "r4lvsgsh":
                 case "r4lvsg75sh":
                 case "r4lvsg50sh":
-                case "lattice":
                 case "fpnorot":
                 case "fpnohist":
                 case "fpnolv":
@@ -444,8 +443,6 @@ namespace ReDefinition.Atmospheres
                         ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
                     }
                     break;
-                // The map sky check (2026-11-22): lattice is the sky as it was before the weather map became the default (cloud.weatherMapSky 0: the old layer maps, the 3 km lattice).
-                case "lattice": ForceTuning(WeatherMapSky.TuneKey, 0f); break;
                 // The grid hunt (2026-11-22, PRUEFPROTOKOLL 75: a regular 16-render-pixel grid over the storm's ground view with the map sky): one part of the fast cloud
                 // path off each (CloudFastPath): fpnorot the 4 x 4 rotation (recon.rotate 0: the setting's own), fpnohist the march's distance history (trueDistance, age,
                 // distanceReject, clipSigma back to their full-path values), fpnolv the light volume, fpnosg the points by distance, fpshfull the full cloud shadow.

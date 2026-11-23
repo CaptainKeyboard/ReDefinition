@@ -2,7 +2,7 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The sky drawn from the weather map in the game (cloud.weatherMapSky, the default): the layers and forms fed by the package B maps so that regions arise (a closed deck where
+    // The sky drawn from the weather map in the game: the layers and forms fed by the package B maps so that regions arise (a closed deck where
     // the map's sheet amount is high, broken cumulus where its heap amount is, clear sky where its cover is 0) instead of single clouds spread evenly by the old layer maps. A pure function of map-sized arrays (OwnCloudModule fetches the maps and hands the result to the layers); WM1's WeatherMapSky is the
     // weather player's cost prototype this grew from. Only cfg numbers, the maps and numbers of the M1 proposal (marked PROPOSAL) are used.
     //

@@ -102,10 +102,10 @@ namespace ReDefinition.Atmospheres.Viewer
                 OwnCloudOptions.TuneCellIncidenceRef, OwnCloudOptions.TuneCellIncidenceEps, LightWriter.TuneSunDimWeight, LightWriter.TuneSunDimWeightEve,
                 CloudShadowStepPolicy.TuneKey, CloudShadowShapeNoise.TuneKey, OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.TuneShadowTaps);
             Put(map, KeySection.Quality,
-                OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent, OwnCloudModule.TuneReaddEveryFrame,
+                OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent,
                 CloudDevVariant.TuneForce, OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.TuneLeapScale,
                 OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneCheapShare,
-                OwnCloudOptions.TuneFogShare, OwnCloudOptions.TuneCostDebug, OwnCloudOptions.TuneCostCutM, OwnCloudOptions.TuneSpanGrowthPerM,OwnCloudOptions.TuneSpanGrowthFromM, OwnCloudOptions.TuneGridFine,OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.TuneDitherFix,
+                OwnCloudOptions.TuneFogShare, OwnCloudOptions.TuneCostDebug, OwnCloudOptions.TuneCostCutM, OwnCloudOptions.TuneSpanGrowthPerM,OwnCloudOptions.TuneSpanGrowthFromM, OwnCloudOptions.TuneGridFine,OwnCloudOptions.TuneDitherSequence,
                 OwnCloudOptions.TuneAccumulate, OwnCloudOptions.TuneReconResolution, OwnCloudOptions.TuneReconRotate, OwnCloudOptions.TuneLayerMotion, OwnCloudOptions.TuneMotionVectors,
                 OwnCloudOptions.TuneMotionAudit, OwnCloudOptions.TuneHostJitter, EdgeSettings.TuneReconstructor, EdgeSettings.TuneEdgeAdaptive, EdgeSettings.TuneThreshold, EdgeSettings.TuneDilation,
                 EdgeSettings.TunePersist,

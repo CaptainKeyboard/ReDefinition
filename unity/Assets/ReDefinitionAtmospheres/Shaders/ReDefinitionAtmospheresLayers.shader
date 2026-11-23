@@ -290,13 +290,9 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
                 // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
-                // The map-driven sky (keyword REDEFINITION_MAPSKY, set while cloud.weatherMapSky is on; _CellS per layer): the type is read before the cells and a sheet type is drawn
-                // connected (CellSheetWeight). Without the keyword the variant is the pass as before (a runtime branch here made the compiler process fail, 2026-11-20).
-                float sheetW = 0.0;
-#if defined(REDEFINITION_MAPSKY)
+                // The map-driven sky (_CellS per layer, zero where a round draws no sheet): the type is read before the cells and a sheet type is drawn connected (CellSheetWeight).
                 typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
-                sheetW = CellSheetWeight(li, typeValue);
-#endif
+                float sheetW = CellSheetWeight(li, typeValue);
                 // The lattice (cloud.field off) is a test function for single cloud types, never the product: its code is only in the variant CLOUD_LATTICE (LayerRenderer sets it while
                 // cloud.field is off; without it the march pass is 19 % shorter and holds 10 fewer registers).
 #if defined(CLOUD_LATTICE)
@@ -313,9 +309,6 @@ Shader "ReDefinition/AtmospheresLayers"
                         return 0;
                     }
                 }
-#endif
-#if !defined(REDEFINITION_MAPSKY)
-                typeValue =SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
 #endif
             }
             float erosion = 0;
@@ -809,7 +802,7 @@ Shader "ReDefinition/AtmospheresLayers"
             // pixels and z, w to 0). Unity's _ScreenParams only where no caller set them (0, the weather player's own scenes): a command buffer executed outside a
             // camera's render (the pinned replay) does not have the camera's size in it.
             float2 grid = _ReconD.x > 0.5 ? _ReconD.xy : _ScreenParams.xy;
-            float2 pixel = i.uv * (_ReconP.x < 1.5 ? (DEV(_DitherP.w, 1.0) > 0.5 && _ReconD.z > 1.5 ? _ReconD.zw : grid) : _ReconD.xy);
+            float2 pixel = i.uv * (_ReconP.x < 1.5 ? (_ReconD.z > 1.5 ? _ReconD.zw : grid) : _ReconD.xy);
             MarchOut r = March(o, d, tmax, pixel);
             float aid = DEV(_LimitP.y, 0.0);
             if (aid > 1.5 && aid < 2.5)
@@ -923,7 +916,6 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma target 3.5
             // LV1 (cloud.lightVolume): the sun's light beyond the hand-over distance from the light volume (LightVolume.cs); no keyword: today's march.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
-            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
@@ -948,7 +940,6 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
-            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return PassAux(i); }
@@ -962,7 +953,6 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
-            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target
@@ -1024,7 +1014,6 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma target 3.5
             // The keyword variants of pass 0 (the light volume, the map-driven sky), so that the march is the same whichever pass draws it.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
-            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             MarchTargets frag(v2f i) { return Pass0Targets(i); }
@@ -1041,7 +1030,6 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma target 3.5
             // The keyword variants of pass 0 (the light volume, the map-driven sky), so that the march is the same whichever pass draws it.
             #pragma multi_compile_local __ CLOUD_LIGHTVOL
-            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
@@ -1058,7 +1046,6 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma target 3.5
             #pragma multi_compile_local CLOUD_LIGHTVOL
             // The map-driven sky's density read, as in the march and the light cache's fill.
-            #pragma multi_compile_local __ REDEFINITION_MAPSKY
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target

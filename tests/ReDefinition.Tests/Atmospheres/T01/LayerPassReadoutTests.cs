@@ -111,7 +111,7 @@ namespace ReDefinition.Tests.Atmospheres.T01
             StringAssert.Contains(json, "\"_WorldToMap\": [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]");
             StringAssert.Contains(json, "\"_CovMaps\": \"512x256x4\"");
             StringAssert.Contains(json, "\"_NoiseShape\": null");
-            StringAssert.Contains(json, "\"keywords\": {\"CLOUD_LIGHTVOL\": true, \"REDEFINITION_MAPSKY\": false, \"CLOUD_LATTICE\": false, \"CLOUD_DEV\": false}");
+            StringAssert.Contains(json, "\"keywords\": {\"CLOUD_LIGHTVOL\": true, \"CLOUD_LATTICE\": false, \"CLOUD_DEV\": false}");
             StringAssert.Contains(json, "\"keywordsOn\": [\"CLOUD_LIGHTVOL\"]");
             StringAssert.Contains(json, "\"readFailures\": []");
             Assert.AreEqual(json.Count(c => c == '{'), json.Count(c => c == '}'), "balanced braces");

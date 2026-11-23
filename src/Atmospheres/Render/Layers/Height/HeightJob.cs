@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
         internal HeightTuning[] Tunings;
         internal uint[] Seeds;
         internal double[] AltitudesM;
-        // The sky drawn from the weather map (cloud.weatherMapSky, OwnCloudModule.MapSkyRoots): per layer the root offsets in m that replace the built ones, in a root range of their own,
+        // The sky drawn from the weather map (OwnCloudModule.MapSkyRoots): per layer the root offsets in m that replace the built ones, in a root range of their own,
         // with the top term zeroed (the type's thickness is the map's depth); null where the layer keeps its built maps (always while the switch is off).
         internal float[][] RootOverrideM;
         internal float[] RootOverrideRangeM;

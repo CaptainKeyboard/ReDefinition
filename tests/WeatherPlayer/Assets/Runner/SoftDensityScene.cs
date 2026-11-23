@@ -148,13 +148,13 @@ namespace ReDefinition.WeatherPlayer
         //   skip      cloudSkipEmpty (the tile pass)                                                                    leap<N> layers.emptyLeap
         //   lm<N>     the layers that are marched, bit i = layer i (0: all; a measurement of what dropping the empty layers before the march would save)
         //   dbg<N>    the cost debug mask (1 no light, 2 no shape noise, 4 no erosion; not a picture of the product)
-        //   og        the pattern's pixel grid of the pass before E40 F2 (the camera's size scales the uv)       cr<N>  the light cone's rotation pattern: 0 gradient noise, 1 fixed, 2 hash, 3 blue noise (the default)
+        //   cr<N>  the light cone's rotation pattern: 0 gradient noise, 1 fixed, 2 hash, 3 blue noise (the default)
         // The base is seq1 (the product's grid march with the 48 points of the High setting), seq1m<N> (N grid points) or a GrainTable name.
         internal sealed class Case
         {
             public string Name, Base = "seq1";
             public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f;
-            public bool Jitter, Skip, OldGrid, NoReach, FarMean;
+            public bool Jitter, Skip, NoReach, FarMean;
             public int ConePattern = -1, Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
             // E40 C2: mn<N> a moon of N / 10000 of the sun's luminance (the game's moon is lit by any body in the sky, day or night; the player had none), mc<N> the product's light.moonMinShare
             // N / 1000 (a moon below that share of the sun is left out, OwnCloudOptions.MoonTooFaint), lp<NN> the longest leap over empty grid points in the layer's noise scales, NN / 100
@@ -281,7 +281,6 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("mn")) c.Moon = Number(t, 2);   // E40 C2
                 else if (t.StartsWith("mc")) c.MoonCut = Number(t, 2);   // E40 C2
                 else if (t.StartsWith("lp")) c.Leap100 = Number(t, 2) / 100f;   // E40 C2
-                else if (t == "og") c.OldGrid = true;   // E40 F2: the pattern's pixel grid of the pass before F2 (LayerFrame.DitherOwnGrid false)
                 else if (t == "chm") c.CatmullHistory = true;   // CLOUDR3 P7: the history read with the Catmull-Rom filter
                 else if (t == "rtd") c.TrueDistance = true;   // recon.trueDistance: the history moved by the march's own distance (ReconSettings.TrueDistance)
                 else if (t == "rag") c.Age = true;   // recon.age: the history's count of marched samples (ReconSettings.Age)
@@ -379,7 +378,6 @@ namespace ReDefinition.WeatherPlayer
             f.AidMode = c.Aid;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
             f.DitherSequence = c.Dither >= 0 ? c.Dither : FrameDefaults.DitherSequence;
-            f.DitherOwnGrid = !c.OldGrid;
             f.ConePattern = c.ConePattern >= 0 ? c.ConePattern : FrameDefaults.ConePattern;
             f.FixedConeRotation = c.ConePattern == 1;   // cr1: the probe's fixed rotation (no per-pixel pattern of the cone at all)
             if (c.Debug >= 0) f.CostDebug = c.Debug;

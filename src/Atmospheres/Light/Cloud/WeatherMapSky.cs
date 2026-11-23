@@ -4,7 +4,7 @@ namespace ReDefinition.Atmospheres
 {
     // WM1 cost prototype (master plan section 26, 2026-11-20): today's layers fed by the package B column quantities (SkyColumn) instead of today's layer maps. A pure function
     // of map-sized arrays, so the map dump that feeds the weather player (tests SkyMapsExplore.DumpTheWeatherMapSky) builds both skies from the same field; the game's module
-    // calls it once per map round (OwnCloudModule.MapSky.cs). Behind cloud.weatherMapSky (CloudLookTuning), 1 by default since 2026-11-22.
+    // calls it once per map round (OwnCloudModule.MapSky.cs). The sky of the game since 2026-11-22 (the key that switched it off is removed, 2026-11-23).
     //
     // What goes where (only the cfg's own numbers are used; every place the renderer cannot say what the column says is named):
     //   heap amount  -> the cover of the heap layer (the layer with an alto type: Kerbin-cumulus) or, where the column's depth is more than that layer's shell is thick, of the tall
@@ -23,14 +23,8 @@ namespace ReDefinition.Atmospheres
     //   not drawn    -> the anvil (package B has none), the meso pattern and the combination with the field's cover (the column amounts are already the sky's shares).
     internal static class WeatherMapSky
     {
-        internal const string TuneKey = "cloud.weatherMapSky";
-        // On by default (owner 2026-11-22: the sky is the weather map's; the even 3 km lattice of single clouds was a test arrangement). The single-cloud bodies (cloud.cells)
-        // stay on: without them the map's texels are the soft lumps the owner rejected on 2026-11-19.
-        internal const float Default = 1f;
         // The level counts as saturated from here (RESULTS.md of the M1 count, section 3: the generator caps humidity at 1).
         internal const float SaturatedRh = 0.9999f;
-
-        internal static bool On { get { return Tuning.Get(TuneKey, Default) > 0.5f; } }
 
         // The column quantities of a map (row 0 at the north pole, column 0 at -180), one value per texel.
         internal sealed class Columns

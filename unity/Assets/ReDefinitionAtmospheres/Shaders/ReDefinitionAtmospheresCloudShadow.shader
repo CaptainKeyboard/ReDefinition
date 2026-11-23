@@ -211,7 +211,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 [branch] if (_CsLayerD[li].y > 0.0)
                 {
                     float cellReach, wMap;
-                    // The map-driven sky's connected sheets (CloudCells.cginc _CellS, zero while cloud.weatherMapSky is off), as the layer pass reads them.
+                    // The map-driven sky's connected sheets (CloudCells.cginc _CellS, zero where a round draws no sheet), as the layer pass reads them.
                     float sheetW = 0.0;
                     [branch] if (_CellS[li].x > 0.5)
                     {

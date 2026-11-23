@@ -66,21 +66,6 @@ namespace ReDefinition.Atmospheres
             OwnCloudModule.ProbeNoSceneDepth = false;
             LayerProbeSwitches.MaxSteps = 0;
             ApiBridge.ProbeSkipOwners.Clear();
-            SceneWhiteBalance.ProbeOldBlit = SceneWhiteBalance.ProbeIdentityVp = SceneWhiteBalance.ProbeVp = false;
-        }
-
-        // The white balance test's probe switches (2026-11-21): wboldblit (the old two-Blit path), wbident (an identity view and projection recorded before
-        // it), wbvp (the view-projection probe). Whether key is one of them; with set, the switch takes value != 0.
-        private static bool WhiteBalanceSwitch(string key, float value, bool set)
-        {
-            bool on = value != 0f;
-            switch (key)
-            {
-                case "wboldblit": if (set) SceneWhiteBalance.ProbeOldBlit = on; return true;
-                case "wbident": if (set) SceneWhiteBalance.ProbeIdentityVp = on; return true;
-                case "wbvp": if (set) SceneWhiteBalance.ProbeVp = on; return true;
-                default: return false;
-            }
         }
 
         // The post-upscale draw test of 2026-11-21: the probe switches skipprecip and skiplamp leave that draw uncalled (ApiBridge.ProbeSkipOwners), for the
@@ -175,8 +160,7 @@ namespace ReDefinition.Atmospheres
                     string[] f = part.Split(':');
                     float value;
                     if (f.Length != 3 || f[0].Length != 1 || "tsp".IndexOf(f[0][0]) < 0 || !float.TryParse(f[2], NumberStyles.Float, CultureInfo.InvariantCulture, out value)
-                        || (f[0][0] == 'p' && f[1] != "surface" && f[1] != "scenedepth" && f[1] != "maxsteps" && SkipDrawOwner(f[1]) == null
-                            && !WhiteBalanceSwitch(f[1], 0f, false)))
+                        || (f[0][0] == 'p' && f[1] != "surface" && f[1] != "scenedepth" && f[1] != "maxsteps" && SkipDrawOwner(f[1]) == null))
                     {
                         problem = "-t09PinLimits switch '" + part + "' of " + limit.Name + " is not kind:key:value (kinds t, s, p; probe switches surface, scenedepth, maxsteps, "
                                   + "skipprecip, skiplamp)";
@@ -206,7 +190,6 @@ namespace ReDefinition.Atmospheres
                 {
                     if (s.Value != 0f) ApiBridge.ProbeSkipOwners.Add(SkipDrawOwner(s.Key));
                 }
-                else if (WhiteBalanceSwitch(s.Key, s.Value, true)) { }
                 else LayerProbeSwitches.MaxSteps = (int)s.Value;
                 AtmospheresLog.Say("T09 pin limit " + limit.Name + ": " + s.Kind + " " + s.Key + " = " + s.Value.ToString("R", CultureInfo.InvariantCulture));
             }
@@ -216,7 +199,7 @@ namespace ReDefinition.Atmospheres
         private static bool PinLimitChangesMaps(PinLimit limit)
         {
             foreach (PinSwitch s in limit.Switches)
-                if (s.Kind == 't' && s.Key.StartsWith(WeatherMapSky.TuneKey, StringComparison.Ordinal)) return true;
+                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule)) return true;
             return false;
         }
 
@@ -368,7 +351,7 @@ namespace ReDefinition.Atmospheres
                         PinLimitApply(limit, restore);
                         // Two frames for the switches to reach the frame's record (a tuning override is read at the next frame).
                         yield return ProbeWait.Frames(2);
-                        // A set that changes the maps (the sky from the weather map, cloud.weatherMapSky*): the maps and the heights are made and settled again before the capture.
+                        // A set that changes the maps (the sky from the weather map's rules, cloud.weatherMapSky.*): the maps and the heights are made and settled again before the capture.
                         bool mapsChange = PinLimitChangesMaps(limit);
                         if (mapsChange)
                         {
@@ -509,7 +492,7 @@ namespace ReDefinition.Atmospheres
                                                          + step.ToString("0.0000", CultureInfo.InvariantCulture) + " s; the sun's direction " + sunSpreadDeg.ToString("0.00000", CultureInfo.InvariantCulture)
                                                          + " degrees, the planet's centre " + centreSpreadM.ToString("0.000", CultureInfo.InvariantCulture) + " m")) yield break;
 
-            // The sky the pass draws in this capture: the last map round's state (-1 today's chain, else sheet rule x 10 + depth rule) must be the keys' (cloud.weatherMapSky*).
+            // The sky the pass draws in this capture: the last map round's state (-1 today's chain, else sheet rule x 10 + depth rule) must be the keys' (cloud.weatherMapSky.*).
             PinEmit("map_sky", own.LastRoundMapSky);
             PinEmit("map_sky_rounds", own.MapSkyRounds);
             string skyWhy;

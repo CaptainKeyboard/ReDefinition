@@ -128,7 +128,6 @@ namespace ReDefinition.Tests.Atmospheres.T01
             Assert.IsFalse(frame.FixedConeRotation, "_DitherP.y");
             Assert.AreEqual(3, frame.ConePattern, "_DitherP.y");
             Assert.AreEqual(3, frame.DitherSequence, "_DitherP.z");
-            Assert.IsTrue(frame.DitherOwnGrid, "_DitherP.w");
             Assert.AreEqual(0f, new ReconSettings().FarRotateM, "_FarRot.x");
             Assert.IsFalse(EdgeSettings.AdaptiveDefault, "_EdgeP.x");
             var light = new CloudLightSettings();

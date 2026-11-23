@@ -10,7 +10,7 @@ using ReDefinition.Tests.Atmospheres.C25;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // WM1 (master plan section 26): the layer maps of Kerbin at given times twice, as the game's module makes them today (the FetchStep chain of SkyMapsExplore, plus the module's anvils)
-    // and from the package B column quantities (WeatherMapSky, cloud.weatherMapSky 1), with the column quantities themselves, for tools/weather_metrics/wm1.py. Runs only when
+    // and from the package B column quantities (WeatherMapSky), with the column quantities themselves, for tools/weather_metrics/wm1.py. Runs only when
     // WMSKY_OUT names a directory.
     //   WMSKY_UTS          the universal times, comma separated (default 1486800)
     //   WMSKY_SEED         the body's seed (default 664216370, SkyMapsExplore's: the game log's "body Kerbin ... seed")
@@ -176,32 +176,21 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             inst[k] = (float)wx.Instability;
                         }
                     }
-                    // The switch: 0 today's maps, 1 the maps from the columns.
-                    for (int arm = 0; arm < 2; arm++)
+                    // Today's chain's maps, then the maps from the columns.
+                    for (int li = 0; li < layers.Length; li++)
                     {
-                        Tuning.SetOverride(WeatherMapSky.TuneKey, arm);
-                        Tuning.Instance.BeginFrame(9100000 + arm);
-                        if (!WeatherMapSky.On)
-                        {
-                            for (int li = 0; li < layers.Length; li++)
-                            {
-                                Bytes(folder, tag + "today_" + layers[li].Name + "_cover", combined[li]);
-                                Bytes(folder, tag + "today_" + layers[li].Name + "_type", types[li]);
-                            }
-                            continue;
-                        }
-                        WeatherMapSky.Result r = WeatherMapSky.Build(layers, c, types, fogCover, fogType, roots);
-                        for (int li = 0; li < layers.Length; li++)
-                        {
-                            Bytes(folder, tag + "wm_" + layers[li].Name + "_cover", r.Cover[li]);
-                            Bytes(folder, tag + "wm_" + layers[li].Name + "_type", r.Type[li]);
-                            if (r.Root[li] != null) Bytes(folder, tag + "wm_" + layers[li].Name + "_root", r.Root[li]);
-                        }
-                        Floats(folder, tag + "wm_heapDropped", r.HeapDropped);
-                        Bytes(folder, tag + "wm_sheetLevels", r.SheetLevels);
+                        Bytes(folder, tag + "today_" + layers[li].Name + "_cover", combined[li]);
+                        Bytes(folder, tag + "today_" + layers[li].Name + "_type", types[li]);
                     }
-                    Tuning.ClearOverrides();
-                    Tuning.Instance.BeginFrame(9100002);
+                    WeatherMapSky.Result r = WeatherMapSky.Build(layers, c, types, fogCover, fogType, roots);
+                    for (int li = 0; li < layers.Length; li++)
+                    {
+                        Bytes(folder, tag + "wm_" + layers[li].Name + "_cover", r.Cover[li]);
+                        Bytes(folder, tag + "wm_" + layers[li].Name + "_type", r.Type[li]);
+                        if (r.Root[li] != null) Bytes(folder, tag + "wm_" + layers[li].Name + "_root", r.Root[li]);
+                    }
+                    Floats(folder, tag + "wm_heapDropped", r.HeapDropped);
+                    Bytes(folder, tag + "wm_sheetLevels", r.SheetLevels);
                     Floats(folder, tag + "col_cover", c.Cover);
                     Floats(folder, tag + "col_heap", c.Heap);
                     Floats(folder, tag + "col_sheet", c.Sheet);

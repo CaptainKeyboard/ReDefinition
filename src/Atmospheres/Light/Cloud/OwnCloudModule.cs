@@ -46,7 +46,7 @@ namespace ReDefinition.Atmospheres
     {
         // The tuning keys of this module (ATMO_TUNING { key = value }, or a matrix row atmo.<key>).
         internal const string TuneCameraEvent = "cloud.cameraEvent", TuneSunGain = "cloud.sunGain", TuneSunAirWithScatterer = "cloud.sunAirWithScatterer",
-            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma", TuneReaddEveryFrame = "cloud.readdEveryFrame",
+            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma",
             TuneAfterScatterer = "cloud.afterScatterer",
             // E40 B3: the white point of the output stage follows the sun at the clouds (CloudOutputStage.WhiteTint): the strength 0 to 1 (default 1, 0 = the grey white as before) and
             // the altitude the sun's air is taken at (default -1: the lower quarter of the stack's lowest layer, CloudOutputStage.NominalCloudAltitudeM; a value of 0 or more is that altitude in m).
@@ -1001,7 +1001,7 @@ namespace ReDefinition.Atmospheres
         private void EndRound()
         {
             fetchStep = -1;
-            // cloud.weatherMapSky: which sky the round that ends here published (the pinned capture's proof, OwnCloudModule.MapSky.cs).
+            // The map sky: which sky the round that ends here published (the pinned capture's proof, OwnCloudModule.MapSky.cs).
             MapSkyRoundEnded();
             if (roundOnWorker)
             {
@@ -1033,7 +1033,7 @@ namespace ReDefinition.Atmospheres
             if (step == 2)
             {
                 FetchFogInputs(b, field, ut);
-                // cloud.weatherMapSky (the default): the package B maps and the layers' parts of this round (OwnCloudModule.MapSky.cs).
+                // The map sky: the package B maps and the layers' parts of this round (OwnCloudModule.MapSky.cs).
                 FetchMapSky(b, field, ut);
                 return;
             }
@@ -1098,7 +1098,7 @@ namespace ReDefinition.Atmospheres
             // CELLS: a layer with the cell list draws its towers from the generator's cells and not from the point-sampled layer map: no deck rule, no meso stage (not under a probe's override
             // of the maps or the types, and only once the worker has made a list).
             CloudLayerDef cellDef = stack.LayerAt(l);
-            // cloud.weatherMapSky: the tall layer draws its towers from the cell list (the map holds a cell's tower in the single texel at its centre; the list paints each cell as one tower).
+            // The map sky: the tall layer draws its towers from the cell list (the map holds a cell's tower in the single texel at its centre; the list paints each cell as one tower).
             bool mapSkyCells = mapSkyRound && WeatherMapSky.RoleOf(cellDef) == WeatherMapSky.Role.Tall;
             bool cellLayer = (cellDef.CellList || mapSkyCells) && AnvilMap.AnvilTypeIndex(cellDef) >= 0 && gf != null && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f;
             if (cellLayer)
@@ -1168,7 +1168,7 @@ namespace ReDefinition.Atmospheres
                     if (!layerDef.HasClimate) typeBytes = CloudLookTuning.ApplyAlto(typeBytes, typeMap.Bytes, altoMidMap.Bytes, altoLowMap.Bytes, layerDef.AltoType, layerDef.AltoFrom, layerDef.AltoFull, ref altoScratch);
                 }
             }
-            // cloud.weatherMapSky (the default): a layer the weather map drives takes its cover and type from the round's parts; no meso stage, no combination (OwnCloudModule.MapSky.cs).
+            // The map sky: a layer the weather map drives takes its cover and type from the round's parts; no meso stage, no combination (OwnCloudModule.MapSky.cs).
             bool mapSkyLayer = forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f
                                && MapSkyLayer(l, stack.LayerAt(l), deck ?? stack.LayerAt(l).Deck, rawCover, typeBytes, ref cover, ref typeBytes, ref coverSource);
             if (mapSkyLayer) cellLayerNow[l] = false;
@@ -1350,7 +1350,7 @@ namespace ReDefinition.Atmospheres
                 heightRules = c.Clouds.Height;
             }
             int switches = (heightTuning.BaseVariation ? 1 : 0) | (heightTuning.BasePhysics ? 2 : 0) | (heightTuning.TopFromUpdraft ? 4 : 0) | (heightTuning.BaseRagged ? 8 : 0);
-            // cloud.weatherMapSky: the bases come from the map's parts, so the heights are built again when the parts first come or go.
+            // The map sky: the bases come from the map's parts, so the heights are built again when the parts first come or go.
             bool skyNow = mapSkyPartsForHeights != null;
             bool changed = switches != heightSwitches || numbersChanged || skyNow != heightsHadMapSky;
             heightSwitches = switches;
@@ -1681,8 +1681,8 @@ namespace ReDefinition.Atmospheres
             // back every frame is not needed for the order (the depth buffer is added first, the layer buffer after it, and a buffer another mod adds
             // later runs after both) and the GPU profiler records that doing so between its markers darkens the frame (GpuProfiler.LayOutCamera), which
             // the profiled K-T2 starts would run into. They are added again when the camera or the event changes, after the pass was hidden, and when a
-            // look at the camera once a second does not find them (a camera that was rebuilt). cloud.readdEveryFrame = 1 gives the old behaviour.
-            bool readd = Tuning.Flag(TuneReaddEveryFrame, false);
+            // look at the camera once a second does not find them (a camera that was rebuilt).
+            bool readd = false;
             if (!ReferenceEquals(attachedCamera, cam) || attachedEvent != when)
             {
                 Detach();
@@ -1910,7 +1910,7 @@ namespace ReDefinition.Atmospheres
                     if (heights != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + "-height.u8"), heights.Bytes);
                 }
                 if (climateHumidity != null) System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "humidity.u8"), climateHumidity);
-                // cloud.weatherMapSky: the package B maps and the layers' parts the round drew (nothing while it is off).
+                // The map sky: the package B maps and the layers' parts the round drew (nothing where the round had no weather data).
                 WriteMapSkyDump(dir);
                 System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "pass.json"), PassJson(tag));
                 AtmospheresLog.Say("own clouds: dumped the layer maps of " + stack.LayerCount + " layers and the pass's numbers (pass.json) to " + dir);
@@ -2017,7 +2017,7 @@ namespace ReDefinition.Atmospheres
             LightVolume lv = player != null ? player.CurrentLightVolume : null;
             s.Append(",\n \"lightVolume\": {\"keywordAtRecord\": ").Append(player == null ? "null" : player.LightVolumeKeywordAtRecord ? "true" : "false")
              .Append(", \"state\": ").Append(lv != null ? lv.StateJson() : "null").Append('}');
-            // cloud.weatherMapSky: which sky the last map round published and whether the applied heights carry the map's bases.
+            // The map sky: which sky the last map round published and whether the applied heights carry the map's bases.
             s.Append(MapSkyJson());
             s.Append(",\n \"uniforms\": ").Append(LayerPassReadout.Uniforms(renderer.Material)).Append("}\n");
             return s.ToString();
