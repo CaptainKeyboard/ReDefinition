@@ -31,14 +31,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return TypeMixFixture.ShippedLayers();
         }
 
-        // Owner 2026-11-23: the sheet rule is B (2) and the depth rule b (2) by default (the other tests here name their rule).
+        // Owner 2026-11-23: the sheet rule is B (2) and the depth rule a (1, the field's depth: the more realistic) by default (the other tests here name their rule).
         [TestMethod]
         public void TheOwnersRulesAreTheDefaults()
         {
             Tuning.ClearOverrides();
             Tuning.Instance.BeginFrame(9200101);
             Assert.AreEqual(2, MapSkyRegions.SheetRule);
-            Assert.AreEqual(2, MapSkyRegions.DepthRule);
+            Assert.AreEqual(1, MapSkyRegions.DepthRule);
         }
 
         private static MapSkyRegions.Parts Plan(MapSkyRegions.Inputs m, int sheetRule = 1, int depthRule = 1)
