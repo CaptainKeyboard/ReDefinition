@@ -275,7 +275,6 @@ namespace ReDefinition.Atmospheres.Viewer
             F(OwnCloudModule.TuneSunAirWithScatterer, false),
             F(OwnCloudModule.TuneAfterScatterer, true, KeyLiveness.Second, note: "read once a second (OwnCloudModule.OnPreRender); the buffers move behind Scatterer's scattering within a second"),
             N(OwnCloudModule.TuneCameraEvent, 0f, note: "0 BeforeForwardAlpha, 1 AfterForwardAlpha, 2 BeforeImageEffects; buffers move"),
-            F(OwnCloudModule.TuneReaddEveryFrame, false),
             N(CloudMotion.TuneScale, CloudMotion.DefaultScale, note: "cloud speed, 0 to 50"),
             // The haze (OwnCloudModule.FillFrame, ResolveAir).
             N(CloudHazePlan.TuneAirSource, -1f, note: "-1 auto, re-read when it changes"),

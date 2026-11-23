@@ -46,7 +46,7 @@ namespace ReDefinition.Atmospheres
     {
         // The tuning keys of this module (ATMO_TUNING { key = value }, or a matrix row atmo.<key>).
         internal const string TuneCameraEvent = "cloud.cameraEvent", TuneSunGain = "cloud.sunGain", TuneSunAirWithScatterer = "cloud.sunAirWithScatterer",
-            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma", TuneReaddEveryFrame = "cloud.readdEveryFrame",
+            TuneMoonGain = "cloud.moonGain", TuneSunUnit = "cloud.sunUnit", TuneExposure = "cloud.exposure", TuneOutputGamma = "cloud.outputGamma",
             TuneAfterScatterer = "cloud.afterScatterer",
             // E40 B3: the white point of the output stage follows the sun at the clouds (CloudOutputStage.WhiteTint): the strength 0 to 1 (default 1, 0 = the grey white as before) and
             // the altitude the sun's air is taken at (default -1: the lower quarter of the stack's lowest layer, CloudOutputStage.NominalCloudAltitudeM; a value of 0 or more is that altitude in m).
@@ -1681,8 +1681,8 @@ namespace ReDefinition.Atmospheres
             // back every frame is not needed for the order (the depth buffer is added first, the layer buffer after it, and a buffer another mod adds
             // later runs after both) and the GPU profiler records that doing so between its markers darkens the frame (GpuProfiler.LayOutCamera), which
             // the profiled K-T2 starts would run into. They are added again when the camera or the event changes, after the pass was hidden, and when a
-            // look at the camera once a second does not find them (a camera that was rebuilt). cloud.readdEveryFrame = 1 gives the old behaviour.
-            bool readd = Tuning.Flag(TuneReaddEveryFrame, false);
+            // look at the camera once a second does not find them (a camera that was rebuilt).
+            bool readd = false;
             if (!ReferenceEquals(attachedCamera, cam) || attachedEvent != when)
             {
                 Detach();
