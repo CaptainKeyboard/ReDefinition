@@ -91,6 +91,18 @@ namespace ReDefinition.Atmospheres
         // the full size (ReconResolutionDefault) with the rotation (cloudRotation on). Game, K-T2 perfN2560dlssqceil (A4500 2560x1440 DLSS Q): 21.4 fps at the ground.
         internal const float LookMinStepM = 6f, LookSunMarchM = 12000f;
         internal const int LookSunSteps = 8;
+
+        // The defaults in force of the keys the fast cloud path changes (CloudFastPath): the readers below and the viewer's registry take the same property, so the viewer shows
+        // what runs on the tier in force.
+        internal static float MinStepDefaultM { get { return CloudFastPath.Pick(CloudFastPath.MinStepM, LookMinStepM); } }
+        internal static float SpanGrowthDefaultPerM { get { return CloudFastPath.Pick(CloudFastPath.SpanGrowthPerM, 0f); } }
+        internal static float ShadowResolutionDefaultNow { get { return CloudFastPath.Pick(CloudFastPath.ShadowResolution, ShadowResolutionDefault); } }
+        internal static float ReconRotateDefault(float full) { return CloudFastPath.Pick(CloudFastPath.ReconRotate, full); }
+        internal static float TrueDistanceDefaultNow { get { return CloudFastPath.Pick(CloudFastPath.TrueDistance, TrueDistanceDefault) ? 1f : 0f; } }
+        internal static float AgeDefaultNow { get { return CloudFastPath.Pick(CloudFastPath.Age, AgeDefault) ? 1f : 0f; } }
+        internal static float MarchTriangleDefaultNow { get { return CloudFastPath.Pick(CloudFastPath.MarchTriangle, MarchTriangleDefault) ? 1f : 0f; } }
+        internal static float DistanceRejectDefaultNow { get { return CloudFastPath.Pick(CloudFastPath.DistanceReject, DistanceRejectDefault); } }
+        internal static float ClipSigmaDefaultNow { get { return CloudFastPath.Pick(CloudFastPath.ClipSigma, ClipSigmaDefault); } }
         // recon.rotate N (2 to 4; default 0, off): with the march at full size (recon.resolution 1) and a history (recon.accumulate above 0), each frame marches one pixel of every N x N
         // block, at full size, and blends it into that pixel's history with the accumulation weight; the other pixels keep their reprojected history (Catmull-Rom) alone. The owner judged
         // N = 2 equal to the full march in the weather player still, turning and flying (2026-11-19, e40puff rot2ac against k4_stride); the march costs a third (33 against 97 ms).
@@ -257,7 +269,7 @@ namespace ReDefinition.Atmospheres
             // The owner's look (2026-11-19, the default; e40puff k4_stride, judged in the player 2026-11-18): the shortest step LookMinStepM, no step growth along the ray, the march
             // towards the sun LookSunMarchM long. A key at or below 0 gives the step quality's value instead (layers.minStepM, layers.sunMarchM); layers.earlyOut above 0 replaces the
             // frame's early out.
-            float minStepKey = Tuning.Get(TuneMinStepM, CloudFastPath.Pick(CloudFastPath.MinStepM, LookMinStepM));
+            float minStepKey = Tuning.Get(TuneMinStepM, MinStepDefaultM);
             if (minStepKey > 0f) f.MinStepM = minStepKey;
             float earlyKey = Tuning.Get(TuneEarlyOut, 0f);
             if (earlyKey > 0f) f.EarlyOut = earlyKey;
@@ -269,7 +281,7 @@ namespace ReDefinition.Atmospheres
             f.LeapScales = Mathf.Max(0f, Tuning.Get(TuneLeapScale, LeapScaleDefault));
             f.LightStride = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneLightStride, CompiledFrame.LightStride)), 1, 8);
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
-            f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, CloudFastPath.Pick(CloudFastPath.SpanGrowthPerM, 0f)));
+            f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, SpanGrowthDefaultPerM));
             f.SpanGrowthFromM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthFromM, 0f));
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
@@ -368,7 +380,7 @@ namespace ReDefinition.Atmospheres
         // T04: the cloud shadow's numbers of a frame.
         internal static void Apply(CloudShadowFrame f, Func<string, double> v)
         {
-            f.Divisor = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowResolution, CloudFastPath.Pick(CloudFastPath.ShadowResolution, ShadowResolutionDefault))), 2, 4);
+            f.Divisor = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowResolution, ShadowResolutionDefaultNow)), 2, 4);
             int steps, taps;
             CloudShadowSwitches.Quality((int)Level(v, AtmospheresSettings.Keys.CloudShadowQuality), out steps, out taps);
             int tapsKey = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneShadowTaps, ShadowTapsDefault)), 0, 8);
@@ -423,12 +435,12 @@ namespace ReDefinition.Atmospheres
             s.LayerMotion = Tuning.Flag(TuneLayerMotion, LayerMotionDefault);
             s.HostJitter = Tuning.Flag(TuneHostJitter, HostJitterDefault);
             s.CatmullHistory = Tuning.Flag(TuneCatmull, CatmullDefault);
-            s.TrueDistance = Tuning.Flag(TuneTrueDistance, CloudFastPath.Pick(CloudFastPath.TrueDistance, TrueDistanceDefault));
-            s.Age = Tuning.Flag(TuneAge, CloudFastPath.Pick(CloudFastPath.Age, AgeDefault));
-            s.ProcMarch = Tuning.Flag(TuneMarchTriangle, CloudFastPath.Pick(CloudFastPath.MarchTriangle, MarchTriangleDefault));
+            s.TrueDistance = Tuning.Flag(TuneTrueDistance, TrueDistanceDefaultNow > 0.5f);
+            s.Age = Tuning.Flag(TuneAge, AgeDefaultNow > 0.5f);
+            s.ProcMarch = Tuning.Flag(TuneMarchTriangle, MarchTriangleDefaultNow > 0.5f);
             s.SceneDepth = Tuning.Flag(TuneSceneDepth, SceneDepthDefault);
-            s.DistanceReject = Mathf.Max(0f, Tuning.Get(TuneDistanceReject, CloudFastPath.Pick(CloudFastPath.DistanceReject, DistanceRejectDefault)));
-            s.ClipSigma = Mathf.Max(0f, Tuning.Get(TuneClipSigma, CloudFastPath.Pick(CloudFastPath.ClipSigma, ClipSigmaDefault)));
+            s.DistanceReject = Mathf.Max(0f, Tuning.Get(TuneDistanceReject, DistanceRejectDefaultNow));
+            s.ClipSigma = Mathf.Max(0f, Tuning.Get(TuneClipSigma, ClipSigmaDefaultNow));
             // E40 grain: recon.accumulate W (0 to 1; default 0.2, 0 = off) gives the half-size march of level 1 a history of its own size: each frame enters it with the
             // weight W. It acts at level 1 only (the block levels have their own history) and runs the pass through the reconstructor's mode Low.
             float accumulate = Mathf.Clamp01(Tuning.Get(TuneAccumulate, AccumulateDefault));
@@ -451,7 +463,7 @@ namespace ReDefinition.Atmospheres
             s.Rotation = false;
             // The switch cloudRotation is 2 x 2; the tuning key recon.rotate, where set, names the block side.
             // The fast cloud path (CloudFastPath, the tier's) takes 4 x 4 when the key is not set.
-            int rotate = (int)Tuning.Get(TuneReconRotate, CloudFastPath.Pick(CloudFastPath.ReconRotate, v(AtmospheresSettings.Keys.CloudRotation) > 0.5 ? 2f : 0f));
+            int rotate = (int)Tuning.Get(TuneReconRotate, ReconRotateDefault(v(AtmospheresSettings.Keys.CloudRotation) > 0.5 ? 2f : 0f));
             // Only the history path of level 1: the mode setting Low (prototype B) stays as the player chose it.
             if (rotate >= 2 && !low && s.Mode == ReconMode.Low && s.Accumulate > 0f && s.Resolution > 0.99f)
             {

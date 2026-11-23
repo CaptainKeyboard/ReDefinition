@@ -27,10 +27,13 @@ namespace ReDefinition.Atmospheres.Viewer
         {
         }
 
-        internal CloudKey(string key, float compiledDefault, KeyLiveness liveness, bool flag, string note, KeySection section, float min, float max, bool rangeEstimated, KeyMarker marker)
+        // effective: the default in force now where it depends on the quality tier (the fast cloud path, CloudFastPath); null: the compiled default is the default.
+        internal CloudKey(string key, float compiledDefault, KeyLiveness liveness, bool flag, string note, KeySection section, float min, float max, bool rangeEstimated, KeyMarker marker,
+                          Func<float> effective = null)
         {
             Key = key;
-            Default = compiledDefault;
+            compiled = compiledDefault;
+            this.effective = effective;
             Liveness = liveness;
             Flag = flag;
             Note = note ?? "";
@@ -42,8 +45,14 @@ namespace ReDefinition.Atmospheres.Viewer
             Marker = marker;
         }
 
+        private readonly float compiled;
+        private readonly Func<float> effective;
+
         internal string Key { get; }
-        internal float Default { get; }
+        // The default in force: what the reader uses when nothing is set (the tier's value where the fast cloud path changes it, else the compiled one).
+        internal float Default { get { return effective != null ? effective() : compiled; } }
+        internal float CompiledDefault { get { return compiled; } }
+        internal Func<float> Effective { get { return effective; } }
         internal KeyLiveness Liveness { get; }
         // A switch (Tuning.Flag: other than 0 is on).
         internal bool Flag { get; }
@@ -139,15 +148,16 @@ namespace ReDefinition.Atmospheres.Viewer
 
         // A number key: its range is stated (min, max) or estimated from the default where both are NaN.
         internal void Key(string key, float compiledDefault, KeySection section, string note, KeyLiveness liveness = KeyLiveness.Frame, KeyMarker marker = KeyMarker.Live,
-                          float min = float.NaN, float max = float.NaN)
+                          float min = float.NaN, float max = float.NaN, Func<float> effective = null)
         {
-            Keys.Add(new CloudKey(key, compiledDefault, liveness, false, note, section, min, max, float.IsNaN(min) || float.IsNaN(max), marker));
+            Keys.Add(new CloudKey(key, compiledDefault, liveness, false, note, section, min, max, float.IsNaN(min) || float.IsNaN(max), marker, effective));
         }
 
         // A switch.
-        internal void Flag(string key, bool compiledDefault, KeySection section, string note, KeyLiveness liveness = KeyLiveness.Frame, KeyMarker marker = KeyMarker.Live)
+        internal void Flag(string key, bool compiledDefault, KeySection section, string note, KeyLiveness liveness = KeyLiveness.Frame, KeyMarker marker = KeyMarker.Live,
+                           Func<float> effective = null)
         {
-            Keys.Add(new CloudKey(key, compiledDefault ? 1f : 0f, liveness, true, note, section, 0f, 1f, false, marker));
+            Keys.Add(new CloudKey(key, compiledDefault ? 1f : 0f, liveness, true, note, section, 0f, 1f, false, marker, effective));
         }
 
         // A key per layer, the layer's name between prefix and suffix.
@@ -241,9 +251,9 @@ namespace ReDefinition.Atmospheres.Viewer
         private static readonly LayerFrame Frame0 = new LayerFrame();
         private static readonly CullSettings Cull = new CullSettings();
 
-        private static CloudKey N(string key, float d, KeyLiveness live = KeyLiveness.Frame, string note = "")
+        private static CloudKey N(string key, float d, KeyLiveness live = KeyLiveness.Frame, string note = "", Func<float> effective = null)
         {
-            return new CloudKey(key, d, live, false, note);
+            return new CloudKey(key, d, live, false, note, KeySection.Other, float.NaN, float.NaN, true, KeyMarker.Live, effective);
         }
 
         private static CloudKey F(string key, bool d, KeyLiveness live = KeyLiveness.Frame, string note = "")
@@ -308,12 +318,13 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneCheapShare, Frame0.CheapShare),
             N(OwnCloudOptions.TuneFogShare, Frame0.FogShare),
             // The owner's look (the default since 2026-11-19; at or below 0 the step and light quality's value).
-            N(OwnCloudOptions.TuneMinStepM, OwnCloudOptions.LookMinStepM, note: "shortest step in m, the owner's look 6; 0 the step quality's"),
+            N(OwnCloudOptions.TuneMinStepM, OwnCloudOptions.LookMinStepM, note: "shortest step in m, the owner's look 6 (the fast path's 12); 0 the step quality's", effective: () => OwnCloudOptions.MinStepDefaultM),
             N(OwnCloudOptions.TuneEarlyOut, 0f, note: "the transmittance a ray ends at, the ceiling march 0.001; 0 the product's"),
             N(OwnCloudOptions.TuneSunMarchM, OwnCloudOptions.LookSunMarchM, note: "the length of the march towards the sun in m, the owner's look 12000; 0 the setting's"),
             N(OwnCloudOptions.TuneSunSteps, OwnCloudOptions.LookSunSteps, note: "taps towards the sun, the owner's look 8; 0 the light quality's"),
             N(OwnCloudOptions.TuneCostCutM, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: the march ends at this distance in m (0 off)"),
-            N(OwnCloudOptions.TuneSpanGrowthPerM, 0f, KeyLiveness.Frame, "a span's points by distance: the step's growth per m of distance from the camera (0 off: evenly spaced)"),
+            N(OwnCloudOptions.TuneSpanGrowthPerM, 0f, KeyLiveness.Frame, "a span's points by distance: the step's growth per m of distance from the camera (0 off: evenly spaced)",
+              () => OwnCloudOptions.SpanGrowthDefaultPerM),
             N(OwnCloudOptions.TuneSpanGrowthFromM, 0f, KeyLiveness.Frame, "with layers.spanGrowthPerM: the distance in m beyond which the step grows (0: from the camera)"),
             N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),
             N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
@@ -322,7 +333,7 @@ namespace ReDefinition.Atmospheres.Viewer
             // The reconstruction (OwnCloudOptions.Apply(ReconSettings), LayerReconstructDriver.Configure).
             N(OwnCloudOptions.TuneAccumulate, OwnCloudOptions.AccumulateDefault, KeyLiveness.FrameHistory),
             N(OwnCloudOptions.TuneReconResolution, OwnCloudOptions.ReconResolutionDefault, KeyLiveness.FrameHistory),
-            N(OwnCloudOptions.TuneReconRotate, 0f, KeyLiveness.FrameHistory, "the rotation's block side 2 to 4 (0: the setting Cloud Rotation's 2 x 2)"),
+            N(OwnCloudOptions.TuneReconRotate, 0f, KeyLiveness.FrameHistory, "the rotation's block side 2 to 4 (0: the setting Cloud Rotation's 2 x 2)", () => OwnCloudOptions.ReconRotateDefault(0f)),
             F(OwnCloudOptions.TuneLayerMotion, OwnCloudOptions.LayerMotionDefault, KeyLiveness.FrameHistory, "cloud motion in the history and the motion vectors"),
             F(OwnCloudOptions.TuneHostJitter, OwnCloudOptions.HostJitterDefault, KeyLiveness.Frame, "the march's rays follow the upscaler's jitter of the scene's depth"),
             F(OwnCloudOptions.TuneMotionVectors, OwnCloudOptions.MotionVectorsDefault, note: "motion vectors for the upscalers"),
@@ -362,7 +373,8 @@ namespace ReDefinition.Atmospheres.Viewer
             // The cloud shadow (OwnCloudOptions.Apply(CloudShadowFrame)).
             N(CloudShadowStepPolicy.TuneKey, (float)CloudShadowStepPolicy.Default, note: "the CPU twin takes it at the next stack build"),
             F(CloudShadowShapeNoise.TuneKey, CloudShadowShapeNoise.Default),
-            N(OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.ShadowResolutionDefault, KeyLiveness.Frame, "the shadow is marched at the camera's size over this: 2 half size, 3 a third, 4 a quarter"),
+            N(OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.ShadowResolutionDefault, KeyLiveness.Frame, "the shadow is marched at the camera's size over this: 2 half size, 3 a third, 4 a quarter",
+              () => OwnCloudOptions.ShadowResolutionDefaultNow),
             N(OwnCloudOptions.TuneShadowTaps, OwnCloudOptions.ShadowTapsDefault, KeyLiveness.Frame, "directions across the sun's disc (the penumbra): 0 the quality level's number, 1 to 8 replace it")
         };
 
@@ -449,7 +461,7 @@ namespace ReDefinition.Atmospheres.Viewer
             {
                 KeySection section;
                 if (!CloudKeyLayout.TryGetSection(k.Key, out section)) section = KeySection.Other;
-                placed.Add(new CloudKey(k.Key, k.Default, k.Liveness, k.Flag, k.Note, section, float.NaN, float.NaN, true, KeyMarker.Live));
+                placed.Add(new CloudKey(k.Key, k.CompiledDefault, k.Liveness, k.Flag, k.Note, section, float.NaN, float.NaN, true, KeyMarker.Live, k.Effective));
                 seen.Add(k.Key);
             }
             foreach (CloudKey k in registered.Keys)

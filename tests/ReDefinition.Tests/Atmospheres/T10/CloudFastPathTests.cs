@@ -1,6 +1,7 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
+using ReDefinition.Atmospheres.Viewer;
 using ReDefinition.Core;
 
 namespace ReDefinition.Tests.Atmospheres.T10
@@ -137,6 +138,31 @@ namespace ReDefinition.Tests.Atmospheres.T10
             CloudFastPath.Source = () => { throw new InvalidOperationException("no host"); };
             Tuning.Instance.BeginFrame(9300004);
             Assert.IsFalse(CloudFastPath.On);
+        }
+
+        // The viewer's registry shows the default in force (it used to show the full path's on every tier: the light volume "off", the shortest step 6 m, ... on a Medium
+        // tier that runs the fast path).
+        [TestMethod]
+        public void TheViewersDefaultsAreThoseOfTheTierInForce()
+        {
+            Tuning.ClearOverrides();
+            var fast = new System.Collections.Generic.Dictionary<string, float>
+            {
+                { CloudLookTuning.TuneLightVolume, CloudFastPath.LightVolume }, { CloudLookTuning.TuneLvHandOver, CloudFastPath.LvHandOverKm },
+                { CloudLookTuning.TuneLvFarTaps, CloudFastPath.LvFarTaps }, { OwnCloudOptions.TuneMinStepM, CloudFastPath.MinStepM },
+                { OwnCloudOptions.TuneSpanGrowthPerM, CloudFastPath.SpanGrowthPerM }, { OwnCloudOptions.TuneShadowResolution, CloudFastPath.ShadowResolution },
+                { OwnCloudOptions.TuneReconRotate, CloudFastPath.ReconRotate }, { OwnCloudOptions.TuneTrueDistance, 1f }, { OwnCloudOptions.TuneAge, 1f },
+                { OwnCloudOptions.TuneMarchTriangle, 1f }, { OwnCloudOptions.TuneDistanceReject, CloudFastPath.DistanceReject }, { OwnCloudOptions.TuneClipSigma, CloudFastPath.ClipSigma }
+            };
+            Frame(9300010, true);
+            foreach (var kv in fast)
+                Assert.AreEqual(kv.Value, CloudKeyRegistry.Find(kv.Key).Default, 1e-6, kv.Key + " on the fast path");
+            Frame(9300011, false);
+            foreach (var kv in fast)
+            {
+                CloudKey key = CloudKeyRegistry.Find(kv.Key);
+                Assert.AreEqual(key.CompiledDefault, key.Default, 1e-6, kv.Key + " on the full path is the compiled default");
+            }
         }
 
         [TestMethod]
