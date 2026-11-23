@@ -161,24 +161,24 @@ namespace ReDefinition.Tests.Atmospheres.C24
         [TestMethod]
         public void TheEstimateTakesTheDensityOfEachSlice()
         {
-            var deck = new CloudDensityEstimate.Deck { BottomM = 0.0, TopM = 8000.0, Density = 1f, TimeFade = 1f };
-            float uniform = CloudDensityEstimate.VerticalOpticalDepthBySlice(deck, 0.0,
+            var shell = new CloudDensityEstimate.CloudLayer { BottomM = 0.0, TopM = 8000.0, Density = 1f, TimeFade = 1f };
+            float uniform = CloudDensityEstimate.VerticalOpticalDepthBySlice(shell, 0.0,
                 h => new CloudDensityEstimate.Slice { Coverage = 1f, Density = 1f });
-            float lower = CloudDensityEstimate.VerticalOpticalDepthBySlice(deck, 0.0,
+            float lower = CloudDensityEstimate.VerticalOpticalDepthBySlice(shell, 0.0,
                 h => new CloudDensityEstimate.Slice { Coverage = 1f, Density = h < 4000.0 ? 1f : 0f });
             Assert.AreEqual(CloudDensityEstimate.TauAtFullCoverage, uniform, 1e-4f);
             Assert.AreEqual(uniform / 2f, lower, 1e-4f, "the lower half at density 1, the upper at 0");
-            Assert.AreEqual(2f * uniform, CloudDensityEstimate.VerticalOpticalDepthBySlice(deck, 0.0,
+            Assert.AreEqual(2f * uniform, CloudDensityEstimate.VerticalOpticalDepthBySlice(shell, 0.0,
                 h => new CloudDensityEstimate.Slice { Coverage = 1f, Density = 2f }), 1e-4f);
         }
 
         [TestMethod]
         public void TheShapeIsTheEstimateAtFactorOne()
         {
-            var deck = new CloudDensityEstimate.Deck { BottomM = 1000.0, TopM = 5000.0, Density = 1f, TimeFade = 0.5f };
+            var shell = new CloudDensityEstimate.CloudLayer { BottomM = 1000.0, TopM = 5000.0, Density = 1f, TimeFade = 0.5f };
             Func<double, CloudDensityEstimate.Slice> half = h => new CloudDensityEstimate.Slice { Coverage = 0.5f, Density = 1f };
-            Assert.AreEqual(0.25f, CloudDensityEstimate.Shape(deck, 0.0, half), 1e-5f);
-            Assert.AreEqual(CloudDensityEstimate.TauAtFullCoverage * 0.25f, CloudDensityEstimate.VerticalOpticalDepthBySlice(deck, 0.0, half), 1e-5f);
+            Assert.AreEqual(0.25f, CloudDensityEstimate.Shape(shell, 0.0, half), 1e-5f);
+            Assert.AreEqual(CloudDensityEstimate.TauAtFullCoverage * 0.25f, CloudDensityEstimate.VerticalOpticalDepthBySlice(shell, 0.0, half), 1e-5f);
         }
     }
 }

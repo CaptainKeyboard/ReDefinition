@@ -59,7 +59,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The in-scatter colour in the pass's radiance: source 0 the sun's share, source 1 the display colour decoded through the output stage (the inverse of the encoding
-        // the pass applies to its colour, CloudOutputStage.Decode), so that a deck that fades completely shows exactly that colour on the screen.
+        // the pass applies to its colour, CloudOutputStage.Decode), so that a cloud layer that fades completely shows exactly that colour on the screen.
         internal static Color Inscatter(int source, Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share, Color display, float white, float exposure, float gamma)
         {
             return Inscatter(source, sun, moon, ambient, rayleighPerM, share, display, white, exposure, gamma, CloudBridgeAir.BlueExponent);
@@ -98,7 +98,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The colours a far cloud fades into at the end of the air (far) and over a short path (near), in the pass's radiance, from the body's air: the sky's display value of the horizon ray
-        // (Scatterer's display law, skyExposure of the node) decoded through the output stage so that a deck that has faded completely shows the sky's colour on the screen, floored at the
+        // (Scatterer's display law, skyExposure of the node) decoded through the output stage so that a cloud layer that has faded completely shows the sky's colour on the screen, floored at the
         // ambient. False where the air gives no medium (the caller keeps the law of before). The evaluators keep the higher orders between frames.
         internal static bool SkyInscatter(CloudHorizonSky.Evaluator sun, CloudHorizonSky.Evaluator moon, CloudBridgeAir.Air air, double planetRadiusM, SkyView v, Color ambient, float white, float exposure,
                                           float gamma, out Color far, out Color near)

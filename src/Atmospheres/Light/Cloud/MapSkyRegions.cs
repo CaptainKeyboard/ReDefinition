@@ -2,7 +2,7 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The sky drawn from the weather map in the game: the layers and forms fed by the package B maps so that regions arise (a closed deck where
+    // The sky drawn from the weather map in the game: the layers and forms fed by the package B maps so that regions arise (a closed low stratiform layer where
     // the map's stratiform amount is high, broken cumulus where its cumuliform amount is, clear sky where its cover is 0) instead of single clouds spread evenly by the old layer maps. A pure function of map-sized arrays (OwnCloudModule fetches the maps and hands the result to the layers); WM1's WeatherMapSky is the
     // weather player's cost prototype this grew from. Only cfg numbers, the maps and numbers of the M1 proposal (marked PROPOSAL) are used.
     //
@@ -15,10 +15,10 @@ namespace ReDefinition.Atmospheres
     //                         gives the type values of the stratiform types a weight that takes the map's own value instead of the lattice (CloudCells.cginc CellStratiformWeight).
     //                         Depth rule a: weighted saturate(cumuliform / CELL_ALIVE_F0), the lattice's own fair-sky edge (0.25: below it the cells are isolated); depth rule b
     //                         (PROPOSAL, wolken-m1-typwahl-vorschlag.md 6.1 line 2): always.
-    //   sheet, saturated   -> per saturated level (RH >= 0.9999, the M1 count's definition): low the deck layer (its precipitation type, Nimbostratus by the proposal's R9),
+    //   sheet, saturated   -> per saturated level (RH >= 0.9999, the M1 count's definition): low: the low stratiform layer (its precipitation type, Nimbostratus by the proposal's R9),
     //                         middle the cumuliform layer's Altocumulus as a connected sheet, high the cheap layer (Kerbin-cirrus, today's types kept).
-    //   sheet, no level    -> stratiformRule 0: WM1's "the most humid level"; 1 (PROPOSAL A, "condensation level"): a connected Stratocumulus deck in the cumuliform layer at the column's
-    //   saturated             convective base (the cloud-topped mixed layer, proposal T5); 2 (PROPOSAL B, "by source"): the deck's share (DeckAmount, lift and fronts) as the
+    //   sheet, no level    -> stratiformRule 0: WM1's "the most humid level"; 1 (PROPOSAL A, "condensation level"): a connected Stratocumulus layer in the cumuliform layer at the column's
+    //   saturated             convective base (the cloud-topped mixed layer, proposal T5); 2 (PROPOSAL B, "by source"): the low stratiform layer's share (LowStratiformAmount, lift and fronts) as the
     //                         middle level's Altocumulus sheet, the rest as in A.
     //   depth              -> depthRule 1 (a): the field's depth; a cumuliform column without depth draws the thinnest lattice type (humilis), its body's height a share of the type's
     //                         by its core (CloudCells.cginc CellBody). depthRule 2 (b, PROPOSAL, proposal section 6): cells keep the field's depth, capped columns are sheets, the rest
@@ -28,13 +28,13 @@ namespace ReDefinition.Atmospheres
     //   union              -> the cumuliform layer's parts in one texel: 1 - (1 - a)(1 - b)(1 - c), the type of the largest part (APPROXIMATION: one type per texel).
     //   storm cells        -> the tall layer draws its towers from the generator's cell list (AnvilMap.PaintCells, each cell one tower, OwnCloudModule) where the list is there: the
     //                         map holds a cell's tower only in the single texel at its centre. Without the list the tall share above is drawn.
-    //   deck               -> the larger of the low level's sheet and today's deck rule (rain from the precipitation map, fog from the dew-point spread): the field's low level
-    //                         lies below the convective base in raining fronts, so the rain deck would be missing under them.
+    //   low stratiform     -> the larger of the low level's sheet and today's low stratiform rule (rain from the precipitation map, fog from the dew-point spread): the field's low level
+    //                         lies below the convective base in raining fronts, so the low stratiform rain layer would be missing under them.
     //   not drawn          -> the meso pattern and the combination with the field's cover (the amounts are the sky's shares).
     internal static class MapSkyRegions
     {
         internal const string TuneStratiformRule = "cloud.weatherMapSky.stratiformRule", TuneDepthRule = "cloud.weatherMapSky.depthRule";
-        // Defaults of the two rules (owner 2026-11-23, "the more realistic", PRUEFPROTOKOLL 105, 111, 112): the stratiform rule B (2: by source, the deck map) and the depth rule a (1: the
+        // Defaults of the two rules (owner 2026-11-23, "the more realistic", PRUEFPROTOKOLL 105, 111, 112): the stratiform rule B (2: by source, the low stratiform map) and the depth rule a (1: the
         // field's own depth). B + b drew 96 % of the M0 ground view's sky as cloud where the field's cover is 0.51 (B + a: 65 %), because b replaces the field's convective depth by
         // the calibrated stand-in (up to 4.55 x the base) and makes every capped cumuliform a connected sheet.
         internal const float StratiformRuleDefault = 2f, DepthRuleDefault = 1f;
@@ -46,13 +46,13 @@ namespace ReDefinition.Atmospheres
         internal const double CalAMin = 0.25, CalAMax = 4.55, CalNoiseAmp = 0.5, CalPatchRad = 0.2, CalIceK = 263.15;
         internal const uint CalSeed = 0x5EEDC10Du;
 
-        // The deck's base from the weather field (owner 2026-11-23 "Ja, Feld-Basis", after "Warum sind die Regenwolken so niedrig?"): 1 lifts the rain and snow deck's types to the
-        // field's cloud base (DeckRoots; the fog type stays on the ground), 0 the deck at its cfg type shares (about 170 m at KSC where the field says 899 m; the condensation
+        // The low stratiform layer's base from the weather field (owner 2026-11-23 "Ja, Feld-Basis", after "Warum sind die Regenwolken so niedrig?"): 1 lifts the low stratiform rain and snow layer's types to the
+        // field's cloud base (LowStratiformRoots; the fog type stays on the ground), 0 the low stratiform layer at its cfg type shares (about 170 m at KSC where the field says 899 m; the condensation
         // physics and the place variation pushed it onto the ground there, the owner's "Nebel"). On by default since the owner chose the height factor on pictures that all
         // carried it (2026-11-23 16:02, PRUEFPROTOKOLL 139; his "Ja, Feld-Basis" asked for pictures first, then the default).
-        internal const string TuneDeckBase = "cloud.weatherMapSky.deckBase";
-        internal const float DeckBaseDefault = 1f;
-        internal static bool DeckBase { get { return Tuning.Get(TuneDeckBase, DeckBaseDefault) > 0.5f; } }
+        internal const string TuneLowStratiformBase = "cloud.weatherMapSky.lowStratiformBase";
+        internal const float LowStratiformBaseDefault = 1f;
+        internal static bool LowStratiformBase { get { return Tuning.Get(TuneLowStratiformBase, LowStratiformBaseDefault) > 0.5f; } }
 
         internal static int StratiformRule { get { return (int)Math.Round(Tuning.Get(TuneStratiformRule, StratiformRuleDefault)); } }
         internal static int DepthRule { get { return (int)Math.Round(Tuning.Get(TuneDepthRule, DepthRuleDefault)); } }
@@ -61,7 +61,7 @@ namespace ReDefinition.Atmospheres
         internal sealed class Inputs
         {
             internal int Width, Height;
-            internal float[] Cover, Cumuliform, Stratiform, Deck, BaseShare, TopShare, StableShare, RhLow, RhMid, RhHigh, Descent, Instability, Uplift, Reach, PrecipLevel, SurfaceTempK;
+            internal float[] Cover, Cumuliform, Stratiform, LowStratiform, BaseShare, TopShare, StableShare, RhLow, RhMid, RhHigh, Descent, Instability, Uplift, Reach, PrecipLevel, SurfaceTempK;
             internal double TropopauseM, LapseKPerM, DayS, Ut;
         }
 
@@ -73,7 +73,7 @@ namespace ReDefinition.Atmospheres
             internal float[] Lattice, Tall, DepthM, BaseM;
             // The cumuliform layer's connected sheets: Stratocumulus (capped cumuliform and the unsaturated sheet of rules A / B) and Altocumulus (the middle level).
             internal float[] Sc, Ac;
-            // The deck layer's sheet (low level saturated) and whether it is nimbostratus; the cheap layer's sheet.
+            // The low stratiform layer's sheet (low level saturated) and whether it is nimbostratus; the cheap layer's sheet.
             internal float[] Low, High;
             internal bool[] Nimbo;
             // The rules in force when the parts were made.
@@ -190,9 +190,9 @@ namespace ReDefinition.Atmospheres
                             else if (m.RhMid[i] >= m.RhHigh[i]) ac = s;
                             else highS = s;
                         }
-                        else if (stratiformRule == 2 && m.Deck != null)
+                        else if (stratiformRule == 2 && m.LowStratiform != null)
                         {
-                            float d = Math.Min(s, Math.Max(0f, m.Deck[i]));
+                            float d = Math.Min(s, Math.Max(0f, m.LowStratiform[i]));
                             ac = d;
                             sc = 1f - (1f - sc) * (1f - (s - d));
                         }
@@ -203,7 +203,7 @@ namespace ReDefinition.Atmospheres
                 p.Ac[i] = ac;
                 p.Low[i] = lowS;
                 p.High[i] = highS;
-                p.Nimbo[i] = low && mid && hi && m.PrecipLevel != null && m.PrecipLevel[i] > 0f && m.Deck != null && m.Deck[i] > hp;
+                p.Nimbo[i] = low && mid && hi && m.PrecipLevel != null && m.PrecipLevel[i] > 0f && m.LowStratiform != null && m.LowStratiform[i] > hp;
                 if (cover <= 0f)
                 {
                     p.Lattice[i] = p.Tall[i] = p.Sc[i] = p.Ac[i] = p.Low[i] = p.High[i] = 0f;
@@ -291,7 +291,7 @@ namespace ReDefinition.Atmospheres
             return WeatherMapSky.TypeForThickness(cumuliform, first, last, depthM / cumuliform.ThicknessM);
         }
 
-        // The cover and type bytes of a layer from the parts (role: WeatherMapSky.RoleOf). todayType: the cheap layer's types of today's chain; fogCover / fogType: the deck rule's
+        // The cover and type bytes of a layer from the parts (role: WeatherMapSky.RoleOf). todayType: the cheap layer's types of today's chain; fogCover / fogType: the low stratiform rule's
         // output, rain and fog (null: none). False for a layer the map does not drive (it keeps today's maps).
         internal static bool Layer(CloudLayerDef l, WeatherMapSky.Role role, Parts p, byte[] todayType, byte[] fogCover, byte[] fogType, byte[] cover, byte[] type)
         {
@@ -322,9 +322,9 @@ namespace ReDefinition.Atmospheres
                     }
                     return true;
                 }
-                case WeatherMapSky.Role.Deck:
+                case WeatherMapSky.Role.LowStratiform:
                 {
-                    float stratiformType = l.Deck != null ? l.Deck.PrecipType : 0.5f;
+                    float stratiformType = l.LowStratiform != null ? l.LowStratiform.PrecipType : 0.5f;
                     for (int i = 0; i < n; i++)
                     {
                         double dc = p.Low[i], dt = p.Nimbo[i] ? 1.0 : stratiformType;
@@ -367,22 +367,22 @@ namespace ReDefinition.Atmospheres
             return r;
         }
 
-        // The range the deck's root offsets are encoded in: its depth (the deck starts at the ground, so the cumuliform layers' inner altitude would allow 1 m).
-        internal static float DeckRootRangeM(CloudLayerDef l)
+        // The range the low stratiform layer's root offsets are encoded in: its depth (the low stratiform layer starts at the ground, so the cumuliform layers' inner altitude would allow 1 m).
+        internal static float LowStratiformRootRangeM(CloudLayerDef l)
         {
             return Math.Max(1f, l.OuterAltitudeM - l.InnerAltitudeM);
         }
 
-        // The deck's root offsets (m, TuneDeckBase): each texel's drawn type (typeBytes, the deck's type map of the round; null: the deck rule's precipitation type) is lifted from
-        // its cfg base (its interpolated base share of the layer's depth) to the field's cloud base, never lowered, at most the range; the nearer the texel's type is to the deck
+        // The low stratiform layer's root offsets (m, TuneLowStratiformBase): each texel's drawn type (typeBytes, the low stratiform layer's type map of the round; null: the low stratiform rule's precipitation type) is lifted from
+        // its cfg base (its interpolated base share of the layer's depth) to the field's cloud base, never lowered, at most the range; the nearer the texel's type is to the low stratiform layer
         // rule's fog type, the less it is lifted (the fog type itself stays on the ground, where the field says fog).
-        internal static float[] DeckRoots(CloudLayerDef l, Parts p, byte[] typeBytes)
+        internal static float[] LowStratiformRoots(CloudLayerDef l, Parts p, byte[] typeBytes)
         {
             var r = new float[p.N];
             int count = l.Types.Count;
             if (count == 0) return r;
-            float depth = l.OuterAltitudeM - l.InnerAltitudeM, range = DeckRootRangeM(l);
-            float precip = l.Deck != null ? l.Deck.PrecipType : 0.5f, fogX = (l.Deck != null ? l.Deck.FogType : 0f) * (count - 1);
+            float depth = l.OuterAltitudeM - l.InnerAltitudeM, range = LowStratiformRootRangeM(l);
+            float precip = l.LowStratiform != null ? l.LowStratiform.PrecipType : 0.5f, fogX = (l.LowStratiform != null ? l.LowStratiform.FogType : 0f) * (count - 1);
             for (int i = 0; i < p.N; i++)
             {
                 float tv = typeBytes != null && i < typeBytes.Length ? typeBytes[i] / 255f : precip;

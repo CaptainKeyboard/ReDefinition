@@ -253,7 +253,7 @@ namespace ReDefinition.Tests.Atmospheres.C23
         }
 
         [TestMethod]
-        public void TheDeckThickensWithTheLevelThroughTheTypeValue()
+        public void TheLayerThickensWithTheLevelThroughTheTypeValue()
         {
             // CONTRACT.md: SnowLight 600-1500 (here 300 thick), SnowStratus 400-1800, storm 300-2300.
             float[] min = { 600f, 400f, 300f };
@@ -265,12 +265,12 @@ namespace ReDefinition.Tests.Atmospheres.C23
             float previous = 0f;
             for (int i = 0; i <= 100; i++)
             {
-                float thickness = CloudTypeEncoding.DeckThicknessM(min, max, CloudTypeEncoding.Value(slots, i / 100f, false));
+                float thickness = CloudTypeEncoding.LayerThicknessM(min, max, CloudTypeEncoding.Value(slots, i / 100f, false));
                 Assert.IsTrue(thickness >= previous - 1e-3f);
                 previous = thickness;
             }
-            Assert.AreEqual(300f, CloudTypeEncoding.DeckThicknessM(min, max, 0f), 1e-3);
-            Assert.AreEqual(2000f, CloudTypeEncoding.DeckThicknessM(min, max, 1f), 1e-3);
+            Assert.AreEqual(300f, CloudTypeEncoding.LayerThicknessM(min, max, 0f), 1e-3);
+            Assert.AreEqual(2000f, CloudTypeEncoding.LayerThicknessM(min, max, 1f), 1e-3);
         }
 
         // --- Ground effects -----------------------------------------------------------------------------------------

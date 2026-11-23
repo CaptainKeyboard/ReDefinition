@@ -615,7 +615,7 @@ def aerial_perspective_reference(l_cloud, l_sky, d_m, visual_range_m):
 
 @check("aerial_perspective")
 def aerial_perspective(data, spec):
-    """A deck's luminance at 10, 30 and 60 km against the analytic curve; value: the worst relative error."""
+    """A cloud layer's luminance at 10, 30 and 60 km against the analytic curve; value: the worst relative error."""
     ref = aerial_perspective_reference(float(data["l_near"]), float(data["l_sky"]), data["d_m"], float(data["visual_range_m"]))
     got = np.asarray(data["luminance"], dtype=np.float64)
     err = float(np.max(np.abs(got - ref) / np.maximum(ref, 1e-9)))

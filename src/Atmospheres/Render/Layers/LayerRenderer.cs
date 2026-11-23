@@ -60,7 +60,7 @@ namespace ReDefinition.Atmospheres
         // E40 C1: the march leaps over the grid points that lie within the empty reach of an empty sample (EmptyReachMaps; exact: the density reads that are left are the same).
         public bool EmptyReach = true;
         // E40 C2: the longest leap over empty grid points in the layer's noise scales (0: off, the leap is EmptyLeap's grid points whatever the layer). A span of a layer with coarse noise
-        // (a weather deck 10 km, a cumulonimbus layer 5 km) is stepped every 100 m or less; where the density is empty the march then leaps up to this many scales at a time and goes back to
+        // (a low stratiform weather layer 10 km, a cumulonimbus layer 5 km) is stepped every 100 m or less; where the density is empty the march then leaps up to this many scales at a time and goes back to
         // the grid point after the last empty one when a leap lands on cloud, so a cloud is entered at the grid's own resolution and only a feature narrower than the leap can be passed over.
         public float LeapScales;
         // The product's values: the leap and the layer-kind shares are off (they gained nothing on the view table), the sun march is reused
@@ -76,14 +76,14 @@ namespace ReDefinition.Atmospheres
         // The distance in m beyond which that step grows (layers.spanGrowthFromM, 0: from the camera); the span's part before it is evenly spaced.
         public float SpanGrowthFromM;
         // With the points by distance (SpanGrowthPerM > 0) a far step is long, and so is a leap of a few of them: the march ends the leap where the ray reaches the altitude at which cloud
-        // can begin, and starts again from one grid step there, so a thin deck crossed at an angle is entered, not passed over (the shader derives this from _ReuseP.w).
+        // can begin, and starts again from one grid step there, so a thin cloud layer crossed at an angle is entered, not passed over (the shader derives this from _ReuseP.w).
         public int CostDebug;
         // Package T05: inside a cloud the step grows by this share of the transmittance the ray has already lost (0: a fixed step).
         public float TransmittanceGrowth;
         // E40 grain against TVC. DitherSequence: the per-pixel step offset, advanced by the golden ratio per frame: 1 an integer hash (white; what the default drew before E40 step (c)), 2 the
         // interleaved gradient noise (lower temporal noise, a few strong spatial lines), 3 (E40 F2, the default) the blue-noise tile of DitherMatrix (the same temporal noise, no line).
         public int DitherSequence = 3;
-        // M2c (the low decks): the undulations of the stratiform types (variety undulatus, CloudTypeDef.UndulatusAmount) drawn with this share of their depth (0: off, the deck of
+        // M2c (the low stratiform layers): the undulations of the stratiform types (variety undulatus, CloudTypeDef.UndulatusAmount) drawn with this share of their depth (0: off, the layer of
         // before; the tuning key cloud.undulatus), and the wavelength as a share of the layer's depth (cloud.undulatusWavelengthShare).
         public float Undulatus;
         public float UndulatusWavelengthShare = 1f;

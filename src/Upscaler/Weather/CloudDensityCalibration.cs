@@ -4,14 +4,14 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Upscaler
 {
-    // The two numbers of CloudDensityEstimate that nothing in EVE's code gives: the vertical optical depth of a deck of coverage 1
+    // The two numbers of CloudDensityEstimate that nothing in EVE's code gives: the vertical optical depth of a cloud layer of coverage 1
     // through its whole shell, and the density of an EVE cloud type that counts as 1. Both are [VERIFY] constants of the estimate
     // until the K-W1 series has run; this class holds them, the procedure that sets them and the arithmetic of the fit.
     //
     // The procedure (series K-W1, rows C24.tau_estimate_error_max and C24.tau_estimate_monotone in tests/series/rows/C24.json):
-    //  1. In flight over one place with EVE's deck, the probe (LightProbe, CloudLightBlend, RtEveClouds) sets the coverage map to five or
+    //  1. In flight over one place with EVE's cloud layer, the probe (LightProbe, CloudLightBlend, RtEveClouds) sets the coverage map to five or
     //     more uniform values (for instance 0.1, 0.25, 0.5, 0.75, 1) and, at each, measures the sun's light on the ground with the
-    //     clouds on against off (the ratio is the transmission T of the deck along the sun ray) and notes the sun's elevation.
+    //     clouds on against off (the ratio is the transmission T of the cloud layer along the sun ray) and notes the sun's elevation.
     //  2. At each value the estimate's shape is read: CloudDensityEstimate.Shape, the estimate with TauAtFullCoverage 1 (the coverage
     //     times the type density over the shell, times the fades), so that tau = TauAtFullCoverage x shape.
     //  3. TryFit takes the points (shape, T, elevation). The measured vertical depth of a point is -ln(T) / air mass
@@ -24,10 +24,10 @@ namespace ReDefinition.Upscaler
     // densities of the body's cloud types, RtEveClouds): the reference is what makes density / reference equal 1 at the fitted point.
     internal static class CloudDensityCalibration
     {
-        // [VERIFY] A guess, kept until the fit above has run: 3 means 5 % of the sun overhead through a full deck.
+        // [VERIFY] A guess, kept until the fit above has run: 3 means 5 % of the sun overhead through a full cloud layer.
         internal const float ProvisionalTauAtFullCoverage = 3f;
 
-        // The vertical optical depth of a deck of coverage 1 through its whole shell, density counted as 1 and no fade. [VERIFY]
+        // The vertical optical depth of a cloud layer of coverage 1 through its whole shell, density counted as 1 and no fade. [VERIFY]
         internal static float TauAtFullCoverage = ProvisionalTauAtFullCoverage;
 
         // The cloud-type density that counts as 1; 0 while the type densities are not calibrated: the density then counts as 1

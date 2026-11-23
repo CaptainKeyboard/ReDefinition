@@ -19,9 +19,9 @@ class TwoStreamAnchors(unittest.TestCase):
         self.assertAlmostEqual(S.transmission(30.0), 0.229, places=3)
         self.assertAlmostEqual(S.transmission(100.0), 0.0816, places=3)
 
-    def test_the_base_of_a_uniform_deck_lies_under_the_lambertian_anchor_where_the_photon_walk_has_it(self):
-        # E40 LM2: the deck's cell diffusion is fitted to the photon walk of a slab (light_mc_cell.py), whose base seen at 53 degrees is not Lambertian: at tau 100 and the sun at
-        # 45 degrees it is 0.74 of the Lambertian two-stream anchor of the sun's light (walk 0.043 W, T mu0 = 0.058). The deck's base lies at 0.81 (tau 10) to 0.58 (tau 100) of the
+    def test_the_base_of_a_uniform_layer_lies_under_the_lambertian_anchor_where_the_photon_walk_has_it(self):
+        # E40 LM2: the layer's cell diffusion is fitted to the photon walk of a slab (light_mc_cell.py), whose base seen at 53 degrees is not Lambertian: at tau 100 and the sun at
+        # 45 degrees it is 0.74 of the Lambertian two-stream anchor of the sun's light (walk 0.043 W, T mu0 = 0.058). The layer's base lies at 0.81 (tau 10) to 0.58 (tau 100) of the
         # anchor of the sun and the sky (E40 L4 clean / L6 light had it on the anchor, 1.28 to 1.43 times the walk's at tau 100); the top at 0.85 to 1.1 of it from tau 25 up.
         for r in S.uniform_table(taus=(10, 25, 60, 100, 200), height=1200.0):
             self.assertTrue(0.5 < r["base"] / r["anchor_base"] < 0.95, "tau %d: %.2f" % (r["tau"], r["base"] / r["anchor_base"]))
@@ -52,16 +52,16 @@ class TwoStreamAnchors(unittest.TestCase):
     def test_no_type_carries_a_base_light_factor(self):
         # E40 LM2: the cell diffusion has the sun's incidence on the cloud's surface, which the cumulus layer's 1.25 of E40 ML light made up for; no type carries a factor on the
         # direct light of its base any more.
-        for layer, name, tau, h, sigma, profile, base_light, head_light, base_amb, head_amb in S.shipped_types():
+        for layer, name, tau, h, sigma, profile, base_light, top_light, base_amb, top_amb in S.shipped_types():
             self.assertEqual(base_light, 1.0, name)
             if layer == "Kerbin-cumulus":
-                self.assertEqual(head_light, 1.0, name)
+                self.assertEqual(top_light, 1.0, name)
 
-    def test_the_shipped_rain_deck_types_carry_no_light_factor(self):
-        for layer, name, tau, h, sigma, profile, base_light, head_light, base_amb, head_amb in S.shipped_types():
+    def test_the_shipped_low_stratiform_types_carry_no_light_factor(self):
+        for layer, name, tau, h, sigma, profile, base_light, top_light, base_amb, top_amb in S.shipped_types():
             if layer in ("Kerbin-weather-rain", "Kerbin-weather-snow"):
                 self.assertEqual(base_light, 1.0, name)
-                self.assertEqual(head_light, 1.0, name)
+                self.assertEqual(top_light, 1.0, name)
 
 
 if __name__ == "__main__":

@@ -49,9 +49,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // TYPEMIX_BODY=second: the second body of the P1 tests (FieldFixture.SecondFacts) with Kerbin's layer set scaled to its troposphere (TypeMixFixture.ShippedLayersScaled).
             bool second = Environment.GetEnvironmentVariable("TYPEMIX_BODY") == "second";
             CloudLayerDef[] layers = second ? TypeMixFixture.ShippedLayersScaled(7.5 / 10.5) : TypeMixFixture.ShippedLayers();
-            // TYPEMIX_DECKFLOOR=<0..1>: the rain deck's coverage floor of this dump (the measurement of what the floor does to the deck)
-            string deckFloor = Environment.GetEnvironmentVariable("TYPEMIX_DECKFLOOR");
-            if (!string.IsNullOrEmpty(deckFloor)) layers[0].Deck.RainFloor = float.Parse(deckFloor, System.Globalization.CultureInfo.InvariantCulture);
+            // TYPEMIX_LOWSTRATIFORMFLOOR=<0..1>: the low stratiform rain layer's coverage floor of this dump (the measurement of what the floor does to the layer)
+            string lowStratiformFloor = Environment.GetEnvironmentVariable("TYPEMIX_LOWSTRATIFORMFLOOR");
+            if (!string.IsNullOrEmpty(lowStratiformFloor)) layers[0].LowStratiform.RainFloor = float.Parse(lowStratiformFloor, System.Globalization.CultureInfo.InvariantCulture);
             LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
             try
             {
@@ -61,7 +61,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 {
                     meta.Append("layer " + l.Name + " mid " + CloudBridgeStack.MidHeightM(l) + " types");
                     foreach (CloudTypeDef t in l.Types) meta.Append(" '" + t.Name + "'");
-                    meta.AppendLine(" fair " + l.FairType + " alto " + l.AltoType + " rain " + l.RainType + " deck " + (l.Deck != null) + " noiseScaleM " + l.NoiseScaleM + " noiseAmount " + l.NoiseAmount);
+                    meta.AppendLine(" fair " + l.FairType + " alto " + l.AltoType + " rain " + l.RainType + " lowStratiformRule " + (l.LowStratiform != null) + " noiseScaleM " + l.NoiseScaleM + " noiseAmount " + l.NoiseAmount);
                 }
                 File.WriteAllText(Path.Combine(folder, "meta.txt"), meta.ToString());
                 int w, h;
@@ -83,17 +83,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         Dump(folder, tag + "precip", shared.Precip.Bytes);
                         var covers = new byte[layers.Length][];
                         var types = new byte[layers.Length][];
-                        var decks = new WeatherDeckRule[layers.Length];
+                        var rules = new WeatherLowStratiformRule[layers.Length];
                         for (int li = 0; li < layers.Length; li++)
                         {
                             TypeMixFixture.Layer(field, body, shared, layers[li], stage, out covers[li], out types[li]);
-                            decks[li] = layers[li].Deck;
+                            rules[li] = layers[li].LowStratiform;
                         }
-                        // TYPEMIX_COMBINE=1: the layer maps brought to the field's cover as the module does (E40 F1), the floors of the weather decks kept
+                        // TYPEMIX_COMBINE=1: the layer maps brought to the field's cover as the module does (E40 F1), the floors of the low stratiform weather layers kept
                         if (Environment.GetEnvironmentVariable("TYPEMIX_COMBINE") == "1")
                         {
                             for (int li = 0; li < layers.Length; li++) covers[li] = (byte[])covers[li].Clone();
-                            CloudLookTuning.MeetTheField(covers, layers.Length, shared.Cover.Bytes, 1f, decks, shared.Precip.Values);
+                            CloudLookTuning.MeetTheField(covers, layers.Length, shared.Cover.Bytes, 1f, rules, shared.Precip.Values);
                         }
                         for (int li = 0; li < layers.Length; li++)
                         {

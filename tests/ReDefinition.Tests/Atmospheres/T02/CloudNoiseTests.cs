@@ -455,7 +455,7 @@ namespace ReDefinition.Tests
             return p;
         }
 
-        // The vertical optical depth of the 2200 to 2500 m deck at flat positions: 12 midpoint steps, the share from the model (coverage 0, edge 0.15).
+        // The vertical optical depth of the 2200 to 2500 m cloud layer at flat positions: 12 midpoint steps, the share from the model (coverage 0, edge 0.15).
         private static double ColumnTau(NoiseVolumeSet set, NoiseLayerParams prm, double x, double y, double tauVertical)
         {
             double tau = 0.0;

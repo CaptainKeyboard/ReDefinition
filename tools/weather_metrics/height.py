@@ -177,7 +177,7 @@ def write_maps():
     sites["down"] = find_site(cu, 0.3, 0.0, 12.0, 0.45)
     sites["sky3"] = find_site(cu, 0.3, 8.0, 6.0, 0.35)
     # A broken field: about 25 % cloud within 6 km around the camera (below), about 30 % in a box 4 km ahead (above). A first sweep with 45 %
-    # gave a solid deck below and a featureless white picture above.
+    # gave a solid cloud layer below and a featureless white picture above.
     sites["fieldbelow"] = find_site(cu, 0.3, 0.0, 6.0, 0.25)
     sites["fieldabove"] = find_site(cu, 0.3, 4.0, 8.0, 0.3)
     return sites, cu

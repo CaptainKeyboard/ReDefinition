@@ -14,7 +14,7 @@ namespace ReDefinition.Atmospheres
     {
         // Lit by the sun (a short march towards it) and by the sky: the clouds.
         Weather = 0,
-        // Lit by the sky and one sun tap, no march towards the sun: thin high layers and flat decks that need no self-shadow.
+        // Lit by the sky and one sun tap, no march towards the sun: thin high layers and flat stratiform layers that need no self-shadow.
         Cheap = 1,
         // A fog layer on the ground: lit by the sky and a fixed share of the sun, no march towards the sun.
         Fog = 2,
@@ -69,16 +69,16 @@ namespace ReDefinition.Atmospheres
         // type's top no column passes the threshold whatever the map and the noise, and each column ends where its own map and noise value meet the rising lift: its height follows its
         // excess over the threshold, as a convective top follows its parcel's buoyancy. Without it the columns the LIFT cannot close (most of them: the headroom is 1.1 to 2 map units, the
         // LIFT curves ended at 0.2 to 0.5) stood to the type's top and the profile's last tenth cut them into one flat lid (TopClosureTests: 43 to 73 % of the humilis columns, 75 to 93 %
-        // of the incus columns, all of the decks). A closure over a quarter still left every cumulus top within the upper 300 m (a lid in the player); the convective types close over
+        // of the incus columns, all of the low stratiform layers). A closure over a quarter still left every cumulus top within the upper 300 m (a lid in the player); the convective types close over
         // 0.8. 0: no closure (the profile alone ends the type).
         internal const float DefaultTopClose = 0.25f;
         internal float TopClose { get; set; } = DefaultTopClose;
         // How much a tower of this type feeds an anvil (E40 CB; cfg key outflow, 0 to 1, 0: none): a cumulonimbus incus spreads its outflow at the tropopause, a calvus not yet (AnvilMap).
         internal float Outflow { get; set; }
-        // M2c (the low decks, 2026-11-23): the depth of the type's undulations (variety undulatus, WMO International Cloud Atlas; cfg key undulatusAmount, 0 to 1; 0: none):
+        // M2c (the low stratiform layers, 2026-11-23): the depth of the type's undulations (variety undulatus, WMO International Cloud Atlas; cfg key undulatusAmount, 0 to 1; 0: none):
         // the type's thickness swings by this share in long, nearly parallel waves across the level's wind, so the top undulates (seen from above as the waves of
         // Stratus_clouds_Vodno_4.jpg; from below as lighter and darker bands) while the base stays even; the wavelength cloud.undulatusWavelengthShare of the layer's
-        // depth. Drawn only while the tuning key cloud.undulatus is on (default off: the deck of before).
+        // depth. Drawn only while the tuning key cloud.undulatus is on (default off: the layer of before).
         internal float UndulatusAmount { get; set; }
         // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
@@ -220,7 +220,7 @@ namespace ReDefinition.Atmospheres
         // water below the outline must not appear where the map is low: the map value is moved before the share, map' = min(map, 2 map - K) (ClearSkyMap), K = closed w - (T - C).
         // Where the layer has no noise (cfg noiseAmount 0) it keeps the plain soft edge of its cfg numbers.
         internal bool Soft { get { return NoiseAmount > 0f; } }
-        // The factor on the owner's softness: the layer's cfg key softnessScale (a weather deck softer, a cirrus sheet softest).
+        // The factor on the owner's softness: the layer's cfg key softnessScale (a low stratiform weather layer softer, a cirrus sheet softest).
         internal float SoftnessScale { get; set; } = 1f;
         // The exponent of the water content in the density: the layer's cfg key waterPower (2: the density grows with the square of the water; 1: thin sheets have no core).
         internal float WaterPower { get; set; } = 2f;
@@ -245,7 +245,7 @@ namespace ReDefinition.Atmospheres
         internal float AmbientMs { get; set; } = DefaultAmbientMs;
         internal float AmbientDecay { get; set; } = DefaultAmbientDecay;
         // The width of the layer's cloud cells in m for the sun's diffusion in a lit (Weather) layer (cfg key lightCellWidth; E40 LM2, CloudLightMath.CellDiffusion; the shader's _LightM.w):
-        // the light's far depth is the chord of an ellipsoid of the type's height and this width, and a cell loses light through its sides over it. A deck is tens of km wide (its
+        // the light's far depth is the chord of an ellipsoid of the type's height and this width, and a cell loses light through its sides over it. A stratiform layer is tens of km wide (its
         // chord is the slab's height over the sun's sine), a cumulus cell about as wide as high. 0: none (the slab-fitted diffusion term of before).
         internal float LightCellWidth { get; set; }
         // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
@@ -268,7 +268,7 @@ namespace ReDefinition.Atmospheres
         // The vertical scale of the layer's noise lattice (cfg key verticalScale, 0: the body's sphereScale key, 1: the lattice is isotropic): the radial distance from the layer's middle is
         // multiplied by it before the volumes are read, so below 1 the features are 1 / VerticalScale times longer in the vertical than across. A convective cloud is a column: the air that
         // rises in a cell is the same over the depth of the cloud, so the noise that decides where it stands must not change over that depth, or the bodies float at different heights and
-        // the tops are slivers (E40 L5 shape). A deck (stratus, fog) keeps 1.
+        // the tops are slivers (E40 L5 shape). A low stratiform layer (stratus, fog) keeps 1.
         internal float VerticalScale { get; set; }
         // How far the layer's shape noise is smoothed (cfg key shapeSmoothing, in noise scales: the width of the box the shape volume is averaged over before it is read; 0: the volume
         // as it is). The top of a cloud is where the shape noise crosses the type's rising threshold, so a top stands higher by the noise's swing over the threshold's slope, and the
@@ -294,7 +294,7 @@ namespace ReDefinition.Atmospheres
         internal float AnvilSeconds { get; set; } = DefaultAnvilSeconds;
         internal float AnvilUpdraftMs { get; set; } = DefaultAnvilUpdraftMs;
         internal float AnvilScale { get; set; } = 1f;
-        // The layer's towers come from the generator's list of living convective cells (cfg key cellList; WeatherGenerator.Cells) and not from the point-sampled layer map with the deck rule and
+        // The layer's towers come from the generator's list of living convective cells (cfg key cellList; WeatherGenerator.Cells) and not from the point-sampled layer map with the low stratiform rule and
         // the meso stage: AnvilMap.PaintCells draws each cell's footprint into the maps area-averaged over the texel, AnvilMap.ApplyCells spreads each cell's anvil from the cell's own numbers
         // (centre, radius, strength). Off by default; the layer needs an anvil type.
         internal bool CellList { get; set; }
@@ -472,8 +472,8 @@ namespace ReDefinition.Atmospheres
         internal float NoiseScaleM { get; set; }
         // The type value where no precipitation falls (CloudLayerSpec.FairType; -1: the precipitation level itself). The tuning key cloud.typeFair.<name> goes before it.
         internal float FairType { get; set; } = -1f;
-        // What may draw the layer (WeatherDeckRule); null: the layer is drawn wherever its coverage map passes. The tuning key cloud.deckRule.<name> switches it off (0) or on (1).
-        internal WeatherDeckRule Deck { get; set; }
+        // What may draw the layer (WeatherLowStratiformRule); null: the layer is drawn wherever its coverage map passes. The tuning key cloud.lowStratiformRule.<name> switches it off (0) or on (1).
+        internal WeatherLowStratiformRule LowStratiform { get; set; }
         // The longitude the layer's maps are turned by against the body's frame, degrees (the layer turns with its wind).
         internal float MapShiftDeg { get; set; }
 

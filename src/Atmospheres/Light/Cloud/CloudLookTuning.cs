@@ -16,10 +16,10 @@ namespace ReDefinition.Atmospheres
     //   cloud.layerCoverageShift.<name>   added to the coverage of the layer of that name, on top of cloud.coverageShift (0)
     //   cloud.typeFair.<name>             the type value of the layer at no precipitation, rising linearly to 1 at full precipitation (-1: the precipitation level itself)
     //   cloud.typeOverride.<name>         a constant type value for the layer (-1: none; wins over typeFair)
-    //   cloud.deckRule.<name>             1 forces the layer's weather deck rule on (the cfg's numbers, else WeatherDeckRule.Defaults), 0 gives the old rule back (the type is the
-    //                                     precipitation level and the deck draws wherever its map passes), -1 (default): the layer's cfg (deckRule = 1 on the weather decks)
-    //   cloud.deckPrecip.<name>           the probe's: a precipitation level the layer's deck rule sees everywhere, 0 to 1 (-1: the field's)
-    //   cloud.deckFog.<name>              the probe's: a fog share the layer's deck rule sees everywhere, 0 to 1 (-1: the field's dew-point spread and wind)
+    //   cloud.lowStratiformRule.<name>    1 forces the layer's low stratiform rule on (the cfg's numbers, else WeatherLowStratiformRule.Defaults), 0 gives the old rule back (the type is the
+    //                                     precipitation level and the layer draws wherever its map passes), -1 (default): the layer's cfg (lowStratiformRule = 1 on the low stratiform weather layers)
+    //   cloud.lowStratiformPrecip.<name>  the probe's: a precipitation level the layer's low stratiform rule sees everywhere, 0 to 1 (-1: the field's)
+    //   cloud.lowStratiformFog.<name>     the probe's: a fog share the layer's low stratiform rule sees everywhere, 0 to 1 (-1: the field's dew-point spread and wind)
     //   cloud.coverCombine                0 to 1: how far the layer maps are scaled so that their random-overlap union equals the field's cover (0: maps as they are; default 1, E40 F1: each
     //                                     layer map the generator makes carries about the field's whole cover, the four closed the sky twice over)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
@@ -41,8 +41,8 @@ namespace ReDefinition.Atmospheres
             TuneNoiseSize = "cloud.layerNoiseSizeScale", TuneLayerShift = "cloud.layerCoverageShift.", TuneTypeFair = "cloud.typeFair.", TuneTypeOverride = "cloud.typeOverride.",
             TuneCoverCombine = "cloud.coverCombine", TuneFadeFar = "cloud.fadeFarM",
             TuneFadeNearShare = "cloud.fadeNearShare", TuneAerialPerspective = "cloud.aerialPerspective", TuneAerialPerspectiveStrength = "cloud.aerialPerspectiveStrength", TuneMapOverride = "cloud.mapOverride.",
-            TuneDeckRule = "cloud.deckRule.",
-            TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.",
+            TuneLowStratiformRule = "cloud.lowStratiformRule.",
+            TuneLowStratiformPrecip = "cloud.lowStratiformPrecip.", TuneLowStratiformFog = "cloud.lowStratiformFog.",
             TuneSoloLayer = "cloud.soloLayer", TuneCellKm = "cloud.cellKm", TuneCellLat = "cloud.cellLat", TuneCellLon = "cloud.cellLon";
 
         private static long seenVersion = -1;
@@ -56,9 +56,9 @@ namespace ReDefinition.Atmospheres
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeOverrideByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> MapOverrideByName = new Dictionary<string, float>(StringComparer.Ordinal);
-        private static readonly Dictionary<string, float> DeckRuleByName = new Dictionary<string, float>(StringComparer.Ordinal);
-        private static readonly Dictionary<string, float> DeckPrecipByName = new Dictionary<string, float>(StringComparer.Ordinal);
-        private static readonly Dictionary<string, float> DeckFogByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, float> LowStratiformRuleByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, float> LowStratiformPrecipByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, float> LowStratiformFogByName = new Dictionary<string, float>(StringComparer.Ordinal);
         // The per-layer factors (cloud.layerSigmaScale.<name> and the two like it), multiplied with the general ones.
         private static readonly Dictionary<string, float> SigmaByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> SoftnessByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -128,9 +128,9 @@ namespace ReDefinition.Atmospheres
             changed |= Reread(TypeFairByName, TuneTypeFair, -1f, -1f, 1f);
             changed |= Reread(TypeOverrideByName, TuneTypeOverride, -1f, -1f, 1f);
             changed |= Reread(MapOverrideByName, TuneMapOverride, -1f, -1f, 1f);
-            changed |= Reread(DeckRuleByName, TuneDeckRule, -1f, -1f, 1f);
-            changed |= Reread(DeckPrecipByName, TuneDeckPrecip, -1f, -1f, 1f);
-            changed |= Reread(DeckFogByName, TuneDeckFog, -1f, -1f, 1f);
+            changed |= Reread(LowStratiformRuleByName, TuneLowStratiformRule, -1f, -1f, 1f);
+            changed |= Reread(LowStratiformPrecipByName, TuneLowStratiformPrecip, -1f, -1f, 1f);
+            changed |= Reread(LowStratiformFogByName, TuneLowStratiformFog, -1f, -1f, 1f);
             changed |= Reread(CumuliformByName, TuneCumuliformLayer, -1f, -1f, CumuliformModel.PresetCount);
             changed |= Reread(EdgeByName, TuneEdgePowerLayer, 0f, 0f, 6f);
             changed |= Reread(CavityByName, TuneCavityLayer, -1f, -1f, 1f);
@@ -241,7 +241,7 @@ namespace ReDefinition.Atmospheres
         //   cloud.cumuliform.footLod    1: the march's sample spacing raises the cumuliform volume's mip level (an octave is dropped only where it is below the footprint); 0: only the smoothing does
         internal const string TuneCumuliform = "cloud.cumuliform", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneCumuliformFootLod = "cloud.cumuliform.footLod", TuneCumuliformIso = "cloud.cumuliform.iso", TuneCumuliformDetail = "cloud.cumuliform.detail", TuneNoiseBlend = "cloud.noise.blend", TuneNoiseBlendExp = "cloud.noise.blendExp", TuneNoiseBlendCell = "cloud.noise.blendCell";
 
-        // The same per layer (the layer's name after the prefix): the layer's own value wins over the global key, so a look can be tried on one layer (the cumulus layer) and the decks stay as they were.
+        // The same per layer (the layer's name after the prefix): the layer's own value wins over the global key, so a look can be tried on one layer (the cumulus layer) and the low stratiform layers stay as they were.
         internal const string TuneCumuliformLayer = "cloud.cumuliform.layer.", TuneEdgePowerLayer = "cloud.edgePower.layer.", TuneCavityLayer = "cloud.cavity.layer.";
         private static readonly Dictionary<string, float> CumuliformByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> EdgeByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -442,24 +442,24 @@ namespace ReDefinition.Atmospheres
             return Named(TypeOverrideByName, TuneTypeOverride, layerName, -1f, -1f, 1f);
         }
 
-        // The deck rule of a layer (WeatherDeckRule): the tuning key where it is set (0 off, 1 on with the cfg's numbers or the defaults), else the layer's own (null: none).
-        internal static WeatherDeckRule DeckRuleOf(string layerName, WeatherDeckRule own)
+        // The low stratiform rule of a layer (WeatherLowStratiformRule): the tuning key where it is set (0 off, 1 on with the cfg's numbers or the defaults), else the layer's own (null: none).
+        internal static WeatherLowStratiformRule LowStratiformRuleOf(string layerName, WeatherLowStratiformRule own)
         {
-            float k = Named(DeckRuleByName, TuneDeckRule, layerName, -1f, -1f, 1f);
+            float k = Named(LowStratiformRuleByName, TuneLowStratiformRule, layerName, -1f, -1f, 1f);
             if (k < 0f) return own;
             if (k < 0.5f) return null;
-            return own ?? WeatherDeckRule.Defaults;
+            return own ?? WeatherLowStratiformRule.Defaults;
         }
 
-        // The probe's forced inputs of the deck rule: a precipitation level and a fog share, 0 to 1, the same everywhere (-1: the field's).
-        internal static float DeckPrecipOf(string layerName)
+        // The probe's forced inputs of the low stratiform rule: a precipitation level and a fog share, 0 to 1, the same everywhere (-1: the field's).
+        internal static float LowStratiformPrecipOf(string layerName)
         {
-            return Named(DeckPrecipByName, TuneDeckPrecip, layerName, -1f, -1f, 1f);
+            return Named(LowStratiformPrecipByName, TuneLowStratiformPrecip, layerName, -1f, -1f, 1f);
         }
 
-        internal static float DeckFogOf(string layerName)
+        internal static float LowStratiformFogOf(string layerName)
         {
-            return Named(DeckFogByName, TuneDeckFog, layerName, -1f, -1f, 1f);
+            return Named(LowStratiformFogByName, TuneLowStratiformFog, layerName, -1f, -1f, 1f);
         }
 
         // A constant coverage-map value for the layer everywhere (-1: the field's map).
@@ -580,21 +580,21 @@ namespace ReDefinition.Atmospheres
 
         // The layers' maps of one round brought to the field (E40 F1): every layer map the generator makes carries about the whole cover of the field, so the four together close the sky
         // twice over (the union of the 24 maps of the type-mix audit: 0.75 visible against the field's 0.40). CombineCover scales them so that their union is the field's cover, and a
-        // weather deck that has a rain floor is lifted to it again where it rains (rain falls from a cloud, whatever share of the cover the deck took). decks: the rule of each layer or
+        // low stratiform weather layer that has a rain floor is lifted to it again where it rains (rain falls from a cloud, whatever share of the cover the layer took). rules: the rule of each layer or
         // null; level: the precipitation level map (null: no floors). weight 0 changes nothing.
-        internal static void MeetTheField(byte[][] layers, int count, byte[] shared, float weight, WeatherDeckRule[] decks, float[] level)
+        internal static void MeetTheField(byte[][] layers, int count, byte[] shared, float weight, WeatherLowStratiformRule[] rules, float[] level)
         {
-            MeetTheFieldRange(layers, count, shared, weight, decks, level, 0, shared.Length);
+            MeetTheFieldRange(layers, count, shared, weight, rules, level, 0, shared.Length);
         }
 
         // The same for the texels from to to - 1 (the module does a round's combination in slices over several frames: the whole map costs 100 ms).
-        internal static void MeetTheFieldRange(byte[][] layers, int count, byte[] shared, float weight, WeatherDeckRule[] decks, float[] level, int from, int to)
+        internal static void MeetTheFieldRange(byte[][] layers, int count, byte[] shared, float weight, WeatherLowStratiformRule[] rules, float[] level, int from, int to)
         {
             if (weight <= 0f) return;
             CombineCoverRange(layers, count, shared, weight, from, to);
-            if (decks == null || level == null) return;
+            if (rules == null || level == null) return;
             for (int l = 0; l < count; l++)
-                if (decks[l] != null) decks[l].RaiseToFloor(layers[l], level, from, to);
+                if (rules[l] != null) rules[l].RaiseToFloor(layers[l], level, from, to);
         }
 
         // Scales the layers' coverage bytes in place so that the union of their maps (independent layers overlap at random) meets the shared coverage byte of each texel,

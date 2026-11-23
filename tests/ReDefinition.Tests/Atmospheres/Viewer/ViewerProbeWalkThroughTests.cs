@@ -132,7 +132,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             string[] order =
             {
                 "closed_at_start", "addon_running", "window_opens", "keys_listed", "window_closes", "window_reopens", "pose_height", "window_screenshot", "slider_height", "typed_height",
-                "time_offset", "sun_moves", "time_freeze", "time_resumes", "weather_overcast_forced", "weather_fair_cover", "weather_cumulus_cover", "weather_raindeck_precipitation",
+                "time_offset", "sun_moves", "time_freeze", "time_resumes", "weather_overcast_forced", "weather_fair_cover", "weather_cumulus_cover", "weather_rainlowstratiform_precipitation",
                 "weather_field_forced", "ab_b_pass", "ab_flip_a_pass", "ab_flip_b_pass", "speed_x1_flows", "speed_x4_ratio", "speed_frozen", "speed_resumes", "capture_hidden", "capture_files",
                 "capture_sidecar", "capture_second", "close_ends_session", "restore_options", "restore_time", "restore_vessel", "pass_kept_drawing"
             };
@@ -183,7 +183,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                     // other check is required.
                     bool optional = pair.Value.ContainsKey("required") && (bool)pair.Value["required"] == false;
                     bool mayBeMissing = pair.Key == "VIEWER.speed_drift_ratio_ok" || pair.Key == "VIEWER.weather_overcast_cover_ok" || pair.Key == "VIEWER.weather_fair_cover_ok"
-                                       || pair.Key == "VIEWER.weather_raindeck_cover_ok";
+                                       || pair.Key == "VIEWER.weather_rainlowstratiform_cover_ok";
                     Assert.AreEqual(mayBeMissing, optional, pair.Key + (optional ? " is optional" : " is required: it is a check"));
                 }
                 else Assert.IsTrue(pair.Value.ContainsKey("required") && (bool)pair.Value["required"] == false, pair.Key + " is information (required false)");
@@ -408,7 +408,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         }
 
         [TestMethod]
-        public void ADeckAlreadyClosedAtThePadMakesTheOvercastCheckUnclearNotPassedOrFailed()
+        public void ALowStratiformLayerAlreadyClosedAtThePadMakesTheOvercastCheckUnclearNotPassedOrFailed()
         {
             Run r = Start(rig => rig.FieldOvercast = true);
             Drive(r);

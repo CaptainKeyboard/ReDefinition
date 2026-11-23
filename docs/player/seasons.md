@@ -120,7 +120,7 @@ What you see of a cell from outside, within 60 km of the camera and while `storm
 
 * A snow cloud: a thick, lobed, wind-stretched mass in EVE's own weather layers (`stormClouds =
   Existing`). It grows out of the clouds that are there while the storm builds, up to a dense
-  Cumulus mass in Kerbin-base-layer (from 1.75 km above sea level, taller than its Stratus deck)
+  Cumulus mass in Kerbin-base-layer (from 1.75 km above sea level, taller than its Stratus layer)
   and, where EVE's weather layers are active, a Polar-snow cloud below it. Because it is EVE's cloud, it has the noise, the
   lighting and the colours of the clouds around it. Without EVE's volumetric clouds there are no
   storm cells at all: `KSP.log` says `storms: needs EVE with Volumetric Clouds` once, and the
@@ -178,7 +178,7 @@ each of those layers' coverage and cloud-type maps with the cell painted into it
 of the coverage, the type turned to Polar-snow, or to Cumulus in the base layer), puts the copies
 in the layers, and puts EVE's own maps back 30 seconds after the last cell has gone, when the
 setting goes off, or when the scene unloads. The cell is Cumulus in the base layer, EVE's dense
-type (eight times the density of the Stratus deck, taller), so that it is a darker, heavier mass
+type (eight times the density of the Stratus layer, taller), so that it is a darker, heavier mass
 than the overcast around it. Only the rectangle a cell covers is written, and only when a cell
 has moved by a texel or changed its strength. This costs memory while a cell is near: 128 MB
 for the 8192 x 4096 base layer (an earlier version took 256 MB and a brief extra 128 MB; `KSP.log`

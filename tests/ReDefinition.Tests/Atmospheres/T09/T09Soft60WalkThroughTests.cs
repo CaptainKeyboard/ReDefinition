@@ -246,7 +246,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheLightRowsSeparateTheSunlitSideFromTheBaseAndTheDeckFromTheSky()
+        public void TheLightRowsSeparateTheSunlitSideFromTheBaseAndTheCloudFromTheSky()
         {
             int n = 100 * 100;
             var off = new Color[n];
@@ -270,7 +270,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.2140, s.BaseLuma, 0.002, "the 10th is the base");
             Assert.AreEqual(0.6038 / 0.2140, s.TopOverBase, 0.05);
             Assert.AreEqual(T09Probe.SoftLuma(off[0]), s.SkyLuma, 0.002, "the sky behind the body is the baseline's");
-            Assert.AreEqual(s.MedianLuma / s.SkyLuma, s.DeckOverSky, 1e-9);
+            Assert.AreEqual(s.MedianLuma / s.SkyLuma, s.CloudOverSky, 1e-9);
             // No pixel changed by the body threshold, or pictures of two sizes: no stats.
             Assert.IsFalse(T09Probe.SoftLightOf(off, off, out s));
             Assert.IsFalse(T09Probe.SoftLightOf(raw, new Color[10], out s));

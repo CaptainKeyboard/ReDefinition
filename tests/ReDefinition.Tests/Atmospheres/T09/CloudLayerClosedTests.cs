@@ -5,7 +5,7 @@ using ReDefinition.Atmospheres;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The closed share of each layer of Kerbin's stack at the map values K-T2d start 49 read (GameData/ReDefinition/Atmospheres/Bodies/Clouds-Kerbin.cfg): the expected table
-    // of the per-layer frames of start 50. The ground view looks 18 degrees up (slant 3.24). Layers in the stack's order: the weather deck (rain), cumulus, cumulonimbus, cirrus.
+    // of the per-layer frames of start 50. The ground view looks 18 degrees up (slant 3.24). Layers in the stack's order: the low stratiform weather layer (rain), cumulus, cumulonimbus, cirrus.
     [TestClass]
     public class CloudLayerClosedTests
     {
@@ -35,7 +35,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void AtTheLowCoverTheCumulusLayerIsTheMostClosedLayerAndTheRainDeckIsHalfOpen()
+        public void AtTheLowCoverTheCumulusLayerIsTheMostClosedLayerAndTheRainLowStratiformIsHalfOpen()
         {
             // K-T2d start 49, low pick: maps 0.406 / 0.665 / 0.110 / 0.501, type 0 everywhere. The model's closed share (tau above 4.6) of the sky at 18 degrees up.
             double[] map = { 0.406, 0.665, 0.110, 0.501 };
@@ -46,25 +46,25 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 p1[k] = Closed(layers[k], map[k], 0.0, 0f);
                 c35[k] = Closed(layers[k], map[k], 0.0, -0.15f);
             }
-            Assert.AreEqual(0.34, p1[0], 0.06, "rain deck (Fog at type 0) at shift 0");
+            Assert.AreEqual(0.34, p1[0], 0.06, "low stratiform rain layer (Fog at type 0) at shift 0");
             // The cumulus layer is the cell field of the shipped cfg (noise amount 1, 500 m): 0.58 at shift 0 and 0.43 at coverage 0.20; the sheet of the former cfg (amount 0.35)
             // gave 0.73 and 0.30. The noise decides where the cloud stands, the map how much of the sky it fills.
             Assert.AreEqual(0.58, p1[1], 0.04, "cumulus (Stratocumulus) at shift 0");
             Assert.AreEqual(0.0, p1[2], 0.01, "cumulonimbus at map 0.11");
             Assert.AreEqual(0.0, p1[3], 0.01, "cirrus is too thin to close");
-            Assert.AreEqual(0.0, c35[0], 0.02, "the rain deck opens at coverage 0.35");
+            Assert.AreEqual(0.0, c35[0], 0.02, "the low stratiform rain layer opens at coverage 0.35");
             Assert.AreEqual(0.43, c35[1], 0.04, "the cumulus layer at coverage 0.20 is still closed over two fifths of the sky");
             Assert.IsTrue(p1[1] > p1[0] && c35[1] > c35[0], "the cumulus layer is the most closed layer of the low pick");
             Assert.IsTrue(p1[1] < 0.8, "and no longer a sheet");
         }
 
         [TestMethod]
-        public void AtTheHighCoverTheRainDeckIsClosedAndTheCumulonimbusIsTheTowers()
+        public void AtTheHighCoverTheRainLowStratiformIsClosedAndTheCumulonimbusIsTheTowers()
         {
             // High pick: maps 0.859 / 0.206 / 0.661 / 0.177, type 0.229 everywhere.
             double[] map = { 0.859, 0.206, 0.661, 0.177 };
             CloudLayerDef[] layers = { Rain(), Cumulus(), Cumulonimbus(), Cirrus() };
-            Assert.AreEqual(1.0, Closed(layers[0], map[0], 0.229, 0f), 0.01, "a rain deck at map 0.86 closes the sky whatever the shift");
+            Assert.AreEqual(1.0, Closed(layers[0], map[0], 0.229, 0f), 0.01, "a low stratiform rain layer at map 0.86 closes the sky whatever the shift");
             Assert.AreEqual(1.0, Closed(layers[0], map[0], 0.229, -0.15f), 0.01);
             // At amount 1 the noise lifts the threshold by up to 0.5, so the cumulus layer at a map of 0.21 is a few cells (0.13), not absent as it was at amount 0.35.
             Assert.AreEqual(0.13, Closed(layers[1], map[1], 0.229, 0f), 0.04, "cumulus at map 0.21 is a few cells");

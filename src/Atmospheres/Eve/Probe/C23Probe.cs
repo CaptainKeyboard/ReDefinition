@@ -237,7 +237,7 @@ namespace ReDefinition.Atmospheres
             return module.SetOfLayer(layer);
         }
 
-        // EVE's SampleCoverage at twelve sites, in the middle of the deck, against the field's coverage at the same sites.
+        // EVE's SampleCoverage at twelve sites, in the middle of the cloud layer, against the field's coverage at the same sites.
         private IEnumerable<ProbeWait> Sites(EveCloudModule module, EveLayer layer)
         {
             CelestialBody body = module.CurrentBody;

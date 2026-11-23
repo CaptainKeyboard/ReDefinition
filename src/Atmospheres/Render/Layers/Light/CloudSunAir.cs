@@ -5,7 +5,7 @@ namespace ReDefinition.Atmospheres
 {
     // The sun colour of the cloud pass is the colour of the sun at the cloud's altitude (E40 sun colour). Scatterer multiplies Unity's sun light by the air between the
     // active vessel and the sun, so the colour the pass reads is the sun as filtered by the air above the CAMERA: a low camera reddened every cloud, a camera high above a
-    // low deck whitened it. The pass takes the camera's air out of that colour here (the shader's SunAir puts the air above each sample back), with the air that made the
+    // low stratiform layer whitened it. The pass takes the camera's air out of that colour here (the shader's SunAir puts the air above each sample back), with the air that made the
     // colour: Scatterer's own node of the body (ScattererAirReader), the same two components, scale heights and air mass as the shader.
     // Scatterer's ozone, its extinctionThickness and its noon blend act above both altitudes and stay in the colour untouched.
     internal static class CloudSunAir

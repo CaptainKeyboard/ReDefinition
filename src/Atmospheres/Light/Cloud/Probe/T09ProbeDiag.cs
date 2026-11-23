@@ -14,8 +14,8 @@ namespace ReDefinition.Atmospheres
     //  - gains: cloud.sunGain 1, 4, 16 and 64, one frame each;
     //  - aid 4: the pass's direct light, light taps and ambient as colours (gain 1).
     // Each frame is read as raw values (ReconFrame.Raw: what the target held, no gamma step) and measured in three regions (T09Readout): the sky above the horizon, the sea or
-    // ground below it, and the deck (the pixels the pass changed against the off frame). Rows T09d.<view>.<cover>.<gain>.<stat>; the ratios deck_over_off_sky and
-    // deck_over_off_ground (the sunlit sea or ground of the off frame, the white reference) need no constant fit. The light and the target are logged at the first drawn
+    // ground below it, and the cloud region (the pixels the pass changed against the off frame). Rows T09d.<view>.<cover>.<gain>.<stat>; the ratios cloud_over_off_sky and
+    // cloud_over_off_ground (the sunlit sea or ground of the off frame, the white reference) need no constant fit. The light and the target are logged at the first drawn
     // frame and every 30 s (T09Environment). Pictures: half size, name t09-<start>-<view>_<cover>-<gain>-WxH-natural.
     internal sealed partial class T09Probe
     {
@@ -34,12 +34,12 @@ namespace ReDefinition.Atmospheres
         private const double MapSettleS = 20.0, EnvEveryS = 30.0;
         // The mask that draws no layer (the shader skips layer i when bit i is clear; the stack has at most 8).
         internal const int NoLayersMask = T09Views.NoLayersMask;
-        // The ladder stops at 16 (the deck clips from there on; g64 of start 44 added nothing): the frames freed pay for the coverage variants.
+        // The ladder stops at 16 (the cloud layer clips from there on; g64 of start 44 added nothing): the frames freed pay for the coverage variants.
         internal static readonly float[] DiagGains = { 1f, 4f, 16f };
         private const string AidDirect = "aid-direct";
 
         // The variants of the output stage measured at gain 1 after the ladder: tag, sun unit, gamma, exposure. u1: the units alone; p1: the product's defaults (pi, 2.2, 1);
-        // pe2: the product's stage at exposure 2 (the deck must rise by 2 ^ (1 / 2.2) = 1.37 where it is below the white).
+        // pe2: the product's stage at exposure 2 (the cloud layer must rise by 2 ^ (1 / 2.2) = 1.37 where it is below the white).
         internal struct StageVariant
         {
             internal string Tag;
@@ -53,7 +53,7 @@ namespace ReDefinition.Atmospheres
             new StageVariant { Tag = "pe2", SunUnit = CloudOutputStage.SunUnitDefault, Gamma = CloudOutputStage.GammaDefault, Exposure = 2f }
         };
 
-        // The coverage variants after p1 (p1 is the shift 0 frame): tag, cloud.coverageShift, the rain deck's resulting coverage (the file's 0.5 plus the shift).
+        // The coverage variants after p1 (p1 is the shift 0 frame): tag, cloud.coverageShift, the low stratiform rain layer's resulting coverage (the file's 0.5 plus the shift).
         internal struct ShiftVariant
         {
             internal string Tag;
@@ -74,7 +74,7 @@ namespace ReDefinition.Atmospheres
             new KeyValuePair<string, float>("c35", -0.15f)
         };
 
-        // The rows T09d.<view>.<cover>.<tag>.model_closed: CloudCoverModel's closed share of the rain deck's Stratus at the pass's map value for each shift, the slant of the view's
+        // The rows T09d.<view>.<cover>.<tag>.model_closed: CloudCoverModel's closed share of the low stratiform rain layer's Stratus at the pass's map value for each shift, the slant of the view's
         // ray (18 degrees up: 3.24; 25 degrees down: 2.37). Written before the frames are read. NaN map (no rain layer found): no rows.
         private void EmitCoverModel(string head, View view, float mapCover)
         {
@@ -84,7 +84,7 @@ namespace ReDefinition.Atmospheres
                 Emit(head + s.Key + ".model_closed", CloudCoverModel.RainStratusClosed(mapCover, s.Value, slant));
         }
 
-        // The rain deck's coverage as the layer reports it after the shift was forced: it must be the file's plus the shift (the shift reached the layer the readers use).
+        // The low stratiform rain layer's coverage as the layer reports it after the shift was forced: it must be the file's plus the shift (the shift reached the layer the readers use).
         private void EmitShiftReached(string head, ShiftVariant variant, int rainLayer, OwnCloudModule own)
         {
             Emit(head + variant.Tag + ".coverage_shift", variant.Shift);
@@ -371,8 +371,8 @@ namespace ReDefinition.Atmospheres
             }
             if (look == "A" && tag == "high")
             {
-                // P3: the rain deck alone from inside (4.6 km) and from above, where K-T2d start 50 saw it draw nothing at map 0.86; start 52 adds 2.3 km, just above the deck's top.
-                foreach (View view in new[] { Views[1], Views[2], DeckMidView })
+                // P3: the low stratiform rain layer alone from inside (4.6 km) and from above, where K-T2d start 50 saw it draw nothing at map 0.86; start 52 adds 2.3 km, just above the layer's top.
+                foreach (View view in new[] { Views[1], Views[2], LowStratiformMidView })
                 {
                     foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
                     Emit("T09d." + view.Name + "." + tag + ".placed_ok", placeOk);
@@ -383,12 +383,12 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in DiagLookHorizon(tag)) yield return w;
             if (look == "B" && tag == "high")
             {
-                // The rain deck's own light from 8.3 km (above) and from 2.3 km: the dark patches of start 52's layer-alone frames, with the cloud shadow off and with every layer drawn.
-                foreach (View view in new[] { Views[2], DeckMidView })
+                // The low stratiform rain layer's own light from 8.3 km (above) and from 2.3 km: the dark patches of start 52's layer-alone frames, with the cloud shadow off and with every layer drawn.
+                foreach (View view in new[] { Views[2], LowStratiformMidView })
                 {
                     foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;
                     Emit("T09d." + view.Name + "." + tag + ".placed_ok", placeOk);
-                    foreach (ProbeWait w in DiagLookDeckLight(view, tag)) yield return w;
+                    foreach (ProbeWait w in DiagLookLowStratiformLight(view, tag)) yield return w;
                 }
             }
         }
@@ -430,14 +430,14 @@ namespace ReDefinition.Atmospheres
                 }
                 foreach (ProbeWait w in DiagTake(view, tag, gainTag, false, off)) yield return w;
                 if (gain == 1f) one = diagReading;
-                else if (diagReading != null && one != null && one.Deck.Count > 0 && diagReading.Deck.Count > 0 && one.Deck.Median > 1e-6f)
-                    Emit(head + gainTag + ".deck_vs_g1", diagReading.Deck.Median / one.Deck.Median);
+                else if (diagReading != null && one != null && one.Cloud.Count > 0 && diagReading.Cloud.Count > 0 && one.Cloud.Median > 1e-6f)
+                    Emit(head + gainTag + ".cloud_vs_g1", diagReading.Cloud.Median / one.Cloud.Median);
             }
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
 
             // What the pass's maps hold at the site, per layer (the layer's own coverage map and the type value): the cover the series picked is the field's at 3 km, the
-            // rain deck reads its map at its own mid height, so the number the shape sees is this one. The model (CloudCoverModel) turns it into a closed share.
+            // low stratiform rain layer reads its map at its own mid height, so the number the shape sees is this one. The model (CloudCoverModel) turns it into a closed share.
             int rainLayer = -1;
             float rainMapCover = float.NaN;
             if (own != null && own.Stack != null)
@@ -477,15 +477,15 @@ namespace ReDefinition.Atmospheres
                     Emit(head + variant.Tag + ".stage_white", own.Frame.OutputWhite);
                 }
                 foreach (ProbeWait w in DiagTake(view, tag, variant.Tag, false, off)) yield return w;
-                if (diagReading != null && one != null && one.Deck.Count > 0 && diagReading.Deck.Count > 0 && one.Deck.Median > 1e-6f)
-                    Emit(head + variant.Tag + ".deck_vs_g1", diagReading.Deck.Median / one.Deck.Median);
+                if (diagReading != null && one != null && one.Cloud.Count > 0 && diagReading.Cloud.Count > 0 && one.Cloud.Median > 1e-6f)
+                    Emit(head + variant.Tag + ".cloud_vs_g1", diagReading.Cloud.Median / one.Cloud.Median);
             }
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
 
-            // The coverage threshold of the rain deck, measured as a switchable variant (the owner has not decided between the file's 0.5 and about 0.42): the product's stage at gain 1
+            // The coverage threshold of the low stratiform rain layer, measured as a switchable variant (the owner has not decided between the file's 0.5 and about 0.42): the product's stage at gain 1
             // with cloud.coverageShift 0 (p1, above), -0.08 (coverage 0.42) and -0.15 (0.35). Readouts per frame: sky_closed_share / ground_closed_share (the proxy of
-            // the share of samples changed by T09Readout.ClosedChange), sky_deck_share / ground_deck_share, deck_fraction, the deck median and the picture; beside them the model's closed share at the pass's own map
+            // the share of samples changed by T09Readout.ClosedChange), sky_cloud_share / ground_cloud_share, cloud_fraction, the cloud region median and the picture; beside them the model's closed share at the pass's own map
             // value (model_closed, CloudCoverModel.RainStratusClosed), written before the frame is read.
             EmitCoverModel(head, view, rainMapCover);
             foreach (ShiftVariant variant in ShiftVariants)
@@ -608,7 +608,7 @@ namespace ReDefinition.Atmospheres
         private int diagPictureFactor = 2;
 
         // Reads the flight camera's frame, checks the pose at both ends, saves the picture (half size) and measures it. diagReading is null where any of it failed. baseline: the
-        // off reading (null for the off frame itself); for the aid frame it is the gain-1 reading whose deck mask the aid frame is measured over.
+        // off reading (null for the off frame itself); for the aid frame it is the gain-1 reading whose cloud mask the aid frame is measured over.
         private IEnumerable<ProbeWait> DiagTake(View view, string tag, string gainTag, bool aid, T09Readout.Reading baseline)
         {
             diagReading = null;
@@ -667,7 +667,7 @@ namespace ReDefinition.Atmospheres
             }
             double horizon = T09Readout.HorizonV(after.ElevationDeg, Game.CameraFovDeg, after.CameraAsl, Game.BodyRadius);
             T09Readout.Reading reading;
-            try { reading = T09Readout.Measure(image.Raw, image.Width, image.Height, horizon, aid ? null : baseline, aid && baseline != null ? baseline.DeckMask : null); }
+            try { reading = T09Readout.Measure(image.Raw, image.Width, image.Height, horizon, aid ? null : baseline, aid && baseline != null ? baseline.CloudMask : null); }
             catch (Exception e)
             {
                 Check("T09d.readout_" + name, false, "the readout threw " + e.GetType().Name + " " + e.Message);
@@ -686,7 +686,7 @@ namespace ReDefinition.Atmospheres
             string p = "T09d." + view.Name + "." + tag + "." + gainTag + ".";
             Emit(p + "pose_ok", poseOk);
             Emit(p + "pose_alt_m", after.VesselAsl);
-            // The ground view looks up at a sky layer; the other views (inside, deck, above, sky3... ) look down on the deck, so their tau is read over the sea or ground region.
+            // The ground view looks up at a sky layer; the other views (inside, lowstratiform, above, sky3... ) look down on the cloud layer, so their tau is read over the sea or ground region.
             if (aid) EmitAidTau(p, reading, image.Raw, baseline, view.Name != "ground" && view.Name != "sky3");
             else EmitReading(p, what, reading, baseline, IsOffVariant(gainTag), poseOk);
             diagReading = reading;
@@ -728,12 +728,12 @@ namespace ReDefinition.Atmospheres
                 EmitRatio(p + "ground_over_sky", T09Readout.Ratio(r.Ground.Median, r.Ground.Count, r.Sky.Median, r.Sky.Count));
                 return;
             }
-            Emit(p + "deck_fraction", r.DeckFraction);
-            EmitStat(p + "deck_", r.Deck);
+            Emit(p + "cloud_fraction", r.CloudFraction);
+            EmitStat(p + "cloud_", r.Cloud);
             if (off == null) return;
-            // The share of each region that the deck changed, and the share that counts as closed (a proxy from the picture: the share of the region's samples whose colour changed by T09Readout.ClosedChange or more; no alpha is read).
-            Emit(p + "sky_deck_share", r.SkyDeckShare);
-            Emit(p + "ground_deck_share", r.GroundDeckShare);
+            // The share of each region that the cloud region changed, and the share that counts as closed (a proxy from the picture: the share of the region's samples whose colour changed by T09Readout.ClosedChange or more; no alpha is read).
+            Emit(p + "sky_cloud_share", r.SkyCloudShare);
+            Emit(p + "ground_cloud_share", r.GroundCloudShare);
             Emit(p + "sky_closed_share", r.SkyClosedShare);
             Emit(p + "ground_closed_share", r.GroundClosedShare);
             if (r.HorizonBandSamples > 0)
@@ -745,8 +745,8 @@ namespace ReDefinition.Atmospheres
             }
             EmitRatio(p + "sky_over_off_sky", T09Readout.Ratio(r.Sky.Median, r.Sky.Count, off.Sky.Median, off.Sky.Count));
             EmitRatio(p + "ground_over_off_ground", T09Readout.Ratio(r.Ground.Median, r.Ground.Count, off.Ground.Median, off.Ground.Count));
-            EmitRatio(p + "deck_over_off_sky", T09Readout.Ratio(r.Deck.Median, r.Deck.Count, off.Sky.Median, off.Sky.Count));
-            EmitRatio(p + "deck_over_off_ground", T09Readout.Ratio(r.Deck.Median, r.Deck.Count, off.Ground.Median, off.Ground.Count));
+            EmitRatio(p + "cloud_over_off_sky", T09Readout.Ratio(r.Cloud.Median, r.Cloud.Count, off.Sky.Median, off.Sky.Count));
+            EmitRatio(p + "cloud_over_off_ground", T09Readout.Ratio(r.Cloud.Median, r.Cloud.Count, off.Ground.Median, off.Ground.Count));
         }
 
         // The colour in the bands just above and just below the sea horizon's row (a few columns; T09Readout.MeasureHorizonLine): line_above_r/g/b and line_below_r/g/b are the frame's colours,
@@ -793,7 +793,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The aid frame: the channels of the pass's direct light (r), light taps (g) and ambient (b) over the deck of the natural frame.
+        // The aid frame: the channels of the pass's direct light (r), light taps (g) and ambient (b) over the cloud region of the natural frame.
         // The rows of an aid-1 frame (the optical depth picture): the optical depth over the sky samples decoded against the baseline frame (T09Readout.MeasureAidTau), to be read
         // beside the colour-change closed share of the natural frame of the same set (K-T2d start 51 had no tau). Needs the baseline's raw picture; named otherwise.
         private void EmitAidTau(string p, T09Readout.Reading r, Color[] raw, T09Readout.Reading baseline, bool below)

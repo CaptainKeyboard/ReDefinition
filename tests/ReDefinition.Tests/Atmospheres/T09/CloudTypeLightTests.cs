@@ -99,22 +99,22 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
                 Assert.AreEqual(1f, t.BaseLight, name + " base light");
-                Assert.AreEqual(1f, t.TopLight, name + " head light");
+                Assert.AreEqual(1f, t.TopLight, name + " top light");
             }
             foreach (CloudLayerSpec l in layers.Where(l => l.Kind == LayerKind.Weather))
                 Assert.IsTrue(l.LightCellWidth > 0f, l.Name + " has a cell width");
-            // The decks of stratus and nimbostratus (rain and snow) have no factor: their light follows the two-stream anchors without one (E40 look round 2).
+            // The low stratiform layers of stratus and nimbostratus (rain and snow) have no factor: their light follows the two-stream anchors without one (E40 look round 2).
             foreach (string name in new[] { "Stratus", "Nimbostratus", "Snow stratus", "Snow nimbostratus" })
             {
                 CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
                 Assert.AreEqual(1f, t.BaseLight, name + " base light");
-                Assert.AreEqual(1f, t.TopLight, name + " head light");
+                Assert.AreEqual(1f, t.TopLight, name + " top light");
                 Assert.AreEqual(1f, t.BaseAmbient, name + " base ambient");
-                Assert.AreEqual(1f, t.TopAmbient, name + " head ambient");
+                Assert.AreEqual(1f, t.TopAmbient, name + " top ambient");
             }
-            foreach (CloudLayerSpec deck in layers.Where(l => l.Name.StartsWith("Kerbin-weather")))
+            foreach (CloudLayerSpec layer in layers.Where(l => l.Name.StartsWith("Kerbin-weather")))
             {
-                Assert.AreEqual(1f, deck.LightAmbient, deck.Name + " light ambient");
+                Assert.AreEqual(1f, layer.LightAmbient, layer.Name + " light ambient");
             }
         }
 
@@ -143,7 +143,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheNominalCloudAltitudeIsTheLowerQuarterOfTheLayer()
         {
-            Assert.AreEqual(525f, CloudOutputStage.NominalCloudAltitudeM(0f, 2100f), 1e-3f, "the rain deck");
+            Assert.AreEqual(525f, CloudOutputStage.NominalCloudAltitudeM(0f, 2100f), 1e-3f, "the low stratiform rain layer");
             Assert.AreEqual(3125f, CloudOutputStage.NominalCloudAltitudeM(1700f, 5700f), 1e-3f, "the cumulus layer");
             Assert.AreEqual(1700f, CloudOutputStage.NominalCloudAltitudeM(1700f, -5f), 1e-3f, "a negative thickness counts as none");
         }

@@ -69,14 +69,14 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(5, layers.Count);
             Assert.AreEqual(5, layers.Select(l => l.Name).Distinct().Count());
             Assert.AreEqual(4, CloudLayerSet.MostAtOnce(layers), "designed for four visible at once");
-            Assert.AreEqual(2, layers.Count(l => l.Group == "weather"), "the rain and the snow deck are exclusive");
+            Assert.AreEqual(2, layers.Count(l => l.Group == "weather"), "the low stratiform rain and snow layers are exclusive");
             // The pre-existing keys of the node are untouched by the layers.
             Assert.AreEqual(CloudDiscovery.Auto, r.Climate.Clouds.Discover);
             Assert.AreEqual("Kerbin-base-layer", r.Climate.Clouds.BaseLayer);
         }
 
-        // M2c (the low decks): the stratus types of both decks carry their undulations (undulatusAmount), every other type none; they are drawn only with cloud.undulatus on,
-        // which is off by default, so the shipped deck draws as before.
+        // M2c (the low stratiform layers): the stratus types of both layers carry their undulations (undulatusAmount), every other type none; they are drawn only with cloud.undulatus on,
+        // which is off by default, so the shipped layer draws as before.
         [TestMethod]
         public void TheStratusTypesCarryTheirUndulatusAndTheSwitchIsOffByDefault()
         {
@@ -206,7 +206,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             }
             Assert.AreEqual(4, stack.LayerCount);
 
-            // The weather picks the snow deck: the same four layers with the other group member.
+            // The weather picks the low stratiform snow layer: the same four layers with the other group member.
             List<CloudLayerSpec> snow = CloudLayerSet.Select(rules.Layers, 4, group => group == "weather" ? 1 : 0);
             Assert.AreEqual("Kerbin-weather-snow", snow[0].Name);
             Assert.AreEqual(4, snow.Count);

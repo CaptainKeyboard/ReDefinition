@@ -11,14 +11,14 @@ namespace ReDefinition.Atmospheres.Viewer
     }
 
     // The weather states the viewer forces. Field is the weather field's own state; the others hold every layer's map at a constant value through the per-layer
-    // tuning keys (cloud.mapOverride.<layer>, cloud.typeOverride.<layer>, cloud.deckRule.<layer>), the same keys the K-T2 probe forces its states with.
+    // tuning keys (cloud.mapOverride.<layer>, cloud.typeOverride.<layer>, cloud.lowStratiformRule.<layer>), the same keys the K-T2 probe forces its states with.
     internal enum ViewerWeather
     {
         Field,
         Fair,
         Cumulus,
         Overcast,
-        RainDeck,
+        RainLowStratiform,
         CbCell
     }
 
@@ -29,7 +29,7 @@ namespace ReDefinition.Atmospheres.Viewer
         internal enum Role
         {
             Other,
-            Deck,
+            LowStratiform,
             Cumulus,
             Cumulonimbus,
             Cirrus
@@ -38,7 +38,7 @@ namespace ReDefinition.Atmospheres.Viewer
         internal static Role RoleOf(ViewerLayer layer)
         {
             string name = layer.Name ?? "";
-            if (string.Equals(layer.Group, CloudCoverShift.RainGroup, StringComparison.Ordinal)) return Role.Deck;
+            if (string.Equals(layer.Group, CloudCoverShift.RainGroup, StringComparison.Ordinal)) return Role.LowStratiform;
             if (name.IndexOf("cumulonimbus", StringComparison.OrdinalIgnoreCase) >= 0) return Role.Cumulonimbus;
             if (name.IndexOf("cumulus", StringComparison.OrdinalIgnoreCase) >= 0) return Role.Cumulus;
             if (name.IndexOf("cirrus", StringComparison.OrdinalIgnoreCase) >= 0) return Role.Cirrus;
@@ -50,15 +50,15 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             yield return CloudLookTuning.TuneMapOverride + layer.Name;
             yield return CloudLookTuning.TuneTypeOverride + layer.Name;
-            yield return CloudLookTuning.TuneDeckRule + layer.Name;
+            yield return CloudLookTuning.TuneLowStratiformRule + layer.Name;
         }
 
-        // The map value, the type value (-1: the field's) and the deck rule (-1: the layer's cfg; 0 off, so a constant map draws everywhere) of a role in a preset.
-        internal static void Look(ViewerWeather weather, Role role, out float map, out float type, out float deck)
+        // The map value, the type value (-1: the field's) and the low stratiform rule (-1: the layer's cfg; 0 off, so a constant map draws everywhere) of a role in a preset.
+        internal static void Look(ViewerWeather weather, Role role, out float map, out float type, out float rule)
         {
             map = 0f;
             type = -1f;
-            deck = -1f;
+            rule = -1f;
             switch (weather)
             {
                 case ViewerWeather.Fair:
@@ -70,15 +70,15 @@ namespace ReDefinition.Atmospheres.Viewer
                     else if (role == Role.Cirrus) map = 0.2f;
                     break;
                 case ViewerWeather.Overcast:
-                    if (role == Role.Deck) { map = 1f; type = 0.5f; deck = 0f; }
+                    if (role == Role.LowStratiform) { map = 1f; type = 0.5f; rule = 0f; }
                     else if (role == Role.Cirrus) map = 0.3f;
                     break;
-                case ViewerWeather.RainDeck:
-                    if (role == Role.Deck) { map = 1f; type = 1f; deck = 0f; }
+                case ViewerWeather.RainLowStratiform:
+                    if (role == Role.LowStratiform) { map = 1f; type = 1f; rule = 0f; }
                     else if (role == Role.Cumulus) { map = 0.3f; type = 0.75f; }
                     break;
                 case ViewerWeather.CbCell:
-                    if (role == Role.Cumulonimbus) { map = 0.35f; type = 0.5f; deck = 0f; }
+                    if (role == Role.Cumulonimbus) { map = 0.35f; type = 0.5f; rule = 0f; }
                     else if (role == Role.Cumulus) { map = 0.3f; type = 0.5f; }
                     else if (role == Role.Cirrus) map = 0.2f;
                     break;
@@ -97,11 +97,11 @@ namespace ReDefinition.Atmospheres.Viewer
                     foreach (string key in KeysOf(layer)) list.Add(new KeyValuePair<string, float>(key, float.NaN));
                     continue;
                 }
-                float map, type, deck;
-                Look(weather, RoleOf(layer), out map, out type, out deck);
+                float map, type, rule;
+                Look(weather, RoleOf(layer), out map, out type, out rule);
                 list.Add(new KeyValuePair<string, float>(CloudLookTuning.TuneMapOverride + layer.Name, map));
                 list.Add(new KeyValuePair<string, float>(CloudLookTuning.TuneTypeOverride + layer.Name, type < 0f ? float.NaN : type));
-                list.Add(new KeyValuePair<string, float>(CloudLookTuning.TuneDeckRule + layer.Name, deck < 0f ? float.NaN : deck));
+                list.Add(new KeyValuePair<string, float>(CloudLookTuning.TuneLowStratiformRule + layer.Name, rule < 0f ? float.NaN : rule));
             }
             return list;
         }
@@ -118,7 +118,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             level = -1.0;
             type = ForceType.Auto;
-            if (weather != ViewerWeather.RainDeck) return;
+            if (weather != ViewerWeather.RainLowStratiform) return;
             level = 0.6;
             type = ForceType.Rain;
         }
@@ -130,7 +130,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 case ViewerWeather.Fair: return "Fair";
                 case ViewerWeather.Cumulus: return "Cumulus Field";
                 case ViewerWeather.Overcast: return "Overcast";
-                case ViewerWeather.RainDeck: return "Rain Deck";
+                case ViewerWeather.RainLowStratiform: return "Nimbostratus Rain";
                 case ViewerWeather.CbCell: return "Cb Cell";
                 default: return "Weather Field";
             }
@@ -145,11 +145,11 @@ namespace ReDefinition.Atmospheres.Viewer
         internal double AglM, ElevationDeg, HeadingDeg, CameraDistM;
     }
 
-    // The pose presets: the K-T2 probe's views (T09Probe.Views) and three of the viewer's own, the heights of "inside a layer" and "above the deck" taken from
+    // The pose presets: the K-T2 probe's views (T09Probe.Views) and three of the viewer's own, the heights of "inside a layer" and "above the low layers" taken from
     // the stack where it stands.
     internal static class PosePresets
     {
-        internal const double FiveKmM = 5000.0, AboveDeckMarginM = 800.0, CbDistanceAglM = 1500.0;
+        internal const double FiveKmM = 5000.0, AboveLowStratiformMarginM = 800.0, CbDistanceAglM = 1500.0;
 
         internal static List<ViewerPose> For(IList<ViewerLayer> layers)
         {
@@ -182,7 +182,7 @@ namespace ReDefinition.Atmospheres.Viewer
             return metres > 0.0;
         }
 
-        // Above the tops of the deck and the cumulus layer (cirrus and cumulonimbus left out: they reach far higher).
+        // Above the tops of the low stratiform layer and the cumulus layer (cirrus and cumulonimbus left out: they reach far higher).
         internal static bool AboveHeight(IList<ViewerLayer> layers, out double metres)
         {
             metres = 0.0;
@@ -190,7 +190,7 @@ namespace ReDefinition.Atmospheres.Viewer
             foreach (ViewerLayer l in layers)
             {
                 WeatherPresets.Role r = WeatherPresets.RoleOf(l);
-                if (r == WeatherPresets.Role.Deck || r == WeatherPresets.Role.Cumulus) metres = Math.Max(metres, l.InnerAltitudeM + l.ThicknessM + AboveDeckMarginM);
+                if (r == WeatherPresets.Role.LowStratiform || r == WeatherPresets.Role.Cumulus) metres = Math.Max(metres, l.InnerAltitudeM + l.ThicknessM + AboveLowStratiformMarginM);
             }
             return metres > 0.0;
         }
@@ -201,7 +201,7 @@ namespace ReDefinition.Atmospheres.Viewer
             {
                 case "ground": return "Ground";
                 case "inside": return "Inside Layer";
-                case "above": return "Above Deck";
+                case "above": return "Above Low Layers";
                 case "orbit_edge": return "Orbit Edge";
                 case "sky3": return "Ground Sky";
                 case "5km": return "5 km";

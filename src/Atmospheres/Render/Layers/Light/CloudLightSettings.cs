@@ -97,7 +97,7 @@ namespace ReDefinition.Atmospheres
         // The decay of the diffusion term with the optical depth towards the light; 0: the saturating term of FX-T03 (kept as a switch). 0.08 since E40 L4 clean: fitted
         // together with Diffusion and DiffusionTau to the two-stream slab (transmission 1 / (1 + 0.75 (1 - g) tau), 0.11 for g 0.85) over the optical depths 10 to 200: the
         // base of a thick uniform slab lies within 3 % of the anchor to tau 100 (it lay 1.5 to 2 times above it with 0.02), the top 0.81 to 0.93 of it. The earlier 0.02
-        // was fitted to single ellipsoid cells, which lose light through their sides; a deck does not.
+        // was fitted to single ellipsoid cells, which lose light through their sides; a stratiform layer does not.
         public float DiffusionDecay = 0.08f;
         // The light march: taps towards the sun (0: the frame's SunSteps), the growth of the step from tap to tap, taps for each extra light and for the ambient's tap straight up.
         public int SunStepsOverride;

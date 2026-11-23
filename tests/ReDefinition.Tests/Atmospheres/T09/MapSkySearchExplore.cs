@@ -9,7 +9,7 @@ using ReDefinition.Tests.Atmospheres.C25;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // The sky from the weather map (master plan section 34): the probe places the craft only at KSC, so a second measuring place is a TIME at which KSC lies under a deck, and a third
+    // The sky from the weather map (master plan section 34): the probe places the craft only at KSC, so a second measuring place is a TIME at which KSC lies under a low stratiform layer, and a third
     // one with a storm cell near it. This searches the generator (the game's seed, SkyMapsExplore's field) at the M0 time of day (ut 1486800 + k days, the same sun) and prints per
     // candidate the column at KSC and the means over a disc around it; with MAPSKY_MAPS also the field's maps of the given times (u8 / f32 for the map patches) and the humidity map
     // byte for byte against a game capture's humidity.u8 (MAPSKY_GAME_HUMIDITY), so the test field can be checked against the game's. Runs only when MAPSKY_SEARCH_OUT names a file.
@@ -19,7 +19,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         private const double KscLat = -0.0972, KscLon = -74.5577, DiscKm = 30.0;
 
         [TestMethod, TestCategory("Explore")]
-        public void SearchADeckAndAStormOverKsc()
+        public void SearchALowStratiformAndAStormOverKsc()
         {
             string outFile = Environment.GetEnvironmentVariable("MAPSKY_SEARCH_OUT");
             if (string.IsNullOrEmpty(outFile)) return;
@@ -32,7 +32,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             int from = int.Parse(fromText, CultureInfo.InvariantCulture), to = int.Parse(toText, CultureInfo.InvariantCulture);
             using (var w = new StreamWriter(outFile))
             {
-                w.WriteLine("ut,cover,cumuliform,sheet,deck,base,top,stable,rhLow,rhMid,rhHigh,reach,precip,discCover,discHeap,discSheet,discReachMax,discReachKm");
+                w.WriteLine("ut,cover,cumuliform,sheet,lowstratiform,base,top,stable,rhLow,rhMid,rhHigh,reach,precip,discCover,discHeap,discSheet,discReachMax,discReachKm");
                 for (int k = from; k <= to; k++)
                 {
                     foreach (double hour in new[] { 0.0, -2.0 * 3600.0, 2.0 * 3600.0 })
@@ -66,7 +66,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         }
                         w.WriteLine(string.Join(",", new[]
                         {
-                            ut.ToString("R", CultureInfo.InvariantCulture), F(wx.Coverage), F(c.CumuliformAmount), F(c.StratiformAmount), F(c.DeckAmount), F(c.BaseM), F(c.TopM), F(c.StableM),
+                            ut.ToString("R", CultureInfo.InvariantCulture), F(wx.Coverage), F(c.CumuliformAmount), F(c.StratiformAmount), F(c.LowStratiformAmount), F(c.BaseM), F(c.TopM), F(c.StableM),
                             F(c.RhLow), F(c.RhMid), F(c.RhHigh), F(wx.CellReach01), F(wx.PrecipMmH), F(sc / n), F(sh / n), F(ss / n), F(rmax), F(rKm)
                         }));
                     }
@@ -78,7 +78,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Directory.CreateDirectory(mapsDir);
             var kinds = new[]
             {
-                WeatherMapKind.Coverage, WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.DeckAmount, WeatherMapKind.ConvectiveBase,
+                WeatherMapKind.Coverage, WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.LowStratiformAmount, WeatherMapKind.ConvectiveBase,
                 WeatherMapKind.ConvectiveTop, WeatherMapKind.StableShare, WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.CellReach,
                 WeatherMapKind.Humidity
             };

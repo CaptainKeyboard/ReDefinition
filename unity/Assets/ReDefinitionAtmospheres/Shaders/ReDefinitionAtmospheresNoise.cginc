@@ -271,7 +271,7 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     }
     else n = tex3Dlod(_NoiseShape, float4(q / periodUse, lodShape)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);
-    // The erosion acts only in the soft edge: a closed deck (s = 1) keeps the share 1.
+    // The erosion acts only in the soft edge: a closed cloud layer (s = 1) keeps the share 1.
     if (s <= 0 || erosion <= 0 || light != 0) return s;
     if (s >= 1.0) return s;
     // The distance LOD: the sample spacing against the detail's finest cell; once the spacing exceeds the cell the detail is dropped (the volume's mean).

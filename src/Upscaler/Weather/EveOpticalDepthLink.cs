@@ -3,8 +3,8 @@ using ReDefinition.Raytracing;
 
 namespace ReDefinition.Upscaler
 {
-    // The host's answer to WeatherHooks.CloudOpticalDepth: the vertical optical depth of EVE's deck over a place of the main body
-    // (CloudDensityEstimate through RtEveClouds). The hook is null where EVE has no cloud deck for the atmospheres to read, which the
+    // The host's answer to WeatherHooks.CloudOpticalDepth: the vertical optical depth of EVE's cloud layer over a place of the main body
+    // (CloudDensityEstimate through RtEveClouds). The hook is null where EVE has no cloud layer for the atmospheres to read, which the
     // contract says means "none": it is set while EVE's cloud manager is loaded and cleared otherwise.
     internal static class EveOpticalDepthLink
     {
@@ -19,7 +19,7 @@ namespace ReDefinition.Upscaler
             else if (!eve && ReferenceEquals(WeatherHooks.CloudOpticalDepth, reader)) WeatherHooks.CloudOpticalDepth = null;
         }
 
-        // latitude and longitude in degrees, altitude in metres above the surface, ut unused (the deck's own time fade is current).
+        // latitude and longitude in degrees, altitude in metres above the surface, ut unused (the cloud layer's own time fade is current).
         private static float Read(double latitude, double longitude, double altitude, double ut)
         {
             return RtEveClouds.OpticalDepth(FlightGlobals.currentMainBody, latitude, longitude, altitude);

@@ -514,7 +514,7 @@ def clear_sky(map_value, clear_k):
 
 
 def column_tau(vols, xs, ys, prm, sigma_h, base=2200.0, top=2500.0, coverage=0.0, amount=1.0, edge=0.15, steps=12, power=1.0):
-    """Vertical optical depth through the deck at ground positions (xs, ys), flat: the harness's own geometry. power: the layer's water exponent of the share (1: none)."""
+    """Vertical optical depth through the cloud layer at ground positions (xs, ys), flat: the harness's own geometry. power: the layer's water exponent of the share (1: none)."""
     m = len(xs)
     tau = np.zeros(m)
     hs = base + (top - base) * (np.arange(steps) + 0.5) / steps

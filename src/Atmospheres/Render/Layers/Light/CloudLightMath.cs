@@ -153,14 +153,14 @@ namespace ReDefinition.Atmospheres
         }
 
         // The incidence of the light on the cloud's lit surface at a sample (E40 LM2): the optical depth straight up to the type's top over the one towards the light, at most 1.
-        // In a deck lit from above it is the light's elevation sine (the flux per unit area through the top); a flank facing a low sun reads 1, a top the sun grazes a small value.
+        // In a stratiform layer lit from above it is the light's elevation sine (the flux per unit area through the top); a flank facing a low sun reads 1, a top the sun grazes a small value.
         internal static double CellIncidence(double tauSun, double tauUp, double eps)
         {
             double e = Math.Max(eps, 1e-4);
             return Math.Max(0.05, Math.Min(1.0, (Math.Max(tauUp, 0.0) + e) / (Math.Max(tauSun, 0.0) + e)));
         }
 
-        // The chord of an ellipsoid of the type's height and the layer's cell width along a direction of elevation sine sinE (E40 LM2): a deck (width of tens of km) gives height / sinE,
+        // The chord of an ellipsoid of the type's height and the layer's cell width along a direction of elevation sine sinE (E40 LM2): a stratiform layer (width of tens of km) gives height / sinE,
         // a cell as wide as high its diameter.
         internal static double CellChord(double sinE, double heightM, double widthM)
         {

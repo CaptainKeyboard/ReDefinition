@@ -104,7 +104,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             File.WriteAllText(outPath, sb.ToString());
         }
 
-        // M5: the Cb layer as the game builds it (game seed, shipped cfg, deck rule with its rainType scale, meso stage, the combination of all layers to the field's cover) and the
+        // M5: the Cb layer as the game builds it (game seed, shipped cfg, low stratiform rule with its rainType scale, meso stage, the combination of all layers to the field's cover) and the
         // anvil's sources and strengths (AnvilMap.Report).
         [TestMethod]
         [TestCategory("Explore")]
@@ -131,13 +131,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     TypeMixFixture.Shared s = TypeMixFixture.Maps(kf, FieldFixture.BodyIndex, ut);
                     var combined = new byte[layers.Length][];
                     var types = new byte[layers.Length][];
-                    var decks = new WeatherDeckRule[layers.Length];
+                    var rules = new WeatherLowStratiformRule[layers.Length];
                     for (int li = 0; li < layers.Length; li++)
                     {
                         byte[] cover, type;
                         TypeMixFixture.Layer(kf, FieldFixture.BodyIndex, s, layers[li], true, out cover, out type);
-                        decks[li] = layers[li].Deck;
-                        if (layers[li].Deck != null && layers[li].RainType < 1f)
+                        rules[li] = layers[li].LowStratiform;
+                        if (layers[li].LowStratiform != null && layers[li].RainType < 1f)
                         {
                             type = (byte[])type.Clone();
                             for (int i = 0; i < type.Length; i++) type[i] = (byte)Math.Round(type[i] * layers[li].RainType);
@@ -145,7 +145,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         combined[li] = (byte[])cover.Clone();
                         types[li] = type;
                     }
-                    CloudLookTuning.MeetTheField(combined, layers.Length, s.Cover.Bytes, CloudLookTuning.CoverCombine, decks, s.Precip.Values);
+                    CloudLookTuning.MeetTheField(combined, layers.Length, s.Cover.Bytes, CloudLookTuning.CoverCombine, rules, s.Precip.Values);
                     byte[] c = combined[cbIndex];
                     var rep = new AnvilMap.Report();
                     int over = 0;

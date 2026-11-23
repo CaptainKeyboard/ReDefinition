@@ -66,9 +66,9 @@ if ROUND >= 6:
     # Round 6: the one confirmation of the value between the two swept powder lengths that passes R06 (350 put the silver lining 0.7 points outside its 15 %).
     VARIANTS = (("k002-L0400", dict(diffusion=1.3, diffusionDecay=0.02, powderLength=400.0)),)
 elif ROUND >= 5:
-    # Round 5 (the series T03-light showed that the thick deck and the thin cirrus of the harness, views up at a layer, were not in the fit set: with the
-    # decay 0.15 the deck came out at 0.37 of the reference, with the powder length 250 the cirrus at 0.69): both join the FIT set, and the decay and the
-    # powder length are fitted over cells, deck and cirrus together.
+    # Round 5 (the series T03-light showed that the thick stratus and the thin cirrus of the harness, views up at a layer, were not in the fit set: with the
+    # decay 0.15 the stratus came out at 0.37 of the reference, with the powder length 250 the cirrus at 0.69): both join the FIT set, and the decay and the
+    # powder length are fitted over cells, stratus and cirrus together.
     VARIANTS = tuple(("k%03d-L%04d" % (int(round(k * 100)), int(round(L))), dict(diffusion=1.3, diffusionDecay=k, powderLength=L))
                      for k in (0.0, 0.02, 0.05) for L in (460.0, 350.0, 250.0))
 elif ROUND >= 4:
@@ -132,14 +132,14 @@ def hold_job(jid, spec, **over):
                         cellVertical=rv, cellSigma=sigma, **over)
 
 
-def deck_job(jid, vid, **over):
-    """The harness's view up at a deck or a cirrus layer (light.py up_job with the harness setting), with the variant's numbers."""
+def up_layer_job(jid, vid, **over):
+    """The harness's view up at a stratus or a cirrus layer (light.py up_job with the harness setting), with the variant's numbers."""
     base, top, tau, el = Lt.UP_VIEWS[vid]
     cam = pr.Camera([0.0, 0.0, R + 2.0], 0.0, 35.0, 16, 12, 60.0)
     return Lt.light_job(jid, cam, [L.layer(base, top, tau / (top - base))], cam.width, cam.height, Lt.flat_sun(200.0, el), **over)
 
 
-def deck_row(folder, jid, vid):
+def up_layer_row(folder, jid, vid):
     ref = Lt.up_reference(vid)
     if ref is None:
         return None
@@ -151,8 +151,8 @@ def jobs():
     out = []
     if ROUND >= 5:
         for vname, over in VARIANTS:
-            for vid in ("deck", "cirrus"):
-                out.append(deck_job("%s-fit-%s" % (vname, vid), vid, **over))
+            for vid in ("stratus", "cirrus"):
+                out.append(up_layer_job("%s-fit-%s" % (vname, vid), vid, **over))
     for vname, over in VARIANTS:
         for case, view in Lt.FIT_IMAGE_VIEWS:
             for c, az, el in Lt.FIT_CASES:
@@ -187,8 +187,8 @@ def collect_scores(folder):
     for vname, _ in VARIANTS:
         rows = {}
         if ROUND >= 5:
-            for vid in ("deck", "cirrus"):
-                row = deck_row(folder, "%s-fit-%s" % (vname, vid), vid)
+            for vid in ("stratus", "cirrus"):
+                row = up_layer_row(folder, "%s-fit-%s" % (vname, vid), vid)
                 if row is not None:
                     rows["fit-" + vid] = row
         for case, view in Lt.FIT_IMAGE_VIEWS:

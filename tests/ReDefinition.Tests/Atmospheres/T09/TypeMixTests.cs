@@ -170,7 +170,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             rain.Meso = null;
             byte[] c2 = null, t2 = null, ci = Flat(100), ti = Flat(77);
             CloudMesoStage.Apply(rain, Inputs(Flat(0), null, null), ci, ti, ref c2, ref t2);
-            Assert.AreSame(ci, c2, "a layer without the node (the rain deck with it taken away) has no pattern: the cover is the very same array");
+            Assert.AreSame(ci, c2, "a layer without the node (the low stratiform rain layer with it taken away) has no pattern: the cover is the very same array");
             Assert.AreSame(ti, t2, "and no climate: the type is the very same array");
         }
 
@@ -255,7 +255,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // ---- the measured maps of the generator ----
 
         // The cloud maps of a game day on the home planet (radius 600 km, troposphere 10.5 km) and on a second body of another size and atmosphere (radius 500 km, troposphere 7.5 km, a day twice
-        // as long): the sizes of the features of each layer and the mix of its types are bounded in the units of the body, the troposphere's depth d (and, for the rain deck, the length of the
+        // as long): the sizes of the features of each layer and the mix of its types are bounded in the units of the body, the troposphere's depth d (and, for the low stratiform rain layer, the length of the
         // body's own weather systems), so one set of bounds holds for both. Measured over 2 seeds x 2 times (d = 10.5 / 7.5 km):
         //   layer          corr length zonal / meridional (d)   variance under 9.5 d   field (d)   largest field   types in 28.6 d   dominant   largest type component
         //   cumulus home   3.9-5.1 / 3.3-4.5                    0.28-0.32              16-36       0.19-0.29       4.0-4.1           0.39-0.40  0.03-0.05
@@ -264,8 +264,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
         //   cb second      9-13 / 7-10                          0.22-0.26              (cover .45)                                    1.8        0.64-0.75  0.54-0.74
         //   cirrus home    8-10 / 4-6                           0.06-0.07              26-37       0.25-0.30       1.8-1.9           0.67-0.73  0.09-0.20
         //   cirrus second  6.5-7.9 / 3.0-4.1                    0.10-0.11              (cover .52)                                    1.9-2.0    0.51-0.56  0.12-0.19
-        //   rain deck home 14-17 / 11-16                       (the zonal belt: 0.75-0.80 of the variance over 28.6 d; one connected sheet of 160-170 d)
-        //   rain deck second 12.5-15.6 / 9.6-13.1
+        //   low stratiform rain layer home 14-17 / 11-16                       (the zonal belt: 0.75-0.80 of the variance over 28.6 d; one connected sheet of 160-170 d)
+        //   low stratiform rain layer second 12.5-15.6 / 9.6-13.1
         // With the scattered edge of the fields (E40 L5 maps: the edge is a density of small cells, so two fields joined by a thin fringe of cells are one connected component of the map) the
         // same four maps of the home planet give field diameters of cumulus 17-44 d, cb 16-50 d and cirrus 25-68 d (before: 17-36, 16-48, 26-37), the mean cover and the corr lengths as before
         // (cumulus 3.1 / 2.9 d). Cumulus and cirrus fields are bounded by 55 d and 75 d for that (before the fix the cumulus fields were 125 d).
@@ -276,7 +276,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
             try
             {
-                CloudLayerDef deck = layers[0], cumulus = layers[1], cb = layers[2], cirrus = layers[3];
+                CloudLayerDef lowStratiform = layers[0], cumulus = layers[1], cb = layers[2], cirrus = layers[3];
                 foreach (int seed in new[] { 1, 2 })
                 {
                     GeneratorField field = makeField(seed);
@@ -337,24 +337,24 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             }
                             Assert.IsTrue(TypeMixMetrics.MixOf(cirrusCover, cirrusType, 2, 0.2).TypesIn300kmWindow >= 1.5, "cirrus types in a window of 28.6 d" + tag);
 
-                            // the rain deck follows its systems (E40 L5 maps): its pattern is smaller than half the shortest wavelength of the body's weather systems, and the overcast sheets are about as wide as
+                            // the low stratiform rain layer follows its systems (E40 L5 maps): its pattern is smaller than half the shortest wavelength of the body's weather systems, and the overcast sheets are about as wide as
                             // the longest system's wavelength, not as wide as the body: measured over the same 4 maps of the home planet, field diameter (m >= 0.5, area-weighted median) 650-1190 km against
                             // 1690-1770 km before (the floor made every halo of rain one sheet), largest field 0.46-0.81 against 0.94-0.99; the longest wavelength is 3 r 1.5 (BodyDerived).
-                            byte[] deckCover, deckType;
-                            TypeMixFixture.Layer(field, body, shared, deck, true, out deckCover, out deckType);
-                            TypeMixMetrics.Sizes ds = TypeMixMetrics.Of(deckCover, 0.5);
+                            byte[] lowStratiformCover, lowStratiformType;
+                            TypeMixFixture.Layer(field, body, shared, lowStratiform, true, out lowStratiformCover, out lowStratiformType);
+                            TypeMixMetrics.Sizes ds = TypeMixMetrics.Of(lowStratiformCover, 0.5);
                             double lambdaMaxKm = field.SystemWavelengthMaxKm(body);
-                            // no rain from a clear sky: wherever it rains (level 0.08 and up) the deck carries at least its rainMin, so no raining texel has the pattern's gap alone
+                            // no rain from a clear sky: wherever it rains (level 0.08 and up) the layer carries at least its rainMin, so no raining texel has the pattern's gap alone
                             int clearRain = 0, rainTexels = 0;
-                            for (int k = 0; k < deckCover.Length; k++)
-                                if (shared.Precip.Bytes[k] / 255.0 >= deck.Meso.RainMinFullAt) { rainTexels++; if (deckCover[k] / 255.0 < deck.Meso.RainMin - 0.01) clearRain++; }
-                            Assert.IsTrue(rainTexels > 0 && clearRain == 0, "rain texels under a deck below its rainMin " + deck.Meso.RainMin + ": " + clearRain + " of " + rainTexels + tag);
-                            if (Mean(deckCover, 0, H) < 0.4)
+                            for (int k = 0; k < lowStratiformCover.Length; k++)
+                                if (shared.Precip.Bytes[k] / 255.0 >= lowStratiform.Meso.RainMinFullAt) { rainTexels++; if (lowStratiformCover[k] / 255.0 < lowStratiform.Meso.RainMin - 0.01) clearRain++; }
+                            Assert.IsTrue(rainTexels > 0 && clearRain == 0, "rain texels under a layer below its rainMin " + lowStratiform.Meso.RainMin + ": " + clearRain + " of " + rainTexels + tag);
+                            if (Mean(lowStratiformCover, 0, H) < 0.4)
                             {
-                                Assert.IsTrue(ds.FieldDiameterKm < 1.6 * lambdaMaxKm, "rain deck field diameter " + ds.FieldDiameterKm + " km against the systems' longest wavelength " + lambdaMaxKm + tag);
-                                Assert.IsTrue(ds.LargestFieldShare <= 0.9, "rain deck largest field " + ds.LargestFieldShare + " of the field area" + tag);
+                                Assert.IsTrue(ds.FieldDiameterKm < 1.6 * lambdaMaxKm, "low stratiform rain layer field diameter " + ds.FieldDiameterKm + " km against the systems' longest wavelength " + lambdaMaxKm + tag);
+                                Assert.IsTrue(ds.LargestFieldShare <= 0.9, "low stratiform rain layer largest field " + ds.LargestFieldShare + " of the field area" + tag);
                             }
-                            Assert.IsTrue(ds.CorrZonalKm < 0.5 * lambdaMinKm && ds.CorrMeridionalKm < 0.5 * lambdaMinKm, "rain deck corr length " + ds.CorrZonalKm + " / " + ds.CorrMeridionalKm + " km against the systems' shortest wavelength " + lambdaMinKm + tag);
+                            Assert.IsTrue(ds.CorrZonalKm < 0.5 * lambdaMinKm && ds.CorrMeridionalKm < 0.5 * lambdaMinKm, "low stratiform rain layer corr length " + ds.CorrZonalKm + " / " + ds.CorrMeridionalKm + " km against the systems' shortest wavelength " + lambdaMinKm + tag);
                         }
                     }
                 }
@@ -365,9 +365,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
         }
 
-        // A frontal deck's pattern is sized by the body's weather systems (E40 L5 maps), not by its troposphere: the same cfg on a body with smaller systems gives a smaller pattern.
+        // A frontal low stratiform layer's pattern is sized by the body's weather systems (E40 L5 maps), not by its troposphere: the same cfg on a body with smaller systems gives a smaller pattern.
         [TestMethod]
-        public void ThePatternOfAFrontalDeckFollowsTheSystemsOfTheBody()
+        public void ThePatternOfAFrontalLowStratiformFollowsTheSystemsOfTheBody()
         {
             var meso = new CloudMesoSpec { ScaleSystems = 0.6f, ScaleDepths = 5f, Amount = 1f };
             var inp = new CloudMesoInputs { Width = W, Height = H, RadiusKm = 600.0, DepthKm = 10.5, SystemKm = 400.0 };

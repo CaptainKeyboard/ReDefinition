@@ -150,7 +150,7 @@ LIGHT = "seq1+lq2+clight+r33+lp100"
 MARCH_LABELS = {CEIL: "puff-ceil", STEPS: "puff-steps", RES: "puff-res", LIGHT: "puff-light"}
 
 # CLOUDR1: the cumuliform, rim exponent and cavity on the cumulus layer only (the per-layer keys cloud.cumuliform.layer.<name>, cloud.edgePower.layer.<name>, cloud.cavity.layer.<name>): the weather
-# decks and the cirrus keep their look, so a ground view inside a deck is not fogged. A (prefix, value) pair; the first hit is a march key and global.
+# low stratiform layers and the cirrus keep their look, so a ground view inside a low stratiform layer is not fogged. A (prefix, value) pair; the first hit is a march key and global.
 CUMULIFORM1 = [("cloud.cumuliform.layer.", 1.0)]
 EDGE = [("cloud.edgePower.layer.", 0.5)]
 CAV = [("cloud.cavity.layer.", 0.7)]

@@ -6,7 +6,7 @@ using ReDefinition.Atmospheres;
 namespace ReDefinition.Tests.Atmospheres.T18
 {
     // The selection of the five places and the scan that the in-game probe (T18Probe) runs, against a test sky that has all five kinds of place: a broken low
-    // layer, a high deck with an edge over part of it. The probe's rows (tests/series/rows/T18.json) are judged on the game's sky; here the code that picks
+    // layer, a high cloud layer with an edge over part of it. The probe's rows (tests/series/rows/T18.json) are judged on the game's sky; here the code that picks
     // and measures is checked before a start of the game.
     [TestClass]
     public class RtPackAgreementTests
@@ -15,7 +15,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
         {
             return new LatLonSource(PackScenes.Kerbin)
                 .Add("low", 1500, 3500, 1.6, PackScenes.Noise(7, 8))
-                .Add("deck", 6500, 7500, 1.0, PackScenes.OnMap((lat, lon) => lat > -1.5 && lat < 2.5 && lon > -2.0 && lon < 3.0 ? 1.0 : 0.0));
+                .Add("high", 6500, 7500, 1.0, PackScenes.OnMap((lat, lon) => lat > -1.5 && lat < 2.5 && lon > -2.0 && lon < 3.0 ? 1.0 : 0.0));
         }
 
         [TestMethod]

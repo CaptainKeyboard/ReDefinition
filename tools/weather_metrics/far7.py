@@ -1,4 +1,4 @@
-"""FAR7: the leap over empty grid points with a span's points by distance (layers.spanGrowthPerM): what passes over the thin deck, and the fix (wolken-m2a-technik.md 12.7).
+"""FAR7: the leap over empty grid points with a span's points by distance (layers.spanGrowthPerM): what passes over the thin cloud layer, and the fix (wolken-m2a-technik.md 12.7).
 
     python tools/weather_metrics/far1.py --prepare                         (once: FAR1's view jobs, which this series reuses)
     python tools/build_weather_player.py --series far7-check [--no-build]   (the view from above: the leap's switches)

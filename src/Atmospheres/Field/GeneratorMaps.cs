@@ -47,8 +47,8 @@ namespace ReDefinition.Atmospheres
             // The cumuliform family's and the sheets' sky shares (SkyColumn.CumuliformAmount, StratiformAmount; their sum is the Coverage map), base and top as shares of the troposphere, instability
             // 0 to 1, uplift 0 to 1.4; all continuous in the UT, so the painters' slew limit applies as to coverage.
             internal float[] ConvectiveAmount, StratiformAmount, ConvectiveBase, ConvectiveTop, Instability, Uplift;
-            // The level humidities, the descent, the cells' reach, the deck's share and the stable layer's height share (map kinds 16 to 22), made with the maps above.
-            internal float[] HumidityLow, HumidityMid, HumidityHigh, Descent, CellReach, DeckAmount, StableShare;
+            // The level humidities, the descent, the cells' reach, the low stratiform layer's share and the stable layer's height share (map kinds 16 to 22), made with the maps above.
+            internal float[] HumidityLow, HumidityMid, HumidityHigh, Descent, CellReach, LowStratiformAmount, StableShare;
 
             internal bool HasSky
             {
@@ -68,7 +68,7 @@ namespace ReDefinition.Atmospheres
                 HumidityHigh = new float[Width * Height];
                 Descent = new float[Width * Height];
                 CellReach = new float[Width * Height];
-                DeckAmount = new float[Width * Height];
+                LowStratiformAmount = new float[Width * Height];
                 StableShare = new float[Width * Height];
                 ConvectiveAmount = new float[Width * Height];
             }
@@ -79,7 +79,7 @@ namespace ReDefinition.Atmospheres
         {
             return kind == WeatherMapKind.ConvectiveAmount || kind == WeatherMapKind.StratiformAmount || kind == WeatherMapKind.ConvectiveBase || kind == WeatherMapKind.ConvectiveTop
                 || kind == WeatherMapKind.Instability || kind == WeatherMapKind.Uplift || kind == WeatherMapKind.HumidityLow || kind == WeatherMapKind.HumidityMid
-                || kind == WeatherMapKind.HumidityHigh || kind == WeatherMapKind.Descent || kind == WeatherMapKind.CellReach || kind == WeatherMapKind.DeckAmount
+                || kind == WeatherMapKind.HumidityHigh || kind == WeatherMapKind.Descent || kind == WeatherMapKind.CellReach || kind == WeatherMapKind.LowStratiformAmount
                 || kind == WeatherMapKind.StableShare;
         }
 
@@ -250,7 +250,7 @@ namespace ReDefinition.Atmospheres
                     case WeatherMapKind.HumidityHigh: values = w.HumidityHigh; break;
                     case WeatherMapKind.Descent: values = w.Descent; break;
                     case WeatherMapKind.CellReach: values = w.CellReach; break;
-                    case WeatherMapKind.DeckAmount: values = w.DeckAmount; break;
+                    case WeatherMapKind.LowStratiformAmount: values = w.LowStratiformAmount; break;
                     case WeatherMapKind.StableShare: values = w.StableShare; break;
                     default: return false;
                 }
@@ -650,7 +650,7 @@ namespace ReDefinition.Atmospheres
                     if (!sky) continue;
                     SkyColumn.Derive(g.Body, ref w, out column);
                     if (!IsFinite(column.CumuliformAmount) || !IsFinite(column.StratiformAmount) || !IsFinite(column.BaseShare) || !IsFinite(column.TopShare) || !IsFinite(column.RhLow)
-                        || !IsFinite(column.RhMid) || !IsFinite(column.RhHigh) || !IsFinite(column.DeckAmount) || !IsFinite(column.StableShare))
+                        || !IsFinite(column.RhMid) || !IsFinite(column.RhHigh) || !IsFinite(column.LowStratiformAmount) || !IsFinite(column.StableShare))
                     {
                         s.Trip();
                         return false;
@@ -666,7 +666,7 @@ namespace ReDefinition.Atmospheres
                     into.HumidityHigh[k] = (float)column.RhHigh;
                     into.Descent[k] = (float)w.Descent01;
                     into.CellReach[k] = (float)w.CellReach01;
-                    into.DeckAmount[k] = (float)column.DeckAmount;
+                    into.LowStratiformAmount[k] = (float)column.LowStratiformAmount;
                     into.StableShare[k] = (float)column.StableShare;
                 }
             }

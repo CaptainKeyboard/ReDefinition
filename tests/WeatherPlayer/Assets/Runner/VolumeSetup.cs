@@ -12,7 +12,7 @@ namespace ReDefinition.WeatherPlayer
     // The volume pass in the weather player: the real VolumeRenderer, VolumeWindowResampler and VolumeLook (linked from
     // src/Atmospheres/Render/Volume), fed by a test window in place of the field. The world is flat and axis-aligned: east is +x, north
     // is +z, up is +y, the window stands at the origin. Scenarios (the forced field states of the verification): "convective" is one
-    // deep convective cell with an anvil, "front" a line of cells across the wind, "deck" a stratus deck, "none" clear air.
+    // deep convective cell with an anvil, "front" a line of cells across the wind, "stratus" a stratus layer, "none" clear air.
     internal sealed class VolumeSetup
     {
         internal readonly VolumeRenderer Renderer = new VolumeRenderer();
@@ -91,8 +91,8 @@ namespace ReDefinition.WeatherPlayer
             Resampler.Complete();
             watch.Stop();
             ResampleMs = watch.Elapsed.TotalMilliseconds;
-            if (Scenario == "deck") Resampler.FillDeckMapUniform(0.85f, 0f);
-            else Resampler.FillDeckMapUniform(0f, 0f);
+            if (Scenario == "stratus") Resampler.FillLayerSlabMapUniform(0.85f, 0f);
+            else Resampler.FillLayerSlabMapUniform(0f, 0f);
             Renderer.Upload(Resampler);
             SnapshotSeconds = seconds;
             Rebuilds++;
@@ -132,7 +132,7 @@ namespace ReDefinition.WeatherPlayer
                 // A line across the wind (east-west) through the middle row: lower cells with a base at 700 m and a top at 5 km.
                 for (int ix = 0; ix < n; ix++) Column(w, ix, 2, 700f, 5000f, 1.0f, 9f);
             }
-            // "deck" and "none" have no 3D cloud water; the deck comes from the coverage and type map.
+            // "stratus" and "none" have no 3D cloud water; the layer slab comes from the coverage and type map.
         }
 
         private static void Column(WeatherWindow w, int ix, int iy, float baseAlt, float topAlt, float peak, float updraft)
@@ -189,7 +189,7 @@ namespace ReDefinition.WeatherPlayer
             f.SunTaps = Tier.SunTaps;
             f.Curl = Get("volume.kwCurl", Tier.Curl ? 1f : 0f) > 0.5f;
             f.Powder = Get("volume.kwPowder", 1f) > 0.5f;
-            f.Deck = Scenario == "deck" || Get("volume.kwDeck", 0f) > 0.5f;
+            f.LayerSlab = Scenario == "stratus" || Get("volume.kwLayerSlab", 0f) > 0.5f;
             f.KeyedDither = Get("volume.kwJitter", 1f) > 0.5f;
             Renderer.Prepare(cam, f, Look, markStart, markMarched, markEnd, analytic);
         }

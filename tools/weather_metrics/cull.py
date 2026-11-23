@@ -167,24 +167,24 @@ from weather_metrics import parity_ref as pr  # noqa: E402
 
 
 def horizon_job():
-    """A ground view along the horizon (pitch 1 degree): the decks reach out to the horizon, tens to hundreds of km away, under a second layer above."""
+    """A ground view along the horizon (pitch 1 degree): the stratiform layers reach out to the horizon, tens to hundreds of km away, under a second layer above."""
     lat, lon = L.view_site()
     up = np.array([math.cos(math.radians(lat)) * math.cos(math.radians(lon)), math.cos(math.radians(lat)) * math.sin(math.radians(lon)), math.sin(math.radians(lat))])
     cam = pr.Camera(up * (L.R + 2.0), 0.0, 1.0, 640, 360, 60.0)
-    low = L.deck(1000.0, 3000.0, 0.012, 0.62, "low")
-    high = L.deck(4000.0, 5500.0, 0.010, 0.55, "high")
+    low = L.stratiform_layer(1000.0, 3000.0, 0.012, 0.62, "low")
+    high = L.stratiform_layer(4000.0, 5500.0, 0.010, 0.55, "high")
     high["shift"] = 70.0
     return L.job("V-horizon", "color", cam, [low, high], 640, 360, sun=L.sun_vector(cam.pos, 120.0, 28.0), maxSteps=64, minStep=20.0, stepGrowth=0.0002,
                  jitter=0.0, earlyOut=0.01, sunSteps=4, mapWidth=L.MAP_W, mapHeight=L.MAP_H)
 
 
 def sky3_job():
-    """A ground view under three layers (a low deck, a middle deck, cirrus), each with its own map shift so that the layers are not copies of one map."""
+    """A ground view under three layers (a low stratiform layer, a middle stratiform layer, cirrus), each with its own map shift so that the layers are not copies of one map."""
     lat, lon = L.view_site()
     up = np.array([math.cos(math.radians(lat)) * math.cos(math.radians(lon)), math.cos(math.radians(lat)) * math.sin(math.radians(lon)), math.sin(math.radians(lat))])
     cam = pr.Camera(up * (L.R + 2.0), 0.0, 35.0, 640, 360, 60.0)
-    low = L.deck(800.0, 2000.0, 0.012, 0.62, "low")
-    mid = L.deck(3000.0, 4400.0, 0.010, 0.55, "mid")
+    low = L.stratiform_layer(800.0, 2000.0, 0.012, 0.62, "low")
+    mid = L.stratiform_layer(3000.0, 4400.0, 0.010, 0.55, "mid")
     mid["shift"] = 70.0
     high = L.cirrus()
     high["shift"] = 140.0

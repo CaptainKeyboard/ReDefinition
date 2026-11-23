@@ -41,7 +41,7 @@ namespace ReDefinition.Atmospheres.Viewer
         // The game's clock against the start's UT plus the physics seconds the game ran since (Rig.PhysicsTimeS: the game's time runs on physics steps of at most 0.04 s a frame,
         // so at a low frame rate it falls behind the real time; the line prints both). The band is a few physics steps and the frame the clock was read in.
         internal const double RestoreTimeS = 3.0;
-        // A precipitation level above this at the pad: the deck's rain floor keeps the Fair cover up.
+        // A precipitation level above this at the pad: the low stratiform layer's rain floor keeps the Fair cover up.
         internal const double RainAtPadLevel = 0.01;
 
         // The game the scenario reads and drives; a test replaces it with a fake rig. Made when the scenario first asks (every start of the game makes this module, only the
@@ -353,17 +353,17 @@ namespace ReDefinition.Atmospheres.Viewer
             yield return ProbeWait.Seconds(1);
 
             // --- e. Forced weather ---
-            int deckIndex, cumulusIndex;
-            ViewerLayer? deck = FirstWithRole(layers, WeatherPresets.Role.Deck, out deckIndex);
+            int lowStratiformIndex, cumulusIndex;
+            ViewerLayer? lowStratiform = FirstWithRole(layers, WeatherPresets.Role.LowStratiform, out lowStratiformIndex);
             ViewerLayer? cumulus = FirstWithRole(layers, WeatherPresets.Role.Cumulus, out cumulusIndex);
-            Info("weather_roles_missing", (deck.HasValue ? 0 : 1) + (cumulus.HasValue ? 0 : 1));
-            float cumulusFair = float.NaN, deckUnderCumulus = float.NaN;
-            // What the field's own weather is at the pad before anything is forced: a deck already closed shows nothing of Overcast, rain keeps the Fair cover up.
-            float deckBaseline = deck.HasValue ? Rig.LayerCover(deckIndex) : float.NaN;
+            Info("weather_roles_missing", (lowStratiform.HasValue ? 0 : 1) + (cumulus.HasValue ? 0 : 1));
+            float cumulusFair = float.NaN, lowStratiformUnderCumulus = float.NaN;
+            // What the field's own weather is at the pad before anything is forced: a low stratiform layer already closed shows nothing of Overcast, rain keeps the Fair cover up.
+            float lowStratiformBaseline = lowStratiform.HasValue ? Rig.LayerCover(lowStratiformIndex) : float.NaN;
             double padRain = Rig.PrecipitationLevel;
-            Info("weather_field_deck_cover", deckBaseline);
+            Info("weather_field_low_stratiform_cover", lowStratiformBaseline);
             Info("weather_pad_precipitation", padRain);
-            ViewerWeather[] sequence = { ViewerWeather.Overcast, ViewerWeather.Fair, ViewerWeather.Cumulus, ViewerWeather.RainDeck, ViewerWeather.Field };
+            ViewerWeather[] sequence = { ViewerWeather.Overcast, ViewerWeather.Fair, ViewerWeather.Cumulus, ViewerWeather.RainLowStratiform, ViewerWeather.Field };
             foreach (ViewerWeather weather in sequence)
             {
                 string tag = weather.ToString().ToLowerInvariant();
@@ -385,35 +385,35 @@ namespace ReDefinition.Atmospheres.Viewer
                         mismatches.Count == 0 ? "cloud.coverCombine " + F(Rig.TuningValue(CloudLookTuning.TuneCoverCombine, 1f)) : string.Join("; ", mismatches.ToArray()));
                 if (weather == ViewerWeather.Field) break;
 
-                // What the pass drew from it: the layer's cover in the CPU mirror at the vessel, once a map round has come (a deck is 1 or 0, the cumulus layer moves with the preset).
+                // What the pass drew from it: the layer's cover in the CPU mirror at the vessel, once a map round has come (a low stratiform layer is 1 or 0, the cumulus layer moves with the preset).
                 Func<bool> arrived;
-                float deckWanted = weather == ViewerWeather.Overcast || weather == ViewerWeather.RainDeck ? (float)CoverHigh : (float)CoverLow;
-                bool deckUp = weather == ViewerWeather.Overcast || weather == ViewerWeather.RainDeck;
+                float lowStratiformWanted = weather == ViewerWeather.Overcast || weather == ViewerWeather.RainLowStratiform ? (float)CoverHigh : (float)CoverLow;
+                bool lowStratiformUp = weather == ViewerWeather.Overcast || weather == ViewerWeather.RainLowStratiform;
                 if (weather == ViewerWeather.Cumulus) arrived = () => !cumulus.HasValue || Rig.LayerCover(cumulusIndex) >= cumulusFair + CoverRise;
-                else arrived = () => !deck.HasValue || (deckUp ? Rig.LayerCover(deckIndex) >= deckWanted : Rig.LayerCover(deckIndex) <= deckWanted);
+                else arrived = () => !lowStratiform.HasValue || (lowStratiformUp ? Rig.LayerCover(lowStratiformIndex) >= lowStratiformWanted : Rig.LayerCover(lowStratiformIndex) <= lowStratiformWanted);
                 foreach (ProbeWait w in Poll(arrived, PollMapS)) yield return w;
-                float deckRead = deck.HasValue ? Rig.LayerCover(deckIndex) : float.NaN, cumulusRead = cumulus.HasValue ? Rig.LayerCover(cumulusIndex) : float.NaN;
+                float lowStratiformRead = lowStratiform.HasValue ? Rig.LayerCover(lowStratiformIndex) : float.NaN, cumulusRead = cumulus.HasValue ? Rig.LayerCover(cumulusIndex) : float.NaN;
                 if (weather == ViewerWeather.Fair) cumulusFair = cumulusRead;
-                float deckBefore = deckUnderCumulus;
-                if (weather == ViewerWeather.Cumulus) deckUnderCumulus = deckRead;
-                string wanted = weather == ViewerWeather.Cumulus ? "cumulus cover at least " + F(cumulusFair + CoverRise) : "deck cover " + (deckUp ? "at least " : "at most ") + F(deckWanted);
-                string seen = "deck " + F(deckRead) + ", cumulus " + F(cumulusRead);
+                float lowStratiformBefore = lowStratiformUnderCumulus;
+                if (weather == ViewerWeather.Cumulus) lowStratiformUnderCumulus = lowStratiformRead;
+                string wanted = weather == ViewerWeather.Cumulus ? "cumulus cover at least " + F(cumulusFair + CoverRise) : "low stratiform cover " + (lowStratiformUp ? "at least " : "at most ") + F(lowStratiformWanted);
+                string seen = "low stratiform " + F(lowStratiformRead) + ", cumulus " + F(cumulusRead);
                 string unclear = null;
-                if (weather == ViewerWeather.Overcast && deck.HasValue && deckBaseline >= CoverHigh)
-                    unclear = "the field's own deck cover at the pad was " + F(deckBaseline) + " before anything was forced: forcing it shows no change";
+                if (weather == ViewerWeather.Overcast && lowStratiform.HasValue && lowStratiformBaseline >= CoverHigh)
+                    unclear = "the field's own low stratiform cover at the pad was " + F(lowStratiformBaseline) + " before anything was forced: forcing it shows no change";
                 else if (weather == ViewerWeather.Fair && !polled && padRain > RainAtPadLevel)
-                    unclear = "it rains at the pad (level " + F(padRain) + "): the deck's rain floor keeps the cover up, which the Fair preset does not switch off";
-                else if (weather == ViewerWeather.RainDeck && deck.HasValue && deckBefore >= CoverHigh)
-                    unclear = "the deck stood at " + F(deckBefore) + " under the Cumulus preset (the rain floor of rain at the pad): forcing it shows no change";
-                if (weather == ViewerWeather.Overcast || weather == ViewerWeather.Fair || weather == ViewerWeather.RainDeck) Info("weather_" + tag + "_unclear", unclear != null ? 1.0 : 0.0);
-                if (unclear != null) Unclear("weather_" + tag + "_cover", wanted + (weather == ViewerWeather.Overcast ? " (from " + F(deckBaseline) + ")" : ""), seen, unclear);
+                    unclear = "it rains at the pad (level " + F(padRain) + "): the low stratiform layer's rain floor keeps the cover up, which the Fair preset does not switch off";
+                else if (weather == ViewerWeather.RainLowStratiform && lowStratiform.HasValue && lowStratiformBefore >= CoverHigh)
+                    unclear = "the low stratiform layer stood at " + F(lowStratiformBefore) + " under the Cumulus preset (the rain floor of rain at the pad): forcing it shows no change";
+                if (weather == ViewerWeather.Overcast || weather == ViewerWeather.Fair || weather == ViewerWeather.RainLowStratiform) Info("weather_" + tag + "_unclear", unclear != null ? 1.0 : 0.0);
+                if (unclear != null) Unclear("weather_" + tag + "_cover", wanted + (weather == ViewerWeather.Overcast ? " (from " + F(lowStratiformBaseline) + ")" : ""), seen, unclear);
                 else Verdict("weather_" + tag + "_cover", weather + ": the pass draws it (the layer's cover at the vessel)", polled,
-                             wanted + (weather == ViewerWeather.Overcast ? ", from the field's " + F(deckBaseline) : ""), seen);
-                Info("weather_" + tag + "_deck_cover", deckRead);
+                             wanted + (weather == ViewerWeather.Overcast ? ", from the field's " + F(lowStratiformBaseline) : ""), seen);
+                Info("weather_" + tag + "_low_stratiform_cover", lowStratiformRead);
                 Info("weather_" + tag + "_cumulus_cover", cumulusRead);
-                if (weather == ViewerWeather.RainDeck)
+                if (weather == ViewerWeather.RainLowStratiform)
                 {
-                    Verdict("weather_raindeck_precipitation", "Rain Deck forces rain at the camera (forceLevel and forceType)", Math.Abs(Rig.Setting(AtmospheresSettings.Keys.ForceLevel) - 0.6) < 1e-6
+                    Verdict("weather_rainlowstratiform_precipitation", "Nimbostratus Rain forces rain at the camera (forceLevel and forceType)", Math.Abs(Rig.Setting(AtmospheresSettings.Keys.ForceLevel) - 0.6) < 1e-6
                             && (int)Rig.Setting(AtmospheresSettings.Keys.ForceType) == (int)ForceType.Rain, "level 0.6, type Rain",
                             "level " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)) + ", type " + F(Rig.Setting(AtmospheresSettings.Keys.ForceType)));
                 }
@@ -540,7 +540,7 @@ namespace ReDefinition.Atmospheres.Viewer
             // --- The window closed: everything back ---
             // Closed from a dirty state, so that the close has something to undo: a forced weather with forced rain, the other side of the A/B pair, a time offset and the time held.
             // (Before this the options were back already except the cloud speed and the clock was at its natural time, so a close that restored nothing passed.)
-            Rig.SetWeather(ViewerWeather.RainDeck);
+            Rig.SetWeather(ViewerWeather.RainLowStratiform);
             Rig.FlipAB();
             Rig.SetTimeOffset(OffsetSeconds);
             yield return ProbeWait.Seconds(1.5);

@@ -14,8 +14,8 @@ EXPECTED RESULTS, written before the first run (E40-phaseO-result.md has the tab
   P1  C0 (the current numbers) at map 0.665 and shift 0 / -0.08 / -0.15: the player's mean closed share (tau >= 0.92 over the sky above the horizon) equals the CPU oracle's
       ensemble mean (0.73 / 0.55 / 0.36, CloudCoverOracleTests) within 0.10; if it does, the pass and the CPU agree and the game's 0.994 / 0.984 / 0.970 is not the pass at a constant
       map 0.665 (the map along the view must be higher, or something else differs).
-  P2  C0 on the rain deck at map 0.859 type 0.229 (camera inside the Fog and Stratus blend): closed share at least 0.95 (the CPU says 1.00; the game drew 0.00). If the player draws it,
-      the game's missing deck is not the shader's inside case.
+  P2  C0 on the low stratiform rain layer at map 0.859 type 0.229 (camera inside the Fog and Stratus blend): closed share at least 0.95 (the CPU says 1.00; the game drew 0.00). If the player draws it,
+      the game's missing cloud layer is not the shader's inside case.
   P3  Candidates (A1: closed share between map - 0.20 and map + 0.15 at maps 0.50 / 0.665 / 0.80 and shift 0, and a fall of at least 0.10 per -0.08 of shift): C0 fails A1 (it is too
       closed at 0.50 and 0.665 and falls too little); C1 alone (humilis) does not satisfy the fall; C3 (interior remap) leaves the closed share as it is (the remap acts on the
       density in the interior, not on the coverage of the sky): it does not help A1; C4 (softness x2.33, sigma x0.7, coverage -0.10, noise x1.57 / size x0.6 on the former cfg 0.35 / 5000; now noise x0.7 / size x1.4 on 1.0 / 500) satisfies the
@@ -101,8 +101,8 @@ def val(node, key, default=None):
 
 
 def kerbin_layers(cfg=CFG):
-    """The four layers of Kerbin's stack (rain deck, cumulus, cumulonimbus, cirrus) from the cfg as dicts of the job: name, group, geometry, numbers, types with
-    their profile sampled at 128 points (the table's resolution). The snow deck is the rain deck's alternative of the same group and is not in the stack."""
+    """The four layers of Kerbin's stack (low stratiform rain layer, cumulus, cumulonimbus, cirrus) from the cfg as dicts of the job: name, group, geometry, numbers, types with
+    their profile sampled at 128 points (the table's resolution). The low stratiform snow layer is the low stratiform rain layer's alternative of the same group and is not in the stack."""
     with open(cfg, encoding="utf-8") as f:
         root = parse_nodes(f.read())
     clouds = find(root, "CLOUDS")
@@ -281,9 +281,9 @@ def coverage_jobs():
     return jobs
 
 
-# The grain sweep (P6): the same deck at resolution 1 / 0.5 / 0.25 of the march target (the half-size target of the plain pass is the product's level 1; the smaller ones stand for the
+# The grain sweep (P6): the same cloud layer at resolution 1 / 0.5 / 0.25 of the march target (the half-size target of the plain pass is the product's level 1; the smaller ones stand for the
 # block levels), jitter 0 / 0.5 / 1 (no, half, full step dither) and 1 or 4 accumulated frames (what the temporal reconstruction converges to), in the ground and the above view.
-# EXPECTED, written before the run: hf (the mean absolute Laplacian of the luma over the sky or the deck, divided by the mean luma) falls with the accumulated frames (4 frames at
+# EXPECTED, written before the run: hf (the mean absolute Laplacian of the luma over the sky or the cloud layer, divided by the mean luma) falls with the accumulated frames (4 frames at
 # least 1.5 times lower than 1 at jitter 1), is lower at jitter 0 than at jitter 1 for one frame (banding in place of grain: no free lunch), and is lower at the smaller march targets.
 GRAIN_RES = (1.0, 0.5, 0.25)
 GRAIN_JITTER = (0.0, 0.5, 1.0)
@@ -301,14 +301,14 @@ def grain_jobs():
                     cam = camera(0, GRAIN_SIZE, pitch=pitch, height=height)
                     sun = lay.sun_vector(cam.pos, 120.0, 40.0)
                     jid = "grain-%s-r%03d-j%03d-a%d" % (view, int(round(res * 100)), int(round(jit * 100)), acc)
-                    # A closed sheet in both views (map 0.80, shift 0): the ground view then looks at the underside of a deck, the above view at its top.
+                    # A closed sheet in both views (map 0.80, shift 0): the ground view then looks at the underside of a cloud layer, the above view at its top.
                     jobs.append(lay.job(jid, "color", cam, [job_layer(specs[CUMULUS], const_map(0.8), const_map(0.0))], GRAIN_SIZE[0], GRAIN_SIZE[1], planet=R, sun=sun, maxSteps=48,
                                         minStep=25.0, mapWidth=MAP_W, mapHeight=MAP_H, jitter=jit, earlyOut=0.01, sunSteps=3, productCost=1, resolution=res, accumulate=acc))
     return jobs
 
 
 # The horizon sweep (P7): the view 2 degrees up from 264 m at a sheet (map 0.8) and a distance fade of cloud.fadeFarM 0 / 20 / 40 / 80 km (the fade starts at half of it), with and
-# without the aerial perspective. The number: the deck's mean alpha in the band 0 to 2 degrees above the horizon over its mean alpha 8 to 12 degrees above it (1: the sheet ends
+# without the aerial perspective. The number: the cloud layer's mean alpha in the band 0 to 2 degrees above the horizon over its mean alpha 8 to 12 degrees above it (1: the sheet ends
 # in a hard edge at the horizon, 0: it has faded into the sky). EXPECTED, written before the run: 1.0 without a fade (the sheet is closed to the horizon), under 0.5 at 80 km and the
 # lowest at 20 km; the aerial perspective changes the colour, not the alpha.
 HORIZON_FADES = (0.0, 20000.0, 40000.0, 80000.0)
@@ -371,7 +371,7 @@ def picture_jobs():
             jobs.append(lay.job("pic-%s-s%03d" % (cid, int(round(-sh * 1000))), "color", cam, [job_layer(specs[CUMULUS], const_map(0.665), const_map(typ))], size[0], size[1],
                                 planet=R, sun=sun, maxSteps=48, minStep=25.0, mapWidth=MAP_W, mapHeight=MAP_H, jitter=1.0, earlyOut=0.01, sunSteps=3, productCost=1,
                                 tuning=tuning(keys)))
-    # The rain deck at the high pick (inside the Fog and Stratus blend) and the cumulonimbus towers.
+    # The low stratiform rain layer at the high pick (inside the Fog and Stratus blend) and the cumulonimbus towers.
     cam = camera(0, size)
     sun = lay.sun_vector(cam.pos, 120.0, 40.0)
     jobs.append(lay.job("pic-L0high", "color", cam, [job_layer(specs["Kerbin-weather-rain"], const_map(0.859), const_map(0.229))], size[0], size[1], planet=R, sun=sun,
@@ -407,7 +407,7 @@ def closed_share(folder, jid, site, threshold=CLOSED):
 
 
 def hf_energy(path, view):
-    """The mean absolute 3 x 3 Laplacian of the luma of a picture divided by its mean luma, over the upper 55 percent of a ground picture (the sky and the deck) and the whole
+    """The mean absolute 3 x 3 Laplacian of the luma of a picture divided by its mean luma, over the upper 55 percent of a ground picture (the sky and the cloud layer) and the whole
     of an above picture."""
     from PIL import Image
     im = np.asarray(Image.open(path).convert("RGB"), dtype=np.float64) / 255.0
@@ -485,8 +485,8 @@ def collect(ctx):
         for m in MAPS:
             for sh in SHIFTS:
                 metrics.append(Metric.info("e40o.%s.m%03d.s%03d" % (cid, int(round(m * 1000)), int(round(-sh * 1000))), t[(m, sh)][0]))
-    # P2, the rain deck
-    for tag, label in (("L0high", "rain deck high pick (0.859, 0.229)"), ("L0low", "rain deck low pick (0.4056, 0)")):
+    # P2, the low stratiform rain layer
+    for tag, label in (("L0high", "low stratiform rain layer high pick (0.859, 0.229)"), ("L0low", "low stratiform rain layer low pick (0.4056, 0)")):
         m, typ = (0.859, 0.229) if tag == "L0high" else (0.4056, 0.0)
         vals = [closed_share(folder, "%s-m%03d-t%03d-s000-p%d" % (tag, int(round(m * 1000)), int(round(typ * 1000)), s), s) for s in range(SITES)]
         results["notes"][tag] = mean_sd(vals)
@@ -539,7 +539,7 @@ def collect(ctx):
                     grain[jid] = hf_energy(os.path.join(folder, jid + ".png"), view)
                     metrics.append(Metric.info("e40o.grain.%s" % jid, grain[jid]))
         base = grain["grain-%s-r100-j100-a1" % view]
-        lines.append("grain %s (hf = mean |Laplacian| of luma / mean luma over the sky or deck region; resolution 1 jitter 1 one frame = %.4f):" % (view, base))
+        lines.append("grain %s (hf = mean |Laplacian| of luma / mean luma over the sky or cloud layer region; resolution 1 jitter 1 one frame = %.4f):" % (view, base))
         for res in GRAIN_RES:
             lines.append("   resolution %.2f: " % res + "  ".join("j%.1f a%d %.4f" % (jit, acc, grain["grain-%s-r%03d-j%03d-a%d" % (view, int(round(res * 100)), int(round(jit * 100)), acc)])
                                                               for jit in GRAIN_JITTER for acc in GRAIN_ACC))

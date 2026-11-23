@@ -13,7 +13,7 @@ namespace ReDefinition.Atmospheres
 
     // The geometry of a planet-wide shell, pure and in double precision (the shader mirrors it in float): where a ray meets the two
     // spheres of a layer, the stretches it spends inside the layer from below, inside and above (P01, P25), the gas-giant case without
-    // a surface (P24), and the distance to the horizon of a deck. The planet's centre is the origin.
+    // a surface (P24), and the distance to the horizon of a cloud layer. The planet's centre is the origin.
     internal static class LayerGeometry
     {
         // The distance along the unit ray o + t d to the sphere of radius r, nearest and farthest root; false where it misses.
@@ -86,8 +86,8 @@ namespace ReDefinition.Atmospheres
         // variation on all of it, the ragged boundary moves the base only (by the type's erosion), and the top follows the base plus the
         // updraft term on the rooted share. The top never falls below the base plus the thinnest cloud. The shader's LocalBaseTop is this.
         // floorShare (the sea level as a share of the layer's thickness, minus the layer's inner altitude over it; -infinity: none): a type whose base the offsets lower below the floor is moved
-        // up as a whole until its base rests on it, so that it keeps its thickness. Without it a humid place (root offset -500 m) moved the rain deck's Fog and Stratus (96 to 594 m) to
-        // -404 to 94 m, under the ground and under a camera at 264 m: the deck drew nothing from inside (K-T2d start 51, l0in and the ground view at the high pick).
+        // up as a whole until its base rests on it, so that it keeps its thickness. Without it a humid place (root offset -500 m) moved the low stratiform rain layer's Fog and Stratus (96 to 594 m) to
+        // -404 to 94 m, under the ground and under a camera at 264 m: the layer drew nothing from inside (K-T2d start 51, l0in and the ground view at the high pick).
         internal static void LocalBaseTop(double baseShare, double topShare, double erosion, double thicknessM, LocalHeights h, double raggedUnit,
                                           double raggedM, double minThicknessM, out double localBase, out double localTop, double floorShare = double.NegativeInfinity)
         {
@@ -111,10 +111,10 @@ namespace ReDefinition.Atmospheres
             return Math.Sqrt(x * x + y * y + z * z) - radius;
         }
 
-        // The distance at which a ray along the ground meets a deck of altitude h seen from a camera at altitude 0: sqrt(2 R h + h^2).
-        internal static double HorizonDistance(double radius, double deckAltitude)
+        // The distance at which a ray along the ground meets a cloud layer of altitude h seen from a camera at altitude 0: sqrt(2 R h + h^2).
+        internal static double HorizonDistance(double radius, double layerAltitude)
         {
-            return Math.Sqrt(2.0 * radius * deckAltitude + deckAltitude * deckAltitude);
+            return Math.Sqrt(2.0 * radius * layerAltitude + layerAltitude * layerAltitude);
         }
 
         // The angle below the local horizontal at which the horizon of a camera at altitude h lies, radians: acos(R / (R + h)).

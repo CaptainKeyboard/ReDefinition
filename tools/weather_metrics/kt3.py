@@ -14,8 +14,8 @@ Per variant id of a start (results named K3.<start>.<id>.<stat>, no variant):
   labels_ms   the own pass's two marker segments ("ReDefinition clouds"), when the pass draws
   delta_ms    cost of the variant minus the cost of its reference (plain, or the variant the table names), by the labels where both have them and the pass is the
               thing measured, else by the GPU-busy cost (lightning, rain, wet surfaces, droplets cost outside the pass's labels)
-  d_picture   the distance of the variant's numeric frame from its reference's: the largest of the change in deck fraction, in the closed share of the sky, in
-              the relative change of the deck median
+  d_picture   the distance of the variant's numeric frame from its reference's: the largest of the change in cloud fraction, in the closed share of the sky, in
+              the relative change of the cloud median
   d_ground    the relative change of the sunlit ground's median
   flashes     (storm variants) the flashes counted in the window
 Per start: windows, costed, cost_missing, cost_misses, effect_misses, pictures_missing, and a note line per miss. Across the starts: the T13 cost and shimmer, the
@@ -85,7 +85,7 @@ def build_expect():
     add("oct1_g", "light", SAVES, "changes")
     add("powder0_g", "light", FREE, "changes")
     add("suntint_off_g", "light", FREE)
-    add("moon0_g", "light", (-1.0, 0.3), "same", note="day: the moons add no light to the deck")
+    add("moon0_g", "light", (-1.0, 0.3), "same", note="day: the moons add no light to the cloud")
     add("aotaps_g", "light", ADDS)
     add("aoreuse2_g", "light", ADDS)
     add("wb_off_g", "light", FREE)
@@ -219,14 +219,14 @@ def picture_value(rows, view, vid, stat):
 
 
 def picture_distance(rows, view, vid, ref):
-    """The largest of the changes in deck fraction, the sky's closed share and the relative change of the deck median between two numeric frames; None where none of
+    """The largest of the changes in cloud fraction, the sky's closed share and the relative change of the cloud median between two numeric frames; None where none of
     them is in both."""
     parts = []
-    for stat in ("deck_fraction", "sky_closed_share"):
+    for stat in ("cloud_fraction", "sky_closed_share"):
         a, b = picture_value(rows, view, vid, stat), picture_value(rows, view, ref, stat)
         if a is not None and b is not None:
             parts.append(abs(a - b))
-    a, b = picture_value(rows, view, vid, "deck_median"), picture_value(rows, view, ref, "deck_median")
+    a, b = picture_value(rows, view, vid, "cloud_median"), picture_value(rows, view, ref, "cloud_median")
     if a is not None and b is not None and b > 1e-3:
         parts.append(abs(a / b - 1.0))
     return max(parts) if parts else None
@@ -446,8 +446,8 @@ def selftest():
 
     def frame_rows(view, vid, frac, med, closed, ground, r=0.0, b=0.0):
         p = "T09d.%s.k3.%s." % (view, vid)
-        return [row(vid, p + "deck_fraction", frac), row(vid, p + "deck_median", med), row(vid, p + "sky_closed_share", closed), row(vid, p + "ground_median", ground),
-                row(vid, p + "deck_r", r), row(vid, p + "deck_b", b)]
+        return [row(vid, p + "cloud_fraction", frac), row(vid, p + "cloud_median", med), row(vid, p + "sky_closed_share", closed), row(vid, p + "ground_median", ground),
+                row(vid, p + "cloud_r", r), row(vid, p + "cloud_b", b)]
 
     ids = ["off_g", "plain_g", "noise_off_g", "h_all_off_g", "sigma2_g", "moon0_g", "shadows_off_g"]
     def make(t13_labels=4.15, remap_med=0.36, noise_labels=3.0, ids_made=None, pictures=True):

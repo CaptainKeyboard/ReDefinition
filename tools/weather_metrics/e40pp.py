@@ -507,7 +507,7 @@ def frame_gain(game, off, alpha, ok):
     whole frame by an exposure that depends on what the frame holds, so the frame with clouds and the baseline without them differ by a factor even where there is no cloud.
     MEASURED on start 64: on cloud-free pixels game against baseline is a power law with exponent 0.97 to 1.02 (a pure gain), 0.89 to 1.06 over the views, the same at 20 and 100 pixels from
     the nearest cloud (not bloom). The replay has no post stage: its composite is compared with the game's frame divided by this gain. None where the frame has too few cloud-free
-    pixels (a view inside a closed deck): then the exposure is not known."""
+    pixels (a view inside a closed cloud layer): then the exposure is not known."""
     clear = ok & (alpha < 0.01)
     if int(clear.sum()) < GAIN_MIN_PIXELS:
         return None

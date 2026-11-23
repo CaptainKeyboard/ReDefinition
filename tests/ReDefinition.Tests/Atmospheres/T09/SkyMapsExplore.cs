@@ -12,7 +12,7 @@ using ReDefinition.Tests.Atmospheres.T10;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // E40 F1: the maps the GAME hands to the layer pass for Kerbin at given times, with the game's own seed, Kerbin's shipped rules and the module's FetchStep chain (the deck rule with
+    // E40 F1: the maps the GAME hands to the layer pass for Kerbin at given times, with the game's own seed, Kerbin's shipped rules and the module's FetchStep chain (the low stratiform rule with
     // its fog air, the meso stage), dumped as raw bytes for tools/weather_metrics/e40f1.py and tools/e40_sky_clear.py. Runs only when SKYMAPS_OUT names a directory.
     //   SKYMAPS_UTS   the universal times, comma separated (default 1881000,1686000)
     //   SKYMAPS_SEED  the body's seed (default 664216370, the game log's "body Kerbin ... seed")
@@ -95,7 +95,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 BodyClimate climate;
                 GeneratorField field = KerbinField(seed, out climate);
-                // the stack as the game builds it from the shipped cfg (rain deck, cumulus, cumulonimbus, cirrus; the snow deck is the rain deck's alternative)
+                // the stack as the game builds it from the shipped cfg (low stratiform rain layer, cumulus, cumulonimbus, cirrus; the low stratiform snow layer is its alternative)
                 CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
                 int body = FieldFixture.BodyIndex;
                 foreach (string part in utText.Split(','))
@@ -113,27 +113,27 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.IsTrue(field.GetMap(body, WeatherMapKind.WindSpeed, ut, wind));
                     int n = s.Cover.Values.Length;
                     var spread = new float[n];
-                    for (int i = 0; i < n; i++) spread[i] = WeatherDeckRule.SpreadK(temperature.Values[i], s.Humidity.Values[i]);
+                    for (int i = 0; i < n; i++) spread[i] = WeatherLowStratiformRule.SpreadK(temperature.Values[i], s.Humidity.Values[i]);
                     Dump(folder, tag + "sharedCover", s.Cover.Bytes);
                     Dump(folder, tag + "precip", s.Precip.Bytes);
                     Dump(folder, tag + "humidity", s.Humidity.Bytes);
                     var combined = new byte[layers.Length][];
                     var finalTypes = new byte[layers.Length][];
-                    var decks = new WeatherDeckRule[layers.Length];
+                    var rules = new WeatherLowStratiformRule[layers.Length];
                     for (int li = 0; li < layers.Length; li++)
                     {
                         CloudLayerDef l = layers[li];
-                        decks[li] = l.Deck;
+                        rules[li] = l.LowStratiform;
                         // SKYMAPS_FALLBACK=1: the generator has made no layer map (GetLayerCoverage false): FetchStep gives every layer the shared coverage map and no mid-level sheet
                         bool fallback = Environment.GetEnvironmentVariable("SKYMAPS_FALLBACK") == "1";
                         WeatherMap raw = fallback ? s.Cover : LayerMap(field, body, ut, CloudBridgeStack.MidHeightM(l));
                         byte[] cover = raw.Bytes, type;
                         byte[] altoMid = null, altoLow = null;
-                        if (l.Deck != null)
+                        if (l.LowStratiform != null)
                         {
                             var rc = new byte[n];
                             var rt = new byte[n];
-                            l.Deck.Apply(cover, s.Precip.Values, spread, wind.Values, rc, rt);
+                            l.LowStratiform.Apply(cover, s.Precip.Values, spread, wind.Values, rc, rt);
                             cover = rc;
                             type = rt;
                         }
@@ -149,7 +149,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             }
                         }
                         Dump(folder, tag + l.Name + "_raw", raw.Bytes);
-                        Dump(folder, tag + l.Name + "_deck", cover);
+                        Dump(folder, tag + l.Name + "_lowstratiform", cover);
                         var inp = new CloudMesoInputs
                         {
                             Width = GeneratorMaps.Width, Height = GeneratorMaps.Height, Precip = s.Precip.Bytes, Humidity = s.Humidity.Bytes, Surface = s.Surface.Bytes,
@@ -163,7 +163,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         finalTypes[li] = typeOut;
                     }
                     // the module's last step of a round (OwnCloudModule.FetchStep): the layer maps brought to the field's cover, with the product's default weight
-                    CloudLookTuning.MeetTheField(combined, layers.Length, s.Cover.Bytes, CloudLookTuning.CoverCombine, decks, s.Precip.Values);
+                    CloudLookTuning.MeetTheField(combined, layers.Length, s.Cover.Bytes, CloudLookTuning.CoverCombine, rules, s.Precip.Values);
                     for (int li = 0; li < layers.Length; li++)
                     {
                         Dump(folder, tag + layers[li].Name + "_cover", combined[li]);
@@ -177,7 +177,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     {
                         meta.Write("layer " + l.Name + " types");
                         foreach (CloudTypeDef t in l.Types) meta.Write(" '" + t.Name + "'");
-                        meta.WriteLine(" deck " + (l.Deck != null));
+                        meta.WriteLine(" lowStratiformRule " + (l.LowStratiform != null));
                     }
                 }
             }

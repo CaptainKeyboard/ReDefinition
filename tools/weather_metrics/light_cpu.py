@@ -37,7 +37,7 @@ class Params(object):
 def cell_diffusion(p, tau_sun, tau_up, dens, height, width, sin_e):
     """E40 LM2: (the factor on the octaves above the first, the diffusion source per unit sun colour) of a sample, from data the light march already has.
 
-    incidence  mi = (tau_up + eps) / (tau_sun + eps), at most 1: the optical depth straight up to the type's top over the one towards the sun. In a deck lit from above it is the sun's
+    incidence  mi = (tau_up + eps) / (tau_sun + eps), at most 1: the optical depth straight up to the type's top over the one towards the sun. In a cloud layer lit from above it is the sun's
                elevation sine exactly (the flux per unit area that enters the top); a flank that faces a low sun has a short path to the sun and a long one up (1), a top that the sun grazes the
                reverse (small). The photon walk's source at the lit surface is proportional to it (light_mc_slab.py: 0.45 / 0.69 / 1.0 W at 0.5 / 0.7 / 0.94).
     far depth  the optical depth of the cloud behind the sample along the light: the chord of an ellipsoid of the type's height and the layer's cell width along the light, minus tau_sun.

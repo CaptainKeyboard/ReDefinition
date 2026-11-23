@@ -674,15 +674,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public double CameraFovDeg { get { return EmptyHorizon ? 2.0 : FovDeg; } }
         internal double FovDeg = 60.0;
         internal int LayerMaskNow;
-        // The picture of the sky: the sun-lit sea below the horizon, the blue sky above it; the own pass, when it draws all layers, replaces the sky by a deck of
-        // DeckRadiance times the sun gain (clipped at ClipAt) where DeckCovers says so (by the picture's column). A model of the real thing with the numbers the test chooses.
-        internal float SkyLuma = 0.5f, SeaLuma = 0.7f, DeckRadiance = 0.075f, ClipAt = 1f;
-        internal Func<int, int, bool> DeckCovers = (x, y) => true;
-        // The state the picture shows (a test can tamper with it): the deck is drawn when the pass is on, draws every layer and the aid is off.
+        // The picture of the sky: the sun-lit sea below the horizon, the blue sky above it; the own pass, when it draws all layers, replaces the sky by a cloud layer of
+        // CloudRadiance times the sun gain (clipped at ClipAt) where CloudCovers says so (by the picture's column). A model of the real thing with the numbers the test chooses.
+        internal float SkyLuma = 0.5f, SeaLuma = 0.7f, CloudRadiance = 0.075f, ClipAt = 1f;
+        internal Func<int, int, bool> CloudCovers = (x, y) => true;
+        // The state the picture shows (a test can tamper with it): the cloud layer is drawn when the pass is on, draws every layer and the aid is off.
         internal bool NoRawPixels, EmptyHorizon;
-        // The grain of the picture, in luminance: DeckNoise on the deck, scaled by the reconstruction level (level 1 to 4: NoiseByLevel), FloorNoise on every pixel (the camera's jitter);
+        // The grain of the picture, in luminance: CloudNoise on the cloud layer, scaled by the reconstruction level (level 1 to 4: NoiseByLevel), FloorNoise on every pixel (the camera's jitter);
         // both deterministic in (frame, x, y), so that two frames of one pose a frame apart differ and the same frame twice does not.
-        internal float DeckNoise, FloorNoise;
+        internal float CloudNoise, FloorNoise;
         internal float[] NoiseByLevel = { 1f, 0.4f, 0.2f, 0.12f };
 
         private static float Hash(int frame, int x, int y)
@@ -695,12 +695,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
         internal readonly List<string> EnvironmentRequests = new List<string>();
         internal bool EnvironmentThrows;
 
-        // K-T2d start 50: the layers that draw a deck when named alone in the mask (mask 0 = every layer draws; a mask naming none of the stack's bits draws nothing), and the layer report.
+        // K-T2d start 50: the layers that draw a cloud layer when named alone in the mask (mask 0 = every layer draws; a mask naming none of the stack's bits draws nothing), and the layer report.
         internal Func<int, bool> LayerDraws = k => true;
         internal T09LayerReport LayerReport;
         internal readonly List<int> LayerMasks = new List<int>();
 
-        private bool MaskDrawsDeck()
+        private bool MaskDrawsCloud()
         {
             if (LayerMaskNow == 0) return true;
             for (int k = 0; k < 8; k++)
@@ -781,7 +781,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double angleFromAxis = -dip - elevation * Math.PI / 180.0;
             double horizonV = 0.5 + Math.Tan(angleFromAxis) / (2.0 * Math.Tan(FovDeg * Math.PI / 360.0));
             float gain = Tuning.Get(OwnCloudModule.TuneSunGain, 1f);
-            bool deck = Module != null && Module.Stats.Mode != "off" && MaskDrawsDeck() && !AidIsOn;
+            bool cloud = Module != null && Module.Stats.Mode != "off" && MaskDrawsCloud() && !AidIsOn;
             var raw = new Color[w * h];
             for (int y = 0; y < h; y++)
             {
@@ -790,12 +790,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 {
                     float l = v > horizonV ? SkyLuma : SeaLuma;
                     Color c = new Color(l, l, l, 1f);
-                    bool covered = DeckCovers(x, y);
-                    if (deck && covered)
+                    bool covered = CloudCovers(x, y);
+                    if (cloud && covered)
                     {
-                        float d = DeckRadiance * gain;
-                        // Per-frame grain on the deck, smaller at the reconstruction levels (the level is the slider's), and a floor on every pixel.
-                        if (DeckNoise > 0f) d += DeckNoise * NoiseByLevel[(int)Math.Max(1, Math.Min(4, AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudResolution))) - 1] * Hash(Frames, x, y);
+                        float d = CloudRadiance * gain;
+                        // Per-frame grain on the cloud layer, smaller at the reconstruction levels (the level is the slider's), and a floor on every pixel.
+                        if (CloudNoise > 0f) d += CloudNoise * NoiseByLevel[(int)Math.Max(1, Math.Min(4, AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudResolution))) - 1] * Hash(Frames, x, y);
                         d = Math.Min(ClipAt, d);
                         c = new Color(d, d, d, 1f);
                     }

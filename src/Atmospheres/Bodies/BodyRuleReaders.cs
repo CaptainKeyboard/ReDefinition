@@ -261,7 +261,7 @@ namespace ReDefinition.Atmospheres
                 layers.Add(new CloudLayerSpec(name, (float)inner, (float)outer, r.Float("sigmaPerM", 0.03f, 1.0e-6f, 10f), r.Enum("kind", LayerKind.Weather),
                     r.String("group", ""), r.Float("coverage", 1f, 0f, 1f), r.Float("edgeSoftness", 0.15f, 0f, 1f), r.Float("fadeNearM", 0f, 0f, 1.0e9f),
                     r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
-                    r.Float("noiseAmount", 0.3f, 0f, 1f), (float)Length(r, "noiseScaleM", "noiseScaleDepths", horizontalDepthM, 8000.0, 1.0, 1.0e7, horizontalScale), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
+                    r.Float("noiseAmount", 0.3f, 0f, 1f), (float)Length(r, "noiseScaleM", "noiseScaleDepths", horizontalDepthM, 8000.0, 1.0, 1.0e7, horizontalScale), types) { FairType = r.Float("fairType", -1f, -1f, 1f), LowStratiform = LowStratiformRule(r),
                     SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
                     LightAmbient =r.Float("lightAmbient", 1f, 0f, 4f),
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f), LightPlateau = r.Float("lightPlateau", 0f, 0f, 4f),
@@ -290,24 +290,24 @@ namespace ReDefinition.Atmospheres
             return layers;
         }
 
-        // The layer's deck rule (WeatherDeckRule): null without deckRule = 1, else the defaults with the keys of the layer's node.
-        private static WeatherDeckRule DeckRule(BodyNodeReader r)
+        // The layer's low stratiform rule (WeatherLowStratiformRule): null without lowStratiformRule = 1, else the defaults with the keys of the layer's node.
+        private static WeatherLowStratiformRule LowStratiformRule(BodyNodeReader r)
         {
-            if (r.Float("deckRule", 0f, 0f, 1f) < 0.5f) return null;
-            WeatherDeckRule d = WeatherDeckRule.Defaults;
-            return new WeatherDeckRule
+            if (r.Float("lowStratiformRule", 0f, 0f, 1f) < 0.5f) return null;
+            WeatherLowStratiformRule d = WeatherLowStratiformRule.Defaults;
+            return new WeatherLowStratiformRule
             {
-                FogSpreadK = r.Float("deckFogSpreadK", d.FogSpreadK, 0f, 50f),
-                FogSpreadBandK = r.Float("deckFogSpreadBandK", d.FogSpreadBandK, 0f, 50f),
-                FogWindMs = r.Float("deckFogWindMs", d.FogWindMs, 0f, 100f),
-                FogWindBandMs = r.Float("deckFogWindBandMs", d.FogWindBandMs, 0f, 100f),
-                PrecipFrom = r.Float("deckPrecipFrom", d.PrecipFrom, 0f, 1f),
-                PrecipFullAt = r.Float("deckPrecipFullAt", d.PrecipFullAt, 0f, 1f),
-                FogType = r.Float("deckFogType", d.FogType, 0f, 1f),
-                PrecipType = r.Float("deckPrecipType", d.PrecipType, 0f, 1f),
-                Fog = r.Float("deckFog", d.Fog ? 1f : 0f, 0f, 1f) >= 0.5f,
-                RainFloor = r.Float("deckRainFloor", d.RainFloor, 0f, 1f),
-                RainFloorFullAt = r.Float("deckRainFloorFullAt", d.RainFloorFullAt, 0f, 1f)
+                FogSpreadK = r.Float("lowStratiformFogSpreadK", d.FogSpreadK, 0f, 50f),
+                FogSpreadBandK = r.Float("lowStratiformFogSpreadBandK", d.FogSpreadBandK, 0f, 50f),
+                FogWindMs = r.Float("lowStratiformFogWindMs", d.FogWindMs, 0f, 100f),
+                FogWindBandMs = r.Float("lowStratiformFogWindBandMs", d.FogWindBandMs, 0f, 100f),
+                PrecipFrom = r.Float("lowStratiformPrecipFrom", d.PrecipFrom, 0f, 1f),
+                PrecipFullAt = r.Float("lowStratiformPrecipFullAt", d.PrecipFullAt, 0f, 1f),
+                FogType = r.Float("lowStratiformFogType", d.FogType, 0f, 1f),
+                PrecipType = r.Float("lowStratiformPrecipType", d.PrecipType, 0f, 1f),
+                Fog = r.Float("lowStratiformFog", d.Fog ? 1f : 0f, 0f, 1f) >= 0.5f,
+                RainFloor = r.Float("lowStratiformRainFloor", d.RainFloor, 0f, 1f),
+                RainFloorFullAt = r.Float("lowStratiformRainFloorFullAt", d.RainFloorFullAt, 0f, 1f)
             };
         }
 

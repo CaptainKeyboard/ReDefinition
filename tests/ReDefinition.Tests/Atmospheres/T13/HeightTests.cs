@@ -357,7 +357,7 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void ARaisedBaseCutsTheDensityBelowItAndKeepsTheThicknessOfADeck()
+        public void ARaisedBaseCutsTheDensityBelowItAndKeepsTheThicknessOfALowStratiformLayer()
         {
             var layer = Slab(1500f, 3000f);
             var table = new LayerTypeTable(layer);

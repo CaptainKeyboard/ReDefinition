@@ -18,7 +18,7 @@ namespace ReDefinition.Atmospheres
         public float WindMs;
         // The alpha of the extinction toward the ground (the table value; DrawGate decides only whether our praecipitatio is drawn).
         public float PrecipExtinctionAlpha;
-        // How dark the base of the cloud is, 0 (grey deck) to 1 (darkest).
+        // How dark the base of the cloud is, 0 (grey low stratiform layer) to 1 (darkest).
         public float CloudBaseDarkness;
         // The factor on the sun's direct light, 1 in clear air.
         public float SunDirect;

@@ -7,11 +7,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // E40 COVER-MEANING prototype (design note .local/plans/atmospheres/E40-cover-meaning-design.md): on the CPU model, the proposed mapping (CoverMapping.AmountShare, the noise read once
     // per column) makes the closed share of a layer's columns (tau >= 0.92) equal to the map value c, and the mapping of the shipped code (CoverMapping.Current) does not.
     // EXPECTED RESULTS, written before the first run of this file (the numbers in the note came from the exploration run of the same model; the test bounds are the owner's +-0.05):
-    //   - the proposed mapping: for the rain deck, the cumulus layer and the cumulonimbus layer, over two noise volumes (seeds 1 and 2) and 40 sites each, the mean absolute difference
+    //   - the proposed mapping: for the low stratiform rain layer, the cumulus layer and the cumulonimbus layer, over two noise volumes (seeds 1 and 2) and 40 sites each, the mean absolute difference
     //     between the closed share and c over c = 0.1, 0.3, 0.5, 0.7, 0.9 is at most 0.05 and no single value is off by more than 0.08; the closed share rises with c;
     //   - the shift: lowering the map by 0.15 lowers the closed share by 0.15 +- 0.06 for each of the three layers at c = 0.5 and 0.7;
-    //   - the noise amount does not move the cover: the rain deck at amount 0.3, 0.6 and 1 gives closed shares within 0.04 of each other;
-    //   - the shipped mapping misses c by more than 0.15 on average for the rain deck and by more than 0.25 for the cumulonimbus layer (what the note's removal list removes);
+    //   - the noise amount does not move the cover: the low stratiform rain layer at amount 0.3, 0.6 and 1 gives closed shares within 0.04 of each other;
+    //   - the shipped mapping misses c by more than 0.15 on average for the low stratiform rain layer and by more than 0.25 for the cumulonimbus layer (what the note's removal list removes);
     //   - the model's Current mapping is CloudShapeModel.Share (so the table of the note is the product's), and the rank table makes the shape value uniform to 0.02.
     [TestClass]
     public class CoverMeaningTests

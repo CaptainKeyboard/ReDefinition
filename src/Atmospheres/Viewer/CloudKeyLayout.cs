@@ -130,7 +130,7 @@ namespace ReDefinition.Atmospheres.Viewer
             return Sections.TryGetValue(key ?? "", out section);
         }
 
-        // The group of the per-layer keys by their prefix: the look factors of a layer are Shape, the rest (map and type values, deck rule, shift) Weather.
+        // The group of the per-layer keys by their prefix: the look factors of a layer are Shape, the rest (map and type values, low stratiform rule, shift) Weather.
         internal static KeySection SectionOfLayerKey(string prefix)
         {
             if (prefix == CloudLookTuning.TuneSigma + "." || prefix == CloudLookTuning.TuneNoiseSize + ".") return KeySection.Shape;

@@ -130,7 +130,7 @@ namespace ReDefinition.WeatherPlayer
             views.Add(new View { Name = "V2", Pose = new CameraPose(new Vector3(cx, 500f, cz - 8000f), 0f, -11f), SunElevation = 38f, SunAzimuth = 200f, Expect = true });
             // V3: inside the cell at 300 m (under its base, in the praecipitatio).
             views.Add(new View { Name = "V3", Pose = new CameraPose(new Vector3(cx, Ground(cx, cz) + 300f, cz), 0f, 0f), SunElevation = 38f, SunAzimuth = 200f, Expect = false });
-            // V4: from below the deck looking up: the deck only.
+            // V4: from below the layer slab looking up: the layer slab only.
             views.Add(new View { Name = "V4", Pose = new CameraPose(new Vector3(cx, Ground(cx, cz) + 50f, cz), 0f, -75f), SunElevation = 38f, SunAzimuth = 200f, Expect = false });
             // V5: from 10 km altitude looking down at the top.
             views.Add(new View { Name = "V5", Pose = new CameraPose(new Vector3(cx, 10500f, cz - 9000f), 0f, 38f), SunElevation = 38f, SunAzimuth = 200f, Expect = true });
@@ -293,7 +293,7 @@ namespace ReDefinition.WeatherPlayer
                 }
                 else
                 {
-                    // Below the deck and inside: the picture is a dark deck, not a bright structure.
+                    // Below the layer slab and inside: the picture is a dark cloud layer, not a bright structure.
                     Sink.Info("mean_luma_on." + tag, ImageStats.MeanLuma(on, ImageStats.Rect2.Whole(on)));
                 }
                 sheetNames.Add(tag);

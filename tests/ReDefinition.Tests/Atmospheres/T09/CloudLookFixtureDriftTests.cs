@@ -86,20 +86,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(shipped.LightCellWidth, fixture.LightCellWidth, 1e-3f, n + " cell width");
             Assert.AreEqual(shipped.Group, fixture.Group, n + " group");
             Assert.AreEqual(shipped.Kind, fixture.Kind, n + " kind");
-            Assert.AreEqual(shipped.Deck == null, fixture.Deck == null, n + " deck rule present");
-            if (shipped.Deck != null)
+            Assert.AreEqual(shipped.LowStratiform == null, fixture.LowStratiform == null, n + " low stratiform rule present");
+            if (shipped.LowStratiform != null)
             {
-                Assert.AreEqual(shipped.Deck.FogSpreadK, fixture.Deck.FogSpreadK, 1e-6f, n + " deck fog spread");
-                Assert.AreEqual(shipped.Deck.FogSpreadBandK, fixture.Deck.FogSpreadBandK, 1e-6f, n + " deck fog spread band");
-                Assert.AreEqual(shipped.Deck.FogWindMs, fixture.Deck.FogWindMs, 1e-6f, n + " deck fog wind");
-                Assert.AreEqual(shipped.Deck.FogWindBandMs, fixture.Deck.FogWindBandMs, 1e-6f, n + " deck fog wind band");
-                Assert.AreEqual(shipped.Deck.PrecipFrom, fixture.Deck.PrecipFrom, 1e-6f, n + " deck precipitation from");
-                Assert.AreEqual(shipped.Deck.PrecipFullAt, fixture.Deck.PrecipFullAt, 1e-6f, n + " deck precipitation full");
-                Assert.AreEqual(shipped.Deck.PrecipType, fixture.Deck.PrecipType, 1e-6f, n + " deck precipitation type");
-                Assert.AreEqual(shipped.Deck.FogType, fixture.Deck.FogType, 1e-6f, n + " deck fog type");
-                Assert.AreEqual(shipped.Deck.Fog, fixture.Deck.Fog, n + " deck fog");
-                Assert.AreEqual(shipped.Deck.RainFloor, fixture.Deck.RainFloor, 1e-6f, n + " deck rain floor");
-                Assert.AreEqual(shipped.Deck.RainFloorFullAt, fixture.Deck.RainFloorFullAt, 1e-6f, n + " deck rain floor full at");
+                Assert.AreEqual(shipped.LowStratiform.FogSpreadK, fixture.LowStratiform.FogSpreadK, 1e-6f, n + " low stratiform rule fog spread");
+                Assert.AreEqual(shipped.LowStratiform.FogSpreadBandK, fixture.LowStratiform.FogSpreadBandK, 1e-6f, n + " low stratiform rule fog spread band");
+                Assert.AreEqual(shipped.LowStratiform.FogWindMs, fixture.LowStratiform.FogWindMs, 1e-6f, n + " low stratiform rule fog wind");
+                Assert.AreEqual(shipped.LowStratiform.FogWindBandMs, fixture.LowStratiform.FogWindBandMs, 1e-6f, n + " low stratiform rule fog wind band");
+                Assert.AreEqual(shipped.LowStratiform.PrecipFrom, fixture.LowStratiform.PrecipFrom, 1e-6f, n + " low stratiform rule precipitation from");
+                Assert.AreEqual(shipped.LowStratiform.PrecipFullAt, fixture.LowStratiform.PrecipFullAt, 1e-6f, n + " low stratiform rule precipitation full");
+                Assert.AreEqual(shipped.LowStratiform.PrecipType, fixture.LowStratiform.PrecipType, 1e-6f, n + " low stratiform rule precipitation type");
+                Assert.AreEqual(shipped.LowStratiform.FogType, fixture.LowStratiform.FogType, 1e-6f, n + " low stratiform rule fog type");
+                Assert.AreEqual(shipped.LowStratiform.Fog, fixture.LowStratiform.Fog, n + " low stratiform rule fog");
+                Assert.AreEqual(shipped.LowStratiform.RainFloor, fixture.LowStratiform.RainFloor, 1e-6f, n + " low stratiform rule rain floor");
+                Assert.AreEqual(shipped.LowStratiform.RainFloorFullAt, fixture.LowStratiform.RainFloorFullAt, 1e-6f, n + " low stratiform rule rain floor full at");
             }
             Assert.AreEqual(shipped.Types.Count, fixture.Types.Count, n + " type count");
             for (int i = 0; i < shipped.Types.Count; i++)
@@ -115,9 +115,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.RiseShare, f.RiseShare, 1e-6f, t + " rise share");
                 Assert.AreEqual(s.DensityScale, f.DensityScale, 1e-6f, t + " density scale");
                 Assert.AreEqual(s.BaseLight, f.BaseLight, 1e-6f, t + " base light");
-                Assert.AreEqual(s.TopLight, f.TopLight, 1e-6f, t + " head light");
+                Assert.AreEqual(s.TopLight, f.TopLight, 1e-6f, t + " top light");
                 Assert.AreEqual(s.BaseAmbient, f.BaseAmbient, 1e-6f, t + " base ambient");
-                Assert.AreEqual(s.TopAmbient, f.TopAmbient, 1e-6f, t + " head ambient");
+                Assert.AreEqual(s.TopAmbient, f.TopAmbient, 1e-6f, t + " top ambient");
                 Assert.AreEqual(s.ShapeSmoothing, f.ShapeSmoothing, 1e-6f, t + " shape smoothing");
                 Assert.AreEqual(s.TopClose, f.TopClose, 1e-6f, t + " top closure");
                 Assert.AreEqual(s.Outflow, f.Outflow, 1e-6f, t + " outflow");

@@ -7,7 +7,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The horizon fade (E40): the pass's aerial perspective behind Scatterer's scattering with Scatterer's own coefficients (AerialPerspectivePlan, ScattererAirReader,
     // CloudBridgeAir.FromScatterer). The numbers are the Kerbin node of StockScattererConfigs (m_betaR 0.01534 / 0.03571 / 0.08755 per km, BETA_MSca 0.01214, HR 3.84 km,
-    // HM 1 km) and the camera of K-T2d start 55's above view (8.3 km over the sea, the deck 300 m up, 600 km radius).
+    // HM 1 km) and the camera of K-T2d start 55's above view (8.3 km over the sea, the low stratiform layer 300 m up, 600 km radius).
     [TestClass]
     public class AerialPerspectivePlanTests
     {
@@ -72,10 +72,10 @@ Scatterer_atmosphere
         }
 
         // The pass's six-piece integral against a fine midpoint integral along the same spherical ray: the pieces cut Scatterer's thin aerosol layer (1 km) coarsely.
-        private static void FineTau(CloudBridgeAir.Air a, double depressionDeg, double deckM, out double distance, out double[] tau)
+        private static void FineTau(CloudBridgeAir.Air a, double depressionDeg, double layerM, out double distance, out double[] tau)
         {
             double th = depressionDeg * Math.PI / 180.0, oy = Radius + 8300.0, dx = Math.Cos(th), dy = -Math.Sin(th);
-            double b = oy * dy, c = oy * oy - (Radius + deckM) * (Radius + deckM);
+            double b = oy * dy, c = oy * oy - (Radius + layerM) * (Radius + layerM);
             distance = -b - Math.Sqrt(b * b - c);
             const int n = 20000;
             double r = 0.0, m = 0.0, ds = distance / n;
@@ -105,7 +105,7 @@ Scatterer_atmosphere
                 Assert.AreEqual(fine[1], tg, 0.006 * fine[1], deg + " green");
                 Assert.AreEqual(fine[2], tb, 0.006 * fine[2], deg + " blue");
             }
-            // The deck 33 km away (15.45 degrees): the computed transmittance 0.78 / 0.59 / 0.30 of the design note (32 km: 0.78 / 0.60 / 0.31).
+            // The low stratiform layer 33 km away (15.45 degrees): the computed transmittance 0.78 / 0.59 / 0.30 of the design note (32 km: 0.78 / 0.60 / 0.31).
             double d, t;
             double[] tau;
             FineTau(a, 15.45, 300.0, out d, out tau);
@@ -201,7 +201,7 @@ Scatterer_atmosphere
         }
 
         [TestMethod]
-        public void ADisplayColourIsDecodedSoThatAFullyFadedDeckShowsExactlyIt()
+        public void ADisplayColourIsDecodedSoThatAFullyFadedLowStratiformShowsExactlyIt()
         {
             var display = new Color(0.620f, 0.711f, 0.749f, 1f);
             foreach (float white in new[] { 0.415f, 1f, 1.3f })
@@ -221,7 +221,7 @@ Scatterer_atmosphere
 
         // E40 T1 tint, the numbers of K-T2 start 61 (frame 5623, the ground view): the pass's sun (2.807, 2.768, 2.827), the white point's tint at the lowest layer's lower quarter
         // (1.036, 0.994, 0.949), the stage's white 0.7244, gamma 2.2, Kerbin's node. Measured in the game frames: the cloud pixels of the horizon band read blue over red 1.5 to 1.6 against 1.0
-        // for True Volumetric Clouds, the decks overhead 1.26 against 1.18; the chain (a neutral dark cloud of 0.45 and the pass's aerial perspective at 25 km) gives 1.50 offline. The rows below pin the
+        // for True Volumetric Clouds, the low stratiform layers overhead 1.26 against 1.18; the chain (a neutral dark cloud of 0.45 and the pass's aerial perspective at 25 km) gives 1.50 offline. The rows below pin the
         // terms of the aerial perspective colour: the in-scatter's own blue, the white point's share of it, and the blend of the short-path and the horizon colour.
         private static readonly Color Start61Sun = new Color(2.807f, 2.768f, 2.827f, 1f);
         private static readonly Color Start61Tint = new Color(1.036f, 0.994f, 0.949f, 1f);
@@ -308,31 +308,31 @@ Scatterer_atmosphere
             Color single = AerialPerspectivePlan.AerialMix(cloud, 1f, t, far, far);
             Assert.AreEqual(cloud.r * t.x + far.r * (1f - t.x), single.r, 1e-6f);
             Assert.AreEqual(cloud.b * t.z + far.b * (1f - t.z), single.b, 1e-6f);
-            // A deck a few kilometres overhead (T 0.93 / 0.88 / 0.76): the aerial perspective it gets is bluer over red with the single horizon colour than with the near colour.
+            // A low stratiform layer a few kilometres overhead (T 0.93 / 0.88 / 0.76): the aerial perspective it gets is bluer over red with the single horizon colour than with the near colour.
             Color farOnly = AerialPerspectivePlan.AerialMix(cloud, 1f, t, far, far), blended = AerialPerspectivePlan.AerialMix(cloud, 1f, t, near, far);
-            Assert.IsTrue(blended.b / blended.r < farOnly.b / farOnly.r, "the near colour takes the second blue out of the deck's aerial perspective");
+            Assert.IsTrue(blended.b / blended.r < farOnly.b / farOnly.r, "the near colour takes the second blue out of the low stratiform layer's aerial perspective");
             Assert.IsTrue(blended.b > blended.r, "the air's own extinction still makes it blue");
         }
 
         // The fog mix at the numbers of start 55 (K-T2d, above view, bands 3 and 4 below the horizon row, order 1 and 0 of the same pixels) as an offline row: the pass's mix
-        // C T + L (1 - T) with Scatterer's transmittance moves the deck of 0.48 neutral (ord1) toward the aerial perspective colour, and the lift is of the size the game measured for Scatterer's own
+        // C T + L (1 - T) with Scatterer's transmittance moves the low stratiform layer of 0.48 neutral (ord1) toward the aerial perspective colour, and the lift is of the size the game measured for Scatterer's own
         // air (ord0 minus ord1 +0.17 / +0.20 / +0.23): the sign and order of magnitude, not the pixel values (the in-scatter colour of the game is not known offline).
         [TestMethod]
-        public void TheFogMixLiftsTheDeckTowardTheAerialPerspectiveByTheSizeScattererDidInTheGame()
+        public void TheFogMixLiftsTheLowStratiformTowardTheAerialPerspectiveByTheSizeScattererDidInTheGame()
         {
             string why;
             CloudBridgeAir.Air a = ScattererAirReader.Read(Roots(KerbinNode), "Kerbin", out why);
             double dist;
             double[] fine;
             FineTau(a, 14.18, 300.0, out dist, out fine);
-            double[] deckEncoded = { 0.486, 0.482, 0.483 }, ord0 = { 0.654, 0.678, 0.712 }, inscatterEncoded = { 0.620, 0.711, 0.749 };
+            double[] lowStratiformEncoded = { 0.486, 0.482, 0.483 }, ord0 = { 0.654, 0.678, 0.712 }, inscatterEncoded = { 0.620, 0.711, 0.749 };
             for (int c = 0; c < 3; c++)
             {
                 double t = Math.Exp(-fine[c]);
-                double deck = Math.Pow(deckEncoded[c], 2.2), inscatter = Math.Pow(inscatterEncoded[c], 2.2);
-                double mixed = Math.Pow(FarViewMath.Fog(deck, 1.0, t, inscatter), 1.0 / 2.2);
-                Assert.IsTrue(mixed > deckEncoded[c] && mixed < inscatterEncoded[c], "channel " + c + " moves toward the in-scatter colour and not past it: " + mixed);
-                Assert.IsTrue(ord0[c] > deckEncoded[c], "ord0 is the lifted deck of the game (reference of the lift, not asserted against the mix)");
+                double lowStratiform = Math.Pow(lowStratiformEncoded[c], 2.2), inscatter = Math.Pow(inscatterEncoded[c], 2.2);
+                double mixed = Math.Pow(FarViewMath.Fog(lowStratiform, 1.0, t, inscatter), 1.0 / 2.2);
+                Assert.IsTrue(mixed > lowStratiformEncoded[c] && mixed < inscatterEncoded[c], "channel " + c + " moves toward the in-scatter colour and not past it: " + mixed);
+                Assert.IsTrue(ord0[c] > lowStratiformEncoded[c], "ord0 is the lifted low stratiform layer of the game (reference of the lift, not asserted against the mix)");
             }
         }
     }

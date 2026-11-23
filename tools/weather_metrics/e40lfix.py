@@ -4,23 +4,23 @@
   python tools/build_weather_player.py --series e40-lfix --no-build
   python tools/weather_metrics/e40lfix.py --selftest
 
-The rain deck L0 (Kerbin-weather-rain, the Fog and Stratus blend 96 to 594 m at type 0.229) at the high pick (map 0.859), alone, camera 264 m above the sea looking 18 degrees up
+The low stratiform rain layer L0 (Kerbin-weather-rain, the Fog and Stratus blend 96 to 594 m at type 0.229) at the high pick (map 0.859), alone, camera 264 m above the sea looking 18 degrees up
 (and straight up for the zenith). The variants carry the height variation through <input>/heights.json (HeightHook, the mod's own HeightMapBuilder):
   ctl  no entry (no height maps): the BEFORE case, the old numbers
   off  all four switches off (maps of zeros)
   dry  a dry place: root +500 m, top term +1200 m (the base stays above the floor)
   wet  the humid-place maximum: root -500 m (byte -104 of 127 of a 610 m range: -499.5), top term -144 m (an updraft of 0: byte -15 of 127 of 1200: -142 m), no variation, no ragged unit
 
-EXPECTED RESULTS, written before the first run (the unit test CloudInsideDeckTests gave: wet deck 0 to 355 m with the floor, -404 to -49 m without it; tau of the 18 degree ray through
-the wet deck 4.62 noise free; zenith tau of the deck at the high pick, min over 8 sites of the oracle, 8.77):
+EXPECTED RESULTS, written before the first run (the unit test CloudInsideLowStratiformTests gave: wet layer 0 to 355 m with the floor, -404 to -49 m without it; tau of the 18 degree ray through
+the wet layer 4.62 noise free; zenith tau of the layer at the high pick, min over 8 sites of the oracle, 8.77):
   F1  compiled: the shader with the three added lines compiles (the player builds); a compile error would fail the build.
-  F2  ctl, post and pre fix: closed share (tau >= 0.92) 1.000 at 8 sites, zenith tau >= 8.77 (the camera lies inside the deck 96 to 594 m; the part above the camera is 330 m).
-  F3  wet, PRE fix (b7ed89b3): the deck lies at -404 to -49 m, under the ground: closed share under 0.05, zenith tau under 0.05 (the game's 0.000).
-  F4  wet, POST fix: the deck lies at 0 to about 355 m, the camera (264 m) is inside it with 91 m of deck above: closed share at 18 degrees at least 0.95 (CPU 4.62 noise free), median tau
-      of the sky 3.5 to 5.5, zenith tau 1.0 to 2.0 (4.62 times sin 18 degrees = 1.43; it is not 8.77: the lifted deck is thinner above the camera).
+  F2  ctl, post and pre fix: closed share (tau >= 0.92) 1.000 at 8 sites, zenith tau >= 8.77 (the camera lies inside the layer 96 to 594 m; the part above the camera is 330 m).
+  F3  wet, PRE fix (b7ed89b3): the layer lies at -404 to -49 m, under the ground: closed share under 0.05, zenith tau under 0.05 (the game's 0.000).
+  F4  wet, POST fix: the layer lies at 0 to about 355 m, the camera (264 m) is inside it with 91 m of layer above: closed share at 18 degrees at least 0.95 (CPU 4.62 noise free), median tau
+      of the sky 3.5 to 5.5, zenith tau 1.0 to 2.0 (4.62 times sin 18 degrees = 1.43; it is not 8.77: the lifted layer is thinner above the camera).
   F5  off and dry, post against pre: tau planes of the aux jobs identical (maximum difference 0); the natural pictures of ctl, off, dry and of the four-layer stack identical (0 pixels
       differ); because the base stays above the floor (dry) or the offsets are zero (off) the shader's lift is 0.
-  F6  wet, post: the aid picture shows a closed grey deck over the whole sky; pre: the aid picture is clear.
+  F6  wet, post: the aid picture shows a closed grey layer over the whole sky; pre: the aid picture is clear.
 """
 import argparse
 import json
@@ -90,7 +90,7 @@ def spec(jid, variant):
     return base
 
 
-def deck_layer():
+def low_stratiform_layer():
     s = {x["name"]: x for x in e40o.kerbin_layers()}
     return e40o.job_layer(s[RAIN], e40o.const_map(MAP), e40o.const_map(TYPE))
 
@@ -108,13 +108,13 @@ def build_jobs():
     common = dict(planet=R, maxSteps=48, minStep=25.0, mapWidth=MAP_W, mapHeight=MAP_H)
     for v in VARIANTS:
         for site in range(SITES):
-            add(lay.job("lf-%s-p%d" % (v, site), "aux", e40o.camera(site), [deck_layer()], SIZE[0], SIZE[1], **common), v)
+            add(lay.job("lf-%s-p%d" % (v, site), "aux", e40o.camera(site), [low_stratiform_layer()], SIZE[0], SIZE[1], **common), v)
             zen = pr.Camera(e40o.site_position(site), 0.0, 90.0, 4, 4, 2.0)
-            add(lay.job("lz-%s-p%d" % (v, site), "aux", zen, [deck_layer()], 4, 4, **common), v)
+            add(lay.job("lz-%s-p%d" % (v, site), "aux", zen, [low_stratiform_layer()], 4, 4, **common), v)
     cam = e40o.camera(0, PIC)
     sun = lay.sun_vector(cam.pos, 120.0, 40.0)
     for v in VARIANTS:
-        add(lay.job("pic-%s" % v, "color", cam, [deck_layer()], PIC[0], PIC[1], sun=sun, jitter=1.0, earlyOut=0.01, sunSteps=3, productCost=1, **common), v)
+        add(lay.job("pic-%s" % v, "color", cam, [low_stratiform_layer()], PIC[0], PIC[1], sun=sun, jitter=1.0, earlyOut=0.01, sunSteps=3, productCost=1, **common), v)
     # The four layers of Kerbin together at the high pick (maps 0.8595 / 0.2058 / 0.6609 / 0.1774, types 0.229): the identity check of the stack.
     cam2 = e40o.camera(0, STACK)
     sun2 = lay.sun_vector(cam2.pos, 120.0, 40.0)

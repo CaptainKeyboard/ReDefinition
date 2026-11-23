@@ -8,7 +8,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
 {
     // Acceptance of package T18 on the CPU: the cloud shadow factor of a ray read from the pack (RtCloudRayMath, the law the ray shaders mirror) against the
     // cloud shadow of T04 (CloudShadowField.DirectTransmission, the raster side's definition) at five places chosen where the shadow is neither 0 nor 1:
-    // under a broken field, at an edge, under a deck, behind a layer pair, at the terminator. Limit written before the first run: 10 percent of the shadow
+    // under a broken field, at an edge, under a cloud layer, behind a layer pair, at the terminator. Limit written before the first run: 10 percent of the shadow
     // factor (relative), brief T18 acceptance "Shadow agreement". The T04 field uses 16 steps a span and the sun's centre (one disc sample), as the ray
     // side has one ray. The fields are read the way the stack reads them: 512 x 256 weather maps, bilinear (PackScenes.OnMap, PackScenes.Noise).
     [TestClass]
@@ -75,20 +75,20 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Place p1 = Find(broken, brokenField, "p1 broken field", Lat0, 0.0, 20.0, 0.05, 45.0, 90.0, 0.3, 0.7);
             Report(broken, brokenPack, brokenField, p1);
 
-            // p2 at an edge: a deck whose map edge is as sharp as the lattice allows (one texel from 0 to 1), the place where the shadow is half.
-            var edge = new LatLonSource(PackScenes.Kerbin).Add("deck", 1500, 3500, 3.0, PackScenes.OnMap((lat, lon) => Math.Abs(lat) < 30 && Math.Abs(lon) < 30 ? 1.0 : 0.0));
+            // p2 at an edge: a cloud layer whose map edge is as sharp as the lattice allows (one texel from 0 to 1), the place where the shadow is half.
+            var edge = new LatLonSource(PackScenes.Kerbin).Add("layer", 1500, 3500, 3.0, PackScenes.OnMap((lat, lon) => Math.Abs(lat) < 30 && Math.Abs(lon) < 30 ? 1.0 : 0.0));
             RtCloudPack edgePack = PackScenes.Bake(edge, edge.Tables());
             CloudShadowField edgeField = edge.Field(16);
             Place p2 = Find(edge, edgeField, "p2 edge", Lat0, 25.0, 33.0, 0.01, 45.0, 90.0, 0.35, 0.65);
             Report(edge, edgePack, edgeField, p2);
 
-            // p3 under a deck of optical depth 1.2: inside the box, the shadow is the slant depth everywhere.
-            var deck = new LatLonSource(PackScenes.Kerbin).Add("deck", 1500, 3500, 1.2, PackScenes.OnMap((lat, lon) => Math.Abs(lat) < 30 && Math.Abs(lon) < 30 ? 1.0 : 0.0));
-            RtCloudPack deckPack = PackScenes.Bake(deck, deck.Tables());
-            CloudShadowField deckField = deck.Field(16);
-            Report(deck, deckPack, deckField, new Place { Name = "p3 deck", Lat = 0.0, Lon = 0.0, Alt = 0.0, Elevation = 45.0, Azimuth = 90.0 });
+            // p3 under a cloud layer of optical depth 1.2: inside the box, the shadow is the slant depth everywhere.
+            var closedLayer = new LatLonSource(PackScenes.Kerbin).Add("layer", 1500, 3500, 1.2, PackScenes.OnMap((lat, lon) => Math.Abs(lat) < 30 && Math.Abs(lon) < 30 ? 1.0 : 0.0));
+            RtCloudPack closedLayerPack = PackScenes.Bake(closedLayer, closedLayer.Tables());
+            CloudShadowField closedLayerField = closedLayer.Field(16);
+            Report(closedLayer, closedLayerPack, closedLayerField, new Place { Name = "p3 closed layer", Lat = 0.0, Lon = 0.0, Alt = 0.0, Elevation = 45.0, Azimuth = 90.0 });
 
-            // p4 behind a layer pair: the broken low layer and a high deck of strength 0.8, one sun ray through both.
+            // p4 behind a layer pair: the broken low layer and a high cloud layer of strength 0.8, one sun ray through both.
             var pair = new LatLonSource(PackScenes.Kerbin).Add("low", 1500, 3500, 1.5, PackScenes.Noise(11, 12))
                                                          .Add("high", 7000, 8000, 0.5, PackScenes.OnMap((lat, lon) => Math.Abs(lat) < 60 && Math.Abs(lon) < 60 ? 1.0 : 0.0));
             pair.LayerAt(1).ShadowStrength = 0.8f;
@@ -185,7 +185,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
         public void ARayFromInsideTheShellSeesTheShareAboveIt()
         {
             // A receiver in the middle of a 2 km thick slab sees half of its depth along the vertical (uniform density in this test).
-            var s = new LatLonSource(PackScenes.Kerbin).Add("deck", 1500, 3500, 2.0, (a, b) => 1.0);
+            var s = new LatLonSource(PackScenes.Kerbin).Add("layer", 1500, 3500, 2.0, (a, b) => 1.0);
             RtCloudPack pack = PackScenes.Bake(s, s.Tables());
             double x, y, z, sx, sy, sz;
             s.Position(0.0, 0.0, 2500.0, out x, out y, out z);
@@ -197,14 +197,14 @@ namespace ReDefinition.Tests.Atmospheres.T18
         [TestMethod]
         public void TheSunBelowTheHorizonIsCutAtTheBodyAndAGasGiantIsNot()
         {
-            var s = new LatLonSource(PackScenes.Kerbin).Add("deck", 1500, 3500, 2.0, (a, b) => 1.0);
+            var s = new LatLonSource(PackScenes.Kerbin).Add("layer", 1500, 3500, 2.0, (a, b) => 1.0);
             RtCloudPack pack = PackScenes.Bake(s, s.Tables());
             double x, y, z, sx, sy, sz;
             s.Position(0.0, 0.0, 5.0, out x, out y, out z);
             LatLonSource.SunTowards(0.0, 0.0, -20.0, 0.0, out sx, out sy, out sz);
             Assert.AreEqual(1.0, RtCloudRayMath.LightTransmission(pack, x, y, z, sx, sy, sz), 1e-9, "the ray meets the planet at once");
             Assert.AreEqual(s.Field(16).DirectTransmission(x, y, z, sx, sy, sz), 1.0, 1e-9);
-            var giant = new LatLonSource(PackScenes.Kerbin, false).Add("deck", 1500, 3500, 2.0, (a, b) => 1.0);
+            var giant = new LatLonSource(PackScenes.Kerbin, false).Add("layer", 1500, 3500, 2.0, (a, b) => 1.0);
             RtCloudPack giantPack = PackScenes.Bake(giant, giant.Tables());
             Assert.IsTrue(RtCloudRayMath.LightTransmission(giantPack, x, y, z, sx, sy, sz) < 1.0);
         }

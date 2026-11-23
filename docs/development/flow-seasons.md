@@ -123,7 +123,7 @@ A storm is a cell that stands on the planet.
    two types around a fractional index). A layer with a Stratus type that starts below 3000 m
    is the body layer: its cell type is Cumulus (`BodyCellTypeNames`; eight times the density of
    Stratus, 0.012 against 0.0015, and 1000 m taller), because with Stratus the cell was not told
-   from the overcast deck at 25 km. The layer's base and top stay the deck's (1750 and 3450 m).
+   from the overcast stratus layer at 25 km. The layer's base and top stay the stratus layer's (1750 and 3450 m).
    The cumulonimbus layer and the stock snow particle layers are left alone. The layers' maps are
    BC4 textures (8192 x 4096 base layer, 2048 x 1024 weather layers). EVE reads them on the CPU
    too (`TextureWrapper.Sample` calls `GetPixelBilinear`, for `SampleCoverage` and the particle

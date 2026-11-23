@@ -95,11 +95,11 @@ namespace ReDefinition.Atmospheres.Viewer
                 KeyMarker.Live, 0f, 64f);
             r.Key(CloudLookTuning.TuneLvFillRatio, 1.15f, KeySection.Light, "light volume: growth of each fill tap over the one before", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 4f);
             r.Key(MapSkyRegions.TuneStratiformRule, MapSkyRegions.StratiformRuleDefault, KeySection.Shape,
-                "weather map sky: a sheet at no saturated level (0 the most humid level, 1 a deck at the condensation level, 2 the deck map)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 2f);
+                "weather map sky: a sheet at no saturated level (0 the most humid level, 1 a stratiform layer at the condensation level, 2 the low stratiform map)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 2f);
             r.Key(MapSkyRegions.TuneDepthRule, MapSkyRegions.DepthRuleDefault, KeySection.Shape,
                 "weather map sky: the cumuliform depth (1 the field's depth, 2 the calibrated depth)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);
-            r.Key(MapSkyRegions.TuneDeckBase, MapSkyRegions.DeckBaseDefault, KeySection.Shape,
-                "weather map sky: the rain and snow deck's base from the field (1; its fog stays on the ground), 0 the deck's cfg type shares", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
+            r.Key(MapSkyRegions.TuneLowStratiformBase, MapSkyRegions.LowStratiformBaseDefault, KeySection.Shape,
+                "weather map sky: the low stratiform rain and snow layer's base from the field (1; its fog stays on the ground), 0 the layer's cfg type shares", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
             r.Key(CloudHeightScale.TuneOn, CloudHeightScale.OnDefault, KeySection.Shape,
                 "height scale: 1 every cloud height a share of the body's measured troposphere (the sizes follow), 0 the layers as written", KeyLiveness.Second, KeyMarker.Live, 0f, 1f);
             r.Key(CloudHeightScale.TuneFactor, CloudHeightScale.FactorDefault, KeySection.Shape,
@@ -119,7 +119,7 @@ namespace ReDefinition.Atmospheres.Viewer
             // OPT1: the map pipeline (the maps always slew on the GPU since cleanup 2 E). cloud.mapWorker is read when each steady-state round starts, so a change acts
             // within about a second.
             r.Flag(OwnCloudModule.TuneMapWorker, true, KeySection.Quality,
-                "the preparation of the cloud maps (deck rule, meso stage, anvils) runs on a worker thread instead of the main thread", KeyLiveness.Second);
+                "the preparation of the cloud maps (low stratiform rule, meso stage, anvils) runs on a worker thread instead of the main thread", KeyLiveness.Second);
 
             // CLOUDR3 P7: read every frame (OwnCloudOptions.Apply(ReconSettings) -> LayerReconstructor, _ReconK.w).
             r.Flag(OwnCloudOptions.TuneCatmull, OwnCloudOptions.CatmullDefault, KeySection.Quality,

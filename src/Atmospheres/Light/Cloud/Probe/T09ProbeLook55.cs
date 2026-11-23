@@ -10,13 +10,13 @@ namespace ReDefinition.Atmospheres
     //   low cover, ground view   off, off2, then
     //     (a) colour    the frames ca02t0 (light.ambientOcclusion 0.02), caDt0 (the default 1.2765), cair (the sun's
     //                   path through Scatterer's air), ce14 (exposure 1.4), csky0 / csky1 (light.skyTint 0 / 1 against 0.7), caDt0b (the repeat of caDt0: the floor)
-    //     (d) fog rule  set C5 with layer 0 alone (wC5o0) and all layers (kC5), each with cloud.typeFair.<rain deck> 0.5 forced (...f), the optical depth of the layer-alone pair
+    //     (d) fog rule  set C5 with layer 0 alone (wC5o0) and all layers (kC5), each with cloud.typeFair.<low stratiform rain layer> 0.5 forced (...f), the optical depth of the layer-alone pair
     //     (c) grain     the variants gacc (the default) and gleapacc (layers.gridFine 4 + layers.emptyLeap 4), three frames each (T09ProbeGrain.DiagLookG, rows grain_*)
     //     cost windows  35 s each of off / plain / leap / shape0 (shadow.shapeNoise 0) between "T09 view begin / end" lines: the GPU profiler's reports are read by kt2.py
     //   low cover, horizon pose  off, off2, the order pair in the order 1, 0, 0, 1 with the row profile (b)
     //   low cover, above view    off, the order frames ord1 / ord0, hh1 / hh2 (the pass's own aerial perspective at strength 1 and 2) (b), kC5 / kC5f (d), the grain pair (c),
     //                            sh1 / sh0 (shadow.shapeNoise 1 / 0: the cloud shadow on the sea) (e), cost windows off / plain / leap
-    //   high cover (only while the scenario is early enough)  the cumulonimbus layer alone at the ground view and the rain deck alone from 2.3 km with cloud.layerNoiseSizeScale.<layer>
+    //   high cover (only while the scenario is early enough)  the cumulonimbus layer alone at the ground view and the low stratiform rain layer alone from 2.3 km with cloud.layerNoiseSizeScale.<layer>
     //                    1 / 0.1 / 0.05, natural and optical depth (f)
     // The rows of every frame as in the other look starts: T09d.<view>.<cover>.<frame>.*. The frames' names are the picture names.
     internal sealed partial class T09Probe
@@ -28,8 +28,8 @@ namespace ReDefinition.Atmospheres
         private const double Look55AboveGrainUntilS = 11 * 60, Look55AboveCostUntilS = 12 * 60, Look55HighUntilS = 12.5 * 60;
         private static readonly string[] Look55GrainTags = { "gacc", "gleapacc" };
         private static readonly float[] Look55NoiseScales = { 1f, 0.1f, 0.05f };
-        // The rain deck of the shipped cfg (its fair-weather type is the fog deck of the owner's complaint).
-        private const string Look55RainDeck = "Kerbin-weather-rain";
+        // The low stratiform rain layer of the shipped cfg (its fair-weather type is the fog layer of the owner's complaint).
+        private const string Look55RainLayer = "Kerbin-weather-rain";
 
         private struct Look55Frame
         {
@@ -76,7 +76,7 @@ namespace ReDefinition.Atmospheres
                 yield break;
             }
             foreach (ProbeWait w in Look55NoiseScale(Views[0], cover, lat, lon, "Kerbin-cumulonimbus")) yield return w;
-            foreach (ProbeWait w in Look55NoiseScale(DeckMidView, cover, lat, lon, Look55RainDeck)) yield return w;
+            foreach (ProbeWait w in Look55NoiseScale(LowStratiformMidView, cover, lat, lon, Look55RainLayer)) yield return w;
         }
 
         // The baseline frames of a view: the pass runs, no layer is drawn (off), and a second one (off2) where the noise floor of the view is wanted. diagReading of the first is returned in look55Off.
@@ -116,11 +116,11 @@ namespace ReDefinition.Atmospheres
             T09LookInput input = Game.ReadLookInput();
             if (input == null) Warn("no_look_input", head + "the pass has no layer stack to read: the expectation rows are missing");
             else EmitLookMapProfile(head, view, input);
-            // (a) the colour of the deck's underside.
+            // (a) the colour of the layer's underside.
             foreach (Look55Frame f in Look55Colours)
                 foreach (ProbeWait w in Look55Take(view, cover, head, f.Tag, off, f.Keys, 0.0)) yield return w;
             ClearForced();
-            // (d) the fog rule: layer 0 alone and all layers, set C5, without and with cloud.typeFair.<rain deck> 0.5.
+            // (d) the fog rule: layer 0 alone and all layers, set C5, without and with cloud.typeFair.<low stratiform rain layer> 0.5.
             foreach (ProbeWait w in Look55FogFrames(view, cover, head, off, true)) yield return w;
             // (c) the grain pair and the cost windows of the pair, the plain pass and the shadow's shape noise.
             foreach (ProbeWait w in DiagLookG(view, cover, Look55GrainTags, "goff")) yield return w;
@@ -129,7 +129,7 @@ namespace ReDefinition.Atmospheres
             foreach (ProbeWait w in Look55CostWindows(view, cover, true)) yield return w;
         }
 
-        // (d): the fog deck. wC5o0 is the rain deck alone under the set C5 (the frame of start 51); kC5 draws every layer. The fair-weather type of the rain deck forced to 0.5 turns it
+        // (d): the fog layer. wC5o0 is the low stratiform rain layer alone under the set C5 (the frame of start 51); kC5 draws every layer. The fair-weather type of the low stratiform rain layer forced to 0.5 turns it
         // from its fog type to the stratus that the precipitation level 0 would not give.
         private IEnumerable<ProbeWait> Look55FogFrames(View view, string cover, string head, T09Readout.Reading off, bool layerAlone)
         {
@@ -139,7 +139,7 @@ namespace ReDefinition.Atmospheres
                 if (layerAlone)
                 {
                     ApplyLookKeys(c5, 0f);
-                    if (fair) ForceTuning(CloudLookTuning.TuneTypeFair + Look55RainDeck, 0.5f);
+                    if (fair) ForceTuning(CloudLookTuning.TuneTypeFair + Look55RainLayer, 0.5f);
                     Game.SetLayerMask(1 << 0);
                     string alone = "wC5o0" + (fair ? "f" : "");
                     foreach (ProbeWait w in LookFrame(view, cover, head, alone, off, LookTypeSettleS, 0)) yield return w;
@@ -147,7 +147,7 @@ namespace ReDefinition.Atmospheres
                     Game.SetLayerMask(0);
                 }
                 ApplyLookKeys(c5, 0f);
-                if (fair) ForceTuning(CloudLookTuning.TuneTypeFair + Look55RainDeck, 0.5f);
+                if (fair) ForceTuning(CloudLookTuning.TuneTypeFair + Look55RainLayer, 0.5f);
                 foreach (ProbeWait w in LookFrame(view, cover, head, "kC5" + (fair ? "f" : ""), off, LookTypeSettleS)) yield return w;
             }
             // The types slew back to their own values at 0.08 a second: the frames after this wait for it.

@@ -122,7 +122,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double s = 7.5 / 10.5;
             second = new CloudLayerDef(second.Name, 0, (float)(home.InnerAltitudeM * s), (float)(home.OuterAltitudeM * s), second.Types, second.SigmaPerM, second.Kind)
             { Coverage = home.Coverage, EdgeSoftness = home.EdgeSoftness, NoiseAmount = home.NoiseAmount, NoiseScaleM = home.NoiseScaleM, RainType = home.RainType, AnvilType = home.AnvilType,
-              AnvilSeconds = home.AnvilSeconds, AnvilUpdraftMs = home.AnvilUpdraftMs, AnvilScale = home.AnvilScale, Deck = home.Deck, SoftnessScale = home.SoftnessScale, WaterPower = home.WaterPower };
+              AnvilSeconds = home.AnvilSeconds, AnvilUpdraftMs = home.AnvilUpdraftMs, AnvilScale = home.AnvilScale, LowStratiform = home.LowStratiform, SoftnessScale = home.SoftnessScale, WaterPower = home.WaterPower };
             byte[] c1, t1, c2, t2;
             AnvilMap.Report a = Run(home, 600000.0, 12.0, 1.0, 0.0, out c1, out t1);
             AnvilMap.Report b = Run(second, 300000.0, 12.0, 1.0, 0.0, out c2, out t2);

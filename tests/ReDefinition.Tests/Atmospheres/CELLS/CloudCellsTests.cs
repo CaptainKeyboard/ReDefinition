@@ -30,7 +30,7 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
         [TestMethod]
         public void TheDiscsCoverTheShareTheTablePromises()
         {
-            // Up to a share of 0.45 no disc reaches the radius cap; above it the cap takes a little (the deck blend takes over at 0.8).
+            // Up to a share of 0.45 no disc reaches the radius cap; above it the cap takes a little (the closed-layer blend takes over at 0.8).
             foreach (double f in new[] { 0.05, 0.15, 0.25, 0.35, 0.45 })
             {
                 double c = Covered(f, 40000, 7);
@@ -85,10 +85,10 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
         }
 
         [TestMethod]
-        public void TheCoverIsTheMapAboveTheDeckShare()
+        public void TheCoverIsTheMapAboveTheClosedLayerShare()
         {
             double reach, wMap;
-            // A map value whose share is 1 (a narrow noise swing, 0.1, keeps the whole ramp above the edge): the deck, the map's own value.
+            // A map value whose share is 1 (a narrow noise swing, 0.1, keeps the whole ramp above the edge): the closed cloud layer, the map's own value.
             Assert.AreEqual(1.0, CloudCells.Share(1.0, 0.35, 0.15, 0.1), 1e-9);
             double c = CloudCells.Cover(1.0, 0.3, 0.5, Pitch, Rm, 0.35, 0.15, 0.1, 0.0, Seed, out reach, out wMap);
             Assert.AreEqual(1.0, wMap, 1e-9);

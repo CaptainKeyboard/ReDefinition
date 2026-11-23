@@ -83,7 +83,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(begin >= 0 && end > begin, id + " has a begin and an end line");
                 if (!id.StartsWith("off_", StringComparison.Ordinal))
                 {
-                    Assert.IsTrue(Number(r, "T09d." + view + ".k3." + id + ".deck_median", id) > 0, id + " has a deck in its numeric frame");
+                    Assert.IsTrue(Number(r, "T09d." + view + ".k3." + id + ".cloud_median", id) > 0, id + " has a cloud in its numeric frame");
                     Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view + "_k3-" + id + "-1707x960-natural-half")), id + " natural picture");
                     Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view + "_k3-aid1" + id + "-1707x960-aid-direct-half")), id + " aid picture");
                 }

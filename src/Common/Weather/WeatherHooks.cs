@@ -45,7 +45,7 @@ namespace ReDefinition.Core
         // The host's caps. One writer: the host.
         public static readonly WeatherRenderCaps Caps = new WeatherRenderCaps();
 
-        // The vertical optical depth of the clouds at a place (latitude, longitude, altitude, UT), filled by the host when EVE's decks are
+        // The vertical optical depth of the clouds at a place (latitude, longitude, altitude, UT), filled by the host when EVE's cloud layers are
         // present. Null means there are none.
         public static Func<double, double, double, double, float> CloudOpticalDepth;
 

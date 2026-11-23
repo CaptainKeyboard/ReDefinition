@@ -494,7 +494,7 @@ namespace ReDefinition.Atmospheres
             double x = (cov + (n - 0.5) * noiseAmount + coverage - 1.0) / edge + 0.5;
             double s = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
             if (s <= 0.0 || erosion <= 0.0 || !fine) return s;
-            // The erosion is read only in the soft edge, a closed deck (s = 1) keeps the share 1.
+            // The erosion is read only in the soft edge, a closed cloud layer (s = 1) keeps the share 1.
             if (s >= 1.0) return s;
             double lod = DetailLod(ref prm, footM);
             double d = set.DetailMean;

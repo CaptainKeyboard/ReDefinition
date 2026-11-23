@@ -365,7 +365,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 tp = localTop;
             }
             // M2c: the stratiform types' undulations swing the type's THICKNESS (its top; the base stays even), before the height test so that the leap's gap and the light
-            // path see the same shape (off while _UndulatusP.x is 0 or the type has no undulatus depth: the deck of before, bit for bit).
+            // path see the same shape (off while _UndulatusP.x is 0 or the type has no undulatus depth: the layer of before, bit for bit).
             float undulatusAmount = _UndulatusP.x * lerp(TypeUndulatusOf(li, ta), TypeUndulatusOf(li, tb), f);
             [branch] if (undulatusAmount > 0.0) tp = b + (tp - b) * UndulatusFactor(li, pc, undulatusAmount, outer - inner);
             if (share < b || share > tp || tp <= b)
@@ -396,7 +396,7 @@ Shader "ReDefinition/AtmospheresLayers"
             }
 #endif
             cov -= pf.a * (coverage + CoverageNoiseBound(li) + 0.5 * edge);   // E40 CB step 0: the lift in units of the layer's headroom (LayerTypeTable.LiftHeadroom), 1 closes every column
-            // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the deck and the far view): its own height shape
+            // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the closed cloud layer and the far view): its own height shape
             // replaces the type's lift, so the lift's bound below is not asked; outside the body the share is 0.
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
@@ -539,7 +539,7 @@ Shader "ReDefinition/AtmospheresLayers"
             [loop] for (int k = 0; k < 8; k++)
             {
                 if (k >= n) break;
-                // TDR (K-T2 2026-11-16/17: the driver reset at the first frames inside the deck): every stop is written so that a value that is not a number stops the ray. A NaN fails
+                // TDR (K-T2 2026-11-16/17: the driver reset at the first frames inside the low stratiform rain layer): every stop is written so that a value that is not a number stops the ray. A NaN fails
                 // every comparison, so "T < threshold" never ended a ray whose transmittance was NaN, and "t >= end" never ended one whose position was: it ran all 8 x 512 steps with a
                 // light march at each, seconds per frame.
                 if (!(T >= _MarchP.w)) break;
@@ -1105,7 +1105,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 else
                 {
                     // The segment from the voxel centre along the sun up to the next slice's altitude; the slice above is read where the sun ray crosses it. The top slice
-                    // marches directly (layers that are not lit by the march, a cirrus deck above the lit ones, can reach above the volume's altitude range and still shade).
+                    // marches directly (layers that are not lit by the march, a cirrus layer above the lit ones, can reach above the volume's altitude range and still shade).
                     bool top = _LvSlice.x > _LvZ.z - 1.5;
                     float r0 = _PlanetR + alt, rUp = r0 + sliceH;
                     float b = dot(p, s);

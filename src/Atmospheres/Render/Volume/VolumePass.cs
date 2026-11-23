@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Atmospheres
 {
-    // The volume pass in the game: storm cores, shelf and anvil, towering cells and deck slabs raymarched from the weather field's local
+    // The volume pass in the game: storm cores, shelf and anvil, towering cells and layer slabs raymarched from the weather field's local
     // 3D window (WeatherHub.Field.FillWindow), and the precipitation praecipitatio under the cores (PraecipitatioPass). No EVE layer is read: the pass
     // draws the clouds of a body whose cloudSource is Ours, the praecipitatio is drawn whatever the source is while the level gate is open.
     //
@@ -53,7 +53,7 @@ namespace ReDefinition.Atmospheres
         // The window the pass last built from: the CPU-side density sampled by D32 (light in medium) and the tests.
         internal static VolumePass Instance { get { return instance; } }
 
-        // The share of the volume's cloud water at a world position, 0 to 1 (the window's normalised cloud water times the deck coverage
+        // The share of the volume's cloud water at a world position, 0 to 1 (the window's normalised cloud water times the layer coverage
         // there), evaluated on the CPU from the same voxels the shader reads. Zero where the pass is off or the position is outside the
         // window. An approximation of the drawn density, for the light-in-medium package.
         internal static float DensityAt(Vector3 worldPos)
@@ -65,7 +65,7 @@ namespace ReDefinition.Atmospheres
             float h = VolumeMath.CurvedHeight(up, east * east + north * north, p.frame.Curvature);
             float water = p.resampler.SampleCloudWater(east, north, h);
             float coverage = p.resampler.SampleCoverage(east, north);
-            return water > 0f ? water : coverage * p.frame.DeckWater * 0.25f * (h > 0f && h < p.frame.HeightM ? 1f : 0f);
+            return water > 0f ? water : coverage * p.frame.LayerSlabWater * 0.25f * (h > 0f && h < p.frame.HeightM ? 1f : 0f);
         }
 
         public void Init()
@@ -201,7 +201,7 @@ namespace ReDefinition.Atmospheres
             }
             renderer = r;
             resampler = new VolumeWindowResampler(tier.WindowXz, tier.WindowY);
-            resampler.FillDeckMapUniform(0f, 0f);
+            resampler.FillLayerSlabMapUniform(0f, 0f);
             builtTier = tierIndex;
             string praecipitatioError;
             Shader praecipitatioShader = AtmosphereShaders.Get(StormShaders.VolumeShaderName, out praecipitatioError);
@@ -348,7 +348,7 @@ namespace ReDefinition.Atmospheres
             f.SunTaps = tier.SunTaps;
             f.Curl = tier.Curl;
             f.Powder = true;
-            f.Deck = true;
+            f.LayerSlab = true;
             f.KeyedDither = true;
         }
 

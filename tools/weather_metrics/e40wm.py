@@ -6,7 +6,7 @@
     python tools/weather_metrics/e40wm.py --selftest
 
 The scene of e40gc.py's l4ground / l4above (the four layers of Clouds-Kerbin.cfg in fair weather, the same two cameras) with maps that are NOT constant: every layer's coverage map is a
-512 x 256 field (the size of the generator's maps) with the statistics of a fair-weather sky: the rain deck holds a few small patches of cover far from the camera, the cumulus
+512 x 256 field (the size of the generator's maps) with the statistics of a fair-weather sky: the low stratiform rain layer holds a few small patches of cover far from the camera, the cumulus
 layer broad cells, the cumulonimbus layer a few isolated cells, the cirrus layer streaks over a third of the globe. Each layer has cover SOMEWHERE inside the horizon and is
 empty along most rays; this is the case the game start soft59 showed (the layer drop, layers.dropEmpty, left out 0 of 4 layers and is gone) and the constant maps of e40gc.py cannot show.
 The views are named r4ground and r4above; a case is a SoftTable case (see e40wv.py).
@@ -149,7 +149,7 @@ def selftest():
     assert a.shape == (MAP_H, MAP_W) and a.dtype == np.uint8
     b = field(23, 0.28, 0.30, 26, 3)
     assert b.max() > b.min() and abs(float(b.mean()) / 255.0 - 0.28) < 0.12
-    print("selftest passed (rain deck max %.2f, cumulus mean %.2f)" % (a.max() / 255.0, b.mean() / 255.0))
+    print("selftest passed (low stratiform rain layer max %.2f, cumulus mean %.2f)" % (a.max() / 255.0, b.mean() / 255.0))
 
 
 ensure_inputs()

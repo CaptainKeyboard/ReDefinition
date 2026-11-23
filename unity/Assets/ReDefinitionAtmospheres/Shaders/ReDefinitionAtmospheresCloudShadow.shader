@@ -245,7 +245,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float h = (share - b) / (tp - b);
             float2 pf = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
             // CLOUD FIELD: the layer pass's single clouds (FieldCloud, CloudCells.cginc), so the shadow on the ground is cast by the clouds the sky shows. The shadow's points are far from
-            // the march's spacing (no foot): only the deck hands the map's own value over.
+            // the march's spacing (no foot): only the closed cloud layer hands the map's own value over.
 #if !defined(CLOUD_LATTICE)
             int puff = (int)(f < 0.5 ? TypePuff(li, ta) : TypePuff(li, tb));
             [branch] if (puff > 0 && slice >= 0)

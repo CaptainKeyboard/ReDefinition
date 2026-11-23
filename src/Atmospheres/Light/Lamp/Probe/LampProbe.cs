@@ -40,7 +40,7 @@ namespace ReDefinition.Atmospheres
         internal const string SeriesId = "K-W3b";
         private static readonly string[] Sources = { "fog", "precip", "cloud", "dust" };
 
-        // The test floor of the cloud variant, the density of a thick EVE deck.
+        // The test floor of the cloud variant, the density of a thick EVE cloud layer.
         private const float ForcedCloud = 0.8f;
         private const int PointCount = 8;
         private const double PointFrom = 0.15, PointTo = 0.75;

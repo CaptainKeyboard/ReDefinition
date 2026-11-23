@@ -65,7 +65,7 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheHorizonDistanceOfADeckIsTheTangentLengthAndTheDipAngleIsTheCosineRule()
+        public void TheHorizonDistanceOfACloudLayerIsTheTangentLengthAndTheDipAngleIsTheCosineRule()
         {
             double h = 2000.0;
             Assert.AreEqual(Math.Sqrt(2.0 * R * h + h * h), LayerGeometry.HorizonDistance(R, h), 1e-9);
@@ -259,9 +259,9 @@ namespace ReDefinition.Tests
         public void TheOpticalDepthDoesNotDependOnTheCameraBeingInsideThroughOrAboveTheShell()
         {
             var s = new LayerStackSource(0, R, true);
-            s.Add(new CloudLayerDef("deck", 0, 1700f, 2500f, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, 0.01f), null, null);
+            s.Add(new CloudLayerDef("layer", 0, 1700f, 2500f, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, 0.01f), null, null);
             LayerTypeTable[] t = s.Tables();
-            // The whole deck, from below and from above, vertically: sigma * 800.
+            // The whole layer, from below and from above, vertically: sigma * 800.
             Assert.AreEqual(8.0, LayerStack.OpticalDepth(s, t, 0, 0, 0, R + 2.0, 0, 0, 1, double.MaxValue, 128), 1e-3);
             Assert.AreEqual(8.0, LayerStack.OpticalDepth(s, t, 0, 0, 0, R + 8000.0, 0, 0, -1, 8000.0, 128), 1e-3);
             // From inside at 2000 m: up 500 m, down 300 m.

@@ -7,11 +7,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
     [TestClass]
     public class WeatherMapSkyTests
     {
-        private static WeatherMapSky.Columns One(float cumuliform, float sheet, float baseM, float topM, float rhLow, float rhMid, float rhHigh, float precip = 0f, float deck = 0f)
+        private static WeatherMapSky.Columns One(float cumuliform, float sheet, float baseM, float topM, float rhLow, float rhMid, float rhHigh, float precip = 0f, float lowStratiform = 0f)
         {
             return new WeatherMapSky.Columns
             {
-                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Stratiform = new[] { sheet }, Deck = new[] { deck }, BaseM = new[] { baseM }, TopM = new[] { topM },
+                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Stratiform = new[] { sheet }, LowStratiform = new[] { lowStratiform }, BaseM = new[] { baseM }, TopM = new[] { topM },
                 RhLow = new[] { rhLow }, RhMid = new[] { rhMid }, RhHigh = new[] { rhHigh }, PrecipMmH = new[] { precip }
             };
         }
@@ -27,7 +27,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheRolesOfKerbinsLayersAreFound()
         {
             CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
-            Assert.AreEqual(WeatherMapSky.Role.Deck, WeatherMapSky.RoleOf(layers[0]));
+            Assert.AreEqual(WeatherMapSky.Role.LowStratiform, WeatherMapSky.RoleOf(layers[0]));
             Assert.AreEqual(WeatherMapSky.Role.Cumuliform, WeatherMapSky.RoleOf(layers[1]));
             Assert.AreEqual(WeatherMapSky.Role.Tall, WeatherMapSky.RoleOf(layers[2]));
             Assert.AreEqual(WeatherMapSky.Role.High, WeatherMapSky.RoleOf(layers[3]));
@@ -75,10 +75,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(153, high.Cover[3][0]);
             WeatherMapSky.Result low = Build(layers, One(0f, 0.6f, 1500f, 1500f, 0.8f, 0.5f, 0.5f));
             Assert.AreEqual(153, low.Cover[0][0]);
-            Assert.AreEqual(128, low.Type[0][0], "stratus, the deck's precipitation type 0.5");
+            Assert.AreEqual(128, low.Type[0][0], "stratus, the low stratiform layer's precipitation type 0.5");
             Assert.AreEqual(0, low.Cover[1][0]);
             WeatherMapSky.Result nimbo = Build(layers, One(0.1f, 0.8f, 600f, 900f, 1f, 1f, 1f, 3f, 0.6f));
-            Assert.AreEqual(255, nimbo.Type[0][0], "all levels saturated, rain, the deck dominating: nimbostratus");
+            Assert.AreEqual(255, nimbo.Type[0][0], "all levels saturated, rain, the low stratiform layer dominating: nimbostratus");
         }
 
     }

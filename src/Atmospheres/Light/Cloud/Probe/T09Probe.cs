@@ -990,7 +990,7 @@ namespace ReDefinition.Atmospheres
         // --- The clock --------------------------------------------------------------------------------------------------------------------
 
         private string utFailure;
-        // The cover the clock aims at (the field's at 3 km): a covered sky that is not a closed sheet either (K-T2d start 45: 0.67 gave discrete cumulus, 0.47 a closed deck).
+        // The cover the clock aims at (the field's at 3 km): a covered sky that is not a closed sheet either (K-T2d start 45: 0.67 gave discrete cumulus, 0.47 a closed cloud layer).
         private const double CoverTarget = 0.65;
         private bool utNarrow;
         // -t09TvcCover: TVC's own cover over the site at the chosen time (NaN where not asked for), and the frames EVE's layers get to follow a jump of the clock.

@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // The numeric readout of series K-T2d (T09Readout): the horizon row from the camera's pitch, the three regions, the percentiles, the deck against the baseline and the
+    // The numeric readout of series K-T2d (T09Readout): the horizon row from the camera's pitch, the three regions, the percentiles, the cloud layer against the baseline and the
     // ratios, on pictures whose answer is known by construction.
     [TestClass]
     public class T09ReadoutTests
@@ -64,8 +64,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.8, r.Ground.Median, 1e-5);
             Assert.AreEqual(0.4, r.Sky.R, 1e-5);
             Assert.AreEqual(9f, r.Peak, 1e-5, "the peak of the picture still sees the vessel");
-            Assert.AreEqual(0, r.Deck.Count, "no baseline, no deck");
-            Assert.AreEqual(0.0, r.DeckFraction);
+            Assert.AreEqual(0, r.Cloud.Count, "no baseline, no cloud region");
+            Assert.AreEqual(0.0, r.CloudFraction);
         }
 
         [TestMethod]
@@ -81,25 +81,25 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheDeckIsWhereTheFrameDiffersFromTheBaselineAndTheRatiosUseTheBaseline()
+        public void TheCloudIsWhereTheFrameDiffersFromTheBaselineAndTheRatiosUseTheBaseline()
         {
             Color[] off = Picture((u, v) => v > 0.5 ? Grey(0.5f) : Grey(0.7f));
-            // The pass paints a dark deck over the left third of the picture (sky and sea alike) and leaves the rest.
+            // The pass paints a dark cloud layer over the left third of the picture (sky and sea alike) and leaves the rest.
             Color[] on = Picture((u, v) => u < 0.33 ? Grey(0.05f) : (v > 0.5 ? Grey(0.5f) : Grey(0.7f)));
             T09Readout.Reading baseline = T09Readout.Measure(off, W, H, 0.5, null);
             T09Readout.Reading r = T09Readout.Measure(on, W, H, 0.5, baseline);
-            Assert.IsTrue(r.Deck.Count > 100);
-            Assert.AreEqual(0.05, r.Deck.Median, 1e-5);
-            Assert.AreEqual(0.33, r.DeckFraction, 0.06);
-            Assert.AreEqual(0.1, T09Readout.Ratio(r.Deck.Median, r.Deck.Count, baseline.Sky.Median, baseline.Sky.Count), 1e-4, "deck over the off sky");
-            Assert.AreEqual(0.05 / 0.7, T09Readout.Ratio(r.Deck.Median, r.Deck.Count, baseline.Ground.Median, baseline.Ground.Count), 1e-4, "deck over the off sea, the white reference");
+            Assert.IsTrue(r.Cloud.Count > 100);
+            Assert.AreEqual(0.05, r.Cloud.Median, 1e-5);
+            Assert.AreEqual(0.33, r.CloudFraction, 0.06);
+            Assert.AreEqual(0.1, T09Readout.Ratio(r.Cloud.Median, r.Cloud.Count, baseline.Sky.Median, baseline.Sky.Count), 1e-4, "cloud layer over the off sky");
+            Assert.AreEqual(0.05 / 0.7, T09Readout.Ratio(r.Cloud.Median, r.Cloud.Count, baseline.Ground.Median, baseline.Ground.Count), 1e-4, "cloud layer over the off sea, the white reference");
             Assert.AreEqual(0.5, r.Sky.Median, 1e-5, "the sky region's median is the unpainted part (two thirds of it)");
-            // The same picture as its own baseline has no deck.
-            Assert.AreEqual(0, T09Readout.Measure(off, W, H, 0.5, baseline).Deck.Count);
+            // The same picture as its own baseline has no cloud region.
+            Assert.AreEqual(0, T09Readout.Measure(off, W, H, 0.5, baseline).Cloud.Count);
         }
 
         [TestMethod]
-        public void AMaskReplacesTheDeckTest()
+        public void AMaskReplacesTheCloudTest()
         {
             Color[] raw = Picture((u, v) => new Color(0.3f, 0.5f, 0.1f, 1f));
             var mask = new bool[W * H];
@@ -108,10 +108,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 for (int x = 0; x < W / 2; x++) mask[y * W + x] = true;
             }
             T09Readout.Reading r = T09Readout.Measure(raw, W, H, 0.5, null, mask);
-            Assert.IsTrue(r.Deck.Count > 100);
-            Assert.AreEqual(0.3, r.Deck.R, 1e-5);
-            Assert.AreEqual(0.5, r.Deck.G, 1e-5);
-            Assert.AreEqual(0.1, r.Deck.B, 1e-5);
+            Assert.IsTrue(r.Cloud.Count > 100);
+            Assert.AreEqual(0.3, r.Cloud.R, 1e-5);
+            Assert.AreEqual(0.5, r.Cloud.G, 1e-5);
+            Assert.AreEqual(0.1, r.Cloud.B, 1e-5);
         }
 
         [TestMethod]
@@ -149,12 +149,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
             const double horizon = 0.6;
             Color sky = new Color(0.337f, 0.541f, 0.754f, 1f), sea = new Color(0.1f, 0.3f, 0.5f, 1f);
             Color[] scene = Picture((u, v) => v > horizon ? sky : sea);
-            // A deck of tau 2.0 over the sea only.
+            // A cloud layer of tau 2.0 over the sea only.
             Color[] aid = Picture((u, v) => v > horizon ? sky : T09Readout.AidPixel(2.0, sea));
             T09Readout.AidTauReading seaRead = T09Readout.MeasureAidTau(aid, scene, W, H, horizon, 1, true);
             T09Readout.AidTauReading skyRead = T09Readout.MeasureAidTau(aid, scene, W, H, horizon, 1, false);
             Assert.IsTrue(seaRead.Count > 0 && skyRead.Count > 0);
-            Assert.AreEqual(1.0, seaRead.Median / 2.0, 0.12, "the sea region carries the deck");
+            Assert.AreEqual(1.0, seaRead.Median / 2.0, 0.12, "the sea region carries the cloud layer");
             Assert.AreEqual(0.0, skyRead.Median, 1e-9, "the sky region carries none");
             Assert.IsTrue(seaRead.TopCount > 0, "the bottom rows are the 'top' rows of a view that looks down");
         }
@@ -178,7 +178,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0, T09Readout.MeasureHorizonLine(frame, baseline, W, H, 0.02).Count, "a horizon row at the picture's edge is not read");
         }
 
-        // E40 start 52 follow-up. The horizon line reads six narrow columns in two thin bands. A cloud whose edge lies at the horizon row (deck on the sea side, clear sky above) gives a step that
+        // E40 start 52 follow-up. The horizon line reads six narrow columns in two thin bands. A cloud whose edge lies at the horizon row (cloud layer on the sea side, clear sky above) gives a step that
         // is the cloud against the sky, not an aerial perspective step: the metric cannot tell the two apart (the cross-check of start 52 named this). And a mound that fills most of the sampled columns in a
         // band replaces the band's median.
         [TestMethod]
@@ -186,30 +186,30 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             const double horizon = 0.5;
             Color[] baseline = Picture((u, v) => Grey(v > horizon ? 0.7f : 0.4f));
-            // The deck covers the sea side only: no cloud above the row, +0.25 below it.
+            // The cloud layer covers the sea side only: no cloud above the row, +0.25 below it.
             Color[] edge = Picture((u, v) => Grey(v > horizon ? 0.7f : 0.65f));
             T09Readout.HorizonLine line = T09Readout.MeasureHorizonLine(edge, baseline, W, H, horizon);
             Assert.AreEqual(0f, line.DeltaAbove.r, 1e-5f);
             Assert.AreEqual(0.25f, line.DeltaBelow.r, 1e-5f);
-            Assert.AreEqual(0.25f, line.Step, 1e-5f, "a deck that simply ends at the row reads as a step of the cloud's own change");
-            // The same deck on both sides, a mound (dark) in the columns left of 0.35 and right of 0.75 above the row, in the rows the band reads: five of the six columns are the mound's.
+            Assert.AreEqual(0.25f, line.Step, 1e-5f, "a cloud layer that simply ends at the row reads as a step of the cloud's own change");
+            // The same cloud layer on both sides, a mound (dark) in the columns left of 0.35 and right of 0.75 above the row, in the rows the band reads: five of the six columns are the mound's.
             Color[] mound = Picture((u, v) =>
             {
                 bool inMound = (u < 0.35 || u > 0.75) && v > horizon && v < horizon + 0.05;
                 return Grey(inMound ? 0.2f : (v > horizon ? 0.62f : 0.6f));
             });
             T09Readout.HorizonLine m = T09Readout.MeasureHorizonLine(mound, baseline, W, H, horizon);
-            Assert.AreEqual(0.2f, m.Above.g, 1e-5f, "the mound's colour is the band's median: the line reads the mound, not the deck");
+            Assert.AreEqual(0.2f, m.Above.g, 1e-5f, "the mound's colour is the band's median: the line reads the mound, not the cloud layer");
             Assert.AreEqual(0.6f, m.Below.g, 1e-5f);
         }
 
         [TestMethod]
-        public void TheRowProfileDropsMoundRimsFromTheDeckColourAndReadsTheBaselineBesideIt()
+        public void TheRowProfileDropsMoundRimsFromTheCloudColourAndReadsTheBaselineBesideIt()
         {
             const double horizon = 0.5;
             const int w = 200, h = 200;
             Color[] baseline = PictureOf(w, h, (u, v) => Grey(v > horizon ? 0.7f : 0.4f));
-            // A deck of 0.62 below the row and 0.5 above it, a mound (0.2) in the first quarter of the columns above the row.
+            // A cloud layer of 0.62 below the row and 0.5 above it, a mound (0.2) in the first quarter of the columns above the row.
             Color[] frame = PictureOf(w, h, (u, v) => Grey(v <= horizon ? 0.62f : (u < 0.25 && v < horizon + 0.12) ? 0.2f : 0.5f));
             T09Readout.RowProfile profile = T09Readout.MeasureRowProfile(frame, baseline, w, h, horizon);
             Assert.AreEqual(T09Readout.ProfileBands, profile.Below.Length);
@@ -231,12 +231,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheRowProfileSeesADeckFadeIntoTheAerialPerspectiveAsFewerChangedSamplesAndASmallerDistanceToTheBaseline()
+        public void TheRowProfileSeesACloudFadeIntoTheAerialPerspectiveAsFewerChangedSamplesAndASmallerDistanceToTheBaseline()
         {
             const double horizon = 0.5;
             const int w = 200, h = 200;
             Color[] baseline = PictureOf(w, h, (u, v) => Grey(0.7f));
-            // The deck's colour falls from 0.7 at the row to 0.4 at 0.10 below it (a fade into the aerial perspective): the profile's distance to the baseline falls towards the row, and the bands near the row
+            // The cloud layer's colour falls from 0.7 at the row to 0.4 at 0.10 below it (a fade into the aerial perspective): the profile's distance to the baseline falls towards the row, and the bands near the row
             // hold no changed sample at all (the change there is under T09Readout.ClosedChange).
             Color[] frame = PictureOf(w, h, (u, v) => Grey(v >= horizon ? 0.7f : 0.7f - 0.3f * (float)Math.Min(1.0, (horizon - v) / 0.1)));
             T09Readout.RowProfile profile = T09Readout.MeasureRowProfile(frame, baseline, w, h, horizon);

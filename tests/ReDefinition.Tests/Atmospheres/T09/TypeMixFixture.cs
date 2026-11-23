@@ -8,7 +8,7 @@ using ReDefinition.Tests.Atmospheres.C25;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The maps a layer of Kerbin's cfg gets from the generator and the module's own rules (OwnCloudModule.FetchStep), for the type-mix tests and their dump: the shared maps of a time, then per
-    // layer its cover and type bytes, with the E40 L3 stage (CloudMesoStage) on or off. Fog is left out (no humidity input to the deck rule).
+    // layer its cover and type bytes, with the E40 L3 stage (CloudMesoStage) on or off. Fog is left out (no humidity input to the low stratiform rule).
     internal static class TypeMixFixture
     {
         internal const double Day = 21549.425;
@@ -61,11 +61,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
             WeatherMap layerMap = LayerAt(field, body, s.Ut, CloudBridgeStack.MidHeightM(l));
             cover = layerMap.Bytes;
             byte[] altoMid = null, altoLow = null;
-            if (l.Deck != null)
+            if (l.LowStratiform != null)
             {
                 var rc = new byte[cover.Length];
                 var rt = new byte[cover.Length];
-                l.Deck.Apply(cover, s.Precip.Values, null, null, rc, rt);
+                l.LowStratiform.Apply(cover, s.Precip.Values, null, null, rc, rt);
                 cover = rc;
                 type = rt;
             }

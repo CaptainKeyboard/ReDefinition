@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
         // (the mesoscale organisation of convection scales with the depth it fills: cells and fields of a few to ten depths); cfg key scaleKm, where set (above 0), is the size in km instead.
         internal float ScaleDepths { get; set; } = 4.3f;
         internal float ScaleKm { get; set; }
-        // The same in multiples of the shortest wavelength of the body's weather systems (cfg key scaleSystems; 0: not used; scaleKm wins where both are set): the pattern of a frontal deck follows the
+        // The same in multiples of the shortest wavelength of the body's weather systems (cfg key scaleSystems; 0: not used; scaleKm wins where both are set): the pattern of a frontal low stratiform layer follows the
         // size of the systems that carry it, which is the body's own (Rossby radius), not the troposphere's depth.
         internal float ScaleSystems { get; set; }
         // The type patches' default size in depths of the troposphere (CloudLayerSpec.TypePatchDepths).
@@ -39,7 +39,7 @@ namespace ReDefinition.Atmospheres
         internal float RainKeepFrom { get; set; } = 0.02f;
         internal float RainKeepFullAt { get; set; } = 0.25f;
         // The least cover (map value) the pattern leaves where it rains (cfg key rainMin; 0, the default: none), complete at precipitation level RainMinFullAt and beginning at RainMinFrom (cfg keys
-        // rainMinFrom, rainMinFullAt). It keeps rain from falling out of a clear sky where the pattern has a gap: the deck is broken there, never absent. Below one half so that it is no field.
+        // rainMinFrom, rainMinFullAt). It keeps rain from falling out of a clear sky where the pattern has a gap: the layer is broken there, never absent. Below one half so that it is no field.
         internal float RainMin { get; set; }
         internal float RainMinFrom { get; set; } = 0.04f;
         internal float RainMinFullAt { get; set; } = 0.08f;

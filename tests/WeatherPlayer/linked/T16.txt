@@ -8,8 +8,8 @@ unity/Assets/**/CloudCull.cginc
 src/Atmospheres/Light/Cloud/CloudCoverShift.cs
 # CloudLayerDef reads the look knobs (sigma, softness, noise, per-layer shift, fade, density remap) through CloudLookTuning (E40 Phase O); the player's tuning table is the stub.
 src/Atmospheres/Light/Cloud/CloudLookTuning.cs
-# CloudLayerDef carries the weather deck rule (E40: what may draw a deck); the rule's pure functions read HeightModel (T13) and PrecipScale (T01).
-src/Atmospheres/Light/Cloud/WeatherDeckRule.cs
+# CloudLayerDef carries the weather low stratiform rule (E40: what may draw a low stratiform layer); the rule's pure functions read HeightModel (T13) and PrecipScale (T01).
+src/Atmospheres/Light/Cloud/WeatherLowStratiformRule.cs
 # The anvils of the cumulonimbus towers are drawn into the layer maps (E40 CB); the player's LayersSetup draws them as the game does.
 src/Atmospheres/Light/Cloud/AnvilMap.cs
 # The sky from the weather map (cloud.weatherMapSky): the layer renderer and the cloud shadow set the stratiform types (_CellS) and the shader keyword from it.

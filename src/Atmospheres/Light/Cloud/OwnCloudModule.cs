@@ -113,7 +113,7 @@ namespace ReDefinition.Atmospheres
         private byte[] typeScratch, altoScratch;
         // The layer maps at the mid-level sheet's height and at the fair-weather type's height (E40 L2 D1, CloudLookTuning.ApplyAlto).
         private readonly WeatherMap altoMidMap = new WeatherMap(), altoLowMap = new WeatherMap();
-        // The weather deck rule's inputs (FetchFogInputs) and its per-layer results (WeatherDeckRule.Apply).
+        // The low stratiform rule's inputs (FetchFogInputs) and its per-layer results (WeatherLowStratiformRule.Apply).
         private readonly WeatherMap humidityMap = new WeatherMap(), temperatureMap = new WeatherMap(), windMap = new WeatherMap();
         private float[] spreadScratch, fogSpreadK, fogWind;
         // E40 L3 (CloudMesoStage): the inputs of the types picked from their climate, and the stage's per-layer results.
@@ -122,7 +122,7 @@ namespace ReDefinition.Atmospheres
         private readonly CloudMesoInputs mesoInputs = new CloudMesoInputs();
         private readonly byte[][] mesoCover = new byte[CloudLayerDef.MaxLayers][], mesoType = new byte[CloudLayerDef.MaxLayers][];
         private readonly WeatherMap[] mesoCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
-        private readonly byte[][] deckCover = new byte[CloudLayerDef.MaxLayers][], deckType = new byte[CloudLayerDef.MaxLayers][];
+        private readonly byte[][] lowStratiformCover = new byte[CloudLayerDef.MaxLayers][], lowStratiformType = new byte[CloudLayerDef.MaxLayers][];
         // E40 CB: the anvils drawn into a layer's maps (AnvilMap), the inputs taken at the layer's fetch (the body's radius, the shear between the anvil and the steering level), and
         // the CPU copies of the maps with them.
         private readonly AnvilInputs[] anvilInputs = new AnvilInputs[CloudLayerDef.MaxLayers];
@@ -171,7 +171,7 @@ namespace ReDefinition.Atmospheres
             typeBytes = t;
             return true;
         }
-        private readonly WeatherMap[] deckCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
+        private readonly WeatherMap[] lowStratiformCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private long lookStampSeen = -1;
         private readonly byte[][] forcedBytes = new byte[CloudLayerDef.MaxLayers][];
         // E40 start 60: a layer without its own coverage map silently took the field's shared cover (every layer closed as far as the weather), which can turn a half
@@ -182,7 +182,7 @@ namespace ReDefinition.Atmospheres
         private readonly WeatherMap[] layerTypeMaps = new WeatherMap[CloudLayerDef.MaxLayers], combinedMaps = new WeatherMap[CloudLayerDef.MaxLayers],
             pendingTypeMap = new WeatherMap[CloudLayerDef.MaxLayers];
         private readonly byte[][] pendingCover = new byte[CloudLayerDef.MaxLayers][], pendingType = new byte[CloudLayerDef.MaxLayers][];
-        private readonly WeatherDeckRule[] pendingDeck = new WeatherDeckRule[CloudLayerDef.MaxLayers];
+        private readonly WeatherLowStratiformRule[] pendingLowStratiform = new WeatherLowStratiformRule[CloudLayerDef.MaxLayers];
         private bool combineRound;
         private LayerRenderer renderer;
         private LayerReconstructDriver driver;
@@ -263,7 +263,7 @@ namespace ReDefinition.Atmospheres
 
         // The layer stack that stands (null while the pass is off): the CPU consumers read it.
         internal ICloudLayerSource Stack { get { return stack; } }
-        // Diagnosis (K-T2d): the names of the layers the stack was built from ("a|b|"), and whether the group members were picked by the cold branch (the snow deck).
+        // Diagnosis (K-T2d): the names of the layers the stack was built from ("a|b|"), and whether the group members were picked by the cold branch (the low stratiform snow layer).
         internal string StackKeyNow { get { return stackKey; } }
         internal bool GroupsCold { get { return cold; } }
         internal LayerMapStore GpuMaps { get { return renderer == null ? null : renderer.Maps; } }
@@ -1096,12 +1096,12 @@ namespace ReDefinition.Atmospheres
                 cover = filled;
                 coverSource = forcedMap;
             }
-            // The weather deck rule (WeatherDeckRule): the deck draws only where precipitation falls or the air is fog air; the coverage and the type bytes are the rule's, and
+            // The low stratiform rule (WeatherLowStratiformRule): the layer draws only where precipitation falls or the air is fog air; the coverage and the type bytes are the rule's, and
             // the CPU copy of the maps (StackMapMirror, the sun dimming, the cloud shadow, the oracle) gets the same ones.
             float fairType = CloudLookTuning.FairType(CloudLookTuning.TypeFairOf(layerName), stack.LayerAt(l).FairType);
             byte[] typeBytes;
             bool haveAltoMaps = false;
-            // CELLS: a layer with the cell list draws its towers from the generator's cells and not from the point-sampled layer map: no deck rule, no meso stage (not under a probe's override
+            // CELLS: a layer with the cell list draws its towers from the generator's cells and not from the point-sampled layer map: no low stratiform rule, no meso stage (not under a probe's override
             // of the maps or the types, and only once the worker has made a list).
             CloudLayerDef cellDef = stack.LayerAt(l);
             // The map sky: the tall layer draws its towers from the cell list (the map holds a cell's tower in the single texel at its centre; the list paints each cell as one tower).
@@ -1114,7 +1114,7 @@ namespace ReDefinition.Atmospheres
                 cellLayer = gf.GetCells(b.flightGlobalsIndex, ut, list, out cellsUt);
             }
             cellLayerNow[l] = cellLayer;
-            WeatherDeckRule deck = cellLayer ? null : CloudLookTuning.DeckRuleOf(layerName, stack.LayerAt(l).Deck);
+            WeatherLowStratiformRule lowStratiformRule = cellLayer ? null : CloudLookTuning.LowStratiformRuleOf(layerName, stack.LayerAt(l).LowStratiform);
             byte[] rawCover = cover;
             if (cellLayer)
             {
@@ -1131,25 +1131,25 @@ namespace ReDefinition.Atmospheres
                 coverSource = paintedMap;
                 typeBytes = paintedType;
             }
-            else if (deck != null)
+            else if (lowStratiformRule != null)
             {
                 int n = cover.Length;
-                byte[] ruleCover = deckCover[l] ?? (deckCover[l] = new byte[n]);
-                byte[] ruleType = deckType[l] ?? (deckType[l] = new byte[n]);
-                if (ruleCover.Length != n) deckCover[l] = ruleCover = new byte[n];
-                if (ruleType.Length != n) deckType[l] = ruleType = new byte[n];
-                deck.Apply(cover, typeMap.Values, fogSpreadK, fogWind, ruleCover, ruleType, CloudLookTuning.DeckPrecipOf(layerName), CloudLookTuning.DeckFogOf(layerName));
-                // E40 CB: a deck layer whose table goes on past its rain types (the cumulonimbus layer's anvil sheet) ends its precipitation axis at rainType, as the other layers do.
-                float deckRain = stack.LayerAt(l).RainType;
-                if (deckRain < 1f)
-                    for (int i = 0; i < n; i++) ruleType[i] = (byte)Math.Round(ruleType[i] * deckRain);
+                byte[] ruleCover = lowStratiformCover[l] ?? (lowStratiformCover[l] = new byte[n]);
+                byte[] ruleType = lowStratiformType[l] ?? (lowStratiformType[l] = new byte[n]);
+                if (ruleCover.Length != n) lowStratiformCover[l] = ruleCover = new byte[n];
+                if (ruleType.Length != n) lowStratiformType[l] = ruleType = new byte[n];
+                lowStratiformRule.Apply(cover, typeMap.Values, fogSpreadK, fogWind, ruleCover, ruleType, CloudLookTuning.LowStratiformPrecipOf(layerName), CloudLookTuning.LowStratiformFogOf(layerName));
+                // E40 CB: a layer with the low stratiform rule whose table goes on past its rain types (the cumulonimbus layer's anvil sheet) ends its precipitation axis at rainType, as the other layers do.
+                float lowStratiformRain = stack.LayerAt(l).RainType;
+                if (lowStratiformRain < 1f)
+                    for (int i = 0; i < n; i++) ruleType[i] = (byte)Math.Round(ruleType[i] * lowStratiformRain);
                 float typeOverride = CloudLookTuning.TypeOverrideOf(layerName);
                 if (typeOverride >= 0f)
                 {
                     byte forced = (byte)Math.Min(255.0, Math.Round(typeOverride * 255.0, MidpointRounding.ToEven));
                     for (int i = 0; i < n; i++) ruleType[i] = forced;
                 }
-                WeatherMap ruleCoverMap = deckCoverMaps[l] ?? (deckCoverMaps[l] = new WeatherMap());
+                WeatherMap ruleCoverMap = lowStratiformCoverMaps[l] ?? (lowStratiformCoverMaps[l] = new WeatherMap());
                 ruleCoverMap.Resize(coverSource.Width, coverSource.Height);
                 for (int i = 0; i < n; i++) ruleCoverMap.Values[i] = ruleCover[i] / 255f;
                 cover = ruleCover;
@@ -1176,11 +1176,11 @@ namespace ReDefinition.Atmospheres
             }
             // The map sky: a layer the weather map drives takes its cover and type from the round's parts; no meso stage, no combination (OwnCloudModule.MapSky.cs).
             bool mapSkyLayer = forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f
-                               && MapSkyLayer(l, stack.LayerAt(l), deck ?? stack.LayerAt(l).Deck, rawCover, typeBytes, ref cover, ref typeBytes, ref coverSource);
+                               && MapSkyLayer(l, stack.LayerAt(l), lowStratiformRule ?? stack.LayerAt(l).LowStratiform, rawCover, typeBytes, ref cover, ref typeBytes, ref coverSource);
             if (mapSkyLayer) cellLayerNow[l] = false;
             // E40 L3: the meso-scale cover pattern and the types from their climate, from the layer's own cfg data (not under the probe's overrides of the maps and types).
             CloudLayerDef mesoDef = stack.LayerAt(l);
-            if (!mapSkyLayer && !cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && deck == null)) && gf != null)
+            if (!mapSkyLayer && !cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && lowStratiformRule == null)) && gf != null)
             {
                 CloudMesoInputs mi = mesoInputs;
                 mi.Width = MapWidth;
@@ -1231,7 +1231,7 @@ namespace ReDefinition.Atmospheres
                 pendingCover[l] = CopyInto(pendingCover[l], cover);
                 pendingType[l] = CopyInto(pendingType[l], typeBytes);
                 pendingTypeMap[l] = typeForCpu;
-                pendingDeck[l] = deck;
+                pendingLowStratiform[l] = lowStratiformRule;
                 return;
             }
             else
@@ -1259,7 +1259,7 @@ namespace ReDefinition.Atmospheres
         {
             int n = coverageMap.Bytes.Length;
             int from = (int)((long)n * slice / CombineSlices), to = (int)((long)n * (slice + 1) / CombineSlices);
-            CloudLookTuning.MeetTheFieldRange(pendingCover, stack.LayerCount, coverageMap.Bytes, CloudLookTuning.CoverCombine, pendingDeck, typeMap.Values, from, to);
+            CloudLookTuning.MeetTheFieldRange(pendingCover, stack.LayerCount, coverageMap.Bytes, CloudLookTuning.CoverCombine, pendingLowStratiform, typeMap.Values, from, to);
             if (slice + 1 < CombineSlices) return;
             for (int k = 0; k < stack.LayerCount; k++)
             {
@@ -1305,12 +1305,12 @@ namespace ReDefinition.Atmospheres
             get { return Stats.LastMapMs; }
         }
 
-        // The inputs of the weather deck rule (WeatherDeckRule) once per round, for every layer that has one: the dew-point spread of the surface air (from the humidity and
+        // The inputs of the low stratiform rule (WeatherLowStratiformRule) once per round, for every layer that has one: the dew-point spread of the surface air (from the humidity and
         // temperature maps) and the wind. A map the field cannot give leaves its input null: no fog from the spread, a calm wind.
         private void FetchFogInputs(CelestialBody b, IWeatherField field, double ut)
         {
             bool needed = false;
-            for (int k = 0; k < stack.LayerCount && !needed; k++) needed = CloudLookTuning.DeckRuleOf(stack.LayerAt(k).Name, stack.LayerAt(k).Deck) != null;
+            for (int k = 0; k < stack.LayerCount && !needed; k++) needed = CloudLookTuning.LowStratiformRuleOf(stack.LayerAt(k).Name, stack.LayerAt(k).LowStratiform) != null;
             fogSpreadK = null;
             fogWind = null;
             // E40 L3: the humidity and the surface as bytes for the types picked from their climate (CloudMesoStage); a map the field cannot give leaves the input null (neutral).
@@ -1338,7 +1338,7 @@ namespace ReDefinition.Atmospheres
                 int n = humidityMap.Values.Length;
                 float[] spread = spreadScratch;
                 if (spread == null || spread.Length != n) spreadScratch = spread = new float[n];
-                for (int i = 0; i < n; i++) spread[i] = WeatherDeckRule.SpreadK(temperatureMap.Values[i], humidityMap.Values[i]);
+                for (int i = 0; i < n; i++) spread[i] = WeatherLowStratiformRule.SpreadK(temperatureMap.Values[i], humidityMap.Values[i]);
                 fogSpreadK = spread;
             }
             if (field.GetMap(b.flightGlobalsIndex, WeatherMapKind.WindSpeed, ut, windMap) && windMap.Width == MapWidth && windMap.Height == MapHeight) fogWind = windMap.Values;

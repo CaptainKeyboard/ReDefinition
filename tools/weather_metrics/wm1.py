@@ -103,7 +103,7 @@ def uts_of(dump):
 
 
 def columns(dump, ut):
-    c = {k: f32(dump, ut, k) for k in ("cover", "cumuliform", "sheet", "deck", "base", "top", "rhLow", "rhMid", "rhHigh", "precip", "reach", "stable", "warm", "cold", "inst")}
+    c = {k: f32(dump, ut, k) for k in ("cover", "cumuliform", "sheet", "lowstratiform", "base", "top", "rhLow", "rhMid", "rhHigh", "precip", "reach", "stable", "warm", "cold", "inst")}
     c["depth"] = np.maximum(c["top"] - c["base"], 0.0)
     c["all3"] = (c["rhLow"] >= SATURATED) & (c["rhMid"] >= SATURATED) & (c["rhHigh"] >= SATURATED)
     return c
@@ -168,7 +168,7 @@ def pick(dump):
         j, i = source_index(s["lat"], s["lon"])
         jm, im = _ksc_texel()
         jj, ii = j[jm, im], i[jm, im]
-        s["column"] = {k: float(c[k][jj, ii]) for k in ("cover", "cumuliform", "sheet", "deck", "base", "top", "depth", "rhLow", "rhMid", "rhHigh", "precip", "reach", "warm", "cold", "stable")}
+        s["column"] = {k: float(c[k][jj, ii]) for k in ("cover", "cumuliform", "sheet", "lowstratiform", "base", "top", "depth", "rhLow", "rhMid", "rhHigh", "precip", "reach", "warm", "cold", "stable")}
         # The neighbourhood the views see most of (+-3 texels, about +-22 km at the equator): means.
         win = (slice(jm - 3, jm + 4), slice(im - 3, im + 4))
         s["around"] = {k: float(np.mean(c[k][j, i][win])) for k in ("cover", "cumuliform", "sheet", "base", "top", "depth")}
@@ -293,7 +293,7 @@ def collect_pic(ctx):
 
 register_series("wm1-cost", [Stage("cost", ["-mode", "scene", "-scene", "wm-cost", "-in", COST_IN, "-rounds", str(ROUNDS)], size=COST_SIZE, proxy=True, timeout=1500)],
                 collect_cost, exclusive=True, who="wm1-cost")
-# The layers' share of the cost: leave-one-out layer masks (bit i = layer i: 0 rain deck, 1 cumulus, 2 cumulonimbus, 3 cirrus) on the cases whose ratio moved most.
+# The layers' share of the cost: leave-one-out layer masks (bit i = layer i: 0 low stratiform rain layer, 1 cumulus, 2 cumulonimbus, 3 cirrus) on the cases whose ratio moved most.
 ATTR_JOBS = ",".join("wm-%s-%s-%s" % (k, v, arm) for k, v in (("d", "ground"), ("a", "above"), ("e", "above"), ("f", "above"), ("b", "down"), ("f", "down"), ("c", "ground"))
                      for arm in ARMS)
 register_series("wm1-attr", [Stage("cost", ["-mode", "scene", "-scene", "wm-cost", "-in", COST_IN, "-rounds", "2", "-only", ATTR_JOBS, "-masks", "0,14,13,11,7"],
@@ -580,7 +580,7 @@ def report_attr():
                 if r["metric"].startswith("wmcost.marchr"):
                     _, _, rest = r["metric"].split(".", 2)
                     per.setdefault(rest, []).append(r["value"])
-    names = {14: "deck", 13: "cumulus", 11: "cb", 7: "cirrus"}
+    names = {14: "lowstratiform", 13: "cumulus", 11: "cb", 7: "cirrus"}
     lines = ["WM1 attribution: march ms with all layers, and how much each layer costs (all minus that layer left out); median of the rounds"]
     for jid in ATTR_JOBS.split(","):
         for light in ("lit", "nolight"):

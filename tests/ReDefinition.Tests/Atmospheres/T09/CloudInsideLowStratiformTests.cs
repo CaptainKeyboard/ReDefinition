@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // E40 start 51 follow-up (offline, no game): the rain deck L0 draws nothing for a ray that starts inside it (camera 264 m, map 0.859, type 0.229, the Fog and Stratus blend 96 to 594 m)
+    // E40 start 51 follow-up (offline, no game): the low stratiform rain layer L0 draws nothing for a ray that starts inside it (camera 264 m, map 0.859, type 0.229, the Fog and Stratus blend 96 to 594 m)
     // although the CPU oracle and the weather player say closed. This file holds the CPU side of that question and the zenith optical depth readout that a later start prints beside the
     // colour-change measure.
     //
@@ -15,13 +15,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
     //      negative i1 and keeps the near stretch.) Looking down, the span ends at the inner sphere.
     //   I2 height variation (T13): for every combination of the root offset, the top term, the variation and the ragged unit at their full ranges (3 values each, 81 cases), the ray from the
     //      camera at 18 degrees up through the blend at map 0.859 collects tau >= 0.92 (the thinnest cloud is 120 m: a slab of 120 m seen at 18 degrees is 388 m long at sigma 0.045 times a
-    //      profile that is not zero over most of it). A height variation alone therefore cannot empty the deck for this ray.
+    //      profile that is not zero over most of it). A height variation alone therefore cannot empty the layer for this ray.
     //      MISSED in the first run (tau 0.000 at the all-negative corner: the slab was moved under the ground); the fix and the revised expectations I2a to I2c are at the test below.
-    //   I3 zenith: the optical depth straight up at the high pick is >= 4.6 at every one of 8 sites (the deck's 500 m vertical column at sigma 0.045), at the low pick (the camera above the
+    //   I3 zenith: the optical depth straight up at the high pick is >= 4.6 at every one of 8 sites (the layer's 500 m vertical column at sigma 0.045), at the low pick (the camera above the
     //      Fog, 210 m) under 0.05; the function equals the oracle's one-pixel frame at pitch 90.
     //   I4 aid decode: for tau from 0.001 to 31.6 over a sky colour the decoded tau is within 10 percent (the grid's step); no cloud decodes as 0, tau above the scale as 31.6.
     [TestClass]
-    public class CloudInsideDeckTests
+    public class CloudInsideLowStratiformTests
     {
         private const double R = 600000.0;
 
@@ -53,7 +53,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(a.T1 > 100.0 && a.T1 < 1000.0, "ends at the inner sphere: " + a.T1);
         }
 
-        // The tau of the ray from the camera at 264 m, 18 degrees up, through the rain deck with the height variation at fixed offsets (noise-free shape: the map is far above the threshold).
+        // The tau of the ray from the camera at 264 m, 18 degrees up, through the low stratiform rain layer with the height variation at fixed offsets (noise-free shape: the map is far above the threshold).
         private static double TauWithHeights(CloudLayerDef layer, LayerTypeTable table, HeightTuning tuning, LocalHeights heights, double ragged)
         {
             double up = 18.0 * Math.PI / 180.0;
@@ -69,16 +69,16 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return tau;
         }
 
-        // FINDING of the first run (the expectation I2 above missed): at the corner of all-negative offsets (root, top term and variation at their full negative range) the deck's tau is 0.000,
+        // FINDING of the first run (the expectation I2 above missed): at the corner of all-negative offsets (root, top term and variation at their full negative range) the layer's tau is 0.000,
         // because the offsets move the whole Fog and Stratus slab (96 to 594 m) below the ground: LocalBaseTop moved the base AND the top by the root offset (-500 m for a humid place:
-        // the lifting condensation level of near-saturated air is far under the body's mean), and nothing above the surface is left. A wet place is exactly where the rain deck is wanted.
+        // the lifting condensation level of near-saturated air is far under the body's mean), and nothing above the surface is left. A wet place is exactly where the low stratiform rain layer is wanted.
         // Expected for the fix (a type whose base the offsets lower below the sea level is lifted as a whole until the base rests on it; cases above the floor unchanged):
         //   I2a  the wet place (root -500 m, top term -144 m = an updraft of 0, no variation, no ragged unit): without the floor the type's top lies under the ground (< 0 m); with it the base is 0 and
-        //        the top is at least the camera's 264 m (the deck is 0 to 353 m, the camera inside it).
-        //   I2b  the ray from the camera through that deck collects tau >= 0.92 (it is the case the game drew nothing for).
+        //        the top is at least the camera's 264 m (the layer is 0 to 353 m, the camera inside it).
+        //   I2b  the ray from the camera through that layer collects tau >= 0.92 (it is the case the game drew nothing for).
         //   I2c  offsets that leave the base above the floor give the same numbers with and without it.
         [TestMethod]
-        public void AWetPlacesRootOffsetNoLongerMovesTheRainDeckUnderTheGround()
+        public void AWetPlacesRootOffsetNoLongerMovesTheRainLowStratiformUnderTheGround()
         {
             CloudLayerDef layer = CloudLookFixtures.Rain();
             var table = new LayerTypeTable(layer);
@@ -91,13 +91,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             var wet = new LocalHeights { RootM = -500f, TopM = -144f, VariationM = 0f };
             double lb, lt, fb, ft;
             LayerGeometry.LocalBaseTop(b, t, 0.18, thickness, wet, 0.0, 0.0, tuning.MinThicknessM, out lb, out lt);
-            Assert.IsTrue(lt * thickness < 0.0, "without the floor the whole deck lies under the ground: top " + (lt * thickness).ToString("0") + " m");
+            Assert.IsTrue(lt * thickness < 0.0, "without the floor the whole layer lies under the ground: top " + (lt * thickness).ToString("0") + " m");
             LayerGeometry.LocalBaseTop(b, t, 0.18, thickness, wet, 0.0, 0.0, tuning.MinThicknessM, out fb, out ft, 0.0);
             Assert.AreEqual(0.0, fb, 1e-12, "the base rests on the ground");
             Assert.IsTrue(ft * thickness >= 264.0, "the top reaches the camera: " + (ft * thickness).ToString("0") + " m");
             Report("I2a wet place: without the floor " + (lb * thickness).ToString("0") + " to " + (lt * thickness).ToString("0") + " m, with it " + (fb * thickness).ToString("0") + " to " + (ft * thickness).ToString("0") + " m");
             double tau = TauWithHeights(layer, table, tuning, wet, 0.0);
-            Report("I2b tau of the ray from 264 m at 18 degrees through the wet deck: " + tau.ToString("0.00"));
+            Report("I2b tau of the ray from 264 m at 18 degrees through the wet layer: " + tau.ToString("0.00"));
             Assert.IsTrue(tau >= 0.92, "the ray from inside is closed: " + tau);
             // I2c: positive and small offsets (base stays above the floor) are not touched.
             foreach (float root in new[] { 0f, 100f, 300f, -50f })
@@ -108,7 +108,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(lb, fb, 1e-12, "base, root " + root);
                 Assert.AreEqual(lt, ft, 1e-12, "top, root " + root);
             }
-            // The corner that emptied the deck in the first run: over the ground now (the deck lies below a camera at 264 m only where its thickness is the thinnest cloud's).
+            // The corner that emptied the layer in the first run: over the ground now (the layer lies below a camera at 264 m only where its thickness is the thinnest cloud's).
             var corner = new LocalHeights { RootM = -tuning.RootRangeM, TopM = -tuning.TopRangeM, VariationM = -tuning.VariationRangeM };
             LayerGeometry.LocalBaseTop(b, t, 0.18, thickness, corner, -1.0, tuning.RaggedM, tuning.MinThicknessM, out fb, out ft, 0.0);
             Assert.IsTrue(fb >= 0.0 && (ft - fb) * thickness >= tuning.MinThicknessM - 1e-6, "the all-negative corner keeps the thinnest cloud on the ground");
@@ -150,7 +150,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 {
                     int i = y * w + x;
                     scene[i] = sky;
-                    // The left third has no cloud, the middle tau 2 (closed, not deep), the right a deck of tau 12 (closed and deep).
+                    // The left third has no cloud, the middle tau 2 (closed, not deep), the right a layer of tau 12 (closed and deep).
                     double tau = x < w / 3 ? 0.0 : x < 2 * w / 3 ? 2.0 : 12.0;
                     aid[i] = T09Readout.AidPixel(tau, sky);
                 }

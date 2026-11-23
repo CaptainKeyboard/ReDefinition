@@ -19,7 +19,7 @@ namespace ReDefinition.Atmospheres
     }
 
     // The solo mode as data: the tuning keys that draw one layer and one type alone, from the stack's layers. The cloud viewer's "Solo layer / type" control and the solo probe (series K-S1)
-    // use this one mechanism: the overrides of the keys the pass already reads (cloud.mapOverride.<layer>, cloud.typeOverride.<layer>, cloud.deckRule.<layer>, cloud.coverCombine) and
+    // use this one mechanism: the overrides of the keys the pass already reads (cloud.mapOverride.<layer>, cloud.typeOverride.<layer>, cloud.lowStratiformRule.<layer>, cloud.coverCombine) and
     // two new ones (cloud.soloLayer: the layer drawn, cloud.cellKm / cellLat / cellLon: the forced map as one cell), so that A/B and the presets of the viewer carry the state.
     // No layer name is fixed: the layers and their types are read from the stack, so another body's stack works the same way.
     internal static class CloudSoloPlan
@@ -63,7 +63,7 @@ namespace ReDefinition.Atmospheres
             return layer.Types[type].Outflow > 0f;
         }
 
-        // The strength a type is shown at by default: the share of the sky a typical field of it covers (the cover meaning), a deck closed, a cell at its strongest.
+        // The strength a type is shown at by default: the share of the sky a typical field of it covers (the cover meaning), a low stratiform layer closed, a cell at its strongest.
         // Chosen by the names, as WeatherPresets chooses the roles (no layer is fixed); a type of another name gets DefaultOther.
         internal const float DefaultOther = 0.6f;
 
@@ -87,7 +87,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The overrides that make the selection: key and value, a value of NaN meaning the key's override is removed. With no solo (Layer below 0) every key is removed.
-        // cloud.coverCombine is 0 so that the forced maps stay what they say (the pass scales the layer maps of a round to the field's cover otherwise); every layer's deck rule is off
+        // cloud.coverCombine is 0 so that the forced maps stay what they say (the pass scales the layer maps of a round to the field's cover otherwise); every layer's low stratiform rule is off
         // (a constant map then draws everywhere, not only where it rains); the other layers' maps are 0 (every reader of the maps, not only the shader's mask, sees them empty).
         internal static List<KeyValuePair<string, float>> Overrides(IList<CloudLayerDef> layers, SoloSelection s)
         {
@@ -107,7 +107,7 @@ namespace ReDefinition.Atmospheres
                 bool solo = on && k == s.Layer;
                 list.Add(new KeyValuePair<string, float>(CloudLookTuning.TuneMapOverride + name, on ? (solo ? Math.Max(0f, Math.Min(1f, s.Strength)) : 0f) : float.NaN));
                 list.Add(new KeyValuePair<string, float>(CloudLookTuning.TuneTypeOverride + name, solo ? TypeValue(layers[k], s.Type) : float.NaN));
-                list.Add(new KeyValuePair<string, float>(CloudLookTuning.TuneDeckRule + name, on ? 0f : float.NaN));
+                list.Add(new KeyValuePair<string, float>(CloudLookTuning.TuneLowStratiformRule + name, on ? 0f : float.NaN));
             }
             return list;
         }

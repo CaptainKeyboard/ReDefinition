@@ -36,7 +36,7 @@ namespace ReDefinition.Atmospheres
     //       }
     //   }
     //
-    // A layer with a group is one of several that never show at once (a weather deck of rain and one of snow): the pass draws one member of
+    // A layer with a group is one of several that never show at once (a low stratiform weather layer of rain and one of snow): the pass draws one member of
     // each group, chosen by the weather (CloudLayerSet.Select). Layers without a group are all candidates.
 
     // One cloud type of a layer: heights as shares of the layer's thickness, a vertical density profile over the type's own height, and the
@@ -194,8 +194,8 @@ namespace ReDefinition.Atmospheres
         internal float TypePatchKm { get; set; }
         internal float TypePatchDepths { get; set; } = CloudMesoSpec.DefaultTypePatchDepths;
         internal float TypePatchBlend { get; set; } = 0.06f;
-        // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
-        internal WeatherDeckRule Deck { get; set; }
+        // What may draw the layer (cfg key lowStratiformRule = 1 and the fog keys, WeatherLowStratiformRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
+        internal WeatherLowStratiformRule LowStratiform { get; set; }
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
 
         // The vertical optical depth through the layer's thickest type at full density and full coverage: sigma times the height of the type.
@@ -231,7 +231,7 @@ namespace ReDefinition.Atmospheres
                 NoiseAmount = NoiseAmount,
                 NoiseScaleM = NoiseScaleM,
                 FairType = FairType,
-                Deck = Deck,
+                LowStratiform = LowStratiform,
                 SoftnessScale = SoftnessScale,
                 WaterPower = WaterPower,
                 LightAmbient = LightAmbient,

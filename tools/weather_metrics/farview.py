@@ -1,13 +1,13 @@
 """The series of the far view (package T06), run through tools/build_weather_player.py --series T06-far:
 
   T06-far  the scene 'layers' of the weather player (the own cloud system's layer shader) on the far views: horizon from 10 km, a ground view
-           of a cumulus field, orbit at 300 km and at 230 km, and a camera above two stacked decks, each in four variants (base: the near
+           of a cumulus field, orbit at 300 km and at 230 km, and a camera above two stacked cloud layers, each in four variants (base: the near
            march; aerial: the aerial perspective; mean: the shape noise's mean at wide spacing; far: aerial perspective, mean and the march policy). The rows:
 
-    aerial.model_error      the shader's colour with the aerial perspective against the same fog formula evaluated here from the first-hit distance, on an opaque deck
+    aerial.model_error      the shader's colour with the aerial perspective against the same fog formula evaluated here from the first-hit distance, on an opaque cloud layer
     aerial.alpha_change     the aerial perspective leaves the alpha alone (a regression guard)
-    aerial.blue_over_red_*  the aerial perspective's own effect on the colour: bluer at the far end of the deck than at the near end
-    rim.px_error / rim.sag  the deck's upper rim against the analytic horizon of the outer sphere: how far the rim row is off, and the curvature
+    aerial.blue_over_red_*  the aerial perspective's own effect on the colour: bluer at the far end of the cloud layer than at the near end
+    rim.px_error / rim.sag  the cloud layer's upper rim against the analytic horizon of the outer sphere: how far the rim row is off, and the curvature
     grain.*                 the single-pixel grain of the alpha in the orbit and the horizon views, base against shape mean, over the same pixels
     sweep.*                 nadir views of a 24 km square from 10 to 400 km: the far view (aerial perspective, mean, policy) against the near march with the
                             aerial perspective (aerial): coverage and luminance per km through the hand-over band 200 to 260 km, the largest step
@@ -112,16 +112,16 @@ def views():
     day["skyHorizon"] = list(HORIZON)
     day["skyZenith"] = [0.26, 0.42, 0.75]
     return [
-        dict(id="ho", title="Horizon from 10 km over a stratocumulus deck", site="above", alt=10000.0, pitch=-8.0, fov=60.0, sun=(120.0, 45.0),
-             layers=lambda: [LK.deck_layer("above.r8", 0.8, 1000.0, 2400.0)], light=day),
+        dict(id="ho", title="Horizon from 10 km over a stratocumulus layer", site="above", alt=10000.0, pitch=-8.0, fov=60.0, sun=(120.0, 45.0),
+             layers=lambda: [LK.stratus_layer("above.r8", 0.8, 1000.0, 2400.0)], light=day),
         dict(id="hg", title="A cumulus field at 500 m to the horizon", site="cu-side", alt=500.0, pitch=3.0, fov=60.0, sun=(180.0, 35.0),
              layers=lambda: [LK.cu_layer(), LK.cirrus_layer("cirrus.r8")], light=day, maxSteps=96),
         dict(id="ol", title="Orbit at 300 km at the limb", site="orbit", alt=300000.0, pitch=-44.0, fov=55.0, sun=(120.0, 35.0),
-             layers=lambda: [LK.deck_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], light=day, space=1, maxSteps=64),
+             layers=lambda: [LK.stratus_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], light=day, space=1, maxSteps=64),
         dict(id="oh", title="Orbit at 230 km, the hand-over altitude", site="orbit", alt=230000.0, pitch=-30.0, fov=60.0, sun=(120.0, 40.0),
-             layers=lambda: [LK.deck_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], light=day, space=1, maxSteps=64),
-        dict(id="ab", title="12 km above two stacked decks", site="above", alt=12000.0, pitch=-22.0, fov=60.0, sun=(120.0, 40.0),
-             layers=lambda: [LK.deck_layer("above.r8", 0.8, 1000.0, 2400.0), LK.cirrus_layer("cirrus.r8")], light=day, maxSteps=64),
+             layers=lambda: [LK.stratus_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], light=day, space=1, maxSteps=64),
+        dict(id="ab", title="12 km above two stacked cloud layers", site="above", alt=12000.0, pitch=-22.0, fov=60.0, sun=(120.0, 40.0),
+             layers=lambda: [LK.stratus_layer("above.r8", 0.8, 1000.0, 2400.0), LK.cirrus_layer("cirrus.r8")], light=day, maxSteps=64),
     ]
 
 
@@ -154,7 +154,7 @@ def jobs(sites):
                 j.update(v["light"])
                 j["far"] = far_block(variant)
                 out.append(j)
-    # The aerial perspective model probe and the rim probe: an opaque uniform deck seen from 10 km at 8 degrees down, over a 960 x 540 picture.
+    # The aerial perspective model probe and the rim probe: an opaque uniform cloud layer seen from 10 km at 8 degrees down, over a 960 x 540 picture.
     sites_cam = camera_at(sites["above"], 10000.0, -8.0, LK.YAW_EAST, 960, 540, 60.0)
     sun = L.sun_vector(sites_cam.pos, 120.0, 45.0)
     for jid, mode, aerial in (("FH-off", "lum", 0), ("FH-on", "lum", 1), ("FH-aux", "aux", 0)):
@@ -170,7 +170,7 @@ def jobs(sites):
         cam = camera_at(site, alt * 1000.0, -90.0, LK.YAW_EAST, SWEEP_TILE, SWEEP_TILE, fov)
         sunv = L.sun_vector(cam.pos, 120.0, 40.0)
         for variant in ("aerial", "dense", "far"):
-            j = L.job("SW-%d-%s" % (alt, variant), "lum", cam, [LK.deck_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], SWEEP_TILE, SWEEP_TILE,
+            j = L.job("SW-%d-%s" % (alt, variant), "lum", cam, [LK.stratus_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], SWEEP_TILE, SWEEP_TILE,
                       sun=sunv, mapWidth=LK.MAP_W, mapHeight=LK.MAP_H, **MEASURE)
             j["maxSteps"] = 64
             if variant == "dense":
@@ -184,7 +184,7 @@ def jobs(sites):
     cam = camera_at(site, 230000.0, -90.0, LK.YAW_EAST, SWEEP_TILE, SWEEP_TILE, 2.0 * math.degrees(math.atan(SWEEP_FOOTPRINT_M / 230000.0)))
     sunv = L.sun_vector(cam.pos, 120.0, 40.0)
     for name, block, over in DIAGNOSIS:
-        j = L.job("DG-%s" % name, "lum", cam, [LK.deck_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], SWEEP_TILE, SWEEP_TILE, sun=sunv,
+        j = L.job("DG-%s" % name, "lum", cam, [LK.stratus_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], SWEEP_TILE, SWEEP_TILE, sun=sunv,
                   mapWidth=LK.MAP_W, mapHeight=LK.MAP_H, **MEASURE)
         j["maxSteps"] = 64
         j.update(LK.DAY)
@@ -208,10 +208,10 @@ DIAGNOSIS = [
 
 
 def write_inputs():
-    sites, cu, deck, above = LK.site_positions()
+    sites, cu, stratus, above = LK.site_positions()
     LK.INPUT = INPUT
     os.makedirs(INPUT, exist_ok=True)
-    LK.write_maps(cu, deck, above)
+    LK.write_maps(cu, stratus, above)
     with open(os.path.join(INPUT, "jobs.json"), "w", encoding="utf-8") as f:
         json.dump({"jobs": jobs(sites)}, f)
 
@@ -263,9 +263,9 @@ def aerial_rows(folder, out):
     out.append(Metric.at_most("aerial.alpha_change", float(np.abs(on[3] - off[3]).max()), 1e-5).based("gate"))
     out.append(Metric.info("aerial.transmittance_blue_min", float(trans[mask, 2].min())))
     out.append(Metric.info("aerial.transmittance_red_min", float(trans[mask, 0].min())))
-    # the blue goes first: the deck with the aerial perspective is bluer at the far end than at the near end
+    # the blue goes first: the cloud layer with the aerial perspective is bluer at the far end than at the near end
     near, far = mask & (first < np.percentile(first[mask], 10)), mask & (first > np.percentile(first[mask], 90))
-    # the aerial perspective's own effect on the colour: blue over red of the deck with it divided by the same of the deck without it, at the far end against the near end
+    # the aerial perspective's own effect on the colour: blue over red of the cloud layer with it divided by the same of the cloud layer without it, at the far end against the near end
     ratio = lambda m: float(np.mean(on[2][m] / np.maximum(on[0][m], 1e-6)) / np.mean(off[2][m] / np.maximum(off[0][m], 1e-6)))
     # the same ratio from the fog formula and the colours without it (the model), so that the row does not depend on how white the cloud light is
     expected = [off[c] * trans[:, c] + off[3] * np.array(HORIZON)[c] * (1.0 - trans[:, c]) for c in range(3)]
@@ -415,7 +415,7 @@ register_series("T06-far", stages(), collect, exclusive=False, who="T06")
 # The aerial perspective with Scatterer's air (E40 horizon fade): the same shader and the same fog formula, with the coefficients of Scatterer's
 # Kerbin node (StockScattererConfigs/Planets/Kerbin/atmo.cfg: m_betaR 0.01534 / 0.03571 / 0.08755 per km, BETA_MSca 0.01214 per km and the
 # extinction BETA_MSca / 0.9, HR 3.84 km, HM 1 km) as a synthetic Scatterer-like extinction. The camera is the above view of K-T2d start 55
-# (8.3 km, the deck 100 to 400 m up, pitch 12 degrees down: the deck from its rim at the horizon, 9 degrees down and 90 km away, to the lower edge of the
+# (8.3 km, the cloud layer 100 to 400 m up, pitch 12 degrees down: the cloud layer from its rim at the horizon, 9 degrees down and 90 km away, to the lower edge of the
 # picture), so the shader's mix is read at the distances where the game measured Scatterer's own air on the cloud (33 to 61 km).
 # --------------------------------------------------------------------------------------------------------------------------------
 INPUT_S = os.path.join(BUILD, "T06-scatterer-in")
@@ -433,12 +433,12 @@ def scatterer_jobs(sites):
     sun = L.sun_vector(cam.pos, 120.0, 45.0)
     out = []
     for jid, mode, aerial in (("SC-warm", "lum", 0), ("SC-off", "lum", 0), ("SC-on", "lum", 1), ("SC-aux", "aux", 0), ("SC-off2", "lum", 0)):
-        layer = L.layer(100.0, 400.0, 0.02, [L.slab_type("slab", 0.0, 1.0, (1.0, 1.0), 0.0)], coverage=1.0, softness=0.3, name="fogdeck")
+        layer = L.layer(100.0, 400.0, 0.02, [L.slab_type("slab", 0.0, 1.0, (1.0, 1.0), 0.0)], coverage=1.0, softness=0.3, name="stratus")
         j = L.job(jid, mode, cam, [layer], SC_SIZE[0], SC_SIZE[1], sun=sun, **PRODUCT)
         j["maxSteps"] = 128
         j["far"] = scatterer_far_block(aerial)
         out.append(j)
-    # The pictures (natural and aid, one name each: e40-fh-<variant>.png and e40-fh-<variant>-aid.png): the low deck seen from 8.3 km without the aerial perspective, with the
+    # The pictures (natural and aid, one name each: e40-fh-<variant>.png and e40-fh-<variant>-aid.png): the low cloud layer seen from 8.3 km without the aerial perspective, with the
     # pass's own air at the strength 1 (the setting before this package: Earth's coefficients) and with Scatterer's Kerbin air.
     day = dict(LK.DAY)
     day["skyHorizon"] = list(HORIZON)
@@ -446,7 +446,7 @@ def scatterer_jobs(sites):
     pic_cam = camera_at(sites["above"], SC_ALT, SC_PITCH, LK.YAW_EAST, SIZE[0], SIZE[1], 60.0)
     pic_sun = L.sun_vector(pic_cam.pos, 120.0, 45.0)
     for name, block in (("off", dict(aerialPerspective=0)), ("own", dict(aerialPerspective=1)), ("sc", scatterer_far_block(1))):
-        j = L.job("e40-fh-%s" % name, "color", pic_cam, [LK.deck_layer("above.r8", 0.85, 100.0, 700.0)], SIZE[0], SIZE[1], sun=pic_sun, mapWidth=LK.MAP_W,
+        j = L.job("e40-fh-%s" % name, "color", pic_cam, [LK.stratus_layer("above.r8", 0.85, 100.0, 700.0)], SIZE[0], SIZE[1], sun=pic_sun, mapWidth=LK.MAP_W,
                   mapHeight=LK.MAP_H, **PRODUCT)
         j["maxSteps"] = 64
         j.update(day)
@@ -456,10 +456,10 @@ def scatterer_jobs(sites):
 
 
 def write_scatterer_inputs():
-    sites, cu, deck, above = LK.site_positions()
+    sites, cu, stratus, above = LK.site_positions()
     LK.INPUT = INPUT_S
     os.makedirs(INPUT_S, exist_ok=True)
-    LK.write_maps(cu, deck, above)
+    LK.write_maps(cu, stratus, above)
     with open(os.path.join(INPUT_S, "jobs.json"), "w", encoding="utf-8") as f:
         json.dump({"jobs": scatterer_jobs(sites)}, f)
 
@@ -527,7 +527,7 @@ def collect_scatterer(ctx):
         expected = off[c] * trans[:, c] + off[3] * np.array(HORIZON)[c] * (1.0 - trans[:, c])
         errs.append(np.abs(on[c] - expected)[mask] / np.maximum(expected[mask], 1e-3))
     err = np.concatenate(errs)
-    # The first render of a player run differs from the later ones in the deck's light (mean 0.04 brighter, 0.10 per pixel, all three channels: the first run of this series
+    # The first render of a player run differs from the later ones in the cloud layer's light (mean 0.04 brighter, 0.10 per pixel, all three channels: the first run of this series
     # had its SC-off first and read 0.307 for the row above): SC-warm is rendered first and not read, and SC-off2 repeats SC-off as the floor of the comparison.
     off2 = [plane(folder, "SC-off2", c).reshape(-1) for c in "rgb"]
     out.append(Metric.at_most("aerial.scatterer.repeat_diff", float(max(np.abs(off2[c] - off[c])[mask].max() for c in range(3))), 1e-3).based("new"))
@@ -620,7 +620,7 @@ def write_temporal_inputs():
     cam = camera_at(sites["orbit"], 230000.0, -30.0, LK.YAW_EAST, 640, 360, 60.0)
     sun = L.sun_vector(cam.pos, 120.0, 40.0)
     for jid, variant in (("V-ground", "base"), ("V-stack-below", "far")):
-        j = L.job(jid, "color", cam, [LK.deck_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], 640, 360, sun=sun, mapWidth=LK.MAP_W,
+        j = L.job(jid, "color", cam, [LK.stratus_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], 640, 360, sun=sun, mapWidth=LK.MAP_W,
                   mapHeight=LK.MAP_H, **PRODUCT)
         j.update(LK.DAY)
         j["far"] = far_block(variant)

@@ -77,9 +77,9 @@ namespace ReDefinition.Tests.Atmospheres.T18
         [TestMethod]
         public void TheLongitudeWrapsAndTheLatitudeClampsInTheFilter()
         {
-            var s = new LatLonSource(PackScenes.Kerbin).Add("deck", 2000, 4000, 2.0, (lat, lon) => 1.0);
+            var s = new LatLonSource(PackScenes.Kerbin).Add("layer", 2000, 4000, 2.0, (lat, lon) => 1.0);
             RtCloudPack pack = PackScenes.Bake(s, s.Tables());
-            // A uniform deck reads the same everywhere, across the seam at 180 and at the poles.
+            // A uniform cloud layer reads the same everywhere, across the seam at 180 and at the poles.
             double expected = 2.0;
             Assert.AreEqual(expected, pack.ColumnTau(0, 0.0, 179.9), 1e-5);
             Assert.AreEqual(expected, pack.ColumnTau(0, 0.0, -179.9), 1e-5);
@@ -118,7 +118,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
         [TestMethod]
         public void AClearColumnCostsNothingAndIsZero()
         {
-            var s = new LatLonSource(PackScenes.Kerbin).Add("deck", 2000, 4000, 3.0, PackScenes.Box(-10, 10, -20, 20, 0.0));
+            var s = new LatLonSource(PackScenes.Kerbin).Add("layer", 2000, 4000, 3.0, PackScenes.Box(-10, 10, -20, 20, 0.0));
             RtCloudPack pack = PackScenes.Bake(s, s.Tables());
             Assert.AreEqual(3.0, pack.ColumnTau(0, 0.0, 0.0), 1e-5);
             Assert.AreEqual(0.0, pack.ColumnTau(0, 40.0, 100.0), 0.0);
@@ -148,7 +148,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
         {
             // The coverage patch is at map longitudes 0 to 10; with the layer shifted by 20 it stands at world 20 to 30. The pack holds it at map 0 to 10
             // and the ray side adds the shift: a ray under world 25 is shaded, one under world 5 is not.
-            var s = new LatLonSource(PackScenes.Kerbin).Add("deck", 2000, 4000, 4.0, PackScenes.Box(-40, 40, 0, 10, 0.0));
+            var s = new LatLonSource(PackScenes.Kerbin).Add("layer", 2000, 4000, 4.0, PackScenes.Box(-40, 40, 0, 10, 0.0));
             s.LayerAt(0).MapShiftDeg = 20f;
             RtCloudPack pack = PackScenes.Bake(s, s.Tables());
             Assert.AreEqual(4.0, pack.ColumnTau(0, 0.0, 5.0), 0.2, "the patch stands at map 0 to 10 in the pack");
@@ -300,7 +300,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
         }
 
         [TestMethod]
-        public void TheSourceChoiceNeverGivesTheRaysADeckTwice()
+        public void TheSourceChoiceNeverGivesTheRaysACloudLayerTwice()
         {
             var ours = CloudShadowSwitches.Caster.Ours;
             Assert.IsTrue(RtOwnCloudsPlan.Wanted(true, true, ours, true, 3));

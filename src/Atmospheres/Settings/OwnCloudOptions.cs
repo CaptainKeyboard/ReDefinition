@@ -129,8 +129,8 @@ namespace ReDefinition.Atmospheres
         // a regular screen-fixed pattern (a few percent of the residual's power in single spatial lines); 3 has the temporal noise of 2 and a spectrum with no line
         // (the strongest line 0.4 / 0.9 percent of the power against 4.2 / 3.5, series e40-f2-fix) and no power below 0.15 cycles per pixel in its tile.
         internal const string TuneDitherSequence = "layers.ditherSequence";
-        // M2c (the low decks, 2026-11-23): cloud.undulatus draws the stratiform types' undulations (variety undulatus, CloudTypeDef.UndulatusAmount) with this share of their depth
-        // (0, the default: off, the deck of before, until the owner says yes on the pictures); cloud.undulatusWavelengthShare is the wavelength as a share of the layer's depth.
+        // M2c (the low stratiform layers, 2026-11-23): cloud.undulatus draws the stratiform types' undulations (variety undulatus, CloudTypeDef.UndulatusAmount) with this share of their depth
+        // (0, the default: off, the layer of before, until the owner says yes on the pictures); cloud.undulatusWavelengthShare is the wavelength as a share of the layer's depth.
         internal const string TuneUndulatus = "cloud.undulatus", TuneUndulatusWavelengthShare = "cloud.undulatusWavelengthShare";
         internal const float UndulatusDefault = 0f, UndulatusWavelengthShareDefault = 1f;
         internal const int DitherSequenceDefault = 3;

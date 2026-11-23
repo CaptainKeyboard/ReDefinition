@@ -7,21 +7,21 @@ namespace ReDefinition.Atmospheres
     // What a cloud type of an EVE layer is for, by the role lists of the body's CLOUDS node (CloudRules).
     internal enum CloudRole
     {
-        // A type that plays no role of ours (EVE's own weather decks).
+        // A type that plays no role of ours (EVE's own weather layers).
         None = 0,
         // The thin snow stratus of flurries and light snow.
         SnowLight = 1,
-        // The grey deck of moderate snow.
+        // The grey low stratiform layer of moderate snow.
         SnowStratus = 2,
         // The storm type with the low dark base: heavy snow and blizzard.
         Storm = 3,
-        // The type of a dust deck (Duna).
+        // The type of a dust layer (Duna).
         Dust = 4
     }
 
     // The cloud types of one layer as the type map sees them: how many there are and which index plays which role. EVE reads the
     // type map's value t (0 to 1) as the index t x (Count - 1), blends the two neighbouring types by the fraction and takes the base
-    // and top of the deck from the blend when interpolateCloudHeights is on (CloudsRaymarchedVolume.BakeCurvesTexture). A value is
+    // and top of the layer from the blend when interpolateCloudHeights is on (CloudsRaymarchedVolume.BakeCurvesTexture). A value is
     // therefore the index divided by Count - 1, and two roles that are not neighbours in the layer's list blend through the types
     // between them: the layer template (E41) lists SnowLight, SnowStratus and the storm type next to each other, in that order.
     internal sealed class TypeSlots
@@ -66,7 +66,7 @@ namespace ReDefinition.Atmospheres
     //   Flurries, Light  SnowLight   the thin stratus, 600 to 1500 m
     //   Moderate         SnowStratus 400 to 1800 m
     //   Heavy, Blizzard  Storm       300 to 2300 m, the low dark base
-    // The value moves continuously with the level between the anchors, so the deck thickens without a step: SnowLight up to
+    // The value moves continuously with the level between the anchors, so the layer thickens without a step: SnowLight up to
     // LightAnchor, SnowStratus at ModerateAnchor, Storm from HeavyAnchor on. A role the layer lacks is passed over to the nearest one
     // it has; a layer with none of the three has value 0 everywhere. A dust body (Duna) uses the Dust type at every level.
     internal static class CloudTypeEncoding
@@ -158,9 +158,9 @@ namespace ReDefinition.Atmospheres
             return lut;
         }
 
-        // The thickness of the deck at a type map value, in m: the base and top blend like the types do when interpolateCloudHeights is
-        // on (CloudsRaymarchedVolume.cs:908-909), so the level thickens the deck through the type value alone.
-        internal static float DeckThicknessM(float[] minAltitudeM, float[] maxAltitudeM, float typeValue)
+        // The thickness of the layer at a type map value, in m: the base and top blend like the types do when interpolateCloudHeights is
+        // on (CloudsRaymarchedVolume.cs:908-909), so the level thickens the layer through the type value alone.
+        internal static float LayerThicknessM(float[] minAltitudeM, float[] maxAltitudeM, float typeValue)
         {
             int n = minAltitudeM == null || maxAltitudeM == null ? 0 : Math.Min(minAltitudeM.Length, maxAltitudeM.Length);
             if (n == 0) return 0f;

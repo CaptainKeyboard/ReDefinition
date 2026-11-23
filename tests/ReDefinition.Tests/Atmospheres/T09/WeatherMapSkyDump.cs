@@ -86,33 +86,33 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.IsTrue(field.GetMap(body, WeatherMapKind.SurfaceTemperature, ut, temperature));
                     Assert.IsTrue(field.GetMap(body, WeatherMapKind.WindSpeed, ut, wind));
                     var spread = new float[n];
-                    for (int i = 0; i < n; i++) spread[i] = WeatherDeckRule.SpreadK(temperature.Values[i], s.Humidity.Values[i]);
-                    // Today: SkyMapsExplore's chain (layer map, deck rule or fair type with the alto rule, meso stage, the combination with the field's cover), then the anvils.
+                    for (int i = 0; i < n; i++) spread[i] = WeatherLowStratiformRule.SpreadK(temperature.Values[i], s.Humidity.Values[i]);
+                    // Today: SkyMapsExplore's chain (layer map, low stratiform rule or fair type with the alto rule, meso stage, the combination with the field's cover), then the anvils.
                     var combined = new byte[layers.Length][];
                     var types = new byte[layers.Length][];
-                    var decks = new WeatherDeckRule[layers.Length];
+                    var rules = new WeatherLowStratiformRule[layers.Length];
                     byte[] fogCover = null, fogType = null;
                     for (int li = 0; li < layers.Length; li++)
                     {
                         CloudLayerDef l = layers[li];
-                        decks[li] = l.Deck;
+                        rules[li] = l.LowStratiform;
                         WeatherMap raw = LayerMap(field, body, ut, CloudBridgeStack.MidHeightM(l));
                         byte[] cover = raw.Bytes, type;
                         byte[] altoMid = null, altoLow = null;
-                        if (l.Deck != null)
+                        if (l.LowStratiform != null)
                         {
                             var rc = new byte[n];
                             var rt = new byte[n];
-                            l.Deck.Apply(cover, s.Precip.Values, spread, wind.Values, rc, rt);
-                            if (WeatherMapSky.RoleOf(l) == WeatherMapSky.Role.Deck && fogCover == null)
+                            l.LowStratiform.Apply(cover, s.Precip.Values, spread, wind.Values, rc, rt);
+                            if (WeatherMapSky.RoleOf(l) == WeatherMapSky.Role.LowStratiform && fogCover == null)
                             {
                                 fogCover = new byte[n];
                                 fogType = new byte[n];
-                                l.Deck.Apply(raw.Bytes, s.Precip.Values, spread, wind.Values, fogCover, fogType, 0f);
+                                l.LowStratiform.Apply(raw.Bytes, s.Precip.Values, spread, wind.Values, fogCover, fogType, 0f);
                             }
-                            float deckRain = l.RainType;
-                            if (deckRain < 1f)
-                                for (int i = 0; i < n; i++) rt[i] = (byte)Math.Round(rt[i] * deckRain);
+                            float lowStratiformRain = l.RainType;
+                            if (lowStratiformRain < 1f)
+                                for (int i = 0; i < n; i++) rt[i] = (byte)Math.Round(rt[i] * lowStratiformRain);
                             cover = rc;
                             type = rt;
                         }
@@ -134,17 +134,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         };
                         Assert.IsTrue(field.CloudScalesOf(body, inp), "the field's body has its scales");
                         byte[] coverOut = null, typeOut = null;
-                        if ((l.Meso != null && l.Meso.On) || (l.HasClimate && l.Deck == null)) CloudMesoStage.Apply(l, inp, cover, type, ref coverOut, ref typeOut);
+                        if ((l.Meso != null && l.Meso.On) || (l.HasClimate && l.LowStratiform == null)) CloudMesoStage.Apply(l, inp, cover, type, ref coverOut, ref typeOut);
                         else { coverOut = cover; typeOut = type; }
                         combined[li] = (byte[])coverOut.Clone();
                         types[li] = (byte[])typeOut.Clone();
                     }
-                    CloudLookTuning.MeetTheField(combined, layers.Length, s.Cover.Bytes, CloudLookTuning.CoverCombine, decks, s.Precip.Values);
+                    CloudLookTuning.MeetTheField(combined, layers.Length, s.Cover.Bytes, CloudLookTuning.CoverCombine, rules, s.Precip.Values);
                     for (int li = 0; li < layers.Length; li++) AnvilMap.Apply(layers[li], combined[li], types[li], Anvil(field, body, layers[li], w, h));
                     // The column quantities (GeneratorMaps.RenderWeather's samples, with the quantities the maps do not keep).
                     var c = new WeatherMapSky.Columns
                     {
-                        Width = w, Height = h, Cover = new float[n], Cumuliform = new float[n], Stratiform = new float[n], Deck = new float[n], BaseM = new float[n], TopM = new float[n],
+                        Width = w, Height = h, Cover = new float[n], Cumuliform = new float[n], Stratiform = new float[n], LowStratiform = new float[n], BaseM = new float[n], TopM = new float[n],
                         RhLow = new float[n], RhMid = new float[n], RhHigh = new float[n], PrecipMmH = new float[n]
                     };
                     float[] reach = new float[n], stable = new float[n], warm = new float[n], cold = new float[n], inst = new float[n];
@@ -162,7 +162,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             c.Cover[k] = (float)wx.Coverage;
                             c.Cumuliform[k] = (float)col.CumuliformAmount;
                             c.Stratiform[k] = (float)col.StratiformAmount;
-                            c.Deck[k] = (float)col.DeckAmount;
+                            c.LowStratiform[k] = (float)col.LowStratiformAmount;
                             c.BaseM[k] = (float)col.BaseM;
                             c.TopM[k] = (float)col.TopM;
                             c.RhLow[k] = (float)col.RhLow;
@@ -194,7 +194,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Floats(folder, tag + "col_cover", c.Cover);
                     Floats(folder, tag + "col_cumuliform", c.Cumuliform);
                     Floats(folder, tag + "col_sheet", c.Stratiform);
-                    Floats(folder, tag + "col_deck", c.Deck);
+                    Floats(folder, tag + "col_lowstratiform", c.LowStratiform);
                     Floats(folder, tag + "col_base", c.BaseM);
                     Floats(folder, tag + "col_top", c.TopM);
                     Floats(folder, tag + "col_rhLow", c.RhLow);

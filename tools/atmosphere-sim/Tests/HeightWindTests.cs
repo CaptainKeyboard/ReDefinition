@@ -282,16 +282,16 @@ namespace AtmoSim.Tests
                     // gate: the two upper layers at every latitude, and the speed at the storm-track latitudes where the rate is taken; the 2000 m layer (a meridional wind part the
                     // polar-axis rotation cannot follow) and the speeds at other latitudes are reported
                     if (z >= 5000.0) { total++; if (angleErr <= 15.0) ok++; }
-                    // decision R3: the decks above LayerDecoupleWeight move with the wind of their height (speed error at the storm-track latitude within 15 %); the 2000 m deck
+                    // decision R3: the cloud layers above LayerDecoupleWeight move with the wind of their height (speed error at the storm-track latitude within 15 %); the 2000 m cloud layer
                     // carries rain and cells and moves with the generator's patterns (the steering flow of the systems), which is faster than the wind of its own height
                     if (Math.Abs(latDeg) == 45.0 && latDeg > 0 && z >= 5000.0) Assert.IsTrue(speedErr <= 0.15, "speed error at 45 deg N latitude, " + z + " m: " + speedErr);
                     if (z == 2000.0)
                     {
-                        // the 2000 m deck is the pattern: its measured motion equals the pattern speed (one source of truth), whatever the wind of its height
+                        // the 2000 m cloud layer is the pattern: its measured motion equals the pattern speed (one source of truth), whatever the wind of its height
                         double pat = HeightWind.PatternDriftMs(g.D, g.Body, Math.Abs(lat));
-                        Row("E43.layer_low_follows_pattern_error_pct." + latDeg, 100.0 * Math.Abs(m - pat) / pat, "<= 15", "measured motion of the 2000 m deck against the pattern speed " + pat.ToString("0.0") + " m/s");
-                        Assert.IsTrue(Math.Abs(m - pat) <= 0.15 * pat, "2000 m deck " + m + " against the pattern " + pat);
-                        // the polar-axis rotation cannot follow the meridional part of the wind: 15 degrees is not reached by this deck (open defect, stated), the bound is the measured value
+                        Row("E43.layer_low_follows_pattern_error_pct." + latDeg, 100.0 * Math.Abs(m - pat) / pat, "<= 15", "measured motion of the 2000 m cloud layer against the pattern speed " + pat.ToString("0.0") + " m/s");
+                        Assert.IsTrue(Math.Abs(m - pat) <= 0.15 * pat, "2000 m cloud layer " + m + " against the pattern " + pat);
+                        // the polar-axis rotation cannot follow the meridional part of the wind: 15 degrees is not reached by this cloud layer (open defect, stated), the bound is the measured value
                         Assert.IsTrue(angleErr <= 20.0, "2000 m angle error " + angleErr);
                     }
                 }
@@ -317,12 +317,12 @@ namespace AtmoSim.Tests
             Assert.IsTrue(Math.Abs(hi0 - lo0) < 1.0, "off " + (hi0 - lo0));
         }
 
-        private static bool FindCell(WeatherGenerator g, double phaseLo, double phaseHi, double minLife, double minTop, bool clearDeck, out double lat, out double lon, out double ut)
+        private static bool FindCell(WeatherGenerator g, double phaseLo, double phaseHi, double minLife, double minTop, bool clearLowStratiform, out double lat, out double lon, out double ut)
         {
-            return FindCell(g, phaseLo, phaseHi, minLife, minTop, clearDeck, 0.6, 1.0, out lat, out lon, out ut);
+            return FindCell(g, phaseLo, phaseHi, minLife, minTop, clearLowStratiform, 0.6, 1.0, out lat, out lon, out ut);
         }
 
-        private static bool FindCell(WeatherGenerator g, double phaseLo, double phaseHi, double minLife, double minTop, bool clearDeck, double minStrength, double maxLat, out double lat, out double lon, out double ut)
+        private static bool FindCell(WeatherGenerator g, double phaseLo, double phaseHi, double minLife, double minTop, bool clearLowStratiform, double minStrength, double maxLat, out double lat, out double lon, out double ut)
         {
             var q = Timing.Queries(1000000, 123, 3.0e7);
             lat = lon = ut = 0.0;
@@ -330,7 +330,7 @@ namespace AtmoSim.Tests
             {
                 if (Math.Abs(q[i].Lat) > maxLat) continue;
                 Weather w; g.Sample(q[i].Lat, q[i].Lon, 0.0, q[i].Ut, out w);
-                if (w.CellStrength > minStrength && w.CellPhase > phaseLo && w.CellPhase < phaseHi && w.CellLifeS > minLife && w.CellTopM > minTop && (!clearDeck || w.LayerAmount < 0.03))
+                if (w.CellStrength > minStrength && w.CellPhase > phaseLo && w.CellPhase < phaseHi && w.CellLifeS > minLife && w.CellTopM > minTop && (!clearLowStratiform || w.LayerAmount < 0.03))
                 { lat = q[i].Lat; lon = q[i].Lon; ut = q[i].Ut; return true; }
             }
             return false;
@@ -340,7 +340,7 @@ namespace AtmoSim.Tests
         public void ATowerGrowsAsFastAsItsUpdraft()
         {
             var g = Kerbin();
-            var o = new LayerOptions { Couple = false, Tilt = false, Deck = false };
+            var o = new LayerOptions { Couple = false, Tilt = false, LowStratiform = false };
             double lat, lon, ut0;
             Assert.IsTrue(FindCell(g, 0.08, 0.13, 8000.0, 6000.0, false, 0.08, 0.2, out lat, out lon, out ut0), "no growing cell found");
             const int nz = 240; const double dz = 50.0, dt = 60.0;
@@ -386,7 +386,7 @@ namespace AtmoSim.Tests
         }
 
         [TestMethod]
-        public void ATallCellThinsTheDeckBeneathAndPutsAnAnvilAboveIt()
+        public void ATallCellThinsTheLowStratiformBeneathAndPutsAnAnvilAboveIt()
         {
             var g = Kerbin();
             var on = new LayerOptions();
@@ -395,7 +395,7 @@ namespace AtmoSim.Tests
             Assert.IsTrue(FindCell(g, 0.3, 0.6, 8000.0, 7000.0, false, out lat, out lon, out ut));
             Weather w; g.Sample(lat, lon, 0.0, ut, out w);
             double top = LayerCoupling.TopNow(ref w, on);
-            // the deck beneath: the density of the stratiform part in a column (beneath the top, away from the cell's own tower density) is thinner with the rule on
+            // the low stratiform layer beneath: the density of the stratiform part in a column (beneath the top, away from the cell's own tower density) is thinner with the rule on
             var dOn = new float[64]; var dOff = new float[64];
             double sumOn = 0, sumOff = 0;
             for (int i = 0; i < 300; i++)
@@ -412,7 +412,7 @@ namespace AtmoSim.Tests
                     sumOn += t.StratDensityAt(alt) <= 0 ? 0 : dOn[k] - 0.9 * LayerCoupling.CellDensity(t.CellStrength, top, alt); sumOff += dOff[k] - 0.9 * LayerCoupling.CellDensity(t.CellStrength, top, alt);
                 }
             }
-            Row("E43.deck_beneath_tower_on_to_off", sumOff > 0 ? sumOn / sumOff : 1.0, "<= 0.6", "stratiform density beneath a tall cell, consistency rule on against off");
+            Row("E43.low_stratiform_beneath_tower_on_to_off", sumOff > 0 ? sumOn / sumOff : 1.0, "<= 0.6", "stratiform density beneath a tall cell, consistency rule on against off");
             if (sumOff > 0) Assert.IsTrue(sumOn / sumOff <= 0.6, "ratio " + sumOn / sumOff);
             // the coverage of a layer at the top of the tower: with the rule an anvil, without not
             double covOn = LayerCoupling.Coverage(g, lat, lon, ut, top + 600.0, on), covOff = LayerCoupling.Coverage(g, lat, lon, ut, top + 600.0, off);
@@ -437,7 +437,7 @@ namespace AtmoSim.Tests
         }
 
         [TestMethod]
-        public void NoColumnHasAnUpdraftAndAnUnthinnedDeckAtTheSamePlace()
+        public void NoColumnHasAnUpdraftAndAnUnthinnedLowStratiformAtTheSamePlace()
         {
             var g = Kerbin();
             var o = new LayerOptions { Tilt = false };
@@ -458,13 +458,13 @@ namespace AtmoSim.Tests
                 {
                     double alt = k * 250.0;
                     bool updraftHere = Math.Abs(up[k]) > 1.0;
-                    double deckWithout = db[k] - 0.9 * LayerCoupling.CellDensity(w.CellStrength, top, alt);
-                    bool deckHere = deckWithout > 0.1 && alt < top - 1500.0;
-                    // where the tower moves and a deck of the same height stands, the deck must be thinner than without the rule
-                    if (updraftHere && deckHere && w.CellStrength > 0.5 && top > 3000.0 && db[k] < 1.49f && !(d[k] < db[k] - 1e-4)) violations++;
+                    double lowStratiformWithout = db[k] - 0.9 * LayerCoupling.CellDensity(w.CellStrength, top, alt);
+                    bool lowStratiformHere = lowStratiformWithout > 0.1 && alt < top - 1500.0;
+                    // where the tower moves and a low stratiform layer of the same height stands, the low stratiform layer must be thinner than without the rule
+                    if (updraftHere && lowStratiformHere && w.CellStrength > 0.5 && top > 3000.0 && db[k] < 1.49f && !(d[k] < db[k] - 1e-4)) violations++;
                 }
             }
-            Row("E43.updraft_with_unthinned_deck", violations, "= 0", columns + " cell columns");
+            Row("E43.updraft_with_unthinned_low_stratiform", violations, "= 0", columns + " cell columns");
             Assert.AreEqual(0, violations);
         }
 
@@ -564,11 +564,11 @@ namespace AtmoSim.Tests
         public void ATowerIsOneConnectedBodyWithItsAnvilFromTheSameCell()
         {
             var g = KerbinCalibrated();
-            int controlGaps = TowerGaps(g, new LayerOptions { Deck = false, Couple = true, TiltReach = 4.0 }, 0, out int controlColumns, out double controlWorst);
+            int controlGaps = TowerGaps(g, new LayerOptions { LowStratiform = false, Couple = true, TiltReach = 4.0 }, 0, out int controlColumns, out double controlWorst);
             // the control: a lean ten times the reach tears the tower apart, so the row below is able to fail
             Row("E43.tower_gaps_control_unbounded_lean", controlGaps, "> 0", controlColumns + " columns with the reach of the lean lifted to 4 lattice spacings, worst gap " + controlWorst.ToString("0") + " m");
             Assert.IsTrue(controlGaps > 0, "the control found no gap");
-            int gaps = TowerGaps(g, new LayerOptions { Deck = false, Couple = true }, 0, out int columns, out double worstGapM);
+            int gaps = TowerGaps(g, new LayerOptions { LowStratiform = false, Couple = true }, 0, out int columns, out double worstGapM);
             Assert.IsTrue(columns >= 40, "columns " + columns);
             Row("E43.tower_columns_with_gap", gaps, "= 0", columns + " tower columns, worst gap " + worstGapM.ToString("0") + " m, density threshold 5 % of the column maximum, 200 m steps");
             Assert.AreEqual(0, gaps, "worst gap " + worstGapM);
@@ -586,7 +586,7 @@ namespace AtmoSim.Tests
                 BodyParams p = BodyParams.KerbinLike();
                 p.TropopauseM = troposphereM;
                 var g = new WeatherGenerator(p, 1);
-                gaps += TowerGaps(g, new LayerOptions { Deck = false, Couple = true }, 0, out int c, out double w, 100000);
+                gaps += TowerGaps(g, new LayerOptions { LowStratiform = false, Couple = true }, 0, out int c, out double w, 100000);
                 columns += c;
                 worst = Math.Max(worst, w);
             }
@@ -625,7 +625,7 @@ namespace AtmoSim.Tests
         public void TheTowerDoesNotEndInAVerticalWall()
         {
             var g = Kerbin();
-            var o = new LayerOptions { Deck = false };
+            var o = new LayerOptions { LowStratiform = false };
             var q = Timing.Queries(40000, 29, 3.0e7);
             const int nz = 48; const double dz = 400.0, dx = 1000.0;
             var a = new float[nz]; var b = new float[nz];

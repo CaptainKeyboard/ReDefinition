@@ -119,7 +119,7 @@ namespace ReDefinition.Atmospheres
         internal struct CellRead
         {
             internal double XBest, RBest, Core, WMap;
-            // The shader's body test: a disc was read and the cells alone draw (no closed deck, no far view).
+            // The shader's body test: a disc was read and the cells alone draw (no closed cloud layer, no far view).
             internal bool Body { get { return XBest >= 0.0 && WMap <= 0.0; } }
         }
 
@@ -170,7 +170,7 @@ namespace ReDefinition.Atmospheres
             return CoverAt(cov, x, y, z, layer, rm, seed, out read);
         }
 
-        // The same with the whole read of the nearest disc (no disc, a closed deck: XBest 1e9 and WMap 1 where the point is not on the sphere).
+        // The same with the whole read of the nearest disc (no disc, a closed cloud layer: XBest 1e9 and WMap 1 where the point is not on the sphere).
         internal static double CoverAt(double cov, double x, double y, double z, CloudLayerDef layer, double rm, uint seed, out CellRead read)
         {
             double r = Math.Sqrt(x * x + y * y + z * z);

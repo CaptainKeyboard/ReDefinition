@@ -18,7 +18,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         private static LayerStackSource Stack()
         {
             var source = new LayerStackSource(Body, 600000.0, true);
-            // Heights of the rain deck as the Kerbin file has them (a deck of 2100 m from 0 m).
+            // Heights of the low stratiform rain layer as the Kerbin file has them (a layer of 2100 m from 0 m).
             source.Add(new CloudLayerDef("rain", 0, 0f, 2100f, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, 0.045f), null, null);
             return source;
         }
@@ -32,7 +32,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The field's layer map is not full everywhere ...
             float min = 1f;
             foreach (float v in layer.Values) min = Math.Min(min, v);
-            Assert.IsTrue(min < 0.5f, "the layer map of the rain deck has gaps: min " + min);
+            Assert.IsTrue(min < 0.5f, "the layer map of the low stratiform rain layer has gaps: min " + min);
             // ... and the stack, never given it, reads 1.0 and type 0 at every place: the K-T2d start 48 rows.
             LayerStackSource stack = Stack();
             for (int lat = -60; lat <= 60; lat += 30)
@@ -69,11 +69,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     Assert.AreEqual(layer.Sample(lat, lon), cover, 1e-6f);
                     Assert.AreEqual(type.Sample(lat, lon), t, 1e-6f);
                     if (cover < 0.95f) below++;
-                    // The cover of the sky at 3 km (what the series picks) is a different quantity from the map of the deck at its mid height.
+                    // The cover of the sky at 3 km (what the series picks) is a different quantity from the map of the layer at its mid height.
                     if (Math.Abs(shared.Sample(lat, lon) - cover) > 0.05f) differing++;
                 }
-            Assert.IsTrue(below > 10, "places where the deck is not full: " + below);
-            Assert.IsTrue(differing > 10, "the deck's map and the shared cover differ at many places: " + differing);
+            Assert.IsTrue(below > 10, "places where the layer is not full: " + below);
+            Assert.IsTrue(differing > 10, "the layer's map and the shared cover differ at many places: " + differing);
         }
 
         [TestMethod]

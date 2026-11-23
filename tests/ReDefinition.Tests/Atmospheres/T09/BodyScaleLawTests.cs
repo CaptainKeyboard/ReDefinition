@@ -125,14 +125,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(one.DensityAt(alt), two.DensityAt(2.0 * alt), 1e-12, "density at " + alt);
                 Assert.AreEqual(LayerCoupling.CellDensity(0.8, 6000.0, alt, 1.0), LayerCoupling.CellDensity(0.8, 12000.0, 2.0 * alt, 2.0), 1e-12);
             }
-            // a sample of a generator carries its body's scale and the base of the window's deck follows it
+            // a sample of a generator carries its body's scale and the base of the window's low stratiform layer follows it
             foreach (bool second in new[] { false, true })
             {
                 var g = new WeatherGenerator(Params(second), 3UL);
                 Weather w;
                 g.Sample(0.4, 1.0, 100.0, 5.0e6, out w);
                 Assert.AreEqual(g.D.HeightScale, w.HeightScale, 1e-12);
-                Assert.IsTrue(w.LayerBaseM >= 600.0 * g.D.HeightScale - 1e-6 && w.LayerBaseM <= 1800.0 * g.D.HeightScale + 1e-6, "deck base " + w.LayerBaseM + " at scale " + g.D.HeightScale);
+                Assert.IsTrue(w.LayerBaseM >= 600.0 * g.D.HeightScale - 1e-6 && w.LayerBaseM <= 1800.0 * g.D.HeightScale + 1e-6, "low stratiform base " + w.LayerBaseM + " at scale " + g.D.HeightScale);
                 Assert.IsTrue(w.CellTopM >= 0.35 * g.Body.TropopauseM - 1e-6 && w.CellTopM <= g.Body.TropopauseM + 1e-6, "tower top follows the troposphere");
             }
         }

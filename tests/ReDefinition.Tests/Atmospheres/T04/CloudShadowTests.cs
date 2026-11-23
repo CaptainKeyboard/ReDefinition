@@ -180,7 +180,7 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void OneRendererCastsTheShadowOfADeckWhateverTheCloudSource()
+        public void OneRendererCastsTheShadowOfACloudLayerWhateverTheCloudSource()
         {
             Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.Ours, false));
             Assert.AreEqual(CloudShadowSwitches.Caster.Eve, CloudShadowSwitches.WhoCasts(CloudSourceKind.Eve, false));

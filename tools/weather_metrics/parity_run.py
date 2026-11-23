@@ -102,11 +102,11 @@ def powder_pair(res):
 
 
 def cap_horizon(case):
-    # The inside deck starts 5 m under the camera and is thin in density, so that the rays below the horizon leave it with alpha < 0.05
+    # The inside cloud layer starts 5 m under the camera and is thin in density, so that the rays below the horizon leave it with alpha < 0.05
     # at a steep enough angle: the row is asin(sigma * 5 m / -ln(0.95)) = 11.2 deg below the horizon.
     layers = [(1995.0, 2500.0, 0.002)] if case == "inside" else [(1700.0, 2500.0, 0.01)]
     h_cam, pitch, fov, from_bottom = {"below": (2.0, 0.0, 50.0, True), "inside": (2000.0, 0.0, 50.0, True), "above": (8000.0, -8.0, 40.0, False)}[case]
-    field = pr.DensityField(R, [pr.Layer("deck", *layers[0])])
+    field = pr.DensityField(R, [pr.Layer("layer", *layers[0])])
     cam = pr.Camera([0, 0, R + h_cam], 0, pitch, 3, 480, fov)
     return {"alpha": high_alpha(field, cam), "camera": {"radius": R, "h_cam": h_cam, "layers": layers, "pitch": pitch, "fov_v": fov, "from_bottom": from_bottom}}
 
@@ -115,7 +115,7 @@ def cap_noise_spectrum():
     xs = np.arange(0, 40000, 50.0)
     ys = np.arange(0, 12000, 1000.0)
     X, Y = np.meshgrid(xs, ys)
-    f = pr.DensityField(F, pr.scene_noise_deck(pr.FbmShape(seed=1, tile_m=1e7), tau_vertical=1.0).layers)
+    f = pr.DensityField(F, pr.scene_noise_layer(pr.FbmShape(seed=1, tile_m=1e7), tau_vertical=1.0).layers)
     tau = column_tau(f, X.ravel(), Y.ravel()).reshape(X.shape)
     return {"alpha_stripes": 1.0 - np.exp(-tau), "dx": 50.0}
 
@@ -123,7 +123,7 @@ def cap_noise_spectrum():
 def cap_noise_repetition(tile=1e7):
     xs, ys = np.arange(0, 40000, 200.0), np.arange(0, 20000, 200.0)
     X, Y = np.meshgrid(xs, ys)
-    f = pr.DensityField(F, pr.scene_noise_deck(pr.FbmShape(seed=1, tile_m=tile), tau_vertical=6.0).layers)
+    f = pr.DensityField(F, pr.scene_noise_layer(pr.FbmShape(seed=1, tile_m=tile), tau_vertical=6.0).layers)
     return {"tau_map": column_tau(f, X.ravel(), Y.ravel()).reshape(X.shape), "tile_lag": 100}
 
 
@@ -622,7 +622,7 @@ def selftest(quick=True, fast=False):
         t.add("convergence, 4x longer reference, order %d" % order, "%.5f" % d1, "<= 0.01", d1 <= 0.01)
 
     # The horizon check against the closed form: the dip acos(R / (R + h)) of the ground (below), asin(sigma dh / -ln 0.95) (inside)
-    # or the dip of the deck's outer shell (above).
+    # or the dip of the cloud layer's outer shell (above).
     for case, h, bound, pitch, fov in (("below", 2.0, 0.0, 0.0, 50.0), ("inside", 2000.0, 0.0, 0.0, 50.0), ("above", 8000.0, 2500.0, -8.0, 40.0)):
         cap = cap_horizon(case)
         cam = pr.Camera([0, 0, R + h], 0, pitch, 3, 480, fov)
@@ -699,7 +699,7 @@ PLAN_ROWS = {
     "P93 RT pack": ["P93"],
     "P95-P99 settings and robustness": ["P95", "P96", "P97", "P98", "P99"],
 }
-SCENES = {"uniform-deck", "slab", "single-cloud", "plane-terrain", "two-slab", "mountain-silhouette", "altitude-sweep"}
+SCENES = {"uniform-layer", "slab", "single-cloud", "plane-terrain", "two-slab", "mountain-silhouette", "altitude-sweep"}
 PACKAGES = {"T%02d" % i for i in range(1, 12)}
 KINDS = {"analytic", "renderer", "band", "gate"}
 
@@ -801,14 +801,14 @@ def numbers():
         for seed in range(1, 9):
             xs, ys = np.arange(0, 40000, 200.0), np.arange(0, 20000, 200.0)
             X, Y = np.meshgrid(xs, ys)
-            f = pr.DensityField(F, pr.scene_noise_deck(pr.FbmShape(seed=seed, tile_m=tile), tau_vertical=6.0).layers)
+            f = pr.DensityField(F, pr.scene_noise_layer(pr.FbmShape(seed=seed, tile_m=tile), tau_vertical=6.0).layers)
             vals.append(pc.autocorr(column_tau(f, X.ravel(), Y.ravel()).reshape(X.shape), 100))
         print("autocorrelation at 20 km, tile %g m, seeds 1-8: min %.3f max %.3f" % (tile, min(vals), max(vals)))
     sl = []
     for seed in (1, 2, 3):
         xs, ys = np.arange(0, 40000, 50.0), np.arange(0, 12000, 1000.0)
         X, Y = np.meshgrid(xs, ys)
-        f = pr.DensityField(F, pr.scene_noise_deck(pr.FbmShape(seed=seed, tile_m=1e7), tau_vertical=1.0).layers)
+        f = pr.DensityField(F, pr.scene_noise_layer(pr.FbmShape(seed=seed, tile_m=1e7), tau_vertical=1.0).layers)
         a = 1 - np.exp(-column_tau(f, X.ravel(), Y.ravel()).reshape(X.shape))
         e = [1 / 2400.0, 1 / 1200.0, 1 / 600.0, 1 / 300.0]
         sl.append([pc.spectrum_slope(a, 50.0, e[k], e[k + 1]) for k in range(3)])
@@ -825,13 +825,13 @@ def images(folder):
     cam = pr.Camera([0, -8000.0, F + 2000.0], 0, 0, 96, 72, 16)
     scenes["single-cloud"] = (pr.scene_single_cloud(), cam, pr.Sun.at(cam.pos, 90, 50))
     cam = pr.Camera([0, 0, R + 2.0], 0, 25, 96, 72, 60)
-    scenes["uniform-deck"] = (pr.scene_uniform_deck(1700.0, 2500.0, 8.0), cam, pr.Sun.at(cam.pos, 200, 38))
+    scenes["uniform-layer"] = (pr.scene_uniform_layer(1700.0, 2500.0, 8.0), cam, pr.Sun.at(cam.pos, 200, 38))
     cam = pr.Camera([0, 0, F + 2.0], 0, 40, 96, 72, 60)
     scenes["two-slab"] = (pr.scene_two_slab(2.0, 3.0), cam, pr.Sun.at(cam.pos, 200, 45))
     cam = pr.Camera([0, 0, F + 600.0], 0, -45, 96, 72, 50)
     scenes["plane-terrain"] = (pr.scene_terrain_shadow(4.0, 200.0, 2000.0, edge_x=300.0), cam, pr.Sun.at(cam.pos, 90, 40))
     cam = pr.Camera([0, 0, R + 8000.0], 0, -8, 96, 72, 40)
-    scenes["altitude-8km"] = (pr.scene_uniform_deck(2200.0, 2500.0, 6.0), cam, pr.Sun.at(cam.pos, 200, 30))
+    scenes["altitude-8km"] = (pr.scene_uniform_layer(2200.0, 2500.0, 6.0), cam, pr.Sun.at(cam.pos, 200, 30))
     cam = pr.Camera([0, 0, F + 100.0], 0, 4, 96, 72, 50)
     mount = [(np.array([0.0, 30000.0, F - 30000.0 + 900.0]), 30000.0)]
     scenes["mountain-silhouette"] = (pr.scene_slab(5.0, 600.0, 1500.0), cam, pr.Sun.at(cam.pos, 160, 35), mount)

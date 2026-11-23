@@ -16,7 +16,7 @@ namespace ReDefinition.Atmospheres
         // On by default with the factor 1 (owner 2026-11-23 16:02, "Faktor 1 (8,8 km)", on the pictures of PRUEFPROTOKOLL 139).
         internal const float OnDefault = 1f, FactorDefault = 1f, FactorMin = 0.3f, FactorMax = 1.5f;
         // 1: the horizontal lengths (noise, cells, type patches, the meso scale, the wavelengths of the height variation) follow the troposphere too (the concept's
-        // section 4); 0 (default, owner 2026-11-23 16:02 "Nur Höhen"): only the heights scale, the sky's sizes and patterns stay as written. With 1 the rain deck looked
+        // section 4); 0 (default, owner 2026-11-23 16:02 "Nur Höhen"): only the heights scale, the sky's sizes and patterns stay as written. With 1 the low stratiform rain layer looked
         // closed and grey from the ground at the factors 0.75 and 0.6 (PRUEFPROTOKOLL 139).
         internal const string TuneHorizontal = "cloud.heightScaleHorizontal";
         internal const float HorizontalDefault = 0f;

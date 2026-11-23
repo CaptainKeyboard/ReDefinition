@@ -11,7 +11,7 @@ namespace ReDefinition.Atmospheres
     // T09DrawnCover.cs estimates a view's share from the layers' maps over the rays of the view's frame.
     //   1. The own pass is switched on (UseOwn) for the choice, so its stack and maps exist; the candidates are the clock step's (SampleCoverCandidates).
     //   2. Forecast: for every candidate and every heading offset (-t09DrawnHeadings, default 0,90,180,270: added to every view's heading) the views' share from the
-    //      generator's layer lookup at the candidate's time without moving the clock (IT09World.ForecastLayerCover: no meso pattern, no cells, a rough deck rule). It ranks.
+    //      generator's layer lookup at the candidate's time without moving the clock (IT09World.ForecastLayerCover: no meso pattern, no cells, a rough low stratiform rule). It ranks.
     //   3. Confirmation, in the ranked order, at most DrawnConfirmTries times with the sun in the band (narrow first, then wide): the clock is set, the maps settle
     //      (SettleOwnMaps: the field's maps made for the time, every layer on its own map, a snapping round), and the views' share is read from the maps the pass draws
     //      (IT09World.DrawnLayerCover) for every heading offset; with -t09TvcCover also from EVE's own layers over the same rays. A time and heading is taken where every

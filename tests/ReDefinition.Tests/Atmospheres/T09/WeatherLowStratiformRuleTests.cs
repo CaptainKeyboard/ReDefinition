@@ -8,12 +8,12 @@ using ReDefinition.Tests.Atmospheres.T10;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // The weather deck rule (WeatherDeckRule, E40 problem 1): what may draw Fog, Stratus and Nimbostratus. The pure rule, the shipped cfg, the tuning key and the rule over the
-    // weather generator's own maps (the share of fair-weather deck that drew before and now).
+    // The low stratiform rule (WeatherLowStratiformRule, E40 problem 1): what may draw Fog, Stratus and Nimbostratus. The pure rule, the shipped cfg, the tuning key and the rule over the
+    // weather generator's own maps (the share of fair-weather low stratiform layer that drew before and now).
     [TestClass]
-    public class WeatherDeckRuleTests
+    public class WeatherLowStratiformRuleTests
     {
-        private static readonly WeatherDeckRule Rule = new WeatherDeckRule();
+        private static readonly WeatherLowStratiformRule Rule = new WeatherLowStratiformRule();
 
         private static void Texel(float level, float spread, float wind, out float activity, out float type)
         {
@@ -21,7 +21,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void FairDryWindyAirDrawsNoDeck()
+        public void FairDryWindyAirDrawsNoLowStratiform()
         {
             float a, t;
             Texel(0f, 8f, 3f, out a, out t);
@@ -88,49 +88,49 @@ namespace ReDefinition.Tests.Atmospheres.T09
             var oc = new byte[2];
             var ot = new byte[2];
             Rule.Apply(cover, level, spread, null, oc, ot, 0.6f, -1f);
-            Assert.AreEqual(200, oc[0], "forced rain draws a deck in fair air");
+            Assert.AreEqual(200, oc[0], "forced rain draws a low stratiform layer in fair air");
             Assert.AreEqual((byte)Math.Round(0.6f * 255f), ot[0]);
             Rule.Apply(cover, level, spread, null, oc, ot, -1f, 1f);
-            Assert.AreEqual(200, oc[1], "forced fog draws a deck in dry air");
+            Assert.AreEqual(200, oc[1], "forced fog draws a low stratiform layer in dry air");
             Assert.AreEqual(0, ot[1], "of the fog type");
             Rule.Apply(cover, level, spread, null, oc, ot, -1f, 0.25f);
             Assert.AreEqual(50, oc[0], "a quarter of the fog share is a quarter of the coverage");
         }
 
         [TestMethod]
-        public void TheShippedWeatherDecksCarryTheRuleAndTheOthersDoNot()
+        public void TheShippedWeatherLayersCarryTheRuleAndTheOthersDoNot()
         {
             var layers = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers;
             foreach (string name in new[] { "Kerbin-weather-rain", "Kerbin-weather-snow" })
             {
-                WeatherDeckRule d = layers.Single(l => l.Name == name).Deck;
+                WeatherLowStratiformRule d = layers.Single(l => l.Name == name).LowStratiform;
                 Assert.IsNotNull(d, name);
                 Assert.AreEqual(2.8f, d.FogSpreadK, 0f, name);
                 Assert.AreEqual(PrecipScale.FlurriesFrom, d.PrecipFrom, 0f, name + " the band None of the HUD");
                 Assert.AreEqual(PrecipScale.LightFrom, d.PrecipFullAt, 0f, name);
                 Assert.AreEqual(0.5f, d.PrecipType, 0f, name + " stratus");
                 Assert.IsTrue(d.Fog, name);
-                Assert.AreEqual(0.9f, d.RainFloor, 0f, name + " the rain itself guarantees a deck");
-                Assert.AreEqual(0.7f, d.RainFloorFullAt, 0f, name + " the floor rises with the rain's intensity, so the light rain of a system's halo has a broken deck");
+                Assert.AreEqual(0.9f, d.RainFloor, 0f, name + " the rain itself guarantees a low stratiform layer");
+                Assert.AreEqual(0.7f, d.RainFloorFullAt, 0f, name + " the floor rises with the rain's intensity, so the light rain of a system's halo has a broken low stratiform layer");
             }
-            WeatherDeckRule cb = layers.Single(l => l.Name == "Kerbin-cumulonimbus").Deck;
+            WeatherLowStratiformRule cb = layers.Single(l => l.Name == "Kerbin-cumulonimbus").LowStratiform;
             Assert.IsNotNull(cb, "the cumulonimbus layer is drawn only as far as it rains");
             Assert.IsFalse(cb.Fog);
             Assert.AreEqual(0f, cb.RainFloor, 0f);
             foreach (string name in new[] { "Kerbin-cumulus", "Kerbin-cirrus" })
-                Assert.IsNull(layers.Single(l => l.Name == name).Deck, name);
+                Assert.IsNull(layers.Single(l => l.Name == name).LowStratiform, name);
         }
 
         [TestMethod]
-        public void TheRainFloorGuaranteesADeckUnderPrecipitationAndNoFogLayerHasNone()
+        public void TheRainFloorGuaranteesALowStratiformUnderPrecipitationAndNoFogLayerHasNone()
         {
-            var floor = new WeatherDeckRule { RainFloor = 0.9f };
+            var floor = new WeatherLowStratiformRule { RainFloor = 0.9f };
             Assert.AreEqual(0f, floor.FloorOf(0.03f), 0f, "below the band None");
             Assert.AreEqual(0.9f, floor.FloorOf(0.08f), 1e-4f, "full from a quarter of the ramp");
             Assert.AreEqual(0.9f, floor.FloorOf(0.6f), 0f);
-            Assert.AreEqual(0f, new WeatherDeckRule().FloorOf(0.6f), 0f, "no floor by default");
+            Assert.AreEqual(0f, new WeatherLowStratiformRule().FloorOf(0.6f), 0f, "no floor by default");
             // a floor that is complete only at a higher level rises with the intensity of the rain
-            var graded = new WeatherDeckRule { RainFloor = 0.9f, RainFloorFullAt = 0.7f };
+            var graded = new WeatherLowStratiformRule { RainFloor = 0.9f, RainFloorFullAt = 0.7f };
             Assert.AreEqual(0f, graded.FloorOf(0.03f), 0f);
             Assert.IsTrue(graded.FloorOf(0.08f) < 0.05f, "light rain has little floor: " + graded.FloorOf(0.08f));
             Assert.IsTrue(graded.FloorOf(0.35f) > 0.3f && graded.FloorOf(0.35f) < 0.7f, "moderate rain half: " + graded.FloorOf(0.35f));
@@ -144,7 +144,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0, oc[0], "fair: nothing");
             Assert.AreEqual(229, oc[1], 1.0, "rain over a thin map: the floor (0.9 of 255)");
             Assert.AreEqual(250, oc[2], "a thicker map is kept");
-            var noFog = new WeatherDeckRule { Fog = false };
+            var noFog = new WeatherLowStratiformRule { Fog = false };
             noFog.Apply(new byte[] { 255 }, new float[] { 0f }, new float[] { 0f }, new float[] { 0f }, oc, ot);
             Assert.AreEqual(0, oc[0], "no fog layer: saturated calm air draws nothing");
         }
@@ -152,14 +152,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheTuningKeyForcesTheRuleOffOrOn()
         {
-            var own = new WeatherDeckRule();
-            Assert.AreSame(own, CloudLookTuning.DeckRuleOf("no-such-layer-deckrule", own));
-            Assert.IsNull(CloudLookTuning.DeckRuleOf("no-such-layer-deckrule", null));
+            var own = new WeatherLowStratiformRule();
+            Assert.AreSame(own, CloudLookTuning.LowStratiformRuleOf("no-such-layer-lowstratiformrule", own));
+            Assert.IsNull(CloudLookTuning.LowStratiformRuleOf("no-such-layer-lowstratiformrule", null));
         }
 
-        // The rule over the generator's own maps (24 times over the year, all 131072 texels each): the deck of fair weather and the rain case against the old rule.
+        // The rule over the generator's own maps (24 times over the year, all 131072 texels each): the low stratiform layer of fair weather and the rain case against the old rule.
         [TestMethod]
-        public void OverTheGeneratorsMapsFairWeatherDrawsNoDeckAndRainIsKept()
+        public void OverTheGeneratorsMapsFairWeatherDrawsNoLowStratiformAndRainIsKept()
         {
             GeneratorField field = FieldFixture.Field();
             var w = new GeneratorMaps.Weather2D();
@@ -175,7 +175,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(GeneratorMaps.RenderWeather(field.StateOf(FieldFixture.BodyIndex), ut, w));
                 for (int i = 0; i < n; i++)
                 {
-                    spread[i] = WeatherDeckRule.SpreadK(w.SurfaceTemperature[i], w.Humidity[i]);
+                    spread[i] = WeatherLowStratiformRule.SpreadK(w.SurfaceTemperature[i], w.Humidity[i]);
                     cover[i] = (byte)Math.Round(w.Coverage[i] * 255.0);
                 }
                 Rule.Apply(cover, w.Precipitation, spread, w.WindSpeed, oc, ot);
@@ -204,14 +204,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     }
                 }
             }
-            Console.WriteLine("WEATHERDECK texels " + total + " fair (level < 0.04) " + fair + "; the deck drew over fair texels: before " + fairOld + " (" + (100.0 * fairOld / fair).ToString("0.0")
+            Console.WriteLine("WEATHERLOWSTRATIFORM texels " + total + " fair (level < 0.04) " + fair + "; the low stratiform layer drew over fair texels: before " + fairOld + " (" + (100.0 * fairOld / fair).ToString("0.0")
                 + " % of the fair), now " + fairNew + " (all of them fog air: " + fogNew + ")");
-            Console.WriteLine("WEATHERDECK drawn share (cover above 0.5 after the rule): before " + (oldDrawn / (double)total).ToString("0.000") + ", now " + (newDrawn / (double)total).ToString("0.000"));
-            Console.WriteLine("WEATHERDECK rain texels (level >= 0.2) " + rain + ", coverage changed " + rainChanged + "; level >= 0.5 " + heavy + ", type changed " + heavyTypeChanged);
-            Assert.IsTrue(fairOld > 0, "the old rule drew a deck over fair weather in this field");
+            Console.WriteLine("WEATHERLOWSTRATIFORM drawn share (cover above 0.5 after the rule): before " + (oldDrawn / (double)total).ToString("0.000") + ", now " + (newDrawn / (double)total).ToString("0.000"));
+            Console.WriteLine("WEATHERLOWSTRATIFORM rain texels (level >= 0.2) " + rain + ", coverage changed " + rainChanged + "; level >= 0.5 " + heavy + ", type changed " + heavyTypeChanged);
+            Assert.IsTrue(fairOld > 0, "the old rule drew a low stratiform layer over fair weather in this field");
             Assert.AreEqual(0L, rainChanged, "the rain case keeps its coverage");
             Assert.AreEqual(0L, heavyTypeChanged, "the type of moderate to heavy precipitation is the precipitation level, as before");
-            Assert.IsTrue(fairNew <= 0.2 * fairOld, "the fair-weather deck is left only where the air is fog air: " + fairNew + " of " + fairOld);
+            Assert.IsTrue(fairNew <= 0.2 * fairOld, "the fair-weather low stratiform layer is left only where the air is fog air: " + fairNew + " of " + fairOld);
         }
     }
 }

@@ -185,8 +185,8 @@ namespace ReDefinition.Atmospheres
         public float CloudWaterRef, CurlStrength, StepGrowth;
         // The noise tile of the erosion and of the base shape, m; the wind slant (m of shift per m of height).
         public float ErosionTileM, ShapeTileM, WindSlant;
-        // The transmittance below which the march ends, and the deck's coverage multiplier.
-        public float TransmittanceCut, DeckCoverage;
+        // The transmittance below which the march ends, and the layer slab's coverage multiplier.
+        public float TransmittanceCut, LayerSlabCoverage;
 
         // Every knob with its default and range; the tuning package lists the same.
         internal static readonly VolumeKnob[] Knobs =
@@ -206,7 +206,7 @@ namespace ReDefinition.Atmospheres
             new VolumeKnob("volume.shapeTileM", 9000f, 2000f, 30000f),
             new VolumeKnob("volume.windSlant", 0.25f, 0f, 1f),
             new VolumeKnob("volume.transmittanceCut", 0.03f, 0.005f, 0.2f),
-            new VolumeKnob("volume.deckCoverage", 1f, 0f, 1.5f),
+            new VolumeKnob("volume.layerSlabCoverage", 1f, 0f, 1.5f),
         };
 
         internal static VolumeLook Read(TuningGet get)
@@ -227,7 +227,7 @@ namespace ReDefinition.Atmospheres
             look.ShapeTileM = get("volume.shapeTileM", 9000f);
             look.WindSlant = get("volume.windSlant", 0.25f);
             look.TransmittanceCut = get("volume.transmittanceCut", 0.03f);
-            look.DeckCoverage = get("volume.deckCoverage", 1f);
+            look.LayerSlabCoverage = get("volume.layerSlabCoverage", 1f);
             return look;
         }
     }

@@ -22,7 +22,7 @@ float4 _CellE[4];
 float4 _CellK;
 // The sky drawn from the weather map (MapSkyRegions.StratiformTypes, cloud.weatherMapSky; zero while it is off): per layer x 1 where the layer's stratiform types are drawn connected, y the type value
 // of the low stratiform type (Stratocumulus), z the one of the high stratiform type (Altocumulus; above 1: none), w the type value of one type step. Where the type map stands at a stratiform type, the
-// map's own value is drawn instead of single clouds (wMap 1): a connected deck over the area the map gives; one type step away the lattice draws alone.
+// map's own value is drawn instead of single clouds (wMap 1): a connected cloud layer over the area the map gives; one type step away the lattice draws alone.
 float4 _CellS[4];
 
 // The weight of the connected sheet at a type value (0: the lattice alone): 1 at a stratiform type, falling linearly to 0 one type step away.
@@ -173,7 +173,7 @@ static bool gBodyRead = false;
 
 // The layer map's value at a point with the cells, for the coverage bounds and the far view. The disc's profile p is placed on the layer's threshold (p 0.5 at the threshold, 0 half a unit below
 // it), and inside the disc it rises to the cloud's core strength: the map's excess over the threshold (how much the region convects: a fair sky's clouds stay low, a stormy region's grow) times
-// the cell's size factor (the wide clouds are the tall ones; a field holds many low clouds and a few towers). wMap: the share of the map's own value (a closed deck above a share of 0.8, where
+// the cell's size factor (the wide clouds are the tall ones; a field holds many low clouds and a few towers). wMap: the share of the map's own value (a closed cloud layer above a share of 0.8, where
 // the discs merge; and the far view, where the march's spacing passes a quarter of the pitch: the cells would alias, the map's value has their mean; and a stratiform type of the map-driven
 // sky, stratiformW from CellStratiformWeight, 0 otherwise).
 float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, float stratiformW, out float reachM, out float wMap)
@@ -255,7 +255,7 @@ float4 _FieldC[8];
 
 // A puffy type's single cloud from the field, the one code of the layer pass and the cloud shadow. The cloud is where the field u(x) is below the map's local share f ({u < f} has the map's cover
 // whatever the field); its body is CellBody's with the distance to the footprint's edge in m, (f - u) over the gradient of u, in the place of the lattice's distance to a centre: a dome of the
-// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the deck) and where the march's spacing (foot, 0: none) is
+// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the closed cloud layer) and where the march's spacing (foot, 0: none) is
 // wider than the field's smallest feature, the map's own value is drawn. Returns -1 there (the caller draws the map; cov is then the map's value with the field's footprint blended in by
 // the hand-over weight, as CellCover blends the lattice's discs, so there is no edge where the hand-over begins), 0 outside the body's reach (the density is 0), 1 inside it with the cell
 // read's globals (gCellX, gCellR, gCellCore, gCellW) set for CellBody. uv: the layer map's coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point;

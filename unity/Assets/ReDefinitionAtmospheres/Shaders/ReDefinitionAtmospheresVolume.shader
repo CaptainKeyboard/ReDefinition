@@ -1,6 +1,6 @@
-// The volume pass of ReDefinition Atmospheres: storm cores with a shelf and an anvil, towering cells, cumulus and deck slabs, raymarched
+// The volume pass of ReDefinition Atmospheres: storm cores with a shelf and an anvil, towering cells, cumulus and layer slabs, raymarched
 // from the local 3D window the weather field gives (cloud water, updraft, temperature; src/Atmospheres/Render/Volume), plus a coverage
-// and type map for the decks. No EVE layer is read and no cell is placed by hand: the shapes are the window's.
+// and type map for the layer slabs. No EVE layer is read and no cell is placed by hand: the shapes are the window's.
 //
 // Technique: the usual one for raymarched cloud volumes (Schneider and Vos, "The Real-time Volumetric Cloudscapes of Horizon: Zero
 // Dawn", 2015; Guerrilla's "Nubis Evolved", 2023): a base shape eroded by tiled noise (with a curl offset), a dual-lobe Henyey-Greenstein
@@ -15,7 +15,7 @@
 //   2 HIT        the distance along the ray at which the cloud is met (the opacity-weighted depth), for the analytic motion and depth
 //   3 MOTION     where the cloud covers a pixel, the motion of the point where its ray meets the cloud, from the window's advection
 //   4 DEPTH      the depth of that point
-// Keywords (four): VOLUME_POWDER, VOLUME_CURL, VOLUME_DECK, VOLUME_JITTER_IGN (the dither keyed to the upscaler's jitter index).
+// Keywords (four): VOLUME_POWDER, VOLUME_CURL, VOLUME_LAYER_SLAB, VOLUME_JITTER_IGN (the dither keyed to the upscaler's jitter index).
 //
 // Frame: the window's centre at the ground (_Cell.xyz), up, east (_Right) and north (_North); the ground curves away, so a height above
 // it is the height along up plus curvature * r^2 (as the storm praecipitatio shader has it).
@@ -24,7 +24,7 @@ Shader "ReDefinition/AtmospheresVolume"
     Properties
     {
         _Window ("Window", 3D) = "black" {}
-        _Deck ("Deck", 2D) = "black" {}
+        _LayerSlab ("Layer slab", 2D) = "black" {}
         _Noise ("Noise", 3D) = "white" {}
         _MainTex ("Target", 2D) = "black" {}
     }
@@ -39,7 +39,7 @@ Shader "ReDefinition/AtmospheresVolume"
         #include "UnityCG.cginc"
 
         sampler3D _Window;
-        sampler2D _Deck;
+        sampler2D _LayerSlab;
         sampler3D _Noise;
         sampler2D _MainTex;
         sampler2D _HitTex;
@@ -64,11 +64,11 @@ Shader "ReDefinition/AtmospheresVolume"
         float4 _Light;
         // x: the steps; y: the longest distance a ray is marched, m; z: the frame number; w: the jitter index.
         float4 _Look;
-        // x: the growth of the step; y: the taps towards the sun; z: the deck's coverage factor; w: the cloud water that fills a deck.
+        // x: the growth of the step; y: the taps towards the sun; z: the layer slab's coverage factor; w: the cloud water that fills a layer slab.
         float4 _Step;
-        // The deck's base and thickness (m above the ground) for the three types: x,y stratus; z,w cumulus. _DeckB.xy: high deck.
-        float4 _DeckA;
-        float4 _DeckB;
+        // The layer slab's base and thickness (m above the ground) for the three types: x,y stratus; z,w cumulus. _LayerSlabB.xy: high layer.
+        float4 _LayerSlabA;
+        float4 _LayerSlabB;
         float4 _Sun;
         float4 _SunColour;
         float4 _AmbientColour;
@@ -135,23 +135,23 @@ Shader "ReDefinition/AtmospheresVolume"
             return tex3Dlod(_Window, float4(uvw, 0.0)).r;
         }
 
-        // The deck's density share at a place: its coverage against a low-frequency noise and its height profile, 0 to 1.
-        float DeckDensity(float lx, float lz, float h, float lod)
+        // The layer slab's density share at a place: its coverage against a low-frequency noise and its height profile, 0 to 1.
+        float LayerSlabDensity(float lx, float lz, float h, float lod)
         {
-            #if defined(VOLUME_DECK)
+            #if defined(VOLUME_LAYER_SLAB)
             float W = _Cell.w;
             float2 duv = float2(lx / (2.0 * W) + 0.5, lz / (2.0 * W) + 0.5);
             if (any(duv < 0.0) || any(duv > 1.0)) return 0.0;
-            float2 deck = tex2Dlod(_Deck, float4(duv, 0.0, 0.0)).rg;
-            float coverage = saturate(deck.r * _Step.z);
+            float2 slab = tex2Dlod(_LayerSlab, float4(duv, 0.0, 0.0)).rg;
+            float coverage = saturate(slab.r * _Step.z);
             if (coverage < 0.01) return 0.0;
-            float type = deck.g;
-            // Stratus, cumulus layer or high deck by the type.
+            float type = slab.g;
+            // Stratus, cumulus layer or high layer by the type.
             float lowShare = saturate(1.0 - type * 3.0);
             float highShare = saturate(type * 3.0 - 2.0);
             float midShare = 1.0 - lowShare - highShare;
-            float base = _DeckA.x * lowShare + _DeckA.z * midShare + _DeckB.x * highShare;
-            float thick = _DeckA.y * lowShare + _DeckA.w * midShare + _DeckB.y * highShare;
+            float base = _LayerSlabA.x * lowShare + _LayerSlabA.z * midShare + _LayerSlabB.x * highShare;
+            float thick = _LayerSlabA.y * lowShare + _LayerSlabA.w * midShare + _LayerSlabB.y * highShare;
             float u = (h - base) / max(thick, 1.0);
             if (u < 0.0 || u > 1.0) return 0.0;
             float profile = smoothstep(0.0, 0.12, u) * (1.0 - smoothstep(0.55, 1.0, u));
@@ -164,15 +164,15 @@ Shader "ReDefinition/AtmospheresVolume"
             #endif
         }
 
-        // The extinction per metre at a place. detail: 1 for the eroded shape, 0 for the cheap one (window and deck only: the taps towards the
+        // The extinction per metre at a place. detail: 1 for the eroded shape, 0 for the cheap one (window and layer slab only: the taps towards the
         // sun and the sky). dens01 gets the density before the scale.
         float Density(float lx, float lz, float h, float lod, float detail, out float dens01)
         {
             dens01 = 0.0;
             if (h < 0.0 || h > _WinSize.x) return 0.0;
             float w = WindowWater(lx, lz, h);
-            float deck = DeckDensity(lx, lz, h, lod);
-            if (w < 0.004 && deck <= 0.0) return 0.0;
+            float slab = LayerSlabDensity(lx, lz, h, lod);
+            if (w < 0.004 && slab <= 0.0) return 0.0;
             float d = w;
             if (detail > 0.5)
             {
@@ -195,7 +195,7 @@ Shader "ReDefinition/AtmospheresVolume"
                     d = saturate((d - e * _Dens.y) / (1.0 - e * _Dens.y));
                 }
             }
-            d = max(d, deck * (detail > 0.5 ? 1.0 : 0.9) * _Step.w);
+            d = max(d, slab * (detail > 0.5 ? 1.0 : 0.9) * _Step.w);
             dens01 = saturate(d);
             return dens01 * _Dens.x;
         }
@@ -396,7 +396,7 @@ Shader "ReDefinition/AtmospheresVolume"
             #pragma target 3.5
             #pragma multi_compile_local __ VOLUME_POWDER
             #pragma multi_compile_local __ VOLUME_CURL
-            #pragma multi_compile_local __ VOLUME_DECK
+            #pragma multi_compile_local __ VOLUME_LAYER_SLAB
             #pragma multi_compile_local __ VOLUME_JITTER_IGN
             float4 fragMarch(v2f i) : SV_Target
             {
@@ -454,7 +454,7 @@ Shader "ReDefinition/AtmospheresVolume"
             #pragma vertex vert
             #pragma fragment fragHit
             #pragma target 3.5
-            #pragma multi_compile_local __ VOLUME_DECK
+            #pragma multi_compile_local __ VOLUME_LAYER_SLAB
             float fragHit(v2f i) : SV_Target
             {
                 return Hit(i.uv);

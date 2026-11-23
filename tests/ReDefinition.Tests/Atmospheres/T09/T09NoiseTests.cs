@@ -16,7 +16,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             Run r = Start(NoiseVariants, x =>
             {
-                x.World.DeckNoise = 0.06f;
+                x.World.CloudNoise = 0.06f;
                 x.World.FloorNoise = 0.004f;
                 if (tweak != null) tweak(x);
             });
@@ -49,7 +49,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 {
                     Assert.AreEqual(1.0, Number(r, p + "frames_apart", v), view + " " + v + ": the second frame is read one frame after the first");
                     Assert.AreEqual(1.0, Number(r, p + "pose_ok", v));
-                    Assert.IsTrue(Number(r, p + "region_fraction", v) > 0.5, view + " " + v + ": the deck covers most of the picture");
+                    Assert.IsTrue(Number(r, p + "region_fraction", v) > 0.5, view + " " + v + ": the cloud layer covers most of the picture");
                     Assert.AreEqual(0.075, Number(r, p + "mean_luma", v), 0.02, view + " " + v + " mean luminance");
                     Assert.AreEqual(Number(r, p + "flicker", v) / Number(r, p + "mean_luma", v), Number(r, p + "flicker_rel", v), 1e-3);
                 }
@@ -123,7 +123,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void AnEmptyRegionOrAMovedPoseGivesAWarningAndNoRows()
         {
             // The pass changes nothing in the picture: the region is empty.
-            Run empty = Start(new[] { "plain" }, x => x.World.DeckCovers = (px, py) => false);
+            Run empty = Start(new[] { "plain" }, x => x.World.CloudCovers = (px, py) => false);
             Drive(empty, RealDt);
             Assert.IsTrue(empty.Probe.Passed, Dump(empty));
             Assert.IsTrue(empty.Log.Any(l => l.StartsWith("Probe: warning noise_region_small: ")));
@@ -152,7 +152,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             const int w = 80, h = 60;
             Color[] baseline = Fill(w, h, (x, y) => 0.6f);
             Color[] baseline2 = Fill(w, h, (x, y) => 0.6f);
-            // K-T2 start 46, ground: a smooth deck whose brightness changed by 15 percent between the two frames (the weather writer's sun factor 0.85 to 1.0), grain 0.004.
+            // K-T2 start 46, ground: a smooth cloud layer whose brightness changed by 15 percent between the two frames (the weather writer's sun factor 0.85 to 1.0), grain 0.004.
             Color[] a = Fill(w, h, (x, y) => 0.2f + ((x + y) % 2 == 0 ? 0.004f : -0.004f));
             Color[] b = Fill(w, h, (x, y) => 1.15f * (0.2f + ((x + y) % 2 == 0 ? -0.004f : 0.004f)));
             T09Readout.NoiseReading n = T09Readout.Noise(baseline, baseline2, a, b, w, h);
@@ -212,7 +212,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             const int w = 80, h = 60;
             Color[] baseline = Fill(w, h, (x, y) => 0.6f);
             Color[] baseline2 = Fill(w, h, (x, y) => 0.6f + ((x + y) % 2 == 0 ? 0.002f : -0.002f));
-            // The pass: a deck of 0.2 with a checkerboard grain of +-0.01 that flips from frame a to frame b; the left quarter of the picture is not changed by the pass.
+            // The pass: a cloud layer of 0.2 with a checkerboard grain of +-0.01 that flips from frame a to frame b; the left quarter of the picture is not changed by the pass.
             Color[] a = Fill(w, h, (x, y) => x < w / 4 ? 0.6f : 0.2f + ((x + y) % 2 == 0 ? 0.01f : -0.01f));
             Color[] b = Fill(w, h, (x, y) => x < w / 4 ? 0.6f : 0.2f + ((x + y) % 2 == 0 ? -0.01f : 0.01f));
             T09Readout.NoiseReading n = T09Readout.Noise(baseline, baseline2, a, b, w, h);

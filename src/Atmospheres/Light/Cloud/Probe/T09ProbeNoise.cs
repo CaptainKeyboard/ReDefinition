@@ -12,7 +12,7 @@ namespace ReDefinition.Atmospheres
     // consecutive frames (the second read starts in the tick in which the first was taken, and the read is at the end of its frame: one frame apart; T09.noise.<view>.frames_apart
     // says so). The vessel and the camera are held, so the two frames of a pair show the same picture but for what changes from frame to frame: the pass's own sample pattern
     // (the reconstruction levels march one pixel of every N x N block per frame), the stochastic dither at the cloud's edges, the upscaler's jitter and the sea's glitter.
-    // The region is the deck: the pixels where the frame with the pass differs from the baseline of the pose (T09Readout.Noise), taken from the plain pass of the view and used
+    // The region is the cloud layer: the pixels where the frame with the pass differs from the baseline of the pose (T09Readout.Noise), taken from the plain pass of the view and used
     // for every later variant of the start (region_fixed 1), so that the levels are read over the same pixels. hf (the spatial grain) is the measure that follows the level; the
     // flicker is read with the second frame scaled to the first one's mean (a change of the whole picture's brightness is not shimmer). Rows, per variant:
     //   T09.noise.<view>.flicker       mean absolute difference of luminance between the two frames in the region, gain matched (the shimmer measure of T05)
@@ -132,7 +132,7 @@ namespace ReDefinition.Atmospheres
                 yield break;
             }
             // The levels of a view are read over the plain pass's region (the first variant that reads this view): each with a region of its own, the means are taken over a
-            // different mix of flat deck and cloud edges (K-T2 start 46: ground region 0.69 of the picture, above 0.29, and the rows of the levels not monotone).
+            // different mix of flat cloud layer and cloud edges (K-T2 start 46: ground region 0.69 of the picture, above 0.29, and the rows of the levels not monotone).
             bool[] fixedRegion;
             noiseRegions.TryGetValue(view.Name, out fixedRegion);
             if (fixedRegion != null && fixedRegion.Length != a.Width * a.Height) fixedRegion = null;

@@ -9,7 +9,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The whole K-T2d scenario of T09Probe (the diagnosis of the black own clouds) against the fake world: the two cover times, the views ground and above, the off baseline,
     // the gains 1, 4 and 16, the coverage variants, the numeric readouts, the environment lines, and the faults the readout must name (an empty region, a lost pose, no raw values,
-    // a cover that does not differ, a field that does not answer). The fake draws a sky of 0.5, a sea of 0.7 and, when the pass draws all layers, a deck of 0.075 times the sun gain
+    // a cover that does not differ, a field that does not answer). The fake draws a sky of 0.5, a sea of 0.7 and, when the pass draws all layers, a cloud of 0.075 times the sun gain
     // clipped at 1: the readout has to find those numbers again.
     public partial class T09WalkThroughTests
     {
@@ -72,30 +72,30 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 foreach (string cover in new[] { "low", "high" })
                 {
                     string p = "T09d." + view + "." + cover + ".";
-                    // The baseline: the sky and the sea as the fake draws them; no deck rows.
+                    // The baseline: the sky and the sea as the fake draws them; no cloud rows.
                     Assert.AreEqual(0.5, Row(r, p + "off.sky_median"), 1e-4, p + "off sky");
                     Assert.AreEqual(0.7, Row(r, p + "off.ground_median"), 1e-4, p + "off sea");
                     Assert.AreEqual(0.7 / 0.5, Row(r, p + "off.ground_over_sky"), 1e-3);
-                    Assert.AreEqual(0, Values(r, p + "off.deck_median", "plain").Count, "the baseline has no deck");
-                    // The gains: the deck rises linearly with the sun gain until it clips at 1.
+                    Assert.AreEqual(0, Values(r, p + "off.cloud_median", "plain").Count, "the baseline has no cloud");
+                    // The gains: the cloud rises linearly with the sun gain until it clips at 1.
                     double[] expected = { 0.075, 0.3, 1.0 };
                     string[] tags = { "g1", "g4", "g16" };
                     for (int i = 0; i < tags.Length; i++)
                     {
                         string q = p + tags[i] + ".";
-                        Assert.AreEqual(expected[i], Row(r, q + "deck_median"), 1e-3, q + "deck median");
-                        Assert.AreEqual(expected[i] / 0.5, Row(r, q + "deck_over_off_sky"), 2e-3, q + "deck over the off sky");
-                        Assert.AreEqual(expected[i] / 0.7, Row(r, q + "deck_over_off_ground"), 2e-3, q + "deck over the off sea");
-                        Assert.IsTrue(Row(r, q + "deck_fraction") > 0.5, q + "deck fraction");
-                        Assert.IsTrue(Row(r, q + "deck_p10") <= Row(r, q + "deck_median") && Row(r, q + "deck_median") <= Row(r, q + "deck_p90"));
-                        Assert.AreEqual(i >= 2 ? 1.0 : 0.0, Row(r, q + "deck_clipped"), 1e-6, q + "clipped share");
-                        Assert.AreEqual(1.0, Row(r, q + "sky_closed_share"), 0.02, q + "the fake's deck replaces the whole sky by one colour: all of it is at the plateau");
-                        Assert.AreEqual(1.0, Row(r, q + "sky_deck_share"), 0.02, q + "and every sky sample is a deck sample");
+                        Assert.AreEqual(expected[i], Row(r, q + "cloud_median"), 1e-3, q + "cloud median");
+                        Assert.AreEqual(expected[i] / 0.5, Row(r, q + "cloud_over_off_sky"), 2e-3, q + "cloud over the off sky");
+                        Assert.AreEqual(expected[i] / 0.7, Row(r, q + "cloud_over_off_ground"), 2e-3, q + "cloud over the off sea");
+                        Assert.IsTrue(Row(r, q + "cloud_fraction") > 0.5, q + "cloud fraction");
+                        Assert.IsTrue(Row(r, q + "cloud_p10") <= Row(r, q + "cloud_median") && Row(r, q + "cloud_median") <= Row(r, q + "cloud_p90"));
+                        Assert.AreEqual(i >= 2 ? 1.0 : 0.0, Row(r, q + "cloud_clipped"), 1e-6, q + "clipped share");
+                        Assert.AreEqual(1.0, Row(r, q + "sky_closed_share"), 0.02, q + "the fake's cloud replaces the whole sky by one colour: all of it is at the plateau");
+                        Assert.AreEqual(1.0, Row(r, q + "sky_cloud_share"), 0.02, q + "and every sky sample is a cloud sample");
                         // The fake's sun colour is (0.8, 0.7, 0.6) times the gain; its grayscale is 0.7185 times the gain.
                         Assert.AreEqual(new[] { 1.0, 4.0, 16.0 }[i] * 0.7185, Row(r, q + "sun_luma"), 1e-2, q + "the sun colour the pass was given");
                     }
-                    Assert.AreEqual(4.0, Row(r, p + "g4.deck_vs_g1"), 1e-2);
-                    Assert.AreEqual(0.0, Values(r, p + "g1.deck_vs_g1", "plain").Count);
+                    Assert.AreEqual(4.0, Row(r, p + "g4.cloud_vs_g1"), 1e-2);
+                    Assert.AreEqual(0.0, Values(r, p + "g1.cloud_vs_g1", "plain").Count);
                     Assert.IsTrue(Row(r, "T09d." + view + "." + cover + ".cover_at_view_height") > 0);
                 }
             }
@@ -108,13 +108,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (string tag in new[] { "c42", "c35" })
             {
                 Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-above_low-" + tag + "-1707x960-natural-half")), "the coverage variant " + tag + " has its picture");
-                Assert.IsTrue(Row(r, "T09d.ground.high." + tag + ".deck_median") > 0 && Row(r, "T09d.ground.high." + tag + ".sky_closed_share") >= 0, "the coverage variant " + tag + " has rows");
+                Assert.IsTrue(Row(r, "T09d.ground.high." + tag + ".cloud_median") > 0 && Row(r, "T09d.ground.high." + tag + ".sky_closed_share") >= 0, "the coverage variant " + tag + " has rows");
             }
             Assert.AreEqual(-0.08, Row(r, "T09d.ground.high.c42.coverage_shift"), 1e-6);
             Assert.AreEqual(-0.15, Row(r, "T09d.above.low.c35.coverage_shift"), 1e-6);
             foreach (string tag in new[] { "u1", "p1", "pe2" })
                 Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_high-" + tag + "-1707x960-natural-half")), "the stage variant " + tag + " has its picture");
-            Assert.IsTrue(Row(r, "T09d.ground.high.p1.deck_median") > 0 && Row(r, "T09d.above.low.pe2.deck_vs_g1") > 0, "the stage variants have rows");
+            Assert.IsTrue(Row(r, "T09d.ground.high.p1.cloud_median") > 0 && Row(r, "T09d.above.low.pe2.cloud_vs_g1") > 0, "the stage variants have rows");
             Assert.IsTrue(r.World.SavedFactor.All(f => f == 2));
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_low-g16-1707x960-natural-half")), string.Join(",", r.World.Saved.Take(4).ToArray()));
             Assert.AreEqual(0.0, Number(r, "T09.pictures.warnings"));
@@ -166,9 +166,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     {
                         Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_" + cover + "-" + tag + "-1707x960-natural-half")), "the picture of " + tag + " at the " + cover + " cover");
                         string q = "T09d.ground." + cover + "." + tag + ".";
-                        // The fake draws a deck only where layer 1 is named: the layer alone is the sheet, the others leave the sky as the baseline has it.
+                        // The fake draws a cloud only where layer 1 is named: the layer alone is the sheet, the others leave the sky as the baseline has it.
                         Assert.AreEqual(k == 1 ? 1.0 : 0.0, Row(r, q + "sky_closed_share"), 0.02, q + "closed share");
-                        Assert.AreEqual(k == 1, Row(r, q + "deck_fraction") > 0.5, q + "deck fraction");
+                        Assert.AreEqual(k == 1, Row(r, q + "cloud_fraction") > 0.5, q + "cloud fraction");
                     }
                     string p = "T09d.ground." + cover + ".L" + k + ".";
                     Assert.AreEqual(new[] { 0.406, 0.665, 0.110, 0.501 }[k], Row(r, p + "cpu_cover"), 1e-5, p + "CPU map");
@@ -223,14 +223,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void ADeckThatIsNotThereGivesNoDeckRowsAndNoFailure()
+        public void ACloudThatIsNotThereGivesNoCloudRowsAndNoFailure()
         {
-            Run r = StartDiag(x => x.World.DeckCovers = (px, py) => false);
+            Run r = StartDiag(x => x.World.CloudCovers = (px, py) => false);
             Drive(r, 0.02);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
-            Assert.AreEqual(0.0, Row(r, "T09d.ground.low.g16.deck_fraction"));
-            Assert.AreEqual(0.0, Row(r, "T09d.ground.low.g16.deck_n"));
-            Assert.AreEqual(0, Values(r, "T09d.ground.low.g16.deck_median", "plain").Count);
+            Assert.AreEqual(0.0, Row(r, "T09d.ground.low.g16.cloud_fraction"));
+            Assert.AreEqual(0.0, Row(r, "T09d.ground.low.g16.cloud_n"));
+            Assert.AreEqual(0, Values(r, "T09d.ground.low.g16.cloud_median", "plain").Count);
             Assert.AreEqual(1.0, Row(r, "T09d.ground.low.g16.sky_over_off_sky"), 1e-3, "the sky is the sky of the baseline");
         }
 
@@ -265,7 +265,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(52.0, Row(r, "T09d.frames"));
             Assert.AreEqual(0.0, Row(r, "T09d.frames_pose_ok"));
             Assert.AreEqual(0.0, Row(r, "T09d.ground.high.placed_ok"));
-            Assert.IsTrue(Row(r, "T09d.ground.high.g1.deck_median") > 0, "the readout is there");
+            Assert.IsTrue(Row(r, "T09d.ground.high.g1.cloud_median") > 0, "the readout is there");
             Assert.IsTrue(r.Log.Any(l => l.StartsWith("T09 hold anchor: ") && l.Contains("placing it again")), "the hold placed it again");
             Assert.IsTrue(r.Log.Any(l => l.Contains("Probe: warning pose_placed_ground")), "named");
         }

@@ -542,7 +542,7 @@ namespace ReDefinition.Raytracing
         // the host's hook is read as "none" below 0 as well as at 0 by the frame driver, which then takes the field's value.
         internal const float OpticalDepthUnreadable = -1f;
 
-        // The vertical optical depth of the body's EVE deck over a place, from an altitude over the surface (CloudDensityEstimate); 0
+        // The vertical optical depth of the body's EVE cloud layer over a place, from an altitude over the surface (CloudDensityEstimate); 0
         // where the sky is clear, OpticalDepthUnreadable where the layer is missing, stale or failed. The layer is found for the body
         // without packing its map (Keep). The density of EVE's cloud type at each altitude is a factor
         // (CloudDensityCalibration.TypeDensityFactor), 1 until the calibration sets the reference [VERIFY]. One answer per frame and
@@ -576,7 +576,7 @@ namespace ReDefinition.Raytracing
             {
                 Vector3 centre = (Vector3)body.position;
                 Vector3 up = (Vector3)body.GetRelSurfaceNVector(latitude, longitude);
-                var deck = new CloudDensityEstimate.Deck
+                var shell = new CloudDensityEstimate.CloudLayer
                 {
                     BottomM = inner - body.Radius,
                     TopM = outer - body.Radius,
@@ -587,7 +587,7 @@ namespace ReDefinition.Raytracing
                     TimeFade = layer.ViewFade,
                 };
                 bool useTypes = CloudDensityCalibration.TypeDensityReference > 0f;
-                return CloudDensityEstimate.VerticalOpticalDepthBySlice(deck, altitude, height =>
+                return CloudDensityEstimate.VerticalOpticalDepthBySlice(shell, altitude, height =>
                 {
                     float cloudType;
                     float coverage = layer.DensityAt(centre + up * (float)(body.Radius + height), out cloudType);

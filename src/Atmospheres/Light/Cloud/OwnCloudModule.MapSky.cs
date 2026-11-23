@@ -11,7 +11,7 @@ namespace ReDefinition.Atmospheres
         // The maps of a round, in this order (MapSkyKinds); a map the field cannot give yet ends the round's map sky (today's chain draws until the next round).
         private static readonly WeatherMapKind[] MapSkyKinds =
         {
-            WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.DeckAmount, WeatherMapKind.ConvectiveBase, WeatherMapKind.ConvectiveTop,
+            WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.LowStratiformAmount, WeatherMapKind.ConvectiveBase, WeatherMapKind.ConvectiveTop,
             WeatherMapKind.StableShare, WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.Descent, WeatherMapKind.Instability,
             WeatherMapKind.Uplift, WeatherMapKind.CellReach, WeatherMapKind.SurfaceTemperature
         };
@@ -91,7 +91,7 @@ namespace ReDefinition.Atmospheres
             m0.Cover = coverageMap.Values;
             m0.Cumuliform = mapSkyMaps[0].Values;
             m0.Stratiform = mapSkyMaps[1].Values;
-            m0.Deck = mapSkyMaps[2].Values;
+            m0.LowStratiform = mapSkyMaps[2].Values;
             m0.BaseShare = mapSkyMaps[3].Values;
             m0.TopShare = mapSkyMaps[4].Values;
             m0.StableShare = mapSkyMaps[5].Values;
@@ -125,8 +125,8 @@ namespace ReDefinition.Atmospheres
             mapSkyState = state;
         }
 
-        // A layer of a map-sky round: its cover and type from the parts (the deck keeps today's fog part). False where the map does not drive the layer (it keeps today's chain).
-        private bool MapSkyLayer(int l, CloudLayerDef def, WeatherDeckRule deck, byte[] rawCover, byte[] todayType, ref byte[] cover, ref byte[] typeBytes, ref WeatherMap coverSource)
+        // A layer of a map-sky round: its cover and type from the parts (the low stratiform layer keeps today's fog part). False where the map does not drive the layer (it keeps today's chain).
+        private bool MapSkyLayer(int l, CloudLayerDef def, WeatherLowStratiformRule lowStratiformRule, byte[] rawCover, byte[] todayType, ref byte[] cover, ref byte[] typeBytes, ref WeatherMap coverSource)
         {
             if (!mapSkyRound || mapSkyParts == null) return false;
             WeatherMapSky.Role role = WeatherMapSky.RoleOf(def);
@@ -137,16 +137,16 @@ namespace ReDefinition.Atmospheres
             byte[] c = mapSkyCover[l] ?? (mapSkyCover[l] = new byte[n]);
             byte[] t = mapSkyType[l] ?? (mapSkyType[l] = new byte[n]);
             byte[] fogC = null, fogT = null;
-            if (role == WeatherMapSky.Role.Deck && deck != null && rawCover != null)
+            if (role == WeatherMapSky.Role.LowStratiform && lowStratiformRule != null && rawCover != null)
             {
                 fogC = mapSkyFogCover[l] ?? (mapSkyFogCover[l] = new byte[n]);
                 fogT = mapSkyFogType[l] ?? (mapSkyFogType[l] = new byte[n]);
-                // The deck rule as today, its rain and fog parts (from the field's precipitation level and dew-point spread maps): the field's low level lies below the convective base
-                // in the raining fronts (RhLow 0.96 under a saturated middle and high level at KSC), so without this the rain would fall from a sky with no low deck.
-                deck.Apply(rawCover, typeMap.Values, fogSpreadK, fogWind, fogC, fogT, CloudLookTuning.DeckPrecipOf(def.Name), CloudLookTuning.DeckFogOf(def.Name));
-                float deckRain = def.RainType;
-                if (deckRain < 1f)
-                    for (int i = 0; i < n; i++) fogT[i] = (byte)Math.Round(fogT[i] * deckRain);
+                // The low stratiform rule as today, its rain and fog parts (from the field's precipitation level and dew-point spread maps): the field's low level lies below the convective base
+                // in the raining fronts (RhLow 0.96 under a saturated middle and high level at KSC), so without this the rain would fall from a sky with no low stratiform layer.
+                lowStratiformRule.Apply(rawCover, typeMap.Values, fogSpreadK, fogWind, fogC, fogT, CloudLookTuning.LowStratiformPrecipOf(def.Name), CloudLookTuning.LowStratiformFogOf(def.Name));
+                float lowStratiformRain = def.RainType;
+                if (lowStratiformRain < 1f)
+                    for (int i = 0; i < n; i++) fogT[i] = (byte)Math.Round(fogT[i] * lowStratiformRain);
             }
             if (!MapSkyRegions.Layer(def, role, mapSkyParts, todayType, fogC, fogT, c, t)) return false;
             WeatherMap cm = mapSkyCoverMaps[l] ?? (mapSkyCoverMaps[l] = new WeatherMap());
@@ -159,19 +159,19 @@ namespace ReDefinition.Atmospheres
         }
 
         // The height build's root offsets of a layer from the last map-sky parts (null: the layer keeps today's heights), and the range they are encoded in.
-        // l: the layer's index in the stack (the deck's type map of the round is read from it).
+        // l: the layer's index in the stack (the low stratiform layer's type map of the round is read from it).
         internal float[] MapSkyRoots(int l, CloudLayerDef def, out float rangeM)
         {
             rangeM = 0f;
             MapSkyRegions.Parts p = mapSkyPartsForHeights;
             if (p == null || def == null) return null;
             WeatherMapSky.Role role = WeatherMapSky.RoleOf(def);
-            // The deck follows the field's base too (owner 2026-11-23, MapSkyRegions.TuneDeckBase).
-            if (role == WeatherMapSky.Role.Deck && MapSkyRegions.DeckBase)
+            // The low stratiform layer follows the field's base too (owner 2026-11-23, MapSkyRegions.TuneLowStratiformBase).
+            if (role == WeatherMapSky.Role.LowStratiform && MapSkyRegions.LowStratiformBase)
             {
-                rangeM = MapSkyRegions.DeckRootRangeM(def);
-                byte[] deckType = l >= 0 && l < mapSkyType.Length ? mapSkyType[l] : null;
-                return MapSkyRegions.DeckRoots(def, p, deckType);
+                rangeM = MapSkyRegions.LowStratiformRootRangeM(def);
+                byte[] lowStratiformType = l >= 0 && l < mapSkyType.Length ? mapSkyType[l] : null;
+                return MapSkyRegions.LowStratiformRoots(def, p, lowStratiformType);
             }
             if (role != WeatherMapSky.Role.Cumuliform && role != WeatherMapSky.Role.Tall) return null;
             rangeM = MapSkyRegions.RootRangeM(def);

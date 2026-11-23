@@ -31,7 +31,7 @@ namespace ReDefinition.Atmospheres.Viewer
 
     // The probe of series K-S1 (start "solo", rows tests/series/rows/SOLOPROBE.json): every type of the cloud stack that can be judged alone, drawn alone over a clear sky at a fixed
     // sun elevation, from the pose where it fills a stated share of the frame. The cloud viewer's solo control (CloudViewer.SetSolo) is the mechanism: it forces one layer's map, type
-    // and strength, draws only that layer (cloud.soloLayer), switches the deck rule and the forced rain off and, for a type whose tower feeds an anvil, makes the map one cell ahead
+    // and strength, draws only that layer (cloud.soloLayer), switches the low stratiform rule and the forced rain off and, for a type whose tower feeds an anvil, makes the map one cell ahead
     // of the camera. Per view the probe
     //   1. places the pose and waits until the camera stands still, selects the type, takes the BASELINE picture (the same solo with strength 0: the sky with every layer empty) and
     //      the solo picture, both by the viewer's own capture (the window is hidden through the frame);
@@ -73,8 +73,8 @@ namespace ReDefinition.Atmospheres.Viewer
             Field("altocumulus", WeatherPresets.Role.Cumulus, "Altocumulus", 0.6f, 200.0, 50.0, 0.20, 0.95, "section 6 (AC-G): patch or layer of rounded elements, regular order"),
             Field("cirrus", WeatherPresets.Role.Cirrus, "Cirrus", 0.5f, 200.0, 55.0, 0.03, 0.85, "section 3 (CI-G): white delicate filaments, thin, the sky visible through"),
             Field("cirrostratus", WeatherPresets.Role.Cirrus, "Cirrostratus", 1.0f, 200.0, 55.0, 0.05, 1.0, "section 3 (CI-G): a thin whitish veil over the sky"),
-            Field("stratus", WeatherPresets.Role.Deck, "Stratus", 1.0f, 90.0, 45.0, 0.70, 1.0, "section 4 (NS-G): a grey layer of fairly uniform base"),
-            Field("nimbostratus", WeatherPresets.Role.Deck, "Nimbostratus", 1.0f, 90.0, 45.0, 0.85, 1.0, "section 4 (NS-G): featureless dark grey ceiling")
+            Field("stratus", WeatherPresets.Role.LowStratiform, "Stratus", 1.0f, 90.0, 45.0, 0.70, 1.0, "section 4 (NS-G): a grey layer of fairly uniform base"),
+            Field("nimbostratus", WeatherPresets.Role.LowStratiform, "Nimbostratus", 1.0f, 90.0, 45.0, 0.85, 1.0, "section 4 (NS-G): featureless dark grey ceiling")
         };
 
         private static SoloView Cell(string name, string type, double aheadKm, double aglM, double elevationDeg, double shareMin, double shareMax, double spanMin, double spanMax, string reference)
@@ -230,7 +230,7 @@ namespace ReDefinition.Atmospheres.Viewer
             SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
             SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
-            // The layers' bases are the cfg's: no humidity physics, no variation, no ragged boundary (a deck's base would move by up to 500 m and the camera could stand inside it).
+            // The layers' bases are the cfg's: no humidity physics, no variation, no ragged boundary (a low stratiform layer's base would move by up to 500 m and the camera could stand inside it).
             SetSetting(AtmospheresSettings.Keys.CloudBasePhysics, 0.0);
             SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0);
             SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0);
@@ -293,7 +293,7 @@ namespace ReDefinition.Atmospheres.Viewer
             yield return ProbeWait.Frames(10);
             bool gone = !Rig.HasOverride(CloudLookTuning.TuneSoloLayer) && !Rig.HasOverride(CloudLookTuning.TuneCellKm) && !Rig.HasOverride(CloudLookTuning.TuneCoverCombine)
                         && !Rig.HasOverride(CloudMotion.TuneScale);
-            foreach (ViewerLayer l in layers) gone &= !Rig.HasOverride(CloudLookTuning.TuneMapOverride + l.Name) && !Rig.HasOverride(CloudLookTuning.TuneTypeOverride + l.Name) && !Rig.HasOverride(CloudLookTuning.TuneDeckRule + l.Name);
+            foreach (ViewerLayer l in layers) gone &= !Rig.HasOverride(CloudLookTuning.TuneMapOverride + l.Name) && !Rig.HasOverride(CloudLookTuning.TuneTypeOverride + l.Name) && !Rig.HasOverride(CloudLookTuning.TuneLowStratiformRule + l.Name);
             bool settingsBack = Math.Abs(Rig.Setting(AtmospheresSettings.Keys.ForceLevel) - forceLevel0) < 1e-6 && (int)Rig.Setting(AtmospheresSettings.Keys.ForceType) == (int)forceType0;
             Verdict("restore_options", "the viewer's close takes the solo keys and the forced rain back", polled && gone && settingsBack, "no solo override left, forceLevel " + F(forceLevel0),
                     "window closed " + polled + ", overrides gone " + gone + ", forceLevel " + F(Rig.Setting(AtmospheresSettings.Keys.ForceLevel)));

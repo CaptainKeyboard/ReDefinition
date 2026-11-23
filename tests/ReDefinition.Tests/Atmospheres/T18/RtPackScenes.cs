@@ -103,7 +103,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
             };
         }
 
-        // A deck over a lat/lon box with a linear ramp of the given width (degrees) at its edges: 1 inside, 0 outside.
+        // A cloud layer over a lat/lon box with a linear ramp of the given width (degrees) at its edges: 1 inside, 0 outside.
         internal static Func<double, double, double> Box(double latMin, double latMax, double lonMin, double lonMax, double rampDeg)
         {
             return (lat, lon) =>

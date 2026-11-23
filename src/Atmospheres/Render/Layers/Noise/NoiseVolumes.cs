@@ -25,7 +25,7 @@ namespace ReDefinition.Atmospheres
         internal const double DetailPeriodScales = 4.0;
         // The untiling displacement: amplitude and lattice cell of the value noise, in noise scales.
         // Amplitude over cell is the nominal gradient of the displacement (0.46; it was 8 / 7 = 1.14, which folded the lookup over itself in 31 % of
-        // the volume and smeared the deck). Measured (noise_model.py, 20000 points): spectral norm of the displacement's Jacobian p99 1.74, folded
+        // the volume and smeared the cloud layer). Measured (noise_model.py, 20000 points): spectral norm of the displacement's Jacobian p99 1.74, folded
         // share 3.9 %, p99 stretch 2.5 (before: 4.3, 31 %, 4.8).
         // Stream T: 3 / 20 would lower the grain measure of the look sheet's storm cell (hf 0.040 to 0.028) but fails the repetition check
         // (tile lag 0.33 over seeds against 0.12) and the spectrum band 3 (slope 2.88 against 2.6), so 6.5 / 14 stays.

@@ -11,17 +11,17 @@ namespace AtmoSim.Core
         public bool Vertical = true;
         // The top of a tower and its anvil are shifted downwind by the wind shear aloft (TiltTimeS x the difference of the large-scale wind at the top and at 1500 m).
         public bool Tilt = true;
-        // Consistency rule: where a tall cell stands the decks beneath it are thinned (ThinMax), its anvil lies above them.
+        // Consistency rule: where a tall cell stands the low stratiform layers beneath it are thinned (ThinMax), its incus lies above them.
         public bool Couple = true;
-        // The stratiform deck in the window columns (off = towers only, for the measurement of the towers).
-        public bool Deck = true;
+        // The low stratiform layer in the window columns (off = towers only, for the measurement of the towers).
+        public bool LowStratiform = true;
         // Add the broad lift of the column to the updraft output (the window of the game wants it); off = the towers' vertical speed only.
         public bool AmbientUpdraft = false;
         // Largest lean of a tower top as a share of the cell lattice spacing (half a cell radius).
         public double TiltReach = 0.15;
         public double TiltTimeS = 1800.0, ThinMax = 0.75, GrowFraction = 0.25, SinkShare = 0.45, TopMinM = 2200.0, AnvilShare = 0.6;
-        // Height of the stratiform deck the window follows (share of the tropopause height).
-        public double DeckHeightFraction = 0.2;
+        // Height of the low stratiform layer the window follows (share of the tropopause height).
+        public double LowStratiformHeightFraction = 0.2;
     }
 
     // Layers of clouds with their own wind, towers that grow and sink, and the consistency between them. Built on WeatherGenerator.Sample and MeanWind; the generator is not changed
@@ -121,7 +121,7 @@ namespace AtmoSim.Core
             double thin = 1.0;
             if (o.Couple && w0.CellStrength > 0.0)
                 thin = 1.0 - o.ThinMax * DMath.SmoothStep(0.15, 0.6, w0.CellStrength) * DMath.SmoothStep(1500.0 * hs, 3000.0 * hs, top) * (1.0 - DMath.SmoothStep(top - 1000.0 * hs, top + 500.0 * hs, layerMidM));
-            double deck = 1.0 - DMath.Exp(-3.0 * wd.LayerAmount * thin);
+            double lowStratiform = 1.0 - DMath.Exp(-3.0 * wd.LayerAmount * thin);
             double tower = 0.0, anvil = 0.0;
             if (w0.CellStrength > 0.0)
             {
@@ -150,11 +150,11 @@ namespace AtmoSim.Core
                     }
                 }
             }
-            return 1.0 - (1.0 - deck) * (1.0 - tower) * (1.0 - anvil);
+            return 1.0 - (1.0 - lowStratiform) * (1.0 - tower) * (1.0 - anvil);
         }
 
         // The 3D density of one column of the local window. density[i0 + k * stride] and updraft[i0 + k * stride] (signed vertical speed of the tower in m/s, may be null) for the altitudes
-        // zBaseM + k dzM. The stratiform deck is looked up with the rate of its height, the cells are not moved (they steer with the table), the top of a tower grows and sinks with
+        // zBaseM + k dzM. The low stratiform layer is looked up with the rate of its height, the cells are not moved (they steer with the table), the top of a tower grows and sinks with
         // the life of the cell and its upper part is shifted downwind by the shear.
         public static void Column(WeatherGenerator g, double lat, double lon, double ut, double zBaseM, double dzM, int nz, float[] density, int i0, int stride, float[] updraft, LayerOptions o)
         {
@@ -164,9 +164,9 @@ namespace AtmoSim.Core
             Weather w0, wd, wm, wt;
             g.Sample(lat, lon, zBaseM, ut, out w0);
             wd = w0; wm = w0; wt = w0;
-            double deckM = o.DeckHeightFraction * g.Body.TropopauseM;
+            double lowStratiformM = o.LowStratiformHeightFraction * g.Body.TropopauseM;
             double hs = g.D.HeightScale;
-            double lonL = LayerLon(g, lon, ut, deckM, o);
+            double lonL = LayerLon(g, lon, ut, lowStratiformM, o);
             if (lonL != lon) g.Sample(lat, lonL, zBaseM, ut, out wd);
             double top0 = TopNow(ref w0, o);
             double east = 0.0, north = 0.0;
@@ -197,7 +197,7 @@ namespace AtmoSim.Core
                 if (lean) LeanWeights(DMath.SmoothStep(0.0, topRef, alt), out a0, out a1, out a2);
                 double thin = a0 * thin0 * (1.0 - DMath.SmoothStep(top0 - 1000.0 * hs, top0 + 500.0 * hs, alt));
                 if (lean) thin += a1 * thin1 * (1.0 - DMath.SmoothStep(top1 - 1000.0 * hs, top1 + 500.0 * hs, alt)) + a2 * thin2 * (1.0 - DMath.SmoothStep(top2 - 1000.0 * hs, top2 + 500.0 * hs, alt));
-                double strat = !o.Deck ? 0.0 : wd.StratDensityAt(alt) * (1.0 - thin);
+                double strat = !o.LowStratiform ? 0.0 :wd.StratDensityAt(alt) * (1.0 - thin);
                 double cell = 0.0, anvil = 0.0;
                 if (anyCell)
                 {
@@ -224,7 +224,7 @@ namespace AtmoSim.Core
             }
         }
 
-        // The amplitude of the thinning of the deck beneath the cell of a lookup.
+        // The amplitude of the thinning of the low stratiform layer beneath the cell of a lookup.
         private static double ThinAmp(ref Weather w, double top, LayerOptions o, double hs)
         {
             return (o.Couple && w.CellStrength > 0.0) ? o.ThinMax * DMath.SmoothStep(0.15, 0.6, w.CellStrength) * DMath.SmoothStep(1500.0 * hs, 3000.0 * hs, top) : 0.0;

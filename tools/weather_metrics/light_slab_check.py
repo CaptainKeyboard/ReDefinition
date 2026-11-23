@@ -11,7 +11,7 @@ and no absorption (the two-stream results of Meador and Weaver 1980; the slab-fl
 Since E40 L6 light the sky's light enters the anchors: it diffuses in the cloud like the sun's (before, the anchors had the sun alone and the model had the sky's light stop at the
 first optical depth: 0.04 of the 0.30 the two-stream gives at the top of a thick cloud). Both are radiances relative to W, the display's white, at the sun elevation of the type sheets (45.6 degrees). The shader's value is the mean over twelve view
 azimuths at a view elevation of 53 degrees. The table also lists the radiance with the per-type light factors of the cfg (the base factor on the direct light at the
-base, the head factor at the top).
+base, the top factor at the top).
 
     python tools/weather_metrics/light_slab_check.py table      uniform slabs, tau 2 to 200
     python tools/weather_metrics/light_slab_check.py types      the shipped Kerbin types with their optical depth
@@ -50,16 +50,16 @@ def anchors(tau, mu0, sky=True):
 class Slab(object):
     """A plane-parallel slab of height h with the extinction sigma(z) (a function of the height above its base)."""
 
-    def __init__(self, height, sigma, base_light=1.0, head_light=1.0, base_ambient=1.0, head_ambient=1.0):
-        self.h, self.sigma, self.bl, self.hl, self.ba, self.ha = float(height), sigma, base_light, head_light, base_ambient, head_ambient
+    def __init__(self, height, sigma, base_light=1.0, top_light=1.0, base_ambient=1.0, top_ambient=1.0):
+        self.h, self.sigma, self.bl, self.tl, self.ba, self.ta = float(height), sigma, base_light, top_light, base_ambient, top_ambient
 
     def factor(self, z):
         x = min(max(z / self.h, 0.0), 1.0)
-        return self.bl + (self.hl - self.bl) * x * x * (3.0 - 2.0 * x)
+        return self.bl + (self.tl - self.bl) * x * x * (3.0 - 2.0 * x)
 
     def factor_ambient(self, z):
         x = min(max(z / self.h, 0.0), 1.0)
-        return self.ba + (self.ha - self.ba) * x * x * (3.0 - 2.0 * x)
+        return self.ba + (self.ta - self.ba) * x * x * (3.0 - 2.0 * x)
 
     def column(self, a, b, n=48):
         if b <= a:
@@ -156,7 +156,7 @@ def product_params(layer="Kerbin-cumulus"):
 
 
 def uniform_table(taus=(2, 5, 10, 25, 60, 100, 200), height=1200.0, layer="Kerbin-weather-rain"):
-    # a uniform slab is a deck: the rain deck's numbers (since E40 LM2 its cell width, 20 km, makes the cell diffusion a slab's; the cumulus layer's 2 km would add a cell's side losses)
+    # a uniform slab is a cloud layer: the low stratiform rain layer's numbers (since E40 LM2 its cell width, 20 km, makes the cell diffusion a slab's; the cumulus layer's 2 km would add a cell's side losses)
     p = product_params(layer)
     mu0 = math.sin(math.radians(SUN_ELEVATION))
     rows = []
@@ -169,7 +169,7 @@ def uniform_table(taus=(2, 5, 10, 25, 60, 100, 200), height=1200.0, layer="Kerbi
 
 
 def shipped_types():
-    """[(layer, type, tau, thickness m, profile function of the height share, base light, head light)] of Kerbin's cfg: the full-column optical depth as CloudOpacityTests has it."""
+    """[(layer, type, tau, thickness m, profile function of the height share, base light, top light)] of Kerbin's cfg: the full-column optical depth as CloudOpacityTests has it."""
     from weather_metrics import e40o
     with open(e40o.CFG, encoding="utf-8") as f:
         root = e40o.parse_nodes(f.read())
@@ -205,10 +205,10 @@ def types_table():
     params = {}
     mu0 = math.sin(math.radians(SUN_ELEVATION))
     rows = []
-    for layer, name, tau, h, sigma, profile, bl, hl, ba, ha in shipped_types():
+    for layer, name, tau, h, sigma, profile, bl, tl, ba, ta in shipped_types():
         if layer == "Kerbin-cirrus":
             continue                         # Cheap kind: no light march to mirror
-        slab = Slab(h, lambda z, h=h, s=sigma, f=profile: s * f(min(max(z / h, 0.0), 1.0)), bl, hl, ba, ha)
+        slab = Slab(h, lambda z, h=h, s=sigma, f=profile: s * f(min(max(z / h, 0.0), 1.0)), bl, tl, ba, ta)
         if layer not in params:
             params[layer] = product_params(layer)
         p = params[layer]

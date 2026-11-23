@@ -58,7 +58,7 @@ namespace ReDefinition.Atmospheres
         // light_slab_check.py: the base's radiance over the sun's irradiance, 0.64 at tau 5, 0.29 at 25).
         // E40 look round 2: the fit before (A 0.168, P 1.05) followed the same walk with the reference renderer's phase function (g 0.85 and -0.3 at weight 0.92, an asymmetry of 0.758)
         // and its albedo of 0.999, which loses 0.1 % of the light at every scattering and leaves a thick cloud little: T at tau 100 was 0.018 (the walk) against 0.083 without the loss, and
-        // the fit's 0.045 beyond its last point of tau 20 was below both. The ground under a rain deck of optical depth 66 got 0.075 of the sun where the deck's own base shows
+        // the fit's 0.045 beyond its last point of tau 20 was below both. The ground under a low stratiform rain layer of optical depth 66 got 0.075 of the sun where the layer's own base shows
         // 0.17. [VERIFY] for suns other than 45 degrees: the reference was run there only.
         internal const double FitA = 0.11, FitP = 1.0;
 

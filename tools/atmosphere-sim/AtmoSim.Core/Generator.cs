@@ -56,12 +56,12 @@ namespace AtmoSim.Core
         // to 1 over the quarter wavelength into the cold air: ahead of a warm front, behind a cold front).
         public double WarmFront01, ColdFront01, FrontAmp01, FrontSurfaceShare;
         // Descent01: large-scale descent 0 to 1 (high pressure, the subtropical descent, the dry slot); Heating01: the forcing of the mixed layer's top 0 to 1 (1 over sea, the noon sun
-        // over land); LiftSat01: how far the dynamic cloud driver is toward the stratiform rain onset (1 = saturated deck); MoistureIndex: Hrel, the generator's moisture index (the moisture
+        // over land); LiftSat01: how far the dynamic cloud driver is toward the stratiform rain onset (1 = saturated low stratiform layer); MoistureIndex: Hrel, the generator's moisture index (the moisture
         // source times the belt's moistening times the subtropical drying; above 1 in the moist belt: an index, not a relative humidity; Humidity above is h_T Hrel); MoistureSource: its
         // first factor, the surface's supply of water (0.04 dry land to 1 sea); CellEnergy01: the cell energy over CellEnergyFull (0 where no cell is looked for); CellReach01: that energy
         // times the largest life stage x footprint of the cells around (SkyColumn.CellStage; the share of the depth from base to tropopause the tallest tower reaches at the point).
         public double Descent01, Heating01, LiftSat01, MoistureIndex, MoistureSource, CellEnergy01, CellReach01;
-        // The parts of CloudWater before its cap at 1.5: the humidity background (bg), the dynamic lift and fronts (stratiform, the deck), the convective cells (0.7 x strength) plus the
+        // The parts of CloudWater before its cap at 1.5: the humidity background (bg), the dynamic lift and fronts (stratiform, the low stratiform layer), the convective cells (0.7 x strength) plus the
         // trade-wind cumulus. CloudWater = min(1.5, sum).
         public double CloudBackground, CloudDynamic, CloudConvective;
         public double WindSpeedMs { get { return WindSpeed; } }

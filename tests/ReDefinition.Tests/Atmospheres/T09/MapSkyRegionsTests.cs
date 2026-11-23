@@ -15,11 +15,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
         private static readonly byte Seventy = (byte)Math.Round(0.7f * 255.0, MidpointRounding.ToEven);
 
         private static MapSkyRegions.Inputs One(float cumuliform, float sheet, double baseM, double topM, double stableM, float rhLow = 0.5f, float rhMid = 0.5f, float rhHigh = 0.5f,
-                                                float deck = 0f, float reach = 0f, float precip = 0f)
+                                                float lowStratiform = 0f, float reach = 0f, float precip = 0f)
         {
             return new MapSkyRegions.Inputs
             {
-                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Stratiform = new[] { sheet }, Deck = new[] { deck }, BaseShare = new[] { (float)(baseM / H) },
+                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Stratiform = new[] { sheet }, LowStratiform = new[] { lowStratiform }, BaseShare = new[] { (float)(baseM / H) },
                 TopShare = new[] { (float)(topM / H) }, StableShare = new[] { (float)(stableM / H) }, RhLow = new[] { rhLow }, RhMid = new[] { rhMid }, RhHigh = new[] { rhHigh },
                 Descent = new[] { 0.2f }, Instability = new[] { 0.5f }, Uplift = new[] { 0.1f }, Reach = new[] { reach }, PrecipLevel = new[] { precip }, SurfaceTempK = new[] { 290f },
                 TropopauseM = H, LapseKPerM = 0.00711, DayS = 21549.425, Ut = 1486800.0
@@ -112,7 +112,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             byte c, t;
             MapSkyRegions.Parts low = Plan(One(0f, 0.7f, 800, 800, 1500, 1f, 0.5f, 0.5f));
             Draw(low, 0, out c, out t);
-            Assert.AreEqual(Seventy, c, "the low level's sheet is the deck");
+            Assert.AreEqual(Seventy, c, "the low level's sheet is the low stratiform layer");
             Assert.AreEqual(0f, low.Sc[0]);
             MapSkyRegions.Parts mid = Plan(One(0f, 0.7f, 800, 800, 1500, 0.5f, 1f, 0.5f));
             Draw(mid, 1, out c, out t);
@@ -121,14 +121,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             MapSkyRegions.Parts high = Plan(One(0f, 0.7f, 800, 800, 1500, 0.5f, 0.5f, 1f));
             Draw(high, 3, out c, out t);
             Assert.AreEqual(Seventy, c);
-            // no saturated level: rule A at the condensation level, rule B the deck's share in the middle, rule 0 the most humid level
-            MapSkyRegions.Parts ra = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, deck: 0.3f), 1);
+            // no saturated level: rule A at the condensation level, rule B the low stratiform layer's share in the middle, rule 0 the most humid level
+            MapSkyRegions.Parts ra = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, lowStratiform: 0.3f), 1);
             Assert.AreEqual(0.7f, ra.Sc[0], 1e-6f);
             Assert.AreEqual(0f, ra.Ac[0]);
-            MapSkyRegions.Parts rb = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, deck: 0.3f), 2);
+            MapSkyRegions.Parts rb = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, lowStratiform: 0.3f), 2);
             Assert.AreEqual(0.3f, rb.Ac[0], 1e-6f);
             Assert.AreEqual(0.4f, rb.Sc[0], 1e-6f);
-            MapSkyRegions.Parts r0 = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, deck: 0.3f), 0);
+            MapSkyRegions.Parts r0 = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, lowStratiform: 0.3f), 0);
             Assert.AreEqual(0.7f, r0.Ac[0], 1e-6f);
         }
 
@@ -172,29 +172,29 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
         }
 
-        // Owner 2026-11-23 "Ja, Feld-Basis": the deck's types are lifted to the field's cloud base (never lowered, at most the deck's depth); the fog type stays on the ground.
+        // Owner 2026-11-23 "Ja, Feld-Basis": the low stratiform layer's types are lifted to the field's cloud base (never lowered, at most the low stratiform layer's depth); the fog type stays on the ground.
         [TestMethod]
-        public void TheDeckFollowsTheFieldsBaseAndItsFogStaysOnTheGround()
+        public void TheLowStratiformFollowsTheFieldsBaseAndItsFogStaysOnTheGround()
         {
-            CloudLayerDef deck = Layers()[0];
-            Assert.AreEqual(WeatherMapSky.Role.Deck, WeatherMapSky.RoleOf(deck));
-            float depth = deck.OuterAltitudeM - deck.InnerAltitudeM;
-            Assert.AreEqual(depth, MapSkyRegions.DeckRootRangeM(deck), 1e-3f);
-            int count = deck.Types.Count;
-            float fogValue = deck.Deck != null ? deck.Deck.FogType : 0f, precipValue = deck.Deck != null ? deck.Deck.PrecipType : 0.5f;
+            CloudLayerDef lowStratiform = Layers()[0];
+            Assert.AreEqual(WeatherMapSky.Role.LowStratiform, WeatherMapSky.RoleOf(lowStratiform));
+            float depth = lowStratiform.OuterAltitudeM - lowStratiform.InnerAltitudeM;
+            Assert.AreEqual(depth, MapSkyRegions.LowStratiformRootRangeM(lowStratiform), 1e-3f);
+            int count = lowStratiform.Types.Count;
+            float fogValue = lowStratiform.LowStratiform != null ? lowStratiform.LowStratiform.FogType : 0f, precipValue = lowStratiform.LowStratiform != null ? lowStratiform.LowStratiform.PrecipType : 0.5f;
             MapSkyRegions.Parts p = Plan(One(0f, 0.7f, 900, 1900, 1900, 1f, 0.5f, 0.5f));
-            float precipBase = deck.InnerAltitudeM + BaseShareAt(deck, precipValue) * depth;
-            float[] r = MapSkyRegions.DeckRoots(deck, p, new[] { (byte)Math.Round(precipValue * 255.0) });
+            float precipBase = lowStratiform.InnerAltitudeM + BaseShareAt(lowStratiform, precipValue) * depth;
+            float[] r = MapSkyRegions.LowStratiformRoots(lowStratiform, p, new[] { (byte)Math.Round(precipValue * 255.0) });
             Assert.AreEqual(900f - precipBase, r[0], 2f, "the precipitating type's base is lifted to the field's 900 m");
-            r = MapSkyRegions.DeckRoots(deck, p, new[] { (byte)Math.Round(fogValue * 255.0) });
+            r = MapSkyRegions.LowStratiformRoots(lowStratiform, p, new[] { (byte)Math.Round(fogValue * 255.0) });
             Assert.AreEqual(0f, r[0], 1e-3f, "the fog type stays on the ground");
             MapSkyRegions.Parts low = Plan(One(0f, 0.7f, 50, 400, 400, 1f, 0.5f, 0.5f));
-            r = MapSkyRegions.DeckRoots(deck, low, new[] { (byte)Math.Round(precipValue * 255.0) });
-            Assert.AreEqual(0f, r[0], 1e-3f, "a field base below the cfg base never lowers the deck");
+            r = MapSkyRegions.LowStratiformRoots(lowStratiform, low, new[] { (byte)Math.Round(precipValue * 255.0) });
+            Assert.AreEqual(0f, r[0], 1e-3f, "a field base below the cfg base never lowers the low stratiform layer");
             MapSkyRegions.Parts high = Plan(One(0f, 0.7f, 9000, 9500, 9500, 1f, 0.5f, 0.5f));
-            r = MapSkyRegions.DeckRoots(deck, high, null);
-            Assert.AreEqual(depth, r[0], 1e-3f, "at most the deck's depth");
-            Assert.AreEqual(1f, MapSkyRegions.DeckBaseDefault, "on since the owner's choice of 2026-11-23 16:02");
+            r = MapSkyRegions.LowStratiformRoots(lowStratiform, high, null);
+            Assert.AreEqual(depth, r[0], 1e-3f, "at most the low stratiform layer's depth");
+            Assert.AreEqual(1f, MapSkyRegions.LowStratiformBaseDefault, "on since the owner's choice of 2026-11-23 16:02");
         }
 
         private static float BaseShareAt(CloudLayerDef l, float typeValue)

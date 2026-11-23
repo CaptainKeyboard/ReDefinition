@@ -35,7 +35,7 @@ namespace ReDefinition.Atmospheres
         // The step of the version, in seconds of game time: the version rises when the clock moves into a new step that was observed.
         internal const double VersionStepSeconds = 60.0;
         // The vertical optical depth of a column per unit of the cloud-water proxy of the generator (0 to 1.5). An overcast stratus is
-        // about 10 to 20. [VERIFY with C24 and E40: the sun transmission of a heavy deck.]
+        // about 10 to 20. [VERIFY with C24 and E40: the sun transmission of a heavy low stratiform layer.]
         internal const float OpticalDepthPerCloudWater = 12f;
         // The grams of cloud water per cubic metre that one unit of the generator's cloud density stands for in the 3D window. [VERIFY C21.]
         internal const float WindowGramsPerDensity = 0.7f;
@@ -415,7 +415,7 @@ namespace ReDefinition.Atmospheres
                 }
             }
             // E43: with a wind-by-height generator and any of the switches windShear, verticalMotion, anvilTilt on, cloud water and updraft are the layered columns
-            // (the deck carried by the wind of its height, towers growing and sinking, the tilt and the consistency rule), looked up in place of the plain ones.
+            // (the low stratiform layer carried by the wind of its height, towers growing and sinking, the tilt and the consistency rule), looked up in place of the plain ones.
             if (layered)
             {
                 WindowAdvection.Refill(target, 0, WindowNy, s.Generator, layers);

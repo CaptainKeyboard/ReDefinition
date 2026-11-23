@@ -25,13 +25,13 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // Who casts the shadow of a body's decks: the renderer that draws them. A deck casts one shadow, so that a vessel or the ground never
+        // Who casts the shadow of a body's cloud layers: the renderer that draws them. A cloud layer casts one shadow, so that a vessel or the ground never
         // takes two (the sun's mask is multiplied once by each caster, and two casters of the same cloud would square the factor).
         //   Ours: cloudSource Ours, or Volumetric / Both where EVE cannot render (CloudModeModel.Effective makes that source Ours). The
-        //         own layers draw the decks, the own shadow multiplies the sun's mask.
-        //   Eve:  cloudSource Volumetric or Both with EVE rendering: TVC's layers draw the decks and TVC's screen-space shadow
+        //         own layers draw the cloud layers, the own shadow multiplies the sun's mask.
+        //   Eve:  cloudSource Volumetric or Both with EVE rendering: TVC's layers draw the cloud layers and TVC's screen-space shadow
         //         (ScreenSpaceShadowsManager) multiplies the mask; the own shadow stays off. What the own system adds under Both (the storm
-        //         cores and the praecipitatio, the 3D form) is not a deck and has no shadow of its own.
+        //         cores and the praecipitatio, the 3D form) is not a cloud layer and has no shadow of its own.
         //   None: cloudSource None, nothing draws and nothing casts.
         internal enum Caster { None, Ours, Eve }
 

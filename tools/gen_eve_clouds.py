@@ -53,7 +53,7 @@ TEX = "ReDefinition/Atmospheres/Clouds"
 
 # Cloud types. Altitudes in metres above sea level (EVE's minAltitude/maxAltitude); CONTRACT.md gives them above the ground, which on
 # the flat parts the cover covers is the same to a few hundred metres [VERIFY on Duna and Laythe with the terrain height].
-#   Snow (SnowLight): the table says "600 to 1500 m, 300 m thick". It is read as a deck 300 m thick with its base at 600 m; the
+#   Snow (SnowLight): the table says "600 to 1500 m, 300 m thick". It is read as a cloud layer 300 m thick with its base at 600 m; the
 #   stratus type raises the top to 1500 m and beyond through the blend of the type map. The density 0.002 to 0.003 takes the middle.
 TYPES = {
     "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=2600, edge=0.5, msb=1.0,
