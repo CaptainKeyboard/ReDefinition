@@ -40,6 +40,10 @@ namespace ReDefinition.Atmospheres
         internal double ObliquityDeg = double.NaN;
         // The air temperature in kelvin over altitude in metres, sampled from the game; null where it could not be sampled.
         internal Curve TemperatureTarget;
+        // The tropopause of the game's temperature curve (TropopauseFinder, the WMO lapse-rate rule on GetTemperature every 100 m over the atmosphere's depth) and its
+        // temperature; NaN where the curve has none (owner 2026-11-23 "Messen, dann Anteile": the cloud heights as shares of the body's measured troposphere).
+        internal double MeasuredTropopauseM = double.NaN;
+        internal double MeasuredTropopauseK = double.NaN;
         // The names of EVE's particle fields that belong to the body (for example the field of a snow layer).
         internal List<string> EveFields = new List<string>();
     }
