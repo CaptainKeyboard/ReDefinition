@@ -3,7 +3,7 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres
 {
-    // The sky drawn from the weather map (cloud.weatherMapSky, the default; at 0 nothing here runs and the layers take the old layer maps). Once per map round the package B
+    // The sky drawn from the weather map. Where a round has no weather data the layers take the layer maps of today's chain until the next round. Once per map round the package B
     // maps are fetched and cut into the layers' parts (MapSkyRegions.Plan); each layer the map drives then takes its cover and type from them instead of today's chain (no meso stage,
     // no combination with the field's cover), and the next height build puts the convective base into the heap and tall layers' root offsets.
     internal sealed partial class OwnCloudModule
@@ -37,10 +37,10 @@ namespace ReDefinition.Atmospheres
         private int lastRoundMapSky = -1;
         internal int LastRoundMapSky { get { return lastRoundMapSky; } private set { lastRoundMapSky = value; } }
 
-        // The state the switch and the rule keys ask for now, in the form of LastRoundMapSky.
+        // The state the rule keys ask for now, in the form of LastRoundMapSky.
         internal static int MapSkyWanted
         {
-            get { return WeatherMapSky.On ? MapSkyRegions.SheetRule * 10 + MapSkyRegions.DepthRule : -1; }
+            get { return MapSkyRegions.SheetRule * 10 + MapSkyRegions.DepthRule; }
         }
 
         private void MapSkyRoundEnded()
@@ -69,11 +69,7 @@ namespace ReDefinition.Atmospheres
         private void FetchMapSky(CelestialBody b, IWeatherField field, double ut)
         {
             mapSkyRound = false;
-            if (!WeatherMapSky.On || !fetchHaveShared || !fetchHaveType)
-            {
-                if (!WeatherMapSky.On) mapSkyParts = mapSkyPartsForHeights = null;
-                return;
-            }
+            if (!fetchHaveShared || !fetchHaveType) return;
             GeneratorField gf = GeneratorModule.Current;
             GeneratorState gs = gf != null ? gf.StateOf(b.flightGlobalsIndex) : null;
             string why = null;
@@ -167,7 +163,7 @@ namespace ReDefinition.Atmospheres
         {
             rangeM = 0f;
             MapSkyRegions.Parts p = mapSkyPartsForHeights;
-            if (p == null || !WeatherMapSky.On || def == null) return null;
+            if (p == null || def == null) return null;
             WeatherMapSky.Role role = WeatherMapSky.RoleOf(def);
             if (role != WeatherMapSky.Role.Heap && role != WeatherMapSky.Role.Tall) return null;
             rangeM = MapSkyRegions.RootRangeM(def);

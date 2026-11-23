@@ -105,7 +105,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent,
                 CloudDevVariant.TuneForce, OwnCloudOptions.TuneCoverageBound, OwnCloudOptions.TuneEmptyReach, OwnCloudOptions.TuneLeapScale,
                 OwnCloudOptions.TuneLightStride, OwnCloudOptions.TuneLightCutoff, OwnCloudOptions.TuneEmptyLeap, OwnCloudOptions.TuneCheapShare,
-                OwnCloudOptions.TuneFogShare, OwnCloudOptions.TuneCostDebug, OwnCloudOptions.TuneCostCutM, OwnCloudOptions.TuneSpanGrowthPerM,OwnCloudOptions.TuneSpanGrowthFromM, OwnCloudOptions.TuneGridFine,OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.TuneDitherFix,
+                OwnCloudOptions.TuneFogShare, OwnCloudOptions.TuneCostDebug, OwnCloudOptions.TuneCostCutM, OwnCloudOptions.TuneSpanGrowthPerM,OwnCloudOptions.TuneSpanGrowthFromM, OwnCloudOptions.TuneGridFine,OwnCloudOptions.TuneDitherSequence,
                 OwnCloudOptions.TuneAccumulate, OwnCloudOptions.TuneReconResolution, OwnCloudOptions.TuneReconRotate, OwnCloudOptions.TuneLayerMotion, OwnCloudOptions.TuneMotionVectors,
                 OwnCloudOptions.TuneMotionAudit, OwnCloudOptions.TuneHostJitter, EdgeSettings.TuneReconstructor, EdgeSettings.TuneEdgeAdaptive, EdgeSettings.TuneThreshold, EdgeSettings.TuneDilation,
                 EdgeSettings.TunePersist,

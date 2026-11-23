@@ -199,7 +199,7 @@ namespace ReDefinition.Atmospheres
         private static bool PinLimitChangesMaps(PinLimit limit)
         {
             foreach (PinSwitch s in limit.Switches)
-                if (s.Kind == 't' && s.Key.StartsWith(WeatherMapSky.TuneKey, StringComparison.Ordinal)) return true;
+                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule)) return true;
             return false;
         }
 
@@ -351,7 +351,7 @@ namespace ReDefinition.Atmospheres
                         PinLimitApply(limit, restore);
                         // Two frames for the switches to reach the frame's record (a tuning override is read at the next frame).
                         yield return ProbeWait.Frames(2);
-                        // A set that changes the maps (the sky from the weather map, cloud.weatherMapSky*): the maps and the heights are made and settled again before the capture.
+                        // A set that changes the maps (the sky from the weather map's rules, cloud.weatherMapSky.*): the maps and the heights are made and settled again before the capture.
                         bool mapsChange = PinLimitChangesMaps(limit);
                         if (mapsChange)
                         {
@@ -492,7 +492,7 @@ namespace ReDefinition.Atmospheres
                                                          + step.ToString("0.0000", CultureInfo.InvariantCulture) + " s; the sun's direction " + sunSpreadDeg.ToString("0.00000", CultureInfo.InvariantCulture)
                                                          + " degrees, the planet's centre " + centreSpreadM.ToString("0.000", CultureInfo.InvariantCulture) + " m")) yield break;
 
-            // The sky the pass draws in this capture: the last map round's state (-1 today's chain, else sheet rule x 10 + depth rule) must be the keys' (cloud.weatherMapSky*).
+            // The sky the pass draws in this capture: the last map round's state (-1 today's chain, else sheet rule x 10 + depth rule) must be the keys' (cloud.weatherMapSky.*).
             PinEmit("map_sky", own.LastRoundMapSky);
             PinEmit("map_sky_rounds", own.MapSkyRounds);
             string skyWhy;

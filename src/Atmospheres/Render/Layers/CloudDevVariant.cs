@@ -41,7 +41,6 @@ namespace ReDefinition.Atmospheres
             new Entry("_CostP", 1, 0f),     // the cost debug bits (layers.costDebug)
             new Entry("_DitherP", 1, 3f),   // the light cone's rotation pattern (LayerFrame.ConePattern, FixedConeRotation)
             new Entry("_DitherP", 2, 3f),   // the step offset's pattern (layers.ditherSequence)
-            new Entry("_DitherP", 3, 1f),   // the pattern on the march target's own pixels (layers.ditherFix)
             new Entry("_FarRot", 0, 0f),    // the far rotation (ReconSettings.FarRotateM)
             new Entry("_EdgeP", 0, 0f),     // the edge-adaptive draw (layers.edgeAdaptive)
             new Entry("_LightR", 0, 0f),    // the light march's cone spread (CloudLightSettings.ConeSpread)

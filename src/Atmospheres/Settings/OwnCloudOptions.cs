@@ -129,12 +129,7 @@ namespace ReDefinition.Atmospheres
         // (the strongest line 0.4 / 0.9 percent of the power against 4.2 / 3.5, series e40-f2-fix) and no power below 0.15 cycles per pixel in its tile.
         internal const string TuneDitherSequence = "layers.ditherSequence";
         internal const int DitherSequenceDefault = 3;
-        // layers.ditherFix (E40 F2, default 1): the per-pixel patterns of the step offset and the light cone are read on the march target's own pixel grid, and the cone's rotation
-        // is the blue-noise tile. 0 is the pass before F2: the pattern read on the camera's grid scaled by the uv (a half-size target read it at every second pixel, a third-size target at
-        // every third, so that neighbouring offsets differed by 0.11 / 0.07 along one axis and the offsets' lines showed in the picture) and the gradient noise for the cone
-        // (set layers.ditherSequence 2 with it for the pass as it was).
-        internal const string TuneDitherFix = "layers.ditherFix";
-        internal const bool DitherFixDefault = true;
+        // The per-pixel patterns of the step offset and the light cone are read on the march target's own pixel grid (E40 F2), and the cone's rotation is the blue-noise tile (LayerFrame.ConePattern 3).
 
         // E40 C2: light.moonMinShare: an extra light (moon, planet shine) whose luminance is below this share of the sun's is not marched to and adds nothing (0: every light above zero is
         // marched, the pass as it was). Every cloud sample marched to each lit moon afresh (the moon's taps through every layer, no reuse), and the player's cost series measured that at +21 to +28 percent
@@ -289,9 +284,6 @@ namespace ReDefinition.Atmospheres
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
             f.CostDebug = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCostDebug, 0f)), 0, 15);
             f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 3);
-            bool fix = Tuning.Flag(TuneDitherFix, DitherFixDefault);
-            f.DitherOwnGrid = fix;
-            f.ConePattern = fix ? 3 : 0;
             Apply(f.Cull, v);
         }
 

@@ -83,11 +83,7 @@ namespace ReDefinition.Atmospheres
         // E40 grain against TVC. DitherSequence: the per-pixel step offset, advanced by the golden ratio per frame: 1 an integer hash (white; what the default drew before E40 step (c)), 2 the
         // interleaved gradient noise (lower temporal noise, a few strong spatial lines), 3 (E40 F2, the default) the blue-noise tile of DitherMatrix (the same temporal noise, no line).
         public int DitherSequence = 3;
-        // E40 F2: the step offset's and the light cone's pixel pattern is read on the march target's own pixel grid (true) or on the camera's pixel grid scaled by the uv
-        // (false: what the pass did until F2; a half-size target then read the pattern at every second pixel, so that along one axis the offsets of neighbours differed by
-        // 0.11 (half size) or 0.07 (a third), and the picture showed their lines).
-        public bool DitherOwnGrid = true;
-        // The per-pixel rotation of the light cone (read only where the cone has a spread): 0 the gradient noise (what the pass drew until F2), 2 an integer hash, 3 (the default) the blue-noise tile.
+        // The per-pixel rotation of the light cone (read only where the cone has a spread): 0 the gradient noise, 2 an integer hash, 3 (the default, E40 F2) the blue-noise tile.
         public int ConePattern = 3;
         // Package T16, the visibility culling (the switches are off until the owner agrees).
         public CullSettings Cull = new CullSettings();
@@ -134,7 +130,6 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
         internal static readonly int IdCellE = Shader.PropertyToID("_CellE");
         internal static readonly int IdCellS = Shader.PropertyToID("_CellS");
-        internal const string MapSkyKeyword = "REDEFINITION_MAPSKY";
         // The test lattice's variant (cloud.field off): the product's passes hold none of its code.
         internal const string LatticeKeyword = "CLOUD_LATTICE";
         private readonly Vector4[] cellS = new Vector4[CloudLayerDef.MaxLayers];
@@ -432,9 +427,9 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), 0f, Mathf.Max(0f, f.SpanGrowthPerM)));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
-            // pattern stands still (y: the cone's pattern, z: the step offset's, w: the pixel grid they are read on, LayerFrame.DitherOwnGrid).
+            // pattern stands still (y: the cone's pattern, z: the step offset's).
             double phase = StepPhase.Of(f.FrameNumber);
-            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : (f.ConePattern == 2 || f.ConePattern == 3 ? f.ConePattern : 0f), Mathf.Clamp(f.DitherSequence, 1, 3), f.DitherOwnGrid ? 1f : 0f));
+            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : (f.ConePattern == 2 || f.ConePattern == 3 ? f.ConePattern : 0f), Mathf.Clamp(f.DitherSequence, 1, 3), 0f));
             if (f.Light != null)
             {
                 for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;
@@ -451,16 +446,9 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdCullL, cullL);
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
             m.SetVectorArray(IdCellE, cellE);
-            // The map-driven sky's connected sheet types (cloud.weatherMapSky, MapSkyRegions.SheetTypes; zero while it is off).
-            bool mapSky = WeatherMapSky.On;
-            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = mapSky && l < layerCount ? MapSkyRegions.SheetTypes(cellLayer[l]) : Vector4.zero;
+            // The map-driven sky's connected sheet types (MapSkyRegions.SheetTypes).
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = l < layerCount ? MapSkyRegions.SheetTypes(cellLayer[l]) : Vector4.zero;
             m.SetVectorArray(IdCellS, cellS);
-            // The pass's variant with the type read before the cells (the shader's REDEFINITION_MAPSKY); without it the pass is the one of before.
-            if (mapSky != m.IsKeywordEnabled(MapSkyKeyword))
-            {
-                if (mapSky) m.EnableKeyword(MapSkyKeyword);
-                else m.DisableKeyword(MapSkyKeyword);
-            }
             // The test lattice (cloud.field off) is the variant CLOUD_LATTICE; the product (the field) draws without its code.
             bool lattice = !CloudLookTuning.Field;
             if (lattice != m.IsKeywordEnabled(LatticeKeyword))

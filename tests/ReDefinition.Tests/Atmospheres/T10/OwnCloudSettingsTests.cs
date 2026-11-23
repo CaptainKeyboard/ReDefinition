@@ -510,28 +510,16 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
         }
 
-        // E40 F2: the patterns are read on the march target's own pixel grid with the blue-noise tile for the cone by default; layers.ditherFix 0 is the pass before F2.
+        // E40 F2: the cone's rotation is the blue-noise tile (the patterns are read on the march target's own pixel grid).
         [TestMethod]
-        public void TheDitherPatternsAreReadOnTheOwnGridByDefaultWithAKeyForTheOldPass()
+        public void TheConesRotationIsTheBlueNoiseTileByDefault()
         {
             Tuning.ClearOverrides();
             NextFrame();
             var frame = new LayerFrame();
-            Assert.IsTrue(frame.DitherOwnGrid);
             Assert.AreEqual(3, frame.ConePattern);
-            frame.DitherOwnGrid = false;
-            frame.ConePattern = 0;
             OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsTrue(OwnCloudOptions.DitherFixDefault);
-            Assert.IsTrue(frame.DitherOwnGrid, "the default is the fix");
             Assert.AreEqual(3, frame.ConePattern);
-            Tuning.SetOverride(OwnCloudOptions.TuneDitherFix, 0f);
-            NextFrame();
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.IsFalse(frame.DitherOwnGrid, "0 reads the pattern on the camera's grid scaled by the uv, as before F2");
-            Assert.AreEqual(0, frame.ConePattern, "and the cone's rotation is the gradient noise");
-            Tuning.ClearOverrides();
-            NextFrame();
         }
 
         [TestMethod]

@@ -55,7 +55,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsFalse(speed.RangeEstimated);
             Assert.AreEqual(0f, speed.Min);
             Assert.AreEqual(CloudMotion.MaxScale, speed.Max);
-            CloudKey flag = CloudKeyRegistry.Find(OwnCloudOptions.TuneDitherFix);
+            CloudKey flag = CloudKeyRegistry.Find(OwnCloudOptions.TuneEmptyReach);
             Assert.IsTrue(flag.Flag);
             Assert.AreEqual(0f, flag.Min);
             Assert.AreEqual(1f, flag.Max);

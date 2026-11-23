@@ -30,8 +30,8 @@ namespace ReDefinition.Atmospheres
     //   cloud.cellKm, cloud.cellLat, cloud.cellLon
     //                                     a forced map (cloud.mapOverride.<name>) as ONE cell instead of a constant: a Gaussian of this e-folding radius in km round the point (degrees),
     //                                     the override's value at its centre, 0 outside (0: the constant map); the one cumulonimbus cell whose tower spreads an anvil (AnvilMap)
-    //   cloud.weatherMapSky               the sky from the weather map (WeatherMapSky): 1 (default since 2026-11-22) builds the layer maps from the package B column quantities; 0 the old layer maps. Read
-    //                                     by the game's module (OwnCloudModule.MapSky.cs) and by the map dump that feeds the weather player.
+    //   cloud.weatherMapSky.sheetRule / .depthRule   the rules of the sky from the weather map (WeatherMapSky, MapSkyRegions): the layer maps are built from the package B column
+    //                                     quantities; read by the game's module (OwnCloudModule.MapSky.cs) and by the map dump that feeds the weather player.
     internal static class CloudLookTuning
     {
         // The default of cloud.coverCombine (E40 F1): the layer maps meet the field's cover.

@@ -224,10 +224,9 @@ namespace ReDefinition.Atmospheres
             // The single cloud's body per layer, as the layer pass has it (CloudCells.cginc CellBody).
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(uploadedSource != null && l < layerCount ? uploadedSource.LayerAt(l) : null);
             m.SetVectorArray(LayerRenderer.IdCellE, cellE);
-            // The map-driven sky's connected sheet types, as the layer pass has them (zero while cloud.weatherMapSky is off).
-            bool mapSky = WeatherMapSky.On;
+            // The map-driven sky's connected sheet types, as the layer pass has them.
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
-                cellS[l] = mapSky && uploadedSource != null && l < layerCount ? MapSkyRegions.SheetTypes(uploadedSource.LayerAt(l)) : Vector4.zero;
+                cellS[l] = uploadedSource != null && l < layerCount ? MapSkyRegions.SheetTypes(uploadedSource.LayerAt(l)) : Vector4.zero;
             m.SetVectorArray(LayerRenderer.IdCellS, cellS);
             // The shadow casts the clouds the layer pass draws: the CLOUD FIELD's single clouds (the field's texture and uniforms are globals of CloudFieldGpu), or with cloud.field off the
             // test lattice, which is the shader's variant so the product's shader holds none of its code.
