@@ -98,6 +98,8 @@ namespace ReDefinition.Atmospheres
         }
 
         // -t09PinViews: the views of the pinned capture by name (Views: ground, inside, above, sky3, ...), turned by -t09HeadingOffset; the ground view alone without it.
+        // A view of its own: name=agl:pitch:heading:cameraDist (metres and degrees; M2c, 2026-11-23: a view below the low deck's base, which every series view is
+        // inside of, e.g. low=40:25:90:30).
         private List<View> PinViews(out string problem)
         {
             problem = null;
@@ -105,6 +107,13 @@ namespace ReDefinition.Atmospheres
             string text = CommandLine.After(Args(), "-t09PinViews", true);
             foreach (string name in (string.IsNullOrEmpty(text) ? "ground" : text).Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
             {
+                View custom;
+                if (TryCustomPinView(name, out custom, out problem))
+                {
+                    list.Add(Turned(custom));
+                    continue;
+                }
+                if (problem != null) return list;
                 View found = default(View);
                 bool known = false;
                 foreach (View v in Views)
@@ -117,6 +126,27 @@ namespace ReDefinition.Atmospheres
                 list.Add(Turned(found));
             }
             return list;
+        }
+
+        // A view given as name=agl:pitch:heading:cameraDist. False without '=' (a series view's name); false with a problem where the numbers do not parse.
+        internal static bool TryCustomPinView(string spec, out View view, out string problem)
+        {
+            view = default(View);
+            problem = null;
+            int eq = spec.IndexOf('=');
+            if (eq < 0) return false;
+            string[] p = spec.Substring(eq + 1).Split(':');
+            double agl, pitch, heading, dist;
+            if (p.Length != 4 || !double.TryParse(p[0], NumberStyles.Float, CultureInfo.InvariantCulture, out agl)
+                || !double.TryParse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture, out pitch)
+                || !double.TryParse(p[2], NumberStyles.Float, CultureInfo.InvariantCulture, out heading)
+                || !double.TryParse(p[3], NumberStyles.Float, CultureInfo.InvariantCulture, out dist) || agl < 5.0 || dist < 1.0)
+            {
+                problem = "-t09PinViews: '" + spec.Trim() + "' is not name=agl:pitch:heading:cameraDist (agl >= 5 m, cameraDist >= 1 m)";
+                return false;
+            }
+            view = new View { Name = spec.Substring(0, eq).Trim(), AglM = agl, PitchDeg = pitch, HeadingDeg = heading, CameraDistM = dist };
+            return true;
         }
 
         // One switch of a -t09PinLimits set.
@@ -200,9 +230,26 @@ namespace ReDefinition.Atmospheres
         private static bool PinLimitChangesMaps(PinLimit limit)
         {
             foreach (PinSwitch s in limit.Switches)
-                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule)) return true;
+                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule || s.Key == MapSkyRegions.TuneDeckBase || PinChangesHeightScale(s))) return true;
             return false;
         }
+
+        // A key of the height scale (CloudHeightScale): the module re-reads the body configuration at its next once-a-second check and builds the stack anew, so the settle
+        // starts only after that (PinHeightScaleWaitS).
+        private static bool PinChangesHeightScale(PinSwitch s)
+        {
+            return s.Kind == 't' && (s.Key == CloudHeightScale.TuneOn || s.Key == CloudHeightScale.TuneFactor || s.Key == CloudHeightScale.TuneHorizontal);
+        }
+
+        private static bool PinLimitChangesHeightScale(PinLimit limit)
+        {
+            foreach (PinSwitch s in limit.Switches)
+                if (PinChangesHeightScale(s)) return true;
+            return false;
+        }
+
+        // The wait for the module's checks (once a second): the first re-reads the configuration, the next builds the stack from it; two seconds and a margin.
+        private const double PinHeightScaleWaitS = 3.5;
 
         // Undoes a limit set: the forced tuning keys go (cloud.motionScale 0 is forced again), the settings come back, the probe switches are off.
         private void PinLimitRevert(List<KeyValuePair<string, double>> restore)
@@ -354,6 +401,8 @@ namespace ReDefinition.Atmospheres
                         yield return ProbeWait.Frames(2);
                         // A set that changes the maps (the sky from the weather map's rules, cloud.weatherMapSky.*): the maps and the heights are made and settled again before the capture.
                         bool mapsChange = PinLimitChangesMaps(limit);
+                        bool heightScale = PinLimitChangesHeightScale(limit);
+                        if (heightScale) yield return ProbeWait.Seconds(PinHeightScaleWaitS);
                         if (mapsChange)
                         {
                             // The settle's rows read T09.pin.<view>-<set>-apply.<step>.
@@ -373,6 +422,7 @@ namespace ReDefinition.Atmospheres
                         if (mapsChange)
                         {
                             yield return ProbeWait.Frames(2);
+                            if (heightScale) yield return ProbeWait.Seconds(PinHeightScaleWaitS);
                             pinLabel = view.Name + "-" + limit.Name + "-revert";
                             double settleFrom = Elapsed;
                             foreach (ProbeWait w in PinSettleSteps(view)) yield return w;

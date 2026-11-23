@@ -121,6 +121,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.ShapeSmoothing, f.ShapeSmoothing, 1e-6f, t + " shape smoothing");
                 Assert.AreEqual(s.TopClose, f.TopClose, 1e-6f, t + " top closure");
                 Assert.AreEqual(s.Outflow, f.Outflow, 1e-6f, t + " outflow");
+                Assert.AreEqual(s.RollAmount, f.RollAmount, 1e-6f, t + " roll amount");
                 Assert.AreEqual(s.Lift == null, f.Lift == null, t + " has a lift curve");
                 if (s.Lift != null)
                 {

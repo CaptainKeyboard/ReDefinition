@@ -101,6 +101,7 @@ namespace ReDefinition.Atmospheres
     {
         internal const string ShaderName = "ReDefinition/AtmospheresReconstruct";
 
+        private static readonly int IdDitherP = Shader.PropertyToID("_DitherP");
         private static readonly int IdReconP = Shader.PropertyToID("_ReconP"), IdReconD = Shader.PropertyToID("_ReconD"),
             IdReconK = Shader.PropertyToID("_ReconK"), IdCurTex = Shader.PropertyToID("_CurTex"), IdCurTexel = Shader.PropertyToID("_CurTex_TexelSize"),
             IdHistTex = Shader.PropertyToID("_HistTex"), IdCamPos = Shader.PropertyToID("_CamPos"), IdCamForward = Shader.PropertyToID("_CamForward"),
@@ -450,9 +451,14 @@ namespace ReDefinition.Atmospheres
             if (s.Mode == ReconMode.Block)
             {
                 int ox, oy;
+                int sampleIndex = blockIndex;
                 ReconPattern.BlockOffset(n, blockIndex++, out ox, out oy);
                 offset = new Vector2(ox, oy);
                 layers.SetVector(IdReconP, new Vector4(n, offset.x, offset.y, 0f));
+                // The step offset's phase counts the pixel's own samples, not the frames (StepPhase.OfSample); the renderer set the frame's phase before this call.
+                Vector4 dither = layers.GetVector(IdDitherP);
+                dither.x = (float)StepPhase.OfSample(sampleIndex, ReconPattern.Cycle(n));
+                layers.SetVector(IdDitherP, dither);
             }
             else
             {

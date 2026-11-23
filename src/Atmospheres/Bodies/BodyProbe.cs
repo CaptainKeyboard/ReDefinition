@@ -86,7 +86,31 @@ namespace ReDefinition.Atmospheres
             if (xs.Count == 0) return;
             facts.TemperatureTarget = new Curve(xs.ToArray(), ys.ToArray());
             facts.SeaLevelTemperatureK = ys[0];
+            // The measured tropopause (owner 2026-11-23 "Messen, dann Anteile"): the curve every 100 m over the whole depth, the WMO rule; one line in the log per body.
+            int steps = (int)Math.Floor(depth / TropopauseStepM);
+            var za = new double[steps + 1];
+            var ta = new double[steps + 1];
+            for (int i = 0; i <= steps; i++)
+            {
+                za[i] = i * TropopauseStepM;
+                ta[i] = body.GetTemperature(za[i]);
+            }
+            double kAt;
+            facts.MeasuredTropopauseM = TropopauseFinder.Find(za, ta, out kAt);
+            facts.MeasuredTropopauseK = kAt;
+            AtmospheresLog.Say("body " + body.name + ": the game's temperature curve: " + ta[0].ToString("0.0") + " K at the surface, the tropopause (WMO lapse rate, every "
+                               + TropopauseStepM.ToString("0") + " m) " + (double.IsNaN(facts.MeasuredTropopauseM) ? "none found" : "at " + facts.MeasuredTropopauseM.ToString("0") + " m, "
+                               + kAt.ToString("0.0") + " K") + ", the atmosphere " + depth.ToString("0") + " m deep");
+            // The curve itself, every 2 km (kelvin), so that a tropopause can be checked against the shape it was found in (owner 2026-11-23: "Dann ist vermutlich unsere
+            // eigene Troposphäre schlecht gewählt").
+            var curve = new System.Text.StringBuilder();
+            int every = (int)Math.Round(2000.0 / TropopauseStepM);
+            for (int i = 0; i <= steps; i += every) curve.Append(i == 0 ? "" : " ").Append((za[i] * 0.001).ToString("0")).Append(':').Append(ta[i].ToString("0"));
+            AtmospheresLog.Say("body " + body.name + ": the game's temperature curve (km:K) " + curve);
         }
+
+        // The step of the measured temperature profile (the tropopause's resolution).
+        private const double TropopauseStepM = 100.0;
 
         // The inputs of the weather generator that the game states: the surface gravity, the stellar flux (luminosity over the area of the sphere
         // at the semi-major axis of the planet that circles the star) and the gas constant and heat capacity from the molar mass and the

@@ -98,6 +98,14 @@ namespace ReDefinition.Atmospheres.Viewer
                 "weather map sky: a sheet at no saturated level (0 the most humid level, 1 a deck at the condensation level, 2 the deck map)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 2f);
             r.Key(MapSkyRegions.TuneDepthRule, MapSkyRegions.DepthRuleDefault, KeySection.Shape,
                 "weather map sky: the heap depth (1 the field's depth, 2 the calibrated depth)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);
+            r.Key(MapSkyRegions.TuneDeckBase, MapSkyRegions.DeckBaseDefault, KeySection.Shape,
+                "weather map sky: the rain and snow deck's base from the field (1; its fog stays on the ground), 0 the deck's cfg type shares", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
+            r.Key(CloudHeightScale.TuneOn, CloudHeightScale.OnDefault, KeySection.Shape,
+                "height scale: 1 every cloud height a share of the body's measured troposphere (the sizes follow), 0 the layers as written", KeyLiveness.Second, KeyMarker.Live, 0f, 1f);
+            r.Key(CloudHeightScale.TuneFactor, CloudHeightScale.FactorDefault, KeySection.Shape,
+                "height scale: the factor on the measured troposphere (with the body's heightFactor)", KeyLiveness.Second, KeyMarker.Live, CloudHeightScale.FactorMin, CloudHeightScale.FactorMax);
+            r.Key(CloudHeightScale.TuneHorizontal, CloudHeightScale.HorizontalDefault, KeySection.Shape,
+                "height scale: 1 the horizontal lengths (noise, cells, patches, meso) follow too, 0 only the heights scale", KeyLiveness.Second, KeyMarker.Live, 0f, 1f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.

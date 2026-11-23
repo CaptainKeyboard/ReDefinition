@@ -46,6 +46,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
             rain.Types[1].DensityScale = 0.22f;
+            rain.Types[1].RollAmount = 0.6f;   // M2c: the stratus rolls (drawn while cloud.sheetRolls is on)
             // The tops follow the updraft (E40 L6 shape): 1200 m of the deck's 2.1 km at 11.2 m/s.
             rain.TopReach = 0.5714f;
             rain.TopRefMs = 1.2f;

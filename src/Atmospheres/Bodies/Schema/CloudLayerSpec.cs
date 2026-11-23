@@ -69,6 +69,8 @@ namespace ReDefinition.Atmospheres
         internal float TopClose { get; set; } = CloudTypeDef.DefaultTopClose;
         // How much a tower of this type feeds an anvil (cfg key outflow): see CloudTypeDef.Outflow.
         internal float Outflow { get; set; }
+        // The depth of the type's rolls (cfg key rollAmount): see CloudTypeDef.RollAmount.
+        internal float RollAmount { get; set; }
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -91,7 +93,7 @@ namespace ReDefinition.Atmospheres
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate,
-                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, Heap = Heap, EdgePower = EdgePower, Cavity = Cavity, Puff = Puff
+                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, RollAmount = RollAmount, Heap = Heap, EdgePower = EdgePower, Cavity = Cavity, Puff = Puff
             };
         }
     }

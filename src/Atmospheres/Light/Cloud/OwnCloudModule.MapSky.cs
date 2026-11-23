@@ -159,12 +159,20 @@ namespace ReDefinition.Atmospheres
         }
 
         // The height build's root offsets of a layer from the last map-sky parts (null: the layer keeps today's heights), and the range they are encoded in.
-        internal float[] MapSkyRoots(CloudLayerDef def, out float rangeM)
+        // l: the layer's index in the stack (the deck's type map of the round is read from it).
+        internal float[] MapSkyRoots(int l, CloudLayerDef def, out float rangeM)
         {
             rangeM = 0f;
             MapSkyRegions.Parts p = mapSkyPartsForHeights;
             if (p == null || def == null) return null;
             WeatherMapSky.Role role = WeatherMapSky.RoleOf(def);
+            // The deck follows the field's base too (owner 2026-11-23, MapSkyRegions.TuneDeckBase).
+            if (role == WeatherMapSky.Role.Deck && MapSkyRegions.DeckBase)
+            {
+                rangeM = MapSkyRegions.DeckRootRangeM(def);
+                byte[] deckType = l >= 0 && l < mapSkyType.Length ? mapSkyType[l] : null;
+                return MapSkyRegions.DeckRoots(def, p, deckType);
+            }
             if (role != WeatherMapSky.Role.Heap && role != WeatherMapSky.Role.Tall) return null;
             rangeM = MapSkyRegions.RootRangeM(def);
             return MapSkyRegions.Roots(def, p);
