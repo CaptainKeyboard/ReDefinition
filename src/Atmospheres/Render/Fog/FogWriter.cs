@@ -32,6 +32,12 @@ namespace ReDefinition.Atmospheres
         private float lastLoggedDensity = -1f;
         private float nextLogAt;
 
+        // The start parameter -atmoNoWeatherFog: this run writes no weather fog (owner 2026-11-23: the cloud tests need a free view, "das müsste eher ein Startparameter
+        // sein"; the fog stays on in every run without it). Read once: the command line does not change while the game runs.
+        internal const string NoFogArgument = "-atmoNoWeatherFog";
+        internal static readonly bool NoFogByArgument = CommandLine.Has(NoFogArgument, true);
+        private bool loggedNoFog;
+
         // How many times the fog was found changed by another writer.
         internal static int ExternalWrites { get; private set; }
         // The density this writer wrote last.
@@ -80,6 +86,16 @@ namespace ReDefinition.Atmospheres
 
         private void Write()
         {
+            if (NoFogByArgument)
+            {
+                if (!loggedNoFog)
+                {
+                    loggedNoFog = true;
+                    AtmospheresLog.Say("fog: off for this run (start parameter " + NoFogArgument + ")");
+                }
+                if (writing) Release("start parameter " + NoFogArgument);
+                return;
+            }
             WeatherView view = WeatherHooks.View;
             bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && !view.IsStale(Time.frameCount) && view.Active
                       && view.FogDensity > 0f;
