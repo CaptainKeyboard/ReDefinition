@@ -204,7 +204,7 @@ namespace ReDefinition.Atmospheres
             resampler.FillDeckMapUniform(0f, 0f);
             builtTier = tierIndex;
             string curtainError;
-            Shader curtainShader = AtmosphereShaders.Get("ReDefinition/AtmospheresStormVolume", out curtainError);
+            Shader curtainShader = AtmosphereShaders.Get(StormShaders.VolumeShaderName, out curtainError);
             if (!curtain.Init(curtainShader, null, StormShaders.LayerOf(cam)))
             {
                 curtainBroken = true;

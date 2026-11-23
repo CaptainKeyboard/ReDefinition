@@ -202,9 +202,9 @@ namespace ReDefinition.Tests.Atmospheres.B13
         // whose file is clean fails the test so that the list cannot go stale.
         private static readonly string[] AllowList =
         {
-            "BodyClimate.cs", "ClimateRules.cs", "SeasonClockObsolete.cs", "EveCoverageMath.cs",
+            "BodyClimate.cs", "ClimateRules.cs", "EveCoverageMath.cs",
             "EveRainLink.cs", "EveSnowLink.cs", "EveSwirlMath.cs", "GroundRebuilder.cs",
-            "OrbitSnow.cs", "SnowNoise.cs", "SnowPqsMod.cs", "SnowQuads.cs", "SnowRefresher.cs", "StormEffect.cs"
+            "OrbitSnow.cs", "SnowNoise.cs", "SnowPqsMod.cs", "SnowQuads.cs", "SnowRefresher.cs"
         };
 
         private static string AtmospheresFolder()
@@ -231,7 +231,7 @@ namespace ReDefinition.Tests.Atmospheres.B13
             foreach (string file in SourceFiles(Path.Combine(root, "Bodies")))
             {
                 string rel = Relative(root, file);
-                if (rel.StartsWith("Bodies/Schema/") || rel == "Bodies/SeasonClockObsolete.cs") continue;
+                if (rel.StartsWith("Bodies/Schema/")) continue;
                 if (BodyNames.IsMatch(File.ReadAllText(file))) offenders.Add(rel);
             }
             Assert.AreEqual(0, offenders.Count, "names a body or a body's number: " + string.Join(", ", offenders));

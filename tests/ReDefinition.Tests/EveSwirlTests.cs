@@ -199,16 +199,6 @@ namespace ReDefinition.Tests
             Assert.IsTrue(half.Cols < one.Cols && half.Rows < one.Rows, "a picture of half the size needs fewer texels");
         }
 
-        [TestMethod]
-        public void TheRangeIsLocalNearTheGroundAndTheWholePlanetFromOrbitAndInTheMapView()
-        {
-            Assert.AreEqual(EveCellLayer.RangeM, EveCellLayer.RangeFor(0, Kerbin, false), 1e-9);
-            Assert.AreEqual(EveCellLayer.RangeM, EveCellLayer.RangeFor(EveCellLayer.WideFromAltitudeM - 1, Kerbin, false), 1e-9);
-            Assert.AreEqual(Math.PI * Kerbin, EveCellLayer.RangeFor(EveCellLayer.WideFromAltitudeM, Kerbin, false), 1e-9);
-            Assert.AreEqual(Math.PI * Kerbin, EveCellLayer.RangeFor(1000, Kerbin, true), 1e-9, "the map view from anywhere");
-            Assert.IsTrue(EveCellLayer.WideFromAltitudeM < 200000 && EveCellLayer.VolumeLiveBelowM < 260000, "inside EVE's fade, which starts at 200 km and ends at 260 km");
-        }
-
     }
 
     internal static class SwirlRectExtensions

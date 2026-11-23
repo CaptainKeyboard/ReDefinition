@@ -7,7 +7,7 @@ namespace ReDefinition.Atmospheres
     // The frame driver of the flight scene: the SINGLE writer of WeatherHooks.View. Each frame, in LateUpdate (so before Camera.onPreCull,
     // where the light is written), it asks the weather field (WeatherHub) for the weather at the flight camera and has FrameComposer write
     // the view; LightWriter then writes the sun and the ambient light in onPreCull. It reads only IWeatherField through WeatherHub, so the
-    // A02 legacy bridge, the simulation of B10 or a test field all drive it. Nothing is allocated per frame. A failure logs once, puts the
+    // simulation of B10 or a test field drive it. Nothing is allocated per frame. A failure logs once, puts the
     // light back and clears the view for the rest of the scene.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class WeatherFrameDriver : MonoBehaviour
@@ -22,7 +22,7 @@ namespace ReDefinition.Atmospheres
         private int loggedExternal;
         private bool wasActive;
 
-        // The light writer of the running driver, or null outside the flight scene (the legacy storm effect logs its state).
+        // The light writer of the running driver, or null outside the flight scene (the frame driver logs its state).
         internal static LightWriter Light { get; private set; }
 
         private void Start()
@@ -34,7 +34,7 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             Light = light;
-            AtmospheresLog.Say(StormLog.DriverReady());
+            AtmospheresLog.Say(WeatherLog.DriverReady());
         }
 
         private void LateUpdate()
@@ -156,7 +156,7 @@ namespace ReDefinition.Atmospheres
             {
                 loggedBand = view.Band;
                 loggedType = view.Type;
-                AtmospheresLog.Say(StormLog.DriverBand(view, composer.Level, composer.Mix, light));
+                AtmospheresLog.Say(WeatherLog.DriverBand(view, composer.Level, composer.Mix, light));
             }
             int external = light.ExternalWrites;
             if (external != loggedExternal && external >= 10 && external >= loggedExternal * 2)

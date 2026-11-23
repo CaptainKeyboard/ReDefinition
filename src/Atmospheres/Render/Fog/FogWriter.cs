@@ -20,7 +20,7 @@ namespace ReDefinition.Atmospheres
     [AtmospheresModule(61)]
     internal sealed class FogWriter : IAtmospheresModule
     {
-        private readonly FogController tracker = new FogController(false);
+        private readonly FogController tracker = new FogController();
         private readonly FogRamp ramp = new FogRamp();
         private bool initialised;
         private bool writing;
@@ -82,7 +82,7 @@ namespace ReDefinition.Atmospheres
         {
             WeatherView view = WeatherHooks.View;
             bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && !view.IsStale(Time.frameCount) && view.Active
-                      && view.FogDensity > 0f && !FogController.LegacyHolds;
+                      && view.FogDensity > 0f;
             float dt = Time.timeScale > 0f ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) : 0f;
             if (!on)
             {

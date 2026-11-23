@@ -147,9 +147,9 @@ namespace ReDefinition.Tests
             Assert.IsTrue(File.ReadAllText(curtain).Contains("Shader \"" + StormShaders.VolumeShaderName + "\""), "the shader's name is the one the loader asks for");
             Assert.IsTrue(File.Exists(Path.Combine(folder, "ReDefinitionAtmospheresVolume.shader")), "the volume pass's shader");
             Assert.IsFalse(File.Exists(Path.Combine(folder, "ReDefinitionAtmospheresCloudSlab.shader")), "the spike's slab shader is gone");
-            Assert.AreEqual("atmospheres.shaders", StormShaders.BundleName);
+            Assert.AreEqual("atmospheres.shaders", AtmosphereShaders.BundleName);
             Assert.IsTrue(File.ReadAllText(Path.Combine(repo, "unity", "Assets", "ReDefinitionAtmospheres", "Editor", "AtmospheresBundleBuilder.cs"))
-                .Contains("\"" + StormShaders.BundleName + "\""), "the builder writes the file the loader reads");
+                .Contains("\"" + AtmosphereShaders.BundleName + "\""), "the builder writes the file the loader reads");
         }
     }
 }

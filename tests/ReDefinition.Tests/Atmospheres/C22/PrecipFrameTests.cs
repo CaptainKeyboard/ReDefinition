@@ -325,16 +325,10 @@ namespace ReDefinition.Tests.Atmospheres.C22
         }
 
         [TestMethod]
-        public void TheLegacyHandshakeFlagFollowsTheLegacyFogTracker()
+        public void TheFogTrackerCountsAnotherWritersChanges()
         {
-            var legacyFog = new FogController();
-            var ours = new FogController(false);
+            var ours = new FogController();
             ours.Save(false, FogMode.Linear, 0.001f, Color.gray);
-            Assert.IsFalse(FogController.LegacyHolds, "the fog writer's own tracker does not count as the legacy one");
-            legacyFog.Save(false, FogMode.Linear, 0.001f, Color.gray);
-            Assert.IsTrue(FogController.LegacyHolds);
-            legacyFog.Restore(true, FogMode.ExponentialSquared, 0.001f, Color.gray);
-            Assert.IsFalse(FogController.LegacyHolds);
             ours.CountExternal();
             Assert.AreEqual(1, ours.ExternalWrites);
         }
