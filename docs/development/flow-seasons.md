@@ -87,8 +87,8 @@ A storm is a cell that stands on the planet.
    the cells near the flight camera, takes the intensity at the camera, scales it with the
    vessel's altitude (`StormLook.HeightFactor`), and follows that target smoothly.
 4. From the applied intensity, `StormLook` computes the numbers: visibility, fog density,
-   veil alpha, sky grey, ambient factor, and the flakes' rate, size and wind. `StormEffect`
-   sets the fog in `RenderSettings`. `StormVeil` draws the veil grid in front of the
+   whiteout alpha, sky grey, ambient factor, and the flakes' rate, size and wind. `StormEffect`
+   sets the fog in `RenderSettings`. `StormVeil` draws the whiteout grid in front of the
    camera. `StormFlakes` runs the three particle layers. `StormAmbient` and
    `AmbientTracker` scale the ambient light in `Camera.onPreCull` and put back what they
    changed.
@@ -101,15 +101,15 @@ A storm is a cell that stands on the planet.
    step 6.
    It marches the view ray through a bounding cylinder of the cell, with the 3D noise from
    `StormNoise`. The cylinder and the numbers are in `StormVolumeMath`. The shader draws the
-   snow veil (streaks, a thin mist between them, and a dark band at the cloud base that grows
+   snow praecipitatio (streaks, a thin mist between them, and a dark band at the cloud base that grows
    with the cell's strength and stays out of the view from inside): the cloud is EVE's (step 6).
    `StormVolume.Colour` gives the shader the sun's light times `StormLook.SunVisibility` (none at
    night, warm at a low sun, `WarmShare`) and the ambient light, blue-grey at night (`NightShare`).
-   If the bundle is missing or does not load, no veil is drawn and `KSP.log` says why. The
-   whiteout veil (`StormVeil`) is left out of the upscaler's reactive mask by its object name
+   If the bundle is missing or does not load, no praecipitatio is drawn and `KSP.log` says why. The
+   whiteout (`StormVeil`) is left out of the upscaler's reactive mask by its object name
    (`UpscalerMasks.NotReactiveObjects`). For test pictures, `EveLayerStorm.ClearSkyM` erases the
    stock coverage in a disc round the first cell (`EveStormMath.EraseDisc`), and
-   `StormVolume.StrengthCap` and `BaseDark` set the veil's strength and the dark band.
+   `StormVolume.StrengthCap` and `BaseDark` set the praecipitatio's strength and the dark band.
 6. The Seasons are made to run with EVE's volumetric clouds (the StockVolumetricClouds pack).
    With `stormClouds = Existing` (the default) the cell is painted into the layers EVE already
    has on Kerbin, `EveLayerStorm`, and steps 7 and 8 describe the mod's own layer that `Own`
@@ -161,7 +161,7 @@ A storm is a cell that stands on the planet.
    blue-grey), and the lanes are the picture's own ocean, where three erasing discs cleared the
    footprint. `EveLayerStorm.ProbePattern` draws a test pattern (black, white, erasing and red
    discs at full and half opacity) for the harness.
-   The veil of the mod's volume starts at the base of the body layer (`EveLayerStorm.BaseAslM`,
+   The praecipitatio of the mod's volume starts at the base of the body layer (`EveLayerStorm.BaseAslM`,
    1750 m above sea level), and a cell over ground higher than the layer's top is logged once.
    `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg` defines two
    OBJECTs on Kerbin, which EVE reads from `GameDatabase`, and the particle field config for
@@ -177,7 +177,7 @@ A storm is a cell that stands on the planet.
    cell is near. After the first paint the mod compares EVE's own `SampleCoverage` at the
    centre of the strongest cell with the painted value and logs
    `storm layer calibration: ...`; a longitude shift it finds is applied to the painting.
-   `StormVolume` starts the veil at the layer's cloud base.
+   `StormVolume` starts the praecipitatio at the layer's cloud base.
 8. The same OBJECT holds a `layer2D` node. EVE's 2D layer is the scaled-space form of a cloud
    layer: it fades in from 200 km up (`scaledFadeStartAltitude`) and shows fully in the map view,
    on a sphere with the radius of the body plus the OBJECT's `altitude` (2700 m), using shader
@@ -210,7 +210,7 @@ A storm is a cell that stands on the planet.
 11. Without EVE's volumetric layers (`EveCellLayer.HasVolumetric` is false: EVE missing, no
    raymarched layers, or a lookup that is not complete) `StormEffect.CollectCells` collects
    no cell and logs once `storms: needs EVE with Volumetric Clouds`. There is no cloud, no
-   veil, no storm and no forced storm then; the snow on the ground and in the orbit view are
+   praecipitatio, no storm and no forced storm then; the snow on the ground and in the orbit view are
    not touched.
 
 The bundle is built by `tools/build_seasons_bundle.ps1`, which runs
@@ -228,8 +228,8 @@ release package takes `seasons.shaders` from there.
 | The map in the orbit view | `OrbitMask`, `OrbitSnow` |
 | How often a storm starts, how long it lasts | `StormModel`, `StormCells` |
 | How a storm looks in numbers | `StormLook` |
-| The fog, the veil, the flakes, the ambient light | `StormEffect`, `StormVeil`, `StormFlakes`, `StormAmbient` |
-| The veil of the cell in the world | `StormVolume`, `StormVolumeMath`, the shader file above |
+| The fog, the whiteout, the flakes, the ambient light | `StormEffect`, `StormVeil`, `StormFlakes`, `StormAmbient` |
+| The praecipitatio of the cell in the world | `StormVolume`, `StormVolumeMath`, the shader file above |
 | The terrain left out in a storm | `StormCull` (setting `stormCullDistance`) |
 | EVE's snow and rain | `EveSnowLink`, `EveRainLink`, `ReflectLink` |
 | The cell inside EVE's existing layers | `EveLayerStorm`, `EveStormMath` |
@@ -246,7 +246,7 @@ The tests are in `tests/ReDefinition.Tests`:
 | `SnowGroundTests.cs`, `ParallaxScatterReaderTests.cs` | The repaint and the scatter data it reads |
 | `OrbitSnowTests.cs` | The mask, the texture convention and when to compose |
 | `StormTests.cs`, `StormCellsTests.cs` | The spawn rule and the cells |
-| `StormVolumeTests.cs`, `StormSkyAndSnowfallTests.cs`, `StormBlizzardTests.cs` | The volume's numbers, the noise, the sky, the flakes and the veil at the horizon |
+| `StormVolumeTests.cs`, `StormSkyAndSnowfallTests.cs`, `StormBlizzardTests.cs` | The volume's numbers, the noise, the sky, the flakes and the whiteout at the horizon |
 | `EveCoverageTests.cs` | EVE's equirectangular map and its round trip, the painting of cells, the date line, the setting and the layers' config |
 | `EveStormMathTests.cs` | The lobed cell (determinism, wind stretch, bounds), the composite and the restore, the date line, the cloud-type channel, the spiral swirl and its minimum size, the fan vertices, `stormClouds` |
 | `EveSwirlTests.cs` | The 2D swirl: the arms, the widths on the picture, the smallest size, the range, `stormOwnFlakes` |
@@ -266,7 +266,7 @@ which its schedule does for the two weather layers in turn; EVE draws nothing fr
 The 2D swirl (`EveLayerStorm.Probe` is the red marker, `ProbePattern` the test pattern) is a recognisable
 spiral from 1000 km and a ring in the map view. In the pattern only the red and the erasing disc could
 be found in the picture; the black and white ones were not, which is not explained (the swirl's
-dark core is visible, so dark paint works). Open: the veil's density as set now, the second arm,
+dark core is visible, so dark paint works). Open: the praecipitatio's density as set now, the second arm,
 the spiral over open ocean, the sound, and the order of the 2D layer against what is drawn after it
 for the own layer (part of the red marker was covered by thick white cloud although the layer's
 queue is 3000) [open].

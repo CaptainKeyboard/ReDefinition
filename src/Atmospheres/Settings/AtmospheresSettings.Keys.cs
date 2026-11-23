@@ -288,7 +288,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Int("genSeed", 1, int.MinValue, int.MaxValue, S, "Weather Seed", SIM),
 
                 // Volume
-                SettingDef.Bool("volumePass", true, V, "Volumetric Clouds And Curtains", MASTER, RV),
+                SettingDef.Bool("volumePass", true, V, "Volumetric Clouds And Praecipitatios", MASTER, RV),
                 SettingDef.Float("volumeResolution", 1.0, 0.25, 1.0, V, "Volume Resolution", VOL, RV),
                 SettingDef.Int("volumeSteps", 28, 16, 48, V, "Volume Steps", VOL, RV),
                 SettingDef.Choice("volumeCompose", typeof(VolumeCompose), VolumeCompose.Scene, V, "Volume Composition", VOL, RV),

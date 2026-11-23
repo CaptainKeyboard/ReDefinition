@@ -18,7 +18,7 @@
 // Keywords (four): VOLUME_POWDER, VOLUME_CURL, VOLUME_DECK, VOLUME_JITTER_IGN (the dither keyed to the upscaler's jitter index).
 //
 // Frame: the window's centre at the ground (_Cell.xyz), up, east (_Right) and north (_North); the ground curves away, so a height above
-// it is the height along up plus curvature * r^2 (as the storm curtain shader has it).
+// it is the height along up plus curvature * r^2 (as the storm praecipitatio shader has it).
 Shader "ReDefinition/AtmospheresVolume"
 {
     Properties

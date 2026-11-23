@@ -288,7 +288,7 @@ namespace ReDefinition.WeatherPlayer
             Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart),
                 mMarched = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabMarched),
                 mResolved = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabComposited),
-                mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainEnd);
+                mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.PraecipitatioEnd);
             var rt = new RenderTexture(1707, 960, 24, RenderTextureFormat.DefaultHDR) { name = "grain cost target" };
             rt.Create();
             Cam.targetTexture = rt;
@@ -327,7 +327,7 @@ namespace ReDefinition.WeatherPlayer
                             int number;
                             if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
                             float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], r = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
-                                e = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
+                                e = segments[WeatherGpuTimer.PraecipitatioEnd - WeatherGpuTimer.SlabStart];
                             if (m >= 0f && r >= 0f && e >= 0f) { s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++; }
                         }
                     }

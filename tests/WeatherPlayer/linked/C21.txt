@@ -4,8 +4,8 @@ src/Atmospheres/Render/Volume/VolumeMath.cs
 src/Atmospheres/Render/Volume/VolumeSubGrid.cs
 src/Atmospheres/Render/Volume/VolumeWindowResampler.cs
 src/Atmospheres/Render/Volume/VolumeRenderer.cs
-src/Atmospheres/Render/Volume/CurtainPass.cs
-src/Atmospheres/Render/Volume/CurtainMath.cs
+src/Atmospheres/Render/Volume/PraecipitatioPass.cs
+src/Atmospheres/Render/Volume/PraecipitatioMath.cs
 src/Common/Weather/IWeatherField.cs
 src/Common/Weather/WeatherMap.cs
 src/Common/Weather/WeatherSample.cs

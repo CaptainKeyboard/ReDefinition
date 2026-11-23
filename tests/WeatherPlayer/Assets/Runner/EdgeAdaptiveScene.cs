@@ -217,7 +217,7 @@ namespace ReDefinition.WeatherPlayer
             var sizes = new[] { new Vector2Int(1707, 960), new Vector2Int(2560, 1440) };
             var segments = new float[8];
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            const int coarse = WeatherGpuTimer.SlabMarched, mask = WeatherGpuTimer.CurtainStart, edgeMarch = WeatherGpuTimer.SlabComposited, recon = WeatherGpuTimer.CurtainEnd;
+            const int coarse = WeatherGpuTimer.SlabMarched, mask = WeatherGpuTimer.PraecipitatioStart, edgeMarch = WeatherGpuTimer.SlabComposited, recon = WeatherGpuTimer.PraecipitatioEnd;
             Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart), mCoarse = c => WeatherGpuTimer.Mark(c, coarse);
             rig.Recon.MarkMask = c => WeatherGpuTimer.Mark(c, mask);
             rig.Recon.MarkEdge = c => WeatherGpuTimer.Mark(c, edgeMarch);

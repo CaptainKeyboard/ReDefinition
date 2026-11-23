@@ -158,7 +158,7 @@
         {"id": "weather-solarDimming", "name": "Solar Panel Dimming true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.solarDimming": "True"}},
         {"id": "weather-visibilityExport", "name": "Export Visibility false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.visibilityExport": "False"}},
         {"id": "weather-genEnabled", "name": "Weather Generator false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.genEnabled": "False"}},
-        {"id": "weather-volumePass", "name": "Volumetric Clouds And Curtains false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.volumePass": "False"}},
+        {"id": "weather-volumePass", "name": "Volumetric Clouds And Praecipitatio false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.volumePass": "False"}},
         {"id": "weather-precipSnow", "name": "Draw Snow false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.precipSnow": "False"}},
         {"id": "weather-precipRain", "name": "Draw Rain false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.precipRain": "False"}},
         {"id": "weather-precipSleet", "name": "Draw Sleet false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.precipSleet": "False"}},

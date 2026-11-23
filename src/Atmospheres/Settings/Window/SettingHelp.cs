@@ -119,7 +119,7 @@ namespace ReDefinition.Atmospheres
                 { "genSeed", "The number the weather grows from. The same number gives the same weather on the same day." },
 
                 // Volume
-                { "volumePass", "Draws the clouds and the curtains of precipitation as a volume. Off, only the flat parts are drawn." },
+                { "volumePass", "Draws the clouds and the praecipitatio of precipitation as a volume. Off, only the flat parts are drawn." },
                 { "volumeResolution", "The size of the volume against the picture. 1 is full size; 0.5 and 0.25 cost less and look softer." },
                 { "volumeSteps", "How finely the volume is sampled along each ray. More steps look smoother and cost more." },
                 { "volumeCompose", "Where the volume is put on the picture. Scene is before the upscaler, PostUpscale is after it and needs the main mod." },
@@ -224,7 +224,7 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.GreyReasons.NeedsEve, "EVE is not installed." },
             { AtmospheresSettings.GreyReasons.NeedsHost, "The main mod is not installed or does not answer." },
             { AtmospheresSettings.GreyReasons.NeedsSim, "Weather Simulation is off." },
-            { AtmospheresSettings.GreyReasons.NeedsVolume, "Volumetric Clouds And Curtains is off." },
+            { AtmospheresSettings.GreyReasons.NeedsVolume, "Volumetric Clouds And Praecipitatio is off." },
             { AtmospheresSettings.GreyReasons.NeedsAudio, "Weather Audio is off." },
             { AtmospheresSettings.GreyReasons.NeedsForecast, "Forecast is off." },
             { AtmospheresSettings.GreyReasons.NeedsAlerts, "Weather Alerts is off." },

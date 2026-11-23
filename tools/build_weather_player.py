@@ -8,8 +8,8 @@ into Assets/Linked/Resources. A glob that matches nothing is an error, and so ar
 register themselves by attribute ([WeatherScene("id")] in tests/WeatherPlayer/Assets/Runner), so a package adds a manifest and a scene
 file and edits nothing here. The proxy (dxgi.dll) goes beside the player. Modes of the player:
 
-  stills  the four views without the cell, with the curtain, the slab and both (colour, depth, motion frames)
-  time    the GPU milliseconds of the slab's passes and the curtain through the proxy's timestamp queries
+  stills  the four views without the cell, with the praecipitatio, the slab and both (colour, depth, motion frames)
+  time    the GPU milliseconds of the slab's passes and the praecipitatio through the proxy's timestamp queries
   turn    the camera turn through each upscaler (native, FSR 3, DLSS K/M/L, XeSS, AMD) with references
   scene   a scene registered by attribute (-scene <id>), which prints its WEATHERPLAYER {metric,value,limit,pass} lines
 

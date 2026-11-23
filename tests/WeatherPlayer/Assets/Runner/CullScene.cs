@@ -192,7 +192,7 @@ namespace ReDefinition.WeatherPlayer
             Cam.AddCommandBuffer(CameraEvent.AfterSkybox, cb);
             var segments = new float[8];
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            const int march = WeatherGpuTimer.SlabMarched, tile = WeatherGpuTimer.CurtainStart, recon = WeatherGpuTimer.CurtainEnd;
+            const int march = WeatherGpuTimer.SlabMarched, tile = WeatherGpuTimer.PraecipitatioStart, recon = WeatherGpuTimer.PraecipitatioEnd;
             Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart), mMarch = c => WeatherGpuTimer.Mark(c, march);
             Action<CommandBuffer> mEnd = c => WeatherGpuTimer.Mark(c, recon);
             rig.Recon.MarkCull = null;

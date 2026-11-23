@@ -74,11 +74,11 @@ and never edit a shared one.
 - No public member of the seam returns or holds a `UnityEngine.Object` (a test checks it). Visibility is in metres everywhere.
 - `WeatherView.SunTransmission` is the transmission along the current sun ray at the camera; the frame driver writes it from `SunTransmission.From`. Raytracing, solar panels and the sky read only it.
 - Every consumer that writes a wind speed (D31 forces, the aero hook) passes it through `WindNoise.LimitWind`: `Gust` alone changes faster than `MaxWindSlewMsPerS` for a mean wind over about 22 m/s and for a moving observer. A consumer that slews a wind VECTOR (D31 `WindCompose`) takes its rate from `WindMath.EffectiveSlew`, which never exceeds `MaxWindSlewMsPerS`; the speed then changes by at most the vector's step, so the vector slew stays under the `LimitWind` limit.
-- Providers start from `WeatherSample.Clear(bodyIndex)`: a `default(WeatherSample)` has `VisibilityM` 0 and the merge would take the visibility of the whole sky to 0. Known: `WeatherView.Clear()` resets the flags and levels but leaves `FogColour`, the veil colours, `FlakeLayers`, `FlakeSeed`, `CloudMapsVersion` and `FrameStamp`; readers check `IsStale` first.
+- Providers start from `WeatherSample.Clear(bodyIndex)`: a `default(WeatherSample)` has `VisibilityM` 0 and the merge would take the visibility of the whole sky to 0. Known: `WeatherView.Clear()` resets the flags and levels but leaves `FogColour`, the precipitation extinction colours, `FlakeLayers`, `FlakeSeed`, `CloudMapsVersion` and `FrameStamp`; readers check `IsStale` first.
 - `PrecipRateToLevel` (C20) is `PrecipScale.LevelFromRate` plus the knob shifts; C25 calls the Common function.
 - `WeatherView.Level` is the DISPLAY level (the field level, rate-limited, times the shower pulse). It is for pictures, sound and light only. Forecast, surface cover and any other consumer that must not see a flurry's pulse read `IWeatherField` (`WeatherSample.Level01`), never `WeatherView.Level`. The unpulsed level exists only inside the frame driver (`FrameComposer.Level`, internal).
 - Altitude argument: the `altM` of `IWeatherField.Sample`, `IWeatherSource.TrySample` and the forecast is metres ABOVE SEA LEVEL (`body.GetAltitude(position)`, `vessel.altitude`). It is never the height above the ground. `ForecastSite.AltAgl` keeps its A01 name and carries that altitude; the forecast passes it to the field unchanged, so forecast = live holds at any place and height. The forecast module fills it with `vessel.altitude` for a vessel and with the terrain altitude above sea level for the pad (`CelestialBody.TerrainAltitude(lat, lon, true)`). Renaming the field to `AltM` is a request to the orchestrator (Common change, `CommonVersion` bump, D30 uses the field).
-- The cell scheduler, the EVE storm layers, the legacy field bridge and the legacy storm effect (`StormEffect`, `StormVolume`, `StormLook`, `StormCull`, the inert shims) are deleted; the weather field (`GeneratorField`) is the only source of weather and `WeatherFrameDriver` the only writer of the view. `StormShaders` keeps the curtain's shader name and two helpers (`Find`/`Blended`/`Tint` for the orbit overlay, `LayerOf` for the curtain).
+- The cell scheduler, the EVE storm layers, the legacy field bridge and the legacy storm effect (`StormEffect`, `StormVolume`, `StormLook`, `StormCull`, the inert shims) are deleted; the weather field (`GeneratorField`) is the only source of weather and `WeatherFrameDriver` the only writer of the view. `StormShaders` keeps the praecipitatio's shader name and two helpers (`Find`/`Blended`/`Tint` for the orbit overlay, `LayerOf` for the praecipitatio).
 - The weather field is `GeneratorField` (`src/Atmospheres/Field/`), installed in `WeatherHub.Field` by `GeneratorModule` while `weatherEffects` and `genEnabled` are on. Its core is the source of `tools/atmosphere-sim/AtmoSim.Core`, compiled into the assembly by a pattern in the project file (no copy); `tools/sync_generator_core.py` records the golden values of `tests/data/generator` after the core changed. `GeneratorBodies` maps a body (rules, facts, terrain raster, fit of the temperature curves) to the core's parameter set. `Sample` is a pure function of (body, seed, place, altitude, UT): thread-safe, no state, no side file. Details of the field:
   - Determinism: the core and the inputs made from the game's curves (`ThermalFit`, the forced discs) use `DMath`, no platform transcendental, so the bits do not depend on the machine's libm. A different mod set (other game curves) is a different definition on purpose (`DefinitionId`). The Mono check of the golden values is the player series `player-C25` (scene `generator-golden`, `tests/series/rows/C25.json`); it measures the core's bits under Unity's Mono, on this machine's libm for the platform `Math.Asin` positions of the first row.
   - A body has a state only when its terrain sphere runs (`GeneratorRaster` reads the heights from the PQS and never starts a sphere): a body not visited yet gives `Sample == false`, and so no forecast for it. Answering earlier from a synthetic ocean source would be a different definition and must change the `DefinitionId`; it is not built.
@@ -103,7 +103,7 @@ The field counts as priority 0. Every provider that answers takes part.
 
 ## 5. `cloudSource`
 
-| Value | Decks | 3D form (storm cores, curtain) | Particles and ground effects | Orbit and map picture | Old cell injection |
+| Value | Decks | 3D form (storm cores, praecipitatio) | Particles and ground effects | Orbit and map picture | Old cell injection |
 |---|---|---|---|---|---|
 | Ours | own volume pass; EVE's weather layers on that body are off | own | own precipitation | own 2D shell | deleted |
 | Eve | EVE renders the maps the field paints | own, only where needed | EVE's field and ground effects through the mirror; ours suppresses them only if `precipDensity` is on | EVE's 2D layer fed by the map plus the swirl | deleted |
@@ -119,7 +119,7 @@ A body's `CLOUDS` node may set its own `cloudSource`; without one the setting de
 | Flurries, Light | none of ours; EVE's weather deck or a thin SnowLight stratus | 600 to 1500 m, 300 m thick | 0.002 to 0.003 | light grey (190, 192, 196) |
 | Moderate | SnowStratus | 400 to 1800 m | 0.005 to 0.008 | mid grey |
 | Heavy | the storm type, low dark base | 300 to 2300 m | 0.012 | dark base |
-| Blizzard | the storm type plus veil and volume | 300 to 2300 m | 0.012 to 0.016 | darkest |
+| Blizzard | the storm type plus precipitation extinction and volume | 300 to 2300 m | 0.012 to 0.016 | darkest |
 
 The level changes density and thickness continuously through the type map's blend, never in a step.
 
@@ -235,7 +235,7 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 
 | Key | Default | Range | Tooltip | Greyed out | Profile row |
 |---|---|---|---|---|---|
-| `volumePass` | on | on / off | Volumetric Clouds And Curtains | needs-weather-effects | volume |
+| `volumePass` | on | on / off | Volumetric Clouds And Praecipitatios | needs-weather-effects | volume |
 | `volumeResolution` | 1 | 0.25 to 1 | Volume Resolution | needs-volume-pass | volume |
 | `volumeSteps` | 28 | 16 to 48 | Volume Steps | needs-volume-pass | volume |
 | `volumeCompose` | Scene | Scene / PostUpscale | Volume Composition | needs-volume-pass | volume |
@@ -404,13 +404,13 @@ in `GameData/ReDefinition/Atmospheres/Tuning/*.cfg` (package E40 owns the files;
 
 ## 8. The budget ledger
 
-Medium on the A4500 or the 3070: about 22 ms per frame with raytracing Full, 15.9 ms with it off. The whole-system GPU budget by tier: Low 1.2 ms, Medium 2.6 ms, High 3.6 ms, Ultra 5.0 ms, Max measured. The curtain-only subrow of the volume pass: Low 0.4, Medium 0.8, High 1.5, Ultra 2.5 ms. VRAM by tier: Low up to 80 MB, Medium 200 MB, High 300 MB, Ultra 340 MB, Max measured; below 10 GB of video memory the defaults fall to the Low rows. Rows are at the Medium render size 1707x960 unless a 2560x1440 value is shown. Package E42 asserts the sum after the shed order has run and the curtain subrow separately, at the worst-case scene, in absolute terms.
+Medium on the A4500 or the 3070: about 22 ms per frame with raytracing Full, 15.9 ms with it off. The whole-system GPU budget by tier: Low 1.2 ms, Medium 2.6 ms, High 3.6 ms, Ultra 5.0 ms, Max measured. The praecipitatio-only subrow of the volume pass: Low 0.4, Medium 0.8, High 1.5, Ultra 2.5 ms. VRAM by tier: Low up to 80 MB, Medium 200 MB, High 300 MB, Ultra 340 MB, Max measured; below 10 GB of video memory the defaults fall to the Low rows. Rows are at the Medium render size 1707x960 unless a 2560x1440 value is shown. Package E42 asserts the sum after the shed order has run and the praecipitatio subrow separately, at the worst-case scene, in absolute terms.
 
 | System | Owner | GPU ms | Main-thread CPU | Worker CPU | VRAM | RAM |
 |---|---|---|---|---|---|---|
 | Fog, ambient and sun writer | C22, C20 | about 0 | under 0.05 ms | - | 0 | - |
 | Own volume slab, half resolution | C21 | 0.56 at 1707x960, 1.28 at 2560x1440 | 20 to 40 us per cell | window resample | 15 to 30 MB | 3D window about 2 MB |
-| Curtain | C21 | 0.02 to 0.70 | as above | - | with the slab | - |
+| Praecipitatio | C21 | 0.02 to 0.70 | as above | - | with the slab | - |
 | Precipitation extinction and particles, host composite | C22 | under 0.5 | about 0 | - | small | - |
 | EVE particle field in `Eve` mode | EVE (accepted) | constant vertex cost of 400k to 600k particles | - | - | EVE | - |
 | Map painter | C23 | at most 0.3 per update (every 1 to 2 s) | swap and upload at most 0.1 ms | readback mirror | 2 to 4 MB plus mirror | mirror 0.5 MB |

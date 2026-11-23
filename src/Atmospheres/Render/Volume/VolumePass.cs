@@ -6,8 +6,8 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Atmospheres
 {
     // The volume pass in the game: storm cores, shelf and anvil, towering cells and deck slabs raymarched from the weather field's local
-    // 3D window (WeatherHub.Field.FillWindow), and the precipitation curtain under the cores (CurtainPass). No EVE layer is read: the pass
-    // draws the clouds of a body whose cloudSource is Ours, the curtain is drawn whatever the source is while the level gate is open.
+    // 3D window (WeatherHub.Field.FillWindow), and the precipitation praecipitatio under the cores (PraecipitatioPass). No EVE layer is read: the pass
+    // draws the clouds of a body whose cloudSource is Ours, the praecipitatio is drawn whatever the source is while the level gate is open.
     //
     // Per frame (Tick, main thread, no allocation): rebuild the window every tier.RebuildFrames frames from the field, spread over
     // tier.SpreadFrames frames (VolumeWindowResampler, with the sub-grid rule), upload it when a rebuild is done, write the frame's
@@ -36,15 +36,15 @@ namespace ReDefinition.Atmospheres
         // What the worker fill in the air was asked for; it is used only where the body and the radius still fit when it comes back.
         private int askedBody = -1, askedFrame;
         private double askedLat, askedLon, askedUt, askedRadiusKm;
-        private readonly CurtainPass curtain = new CurtainPass();
-        private CurtainGate gate;
+        private readonly PraecipitatioPass praecipitatio = new PraecipitatioPass();
+        private PraecipitatioGate gate;
         private VolumeRenderer renderer;
         private VolumeWindowResampler resampler;
         private VolumeTier tier;
         private int builtTier = -1;
         private Camera camera;
         private CelestialBody body;
-        private bool broken, curtainBroken;
+        private bool broken, praecipitatioBroken;
         private int framesSinceBegin = int.MaxValue;
         private double anchorLat, anchorLon, snapshotUt;
         private Vector3 anchorEastAxis = Vector3.right, anchorNorthAxis = Vector3.forward, anchorUp = Vector3.up;
@@ -78,7 +78,7 @@ namespace ReDefinition.Atmospheres
             body = newBody;
             framesSinceBegin = int.MaxValue;
             if (renderer != null) renderer.Detach();
-            curtain.HideAll();
+            praecipitatio.HideAll();
         }
 
         public void Shutdown()
@@ -89,7 +89,7 @@ namespace ReDefinition.Atmospheres
 
         private void Teardown()
         {
-            curtain.Dispose();
+            praecipitatio.Dispose();
             if (renderer != null) renderer.Dispose();
             renderer = null;
             resampler = null;
@@ -165,7 +165,7 @@ namespace ReDefinition.Atmospheres
                 renderer.Detach();
                 renderer.Commands.Clear();
             }
-            RunCurtain(cam, planet, view);
+            RunPraecipitatio(cam, planet, view);
         }
 
         private void Hide()
@@ -175,10 +175,10 @@ namespace ReDefinition.Atmospheres
                 renderer.Detach();
                 renderer.Commands.Clear();
             }
-            curtain.HideAll();
+            praecipitatio.HideAll();
         }
 
-        // Makes the renderer, the resampler and the curtain for the tier; made again when the tier changes.
+        // Makes the renderer, the resampler and the praecipitatio for the tier; made again when the tier changes.
         private bool EnsureBuilt(int tierIndex, Camera cam)
         {
             if (builtTier == tierIndex && renderer != null) return renderer.Ready;
@@ -203,12 +203,12 @@ namespace ReDefinition.Atmospheres
             resampler = new VolumeWindowResampler(tier.WindowXz, tier.WindowY);
             resampler.FillDeckMapUniform(0f, 0f);
             builtTier = tierIndex;
-            string curtainError;
-            Shader curtainShader = AtmosphereShaders.Get(StormShaders.VolumeShaderName, out curtainError);
-            if (!curtain.Init(curtainShader, null, StormShaders.LayerOf(cam)))
+            string praecipitatioError;
+            Shader praecipitatioShader = AtmosphereShaders.Get(StormShaders.VolumeShaderName, out praecipitatioError);
+            if (!praecipitatio.Init(praecipitatioShader, null, StormShaders.LayerOf(cam)))
             {
-                curtainBroken = true;
-                AtmospheresLog.WarnOnce("volume pass: the curtain is not drawn: " + (curtainError ?? curtain.Problem));
+                praecipitatioBroken = true;
+                AtmospheresLog.WarnOnce("volume pass: the praecipitatio is not drawn: " + (praecipitatioError ?? praecipitatio.Problem));
             }
             AtmospheresLog.Say("volume pass: ready, tier " + tierIndex + ", window " + tier.WindowXz + "x" + tier.WindowY + "x" + tier.WindowXz
                                + " over " + (2f * tier.HalfWidthM / 1000f).ToString("0") + " km, " + tier.Steps + " steps");
@@ -324,13 +324,13 @@ namespace ReDefinition.Atmospheres
             f.Up = anchorUp;
             f.East = anchorEastAxis;
             f.North = anchorNorthAxis;
-            f.Curvature = CurtainMath.Curvature(planet.Radius > 1.0 ? planet.Radius : FallbackPlanetRadiusM);
+            f.Curvature = PraecipitatioMath.Curvature(planet.Radius > 1.0 ? planet.Radius : FallbackPlanetRadiusM);
             f.HalfWidthM = tier.HalfWidthM;
             f.HeightM = HeightOf(coarse);
             float windE = view.WindWorld.x, windN = view.WindWorld.y;
             float age = (float)(ut - snapshotUt);
             f.Drift = new Vector2(windE * age, windN * age);
-            f.WindOffset = new Vector2(CurtainMath.Wrap(windE * ut, look.ErosionTileM * 16.0), CurtainMath.Wrap(windN * ut, look.ErosionTileM * 16.0));
+            f.WindOffset = new Vector2(PraecipitatioMath.Wrap(windE * ut, look.ErosionTileM * 16.0), PraecipitatioMath.Wrap(windN * ut, look.ErosionTileM * 16.0));
             f.AdvectVelocity = anchorEastAxis * windE + anchorNorthAxis * windN;
             CelestialBody sunBody = GameGlobals.Sun;
             Vector3 sunPosition = sunBody != null ? (Vector3)sunBody.position : anchorCentre + anchorUp * 1e9f;
@@ -359,24 +359,24 @@ namespace ReDefinition.Atmospheres
             return Time.frameCount & 63;
         }
 
-        private void RunCurtain(Camera cam, CelestialBody planet, WeatherView view)
+        private void RunPraecipitatio(Camera cam, CelestialBody planet, WeatherView view)
         {
-            if (curtainBroken || !curtain.Ready) return;
+            if (praecipitatioBroken || !praecipitatio.Ready) return;
             float level = view.Active ? view.Level : 0f;
             bool open = gate.Update(level);
-            float share = open ? PrecipitationLook.CurtainShare(level) : 0f;
-            curtain.SetShare(share, open);
+            float share = open ? PrecipitationLook.PraecipitatioShare(level) : 0f;
+            praecipitatio.SetShare(share, open);
             if (share <= 0f || resampler == null || !resampler.HasData)
             {
-                curtain.HideAll();
+                praecipitatio.HideAll();
                 return;
             }
-            curtain.CameraDepth(cam);
+            praecipitatio.CameraDepth(cam);
             Vector3 camPos = cam.transform.position;
             // The nearest cores, in order of distance; the pool is small, so a selection by repeated scan allocates nothing.
             int placed = 0;
             float usedMin = -1f;
-            for (int slot = 0; slot < CurtainPass.PoolSize; slot++)
+            for (int slot = 0; slot < PraecipitatioPass.PoolSize; slot++)
             {
                 int best = -1;
                 float bestDistance = float.MaxValue;
@@ -386,7 +386,7 @@ namespace ReDefinition.Atmospheres
                     resampler.GetCore(c, out east, out north, out radius, out baseAlt, out depth, out updraft);
                     Vector3 centre = anchorCentre + anchorEastAxis * east + anchorNorthAxis * north;
                     float d = Vector3.Distance(camPos, centre) - radius;
-                    if (d > CurtainPass.RangeM || d <= usedMin || d >= bestDistance) continue;
+                    if (d > PraecipitatioPass.RangeM || d <= usedMin || d >= bestDistance) continue;
                     best = c;
                     bestDistance = d;
                 }
@@ -399,16 +399,16 @@ namespace ReDefinition.Atmospheres
                 double ground = TerrainHeight(planet, lat, lon);
                 Vector3 position = (Vector3)planet.GetWorldSurfacePosition(lat, lon, ground);
                 Vector3 up = (Vector3)planet.GetSurfaceNVector(lat, lon);
-                curtain.Place(slot, position, up, anchorEastAxis, (float)Math.Max(cb - ground, 50.0), cr * CurtainPass.RadiusShare,
+                praecipitatio.Place(slot, position, up, anchorEastAxis, (float)Math.Max(cb - ground, 50.0), cr * PraecipitatioPass.RadiusShare,
                               frame.Curvature, planet.Radius);
                 placed++;
             }
-            curtain.HideFrom(placed);
+            praecipitatio.HideFrom(placed);
             Vector3 sunDirection = frame.TowardsSun;
             double windYaw = Math.Atan2(view.WindWorld.y, view.WindWorld.x) * 180.0 / Math.PI;
-            curtain.Light(sunDirection, new Color(frame.SunColour.r, frame.SunColour.g, frame.SunColour.b, 1f) * 0.9f,
+            praecipitatio.Light(sunDirection, new Color(frame.SunColour.r, frame.SunColour.g, frame.SunColour.b, 1f) * 0.9f,
                           new Color(0.72f, 0.76f, 0.82f, 1f) * Mathf.Clamp01(RenderSettings.ambientLight.grayscale * 3f), Time.time, (float)windYaw,
-                          (float)(CurtainPass.RangeM + 20000.0), StormShaders.LayerOf(cam));
+                          (float)(PraecipitatioPass.RangeM + 20000.0), StormShaders.LayerOf(cam));
         }
 
         private static double TerrainHeight(CelestialBody planet, double lat, double lon)

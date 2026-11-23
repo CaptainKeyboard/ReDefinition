@@ -24,24 +24,24 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheCurtainStepsFollowTheGateShareInThreeBandsAndAreZeroWithoutIt()
+        public void ThePraecipitatioStepsFollowTheGateShareInThreeBandsAndAreZeroWithoutIt()
         {
-            Assert.AreEqual(0, VolumeMath.CurtainSteps(0f));
-            Assert.AreEqual(0, VolumeMath.CurtainSteps(-1f));
-            Assert.AreEqual(0, VolumeMath.CurtainSteps(float.NaN));
-            Assert.AreEqual(4, VolumeMath.CurtainSteps(0.001f));
-            Assert.AreEqual(4, VolumeMath.CurtainSteps(0.299f));
-            Assert.AreEqual(8, VolumeMath.CurtainSteps(0.3f));
-            Assert.AreEqual(8, VolumeMath.CurtainSteps(0.699f));
-            Assert.AreEqual(16, VolumeMath.CurtainSteps(0.7f));
-            Assert.AreEqual(16, VolumeMath.CurtainSteps(1f));
+            Assert.AreEqual(0, VolumeMath.PraecipitatioSteps(0f));
+            Assert.AreEqual(0, VolumeMath.PraecipitatioSteps(-1f));
+            Assert.AreEqual(0, VolumeMath.PraecipitatioSteps(float.NaN));
+            Assert.AreEqual(4, VolumeMath.PraecipitatioSteps(0.001f));
+            Assert.AreEqual(4, VolumeMath.PraecipitatioSteps(0.299f));
+            Assert.AreEqual(8, VolumeMath.PraecipitatioSteps(0.3f));
+            Assert.AreEqual(8, VolumeMath.PraecipitatioSteps(0.699f));
+            Assert.AreEqual(16, VolumeMath.PraecipitatioSteps(0.7f));
+            Assert.AreEqual(16, VolumeMath.PraecipitatioSteps(1f));
         }
 
         [TestMethod]
-        public void TheCurtainStepsAreSeparateFromTheSlabQuality()
+        public void ThePraecipitatioStepsAreSeparateFromTheSlabQuality()
         {
             foreach (int slab in new[] { 16, 32, 64 })
-                Assert.AreEqual(16, VolumeMath.CurtainSteps(1f), "the curtain does not take the slab's " + slab);
+                Assert.AreEqual(16, VolumeMath.PraecipitatioSteps(1f), "the praecipitatio does not take the slab's " + slab);
         }
 
         [TestMethod]

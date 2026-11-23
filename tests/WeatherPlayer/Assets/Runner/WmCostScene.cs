@@ -133,7 +133,7 @@ namespace ReDefinition.WeatherPlayer
             Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart),
                 mMarched = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabMarched),
                 mResolved = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabComposited),
-                mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainEnd);
+                mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.PraecipitatioEnd);
             var march = new Dictionary<string, List<double>>();
             var total = new Dictionary<string, List<double>>();
             var perRound = new Dictionary<string, List<double>>();
@@ -183,7 +183,7 @@ namespace ReDefinition.WeatherPlayer
                             int number;
                             if (!WeatherGpuTimer.Read(segments, out sum, out number)) continue;
                             float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], r = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
-                                e = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
+                                e = segments[WeatherGpuTimer.PraecipitatioEnd - WeatherGpuTimer.SlabStart];
                             if (m < 0f || r < 0f || e < 0f) continue;
                             march[label].Add(m);
                             total[label].Add(m + r + e);

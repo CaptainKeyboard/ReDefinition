@@ -4,7 +4,7 @@
               diff_vs_clear, edge_contrast, the overlap of the on/off difference with the expected region), the half-resolution A/B
               (full, half, quarter, vertical-half), the allocation count of the per-frame preparation, and the contact sheet
   C21-cost    the scene 'volume-cost' (a timing run, exclusive lock): ms of the march and the composite at 1707x960 and 2560x1440, the
-              steps 16/32/64 table, half and full size, and the curtain inside the cell
+              steps 16/32/64 table, half and full size, and the praecipitatio inside the cell
   C21-turn    the player's camera turn (2, then 12 degrees a frame) at the 25 km view with the volume pass (-volume 1) through DLSS K/M/L,
               FSR 3 and XeSS at render scale 0.667, the analytic motion on and off, and the pass off as the floor
 

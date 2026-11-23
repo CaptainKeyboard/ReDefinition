@@ -21,10 +21,10 @@ Commands (worktree `atmo/C21fix2`, through `tools/build_weather_player.py --seri
 Rows: `cost_half_32_1707x960_ms` 0.459 (limit 0.7), `cost_half_32_2560x1440_ms` 0.931 (limit 1.3), full resolution 32 steps 1.549 at 1707x960 (above 1.5: rejected).
 The earlier builder figure of 0.61 to 0.66 ms at 1707x960 was not reproduced by this run; the limit follows the reviewer's derivation (spike worst view 0.62 ms plus 15 % = 0.7).
 
-## Curtain inside the cell, 1707x960, 600 frames per configuration
+## Praecipitatio inside the cell, 1707x960, 600 frames per configuration
 
-Method (a): the curtain is drawn by a command buffer (`CurtainPass.Record`) between two timestamp marks, so that the segment encloses its draws; the run fails if the smallest segment is zero.
-Method (b): whole-frame GPU time with the curtain on and off at the same pose, difference of the medians and of the 95th percentiles.
+Method (a): the praecipitatio is drawn by a command buffer (`PraecipitatioPass.Record`) between two timestamp marks, so that the segment encloses its draws; the run fails if the smallest segment is zero.
+Method (b): whole-frame GPU time with the praecipitatio on and off at the same pose, difference of the medians and of the 95th percentiles.
 
 | steps | (a) segment median ms | smallest segment ms | (b) median difference ms | (b) p95 difference ms |
 |---|---|---|---|---|
@@ -32,7 +32,7 @@ Method (b): whole-frame GPU time with the curtain on and off at the same pose, d
 | 8 | 0.146 | 0.142 | -0.004 | 0.016 |
 | 16 | 0.259 | 0.221 | -0.007 | 0.122 |
 
-`cost_curtain_inside_ms` = 0.259 at 16 steps (limit 0.7). The frame-difference method resolves nothing below the frame's own noise at this scene size (frame median 0.8 ms); the segment is the number.
+`cost_praecipitatio_inside_ms` = 0.259 at 16 steps (limit 0.7). The frame-difference method resolves nothing below the frame's own noise at this scene size (frame median 0.8 ms); the segment is the number.
 
 ## Temporal (render scale 0.667, turn 2 then 12 deg per frame, far view)
 

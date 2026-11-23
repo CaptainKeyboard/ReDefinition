@@ -123,7 +123,7 @@ namespace ReDefinition.WeatherPlayer
             Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart),
                 mMarched = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabMarched),
                 mResolved = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabComposited),
-                mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainEnd);
+                mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.PraecipitatioEnd);
             foreach (Vector2Int size in sizes)
             {
                 var rt = new RenderTexture(size.x, size.y, 24, RenderTextureFormat.DefaultHDR) { name = "T05 cost target" };
@@ -165,7 +165,7 @@ namespace ReDefinition.WeatherPlayer
                             int number;
                             if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
                             float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], r = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
-                                c = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
+                                c = segments[WeatherGpuTimer.PraecipitatioEnd - WeatherGpuTimer.SlabStart];
                             if (m >= 0f && r >= 0f && c >= 0f) { march.Add(m); resolve.Add(r); composite.Add(c); }
                         }
                         double tm = Median(march), tr = Median(resolve), tc = Median(composite);

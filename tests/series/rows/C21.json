@@ -4,7 +4,7 @@
   "rows": [
     { "series": "player-C21", "section": "C21", "metric": "cost_half_32_1707x960_ms", "max": 0.7, "unit": "ms", "note": "cost, player on the A4500 (timing run, exclusive): half-resolution march and composite, 32 steps, worst of three views, 1707x960; the spike's worst view (0.62 ms at 8 km) plus 15 %" },
     { "series": "player-C21", "section": "C21", "metric": "cost_half_32_2560x1440_ms", "max": 1.3, "unit": "ms", "note": "as above at 2560x1440" },
-    { "series": "player-C21", "section": "C21", "metric": "cost_curtain_inside_ms", "max": 0.7, "unit": "ms", "note": "the curtain inside the cell at 16 steps (gate share 1)" },
+    { "series": "player-C21", "section": "C21", "metric": "cost_praecipitatio_inside_ms", "max": 0.7, "unit": "ms", "note": "the praecipitatio inside the cell at 16 steps (gate share 1)" },
     { "series": "player-C21", "section": "C21", "metric": "cost_full_32_1707x960_ms", "unit": "ms", "required": false, "note": "full resolution is reported and rejected if above 1.5 ms inside" },
     { "series": "player-C21", "section": "C21", "metric": "ghost_move.dlss_K", "max": 0.012, "note": "temporal, render scale 0.667, camera turn 2 then 12 deg per frame, sky band at the 25 km view; measured 0.0024 (K), 0.0067 (M), 0.0081 (L), 0.0035 (FSR 3), XeSS 0.0031: the limit is 1.5 x the worst" },
     { "series": "player-C21", "section": "C21", "metric": "ghost_move.dlss_M", "max": 0.012 },

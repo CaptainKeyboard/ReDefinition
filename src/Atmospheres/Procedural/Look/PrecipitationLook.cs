@@ -16,7 +16,7 @@ namespace ReDefinition.Atmospheres
         public float FallFactor;
         // The mean wind in m/s before the gusts.
         public float WindMs;
-        // The alpha of the extinction toward the ground (the table value; DrawGate decides only whether our curtain is drawn).
+        // The alpha of the extinction toward the ground (the table value; DrawGate decides only whether our praecipitatio is drawn).
         public float PrecipExtinctionAlpha;
         // How dark the base of the cloud is, 0 (grey deck) to 1 (darkest).
         public float CloudBaseDarkness;
@@ -44,10 +44,10 @@ namespace ReDefinition.Atmospheres
         // The visibility with no precipitation, in metres: where the fog fades out.
         internal const float ClearVisibilityM = 20000f;
 
-        // The curtain is drawn from this level up (our extinction and volume), with a hysteresis of CurtainHysteresis below it.
-        internal const float CurtainOn = 0.45f, CurtainOff = 0.40f;
-        // The curtain gate S = smoothstep(CurtainS0, CurtainS1, level).
-        internal const float CurtainS0 = 0.45f, CurtainS1 = 0.9f;
+        // The praecipitatio is drawn from this level up (our extinction and volume), with a hysteresis of PraecipitatioHysteresis below it.
+        internal const float PraecipitatioOn = 0.45f, PraecipitatioOff = 0.40f;
+        // The praecipitatio gate S = smoothstep(PraecipitatioS0, PraecipitatioS1, level).
+        internal const float PraecipitatioS0 = 0.45f, PraecipitatioS1 = 0.9f;
         // The most the level may change per second of game time, outside diagnostics and teleports.
         internal const float MaxLevelPerGameSecond = 1f / 90f;
 
@@ -122,10 +122,10 @@ namespace ReDefinition.Atmospheres
             return Start[Array.IndexOf(CurveNames, name)][keyIndex];
         }
 
-        // The curtain gate S: 0 below level 0.45, 1 from 0.9, smooth in between. Only the draw gate of our curtain and volume.
-        internal static float CurtainShare(float level01)
+        // The praecipitatio gate S: 0 below level 0.45, 1 from 0.9, smooth in between. Only the draw gate of our praecipitatio and volume.
+        internal static float PraecipitatioShare(float level01)
         {
-            float t = Clamp01((level01 - CurtainS0) / (CurtainS1 - CurtainS0));
+            float t = Clamp01((level01 - PraecipitatioS0) / (PraecipitatioS1 - PraecipitatioS0));
             return t * t * (3f - 2f * t);
         }
 
@@ -166,16 +166,16 @@ namespace ReDefinition.Atmospheres
         }
     }
 
-    // The hysteresis of the curtain gate: on from CurtainOn, off below CurtainOff.
-    internal struct CurtainGate
+    // The hysteresis of the praecipitatio gate: on from PraecipitatioOn, off below PraecipitatioOff.
+    internal struct PraecipitatioGate
     {
         private bool on;
 
-        // Whether our curtain and volume are drawn at that level.
+        // Whether our praecipitatio and volume are drawn at that level.
         internal bool Update(float level01)
         {
-            if (on) on = level01 >= PrecipitationLook.CurtainOff;
-            else on = level01 >= PrecipitationLook.CurtainOn;
+            if (on) on = level01 >= PrecipitationLook.PraecipitatioOff;
+            else on = level01 >= PrecipitationLook.PraecipitatioOn;
             return on;
         }
     }

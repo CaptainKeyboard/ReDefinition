@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The shader helpers of the precipitation curtain (VolumePass) and the orbit overlay (OrbitTextures): the curtain's shader name, an
+    // The shader helpers of the precipitation praecipitatio (VolumePass) and the orbit overlay (OrbitTextures): the praecipitatio's shader name, an
     // alpha-blended material from the first shader that exists, and the lowest layer of a camera's mask. The Atmospheres' own bundle is read
     // by AtmosphereShaders.Get.
     internal static class StormShaders
@@ -16,7 +16,7 @@ namespace ReDefinition.Atmospheres
             "Sprites/Default"
         };
 
-        // The raymarched precipitation curtain's shader, from the Atmospheres' own bundle.
+        // The raymarched precipitation praecipitatio's shader, from the Atmospheres' own bundle.
         internal const string VolumeShaderName = "ReDefinition/AtmospheresStormVolume";
 
         // The first of the names that Shader.Find returns, or null.

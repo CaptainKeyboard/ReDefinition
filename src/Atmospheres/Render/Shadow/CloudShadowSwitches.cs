@@ -31,7 +31,7 @@ namespace ReDefinition.Atmospheres
         //         own layers draw the decks, the own shadow multiplies the sun's mask.
         //   Eve:  cloudSource Volumetric or Both with EVE rendering: TVC's layers draw the decks and TVC's screen-space shadow
         //         (ScreenSpaceShadowsManager) multiplies the mask; the own shadow stays off. What the own system adds under Both (the storm
-        //         cores and the curtain, the 3D form) is not a deck and has no shadow of its own.
+        //         cores and the praecipitatio, the 3D form) is not a deck and has no shadow of its own.
         //   None: cloudSource None, nothing draws and nothing casts.
         internal enum Caster { None, Ours, Eve }
 

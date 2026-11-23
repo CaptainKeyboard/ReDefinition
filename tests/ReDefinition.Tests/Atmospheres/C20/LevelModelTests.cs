@@ -88,17 +88,17 @@ namespace ReDefinition.Tests.Atmospheres.C20
         }
 
         [TestMethod]
-        public void TheCurtainGateHasHysteresisAndTheShareIsSmooth()
+        public void ThePraecipitatioGateHasHysteresisAndTheShareIsSmooth()
         {
-            var gate = new CurtainGate();
+            var gate = new PraecipitatioGate();
             Assert.IsFalse(gate.Update(0.44f));
             Assert.IsTrue(gate.Update(0.45f));
             Assert.IsTrue(gate.Update(0.41f), "stays on above 0.40");
             Assert.IsFalse(gate.Update(0.39f));
             Assert.IsFalse(gate.Update(0.44f), "needs 0.45 to come on again");
-            Assert.AreEqual(0f, PrecipitationLook.CurtainShare(0.45f), 1e-6f);
-            Assert.AreEqual(1f, PrecipitationLook.CurtainShare(0.9f), 1e-6f);
-            Assert.AreEqual(0.5f, PrecipitationLook.CurtainShare(0.675f), 1e-4f);
+            Assert.AreEqual(0f, PrecipitationLook.PraecipitatioShare(0.45f), 1e-6f);
+            Assert.AreEqual(1f, PrecipitationLook.PraecipitatioShare(0.9f), 1e-6f);
+            Assert.AreEqual(0.5f, PrecipitationLook.PraecipitatioShare(0.675f), 1e-4f);
         }
 
         [TestMethod]

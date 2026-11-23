@@ -339,7 +339,7 @@ namespace ReDefinition.WeatherPlayer
             var cb = new CommandBuffer { name = "pin cost" };
             Cam.AddCommandBuffer(CameraEvent.AfterSkybox, cb);
             var segments = new float[8];
-            const int march = WeatherGpuTimer.SlabMarched, recon = WeatherGpuTimer.CurtainEnd;
+            const int march = WeatherGpuTimer.SlabMarched, recon = WeatherGpuTimer.PraecipitatioEnd;
             Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart), mMarch = c => WeatherGpuTimer.Mark(c, march), mEnd = c => WeatherGpuTimer.Mark(c, recon);
             rig.Recon.MarkCull = null;
             rig.Recon.MarkCullEnd = null;

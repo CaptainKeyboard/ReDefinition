@@ -68,7 +68,7 @@ namespace ReDefinition.Atmospheres
         internal int Builds { get { return builds; } }
         internal int CoreCount { get { return coreCount; } }
 
-        // The cores of the rebuild (for the curtain pass and the tests): centre east and north of the coarse window's centre, radius, base
+        // The cores of the rebuild (for the praecipitatio pass and the tests): centre east and north of the coarse window's centre, radius, base
         // altitude, depth, updraft.
         internal void GetCore(int i, out float east, out float north, out float radiusM, out float baseAlt, out float depthM, out float updraft)
         {

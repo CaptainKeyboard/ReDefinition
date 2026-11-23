@@ -286,7 +286,7 @@ namespace ReDefinition.WeatherPlayer
         {
             var cb = new CommandBuffer { name = "pin time" };
             Cam.AddCommandBuffer(CameraEvent.AfterSkybox, cb);
-            rig.Recon.MarkCacheFilled = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainStart);
+            rig.Recon.MarkCacheFilled = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.PraecipitatioStart);
             Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart), mMarched = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabMarched);
             var segments = new float[8];
             if (!timeSamples.ContainsKey(job.id)) timeSamples[job.id] = new[] { new List<double>(), new List<double>() };
@@ -303,7 +303,7 @@ namespace ReDefinition.WeatherPlayer
                 float total;
                 int number;
                 if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
-                float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], fill = segments[WeatherGpuTimer.CurtainStart - WeatherGpuTimer.SlabStart];
+                float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], fill = segments[WeatherGpuTimer.PraecipitatioStart - WeatherGpuTimer.SlabStart];
                 if (m < 0f) continue;
                 s[0].Add(m);
                 if (fill >= 0f) s[1].Add(fill);

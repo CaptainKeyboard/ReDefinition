@@ -5,9 +5,9 @@ using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
-    // The curtain's pure parts: the 3D noise, the numbers the shader is fed with, the bounding cylinder and the places of the shaders.
+    // The praecipitatio's pure parts: the 3D noise, the numbers the shader is fed with, the bounding cylinder and the places of the shaders.
     [TestClass]
-    public class CurtainTests
+    public class PraecipitatioTests
     {
         [TestMethod]
         public void TheVolumeNoiseTilesInAllThreeAxesAndStaysInRange()
@@ -70,42 +70,42 @@ namespace ReDefinition.Tests
             float x, z, shearX, shearZ, fall;
             for (double t = 0; t < 400000; t += 12345.6)
             {
-                CurtainMath.Wind(33, t, out x, out z, out shearX, out shearZ, out fall);
-                Assert.IsTrue(x >= 0 && x < CurtainMath.CloudTileM, "x " + x);
-                Assert.IsTrue(z >= 0 && z < CurtainMath.CloudTileM, "z " + z);
-                Assert.IsTrue(fall >= 0 && fall < CurtainMath.StreakTileM, "fall " + fall);
-                Assert.AreEqual(CurtainMath.Shear, Math.Sqrt(shearX * shearX + shearZ * shearZ), 1e-5);
+                PraecipitatioMath.Wind(33, t, out x, out z, out shearX, out shearZ, out fall);
+                Assert.IsTrue(x >= 0 && x < PraecipitatioMath.CloudTileM, "x " + x);
+                Assert.IsTrue(z >= 0 && z < PraecipitatioMath.CloudTileM, "z " + z);
+                Assert.IsTrue(fall >= 0 && fall < PraecipitatioMath.StreakTileM, "fall " + fall);
+                Assert.AreEqual(PraecipitatioMath.Shear, Math.Sqrt(shearX * shearX + shearZ * shearZ), 1e-5);
             }
             // The pattern is the same a whole tile of travel later: the wrapped offset repeats.
             float x0, x1, z0, z1, f0, f1;
-            double period = CurtainMath.CloudTileM / CurtainMath.WindSpeed;
-            CurtainMath.Wind(0, 100, out x0, out z0, out shearX, out shearZ, out f0);
-            CurtainMath.Wind(0, 100 + period, out x1, out z1, out shearX, out shearZ, out f1);
+            double period = PraecipitatioMath.CloudTileM / PraecipitatioMath.WindSpeed;
+            PraecipitatioMath.Wind(0, 100, out x0, out z0, out shearX, out shearZ, out f0);
+            PraecipitatioMath.Wind(0, 100 + period, out x1, out z1, out shearX, out shearZ, out f1);
             Assert.AreEqual(x0, x1, 0.01f);
             Assert.AreEqual(z0, z1, 0.01f);
-            Assert.AreEqual(0f, CurtainMath.Wrap(-0.0, 10));
-            Assert.AreEqual(9f, CurtainMath.Wrap(-1, 10), 1e-5f);
+            Assert.AreEqual(0f, PraecipitatioMath.Wrap(-0.0, 10));
+            Assert.AreEqual(9f, PraecipitatioMath.Wrap(-1, 10), 1e-5f);
         }
 
         [TestMethod]
         public void TheShaderParametersFollowTheCell()
         {
-            Assert.AreEqual(1f / 1200000f, CurtainMath.Curvature(600000), 1e-12f);
-            float below = CurtainMath.BelowM(12000, 600000);
+            Assert.AreEqual(1f / 1200000f, PraecipitatioMath.Curvature(600000), 1e-12f);
+            float below = PraecipitatioMath.BelowM(12000, 600000);
             Assert.AreEqual(120f + 150f, below, 0.01f, "the ground falls 120 m at the rim of a 12 km cell, plus a margin");
-            Assert.AreEqual(700f + CurtainMath.SnowOnlyHeadroomM, CurtainMath.TopM(700), 0.01f, "the volume reaches just over the cloud base");
-            Assert.AreEqual(1050.0, CurtainMath.InsideRayM(60, 700, 72000), 1e-9, "the veil's height decides where the fog is short");
-            Assert.AreEqual(800.0, CurtainMath.InsideRayM(200, 300, 72000), 1e-9, "4 times the visibility");
-            Assert.AreEqual(5000.0, CurtainMath.InsideRayM(60000, 700, 5000), 1e-9, "never more than the range");
-            Assert.IsTrue(CurtainMath.Widening * Math.Cos(Math.PI / CurtainMath.Segments) > 1.0, "the polygon holds the cell's circle");
+            Assert.AreEqual(700f + PraecipitatioMath.SnowOnlyHeadroomM, PraecipitatioMath.TopM(700), 0.01f, "the volume reaches just over the cloud base");
+            Assert.AreEqual(1050.0, PraecipitatioMath.InsideRayM(60, 700, 72000), 1e-9, "the praecipitatio's height decides where the fog is short");
+            Assert.AreEqual(800.0, PraecipitatioMath.InsideRayM(200, 300, 72000), 1e-9, "4 times the visibility");
+            Assert.AreEqual(5000.0, PraecipitatioMath.InsideRayM(60000, 700, 5000), 1e-9, "never more than the range");
+            Assert.IsTrue(PraecipitatioMath.Widening * Math.Cos(Math.PI / PraecipitatioMath.Segments) > 1.0, "the polygon holds the cell's circle");
         }
 
         [TestMethod]
         public void TheBoundingCylinderIsClosedAndEveryFaceLooksOutward()
         {
-            const int segments = CurtainMath.Segments;
-            float[] v = CurtainMath.CylinderVertices(segments);
-            int[] t = CurtainMath.CylinderTriangles(segments);
+            const int segments = PraecipitatioMath.Segments;
+            float[] v = PraecipitatioMath.CylinderVertices(segments);
+            int[] t = PraecipitatioMath.CylinderTriangles(segments);
             Assert.AreEqual((segments * 2 + 2) * 3, v.Length);
             Assert.AreEqual(segments * 12, t.Length);
             var edges = new System.Collections.Generic.Dictionary<long, int>();
@@ -142,9 +142,9 @@ namespace ReDefinition.Tests
             while (repo != null && !File.Exists(Path.Combine(repo, "ReDefinition.sln"))) repo = Path.GetDirectoryName(repo);
             Assert.IsNotNull(repo, "the repository root");
             string folder = Path.Combine(repo, "unity", "Assets", "ReDefinitionAtmospheres", "Shaders");
-            string curtain = Path.Combine(folder, "ReDefinitionAtmospheresStormVolume.shader");
-            Assert.IsTrue(File.Exists(curtain), curtain);
-            Assert.IsTrue(File.ReadAllText(curtain).Contains("Shader \"" + StormShaders.VolumeShaderName + "\""), "the shader's name is the one the loader asks for");
+            string praecipitatio = Path.Combine(folder, "ReDefinitionAtmospheresStormVolume.shader");
+            Assert.IsTrue(File.Exists(praecipitatio), praecipitatio);
+            Assert.IsTrue(File.ReadAllText(praecipitatio).Contains("Shader \"" + StormShaders.VolumeShaderName + "\""), "the shader's name is the one the loader asks for");
             Assert.IsTrue(File.Exists(Path.Combine(folder, "ReDefinitionAtmospheresVolume.shader")), "the volume pass's shader");
             Assert.IsFalse(File.Exists(Path.Combine(folder, "ReDefinitionAtmospheresCloudSlab.shader")), "the spike's slab shader is gone");
             Assert.AreEqual("atmospheres.shaders", AtmosphereShaders.BundleName);
