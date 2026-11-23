@@ -201,7 +201,7 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
-            // The first MaxLayers rows: base, top, erosion and smoothing of each type; the next MaxLayers rows (CLOUDR1): the heap preset, the exponent of the density rim and the cavity.
+            // The first MaxLayers rows: base, top, erosion and smoothing of each type; the next MaxLayers rows (CLOUDR1): the cumuliform preset, the exponent of the density rim and the cavity.
             infoTexture = new Texture2D(CloudLayerDef.MaxTypes, 2 * CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
             {
                 name = "layer type info",
@@ -349,10 +349,10 @@ namespace ReDefinition.Atmospheres
                     float b, top, e;
                     table.Info(t, out b, out top, out e);
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, e, table.SmoothingOfType(t));
-                    int heap = table.HeapOfType(t);
-                    if (heap > 0) Noise.RequestHeap();
-                    if (heap > 0 || table.EdgeOfType(t) > 0f) extras = true;
-                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), table.PuffOfType(t));
+                    int cumuliform = table.CumuliformOfType(t);
+                    if (cumuliform > 0) Noise.RequestCumuliform();
+                    if (cumuliform > 0 || table.EdgeOfType(t) > 0f) extras = true;
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(cumuliform, table.EdgeOfType(t), table.CavityOfType(t), table.PuffOfType(t));
                     int slot = l * CloudLayerDef.MaxTypes + t;
                     typeUndulatus[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].UndulatusAmount : 0f;
                 }

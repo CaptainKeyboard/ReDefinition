@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace ReDefinition.Atmospheres.Viewer
 {
-    // The keys and look presets of the new cloud model (package CLOUDR1) for the viewer's tables, registered through the CloudKeySource mechanism: the heap volume (round lobes in a cascade),
+    // The keys and look presets of the new cloud model (package CLOUDR1) for the viewer's tables, registered through the CloudKeySource mechanism: the cumuliform volume (round lobes in a cascade),
     // the crisp rim, the cavity, the hidden tiling, the first-hit experiment and the looks (Previous Look for A/B, 96 and 128 Steps). This is the one place the looks are defined (the viewer's preset list shows them
     // next to Today; no cfg file holds a second copy). Every range is the clamp of the reader (CloudLookTuning); the markers say when a change shows (read at the reader named in each note).
     internal static class CloudModelKeys
@@ -14,26 +14,26 @@ namespace ReDefinition.Atmospheres.Viewer
         [CloudKeySource]
         internal static void Register(CloudKeyRegistrations r)
         {
-            float presets = HeapModel.PresetCount;
+            float presets = CumuliformModel.PresetCount;
             // Read into the type tables when the layers are uploaded (LayerRenderer.Upload); a change of the tuning table uploads them again within a frame (CloudLookTuning.Stamp, LayerRenderer.cs:272).
-            r.Key(CloudLookTuning.TuneHeap, -1f, KeySection.Shape,
-                "heap preset for every type: -1 each type's cfg key, 0 none (today's shape volume), 1 bulge, 2 rough; the first use builds the heap volume on a worker (about a second at Medium, the shape volume shows meanwhile)",
+            r.Key(CloudLookTuning.TuneCumuliform, -1f, KeySection.Shape,
+                "cumuliform preset for every type: -1 each type's cfg key, 0 none (today's shape volume), 1 bulge, 2 rough; the first use builds the cumuliform volume on a worker (about a second at Medium, the shape volume shows meanwhile)",
                 KeyLiveness.Change, KeyMarker.Live, -1f, presets);
             r.Key(CloudLookTuning.TuneEdgePower, 0f, KeySection.Edge,
                 "exponent of the density rim for every type of a soft layer: 0 each type's key, below 1 a crisper rim",
                 KeyLiveness.Change, KeyMarker.Live, 0f, 6f);
             r.Key(CloudLookTuning.TuneCavity, -1f, KeySection.Shape,
-                "cavity strength (darkens the creases between lobes): -1 each type's key, 0 off; acts only on a type that reads a heap",
+                "cavity strength (darkens the creases between lobes): -1 each type's key, 0 off; acts only on a type that reads a cumuliform",
                 KeyLiveness.Change, KeyMarker.Live, -1f, 1f);
-            // Read every frame (LayerNoise.Bind: _HeapP and _NoiseR).
-            r.Flag(CloudLookTuning.TuneHeapFootLod, true, KeySection.Shape,
-                "the march's sample spacing raises the heap volume's mip level; off: only the smoothing does", KeyLiveness.FrameHistory);
-            r.Flag(CloudLookTuning.TuneHeapIso, true, KeySection.Shape,
-                "the heap is read at the lattice's true vertical scale, so a layer's vertical scale does not stretch the lobes into columns; off: as the shape volume is read", KeyLiveness.FrameHistory);
+            // Read every frame (LayerNoise.Bind: _CumuliformP and _NoiseR).
+            r.Flag(CloudLookTuning.TuneCumuliformFootLod, true, KeySection.Shape,
+                "the march's sample spacing raises the cumuliform volume's mip level; off: only the smoothing does", KeyLiveness.FrameHistory);
+            r.Flag(CloudLookTuning.TuneCumuliformIso, true, KeySection.Shape,
+                "the cumuliform is read at the lattice's true vertical scale, so a layer's vertical scale does not stretch the lobes into columns; off: as the shape volume is read", KeyLiveness.FrameHistory);
             // CloudLookTuning.NoiseBlend and the two numbers are read by LayerNoise.LayerParams every frame (CLOUDR2: the layer pass has the blended lookup, one call site with a four-tap loop; the CPU
             // twin follows for the cloud shadow).
             r.Flag(CloudLookTuning.TuneNoiseBlend, CloudLookTuning.NoiseBlendDefault > 0.5f, KeySection.Shape,
-                "hides the tiling of the shape and heap volumes by blending four randomly offset and rotated reads per lattice cell (the layer pass and the cloud shadow); on: the untiling displacement is not applied to them");
+                "hides the tiling of the shape and cumuliform volumes by blending four randomly offset and rotated reads per lattice cell (the layer pass and the cloud shadow); on: the untiling displacement is not applied to them");
             // CELLS: read every frame (LayerRenderer.Apply and CloudShadowRenderer.Apply write the layers' pitch or 0; the CPU shadow twin reads it per sample).
             r.Flag(CloudLookTuning.TuneCells, CloudLookTuning.CellsDefault > 0.5f, KeySection.Shape,
                 "single clouds: the map's cloud share is put down as single clouds on the lattice of each layer's cellPitch (the cumulus layer); off: the map's smoothed texels are the clouds",
@@ -97,7 +97,7 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(MapSkyRegions.TuneSheetRule, MapSkyRegions.SheetRuleDefault, KeySection.Shape,
                 "weather map sky: a sheet at no saturated level (0 the most humid level, 1 a deck at the condensation level, 2 the deck map)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 2f);
             r.Key(MapSkyRegions.TuneDepthRule, MapSkyRegions.DepthRuleDefault, KeySection.Shape,
-                "weather map sky: the heap depth (1 the field's depth, 2 the calibrated depth)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);
+                "weather map sky: the cumuliform depth (1 the field's depth, 2 the calibrated depth)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);
             r.Key(MapSkyRegions.TuneDeckBase, MapSkyRegions.DeckBaseDefault, KeySection.Shape,
                 "weather map sky: the rain and snow deck's base from the field (1; its fog stays on the ground), 0 the deck's cfg type shares", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
             r.Key(CloudHeightScale.TuneOn, CloudHeightScale.OnDefault, KeySection.Shape,
@@ -112,7 +112,7 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneLightErosion, CloudLookTuning.LightErosionDefault, KeySection.Light,
                 "number of the first taps of the sun's light march that read the eroded density, 0..8 (the lobes shade each other), 0 the shape only", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 8f);
             // Read by NoiseVolumeSet.Generate (CloudShapeModel.cs:56) when LayerNoise.StartGeneration makes the volumes: a scene change, a change of cloudNoiseTier or the seed.
-            r.Key(CloudLookTuning.TuneHeapDetail, 0f, KeySection.Shape,
+            r.Key(CloudLookTuning.TuneCumuliformDetail, 0f, KeySection.Shape,
                 "Hurst exponent of the erosion detail octaves, 0 the compiled weights; read only when the noise volumes are made (a scene change or a change of Cloud Noise Size)",
                 KeyLiveness.Volume, KeyMarker.AfterVolumeRebuild, 0f, 2f);
 
@@ -147,7 +147,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 999f, () => OwnCloudOptions.ClipSigmaDefaultNow);
 
             // The same three per layer (the layer's name after the prefix): the layer's value wins over the global key.
-            r.LayerKey(CloudLookTuning.TuneHeapLayer, "", -1f, KeySection.Shape, "heap preset of the layer (-1 the global key, 0 none, 1 bulge, 2 rough)",
+            r.LayerKey(CloudLookTuning.TuneCumuliformLayer, "", -1f, KeySection.Shape, "cumuliform preset of the layer (-1 the global key, 0 none, 1 bulge, 2 rough)",
                 min: -1f, max: presets);
             r.LayerKey(CloudLookTuning.TuneEdgePowerLayer, "", 0f, KeySection.Edge, "rim exponent of the layer (0 the global key; below 1 a crisper rim)", min: 0f, max: 6f);
             r.LayerKey(CloudLookTuning.TuneCavityLayer, "", -1f, KeySection.Shape, "cavity strength of the layer (-1 the global key, 0 off)", min: -1f, max: 1f);
@@ -156,11 +156,11 @@ namespace ReDefinition.Atmospheres.Viewer
             // on, the grid points of the Medium profile) undoes all of them; none touches ownClouds or cloudSource. The grid points are the setting cloudSamples, a look names it absolute.
             var before = new List<PresetLayerValue>
             {
-                new PresetLayerValue(CloudLookTuning.TuneHeapLayer, "", "cumulus", 0f),
+                new PresetLayerValue(CloudLookTuning.TuneCumuliformLayer, "", "cumulus", 0f),
                 new PresetLayerValue(CloudLookTuning.TuneEdgePowerLayer, "", "cumulus", 2f),
                 new PresetLayerValue(CloudLookTuning.TuneCavityLayer, "", "cumulus", 0f)
             };
-            r.Preset(LookBefore, "the look before the new model became the default, for A/B against Today: no heap volume, the rim exponent 2 (the layer's waterPower), no cavity, the tiling hidden by the untiling displacement, no eroded sun taps, no single clouds (the map's texels), 48 grid points",
+            r.Preset(LookBefore, "the look before the new model became the default, for A/B against Today: no cumuliform volume, the rim exponent 2 (the layer's waterPower), no cavity, the tiling hidden by the untiling displacement, no eroded sun taps, no single clouds (the map's texels), 48 grid points",
                 new Dictionary<string, float> { { CloudLookTuning.TuneNoiseBlend, 0f }, { CloudLookTuning.TuneLightErosion, 0f }, { OwnCloudOptions.TuneCatmull, 0f }, { CloudLookTuning.TuneCells, 0f } },
                 new Dictionary<string, double> { { AtmospheresSettings.Keys.CloudSamples, 48 } }, before);
             r.Preset(Look96, "Today's look with 96 grid points (the Medium profile; +1.2 ms against 48 at 1080p)", null, new Dictionary<string, double> { { AtmospheresSettings.Keys.CloudSamples, 96 } });

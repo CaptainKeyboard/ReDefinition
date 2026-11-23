@@ -140,7 +140,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             return tex2Dlod(_CsTypeProfile, float4(u, v, 0, 0)).rg;
         }
 
-        // x base, y top, z the exponent of the type's density rim (0: the layer's; CLOUDR1 P1), w the type's heap preset (CLOUDR1 P2).
+        // x base, y top, z the exponent of the type's density rim (0: the layer's; CLOUDR1 P1), w the type's cumuliform preset (CLOUDR1 P2).
         float4 TypeInfo(int li, int type)
         {
             return tex2Dlod(_CsTypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / (2.0 * MAXL), 0, 0));
@@ -236,7 +236,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             int tb = min(ta + 1, (int)typeCount - 1);
             float f = x2 - ta;
             float4 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
-            gHeapPreset = (int)(f < 0.5 ? ia.w : ib.w);
+            gCumuliformPreset = (int)(f < 0.5 ? ia.w : ib.w);
             gNoiseSm = lerp(TypeSmoothing(li, ta), TypeSmoothing(li, tb), f);
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
             if (share < b || share > tp || tp <= b) return 0;

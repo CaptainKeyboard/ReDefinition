@@ -5,7 +5,7 @@ namespace ReDefinition.Atmospheres
 {
     // The sky drawn from the weather map. Where a round has no weather data the layers take the layer maps of today's chain until the next round. Once per map round the package B
     // maps are fetched and cut into the layers' parts (MapSkyRegions.Plan); each layer the map drives then takes its cover and type from them instead of today's chain (no meso stage,
-    // no combination with the field's cover), and the next height build puts the convective base into the heap and tall layers' root offsets.
+    // no combination with the field's cover), and the next height build puts the convective base into the cumuliform and tall layers' root offsets.
     internal sealed partial class OwnCloudModule
     {
         // The maps of a round, in this order (MapSkyKinds); a map the field cannot give yet ends the round's map sky (today's chain draws until the next round).
@@ -89,7 +89,7 @@ namespace ReDefinition.Atmospheres
             m0.Width = MapWidth;
             m0.Height = MapHeight;
             m0.Cover = coverageMap.Values;
-            m0.Heap = mapSkyMaps[0].Values;
+            m0.Cumuliform = mapSkyMaps[0].Values;
             m0.Sheet = mapSkyMaps[1].Values;
             m0.Deck = mapSkyMaps[2].Values;
             m0.BaseShare = mapSkyMaps[3].Values;
@@ -108,15 +108,15 @@ namespace ReDefinition.Atmospheres
             m0.LapseKPerM = gs.Parameters.LapseKPerM;
             m0.DayS = b.rotationPeriod;
             m0.Ut = ut;
-            CloudLayerDef heap = null, tall = null;
+            CloudLayerDef cumuliform = null, tall = null;
             for (int l = 0; l < stack.LayerCount; l++)
             {
                 WeatherMapSky.Role role = WeatherMapSky.RoleOf(stack.LayerAt(l));
-                if (role == WeatherMapSky.Role.Heap && heap == null) heap = stack.LayerAt(l);
+                if (role == WeatherMapSky.Role.Cumuliform && cumuliform == null) cumuliform = stack.LayerAt(l);
                 if (role == WeatherMapSky.Role.Tall && tall == null) tall = stack.LayerAt(l);
             }
             // A new Parts each round: the height build of the last round may still read the one before on its worker.
-            mapSkyParts = MapSkyRegions.Plan(m0, heap, tall, MapSkyRegions.SheetRule, MapSkyRegions.DepthRule);
+            mapSkyParts = MapSkyRegions.Plan(m0, cumuliform, tall, MapSkyRegions.SheetRule, MapSkyRegions.DepthRule);
             mapSkyPartsForHeights = mapSkyParts;
             mapSkyUt = ut;
             mapSkyRound = true;
@@ -173,12 +173,12 @@ namespace ReDefinition.Atmospheres
                 byte[] deckType = l >= 0 && l < mapSkyType.Length ? mapSkyType[l] : null;
                 return MapSkyRegions.DeckRoots(def, p, deckType);
             }
-            if (role != WeatherMapSky.Role.Heap && role != WeatherMapSky.Role.Tall) return null;
+            if (role != WeatherMapSky.Role.Cumuliform && role != WeatherMapSky.Role.Tall) return null;
             rangeM = MapSkyRegions.RootRangeM(def);
             return MapSkyRegions.Roots(def, p);
         }
 
-        // The pinned capture's map patches: the field's cover, heap and sheet amounts and the base, top and cells' reach as bytes (0..1 of their range) into the dump folder.
+        // The pinned capture's map patches: the field's cover, cumuliform and sheet amounts and the base, top and cells' reach as bytes (0..1 of their range) into the dump folder.
         private void WriteMapSkyDump(string dir)
         {
             // Only the published parts and the map copies they hold: the fetch buffers may be refilled by a round in flight.
@@ -187,7 +187,7 @@ namespace ReDefinition.Atmospheres
             try
             {
                 if (p.MapCover != null) WriteScaled(dir, "wms-cover.u8", p.MapCover, 1f);
-                if (p.MapHeap != null) WriteScaled(dir, "wms-ConvectiveAmount.u8", p.MapHeap, 1f);
+                if (p.MapCumuliform != null) WriteScaled(dir, "wms-ConvectiveAmount.u8", p.MapCumuliform, 1f);
                 if (p.MapSheet != null) WriteScaled(dir, "wms-StratiformAmount.u8", p.MapSheet, 1f);
                 if (p.MapBase != null) WriteScaled(dir, "wms-ConvectiveBase.u8", p.MapBase, 1f);
                 if (p.MapTop != null) WriteScaled(dir, "wms-ConvectiveTop.u8", p.MapTop, 1f);

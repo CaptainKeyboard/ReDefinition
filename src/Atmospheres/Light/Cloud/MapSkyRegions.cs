@@ -3,29 +3,29 @@ using System;
 namespace ReDefinition.Atmospheres
 {
     // The sky drawn from the weather map in the game: the layers and forms fed by the package B maps so that regions arise (a closed deck where
-    // the map's sheet amount is high, broken cumulus where its heap amount is, clear sky where its cover is 0) instead of single clouds spread evenly by the old layer maps. A pure function of map-sized arrays (OwnCloudModule fetches the maps and hands the result to the layers); WM1's WeatherMapSky is the
+    // the map's sheet amount is high, broken cumulus where its cumuliform amount is, clear sky where its cover is 0) instead of single clouds spread evenly by the old layer maps. A pure function of map-sized arrays (OwnCloudModule fetches the maps and hands the result to the layers); WM1's WeatherMapSky is the
     // weather player's cost prototype this grew from. Only cfg numbers, the maps and numbers of the M1 proposal (marked PROPOSAL) are used.
     //
     // Per map texel (bilinear in the shader, slewed as every map):
-    //   heap, uncapped     -> the heap layer (Kerbin-cumulus) on its single-cloud lattice: cover = the heap amount (below the lattice's fair share only a part of the cells are
-    //                         alive, so the map's low heap gives gaps and clear patches), type by the depth (top - base) through the type table's thicknesses from the first
+    //   cumuliform, uncapped     -> the cumuliform layer (Kerbin-cumulus) on its single-cloud lattice: cover = the cumuliform amount (below the lattice's fair share only a part of the cells are
+    //                         alive, so the map's low cumuliform gives gaps and clear patches), type by the depth (top - base) through the type table's thicknesses from the first
     //                         lattice type (humilis) to the last rising one (congestus); deeper than congestus the share goes over to the tall layer (Kerbin-cumulonimbus) between
     //                         congestus' and calvus' thicknesses (cfg type heights), no hard switch.
-    //   heap, capped       -> (stable layer at or below the base, no cell) the heap layer's sheet type (Stratocumulus, its first type) as a CONNECTED sheet: the shader's _CellS
+    //   cumuliform, capped       -> (stable layer at or below the base, no cell) the cumuliform layer's sheet type (Stratocumulus, its first type) as a CONNECTED sheet: the shader's _CellS
     //                         gives the type values of the sheet types a weight that takes the map's own value instead of the lattice (CloudCells.cginc CellSheetWeight).
-    //                         Depth rule a: weighted saturate(heap / CELL_ALIVE_F0), the lattice's own fair-sky edge (0.25: below it the cells are isolated); depth rule b
+    //                         Depth rule a: weighted saturate(cumuliform / CELL_ALIVE_F0), the lattice's own fair-sky edge (0.25: below it the cells are isolated); depth rule b
     //                         (PROPOSAL, wolken-m1-typwahl-vorschlag.md 6.1 line 2): always.
     //   sheet, saturated   -> per saturated level (RH >= 0.9999, the M1 count's definition): low the deck layer (its precipitation type, Nimbostratus by the proposal's R9),
-    //                         middle the heap layer's Altocumulus as a connected sheet, high the cheap layer (Kerbin-cirrus, today's types kept).
-    //   sheet, no level    -> sheetRule 0: WM1's "the most humid level"; 1 (PROPOSAL A, "condensation level"): a connected Stratocumulus deck in the heap layer at the column's
+    //                         middle the cumuliform layer's Altocumulus as a connected sheet, high the cheap layer (Kerbin-cirrus, today's types kept).
+    //   sheet, no level    -> sheetRule 0: WM1's "the most humid level"; 1 (PROPOSAL A, "condensation level"): a connected Stratocumulus deck in the cumuliform layer at the column's
     //   saturated             convective base (the cloud-topped mixed layer, proposal T5); 2 (PROPOSAL B, "by source"): the deck's share (DeckAmount, lift and fronts) as the
     //                         middle level's Altocumulus sheet, the rest as in A.
-    //   depth              -> depthRule 1 (a): the field's depth; a heap column without depth draws the thinnest lattice type (humilis), its body's height a share of the type's
+    //   depth              -> depthRule 1 (a): the field's depth; a cumuliform column without depth draws the thinnest lattice type (humilis), its body's height a share of the type's
     //                         by its core (CloudCells.cginc CellBody). depthRule 2 (b, PROPOSAL, proposal section 6): cells keep the field's depth, capped columns are sheets, the rest
     //                         get depth = base x (A_MIN + (A_MAX - A_MIN) q RhMid), q = clamp(vigour + NOISE_AMP (n - 0.5)), n a smooth noise on the sphere, capped at the -10 C level.
-    //   base               -> the root offset of the heap and tall layers' height maps: base - the layer's inner altitude, in a root range of the inner altitude (a base from the
+    //   base               -> the root offset of the cumuliform and tall layers' height maps: base - the layer's inner altitude, in a root range of the inner altitude (a base from the
     //                         ground to twice the inner altitude; clamped beyond). The top term (updraft) is zeroed for these layers: the top is the type's thickness.
-    //   union              -> the heap layer's parts in one texel: 1 - (1 - a)(1 - b)(1 - c), the type of the largest part (APPROXIMATION: one type per texel).
+    //   union              -> the cumuliform layer's parts in one texel: 1 - (1 - a)(1 - b)(1 - c), the type of the largest part (APPROXIMATION: one type per texel).
     //   storm cells        -> the tall layer draws its towers from the generator's cell list (AnvilMap.PaintCells, each cell one tower, OwnCloudModule) where the list is there: the
     //                         map holds a cell's tower only in the single texel at its centre. Without the list the tall share above is drawn.
     //   deck               -> the larger of the low level's sheet and today's deck rule (rain from the precipitation map, fog from the dew-point spread): the field's low level
@@ -36,7 +36,7 @@ namespace ReDefinition.Atmospheres
         internal const string TuneSheetRule = "cloud.weatherMapSky.sheetRule", TuneDepthRule = "cloud.weatherMapSky.depthRule";
         // Defaults of the two rules (owner 2026-11-23, "the more realistic", PRUEFPROTOKOLL 105, 111, 112): the sheet rule B (2: by source, the deck map) and the depth rule a (1: the
         // field's own depth). B + b drew 96 % of the M0 ground view's sky as cloud where the field's cover is 0.51 (B + a: 65 %), because b replaces the field's convective depth by
-        // the calibrated stand-in (up to 4.55 x the base) and makes every capped heap a connected sheet.
+        // the calibrated stand-in (up to 4.55 x the base) and makes every capped cumuliform a connected sheet.
         internal const float SheetRuleDefault = 2f, DepthRuleDefault = 1f;
         internal const float SaturatedRh = WeatherMapSky.SaturatedRh;
         // The lattice's fair-sky edge (CloudCells.cginc CELL_ALIVE_F0): below this share only share / F0 of the cells hold a cloud.
@@ -61,7 +61,7 @@ namespace ReDefinition.Atmospheres
         internal sealed class Inputs
         {
             internal int Width, Height;
-            internal float[] Cover, Heap, Sheet, Deck, BaseShare, TopShare, StableShare, RhLow, RhMid, RhHigh, Descent, Instability, Uplift, Reach, PrecipLevel, SurfaceTempK;
+            internal float[] Cover, Cumuliform, Sheet, Deck, BaseShare, TopShare, StableShare, RhLow, RhMid, RhHigh, Descent, Instability, Uplift, Reach, PrecipLevel, SurfaceTempK;
             internal double TropopauseM, LapseKPerM, DayS, Ut;
         }
 
@@ -69,18 +69,18 @@ namespace ReDefinition.Atmospheres
         internal sealed class Parts
         {
             internal int N;
-            // The heap on the lattice (heap layer) and in the tall layer, the depth they are drawn with (m), the base (m).
+            // The cumuliform on the lattice (cumuliform layer) and in the tall layer, the depth they are drawn with (m), the base (m).
             internal float[] Lattice, Tall, DepthM, BaseM;
-            // The heap layer's connected sheets: Stratocumulus (capped heap and the unsaturated sheet of rules A / B) and Altocumulus (the middle level).
+            // The cumuliform layer's connected sheets: Stratocumulus (capped cumuliform and the unsaturated sheet of rules A / B) and Altocumulus (the middle level).
             internal float[] Sc, Ac;
             // The deck layer's sheet (low level saturated) and whether it is nimbostratus; the cheap layer's sheet.
             internal float[] Low, High;
             internal bool[] Nimbo;
             // The rules in force when the parts were made.
             internal int SheetRule, DepthRule;
-            // Copies of the maps the parts were made from, for the pinned capture's map patches (a dump never reads the fetch buffers a later round refills): cover, heap,
+            // Copies of the maps the parts were made from, for the pinned capture's map patches (a dump never reads the fetch buffers a later round refills): cover, cumuliform,
             // sheet, base and top shares, the cells' reach; and the time.
-            internal float[] MapCover, MapHeap, MapSheet, MapBase, MapTop, MapReach;
+            internal float[] MapCover, MapCumuliform, MapSheet, MapBase, MapTop, MapReach;
             internal double Ut, TropopauseM;
         }
 
@@ -110,16 +110,16 @@ namespace ReDefinition.Atmospheres
             return k;
         }
 
-        internal static int AltoIndex(CloudLayerDef heap)
+        internal static int AltoIndex(CloudLayerDef cumuliform)
         {
-            return heap.AltoType >= 0f ? (int)Math.Round(Math.Min(1f, heap.AltoType) * (heap.Types.Count - 1)) : -1;
+            return cumuliform.AltoType >= 0f ? (int)Math.Round(Math.Min(1f, cumuliform.AltoType) * (cumuliform.Types.Count - 1)) : -1;
         }
 
-        // The heap layer's last lattice type (the end of the rising run before the alto type) and the tall layer's last tower type (before its anvil).
-        internal static int HeapLast(CloudLayerDef heap)
+        // The cumuliform layer's last lattice type (the end of the rising run before the alto type) and the tall layer's last tower type (before its anvil).
+        internal static int CumuliformLast(CloudLayerDef cumuliform)
         {
-            int alto = AltoIndex(heap);
-            return RisingRun(heap, 0, alto >= 0 ? alto : heap.Types.Count);
+            int alto = AltoIndex(cumuliform);
+            return RisingRun(cumuliform, 0, alto >= 0 ? alto : cumuliform.Types.Count);
         }
 
         internal static int TallLast(CloudLayerDef tall)
@@ -133,8 +133,8 @@ namespace ReDefinition.Atmospheres
             return (float)(v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v));
         }
 
-        // The parts of every texel for the stack's heap and tall layers (either may be null).
-        internal static Parts Plan(Inputs m, CloudLayerDef heap, CloudLayerDef tall, int sheetRule, int depthRule, Parts into = null)
+        // The parts of every texel for the stack's cumuliform and tall layers (either may be null).
+        internal static Parts Plan(Inputs m, CloudLayerDef cumuliform, CloudLayerDef tall, int sheetRule, int depthRule, Parts into = null)
         {
             int n = m.Width * m.Height;
             Parts p = into != null && into.N == n ? into : new Parts
@@ -145,7 +145,7 @@ namespace ReDefinition.Atmospheres
             p.SheetRule = sheetRule;
             p.DepthRule = depthRule;
             p.MapCover = CopyOf(m.Cover, p.MapCover);
-            p.MapHeap = CopyOf(m.Heap, p.MapHeap);
+            p.MapCumuliform = CopyOf(m.Cumuliform, p.MapCumuliform);
             p.MapSheet = CopyOf(m.Sheet, p.MapSheet);
             p.MapBase = CopyOf(m.BaseShare, p.MapBase);
             p.MapTop = CopyOf(m.TopShare, p.MapTop);
@@ -153,30 +153,30 @@ namespace ReDefinition.Atmospheres
             p.Ut = m.Ut;
             p.TropopauseM = m.TropopauseM;
             double h = m.TropopauseM;
-            // The heap's hand-over from the heap layer to the tall one: from congestus' thickness to calvus' (the cfg's type heights).
-            double congM = heap != null ? ThickM(heap, HeapLast(heap)) : 0.0;
+            // The cumuliform's hand-over from the cumuliform layer to the tall one: from congestus' thickness to calvus' (the cfg's type heights).
+            double congM = cumuliform != null ? ThickM(cumuliform, CumuliformLast(cumuliform)) : 0.0;
             double calvusM = tall != null ? ThickM(tall, 0) : 0.0;
             double handFrom = congM, handTo = Math.Max(calvusM, congM + 1.0);
             for (int i = 0; i < n; i++)
             {
-                float cover = Math.Max(0f, m.Cover[i]), hp = Math.Max(0f, m.Heap[i]), s = Math.Max(0f, m.Sheet[i]);
+                float cover = Math.Max(0f, m.Cover[i]), hp = Math.Max(0f, m.Cumuliform[i]), s = Math.Max(0f, m.Sheet[i]);
                 double zb = m.BaseShare[i] * h, zt = m.TopShare[i] * h, zi = m.StableShare != null ? m.StableShare[i] * h : double.PositiveInfinity;
                 double depth = Math.Max(0.0, zt - zb);
                 bool cell = m.Reach != null && m.Reach[i] > 0f;
                 bool capped = !cell && zi <= zb;
                 p.BaseM[i] = (float)zb;
-                // the heap's split between the lattice and the stratocumulus sheet
-                float scHeap = 0f;
-                if (capped) scHeap = depthRule == 2 ? hp : hp * Saturate(hp / LatticeFairShare);
-                float onLattice = hp - scHeap;
+                // the cumuliform's split between the lattice and the stratocumulus sheet
+                float scCumuliform = 0f;
+                if (capped) scCumuliform = depthRule == 2 ? hp : hp * Saturate(hp / LatticeFairShare);
+                float onLattice = hp - scCumuliform;
                 if (depthRule == 2 && !cell && !capped && onLattice > 0f) depth = CalibratedDepthM(m, i, zb);
                 p.DepthM[i] = (float)depth;
-                float toTall = tall != null ? (heap == null ? 1f : Saturate((depth - handFrom) / (handTo - handFrom))) : 0f;
+                float toTall = tall != null ? (cumuliform == null ? 1f : Saturate((depth - handFrom) / (handTo - handFrom))) : 0f;
                 p.Tall[i] = onLattice * toTall;
                 p.Lattice[i] = onLattice * (1f - toTall);
                 // the sheet: every saturated level, else by the rule
                 bool low = m.RhLow[i] >= SaturatedRh, mid = m.RhMid[i] >= SaturatedRh, hi = m.RhHigh[i] >= SaturatedRh;
-                float sc = scHeap, ac = 0f, lowS = 0f, highS = 0f;
+                float sc = scCumuliform, ac = 0f, lowS = 0f, highS = 0f;
                 if (s > 0f)
                 {
                     if (low) lowS = s;
@@ -283,12 +283,12 @@ namespace ReDefinition.Atmospheres
             return (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(v * 255.0, MidpointRounding.ToEven)));
         }
 
-        // The type value of a depth in the heap layer's lattice types (humilis .. congestus) and in the tall layer's towers.
-        internal static float LatticeType(CloudLayerDef heap, float depthM)
+        // The type value of a depth in the cumuliform layer's lattice types (humilis .. congestus) and in the tall layer's towers.
+        internal static float LatticeType(CloudLayerDef cumuliform, float depthM)
         {
-            int last = HeapLast(heap);
+            int last = CumuliformLast(cumuliform);
             int first = Math.Min(1, last);
-            return WeatherMapSky.TypeForThickness(heap, first, last, depthM / heap.ThicknessM);
+            return WeatherMapSky.TypeForThickness(cumuliform, first, last, depthM / cumuliform.ThicknessM);
         }
 
         // The cover and type bytes of a layer from the parts (role: WeatherMapSky.RoleOf). todayType: the cheap layer's types of today's chain; fogCover / fogType: the deck rule's
@@ -298,7 +298,7 @@ namespace ReDefinition.Atmospheres
             int n = p.N;
             switch (role)
             {
-                case WeatherMapSky.Role.Heap:
+                case WeatherMapSky.Role.Cumuliform:
                 {
                     float scValue = Value(l, 0);
                     int alto = AltoIndex(l);
@@ -353,7 +353,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The root offsets (m) of the heap and tall layers' height maps: the base against the layer's inner altitude; the range they are encoded in is RootRangeM.
+        // The root offsets (m) of the cumuliform and tall layers' height maps: the base against the layer's inner altitude; the range they are encoded in is RootRangeM.
         internal static float RootRangeM(CloudLayerDef l)
         {
             return Math.Max(1f, l.InnerAltitudeM);
@@ -367,7 +367,7 @@ namespace ReDefinition.Atmospheres
             return r;
         }
 
-        // The range the deck's root offsets are encoded in: its depth (the deck starts at the ground, so the heap layers' inner altitude would allow 1 m).
+        // The range the deck's root offsets are encoded in: its depth (the deck starts at the ground, so the cumuliform layers' inner altitude would allow 1 m).
         internal static float DeckRootRangeM(CloudLayerDef l)
         {
             return Math.Max(1f, l.OuterAltitudeM - l.InnerAltitudeM);
@@ -397,11 +397,11 @@ namespace ReDefinition.Atmospheres
             return r;
         }
 
-        // The shader's sheet types of the heap layer (_CellS, CloudCells.cginc CellSheetWeight): x 1 on, y the sheet type at the low end (Stratocumulus), z the one at the
+        // The shader's sheet types of the cumuliform layer (_CellS, CloudCells.cginc CellSheetWeight): x 1 on, y the sheet type at the low end (Stratocumulus), z the one at the
         // high end (Altocumulus), w the width of a type step (1 / (count - 1)). Zero for every other layer and while the switch is off.
         internal static UnityEngine.Vector4 SheetTypes(CloudLayerDef l)
         {
-            if (l == null || WeatherMapSky.RoleOf(l) != WeatherMapSky.Role.Heap || l.Types.Count < 2) return UnityEngine.Vector4.zero;
+            if (l == null || WeatherMapSky.RoleOf(l) != WeatherMapSky.Role.Cumuliform || l.Types.Count < 2) return UnityEngine.Vector4.zero;
             int alto = AltoIndex(l);
             return new UnityEngine.Vector4(1f, Value(l, 0), alto >= 0 ? Value(l, alto) : 2f, 1f / (l.Types.Count - 1));
         }

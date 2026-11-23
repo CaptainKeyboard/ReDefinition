@@ -162,7 +162,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The octave weights of the detail volume for a Hurst exponent: 2^(-H k) for the octave k of doubled frequency (the cascade of the heap volume continued down to the detail's finest cell); 0
+        // The octave weights of the detail volume for a Hurst exponent: 2^(-H k) for the octave k of doubled frequency (the cascade of the cumuliform volume continued down to the detail's finest cell); 0
         // (the default): the compiled NoiseModel.DetailWorleyWeights, whose finest octave is the heaviest.
         internal static double[] DetailWeights(double hurst)
         {
@@ -172,7 +172,7 @@ namespace ReDefinition.Atmospheres
             return w;
         }
 
-        // The detail volume, n^3 bytes (R8). hurst above 0 (cloud.heap.detail): the octaves fall off as 2^(-H k) like the heap's, so the erosion continues the cascade (CLOUDR1).
+        // The detail volume, n^3 bytes (R8). hurst above 0 (cloud.cumuliform.detail): the octaves fall off as 2^(-H k) like the cumuliform's, so the erosion continues the cascade (CLOUDR1).
         internal static byte[] Detail(int n, uint seed, double hurst = 0.0)
         {
             double[] weights = DetailWeights(hurst);

@@ -1,6 +1,6 @@
 """Measures of how a lookup hides the tiling of a periodic volume (package CLOUDR1): the strain of the lookup, the correlation at the period, the elongation coherence of the blobs.
 
-    python tools/weather_metrics/tiling.py        prints the table for the shape volume's untiling displacement, the heap's halved displacement and the blended lookup
+    python tools/weather_metrics/tiling.py        prints the table for the shape volume's untiling displacement, the cumuliform's halved displacement and the blended lookup
 
 strain       the singular values of the Jacobian d q / d p of a lookup q(p), by central differences: 1 everywhere is no distortion; the largest above 1.5 or the smallest below 0.67 is a pulled or
              squeezed pattern; a smallest value near 0 is a fold.
@@ -60,12 +60,12 @@ def orientation_coherence(img, cover=0.4, min_px=60):
 
 def main():
     scale, radius = 250.0, 600000.0
-    levels = nm.gen_heap_levels(64, 1)
+    levels = nm.gen_cumuliform_levels(64, 1)
     rng = np.random.RandomState(9)
     pts = np.stack([rng.uniform(0, 40000, 6000), rng.uniform(0, 40000, 6000), radius + rng.uniform(1000, 6000, 6000)], axis=1)
     prm = nm.Params(scale=scale, untile=True, seed=3, offset=(1234.5, 777.7, 31.1))
     prm0 = nm.Params(scale=scale, untile=False, seed=3, offset=(1234.5, 777.7, 31.1))
-    period = nm.HEAP_PERIOD_SCALES * scale
+    period = nm.CUMULIFORM_PERIOD_SCALES * scale
 
     def lookup_share(x, share):
         q, q0 = nm.lookup_point(x, prm), nm.lookup_point(x, prm0)
@@ -73,13 +73,13 @@ def main():
         up = x / np.linalg.norm(x, axis=1, keepdims=True)
         return q0 + share * (d - up * np.sum(d * up, axis=1, keepdims=True))
 
-    heap = lambda q: nm.heap_value(levels, q, scale, 1)
-    read = lambda x: heap(x)
+    cumuliform = lambda q: nm.cumuliform_value(levels, q, scale, 1)
+    read = lambda x: cumuliform(x)
     blended = lambda x: nm.blend_macro(read, prm0_lookup(x), period, 3 + 5003)
     prm0_lookup = lambda x: nm.lookup_point(x, prm0)
     print("%-36s strain smax p99 / smin p1 / anisotropy p95 / share > 1.5 | tile corr at the period / at 0.37 of it" % "lookup")
-    rows = (("untiling displacement (shape, old heap)", lambda x: nm.lookup_point(x, prm), lambda x: heap(nm.lookup_point(x, prm))),
-            ("heap: half of the horizontal part", lambda x: lookup_share(x, 0.5), lambda x: heap(lookup_share(x, 0.5))),
+    rows = (("untiling displacement (shape, old cumuliform)", lambda x: nm.lookup_point(x, prm), lambda x: cumuliform(nm.lookup_point(x, prm))),
+            ("cumuliform: half of the horizontal part", lambda x: lookup_share(x, 0.5), lambda x: cumuliform(lookup_share(x, 0.5))),
             ("blended (offset, rotation, 4 taps)", prm0_lookup, blended))
     for name, look, field in rows:
         s = strain(look, pts[:3000])

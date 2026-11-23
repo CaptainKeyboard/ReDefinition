@@ -191,8 +191,8 @@ float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, flo
     return lerp(1.0 - coverage + e, cov, wMap);
 }
 
-// The finer bulge octaves of a single cloud's body: the heap field (the shape volume's green channel, preset bulge) read at 0.37 and 0.137 of its period at the lattice's true vertical scale
-// (as the heap lookup, so the heads are round), each centred on 0. The reads are straight (no blend), offset from each other and from the first octave. Needs the noise include's lookup.
+// The finer bulge octaves of a single cloud's body: the cumuliform field (the shape volume's green channel, preset bulge) read at 0.37 and 0.137 of its period at the lattice's true vertical scale
+// (as the cumuliform lookup, so the heads are round), each centred on 0. The reads are straight (no blend), offset from each other and from the first octave. Needs the noise include's lookup.
 float2 CellFineBulges(int li, float3 pc)
 {
     float scale = _LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 250.0;

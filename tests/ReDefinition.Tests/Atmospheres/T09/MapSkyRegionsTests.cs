@@ -5,8 +5,8 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // The sky drawn from the weather map (MapSkyRegions, master plan section 34) on single texels of Kerbin's shipped layers: clear where the map is clear, the heap on the lattice,
-    // capped heap and unsaturated sheets as connected stratocumulus, saturated levels in their layers, deep heap in the tall layer, and the calibrated rule's noise as the proposal's script.
+    // The sky drawn from the weather map (MapSkyRegions, master plan section 34) on single texels of Kerbin's shipped layers: clear where the map is clear, the cumuliform on the lattice,
+    // capped cumuliform and unsaturated sheets as connected stratocumulus, saturated levels in their layers, deep cumuliform in the tall layer, and the calibrated rule's noise as the proposal's script.
     [TestClass]
     public class MapSkyRegionsTests
     {
@@ -14,12 +14,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
         // A sheet amount of 0.7 as the layers' byte.
         private static readonly byte Seventy = (byte)Math.Round(0.7f * 255.0, MidpointRounding.ToEven);
 
-        private static MapSkyRegions.Inputs One(float heap, float sheet, double baseM, double topM, double stableM, float rhLow = 0.5f, float rhMid = 0.5f, float rhHigh = 0.5f,
+        private static MapSkyRegions.Inputs One(float cumuliform, float sheet, double baseM, double topM, double stableM, float rhLow = 0.5f, float rhMid = 0.5f, float rhHigh = 0.5f,
                                                 float deck = 0f, float reach = 0f, float precip = 0f)
         {
             return new MapSkyRegions.Inputs
             {
-                Width = 1, Height = 1, Cover = new[] { heap + sheet }, Heap = new[] { heap }, Sheet = new[] { sheet }, Deck = new[] { deck }, BaseShare = new[] { (float)(baseM / H) },
+                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Sheet = new[] { sheet }, Deck = new[] { deck }, BaseShare = new[] { (float)(baseM / H) },
                 TopShare = new[] { (float)(topM / H) }, StableShare = new[] { (float)(stableM / H) }, RhLow = new[] { rhLow }, RhMid = new[] { rhMid }, RhHigh = new[] { rhHigh },
                 Descent = new[] { 0.2f }, Instability = new[] { 0.5f }, Uplift = new[] { 0.1f }, Reach = new[] { reach }, PrecipLevel = new[] { precip }, SurfaceTempK = new[] { 290f },
                 TropopauseM = H, LapseKPerM = 0.00711, DayS = 21549.425, Ut = 1486800.0
@@ -70,7 +70,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void UncappedHeapIsCumulusOnTheLatticeWithItsTypeFromTheDepth()
+        public void UncappedCumuliformIsCumulusOnTheLatticeWithItsTypeFromTheDepth()
         {
             CloudLayerDef cu = Layers()[1];
             MapSkyRegions.Parts thin = Plan(One(0.4f, 0f, 800, 1000, 1800)), deep = Plan(One(0.4f, 0f, 800, 4800, 6000));
@@ -82,19 +82,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Draw(deep, 1, out c, out tDeep);
             float step = 1f / (cu.Types.Count - 1);
             Assert.IsTrue(tThin / 255f >= step - 0.01f, "the thinnest lattice type is humilis, not the sheet: " + tThin);
-            Assert.IsTrue(tDeep > tThin, "deeper heap, taller type: " + tThin + " -> " + tDeep);
-            Assert.IsTrue(tDeep / 255f <= MapSkyRegions.HeapLast(cu) * step + 0.01f, "never the alto sheet type");
+            Assert.IsTrue(tDeep > tThin, "deeper cumuliform, taller type: " + tThin + " -> " + tDeep);
+            Assert.IsTrue(tDeep / 255f <= MapSkyRegions.CumuliformLast(cu) * step + 0.01f, "never the alto sheet type");
         }
 
         [TestMethod]
-        public void CappedHeapIsAConnectedStratocumulusSheetByTheDepthRule()
+        public void CappedCumuliformIsAConnectedStratocumulusSheetByTheDepthRule()
         {
             // stable layer below the base: capped
             MapSkyRegions.Parts a = Plan(One(0.6f, 0f, 1200, 1200, 900), 1, 1), b = Plan(One(0.6f, 0f, 1200, 1200, 900), 1, 2);
             Assert.AreEqual(0.6f, a.Sc[0], 1e-6f, "rule a: above the lattice's fair share all of it is sheet");
             Assert.AreEqual(0f, a.Lattice[0], 1e-6f);
             MapSkyRegions.Parts aLow = Plan(One(0.1f, 0f, 1200, 1200, 900), 1, 1);
-            Assert.AreEqual(0.1f * 0.4f, aLow.Sc[0], 1e-6f, "rule a: a small capped heap is mostly lattice");
+            Assert.AreEqual(0.1f * 0.4f, aLow.Sc[0], 1e-6f, "rule a: a small capped cumuliform is mostly lattice");
             Assert.AreEqual(0.06f, aLow.Lattice[0], 1e-6f);
             Assert.AreEqual(0.6f, b.Sc[0], 1e-6f, "rule b: capped means sheet");
             byte c, t;
@@ -133,10 +133,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void DeepHeapGoesOverToTheTallLayerSmoothly()
+        public void DeepCumuliformGoesOverToTheTallLayerSmoothly()
         {
             CloudLayerDef[] l = Layers();
-            float congM = (l[1].Types[MapSkyRegions.HeapLast(l[1])].TopShare - l[1].Types[MapSkyRegions.HeapLast(l[1])].BaseShare) * l[1].ThicknessM;
+            float congM = (l[1].Types[MapSkyRegions.CumuliformLast(l[1])].TopShare - l[1].Types[MapSkyRegions.CumuliformLast(l[1])].BaseShare) * l[1].ThicknessM;
             float calvusM = (l[2].Types[0].TopShare - l[2].Types[0].BaseShare) * l[2].ThicknessM;
             float last = -1f;
             for (double d = congM - 500; d <= calvusM + 500; d += 250)
@@ -206,7 +206,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void OnlyTheHeapLayerHasSheetTypesAndTheRootsFollowTheBase()
+        public void OnlyTheCumuliformLayerHasSheetTypesAndTheRootsFollowTheBase()
         {
             CloudLayerDef[] l = Layers();
             Assert.AreEqual(0f, MapSkyRegions.SheetTypes(l[0]).x);

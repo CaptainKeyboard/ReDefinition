@@ -15,7 +15,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     //   WMSKY_UTS          the universal times, comma separated (default 1486800)
     //   WMSKY_SEED         the body's seed (default 664216370, SkyMapsExplore's: the game log's "body Kerbin ... seed")
     //   WMSKY_HEIGHT_ROOT  the root range of the height maps in m (the game's heightRoot of the layers, default 0: no root offset)
-    // Per time u<ut>_: today_<layer>_cover / _type, wm_<layer>_cover / _type / _root (u8, 512 x 256, row 0 north), col_<quantity> (f32), wm_heapDropped (f32), wm_sheetLevels (u8).
+    // Per time u<ut>_: today_<layer>_cover / _type, wm_<layer>_cover / _type / _root (u8, 512 x 256, row 0 north), col_<quantity> (f32), wm_cumuliformDropped (f32), wm_sheetLevels (u8).
     [TestClass]
     public class WeatherMapSkyDump
     {
@@ -144,7 +144,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     // The column quantities (GeneratorMaps.RenderWeather's samples, with the quantities the maps do not keep).
                     var c = new WeatherMapSky.Columns
                     {
-                        Width = w, Height = h, Cover = new float[n], Heap = new float[n], Sheet = new float[n], Deck = new float[n], BaseM = new float[n], TopM = new float[n],
+                        Width = w, Height = h, Cover = new float[n], Cumuliform = new float[n], Sheet = new float[n], Deck = new float[n], BaseM = new float[n], TopM = new float[n],
                         RhLow = new float[n], RhMid = new float[n], RhHigh = new float[n], PrecipMmH = new float[n]
                     };
                     float[] reach = new float[n], stable = new float[n], warm = new float[n], cold = new float[n], inst = new float[n];
@@ -160,7 +160,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             SkyColumn.Derive(g.Body, ref wx, out col);
                             int k = j * w + i;
                             c.Cover[k] = (float)wx.Coverage;
-                            c.Heap[k] = (float)col.HeapAmount;
+                            c.Cumuliform[k] = (float)col.CumuliformAmount;
                             c.Sheet[k] = (float)col.SheetAmount;
                             c.Deck[k] = (float)col.DeckAmount;
                             c.BaseM[k] = (float)col.BaseM;
@@ -189,10 +189,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         Bytes(folder, tag + "wm_" + layers[li].Name + "_type", r.Type[li]);
                         if (r.Root[li] != null) Bytes(folder, tag + "wm_" + layers[li].Name + "_root", r.Root[li]);
                     }
-                    Floats(folder, tag + "wm_heapDropped", r.HeapDropped);
+                    Floats(folder, tag + "wm_cumuliformDropped", r.CumuliformDropped);
                     Bytes(folder, tag + "wm_sheetLevels", r.SheetLevels);
                     Floats(folder, tag + "col_cover", c.Cover);
-                    Floats(folder, tag + "col_heap", c.Heap);
+                    Floats(folder, tag + "col_cumuliform", c.Cumuliform);
                     Floats(folder, tag + "col_sheet", c.Sheet);
                     Floats(folder, tag + "col_deck", c.Deck);
                     Floats(folder, tag + "col_base", c.BaseM);

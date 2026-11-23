@@ -117,7 +117,7 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
-            // MaxLayers rows of base, top, edge exponent, heap, then MaxLayers rows of the type's shapeSmoothing (x).
+            // MaxLayers rows of base, top, edge exponent, cumuliform, then MaxLayers rows of the type's shapeSmoothing (x).
             infoTexture = new Texture2D(CloudLayerDef.MaxTypes, 2 * CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
             {
                 name = "cloud shadow type info",
@@ -184,10 +184,10 @@ namespace ReDefinition.Atmospheres
                 {
                     float b, top, e;
                     table.Info(t, out b, out top, out e);
-                    // z: the exponent of the type's density rim (0: the layer's; the shadow reads no erosion, so the erosion channel is free), w: the type's heap preset (CLOUDR1).
-                    int heap = table.HeapOfType(t);
-                    if (heap > 0 && Noise != null) Noise.RequestHeap();
-                    info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), heap);
+                    // z: the exponent of the type's density rim (0: the layer's; the shadow reads no erosion, so the erosion channel is free), w: the type's cumuliform preset (CLOUDR1).
+                    int cumuliform = table.CumuliformOfType(t);
+                    if (cumuliform > 0 && Noise != null) Noise.RequestCumuliform();
+                    info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), cumuliform);
                     // w: the type's puff class (cloud.field, CloudField.cs), as the layer pass's second row: the shadow draws the field's single clouds where the pass does.
                     info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, table.PuffOfType(t));
                 }

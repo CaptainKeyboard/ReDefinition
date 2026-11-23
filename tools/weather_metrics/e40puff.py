@@ -149,9 +149,9 @@ RES = "seq1+lq2+r100+jit+acc8+clip1000+lp100"
 LIGHT = "seq1+lq2+clight+r33+lp100"
 MARCH_LABELS = {CEIL: "puff-ceil", STEPS: "puff-steps", RES: "puff-res", LIGHT: "puff-light"}
 
-# CLOUDR1: the heap, rim exponent and cavity on the cumulus layer only (the per-layer keys cloud.heap.layer.<name>, cloud.edgePower.layer.<name>, cloud.cavity.layer.<name>): the weather
+# CLOUDR1: the cumuliform, rim exponent and cavity on the cumulus layer only (the per-layer keys cloud.cumuliform.layer.<name>, cloud.edgePower.layer.<name>, cloud.cavity.layer.<name>): the weather
 # decks and the cirrus keep their look, so a ground view inside a deck is not fogged. A (prefix, value) pair; the first hit is a march key and global.
-HEAP1 = [("cloud.heap.layer.", 1.0)]
+CUMULIFORM1 = [("cloud.cumuliform.layer.", 1.0)]
 EDGE = [("cloud.edgePower.layer.", 0.5)]
 CAV = [("cloud.cavity.layer.", 0.7)]
 FIRSTHIT = [("cloud.firstHit", 3.0)]
@@ -179,55 +179,55 @@ def tune_cumulus(pairs):
 # name -> (what, the change of the job or None, the case of the march: None = the base's)
 VARIANTS = {
     "base": ("the replay as e40pp makes it", None, None),
-    # --- CLOUDR1 (2026-11-16): the model packages P2 (heap volume), P1 (edge exponent), P3 (cavity), P6 (first hit) as the global tuning keys of CloudLookTuning; each also at the ceiling. ---
-    "p2": ("(P2) the heap volume, preset bulge, for every type (cloud.heap 1)", tune_cumulus(HEAP1), None),
-    "p2r": ("(P2) the heap volume, preset rough (cloud.heap 2)", tune_cumulus([("cloud.heap.layer.", 2.0)]), None),
-    "p2p1": ("(P2 + P1) heap volume + the rim exponent 0.5 (cloud.edgePower)", tune_cumulus(HEAP1 + EDGE), None),
-    "p2p1p3": ("(P2 + P1 + P3) + cavity 0.7", tune_cumulus(HEAP1 + EDGE + CAV), None),
+    # --- CLOUDR1 (2026-11-16): the model packages P2 (cumuliform volume), P1 (edge exponent), P3 (cavity), P6 (first hit) as the global tuning keys of CloudLookTuning; each also at the ceiling. ---
+    "p2": ("(P2) the cumuliform volume, preset bulge, for every type (cloud.cumuliform 1)", tune_cumulus(CUMULIFORM1), None),
+    "p2r": ("(P2) the cumuliform volume, preset rough (cloud.cumuliform 2)", tune_cumulus([("cloud.cumuliform.layer.", 2.0)]), None),
+    "p2p1": ("(P2 + P1) cumuliform volume + the rim exponent 0.5 (cloud.edgePower)", tune_cumulus(CUMULIFORM1 + EDGE), None),
+    "p2p1p3": ("(P2 + P1 + P3) + cavity 0.7", tune_cumulus(CUMULIFORM1 + EDGE + CAV), None),
     "p1": ("(P1) the rim exponent 0.5 alone", tune_cumulus(EDGE), None),
-    "p2p1p3d": ("(P2 + P1 + P3 + detail cascade) the erosion detail's octaves 2^(-0.65 k) (cloud.heap.detail)", tune_cumulus(HEAP1 + EDGE + CAV + [("cloud.heap.detail", 0.65)]), None),
+    "p2p1p3d": ("(P2 + P1 + P3 + detail cascade) the erosion detail's octaves 2^(-0.65 k) (cloud.cumuliform.detail)", tune_cumulus(CUMULIFORM1 + EDGE + CAV + [("cloud.cumuliform.detail", 0.65)]), None),
     "p6": ("(P6) first hit by bisection (3 evaluations) and thin steps inside", tune_cumulus(FIRSTHIT), None),
-    "p2p1p3p6": ("(P2 + P1 + P3 + P6)", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), None),
+    "p2p1p3p6": ("(P2 + P1 + P3 + P6)", tune_cumulus(CUMULIFORM1 + EDGE + CAV + FIRSTHIT), None),
     # --- CLOUDR1 round 3: P2 + P1 + P3 (cavity 0.35) at the production march, with the outer shell of thin steps after the bisected entry (N of them), and at the Phase 0 grid ---
-    "r_a": ("(round 3) P2 + P1 + P3 (cavity 0.35) at the production march", tune_cumulus(HEAP1 + EDGE + CAV35), None),
-    "r_s16": ("(round 3) r_a + first hit, 16 thin steps after the entry", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(16)), None),
-    "r_s32": ("(round 3) r_a + first hit, 32 thin steps", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(32)), None),
-    "r_s64": ("(round 3) r_a + first hit, 64 thin steps", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(64)), None),
-    "r_s32n": ("(round 3) r_a + first hit, 32 thin steps up to 8 km", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(32, 8000.0)), None),
-    "r_ls": ("(ablation) P6 (32 thin steps) with every lit step marching to the sun (no light reuse)", tune_cumulus(HEAP1 + EDGE + CAV35 + shell(32)), "seq1+lq2+cls+r33+lp100"),
-    "r_ng96": ("(curve) r_a with 96 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+ng96+r33+lp100"),
-    "r_ng128": ("(curve) r_a with 128 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+ng128+r33+lp100"),
-    "r_ng192": ("(curve) r_a with 192 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+ng192+r33+lp100"),
+    "r_a": ("(round 3) P2 + P1 + P3 (cavity 0.35) at the production march", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), None),
+    "r_s16": ("(round 3) r_a + first hit, 16 thin steps after the entry", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + shell(16)), None),
+    "r_s32": ("(round 3) r_a + first hit, 32 thin steps", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + shell(32)), None),
+    "r_s64": ("(round 3) r_a + first hit, 64 thin steps", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + shell(64)), None),
+    "r_s32n": ("(round 3) r_a + first hit, 32 thin steps up to 8 km", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + shell(32, 8000.0)), None),
+    "r_ls": ("(ablation) P6 (32 thin steps) with every lit step marching to the sun (no light reuse)", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + shell(32)), "seq1+lq2+cls+r33+lp100"),
+    "r_ng96": ("(curve) r_a with 96 grid points", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), "seq1+lq2+ng96+r33+lp100"),
+    "r_ng128": ("(curve) r_a with 128 grid points", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), "seq1+lq2+ng128+r33+lp100"),
+    "r_ng192": ("(curve) r_a with 192 grid points", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), "seq1+lq2+ng192+r33+lp100"),
     # --- CLOUDR1 diagnosis of the pulled ("fun-house") look: the lookup's untiling displacement, the vertical scale, the flow map, straight down and from the side, all at the product's march with 96 grid points ---
     # --- CLOUDR1: the tiling hidden by blending (cloud.noise.blend 1: random offset and cube rotation per lattice cell, variance-preserving blend of the Gaussianised ranks) instead of the displacement ---
-    "bl_a": ("(blend) P2 + P1 + P3 with the blended lookup at the production grid, 96 grid points", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), NG96),
-    "bl_base": ("(blend) the base model (no heap) with the shape volume blended instead of displaced", tune_dotted([("cloud.noise.blend", 1.0)]), None),
-    "bl_dn": ("(blend) straight down, the blended lookup", compose(repose(-90.0), tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), NG96),
-    "bl_sd": ("(blend) from the side, the blended lookup", compose(camera_at(3600.0, -4.0), tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), NG96),
-    "bl_c": ("(blend) the ceiling", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), CEIL),
-    "bl_g": ("(blend) the Phase 0 grid", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), STEPS),
-    "fh_legacy": ("(diagnosis) the heap read at the fully displaced point like the shape volume (cloud.heap.warp -1)", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)]), NG96),
-    "fh_w0": ("(diagnosis) no untiling displacement at all", compose(tune_cumulus(HEAP1 + EDGE + CAV35), lambda job: job.setdefault("noise", {}).__setitem__("noUntile", 1)), NG96),
-    "fh_wa2": ("(diagnosis) the displacement's amplitude 2 scales (6.5)", compose(tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)]), lambda job: job.setdefault("noise", {}).__setitem__("warpAmplitude", 2.0)), NG96),
-    "fh_vs1": ("(diagnosis) the cumulus layer's vertical scale 1 (0.35), heap read as in the legacy lookup", compose(tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0), ("cloud.heap.iso", 0.0)]), cumulus_layer(lambda l: l.__setitem__("verticalScale", 1.0))), NG96),
-    "fh_fl0": ("(diagnosis) the flow map off (every layer's flow amplitude 0)", compose(tune_cumulus(HEAP1 + EDGE + CAV35), lambda job: each_layer(job, lambda l: l.__setitem__("flowAmplitude", 0.0))), NG96),
-    "fh_dn": ("(diagnosis) straight down (pitch -90), the keys now", compose(repose(-90.0), tune_cumulus(HEAP1 + EDGE + CAV35)), NG96),
-    "fh_dnL": ("(diagnosis) straight down, the heap read at the fully displaced point", compose(repose(-90.0), tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)])), NG96),
+    "bl_a": ("(blend) P2 + P1 + P3 with the blended lookup at the production grid, 96 grid points", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), NG96),
+    "bl_base": ("(blend) the base model (no cumuliform) with the shape volume blended instead of displaced", tune_dotted([("cloud.noise.blend", 1.0)]), None),
+    "bl_dn": ("(blend) straight down, the blended lookup", compose(repose(-90.0), tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), NG96),
+    "bl_sd": ("(blend) from the side, the blended lookup", compose(camera_at(3600.0, -4.0), tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), NG96),
+    "bl_c": ("(blend) the ceiling", compose(v_nosmooth, tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)])), CEIL),
+    "bl_g": ("(blend) the Phase 0 grid", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), STEPS),
+    "fh_legacy": ("(diagnosis) the cumuliform read at the fully displaced point like the shape volume (cloud.cumuliform.warp -1)", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.cumuliform.warp", -1.0)]), NG96),
+    "fh_w0": ("(diagnosis) no untiling displacement at all", compose(tune_cumulus(CUMULIFORM1 + EDGE + CAV35), lambda job: job.setdefault("noise", {}).__setitem__("noUntile", 1)), NG96),
+    "fh_wa2": ("(diagnosis) the displacement's amplitude 2 scales (6.5)", compose(tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.cumuliform.warp", -1.0)]), lambda job: job.setdefault("noise", {}).__setitem__("warpAmplitude", 2.0)), NG96),
+    "fh_vs1": ("(diagnosis) the cumulus layer's vertical scale 1 (0.35), cumuliform read as in the legacy lookup", compose(tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.cumuliform.warp", -1.0), ("cloud.cumuliform.iso", 0.0)]), cumulus_layer(lambda l: l.__setitem__("verticalScale", 1.0))), NG96),
+    "fh_fl0": ("(diagnosis) the flow map off (every layer's flow amplitude 0)", compose(tune_cumulus(CUMULIFORM1 + EDGE + CAV35), lambda job: each_layer(job, lambda l: l.__setitem__("flowAmplitude", 0.0))), NG96),
+    "fh_dn": ("(diagnosis) straight down (pitch -90), the keys now", compose(repose(-90.0), tune_cumulus(CUMULIFORM1 + EDGE + CAV35)), NG96),
+    "fh_dnL": ("(diagnosis) straight down, the cumuliform read at the fully displaced point", compose(repose(-90.0), tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.cumuliform.warp", -1.0)])), NG96),
     "fh_dnB": ("(diagnosis) straight down, production base", repose(-90.0), None),
-    "fh_sd": ("(diagnosis) from the side (3600 m, pitch -4), the keys now", compose(camera_at(3600.0, -4.0), tune_cumulus(HEAP1 + EDGE + CAV35)), NG96),
-    "fh_sdL": ("(diagnosis) from the side, the heap read at the fully displaced point", compose(camera_at(3600.0, -4.0), tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)])), NG96),
-    "fh_c": ("(diagnosis) the ceiling, the keys now", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV35)), CEIL),
-    "fh_cL": ("(diagnosis) the ceiling, the heap read at the fully displaced point", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.heap.warp", -1.0)])), CEIL),
-    "r_c256": ("(ablation) r_a with 256 grid points", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+c256+r33+lp100"),
-    "r_cmin6": ("(ablation) r_a with a minimum step of 6 m", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+cmin6+r33+lp100"),
-    "r_cng": ("(ablation) r_a without step and transmittance growth", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+cng+r33+lp100"),
-    "r_c256m": ("(ablation) r_a with 256 grid points and a 6 m minimum step", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+c256+cmin6+r33+lp100"),
-    "r_c256mg": ("(ablation) r_a with 256 grid points, 6 m minimum, no growth", tune_cumulus(HEAP1 + EDGE + CAV35), "seq1+lq2+c256+cmin6+cng+r33+lp100"),
-    "r_g": ("(round 3) r_a at the Phase 0 grid (the reference look)", tune_cumulus(HEAP1 + EDGE + CAV35), STEPS),
-    # --- OPT4 (2026-11-17): the march target at a quarter of the full size (recon.resolution 0.25) against today's third, on today's look (heap, rim 0.5, cavity 0.35, blend, 96 points) ---
-    "o4_now": ("(OPT4) today's look, the march target a third of the full size", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), NG96),
-    "o4_r25": ("(OPT4) today's look, the march target a quarter of the full size", tune_cumulus(HEAP1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), "seq1+lq2+ng96+r25+lp100"),
-    # --- CELLS (2026-11-17): the jobs as e40pp --prepare --state now makes them carry today's cfg (the types' heap, rim and cavity, the cumulus layer's cellPitch); the product march of Medium ---
+    "fh_sd": ("(diagnosis) from the side (3600 m, pitch -4), the keys now", compose(camera_at(3600.0, -4.0), tune_cumulus(CUMULIFORM1 + EDGE + CAV35)), NG96),
+    "fh_sdL": ("(diagnosis) from the side, the cumuliform read at the fully displaced point", compose(camera_at(3600.0, -4.0), tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.cumuliform.warp", -1.0)])), NG96),
+    "fh_c": ("(diagnosis) the ceiling, the keys now", compose(v_nosmooth, tune_cumulus(CUMULIFORM1 + EDGE + CAV35)), CEIL),
+    "fh_cL": ("(diagnosis) the ceiling, the cumuliform read at the fully displaced point", compose(v_nosmooth, tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.cumuliform.warp", -1.0)])), CEIL),
+    "r_c256": ("(ablation) r_a with 256 grid points", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), "seq1+lq2+c256+r33+lp100"),
+    "r_cmin6": ("(ablation) r_a with a minimum step of 6 m", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), "seq1+lq2+cmin6+r33+lp100"),
+    "r_cng": ("(ablation) r_a without step and transmittance growth", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), "seq1+lq2+cng+r33+lp100"),
+    "r_c256m": ("(ablation) r_a with 256 grid points and a 6 m minimum step", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), "seq1+lq2+c256+cmin6+r33+lp100"),
+    "r_c256mg": ("(ablation) r_a with 256 grid points, 6 m minimum, no growth", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), "seq1+lq2+c256+cmin6+cng+r33+lp100"),
+    "r_g": ("(round 3) r_a at the Phase 0 grid (the reference look)", tune_cumulus(CUMULIFORM1 + EDGE + CAV35), STEPS),
+    # --- OPT4 (2026-11-17): the march target at a quarter of the full size (recon.resolution 0.25) against today's third, on today's look (cumuliform, rim 0.5, cavity 0.35, blend, 96 points) ---
+    "o4_now": ("(OPT4) today's look, the march target a third of the full size", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), NG96),
+    "o4_r25": ("(OPT4) today's look, the march target a quarter of the full size", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), "seq1+lq2+ng96+r25+lp100"),
+    # --- CELLS (2026-11-17): the jobs as e40pp --prepare --state now makes them carry today's cfg (the types' cumuliform, rim and cavity, the cumulus layer's cellPitch); the product march of Medium ---
     "c_off": ("(CELLS) the game today: the map's texels as the clouds (cloud.cells 0)", tune_dotted([("cloud.cells", 0.0)]), NG96),
     "c_on": ("(CELLS) single clouds from the map's share on the cumulus layer's 3 km lattice (cloud.cells 1)", tune_dotted([("cloud.cells", 1.0)]), NG96),
     # the soft rim seen from below: the erosion in the rim band (types' erosion halved), the edge band (the cumulus layer's edge softness 0.08 instead of 0.15), both
@@ -257,7 +257,7 @@ VARIANTS = {
     "b_light": ("(BODY) the product's march with the ceiling's light", compose(camera_at(30.0, 4.0), sun_behind(25.0)), LIGHT),
     # b_steps makes the look: its levers one at a time on the product's march (256 grid points, a 6 m minimum step, no step or transmittance growth, early-out 0.001, no leap, every lit step to the sun)
     "b_c256": ("(BODY) the product's march with 256 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+r33+lp100"),
-    # the cause check (2026-11-17): 96 grid points with the heap field's spacing LOD off (cloud.heap.footLod 0: the bulges' mip no longer follows the march spacing)
+    # the cause check (2026-11-17): 96 grid points with the cumuliform field's spacing LOD off (cloud.cumuliform.footLod 0: the bulges' mip no longer follows the march spacing)
     # which part completes the ceiling's shading (the owner saw b_c256/b_steps blotchy against b_ceil): the steps with the light, the steps with the full size
     "b_steps_light": ("(BODY) the ceiling's steps and light at a third of the size", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+cstep+clight+r33+lp100"),
     "b_steps_res": ("(BODY) the ceiling's steps and full-size target, the product's light", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+cstep+r100+jit+acc8+clip1000+lp100"),
@@ -265,8 +265,8 @@ VARIANTS = {
     "b_steps_jit": ("(BODY) the ceiling's steps, the product's light with jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
     # the sun taps read filtered to their segments with a near point tap (gLightFoot, 2026-11-17): at the ceiling's steps and at the product's march
     "b_steps_filt": ("(BODY) the ceiling's steps, the product's light with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
-    "b_prod_filt": ("(BODY) the product's march (96 grid points) with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 1.0)])), "seq1+lq2+ng96+r33+lp100"),
-    "b_ng96_nofoot": ("(BODY) the product's march with 96 grid points, the heap's spacing LOD off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.heap.footLod", 0.0)])), "seq1+lq2+ng96+r33+lp100"),
+    "b_prod_filt": ("(BODY) the product's march (96 grid points) with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cumuliform.footLod", 1.0)])), "seq1+lq2+ng96+r33+lp100"),
+    "b_ng96_nofoot": ("(BODY) the product's march with 96 grid points, the cumuliform's spacing LOD off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cumuliform.footLod", 0.0)])), "seq1+lq2+ng96+r33+lp100"),
     # A4 (owner audit 2026-11-17): cloud.cellTrace leaps the grid points beyond the reach of a body's bulges (the picture should be the grid march's: cover and look equal on and off);
     # cloud.cellFoot filters the body by the sample's footprint (finer bulges fade once the sample is wider than them, the band at least a pixel): the product's march with fewer grid points
     # should come close to the chosen look (t_ceil_off) where the grid alone needed 256.
@@ -376,12 +376,12 @@ VARIANTS = {
     "c_both": ("(CELLS) c_on, erosion halved and edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5)),
                                                                                cumulus_layer(lambda l: l.__setitem__("softness", 0.08))), NG96),
     "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),
-    "s_p2p1p3": ("(Phase 0 grid) P2 + P1 + P3 at the ceiling's grid, minimum step, no growth", tune_cumulus(HEAP1 + EDGE + CAV), STEPS),
-    "s_p2p1p3p6": ("(Phase 0 grid) P2 + P1 + P3 + P6 at the ceiling's grid", tune_cumulus(HEAP1 + EDGE + CAV + FIRSTHIT), STEPS),
+    "s_p2p1p3": ("(Phase 0 grid) P2 + P1 + P3 at the ceiling's grid, minimum step, no growth", tune_cumulus(CUMULIFORM1 + EDGE + CAV), STEPS),
+    "s_p2p1p3p6": ("(Phase 0 grid) P2 + P1 + P3 + P6 at the ceiling's grid", tune_cumulus(CUMULIFORM1 + EDGE + CAV + FIRSTHIT), STEPS),
     "ceil": ("(ceiling) the model without the real-time compromises", v_nosmooth, CEIL),
-    "c_p2": ("(ceiling) P2", compose(v_nosmooth, tune_cumulus(HEAP1)), CEIL),
-    "c_p2p1": ("(ceiling) P2 + P1", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE)), CEIL),
-    "c_p2p1p3": ("(ceiling) P2 + P1 + P3", compose(v_nosmooth, tune_cumulus(HEAP1 + EDGE + CAV)), CEIL),
+    "c_p2": ("(ceiling) P2", compose(v_nosmooth, tune_cumulus(CUMULIFORM1)), CEIL),
+    "c_p2p1": ("(ceiling) P2 + P1", compose(v_nosmooth, tune_cumulus(CUMULIFORM1 + EDGE)), CEIL),
+    "c_p2p1p3": ("(ceiling) P2 + P1 + P3", compose(v_nosmooth, tune_cumulus(CUMULIFORM1 + EDGE + CAV)), CEIL),
     "ero0": ("(a) no erosion (every type's erosion 0): what the erosion contributes now", v_ero0, None),
     "ero2": ("(a) the erosion of every type doubled", v_ero2, None),
     "contrast2": ("(a) the erosion detail's contrast about its mean doubled (cloud.bulge.contrast 2)", tune_dotted([("cloud.bulge.contrast", 2.0)]), None),

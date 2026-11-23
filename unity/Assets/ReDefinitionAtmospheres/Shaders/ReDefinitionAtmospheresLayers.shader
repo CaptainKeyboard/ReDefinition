@@ -52,7 +52,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _LayerD[4];   // noise amount, noise scale (1 / m), erosion, map shift (degrees)
         float4 _LayerE[4];   // emission colour (kind 3)
         sampler2D _TypeProfile;
-        sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's heap preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
+        sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's cumuliform preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
         UNITY_DECLARE_TEX2DARRAY(_TypeMaps);
         // The two maps are RG16 arrays: r the value the map showed when its newest goal arrived, g the goal. The shown value is r moved toward g by at most the layer's reach
@@ -261,9 +261,9 @@ Shader "ReDefinition/AtmospheresLayers"
             gCellW = 1.0;
             gBodyRead = false;
             gNoiseD = _NoiseS.w;
-            gHeapPreset = 0;
-            gHeapCav = 1;
-            gHeapCavK = 0;
+            gCumuliformPreset = 0;
+            gCumuliformCav = 1;
+            gCumuliformCavK = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
             gTopAlt = outer;
             gBaseAlt = inner;
@@ -341,15 +341,15 @@ Shader "ReDefinition/AtmospheresLayers"
             float4 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
             gNoiseSm = lerp(ia.w, ib.w, f);
-            // CLOUDR1: the type's heap preset (the nearer of the two types), the exponent of its density rim and its cavity strength; not read where no type has one.
+            // CLOUDR1: the type's cumuliform preset (the nearer of the two types), the exponent of its density rim and its cavity strength; not read where no type has one.
             float waterPow = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)
             int puff = 0;
-            [branch] if (_HeapP.w > 0.5 || _FieldP.x > 0.5)
+            [branch] if (_CumuliformP.w > 0.5 || _FieldP.x > 0.5)
             {
                 float4 ja = TypeInfo2(li, ta), jb = TypeInfo2(li, tb);
                 puff = (int)(f < 0.5 ? ja.w : jb.w);
-                gHeapPreset = (int)(f < 0.5 ? ja.x : jb.x);
-                gHeapCavK = lerp(ja.z, jb.z, f);
+                gCumuliformPreset = (int)(f < 0.5 ? ja.x : jb.x);
+                gCumuliformCavK = lerp(ja.z, jb.z, f);
                 waterPow = lerp(ja.y > 0 ? ja.y : waterPow, jb.y > 0 ? jb.y : waterPow, f);
             }
             float erosionType = lerp(ia.z, ib.z, f);
@@ -613,9 +613,9 @@ Shader "ReDefinition/AtmospheresLayers"
                     float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
                     float2 typeLight = gTypeLight;
                     float bulgeD = gNoiseD;
-                    // CLOUDR1 P3: the heap volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
+                    // CLOUDR1 P3: the cumuliform volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
                     float cavity = 1.0;
-                    [branch] if (gHeapCavK > 0.0) cavity = pow(max(gHeapCav, 0.02), 4.0 * gHeapCavK);
+                    [branch] if (gCumuliformCavK > 0.0) cavity = pow(max(gCumuliformCav, 0.02), 4.0 * gCumuliformCavK);
                     r.steps += 1;
                     // A4 (cloud.cellShell): within the bulges' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
                     // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap

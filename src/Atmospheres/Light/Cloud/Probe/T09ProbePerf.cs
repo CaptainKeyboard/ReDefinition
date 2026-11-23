@@ -9,10 +9,10 @@ namespace ReDefinition.Atmospheres
     // mode reads "reconstruct" because recon.accumulate is above 0, see ExpectedMode) and the same pass with ONE thing switched off or changed, each variant on the five views:
     //   noero      cloud.light.erosion 0 (the sun's march reads no eroded density)
     //   noblend    cloud.noise.blend 0 (no four-tap blended noise read, the untiling displacement again)
-    //   noheap     the heap volume off on the cumulus layer only (edgePower stays; the cavity goes with the heap, it acts only on a type that reads one)
+    //   nocumuliform     the cumuliform volume off on the cumulus layer only (edgePower stays; the cavity goes with the cumuliform, it acts only on a type that reads one)
     //   nocatmull  recon.catmull 0 (bilinear history)
     //   g48        48 grid points (cloudSamples 48)
-    //   prev       the whole previous look (the viewer's preset "Previous Look": blend 0, erosion 0, Catmull 0, heap 0 / edgePower 2 / cavity 0 on cumulus, 48 points)
+    //   prev       the whole previous look (the viewer's preset "Previous Look": blend 0, erosion 0, Catmull 0, cumuliform 0 / edgePower 2 / cavity 0 on cumulus, 48 points)
     //   noshadow   cloudShadows 0
     //   norays     rtOwnClouds 0 (the ray-side pack; in the K-T2 starts raytracing is Off, so nothing asks for the pack (RtOwnClouds.Tick releases it) and this equals plain: a drift control)
     //   nolight    layers.costDebug 1 (no light march; cost attribution, the picture is wrong)
@@ -67,7 +67,7 @@ namespace ReDefinition.Atmospheres
             {
                 case "noero":
                 case "noblend":
-                case "noheap":
+                case "nocumuliform":
                 case "nocatmull":
                 case "g48":
                 case "prev":
@@ -232,7 +232,7 @@ namespace ReDefinition.Atmospheres
             {
                 case "noero": ForceTuning(CloudLookTuning.TuneLightErosion, 0f); break;
                 case "noblend": ForceTuning(CloudLookTuning.TuneNoiseBlend, 0f); break;
-                case "noheap": ForceTuning(CloudLookTuning.TuneHeapLayer + CumulusLayer(), 0f); break;
+                case "nocumuliform": ForceTuning(CloudLookTuning.TuneCumuliformLayer + CumulusLayer(), 0f); break;
                 case "nocatmull": ForceTuning(OwnCloudOptions.TuneCatmull, 0f); break;
                 case "g48": SetSetting(AtmospheresSettings.Keys.CloudSamples, 48.0); break;
                 case "prev":
@@ -241,7 +241,7 @@ namespace ReDefinition.Atmospheres
                         ForceTuning(CloudLookTuning.TuneNoiseBlend, 0f);
                         ForceTuning(CloudLookTuning.TuneLightErosion, 0f);
                         ForceTuning(OwnCloudOptions.TuneCatmull, 0f);
-                        ForceTuning(CloudLookTuning.TuneHeapLayer + cumulus, 0f);
+                        ForceTuning(CloudLookTuning.TuneCumuliformLayer + cumulus, 0f);
                         ForceTuning(CloudLookTuning.TuneEdgePowerLayer + cumulus, 2f);
                         ForceTuning(CloudLookTuning.TuneCavityLayer + cumulus, 0f);
                         SetSetting(AtmospheresSettings.Keys.CloudSamples, 48.0);

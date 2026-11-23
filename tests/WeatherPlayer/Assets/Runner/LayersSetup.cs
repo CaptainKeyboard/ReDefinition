@@ -49,7 +49,7 @@ namespace ReDefinition.WeatherPlayer
                         ShapeSmoothing = jt.shapeSmoothing,
                         TopClose = jt.topClose >= 0f ? jt.topClose : CloudTypeDef.DefaultTopClose,
                         Outflow = jt.outflow,
-                        Heap = HeapModel.PresetOf(string.IsNullOrEmpty(jt.heap) ? "none" : jt.heap),
+                        Cumuliform = CumuliformModel.PresetOf(string.IsNullOrEmpty(jt.cumuliform) ? "none" : jt.cumuliform),
                         EdgePower = jt.edgePower,
                         Cavity = jt.cavity
                     });
@@ -212,7 +212,7 @@ namespace ReDefinition.WeatherPlayer
                 Vector3 drift = jl.drift != null && jl.drift.Length >= 3 ? V(jl.drift) : Vector3.zero;
                 noise.SetState(l, drift, jl.rise);
             }
-            noise.BlockOnHeap = true;   // CLOUDR1: a frame is never drawn with the shape volume where the heap volume is asked for
+            noise.BlockOnCumuliform = true;   // CLOUDR1: a frame is never drawn with the shape volume where the cumuliform volume is asked for
             if (noise.Switches.Enabled) noise.EnsureReady();
         }
 

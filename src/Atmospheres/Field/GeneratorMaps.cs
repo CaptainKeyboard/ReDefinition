@@ -44,7 +44,7 @@ namespace ReDefinition.Atmospheres
             internal readonly float[] SurfaceTemperature = new float[Width * Height];
             internal readonly float[] WindSpeed = new float[Width * Height];
             // The maps of the new sky (package B, SkyColumn): null until a reader asked for one of their kinds (IsSkyKind), so a body nobody asks them for renders as before.
-            // The heap family's and the sheets' sky shares (SkyColumn.HeapAmount, SheetAmount; their sum is the Coverage map), base and top as shares of the troposphere, instability
+            // The cumuliform family's and the sheets' sky shares (SkyColumn.CumuliformAmount, SheetAmount; their sum is the Coverage map), base and top as shares of the troposphere, instability
             // 0 to 1, uplift 0 to 1.4; all continuous in the UT, so the painters' slew limit applies as to coverage.
             internal float[] ConvectiveAmount, StratiformAmount, ConvectiveBase, ConvectiveTop, Instability, Uplift;
             // The level humidities, the descent, the cells' reach, the deck's share and the stable layer's height share (map kinds 16 to 22), made with the maps above.
@@ -649,13 +649,13 @@ namespace ReDefinition.Atmospheres
                     into.WindSpeed[k] = (float)w.WindSpeed;
                     if (!sky) continue;
                     SkyColumn.Derive(g.Body, ref w, out column);
-                    if (!IsFinite(column.HeapAmount) || !IsFinite(column.SheetAmount) || !IsFinite(column.BaseShare) || !IsFinite(column.TopShare) || !IsFinite(column.RhLow)
+                    if (!IsFinite(column.CumuliformAmount) || !IsFinite(column.SheetAmount) || !IsFinite(column.BaseShare) || !IsFinite(column.TopShare) || !IsFinite(column.RhLow)
                         || !IsFinite(column.RhMid) || !IsFinite(column.RhHigh) || !IsFinite(column.DeckAmount) || !IsFinite(column.StableShare))
                     {
                         s.Trip();
                         return false;
                     }
-                    into.ConvectiveAmount[k] = (float)column.HeapAmount;
+                    into.ConvectiveAmount[k] = (float)column.CumuliformAmount;
                     into.StratiformAmount[k] = (float)column.SheetAmount;
                     into.ConvectiveBase[k] = (float)column.BaseShare;
                     into.ConvectiveTop[k] = (float)column.TopShare;

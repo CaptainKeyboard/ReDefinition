@@ -7,7 +7,7 @@ namespace ReDefinition.Atmospheres
     // cfg, noise amount 1 at 500 m). With this switch on the shadow reads the same share: the shape noise alone, the way the pass's own light march reads it (no erosion:
     // gNoiseLod), from the same volume, scale, offsets and drift (LayerNoise), so that the shader's twin (ReDefinitionAtmospheresCloudShadow.shader includes
     // ReDefinitionAtmospheresNoise.cginc and calls NoiseShareNear) and this class are one definition. The types' height-shaped threshold (the LIFT of the cfg), the types'
-    // heap volumes (with the pass's blend), their edgePower exponents and their shapeSmoothing (the volume's mip) are read as the pass reads them. Not mirrored: the flow map of a body
+    // cumuliform volumes (with the pass's blend), their edgePower exponents and their shapeSmoothing (the volume's mip) are read as the pass reads them. Not mirrored: the flow map of a body
     // that has one, and the height maps' ragged boundary (HeightDensity resolves the type's local base and top as before).
     //
     // The switch is the tuning key shadow.shapeNoise (OwnCloudOptions.ShadowShapeNoise): 1 reads the noise, 0 the map alone (the shadow before E40 FL-FIX).
@@ -61,7 +61,7 @@ namespace ReDefinition.Atmospheres
             return Share(layerIndex, layer, x, y, z, cov, null, 0.0);
         }
 
-        // The same for a type value of the layer's type table (CLOUDR1: the type's heap preset and density exponent; a null table: the layer's, no heap).
+        // The same for a type value of the layer's type table (CLOUDR1: the type's cumuliform preset and density exponent; a null table: the layer's, no cumuliform).
         internal double Share(int layerIndex, CloudLayerDef layer, double x, double y, double z, double cov, LayerTypeTable table, double typeValue)
         {
             return Share(layerIndex, layer, x, y, z, cov, table, typeValue, double.NaN);
@@ -96,12 +96,12 @@ namespace ReDefinition.Atmospheres
             return CloudWater.Pow(share, table == null ? layer.EffectiveWaterPower : layer.EffectiveWaterPowerAt(table, typeValue));
         }
 
-        // The layer's noise parameters for a type value: its heap preset and the type's shapeSmoothing (the mip of the shape volume and the heap read), as the shader's gHeapPreset and gNoiseSm
+        // The layer's noise parameters for a type value: its cumuliform preset and the type's shapeSmoothing (the mip of the shape volume and the cumuliform read), as the shader's gCumuliformPreset and gNoiseSm
         // and CloudCoverOracle take them.
         private NoiseLayerParams TypeParams(int layerIndex, LayerTypeTable table, double typeValue)
         {
             NoiseLayerParams prm = layerParams[layerIndex];
-            prm.HeapPreset = table == null ? 0 : table.HeapAtTypeValue(typeValue);
+            prm.CumuliformPreset = table == null ? 0 : table.CumuliformAtTypeValue(typeValue);
             if (table != null)
             {
                 prm.SmoothingScales = table.SmoothingOf(typeValue);
@@ -128,18 +128,18 @@ namespace ReDefinition.Atmospheres
             double rank = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, 1.0 - coverage, coverage, 1.0, noise ? amount : 0.0, 0.0, false);
             double bulge = CloudLookTuning.CellBulgeFor(layer), band = CloudLookTuning.CellBandFor(layer), gain = CloudLookTuning.CellFineFor(layer);
             double fineX = 0.0, fineY = 0.0;
-            if (gain > 0.0 && layer.EffectiveNoiseScaleM > 0f) FineBulges(volumes.Heap, prm, wx, wy, wz, out fineX, out fineY);
+            if (gain > 0.0 && layer.EffectiveNoiseScaleM > 0f) FineBulges(volumes.Cumuliform, prm, wx, wy, wz, out fineX, out fineY);
             double s = CloudCells.CellBody(read, h, rank, fineX, fineY, (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), bulge, band, gain);
             if (s <= 0.0) return 0.0;
             return CloudWater.Pow(s, layer.EffectiveWaterPowerAt(table, typeValue));
         }
 
-        // The finer bulge octaves of a single cloud's body (the shader's CellFineBulges): the heap field of preset 1 (the shape volume's green channel on the GPU) read straight at 0.37 and 0.137
-        // of its period, at the lattice's true vertical scale, each centred on 0. No heap volume (no type asked for a heap preset): both 0.
-        private static void FineBulges(HeapVolumeSet heap, NoiseLayerParams prm, double px, double py, double pz, out double fine1, out double fine2)
+        // The finer bulge octaves of a single cloud's body (the shader's CellFineBulges): the cumuliform field of preset 1 (the shape volume's green channel on the GPU) read straight at 0.37 and 0.137
+        // of its period, at the lattice's true vertical scale, each centred on 0. No cumuliform volume (no type asked for a cumuliform preset): both 0.
+        private static void FineBulges(CumuliformVolumeSet cumuliform, NoiseLayerParams prm, double px, double py, double pz, out double fine1, out double fine2)
         {
             fine1 = fine2 = 0.0;
-            if (heap == null || heap.Levels == null || heap.Levels.Length == 0) return;
+            if (cumuliform == null || cumuliform.Levels == null || cumuliform.Levels.Length == 0) return;
             prm.Untile = false;
             prm.FlowX = prm.FlowY = prm.FlowZ = 0.0;
             double qx, qy, qz;
@@ -149,10 +149,10 @@ namespace ReDefinition.Atmospheres
             qx += px * iso;
             qy += py * iso;
             qz += pz * iso;
-            double period = HeapModel.PeriodScales * prm.ScaleM;
+            double period = CumuliformModel.PeriodScales * prm.ScaleM;
             double p1 = 0.37 * period, p2 = 0.137 * period;
-            fine1 = CloudShapeModel.Trilinear(heap.Levels[0], heap.N, 4, 0, qx / p1 + 0.31, qy / p1 + 0.57, qz / p1 + 0.83) - 0.5;
-            fine2 = CloudShapeModel.Trilinear(heap.Levels[0], heap.N, 4, 0, qx / p2 + 0.71, qy / p2 + 0.13, qz / p2 + 0.47) - 0.5;
+            fine1 = CloudShapeModel.Trilinear(cumuliform.Levels[0], cumuliform.N, 4, 0, qx / p1 + 0.31, qy / p1 + 0.57, qz / p1 + 0.83) - 0.5;
+            fine2 = CloudShapeModel.Trilinear(cumuliform.Levels[0], cumuliform.N, 4, 0, qx / p2 + 0.71, qy / p2 + 0.13, qz / p2 + 0.47) - 0.5;
         }
     }
 }

@@ -6,9 +6,9 @@ using ReDefinition.Tests.Atmospheres.T09;
 
 namespace ReDefinition.Tests.Atmospheres.T10
 {
-    // CLOUDR1: the per-type cfg keys heap (P2), edgePower (P1) and cavity (P3), their defaults (today's pass), the global override keys and the cover meaning that follows the exponent.
+    // CLOUDR1: the per-type cfg keys cumuliform (P2), edgePower (P1) and cavity (P3), their defaults (today's pass), the global override keys and the cover meaning that follows the exponent.
     [TestClass]
-    public class CloudHeapKeysTests
+    public class CloudCumuliformKeysTests
     {
         private static int frame = 8100000;
 
@@ -32,27 +32,27 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             BodyParseResult r = CloudLayerSchemaTests.Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;"
                 + "TYPE{name = Plain;baseShare = 0;topShare = 1;" + Prof + "}"
-                + "TYPE{name = Heap;baseShare = 0;topShare = 1;heap = bulge;edgePower = 0.5;cavity = 0.7;" + Prof + "}"
-                + "TYPE{name = Rough;baseShare = 0;topShare = 1;heap = Rough;" + Prof + "}"
-                + "TYPE{name = Bad;baseShare = 0;topShare = 1;heap = nonsense;" + Prof + "}}");
+                + "TYPE{name = Cumuliform;baseShare = 0;topShare = 1;cumuliform = bulge;edgePower = 0.5;cavity = 0.7;" + Prof + "}"
+                + "TYPE{name = Rough;baseShare = 0;topShare = 1;cumuliform = Rough;" + Prof + "}"
+                + "TYPE{name = Bad;baseShare = 0;topShare = 1;cumuliform = nonsense;" + Prof + "}}");
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
             CloudLayerSpec a = r.Climate.Clouds.Layers.Single();
-            Assert.AreEqual(0, a.Types[0].Heap);
+            Assert.AreEqual(0, a.Types[0].Cumuliform);
             Assert.AreEqual(0f, a.Types[0].EdgePower);
             Assert.AreEqual(0f, a.Types[0].Cavity);
-            Assert.AreEqual(1, a.Types[1].Heap);
+            Assert.AreEqual(1, a.Types[1].Cumuliform);
             Assert.AreEqual(0.5f, a.Types[1].EdgePower, 1e-6f);
             Assert.AreEqual(0.7f, a.Types[1].Cavity, 1e-6f);
-            Assert.AreEqual(2, a.Types[2].Heap);
-            Assert.AreEqual(0, a.Types[3].Heap, "an unknown preset is none");
+            Assert.AreEqual(2, a.Types[2].Cumuliform);
+            Assert.AreEqual(0, a.Types[3].Cumuliform, "an unknown preset is none");
             CloudLayerDef def = a.Build(1);
-            Assert.AreEqual(1, def.Types[1].Heap);
+            Assert.AreEqual(1, def.Types[1].Cumuliform);
             Assert.AreEqual(0.5f, def.Types[1].EdgePower, 1e-6f);
             Assert.AreEqual(0.7f, def.Types[1].Cavity, 1e-6f);
         }
 
         [TestMethod]
-        public void WithoutTheKeysEveryTypeKeepsTheLayersExponentAndTheHeapIsOff()
+        public void WithoutTheKeysEveryTypeKeepsTheLayersExponentAndTheCumuliformVolumeIsOff()
         {
             foreach (CloudLayerDef layer in new[] { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() })
             {
@@ -60,7 +60,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 for (int t = 0; t < layer.Types.Count; t++)
                 {
                     Assert.AreEqual(layer.EffectiveWaterPower, layer.EffectiveWaterPowerOf(layer.Types[t]), 0f, layer.Name);
-                    Assert.AreEqual(0, table.HeapOfType(t));
+                    Assert.AreEqual(0, table.CumuliformOfType(t));
                     Assert.AreEqual(0f, table.EdgeOfType(t));
                     Assert.AreEqual(0f, table.CavityOfType(t));
                 }
@@ -99,22 +99,22 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
-        public void TheGlobalOverridesForceHeapExponentAndCavity()
+        public void TheGlobalOverridesForceCumuliformExponentAndCavity()
         {
             CloudLayerDef layer = CloudLookFixtures.Cumulus();
-            layer.Types[1].Heap = 1;
+            layer.Types[1].Cumuliform = 1;
             layer.Types[1].Cavity = 0.6f;
             var table = new LayerTypeTable(layer);
-            Assert.AreEqual(1, table.HeapOfType(1));
-            Assert.AreEqual(0, table.HeapOfType(2));
+            Assert.AreEqual(1, table.CumuliformOfType(1));
+            Assert.AreEqual(0, table.CumuliformOfType(2));
             Assert.AreEqual(0.6f, table.CavityOfType(1), 1e-6f);
-            Assert.AreEqual(0f, table.CavityOfType(2), 0f, "no heap, no cavity");
-            Set(CloudLookTuning.TuneHeap, 0f);
-            Assert.AreEqual(0, table.HeapOfType(1), "cloud.heap 0: none anywhere");
+            Assert.AreEqual(0f, table.CavityOfType(2), 0f, "no cumuliform, no cavity");
+            Set(CloudLookTuning.TuneCumuliform, 0f);
+            Assert.AreEqual(0, table.CumuliformOfType(1), "cloud.cumuliform 0: none anywhere");
             Assert.AreEqual(0f, table.CavityOfType(1), 0f);
-            Set(CloudLookTuning.TuneHeap, 2f);
-            Assert.AreEqual(2, table.HeapOfType(0));
-            Assert.AreEqual(2, table.HeapAtTypeValue(0.0));
+            Set(CloudLookTuning.TuneCumuliform, 2f);
+            Assert.AreEqual(2, table.CumuliformOfType(0));
+            Assert.AreEqual(2, table.CumuliformAtTypeValue(0.0));
             Set(CloudLookTuning.TuneCavity, 0.25f);
             Assert.AreEqual(0.25f, table.CavityOfType(3), 1e-6f);
             Set(CloudLookTuning.TuneEdgePower, 0.7f);
@@ -122,7 +122,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.7f, layer.EffectiveWaterPowerOf(layer.Types[3]), 1e-6f);
             Tuning.ClearOverrides();
             Tuning.Instance.BeginFrame(++frame);
-            Assert.AreEqual(1, table.HeapOfType(1));
+            Assert.AreEqual(1, table.CumuliformOfType(1));
             Assert.AreEqual(0f, table.EdgeOfType(3), 0f);
         }
     }

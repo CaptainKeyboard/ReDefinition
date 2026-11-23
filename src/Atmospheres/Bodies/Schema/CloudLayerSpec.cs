@@ -59,8 +59,8 @@ namespace ReDefinition.Atmospheres
         internal CloudClimateSpec Climate { get; set; }
         // The type's own smoothing of the shape noise (cfg key shapeSmoothing; below 0: the layer's): see CloudTypeDef.ShapeSmoothing.
         internal float ShapeSmoothing { get; set; } = -1f;
-        // CLOUDR1: the heap preset (cfg key heap), the exponent of the density rim (edgePower, 0: the layer's waterPower) and the cavity strength (cavity): see CloudTypeDef.
-        internal int Heap { get; set; }
+        // CLOUDR1: the cumuliform preset (cfg key cumuliform), the exponent of the density rim (edgePower, 0: the layer's waterPower) and the cavity strength (cavity): see CloudTypeDef.
+        internal int Cumuliform { get; set; }
         internal float EdgePower { get; set; }
         internal float Cavity { get; set; }
         // CLOUD FIELD: the puffy class of the type (cfg key puff): see CloudTypeDef.Puff.
@@ -93,7 +93,7 @@ namespace ReDefinition.Atmospheres
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate,
-                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, Heap = Heap, EdgePower = EdgePower, Cavity = Cavity, Puff = Puff
+                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Puff = Puff
             };
         }
     }

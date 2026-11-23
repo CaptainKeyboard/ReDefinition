@@ -33,9 +33,9 @@ namespace ReDefinition.WeatherPlayer
         public float topClose = -1f;
         // How much a tower of the type feeds an anvil (E40 CB; the cfg key outflow).
         public float outflow;
-        // The type's heap volume, rim exponent and cavity (CLOUDR1; the cfg keys heap, edgePower, cavity): as the game's type has them, so the replay draws the types the game draws
-        // (before CELLS the jobs set them for a whole layer through the tuning keys cloud.heap.layer.<name>, which also gave stratocumulus and altocumulus the heap).
-        public string heap = "none";
+        // The type's cumuliform volume, rim exponent and cavity (CLOUDR1; the cfg keys cumuliform, edgePower, cavity): as the game's type has them, so the replay draws the types the game draws
+        // (before CELLS the jobs set them for a whole layer through the tuning keys cloud.cumuliform.layer.<name>, which also gave stratocumulus and altocumulus the cumuliform).
+        public string cumuliform = "none";
         public float edgePower, cavity;
     }
 

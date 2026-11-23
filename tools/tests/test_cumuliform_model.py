@@ -1,5 +1,5 @@
-"""CLOUDR1 P2: the NumPy twin of the heap volume (tools/weather_metrics/noise_model.py gen_heap_levels, heap_value) against the numbers the C# twin
-(src/Atmospheres/Render/Layers/Noise/HeapVolumes.cs, tests HeapVolumeTests) is checked against, and the scale-invariance of the cascade."""
+"""CLOUDR1 P2: the NumPy twin of the cumuliform volume (tools/weather_metrics/noise_model.py gen_cumuliform_levels, cumuliform_value) against the numbers the C# twin
+(src/Atmospheres/Render/Layers/Noise/CumuliformVolumes.cs, tests CumuliformVolumeTests) is checked against, and the scale-invariance of the cascade."""
 import os
 import sys
 import unittest
@@ -26,10 +26,10 @@ def slice_slope(volume, lo, hi):
     return float(np.polyfit(np.log(ks), np.log(p), 1)[0])
 
 
-class HeapModelTests(unittest.TestCase):
+class CumuliformModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.levels = nm.gen_heap_levels(16, 1)
+        cls.levels = nm.gen_cumuliform_levels(16, 1)
 
     def test_golden_numbers_of_the_csharp_twin(self):
         self.assertEqual(5, len(self.levels))
@@ -40,9 +40,9 @@ class HeapModelTests(unittest.TestCase):
 
     def test_trilinear_read_golden(self):
         pts = np.array([[1200.3, -800.7, 3400.1], [-5000.0, 2500.5, 17.9], [333.3, 444.4, 555.5]])
-        got = nm.heap_value(self.levels, pts, 250.0, 1, 0.0)
+        got = nm.cumuliform_value(self.levels, pts, 250.0, 1, 0.0)
         self.assertTrue(np.allclose(got, [0.247501074448, 0.734921386667, 0.944623093238], atol=1e-9))
-        got = nm.heap_value(self.levels, pts, 250.0, 2, 1.5)
+        got = nm.cumuliform_value(self.levels, pts, 250.0, 2, 1.5)
         self.assertTrue(np.allclose(got, [0.493901937328, 0.670728404706, 0.526840985866], atol=1e-9))
 
     def test_rank_uniform(self):
@@ -51,9 +51,9 @@ class HeapModelTests(unittest.TestCase):
         self.assertTrue(np.all(np.abs(hist / field.size - 0.125) < 0.03))
 
     def test_octave_ladder_has_lacunarity_two(self):
-        self.assertEqual([2, 4, 8, 16], nm.heap_octaves(64))
-        self.assertEqual([2, 4, 8, 16, 32], nm.heap_octaves(128))
-        self.assertEqual([2], nm.heap_octaves(8))
+        self.assertEqual([2, 4, 8, 16], nm.cumuliform_octaves(64))
+        self.assertEqual([2, 4, 8, 16, 32], nm.cumuliform_octaves(128))
+        self.assertEqual([2], nm.cumuliform_octaves(8))
 
 
 class ScaleInvarianceTests(unittest.TestCase):
@@ -61,8 +61,8 @@ class ScaleInvarianceTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.bulge = nm.heap_field(64, 64, nm.HEAP_HURST[0], 1)
-        cls.rough = nm.heap_field(64, 64, nm.HEAP_HURST[1], 18)
+        cls.bulge = nm.cumuliform_field(64, 64, nm.CUMULIFORM_HURST[0], 1)
+        cls.rough = nm.cumuliform_field(64, 64, nm.CUMULIFORM_HURST[1], 18)
 
     def test_spectrum_follows_the_nominal_power_law_over_the_whole_range(self):
         # Hurst 0.65: P(k) falls as k^-(2 H + 2) = k^-3.3 (measured -3.22 over k = 2..16). The bands are not equal: the octaves are cellular (a Poisson floor at low k, a

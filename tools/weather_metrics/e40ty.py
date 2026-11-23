@@ -141,9 +141,9 @@ def cfg_extras():
                 keys = lift_keys(t)
                 tk[e40o.val(t, "name")]["liftX"] = [k[0] for k in keys]
                 tk[e40o.val(t, "name")]["liftY"] = [k[1] for k in keys]
-            # CLOUDR1: the type's heap preset (a name), rim exponent and cavity, as the game's type reads them (LayersJobType.heap, edgePower, cavity)
-            if e40o.val(t, "heap") is not None:
-                tk[e40o.val(t, "name")]["heap"] = str(e40o.val(t, "heap")).strip()
+            # CLOUDR1: the type's cumuliform preset (a name), rim exponent and cavity, as the game's type reads them (LayersJobType.cumuliform, edgePower, cavity)
+            if e40o.val(t, "cumuliform") is not None:
+                tk[e40o.val(t, "name")]["cumuliform"] = str(e40o.val(t, "cumuliform")).strip()
             for k in ("edgePower", "cavity"):
                 if e40o.val(t, k) is not None:
                     tk[e40o.val(t, "name")][k] = float(e40o.val(t, k))

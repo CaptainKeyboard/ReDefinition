@@ -32,7 +32,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             int from = int.Parse(fromText, CultureInfo.InvariantCulture), to = int.Parse(toText, CultureInfo.InvariantCulture);
             using (var w = new StreamWriter(outFile))
             {
-                w.WriteLine("ut,cover,heap,sheet,deck,base,top,stable,rhLow,rhMid,rhHigh,reach,precip,discCover,discHeap,discSheet,discReachMax,discReachKm");
+                w.WriteLine("ut,cover,cumuliform,sheet,deck,base,top,stable,rhLow,rhMid,rhHigh,reach,precip,discCover,discHeap,discSheet,discReachMax,discReachKm");
                 for (int k = from; k <= to; k++)
                 {
                     foreach (double hour in new[] { 0.0, -2.0 * 3600.0, 2.0 * 3600.0 })
@@ -55,7 +55,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                             g.Sample(lat * Math.PI / 180.0, lon * Math.PI / 180.0, 0.0, ut, out v, true);
                             SkyColumn.Derive(g.Body, ref v, out s);
                             sc += v.Coverage;
-                            sh += s.HeapAmount;
+                            sh += s.CumuliformAmount;
                             ss += s.SheetAmount;
                             if (v.CellReach01 > rmax)
                             {
@@ -66,7 +66,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         }
                         w.WriteLine(string.Join(",", new[]
                         {
-                            ut.ToString("R", CultureInfo.InvariantCulture), F(wx.Coverage), F(c.HeapAmount), F(c.SheetAmount), F(c.DeckAmount), F(c.BaseM), F(c.TopM), F(c.StableM),
+                            ut.ToString("R", CultureInfo.InvariantCulture), F(wx.Coverage), F(c.CumuliformAmount), F(c.SheetAmount), F(c.DeckAmount), F(c.BaseM), F(c.TopM), F(c.StableM),
                             F(c.RhLow), F(c.RhMid), F(c.RhHigh), F(wx.CellReach01), F(wx.PrecipMmH), F(sc / n), F(sh / n), F(ss / n), F(rmax), F(rKm)
                         }));
                     }

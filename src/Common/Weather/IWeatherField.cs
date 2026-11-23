@@ -38,7 +38,7 @@ namespace ReDefinition.Core
         WindSpeed = 8,
         // What the ground is under the sky (E40 L3): 0 over open sea, 0.5 over lowland, up to 1 over high ground (terrain 3000 m and more above the sea). Static per body.
         Surface = 9,
-        // The new sky (package B; no reader yet). The share of the sky the heap family (cumulus and cumulonimbus) covers, 0 to 1; with StratiformAmount it splits Coverage.
+        // The new sky (package B; no reader yet). The share of the sky the cumuliform family (cumulus and cumulonimbus) covers, 0 to 1; with StratiformAmount it splits Coverage.
         ConvectiveAmount = 10,
         // The convective base (lifting condensation level) and the convective top, as shares of the body's troposphere, 0 to 1.
         ConvectiveBase = 11,

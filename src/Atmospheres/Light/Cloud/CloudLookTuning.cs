@@ -48,8 +48,8 @@ namespace ReDefinition.Atmospheres
         private static long seenVersion = -1;
         private static float sigma = 1f, softness = 1f, noiseSize = 1f, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
         private static float cellKm, cellLat, cellLon;
-        private static float heapForce = -1f, edgeForce, cavityForce = -1f, heapFoot = 1f, heapIso = 1f;
-        // cloud.field as last read (the type table's heap, edge and cavity follow it, LayerDensity: a change must re-upload the table).
+        private static float cumuliformForce = -1f, edgeForce, cavityForce = -1f, cumuliformFoot = 1f, cumuliformIso = 1f;
+        // cloud.field as last read (the type table's cumuliform, edge and cavity follow it, LayerDensity: a change must re-upload the table).
         private static float fieldState = -1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -99,17 +99,17 @@ namespace ReDefinition.Atmospheres
             h = float.IsNaN(h) || float.IsInfinity(h) ? -1f : h < 0f ? -1f : h > 1.5f ? 2f : h > 0f ? 1f : 0f;
             float hs = Clean(Tuning.Get(TuneHazeStrength, 1f), 1f, 0f, 100f);
             float ck = Clean(Tuning.Get(TuneCellKm, 0f), 0f, 0f, 1e5f), cla = Clean(Tuning.Get(TuneCellLat, 0f), 0f, -90f, 90f), clo = Clean(Tuning.Get(TuneCellLon, 0f), 0f, -360f, 360f);
-            float hf = Clean(Tuning.Get(TuneHeap, -1f), -1f, -1f, HeapModel.PresetCount), ef = Clean(Tuning.Get(TuneEdgePower, 0f), 0f, 0f, 6f);
-            float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneHeapFootLod, 1f), 1f, 0f, 1f), hi = Clean(Tuning.Get(TuneHeapIso, 1f), 1f, 0f, 1f);
+            float hf = Clean(Tuning.Get(TuneCumuliform, -1f), -1f, -1f, CumuliformModel.PresetCount), ef = Clean(Tuning.Get(TuneEdgePower, 0f), 0f, 0f, 6f);
+            float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneCumuliformFootLod, 1f), 1f, 0f, 1f), hi = Clean(Tuning.Get(TuneCumuliformIso, 1f), 1f, 0f, 1f);
             hf = hf < 0f ? -1f : (float)Math.Round(hf);
             float fd = Tuning.Get(TuneField, FieldDefault) > 0.5f ? 1f : 0f;
-            bool changed = hf != heapForce || ef != edgeForce || cf != cavityForce || ft != heapFoot || hi != heapIso || fd != fieldState;
+            bool changed = hf != cumuliformForce || ef != edgeForce || cf != cavityForce || ft != cumuliformFoot || hi != cumuliformIso || fd != fieldState;
             fieldState = fd;
-            heapIso = hi;
-            heapForce = hf;
+            cumuliformIso = hi;
+            cumuliformForce = hf;
             edgeForce = ef;
             cavityForce = cf;
-            heapFoot = ft;
+            cumuliformFoot = ft;
             changed |= s != sigma || e != softness || z != noiseSize || c != combine || f != fadeFar || n != fadeNearShare
                            || h != farHaze || hs != hazeStrength || ck != cellKm || cla != cellLat || clo != cellLon;
             cellKm = ck;
@@ -131,7 +131,7 @@ namespace ReDefinition.Atmospheres
             changed |= Reread(DeckRuleByName, TuneDeckRule, -1f, -1f, 1f);
             changed |= Reread(DeckPrecipByName, TuneDeckPrecip, -1f, -1f, 1f);
             changed |= Reread(DeckFogByName, TuneDeckFog, -1f, -1f, 1f);
-            changed |= Reread(HeapByName, TuneHeapLayer, -1f, -1f, HeapModel.PresetCount);
+            changed |= Reread(CumuliformByName, TuneCumuliformLayer, -1f, -1f, CumuliformModel.PresetCount);
             changed |= Reread(EdgeByName, TuneEdgePowerLayer, 0f, 0f, 6f);
             changed |= Reread(CavityByName, TuneCavityLayer, -1f, -1f, 1f);
             changed |= Reread(SigmaByName, TuneSigma + ".", 1f, 0.01f, 100f);
@@ -233,24 +233,24 @@ namespace ReDefinition.Atmospheres
             return v > 0f ? v : compiled;
         }
 
-        // --- The heap volume (package CLOUDR1): global overrides of the per-type cfg keys heap, edgePower and cavity, for the A/B of the player and the viewer. Every key is neutral at its default. ---
-        //   cloud.heap            -1: each type's cfg key heap; 0: no heap anywhere (the shape volume of today); 1, 2: that preset for every type
+        // --- The cumuliform volume (package CLOUDR1): global overrides of the per-type cfg keys cumuliform, edgePower and cavity, for the A/B of the player and the viewer. Every key is neutral at its default. ---
+        //   cloud.cumuliform            -1: each type's cfg key cumuliform; 0: no cumuliform anywhere (the shape volume of today); 1, 2: that preset for every type
         //   cloud.edgePower       0: each type's cfg key edgePower (else the layer's waterPower); above 0: this exponent of the density rim for every type of a soft layer
-        //   cloud.cavity          -1: each type's cfg key cavity; 0 to 1: this strength for every type that reads a heap
-        //   cloud.heap.iso        1: the heap is read at the lattice's true vertical scale, so a layer's verticalScale does not stretch the rounded heaps into columns; 0: as the shape volume is read
-        //   cloud.heap.footLod    1: the march's sample spacing raises the heap volume's mip level (an octave is dropped only where it is below the footprint); 0: only the smoothing does
-        internal const string TuneHeap = "cloud.heap", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneHeapFootLod = "cloud.heap.footLod", TuneHeapIso = "cloud.heap.iso", TuneHeapDetail = "cloud.heap.detail", TuneNoiseBlend = "cloud.noise.blend", TuneNoiseBlendExp = "cloud.noise.blendExp", TuneNoiseBlendCell = "cloud.noise.blendCell";
+        //   cloud.cavity          -1: each type's cfg key cavity; 0 to 1: this strength for every type that reads a cumuliform
+        //   cloud.cumuliform.iso        1: the cumuliform is read at the lattice's true vertical scale, so a layer's verticalScale does not stretch the rounded mounds into columns; 0: as the shape volume is read
+        //   cloud.cumuliform.footLod    1: the march's sample spacing raises the cumuliform volume's mip level (an octave is dropped only where it is below the footprint); 0: only the smoothing does
+        internal const string TuneCumuliform = "cloud.cumuliform", TuneEdgePower = "cloud.edgePower", TuneCavity = "cloud.cavity", TuneCumuliformFootLod = "cloud.cumuliform.footLod", TuneCumuliformIso = "cloud.cumuliform.iso", TuneCumuliformDetail = "cloud.cumuliform.detail", TuneNoiseBlend = "cloud.noise.blend", TuneNoiseBlendExp = "cloud.noise.blendExp", TuneNoiseBlendCell = "cloud.noise.blendCell";
 
         // The same per layer (the layer's name after the prefix): the layer's own value wins over the global key, so a look can be tried on one layer (the cumulus layer) and the decks stay as they were.
-        internal const string TuneHeapLayer = "cloud.heap.layer.", TuneEdgePowerLayer = "cloud.edgePower.layer.", TuneCavityLayer = "cloud.cavity.layer.";
-        private static readonly Dictionary<string, float> HeapByName = new Dictionary<string, float>(StringComparer.Ordinal);
+        internal const string TuneCumuliformLayer = "cloud.cumuliform.layer.", TuneEdgePowerLayer = "cloud.edgePower.layer.", TuneCavityLayer = "cloud.cavity.layer.";
+        private static readonly Dictionary<string, float> CumuliformByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> EdgeByName = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> CavityByName = new Dictionary<string, float>(StringComparer.Ordinal);
 
-        internal static int HeapOverrideFor(string layerName)
+        internal static int CumuliformOverrideFor(string layerName)
         {
-            float v = Named(HeapByName, TuneHeapLayer, layerName, -1f, -1f, HeapModel.PresetCount);
-            return v >= 0f ? (int)Math.Round(v) : HeapOverride;
+            float v = Named(CumuliformByName, TuneCumuliformLayer, layerName, -1f, -1f, CumuliformModel.PresetCount);
+            return v >= 0f ? (int)Math.Round(v) : CumuliformOverride;
         }
 
         internal static float EdgePowerOverrideFor(string layerName)
@@ -265,13 +265,13 @@ namespace ReDefinition.Atmospheres
             return v >= 0f ? v : CavityOverride;
         }
 
-        internal static int HeapOverride { get { Refresh(); return (int)heapForce; } }
+        internal static int CumuliformOverride { get { Refresh(); return (int)cumuliformForce; } }
         internal static float EdgePowerOverride { get { Refresh(); return edgeForce; } }
         internal static float CavityOverride { get { Refresh(); return cavityForce; } }
-        internal static bool HeapFootLod { get { Refresh(); return heapFoot > 0.5f; } }
-        // cloud.heap.detail: the Hurst exponent of the erosion detail volume's octaves (2^(-H k): the heap's cascade continued; 0: the compiled weights, whose finest octave is the heaviest). Read when the
+        internal static bool CumuliformFootLod { get { Refresh(); return cumuliformFoot > 0.5f; } }
+        // cloud.cumuliform.detail: the Hurst exponent of the erosion detail volume's octaves (2^(-H k): the cumuliform's cascade continued; 0: the compiled weights, whose finest octave is the heaviest). Read when the
         // volumes are generated (the first frame of a scene), not live.
-        // cloud.noise.blend (the layer pass reads it since the compile budget package CLOUDR2 P4: the earlier builds with it crashed the Unity 2019.4 shader compiler at 1190 s and 833 s): 1 hides the tiling of the shape and heap volumes by blending (random offset per lattice cell, variance-preserving, back to a rank: NoiseBlend, the local strain is exactly 1)
+        // cloud.noise.blend (the layer pass reads it since the compile budget package CLOUDR2 P4: the earlier builds with it crashed the Unity 2019.4 shader compiler at 1190 s and 833 s): 1 hides the tiling of the shape and cumuliform volumes by blending (random offset per lattice cell, variance-preserving, back to a rank: NoiseBlend, the local strain is exactly 1)
         // instead of the untiling displacement, which pulls the pattern (1, the default; 0: the displacement). cloud.noise.blendExp is the exponent of the weights (8), cloud.noise.blendCell the lattice
         // cell in periods (1). The erosion detail keeps its displacement.
         // cloud.light.erosion (CLOUDR2 P3): how many of the first taps of the sun's light march read the density with its erosion detail (2, the default; 0: the shape only). The eroded taps are what
@@ -408,8 +408,8 @@ namespace ReDefinition.Atmospheres
             float flags = (CellTrace ? 1f : 0f) + (CellShell ? 4f : 0f);
             return new UnityEngine.Vector4(bulge, band, fine, flags);
         }
-        internal static float HeapDetailHurst { get { return Clean(Tuning.Get(TuneHeapDetail, 0f), 0f, 0f, 2f); } }
-        internal static bool HeapIso { get { Refresh(); return heapIso > 0.5f; } }
+        internal static float CumuliformDetailHurst { get { return Clean(Tuning.Get(TuneCumuliformDetail, 0f), 0f, 0f, 2f); } }
+        internal static bool CumuliformIso { get { Refresh(); return cumuliformIso > 0.5f; } }
 
         // The layer mask of the solo key (cloud.soloLayer): bit n - 1 for a value n from 1 to the largest stack; 0 (every layer) otherwise.
         internal static int SoloMask()

@@ -16,23 +16,23 @@
 // Worley detail, curl distortion, the remap that erodes); the two-phase flow map is the common technique of looped flow maps. The integer
 // hash is lowbias32 (Chris Wellons, public domain).
 //
-// CLOUDR1 (the heap volume, P2/P3): a type with a heap preset reads the macro shape from the green or blue channel of _NoiseShape instead of its red one, a rank-uniform volume of rounded heaps in a cascade of doubled
-// frequencies (HeapVolumes.cs: dome octaves round jittered points, Worley 1996, joined by a polynomial smooth maximum, Quilez; summed with weights 2^(-H k), the spectral synthesis of
+// CLOUDR1 (the cumuliform volume, P2/P3): a type with a cumuliform preset reads the macro shape from the green or blue channel of _NoiseShape instead of its red one, a rank-uniform volume of rounded mounds in a cascade of doubled
+// frequencies (CumuliformVolumes.cs: dome octaves round jittered points, Worley 1996, joined by a polynomial smooth maximum, Quilez; summed with weights 2^(-H k), the spectral synthesis of
 // fractional Brownian fields, Mandelbrot and Van Ness 1968; the shape-by-type volume of Schneider, SIGGRAPH 2015 and "Nubis", SIGGRAPH 2017). Its mip level drops an octave only where the
-// march's footprint exceeds it. Its second half is a baked cavity (ambient occlusion of the heap field) that darkens the creases between lobes. No code of these works is taken.
+// march's footprint exceeds it. Its second half is a baked cavity (ambient occlusion of the cumuliform field) that darkens the creases between lobes. No code of these works is taken.
 #ifndef REDEFINITION_ATMOSPHERES_NOISE
 #define REDEFINITION_ATMOSPHERES_NOISE
 #include "CloudDev.cginc"
 
-sampler3D _NoiseShape;   // the shape volume (R8); once a type asks for a heap preset (CLOUDR1 P2/P3) RGBA8: r the shape, g the heap field of preset 1, b of preset 2, a the cavity of preset 1 (the pass
-                         // has no sampler register left for a texture of its own: ps_4_0 has 16; HeapVolumes.MergeWithShape)
+sampler3D _NoiseShape;   // the shape volume (R8); once a type asks for a cumuliform preset (CLOUDR1 P2/P3) RGBA8: r the shape, g the cumuliform field of preset 1, b of preset 2, a the cavity of preset 1 (the pass
+                         // has no sampler register left for a texture of its own: ps_4_0 has 16; CumuliformVolumes.MergeWithShape)
 sampler3D _NoiseDetail;
 sampler3D _NoiseCurl;
 sampler2D _NoiseFlow;
 sampler2D _NoiseColour;
 float4 _NoiseP;          // x: volumes ready (1), y: untiling, z: curl, w unused (the vertical scale of the lattice is per layer, _NoiseStretch.y)
 float4 _NoiseQ;          // warp amplitude, warp cell, curl amplitude (in noise scales), flow phase 0..1
-float4 _NoiseR;          // shape period, detail period, heap period (in noise scales), w the share of the untiling displacement's horizontal part the heap lookup keeps (HeapModel.WarpShare)
+float4 _NoiseR;          // shape period, detail period, cumuliform period (in noise scales), w the share of the untiling displacement's horizontal part the cumuliform lookup keeps (CumuliformModel.WarpShare)
 float4 _NoiseOffset[4];  // per layer: xyz the offset of the lookup in m (seed and drift), w the layer's seed
 float4 _NoiseLayer[4];   // per layer: x flow amplitude in m (0: no flow map), y flow looped (1) or one phase (0), z colour map strength, w rise of the detail in m
 
@@ -48,15 +48,15 @@ float4 _NoiseT;          // fine octave of the erosion detail (stream T): x its 
 float4 _BulgeP;         // bulge detail (package PUFF; all 0 = the model as it was): x the bulge shading of the direct light (the march scales a sample's direct light by 1 + 2 x (d - mean), d the erosion detail's value there: the bumps catch the light, the crevices between them are shaded; 0: off), y the detail's contrast about
                          // its mean minus 1 (d' = mean + (d - mean) (1 + y)), z the erosion's gain toward the cloud's top (erosion (1 + z h), h the height in the cloud 0..1), w unused
 
-float4 _BlendP;          // CLOUDR1: x the macro shape (shape and heap volume) hides its tiling by blending instead of the untiling displacement (cloud.noise.blend; 0: the displacement), y the exponent of the blend weights, z the lattice cell in periods, w the number of the sun march's first taps that read the eroded density (cloud.light.erosion; 0: the shape only, as it was)
-float4 _HeapP;           // CLOUDR1: x the heap volume is built (0: every type reads the shape volume), y bit 0 the march's spacing raises the heap's mip level (cloud.heap.footLod), bit 1 the heap is read at the lattice's true vertical scale (cloud.heap.iso), z log2 of the heap's voxels per noise scale, w a type has a heap, an edge exponent or a cavity (0: the type info 2 is not read)
+float4 _BlendP;          // CLOUDR1: x the macro shape (shape and cumuliform volume) hides its tiling by blending instead of the untiling displacement (cloud.noise.blend; 0: the displacement), y the exponent of the blend weights, z the lattice cell in periods, w the number of the sun march's first taps that read the eroded density (cloud.light.erosion; 0: the shape only, as it was)
+float4 _CumuliformP;           // CLOUDR1: x the cumuliform volume is built (0: every type reads the shape volume), y bit 0 the march's spacing raises the cumuliform's mip level (cloud.cumuliform.footLod), bit 1 the cumuliform is read at the lattice's true vertical scale (cloud.cumuliform.iso), z log2 of the cumuliform's voxels per noise scale, w a type has a cumuliform, an edge exponent or a cavity (0: the type info 2 is not read)
 
-// The heap preset (1, 2; 0: the shape volume) of the type at the last point LayerDensity was asked for, and the cavity channel and strength there (the march copies them right after its own density read).
-static int gHeapPreset = 0;
-// The untiling displacement of the last NoiseShareAt (m; zero without the warp and with the blend, which reads the undisplaced point): the heap read takes its radial part out and keeps a share of the rest.
+// The cumuliform preset (1, 2; 0: the shape volume) of the type at the last point LayerDensity was asked for, and the cavity channel and strength there (the march copies them right after its own density read).
+static int gCumuliformPreset = 0;
+// The untiling displacement of the last NoiseShareAt (m; zero without the warp and with the blend, which reads the undisplaced point): the cumuliform read takes its radial part out and keeps a share of the rest.
 static float3 gNoiseWarp = 0;
-static float gHeapCav = 1;
-static float gHeapCavK = 0;
+static float gCumuliformCav = 1;
+static float gCumuliformCavK = 0;
 
 // The erosion detail's value at the last point LayerDensity was asked for (the detail's mean where it was not read; PUFF: the march copies it right after its own density read, like gTopAlt).
 static float gNoiseD = 0.5;
@@ -159,7 +159,7 @@ float NzCdf(float x)
     return x > 0.0 ? 1.0 - p : p;
 }
 
-// The blended rank (x) and cavity (y) of the macro shape at the undisplaced lookup point qu: ch 0 the shape volume's red channel, 1 and 2 the heap presets (green, blue; the cavity of preset 1 in alpha).
+// The blended rank (x) and cavity (y) of the macro shape at the undisplaced lookup point qu: ch 0 the shape volume's red channel, 1 and 2 the cumuliform presets (green, blue; the cavity of preset 1 in alpha).
 float2 NoiseBlend(int li, float3 qu, float periodM, float lod, int ch)
 {
     float3 u = qu / (periodM * _BlendP.z);
@@ -215,7 +215,7 @@ float NoiseDetailAt(int li, float3 q, float3 up, float scale, float freq)
 // The share of the column that is cloud at a point for one flow offset.
 float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float coverage, float edge, float amount, float erosion, int light)
 {
-    // OPT2: the untiling displacement (eight hashed corners at every sample) is worked out only where a read takes it: with the blend (cloud.noise.blend) the shape and heap reads take the
+    // OPT2: the untiling displacement (eight hashed corners at every sample) is worked out only where a read takes it: with the blend (cloud.noise.blend) the shape and cumuliform reads take the
     // undisplaced point and only the erosion detail of the rim band below takes the displaced one, so the light march, the cloud shadow and every sample outside the rim band skip it. The blend reads
     // q0 itself instead of (q0 + w) - w, which differs from it by the float rounding of the sum (centimetres at the planet's radius; the CPU twins have q0 exactly).
     float3 q0 = NoiseLookupBase(li, pc, scale, flow);
@@ -225,49 +225,49 @@ float NoiseShareAt(int li, float3 pc, float scale, float3 flow, float cov, float
     float3 q = q0 + gNoiseWarp;
     float lodShape = max(0.0, log2(max(gNoiseSm, 1e-4)) + _NoiseT.w);
     float n;
-    // CLOUDR1 P2: a type with a heap preset reads the macro shape from the heap volume (rank-uniform like the shape volume, so the cover meaning holds). The mip level is the type's smoothing or the
-    // march's spacing, whichever is coarser: an octave of the cascade is dropped only where it is below the footprint (HeapVolumes mips hold the octaves a level can resolve).
-    bool isHeap = gHeapPreset > 0 && _HeapP.x > 0.5;
-    float3 qh = q, qb = q0;   // the point the heap is read at (displaced), the undisplaced point the blend takes
+    // CLOUDR1 P2: a type with a cumuliform preset reads the macro shape from the cumuliform volume (rank-uniform like the shape volume, so the cover meaning holds). The mip level is the type's smoothing or the
+    // march's spacing, whichever is coarser: an octave of the cascade is dropped only where it is below the footprint (CumuliformVolumes mips hold the octaves a level can resolve).
+    bool isCumuliform = gCumuliformPreset > 0 && _CumuliformP.x > 0.5;
+    float3 qh = q, qb = q0;   // the point the cumuliform is read at (displaced), the undisplaced point the blend takes
     float lodUse = lodShape, periodUse = _NoiseR.x * scale;
     int chUse = 0;
-    [branch] if (isHeap)
+    [branch] if (isCumuliform)
     {
-        float lodHeap = max(0.0, log2(max(gNoiseSm, 1e-4)) + _HeapP.z);   // the smoothing in this volume's voxels per noise scale
-        if (fmod(_HeapP.y, 2.0) > 0.5 && gNoiseFoot > 0) lodHeap = max(lodHeap, log2(max(gNoiseFoot / scale, 1e-4)) + _HeapP.z);
+        float lodCumuliform = max(0.0, log2(max(gNoiseSm, 1e-4)) + _CumuliformP.z);   // the smoothing in this volume's voxels per noise scale
+        if (fmod(_CumuliformP.y, 2.0) > 0.5 && gNoiseFoot > 0) lodCumuliform = max(lodCumuliform, log2(max(gNoiseFoot / scale, 1e-4)) + _CumuliformP.z);
         // The levels below 8 voxels are box means that are not rank-uniform (the last is a constant 0.5: a cloud or none), the far view's mean takes over beyond them.
-        lodHeap = min(lodHeap, _HeapP.z);
-        // The untiling displacement stretches what it moves: its radial part would draw the heaps as columns, and all of it as worms. The heap lookup drops the radial part and keeps a share
-        // of the horizontal part (the NumPy and C# twins: HeapLookup); with the blend (cloud.noise.blend) the point is not displaced at all.
+        lodCumuliform = min(lodCumuliform, _CumuliformP.z);
+        // The untiling displacement stretches what it moves: its radial part would draw the mounds as columns, and all of it as worms. The cumuliform lookup drops the radial part and keeps a share
+        // of the horizontal part (the NumPy and C# twins: CumuliformLookup); with the blend (cloud.noise.blend) the point is not displaced at all.
         float3 upw = pc / max(length(pc), 1.0);
         float3 wh = gNoiseWarp - upw * dot(gNoiseWarp, upw);
         qh = q - gNoiseWarp + wh * _NoiseR.w;
-        // The heap is read at the lattice's true vertical scale (_HeapP.y bit 2, cloud.heap.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
-        // draw the rounded heaps as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
-        if (_HeapP.y > 1.5)
+        // The cumuliform is read at the lattice's true vertical scale (_CumuliformP.y bit 2, cloud.cumuliform.iso): a layer's vertical scale (verticalScale) stretches the SHAPE's features along the up, which would
+        // draw the rounded mounds as vertical columns and the base as drips; the compression of NoiseLookup is taken back, as for the erosion detail below.
+        if (_CumuliformP.y > 1.5)
         {
             float rl = max(length(pc), 1.0);
             float3 isoAdd = (pc / rl) * ((1.0 - _NoiseStretch[li].y) * (rl - _PlanetR - 0.5 * (_LayerA[li].x + _LayerA[li].y)));
             qh += isoAdd;
             qb += isoAdd;
         }
-        lodUse = lodHeap;
+        lodUse = lodCumuliform;
         periodUse = _NoiseR.z * scale;
-        chUse = gHeapPreset;
+        chUse = gCumuliformPreset;
     }
-    // CLOUDR2 P2: the macro shape (shape or heap volume) reads at ONE place; with cloud.noise.blend its taps are a loop over the Kuhn tetrahedron's corners (NoiseBlend: the lookup point is not
+    // CLOUDR2 P2: the macro shape (shape or cumuliform volume) reads at ONE place; with cloud.noise.blend its taps are a loop over the Kuhn tetrahedron's corners (NoiseBlend: the lookup point is not
     // displaced, strain 1, the tile not repeated); the compile budget P4 freed is what pays for it.
     [branch] if (DEV(_BlendP.x, 1.0) > 0.5)
     {
         float2 bl = NoiseBlend(li, qb, periodUse, lodUse, chUse);
         n = bl.x;
-        if (isHeap) gHeapCav = chUse == 1 ? bl.y : 1.0;
+        if (isCumuliform) gCumuliformCav = chUse == 1 ? bl.y : 1.0;
     }
-    else if (isHeap)
+    else if (isCumuliform)
     {
         float4 hv = tex3Dlod(_NoiseShape, float4(qh / periodUse, lodUse));
         n = chUse == 1 ? hv.g : hv.b;
-        gHeapCav = chUse == 1 ? hv.a : 1.0;   // the cavity of preset 2 is not on the GPU (one alpha channel)
+        gCumuliformCav = chUse == 1 ? hv.a : 1.0;   // the cavity of preset 2 is not on the GPU (one alpha channel)
     }
     else n = tex3Dlod(_NoiseShape, float4(q / periodUse, lodShape)).r;
     float s = saturate((cov + (n - 0.5) * amount + coverage - 1.0) / edge + 0.5);

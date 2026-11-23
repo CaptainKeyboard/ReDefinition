@@ -7,11 +7,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
     [TestClass]
     public class WeatherMapSkyTests
     {
-        private static WeatherMapSky.Columns One(float heap, float sheet, float baseM, float topM, float rhLow, float rhMid, float rhHigh, float precip = 0f, float deck = 0f)
+        private static WeatherMapSky.Columns One(float cumuliform, float sheet, float baseM, float topM, float rhLow, float rhMid, float rhHigh, float precip = 0f, float deck = 0f)
         {
             return new WeatherMapSky.Columns
             {
-                Width = 1, Height = 1, Cover = new[] { heap + sheet }, Heap = new[] { heap }, Sheet = new[] { sheet }, Deck = new[] { deck }, BaseM = new[] { baseM }, TopM = new[] { topM },
+                Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Sheet = new[] { sheet }, Deck = new[] { deck }, BaseM = new[] { baseM }, TopM = new[] { topM },
                 RhLow = new[] { rhLow }, RhMid = new[] { rhMid }, RhHigh = new[] { rhHigh }, PrecipMmH = new[] { precip }
             };
         }
@@ -28,7 +28,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
             Assert.AreEqual(WeatherMapSky.Role.Deck, WeatherMapSky.RoleOf(layers[0]));
-            Assert.AreEqual(WeatherMapSky.Role.Heap, WeatherMapSky.RoleOf(layers[1]));
+            Assert.AreEqual(WeatherMapSky.Role.Cumuliform, WeatherMapSky.RoleOf(layers[1]));
             Assert.AreEqual(WeatherMapSky.Role.Tall, WeatherMapSky.RoleOf(layers[2]));
             Assert.AreEqual(WeatherMapSky.Role.High, WeatherMapSky.RoleOf(layers[3]));
         }
@@ -52,7 +52,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheHeapGoesToTheTallLayerOnlyWhereItIsDeeperThanTheHeapShell()
+        public void TheCumuliformGoesToTheTallLayerOnlyWhereItIsDeeperThanTheCumuliformShell()
         {
             CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
             WeatherMapSky.Result shallow = Build(layers, One(0.4f, 0f, 1700f, 2500f, 0.5f, 0.5f, 0.5f));

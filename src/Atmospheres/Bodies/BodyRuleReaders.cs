@@ -338,7 +338,7 @@ namespace ReDefinition.Atmospheres
                 HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f),
                 Lift = ProfileCurve(r.Child("LIFT"), "lift"),
                 ShapeSmoothing = r.Float("shapeSmoothing", -1f, -1f, 8f),
-                Heap = HeapModel.PresetOf(r.String("heap", "none")),
+                Cumuliform = CumuliformModel.PresetOf(r.String("cumuliform", "none")),
                 EdgePower = r.Float("edgePower", 0f, 0f, 6f),
                 Cavity = r.Float("cavity", 0f, 0f, 1f),
                 Puff = CloudField.ClassOf(r.String("puff", "none")),

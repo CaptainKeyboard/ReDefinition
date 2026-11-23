@@ -86,15 +86,15 @@ namespace ReDefinition.Atmospheres
         // CloudLayerDef.ShapeSmoothing. A tall type (congestus) needs it, a flat sheet (stratocumulus) wants the volume's fine octaves for its lumps. The GPU reads it from the type
         // info texture's alpha (LayerTypeTable.SmoothingOf).
         internal float ShapeSmoothing { get; set; } = -1f;
-        // CLOUDR1 P2: the heap preset of the type's macro shape (cfg key heap = bulge | rough | none; HeapModel.PresetOf: 0, the shape volume of today). Read by every consumer of the shape.
-        internal int Heap { get; set; }
+        // CLOUDR1 P2: the cumuliform preset of the type's macro shape (cfg key cumuliform = bulge | rough | none; CumuliformModel.PresetOf: 0, the shape volume of today). Read by every consumer of the shape.
+        internal int Cumuliform { get; set; }
         // CLOUDR1 P1: the exponent of the type's density rim (cfg key edgePower; 0: the layer's waterPower). Below 1 the rim turns opaque within a short distance (a crisp outline), above
         // it the rim is a long translucent ramp. The water content at the outline (CloudLayerDef.SoftClosed) and every reader of the share follow it.
         internal float EdgePower { get; set; }
-        // CLOUDR1 P3: how strongly the heap volume's cavity channel darkens the creases between lobes (cfg key cavity, 0 to 1; 0: off): the light factors are cavity^(4 x this).
+        // CLOUDR1 P3: how strongly the cumuliform volume's cavity channel darkens the creases between lobes (cfg key cavity, 0 to 1; 0: off): the light factors are cavity^(4 x this).
         internal float Cavity { get; set; }
         // CLOUD FIELD: the puffy form of the type (cfg key puff = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): where cloud.field is on the weather map's
-        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the bulges of the heap preset); 0: the type is not drawn puffy.
+        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the bulges of the cumuliform preset); 0: the type is not drawn puffy.
         internal int Puff { get; set; }
 
         internal double LiftAt(double h)

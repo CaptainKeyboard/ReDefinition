@@ -90,7 +90,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
         }
 
-        // A key whose layer name stands between a prefix and a suffix (cloud.heap.layer.<name>.edgePower): the suffix is empty for the keys that end with the name.
+        // A key whose layer name stands between a prefix and a suffix (cloud.cumuliform.layer.<name>.edgePower): the suffix is empty for the keys that end with the name.
         internal CloudLayerKey(string prefix, string suffix, float compiledDefault, string note, KeySection section, KeyLiveness liveness, KeyMarker marker, bool flag,
                                float min = float.NaN, float max = float.NaN)
         {
@@ -217,7 +217,7 @@ namespace ReDefinition.Atmospheres.Viewer
         }
     }
 
-    // A per-layer key's value in a preset: the key's prefix (cloud.heap.layer.) and suffix (empty for a key that ends with the name), the end of the names of the layers it is set on
+    // A per-layer key's value in a preset: the key's prefix (cloud.cumuliform.layer.) and suffix (empty for a key that ends with the name), the end of the names of the layers it is set on
     // (case ignored; empty: every layer) and the value.
     internal sealed class PresetLayerValue
     {
@@ -305,7 +305,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneBulgeTop, 0f, KeyLiveness.FrameHistory, "erosion gain toward the cloud's top"),
             N(CloudLookTuning.TuneBulgeFine, -1f, KeyLiveness.FrameHistory, "weight of the fine octave, -1 compiled"),
             N(CloudLookTuning.TuneBulgeFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
-            // The keys of the new cloud model (heap, edgePower, cavity, noise blend) are registered by CloudModelKeys (a CloudKeySource), not listed here.
+            // The keys of the new cloud model (cumuliform, edgePower, cavity, noise blend) are registered by CloudModelKeys (a CloudKeySource), not listed here.
             // The march's cost controls (OwnCloudOptions.Apply(LayerFrame)).
             F(CloudDevVariant.TuneForce, false, KeyLiveness.Frame, "the cloud shaders' test variant (CLOUD_DEV) on whatever the values: a cost comparison measures both sides on the same shader"),
             F(OwnCloudOptions.TuneCoverageBound, Frame0.CoverageBound),

@@ -773,7 +773,7 @@ namespace AtmoSim.Core
             }
 
             double cw = bg + xdyn + 0.7 * cs;
-            // B: the trade-wind cumulus water added below (a heap cloud)
+            // B: the trade-wind cumulus water added below (a cumuliform cloud)
             double cuAdded = 0.0;
             if (r2itcz && Body.FairWeatherCloud > 0.0)
             {
