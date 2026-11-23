@@ -45,13 +45,15 @@ namespace ReDefinition.Atmospheres
         public float UpdraftSampleShare = 0.35f;
 
         // The most the base can lie below the type table's, and the most the top can lie above it, m: the interval the march must widen
-        // by (the layer's tight interval) and the range the byte maps encode.
-        public float RootRangeM { get { return PhysicsMaxM + 0.5f * Math.Abs(SizeTrendM); } }
-        public float VariationRangeM { get { return 4f * VariationAmplitudeM; } }
-        public float TopRangeM { get { return TopMaxM; } }
+        // by (the layer's tight interval) and the range the byte maps encode. A part that is switched off moves nothing and has no range: a layer of the Cheap kind (cirrus, a thin
+        // veil) has no base physics and no top from the updraft, and its worst case is not widened by the 500 m and the 1.2 km of those two (Kerbin's cirrus table top stood at
+        // 13.8 km = 1.32 troposphere depths, WMO's temperate cirrus ends at 1.18, only because of terms that never apply to it).
+        public float RootRangeM { get { return (BasePhysics ? PhysicsMaxM : 0f) + (BaseVariation ? 0.5f * Math.Abs(SizeTrendM) : 0f); } }
+        public float VariationRangeM { get { return BaseVariation ? 4f * VariationAmplitudeM : 0f; } }
+        public float TopRangeM { get { return TopFromUpdraft ? TopMaxM : 0f; } }
         // The ragged boundary moves by up to twice RaggedM (erosion 1 against the reference 0.5); a raised base pushes the thinnest top up with it.
-        public float DownM { get { return RootRangeM + VariationRangeM + 2f * RaggedM; } }
-        public float UpM { get { return RootRangeM + VariationRangeM + TopRangeM + 2f * RaggedM + MinThicknessM; } }
+        public float DownM { get { return RootRangeM + VariationRangeM + (BaseRagged ? 2f * RaggedM : 0f); } }
+        public float UpM { get { return RootRangeM + VariationRangeM + TopRangeM + (BaseRagged ? 2f * RaggedM : 0f) + MinThicknessM; } }
 
         // Whether any part is active (a layer with none leaves the density as the type table gives it).
         public bool Any { get { return BaseVariation || BasePhysics || TopFromUpdraft || BaseRagged; } }
