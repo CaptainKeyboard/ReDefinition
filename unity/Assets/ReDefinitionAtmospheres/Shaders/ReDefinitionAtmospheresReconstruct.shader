@@ -86,7 +86,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
         // middle sphere is nearest to the point. False where no sample around holds cloud (the caller's model then places the pixel); a place the previous camera did not see
         // comes back outside the picture.
         // own: the distance is the nearest new sample's own (true) or a neighbour's (the dilation at a rim, false).
-        bool TruePrevious(float3 o, float3 d, float2 q0, out float2 puv, out float dist, out float prev, out bool own)
+        bool TruePrevious(float3 o, float3 d, float2 q, float2 q0, out float2 puv, out float dist, out float prev, out bool own)
         {
             puv = -1.0;
             prev = 0.0;
@@ -94,6 +94,20 @@ Shader "ReDefinition/AtmospheresReconstruct"
             // nearest of all nine everywhere gave a far band at the horizon a nearer neighbour's distance: it led by 2-3 pixels in forward flight (HIST2 fwd300).
             dist = tex2Dlod(_DistTex, float4((q0 + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
             own = dist > 0.0;
+            // TRY (PRUEFPROTOKOLL 104): the distance varies from pixel to pixel as the position among the samples does (bilinear over the four samples around that hold cloud,
+            // no limit on how far apart their distances are): a block-constant distance moves the history of neighbouring blocks by different parallaxes (the stair steps).
+            {
+                float2 qf = floor(q), fr = q - qf;
+                float acc = 0.0, wsum = 0.0;
+                [unroll] for (int j = 0; j < 4; j++)
+                {
+                    float2 oj = float2(j & 1, j >> 1);
+                    float sj = tex2Dlod(_DistTex, float4((qf + oj + 0.5) * _CurTex_TexelSize.xy, 0, 0)).r;
+                    float wj = (oj.x > 0.5 ? fr.x : 1.0 - fr.x) * (oj.y > 0.5 ? fr.y : 1.0 - fr.y);
+                    if (sj > 0.0) { acc += sj * wj; wsum += wj; }
+                }
+                if (wsum > 1e-4) dist = acc / wsum;
+            }
             if (dist <= 0.0)
             {
                 dist = 1e30;
@@ -256,7 +270,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
             bool measured = false;
             float prevDist = 0.0;
             bool ownDistance = false;
-            [branch] if (_ReconT.x > 0.5) measured = TruePrevious(o, d, q0, puv, depth, prevDist, ownDistance);
+            [branch] if (_ReconT.x > 0.5) measured = TruePrevious(o, d, q, q0, puv, depth, prevDist, ownDistance);
             // The count target's second channel: log2 of the cloud's distance where the frame measured one; -1 where it measured none and the scene stands in the ray
             // (the craft, the terrain: "no cloud" there says nothing about the sky behind); 0 where it measured none under an open sky.
             gStateDist = measured ? log2(max(depth, 1.0)) : (zPixel < 1e8 ? -1.0 : 0.0);
