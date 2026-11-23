@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 from weather_metrics import Metric, Stage, register_series  # noqa: E402
 from weather_metrics import e40gn as gn  # noqa: E402
+from weather_metrics.e40ci import acf_widths  # noqa: E402
 from weather_metrics import e40o  # noqa: E402
 from weather_metrics import layers as lay  # noqa: E402
 from weather_metrics import parity_ref as pr  # noqa: E402
@@ -71,6 +72,9 @@ TYPES = [
 # E40TY_ONLY=<family>[,<family>]: only these families of the table (a sweep of one family's keys without the others).
 if os.environ.get("E40TY_ONLY"):
     TYPES = [t for t in TYPES if t[0] in os.environ["E40TY_ONLY"].split(",")]
+# E40TY_MAP=<value>: the constant coverage map of every selected type (the sheet's 0.65 / 0.8 close most of the sky; a cirrus sky with gaps is a map value of 0.3 to 0.4).
+if os.environ.get("E40TY_MAP"):
+    TYPES = [t[:4] + (float(os.environ["E40TY_MAP"]),) + t[5:] for t in TYPES]
 # The comparison tiles of True Volumetric Clouds (game frames of the K-T2 series, its own weather): the family they are put beside.
 TVC_DIR = os.path.join("C:", os.sep, "Users", "franz", "IdeaProjects", "ReDefinition", ".local", "work", "series-pictures", "K-T2")
 TVC = {"cumulus": "t09-tvc1707-ground-tvc-1707x960-natural.png", "stratocumulus": "t09-tvc1707-above-tvc-1707x960-natural.png"}
@@ -291,6 +295,10 @@ def cb_jobs(layers_by_name, extras):
 # Views: from the ground 35 km south of the cell (the whole tower), from the side at the anvil's height 70 km away, and from above.
 CB_ANVIL_ROWS = (("weak", 0.6), ("moderate", 0.8), ("strong", 1.0))
 CB_ANVIL_VIEWS = ("ground", "anvil", "above")
+# A sweep of another family (E40TY_ONLY without cumulonimbus) leaves the tower and anvil rows out: their jobs take most of the run.
+if os.environ.get("E40TY_ONLY") and "cumulonimbus" not in os.environ["E40TY_ONLY"].split(","):
+    CB_TOWERS = ()
+    CB_ANVIL_ROWS = ()
 CB_ANVIL_CAMERAS = {"ground": (40.0, 400.0, 13.0), "anvil": (90.0, 9500.0, -1.0), "above": (55.0, 26000.0, -30.0)}
 CB_SHEAR_MS = 8.0
 # The anvil rows' coverage outside the cell: 0 (a clear sky around one cell; at the tower rows' 0.3 the layer's clear-sky rule keeps the background, K about 0.14 since the cover
@@ -493,6 +501,48 @@ def alpha_words(alpha):
     return dict(cover=float(mask.mean()), median=float(np.median(a)), p10=float(np.percentile(a, 10)), p90=float(np.percentile(a, 90)), opaque=float((a > 0.95).mean()))
 
 
+def plane_points(cam, altitude_m):
+    """Where each pixel's ray meets the sphere `altitude_m` above the planet's surface (R, the scene's radius): the east and north offsets in m from the camera's foot, the slant range in m and
+    the elevation of the ray above the camera's horizon in degrees (arrays of the picture's shape). A ray that does not reach the sphere gets NaN."""
+    d = cam.ray_directions().reshape(cam.height, cam.width, 3)
+    up, east, north = cam.frame
+    r_sphere = R + altitude_m
+    b = d @ cam.pos
+    c = float(cam.pos @ cam.pos) - r_sphere * r_sphere
+    disc = b * b - c
+    t = np.where(disc > 0.0, -b + np.sqrt(np.maximum(disc, 0.0)), np.nan)
+    rel = t[..., None] * d
+    return rel @ east, rel @ north, t, np.degrees(np.arcsin(np.clip(d @ up, -1.0, 1.0)))
+
+
+def fibre_stats(tau, cam, altitude_m, axis_en=(1.0, 1.0), min_elevation=20.0, step_m=100.0):
+    """The size of the structure in an optical-depth picture (the cirrus rows; a PLAYER number, not a game number): the pixels above `min_elevation` are laid on the plane of the layer's
+    middle (`altitude_m`), resampled to a grid of `step_m`, and the autocorrelation of the field (the mean taken out, the empty corners masked out) is measured: the full width at half
+    maximum of the autocorrelation across and along the layer's wind axis `axis_en` (east, north), in m, the elongation along / across, the direction of the longest axis against the wind
+    axis in degrees, the median slant range of the pixels and the width across as an angle at that range. Features of a Gaussian profile are 1.4 times narrower than the autocorrelation's width.
+    Where the autocorrelation does not fall to a half inside the grid the length along is a lower bound (`along_bounded`)."""
+    from scipy.interpolate import griddata
+    e, n, rng, elev = plane_points(cam, altitude_m)
+    use = np.isfinite(e) & (elev >= min_elevation)
+    if use.sum() < 1000:
+        return None
+    pts = np.stack([e[use], n[use]], axis=1)[::3]
+    vals = tau[use][::3]
+    x0, x1 = float(pts[:, 0].min()), float(pts[:, 0].max())
+    y0, y1 = float(pts[:, 1].min()), float(pts[:, 1].max())
+    gx = np.arange(x0, x1, step_m)
+    gy = np.arange(y0, y1, step_m)
+    grid_x, grid_y = np.meshgrid(gx, gy)
+    field = griddata(pts, vals, (grid_x, grid_y), method="linear")
+    mask = np.isfinite(field).astype(np.float64)
+    if mask.sum() < 2000:
+        return None
+    slant = float(np.nanmedian(rng[use]))
+    stats = acf_widths(np.where(mask > 0.0, field, 0.0), mask, step_m, axis_en)
+    stats.update(slant_m=slant, across_deg=float(math.degrees(2.0 * math.atan(0.5 * stats["across_m"] / slant))), pixels=int(use.sum()))
+    return stats
+
+
 def card_references(tint):
     """The white card of a frame (E40 L6 light): a Lambertian white surface under the sun of the sheets, as radiance relative to W (the card facing the sun outside the air = 1) and as the
     display value of the stage. 'sky' adds the sheets' ambient (AMBIENT_TOP over W for a card facing up; half of it for a card facing the sun, which sees half the sky)."""
@@ -583,6 +633,16 @@ def collect(ctx):
             row["aid"] = box(heat_picture(tau, cam), TILE)
             gn.save_png(os.path.join(out_dir, "%s-%s-%s-aid.png" % (NAME, family, key)), row["aid"])
             results.setdefault(key, {})["tau_ground_p10_p50_p90"] = [float(x) for x in np.percentile(tau[tau > 0.03], [10, 50, 90])] if (tau > 0.03).any() else None
+            if family == "cirrus":
+                fs = fibre_stats(tau, cam, 0.5 * (layer["inner"] + layer["outer"]), axis_en=WIND_EN.get(key, (1.0, 1.0)))
+                results[key]["fibres_ground"] = fs
+                if fs:
+                    metrics.append(Metric.info("e40ty.%s.fibre_across_m" % key, fs["across_m"]))
+                    metrics.append(Metric.info("e40ty.%s.fibre_elongation" % key, fs["elongation"]))
+                    lines.append("   %-14s ground: PLAYER structure of the optical depth on the layer's middle plane (elevation above 20 degrees, %d px): width across the wind axis %.0f m "
+                                 "(autocorrelation FWHM; %.1f degrees at the median range %.1f km), along it %s%.0f m, elongation %s%.1f, the longest axis %.0f degrees off the wind"
+                                 % (key, fs["pixels"], fs["across_m"], fs["across_deg"], fs["slant_m"] / 1000.0, ">" if fs["along_bounded"] else "", fs["along_m"],
+                                    ">" if fs["along_bounded"] else "", fs["elongation"], fs["longest_axis_off_wind_deg"]))
         tiles[key] = row
     # The sheets: one per family, a row per type: ground | above | sun | the sky behind it | optical depth | (TVC)
     for family in FAMILIES:
@@ -702,6 +762,19 @@ def selftest():
     stratus = [j for j in lum if j["id"] == "ty-stratus-ground"][0]["layers"][0]
     assert abs([t for t in stratus["types"] if t["name"] == "Stratus"][0]["densityScale"] - 0.22) < 1e-6
     assert stratus["softnessScale"] == 1.5 and lum[0]["soft"] == SOFTNESS
+    # the fibre measure on a synthetic field of known size: white noise smoothed with sigma 400 m across and 4 km along the north axis, seen from the ground at 35 degrees (the sheet's view).
+    # The autocorrelation of such a field is Gaussian with sigma times 1.414, so its FWHM is 2.355 x 1.414 x sigma: 1.33 km across, 13.3 km along.
+    from scipy.ndimage import gaussian_filter, map_coordinates
+    step, half_extent = 50.0, 100000.0
+    size = int(2 * half_extent / step)
+    white = np.random.RandomState(3).standard_normal((size, size))
+    field = gaussian_filter(white, sigma=(4000.0 / step, 400.0 / step), mode="wrap")   # axis 0: north (rows), axis 1: east
+    spec = [s for s in TYPES if s[1] == "cirrus"]
+    cam = view_camera(spec[0] if spec else TYPES[0], "ground", AUX_SIZE)
+    e, n, _, _ = plane_points(cam, 9500.0)
+    tau = np.where(np.isfinite(e), map_coordinates(field, [np.nan_to_num(n) / step + size / 2.0, np.nan_to_num(e) / step + size / 2.0], order=1, mode="wrap"), 0.0)
+    fs = fibre_stats(tau, cam, 9500.0, axis_en=(0.0, 1.0))
+    assert fs is not None and abs(fs["across_m"] / 1333.0 - 1.0) < 0.3 and fs["elongation"] > 4.0, fs
     tint = white_tint()
     assert abs(tint @ np.array([0.2126, 0.7152, 0.0722]) - 1.0) < 1e-6 and tint[2] < 1.0 < tint[0]
     # a cloud top lit by the sun at 3000 m comes out neutral with the tint (the three channels equal)

@@ -79,6 +79,35 @@ namespace ReDefinition.Tests
             Assert.IsFalse(t.ForLayer(LayerKind.Cheap).BasePhysics);
         }
 
+        // A part that is switched off moves nothing, so it adds nothing to the reach: the thin high layer (Kerbin's cirrus: base 9.2 km, top 10.8 km in the type table) has no base physics
+        // and no top from the updraft, and its worst case of 1.2 km down and 1.3 km up leaves its top below 1.18 troposphere depths (WMO's 13 km on an 11 km troposphere) where the
+        // two unused ranges (500 m and 1.2 km) put it at 1.32.
+        [TestMethod]
+        public void TheReachOfAThinHighLayerLeavesOutThePartsThatDoNotApplyToIt()
+        {
+            var body = new HeightTuning();
+            Assert.AreEqual(1270.0, body.DownM, 1e-3, "a convective layer: 500 + 110 + 440 + 220");
+            Assert.AreEqual(2590.0, body.UpM, 1e-3, "plus the top term 1200 and the thinnest cloud 120, as before");
+            HeightTuning thin = body.ForLayer(LayerKind.Cheap);
+            Assert.AreEqual(110f, thin.RootRangeM, 1e-3, "only the size trend");
+            Assert.AreEqual(0f, thin.TopRangeM);
+            Assert.AreEqual(880f, thin.VariationRangeM, 1e-3);
+            Assert.AreEqual(1210.0, thin.DownM, 1e-3);
+            Assert.AreEqual(1330.0, thin.UpM, 1e-3);
+            var cirrus = new CloudLayerDef("cirrus", 1, 9000f, 11000f, new List<CloudTypeDef> { new CloudTypeDef("t", 0.1f, 0.9f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f }), 0.5f) }, 0.0002f, LayerKind.Cheap);
+            var source = new LayerStackSource(1, 600000.0, true);
+            source.Add(cirrus, null, null);
+            source.SetHeights(0, thin, null, 1u);
+            float inner, outer;
+            cirrus.TightAltitudes(out inner, out outer);
+            Assert.AreEqual(9200.0 - 1210.0, inner, 1e-3);
+            Assert.AreEqual(10800.0 + 1330.0, outer, 1e-3);
+            Assert.IsTrue(outer / 10500.0 < 1.18, "below 1.18 troposphere depths of Kerbin's 10.5 km (WMO: the top of temperate cirrus)");
+            var off = new HeightTuning { BaseVariation = false, BasePhysics = false, TopFromUpdraft = false, BaseRagged = false };
+            Assert.IsFalse(off.Any);
+            Assert.AreEqual(0f, off.RootRangeM + off.VariationRangeM + off.TopRangeM + off.DownM);
+        }
+
         // E40 L6 shape: where a layer names its top-from-updraft numbers (topReach above 0) they are relative to the layer's thickness; without them the body's numbers in m stay.
         [TestMethod]
         public void ALayersTopNumbersAreRelativeToItsThicknessAndWithoutThemTheBodysStay()

@@ -210,8 +210,11 @@ namespace ReDefinition.Tests
                 return root[(H / 2) * W + 3 * W / 4] - root[(H / 2) * W + W / 4];
             }
             double standard = Offset(""), doubled = Offset("heightLclMPerK = 250;"), none = Offset("heightLclMPerK = 0;");
+            // The root channel is a byte over the root range (127 steps either way): each of the two samples is rounded to a step, so the difference may be two steps off
+            // besides the model's 10 %. The range is the base physics' alone here (the size trend is off and adds no range, atmo/CIRRUS): 5000 m, a step of 39.4 m.
+            double step = Tuning(Rules("heightPhysicsMaxM = 5000;"), false, true, false, false).RootRangeM / 127.0;
             Assert.IsTrue(standard > 100.0, "dry over moist " + standard);
-            Assert.AreEqual(2.0 * standard, doubled, 0.1 * standard);
+            Assert.AreEqual(2.0 * standard, doubled, 0.1 * standard + 2.0 * step);
             Assert.AreEqual(0.0, none, 2.0);
         }
 
