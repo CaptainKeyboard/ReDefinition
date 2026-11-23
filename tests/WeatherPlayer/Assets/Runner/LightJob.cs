@@ -28,9 +28,9 @@ namespace ReDefinition.WeatherPlayer
         public float octaveA = 0.5f, octaveB = 0.5f, octaveC = 0.5f, msBrightness = 1f, diffusion, diffusionTau = 8f, msIsotropy;
         // Powder, ambient, tint.
         public float powder, powderLength = 150f, ambientFloor = 0.03f, ambientOcclusion, skyTint = 0.7f, ambientGain = 1f;
-        // The light march: taps towards the sun, the cone, the step ratio, taps for the moons and straight up.
+        // The light march: taps towards the sun, the step ratio, taps for the moons and straight up.
         public int sunSteps = 3, moonSteps = 2, upSteps = 2;
-        public float coneSpread, tapRatio = 2f;
+        public float tapRatio = 2f;
         // Extra lights: direction towards and colour (rgb) of up to two.
         public float[] moonDir0, moonCol0, moonDir1, moonCol1;
         // The bolts: positions (xyz each, flat), ranges and colours (rgb each, flat).

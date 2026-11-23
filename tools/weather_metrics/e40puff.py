@@ -338,8 +338,7 @@ VARIANTS = {
     "rot2c": ("(ROTATION) rot2 with the Catmull-Rom history", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bexact+chm+lp100"),
     "rot3": ("(ROTATION) k4_stride, each pixel marched every 9th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk3+bexact+lp100"),
     # rot2/rot3 replaced each pixel by one raw sample: grainy even with a still camera (k4_stride smooths its march noise over frames, 20 % a frame). rot2a/rot3a keep that
-    # smoothing (the fresh sample blended in at 0.2, the others the clipped history). far5/far10 (the owner's question): only pixels whose ray enters the clouds beyond
-    # 5 or 10 km rotate (every 4th frame), the nearer ones are marched every frame as in k4_stride.
+    # smoothing (the fresh sample blended in at 0.2, the others the clipped history). (far5/far10, the far rotation, went on 2026-11-23 by the owner's decision.)
     "rot2a": ("(ROTATION) rot2 with the look's smoothing", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+lp100"),
     "rot3a": ("(ROTATION) rot3 with the look's smoothing", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk3+bacc+lp100"),
     # Owner 2026-11-19: rot2a is a little softer in motion (turn, fly): the kept pixels' history is re-read bilinearly every frame for three frames; rot2ac reads it with Catmull-Rom.
@@ -357,8 +356,6 @@ VARIANTS = {
     "tr_s3m": ("(STRIDE) tr_s3 with the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls3+lrm+lp100"),
     "tr_s4m": ("(STRIDE) the sun march every 4th lit step, the reuse moved", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+ls4+lrm+lp100"),
     "rot2ac": ("(ROTATION) rot2a with the Catmull-Rom history", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
-    "far5": ("(ROTATION) k4_stride, pixels beyond 5 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far5+r100+lp100"),
-    "far10": ("(ROTATION) k4_stride, pixels beyond 10 km marched every 4th frame", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+far10+r100+lp100"),
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
     "k_ng256_full":("(SPLIT) 256 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r100+jit+acc8+clip1000+lp100"),
     "k_ng96_full": ("(SPLIT) 96 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+r100+jit+acc8+clip1000+lp100"),

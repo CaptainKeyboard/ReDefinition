@@ -148,14 +148,13 @@ namespace ReDefinition.WeatherPlayer
         //   skip      cloudSkipEmpty (the tile pass)                                                                    leap<N> layers.emptyLeap
         //   lm<N>     the layers that are marched, bit i = layer i (0: all; a measurement of what dropping the empty layers before the march would save)
         //   dbg<N>    the cost debug mask (1 no light, 2 no shape noise, 4 no erosion; not a picture of the product)
-        //   cr<N>  the light cone's rotation pattern: 0 gradient noise, 1 fixed, 2 hash, 3 blue noise (the default)
         // The base is seq1 (the product's grid march with the 48 points of the High setting), seq1m<N> (N grid points) or a GrainTable name.
         internal sealed class Case
         {
             public string Name, Base = "seq1";
             public float Resolution = 0.5f, Accumulate = 0.2f, Cutoff = -1f, ClipSigma = -1f;
             public bool Jitter, Skip, NoReach, FarMean;
-            public int ConePattern = -1, Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
+            public int Block, Stride = -1, Dither = -1, Debug = -1, Quality = -1, Sun = -1, Leap = -1, Mask;
             // E40 C2: mn<N> a moon of N / 10000 of the sun's luminance (the game's moon is lit by any body in the sky, day or night; the player had none), mc<N> the product's light.moonMinShare
             // N / 1000 (a moon below that share of the sun is left out, OwnCloudOptions.MoonTooFaint), lp<NN> the longest leap over empty grid points in the layer's noise scales, NN / 100
             // (LayerFrame.LeapScales), ev the GPU's caches flushed before the pass (a copy of 64 MB; the game draws the rest of the frame between two passes, the player's loop only this one).
@@ -187,8 +186,6 @@ namespace ReDefinition.WeatherPlayer
             public float DistanceReject;
             // bexact: the block mode as a pixel-exact rotation (Settings); bacc: the same with the case's accumulation on the fresh sample.
             public bool BlockExact, BlockAcc;
-            // far<km>: the far rotation beyond that distance (ReconSettings.FarRotateM); farb<N> its block side (2: every 4th frame).
-            public int FarKm, FarBlock;
             // cg<N> in grid points would clash with the growth cases: the grid is ng<N> (ng96 = 96 grid points).
             public int Grid;
             // sg<N>: a span's points by distance, the step's growth of N / 1000000 per m of distance from the camera (LayerFrame.SpanGrowthPerM).
@@ -286,11 +283,8 @@ namespace ReDefinition.WeatherPlayer
                 else if (t == "rag") c.Age = true;   // recon.age: the history's count of marched samples (ReconSettings.Age)
                 else if (t.StartsWith("rdr")) c.DistanceReject = Number(t, 3) / 100f;   // recon.distanceReject in hundredths of an octave (ReconSettings.DistanceReject)
                 else if (t == "ctl") { }   // a control: the same case under another name (the run-to-run noise of the history and the timing)
-                else if (t.StartsWith("cr")) c.ConePattern = Number(t, 2);   // E40 F2: the light cone's rotation pattern (LayerFrame.ConePattern)
                 else if (t == "bexact") c.BlockExact = true;
                 else if (t == "bacc") c.BlockAcc = true;
-                else if (t.StartsWith("farb")) c.FarBlock = Number(t, 4);
-                else if (t.StartsWith("far")) c.FarKm = Number(t, 3);
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
@@ -378,8 +372,6 @@ namespace ReDefinition.WeatherPlayer
             f.AidMode = c.Aid;
             f.LightCutoff = c.Cutoff >= 0f ? c.Cutoff : FrameDefaults.LightCutoff;
             f.DitherSequence = c.Dither >= 0 ? c.Dither : FrameDefaults.DitherSequence;
-            f.ConePattern = c.ConePattern >= 0 ? c.ConePattern : FrameDefaults.ConePattern;
-            f.FixedConeRotation = c.ConePattern == 1;   // cr1: the probe's fixed rotation (no per-pixel pattern of the cone at all)
             if (c.Debug >= 0) f.CostDebug = c.Debug;
             if (c.Leap > 0) f.EmptyLeap = c.Leap;
             f.SunSteps = c.Sun > 0 ? c.Sun : 3;
@@ -485,8 +477,6 @@ namespace ReDefinition.WeatherPlayer
             s.CatmullHistory = c.CatmullHistory;
             if (s.Accumulate > 0f) s.Accumulate = c.Accumulate;
             if (c.ClipSigma >= 0f) s.ClipSigma = c.ClipSigma;
-            s.FarRotateM = c.FarKm * 1000f;
-            if (c.FarBlock > 0) s.FarRotateBlock = c.FarBlock;
             return s;
         }
 

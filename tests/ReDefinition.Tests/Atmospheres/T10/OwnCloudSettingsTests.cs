@@ -510,18 +510,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             NextFrame();
         }
 
-        // E40 F2: the cone's rotation is the blue-noise tile (the patterns are read on the march target's own pixel grid).
-        [TestMethod]
-        public void TheConesRotationIsTheBlueNoiseTileByDefault()
-        {
-            Tuning.ClearOverrides();
-            NextFrame();
-            var frame = new LayerFrame();
-            Assert.AreEqual(3, frame.ConePattern);
-            OwnCloudOptions.Apply(frame, Defaults());
-            Assert.AreEqual(3, frame.ConePattern);
-        }
-
         [TestMethod]
         public void TheGridMultiplierScalesTheGridPointsAndClampsAtAQuarter()
         {

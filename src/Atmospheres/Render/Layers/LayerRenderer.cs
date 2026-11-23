@@ -83,12 +83,8 @@ namespace ReDefinition.Atmospheres
         // E40 grain against TVC. DitherSequence: the per-pixel step offset, advanced by the golden ratio per frame: 1 an integer hash (white; what the default drew before E40 step (c)), 2 the
         // interleaved gradient noise (lower temporal noise, a few strong spatial lines), 3 (E40 F2, the default) the blue-noise tile of DitherMatrix (the same temporal noise, no line).
         public int DitherSequence = 3;
-        // The per-pixel rotation of the light cone (read only where the cone has a spread): 0 the gradient noise, 2 an integer hash, 3 (the default, E40 F2) the blue-noise tile.
-        public int ConePattern = 3;
         // Package T16, the visibility culling (the switches are off until the owner agrees).
         public CullSettings Cull = new CullSettings();
-        // A probe: the light cone's rotation is the same for every pixel (no per-pixel dither of the light taps).
-        public bool FixedConeRotation;
 
         // The cost measure of package T05 on top of T01c's: the growth of the step with the lost transmittance (2). The parity jobs leave it off.
         internal void UseProductCost()
@@ -108,7 +104,7 @@ namespace ReDefinition.Atmospheres
         // a span (the frame's own are capped at 256). 0, the default: the frame's. Kept outside this class: its static ids need Unity (the probe's tests reset it).
         private static int ProbeMaxSteps { get { return LayerProbeSwitches.MaxSteps; } }
 
-        private static readonly int IdFarRot = Shader.PropertyToID("_FarRot"), IdReuseP = Shader.PropertyToID("_ReuseP");
+        private static readonly int IdReuseP = Shader.PropertyToID("_ReuseP");
         private static readonly int IdPlanetR = Shader.PropertyToID("_PlanetR"), IdPlanetCenter = Shader.PropertyToID("_PlanetCenter"),
             IdWorldToMap = Shader.PropertyToID("_WorldToMap"), IdCamPos = Shader.PropertyToID("_CamPos"),
             IdCamForward = Shader.PropertyToID("_CamForward"), IdCamRight = Shader.PropertyToID("_CamRight"), IdCamUp = Shader.PropertyToID("_CamUp"),
@@ -427,9 +423,9 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), 0f, Mathf.Max(0f, f.SpanGrowthPerM)));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
-            // pattern stands still (y: the cone's pattern, z: the step offset's).
+            // pattern stands still (z: the step offset's; y and w unused since the cone rotation and the pre-F2 grid went).
             double phase = StepPhase.Of(f.FrameNumber);
-            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), f.FixedConeRotation ? 1f : (f.ConePattern == 2 || f.ConePattern == 3 ? f.ConePattern : 0f), Mathf.Clamp(f.DitherSequence, 1, 3), 0f));
+            m.SetVector(IdDitherP, new Vector4((float)(phase - Math.Floor(phase)), 0f, Mathf.Clamp(f.DitherSequence, 1, 3), 0f));
             if (f.Light != null)
             {
                 for (int l = 0; l < layerLight.Length && l < f.Light.LayerScale.Length; l++) f.Light.LayerScale[l] = l < layerCount ? layerLight[l] : Vector3.one;
@@ -460,7 +456,7 @@ namespace ReDefinition.Atmospheres
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));
             Noise.Bind(m, layerCount);
-            // The test switches' variant from the values just uploaded (the reconstruction sets it again after its own, the far rotation and the edge draw).
+            // The test switches' variant from the values just uploaded (the reconstruction sets it again after its own uploads and the edge draw).
             CloudDevVariant.Apply(m, CloudDevVariant.Layer);
         }
 
@@ -610,8 +606,6 @@ namespace ReDefinition.Atmospheres
             SetCamera(t.position, t.forward, t.right * tanX, t.up * tanY, rayJitter);
             f.Cull.PixelAngleRad = 2f * tanY / target.height;
             Apply(f);
-            // The direct path has no history: the reconstruction's far rotation (LayerReconstructor) must not mark any of its pixels.
-            material.SetVector(IdFarRot, Vector4.zero);
             CloudDevVariant.Apply(material, CloudDevVariant.Layer);
             // Nor a light volume: the reconstruction fills it; here the march keeps today's light (the keyword a reconstruction left on is taken off).
             LightVolume.Unbind(material);

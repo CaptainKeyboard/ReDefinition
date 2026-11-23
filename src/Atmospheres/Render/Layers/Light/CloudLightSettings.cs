@@ -99,10 +99,9 @@ namespace ReDefinition.Atmospheres
         // base of a thick uniform slab lies within 3 % of the anchor to tau 100 (it lay 1.5 to 2 times above it with 0.02), the top 0.81 to 0.93 of it. The earlier 0.02
         // was fitted to single ellipsoid cells, which lose light through their sides; a deck does not.
         public float DiffusionDecay = 0.08f;
-        // The light march: taps towards the sun (0: the frame's SunSteps), the spread of the taps over a cone (tangent of the half angle),
-        // the growth of the step from tap to tap, taps for each extra light and for the ambient's tap straight up.
+        // The light march: taps towards the sun (0: the frame's SunSteps), the growth of the step from tap to tap, taps for each extra light and for the ambient's tap straight up.
         public int SunStepsOverride;
-        public float ConeSpread, TapRatio = 2f;
+        public float TapRatio = 2f;
         public int MoonSteps = 2, UpSteps = 2;
         // With AmbientOcclusionTaps (package T05): 0 the taps march at every lit sample, 1 the optical depth of the last march of the span is
         // reused with the sun march's reuse, 2 it is reused and moved by what the ray has crossed since (look against the per-sample taps: mean
@@ -163,7 +162,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.PhaseP, new Vector4(ForwardG, BackG, ForwardWeight, Albedo));
             m.SetVector(Ids.LightP, new Vector4(Mathf.Clamp(Octaves, 1, 4), OctaveA, OctaveB, OctaveC));
             m.SetVector(Ids.LightQ, new Vector4(Mathf.Clamp01(PowderStrength), Mathf.Max(PowderLengthM, 1f), EffectiveFloor, Mathf.Max(AmbientOcclusion, 0f)));
-            m.SetVector(Ids.LightR, new Vector4(Mathf.Max(ConeSpread, 0f), Mathf.Max(TapRatio, 1f), Mathf.Clamp01(SkyTint), MsBrightness));
+            m.SetVector(Ids.LightR, new Vector4(0f, Mathf.Max(TapRatio, 1f), Mathf.Clamp01(SkyTint), MsBrightness));
             bool cache = Cache != null && Cache.Enabled;
             m.SetVector(Ids.LightS, new Vector4(Mathf.Clamp(MoonSteps, 1, 8), Mathf.Clamp(UpSteps, 1, 8), AmbientGain, cache ? 1f : 0f));
             // The up term's mode: 0 the local density (no taps), 1 taps at every lit sample, 2 taps reused with the sun march, 3 reused and moved by the ray's progress.

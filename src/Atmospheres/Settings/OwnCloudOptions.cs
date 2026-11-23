@@ -129,7 +129,7 @@ namespace ReDefinition.Atmospheres
         // (the strongest line 0.4 / 0.9 percent of the power against 4.2 / 3.5, series e40-f2-fix) and no power below 0.15 cycles per pixel in its tile.
         internal const string TuneDitherSequence = "layers.ditherSequence";
         internal const int DitherSequenceDefault = 3;
-        // The per-pixel patterns of the step offset and the light cone are read on the march target's own pixel grid (E40 F2), and the cone's rotation is the blue-noise tile (LayerFrame.ConePattern 3).
+        // The per-pixel pattern of the step offset is read on the march target's own pixel grid (E40 F2).
 
         // E40 C2: light.moonMinShare: an extra light (moon, planet shine) whose luminance is below this share of the sun's is not marched to and adds nothing (0: every light above zero is
         // marched, the pass as it was). Every cloud sample marched to each lit moon afresh (the moon's taps through every layer, no reuse), and the player's cost series measured that at +21 to +28 percent

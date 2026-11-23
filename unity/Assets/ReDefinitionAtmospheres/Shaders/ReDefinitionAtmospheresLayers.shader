@@ -81,12 +81,10 @@ Shader "ReDefinition/AtmospheresLayers"
         // 1 an integer hash (white), 2 the interleaved gradient noise, 3 the blue-noise tile. w 1: the pattern's pixel is the march target's own (a low-resolution target draws texel k as pixel k); 0: the camera's size scales the uv, so a
         // half-size target reads the pattern at every second pixel and the neighbours' offsets are strongly correlated. The gradient noise's pattern stands still.
         float4 _DitherP;
-        float4 _DitherM[64];   // E40 F2: the 16 x 16 blue-noise tile of the step offset 3 and the cone rotation 3 (ranks over 256, a texel per component)
+        float4 _DitherM[64];   // E40 F2: the 16 x 16 blue-noise tile of the step offset 3 (ranks over 256, a texel per component)
         // The temporal reconstruction (package T05): the march target holds one pixel of every N x N block of the full target.
         float4 _ReconP;      // block size N (1: the target is the full target), the block offset x and y in full pixels, 0
         float4 _ReconD;      // the full target's width and height in pixels, the march target's width and height in pixels
-        float4 _FarRot;      // the far rotation (Pass0): the distance in m beyond which a pixel is marched once a block, the block side, this frame's offset in the block (x 0: off)
-        Texture2D<float> _FarDepth;   // the far rotation: the distance to the cloud each pixel saw in the last frame (the reconstruction's pass 2); read with Load, no sampler (the pass is at its 16)
         sampler2D_float _SceneDepth;
         sampler2D _MarchTex;
         float4 _MarchTex_TexelSize;
@@ -506,10 +504,6 @@ Shader "ReDefinition/AtmospheresLayers"
             // strata instead of by chance (the cloud's entry, its light at the sample's depth and the hit or miss of a thin rim all depend on that offset).
             float jitterValue = frac((DEV(_DitherP.z, 3.0) < 1.5 ? DitherHash(pixel) : (DEV(_DitherP.z, 3.0) < 2.5 ? Ign(pixel, 0.0) : DitherBlue(pixel))) + _DitherP.x);
             float jitter = lerp(0.5, jitterValue, _StepP.y);
-            // The cone's rotation of the light taps (_DitherP.y 1: a fixed rotation, a probe): the same pattern at another place, advanced in time by the same
-            // phase (T03v2).
-            float coneP = DEV(_DitherP.y, 3.0);
-            float rot = frac((coneP < 1.5 ? Ign(pixel + 17.0, 0.0) : (coneP < 2.5 ? DitherHash(pixel + 17.0) : DitherBlue(pixel.yx + 5.0))) + _DitherP.x) * 6.2831853 * (coneP > 0.5 && coneP < 1.5 ? 0.0 : 1.0);
             int maxSteps = (int)_MarchP.x;
             float leapMax = max(_SkipP.x, 1.0);
             float lightCut = _SkipP.y;
@@ -696,8 +690,7 @@ Shader "ReDefinition/AtmospheresLayers"
                             upReuse = upTau;
                             if (_LightT.w > 2.5) upReuse = max(upTau - dot(d, normalize(pc)) * tauSince, 0.0);
                         }
-                        // The cone's rotation advances by the golden angle from one lit sample to the next, so that the per-pixel pattern averages out along the ray (FX-T03).
-                        src = LightSource(pc, d, dens, share, li, t - dts, rot + r.steps * 2.3999632, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
+                        src = LightSource(pc, d, dens, share, li, t - dts, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
                         if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                     }
                     else
@@ -788,16 +781,6 @@ Shader "ReDefinition/AtmospheresLayers"
             float3 d = RayDir(i.uv);
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
             float tmax = SceneDistance(i.uv, d);
-            // The far rotation (_FarRot: x the distance in m, y the block side, z, w this frame's offset in the block; x 0: off): a pixel whose cloud lay beyond x in the last
-            // frame (_FarDepth, the reconstruction's CloudDepth) is marched only when its place in the block is this frame's; the others write the marker alpha -1 and the
-            // reconstruction keeps their reprojected history.
-            float farRot = DEV(_FarRot.x, 0.0);
-            [branch] if (farRot > 0.0 && _ReconP.x < 1.5)
-            {
-                float2 fpx = floor(i.uv * _ReconD.zw);
-                bool turn = all(abs(fmod(fpx, _FarRot.y) - _FarRot.zw) < 0.5);
-                if (!turn && _FarDepth.Load(int3(fpx, 0)) > farRot) return float4(0, 0, 0, -1);
-            }
             // The pixel grid of the dither: the pass's own sizes (_ReconD: the full target x, y and the march target z, w; the direct path sets x, y to the camera's
             // pixels and z, w to 0). Unity's _ScreenParams only where no caller set them (0, the weather player's own scenes): a command buffer executed outside a
             // camera's render (the pinned replay) does not have the camera's size in it.
@@ -975,7 +958,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
                 if (!read) return float4(0, 0, 0, 0);
-                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LightT.z), 0.0, 0.0, 0.0, 0, _Sun.w, _CacheH.y), 0, 0, 0);
+                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LightT.z), 0.0, 0, _Sun.w, _CacheH.y), 0, 0, 0);
             }
             ENDCG
         }
@@ -1126,7 +1109,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 // The density as the march reads it at this voxel's distance from the camera (a layer's distance fade).
                 float camDist = length(p - (_CamPos.xyz - _PlanetCenter.xyz));
-                return float4(LightVolumeEncode(above + LightTau(p, s, -1, taps, camDist, 0.0, 0.0, 0, range, ratio)), 0, 0, 0);
+                return float4(LightVolumeEncode(above + LightTau(p, s, -1, taps, camDist, 0, range, ratio)), 0, 0, 0);
             }
             ENDCG
         }

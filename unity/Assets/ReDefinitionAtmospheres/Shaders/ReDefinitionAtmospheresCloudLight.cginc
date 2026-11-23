@@ -21,7 +21,7 @@
 #ifdef CLOUDLIGHT_DECLARE
 float4 _LightP;   // octaves (1..4), a (light thinning per octave), b (weight per octave), c (eccentricity per octave)
 float4 _LightQ;   // powder strength, powder length (m), ambient floor (share of the sun share), ambient occlusion strength (0: gradient only)
-float4 _LightR;   // cone spread (tan of the half angle, 0: straight), tap step ratio, sky tint multiplier (0 grey .. 1 sky hue), multiple scattering brightness
+float4 _LightR;   // x unused (the cone spread went, 2026-11-23), tap step ratio, sky tint multiplier (0 grey .. 1 sky hue), multiple scattering brightness
 float4 _LightS;   // moon taps, up taps, ambient gain, light cache (1 on)
 float4 _LightT;   // bolt count, sun tap count override (0: the march's own), light cache fill taps, ambient occlusion mode (0 analytic from the local density, 1 taps straight up at every lit sample, 2 taps reused with the sun march, 3 reused and moved by the ray's progress)
 float4 _SunAir;   // the sun's colour through the air (FX-T03): extinction rgb along the zenith path at sea level, scale height in m (w <= 0: the frame's sun colour as is); the aerosol component is _LightV.zw
@@ -150,14 +150,11 @@ float3 SunAir(float3 pc, float3 sunDir)
 }
 
 // The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size (each `ratio` times the one before) over at most `range` m (below 0: up to -range m from pc),
-// the other layers with half of them (own < 0: all layers with `steps`). The taps may be spread over a cone of tangent `spread`.
+// the other layers with half of them (own < 0: all layers with `steps`).
 // CLOUDR2 P3: the first `eroded` taps of each span read the density with its erosion detail (the lobes that shade each other are the detail's, not the shape's); the others the shape only.
-float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread, float rot, int eroded, float range, float ratioIn)
+float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, float range, float ratioIn)
 {
     float tau = 0;
-    float3 ax = abs(dir.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0);
-    float3 u = normalize(cross(dir, ax));
-    float3 v = cross(dir, u);
     float ratio = max(ratioIn, 1.0);
     [loop] for (int lj = 0; lj < MAXL; lj++)
     {
@@ -185,12 +182,6 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, float spread,
                 float edge = prev + len;
                 float mid = 0.5 * (prev + edge);
                 float3 q = pc + dir * mid;
-                if (spread > 0)
-                {
-                    float ang = i * 2.3999632 + rot;
-                    float rad = sqrt((i + 0.5) / n) * spread * mid;
-                    q += (u * cos(ang) + v * sin(ang)) * rad;
-                }
                 float qs;
                 acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
                 prev = edge;
@@ -428,7 +419,7 @@ float3 BoltLight(float3 pc)
 // topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's copy of gTopAlt, gBaseAlt): the end of the analytic occlusion's column and the type's
 // height for the cell diffusion (E40 LM2).
 
-float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float rot, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
+float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
                    out float3 ambPart, out float taps, out float tauSunOut, out float tauUpOut)
 {
     float3 sunDir = _Sun.xyz;
@@ -486,27 +477,26 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
 #endif
     float3 tdir[LIGHT_SLOTS];
     int tsteps[LIGHT_SLOTS];
-    float tspread[LIGHT_SLOTS], trot[LIGHT_SLOTS], ttau[LIGHT_SLOTS], trange[LIGHT_SLOTS];
+    float ttau[LIGHT_SLOTS], trange[LIGHT_SLOTS];
     bool need[LIGHT_SLOTS];
-    float coneSpread = DEV(_LightR.x, 0.0);
-    tdir[0] = sunDir; tsteps[0] = sunSteps; tspread[0] = coneSpread; trot[0] = rot; need[0] = tauSun < 0 && Luma(sunCol) > 0;
+    tdir[0] = sunDir; tsteps[0] = sunSteps; need[0] = tauSun < 0 && Luma(sunCol) > 0;
     trange[0] = sunRange; trange[1] = _Sun.w; trange[2] = _Sun.w; trange[3] = _Sun.w;
-    tdir[1] = _MoonDir[0].xyz; tsteps[1] = moonSteps; tspread[1] = coneSpread; trot[1] = rot; need[1] = Luma(_MoonCol[0].rgb) > 0;
-    tdir[2] = _MoonDir[1].xyz; tsteps[2] = moonSteps; tspread[2] = coneSpread; trot[2] = rot; need[2] = Luma(_MoonCol[1].rgb) > 0;
-    tdir[3] = normalize(pc); tsteps[3] = max(1, (int)_LightS.y); tspread[3] = 0.0; trot[3] = 0.0;
+    tdir[1] = _MoonDir[0].xyz; tsteps[1] = moonSteps; need[1] = Luma(_MoonCol[0].rgb) > 0;
+    tdir[2] = _MoonDir[1].xyz; tsteps[2] = moonSteps; need[2] = Luma(_MoonCol[1].rgb) > 0;
+    tdir[3] = normalize(pc); tsteps[3] = max(1, (int)_LightS.y);
     need[3] = _LightQ.w > 0 && tauUp < 0 && !(_LightT.w > 1.5 && tauUpReuse >= 0) && _LightT.w > 0.5;
 #ifdef CLOUD_LIGHTVOL
     // Slot 0 the full march (needed while the far path's share is below 1), slot 4 the far path's near taps (the same first places and erosion reads as slot 0's).
     bool sunNeeded = need[0];
     need[0] = sunNeeded && lvShare < 1.0;
-    tdir[4] = sunDir; tsteps[4] = max(lvSteps, 1); tspread[4] = coneSpread; trot[4] = rot; trange[4] = -lvNear;
+    tdir[4] = sunDir; tsteps[4] = max(lvSteps, 1); trange[4] = -lvNear;
     need[4] = sunNeeded && lvShare > 0.0 && lvSteps > 0;
 #endif
     [loop] for (int k = 0; k < LIGHT_SLOTS; k++)
     {
         ttau[k] = 0.0;
         if (!need[k]) continue;
-        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, tspread[k], trot[k], LIGHT_ERODED, trange[k], _LightR.y);
+        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, LIGHT_ERODED, trange[k], _LightR.y);
     }
 #ifdef CLOUD_LIGHTVOL
     if (sunNeeded)
