@@ -7,10 +7,8 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Atmospheres
 {
-    // GpuSlew: the slew limit of the layer maps on the GPU instead of a step of every texel on the CPU every frame.
-    //
-    // The old path keeps one shown copy of each map and, every frame while any texel is short of its goal, steps all of it (MapSlew.StepMap), converts it and uploads it whole (16 MB a
-    // frame for four layers). Here a map is a pair of byte maps in one RG16 array slice, r = from (the value the map showed when its newest goal arrived) and g = to (that goal),
+    // The slew limit of the layer maps on the GPU (the only way since cleanup 2 E, 2026-11-23; the old per-frame CPU step of every texel, 16 MB of uploads a frame for four layers,
+    // is gone). A map is a pair of byte maps in one RG16 array slice, r = from (the value the map showed when its newest goal arrived) and g = to (that goal),
     // and the shader shows from + clamp(to - from, -reach, +reach) with reach = rate * (seconds since the goal arrived), a share the store hands over as a uniform each frame
     // (ReachVector): MapSlewField is the same rule on the CPU. The CPU never steps a texel. A new goal costs one upload of its slice, about once a second (OwnCloudPlan.MapIntervalS),
     // and the pair for it is made by the store's own worker thread: "from" of the new pair is the value the old pair shows at the moment the new pair goes live, which the worker
@@ -21,9 +19,6 @@ namespace ReDefinition.Atmospheres
     {
         private SlewEngine engine;
 
-        // True: the maps slew on the GPU (Ensure's third argument).
-        internal bool GpuSlew { get; private set; }
-
         // Seconds ahead of the worker's finish at which a new pair takes over (the worker needs milliseconds; the rest is the frames until the upload).
         internal static float SlewLeadS = 0.25f;
 
@@ -31,7 +26,7 @@ namespace ReDefinition.Atmospheres
         internal static int SlewApplyPerFrame = 2;
 
         // The shared slew's reach per layer (shares of full scale, 0 to 1) of the coverage (kind 0) or type (kind 1) arrays: what the shader's slew may have moved each layer's texels.
-        // Zero without GpuSlew (the arrays then hold the shown value in both channels).
+        // Zero before the store is made.
         internal Vector4 ReachVector(int kind)
         {
             if (ReachPinned != null) return ReachPinned[kind == 0 ? 0 : 1];
@@ -42,15 +37,15 @@ namespace ReDefinition.Atmospheres
         // player's maps hold the shown value in both channels, so the shown value does not depend on it; null (the game, every other scene): the store's own.
         internal Vector4[] ReachPinned;
 
-        // A store of the GpuSlew mode without textures (the tests): the uploads go to the hook, which gets the slot (kind * MaxLayers + layer) and the RG16 pairs and must copy them.
+        // A store without textures (the tests): the uploads go to the hook, which gets the slot (kind * MaxLayers + layer) and the RG16 pairs and must copy them.
         internal static LayerMapStore ForTest(int width, int height, Action<int, byte[]> uploadHook)
         {
-            var s = new LayerMapStore { Width = width, Height = height, GpuSlew = true };
+            var s = new LayerMapStore { Width = width, Height = height };
             s.engine = new SlewEngine(s, uploadHook);
             return s;
         }
 
-        // The goals still being made or waiting for their upload (GpuSlew); 0 without it.
+        // The goals still being made or waiting for their upload; 0 before the store is made.
         internal int SlewPending
         {
             get { return engine != null ? engine.Pending() : 0; }
