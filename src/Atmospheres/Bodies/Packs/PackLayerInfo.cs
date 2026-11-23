@@ -42,8 +42,8 @@ namespace ReDefinition.Atmospheres
     internal enum SkipReason
     {
         None,
-        // The layer belongs to another body.
-        OtherBody,
+        // The layer is the body's base layer (CLOUDS baseLayer): the pack's own deck, left to EVE as configured.
+        BaseLayer,
         // It has no coverage map or no type map: nothing to paint.
         NoMaps,
         // It draws no cloud (fx only layer).

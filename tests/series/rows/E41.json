@@ -9,7 +9,7 @@
       "start": "run1",
       "metric": "E41.eve_available",
       "equals": 1,
-      "note": "EVE's members are all there (the layer list can be read)"
+      "note": "precondition, not a finding: EVE's members are all there (the layer list can be read)"
     },
     {
       "series": "K-W4a",
@@ -20,15 +20,23 @@
       "min": 17,
       "note": "the stock bodies of the checklist that the game has (Sun to Eeloo, 17)"
     },
-    {
-      "series": "K-W4a",
-      "section": "E41",
-      "package": "E41",
-      "start": "run1",
-      "metric": "E41.status_wrong",
-      "equals": 0,
-      "note": "the status of every body equals the one its facts give (star Off(Star), no atmosphere Off(NoAtmosphere), atmosphere without surface and ocean Off(NoSurface), else Full); the table by name is in the tests of E41"
-    },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Sun", "equals": 12, "note": "checklist by name: Off(Star); codes Full 1, CoverOnly 2, Off(NoAtmosphere) 10, Off(NoSurface) 11, Off(Star) 12" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Moho", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Eve", "equals": 1, "note": "checklist by name: Full (clouds only)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Gilly", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Kerbin", "equals": 1, "note": "checklist by name: Full" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Mun", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Minmus", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Duna", "equals": 1, "note": "checklist by name: Full" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Ike", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Dres", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Jool", "equals": 11, "note": "checklist by name: Off(NoSurface)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Laythe", "equals": 1, "note": "checklist by name: Full" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Vall", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Tylo", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Bop", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Pol", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
+    { "series": "K-W4a", "section": "E41", "package": "E41", "start": "run1", "metric": "E41.status_code.Eeloo", "equals": 10, "note": "checklist by name: Off(NoAtmosphere)" },
     {
       "series": "K-W4a",
       "section": "E41",
@@ -53,8 +61,8 @@
       "package": "E41",
       "start": "run1",
       "metric": "E41.layers_taken.Kerbin",
-      "min": 1,
-      "note": "the role discovery takes at least one layer of Kerbin with the body's own role lists"
+      "equals": 3,
+      "note": "the discovery the module ran takes Kerbin-Weather-1 and Kerbin-weather-2 of the installed pack (named by Kerbin.cfg) and ReDefinition-Atmospheres-Kerbin (added to that list by the patch of Clouds-Kerbin.cfg); fewer means the pack is missing or the list is wrong, the cap is 4"
     },
     {
       "series": "K-W4a",
@@ -63,7 +71,7 @@
       "start": "run1",
       "metric": "E41.tvc_layers_total",
       "min": 1,
-      "note": "EVE holds volumetric layers (the pack and ours)"
+      "note": "precondition, not a finding: EVE holds volumetric layers (the pack and ours)"
     },
     {
       "series": "K-W4a",
@@ -97,9 +105,10 @@
       "section": "E41",
       "package": "E41",
       "start": "run1",
-      "metric": "E41.map_mb_per_layer",
-      "equals": 8,
-      "note": "map memory of one driven layer: two render targets and two readable copies of 2048 x 1024 bytes (TVC's own noise and light textures are not counted)"
+      "metric": "E41.paint_ms_per_layer",
+      "max": 1.0,
+      "required": false,
+      "note": "mean paint time of the painter divided by the layers bound: the ms per added TVC layer; [VERIFY] the limit is a floor chosen before any measurement. The map memory of the layers driven is printed in the log line of the discovery and as E41.map_mb_driven (8 MB per layer by the layout of the painter, a figure of the formula, no row)"
     },
     {
       "series": "K-W4a",
@@ -260,6 +269,16 @@
       "equals": 1,
       "required": false,
       "note": "NOT MEASURED: no precipitation on Eve"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.duna_fog_follows_sky",
+      "equals": 1,
+      "required": false,
+      "note": "NOT MEASURED, interaction row Scatterer present on Duna: the fog and veil colours are fixed ochre values in Duna.cfg (LOOK has no Auto form), so they do not follow the sky colour Scatterer gives Duna; owner decision pending whether to read the scene colour"
     }
   ]
 }

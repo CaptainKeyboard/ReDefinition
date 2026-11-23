@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
@@ -6,11 +7,17 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Tests.Atmospheres.E41
 {
-    // The discovery of layers by role on stored pack files: three fixtures (the stock pack's layer table, a second pack that doubles
-    // Kerbin, an outer-planets pack), plus our own generated files.
+    // The discovery of layers by role on the structure of the installed StockVolumetricClouds pack (tests/data/packs: its 19 layers with
+    // their real names, altitudes, maps and cloud types), together with our own generated layer files, and the check that the scan of the
+    // game runs this discovery.
     [TestClass]
     public class LayerDiscoveryTests
     {
+        private static List<PackLayerInfo> Pack()
+        {
+            return E41Support.Layers(E41Support.PackFixture("stock-volumetric-clouds.cfg"));
+        }
+
         private static List<PackLayerInfo> Stock()
         {
             return E41Support.Layers(E41Support.PackFixture("stock-volumetric-clouds.cfg"), E41Support.CloudsFile("Kerbin"), E41Support.CloudsFile("Duna"),
@@ -22,92 +29,146 @@ namespace ReDefinition.Tests.Atmospheres.E41
             return d.Taken.Select(l => l.Name).ToArray();
         }
 
+        // The CLOUDS node of the shipped body file, read as the game reads it.
+        private static CloudRules Shipped(string body)
+        {
+            ConfigNode node = E41Support.BodyNode(body);
+            return BodyRuleReaders.Clouds(new BodyNodeReader(node.GetNode("CLOUDS"), "CLOUDS", new List<string>()));
+        }
+
+        private static SkipReason Skip(LayerDiscovery d, string layer)
+        {
+            return d.Decisions.Single(x => x.Layer.Name == layer).Skip;
+        }
+
         [TestMethod]
         public void TheReaderGetsEveryLayerOfThePackWithItsMapsAndFields()
         {
-            List<PackLayerInfo> layers = E41Support.Layers(E41Support.PackFixture("stock-volumetric-clouds.cfg"));
-            Assert.AreEqual(17, layers.Count);
+            List<PackLayerInfo> layers = Pack();
+            Assert.AreEqual(19, layers.Count);
+            foreach (var expected in new Dictionary<string, int> { { "Kerbin", 6 }, { "Duna", 3 }, { "Eve", 2 }, { "Jool", 4 }, { "Laythe", 4 } })
+            {
+                Assert.AreEqual(expected.Value, layers.Count(l => l.Body == expected.Key), expected.Key);
+            }
             PackLayerInfo weather = layers.Single(l => l.Name == "Kerbin-Weather-1");
             Assert.AreEqual("Kerbin", weather.Body);
             Assert.AreEqual(2200.0, weather.AltitudeM);
             Assert.IsTrue(weather.HasCoverageMap && weather.HasTypeMap && !weather.FxOnly);
-            CollectionAssert.AreEqual(new[] { "Stratus", "Cumulus", "Polar-snow", "Snow" }, weather.TypeNames);
+            CollectionAssert.AreEqual(new[] { "Fog", "Rain", "Thunder", "Polar-fog", "Polar-snow" }, weather.TypeNames);
             Assert.AreEqual("rain-Kerbin", weather.ParticleField);
             PackLayerInfo particles = layers.Single(l => l.Name == "Kerbin-Snow-Particles-1");
             Assert.IsTrue(particles.FxOnly);
             Assert.IsFalse(particles.HasTypeMap);
+            Assert.IsTrue(particles.HasCoverageMap);
+            PackLayerInfo scattered = layers.Single(l => l.Name == "Duna-dust-scattered");
+            Assert.IsTrue(scattered.HasCoverageMap && !scattered.HasTypeMap);
+            CollectionAssert.AreEqual(new[] { "Dust" }, scattered.TypeNames);
+            CollectionAssert.Contains(layers.Single(l => l.Name == "Kerbin-base-layer").TypeNames, "Congestus 1");
         }
 
         [TestMethod]
         public void KerbinTakesEveryLayerWithARoleInTheOrderOfAltitude()
         {
             LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Kerbin", CloudRules.Default, 0);
-            CollectionAssert.AreEqual(new[] { "Kerbin-Weather-1", "Kerbin-weather-2", "ReDefinition-Atmospheres-Kerbin", "Kerbin-cumulonimbus-layer" }.OrderBy(n => n).ToArray(),
-                Names(d).OrderBy(n => n).ToArray(), d.Summary());
-            Assert.AreEqual("Kerbin-cumulonimbus-layer", Names(d).Last(), "the highest layer last");
+            CollectionAssert.AreEqual(new[] { "Kerbin-Weather-1", "Kerbin-base-layer", "Kerbin-weather-2", "ReDefinition-Atmospheres-Kerbin" }, Names(d), d.Summary());
             Assert.AreEqual(LayerRoles.Snow | LayerRoles.Stratus | LayerRoles.Storm, d.Roles);
-            Assert.AreEqual(SkipReason.NoRole, d.Decisions.Single(x => x.Layer.Name == "Kerbin-base-layer").Skip, "the base layer has no role of ours");
-            Assert.AreEqual(SkipReason.FxOnly, d.Decisions.Single(x => x.Layer.Name == "Kerbin-Snow-Particles-1").Skip);
+            Assert.AreEqual(LayerRoles.Snow | LayerRoles.Storm, d.Decisions.Single(x => x.Layer.Name == "Kerbin-Weather-1").Roles, "Polar-snow and Thunder");
+            Assert.AreEqual(LayerRoles.Stratus, d.Decisions.Single(x => x.Layer.Name == "Kerbin-base-layer").Roles);
+            Assert.AreEqual(SkipReason.NoRole, Skip(d, "Kerbin-cumulonimbus-layer"), "trail, edge and core are no role of ours");
+            Assert.AreEqual(SkipReason.FxOnly, Skip(d, "Kerbin-Snow-Particles-1"));
+            Assert.AreEqual(SkipReason.FxOnly, Skip(d, "Kerbin-Snow-Particles-2"));
             Assert.IsFalse(d.None);
         }
 
         [TestMethod]
-        public void TwoPacksOnOneBodyBothCountAndTheCapStopsTheCount()
+        public void TheBaseLayerIsLeftToEveWhereTheNodeNamesIt()
         {
-            List<PackLayerInfo> all = Stock();
-            all.AddRange(E41Support.Layers(E41Support.PackFixture("second-pack-on-kerbin.cfg")));
-            LayerDiscovery open = LayerRoleDiscovery.Discover(all, "Kerbin", CloudRules.Default, 0);
-            Assert.IsTrue(Names(open).Contains("SecondPack-Kerbin-low") && Names(open).Contains("SecondPack-Kerbin-snow") && Names(open).Contains("SecondPack-Kerbin-storm"),
-                open.Summary());
-            Assert.IsTrue(Names(open).Contains("Kerbin-Weather-1"));
-            Assert.AreEqual(SkipReason.NoMaps, open.Decisions.Single(x => x.Layer.Name == "SecondPack-Kerbin-nomaps").Skip);
-            Assert.AreEqual(SkipReason.NoRole, open.Decisions.Single(x => x.Layer.Name == "SecondPack-Kerbin-decor").Skip);
-            LayerDiscovery capped = LayerRoleDiscovery.Discover(all, "Kerbin", CloudRules.Default, 3);
+            var rules = new CloudRules(baseLayer: "Kerbin-base-layer");
+            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Kerbin", rules, 0);
+            Assert.AreEqual(SkipReason.BaseLayer, Skip(d, "Kerbin-base-layer"));
+            CollectionAssert.AreEqual(new[] { "Kerbin-Weather-1", "Kerbin-weather-2", "ReDefinition-Atmospheres-Kerbin" }, Names(d), d.Summary());
+        }
+
+        [TestMethod]
+        public void TheShippedKerbinNodeTakesTheTwoWeatherLayersOfThePackByName()
+        {
+            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Kerbin", Shipped("Kerbin"), 0);
+            CollectionAssert.AreEqual(new[] { "Kerbin-Weather-1", "Kerbin-weather-2" }, Names(d), d.Summary());
+            Assert.AreEqual(SkipReason.NotNamed, Skip(d, "Kerbin-base-layer"));
+        }
+
+        [TestMethod]
+        public void OurLayerAndThePacksLayersOnOneBodyBothCountAndTheCapStopsTheCount()
+        {
+            LayerDiscovery open = LayerRoleDiscovery.Discover(Stock(), "Kerbin", CloudRules.Default, 0);
+            Assert.AreEqual(2, open.Taken.Select(l => l.Origin).Distinct().Count(), "layers of the pack file and of our file: " + open.Summary());
+            LayerDiscovery capped = LayerRoleDiscovery.Discover(Stock(), "Kerbin", CloudRules.Default, 3);
             Assert.AreEqual(3, capped.Taken.Count);
             Assert.AreEqual(open.Taken.Count - 3, capped.Decisions.Count(x => x.Skip == SkipReason.OverCap));
+            Assert.AreEqual(SkipReason.OverCap, Skip(capped, "ReDefinition-Atmospheres-Kerbin"), "the highest layer falls off first");
             Assert.IsTrue(capped.Summary().Contains("cap 3"));
         }
 
         [TestMethod]
-        public void TheCapKeepsTheLowestLayers()
+        public void DunaDrivesOnlyOurLayerBecauseThePacksDustLayersCannotBePainted()
         {
-            LayerDiscovery capped = LayerRoleDiscovery.Discover(Stock(), "Kerbin", CloudRules.Default, 2);
-            Assert.AreEqual(2, capped.Taken.Count);
-            Assert.IsTrue(capped.Taken.All(l => l.AltitudeM <= 2700.0));
+            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Duna", Shipped("Duna"), 0);
+            CollectionAssert.AreEqual(new[] { "ReDefinition-Atmospheres-Duna" }, Names(d), d.Summary());
+            Assert.AreEqual(LayerRoles.Dust, d.Roles);
+            Assert.AreEqual(SkipReason.NoMaps, Skip(d, "Duna-dust-scattered"), "a Dust type, but no type map");
+            Assert.AreEqual(SkipReason.NoRole, Skip(d, "Duna-duststorm-big"), "Wake, Front and tornado parts name no dust type");
+            Assert.AreEqual(SkipReason.NoRole, Skip(d, "Duna-rare-cirrus"));
         }
 
         [TestMethod]
-        public void DunaFindsTheDustLayersWhenTheNodeNamesTheDustTypeAndNothingWhenItDoesNot()
+        public void WithoutADustListNoDunaLayerHasARoleAndTheCloudsAreOurs()
         {
-            var withDust = new CloudRules(dustTypeNames: new[] { "dust", "Dust" });
-            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Duna", withDust, 0);
-            CollectionAssert.AreEquivalent(new[] { "Duna-duststorm-big", "ReDefinition-Atmospheres-Duna" }, Names(d), d.Summary());
-            Assert.AreEqual(LayerRoles.Dust, d.Roles);
-            LayerDiscovery without = LayerRoleDiscovery.Discover(Stock(), "Duna", CloudRules.Default, 0);
-            Assert.IsTrue(without.None, "no dust list: no layer has a role, the clouds are ours");
+            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Duna", CloudRules.Default, 0);
+            Assert.IsTrue(d.None, d.Summary());
+            Assert.AreEqual(CloudSourceKind.Ours, d.EffectiveSource(CloudSourceKind.Eve));
         }
 
         [TestMethod]
-        public void TheShippedDunaNodeNamesTheDustTypeAndTheLayersAreFoundByRole()
+        public void EveHasALayerTheRoleLogicWouldTakeAndTheShippedNodeSwitchesTheDiscoveryOff()
         {
-            ConfigNode node = E41Support.BodyNode("Duna");
-            CloudRules rules = BodyRuleReaders.Clouds(new BodyNodeReader(node.GetNode("CLOUDS"), "CLOUDS", new List<string>()));
-            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Duna", rules, 0);
-            CollectionAssert.AreEqual(new[] { "ReDefinition-Atmospheres-Duna", "Duna-duststorm-big" }, Names(d), d.Summary());
-            Assert.AreEqual(LayerRoles.Dust, d.Roles);
-            Assert.AreEqual(SkipReason.NoRole, d.Decisions.Single(x => x.Layer.Name == "Duna-rare-cirrus").Skip);
+            LayerDiscovery auto = LayerRoleDiscovery.Discover(Stock(), "Eve", CloudRules.Default, 0);
+            CollectionAssert.AreEqual(new[] { "Eve-clouds2" }, Names(auto), "its Stratus type is a role: " + auto.Summary());
+            Assert.AreEqual(SkipReason.NoRole, Skip(auto, "Eve-clouds1"), "Floor and Pillar");
+            CloudRules shipped = Shipped("Eve");
+            Assert.AreEqual(CloudDiscovery.Off, shipped.Discover);
+            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Eve", shipped, 0);
+            Assert.IsTrue(d.None, d.Summary());
+            Assert.IsTrue(d.Decisions.Count == 2 && d.Decisions.All(x => x.Skip == SkipReason.DiscoveryOff));
+        }
+
+        [TestMethod]
+        public void LaytheTakesThePacksWeatherLayersAndOursButNotItsBaseLayer()
+        {
+            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Laythe", Shipped("Laythe"), 0);
+            CollectionAssert.AreEqual(new[] { "Laythe-Weather-1", "Laythe-weather-2", "ReDefinition-Atmospheres-Laythe" }, Names(d), d.Summary());
+            Assert.AreEqual(SkipReason.BaseLayer, Skip(d, "Laythe-base-layer"));
+            Assert.AreEqual(SkipReason.NoRole, Skip(d, "Laythe-pyrocumulus-layer"));
+        }
+
+        [TestMethod]
+        public void JoolHoldsAStormTypeByNameAndWhetherTheBodyRunsIsTheStatusDecision()
+        {
+            LayerDiscovery d = LayerRoleDiscovery.Discover(Pack(), "Jool", CloudRules.Default, 0);
+            CollectionAssert.AreEqual(new[] { "Jool-clouds2" }, Names(d), d.Summary());
+            Assert.AreEqual(LayerRoles.Storm, d.Roles);
+            Assert.AreEqual("Off(NoSurface)", E41Support.StockBodies().Single(s => s.Facts.Name == "Jool").Expected);
         }
 
         [TestMethod]
         public void ALiveLayerBecomesDiscoveryInputAndTheTakenOnesComeBack()
         {
             var ours = new EveLayer { Name = "ReDefinition-Atmospheres-Duna", BodyName = "Duna", InnerRadiusM = 322700f, TypeNames = new[] { "Dust" } };
-            var cirrus = new EveLayer { Name = "Duna-rare-cirrus", BodyName = "Duna", InnerRadiusM = 332200f, TypeNames = new[] { "Cirrus" } };
+            var cirrus = new EveLayer { Name = "Duna-rare-cirrus", BodyName = "Duna", InnerRadiusM = 332200f, TypeNames = new[] { "Cirrus", "Cirrus2" } };
             var live = new List<EveLayer> { cirrus, ours };
             List<PackLayerInfo> infos = LiveLayerInfo.From(live, 320000.0);
             Assert.AreEqual(2, infos.Count);
             Assert.AreEqual(2700.0, infos.Single(i => i.Name == ours.Name).AltitudeM, 1.0);
-            LayerDiscovery d = LayerRoleDiscovery.Discover(infos, "Duna", new CloudRules(dustTypeNames: new[] { "Dust" }), 0);
+            LayerDiscovery d = LayerRoleDiscovery.Discover(infos, "Duna", Shipped("Duna"), 0);
             List<EveLayer> taken = LiveLayerInfo.Taken(d, live);
             Assert.AreEqual(1, taken.Count);
             Assert.AreSame(ours, taken[0]);
@@ -116,12 +177,15 @@ namespace ReDefinition.Tests.Atmospheres.E41
         }
 
         [TestMethod]
-        public void LaytheAndEveAreFoundWhereTheyHaveRolesAndEveHasNone()
+        public void TheScanOfTheGameAndTheModuleRunTheDiscovery()
         {
-            LayerDiscovery laythe = LayerRoleDiscovery.Discover(Stock(), "Laythe", CloudRules.Default, 0);
-            CollectionAssert.AreEquivalent(new[] { "Laythe-Weather-1", "Laythe-Weather-2", "ReDefinition-Atmospheres-Laythe" }, Names(laythe), laythe.Summary());
-            LayerDiscovery eve = LayerRoleDiscovery.Discover(Stock(), "Eve", CloudRules.Default, 0);
-            Assert.IsTrue(eve.None, "Eve's two layers play no role of ours: " + eve.Summary());
+            string eve = Path.Combine(E41Support.Root(), "src", "Atmospheres", "Eve");
+            string access = File.ReadAllText(Path.Combine(eve, "EveLayerAccess.cs"));
+            Assert.IsTrue(access.Contains("LayerRoleDiscovery.Discover("), "EveLayerAccess.Scan takes its layers from the role discovery");
+            Assert.IsTrue(access.Contains("LiveLayerInfo.Taken("));
+            string module = File.ReadAllText(Path.Combine(eve, "EveCloudModule.cs"));
+            Assert.IsTrue(module.Contains("scanned.Summary()") && module.Contains("MapMegabytes("), "the module prints the discovery line with the map memory");
+            Assert.IsTrue(module.Contains("discovery.EffectiveSource("), "no layer found: the clouds are ours");
         }
 
         [TestMethod]
@@ -133,14 +197,12 @@ namespace ReDefinition.Tests.Atmospheres.E41
             Assert.AreEqual(CloudSourceKind.Ours, d.EffectiveSource(CloudSourceKind.Both));
             Assert.AreEqual(CloudSourceKind.Ours, d.EffectiveSource(CloudSourceKind.Ours));
             Assert.AreEqual(CloudSourceKind.None, d.EffectiveSource(CloudSourceKind.None));
-            Assert.AreEqual(BodyStatusKind.CoverOnly, d.StatusFor(BodyStatus.Full, CloudSourceKind.Eve).Kind);
-            Assert.AreEqual(BodyStatusKind.Full, d.StatusFor(BodyStatus.Full, CloudSourceKind.Ours).Kind);
-            Assert.AreEqual(BodyStatusKind.Off, d.StatusFor(BodyStatus.Off("NoSurface"), CloudSourceKind.Eve).Kind);
             Assert.IsTrue(d.Summary().Contains("0 taken"));
             Assert.AreEqual(0.0, d.MapMegabytes(2048, 1024));
             LayerDiscovery nullInput = LayerRoleDiscovery.Discover(null, "Kerbin", null, 0);
             Assert.IsTrue(nullInput.None);
-            Assert.AreEqual(CloudSourceKind.Eve, LayerRoleDiscovery.Discover(Stock(), "Kerbin", CloudRules.Default, 0).EffectiveSource(CloudSourceKind.Eve));
+            Assert.AreEqual(CloudSourceKind.Eve, LayerRoleDiscovery.Discover(Stock(), "Kerbin", CloudRules.Default, 0).EffectiveSource(CloudSourceKind.Eve),
+                "a body with layers keeps the requested source");
         }
 
         [TestMethod]
@@ -150,46 +212,33 @@ namespace ReDefinition.Tests.Atmospheres.E41
             LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Kerbin", off, 0);
             Assert.IsTrue(d.None);
             Assert.IsTrue(d.Decisions.Count > 0 && d.Decisions.All(x => x.Skip == SkipReason.DiscoveryOff));
-            var named = new CloudRules(discover: CloudDiscovery.Explicit, weatherLayers: new[] { "Kerbin-base-layer" });
+            var named = new CloudRules(discover: CloudDiscovery.Explicit, weatherLayers: new[] { "Kerbin-cumulonimbus-layer" });
             LayerDiscovery n = LayerRoleDiscovery.Discover(Stock(), "Kerbin", named, 0);
-            CollectionAssert.AreEqual(new[] { "Kerbin-base-layer" }, Names(n), "a named layer is taken even without a role");
-            var names = new CloudRules(weatherLayers: new[] { "Kerbin-Weather-1", "Kerbin-weather-2" });
-            CollectionAssert.AreEquivalent(new[] { "Kerbin-Weather-1", "Kerbin-weather-2" }, Names(LayerRoleDiscovery.Discover(Stock(), "Kerbin", names, 0)));
-            var wrongCase = new CloudRules(weatherLayers: new[] { "kerbin-weather-1" });
-            Assert.IsTrue(LayerRoleDiscovery.Discover(Stock(), "Kerbin", wrongCase, 0).None, "names are matched exactly, as the scan of the game does");
-        }
-
-        [TestMethod]
-        public void TheOuterPlanetsPackGivesGasGiantsNoRoleAndASandBodyItsDustLayer()
-        {
-            List<PackLayerInfo> layers = E41Support.Layers(E41Support.PackFixture("outer-planets-pack.cfg"));
-            Assert.AreEqual(4, layers.Count);
-            Assert.IsTrue(LayerRoleDiscovery.Discover(layers, "Urlum", CloudRules.Default, 0).None);
-            LayerDiscovery sarnus = LayerRoleDiscovery.Discover(layers, "Sarnus", CloudRules.Default, 0);
-            Assert.AreEqual(LayerRoles.Storm, sarnus.Roles, "a storm-kind type is a role even on a gas giant; whether the body runs is the status's decision");
-            var sandy = new CloudRules(dustTypeNames: new[] { "SandCloud" });
-            LayerDiscovery hox = LayerRoleDiscovery.Discover(layers, "Hox", sandy, 0);
-            CollectionAssert.AreEqual(new[] { "OuterPack-Hox-dust" }, Names(hox), hox.Summary());
-            Assert.AreEqual(LayerRoles.Dust, hox.Roles);
+            CollectionAssert.AreEqual(new[] { "Kerbin-cumulonimbus-layer" }, Names(n), "a named layer is taken even without a role");
+            var wrongCase = new CloudRules(weatherLayers: new[] { "Kerbin-weather-1" });
+            Assert.IsTrue(LayerRoleDiscovery.Discover(Stock(), "Kerbin", wrongCase, 0).None,
+                "names are matched exactly, as the pack's own spellings differ in case (Kerbin-Weather-1, Kerbin-weather-2)");
         }
 
         [TestMethod]
         public void TheSummaryLineNamesTheLayersTheirRolesAndTheReasons()
         {
-            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Kerbin", CloudRules.Default, 0);
+            LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Kerbin", new CloudRules(baseLayer: "Kerbin-base-layer"), 0);
             string line = d.Summary();
-            Assert.IsTrue(line.StartsWith("layers on Kerbin: 4 taken"), line);
-            Assert.IsTrue(line.Contains("+ Kerbin-Weather-1 [Snow+Stratus]"), line);
-            Assert.IsTrue(line.Contains("- Kerbin-base-layer [no role] NoRole"), line);
+            Assert.IsTrue(line.StartsWith("layers on Kerbin: 3 taken"), line);
+            Assert.IsTrue(line.Contains("+ Kerbin-Weather-1 [Snow+Storm]"), line);
+            Assert.IsTrue(line.Contains("- Kerbin-base-layer [Stratus] BaseLayer"), line);
             Assert.IsTrue(line.Contains("- Kerbin-Snow-Particles-1 [no role] FxOnly"), line);
+            Assert.IsTrue(line.Contains("- Kerbin-cumulonimbus-layer [no role] NoRole"), line);
         }
 
         [TestMethod]
         public void TheMapMemoryOfTheLayersWeDriveIsFourByteGridsPerLayer()
         {
             LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Kerbin", CloudRules.Default, 0);
-            Assert.AreEqual(d.Taken.Count * 8.0, d.MapMegabytes(MapPainter.DefaultWidth, MapPainter.DefaultHeight), 1e-9,
-                "two render targets and two readable copies of 2048 x 1024 bytes: 8 MB a layer");
+            Assert.AreEqual(4, d.Taken.Count);
+            Assert.AreEqual(32.0, d.MapMegabytes(MapPainter.DefaultWidth, MapPainter.DefaultHeight), 1e-9,
+                "per layer two render targets and two readable copies of 2048 x 1024 bytes: 8 MB");
         }
     }
 }
