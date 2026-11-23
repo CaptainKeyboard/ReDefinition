@@ -138,15 +138,18 @@ namespace ReDefinition.Atmospheres
         private readonly Vector4[] layerL = new Vector4[CloudLayerDef.MaxLayers], moonDir = new Vector4[MaxLights], moonCol = new Vector4[MaxLights],
             boltPos = new Vector4[MaxBolts], boltCol = new Vector4[MaxBolts];
 
-        // The quality levels of the light march (0 low, 1 medium, 2 high): taps towards the sun and octaves.
+        // The quality levels of the light march (0 low, 1 medium, 2 high): taps towards the sun and octaves. High's 8 taps are the owner's look of 2026-11-19 (e40puff
+        // k4_stride, 8 taps over the 12 km march), the setting's default on every tier; Medium and Low take fewer of the same growing taps (2026-11-23: the setting acts again).
+        internal const int SunTapsLow = 4, SunTapsMedium = 6, SunTapsHigh = 8;
+
         internal static CloudLightSettings ForQuality(int level)
         {
             var s = new CloudLightSettings();
             switch (level)
             {
-                case 0: s.SunStepsOverride = 2; s.Octaves = 2; s.MoonSteps = 1; s.UpSteps = 1; break;
-                case 1: s.SunStepsOverride = 3; s.Octaves = 3; break;
-                default: s.SunStepsOverride = 4; s.Octaves = 4; s.MoonSteps = 3; break;
+                case 0: s.SunStepsOverride = SunTapsLow; s.Octaves = 2; s.MoonSteps = 1; s.UpSteps = 1; break;
+                case 1: s.SunStepsOverride = SunTapsMedium; s.Octaves = 3; break;
+                default: s.SunStepsOverride = SunTapsHigh; s.Octaves = 4; s.MoonSteps = 3; break;
             }
             return s;
         }

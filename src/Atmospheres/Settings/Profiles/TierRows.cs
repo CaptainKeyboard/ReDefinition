@@ -16,12 +16,13 @@ namespace ReDefinition.Atmospheres
     {
         internal TierRow(QualityTier tier, int volumeSteps, float volumeResolutionAfterGate, int lightCount, SimGridChoice simGrid,
             int orbitMapWidth, int particleCap, float coverageResolution, int painterWidth, int mapWidth, float mapUpdateSeconds, int cloudSamples,
-            bool cloudFastPath, CloudDetailLevel cloudShadowQuality)
+            bool cloudFastPath, CloudDetailLevel cloudShadowQuality, CloudDetailLevel cloudStepQuality)
         {
             Tier = tier;
             CloudSamples = cloudSamples;
             CloudFastPath = cloudFastPath;
             CloudShadowQuality = cloudShadowQuality;
+            CloudStepQuality = cloudStepQuality;
             VolumeSteps = volumeSteps;
             VolumeResolutionAfterGate = volumeResolutionAfterGate;
             LightCount = lightCount;
@@ -47,6 +48,10 @@ namespace ReDefinition.Atmospheres
         internal bool CloudFastPath { get; }
         // Key cloudShadowQuality: Low (4 steps, 1 tap) with the fast path (the shadow pass 4.5 -> 0.15 ms from above), the setting's default Medium otherwise.
         internal CloudDetailLevel CloudShadowQuality { get; }
+        // Key layerStepQuality (2026-11-23, the owner: the quality settings act per graphics profile): its shortest step is the one each tier drew before the setting acted,
+        // Medium (12 m, LayerSwitches.MinStepMediumM) with the fast path, High (6 m, the owner's look) without. The grid points stay the same: cloudSamples scales the
+        // level's count and the march takes 256 at most, which High's 64 and Medium's 48 both reach at cloudSamples 256 (Low's 48 samples stay Medium's 48).
+        internal CloudDetailLevel CloudStepQuality { get; }
         // Key volumeSteps: the march steps of the volume pass.
         internal int VolumeSteps { get; }
         // Key volumeResolution once the half-resolution look gate has passed (VolumeResolutionGate); full size before.
@@ -80,15 +85,20 @@ namespace ReDefinition.Atmospheres
         internal const int NoLimit = -1;
 
         // The revision of this table: raised whenever a row changes, so the profile module writes the row once more at the same tier (QualityProfileModule.RevisionKey).
-        // 2: the fast cloud path and the cloud shadow quality (2026-11-22).
-        internal const int Revision = 2;
+        // 2: the fast cloud path and the cloud shadow quality (2026-11-22). 3: the step quality (2026-11-23).
+        internal const int Revision = 3;
 
-        private static readonly TierRow Low = new TierRow(QualityTier.Low, 16, 0.25f, 2, SimGridChoice.Coarse, 1024, 6700, 0.5f, 1024, 256, 8f, 48, true, CloudDetailLevel.Low);
-        private static readonly TierRow Medium = new TierRow(QualityTier.Medium, 20, 0.5f, 4, SimGridChoice.Normal, 2048, 14400, 0.5f, 2048, 512, 4f, 256, true, CloudDetailLevel.Low);
-        private static readonly TierRow High = new TierRow(QualityTier.High, 28, 1f, 8, SimGridChoice.Normal, 4096, 20000, 1f, 2048, 512, 3f, 256, false, CloudDetailLevel.Medium);
-        private static readonly TierRow Ultra = new TierRow(QualityTier.Ultra, 36, 1f, 8, SimGridChoice.Fine, 4096, 27800, 1f, 4096, 1024, 2f, 256, false, CloudDetailLevel.Medium);
+        private static readonly TierRow Low = new TierRow(QualityTier.Low, 16, 0.25f, 2, SimGridChoice.Coarse, 1024, 6700, 0.5f, 1024, 256, 8f, 48, true, CloudDetailLevel.Low,
+            CloudDetailLevel.Medium);
+        private static readonly TierRow Medium = new TierRow(QualityTier.Medium, 20, 0.5f, 4, SimGridChoice.Normal, 2048, 14400, 0.5f, 2048, 512, 4f, 256, true, CloudDetailLevel.Low,
+            CloudDetailLevel.Medium);
+        private static readonly TierRow High = new TierRow(QualityTier.High, 28, 1f, 8, SimGridChoice.Normal, 4096, 20000, 1f, 2048, 512, 3f, 256, false, CloudDetailLevel.Medium,
+            CloudDetailLevel.High);
+        private static readonly TierRow Ultra = new TierRow(QualityTier.Ultra, 36, 1f, 8, SimGridChoice.Fine, 4096, 27800, 1f, 4096, 1024, 2f, 256, false, CloudDetailLevel.Medium,
+            CloudDetailLevel.High);
         // Max has no limit: the most the keys take, and the particle cap off. Its cost is measured, not budgeted.
-        private static readonly TierRow Max = new TierRow(QualityTier.Max, 48, 1f, 8, SimGridChoice.Fine, 4096, NoLimit, 1f, 4096, 1024, 1f, 256, false, CloudDetailLevel.Medium);
+        private static readonly TierRow Max = new TierRow(QualityTier.Max, 48, 1f, 8, SimGridChoice.Fine, 4096, NoLimit, 1f, 4096, 1024, 1f, 256, false, CloudDetailLevel.Medium,
+            CloudDetailLevel.High);
 
         // The tiers with a row, lowest first.
         internal static readonly QualityTier[] All = { QualityTier.Low, QualityTier.Medium, QualityTier.High, QualityTier.Ultra, QualityTier.Max };
@@ -115,7 +125,8 @@ namespace ReDefinition.Atmospheres
             AtmospheresSettings.Keys.SimGrid,
             AtmospheresSettings.Keys.OrbitMapWidth,
             AtmospheresSettings.Keys.CloudSamples,
-            AtmospheresSettings.Keys.CloudShadowQuality
+            AtmospheresSettings.Keys.CloudShadowQuality,
+            AtmospheresSettings.Keys.LayerStepQuality
         };
 
         // The keys that carry a profile row in the key table (the group they belong to) but that no tier sets, each with the reason: they
@@ -150,9 +161,8 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.Keys.ForecastEnabled, "a switch of the player's" },
             { AtmospheresSettings.Keys.ForecastHorizonHours, "a length of time the player wants, not a size" },
             { AtmospheresSettings.Keys.LayerCap, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
-            { AtmospheresSettings.Keys.LayerStepQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
             { AtmospheresSettings.Keys.CloudNoiseTier, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
-            { AtmospheresSettings.Keys.CloudLightQuality, "the tier mapping of the own clouds is not settled and waits for the owner's agreement to lower any default" },
+            { AtmospheresSettings.Keys.CloudLightQuality, "every tier keeps the default High (8 taps, the owner's look); a lower tier level waits for the owner's agreement to lower the default" },
             { AtmospheresSettings.Keys.CloudResolution, "a level above 1 lowers the cloud picture's resolution; a tier sets it only after the owner agrees to a lower default" },
             { AtmospheresSettings.Keys.CloudSkipEmpty, "starts no ray in tiles the maps prove empty; the bound is conservative but its saving and error are measured, and a tier sets it only after the owner agrees" },
             { AtmospheresSettings.Keys.CloudLayerCapDistance, "thins the layers beyond the nearest few from a distance, a quality reduction; a tier sets it only after the owner agrees to a lower default" }

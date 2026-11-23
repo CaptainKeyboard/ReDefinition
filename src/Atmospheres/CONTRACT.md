@@ -188,7 +188,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | `cloudResolution` | 1 | 1 to 4 | Cloud Resolution | needs-own-clouds | volume |
 | `cloudRotation` | on | on / off | Cloud Rotation | needs-own-clouds | - |
 | `sceneWhiteBalance` | 0.25 | 0 to 1 | Scene White Balance | needs-own-clouds | - |
-| `cloudSunMarchLong` | off | on / off | Cloud Long Sun March | needs-own-clouds | - |
+| `cloudSunMarchLong` | on | on / off | Cloud Long Sun March | needs-own-clouds | - |
 | `cloudSunWhiteBalance` | off | on / off | Cloud Sun White Balance | needs-own-clouds | - |
 | `cloudDiffusionDecay` | 0.08 | 0 to 0.2 | Cloud Diffusion Decay | needs-own-clouds | - |
 | `cloudFarHaze` | off | on / off | Cloud Far Haze | needs-own-clouds | - |

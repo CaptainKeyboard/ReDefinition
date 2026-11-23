@@ -201,9 +201,9 @@ namespace ReDefinition.Atmospheres
                 // (0 none, 1 the full tint), in place of the clouds' own white point (SceneWhiteBalance). The owner found the full balance too strong on every body.
                 SettingDef.Float("sceneWhiteBalance", 0.25, 0.0, 1.0, CL, "Scene White Balance", OWN),
 
-                // The sun march and the look fixes of T03v2: the short march (4 km) is what the parity rows measured; the white balance and the decay are the
-                // fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)
-                SettingDef.Bool("cloudSunMarchLong", false, CL, "Cloud Long Sun March", OWN),
+                // The sun march and the look fixes of T03v2: the long march (12 km, on) is the owner's look of 2026-11-19, the short one (4 km) what the parity rows
+                // measured; the white balance and the decay are the fitted look and stay on at their fitted values (off / 0 keep the earlier behaviour for the comparison tables)
+                SettingDef.Bool("cloudSunMarchLong", true, CL, "Cloud Long Sun March", OWN),
                 SettingDef.Bool("cloudSunWhiteBalance", false, CL, "Cloud Sun White Balance", OWN),
                 SettingDef.Float("cloudDiffusionDecay", 0.08,0.0, 0.2, CL, "Cloud Diffusion Decay", OWN),
 

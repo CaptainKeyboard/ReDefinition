@@ -94,8 +94,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             double samplesShare = AtmospheresSettings.Definition(AtmospheresSettings.Keys.CloudSamples).Default / 48.0;
             Assert.AreEqual(Math.Round(Math.Round(expected.MaxSteps * samplesShare) * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             Assert.AreEqual(expected.SunSteps, frame.SunSteps);
-            Assert.AreEqual(OwnCloudOptions.LookMinStepM, frame.MinStepM, "the owner's look (the default since 2026-11-19)");
-            Assert.AreEqual(OwnCloudOptions.LookSunMarchM, frame.SunMarchM, "the owner's look: a 12 km march towards the sun");
+            Assert.AreEqual(LayerSwitches.MinStepMediumM, frame.MinStepM, "the default step quality Medium (the tiers set their own: TierRow.CloudStepQuality)");
+            Assert.AreEqual(12000f, frame.SunMarchM, "the owner's look: a 12 km march towards the sun (cloudSunMarchLong on)");
             Assert.AreEqual(expected.TransmittanceGrowth, frame.TransmittanceGrowth, "the product's step growth");
             Assert.AreEqual(expected.CoverageBound, frame.CoverageBound);
             Assert.AreEqual(expected.LightStride, frame.LightStride);
@@ -115,7 +115,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(lightExpected.OctaveA, light.OctaveA);
             Assert.AreEqual(lightExpected.MsBrightness, light.MsBrightness);
             Assert.AreEqual(lightExpected.AmbientGain, light.AmbientGain);
-            Assert.AreEqual(OwnCloudOptions.LookSunSteps, light.SunStepsOverride, "the owner's look: 8 taps towards the sun");
+            Assert.AreEqual(8, light.SunStepsOverride, "the owner's look: 8 taps towards the sun (the default light quality High)");
 
             var shadow = new CloudShadowFrame();
             OwnCloudOptions.Apply(shadow, Defaults());
@@ -130,14 +130,14 @@ namespace ReDefinition.Tests.Atmospheres.T10
         [TestMethod]
         public void TheDefaultQualityIsTheFrameDefaultAndTheQualityReducingChoicesAreOff()
         {
-            // layerStepQuality Medium = the frame's own 48 steps, 3 sun steps, 25 m.
+            // layerStepQuality Medium = the frame's own 48 steps and 3 sun steps; its shortest step is the fast path's 12 m (the frame's own 25 m is the parity jobs').
             int maxSteps, sunSteps;
             float minStep;
             LayerSwitches.StepQuality((int)AtmospheresSettings.Definition("layerStepQuality").Default, out maxSteps, out sunSteps, out minStep);
             var frame = new LayerFrame();
             Assert.AreEqual(frame.MaxSteps, maxSteps);
             Assert.AreEqual(frame.SunSteps, sunSteps);
-            Assert.AreEqual(frame.MinStepM, minStep);
+            Assert.AreEqual(12f, minStep);
             Assert.AreEqual((double)(int)ReconMode.Full, AtmospheresSettings.Definition("cloudReconMode").Default, "no reconstruction by default");
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("ownClouds").Default, "the system is off until T09 accepts it");
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudLightCache").Default, "the light cache is a cost experiment");
@@ -155,21 +155,19 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.IsFalse(noise.Enabled || noise.Untile || noise.Curl || noise.DistanceLod || noise.FineDetail);
             Assert.AreEqual(0, noise.SizeLevel);
 
-            // The owner's look sets the shortest step and the taps towards the sun (OwnCloudOptions.Look*); with its keys at 0 the step and light quality's values reach the structs.
-            Tuning.SetOverride(OwnCloudOptions.TuneMinStepM, 0f);
-            Tuning.SetOverride(OwnCloudOptions.TuneSunSteps, 0f);
+            // The step and light quality's values reach the structs (the keys layers.minStepM and layers.sunSteps at their default 0).
             NextFrame();
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, v);
             Assert.AreEqual(Math.Round(171 * OwnCloudOptions.GridFineDefault), frame.MaxSteps, "the Low step quality's 32 points at the Medium profile's 256 of 48");
             Assert.AreEqual(2, frame.SunSteps);
-            Assert.AreEqual(40f, frame.MinStepM);
+            Assert.AreEqual(LayerSwitches.MinStepLowM, frame.MinStepM);
             Assert.AreEqual(0.5f, frame.TransmittanceGrowth);
 
             var light = new CloudLightSettings();
             OwnCloudOptions.Apply(light, v);
             Assert.AreEqual(1, light.Octaves, "the setting caps the quality level's octaves");
-            Assert.AreEqual(2, light.SunStepsOverride);
+            Assert.AreEqual(CloudLightSettings.SunTapsLow, light.SunStepsOverride);
             Assert.AreEqual(0.25f, light.PowderStrength, 1e-6f);
             Assert.AreEqual(0f, light.SunAirHeightM, "no sun tint: the frame's sun colour unchanged");
             Assert.IsTrue(light.AmbientOcclusionTaps);
