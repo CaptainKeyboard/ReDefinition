@@ -108,11 +108,8 @@ namespace ReDefinition.Atmospheres.Viewer
                 "Hurst exponent of the erosion detail octaves, 0 the compiled weights; read only when the noise volumes are made (a scene change or a change of Cloud Noise Size)",
                 KeyLiveness.Volume, KeyMarker.AfterVolumeRebuild, 0f, 2f);
 
-            // OPT1: the map pipeline. cloud.mapGpuSlew is read when the map store is made (OwnCloudModule.cs:642, a stack build) and when a fetch round starts (:769, a change
-            // switches the mode at the next round); cloud.mapWorker is read when each steady-state round starts (:789), so a change acts within about a second.
-            r.Flag(OwnCloudModule.TuneMapGpuSlew, true, KeySection.Quality,
-                "the cloud maps move toward the weather's new maps on the GPU (one upload per new map) instead of a step and an upload of every map on the CPU every frame",
-                KeyLiveness.Second);
+            // OPT1: the map pipeline (the maps always slew on the GPU since cleanup 2 E). cloud.mapWorker is read when each steady-state round starts, so a change acts
+            // within about a second.
             r.Flag(OwnCloudModule.TuneMapWorker, true, KeySection.Quality,
                 "the preparation of the cloud maps (deck rule, meso stage, anvils) runs on a worker thread instead of the main thread", KeyLiveness.Second);
 

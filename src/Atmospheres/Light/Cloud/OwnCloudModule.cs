@@ -665,7 +665,7 @@ namespace ReDefinition.Atmospheres
             EnsureRoundIdle();
             fetchStep = -1;
             heightJob.Cancel();
-            renderer.Maps.Ensure(MapWidth, MapHeight, Tuning.Get(TuneMapGpuSlew, 1f) > 0.5f);
+            renderer.Maps.Ensure(MapWidth, MapHeight);
             renderer.Noise.Switches.SphereScale = c.Clouds.SphereScale > 0f ? c.Clouds.SphereScale : 1f;
             OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()) { StepPolicy = OwnCloudOptions.ShadowStepPolicy, ShapeNoise = shadowNoise });
             OwnCloudHook.Attach();
@@ -795,18 +795,6 @@ namespace ReDefinition.Atmospheres
                 if (lookStampSeen >= 0) { forceMaps = true; snapMaps = true; }
                 lookStampSeen = lookStamp;
             }
-            // cloud.mapGpuSlew (default 1): the maps slew on the GPU (LayerMapStore.GpuSlew.cs), 0 the old per-frame step and upload; the mode changes between frames by dropping the
-            // maps and fetching them again with a snap.
-            bool gpuSlew = Tuning.Get(TuneMapGpuSlew, 1f) > 0.5f;
-            if (renderer.Maps.Coverage != null && renderer.Maps.GpuSlew != gpuSlew)
-            {
-                EnsureRoundIdle();
-                fetchStep = -1;
-                renderer.Maps.Ensure(MapWidth, MapHeight, gpuSlew);
-                forceMaps = snapMaps = true;
-                mapsPrimed = false;
-                stepMaps = false;
-            }
             if (roundOnWorker && Volatile.Read(ref roundFinished) == 1) CompleteWorkerRound();
             if (!roundOnWorker && fetchStep < 0 && OwnCloudPlan.Due(now, nextMaps, OwnCloudPlan.MapIntervalS, forceMaps))
             {
@@ -817,7 +805,7 @@ namespace ReDefinition.Atmospheres
                 fetchAll = forceMaps || !mapsPrimed;
                 fetchRoundMs = 0.0;
                 // cloud.mapWorker (default 1): a steady-state round (no snap, maps primed) runs on a worker thread; the main thread starts it and takes its result (the maps slew on the GPU).
-                if (!fetchAll && !snapMaps && renderer.Maps.GpuSlew && field.ThreadSafe && Tuning.Get(TuneMapWorker, 1f) > 0.5f) StartWorkerRound(b, field, ut);
+                if (!fetchAll && !snapMaps && field.ThreadSafe && Tuning.Get(TuneMapWorker, 1f) > 0.5f) StartWorkerRound(b, field, ut);
                 forceMaps = false;
             }
             if (fetchStep >= 0 && !roundOnWorker)
@@ -837,20 +825,17 @@ namespace ReDefinition.Atmospheres
                     else Stats.WorstMapMs = Math.Max(Stats.WorstMapMs, Stats.LastMapMs);
                 }
             }
-            // With GpuSlew the store's clock runs every frame (the shader's slew is measured against it); the old path steps only while a round's targets are being reached.
-            if (stepMaps || renderer.Maps.GpuSlew)
+            // The store's clock runs every frame (the shader's slew is measured against it, LayerMapStore.GpuSlew.cs).
+            int open = renderer.Maps.Step(dt, MapSlew.DefaultRate, stepMaps && snapMaps);
+            if (stepMaps)
             {
-                int open = renderer.Maps.Step(dt, MapSlew.DefaultRate, stepMaps && snapMaps);
-                if (stepMaps)
-                {
-                    snapMaps = false;
-                    mapsPrimed = true;
-                    if (open == 0) stepMaps = false;
-                }
+                snapMaps = false;
+                mapsPrimed = true;
+                if (open == 0) stepMaps = false;
             }
         }
 
-        internal const string TuneMapGpuSlew = "cloud.mapGpuSlew", TuneMapWorker = "cloud.mapWorker";
+        internal const string TuneMapWorker = "cloud.mapWorker";
 
         // The main-thread time of the map pipeline (FetchMaps: the round's steps, the store's step and its uploads), one line a second, only with -redefinitionGpuProfile.
         private static bool? mapTimingOn;
@@ -868,7 +853,7 @@ namespace ReDefinition.Atmospheres
             if (ms > mapTimeMax) mapTimeMax = ms;
             if (now - mapTimeSince < 1f) return;
             AtmospheresLog.Say("own clouds: map pipeline main thread (OPT1), last second: " + mapTimeFrames + " frames, mean " + (mapTimeSum / mapTimeFrames).ToString("0.000")
-                               + " ms, max " + mapTimeMax.ToString("0.000") + " ms, mode " + (renderer.Maps.GpuSlew ? "gpu slew" : "cpu step") + (roundOnWorker ? ", round on the worker" : "")
+                               + " ms, max " + mapTimeMax.ToString("0.000") + " ms" + (roundOnWorker ? ", round on the worker" : "")
                                + ", pending uploads " + renderer.Maps.SlewPending + ", rounds " + Stats.MapFetches);
             mapTimeFrames = 0;
             mapTimeSum = mapTimeMax = 0.0;
