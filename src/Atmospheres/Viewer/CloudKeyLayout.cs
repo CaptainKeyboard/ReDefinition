@@ -87,7 +87,9 @@ namespace ReDefinition.Atmospheres.Viewer
             Put(map, KeySection.Shape,
                 CloudLookTuning.TuneSigma, CloudLookTuning.TuneNoiseSize,
                 CloudLookTuning.TuneBillowLight, CloudLookTuning.TuneBillowContrast, CloudLookTuning.TuneBillowTop, CloudLookTuning.TuneBillowFine,
-                CloudLookTuning.TuneBillowFineFreq);
+                CloudLookTuning.TuneBillowFineFreq,
+                // M2c: the stratus rolls (their amount and the length of a roll in the layer's thickness).
+                OwnCloudOptions.TuneSheetRolls, OwnCloudOptions.TuneRollLengthShare);
             Put(map, KeySection.Edge,
                 CloudLookTuning.TuneSoftness, CloudLookTuning.TuneFadeFar, CloudLookTuning.TuneFadeNearShare, CloudLookTuning.TuneFarHaze);
             Put(map, KeySection.Light,

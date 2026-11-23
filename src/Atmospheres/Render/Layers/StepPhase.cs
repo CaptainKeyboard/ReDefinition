@@ -17,5 +17,15 @@ namespace ReDefinition.Atmospheres
             double x = frame * GoldenRatio;
             return x - Math.Floor(x);
         }
+
+        // The phase of a march under the history rotation (recon.rotate, an N x N block: cycle = N * N): a pixel is marched once per cycle, so the sequence counts the
+        // pixel's own samples (index / cycle) and each pixel's successive offsets step by the golden ratio, as every pixel's do without the rotation. The frame's own phase
+        // (Of(index)) stepped a pixel's samples by frac(16 x 0.618) = 0.888 at 4 x 4: its last few samples covered a third of the step, and each cell of the block kept a
+        // bias of its own, the fine square grid of the clouds seen from far (PRUEFPROTOKOLL 137). All pixels of one cycle share the phase; their own blue-noise offsets differ.
+        internal static double OfSample(int index, int cycle)
+        {
+            if (index < 0) index = 0;
+            return Of(index / Math.Max(cycle, 1));
+        }
     }
 }

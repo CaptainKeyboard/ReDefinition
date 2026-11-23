@@ -24,9 +24,10 @@ namespace ReDefinition.Atmospheres
             IEnumerable<string> weatherLayers = null, IEnumerable<string> snowTypeNames = null, IEnumerable<string> stratusTypeNames = null,
             IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0, IEnumerable<CloudLayerSpec> layers = null, float sphereScale = 1f,
             float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue, Vector3? hazeTint = null, string layerSet = "",
-            CloudHeightRules height = null)
+            CloudHeightRules height = null, double scaledTroposphereM = double.NaN)
         {
             Height = height ?? CloudHeightRules.Default;
+            ScaledTroposphereM = scaledTroposphereM;
             Layers = SchemaList.Of(layers);
             LayerSet = layerSet ?? "";
             SphereScale = sphereScale;
@@ -77,6 +78,9 @@ namespace ReDefinition.Atmospheres
         internal const float DefaultHazeBlue = 0.35f, DefaultHazeNearBlue = 0f;
         // Keys height* (E40 HKEYS): the numbers of the height variation of the layers' bases and tops (HeightTuning); never null.
         internal CloudHeightRules Height { get; }
+        // The troposphere of the height scale (CloudHeightScale: the measured one times the factor) the layers were read against; NaN where the scale does not act. The
+        // meso stage takes it as its depth instead of the generator's (OwnCloudModule), so its depth keys follow the layers.
+        internal double ScaledTroposphereM { get; }
     }
 
     // The colours and limits of the body's air. Node LOOK.

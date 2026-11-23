@@ -311,5 +311,26 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0, r.World.Module.FrameOrigin, "the frame origin is 0 again after a failed capture");
             Assert.AreEqual(0, r.Log.Count(l => l.StartsWith("T09 view begin")), "no timing window");
         }
+
+        // M2c: a pinned view of its own (below the low deck's base, which the series views are inside of).
+        [TestMethod]
+        public void APinnedViewOfItsOwnIsReadFromItsNumbers()
+        {
+            T09View v;
+            string problem;
+            Assert.IsTrue(T09Probe.TryCustomPinView("low=40:25:90:30", out v, out problem));
+            Assert.IsNull(problem);
+            Assert.AreEqual("low", v.Name);
+            Assert.AreEqual(40.0, v.AglM);
+            Assert.AreEqual(25.0, v.PitchDeg);
+            Assert.AreEqual(90.0, v.HeadingDeg);
+            Assert.AreEqual(30.0, v.CameraDistM);
+            Assert.IsFalse(T09Probe.TryCustomPinView("ground", out v, out problem), "a series view's name");
+            Assert.IsNull(problem);
+            Assert.IsFalse(T09Probe.TryCustomPinView("low=40:25:90", out v, out problem), "three numbers");
+            Assert.IsNotNull(problem);
+            Assert.IsFalse(T09Probe.TryCustomPinView("low=2:25:90:30", out v, out problem), "below 5 m");
+            Assert.IsNotNull(problem);
+        }
     }
 }

@@ -212,6 +212,8 @@ namespace ReDefinition.Atmospheres
         private CameraEvent attachedEvent;
         private LayerStackSource stack;
         private string stackKey = "";
+        // The height scale's signature the stack was built with (CloudHeightScale.Signature).
+        private string stackHeightScale;
         private CelestialBody body;
         private int structureVersion, weatherCuts;
         private bool broken, shadersFailed, snapMaps, cold, haveCold, noiseWaitLogged, depthSeenLogged, uploadSeen;
@@ -228,6 +230,8 @@ namespace ReDefinition.Atmospheres
         private IReadOnlyList<CloudLayerSpec> stackSpecs;
         private int stackCap = -1, stackPick = -1;
         private float nextMaps, nextHeights, nextStats, nextWind, nextStackCheck;
+        // The height scale's switch and factor the body configuration was last read with (CloudHeightScale.Signature); null before the first check.
+        private string heightScaleSignature;
         private bool forceMaps, forceHeights, stepMaps, scattererLoaded, mapsPrimed, preCullSubscribed;
         private const int MaxFailures = 3;
         private int failures;
@@ -635,6 +639,15 @@ namespace ReDefinition.Atmospheres
             // Checked once a second (a build allocates): the temperature at the camera picks the member of a group, the layer cap limits the count.
             if (stack != null && now < nextStackCheck) return;
             nextStackCheck = now + 1f;
+            // The height scale (CloudHeightScale): a change of its switch or factor re-reads the body configuration; the next check builds the stack from the new layers.
+            string heightScale = CloudHeightScale.Signature;
+            if (heightScaleSignature != null && heightScale != heightScaleSignature)
+            {
+                var provider = Bodies.Provider as BodyConfigProvider;
+                if (provider != null) provider.Reset();
+                AtmospheresLog.Say("own clouds: the height scale changed (" + heightScaleSignature + " -> " + heightScale + "); the body configuration is read again");
+            }
+            heightScaleSignature = heightScale;
             // Read again each second: the first look of EveRenderCompat may come after this module's first build.
             scattererLoaded = EveRenderCompat.ScattererLoaded;
             WeatherSample sample;
@@ -654,9 +667,11 @@ namespace ReDefinition.Atmospheres
             stackSpecs = c.Clouds.Layers;
             stackCap = draw;
             stackPick = pickIndex;
-            if (stack != null && key == stackKey && stack.BodyIndex == b.flightGlobalsIndex) return;
+            // The key names the layers only: the same layers at other heights (a height scale change, CloudHeightScale) must still replace the stack.
+            if (stack != null && key == stackKey && heightScaleSignature == stackHeightScale && stack.BodyIndex == b.flightGlobalsIndex) return;
             stack = candidate;
             stackKey = key;
+            stackHeightScale = heightScaleSignature;
             structureVersion++;
             Stats.StackBuilds++;
             Stats.Layers = stack.LayerCount;
@@ -670,8 +685,14 @@ namespace ReDefinition.Atmospheres
             OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()) { StepPolicy = OwnCloudOptions.ShadowStepPolicy, ShapeNoise = shadowNoise });
             OwnCloudHook.Attach();
             airBody = -1;
+            var heights = new System.Text.StringBuilder();
+            for (int i = 0; i < stack.LayerCount; i++)
+            {
+                CloudLayerDef d = stack.LayerAt(i);
+                heights.Append(i == 0 ? "" : ", ").Append(d.InnerAltitudeM.ToString("0")).Append('-').Append(d.OuterAltitudeM.ToString("0"));
+            }
             AtmospheresLog.Say("own clouds: stack on " + b.name + ": " + stack.LayerCount + " layers [" + key.TrimEnd('|').Replace("|", ", ") + "], "
-                               + (cold ? "cold" : "warm") + " group members");
+                               + (cold ? "cold" : "warm") + " group members, heights m [" + heights + "], height scale " + heightScaleSignature);
         }
 
         // In its own method so that the closure over the pick lives only on a build, not in the once-a-second check.
@@ -1180,6 +1201,9 @@ namespace ReDefinition.Atmospheres
                     mi.Edge1Rad = mi.Edge2Rad = double.NaN;
                     mi.SystemKm = 0.0;
                 }
+                // The height scale (CloudHeightScale): the meso depth keys follow the troposphere the layers were read against.
+                BodyClimate scaleClimate = Bodies.Get(b);
+                if (scaleClimate != null && scaleClimate.Clouds.ScaledTroposphereM > 0) mi.DepthKm = scaleClimate.Clouds.ScaledTroposphereM * 0.001;
                 byte[] mc = mesoCover[l], mt = mesoType[l];
                 CloudMesoStage.Apply(mesoDef, mi, cover, typeBytes, ref mc, ref mt);
                 mesoCover[l] = mc;
@@ -1373,7 +1397,7 @@ namespace ReDefinition.Atmospheres
                     plan.RootOverrideM = new float[plan.Count][];
                     plan.RootOverrideRangeM = new float[plan.Count];
                     for (int l = 0; l < plan.Count; l++)
-                        if (plan.Tunings[l] != null) plan.RootOverrideM[l] = MapSkyRoots(stack.LayerAt(l), out plan.RootOverrideRangeM[l]);
+                        if (plan.Tunings[l] != null) plan.RootOverrideM[l] = MapSkyRoots(l, stack.LayerAt(l), out plan.RootOverrideRangeM[l]);
                 }
                 heightJob.Begin(plan, field, stack);
                 heightJob.Pump(HeightPumpBudgetMs);

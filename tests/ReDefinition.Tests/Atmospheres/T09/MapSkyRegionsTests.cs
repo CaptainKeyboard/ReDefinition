@@ -172,6 +172,39 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
         }
 
+        // Owner 2026-11-23 "Ja, Feld-Basis": the deck's types are lifted to the field's cloud base (never lowered, at most the deck's depth); the fog type stays on the ground.
+        [TestMethod]
+        public void TheDeckFollowsTheFieldsBaseAndItsFogStaysOnTheGround()
+        {
+            CloudLayerDef deck = Layers()[0];
+            Assert.AreEqual(WeatherMapSky.Role.Deck, WeatherMapSky.RoleOf(deck));
+            float depth = deck.OuterAltitudeM - deck.InnerAltitudeM;
+            Assert.AreEqual(depth, MapSkyRegions.DeckRootRangeM(deck), 1e-3f);
+            int count = deck.Types.Count;
+            float fogValue = deck.Deck != null ? deck.Deck.FogType : 0f, precipValue = deck.Deck != null ? deck.Deck.PrecipType : 0.5f;
+            MapSkyRegions.Parts p = Plan(One(0f, 0.7f, 900, 1900, 1900, 1f, 0.5f, 0.5f));
+            float precipBase = deck.InnerAltitudeM + BaseShareAt(deck, precipValue) * depth;
+            float[] r = MapSkyRegions.DeckRoots(deck, p, new[] { (byte)Math.Round(precipValue * 255.0) });
+            Assert.AreEqual(900f - precipBase, r[0], 2f, "the precipitating type's base is lifted to the field's 900 m");
+            r = MapSkyRegions.DeckRoots(deck, p, new[] { (byte)Math.Round(fogValue * 255.0) });
+            Assert.AreEqual(0f, r[0], 1e-3f, "the fog type stays on the ground");
+            MapSkyRegions.Parts low = Plan(One(0f, 0.7f, 50, 400, 400, 1f, 0.5f, 0.5f));
+            r = MapSkyRegions.DeckRoots(deck, low, new[] { (byte)Math.Round(precipValue * 255.0) });
+            Assert.AreEqual(0f, r[0], 1e-3f, "a field base below the cfg base never lowers the deck");
+            MapSkyRegions.Parts high = Plan(One(0f, 0.7f, 9000, 9500, 9500, 1f, 0.5f, 0.5f));
+            r = MapSkyRegions.DeckRoots(deck, high, null);
+            Assert.AreEqual(depth, r[0], 1e-3f, "at most the deck's depth");
+            Assert.AreEqual(1f, MapSkyRegions.DeckBaseDefault, "on since the owner's choice of 2026-11-23 16:02");
+        }
+
+        private static float BaseShareAt(CloudLayerDef l, float typeValue)
+        {
+            int count = l.Types.Count;
+            float x = typeValue * (count - 1);
+            int ta = Math.Min((int)Math.Floor(x), count - 1), tb = Math.Min(ta + 1, count - 1);
+            return l.Types[ta].BaseShare + (l.Types[tb].BaseShare - l.Types[ta].BaseShare) * (x - ta);
+        }
+
         [TestMethod]
         public void OnlyTheHeapLayerHasSheetTypesAndTheRootsFollowTheBase()
         {
