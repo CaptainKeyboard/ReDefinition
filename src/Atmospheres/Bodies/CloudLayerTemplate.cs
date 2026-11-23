@@ -69,7 +69,9 @@ namespace ReDefinition.Atmospheres
             float bodyFactor = clouds.Float("heightFactor", CloudHeightScale.FactorDefault, CloudHeightScale.FactorMin, CloudHeightScale.FactorMax);
             metreScale = 1.0;
             string scaleNote = "";
-            if (ctx != null && ctx.HeightScaleOn)
+            // Only a set that names the troposphere its metres were written for (heightReferenceM) is scaled (owner 2026-11-23 17:14): a template's depth keys stay on the
+            // generator's depth, so the bodies drawn from the template keep their clouds as before until the height package is defined (PLAN-STAND 11-23 17:14).
+            if (ctx != null && ctx.HeightScaleOn && referenceM > 0)
             {
                 double factor = CloudHeightScale.Clamp((float)(bodyFactor * ctx.HeightFactor));
                 double t = CloudHeightScale.TroposphereM(ctx.Facts != null ? ctx.Facts.MeasuredTropopauseM : double.NaN, factor);

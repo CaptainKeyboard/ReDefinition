@@ -93,9 +93,12 @@ namespace ReDefinition.Tests.Atmospheres.E41
             CloudRules r = Read(true, 1.0, double.NaN);
             Assert.AreEqual(2100f, Layer(r, "deck").OuterAltitudeM, 1e-3f);
             Assert.IsTrue(double.IsNaN(r.ScaledTroposphereM));
+            // Owner 2026-11-23 17:14: a set without heightReferenceM (the template's bodies) is not scaled at all; its depth keys stay on the generator's depth.
             CloudRules noReference = Read(true, 1.0, 8800.0, Clouds.Replace("heightReferenceM = 11000; ", ""));
+            CloudRules noReferenceOff = Read(false, 1.0, 8800.0, Clouds.Replace("heightReferenceM = 11000; ", ""));
             Assert.AreEqual(2100f, Layer(noReference, "deck").OuterAltitudeM, 1e-3f, "metres without a reference stay");
-            Assert.AreEqual(8800f, Layer(noReference, "high").OuterAltitudeM, 0.01f, "depth keys still follow the troposphere");
+            Assert.AreEqual(Layer(noReferenceOff, "high").OuterAltitudeM, Layer(noReference, "high").OuterAltitudeM, 0.01f, "depth keys stay on the generator's depth");
+            Assert.IsTrue(double.IsNaN(noReference.ScaledTroposphereM));
         }
     }
 }
