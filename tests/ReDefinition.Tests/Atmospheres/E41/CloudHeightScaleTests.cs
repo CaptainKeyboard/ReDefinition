@@ -15,12 +15,12 @@ namespace ReDefinition.Tests.Atmospheres.E41
             + "LAYER { name = deck; innerAltitudeM = 0; outerAltitudeM = 2100; noiseScaleM = 4000; TYPE { name = Stratus; baseShare = 0.1; topShare = 0.5; PROFILE { key0 = 0 1; key1 = 1 1 } } } "
             + "LAYER { name = high; innerDepths = 0.8; outerDepths = 1; TYPE { name = Cirrus; baseShare = 0.1; topShare = 0.9; PROFILE { key0 = 0 1; key1 = 1 1 } } } }";
 
-        private static CloudRules Read(bool on, double factor, double measuredM, string clouds = Clouds)
+        private static CloudRules Read(bool on, double factor, double measuredM, string clouds = Clouds, bool horizontal = true)
         {
             BodyFacts facts = BodyTestSupport.Planet("Kerbin", BodyTestSupport.HomeYear);
             facts.MeasuredTropopauseM = measuredM;
             var ctx = new CloudLayerContext { Facts = facts, Generator = BodyRuleReaders.Generator(new BodyNodeReader(null, "GENERATOR", new List<string>())),
-                HeightScaleOn = on, HeightFactor = factor };
+                HeightScaleOn = on, HeightFactor = factor, HeightScaleHorizontal = horizontal };
             ConfigNode node = BodyTestSupport.Root(clouds).GetNode("CLOUDS");
             Warnings.Clear();
             return BodyRuleReaders.Clouds(new BodyNodeReader(node, "CLOUDS", Warnings), ctx);
@@ -67,6 +67,23 @@ namespace ReDefinition.Tests.Atmospheres.E41
             Assert.AreEqual(8800f * 0.6f, Layer(r, "high").OuterAltitudeM, 0.01f);
             CloudRules body = Read(true, 1.0, 8800.0, Clouds.Replace("heightFactor = 1", "heightFactor = 0.75"));
             Assert.AreEqual(8800f * 0.75f, Layer(body, "high").OuterAltitudeM, 0.01f, "the body's own factor");
+        }
+
+        // cloud.heightScaleHorizontal 0 (a comparison of factors at one place): the heights scale, the horizontal lengths and the pattern's depth stay as written.
+        [TestMethod]
+        public void HeightsOnlyKeepTheHorizontalLengths()
+        {
+            string clouds = Clouds.Replace("noiseScaleM = 4000", "noiseScaleDepths = 0.5");
+            CloudRules all = Read(true, 1.0, 8800.0, clouds);
+            CloudRules heights = Read(true, 1.0, 8800.0, clouds, false);
+            CloudRules off = Read(false, 1.0, 8800.0, clouds);
+            Assert.AreEqual(8800f * 0.5f, Layer(all, "deck").NoiseScaleM, 0.01f, "with the horizontal lengths a depth key follows the measured troposphere");
+            Assert.AreEqual(Layer(off, "deck").NoiseScaleM, Layer(heights, "deck").NoiseScaleM, 0.01f, "heights only: the generator's depth as before");
+            Assert.AreEqual(2100f * 0.8f, Layer(heights, "deck").OuterAltitudeM, 0.01f, "the heights scale");
+            Assert.AreEqual(off.Height.WavelengthM, heights.Height.WavelengthM, 0.01f);
+            Assert.AreEqual(110f * 0.8f, heights.Height.VariationM, 0.01f);
+            Assert.IsTrue(double.IsNaN(heights.ScaledTroposphereM), "the meso stage keeps the generator's depth");
+            Assert.AreEqual(1f, CloudHeightScale.HorizontalDefault, "the concept: the horizontal lengths follow");
         }
 
         [TestMethod]

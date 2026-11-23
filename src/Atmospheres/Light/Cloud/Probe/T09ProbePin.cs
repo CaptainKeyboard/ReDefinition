@@ -238,7 +238,7 @@ namespace ReDefinition.Atmospheres
         // starts only after that (PinHeightScaleWaitS).
         private static bool PinChangesHeightScale(PinSwitch s)
         {
-            return s.Kind == 't' && (s.Key == CloudHeightScale.TuneOn || s.Key == CloudHeightScale.TuneFactor);
+            return s.Kind == 't' && (s.Key == CloudHeightScale.TuneOn || s.Key == CloudHeightScale.TuneFactor || s.Key == CloudHeightScale.TuneHorizontal);
         }
 
         private static bool PinLimitChangesHeightScale(PinLimit limit)

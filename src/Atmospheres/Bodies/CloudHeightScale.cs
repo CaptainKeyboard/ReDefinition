@@ -13,13 +13,23 @@ namespace ReDefinition.Atmospheres
     {
         internal const string TuneOn = "cloud.heightScale", TuneFactor = "cloud.heightFactor";
         internal const float OnDefault = 0f, FactorDefault = 1f, FactorMin = 0.3f, FactorMax = 1.5f;
+        // 1 (default, the concept): the horizontal lengths (noise, cells, type patches, the meso scale, the wavelengths of the height variation) follow the troposphere too;
+        // 0: only the heights scale and the sky's horizontal pattern stays as written. A comparison of factors at one place needs 0: with 1 every factor moves the pattern
+        // and the place sees other weather (PRUEFPROTOKOLL 138: the rain deck over KSC 50 at factor 1, 161 at 0.75 and 0.6, the same map mean).
+        internal const string TuneHorizontal = "cloud.heightScaleHorizontal";
+        internal const float HorizontalDefault = 1f;
 
         internal static bool On { get { return Tuning.Get(TuneOn, OnDefault) > 0.5f; } }
 
         internal static float Factor { get { return Clamp(Tuning.Get(TuneFactor, FactorDefault)); } }
 
+        internal static bool Horizontal { get { return Tuning.Get(TuneHorizontal, HorizontalDefault) > 0.5f; } }
+
         // What a change must re-read the configuration for.
-        internal static string Signature { get { return (On ? "on " : "off ") + Factor.ToString("0.###", CultureInfo.InvariantCulture); } }
+        internal static string Signature
+        {
+            get { return (On ? "on " : "off ") + Factor.ToString("0.###", CultureInfo.InvariantCulture) + (Horizontal ? "" : " heights only"); }
+        }
 
         internal static float Clamp(float factor)
         {

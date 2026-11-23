@@ -104,6 +104,8 @@ namespace ReDefinition.Atmospheres.Viewer
                 "height scale: 1 every cloud height a share of the body's measured troposphere (the sizes follow), 0 the layers as written", KeyLiveness.Second, KeyMarker.Live, 0f, 1f);
             r.Key(CloudHeightScale.TuneFactor, CloudHeightScale.FactorDefault, KeySection.Shape,
                 "height scale: the factor on the measured troposphere (with the body's heightFactor)", KeyLiveness.Second, KeyMarker.Live, CloudHeightScale.FactorMin, CloudHeightScale.FactorMax);
+            r.Key(CloudHeightScale.TuneHorizontal, CloudHeightScale.HorizontalDefault, KeySection.Shape,
+                "height scale: 1 the horizontal lengths (noise, cells, patches, meso) follow too, 0 only the heights scale", KeyLiveness.Second, KeyMarker.Live, 0f, 1f);
             r.Key(CloudLookTuning.TuneNoiseBlendExp, 8f, KeySection.Shape, "exponent of the blend weights", min: 1f, max: 32f);
             r.Key(CloudLookTuning.TuneNoiseBlendCell, 1f, KeySection.Shape, "blend lattice cell in periods", min: 0.25f, max: 16f);
             // CLOUDR2: the first taps of the sun's light march read the eroded density (LightTau, _BlendP.w), read every frame.
