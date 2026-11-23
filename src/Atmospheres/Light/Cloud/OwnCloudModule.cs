@@ -212,6 +212,8 @@ namespace ReDefinition.Atmospheres
         private CameraEvent attachedEvent;
         private LayerStackSource stack;
         private string stackKey = "";
+        // The height scale's signature the stack was built with (CloudHeightScale.Signature).
+        private string stackHeightScale;
         private CelestialBody body;
         private int structureVersion, weatherCuts;
         private bool broken, shadersFailed, snapMaps, cold, haveCold, noiseWaitLogged, depthSeenLogged, uploadSeen;
@@ -665,9 +667,11 @@ namespace ReDefinition.Atmospheres
             stackSpecs = c.Clouds.Layers;
             stackCap = draw;
             stackPick = pickIndex;
-            if (stack != null && key == stackKey && stack.BodyIndex == b.flightGlobalsIndex) return;
+            // The key names the layers only: the same layers at other heights (a height scale change, CloudHeightScale) must still replace the stack.
+            if (stack != null && key == stackKey && heightScaleSignature == stackHeightScale && stack.BodyIndex == b.flightGlobalsIndex) return;
             stack = candidate;
             stackKey = key;
+            stackHeightScale = heightScaleSignature;
             structureVersion++;
             Stats.StackBuilds++;
             Stats.Layers = stack.LayerCount;
@@ -681,8 +685,14 @@ namespace ReDefinition.Atmospheres
             OwnCloudOpticalDepth.Bind(new CloudShadowField(stack, stack.Tables()) { StepPolicy = OwnCloudOptions.ShadowStepPolicy, ShapeNoise = shadowNoise });
             OwnCloudHook.Attach();
             airBody = -1;
+            var heights = new System.Text.StringBuilder();
+            for (int i = 0; i < stack.LayerCount; i++)
+            {
+                CloudLayerDef d = stack.LayerAt(i);
+                heights.Append(i == 0 ? "" : ", ").Append(d.InnerAltitudeM.ToString("0")).Append('-').Append(d.OuterAltitudeM.ToString("0"));
+            }
             AtmospheresLog.Say("own clouds: stack on " + b.name + ": " + stack.LayerCount + " layers [" + key.TrimEnd('|').Replace("|", ", ") + "], "
-                               + (cold ? "cold" : "warm") + " group members");
+                               + (cold ? "cold" : "warm") + " group members, heights m [" + heights + "], height scale " + heightScaleSignature);
         }
 
         // In its own method so that the closure over the pick lives only on a build, not in the once-a-second check.

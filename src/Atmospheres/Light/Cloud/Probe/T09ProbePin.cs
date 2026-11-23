@@ -248,8 +248,8 @@ namespace ReDefinition.Atmospheres
             return false;
         }
 
-        // The wait for the module's check (once a second) and the stack build after it.
-        private const double PinHeightScaleWaitS = 2.5;
+        // The wait for the module's checks (once a second): the first re-reads the configuration, the next builds the stack from it; two seconds and a margin.
+        private const double PinHeightScaleWaitS = 3.5;
 
         // Undoes a limit set: the forced tuning keys go (cloud.motionScale 0 is forced again), the settings come back, the probe switches are off.
         private void PinLimitRevert(List<KeyValuePair<string, double>> restore)
