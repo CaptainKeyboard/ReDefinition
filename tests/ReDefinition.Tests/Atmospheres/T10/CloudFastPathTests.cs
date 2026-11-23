@@ -93,7 +93,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             {
                 Frame(fast ? 9300030 : 9300031, fast);
                 Func<string, double> low = k => k == AtmospheresSettings.Keys.LayerStepQuality || k == AtmospheresSettings.Keys.CloudLightQuality ? 0.0
-                    : k == AtmospheresSettings.Keys.CloudSunMarchLong ? 0.0 : Default(k);
+                    : k == AtmospheresSettings.Keys.CloudShortSunMarch ? 1.0 : Default(k);
                 var frame = new LayerFrame();
                 OwnCloudOptions.Apply(frame, low);
                 Assert.AreEqual(LayerSwitches.MinStepLowM, frame.MinStepM, "step quality Low");

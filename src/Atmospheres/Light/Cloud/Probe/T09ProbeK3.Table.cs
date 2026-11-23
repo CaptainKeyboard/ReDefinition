@@ -133,7 +133,7 @@ namespace ReDefinition.Atmospheres
             Add("aotaps_g", Ground, "light").Set(K.CloudAmbientTaps, 1);
             Add("aoreuse2_g", Ground, "light").Set(K.CloudAmbientTaps, 1).Set(K.CloudAmbientReuse, 2);
             Add("wb_off_g", Ground, "light").Set(K.CloudSunWhiteBalance, 0);
-            Add("sun9_g", Ground, "light").Set(K.CloudSunMarchLong, 1);
+            Add("sun4_g", Ground, "light").Set(K.CloudShortSunMarch, 1);
             Add("shadows_off_g", Ground, "shadow").Set(K.CloudShadows, 0);
             Add("shq_low_g", Ground, "shadow").Set(K.CloudShadowQuality, 0);
             Add("shq_high_g", Ground, "shadow").Set(K.CloudShadowQuality, 2);

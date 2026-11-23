@@ -91,7 +91,7 @@ namespace ReDefinition.Atmospheres
         // the full size (ReconResolutionDefault) with the rotation (cloudRotation on). Game, K-T2 perfN2560dlssqceil (A4500 2560x1440 DLSS Q): 21.4 fps at the ground.
         // Since 2026-11-23 the look is carried by the settings' levels (the owner: the quality settings act per graphics profile): the step quality's shortest step
         // (LayerSwitches.MinStepHighM 6 m from the High tier up, MinStepMediumM 12 m below it: TierRow.CloudStepQuality), the light quality's taps (High 8,
-        // CloudLightSettings.SunTapsHigh) and cloudSunMarchLong (on: LayerFrame.SunMarchLongM 12 km). The keys layers.minStepM, layers.sunMarchM and layers.sunSteps
+        // CloudLightSettings.SunTapsHigh) and cloudShortSunMarch (off: LayerFrame.SunMarchLongM 12 km). The keys layers.minStepM, layers.sunMarchM and layers.sunSteps
         // replace them only when set above 0 (a probe's or the viewer's hand).
 
         // The defaults in force of the keys the fast cloud path changes (CloudFastPath): the readers below and the viewer's registry take the same property, so the viewer shows
@@ -261,8 +261,8 @@ namespace ReDefinition.Atmospheres
             f.SunSteps = sunSteps;
             f.MinStepM = minStep;
             f.TransmittanceGrowth = (float)v(AtmospheresSettings.Keys.LayerStepGrowth);
-            f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudSunMarchLong) ? LayerFrame.SunMarchLongM : LayerFrame.SunMarchShortM;
-            // The shortest step and the march towards the sun are the settings' (the step quality's level, cloudSunMarchLong); layers.minStepM and layers.sunMarchM above 0 replace
+            f.SunMarchM = On(v, AtmospheresSettings.Keys.CloudShortSunMarch) ? LayerFrame.SunMarchShortM : LayerFrame.SunMarchLongM;
+            // The shortest step and the march towards the sun are the settings' (the step quality's level, cloudShortSunMarch); layers.minStepM and layers.sunMarchM above 0 replace
             // them (default 0: the settings'); layers.earlyOut above 0 replaces the frame's early out.
             float minStepKey = Tuning.Get(TuneMinStepM, 0f);
             if (minStepKey > 0f) f.MinStepM = minStepKey;

@@ -21,8 +21,8 @@ namespace ReDefinition.Atmospheres
         public float MinStepM = 25f, EarlyOut = 0.01f, Jitter = 1f;
         // The longest path of the light march through a layer, in m. The frame's own default is the short one, which the parity rows, the hold-out set and the T06
         // rows were measured at. 4000 m leaves the base and the shaded flank of a deep storm cell as bright as its top (the light comes from the first 4 km of cloud
-        // only); the long march darkens them (T03v2 look sheets S2). The setting cloudSunMarchLong selects it (OwnCloudOptions); its default is on, the owner's look
-        // of 2026-11-19 (e40puff k4_stride: 8 taps over 12 km).
+        // only); the long march darkens them (T03v2 look sheets S2). The setting cloudShortSunMarch selects the short one (OwnCloudOptions); off, the default, gives the
+        // long one, the owner's look of 2026-11-19 (e40puff k4_stride: 8 taps over 12 km).
         public const float SunMarchShortM = 4000f, SunMarchLongM = 12000f;
         public float SunMarchM = SunMarchShortM;
         public int FrameNumber;

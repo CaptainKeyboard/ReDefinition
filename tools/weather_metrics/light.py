@@ -41,7 +41,7 @@ from weather_metrics import layers as L  # noqa: E402
 REPO = os.path.dirname(os.path.dirname(HERE))
 BUILD = os.path.join(REPO, "build", "weather-series")
 # The length of the sun march of the parity and hold-out jobs: 4000 m is the shipped default (the length these rows were measured at); T14 re-runs them at
-# 9000 m (LayerFrame.SunMarchLongM, the key cloudSunMarchLong) with T03_SUN_MARCH=9000 so that the owner can decide the product default. The inputs and the
+# 9000 m with T03_SUN_MARCH=9000 so that the owner can decide the product default (decided 2026-11-19: 12 km, LayerFrame.SunMarchLongM, the key cloudShortSunMarch off). The inputs and the
 # pictures of another length live in folders of their own.
 SUN_MARCH_M = float(os.environ.get("T03_SUN_MARCH", "4000"))
 SUN_TAG = "" if SUN_MARCH_M == 4000.0 else "-m%d" % int(SUN_MARCH_M)

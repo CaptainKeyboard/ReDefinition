@@ -95,7 +95,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(Math.Round(Math.Round(expected.MaxSteps * samplesShare) * OwnCloudOptions.GridFineDefault), frame.MaxSteps);
             Assert.AreEqual(expected.SunSteps, frame.SunSteps);
             Assert.AreEqual(LayerSwitches.MinStepMediumM, frame.MinStepM, "the default step quality Medium (the tiers set their own: TierRow.CloudStepQuality)");
-            Assert.AreEqual(12000f, frame.SunMarchM, "the owner's look: a 12 km march towards the sun (cloudSunMarchLong on)");
+            Assert.AreEqual(12000f, frame.SunMarchM, "the owner's look: a 12 km march towards the sun (cloudShortSunMarch off)");
             Assert.AreEqual(expected.TransmittanceGrowth, frame.TransmittanceGrowth, "the product's step growth");
             Assert.AreEqual(expected.CoverageBound, frame.CoverageBound);
             Assert.AreEqual(expected.LightStride, frame.LightStride);
