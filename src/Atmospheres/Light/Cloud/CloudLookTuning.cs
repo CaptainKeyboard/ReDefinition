@@ -24,8 +24,8 @@ namespace ReDefinition.Atmospheres
     //                                     layer map the generator makes carries about the field's whole cover, the four closed the sky twice over)
     //   cloud.fadeFarM                    m: a distance fade for the layers that have none (0: none), starting at cloud.fadeNearShare of it
     //   cloud.fadeNearShare               share of cloud.fadeFarM where the fade starts (0.5)
-    //   cloud.farHaze                     -1: the cloudFarHaze setting decides, 0 / 1 forces the aerial perspective off / on, 2 automatic (on where the pass is behind Scatterer's scattering; CloudHazePlan)
-    //   cloud.hazeStrength                factor on the aerial perspective's strength (1)
+    //   cloud.aerialPerspective           -1: the cloudAerialPerspective setting decides, 0 / 1 forces the aerial perspective off / on, 2 automatic (on where the pass is behind Scatterer's scattering; AerialPerspectivePlan)
+    //   cloud.aerialPerspectiveStrength   factor on the aerial perspective's strength (1)
     //   cloud.soloLayer                   solo mode (E40 SOLO): the 1-based index of the only layer the pass draws (0: every layer); the layers' maps and types are the per-layer keys above
     //   cloud.cellKm, cloud.cellLat, cloud.cellLon
     //                                     a forced map (cloud.mapOverride.<name>) as ONE cell instead of a constant: a Gaussian of this e-folding radius in km round the point (degrees),
@@ -40,13 +40,13 @@ namespace ReDefinition.Atmospheres
         internal const string TuneSigma = "cloud.layerSigmaScale", TuneSoftness = "cloud.layerSoftnessScale",
             TuneNoiseSize = "cloud.layerNoiseSizeScale", TuneLayerShift = "cloud.layerCoverageShift.", TuneTypeFair = "cloud.typeFair.", TuneTypeOverride = "cloud.typeOverride.",
             TuneCoverCombine = "cloud.coverCombine", TuneFadeFar = "cloud.fadeFarM",
-            TuneFadeNearShare = "cloud.fadeNearShare", TuneFarHaze = "cloud.farHaze", TuneHazeStrength = "cloud.hazeStrength", TuneMapOverride = "cloud.mapOverride.",
+            TuneFadeNearShare = "cloud.fadeNearShare", TuneAerialPerspective = "cloud.aerialPerspective", TuneAerialPerspectiveStrength = "cloud.aerialPerspectiveStrength", TuneMapOverride = "cloud.mapOverride.",
             TuneDeckRule = "cloud.deckRule.",
             TuneDeckPrecip = "cloud.deckPrecip.", TuneDeckFog = "cloud.deckFog.",
             TuneSoloLayer = "cloud.soloLayer", TuneCellKm = "cloud.cellKm", TuneCellLat = "cloud.cellLat", TuneCellLon = "cloud.cellLon";
 
         private static long seenVersion = -1;
-        private static float sigma = 1f, softness = 1f, noiseSize = 1f, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, farHaze = -1f, hazeStrength = 1f;
+        private static float sigma = 1f, softness = 1f, noiseSize = 1f, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, aerialPerspective = -1f, aerialPerspectiveStrength = 1f;
         private static float cellKm, cellLat, cellLon;
         private static float cumuliformForce = -1f, edgeForce, cavityForce = -1f, cumuliformFoot = 1f, cumuliformIso = 1f;
         // cloud.field as last read (the type table's cumuliform, edge and cavity follow it, LayerDensity: a change must re-upload the table).
@@ -95,9 +95,9 @@ namespace ReDefinition.Atmospheres
             float s = Scale(Tuning.Get(TuneSigma, 1f)), e = Scale(Tuning.Get(TuneSoftness, 1f)), z = Scale(Tuning.Get(TuneNoiseSize, 1f));
             float c = Unit(Tuning.Get(TuneCoverCombine, DefaultCoverCombine));
             float f = Clean(Tuning.Get(TuneFadeFar, 0f), 0f, 0f, 1e7f), n = Clean(Tuning.Get(TuneFadeNearShare, 0.5f), 0.5f, 0f, 1f);
-            float h = Tuning.Get(TuneFarHaze, -1f);
+            float h = Tuning.Get(TuneAerialPerspective, -1f);
             h = float.IsNaN(h) || float.IsInfinity(h) ? -1f : h < 0f ? -1f : h > 1.5f ? 2f : h > 0f ? 1f : 0f;
-            float hs = Clean(Tuning.Get(TuneHazeStrength, 1f), 1f, 0f, 100f);
+            float hs = Clean(Tuning.Get(TuneAerialPerspectiveStrength, 1f), 1f, 0f, 100f);
             float ck = Clean(Tuning.Get(TuneCellKm, 0f), 0f, 0f, 1e5f), cla = Clean(Tuning.Get(TuneCellLat, 0f), 0f, -90f, 90f), clo = Clean(Tuning.Get(TuneCellLon, 0f), 0f, -360f, 360f);
             float hf = Clean(Tuning.Get(TuneCumuliform, -1f), -1f, -1f, CumuliformModel.PresetCount), ef = Clean(Tuning.Get(TuneEdgePower, 0f), 0f, 0f, 6f);
             float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneCumuliformFootLod, 1f), 1f, 0f, 1f), hi = Clean(Tuning.Get(TuneCumuliformIso, 1f), 1f, 0f, 1f);
@@ -111,7 +111,7 @@ namespace ReDefinition.Atmospheres
             cavityForce = cf;
             cumuliformFoot = ft;
             changed |= s != sigma || e != softness || z != noiseSize || c != combine || f != fadeFar || n != fadeNearShare
-                           || h != farHaze || hs != hazeStrength || ck != cellKm || cla != cellLat || clo != cellLon;
+                           || h != aerialPerspective || hs != aerialPerspectiveStrength || ck != cellKm || cla != cellLat || clo != cellLon;
             cellKm = ck;
             cellLat = cla;
             cellLon = clo;
@@ -121,8 +121,8 @@ namespace ReDefinition.Atmospheres
             combine = c;
             fadeFar = f;
             fadeNearShare = n;
-            farHaze = h;
-            hazeStrength = hs;
+            aerialPerspective = h;
+            aerialPerspectiveStrength = hs;
             // The per-layer keys of the names asked for so far are read again in place; a value that moved counts as a change.
             changed |= Reread(LayerShift, TuneLayerShift, 0f, -1f, 1f);
             changed |= Reread(TypeFairByName, TuneTypeFair, -1f, -1f, 1f);
@@ -198,8 +198,8 @@ namespace ReDefinition.Atmospheres
         internal static float SoftnessScale { get { Refresh(); return softness; } }
         internal static float NoiseSizeScale { get { Refresh(); return noiseSize; } }
         internal static float CoverCombine { get { Refresh(); return combine; } }
-        internal static float FarHazeForce { get { Refresh(); return farHaze; } }
-        internal static float HazeStrengthScale { get { Refresh(); return hazeStrength; } }
+        internal static float AerialPerspectiveForce { get { Refresh(); return aerialPerspective; } }
+        internal static float AerialPerspectiveStrengthScale { get { Refresh(); return aerialPerspectiveStrength; } }
         // The forced map as one cell (cloud.cellKm above 0): its e-folding radius in km and its centre in degrees.
         internal static float CellKm { get { Refresh(); return cellKm; } }
         internal static float CellLat { get { Refresh(); return cellLat; } }

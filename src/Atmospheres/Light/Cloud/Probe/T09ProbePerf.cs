@@ -163,7 +163,7 @@ namespace ReDefinition.Atmospheres
                 case "hnotd":
                 case "hnotri":
                 case "bnowb":
-                case "bnohaze":
+                case "bnoaerial":
                 case "sg5e4":
                 case "sg2e4":
                 case "sgfrom2k":
@@ -461,9 +461,9 @@ namespace ReDefinition.Atmospheres
                 case "hclip1": ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault); break;
                 case "hnotd": ForceTuning(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault ? 1f : 0f); break;
                 case "hnotri": ForceTuning(OwnCloudOptions.TuneMarchTriangle, OwnCloudOptions.MarchTriangleDefault ? 1f : 0f); break;
-                // The band hunt (owner "fix what you see"): the scene's white balance off (setting sceneWhiteBalance 0) and the clouds' aerial perspective off (cloud.hazeStrength 0).
+                // The band hunt (owner "fix what you see"): the scene's white balance off (setting sceneWhiteBalance 0) and the clouds' aerial perspective off (cloud.aerialPerspectiveStrength 0).
                 case "bnowb": SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, 0.0); break;
-                case "bnohaze": ForceTuning(CloudLookTuning.TuneHazeStrength, 0f); break;
+                case "bnoaerial": ForceTuning(CloudLookTuning.TuneAerialPerspectiveStrength, 0f); break;
                 // The storm's ground view below 48 fps (PRUEFPROTOKOLL 76/77): points by distance put many short steps into the fog near the camera (fpnosg 53 fps ground but 46
                 // above). sg5e4 / sg2e4 a weaker growth (layers.spanGrowthPerM 0.0005 / 0.0002), sgfrom2k the growth from 2 km on (layers.spanGrowthFromM 2000), sgstep12 the fast
                 // growth with the shortest step 12 m (layers.minStepM; the look's 6 m).

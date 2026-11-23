@@ -4,7 +4,7 @@ using UnityEngine;
 namespace ReDefinition.Atmospheres
 {
     // The air between the camera and the clouds of a body, from the body's own atmosphere data (package T09, aerial perspective, first
-    // version "own extinction and in-scatter"): the extinction coefficients and scale heights the far view's haze (FarViewSettings) takes,
+    // version "own extinction and in-scatter"): the extinction coefficients and scale heights the far view's aerial perspective (FarViewSettings) takes,
     // and the colour of the in-scattered light, which follows the sky: the sun's colour at the camera (reddened at sunset), the light the
     // scene keeps at night, the moons' light. Scatterer's own cloud shader is never the renderer; where Scatterer draws the sky its sun colour
     // already carries the air (see OwnCloudModule.SunColourIsReddened) and its atmosphere node of the body supplies the coefficients (FromScatterer,
@@ -25,7 +25,7 @@ namespace ReDefinition.Atmospheres
         // How much bluer than grey the in-scatter is: the exponent of the Rayleigh coefficient's ratio to its mean.
         internal const float BlueExponent = 0.35f;
 
-        // The numbers of the air the haze takes.
+        // The numbers of the air the aerial perspective takes.
         internal struct Air
         {
             public Vector3 RayleighPerM;
@@ -34,7 +34,7 @@ namespace ReDefinition.Atmospheres
             // True where the numbers are Scatterer's own (its atmosphere node), false for the Earth-scaled air of the body's data. The sun colour that Scatterer filters can only be
             // divided by the air that made it (CloudSunAir).
             public bool FromScatterer;
-            // The numbers of Scatterer's node that the sky's colour needs besides the coefficients (E40 H1 haze): the Mie phase function's asymmetry (m_mieG), the ground's albedo
+            // The numbers of Scatterer's node that the sky's colour needs besides the coefficients (E40 H1 aerial perspective): the Mie phase function's asymmetry (m_mieG), the ground's albedo
             // (averageGroundReflectance) and the exposure of the sky (the node's configPoints, skyExposure, taken at the camera's height: SkyExposureAt). HasSky is false where they were
             // not read (the body's own air: CloudHorizonSky's defaults apply).
             public float MieG, GroundAlbedo;
@@ -114,19 +114,19 @@ namespace ReDefinition.Atmospheres
         // The colour of the in-scattered light of the air at the horizon, in the units of the frame's radiance. sun is the sun's colour as the
         // clouds are lit by it (reddened where the air path is long), moon the colour the moons and planets add (zero where none), ambient the
         // scene's own light at night. The blue share follows the air's Rayleigh coefficient; the result never falls below the ambient, so a
-        // night sky does not turn the haze black or let it keep the day's colour.
+        // night sky does not turn the aerial perspective black or let it keep the day's colour.
         internal static Color Inscatter(Color sun, Color moon, Color ambient, Vector3 rayleighPerM)
         {
             return Inscatter(sun, moon, ambient, rayleighPerM, HorizonShare);
         }
 
-        // The same with the horizon share as a number (cloud.hazeShare).
+        // The same with the horizon share as a number (cloud.aerialPerspectiveShare).
         internal static Color Inscatter(Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share)
         {
             return Inscatter(sun, moon, ambient, rayleighPerM, share, BlueExponent);
         }
 
-        // The same with the blue exponent as a number (the body keys hazeBlue, for the colour a far cloud fades into, and hazeNearBlue, for the in-scatter over a short path; 0 is the sun's
+        // The same with the blue exponent as a number (the body keys aerialPerspectiveBlue, for the colour a far cloud fades into, and aerialPerspectiveNearBlue, for the in-scatter over a short path; 0 is the sun's
         // own colour, the first kilometres' source).
         internal static Color Inscatter(Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share, float blueExponent)
         {

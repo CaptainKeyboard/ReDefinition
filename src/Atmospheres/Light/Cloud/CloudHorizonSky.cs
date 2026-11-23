@@ -2,7 +2,7 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The colour a far cloud fades into: the radiance of the air along the cloud's own view ray, worked out from the body's air (E40 H1 haze).
+    // The colour a far cloud fades into: the radiance of the air along the cloud's own view ray, worked out from the body's air (E40 H1 aerial perspective).
     //
     // A cloud at the end of the air shows what the air in front of it in-scatters, which is what the sky shows along that ray. The earlier law gave it by a power law of the
     // Rayleigh coefficients and a body gain fitted to one sky; this integrates the single scattering along a horizontal ray of the camera through the exponential air (Rayleigh per
@@ -12,7 +12,7 @@ namespace ReDefinition.Atmospheres
     // ray's azimuth from the sun.
     //
     // The result is radiance per unit of the sun's irradiance (1/sr). The sky Scatterer draws shows it through its own display law (skyExposure, the sun intensity 100 and the curve of
-    // its hdr function), which Display reproduces; the pass then takes the colour as a display value (CloudHazePlan.Inscatter decodes it through the output stage), so that a cloud that has
+    // its hdr function), which Display reproduces; the pass then takes the colour as a display value (AerialPerspectivePlan.Inscatter decodes it through the output stage), so that a cloud that has
     // faded completely is the colour of the sky next to it.
     //
     // Near: the same medium's colour over an infinitesimal path (the local source over the extinction per channel), which the layer shader blends into Far by the blue extinction.

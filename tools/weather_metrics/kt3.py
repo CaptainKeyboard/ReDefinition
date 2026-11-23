@@ -19,7 +19,7 @@ Per variant id of a start (results named K3.<start>.<id>.<stat>, no variant):
   d_ground    the relative change of the sunlit ground's median
   flashes     (storm variants) the flashes counted in the window
 Per start: windows, costed, cost_missing, cost_misses, effect_misses, pictures_missing, and a note line per miss. Across the starts: the T13 cost and shimmer, the
-T16 ratio, the recon ratios, the resolution ratio, the haze equality. EXPECT below is the table of what each switch should do (written before the run; a miss is a
+T16 ratio, the recon ratios, the resolution ratio, the aerial perspective equality. EXPECT below is the table of what each switch should do (written before the run; a miss is a
 finding, not a fault of the script). Stdlib only.
 """
 import argparse
@@ -110,10 +110,10 @@ def build_expect():
     for k in ("kfoot", "kcapkeep"):
         add(k + "_h", "cull", SAVES, ref="cull_all_h")
     # the aerial perspective is on by default behind Scatterer's scattering: switching it off shows its effect, switching it on draws the plain picture
-    add("nohaze_h", "far", (-0.5, 0.3), "changes")
-    add("haze_h", "far", FREE, "same")
-    add("haze_tune_h", "far", FREE, "same")
-    add("hazestr2_h", "far", FREE, "changes", ref="haze_h")
+    add("noaerial_h", "far", (-0.5, 0.3), "changes")
+    add("aerial_h", "far", FREE, "same")
+    add("aerial_tune_h", "far", FREE, "same")
+    add("aerialstr2_h", "far", FREE, "changes", ref="aerial_h")
     add("shapemean_h", "far", SAVES)
     add("minsamp_h", "far", ADDS)
     add("farpolicy_h", "far", FREE)
@@ -381,9 +381,9 @@ def across(per_start):
         pl, ca = label("k3far", "plain_h"), label("k3far", "cull_all_h")
         if pl and ca is not None:
             add("K3.cull_all_over_plain.horizon", ca / pl)
-        # the haze switch and the tuning key that forces it must draw the same picture
-        d = picture_distance(far["rows"], "horizon", "haze_tune_h", "haze_h")
-        add("K3.haze_tune_equals_setting", None if d is None else int(d <= 0.03))
+        # the aerial perspective switch and the tuning key that forces it must draw the same picture
+        d = picture_distance(far["rows"], "horizon", "aerial_tune_h", "aerial_h")
+        add("K3.aerial_tune_equals_setting", None if d is None else int(d <= 0.03))
     if fx:
         on, one = fx["rows"].get(("ln_on_h", "K3.flashes")), fx["rows"].get(("ln_max1_h", "K3.flashes"))
         if on is not None:

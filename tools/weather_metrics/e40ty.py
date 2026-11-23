@@ -333,34 +333,34 @@ def cb_anvil_jobs(layers_by_name, extras):
     return jobs, heights
 
 
-# E40TY_HAZE=before|after: the same pictures with the pass's aerial perspective on at Scatterer's air of Kerbin (E40 T1 tint), the in-scatter as the product gives it BEFORE the package (one
+# E40TY_AERIAL=before|after: the same pictures with the pass's aerial perspective on at Scatterer's air of Kerbin (E40 T1 tint), the in-scatter as the product gives it BEFORE the package (one
 # colour, bluer than the sun by the exponent 0.35, inside the stage's white-point division) or AFTER (the short-path colour the sun's own, the horizon colour the same 0.35, both
 # multiplied by the tint so that the division cancels). Use it with E40TY_TAG=<text> so that the names differ (the picture names are e40-ty-<tag>-...).
-HAZE = os.environ.get("E40TY_HAZE")
-# E40TY_HAZE_BLUE=<x>: the body key hazeBlue of the "after" colours (the default is the cfg's 0.35), E40TY_HAZE_NEAR_BLUE=<x>: hazeNearBlue (0).
-HAZE_SHARE, HAZE_BLUE, HAZE_NEAR_BLUE = 0.23, float(os.environ.get("E40TY_HAZE_BLUE", 0.35)), float(os.environ.get("E40TY_HAZE_NEAR_BLUE", 0.0))
-# E40TY_HAZE_TINT=r,g,b: the body keys hazeTintR / G / B (E40 FL far), a gain on the far in-scatter colour of the "after" haze (1,1,1: none).
-HAZE_TINT_GAIN = np.array([float(x) for x in os.environ.get("E40TY_HAZE_TINT", "1,1,1").split(",")])
+AERIAL = os.environ.get("E40TY_AERIAL")
+# E40TY_AERIAL_BLUE=<x>: the body key aerialPerspectiveBlue of the "after" colours (the default is the cfg's 0.35), E40TY_AERIAL_NEAR_BLUE=<x>: aerialPerspectiveNearBlue (0).
+AERIAL_SHARE, AERIAL_BLUE, AERIAL_NEAR_BLUE = 0.23, float(os.environ.get("E40TY_AERIAL_BLUE", 0.35)), float(os.environ.get("E40TY_AERIAL_NEAR_BLUE", 0.0))
+# E40TY_AERIAL_TINT=r,g,b: the body keys aerialPerspectiveTintR / G / B (E40 FL far), a gain on the far in-scatter colour of the "after" aerial perspective (1,1,1: none).
+AERIAL_TINT_GAIN = np.array([float(x) for x in os.environ.get("E40TY_AERIAL_TINT", "1,1,1").split(",")])
 SC_RAYLEIGH = (0.0153407799e-3, 0.0357074998e-3, 0.0875488967e-3)
 SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
 
 
-def haze_block(layer):
-    """The job's far block with the in-scatter colours of the sheet's sun (the grey 2.35 of the pass) for the layer's white tint; None without E40TY_HAZE."""
-    if not HAZE:
+def aerial_perspective_block(layer):
+    """The job's far block with the in-scatter colours of the sheet's sun (the grey 2.35 of the pass) for the layer's white tint; None without E40TY_AERIAL."""
+    if not AERIAL:
         return None
     ray = np.array(SC_RAYLEIGH)
 
     def inscatter(exponent):
-        return np.maximum(2.35 * HAZE_SHARE * (ray / ray.mean()) ** exponent, np.array(AMBIENT_TOP))
+        return np.maximum(2.35 * AERIAL_SHARE * (ray / ray.mean()) ** exponent, np.array(AMBIENT_TOP))
 
-    far = dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0)
-    if HAZE == "before":
-        far["inscatter"] = [float(x) for x in inscatter(HAZE_BLUE)]
+    far = dict(aerialPerspective=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, aerialPerspectiveStrength=1.0)
+    if AERIAL == "before":
+        far["inscatter"] = [float(x) for x in inscatter(AERIAL_BLUE)]
         return far
     tint = white_tint(layer["inner"] + 0.25 * (layer["outer"] - layer["inner"]))
-    far["inscatter"] = [float(x) for x in inscatter(HAZE_BLUE) * tint * HAZE_TINT_GAIN]
-    far["inscatterNear"] = [float(x) for x in inscatter(HAZE_NEAR_BLUE) * tint]
+    far["inscatter"] = [float(x) for x in inscatter(AERIAL_BLUE) * tint * AERIAL_TINT_GAIN]
+    far["inscatterNear"] = [float(x) for x in inscatter(AERIAL_NEAR_BLUE) * tint]
     return far
 
 
@@ -378,7 +378,7 @@ def build_jobs():
                                       sun=lay.sun_vector(cam.pos, 0.0, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
                                       soft=SOFTNESS, maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3,
                                       **(dict(noise=dict(sphere=SPHERE)) if SPHERE is not None else {}),
-                                      **(dict(far=haze_block(layers_by_name[spec[2]])) if HAZE else {})))
+                                      **(dict(far=aerial_perspective_block(layers_by_name[spec[2]])) if AERIAL else {})))
     cb, heights = cb_jobs(layers_by_name, extras)
     lum.extend(cb)
     anvil, anvil_heights = cb_anvil_jobs(layers_by_name, extras)

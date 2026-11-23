@@ -6,10 +6,10 @@
     python tools/weather_metrics/e40pp.py --selftest
 
 A view of the game is replayed with what the game ran: the pose and the field of view, the clock and the sun's direction (the K-T2 log), the pass's sun colour and the
-display stage's white (the log's frameSun and composition lines), the ambient light (frameAmbient), the layer maps the probe dumped, and the far haze. Where the dump
+display stage's white (the log's frameSun and composition lines), the ambient light (frameAmbient), the layer maps the probe dumped, and the aerial perspective. Where the dump
 of the view holds pass.json (the probe's E40 PP dump, taken in the frame of the picture) the replay takes every number from it instead: the camera relative to the
 body's centre in the game's world axes and the world-to-map rotation (the noise is looked up in world axes), the noise's drift, wind and seed, the height maps, the
-anvils already drawn into the maps, the haze uniforms, the display stage; and the player's own readout of the uniforms is compared with the game's, name by name.
+anvils already drawn into the maps, the aerial perspective uniforms, the display stage; and the player's own readout of the uniforms is compared with the game's, name by name.
 The state start62 replays the cfg of start 62's commit (ed1272e7) with the type tops not closed and no anvils (what that start ran); now replays today's cfg.
 The cloud is laid over the game's own frame without clouds with the game's display stage (e40v1.compose), and the pair game | replay is measured with the same
 masks: per region (3 x 3) the luminance and the colour of the cloud pixels, the share of cloud pixels, the outline's width.
@@ -309,23 +309,23 @@ def view_light(log, name, ps):
     return dict(sun=list(info["sun"]), sun_grey=info["sun_grey"], white=white, elev=elev, ambient_top=info["ambient_top"], ambient_bottom=info["ambient_bottom"])
 
 
-HAZE_TINT_START62 = np.array([1.35, 1.48, 1.17])      # the cfg's hazeTintR / G / B at start 62 (E40 FL far; replaced by E40 H1's horizon sky after it)
+AERIAL_PERSPECTIVE_TINT_START62 = np.array([1.35, 1.48, 1.17])      # the cfg's aerialPerspectiveTintR / G / B (then hazeTint*) at start 62 (E40 FL far; replaced by E40 H1's horizon sky after it)
 
 
 def far_block(light, state, relative_az):
-    """The far block of the state: start 62's haze (the sun's in-scatter over the horizon's 0.35 blue, times the tint and hazeTint), or today's (e40v1.haze_block, E40 H1's
+    """The far block of the state: start 62's aerial perspective (the sun's in-scatter over the horizon's 0.35 blue, times the tint and aerialPerspectiveTint), or today's (e40v1.aerial_perspective_block, E40 H1's
     colours from the air along the view ray at the sun's azimuth relative to the view)."""
     spec = dict(sun=light["sun_grey"], elev=light["elev"], white=light["white"])
     if state != "start62":
-        return v1.haze_block(spec, v1.HEADING + relative_az)
+        return v1.aerial_perspective_block(spec, v1.HEADING + relative_az)
     ray = np.array(v1.SC_RAYLEIGH)
     tint = v1.tint_of(spec)
 
     def inscatter(exponent):
         return np.maximum(spec["sun"] * 0.23 * (ray / ray.mean()) ** exponent, np.array(gn.AMBIENT_TOP))
 
-    return dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(v1.SC_RAYLEIGH), mie=v1.SC_MIE, rayleighHeight=v1.SC_HR, mieHeight=v1.SC_HM, hazeStrength=1.0,
-                inscatter=[float(x) for x in inscatter(0.35) * tint * HAZE_TINT_START62], inscatterNear=[float(x) for x in inscatter(0.0) * tint])
+    return dict(aerialPerspective=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(v1.SC_RAYLEIGH), mie=v1.SC_MIE, rayleighHeight=v1.SC_HR, mieHeight=v1.SC_HM, aerialPerspectiveStrength=1.0,
+                inscatter=[float(x) for x in inscatter(0.35) * tint * AERIAL_PERSPECTIVE_TINT_START62], inscatterNear=[float(x) for x in inscatter(0.0) * tint])
 
 
 def sun_relative_azimuth(ps):
@@ -341,7 +341,7 @@ def sun_relative_azimuth(ps):
 
 def far_from_uniforms(u):
     a, b, c, e = (u["vectors"][k] for k in ("_FarA", "_FarB", "_FarC", "_FarE"))
-    return dict(haze=int(a[0] > 0.5), shapeMean=int(u["vectors"]["_FarD"][0] > 0.5), policy=0, minSamples=0, hazeStrength=a[1], rayleighHeight=a[2], mieHeight=a[3],
+    return dict(aerialPerspective=int(a[0] > 0.5), shapeMean=int(u["vectors"]["_FarD"][0] > 0.5), policy=0, minSamples=0, aerialPerspectiveStrength=a[1], rayleighHeight=a[2], mieHeight=a[3],
                 rayleigh=b[:3], mie=b[3], inscatter=c[:3], inscatterNear=e[:3])
 
 
@@ -472,7 +472,7 @@ def saturation(img):
 
 def cloud_stats(img, off, sel):
     """Cloud pixels: the colour moved away from the frame without clouds AND towards grey (a cloud is less saturated than the blue sky or sea behind it). The game's frame
-    also differs from its baseline where no cloud is (the cloud shadows on the sea, the far haze over clear sky, a few hundredths everywhere in the views from above),
+    also differs from its baseline where no cloud is (the cloud shadows on the sea, the aerial perspective over clear sky, a few hundredths everywhere in the views from above),
     which the replay does not draw; those keep their hue and are not counted."""
     sig = np.sqrt(((img - off) ** 2).sum(axis=-1))
     greying = saturation(off) - saturation(img)

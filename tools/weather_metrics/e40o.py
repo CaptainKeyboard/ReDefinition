@@ -323,12 +323,12 @@ def horizon_jobs():
             cam = camera(site, SIZE, pitch=HORIZON_PITCH)
             jobs.append(lay.job("hz-aux-f%03d-p%d" % (int(round(fade / 1000)), site), "aux", cam, [job_layer(specs[CUMULUS], const_map(0.8), const_map(0.0))], SIZE[0], SIZE[1], planet=R,
                                 maxSteps=48, minStep=25.0, mapWidth=MAP_W, mapHeight=MAP_H, tuning=tuning([("cloud.fadeFarM", fade)])))
-        for haze in (0, 1):
+        for aerial in (0, 1):
             size = (854, 480)
             cam2 = camera(0, size, pitch=HORIZON_PITCH)
             sun = lay.sun_vector(cam2.pos, 120.0, 40.0)
-            far = dict(haze=haze, shapeMean=0, policy=0, minSamples=0, hazeStrength=1.0, inscatter=[0.62, 0.68, 0.76])
-            jobs.append(lay.job("hz-pic-f%03d-h%d" % (int(round(fade / 1000)), haze), "color", cam2, [job_layer(specs[CUMULUS], const_map(0.8), const_map(0.0))], size[0], size[1],
+            far = dict(aerialPerspective=aerial, shapeMean=0, policy=0, minSamples=0, aerialPerspectiveStrength=1.0, inscatter=[0.62, 0.68, 0.76])
+            jobs.append(lay.job("hz-pic-f%03d-h%d" % (int(round(fade / 1000)), aerial), "color", cam2, [job_layer(specs[CUMULUS], const_map(0.8), const_map(0.0))], size[0], size[1],
                                 planet=R, sun=sun, maxSteps=48, minStep=25.0, mapWidth=MAP_W, mapHeight=MAP_H, jitter=1.0, earlyOut=0.01, sunSteps=3, productCost=1, far=far,
                                 tuning=tuning([("cloud.fadeFarM", fade)])))
     return jobs

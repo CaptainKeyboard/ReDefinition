@@ -65,7 +65,7 @@ namespace ReDefinition.Atmospheres
             internal const string CloudShortSunMarch = "cloudShortSunMarch";
             internal const string CloudSunWhiteBalance = "cloudSunWhiteBalance";
             internal const string CloudDiffusionDecay = "cloudDiffusionDecay";
-            internal const string CloudFarHaze = "cloudFarHaze";
+            internal const string CloudAerialPerspective = "cloudAerialPerspective";
             internal const string CloudFarShapeMean = "cloudFarShapeMean";
             internal const string CloudFarMinSamples = "cloudFarMinSamples";
             internal const string CloudFarPolicy = "cloudFarPolicy";
@@ -118,7 +118,7 @@ namespace ReDefinition.Atmospheres
         internal static bool CloudShortSunMarch => B(Keys.CloudShortSunMarch);
         internal static bool CloudSunWhiteBalance => B(Keys.CloudSunWhiteBalance);
         internal static float CloudDiffusionDecay => F(Keys.CloudDiffusionDecay);
-        internal static bool CloudFarHaze => B(Keys.CloudFarHaze);
+        internal static bool CloudAerialPerspective => B(Keys.CloudAerialPerspective);
         internal static bool CloudFarShapeMean => B(Keys.CloudFarShapeMean);
         internal static int CloudFarMinSamples => I(Keys.CloudFarMinSamples);
         internal static bool CloudFarPolicy => B(Keys.CloudFarPolicy);
@@ -209,7 +209,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Float("cloudDiffusionDecay", 0.08,0.0, 0.2, CL, "Cloud Diffusion Decay", OWN),
 
                 // The far view (T06): all off until the owner agrees; the quality reducing march policy and the map fade included
-                SettingDef.Bool("cloudFarHaze", false, CL, "Cloud Far Haze", OWN),
+                SettingDef.Bool("cloudAerialPerspective", false, CL, "Cloud Aerial Perspective", OWN),
                 SettingDef.Bool("cloudFarShapeMean", false, CL, "Cloud Far Shape Mean", OWN),
                 SettingDef.Int("cloudFarMinSamples", 0, 0, 16, CL, "Cloud Far Minimum Samples", OWN),
                 SettingDef.Bool("cloudFarPolicy", false, CL, "Cloud Far March Policy", OWN),

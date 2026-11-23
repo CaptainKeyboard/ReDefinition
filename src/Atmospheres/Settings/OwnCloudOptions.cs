@@ -400,12 +400,12 @@ namespace ReDefinition.Atmospheres
         // (T09) supplies them from the body and the sky.
         internal static void Apply(FarViewSettings s, Func<string, double> v)
         {
-            // The look knobs (CloudLookTuning): cloud.farHaze forces the aerial perspective off / on / automatic (default -1: the setting decides), cloud.hazeStrength scales it (default 1).
-            bool haze, auto;
-            CloudHazePlan.Resolve(CloudLookTuning.FarHazeForce, On(v, AtmospheresSettings.Keys.CloudFarHaze), out haze, out auto);
-            s.Haze = haze;
-            s.HazeAuto = auto;
-            s.HazeStrength = CloudLookTuning.HazeStrengthScale;
+            // The look knobs (CloudLookTuning): cloud.aerialPerspective forces the aerial perspective off / on / automatic (default -1: the setting decides), cloud.aerialPerspectiveStrength scales it (default 1).
+            bool aerialPerspective, auto;
+            AerialPerspectivePlan.Resolve(CloudLookTuning.AerialPerspectiveForce, On(v, AtmospheresSettings.Keys.CloudAerialPerspective), out aerialPerspective, out auto);
+            s.AerialPerspective = aerialPerspective;
+            s.AerialPerspectiveAuto = auto;
+            s.AerialPerspectiveStrength = CloudLookTuning.AerialPerspectiveStrengthScale;
             s.ShapeMean = On(v, AtmospheresSettings.Keys.CloudFarShapeMean);
             s.MinSamples = Math.Max(0, Math.Min(16, (int)v(AtmospheresSettings.Keys.CloudFarMinSamples)));
             s.Policy = On(v, AtmospheresSettings.Keys.CloudFarPolicy);

@@ -196,7 +196,7 @@ namespace ReDefinition.Atmospheres
             // The largest channel of |DeltaAbove - DeltaBelow|: the step the cloud's own colour makes across the horizon row (0: none).
             internal float Step;
             // The largest channel of |Above - Below|: the step of the frame's own colour across the row. Where a cloud covers both sides it is near 0 (the baseline's own step is what sky
-            // and sea differ by); a cloud that takes the sea's haze below the row and none above it reads far above the baseline's.
+            // and sea differ by); a cloud that takes the sea's aerial perspective below the row and none above it reads far above the baseline's.
             internal float StepColour;
         }
 
@@ -264,10 +264,10 @@ namespace ReDefinition.Atmospheres
 
         // --- The vertical row profile at the horizon (E40 start 52 follow-up) --------------------------------------------------------------------------------
         // MeasureHorizonLine reads six narrow columns in two thin bands, which hit the ridge and the mound rims of a deck and are as wide as the effect they look for (the noise floor
-        // of its step was about 0.03 against a haze effect of 0.055). The profile reads every column of a band instead and drops the samples that are not the deck's body: of the
+        // of its step was about 0.03 against an aerial perspective effect of 0.055). The profile reads every column of a band instead and drops the samples that are not the deck's body: of the
         // samples that changed against the baseline by ClosedChange or more, those whose luminance is more than MoundTolerance away from the band's median (a mound's lit side, a ridge's dark
         // rim, a hole onto the sea) are counted as rejected and left out of the colour. The bands lie below the horizon row (index 0 nearest the row) and above it, each ProfileBandHeight of
-        // the picture's height, starting ProfileGap from the row. The colour of the baseline over the same samples is read beside it: a deck that fades into the haze approaches it
+        // the picture's height, starting ProfileGap from the row. The colour of the baseline over the same samples is read beside it: a deck that fades into the aerial perspective approaches it
         // towards the horizon.
         internal const int ProfileBands = 5;
         internal const double ProfileBandHeight = 0.02, ProfileGap = 0.004, MoundTolerance = 0.08;

@@ -201,7 +201,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(Row(r, p + "off2.sky_n") > 0 || Row(r, p + "off2.ground_n") > 0, p + "the second baseline frame (the noise floor) is read");
                 Assert.IsTrue(Row(r, p + "off.prof_b0_n") >= 0, p + "the baseline's row profile");
             }
-            // The horizon pose at the low cover: eight frames (fade 0 / 20 / 40 / 80 km, haze off and on), their repeat, the baseline and its repeat, the order frames 1, 0, 0, 1.
+            // The horizon pose at the low cover: eight frames (fade 0 / 20 / 40 / 80 km, aerial perspective off and on), their repeat, the baseline and its repeat, the order frames 1, 0, 0, 1.
             foreach (string frame in new[] { "hz0h0", "hz0h1", "hz20h0", "hz20h1", "hz40h0", "hz40h1", "hz80h0", "hz80h1", "hz0h0b" })
             {
                 Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".deck_median") >= 0, frame);
@@ -221,7 +221,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(Row(r, "T09d.above.low." + frame + ".deck_median") >= 0, "above low " + frame);
                 Assert.IsTrue(Row(r, "T09d.above.low." + frame + ".prof_b0_n") > 0, "above low " + frame + " row profile");
             }
-            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-ground_low-ord1-") || n.Contains("-ground_high-hh1-")), "the order and haze frames are read from above at the low cover and at the horizon only");
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-ground_low-ord1-") || n.Contains("-ground_high-hh1-")), "the order and aerial perspective frames are read from above at the low cover and at the horizon only");
             Assert.IsFalse(r.Rows.Any(l => l.Contains(".t0.prof_")), "the row profile is written for the horizon pose, the order frames and the baselines only");
             Assert.AreEqual(1.0, Row(r, "T09d.horizon.low.placed_ok"));
             // The rain deck's own light at the high cover, from 8.3 km and 2.3 km: the deck, with the shadows off, with every layer, the aid frame of the tau.
@@ -236,7 +236,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The shadow setting is put back after the shadows-off frames.
             Assert.AreEqual(shadowsBefore, AtmospheresSettings.CloudShadows, "cloudShadows is back as it was");
             // 3 pairs x (off + off2 + 4 variants) + the horizon (off, off2, 4 order frames, 8 fade frames, the repeat) + the high cover's ground view again (counted in the 3 pairs)
-            // + 2 deck-light views x (off, deck, aid tau, shadows off, all layers) + from above at the low cover the order frames (4) and the haze frames (2).
+            // + 2 deck-light views x (off, deck, aid tau, shadows off, all layers) + from above at the low cover the order frames (4) and the aerial perspective frames (2).
             Assert.AreEqual(3 * 6 + 15 + 2 * 5 + 4 + 2, r.World.Saved.Count);
         }
 

@@ -23,7 +23,7 @@ namespace ReDefinition.WeatherPlayer
     internal sealed class CullVariant
     {
         public string Name, Baseline = "off";
-        public bool Skip, Haze, Mean;
+        public bool Skip, AerialPerspective, Mean;
         public float CapKm;
         public int Tests = 7;
         // The numbers of the switches (CullSettings' compiled values unless a sweep variant names others).
@@ -45,9 +45,9 @@ namespace ReDefinition.WeatherPlayer
             c.Tests = Tests;
             c.FootScale = FootScale;
             c.CapKeepSpans = CapKeep;
-            f.Far.Haze = Haze;
-            // A measurement lever: the haze rows use eight times the optical depth (a dusty or thick atmosphere), the same for the baseline and the switch.
-            f.Far.HazeStrength = Haze ? 8f : 1f;
+            f.Far.AerialPerspective = AerialPerspective;
+            // A measurement lever: the aerial perspective rows use eight times the optical depth (a dusty or thick atmosphere), the same for the baseline and the switch.
+            f.Far.AerialPerspectiveStrength = AerialPerspective ? 8f : 1f;
             f.Far.ShapeMean = Mean;
         }
 
@@ -59,7 +59,7 @@ namespace ReDefinition.WeatherPlayer
             return v;
         }
 
-        // off / haze / mean / hm: the baselines (nothing, the aerial perspective, the far shape mean, both); skip, skipG, skipT, skipM: the empty-sky skip with all
+        // off / aerial / mean / am: the baselines (nothing, the aerial perspective, the far shape mean, both); skip, skipG, skipT, skipM: the empty-sky skip with all
         // tests and with the shells, the terrain and the maps alone; cap; all (baseline off). The u4 variants are the same in the 4 x 4 block mode (cloudResolution 4), whose baseline is u4off.
         internal static List<CullVariant> Table()
         {
@@ -68,9 +68,9 @@ namespace ReDefinition.WeatherPlayer
             {
                 string p = block ? "u4" : "";
                 list.Add(Make(p + "off", p + "off", block, null));
-                list.Add(Make(p + "haze", p + "off", block, v => v.Haze = true));
+                list.Add(Make(p + "aerial", p + "off", block, v => v.AerialPerspective = true));
                 list.Add(Make(p + "mean", p + "off", block, v => v.Mean = true));
-                list.Add(Make(p + "hm", p + "off", block, v => { v.Haze = true; v.Mean = true; }));
+                list.Add(Make(p + "am", p + "off", block, v => { v.AerialPerspective = true; v.Mean = true; }));
                 list.Add(Make(p + "skip", p + "off", block, v => v.Skip = true));
                 list.Add(Make(p + "skipG", p + "off", block, v => { v.Skip = true; v.Tests = 1; }));
                 list.Add(Make(p + "skipT", p + "off", block, v => { v.Skip = true; v.Tests = 2; }));
@@ -106,7 +106,7 @@ namespace ReDefinition.WeatherPlayer
         // The variants the 2560x1440 pass measures (the others only at 1707x960, to stay inside the time limit).
         internal static bool Large(string name)
         {
-            return name == "off" || name == "hm" || name == "skip" || name == "all" || name == "u4off" || name == "u4hm" || name == "u4skip" || name == "u4all";
+            return name == "off" || name == "am" || name == "skip" || name == "all" || name == "u4off" || name == "u4am" || name == "u4skip" || name == "u4all";
         }
 
         internal static double Median(List<double> values)
@@ -314,9 +314,9 @@ namespace ReDefinition.WeatherPlayer
                     EdgeKit.Render(Cam, rig, full, 3000 + w);
                     yield return null;
                 }
-                // The reference: the mean of four full marches without any switch (the baselines with their own haze or shape mean are references of their own).
+                // The reference: the mean of four full marches without any switch (the baselines with their own aerial perspective or shape mean are references of their own).
                 var refs = new Dictionary<string, KeyValuePair<float[], float[]>>();
-                foreach (string baseName in new[] { "off", "haze", "mean", "hm" })
+                foreach (string baseName in new[] { "off", "aerial", "mean", "am" })
                 {
                     CullVariant.Named(baseName).Apply(rig.Frame);
                     var rd = new float[pixels];
@@ -371,8 +371,8 @@ namespace ReDefinition.WeatherPlayer
                         if (i % 6 == 5) yield return null;
                     }
                     string key = "cullq." + view + "." + v.Name;
-                    // The reference of the variant is the mean of the baseline without the switches of its own (the same haze and shape mean).
-                    string refName = v.Haze ? (v.Mean ? "hm" : "haze") : (v.Mean ? "mean" : "off");
+                    // The reference of the variant is the mean of the baseline without the switches of its own (the same aerial perspective and shape mean).
+                    string refName = v.AerialPerspective ? (v.Mean ? "am" : "aerial") : (v.Mean ? "mean" : "off");
                     float[] rd2 = refs[refName].Key, ra2 = refs[refName].Value;
                     double sb = 0, si = 0, ci = 0, lumI = 0, leak = 0, sAll = 0, lost = 0, lostMax = 0;
                     float[] baseAlpha = v.Mode == ReconMode.Full && v.Name != v.Baseline && shownA.ContainsKey(v.Baseline) ? shownA[v.Baseline] : null;
@@ -521,9 +521,9 @@ namespace ReDefinition.WeatherPlayer
                 new Path3 { Name = "sky3turn", Job = "V-sky3", Frames = 120, Yaw = i => i * 3f },
             };
             var variants = new List<CullVariant>();
-            // The levers haze, mean and hm are baselines of other variants, not switches: they move the picture on purpose.
+            // The levers aerial, mean and am are baselines of other variants, not switches: they move the picture on purpose.
             foreach (CullVariant v in CullVariant.Table())
-                if (v.Mode == ReconMode.Full && v.Name != "haze" && v.Name != "mean" && v.Name != "hm") variants.Add(v);
+                if (v.Mode == ReconMode.Full && v.Name != "aerial" && v.Name != "mean" && v.Name != "am") variants.Add(v);
             var full = new ReconSettings { Mode = ReconMode.Full };
             var dOff = new float[pixels];
             var aOff = new float[pixels];
@@ -553,7 +553,7 @@ namespace ReDefinition.WeatherPlayer
                 foreach (CullVariant v in variants)
                 {
                     if (clock.Elapsed.TotalMinutes > 17.0) { Sink.Flag("sweep_completed", false); yield break; }
-                    // The variant is compared with its baseline (the same haze and shape mean without the switches).
+                    // The variant is compared with its baseline (the same aerial perspective and shape mean without the switches).
                     string baseName = v.Name == v.Baseline ? v.Name : v.Baseline;
                     if (!baselines.ContainsKey(baseName))
                     {
@@ -660,7 +660,7 @@ namespace ReDefinition.WeatherPlayer
                 new Scenario { Name = "turn12", Frames = 40, Yaw = i => Mathf.Clamp(i - 6, 0, 10) * 12f, LastMove = 16 },
             };
             var variants = new List<CullVariant>();
-            foreach (string name in new[] { "u4off", "u4skip", "u4hm", "u4all" }) variants.Add(CullVariant.Named(name));
+            foreach (string name in new[] { "u4off", "u4skip", "u4am", "u4all" }) variants.Add(CullVariant.Named(name));
             var clock = System.Diagnostics.Stopwatch.StartNew();
             foreach (string jobId in new[] { "V-ground", "V-sky3" })
             {
@@ -672,10 +672,10 @@ namespace ReDefinition.WeatherPlayer
                 var full = new ReconSettings { Mode = ReconMode.Full };
                 foreach (Scenario sc in scenarios)
                 {
-                    // The references: the full march of the pose without any switch, with the haze and shape mean of the variants that have them ("hm") or without.
+                    // The references: the full march of the pose without any switch, with the aerial perspective and shape mean of the variants that have them ("am") or without.
                     var refSets = new Dictionary<string, float[][]>();
                     var refAlphaSets = new Dictionary<string, float[][]>();
-                    foreach (string refName in new[] { "off", "hm" })
+                    foreach (string refName in new[] { "off", "am" })
                     {
                         CullVariant.Named(refName).Apply(rig.Frame);
                         var rd = new float[sc.Frames][];
@@ -702,7 +702,7 @@ namespace ReDefinition.WeatherPlayer
                     foreach (CullVariant v in variants)
                     {
                         if (clock.Elapsed.TotalMinutes > 16.0) { Sink.Flag("levels_completed", false); yield break; }
-                        string refKey = v.Haze ? "hm" : "off";
+                        string refKey = v.AerialPerspective ? "am" : "off";
                         float[][] refDisplay = refSets[refKey], refAlpha = refAlphaSets[refKey];
                         v.Apply(rig.Frame);
                         ReconSettings s = v.Settings();

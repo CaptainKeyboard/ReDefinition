@@ -502,18 +502,18 @@ namespace ReDefinition.Tests.Atmospheres.T10
 
         // E40 T1 tint: the colour of the air between the camera and a cloud, per body.
         [TestMethod]
-        public void TheCloudsNodeCarriesTheHazeBlueOfTheHorizonAndOfAShortPath()
+        public void TheCloudsNodeCarriesTheAerialPerspectiveBlueOfTheHorizonAndOfAShortPath()
         {
             BodyParseResult none = Parse("LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(0.35f, none.Climate.Clouds.HazeBlue, "the horizon colour of before");
-            Assert.AreEqual(0f, none.Climate.Clouds.HazeNearBlue, "the source of a short path is the sun's own colour");
-            Assert.AreEqual(CloudBridgeAir.BlueExponent, CloudRules.DefaultHazeBlue, "the default of the key is the exponent the haze had before the key");
-            BodyParseResult set = Parse("hazeBlue = 0.5;hazeNearBlue = 0.1;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(0.5f, set.Climate.Clouds.HazeBlue);
-            Assert.AreEqual(0.1f, set.Climate.Clouds.HazeNearBlue);
-            BodyParseResult wild = Parse("hazeBlue = 7;hazeNearBlue = -2;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(1f, wild.Climate.Clouds.HazeBlue, "brought into 0 to 1");
-            Assert.AreEqual(0f, wild.Climate.Clouds.HazeNearBlue);
+            Assert.AreEqual(0.35f, none.Climate.Clouds.AerialPerspectiveBlue, "the horizon colour of before");
+            Assert.AreEqual(0f, none.Climate.Clouds.AerialPerspectiveNearBlue, "the source of a short path is the sun's own colour");
+            Assert.AreEqual(CloudBridgeAir.BlueExponent, CloudRules.DefaultAerialPerspectiveBlue, "the default of the key is the exponent the aerial perspective had before the key");
+            BodyParseResult set = Parse("aerialPerspectiveBlue =0.5;aerialPerspectiveNearBlue =0.1;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(0.5f, set.Climate.Clouds.AerialPerspectiveBlue);
+            Assert.AreEqual(0.1f, set.Climate.Clouds.AerialPerspectiveNearBlue);
+            BodyParseResult wild = Parse("aerialPerspectiveBlue =7;aerialPerspectiveNearBlue =-2;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(1f, wild.Climate.Clouds.AerialPerspectiveBlue, "brought into 0 to 1");
+            Assert.AreEqual(0f, wild.Climate.Clouds.AerialPerspectiveNearBlue);
         }
 
         // E40 FL far: the gain on the colour a far cloud fades into, per body.
@@ -521,11 +521,11 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheCloudsNodeCarriesAGainOnTheColourAFarCloudFadesInto()
         {
             BodyParseResult none = Parse("LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(Vector3.one, none.Climate.Clouds.HazeTint, "no key: the law as it was");
-            BodyParseResult set = Parse("hazeTintR = 1.35;hazeTintG = 1.48;hazeTintB = 1.17;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(new Vector3(1.35f, 1.48f, 1.17f), set.Climate.Clouds.HazeTint);
-            BodyParseResult wild = Parse("hazeTintR = 70;hazeTintG = -2;hazeTintB = 0;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(new Vector3(4f, 0.1f, 0.1f), wild.Climate.Clouds.HazeTint, "brought into 0.1 to 4");
+            Assert.AreEqual(Vector3.one, none.Climate.Clouds.AerialPerspectiveTint, "no key: the law as it was");
+            BodyParseResult set = Parse("aerialPerspectiveTintR = 1.35;aerialPerspectiveTintG = 1.48;aerialPerspectiveTintB = 1.17;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(new Vector3(1.35f, 1.48f, 1.17f), set.Climate.Clouds.AerialPerspectiveTint);
+            BodyParseResult wild = Parse("aerialPerspectiveTintR = 70;aerialPerspectiveTintG = -2;aerialPerspectiveTintB = 0;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(new Vector3(4f, 0.1f, 0.1f), wild.Climate.Clouds.AerialPerspectiveTint, "brought into 0.1 to 4");
         }
 
         // E40 L3: the meso-scale cover pattern (node MESO), the type patches (typePatchKm, typePatchBlend) and the types' climate (node CLIMATE with LATITUDE, SURFACE, HUMIDITY, PRECIPITATION).

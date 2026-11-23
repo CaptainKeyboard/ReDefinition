@@ -52,11 +52,11 @@
       "id": "k3far",
       "productSwitches": { "ownClouds": 1, "cloudSource": "Ours" },
       "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 1707, "SCREEN_RESOLUTION_HEIGHT": 960, "FULLSCREEN": false } } ],
-      "description": "Culling (T16) and the far view (T06) at 1707x960. Horizon view: the skip of empty tiles alone and with the layer cap (cap distance 100 km), the T16 keys one at a time on top of both (footScale 3, capKeep 1), the aerial perspective by the setting and by the tuning key cloud.farHaze 1, hazeStrength 2, the far shape mean, 4 minimum far samples, the far march policy, the far map fade, and cloud.fadeFarM 40 km; sky3 view (under all layers): the skip of empty tiles with the layer cap on; 19 windows, about 15 minutes. The orbit view is left out (its placement failed in start 46, see the inventory). The pass afterScatterer is measured by K-T2d start 52. EXPECTED (delta_ms against plain_h, the T16 keys against cull_all_h): the skip alone costs no more than plain (delta <= 0.3) and with the cap together at most 0.95 of plain's pass (K3.cull_all_over_plain.horizon <= 0.95); skip_empty draws the same picture (d_picture <= 0.05; the brief says exact); each key on top of both costs no more than both alone (delta <= 0.3); the aerial perspective changes the picture and costs at most 1.5 ms (haze_h, haze_tune_h), and the tuning key draws the same picture as the setting (K3.haze_tune_equals_setting = 1); shapemean saves; minsamp does not cost less; fade40 changes the picture and does not cost more."
+      "description": "Culling (T16) and the far view (T06) at 1707x960. Horizon view: the skip of empty tiles alone and with the layer cap (cap distance 100 km), the T16 keys one at a time on top of both (footScale 3, capKeep 1), the aerial perspective by the setting and by the tuning key cloud.aerialPerspective 1, aerialPerspectiveStrength 2, the far shape mean, 4 minimum far samples, the far march policy, the far map fade, and cloud.fadeFarM 40 km; sky3 view (under all layers): the skip of empty tiles with the layer cap on; 19 windows, about 15 minutes. The orbit view is left out (its placement failed in start 46, see the inventory). The pass afterScatterer is measured by K-T2d start 52. EXPECTED (delta_ms against plain_h, the T16 keys against cull_all_h): the skip alone costs no more than plain (delta <= 0.3) and with the cap together at most 0.95 of plain's pass (K3.cull_all_over_plain.horizon <= 0.95); skip_empty draws the same picture (d_picture <= 0.05; the brief says exact); each key on top of both costs no more than both alone (delta <= 0.3); the aerial perspective changes the picture and costs at most 1.5 ms (aerial_h, aerial_tune_h), and the tuning key draws the same picture as the setting (K3.aerial_tune_equals_setting = 1); shapemean saves; minsamp does not cost less; fade40 changes the picture and does not cost more."
       ,
       "variants": [
         "off_h", "plain_h", "skip_empty_h", "cull_all_h", "kfoot_h", "kcapkeep_h",
-        "haze_h", "haze_tune_h", "hazestr2_h", "shapemean_h", "minsamp_h", "farpolicy_h", "mapfade_h", "fade40_h",
+        "aerial_h", "aerial_tune_h", "aerialstr2_h", "shapemean_h", "minsamp_h", "farpolicy_h", "mapfade_h", "fade40_h",
         "off_s", "plain_s", "cull_all_s"
       ],
       "disableMods": [ "EVE", "Trajectories" ],
@@ -129,7 +129,7 @@
     { "metric": "K3.t13_cost_ms", "max": 0.15, "unit": "ms", "note": "T13 brief: the four height switches add 0.1 ms at most (plain_g minus h_all_off_g by the labels); T13 default ON, decision B5" },
     { "metric": "K3.t13_shimmer_delta", "max": 0.0015, "note": "T13 brief: the ragged underside adds at most 0.0015 flicker (plain_g minus h_ragged_off_g)" },
     { "metric": "K3.cull_all_over_plain.horizon", "max": 0.95, "note": "T16: the six switches together cost at most 0.95 of the pass at the horizon" },
-    { "metric": "K3.haze_tune_equals_setting", "equals": 1, "note": "cloud.farHaze 1 draws what the setting cloudFarHaze draws" },
+    { "metric": "K3.aerial_tune_equals_setting", "equals": 1, "note": "cloud.aerialPerspective 1 draws what the setting cloudAerialPerspective draws" },
     { "metric": "K3.flashes_on", "min": 1, "note": "needs the lightning module; at least one flash in 22 s at level 1" },
     { "metric": "K3.flashes_max1_not_more", "equals": 1, "note": "1 stroke per second gives no more flashes than 3" },
     { "metric": "K3.recon4_over_plain.ground", "max": 1.0, "note": "level 4 costs no more than plain at 2560x1440" },

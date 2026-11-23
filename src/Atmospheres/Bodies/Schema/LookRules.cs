@@ -23,7 +23,7 @@ namespace ReDefinition.Atmospheres
         internal CloudRules(CloudSourceKind? source = null, CloudDiscovery discover = CloudDiscovery.Auto, string baseLayer = "",
             IEnumerable<string> weatherLayers = null, IEnumerable<string> snowTypeNames = null, IEnumerable<string> stratusTypeNames = null,
             IEnumerable<string> dustTypeNames = null, int eveLayerCap = 0, IEnumerable<CloudLayerSpec> layers = null, float sphereScale = 1f,
-            float hazeBlue = DefaultHazeBlue, float hazeNearBlue = DefaultHazeNearBlue, Vector3? hazeTint = null, string layerSet = "",
+            float aerialPerspectiveBlue = DefaultAerialPerspectiveBlue, float aerialPerspectiveNearBlue = DefaultAerialPerspectiveNearBlue, Vector3? aerialPerspectiveTint = null, string layerSet = "",
             CloudHeightRules height = null, double scaledTroposphereM = double.NaN)
         {
             Height = height ?? CloudHeightRules.Default;
@@ -31,9 +31,9 @@ namespace ReDefinition.Atmospheres
             Layers = SchemaList.Of(layers);
             LayerSet = layerSet ?? "";
             SphereScale = sphereScale;
-            HazeTint = hazeTint ?? Vector3.one;
-            HazeBlue = hazeBlue;
-            HazeNearBlue = hazeNearBlue;
+            AerialPerspectiveTint = aerialPerspectiveTint ?? Vector3.one;
+            AerialPerspectiveBlue = aerialPerspectiveBlue;
+            AerialPerspectiveNearBlue = aerialPerspectiveNearBlue;
             Source = source;
             Discover = discover;
             BaseLayer = baseLayer ?? "";
@@ -65,17 +65,17 @@ namespace ReDefinition.Atmospheres
         // Key sphereScale: the vertical scale of the noise lattice about the layers' reference radius (NoiseSwitches.SphereScale; 1: the
         // lattice is planet-centred).
         internal float SphereScale { get; }
-        // Keys hazeBlue and hazeNearBlue (E40 T1 tint): how much bluer than the sun the air's in-scattered light is in the cloud pass's aerial perspective, as the exponent of the Rayleigh
-        // coefficient's ratio to its mean per channel (CloudBridgeAir.Inscatter). hazeBlue is the colour a cloud far away fades into (the saturated horizon colour of the body's sky; 0.35 fits
-        // Scatterer's horizon on Kerbin); hazeNearBlue is the colour of the in-scatter over a SHORT path, which the sun's colour alone gives (the air's own blue is in the extinction
+        // Keys aerialPerspectiveBlue and aerialPerspectiveNearBlue (E40 T1 tint): how much bluer than the sun the air's in-scattered light is in the cloud pass's aerial perspective, as the exponent of the Rayleigh
+        // coefficient's ratio to its mean per channel (CloudBridgeAir.Inscatter). aerialPerspectiveBlue is the colour a cloud far away fades into (the saturated horizon colour of the body's sky; 0.35 fits
+        // Scatterer's horizon on Kerbin); aerialPerspectiveNearBlue is the colour of the in-scatter over a SHORT path, which the sun's colour alone gives (the air's own blue is in the extinction
         // already, so the source of the first kilometres is the sun's grey: 0). The pass blends the two by the blue channel's extinction along the ray (FarView.cginc).
-        internal float HazeBlue { get; }
-        internal float HazeNearBlue { get; }
-        // Keys hazeTintR, hazeTintG and hazeTintB (E40 FL far): a gain per channel on the colour a far cloud fades into (the far in-scatter, after hazeBlue; the near colour is not touched).
-        // The Rayleigh power law of hazeBlue cannot reach the whitish-cyan horizon of a sky with aerosols: on Kerbin it leaves green 0.09 to 0.13 (display) under Scatterer's horizon, so a cloud 25 km away
+        internal float AerialPerspectiveBlue { get; }
+        internal float AerialPerspectiveNearBlue { get; }
+        // Keys aerialPerspectiveTintR, aerialPerspectiveTintG and aerialPerspectiveTintB (E40 FL far): a gain per channel on the colour a far cloud fades into (the far in-scatter, after aerialPerspectiveBlue; the near colour is not touched).
+        // The Rayleigh power law of aerialPerspectiveBlue cannot reach the whitish-cyan horizon of a sky with aerosols: on Kerbin it leaves green 0.09 to 0.13 (display) under Scatterer's horizon, so a cloud 25 km away
         // fades into a violet and a band of far clouds reads darker than the sky behind it. The gain is the ratio of the sky's horizon radiance to the power law's colour; 1 keeps the law as it was.
-        internal Vector3 HazeTint { get; }
-        internal const float DefaultHazeBlue = 0.35f, DefaultHazeNearBlue = 0f;
+        internal Vector3 AerialPerspectiveTint { get; }
+        internal const float DefaultAerialPerspectiveBlue = 0.35f, DefaultAerialPerspectiveNearBlue = 0f;
         // Keys height* (E40 HKEYS): the numbers of the height variation of the layers' bases and tops (HeightTuning); never null.
         internal CloudHeightRules Height { get; }
         // The troposphere of the height scale (CloudHeightScale: the measured one times the factor) the layers were read against; NaN where the scale does not act. The

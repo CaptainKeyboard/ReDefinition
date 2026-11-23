@@ -179,10 +179,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         // E40 start 52 follow-up. The horizon line reads six narrow columns in two thin bands. A cloud whose edge lies at the horizon row (deck on the sea side, clear sky above) gives a step that
-        // is the cloud against the sky, not a haze step: the metric cannot tell the two apart (the cross-check of start 52 named this). And a mound that fills most of the sampled columns in a
+        // is the cloud against the sky, not an aerial perspective step: the metric cannot tell the two apart (the cross-check of start 52 named this). And a mound that fills most of the sampled columns in a
         // band replaces the band's median.
         [TestMethod]
-        public void TheHorizonLineStepCannotTellACloudEdgeAtTheRowFromAHazeStepAndAMoundInMostColumnsReplacesTheMedian()
+        public void TheHorizonLineStepCannotTellACloudEdgeAtTheRowFromAnAerialPerspectiveStepAndAMoundInMostColumnsReplacesTheMedian()
         {
             const double horizon = 0.5;
             Color[] baseline = Picture((u, v) => Grey(v > horizon ? 0.7f : 0.4f));
@@ -231,12 +231,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheRowProfileSeesADeckFadeIntoTheHazeAsFewerChangedSamplesAndASmallerDistanceToTheBaseline()
+        public void TheRowProfileSeesADeckFadeIntoTheAerialPerspectiveAsFewerChangedSamplesAndASmallerDistanceToTheBaseline()
         {
             const double horizon = 0.5;
             const int w = 200, h = 200;
             Color[] baseline = PictureOf(w, h, (u, v) => Grey(0.7f));
-            // The deck's colour falls from 0.7 at the row to 0.4 at 0.10 below it (a fade into the haze): the profile's distance to the baseline falls towards the row, and the bands near the row
+            // The deck's colour falls from 0.7 at the row to 0.4 at 0.10 below it (a fade into the aerial perspective): the profile's distance to the baseline falls towards the row, and the bands near the row
             // hold no changed sample at all (the change there is under T09Readout.ClosedChange).
             Color[] frame = PictureOf(w, h, (u, v) => Grey(v >= horizon ? 0.7f : 0.7f - 0.3f * (float)Math.Min(1.0, (horizon - v) / 0.1)));
             T09Readout.RowProfile profile = T09Readout.MeasureRowProfile(frame, baseline, w, h, horizon);

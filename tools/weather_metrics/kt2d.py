@@ -148,7 +148,7 @@ def order_profile(frames, get, add, notes, pre, head):
     (order 1, 0, 0, 1), the colour of the deck row by row with the mound rims left out. Per band and channel: the mean of the two ord0 frames minus the mean of the two ord1 frames
     (order.<band>.d_r / d_g / d_b), the floor (the larger of the repeats' differences |ord1 - ord1b| and |ord0 - ord0b|, largest channel; order.<band>.floor), a verdict
     order.<band>.moves (1 when the largest channel of d exceeds PROFILE_FLOOR_MIN and twice the floor, -1 when it does not), and the distance of each order's deck colour to the
-    baseline's over the same samples (order.<band>.gap_ord1 / gap_ord0: the deck's distance to the haze; a deck fading into it approaches 0 towards the row)."""
+    baseline's over the same samples (order.<band>.gap_ord1 / gap_ord0: the deck's distance to the aerial perspective's colour; a deck fading into it approaches 0 towards the row)."""
     if not any(f.startswith("ord") for f in frames):
         return
     ons, offs = ("ord1", "ord1b"), ("ord0", "ord0b")

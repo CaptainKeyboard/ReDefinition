@@ -21,7 +21,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             AtmospheresSettings.Keys.CloudSoftness, AtmospheresSettings.Keys.CloudSamples, AtmospheresSettings.Keys.CloudResolution, AtmospheresSettings.Keys.CloudReconMode,
             AtmospheresSettings.Keys.LayerStepQuality, AtmospheresSettings.Keys.CloudLightQuality, AtmospheresSettings.Keys.CloudShadows, AtmospheresSettings.Keys.CloudShadowQuality,
-            AtmospheresSettings.Keys.CloudNoiseTier, AtmospheresSettings.Keys.LayerCap, AtmospheresSettings.Keys.CloudFarHaze
+            AtmospheresSettings.Keys.CloudNoiseTier, AtmospheresSettings.Keys.LayerCap, AtmospheresSettings.Keys.CloudAerialPerspective
         };
 
         private const int AimDelayFrames = 20, RestoreHoldFrames = 90, CaptureHideFrames = 2;

@@ -70,7 +70,7 @@ namespace ReDefinition.Atmospheres.Viewer
             { EdgeSettings.TunePersist, new[] { 1f, 32f } },
             { CloudLookTuning.TuneCoverCombine, new[] { 0f, 1f } },
             { CloudLookTuning.TuneFadeNearShare, new[] { 0f, 1f } },
-            { CloudLookTuning.TuneFarHaze, new[] { -1f, 2f } },
+            { CloudLookTuning.TuneAerialPerspective, new[] { -1f, 2f } },
             { CloudLookTuning.TuneCellLat, new[] { -90f, 90f } },
             { CloudLookTuning.TuneCellLon, new[] { -360f, 360f } },
             { CloudLookTuning.TuneBulgeLight, new[] { 0f, 8f } },
@@ -91,12 +91,12 @@ namespace ReDefinition.Atmospheres.Viewer
                 // M2c: the stratus undulations (variety undulatus: their amount and the wavelength in the layer's thickness).
                 OwnCloudOptions.TuneUndulatus, OwnCloudOptions.TuneUndulatusWavelengthShare);
             Put(map, KeySection.Edge,
-                CloudLookTuning.TuneSoftness, CloudLookTuning.TuneFadeFar, CloudLookTuning.TuneFadeNearShare, CloudLookTuning.TuneFarHaze);
+                CloudLookTuning.TuneSoftness, CloudLookTuning.TuneFadeFar, CloudLookTuning.TuneFadeNearShare, CloudLookTuning.TuneAerialPerspective);
             Put(map, KeySection.Light,
                 OwnCloudModule.TuneSunGain, OwnCloudModule.TuneSunUnit, OwnCloudModule.TuneExposure, OwnCloudModule.TuneOutputGamma, OwnCloudModule.TuneWhitePoint,
                 OwnCloudModule.TuneWhiteAltitudeM, OwnCloudModule.TuneMoonGain, OwnCloudModule.TuneSunAirWithScatterer,
-                CloudHazePlan.TuneAirSource, CloudHazePlan.TuneColour, CloudHazePlan.TuneShare, CloudHazePlan.TuneR, CloudHazePlan.TuneG, CloudHazePlan.TuneB, CloudHazePlan.TuneSky,
-                CloudLookTuning.TuneHazeStrength,
+                AerialPerspectivePlan.TuneAirSource, AerialPerspectivePlan.TuneColour, AerialPerspectivePlan.TuneShare, AerialPerspectivePlan.TuneR, AerialPerspectivePlan.TuneG, AerialPerspectivePlan.TuneB, AerialPerspectivePlan.TuneSky,
+                CloudLookTuning.TuneAerialPerspectiveStrength,
                 OwnCloudOptions.TuneMoonMinShare, OwnCloudOptions.TuneOctaveA, OwnCloudOptions.TuneOctaveB, OwnCloudOptions.TuneOctaveC, OwnCloudOptions.TuneMsBrightness,
                 OwnCloudOptions.TuneDiffusion, OwnCloudOptions.TuneDiffusionTau, OwnCloudOptions.TuneMsIsotropy, OwnCloudOptions.TuneAmbientOcclusion, OwnCloudOptions.TuneAmbientGain,
                 OwnCloudOptions.TuneSkyTint, OwnCloudOptions.TuneAmbientFloor, OwnCloudOptions.TuneAmbientColumnTop, OwnCloudOptions.TuneCellGain, OwnCloudOptions.TuneCellBeta,

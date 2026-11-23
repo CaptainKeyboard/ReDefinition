@@ -176,7 +176,7 @@ namespace ReDefinition.Atmospheres
             T09LookInput input = Game.ReadLookInput();
             if (input != null) EmitLookMapProfile(head, view, input);
             foreach (ProbeWait w in LookOrderPair(view, cover, head, off, new[] { 1, 0, 0, 1 })) yield return w;
-            foreach (ProbeWait w in LookHazeFrames(view, cover, head, off)) yield return w;
+            foreach (ProbeWait w in LookAerialPerspectiveFrames(view, cover, head, off)) yield return w;
             foreach (ProbeWait w in Look55FogFrames(view, cover, head, off, false)) yield return w;
             // (e) the cloud shadow on the sea with and without the shape noise (the default is on).
             foreach (float shape in new[] { 1f, 0f })

@@ -2,15 +2,15 @@
 
   T06-far  the scene 'layers' of the weather player (the own cloud system's layer shader) on the far views: horizon from 10 km, a ground view
            of a cumulus field, orbit at 300 km and at 230 km, and a camera above two stacked decks, each in four variants (base: the near
-           march; haze: the aerial perspective; mean: the shape noise's mean at wide spacing; far: haze, mean and the march policy). The rows:
+           march; aerial: the aerial perspective; mean: the shape noise's mean at wide spacing; far: aerial perspective, mean and the march policy). The rows:
 
-    haze.model_error        the shader's hazed colour against the same fog formula evaluated here from the first-hit distance, on an opaque deck
-    haze.alpha_change       the haze leaves the alpha alone (a regression guard)
-    haze.blue_over_red_*    the haze's own effect on the colour: bluer at the far end of the deck than at the near end
+    aerial.model_error      the shader's colour with the aerial perspective against the same fog formula evaluated here from the first-hit distance, on an opaque deck
+    aerial.alpha_change     the aerial perspective leaves the alpha alone (a regression guard)
+    aerial.blue_over_red_*  the aerial perspective's own effect on the colour: bluer at the far end of the deck than at the near end
     rim.px_error / rim.sag  the deck's upper rim against the analytic horizon of the outer sphere: how far the rim row is off, and the curvature
     grain.*                 the single-pixel grain of the alpha in the orbit and the horizon views, base against shape mean, over the same pixels
-    sweep.*                 nadir views of a 24 km square from 10 to 400 km: the far view (haze, mean, policy) against the near march with the
-                            aerial perspective (haze): coverage and luminance per km through the hand-over band 200 to 260 km, the largest step
+    sweep.*                 nadir views of a 24 km square from 10 to 400 km: the far view (aerial perspective, mean, policy) against the near march with the
+                            aerial perspective (aerial): coverage and luminance per km through the hand-over band 200 to 260 km, the largest step
                             between neighbours, the far view against the near march at 230 km and across the band
     view.*                  the pictures exist (natural and aid, one name each)
 
@@ -37,7 +37,7 @@ BUILD = os.path.join(REPO, "build", "weather-series")
 INPUT = os.path.join(BUILD, "T06-in")
 R = pr.KERBIN_RADIUS
 SIZE = (800, 450)
-VARIANTS = ["base", "haze", "mean", "far"]
+VARIANTS = ["base", "aerial", "mean", "far"]
 AIR_RAYLEIGH = (5.802e-6, 13.558e-6, 33.1e-6)
 AIR_MIE, AIR_HR, AIR_HM = 4.44e-6, 8000.0, 1200.0
 HORIZON = (0.62, 0.68, 0.76)
@@ -101,8 +101,8 @@ def air_tau(o, d, t, strength=1.0):
 # Jobs
 # --------------------------------------------------------------------------------------------------------------------------------
 def far_block(variant):
-    """base: the near march; haze: the aerial perspective; mean: the shape's mean at wide spacing; far: both and the march policy."""
-    return dict(haze=int(variant in ("haze", "dense", "far")), shapeMean=int(variant in ("mean", "far")), policy=int(variant == "far"),
+    """base: the near march; aerial: the aerial perspective; mean: the shape's mean at wide spacing; far: both and the march policy."""
+    return dict(aerialPerspective=int(variant in ("aerial", "dense", "far")), shapeMean=int(variant in ("mean", "far")), policy=int(variant == "far"),
                 minSamples=FAR_MIN_SAMPLES if variant == "far" else 0, inscatter=list(HORIZON), lodStart=1.0, lodEnd=3.0)
 
 
@@ -154,14 +154,14 @@ def jobs(sites):
                 j.update(v["light"])
                 j["far"] = far_block(variant)
                 out.append(j)
-    # The haze model probe and the rim probe: an opaque uniform deck seen from 10 km at 8 degrees down, over a 960 x 540 picture.
+    # The aerial perspective model probe and the rim probe: an opaque uniform deck seen from 10 km at 8 degrees down, over a 960 x 540 picture.
     sites_cam = camera_at(sites["above"], 10000.0, -8.0, LK.YAW_EAST, 960, 540, 60.0)
     sun = L.sun_vector(sites_cam.pos, 120.0, 45.0)
-    for jid, mode, haze in (("FH-off", "lum", 0), ("FH-on", "lum", 1), ("FH-aux", "aux", 0)):
+    for jid, mode, aerial in (("FH-off", "lum", 0), ("FH-on", "lum", 1), ("FH-aux", "aux", 0)):
         layer = L.layer(1000.0, 2400.0, 0.02, [L.slab_type("slab", 0.0, 1.0, (1.0, 1.0), 0.0)], coverage=1.0, softness=0.3, name="opaque")
         j = L.job(jid, mode, sites_cam, [layer], 960, 540, sun=sun, **PRODUCT)
         j["maxSteps"] = 128
-        j["far"] = dict(haze=haze, shapeMean=0, inscatter=list(HORIZON))
+        j["far"] = dict(aerialPerspective=aerial, shapeMean=0, inscatter=list(HORIZON))
         out.append(j)
     # The sweep: nadir views of a fixed footprint from 10 to 400 km, the base march and the far view.
     site = sites["orbit"]
@@ -169,7 +169,7 @@ def jobs(sites):
         fov = 2.0 * math.degrees(math.atan(SWEEP_FOOTPRINT_M / (alt * 1000.0)))
         cam = camera_at(site, alt * 1000.0, -90.0, LK.YAW_EAST, SWEEP_TILE, SWEEP_TILE, fov)
         sunv = L.sun_vector(cam.pos, 120.0, 40.0)
-        for variant in ("haze", "dense", "far"):
+        for variant in ("aerial", "dense", "far"):
             j = L.job("SW-%d-%s" % (alt, variant), "lum", cam, [LK.deck_layer("orbit.r8", 0.6, 1000.0, 2400.0), LK.cirrus_layer()], SWEEP_TILE, SWEEP_TILE,
                       sun=sunv, mapWidth=LK.MAP_W, mapHeight=LK.MAP_H, **MEASURE)
             j["maxSteps"] = 64
@@ -189,7 +189,7 @@ def jobs(sites):
         j["maxSteps"] = 64
         j.update(LK.DAY)
         j.update(over)
-        j["far"] = dict(dict(haze=1, shapeMean=0, policy=0, minSamples=0, inscatter=list(HORIZON), lodStart=1.0, lodEnd=3.0), **block)
+        j["far"] = dict(dict(aerialPerspective=1, shapeMean=0, policy=0, minSamples=0, inscatter=list(HORIZON), lodStart=1.0, lodEnd=3.0), **block)
         out.append(j)
     return out
 
@@ -240,7 +240,7 @@ def grain(folder, job_id, other):
     return float(np.mean(np.abs(a - box3(a))[mask])) if mask.any() else float("nan")
 
 
-def haze_rows(folder, out):
+def aerial_rows(folder, out):
     cam = camera_at(LK_SITES["above"], 10000.0, -8.0, LK.YAW_EAST, 960, 540, 60.0)
     d = cam.ray_directions()
     first = plane(folder, "FH-aux", "first").reshape(-1)
@@ -258,22 +258,22 @@ def haze_rows(folder, out):
         err = np.abs(on[c] - expected)[mask] / np.maximum(expected[mask], 1e-3)
         errs.append(err)
     err = np.concatenate(errs)
-    out.append(Metric.at_most("haze.model_error", float(np.percentile(err, 99)), 0.03).based("gate"))
-    out.append(Metric.info("haze.model_error_mean", float(err.mean())))
-    out.append(Metric.at_most("haze.alpha_change", float(np.abs(on[3] - off[3]).max()), 1e-5).based("gate"))
-    out.append(Metric.info("haze.transmittance_blue_min", float(trans[mask, 2].min())))
-    out.append(Metric.info("haze.transmittance_red_min", float(trans[mask, 0].min())))
-    # the blue goes first: the hazed deck is bluer at the far end than at the near end
+    out.append(Metric.at_most("aerial.model_error", float(np.percentile(err, 99)), 0.03).based("gate"))
+    out.append(Metric.info("aerial.model_error_mean", float(err.mean())))
+    out.append(Metric.at_most("aerial.alpha_change", float(np.abs(on[3] - off[3]).max()), 1e-5).based("gate"))
+    out.append(Metric.info("aerial.transmittance_blue_min", float(trans[mask, 2].min())))
+    out.append(Metric.info("aerial.transmittance_red_min", float(trans[mask, 0].min())))
+    # the blue goes first: the deck with the aerial perspective is bluer at the far end than at the near end
     near, far = mask & (first < np.percentile(first[mask], 10)), mask & (first > np.percentile(first[mask], 90))
-    # the haze's own effect on the colour: blue over red of the hazed deck divided by the same of the unhazed deck, at the far end against the near end
+    # the aerial perspective's own effect on the colour: blue over red of the deck with it divided by the same of the deck without it, at the far end against the near end
     ratio = lambda m: float(np.mean(on[2][m] / np.maximum(on[0][m], 1e-6)) / np.mean(off[2][m] / np.maximum(off[0][m], 1e-6)))
-    # the same ratio from the fog formula and the unhazed colours (the model), so that the row does not depend on how white the cloud light is
+    # the same ratio from the fog formula and the colours without it (the model), so that the row does not depend on how white the cloud light is
     expected = [off[c] * trans[:, c] + off[3] * np.array(HORIZON)[c] * (1.0 - trans[:, c]) for c in range(3)]
     ratio_model = lambda m: float(np.mean(expected[2][m] / np.maximum(expected[0][m], 1e-6)) / np.mean(off[2][m] / np.maximum(off[0][m], 1e-6)))
-    out.append(Metric.at_least("haze.blue_over_red_far_vs_near", ratio(far) / ratio(near), 1.02).based("new"))
-    out.append(Metric.at_most("haze.blue_over_red_vs_model", abs(ratio(far) / ratio(near) - ratio_model(far) / ratio_model(near)), 0.01).based("gate"))
-    out.append(Metric.info("haze.blue_over_red_near", ratio(near)))
-    out.append(Metric.info("haze.blue_over_red_far", ratio(far)))
+    out.append(Metric.at_least("aerial.blue_over_red_far_vs_near", ratio(far) / ratio(near), 1.02).based("new"))
+    out.append(Metric.at_most("aerial.blue_over_red_vs_model", abs(ratio(far) / ratio(near) - ratio_model(far) / ratio_model(near)), 0.01).based("gate"))
+    out.append(Metric.info("aerial.blue_over_red_near", ratio(near)))
+    out.append(Metric.info("aerial.blue_over_red_far", ratio(far)))
 
 
 def rim_rows(folder, out):
@@ -305,19 +305,19 @@ def rim_rows(folder, out):
 
 def sweep_rows(folder, out):
     # "dense" is the reference: a march at the near view's resolution whatever the distance (25 m steps, 128 steps) with the aerial perspective;
-    # "haze" is the product's near march (steps growing with the distance, 64 steps) with the aerial perspective, as it draws from far away;
+    # "aerial" is the product's near march (steps growing with the distance, 64 steps) with the aerial perspective, as it draws from far away;
     # "far" is the far view: at least four samples in a span, the shape's mean at wide spacing and the march policy, with the same aerial perspective.
-    cov = {"haze": [], "dense": [], "far": []}
-    lum = {"haze": [], "dense": [], "far": []}
+    cov = {"aerial": [], "dense": [], "far": []}
+    lum = {"aerial": [], "dense": [], "far": []}
     for alt in SWEEP_ALTS:
-        for variant in ("haze", "dense", "far"):
+        for variant in ("aerial", "dense", "far"):
             jid = "SW-%d-%s" % (alt, variant)
             a = plane(folder, jid, "a")
             cov[variant].append(float(a.mean()))
             lum[variant].append(float(luminance(plane(folder, jid, "r"), plane(folder, jid, "g"), plane(folder, jid, "b")).mean()))
     alts = np.array(SWEEP_ALTS, dtype=float)
     band = (alts >= 200) & (alts <= 260)
-    for variant in ("haze", "dense", "far"):
+    for variant in ("aerial", "dense", "far"):
         c = np.array(cov[variant])
         l = np.array(lum[variant])
         dc = np.abs(np.diff(c[band])) / np.maximum(c[band][:-1], 1e-6)
@@ -383,7 +383,7 @@ def collect(ctx):
         out.append(Metric.flag("written", False))
         return out
     LK_SITES = LK.site_positions()[0]
-    haze_rows(folder, out)
+    aerial_rows(folder, out)
     rim_rows(folder, out)
     for vid in ("ol", "oh", "ho", "hg"):
         base, mean = grain(folder, "FL-%s-base" % vid, "FL-%s-mean" % vid), grain(folder, "FL-%s-mean" % vid, "FL-%s-base" % vid)
@@ -424,19 +424,19 @@ SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
 SC_ALT, SC_PITCH, SC_SIZE = 8300.0, -12.0, (960, 540)
 
 
-def scatterer_far_block(haze):
-    return dict(haze=haze, shapeMean=0, inscatter=list(HORIZON), rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0)
+def scatterer_far_block(aerial):
+    return dict(aerialPerspective=aerial, shapeMean=0, inscatter=list(HORIZON), rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, aerialPerspectiveStrength=1.0)
 
 
 def scatterer_jobs(sites):
     cam = camera_at(sites["above"], SC_ALT, SC_PITCH, LK.YAW_EAST, SC_SIZE[0], SC_SIZE[1], 60.0)
     sun = L.sun_vector(cam.pos, 120.0, 45.0)
     out = []
-    for jid, mode, haze in (("SC-warm", "lum", 0), ("SC-off", "lum", 0), ("SC-on", "lum", 1), ("SC-aux", "aux", 0), ("SC-off2", "lum", 0)):
+    for jid, mode, aerial in (("SC-warm", "lum", 0), ("SC-off", "lum", 0), ("SC-on", "lum", 1), ("SC-aux", "aux", 0), ("SC-off2", "lum", 0)):
         layer = L.layer(100.0, 400.0, 0.02, [L.slab_type("slab", 0.0, 1.0, (1.0, 1.0), 0.0)], coverage=1.0, softness=0.3, name="fogdeck")
         j = L.job(jid, mode, cam, [layer], SC_SIZE[0], SC_SIZE[1], sun=sun, **PRODUCT)
         j["maxSteps"] = 128
-        j["far"] = scatterer_far_block(haze)
+        j["far"] = scatterer_far_block(aerial)
         out.append(j)
     # The pictures (natural and aid, one name each: e40-fh-<variant>.png and e40-fh-<variant>-aid.png): the low deck seen from 8.3 km without the aerial perspective, with the
     # pass's own air at the strength 1 (the setting before this package: Earth's coefficients) and with Scatterer's Kerbin air.
@@ -445,7 +445,7 @@ def scatterer_jobs(sites):
     day["skyZenith"] = [0.26, 0.42, 0.75]
     pic_cam = camera_at(sites["above"], SC_ALT, SC_PITCH, LK.YAW_EAST, SIZE[0], SIZE[1], 60.0)
     pic_sun = L.sun_vector(pic_cam.pos, 120.0, 45.0)
-    for name, block in (("off", dict(haze=0)), ("own", dict(haze=1)), ("sc", scatterer_far_block(1))):
+    for name, block in (("off", dict(aerialPerspective=0)), ("own", dict(aerialPerspective=1)), ("sc", scatterer_far_block(1))):
         j = L.job("e40-fh-%s" % name, "color", pic_cam, [LK.deck_layer("above.r8", 0.85, 100.0, 700.0)], SIZE[0], SIZE[1], sun=pic_sun, mapWidth=LK.MAP_W,
                   mapHeight=LK.MAP_H, **PRODUCT)
         j["maxSteps"] = 64
@@ -520,7 +520,7 @@ def collect_scatterer(ctx):
     idx = np.where(mask)[0]
     fine = fine_tau(cam.pos, d[idx], t[idx], SC_RAYLEIGH, SC_MIE, SC_HR, SC_HM)
     rel = np.abs(tau6[idx] - fine) / np.maximum(fine, 1e-9)
-    out.append(Metric.at_most("haze.scatterer.tau_piece_error", float(np.percentile(rel, 99)), 0.01).based("gate"))
+    out.append(Metric.at_most("aerial.scatterer.tau_piece_error", float(np.percentile(rel, 99)), 0.01).based("gate"))
     trans = np.exp(-tau6)
     errs = []
     for c in range(3):
@@ -530,20 +530,20 @@ def collect_scatterer(ctx):
     # The first render of a player run differs from the later ones in the deck's light (mean 0.04 brighter, 0.10 per pixel, all three channels: the first run of this series
     # had its SC-off first and read 0.307 for the row above): SC-warm is rendered first and not read, and SC-off2 repeats SC-off as the floor of the comparison.
     off2 = [plane(folder, "SC-off2", c).reshape(-1) for c in "rgb"]
-    out.append(Metric.at_most("haze.scatterer.repeat_diff", float(max(np.abs(off2[c] - off[c])[mask].max() for c in range(3))), 1e-3).based("new"))
-    out.append(Metric.at_most("haze.scatterer.model_error", float(np.percentile(err, 99)), 0.03).based("gate"))
-    out.append(Metric.info("haze.scatterer.model_error_mean", float(err.mean())))
-    out.append(Metric.at_most("haze.scatterer.alpha_change", float(np.abs(on[3] - off[3]).max()), 1e-5).based("gate"))
+    out.append(Metric.at_most("aerial.scatterer.repeat_diff", float(max(np.abs(off2[c] - off[c])[mask].max() for c in range(3))), 1e-3).based("new"))
+    out.append(Metric.at_most("aerial.scatterer.model_error", float(np.percentile(err, 99)), 0.03).based("gate"))
+    out.append(Metric.info("aerial.scatterer.model_error_mean", float(err.mean())))
+    out.append(Metric.at_most("aerial.scatterer.alpha_change", float(np.abs(on[3] - off[3]).max()), 1e-5).based("gate"))
     # the transmittance at the distances of the game's bands (33 to 61 km): the design note's computed values, read from the fine integral
     for km in (33, 37, 42, 49, 61):
         near = mask & (np.abs(t - km * 1000.0) < 1500.0)
         if near.any():
-            out.append(Metric.info("haze.scatterer.transmittance_%dkm_r" % km, float(np.exp(-fine_tau(cam.pos, d[near][:1], t[near][:1], SC_RAYLEIGH, SC_MIE, SC_HR, SC_HM)[0, 0]))))
-            out.append(Metric.info("haze.scatterer.transmittance_%dkm_b" % km, float(np.exp(-fine_tau(cam.pos, d[near][:1], t[near][:1], SC_RAYLEIGH, SC_MIE, SC_HR, SC_HM)[0, 2]))))
-    out.append(Metric.info("haze.scatterer.distance_min_km", float(t[mask].min() / 1000.0)))
-    out.append(Metric.info("haze.scatterer.distance_max_km", float(t[mask].max() / 1000.0)))
-    out.append(Metric.flag("haze.scatterer.samples", int(mask.sum()) > 5000))
-    out.append(Metric.flag("haze.scatterer.pictures", all(os.path.isfile(os.path.join(folder, "e40-fh-%s%s.png" % (v, s))) for v in ("off", "own", "sc") for s in ("", "-aid"))))
+            out.append(Metric.info("aerial.scatterer.transmittance_%dkm_r" % km, float(np.exp(-fine_tau(cam.pos, d[near][:1], t[near][:1], SC_RAYLEIGH, SC_MIE, SC_HR, SC_HM)[0, 0]))))
+            out.append(Metric.info("aerial.scatterer.transmittance_%dkm_b" % km, float(np.exp(-fine_tau(cam.pos, d[near][:1], t[near][:1], SC_RAYLEIGH, SC_MIE, SC_HR, SC_HM)[0, 2]))))
+    out.append(Metric.info("aerial.scatterer.distance_min_km", float(t[mask].min() / 1000.0)))
+    out.append(Metric.info("aerial.scatterer.distance_max_km", float(t[mask].max() / 1000.0)))
+    out.append(Metric.flag("aerial.scatterer.samples", int(mask.sum()) > 5000))
+    out.append(Metric.flag("aerial.scatterer.pictures", all(os.path.isfile(os.path.join(folder, "e40-fh-%s%s.png" % (v, s))) for v in ("off", "own", "sc") for s in ("", "-aid"))))
     return out
 
 
@@ -558,7 +558,7 @@ register_series("T06-scatterer", scatterer_stages(), collect_scatterer, exclusiv
 
 
 # The cost of the aerial perspective (the K-T2 method in the player: the pass's GPU milliseconds by the timestamp queries, median of 40 frames, the variant
-# 'haze' against 'off', both passes of the table): the scene 'cull-cost' of T16 restricted to the variants off and haze, the views of the above and the horizon
+# 'aerial' against 'off', both passes of the table): the scene 'cull-cost' of T16 restricted to the variants off and aerial, the views of the above and the horizon
 # and the ground, at 1707 x 960. The shader evaluates the six-piece integral once per ray after the march, so the expected cost is a few hundredths of a ms.
 COST_VIEWS = ("V-ground", "V-above", "V-horizon")
 COST_LIMIT_MS = 0.15
@@ -572,18 +572,18 @@ def collect_scatterer_cost(ctx):
         diffs = []
         for tag in ("cullcost", "cullcostb"):
             off = values.get("%s.total.%s.off.1707x960" % (tag, view))
-            on = values.get("%s.total.%s.haze.1707x960" % (tag, view))
+            on = values.get("%s.total.%s.aerial.1707x960" % (tag, view))
             if off is not None and on is not None:
                 diffs.append(on - off)
-                out.append(Metric.info("haze.cost.%s.%s.off_ms" % (view, tag), off))
-                out.append(Metric.info("haze.cost.%s.%s.haze_ms" % (view, tag), on))
+                out.append(Metric.info("aerial.cost.%s.%s.off_ms" % (view, tag), off))
+                out.append(Metric.info("aerial.cost.%s.%s.aerial_ms" % (view, tag), on))
         if diffs:
             mean = sum(diffs) / len(diffs)
-            out.append(Metric.info("haze.cost.%s.delta_ms" % view, mean))
+            out.append(Metric.info("aerial.cost.%s.delta_ms" % view, mean))
             worst = mean if worst is None else max(worst, mean)
-    out.append(Metric.flag("haze.cost.measured", worst is not None))
+    out.append(Metric.flag("aerial.cost.measured", worst is not None))
     if worst is not None:
-        out.append(Metric.at_most("haze.cost.delta_ms_max", worst, COST_LIMIT_MS).based("new"))
+        out.append(Metric.at_most("aerial.cost.delta_ms_max", worst, COST_LIMIT_MS).based("new"))
     return out
 
 
@@ -592,7 +592,7 @@ def scatterer_cost_stages():
     jobs = os.path.join(cull.INPUT, "jobs.json")
     if not os.path.isfile(jobs) or os.path.getmtime(jobs) < os.path.getmtime(os.path.abspath(cull.__file__)):
         cull.write_inputs()
-    return [Stage("scene", ["-mode", "scene", "-scene", "cull-cost", "-in", cull.INPUT, "-views", ",".join(COST_VIEWS), "-variants", "off,haze", "-sizes", "1707"],
+    return [Stage("scene", ["-mode", "scene", "-scene", "cull-cost", "-in", cull.INPUT, "-views", ",".join(COST_VIEWS), "-variants", "off,aerial", "-sizes", "1707"],
                   size=(1707, 960), proxy=True, timeout=900)]
 
 

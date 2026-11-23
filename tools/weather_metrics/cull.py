@@ -11,22 +11,22 @@
   T16-levels   scene 'cull-levels': the 4 x 4 block mode through two turns with and without the switches: ghost_move, trail_px, shimmer.
 
 THE SUCCESS CRITERIA, fixed BEFORE the first run (a sweep changes thresholds of the switches' numbers only, at most 3 sweeps per constant group):
-  baseline        a switch is compared with the same view, size and mode WITHOUT the switch and with the same haze and shape mean (off; haze for the distance cut;
-                  mean for the detail LOD; hm for all). The block mode (u4) is its own baseline: the reconstruction is part of the fair comparison, never the full
+  baseline        a switch is compared with the same view, size and mode WITHOUT the switch and with the same aerial perspective and shape mean (off; aerial for the distance cut;
+                  mean for the detail LOD; am for all). The block mode (u4) is its own baseline: the reconstruction is part of the fair comparison, never the full
                   pass alone. The T12 lesson: a comparison against a weaker baseline misleads.
-  C1 cost         all vs hm: ms(all) <= 0.70 x ms(hm) on at least 3 of the 7 views (ground, inside, above, orbit-edge, sky3, horizon, stack-below) at 1707x960, in the full mode AND in the 4 x 4 block mode. Source: K-T2 start 46
+  C1 cost         all vs am: ms(all) <= 0.70 x ms(am) on at least 3 of the 7 views (ground, inside, above, orbit-edge, sky3, horizon, stack-below) at 1707x960, in the full mode AND in the 4 x 4 block mode. Source: K-T2 start 46
                   (1707x960, Release, A4500 Medium): the plain pass costs 4.08 / 4.48 / 4.47 / 4.12 ms (ground / inside / above / sky3), the 4 x 4 level 0.377 of
                   it (1.54 / 1.69 / 1.69 / 1.55 ms); the worst-case budget of T05 (MAINREPO .local/plans/atmospheres/T05-cost-budget.md) is 1.2 ms at 1707x960 with reconstruction: the
                   reduction needed is 22 / 29 / 29 / 22 percent, rounded up to 30 percent.
   C1b per switch  a switch is "useful" when it saves 10 percent or more (ratio <= 0.90) on at least 2 of the 7 views at 1707x960 within C2.
-  Levers of the measurement (no settings): the haze rows use eight times the optical depth of the Earth coefficients (the distance cut cannot act at Earth's
-  haze in any view), the terrain test (skipT) is not exercised by the scenes (they bind no scene depth: a gap in what is measured, said in the report).
+  Levers of the measurement (no settings): the aerial perspective rows use eight times the optical depth of the Earth coefficients (the distance cut cannot act at Earth's
+  aerial perspective in any view), the terrain test (skipT) is not exercised by the scenes (they bind no scene depth: a gap in what is measured, said in the report).
   C2 error        interior_err <= 1.15 x the baseline's own + 0.002 and band_rms <= 1.15 x the baseline's own + 0.002 (owner order of T15: within 15 percent; the
                   absolute term is two steps of the 8 bit display), empty_leak <= the baseline's + 0.0005; and for the switches that claim to be exact
                   (skip, skipG, skipT, skipM, closed): cloud_lost <= 0.0005 (share of pixels that lose more than 1 percent of alpha) and ab_changed <= 0.002.
   C3 no pop       the largest frame-to-frame change a switch adds to the baseline's own, relative to the mean luminance, <= 0.03 on every path (brief: 3 percent).
   C4 tile pass    the tile pass costs <= 0.1 ms at 1707x960 (brief).
-  C5 reconstruction  u4all vs u4hm: ghost_move, trail_px and shimmer <= 1.2 x the baseline's (brief: baseline + 20 percent).
+  C5 reconstruction  u4all vs u4am: ghost_move, trail_px and shimmer <= 1.2 x the baseline's (brief: baseline + 20 percent).
 Not measured in the player: DLSS, FSR, XeSS and frame generation (they ride in the game series K-T3); the report says so.
 
     python tools/weather_metrics/cull.py summary     # the verdict table from the latest T16-cost, T16-quality, T16-sweep, T16-levels runs
@@ -49,8 +49,8 @@ NAN = float("nan")
 
 VIEWS = ("ground", "inside", "above", "orbit-edge", "sky3", "horizon", "stack-below")
 # (switch, baseline): the first column of every comparison.
-PAIRS = (("skip", "off"), ("skipG", "off"), ("skipT", "off"), ("skipM", "off"), ("closed", "off"), ("cut", "haze"), ("growth", "off"), ("tap", "off"),
-         ("detail", "mean"), ("cap", "off"), ("all", "hm"),
+PAIRS = (("skip", "off"), ("skipG", "off"), ("skipT", "off"), ("skipM", "off"), ("closed", "off"), ("cut", "aerial"), ("growth", "off"), ("tap", "off"),
+         ("detail", "mean"), ("cap", "off"), ("all", "am"),
          # Sweep 1 of the constants (full mode only): stronger growth, nearer and stronger tap LOD, a coarser detail footprint, a nearer cap with one span kept.
          ("growth2", "off"), ("growth3", "off"), ("tap2", "off"), ("detail2", "mean"), ("cap2", "off"))
 EXACT = ("skip", "skipG", "skipT", "skipM", "closed")
@@ -142,12 +142,12 @@ def verdict_table():
     tiles = [v[2] for (view, var, size), v in table.items() if size == SIZE and var in ("skip", "closed", "all") and v[2] > 0]
     print("\nC4 tile pass at %s: %s (limit %.2f ms)" % (SIZE, ("max %.3f ms" % max(tiles)) if tiles else "no reading", LIMIT_TILE_MS))
     # C5
-    print("\nC5 reconstruction (u4all / u4hm, limit %.2f):" % LIMIT_RECON)
+    print("\nC5 reconstruction (u4all / u4am, limit %.2f):" % LIMIT_RECON)
     for key in sorted(levels):
         m = re.match(r"culllevels\.(V-[a-z0-9]+)\.(turn\d+)\.u4all\.(ghost_move|trail_px|shimmer)$", key)
         if m:
-            base = levels.get(key.replace(".u4all.", ".u4hm."), NAN)
-            print("  %-10s %-7s %-10s all %.5f  hm %.5f  ratio %.2f  %s" % (m.group(1), m.group(2), m.group(3), levels[key], base, levels[key] / base if base else NAN,
+            base = levels.get(key.replace(".u4all.", ".u4am."), NAN)
+            print("  %-10s %-7s %-10s all %.5f  am %.5f  ratio %.2f  %s" % (m.group(1), m.group(2), m.group(3), levels[key], base, levels[key] / base if base else NAN,
                                                                          "ok" if base and levels[key] <= LIMIT_RECON * base else "OVER"))
     return 0
 
@@ -265,7 +265,7 @@ def levels_collect(ctx):
             continue
         out.append(Metric.info("lv16." + name[len("culllevels."):], v))
         if ".u4all." in name:
-            base = values.get(name.replace(".u4all.", ".u4hm."), NAN)
+            base = values.get(name.replace(".u4all.", ".u4am."), NAN)
             if base == base and base > 0:
                 out.append(Metric.at_most("lv16.ratio." + name[len("culllevels."):], v / base, LIMIT_RECON).based("owner"))
     return out

@@ -76,25 +76,25 @@ def variants():
         "dr10": dict(az=AZIMUTH, tuning=[("layers.densityRemap", 1.0)]),
         "ss0dr06": dict(az=AZIMUTH, smooth=0.0, tuning=[("layers.densityRemap", 0.6)]),
         "sshdr06": dict(az=AZIMUTH, smooth_scale=0.5, tuning=[("layers.densityRemap", 0.6)]),
-        "haze": dict(az=AZIMUTH, haze=1),
-        # the game's far haze on (the product's default), with a lower density to meet the game's thin clouds (coverage threshold up, cumulus extinction down)
-        "hzcs10": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.10)]),
-        "hzcs20": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.20)]),
-        "hzsg05": dict(az=AZIMUTH, haze=1, tuning=[("cloud.layerSigmaScale." + CUMULUS, 0.5)]),
-        "hzsg03": dict(az=AZIMUTH, haze=1, tuning=[("cloud.layerSigmaScale." + CUMULUS, 0.3)]),
-        "hzssh": dict(az=AZIMUTH, haze=1, smooth_scale=0.5),
-        "hzss0": dict(az=AZIMUTH, haze=1, smooth=0.0),
-        "hl125": dict(az=AZIMUTH, haze=1, light=1.25),
-        "hl135": dict(az=AZIMUTH, haze=1, light=1.35),
-        "hl150": dict(az=AZIMUTH, haze=1, light=1.5),
-        "hl135ssh": dict(az=AZIMUTH, haze=1, light=1.35, smooth_scale=0.5),
-        "cser15": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.10)], erosion=1.5),
-        "cser20": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.10)], erosion=2.0),
-        "csbase": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.10)]),
-        "csssh": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.10)], smooth_scale=0.5),
-        "csssq": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.10)], smooth_scale=0.25),
-        "csns125": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.10)], noise=125.0),
-        "cshl135": dict(az=AZIMUTH, haze=1, tuning=[("cloud.coverageShift", -0.10)], light=1.35),
+        "aerial": dict(az=AZIMUTH, aerial=1),
+        # the game's aerial perspective on (the product's default), with a lower density to meet the game's thin clouds (coverage threshold up, cumulus extinction down)
+        "hzcs10": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.10)]),
+        "hzcs20": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.20)]),
+        "hzsg05": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.layerSigmaScale." + CUMULUS, 0.5)]),
+        "hzsg03": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.layerSigmaScale." + CUMULUS, 0.3)]),
+        "hzssh": dict(az=AZIMUTH, aerial=1, smooth_scale=0.5),
+        "hzss0": dict(az=AZIMUTH, aerial=1, smooth=0.0),
+        "hl125": dict(az=AZIMUTH, aerial=1, light=1.25),
+        "hl135": dict(az=AZIMUTH, aerial=1, light=1.35),
+        "hl150": dict(az=AZIMUTH, aerial=1, light=1.5),
+        "hl135ssh": dict(az=AZIMUTH, aerial=1, light=1.35, smooth_scale=0.5),
+        "cser15": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.10)], erosion=1.5),
+        "cser20": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.10)], erosion=2.0),
+        "csbase": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.10)]),
+        "csssh": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.10)], smooth_scale=0.5),
+        "csssq": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.10)], smooth_scale=0.25),
+        "csns125": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.10)], noise=125.0),
+        "cshl135": dict(az=AZIMUTH, aerial=1, tuning=[("cloud.coverageShift", -0.10)], light=1.35),
     }
 
 
@@ -157,8 +157,8 @@ def build_job(view, variant):
     v = variants()[variant]
     if "tuning" in v:
         args["tuning"] = e40o.tuning(v["tuning"])
-    if v.get("haze"):
-        args["far"] = haze_block(spec, v["az"])
+    if v.get("aerial"):
+        args["far"] = aerial_perspective_block(spec, v["az"])
     sun = [spec["sun"]] * 3
     return lay.job("gn-%s-prod-f0" % tag(view, variant), "lum", cam, job_layers(spec["scene"], variant), W, H, planet=c1.R, mapWidth=c1.MAP_W, mapHeight=c1.MAP_H, frameNumber=0,
                    soft=v.get("soft", 0.5), sun=lay.sun_vector(cam.pos, v["az"], spec["elev"]), sunColour=sun, ambientTop=gn.AMBIENT_TOP, ambientBottom=gn.AMBIENT_BOTTOM, **args)
@@ -169,14 +169,14 @@ SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
 LOWEST_LAYER_QUARTER_M = 0.25 * 4690.0         # the lowest layer's lower quarter, where the white point's sun and the far colour's ray are taken
 
 
-def haze_block(spec, sun_azimuth=AZIMUTH):
+def aerial_perspective_block(spec, sun_azimuth=AZIMUTH):
     """The far block of the product at this scene's sun: Scatterer's air of Kerbin, the colours a far cloud fades into and a short path in-scatters worked out from the air along the view
-    ray (E40 H1 haze, horizon_sky.py), times the white tint. The camera looks along HEADING, the sun is at sun_azimuth."""
+    ray (E40 H1 aerial perspective, horizon_sky.py), times the white tint. The camera looks along HEADING, the sun is at sun_azimuth."""
     tint = tint_of(spec)
     relative = abs(sun_azimuth - HEADING) % 360.0
     relative = 360.0 - relative if relative > 180.0 else relative
     far, near, _ = hs.far_near(hs.KERBIN, HEIGHT_M, LOWEST_LAYER_QUARTER_M, spec["elev"], relative, spec["white"], gn.AMBIENT_TOP)
-    return dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0,
+    return dict(aerialPerspective=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, aerialPerspectiveStrength=1.0,
                 inscatter=[float(x) for x in np.array(far) * tint], inscatterNear=[float(x) for x in np.array(near) * tint])
 
 
@@ -360,13 +360,13 @@ STAGES = {
     "v1-a": (["base", "az90", "az0", "ss0"], "pr50", [R33, R50, R100]),
     "v1-d": (["base"], "pr50", [R33 + "+acc0", R33 + "+acc50", R33 + "+acc100", "seq1m128+lq2+r33"]),
     "v1-e": (["ssh", "ns125", "ns500"], "pr50", [R33, R100]),
-    "v1-h": (["sf30", "sf100", "dr06", "dr10", "ss0dr06", "sshdr06", "haze"], "pr50", [R33]),
+    "v1-h": (["sf30", "sf100", "dr06", "dr10", "ss0dr06", "sshdr06", "aerial"], "pr50", [R33]),
     "v1-o": (["base"], "pr50", [R33]),
     "v1-i": (["hzcs10", "hzcs20", "hzsg05", "hzsg03", "hzssh", "hzss0"], "pr50", [R33]),
     "v1-j": (["hl125", "hl135", "hl150", "hl135ssh"], "pr50", [R33]),
     "v1-k": (["cser15", "cser20", "csbase", "csssh", "csssq", "csns125", "cshl135"], "pr50", [R33]),
-    # the same jobs as v1-k's csbase and v1-h's haze, built from the cfg of the tree the run is made in: run before and after a cfg change under different labels (E40V1_ONLY)
-    "v1-z": (["csbase", "haze"], "pr50", [R33]),
+    # the same jobs as v1-k's csbase and v1-h's aerial, built from the cfg of the tree the run is made in: run before and after a cfg change under different labels (E40V1_ONLY)
+    "v1-z": (["csbase", "aerial"], "pr50", [R33]),
 }
 MAIN_VIEWS = ["gfair", "hfair", "gclock"]
 # E40V1_ONLY=v1-i,v1-j: run these stages only (the others stay as the last run left them)

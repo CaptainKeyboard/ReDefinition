@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace ReDefinition.Tests.Atmospheres.T09
 {
-    // The colour a far cloud fades into, worked out from the body's air (E40 H1 haze: CloudHorizonSky, CloudHazePlan.SkyInscatter). Nothing in these rows is fitted to a sky: the inputs are
+    // The colour a far cloud fades into, worked out from the body's air (E40 H1 aerial perspective: CloudHorizonSky, AerialPerspectivePlan.SkyInscatter). Nothing in these rows is fitted to a sky: the inputs are
     // the Scatterer nodes of StockScattererConfigs (Kerbin, Duna), the camera's height, the sun's elevation and the view's azimuth; the one measurement is the frame of K-T2 start 61.
     [TestClass]
     public class CloudHorizonSkyTests
@@ -159,7 +159,7 @@ Scatterer_atmosphere
         }
 
         // The chain of the FL package: a cloud of the congestus's lit-face colour (display 0.48, neutral) 50 km away, 2 km up, from a camera at 264 m, mixed with the air the way the layer shader does
-        // (CloudHazePlan.AerialMix with the air's transmittance), against the sky's colour at the horizon: the older law needed a body gain to come near it.
+        // (AerialPerspectivePlan.AerialMix with the air's transmittance), against the sky's colour at the horizon: the older law needed a body gain to come near it.
         [TestMethod]
         public void AFarCongestusFadesIntoTheSkyWithinAFewPercent()
         {
@@ -171,12 +171,12 @@ Scatterer_atmosphere
                                kerbin.MiePerM, kerbin.RayleighHeightM, kerbin.MieHeightM, 1.0, out tr, out tg, out tb);
             var t = new Vector3((float)Math.Exp(-tr), (float)Math.Exp(-tg), (float)Math.Exp(-tb));
             var sun = new CloudHorizonSky.Evaluator();
-            CloudHazePlan.SkyView view = new CloudHazePlan.SkyView { HeightM = 264.0, LayerAltitudeM = 1700.0, SunElevation = 44.0 * Deg, SunAzimuth = Math.PI };
+            AerialPerspectivePlan.SkyView view = new AerialPerspectivePlan.SkyView { HeightM = 264.0, LayerAltitudeM = 1700.0, SunElevation = 44.0 * Deg, SunAzimuth = Math.PI };
             Color far, near;
-            Assert.IsTrue(CloudHazePlan.SkyInscatter(sun, new CloudHorizonSky.Evaluator(), kerbin, KerbinRadius, view, new Color(0.0f, 0.0f, 0.0f, 1f), white, 1f, 2.2f, out far, out near));
+            Assert.IsTrue(AerialPerspectivePlan.SkyInscatter(sun, new CloudHorizonSky.Evaluator(), kerbin, KerbinRadius, view, new Color(0.0f, 0.0f, 0.0f, 1f), white, 1f, 2.2f, out far, out near));
             // the lit flank of the congestus (display 0.62, the FL package's closed part), neutral; the sky behind the cloud is the model's own on the cloud's ray
             float cloud = CloudOutputStage.Decode(0.62f, white, 1f, 2.2f);
-            Color mixed = CloudHazePlan.AerialMix(new Color(cloud, cloud, cloud, 1f), 1f, t, near, far);
+            Color mixed = AerialPerspectivePlan.AerialMix(new Color(cloud, cloud, cloud, 1f), 1f, t, near, far);
             CloudHorizonSky.Rgb behind = Shown(kerbin, CloudHorizonSky.Evaluate(CloudHorizonSky.MediumOf(kerbin, KerbinRadius), 264.0, elevation, 44.0 * Deg, Math.PI).Far, 264.0);
             float[] shownMix = { CloudOutputStage.Encode(mixed.r, white, 1f, 2.2f), CloudOutputStage.Encode(mixed.g, white, 1f, 2.2f), CloudOutputStage.Encode(mixed.b, white, 1f, 2.2f) };
             float[] shownSky = { (float)behind.R, (float)behind.G, (float)behind.B };
@@ -316,9 +316,9 @@ Scatterer_atmosphere
         {
             CloudBridgeAir.Air kerbin = Node("Kerbin");
             const float white = 0.7244f;
-            var view = new CloudHazePlan.SkyView { HeightM = 92.0, LayerAltitudeM = 1700.0, SunElevation = 44.0 * Deg, SunAzimuth = Math.PI };
+            var view = new AerialPerspectivePlan.SkyView { HeightM = 92.0, LayerAltitudeM = 1700.0, SunElevation = 44.0 * Deg, SunAzimuth = Math.PI };
             Color far, near;
-            Assert.IsTrue(CloudHazePlan.SkyInscatter(new CloudHorizonSky.Evaluator(), new CloudHorizonSky.Evaluator(), kerbin, KerbinRadius, view, new Color(0.0f, 0.0f, 0.0f, 1f), white, 1f, 2.2f, out far, out near));
+            Assert.IsTrue(AerialPerspectivePlan.SkyInscatter(new CloudHorizonSky.Evaluator(), new CloudHorizonSky.Evaluator(), kerbin, KerbinRadius, view, new Color(0.0f, 0.0f, 0.0f, 1f), white, 1f, 2.2f, out far, out near));
             CloudHorizonSky.Rgb sky = Shown(kerbin, Ray(kerbin, KerbinRadius, 92.0, 44.0, 180.0).Far, 92.0);
             Assert.AreEqual(sky.R, CloudOutputStage.Encode(far.r, white, 1f, 2.2f), 2e-3);
             Assert.AreEqual(sky.G, CloudOutputStage.Encode(far.g, white, 1f, 2.2f), 2e-3);
@@ -326,14 +326,14 @@ Scatterer_atmosphere
             // night with no moon: the ambient is all there is; with a moon (5 percent of the sun, from 40 degrees up behind the view) the air shows its light
             view.SunElevation = -30.0 * Deg;
             var ambient = new Color(0.01f, 0.01f, 0.012f, 1f);
-            Assert.IsTrue(CloudHazePlan.SkyInscatter(new CloudHorizonSky.Evaluator(), new CloudHorizonSky.Evaluator(), kerbin, KerbinRadius, view, ambient, white, 1f, 2.2f, out far, out near));
+            Assert.IsTrue(AerialPerspectivePlan.SkyInscatter(new CloudHorizonSky.Evaluator(), new CloudHorizonSky.Evaluator(), kerbin, KerbinRadius, view, ambient, white, 1f, 2.2f, out far, out near));
             Assert.AreEqual(ambient.g, far.g, 1e-6f);
             view.MoonElevation = 40.0 * Deg; view.MoonAzimuth = Math.PI; view.MoonOverSun = new Color(0.05f, 0.05f, 0.055f, 1f);
             Color lit, litNear;
-            Assert.IsTrue(CloudHazePlan.SkyInscatter(new CloudHorizonSky.Evaluator(), new CloudHorizonSky.Evaluator(), kerbin, KerbinRadius, view, ambient, white, 1f, 2.2f, out lit, out litNear));
+            Assert.IsTrue(AerialPerspectivePlan.SkyInscatter(new CloudHorizonSky.Evaluator(), new CloudHorizonSky.Evaluator(), kerbin, KerbinRadius, view, ambient, white, 1f, 2.2f, out lit, out litNear));
             Assert.IsTrue(lit.g > far.g, "the moon's light in the air: " + lit.g + " against the ambient " + far.g);
             // no medium: the caller keeps the law of before
-            Assert.IsFalse(CloudHazePlan.SkyInscatter(new CloudHorizonSky.Evaluator(), new CloudHorizonSky.Evaluator(), new CloudBridgeAir.Air(), KerbinRadius, view, ambient, white, 1f, 2.2f, out lit, out litNear));
+            Assert.IsFalse(AerialPerspectivePlan.SkyInscatter(new CloudHorizonSky.Evaluator(), new CloudHorizonSky.Evaluator(), new CloudBridgeAir.Air(), KerbinRadius, view, ambient, white, 1f, 2.2f, out lit, out litNear));
         }
     }
 }

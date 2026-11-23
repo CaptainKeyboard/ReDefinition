@@ -165,7 +165,7 @@ in the main matrix.
   in the game: the camera event it sits at, the sun's reddening with Scatterer loaded and
   whether Scatterer's command buffers are re-added every frame.
 * `weather-7` measures the cloud light and far view switches: the 9 km sun march against the
-  4 km base, the white balance, the diffusion decay, the far haze, the shape mean, the
+  4 km base, the white balance, the diffusion decay, the aerial perspective, the shape mean, the
   minimum samples, the march policy and the map fade.
 * `weather-8` runs in forced rain (level 0.9) and measures the wet overlay, the window
   droplets and the lightning: each off, the lightning at one stroke per second and at
@@ -177,7 +177,7 @@ in the main matrix.
   refinement is the comparison row of `weather-5`.
 * `weather-10` measures the visibility culling and the distance LOD of the own clouds: each
   of the seven switches alone, all together, and the skip pair and the whole group at
-  `cloudResolution 4`. The distance cut rows run with `cloudFarHaze` on.
+  `cloudResolution 4`. The distance cut rows run with `cloudAerialPerspective` on.
 * `weather-11` runs at raytracing Full and measures the ray-side pack of the own cloud
   layers: the switch off, on, and on with the layer cap at 1 and 2. The cost is the bake on
   the main thread and the upload, and the frame cost with raytracing on.

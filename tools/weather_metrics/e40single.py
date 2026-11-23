@@ -4,7 +4,7 @@
     python tools/build_weather_player.py --series e40-single --no-build
     python tools/weather_metrics/e40single.py --pictures <folder> [--root <player output folder>] [--photo <the reference photograph>]
 
-The job is the cumulus layer of the game-start-64 view `tyhumg` (its type table, light, haze and march are the product's) with everything else removed: the other layers are dropped, there is
+The job is the cumulus layer of the game-start-64 view `tyhumg` (its type table, light, aerial perspective and march are the product's) with everything else removed: the other layers are dropped, there is
 no height variation (the flat base the photograph has), the cover map is one soft disc of the cell's diameter and the type map is one constant (mediocris 128, congestus 191 over the
 layer's five types). The map is finer than the game's (4096 x 2048: a texel of 0.9 km; the game's 512 x 256 texel is 7.4 km, wider than the cell). The layer's coverage threshold is 0.5
 (0.35 in the product) so that the disc's core is solid; the edge of the disc is ragged by the shape noise. The camera stands 30 m over the sea at the stated distance behind the cell, looking at
@@ -88,8 +88,8 @@ LOOKS = {
     "cg_c70": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.7)])), puff.NG96),
     "cg_e10": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + [("cloud.edgePower.layer.", 1.0)] + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
     "cg_e20": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + [("cloud.edgePower.layer.", 2.0)] + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
-    # CLOUDR3 task 3 (warm light): the same look without the pass's distance haze (job far.haze 0), to read the colour of the sun's light on the heads without the blue air between the camera and the cloud
-    "bnh": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), lambda job: job.setdefault("far", {}).__setitem__("haze", 0)), puff.NG96),
+    # CLOUDR3 task 3 (warm light): the same look without the pass's aerial perspective (job far.aerialPerspective 0), to read the colour of the sun's light on the heads without the blue air between the camera and the cloud
+    "bnh": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), lambda job: job.setdefault("far", {}).__setitem__("aerialPerspective", 0)), puff.NG96),
     "lns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 2.0)])), puff.NG96),
     "h_nolod": (puff.compose(CUMULIFORM, lambda job: job.setdefault("noise", {}).__setitem__("noLod", 1)), puff.NG96),
     "h_ero0": (puff.compose(CUMULIFORM, puff.v_ero0), puff.NG96),

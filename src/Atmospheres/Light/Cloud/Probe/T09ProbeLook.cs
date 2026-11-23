@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
     //                        inside (4.6 km) and from above (P3: it drew nothing at map 0.86).
     //   -atmoLook B          start 52, "look B": the light and the surface. The same three view/cover pairs with the exposure 1.4 and the sun's
     //                        path through the air with Scatterer loaded; the horizon pose (pitch +2 degrees, 200 m) at the low cover with the distance fade 0 / 20 / 40 / 80 km (cloud.fadeFarM)
-    //                        with and without the aerial perspective (cloud.farHaze). Follow-up of start 52: a second baseline frame
+    //                        with and without the aerial perspective (cloud.aerialPerspective). Follow-up of start 52: a second baseline frame
     //                        (off2) and the repeats t0b / hz0h0b for the noise floor; the order pair at the horizon pose in the order 1, 0, 0, 1 (frames ord1, ord0, ord0b, ord1b) with the vertical
     //                        row profile of the deck (rows prof_b<k> / prof_a<k>, T09Readout.MeasureRowProfile); at the high cover the rain deck alone from 8.3 km and 2.3 km with the
     //                        cloud shadows off (l0up / l0mid + sh0), every layer drawn (+ all) and the aid frame of the optical depth.
@@ -283,7 +283,7 @@ namespace ReDefinition.Atmospheres
                 ApplyLookKeys(CloudLookModel.Sets[0], 0f);
                 ForceTuning(OwnCloudModule.TuneAfterScatterer, flag);
                 // The pair measures Scatterer's air on the cloud against none; the pass's aerial perspective (on by default behind the scattering) is held off so that it does not fill that gap.
-                ForceTuning(CloudLookTuning.TuneFarHaze, 0f);
+                ForceTuning(CloudLookTuning.TuneAerialPerspective, 0f);
                 yield return ProbeWait.Frames(DiagSettleFrames);
                 yield return ProbeWait.Seconds(OrderSettleS);
                 OwnCloudModule own = OwnCloudModule.Current;
@@ -385,23 +385,23 @@ namespace ReDefinition.Atmospheres
             ClearForced();
             yield return ProbeWait.Frames(DiagSettleFrames);
             // The view from above at the low cover: the deck lies over the sea there, at 20 to 60 km. The order pair in the order 1, 0, 0, 1 with the row profile, and the pass's own aerial
-            // perspective (cloud.farHaze 1) at the strength 1 and 2 with the order at its default (1: the pass behind Scatterer's air).
+            // perspective (cloud.aerialPerspective 1) at the strength 1 and 2 with the order at its default (1: the pass behind Scatterer's air).
             if (view.Name == "above" && cover == "low")
             {
                 foreach (ProbeWait w in LookOrderPair(view, cover, head, off, new[] { 1, 0, 0, 1 })) yield return w;
-                foreach (ProbeWait w in LookHazeFrames(view, cover, head, off)) yield return w;
+                foreach (ProbeWait w in LookAerialPerspectiveFrames(view, cover, head, off)) yield return w;
             }
         }
 
-        // The pass's aerial perspective (T06: the cloud's colour fogged towards the horizon sky by the air to its mean distance; cloud.farHaze, strength cloud.hazeStrength) at the strength 1 and 2:
+        // The pass's aerial perspective (T06: the cloud's colour fogged towards the horizon sky by the air to its mean distance; cloud.aerialPerspective, strength cloud.aerialPerspectiveStrength) at the strength 1 and 2:
         // frames hh1 and hh2. The strength 2 is the ratio of Scatterer's Kerbin air to the pass's own coefficients (computed, E40-horizon-fade-design.md). Rows prof_* beside the order frames.
-        private IEnumerable<ProbeWait> LookHazeFrames(View view, string cover, string head, T09Readout.Reading off)
+        private IEnumerable<ProbeWait> LookAerialPerspectiveFrames(View view, string cover, string head, T09Readout.Reading off)
         {
             foreach (float strength in new[] { 1f, 2f })
             {
                 ClearForced();
-                ForceTuning(CloudLookTuning.TuneFarHaze, 1f);
-                if (strength != 1f) ForceTuning(CloudLookTuning.TuneHazeStrength, strength);
+                ForceTuning(CloudLookTuning.TuneAerialPerspective, 1f);
+                if (strength != 1f) ForceTuning(CloudLookTuning.TuneAerialPerspectiveStrength, strength);
                 string frame = "hh" + ((int)strength).ToString(CultureInfo.InvariantCulture);
                 yield return ProbeWait.Frames(DiagSettleFrames);
                 EmitLookExpectation(head, frame, view, Game.ReadLookInput());
@@ -431,19 +431,19 @@ namespace ReDefinition.Atmospheres
             // The order pair at the horizon pose, where the sea below the row is clear (the sheet is overhead): 1, 0, 0, 1, each repeated, rows prof_* give the colour of the deck row by row.
             foreach (ProbeWait w in LookOrderPair(view, cover, head, off, new[] { 1, 0, 0, 1 })) yield return w;
             foreach (float fade in HorizonFadesM)
-                foreach (int haze in new[] { 0, 1 })
+                foreach (int aerialPerspective in new[] { 0, 1 })
                 {
                     ClearForced();
                     if (fade > 0f) ForceTuning(CloudLookTuning.TuneFadeFar, fade);
-                    ForceTuning(CloudLookTuning.TuneFarHaze, haze);
-                    string frame = "hz" + ((int)Math.Round(fade / 1000f)).ToString(CultureInfo.InvariantCulture) + "h" + haze.ToString(CultureInfo.InvariantCulture);
+                    ForceTuning(CloudLookTuning.TuneAerialPerspective, aerialPerspective);
+                    string frame = "hz" + ((int)Math.Round(fade / 1000f)).ToString(CultureInfo.InvariantCulture) + "h" + aerialPerspective.ToString(CultureInfo.InvariantCulture);
                     yield return ProbeWait.Frames(DiagSettleFrames);
                     EmitLookExpectation(head, frame, view, Game.ReadLookInput());
                     foreach (ProbeWait w in DiagTake(view, cover, frame, false, off)) yield return w;
                 }
-            // The repeat of the first frame (no fade, no haze) at the end of the batch: the floor under the differences between the frames above.
+            // The repeat of the first frame (no fade, no aerial perspective) at the end of the batch: the floor under the differences between the frames above.
             ClearForced();
-            ForceTuning(CloudLookTuning.TuneFarHaze, 0f);
+            ForceTuning(CloudLookTuning.TuneAerialPerspective, 0f);
             yield return ProbeWait.Frames(DiagSettleFrames);
             EmitLookExpectation(head, "hz0h0b", view, Game.ReadLookInput());
             foreach (ProbeWait w in DiagTake(view, cover, "hz0h0b", false, off)) yield return w;

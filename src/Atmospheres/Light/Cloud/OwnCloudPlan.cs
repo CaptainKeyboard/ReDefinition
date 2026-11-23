@@ -26,7 +26,7 @@ namespace ReDefinition.Atmospheres
 
         // Scatterer's screen-space scattering sits at the same camera event as the pass (BeforeForwardAlpha) and is put on the camera anew every frame
         // while the camera culls, so it runs after a buffer that stays on the camera. It copies the screen and writes every pixel that has a scene depth
-        // back with the air of the path to that depth: a cloud in front of the sea takes the haze of the sea behind it, a cloud in front of the sky none
+        // back with the air of the path to that depth: a cloud in front of the sea takes the aerial perspective of the sea behind it, a cloud in front of the sky none
         // (K-T2d start 51, above views: the cloud's colour steps at the sea horizon's row). Both of its buffers carry this text in their name
         // ("Scatterer screen-space scattering CommandBuffer", "Scatterer 1/4 res screen-space scattering CommandBuffer").
         internal const string ScatteringBufferMark = "screen-space scattering";

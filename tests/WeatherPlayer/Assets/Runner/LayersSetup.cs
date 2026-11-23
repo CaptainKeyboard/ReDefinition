@@ -157,9 +157,9 @@ namespace ReDefinition.WeatherPlayer
             if (job.far != null)
             {
                 FarViewSettings far = frame.Far;
-                far.Haze = job.far.haze != 0;
+                far.AerialPerspective = job.far.aerialPerspective != 0;
                 far.ShapeMean = job.far.shapeMean != 0;
-                far.HazeStrength = job.far.hazeStrength;
+                far.AerialPerspectiveStrength = job.far.aerialPerspectiveStrength;
                 far.MiePerM = job.far.mie;
                 far.RayleighHeightM = job.far.rayleighHeight;
                 far.MieHeightM = job.far.mieHeight;

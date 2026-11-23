@@ -11,7 +11,7 @@ namespace ReDefinition.Atmospheres
     //   1. the weave diagnosis: in the fair ground view the variants soft and the history / dither candidates read EIGHT consecutive frames (full size), each right after four frames
     //      of its own reference ref<name> (a march of 256 steps, read a few seconds before, so that the clouds have not moved between them), the converged picture it is measured against
     //      (tools/weather_metrics/e40s60.py: the static-pattern measure of E1 on game frames);
-    //   2. the extra looks: horizon (far view, haze), fog (fair weather, inside the fog deck) and rain (under the deck, the clock scene): one frame set each, with a baseline frame;
+    //   2. the extra looks: horizon (far view, aerial perspective), fog (fair weather, inside the fog deck) and rain (under the deck, the clock scene): one frame set each, with a baseline frame;
     //   3. the views placed by the type map: the probe reads the own layers' map and type at a ring of places around the site (Game.ReadLayers) and moves the vessel so that the
     //      nearest cell of cumulus humilis, cumulus congestus, cumulonimbus and cirrus is at the centre of the view, from the ground and from above, three frames each. A type that
     //      is absent within 300 km is logged and counted (T09s.types_absent), never a failure. They run LAST, in the clock scene after every cost window: a far placement that fails
@@ -80,7 +80,7 @@ namespace ReDefinition.Atmospheres
         // The extra looks have the variant soft alone and no cost window.
         internal static readonly SoftVariant[] Soft60ExtraTable = { Soft60("soft", "", "", 3) };
 
-        // Far view and horizon haze (the horizon in the middle of the picture), the fog deck of a fair day (inside it: the deck stands from the ground to 210 m), rain under the deck.
+        // Far view and aerial perspective at the horizon (the horizon in the middle of the picture), the fog deck of a fair day (inside it: the deck stands from the ground to 210 m), rain under the deck.
         internal static readonly View[] Soft60FairExtras =
         {
             new View { Name = "horizon", AglM = 200.0, PitchDeg = 2.0, HeadingDeg = 90.0, CameraDistM = 100.0 },

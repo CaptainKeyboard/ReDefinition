@@ -180,7 +180,7 @@ REFERENCE = {
           "soft low-contrast mottling and no visible edges. The sun is not visible, the light is diffuse and shadows are absent; brightness "
           "falls with thickness.",
     "S1": "Cumulus field at 8 km: a row of towers with flat bases at one height, crisp bright tops, dark modelling on the flanks away from "
-          "the sun and cauliflower detail at every edge. Distance shows as haze (bluer, lower contrast) and as depth ordering of the towers; "
+          "the sun and cauliflower detail at every edge. Distance shows as aerial perspective (bluer, lower contrast) and as depth ordering of the towers; "
           "gaps show sky and ground.",
     "S2": "Cumulonimbus at 8 km: a tower 8 to 12 km tall with a hard cauliflower edge on the updraft side, a flat anvil spreading at the top, a "
           "dark, almost black base and a grey rain shaft below it. The sunlit flank is white with strong shadowing, the shadow side blue-grey.",

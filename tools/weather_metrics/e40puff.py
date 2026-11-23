@@ -5,7 +5,7 @@
     python tools/build_weather_player.py --series e40-puff --no-build
     python tools/weather_metrics/e40puff.py --report [--pictures <folder>]                              (the table of the last run, deltas against the base)
 
-Same method as e40surf.py (each variant changes ONE factor of the base view's job: the same camera, sun, maps, haze, display stage and march; every frame is laid over the game's
+Same method as e40surf.py (each variant changes ONE factor of the base view's job: the same camera, sun, maps, aerial perspective, display stage and march; every frame is laid over the game's
 own frame without clouds and measured on the same mask), with the puffiness measures of puffiness.py instead of the surface-visibility ones. The variants that need no change of the
 job but another march (the render target's size) are separate stages with the base views. The keys cloud.bulge.* are the product's tuning keys (CloudLookTuning).
 """
