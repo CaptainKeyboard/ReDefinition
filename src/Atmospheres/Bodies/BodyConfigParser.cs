@@ -97,7 +97,8 @@ namespace ReDefinition.Atmospheres
             // The cloud layers: the authored set, else the template sized to the body's troposphere (E40 Q8a).
             IceRules ice = BodyRuleReaders.Ice(root.Child("ICE"));
             GeneratorRules generator = BodyRuleReaders.Generator(root.Child("GENERATOR"));
-            var layerContext = new CloudLayerContext { Facts = f, Generator = generator, Temperature = temperature, Status = status, Templates = cloudTemplates };
+            var layerContext = new CloudLayerContext { Facts = f, Generator = generator, Temperature = temperature, Status = status, Templates = cloudTemplates,
+                HeightScaleOn = CloudHeightScale.On, HeightFactor = CloudHeightScale.Factor };
             var climate = new BodyClimate(f.Name, f.Index, f.RadiusM, year, f.DaySeconds, status, seed, seasons, temperature, precip, covers,
                 ice, generator,
                 BodyRuleReaders.Clouds(root.Child("CLOUDS"), layerContext), BodyRuleReaders.Look(root.Child("LOOK")), BodyRuleReaders.Sound(root.Child("SOUND")),

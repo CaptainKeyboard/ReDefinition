@@ -148,45 +148,52 @@ namespace ReDefinition.Atmospheres
             CloudSourceKind? source = null;
             if (r.Has("cloudSource")) source = r.Enum("cloudSource", CloudSourceKind.Ours);
             string layerSet;
-            List<CloudLayerSpec> layers = CloudLayerTemplate.Choose(r, ctx, out layerSet);
-            return new CloudRules(source, r.Enum("discover", CloudDiscovery.Auto), r.String("baseLayer", ""), r.List("weatherLayers"),
+            double metreScale, scaledDepthM;
+            List<CloudLayerSpec> layers = CloudLayerTemplate.Choose(r, ctx, out layerSet, out metreScale, out scaledDepthM);
+            CloudRules rules = new CloudRules(source, r.Enum("discover", CloudDiscovery.Auto), r.String("baseLayer", ""), r.List("weatherLayers"),
                 r.Has("snowTypeNames") ? r.List("snowTypeNames") : null, r.Has("stratusTypeNames") ? r.List("stratusTypeNames") : null,
                 r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), layers, r.Float("sphereScale", 1f, 0.25f, 1f),
                 r.Float("hazeBlue", CloudRules.DefaultHazeBlue, 0f, 1f), r.Float("hazeNearBlue", CloudRules.DefaultHazeNearBlue, 0f, 1f),
-                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)), layerSet, HeightRules(r));
+                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)), layerSet, HeightRules(r, (float)metreScale));
+            rules.ScaledTroposphereM = scaledDepthM;
+            return rules;
         }
 
         // The keys height* of the CLOUDS node (E40 HKEYS): the numbers of the height variation of the layers (CloudHeightRules). A key that is not a number keeps its default, one outside its range
         // is brought into it, both with a warning that names the node and the key (BodyNodeReader.Double); a key that is not there is the number the clouds always had (CloudHeightRules).
-        private static CloudHeightRules HeightRules(BodyNodeReader r)
+        // s: the height scale's factor on the metre lengths (CloudHeightScale; 1 where it is off). The lengths of the variation, the raggedness and the tops scale; the
+        // physics (metres per kelvin of the condensation level, the reference spread and updraft) does not.
+        private static CloudHeightRules HeightRules(BodyNodeReader r, float s = 1f)
         {
             return new CloudHeightRules
             {
                 LclMPerK = r.Float("heightLclMPerK", CloudHeightRules.DefaultLclMPerK, 0f, 1000f),
                 ReferenceSpreadK = r.Float("heightReferenceSpreadK", CloudHeightRules.DefaultReferenceSpreadK, 0f, 50f),
-                PhysicsMaxM = r.Float("heightPhysicsMaxM", CloudHeightRules.DefaultPhysicsMaxM, 0f, 5000f),
-                VariationM = r.Float("heightVariationM", CloudHeightRules.DefaultVariationM, 0f, 2000f),
-                WavelengthM = r.Float("heightWavelengthM", CloudHeightRules.DefaultWavelengthM, 100f, 1.0e7f),
-                SizeTrendM = r.Float("heightSizeTrendM", CloudHeightRules.DefaultSizeTrendM, -5000f, 5000f),
-                SizeRadiusM = r.Float("heightSizeRadiusM", CloudHeightRules.DefaultSizeRadiusM, 100f, 1.0e7f),
-                RaggedM = r.Float("heightRaggedM", CloudHeightRules.DefaultRaggedM, 0f, 2000f),
-                RaggedScaleM = r.Float("heightRaggedScaleM", CloudHeightRules.DefaultRaggedScaleM, 1f, 1.0e6f),
-                MinThicknessM = r.Float("heightMinThicknessM", CloudHeightRules.DefaultMinThicknessM, 1f, 5000f),
-                TopGainMPerMs = r.Float("heightTopGainMPerMs", CloudHeightRules.DefaultTopGainMPerMs, 0f, 5000f),
+                PhysicsMaxM = s * r.Float("heightPhysicsMaxM", CloudHeightRules.DefaultPhysicsMaxM, 0f, 5000f),
+                VariationM = s * r.Float("heightVariationM", CloudHeightRules.DefaultVariationM, 0f, 2000f),
+                WavelengthM = s * r.Float("heightWavelengthM", CloudHeightRules.DefaultWavelengthM, 100f, 1.0e7f),
+                SizeTrendM = s * r.Float("heightSizeTrendM", CloudHeightRules.DefaultSizeTrendM, -5000f, 5000f),
+                SizeRadiusM = s * r.Float("heightSizeRadiusM", CloudHeightRules.DefaultSizeRadiusM, 100f, 1.0e7f),
+                RaggedM = s * r.Float("heightRaggedM", CloudHeightRules.DefaultRaggedM, 0f, 2000f),
+                RaggedScaleM = s * r.Float("heightRaggedScaleM", CloudHeightRules.DefaultRaggedScaleM, 1f, 1.0e6f),
+                MinThicknessM = s * r.Float("heightMinThicknessM", CloudHeightRules.DefaultMinThicknessM, 1f, 5000f),
+                TopGainMPerMs = s * r.Float("heightTopGainMPerMs", CloudHeightRules.DefaultTopGainMPerMs, 0f, 5000f),
                 ReferenceUpdraftMs = r.Float("heightReferenceUpdraftMs", CloudHeightRules.DefaultReferenceUpdraftMs, -50f, 100f),
-                TopMaxM = r.Float("heightTopMaxM", CloudHeightRules.DefaultTopMaxM, 0f, 50000f),
-                TopJitterM = r.Float("heightTopJitterM", CloudHeightRules.DefaultTopJitterM, 0f, 2000f)
+                TopMaxM = s * r.Float("heightTopMaxM", CloudHeightRules.DefaultTopMaxM, 0f, 50000f),
+                TopJitterM = s * r.Float("heightTopJitterM", CloudHeightRules.DefaultTopJitterM, 0f, 2000f)
             };
         }
 
         // A length of a LAYER node in m: the metre key, else the depth key (troposphere depths, E40 Q8a) times the body's depth; the metre key wins where both are there.
-        private static double Length(BodyNodeReader r, string metreKey, string depthKey, double depthM, double fallback, double min, double max)
+        // metreScale: the height scale's factor on a metre key and on the metre fallback (CloudHeightScale; 1 where it is off); a depth key needs none, its unit is the depth.
+        private static double Length(BodyNodeReader r, string metreKey, string depthKey, double depthM, double fallback, double min, double max, double metreScale = 1.0)
         {
             bool metres = r.Has(metreKey), depths = r.Has(depthKey);
             if (metres || !depths)
             {
                 if (metres && depths) r.Warn(depthKey, "both " + metreKey + " and " + depthKey + " are given; " + metreKey + " counts");
-                return r.Double(metreKey, fallback, min, max);
+                double m = r.Double(metreKey, fallback, min, max);
+                return double.IsNaN(m) || metreScale == 1.0 ? m : Math.Min(max, Math.Max(min, m * metreScale));
             }
             double share = r.Double(depthKey, double.NaN, -100.0, 1000.0);
             if (double.IsNaN(share)) return fallback;
@@ -203,8 +210,10 @@ namespace ReDefinition.Atmospheres
 
         // The LAYER nodes of CLOUDS (CloudLayerSpec): a layer or type that cannot be read is a warning and is left out, never an exception.
         // depthM: the depth of the body's troposphere in m, the unit of the depth keys (innerDepths, outerDepths, noiseScaleDepths, lightCellWidthDepths); NaN: unknown.
-        internal static List<CloudLayerSpec> CloudLayers(BodyNodeReader clouds, double depthM = double.NaN)
+        // metreScale: the height scale's factor on the metre lengths (CloudHeightScale; 1 where it is off): the heights, the noise and cell sizes, the type patches and the meso scale.
+        internal static List<CloudLayerSpec> CloudLayers(BodyNodeReader clouds, double depthM = double.NaN, double metreScale = 1.0)
         {
+            float s = (float)metreScale;
             var layers = new List<CloudLayerSpec>();
             var names = new HashSet<string>(StringComparer.Ordinal);
             ConfigNode[] nodes = clouds.Nodes("LAYER");
@@ -227,8 +236,8 @@ namespace ReDefinition.Atmospheres
                     r.Warn("name", "the layer " + name + " is there twice; the first one counts");
                     continue;
                 }
-                double inner = Length(r, "innerAltitudeM", "innerDepths", depthM, double.NaN, -1.0e7, 1.0e7);
-                double outer = Length(r, "outerAltitudeM", "outerDepths", depthM, double.NaN, -1.0e7, 1.0e7);
+                double inner = Length(r, "innerAltitudeM", "innerDepths", depthM, double.NaN, -1.0e7, 1.0e7, metreScale);
+                double outer = Length(r, "outerAltitudeM", "outerDepths", depthM, double.NaN, -1.0e7, 1.0e7, metreScale);
                 if (double.IsNaN(inner) || double.IsNaN(outer) || !(outer > inner))
                 {
                     r.Warn("outerAltitudeM", "the layer " + name + " needs innerAltitudeM below outerAltitudeM (or innerDepths below outerDepths); it is ignored");
@@ -249,16 +258,16 @@ namespace ReDefinition.Atmospheres
                 layers.Add(new CloudLayerSpec(name, (float)inner, (float)outer, r.Float("sigmaPerM", 0.03f, 1.0e-6f, 10f), r.Enum("kind", LayerKind.Weather),
                     r.String("group", ""), r.Float("coverage", 1f, 0f, 1f), r.Float("edgeSoftness", 0.15f, 0f, 1f), r.Float("fadeNearM", 0f, 0f, 1.0e9f),
                     r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
-                    r.Float("noiseAmount", 0.3f, 0f, 1f), (float)Length(r, "noiseScaleM", "noiseScaleDepths", depthM, 8000.0, 1.0, 1.0e7), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
+                    r.Float("noiseAmount", 0.3f, 0f, 1f), (float)Length(r, "noiseScaleM", "noiseScaleDepths", depthM, 8000.0, 1.0, 1.0e7, metreScale), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
                     SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
                     LightAmbient =r.Float("lightAmbient", 1f, 0f, 4f),
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f), LightPlateau = r.Float("lightPlateau", 0f, 0f, 4f),
                     AmbientMs = r.Float("ambientMs", CloudLayerDef.DefaultAmbientMs, 0f, 20f), AmbientDecay = r.Float("ambientDecay", CloudLayerDef.DefaultAmbientDecay, 0f, 2f),
-                    LightCellWidth = (float)Length(r, "lightCellWidth", "lightCellWidthDepths", depthM, 0.0, 0.0, 1.0e6),
+                    LightCellWidth = (float)Length(r, "lightCellWidth", "lightCellWidthDepths", depthM, 0.0, 0.0, 1.0e6, metreScale),
                     RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
                     ShapeSmoothing = r.Float("shapeSmoothing", 0f, 0f, 8f),
-                    CellPitchM = (float)Length(r, "cellPitch", "cellPitchDepths", depthM, 0.0, 0.0, 1.0e6),
-                    CellBillow = r.Float("cellBillow", CloudLayerDef.DefaultCellBillow, 0f, 2f), CellBandM = r.Float("cellBand", CloudLayerDef.DefaultCellBandM, 1f, 1000f),
+                    CellPitchM = (float)Length(r, "cellPitch", "cellPitchDepths", depthM, 0.0, 0.0, 1.0e6, metreScale),
+                    CellBillow = r.Float("cellBillow", CloudLayerDef.DefaultCellBillow, 0f, 2f), CellBandM = s * r.Float("cellBand", CloudLayerDef.DefaultCellBandM, 1f, 1000f),
                     CellFine = r.Float("cellFine", CloudLayerDef.DefaultCellFine, 0f, 4f),
                     FibreMinWindMs = r.Float("fibreMinWindMs", FibreAxis.DefaultMinWindMs, 0f, 100f),
                     FibreTurnSeconds = r.Float("fibreTurnSeconds", FibreAxis.DefaultTurnSeconds, 0f, 3600f),
@@ -272,7 +281,7 @@ namespace ReDefinition.Atmospheres
                     CellList = r.Bool("cellList", false),
                     AnvilClusterScale = r.Float("anvilClusterScale", 1f, 0f, 10f),
                     AltoType = r.Float("altoType", -1f, -1f, 1f), AltoFrom = r.Float("altoFrom", 0.05f, 0f, 1f), AltoFull = r.Float("altoFullAt", 0.3f, 0f, 1f),
-                    Meso = Meso(r.Child("MESO")), TypePatchKm = r.Float("typePatchKm", 0f, 0f, 2000f),
+                    Meso = Meso(r.Child("MESO"), s), TypePatchKm = s * r.Float("typePatchKm", 0f, 0f, 2000f),
                     TypePatchDepths = r.Float("typePatchDepths", CloudMesoSpec.DefaultTypePatchDepths, 0.2f, 100f), TypePatchBlend = r.Float("typePatchBlend", 0.06f, 0.005f, 0.5f) });
             }
             return layers;
@@ -338,12 +347,13 @@ namespace ReDefinition.Atmospheres
         }
 
         // MESO { scaleKm, octaves, amount, edge, shoulder, stretch, rainKeep, scatter, scatterDepths, scatterSoft } (E40 L3, CloudMesoSpec); null without the node.
-        private static CloudMesoSpec Meso(BodyNodeReader r)
+        // s: the height scale's factor on the kilometre key (CloudHeightScale); the depth keys follow the troposphere the module hands the stage.
+        private static CloudMesoSpec Meso(BodyNodeReader r, float s = 1f)
         {
             if (!r.Present) return null;
             return new CloudMesoSpec
             {
-                ScaleKm = r.Float("scaleKm", 0f, 0f, 2000f),
+                ScaleKm = s * r.Float("scaleKm", 0f, 0f, 2000f),
                 ScaleDepths = r.Float("scaleDepths", 4.3f, 0.2f, 100f),
                 ScaleSystems = r.Float("scaleSystems", 0f, 0f, 10f),                Octaves = r.Int("octaves", 2, 1, 4),
                 Amount = r.Float("amount", 0f, 0f, 1f),

@@ -13,6 +13,9 @@ namespace ReDefinition.Atmospheres
         internal BodyStatus Status;
         // The REDEFINITION_CLOUD_TEMPLATE nodes; null or empty: there is no template.
         internal IReadOnlyList<ConfigNode> Templates;
+        // The height scale (CloudHeightScale): on, and the viewer's factor; the parser sets both from the tuning keys, tests by hand.
+        internal bool HeightScaleOn;
+        internal double HeightFactor = 1.0;
 
         // The depth of the body's troposphere in m (the generator's rule); NaN where it is not known.
         internal double DepthM
@@ -37,6 +40,15 @@ namespace ReDefinition.Atmospheres
 
         internal static List<CloudLayerSpec> Choose(BodyNodeReader clouds, CloudLayerContext ctx, out string note)
         {
+            double metreScale, scaledDepthM;
+            return Choose(clouds, ctx, out note, out metreScale, out scaledDepthM);
+        }
+
+        // metreScale: the factor on the metre lengths of the set (CloudHeightScale; 1 where the height scale is off, the troposphere not measured or the set names no reference).
+        // scaledDepthM: the troposphere of the height scale (the measured one times the factor), NaN where the scale does not act.
+        internal static List<CloudLayerSpec> Choose(BodyNodeReader clouds, CloudLayerContext ctx, out string note, out double metreScale, out double scaledDepthM)
+        {
+            scaledDepthM = double.NaN;
             string mode = clouds.String("layers", "auto").ToLowerInvariant();
             if (mode != "auto" && mode != "none" && mode != "template")
             {
@@ -46,6 +58,32 @@ namespace ReDefinition.Atmospheres
             string name = clouds.String("layerTemplate", DefaultName);
             ConfigNode[] own = clouds.Nodes("LAYER");
             double depth = ctx == null ? double.NaN : ctx.DepthM;
+            // The height scale (owner 2026-11-23): both keys are read always (an unread key is reported as a typo).
+            double referenceM = clouds.Double("heightReferenceM", 0.0, 0.0, 1.0e6);
+            float bodyFactor = clouds.Float("heightFactor", CloudHeightScale.FactorDefault, CloudHeightScale.FactorMin, CloudHeightScale.FactorMax);
+            metreScale = 1.0;
+            string scaleNote = "";
+            if (ctx != null && ctx.HeightScaleOn)
+            {
+                double factor = CloudHeightScale.Clamp((float)(bodyFactor * ctx.HeightFactor));
+                double t = CloudHeightScale.TroposphereM(ctx.Facts != null ? ctx.Facts.MeasuredTropopauseM : double.NaN, factor);
+                if (t > 0)
+                {
+                    depth = t;
+                    scaledDepthM = t;
+                    metreScale = CloudHeightScale.MetreScale(t, referenceM);
+                    scaleNote = ", height scale: measured troposphere x " + factor.ToString("0.##", CultureInfo.InvariantCulture) + " = " + (t * 0.001).ToString("0.##", CultureInfo.InvariantCulture)
+                                + " km, metres x " + metreScale.ToString("0.###", CultureInfo.InvariantCulture);
+                }
+                else scaleNote = ", height scale: no measured troposphere, the layers as written";
+            }
+            List<CloudLayerSpec> chosen = ChooseSet(clouds, ctx, mode, name, own, depth, metreScale, out note);
+            note += scaleNote;
+            return chosen;
+        }
+
+        private static List<CloudLayerSpec> ChooseSet(BodyNodeReader clouds, CloudLayerContext ctx, string mode, string name, ConfigNode[] own, double depth, double metreScale, out string note)
+        {
             var none = new List<CloudLayerSpec>();
             if (mode == "none")
             {
@@ -55,7 +93,7 @@ namespace ReDefinition.Atmospheres
             }
             if (mode == "auto" && own.Length > 0)
             {
-                List<CloudLayerSpec> authored = BodyRuleReaders.CloudLayers(clouds, depth);
+                List<CloudLayerSpec> authored = BodyRuleReaders.CloudLayers(clouds, depth, metreScale);
                 note = "authored, " + authored.Count + " layer" + (authored.Count == 1 ? "" : "s");
                 return authored;
             }
@@ -104,7 +142,7 @@ namespace ReDefinition.Atmospheres
             {
                 foreach (ConfigNode change in own) Merge(set, change, clouds);
             }
-            List<CloudLayerSpec> layers = BodyRuleReaders.CloudLayers(clouds.Wrap(set, "template[" + name + "]"), depth);
+            List<CloudLayerSpec> layers = BodyRuleReaders.CloudLayers(clouds.Wrap(set, "template[" + name + "]"), depth, metreScale);
             string km = (depth * 0.001).ToString("0.##", CultureInfo.InvariantCulture);
             string left = dropped.Count == 0 ? "" : ", without " + string.Join(", ", dropped.ToArray());
             if (layers.Count == 0)

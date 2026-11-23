@@ -77,6 +77,9 @@ namespace ReDefinition.Atmospheres
         internal const float DefaultHazeBlue = 0.35f, DefaultHazeNearBlue = 0f;
         // Keys height* (E40 HKEYS): the numbers of the height variation of the layers' bases and tops (HeightTuning); never null.
         internal CloudHeightRules Height { get; }
+        // The troposphere of the height scale (CloudHeightScale: the measured one times the factor) the layers were read against; NaN where the scale does not act. The
+        // meso stage takes it as its depth instead of the generator's (OwnCloudModule), so its depth keys follow the layers.
+        internal double ScaledTroposphereM { get; set; } = double.NaN;
     }
 
     // The colours and limits of the body's air. Node LOOK.

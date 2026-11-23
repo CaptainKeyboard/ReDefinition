@@ -1,0 +1,41 @@
+using System;
+using System.Globalization;
+
+namespace ReDefinition.Atmospheres
+{
+    // The height scale of the clouds (owner 2026-11-23 "Ja, so umsetzen", .local/plans/wolken-hoehenkonzept.md): every cloud height is a share of the body's MEASURED
+    // troposphere (BodyFacts.MeasuredTropopauseM) times a height factor, and the cloud bodies' horizontal lengths follow with it. The troposphere replaces the generator's
+    // assumed depth (a share of the atmosphere's depth) as the unit of the depth keys (innerDepths, outerDepths, ...); a layer set authored in metres names the troposphere
+    // it was written for (CLOUDS key heightReferenceM, Kerbin 11000 m: Earth's), and its metre lengths are multiplied by the measured troposphere over that reference.
+    // The factor is the body's (CLOUDS key heightFactor) times the viewer's slider; the owner picks the default from pictures with 1, 0.75 and 0.6. Off (0) until then:
+    // the layers are what they were. A change of either key re-reads the body configuration within a second (OwnCloudModule.EnsureStack).
+    internal static class CloudHeightScale
+    {
+        internal const string TuneOn = "cloud.heightScale", TuneFactor = "cloud.heightFactor";
+        internal const float OnDefault = 0f, FactorDefault = 1f, FactorMin = 0.3f, FactorMax = 1.5f;
+
+        internal static bool On { get { return Tuning.Get(TuneOn, OnDefault) > 0.5f; } }
+
+        internal static float Factor { get { return Clamp(Tuning.Get(TuneFactor, FactorDefault)); } }
+
+        // What a change must re-read the configuration for.
+        internal static string Signature { get { return (On ? "on " : "off ") + Factor.ToString("0.###", CultureInfo.InvariantCulture); } }
+
+        internal static float Clamp(float factor)
+        {
+            return Math.Max(FactorMin, Math.Min(FactorMax, factor));
+        }
+
+        // The troposphere the cloud heights are shares of: the measured one times the factor; NaN where it was not measured.
+        internal static double TroposphereM(double measuredM, double factor)
+        {
+            return measuredM > 0 && factor > 0 ? measuredM * factor : double.NaN;
+        }
+
+        // The factor on a metre length of a set written for referenceM: the troposphere over the reference; 1 where either is unknown (the metres stay as written).
+        internal static double MetreScale(double troposphereM, double referenceM)
+        {
+            return referenceM > 0 && troposphereM > 0 ? troposphereM / referenceM : 1.0;
+        }
+    }
+}
