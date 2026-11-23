@@ -197,12 +197,20 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The layers of a body that can carry the weather maps, by role: the layers the body's weatherLayers names first, else every
-        // layer of the body that has a coverage map and a type map, without the base layer, lowest deck first; at most cap of them.
-        // Handles of layers that are still there are kept (their binding state with them). A layer whose volume is a new object is a
-        // new handle.
         internal static List<EveLayer> Scan(string bodyName, CloudRules rules, int cap, IList<EveLayer> previous)
         {
+            LayerDiscovery ignored;
+            return Scan(bodyName, rules, cap, previous, out ignored);
+        }
+
+        // The layers of a body that carry the weather maps: the ones LayerRoleDiscovery takes among the layers of the body that have a
+        // coverage map and a type map (the layers weatherLayers names, or by the role of their cloud types; never the baseLayer; lowest
+        // deck first; at most cap of them). With rules null every such layer is returned and the discovery is null.
+        // Handles of layers that are still there are kept (their binding state with them). A layer whose volume is a new object is a
+        // new handle.
+        internal static List<EveLayer> Scan(string bodyName, CloudRules rules, int cap, IList<EveLayer> previous, out LayerDiscovery discovery)
+        {
+            discovery = null;
             var found = new List<EveLayer>();
             if (!Available || string.IsNullOrEmpty(bodyName)) return found;
             IEnumerable list = getList.Invoke(null, null) as IEnumerable;
@@ -236,29 +244,19 @@ namespace ReDefinition.Atmospheres
                 Fill(handle, layer, volume, coverage, type, bodyName);
                 candidates.Add(handle);
             }
-            string baseLayer = rules != null ? rules.BaseLayer : "";
-            IReadOnlyList<string> named = rules != null ? rules.WeatherLayers : null;
-            if (named != null && named.Count > 0)
+            if (rules == null)
             {
-                foreach (string name in named)
-                {
-                    foreach (EveLayer c in candidates)
-                    {
-                        if (string.Equals(c.Name, name, StringComparison.Ordinal) && !found.Contains(c)) found.Add(c);
-                    }
-                }
-            }
-            else
-            {
+                // No role lists (the lamp medium reads every layer): all of them, lowest first.
                 candidates.Sort((a, b) => a.InnerRadiusM.CompareTo(b.InnerRadiusM));
-                foreach (EveLayer c in candidates)
-                {
-                    if (!string.IsNullOrEmpty(baseLayer) && string.Equals(c.Name, baseLayer, StringComparison.Ordinal)) continue;
-                    found.Add(c);
-                }
+                found.AddRange(candidates);
+                if (cap > 0 && found.Count > cap) found.RemoveRange(cap, found.Count - cap);
+                return found;
             }
-            if (cap > 0 && found.Count > cap) found.RemoveRange(cap, found.Count - cap);
-            return found;
+            // The layers we drive are the ones the role discovery takes (CloudRules: discover, weatherLayers, baseLayer, role lists, cap).
+            CelestialBody body = FlightGlobals.GetBodyByName(bodyName);
+            List<PackLayerInfo> infos = LiveLayerInfo.From(candidates, body != null ? body.Radius : 0.0);
+            discovery = LayerRoleDiscovery.Discover(infos, bodyName, rules, cap);
+            return LiveLayerInfo.Taken(discovery, candidates);
         }
 
         private static void Fill(EveLayer h, object layer, object volume, object coverage, object type, string bodyName)

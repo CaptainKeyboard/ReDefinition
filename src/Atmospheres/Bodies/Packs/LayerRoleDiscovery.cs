@@ -55,15 +55,6 @@ namespace ReDefinition.Atmospheres
             return requested == CloudSourceKind.Eve || requested == CloudSourceKind.Both ? CloudSourceKind.Ours : requested;
         }
 
-        // The status a body is listed with when EVE is its renderer and nothing qualifies: Full falls to CoverOnly (the ground cover
-        // runs, the decks are not EVE's); any other status stands.
-        internal BodyStatus StatusFor(BodyStatus status, CloudSourceKind requested)
-        {
-            if (status == null) return null;
-            bool needsEve = requested == CloudSourceKind.Eve || requested == CloudSourceKind.Both;
-            return status.Kind == BodyStatusKind.Full && needsEve && None ? BodyStatus.CoverOnly : status;
-        }
-
         // The memory the maps of the layers we drive hold, in MB: per layer two render textures and two readable copies of the
         // map (coverage and type), one byte per texel (MapPainter: R8). TVC's own noise, curve and light textures are not counted.
         internal double MapMegabytes(int width, int height)
@@ -92,7 +83,8 @@ namespace ReDefinition.Atmospheres
     }
 
     // Finds the layers of a body that play a role for us, by the cloud type names and the body's role lists (CLOUDS: snowTypeNames,
-    // stratusTypeNames, dustTypeNames). Pure. Every qualifying layer is taken, never one assumed; a body with the same role in two packs
+    // stratusTypeNames, dustTypeNames). Pure. EveLayerAccess.Scan runs it (through LiveLayerInfo) whenever cloudSource Volumetric or Both
+    // takes the layers of a body; the body's baseLayer is left alone. Every qualifying layer is taken, never one assumed; a body with the same role in two packs
     // (two packs that both put layers on the home planet) gets both, up to the cap. A layer qualifies with a coverage map, a type map, a cloud type of a
     // role and not being an fx only layer. discover = Off takes none; discover = Explicit, or a non-empty weatherLayers list, takes the
     // named layers (also those without a role: the owner of the node asked for them).
@@ -130,6 +122,7 @@ namespace ReDefinition.Atmospheres
                 else if (layer.FxOnly) skip = SkipReason.FxOnly;
                 else if (!layer.HasCoverageMap || !layer.HasTypeMap) skip = SkipReason.NoMaps;
                 else if (named && !IsNamed(r, layer.Name)) skip = SkipReason.NotNamed;
+                else if (!named && r.BaseLayer.Length > 0 && string.Equals(r.BaseLayer, layer.Name, StringComparison.Ordinal)) skip = SkipReason.BaseLayer;
                 else if (!named && roles == LayerRoles.None) skip = SkipReason.NoRole;
                 if (skip == SkipReason.None)
                 {

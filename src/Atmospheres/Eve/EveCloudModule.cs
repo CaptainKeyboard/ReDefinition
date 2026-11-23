@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -65,6 +66,15 @@ namespace ReDefinition.Atmospheres
         private bool mirrorNew;
         private double paintMsSum;
         private int paintCount;
+        // What the role discovery took on the body at the last scan, and the log line printed for it.
+        private LayerDiscovery discovery;
+        private string discoveryLine = "";
+
+        // The discovery of the last scan (null before the first one on the body), for the series probe.
+        internal LayerDiscovery Discovery
+        {
+            get { return discovery; }
+        }
 
         // The running module, for the series probe (Probe/C23Probe.cs); null while the module is not running.
         internal static EveCloudModule Current { get; private set; }
@@ -176,6 +186,8 @@ namespace ReDefinition.Atmospheres
         {
             ReleaseEve("body changed");
             if (shell != null) shell.Hide();
+            discovery = null;
+            discoveryLine = "";
             body = null;
             climate = null;
         }
@@ -223,6 +235,18 @@ namespace ReDefinition.Atmospheres
             climate = c;
             CloudSourceKind configured = c.Clouds.Source ?? AtmospheresSettings.CloudSource;
             CloudSourceKind source = EveRenderCompat.EffectiveSource(configured);
+            // Where the discovery found no layer of the body that plays a role of ours, the clouds are our own; the scan is repeated so
+            // that layers that appear later (a pack loaded late) are found.
+            if (discovery != null && discovery.None && (source == CloudSourceKind.Eve || source == CloudSourceKind.Both) && EveLayerAccess.Available
+                && Time.realtimeSinceStartup >= nextScan)
+            {
+                nextScan = Time.realtimeSinceStartup + ScanIntervalS;
+                int rescanCap = c.Clouds.EveLayerCap > 0 ? c.Clouds.EveLayerCap : AtmospheresSettings.EveLayerCap;
+                LayerDiscovery again;
+                EveLayerAccess.Scan(b.name, c.Clouds, rescanCap, null, out again);
+                SetDiscovery(b, again);
+            }
+            if (discovery != null) source = discovery.EffectiveSource(source);
             bool eveMode, ownMode;
             CloudModeModel.Decide(source, EveLayerAccess.Available, out eveMode, out ownMode);
             if (!eveMode)
@@ -270,7 +294,9 @@ namespace ReDefinition.Atmospheres
             {
                 nextScan = now + ScanIntervalS;
                 int cap = c.Clouds.EveLayerCap > 0 ? c.Clouds.EveLayerCap : AtmospheresSettings.EveLayerCap;
-                List<EveLayer> found = EveLayerAccess.Scan(b.name, c.Clouds, cap, layers);
+                LayerDiscovery scanned;
+                List<EveLayer> found = EveLayerAccess.Scan(b.name, c.Clouds, cap, layers, out scanned);
+                SetDiscovery(b, scanned);
                 foreach (EveLayer h in found)
                 {
                     if (!layers.Contains(h))
@@ -629,6 +655,19 @@ namespace ReDefinition.Atmospheres
                 }
             }
             return true;
+        }
+
+        // Keeps the discovery of a scan and prints its line (layers taken with their roles, the reasons for the others, the map memory
+        // of the layers we drive) when it changed.
+        private void SetDiscovery(CelestialBody b, LayerDiscovery scanned)
+        {
+            discovery = scanned;
+            if (scanned == null) return;
+            string line = scanned.Summary() + "; maps "
+                + scanned.MapMegabytes(MapPainter.DefaultWidth, MapPainter.DefaultHeight).ToString("0.#", CultureInfo.InvariantCulture) + " MB";
+            if (line == discoveryLine) return;
+            discoveryLine = line;
+            AtmospheresLog.Say("cloud painter: " + line + (scanned.None ? "; no layer qualifies, the clouds are ours" : ""));
         }
 
         // Puts EVE back as it was and drops everything of the body.

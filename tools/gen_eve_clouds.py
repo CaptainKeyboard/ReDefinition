@@ -23,18 +23,25 @@ atmosphere height; the layer is invisible to the volume pass above the end altit
 Kerbin's body node names its EVE layers (CLOUDS.weatherLayers); the file of Kerbin ends with a ModuleManager patch that adds our layer
 to that list [VERIFY the patch syntax in the game's ModuleManager log].
 
+Our layer is shipped for Kerbin and Laythe although the pack has weather layers there that the role discovery also takes
+(Kerbin-Weather-1/2, Laythe-Weather-1/2): the pack's layers hold Fog, Rain, Thunder, Polar-fog and Polar-snow, while ours holds every
+cloud type the painter selects from the CONTRACT table (Snow, Stratus, Storm), so it is an addition and the pack's layers stay.
+
 The C# tests of E41 parse the written files; --check is the test that the files are the template's output.
 
 Pattern for a pack (JNSQ, KSRSS, OPM, Beyond Home) that wants a layer of ours on another body: copy the OBJECT of a generated file,
 change `name` and `body`, and add it by a ModuleManager patch. A body without a PQS (a gas giant) needs a PQS_MANAGER node first: the
 layer is applied to `celestialBody.pqsController`, else to PQSManagerClass.GetPQS(body), and with neither CloudsPQS.Apply logs "PQS is
 null somehow!?" and does not apply the layer (CloudsPQS.cs:402-453, PQSManager.cs GetPQS, release-5 tree). The node layout of
-PQS_MANAGER is the plan's reading of the pack's pqs.cfg [VERIFY]:
+PQS_MANAGER is that of PQSManagerClass (configName "PQS_MANAGER", one OBJECT per body, PQSWrapper's config items: body,
+deactivateDistance (default 175000), optional overrideKillSphere { altitude }) and of the installed pack's pqs.cfg, which holds one
+OBJECT, for Jool:
   EVE_CLOUDS:NEEDS[StockVolumetricClouds]
   {
       OBJECT { name = MyPack-Atmospheres-Sarnus  body = Sarnus  altitude = 2700  ...  }
   }
-  PQS_MANAGER { OBJECT { body = Sarnus  deactivateDistance = ... } }
+  PQS_MANAGER { OBJECT { body = Sarnus  deactivateDistance = 175000  overrideKillSphere { altitude = -75000 } } }
+No PQS_MANAGER block is shipped: Kerbin, Duna and Laythe have a PQS, and Jool (no surface, status Off) has its block in the pack.
 """
 import os
 import sys
