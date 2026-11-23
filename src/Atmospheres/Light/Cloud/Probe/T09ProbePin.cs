@@ -98,6 +98,8 @@ namespace ReDefinition.Atmospheres
         }
 
         // -t09PinViews: the views of the pinned capture by name (Views: ground, inside, above, sky3, ...), turned by -t09HeadingOffset; the ground view alone without it.
+        // A view of its own: name=agl:pitch:heading:cameraDist (metres and degrees; M2c, 2026-11-23: a view below the low deck's base, which every series view is
+        // inside of, e.g. low=40:25:90:30).
         private List<View> PinViews(out string problem)
         {
             problem = null;
@@ -105,6 +107,13 @@ namespace ReDefinition.Atmospheres
             string text = CommandLine.After(Args(), "-t09PinViews", true);
             foreach (string name in (string.IsNullOrEmpty(text) ? "ground" : text).Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
             {
+                View custom;
+                if (TryCustomPinView(name, out custom, out problem))
+                {
+                    list.Add(Turned(custom));
+                    continue;
+                }
+                if (problem != null) return list;
                 View found = default(View);
                 bool known = false;
                 foreach (View v in Views)
@@ -117,6 +126,27 @@ namespace ReDefinition.Atmospheres
                 list.Add(Turned(found));
             }
             return list;
+        }
+
+        // A view given as name=agl:pitch:heading:cameraDist. False without '=' (a series view's name); false with a problem where the numbers do not parse.
+        internal static bool TryCustomPinView(string spec, out View view, out string problem)
+        {
+            view = default(View);
+            problem = null;
+            int eq = spec.IndexOf('=');
+            if (eq < 0) return false;
+            string[] p = spec.Substring(eq + 1).Split(':');
+            double agl, pitch, heading, dist;
+            if (p.Length != 4 || !double.TryParse(p[0], NumberStyles.Float, CultureInfo.InvariantCulture, out agl)
+                || !double.TryParse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture, out pitch)
+                || !double.TryParse(p[2], NumberStyles.Float, CultureInfo.InvariantCulture, out heading)
+                || !double.TryParse(p[3], NumberStyles.Float, CultureInfo.InvariantCulture, out dist) || agl < 5.0 || dist < 1.0)
+            {
+                problem = "-t09PinViews: '" + spec.Trim() + "' is not name=agl:pitch:heading:cameraDist (agl >= 5 m, cameraDist >= 1 m)";
+                return false;
+            }
+            view = new View { Name = spec.Substring(0, eq).Trim(), AglM = agl, PitchDeg = pitch, HeadingDeg = heading, CameraDistM = dist };
+            return true;
         }
 
         // One switch of a -t09PinLimits set.

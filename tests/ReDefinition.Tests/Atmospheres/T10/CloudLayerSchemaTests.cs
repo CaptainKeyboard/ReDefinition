@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
+using ReDefinition.Core;
 using ReDefinition.Tests.Atmospheres.B13;
 using ReDefinition.Tests.Atmospheres.E41;
 using UnityEngine;
@@ -72,6 +73,27 @@ namespace ReDefinition.Tests.Atmospheres.T10
             // The pre-existing keys of the node are untouched by the layers.
             Assert.AreEqual(CloudDiscovery.Auto, r.Climate.Clouds.Discover);
             Assert.AreEqual("Kerbin-base-layer", r.Climate.Clouds.BaseLayer);
+        }
+
+        // M2c (the low decks): the stratus types of both decks carry their rolls (rollAmount), every other type none; the rolls are drawn only with cloud.sheetRolls on,
+        // which is off by default, so the shipped deck draws as before.
+        [TestMethod]
+        public void TheStratusTypesCarryTheirRollsAndTheSwitchIsOffByDefault()
+        {
+            foreach (CloudLayerSpec layer in Kerbin().Layers)
+                foreach (CloudTypeSpec type in layer.Types)
+                {
+                    bool stratus = type.Name == "Stratus" || type.Name == "Snow stratus";
+                    Assert.AreEqual(stratus ? 0.6f : 0f, type.RollAmount, 1e-6f, layer.Name + " " + type.Name);
+                    Assert.AreEqual(stratus ? 0.6f : 0f, type.Build().RollAmount, 1e-6f, layer.Name + " " + type.Name + " built");
+                }
+            Assert.AreEqual(0f, OwnCloudOptions.SheetRollsDefault, "off until the owner says yes on the pictures");
+            Tuning.ClearOverrides();
+            Tuning.Instance.BeginFrame(9400001);
+            var frame = new LayerFrame();
+            OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
+            Assert.AreEqual(0f, frame.SheetRolls);
+            Assert.AreEqual(1f, frame.RollLengthShare);
         }
 
         [TestMethod]

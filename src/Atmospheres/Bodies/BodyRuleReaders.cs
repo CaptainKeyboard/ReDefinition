@@ -332,6 +332,7 @@ namespace ReDefinition.Atmospheres
                 Puff = CloudField.ClassOf(r.String("puff", "none")),
                 TopClose = r.Float("topClose", CloudTypeDef.DefaultTopClose, 0f, 1f),
                 Outflow = r.Float("outflow", 0f, 0f, 1f),
+                RollAmount = r.Float("rollAmount", 0f, 0f, 1f),
                 Climate = Climate(r.Child("CLIMATE"))
             };
         }

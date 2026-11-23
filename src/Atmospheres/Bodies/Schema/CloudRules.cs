@@ -75,6 +75,10 @@ namespace ReDefinition.Atmospheres
         internal float TopClose { get; set; } = DefaultTopClose;
         // How much a tower of this type feeds an anvil (E40 CB; cfg key outflow, 0 to 1, 0: none): a cumulonimbus incus spreads its outflow at the tropopause, a calvus not yet (AnvilMap).
         internal float Outflow { get; set; }
+        // M2c (the low decks, 2026-11-23): the depth of the type's rolls (cfg key rollAmount, 0 to 1; 0: none): the density swings by this share across long rolls that lie
+        // across the level's wind (stratus undulatus, the reference photos' parallel bands), with the roll length CloudLayerDef.RollLengthShare of the layer's depth. Drawn only
+        // while the tuning key cloud.sheetRolls is on (default off: the deck of before).
+        internal float RollAmount { get; set; }
         // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
         // How far the shape noise is smoothed where this type is drawn (E40 L6 shape; cfg key shapeSmoothing, in noise scales; below 0: the layer's own, 0: not at all): see

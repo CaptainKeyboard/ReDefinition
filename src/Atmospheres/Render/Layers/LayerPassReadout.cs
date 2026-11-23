@@ -17,7 +17,7 @@ namespace ReDefinition.Atmospheres
         internal static readonly string[] Vectors =
         {
             "_PlanetCenter", "_CamPos", "_CamForward", "_CamRight", "_CamUp", "_MapDim", "_Sun", "_SunColor", "_AmbientTop", "_AmbientBottom", "_MarchP", "_StepP", "_LimitP",
-            "_PhaseP", "_OutP", "_OutW", "_SkipP", "_SpacingP", "_ReuseP", "_LeapP", "_CostP", "_DitherP", "_ReconP", "_ReconD", "_MarchTex_TexelSize",
+            "_PhaseP", "_OutP", "_OutW", "_SkipP", "_SpacingP", "_ReuseP", "_LeapP", "_CostP", "_DitherP", "_RollP", "_ReconP", "_ReconD", "_MarchTex_TexelSize",
             "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BillowP", "_HeapP", "_BlendP", "_MapReachCov", "_MapReachType",
             "_LightP", "_LightQ", "_LightR", "_LightS", "_LightT", "_SunAir", "_LightU", "_LightV", "_LightW", "_LightX", "_CellA", "_CellB", "_CacheA", "_CacheX", "_CacheY", "_CacheZ", "_CacheH", "_CacheSlice",
             "_LvA", "_LvU", "_LvE", "_LvN", "_LvZ", "_LvC", "_LvF", "_LvSlice", "_LvP", "_LvD", "_LvR", "_LvS", "_LvBlur", "_LvBlurSigma",
@@ -26,7 +26,7 @@ namespace ReDefinition.Atmospheres
 
         internal static readonly string[] Arrays =
         {
-            "_LayerA", "_LayerB", "_LayerC", "_LayerD", "_LayerE", "_DitherM", "_NoiseOffset", "_NoiseLayer", "_NoiseStretch", "_NoiseAxis", "_LightM", "_LightL",
+            "_LayerA", "_LayerB", "_LayerC", "_LayerD", "_LayerE", "_DitherM", "_TypeRoll", "_NoiseOffset", "_NoiseLayer", "_NoiseStretch", "_NoiseAxis", "_LightM", "_LightL",
             "_MoonDir", "_MoonCol", "_BoltPos", "_BoltCol", "_LayerH", "_LayerH2", "_CullL", "_LvO", "_FieldC", "_CellE", "_CellS"
         };
 
