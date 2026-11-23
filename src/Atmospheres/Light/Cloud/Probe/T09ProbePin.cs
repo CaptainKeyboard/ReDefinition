@@ -612,7 +612,11 @@ namespace ReDefinition.Atmospheres
                     string[] p = kv.Split('=');
                     float value;
                     if (!PinStep("series_tune", p.Length == 2 && float.TryParse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture, out value), "-t09PinSeriesTune '" + kv + "'")) yield break;
-                    ForceTuning(p[0].Trim(), float.Parse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture));
+                    // A key with the prefix "setting." is a setting (setting.cloudResolution=1: the full pass without the reconstruction, the series' reference), else a tuning key.
+                    string tuneKey = p[0].Trim();
+                    double tuneValue = double.Parse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture);
+                    if (tuneKey.StartsWith("setting.", StringComparison.Ordinal)) SetSetting(tuneKey.Substring(8), tuneValue);
+                    else ForceTuning(tuneKey, (float)tuneValue);
                 }
                 yield return ProbeWait.Frames(2);
             }
